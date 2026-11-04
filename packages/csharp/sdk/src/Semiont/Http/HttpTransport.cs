@@ -66,6 +66,9 @@ public sealed partial class HttpTransport : IDisposable
         _ = RunAsync();
     }
 
+    internal TimeProvider Clock => clock;
+    internal CancellationToken Closed => lifetime.Token;
+
     public string BaseUrl { get; }
     public ConnectionState State { get { lock (gate) { return state; } } }
     public IAsyncEnumerable<ConnectionState> States(CancellationToken cancellation = default) => states.Observe(cancellation);
@@ -86,7 +89,16 @@ public sealed partial class HttpTransport : IDisposable
 
     public IAsyncEnumerable<BusFrame> Frames(string channel, CancellationToken cancellation = default) => Frames([channel], cancellation);
 
-    public IAsyncEnumerable<BusFrame> Frames(IEnumerable<string> channels, CancellationToken cancellation = default)
+    public IAsyncEnumerable<BusFrame> Frames(IEnumerable<string> channels, CancellationToken cancellation = default) =>
+        RawFrames(ReceivedFrames(channels, null, cancellation), cancellation);
+
+    private static async IAsyncEnumerable<BusFrame> RawFrames(IAsyncEnumerable<ReceivedBusFrame> frames,
+        [EnumeratorCancellation] CancellationToken cancellation)
+    {
+        await foreach (var frame in frames.WithCancellation(cancellation).ConfigureAwait(false)) yield return frame.Frame;
+    }
+
+    internal IAsyncEnumerable<ReceivedBusFrame> ReceivedFrames(IEnumerable<string> channels, ResourceId? resource, CancellationToken cancellation)
     {
         var selected = channels.ToHashSet(StringComparer.Ordinal);
         foreach (var channel in selected)
@@ -94,20 +106,25 @@ public sealed partial class HttpTransport : IDisposable
             if (!IsSubscribed(channel) && !ProtocolFacts.Channels("scoped").Contains(channel, StringComparer.Ordinal))
                 throw BusError("unsubscribed", channel);
         }
-        return ObserveFrames(selected, cancellation);
+        return ObserveFrames(selected, resource, cancellation);
     }
 
-    private async IAsyncEnumerable<BusFrame> ObserveFrames(HashSet<string> selected, [EnumeratorCancellation] CancellationToken cancellation)
+    internal IAsyncEnumerable<ReceivedBusFrame> BridgeFrames() => ObserveFrames(null, null, default);
+
+    private async IAsyncEnumerable<ReceivedBusFrame> ObserveFrames(HashSet<string>? selected, ResourceId? resource, [EnumeratorCancellation] CancellationToken cancellation)
     {
         var view = new FrameView(selected);
         await using var events = view.Stream.Observe(cancellation).GetAsyncEnumerator();
         Task<bool> first;
+        IDisposable? hold;
         lock (gate)
         {
             if (closed) yield break;
+            hold = resource is ResourceId id ? SubscribeToResource(id) : null;
             first = events.MoveNextAsync().AsTask();
             listeners.Add(view);
         }
+        using var retained = hold;
         try
         {
             if (!await first.ConfigureAwait(false)) yield break;
@@ -231,6 +248,12 @@ public sealed partial class HttpTransport : IDisposable
 
     public async Task<JsonElement?> RequestAsync(string operation, JsonElement payload, int? timeoutMs = null, CancellationToken cancellation = default)
     {
+        var frame = await RequestFrameAsync(operation, payload, timeoutMs, cancellation).ConfigureAwait(false);
+        return frame.Payload.TryGetProperty("response", out var value) ? value.Clone() : null;
+    }
+
+    internal async Task<BusFrame> RequestFrameAsync(string operation, JsonElement payload, int? timeoutMs, CancellationToken cancellation)
+    {
         var replies = ProtocolFacts.Operation(operation);
         if (!IsSubscribed(replies.Result) || !IsSubscribed(replies.Failure)) throw BusError("unsubscribed", operation);
         using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(timeoutMs ?? timing.BusRequestTimeoutMs), clock);
@@ -259,7 +282,7 @@ public sealed partial class HttpTransport : IDisposable
                 string? code = frame.Payload.TryGetProperty("code", out var field) && field.ValueKind == JsonValueKind.String ? field.GetString() : null;
                 throw new BusRequestError(ProtocolFacts.Failure(code), frame.Payload.ToString());
             }
-            return frame.Payload.TryGetProperty("response", out var value) ? value.Clone() : null;
+            return frame;
         }
         catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
         {
@@ -423,7 +446,12 @@ public sealed partial class HttpTransport : IDisposable
                             using var activity = SdkTelemetry.Start("bus.recv:{channel}", SdkTelemetry.BusTags(frame.Channel, frame.Scope), frame.Channel, parent);
                             BusLog.Line("RECV", frame.Channel, frame.Payload);
                             if (frame.CorrelationId is string correlation && pending.TryGetValue(correlation, out var reply) && (frame.Channel == reply.Result || frame.Channel == reply.Failure)) reply.Completion.TrySetResult(frame);
-                            foreach (var listener in listeners) { if (listener.Channels.Contains(frame.Channel)) listener.Stream.Publish(frame); }
+                            if (listeners.Count > 0)
+                            {
+                                var received = new ReceivedBusFrame(frame, parent);
+                                foreach (var listener in listeners)
+                                    if (listener.Channels?.Contains(frame.Channel) != false) listener.Stream.Publish(received);
+                            }
                         }
                     }
                 }
@@ -491,11 +519,10 @@ public sealed partial class HttpTransport : IDisposable
         return new TransportError(code, $"HTTP {status}: {text}", status);
     }
 
-    private double RetryAfter(HttpResponseMessage response)
-    {
-        var header = response.Headers.RetryAfter;
-        return Math.Max(0, header?.Delta?.TotalMilliseconds ?? (header?.Date - clock.GetUtcNow())?.TotalMilliseconds ?? 0);
-    }
+    private static double RetryAfter(HttpResponseMessage response) =>
+        response.Headers.TryGetValues("Retry-After", out var values)
+            ? ProtocolFacts.RetryAfterMilliseconds(values.FirstOrDefault()) ?? 0
+            : 0;
 
     private string? Token() { lock (gate) { return token; } }
     private bool IsRefused(string credential) { lock (gate) { return refusedToken == credential; } }
@@ -554,9 +581,9 @@ public sealed partial class HttpTransport : IDisposable
         owned?.Dispose();
     }
 
-    private sealed record FrameView(HashSet<string> Channels)
+    private sealed record FrameView(HashSet<string>? Channels)
     {
-        internal Broadcast<BusFrame> Stream { get; } = new();
+        internal Broadcast<ReceivedBusFrame> Stream { get; } = new();
     }
 
     private sealed record Pending(string Result, string Failure)

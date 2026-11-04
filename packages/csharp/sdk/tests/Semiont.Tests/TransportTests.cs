@@ -12,8 +12,350 @@ using Xunit;
 
 namespace Semiont.Tests;
 
-public sealed class TransportTests
+public sealed partial class TransportTests
 {
+    [Theory]
+    [InlineData("bind", "initiate")]
+    [InlineData("bind", "reportBodyError")]
+    [InlineData("beckon", "hover")]
+    [InlineData("beckon", "sparkle")]
+    public async Task LocalSignalsFollowTheirSurfaceCases(string space, string method)
+    {
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        using var client = new SemiontClient("http://unit.test", "token", http);
+        var row = SurfaceMethod(space, method);
+        var expected = row.GetProperty("via").GetProperty("local").GetString();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        async Task VerifyAsync<T>(BusChannel<T> channel, Action signal, JsonElement example) where T : class
+        {
+            await using var frames = client.Bus.Frames(channel, cancellation: deadline.Token).GetAsyncEnumerator();
+            var next = frames.MoveNextAsync().AsTask();
+            signal();
+            Assert.True(await next);
+            var frame = Assert.IsType<Heard<T>.Delivered>(frames.Current);
+            Assert.Equal(expected, frame.Received.Frame.Channel);
+            Assert.True(JsonElement.DeepEquals(example.GetProperty("sends"), frame.Received.Frame.Payload));
+            Assert.False(server.Emits.Reader.TryPeek(out _));
+        }
+
+        foreach (var example in row.GetProperty("cases").EnumerateArray())
+        {
+            var args = example.GetProperty("args");
+            switch (method)
+            {
+                case "initiate":
+                    var binding = args.GetProperty("input").Deserialize<BindInitiateCommand>() ?? throw new InvalidOperationException("No binding");
+                    await VerifyAsync(BusChannels.BindInitiate, () => client.Bind.Initiate(binding), example);
+                    break;
+                case "reportBodyError":
+                    var error = args.GetProperty("input").Deserialize<ResourceErrorEvent>() ?? throw new InvalidOperationException("No error");
+                    await VerifyAsync(BusChannels.BindBodyError, () => client.Bind.ReportBodyError(error), example);
+                    break;
+                case "hover":
+                    await VerifyAsync(BusChannels.BeckonHover, () => client.Beckon.Hover(args.GetProperty("annotationId").Deserialize<AnnotationId?>()), example);
+                    break;
+                case "sparkle":
+                    await VerifyAsync(BusChannels.BeckonSparkle, () => client.Beckon.Sparkle(args.GetProperty("annotationId").Deserialize<AnnotationId>()), example);
+                    break;
+                default: throw new InvalidOperationException("Unknown local method: " + method);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData("attention", 0)]
+    [InlineData("click", null)]
+    [InlineData("openResource", 2)]
+    [InlineData("sparkleAll", 1)]
+    public async Task BeckonWireSignalsFollowTheirSurfaceCases(string method, int? count)
+    {
+        using var server = new Handler { EmitReply = JsonSerializer.Serialize(new BusEmitAccepted { Subscribers = count }) };
+        using var http = new HttpClient(server);
+        using var client = new SemiontClient("http://unit.test", "token", http);
+        var row = SurfaceMethod("beckon", method);
+        var expected = row.GetProperty("via").GetProperty("emit").GetString();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        foreach (var example in row.GetProperty("cases").EnumerateArray())
+        {
+            var args = example.GetProperty("args");
+            var result = method switch
+            {
+                "attention" => await client.Beckon.AttentionAsync(args.GetProperty("resourceId").Deserialize<ResourceId>(),
+                    args.TryGetProperty("annotationId", out var id) ? id.Deserialize<AnnotationId?>() : null, deadline.Token),
+                "click" => await client.Beckon.ClickAsync(args.GetProperty("annotationId").Deserialize<AnnotationId>(), deadline.Token),
+                "openResource" => await client.Beckon.OpenResourceAsync(args.GetProperty("resourceId").Deserialize<ResourceId>(), deadline.Token),
+                "sparkleAll" => await client.Beckon.SparkleAllAsync(args.GetProperty("annotationId").Deserialize<AnnotationId>(), deadline.Token),
+                _ => throw new InvalidOperationException("Unknown wire method: " + method),
+            };
+            var sent = await server.Emits.Reader.ReadAsync(deadline.Token);
+            Assert.Equal(expected, sent.Body.GetProperty("channel").GetString());
+            Assert.True(JsonElement.DeepEquals(example.GetProperty("sends"), sent.Body.GetProperty("payload")));
+            Assert.Equal(count, result);
+        }
+    }
+
+    [Fact]
+    public async Task BindingBodyAwaitsTheSharedOperationReply()
+    {
+        var row = SurfaceMethod("bind", "body");
+        var example = Assert.Single(row.GetProperty("cases").EnumerateArray());
+        var args = example.GetProperty("args");
+        var expected = row.GetProperty("via").GetProperty("request").GetString();
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        using var client = new SemiontClient("http://unit.test", "token", http);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var pending = client.Bind.BodyAsync(args.GetProperty("resourceId").Deserialize<ResourceId>(),
+            args.GetProperty("annotationId").Deserialize<AnnotationId>(),
+            args.GetProperty("operations").Deserialize<BindBodyOperation[]>() ?? throw new InvalidOperationException("No operations"),
+            deadline.Token);
+        var sent = await server.Emits.Reader.ReadAsync(deadline.Token);
+        Assert.False(pending.IsCompleted);
+        Assert.Equal(expected, sent.Body.GetProperty("channel").GetString());
+        Assert.True(JsonElement.DeepEquals(example.GetProperty("sends"), sent.Body.GetProperty("payload")));
+        var frame = JsonSerializer.Serialize(new
+        {
+            channel = BusOperations.BindUpdateBody.Result.Name,
+            correlationId = sent.Body.GetProperty("correlationId").GetString(),
+            payload = new { },
+        });
+        server.Stream.Push("event: bus-event\ndata: " + frame + "\n\n");
+        await pending.WaitAsync(deadline.Token);
+    }
+
+    [Fact]
+    public async Task LocalBusBridgesWireFramesAndKeepsLocalSignalsOffTheWire()
+    {
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        using var client = new SemiontClient("http://unit.test", "token", http);
+        await OpenAsync(client.Transport);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var local = client.Bus.Frames(BusChannels.BeckonSparkle, cancellation: deadline.Token).GetAsyncEnumerator();
+        await using var wire = client.Wire.Frames(BusChannels.BeckonSparkle, cancellation: deadline.Token).GetAsyncEnumerator();
+        var localFirst = local.MoveNextAsync().AsTask();
+        var wireFirst = wire.MoveNextAsync().AsTask();
+        client.Beckon.Sparkle(AnnotationId.Parse("ann-local"));
+        Assert.True(await localFirst);
+        Assert.Equal("ann-local", Assert.IsType<Heard<BeckonSparkleEvent>.Delivered>(local.Current).Payload.AnnotationId.Value);
+        Assert.False(wireFirst.IsCompleted);
+        Assert.False(server.Emits.Reader.TryPeek(out _));
+
+        var localNext = local.MoveNextAsync().AsTask();
+        server.Stream.Push("event: bus-event\ndata: " + """
+            {"channel":"beckon:sparkle","payload":{"annotationId":"ann-wire","_userId":"did:web:example.org:users:ada"}}
+            """ + "\n\n");
+        Assert.True(await wireFirst);
+        Assert.True(await localNext);
+        Assert.True(JsonElement.DeepEquals(wire.Current.Received.Frame.Payload, local.Current.Received.Frame.Payload));
+        Assert.Equal("did:web:example.org:users:ada", local.Current.Received.UserId?.Value);
+        client.Dispose();
+        Assert.False(await local.MoveNextAsync());
+    }
+
+    [Fact]
+    public async Task TypedFramesKeepAttributionAndRefuseMalformedPayloadsInPlace()
+    {
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        using var client = new SemiontClient("http://unit.test", "token", http);
+        await OpenAsync(client.Transport);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var frames = client.Wire.Frames(BusChannels.BeckonFocus, cancellation: deadline.Token).GetAsyncEnumerator();
+        var first = frames.MoveNextAsync().AsTask();
+        server.Stream.Push("event: bus-event\ndata: {\"channel\":\"beckon:focus\",\"payload\":{}}\n\n");
+        server.Stream.Push("event: bus-event\ndata: " + """
+            {"channel":"beckon:focus","payload":{"resourceId":"r1","_userId":"did:web:example.org:users:ada","_trace":{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}}}
+            """ + "\n\n");
+
+        Assert.True(await first);
+        Assert.IsType<Heard<BeckonFocusEvent>.Refused>(frames.Current);
+        Assert.True(await frames.MoveNextAsync());
+        var delivered = Assert.IsType<Heard<BeckonFocusEvent>.Delivered>(frames.Current);
+        Assert.Equal("r1", delivered.Payload.ResourceId.Value);
+        Assert.Equal("did:web:example.org:users:ada", delivered.Received.UserId?.Value);
+        Assert.Equal("4bf92f3577b34da6a3ce929d0e0e4736", delivered.Received.Trace.TraceId.ToString());
+        Assert.False(delivered.Received.Frame.Payload.TryGetProperty("_trace", out _));
+    }
+
+    [Fact]
+    public async Task TypedScopedFramesHoldAndReleaseTheResourceAndFilterOtherScopes()
+    {
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        using var transport = new HttpTransport("http://unit.test", "token", ["beckon:focus"],
+            new Timing { LazyRemoveMs = 0, LingerMs = 0 }, httpClient: http);
+        var bus = new Bus(transport);
+        await OpenAsync(transport);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await server.Subscriptions.Reader.ReadAsync(deadline.Token);
+        await using (var frames = bus.Frames(BusChannels.MarkBodyUpdated, ResourceId.Parse("r1"), deadline.Token).GetAsyncEnumerator())
+        {
+            var first = frames.MoveNextAsync().AsTask();
+            var subscription = await server.Subscriptions.Reader.ReadAsync(deadline.Token);
+            Assert.Equal("r1", Assert.Single(subscription.GetProperty("scoped").EnumerateArray()).GetProperty("scope").GetString());
+            server.Stream.Push("event: bus-event\ndata: {\"channel\":\"mark:body-updated\",\"scope\":\"r2\",\"payload\":{}}\n\n");
+            server.Stream.Push("event: bus-event\ndata: {\"channel\":\"mark:body-updated\",\"scope\":\"r1\",\"payload\":{}}\n\n");
+            Assert.True(await first);
+            Assert.Equal("r1", frames.Current.Received.Frame.Scope?.Value);
+        }
+        var released = await server.Subscriptions.Reader.ReadAsync(deadline.Token);
+        Assert.Empty(released.GetProperty("scoped").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task TypedEmitUsesTheGeneratedChannelAndPayload()
+    {
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        using var client = new SemiontClient("http://unit.test", "token", http);
+        await OpenAsync(client.Transport);
+        await client.Wire.EmitAsync(BusChannels.BeckonFocus, new BeckonFocusEvent { ResourceId = ResourceId.Parse("r1") },
+            correlationId: "typed-emit");
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var sent = await server.Emits.Reader.ReadAsync(deadline.Token);
+        Assert.Equal("token", sent.Token);
+        Assert.Equal("beckon:focus", sent.Body.GetProperty("channel").GetString());
+        Assert.Equal("typed-emit", sent.Body.GetProperty("correlationId").GetString());
+        Assert.Equal("r1", sent.Body.GetProperty("payload").GetProperty("resourceId").GetString());
+    }
+
+    [Fact]
+    public async Task TypedOperationsDecodeTheDeclaredReplyEnvelope()
+    {
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        using var client = new SemiontClient("http://unit.test", "token", http);
+        await OpenAsync(client.Transport);
+        server.Answer = sent =>
+        {
+            var frame = JsonSerializer.Serialize(new
+            {
+                channel = BusOperations.YieldCloneTokenRequested.Result.Name,
+                correlationId = sent.GetProperty("correlationId").GetString(),
+                payload = JsonSerializer.Deserialize<JsonElement>("""
+                    {"response":{"token":"clone","expiresAt":"2026-11-04T00:00:00Z","resource":{"@context":"https://schema.org","@id":"r1","name":"One","representations":[]}}}
+                    """),
+            });
+            server.Stream.Push("event: bus-event\ndata: " + frame + "\n\n");
+        };
+        var result = await client.Wire.RequestAsync(BusOperations.YieldCloneTokenRequested,
+            new YieldCloneTokenRequest { ResourceId = ResourceId.Parse("r1") });
+        Assert.Equal("clone", result.Response.Token);
+    }
+
+    [Theory]
+    [InlineData("addEntityType")]
+    [InlineData("addEntityTypes")]
+    [InlineData("addTagSchema")]
+    public async Task ClientFrameMethodsFollowTheirSurfaceCases(string method)
+    {
+        var row = SurfaceMethod("frame", method);
+        var example = Assert.Single(row.GetProperty("cases").EnumerateArray());
+        var args = example.GetProperty("args");
+        var channel = row.GetProperty("via").GetProperty("request").GetString() ?? throw new InvalidOperationException("Missing request channel");
+
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        using var client = new SemiontClient("http://unit.test", "credential", http);
+        await OpenAsync(client.Transport);
+
+        var call = method switch
+        {
+            "addEntityType" => client.Frame.AddEntityTypeAsync(args.GetProperty("type").Deserialize<string>() ?? throw new InvalidOperationException("Missing type")),
+            "addEntityTypes" => client.Frame.AddEntityTypesAsync(args.GetProperty("types").Deserialize<string[]>() ?? throw new InvalidOperationException("Missing types")),
+            "addTagSchema" => client.Frame.AddTagSchemaAsync(args.GetProperty("schema").Deserialize<TagSchema>() ?? throw new InvalidOperationException("Missing schema")),
+            _ => throw new InvalidOperationException("Unknown frame method: " + method),
+        };
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        async Task ObserveAndAnswerAsync(string expectedChannel, JsonElement expectedPayload)
+        {
+            var sent = await server.Emits.Reader.ReadAsync(deadline.Token);
+            Assert.Equal("credential", sent.Token);
+            Assert.Equal(expectedChannel, sent.Body.GetProperty("channel").GetString());
+            Assert.True(JsonElement.DeepEquals(expectedPayload, sent.Body.GetProperty("payload")));
+            Assert.False(call.IsCompleted);
+            Assert.False(server.Emits.Reader.TryPeek(out _));
+            var result = ProtocolFacts.Operation(expectedChannel).Result;
+            var frame = JsonSerializer.Serialize(new
+            {
+                channel = result,
+                correlationId = sent.Body.GetProperty("correlationId").GetString(),
+                payload = new { },
+            });
+            server.Stream.Push("event: bus-event\ndata: " + frame + "\n\n");
+        }
+
+        await ObserveAndAnswerAsync(channel, example.GetProperty("sends"));
+        if (example.TryGetProperty("then", out var then))
+            foreach (var next in then.EnumerateArray())
+                await ObserveAndAnswerAsync(next.GetProperty("request").GetString() ?? throw new InvalidOperationException("Missing follow-up channel"), next.GetProperty("sends"));
+
+        await call.WaitAsync(deadline.Token);
+        Assert.False(server.Emits.Reader.TryPeek(out _));
+        client.Dispose();
+        Assert.Equal(ConnectionState.Closed, client.State);
+        using var response = await http.GetAsync("http://unit.test/caller-owned");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("auth", "me", "current-user", """{"did":"did:web:kb.example:users:ada","domain":"kb.example","email":null,"name":null,"image":null}""")]
+    [InlineData("auth", "mediaToken", "media-token", """{"token":"media"}""")]
+    [InlineData("auth", "protectedResourceMetadata", "protected-resource-metadata", """{"resource":"https://kb.example","authorization_servers":["https://issuer.example"],"bearer_methods_supported":["header"]}""")]
+    [InlineData("system", "healthCheck", "health", """{"status":"healthy","message":"up","version":"1","timestamp":"2026-11-03T00:00:00Z"}""")]
+    [InlineData("system", "status", "status", """{"status":"ready","version":"1","features":{"semanticContent":"up","collaboration":"up"},"message":"ready"}""")]
+    public async Task ClientGatewayMethodsFollowTheirSurfaceCases(string space, string method, string driver, string reply)
+    {
+        var row = SurfaceMethod(space, method);
+        var example = Assert.Single(row.GetProperty("cases").EnumerateArray());
+        using var corpus = JsonDocument.Parse(File.ReadAllText(Path.Join(AppContext.BaseDirectory, "corpus/sdk/wire/gateway-operations.json")));
+        var steps = corpus.RootElement.GetProperty("steps").EnumerateArray().ToArray();
+        var at = Array.FindIndex(steps, step => step.TryGetProperty("driver", out var name) && name.GetString() == driver);
+        Assert.True(at >= 0);
+        var wire = steps[at + 1];
+        var requests = 0;
+        using var server = new Handler
+        {
+            Other = async (request, cancellation) =>
+            {
+                requests++;
+                Assert.Equal(wire.GetProperty("wire").GetString(), request.Method.Method + " " + request.RequestUri?.AbsolutePath);
+                if (wire.TryGetProperty("token", out _)) Assert.Equal("credential", request.Headers.Authorization?.Parameter);
+                if (method == "protectedResourceMetadata") Assert.Null(request.Headers.Authorization);
+                using var body = JsonDocument.Parse(request.Content is null ? "{}" : await request.Content.ReadAsStringAsync(cancellation));
+                Assert.True(JsonElement.DeepEquals(example.GetProperty("sends"), body.RootElement));
+                return new HttpResponseMessage((HttpStatusCode)wire.GetProperty("status").GetInt32()) { Content = new StringContent(reply) };
+            },
+        };
+        using var http = new HttpClient(server);
+        using var client = new SemiontClient(new HttpTransport("http://unit.test", "credential", [], httpClient: http));
+        var actual = method switch
+        {
+            "me" => JsonSerializer.SerializeToElement(await client.Auth.MeAsync()),
+            "mediaToken" => JsonSerializer.SerializeToElement(await client.Auth.MediaTokenAsync(
+                example.GetProperty("args").GetProperty("resourceId").Deserialize<ResourceId>())),
+            "protectedResourceMetadata" => JsonSerializer.SerializeToElement(await client.Auth.ProtectedResourceMetadataAsync()),
+            "healthCheck" => JsonSerializer.SerializeToElement(await client.System.HealthCheckAsync()),
+            "status" => JsonSerializer.SerializeToElement(await client.System.StatusAsync()),
+            _ => throw new InvalidOperationException("Unknown gateway method: " + method),
+        };
+        using var expected = JsonDocument.Parse(reply);
+        Assert.True(JsonElement.DeepEquals(expected.RootElement, actual));
+        Assert.Equal(1, requests);
+    }
+
+    private static JsonElement SurfaceMethod(string space, string method)
+    {
+        using var table = JsonDocument.Parse(File.ReadAllText(Path.Join(AppContext.BaseDirectory, "specs/client/surface.json")));
+        return table.RootElement.GetProperty("namespaces").EnumerateArray()
+            .Single(row => row.GetProperty("namespace").GetString() == space).GetProperty("methods").EnumerateArray()
+            .Single(row => row.GetProperty("method").GetString() == method).Clone();
+    }
+
     [Fact]
     public async Task AReplyCanArriveBeforeTheEmitReturns()
     {
@@ -159,6 +501,47 @@ public sealed class TransportTests
         Assert.Equal(status, error.Status);
         Assert.True(await next);
         Assert.Same(error, errors.Current);
+    }
+
+    [Theory]
+    [InlineData(408, true)]
+    [InlineData(501, false)]
+    public async Task GatewayRequestsApplyTheSharedStatusAndRetryAfterRules(int status, bool retries)
+    {
+        var clock = new TestClock();
+        var calls = 0;
+        using var server = new Handler();
+        server.Other = (_, _) =>
+        {
+            if (++calls > 1)
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""{"did":"did:web:example.org:users:ada","domain":"example.org","email":null,"name":null,"image":null}"""),
+                });
+
+            var response = new HttpResponseMessage((HttpStatusCode)status) { Content = new StringContent("{}") };
+            response.Headers.TryAddWithoutValidation("Retry-After", "2");
+            return Task.FromResult(response);
+        };
+        using var client = new HttpClient(server);
+        using var transport = new HttpTransport("http://unit.test", "token", [], httpClient: client, timeProvider: clock);
+        var request = transport.GetCurrentUserAsync();
+        if (retries)
+        {
+            var delay = TimeSpan.FromSeconds(2);
+            await clock.WaitForAsync(delay);
+            Assert.Equal(1, calls);
+            clock.Advance(delay);
+            var user = await request.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal("did:web:example.org:users:ada", user.Did.ToString());
+            Assert.Equal(2, calls);
+        }
+        else
+        {
+            var error = await Assert.ThrowsAsync<TransportError>(() => request.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.Equal(status, error.Status);
+            Assert.Equal(1, calls);
+        }
     }
 
     [Fact]
@@ -377,6 +760,7 @@ public sealed class TransportTests
         internal Channel<(JsonElement Body, string? Token)> Emits { get; } = Channel.CreateUnbounded<(JsonElement, string?)>();
         internal Action<JsonElement>? Answer { get; set; }
         internal Func<string?, HttpStatusCode>? EmitStatus { get; init; }
+        internal string EmitReply { get; init; } = "{}";
         internal Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? Other { get; set; }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -397,7 +781,7 @@ public sealed class TransportTests
                 var body = parsed.RootElement.Clone();
                 Emits.Writer.TryWrite((body, request.Headers.Authorization?.Parameter));
                 Answer?.Invoke(body);
-                return new HttpResponseMessage(EmitStatus?.Invoke(request.Headers.Authorization?.Parameter) ?? HttpStatusCode.Accepted) { Content = new StringContent("{}") };
+                return new HttpResponseMessage(EmitStatus?.Invoke(request.Headers.Authorization?.Parameter) ?? HttpStatusCode.Accepted) { Content = new StringContent(EmitReply) };
             }
             return Other is not null ? await Other(request, cancellationToken) : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") };
         }

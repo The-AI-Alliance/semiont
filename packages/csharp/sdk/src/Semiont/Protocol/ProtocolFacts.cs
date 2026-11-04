@@ -18,6 +18,15 @@ internal static class ProtocolFacts
     internal static string TraceField => Registry.RootElement.GetProperty("trace").GetProperty("field").GetString()
         ?? throw new InvalidOperationException("No trace field");
 
+    internal static IEnumerable<string> OperationReplies()
+    {
+        foreach (var operation in Registry.RootElement.GetProperty("operations").EnumerateArray())
+        {
+            yield return operation.GetProperty("result").GetString() ?? throw new InvalidOperationException("Missing result channel");
+            yield return operation.GetProperty("failure").GetString() ?? throw new InvalidOperationException("Missing failure channel");
+        }
+    }
+
     internal static (string Result, string Failure) Operation(string channel)
     {
         var row = Registry.RootElement.GetProperty("operations").EnumerateArray().Single(operation => operation.GetProperty("request").GetString() == channel);
@@ -56,8 +65,15 @@ internal static class ProtocolFacts
         return family.GetProperty("unclassified").GetString() ?? throw new InvalidOperationException("No unclassified error code");
     }
 
-    internal static bool RetryEmit(int status) => Retry.RootElement.GetProperty("rules").EnumerateArray().Any(row =>
-        row.GetProperty("rule").GetString() == "boot" && row.TryGetProperty("status", out var stated) && stated.GetInt32() == status && row.GetProperty("retries").GetBoolean());
+    private static bool RetryStatus(string rule, int? status) => Retry.RootElement.GetProperty("rules").EnumerateArray().Any(row =>
+        row.GetProperty("rule").GetString() == rule && row.GetProperty("retries").GetBoolean() &&
+        (row.TryGetProperty("status", out var stated) ? stated.GetInt32() == status : status is null));
+
+    internal static bool RetryEmit(int status) => RetryStatus("boot", status);
+
+    internal static bool RetryTransport(int? status, string? method) =>
+        status is not null && method?.ToUpperInvariant() is ("GET" or "HEAD" or "PUT" or "DELETE" or "OPTIONS" or "TRACE") &&
+        RetryStatus("transport", status);
 
     internal static string SignInError(string name) => Errors.RootElement.GetProperty("signIn").GetProperty("codes").EnumerateArray()
         .Select(row => row.GetProperty("code").GetString() ?? throw new InvalidOperationException("Null error code"))
@@ -67,7 +83,13 @@ internal static class ProtocolFacts
         .Select(row => row.GetProperty("code").GetString() ?? throw new InvalidOperationException("Null error code"))
         .Single(code => code == "session." + name);
 
-    internal static bool RetryRefresh(int? status) => Retry.RootElement.GetProperty("rules").EnumerateArray().Any(row =>
-        row.GetProperty("rule").GetString() == "refresh" &&
-        (row.TryGetProperty("status", out var stated) ? stated.GetInt32() == (status >= 500 ? 500 : status) : status is null) && row.GetProperty("retries").GetBoolean());
+    internal static bool RetryRefresh(int? status) => RetryStatus("refresh", status >= 500 ? 500 : status);
+
+    internal static long? RetryAfterMilliseconds(string? header)
+    {
+        var seconds = header.AsSpan().Trim();
+        if (seconds.IsEmpty || seconds.ContainsAnyExceptInRange('0', '9')) return null;
+        return long.TryParse(seconds, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var value)
+            && value <= long.MaxValue / 1000 ? value * 1000 : null;
+    }
 }

@@ -9,6 +9,18 @@ internal static partial class WireJson
 
     private static JsonElement Definition(string name) => Schemas.RootElement.GetProperty(name);
 
+    internal static bool Declares(string schema, string member) => Declares(Definition(schema), member);
+
+    private static bool Declares(JsonElement schema, string member)
+    {
+        if (schema.TryGetProperty("$ref", out var reference))
+            return Declares(Path.GetFileNameWithoutExtension(reference.GetString()) ?? throw new JsonException("Missing schema reference"), member);
+        if (schema.TryGetProperty("properties", out var properties) && properties.TryGetProperty(member, out _)) return true;
+        foreach (var composition in new[] { "allOf", "oneOf", "anyOf" })
+            if (schema.TryGetProperty(composition, out var parts) && parts.EnumerateArray().Any(part => Declares(part, member))) return true;
+        return false;
+    }
+
     internal static void Validate(string name, JsonElement value) => Validate(Definition(name), value, name);
 
     private static void Validate(JsonElement schema, JsonElement value, string path)

@@ -6,6 +6,7 @@
  * reconcile reports (§ Reconcile), and what a Smelter does when its provider
  * has not fetched its model yet (§ The embedding provider).
  */
+import { kbDid } from '@semiont/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eventually } from '../harness/net';
 import { NOT_FETCHED } from '../harness/ollama-embed';
@@ -32,12 +33,13 @@ const REQUIRED: ReadonlyArray<[what: string, without: (settings: SmelterSettings
 ];
 
 eachSmelter('a Smelter, as a process', (world) => {
-  it('answers at its health port for itself: for its stream, for how it follows the record, for the events it applied, for its reconcile, and for what it holds its index to', async () => {
+  it('answers at its health port for itself: for the knowledge base it serves, for its stream, for how it follows the record, for the events it applied, for its reconcile, and for what it holds its index to', async () => {
     const health = await world().smelter.health();
     const { embedding, chunking } = world().settings;
 
-    expect(Object.keys(health).sort()).toEqual(['eventsProcessed', 'following', 'index', 'reconcile', 'status', 'stream']);
+    expect(Object.keys(health).sort()).toEqual(['eventsProcessed', 'following', 'index', 'kb', 'reconcile', 'status', 'stream']);
     expect(health.status).toBe('ok');
+    expect(health.kb).toBe(kbDid(world().kb.world.served.domain));
     // Its start has swept the record, which it lists once its stream is open.
     expect(health.stream).toBe('open');
     expect(health.following).toEqual({ sweep: 'done', stopped: 0, refused: 0, streamDrops: 0 });

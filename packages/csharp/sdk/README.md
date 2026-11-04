@@ -4,9 +4,25 @@
 
 Under construction. Models and checked identifiers are generated from the protocol schemas
 during compilation. The HTTP transport and wire conformance driver are implemented; the
-sign-in store, issuer renewal, and kept-session lifecycle are implemented; the high-level
-client is next. Nothing is published to NuGet. Consumers will use
-a project reference until publishing is enabled separately.
+sign-in store, issuer renewal, and kept-session lifecycle are implemented.
+Use a project reference until the NuGet package is published.
+
+Construct `SemiontClient` with a gateway URL and token to use the typed
+`Frame`, `Auth`, `System`, `Bind`, and `Beckon` namespaces. Frame mutations await their replies.
+A batch of entity types sends each mutation after the preceding one settles.
+The client disposes its transport, and a supplied HTTP client stays caller-owned.
+
+`client.Wire` accepts generated `BusChannels` and `BusOperations` values.
+A typed request returns the channel's declared reply model. A typed read
+gives a `Heard<T>` value for each frame, with its envelope and trace context.
+Malformed payloads yield a refusal and the read continues. A scoped read
+keeps its resource subscribed until the enumerator ends.
+
+`client.Bus` carries local signals and receives frames from the wire.
+Read an existing resource scope through the local bus, or use
+`client.Wire.Frames` to hold the scope during the read. Bind initiation and
+Beckon hover and sparkle stay local. Beckon attention and its other remote
+signals return the gateway's subscriber count when it can count observers.
 
 The SDK targets .NET 11. [global.json](global.json) pins the SDK exactly, with roll-forward
 disabled. [dotnet-version.sh](../scripts/dotnet-version.sh) derives the container
@@ -97,3 +113,22 @@ disposal. Only a successful grant with both access and refresh tokens is kept.
 `Issuer.SignOutAsync(kept)` attempts revocation and forgets the local credentials even
 when the issuer cannot be reached. Discovery rejects an issuer document that describes
 a different issuer or provides invalid endpoint addresses.
+
+`ServiceToken` gives a service account's bearer header through
+`AuthorizationAsync`. Supply its issuer, client ID, and either a client secret
+or an RSA private key. The service discovers the endpoint once and shares an
+in-flight grant among callers. The caller keeps any supplied key and HTTP client
+usable for the service token's lifetime.
+
+`AgentToken` uses a service token to sign in to a knowledge base and confirm
+its DID. It renews the token when due or after a credential refusal.
+`RefreshAsync` can serve as a transport refresher, and `TokensChanged` exposes
+updates to consumers. Dispose the agent before disposing its service token.
+
+`Semiont.Session.Identity` derives a knowledge base's DID and token audience
+from its domain. It also derives person and agent DIDs from issuer subjects,
+encoding each subject as one DID segment.
+
+HTTP response retries follow the shared boot, transport, and refresh rules.
+The transport honors a whole-seconds `Retry-After` header. The separate job
+retry rule belongs to the worker.

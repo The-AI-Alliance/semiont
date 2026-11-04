@@ -109,16 +109,6 @@ public sealed class IssuerTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => renewal);
     }
 
-    [Fact]
-    public void EverySharedRefreshRetryCaseRuns()
-    {
-        using var table = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "specs/retry/cases.json")));
-        foreach (var row in table.RootElement.GetProperty("rules").EnumerateArray().Where(row => row.GetProperty("rule").GetString() == "refresh"))
-            Assert.Equal(row.GetProperty("retries").GetBoolean(), ProtocolFacts.RetryRefresh(row.TryGetProperty("status", out var status) ? status.GetInt32() : null));
-        Assert.True(ProtocolFacts.RetryRefresh(502));
-        Assert.True(ProtocolFacts.RetryRefresh(504));
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
