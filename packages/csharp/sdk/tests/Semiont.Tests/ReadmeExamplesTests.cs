@@ -1,6 +1,9 @@
+using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
+using Semiont.SignIn;
 using Semiont.Testing;
 using Semiont.Types;
 using Xunit;
@@ -66,6 +69,73 @@ public sealed partial class TransportTests
         Assert.Equal(resource.Name, await writer.Lines.Reader.ReadAsync(deadline.Token));
         stop.Cancel();
         await watching.WaitAsync(deadline.Token);
+    }
+
+    [Fact]
+    public async Task ReadmeWorkerRefreshesARefusedTokenAndSettlesTheHeldJobOnStop()
+    {
+        var grants = 0;
+        using var gateway = new Handler
+        {
+            EmitStatus = token => token == "first-token" ? HttpStatusCode.Unauthorized : HttpStatusCode.Accepted,
+            Other = (request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = request.RequestUri?.AbsolutePath switch
+                {
+                    "/.well-known/openid-configuration" => JsonContent.Create(new
+                    {
+                        issuer = "https://issuer.example",
+                        authorization_endpoint = "https://issuer.example/authorize",
+                        token_endpoint = "https://issuer.example/token",
+                    }),
+                    "/token" => JsonContent.Create(new
+                    {
+                        access_token = Interlocked.Increment(ref grants) == 1 ? "first-token" : "renewed-token",
+                        expires_in = 60,
+                    }),
+                    "/api/users/me" => JsonContent.Create(new
+                    {
+                        did = "did:web:kb.example:agents:worker",
+                        domain = "kb.example",
+                        email = (string?)null,
+                        name = (string?)null,
+                        image = (string?)null,
+                    }),
+                    _ => throw new InvalidOperationException("Unexpected request"),
+                },
+            }),
+        };
+        using var http = new HttpClient(gateway, disposeHandler: false);
+        using var service = new ServiceToken("https://issuer.example", "worker", "secret", http);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);
+        var endpoint = new HttpEndpoint { Host = "kb.example", Port = 443, Protocol = HttpEndpointProtocol.Https };
+        var filters = Required<JobFilter[]>(JsonSerializer.SerializeToElement(new[] { new { jobType = "mark", @params = new { motivation = "highlighting" } } }));
+        var handling = new TaskCompletionSource<IHeldJob>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var worker = RunWorker.RunAsync(endpoint, service, filters, (job, cancellation) =>
+        {
+            handling.TrySetResult(job);
+            return Task.Delay(Timeout.InfiniteTimeSpan, cancellation);
+        }, http: http, cancellation: stop.Token);
+
+        var (refused, firstToken) = await gateway.Emits.Reader.ReadAsync(deadline.Token);
+        Assert.Equal(BusOperations.JobClaim.Request.Name, Text(refused, "channel"));
+        Assert.Equal("first-token", firstToken);
+        var (claim, renewedToken) = await gateway.Emits.Reader.ReadAsync(deadline.Token);
+        Assert.Equal(BusOperations.JobClaim.Request.Name, Text(claim, "channel"));
+        Assert.Equal("renewed-token", renewedToken);
+        Reply(gateway, claim, BusOperations.JobClaim.Result.Name, new JobClaimedResult { Response = RunningMarkJob() });
+        var (started, startToken) = await gateway.Emits.Reader.ReadAsync(deadline.Token);
+        Assert.Equal(BusChannels.JobStart.Name, Text(started, "channel"));
+        Assert.Equal(renewedToken, startToken);
+        var held = await handling.Task.WaitAsync(deadline.Token);
+        stop.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker.WaitAsync(deadline.Token));
+        var (failed, stopToken) = await gateway.Emits.Reader.ReadAsync(deadline.Token);
+        Assert.Equal(BusChannels.JobFail.Name, Text(failed, "channel"));
+        Assert.Equal(renewedToken, stopToken);
+        Assert.True(held.Settled);
+        Assert.Equal(2, grants);
     }
 
     private sealed class LineWriter : StringWriter
