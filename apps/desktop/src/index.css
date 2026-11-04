@@ -524,6 +524,62 @@ button:disabled {
 .git-modal__missing {
   color: var(--danger);
 }
+.secrets-modal {
+  max-width: 38rem;
+}
+.secrets-modal__intro {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.secrets-modal__provider {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-sidebar);
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.secrets-modal__provider h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.secrets-modal__provider-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.secrets-modal__provider p {
+  margin: 0;
+}
+.secrets-modal__provider code {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
+}
+.secrets-modal__provider a {
+  align-self: flex-start;
+  color: var(--accent);
+  font-size: 0.84rem;
+  text-decoration: none;
+}
+.secrets-modal__provider a:hover,
+.secrets-modal__provider a:focus-visible {
+  text-decoration: underline;
+}
+.secrets-modal__available {
+  color: var(--success);
+}
+.secrets-modal__missing {
+  color: var(--danger);
+}
 @media (width <= 560px) {
   .telemetry-service,
   .telemetry-modal__collector {

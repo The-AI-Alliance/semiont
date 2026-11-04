@@ -11,5 +11,6 @@ export interface LauncherBridge {
   status(): Promise<LauncherStatusResult>;
   about(): Promise<LauncherStatusResult>;
   gitPath(): Promise<string | null>;
+  opPath(): Promise<string | null>;
   ollamaInfo(): Promise<OllamaInfo>;
 }

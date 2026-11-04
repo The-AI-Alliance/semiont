@@ -148,6 +148,23 @@ ipcMain.handle('system:git-path', async () => {
   return null;
 });
 
+ipcMain.handle('system:op-path', async () => {
+  const pathValue = launcherEnvironment().PATH ?? '';
+  const executableNames = process.platform === 'win32' ? ['op.exe'] : ['op'];
+  for (const directory of pathValue.split(delimiter).filter(Boolean)) {
+    for (const executableName of executableNames) {
+      const candidate = join(directory, executableName);
+      try {
+        await access(candidate, constants.X_OK);
+        return candidate;
+      } catch {
+        // Keep looking through the same PATH Desktop gives the launcher.
+      }
+    }
+  }
+  return null;
+});
+
 function setApplicationMenu(): void {
   const appMenu: MenuItemConstructorOptions[] = [
     { role: 'about' },

@@ -32,6 +32,7 @@ import { LauncherStatusModal, type LauncherStatusState } from './components/Laun
 import { TelemetryModal } from './components/TelemetryModal';
 import { RuntimeModal } from './components/RuntimeModal';
 import { GitModal, type GitCheck } from './components/GitModal';
+import { SecretsModal, type SecretsCheck } from './components/SecretsModal';
 import { AppFooter, type KbDisplay } from './components/AppFooter';
 import { ChatPane, type LogEntry } from './components/ChatPane';
 import { ResourceView } from './components/ResourceView';
@@ -105,6 +106,8 @@ export function App() {
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeInfo | null>(null);
   const [showGit, setShowGit] = useState(false);
   const [gitCheck, setGitCheck] = useState<GitCheck>({ status: 'checking' });
+  const [showSecrets, setShowSecrets] = useState(false);
+  const [secretsCheck, setSecretsCheck] = useState<SecretsCheck>({ status: 'checking' });
   const [theme, setTheme] = useState<Theme>('system');
 
   const refreshLauncherStatus = useCallback(() => {
@@ -186,6 +189,20 @@ export function App() {
     void bridge.gitPath().then(
       (path) => setGitCheck(path === null ? { status: 'missing' } : { status: 'found', path }),
       () => setGitCheck({ status: 'unavailable' }),
+    );
+  }, []);
+
+  const openSecrets = useCallback(() => {
+    setShowSecrets(true);
+    setSecretsCheck({ status: 'checking' });
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) {
+      setSecretsCheck({ status: 'unavailable' });
+      return;
+    }
+    void bridge.opPath().then(
+      (path) => setSecretsCheck(path === null ? { status: 'missing' } : { status: 'found', path }),
+      () => setSecretsCheck({ status: 'unavailable' }),
     );
   }, []);
 
@@ -523,6 +540,7 @@ export function App() {
             onDeleteSession={handleDeleteSession}
             onOpenAbout={openAbout}
             onOpenInference={openInference}
+            onOpenSecrets={openSecrets}
             onOpenTheme={() => setShowTheme(true)}
             onOpenLauncherStatus={refreshLauncherStatus}
             onOpenTelemetry={openTelemetry}
@@ -583,6 +601,7 @@ export function App() {
       {showTelemetry && <TelemetryModal links={telemetryLinks} onClose={() => setShowTelemetry(false)} />}
       {showRuntime && <RuntimeModal info={runtimeInfo} onClose={() => setShowRuntime(false)} />}
       {showGit && <GitModal check={gitCheck} onClose={() => setShowGit(false)} />}
+      {showSecrets && <SecretsModal check={secretsCheck} onClose={() => setShowSecrets(false)} />}
     </>
   );
 }

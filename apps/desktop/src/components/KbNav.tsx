@@ -28,6 +28,7 @@ export interface KbNavProps {
   onDeleteSession: (sessionId: string) => void;
   onOpenAbout: () => void;
   onOpenInference: () => void;
+  onOpenSecrets: () => void;
   onOpenTheme: () => void;
   onOpenLauncherStatus: () => void;
   onOpenTelemetry: () => void;
@@ -74,12 +75,12 @@ export function KbNav(props: KbNavProps) {
         )}
       </div>
 
-      <SemiontMenu onOpenAbout={props.onOpenAbout} onOpenInference={props.onOpenInference} onOpenTheme={props.onOpenTheme} onOpenLauncherStatus={props.onOpenLauncherStatus} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
+      <SemiontMenu onOpenAbout={props.onOpenAbout} onOpenInference={props.onOpenInference} onOpenSecrets={props.onOpenSecrets} onOpenTheme={props.onOpenTheme} onOpenLauncherStatus={props.onOpenLauncherStatus} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
     </nav>
   );
 }
 
-function SemiontMenu({ onOpenAbout, onOpenInference, onOpenTheme, onOpenLauncherStatus, onOpenTelemetry, onOpenRuntime, onOpenGit }: Pick<KbNavProps, 'onOpenAbout' | 'onOpenInference' | 'onOpenTheme' | 'onOpenLauncherStatus' | 'onOpenTelemetry' | 'onOpenRuntime' | 'onOpenGit'>) {
+function SemiontMenu({ onOpenAbout, onOpenInference, onOpenSecrets, onOpenTheme, onOpenLauncherStatus, onOpenTelemetry, onOpenRuntime, onOpenGit }: Pick<KbNavProps, 'onOpenAbout' | 'onOpenInference' | 'onOpenSecrets' | 'onOpenTheme' | 'onOpenLauncherStatus' | 'onOpenTelemetry' | 'onOpenRuntime' | 'onOpenGit'>) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -110,6 +111,7 @@ function SemiontMenu({ onOpenAbout, onOpenInference, onOpenTheme, onOpenLauncher
         <div className="semiont-menu" role="menu" aria-label="Semiont menu">
           <button type="button" role="menuitem" onClick={() => choose(onOpenAbout)}><AboutIcon /><span>About</span></button>
           <button type="button" role="menuitem" onClick={() => choose(onOpenInference)}><InferenceIcon /><span>Inference</span></button>
+          <button type="button" role="menuitem" onClick={() => choose(onOpenSecrets)}><SecretsIcon /><span>Secrets</span></button>
           <button type="button" role="menuitem" onClick={() => choose(onOpenTheme)}><ThemeIcon /><span>Theme</span></button>
           <button type="button" role="menuitem" onClick={() => choose(onOpenTelemetry)}><TelemetryIcon /><span>Telemetry</span></button>
           <button type="button" role="menuitem" onClick={() => choose(onOpenRuntime)}><ContainerIcon /><span>Container runtime</span></button>
@@ -423,6 +425,15 @@ function InferenceIcon() {
     <svg width="18" height="18" {...ICON_PROPS}>
       <path d="M12 3a7 7 0 0 0-4 12.75V19h8v-3.25A7 7 0 0 0 12 3Z" />
       <path d="M9 22h6m-3-15v4m-2-2h4" />
+    </svg>
+  );
+}
+
+function SecretsIcon() {
+  return (
+    <svg width="18" height="18" {...ICON_PROPS}>
+      <rect x="3" y="10" width="18" height="11" rx="2" />
+      <path d="M7 10V7a5 5 0 0 1 10 0v3m-5 5v2" />
     </svg>
   );
 }
