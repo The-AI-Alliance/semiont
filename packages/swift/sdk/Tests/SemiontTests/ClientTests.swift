@@ -758,3 +758,24 @@ private struct ReadFailure: Error {}
   let mapShape = try #require(requiredModelMembers["JobFailCommand"])
   #expect(mapShape.lacking(in: .object(payload)) == "unitCursors.size")
 }
+
+@Test func localScopedReadersFilterResourcesAndFinishWithTheBus() async throws {
+  let bus = EventBus()
+  let resource = try ResourceId("res-1")
+  let source = bus.frames(Channels.markAdded, resource: resource)
+  bus.receive(
+    ReceivedFrame(channel: Channels.markAdded.name, payload: [:], scope: try ResourceId("other")))
+  bus.receive(
+    ReceivedFrame(
+      channel: Channels.markAdded.name, payload: ["test-source": .string("wanted")], scope: resource
+    ))
+  bus.dispose()
+  var iterator = source.makeAsyncIterator()
+  guard case .refused(let refusal) = try await iterator.next() else {
+    Issue.record("Expected the matching resource's malformed frame")
+    return
+  }
+  #expect(refusal.channel == Channels.markAdded.name)
+  #expect(refusal.payload["test-source"] == .string("wanted"))
+  #expect(try await iterator.next() == nil)
+}

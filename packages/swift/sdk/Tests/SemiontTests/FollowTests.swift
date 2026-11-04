@@ -411,3 +411,68 @@ func jobPollingDeadlineBoundsRequestsAndIntervals(unanswered: Bool) async throws
     try generationStallDeadline(maxTokens: 100000) == 100000 * Timings.generationStallPerTokenMs)
   #expect(throws: TransportError.self) { try generationStallDeadline(maxTokens: .infinity) }
 }
+
+@Test func learnedCompletionsPreserveYieldResultsAndDeclines() throws {
+  let resource = try ResourceId("res-1")
+  let generated = YieldJobDone(
+    resourceId: try ResourceId("res-new"), resourceName: "Generated", truncated: true)
+  var status = try statusFixture(kind: .yield)
+  status.result = .jobResult(.yieldJobDone(generated))
+  let completion = try YieldJobCompleteCommand.learned(status, resource: resource)
+  #expect(completion.jobId == status.jobId && completion.resourceId == resource)
+  guard case .yieldJobDone(let result) = completion.result else {
+    Issue.record("Yield result lost")
+    return
+  }
+  #expect(result.resourceId == generated.resourceId)
+  #expect(result.resourceName == generated.resourceName && result.truncated)
+  status.type = .mark
+  #expect(throws: TransportError.self) {
+    try MarkJobCompleteCommand.learned(status, resource: resource)
+  }
+  status.type = .yield
+  let declined = JobDeclined(reason: .encrypted)
+  status.result = .jobResult(.jobDeclined(declined))
+  guard
+    case .jobDeclined(let yieldDecline) = try YieldJobCompleteCommand.learned(
+      status, resource: resource
+    ).result
+  else {
+    Issue.record("Yield decline lost")
+    return
+  }
+  #expect(yieldDecline.reason == declined.reason)
+  status.type = .mark
+  guard
+    case .jobDeclined(let markDecline) = try MarkJobCompleteCommand.learned(
+      status, resource: resource
+    ).result
+  else {
+    Issue.record("Mark decline lost")
+    return
+  }
+  #expect(markDecline.reason == declined.reason)
+}
+@Test func followingRefusesAnotherJobsStatusAndExposesItsFailureCode() async throws {
+  let probe = ProbeTransport()
+  let client = try await SemiontClient(
+    transport: probe, followTiming: FollowTiming(silenceMs: 1, statusPollMs: 1))
+  defer { client.dispose() }
+  probe.handle { name, _ in
+    if name == Operations.jobCreate.request.name { return try jobCreatedFixture() }
+    return try wirePayload(JobStatusResult(response: statusFixture("another-job")))
+  }
+  do {
+    _ = try await within(5000) {
+      try await client.mark.delegate(resourceId: ResourceId("res-1"), params: markParams())
+        .completed()
+    }
+    Issue.record("Another job's status completed the delegation")
+  } catch let error as TransportError {
+    #expect(error.reason == .error)
+    #expect(error.description.contains("not the followed job"))
+  }
+  let failed = JobError(
+    reason: .jobFailed, description: "failed", jobId: try JobId("job-1"), failureClass: .transient)
+  #expect(failed.code == failed.reason.rawValue)
+}

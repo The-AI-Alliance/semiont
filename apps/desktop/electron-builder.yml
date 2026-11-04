@@ -1,5 +1,5 @@
 appId: org.theaialliance.semiont
-productName: Semiont Desktop
+productName: Semiont
 directories:
   output: release
   buildResources: assets
@@ -7,6 +7,9 @@ files:
   - out/**
   - package.json
   - '!node_modules/**'
+extraResources:
+  - from: .build/launcher/semiont
+    to: launcher/semiont
 npmRebuild: false
 mac:
   target:
@@ -15,7 +18,8 @@ mac:
   category: public.app-category.productivity
   icon: assets/icon.icns
 dmg:
-  title: Semiont Desktop
+  title: Semiont
+  background: assets/dmg-background.tiff
 linux:
   syncDesktopName: true
   category: Utility

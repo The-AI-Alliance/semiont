@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from '
 import { createPortal } from 'react-dom';
 import {
   getSupportedShapes,
+  mediaUrl,
   ResourceViewer,
   useMediaToken,
   useResourceContent,
@@ -143,9 +144,7 @@ function LoadedMessage({
   // Binary path: short-lived authed media-token URL (same as the main-pane ResourceView).
   const { token } = useMediaToken(isBinary ? session.client : null, rid);
   const resolvedContent = isBinary
-    ? token
-      ? `${session.client.baseUrl}/api/resources/${rid}?token=${token}`
-      : ''
+    ? mediaUrl(session.client, rid, token) ?? ''
     : (content ?? fetchedContent);
 
   // Reference hover → our hovercard, anchored to the span's rect.

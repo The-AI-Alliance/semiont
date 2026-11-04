@@ -1,9 +1,9 @@
 {
   "name": "semiont-desktop",
-  "productName": "Semiont Desktop",
-  "desktopName": "Semiont Desktop",
+  "productName": "Semiont",
+  "desktopName": "Semiont",
   "version": "0.7.1",
-  "description": "Semiont Desktop",
+  "description": "Semiont",
   "author": "The AI Alliance",
   "homepage": "https://github.com/The-AI-Alliance/semiont",
   "engines": {

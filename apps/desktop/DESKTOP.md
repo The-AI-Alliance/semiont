@@ -1,6 +1,6 @@
 # Desktop application architecture
 
-Semiont Desktop wraps its own chat renderer in Electron. It is a separate client from the
+Semiont wraps its own chat renderer in Electron. It is a separate client from the
 Semiont Browser, which remains a web app. The renderer uses `@semiont/sdk` and
 `@semiont/react-ui`; it does not call gateway APIs directly.
 
@@ -31,6 +31,9 @@ on the next write.
 `apps/desktop/build.sh` is the local build entry. It produces an unsigned Apple Silicon
 DMG; `make desktop-linux` produces a Linux x64 Debian package. Both outputs are
 written under `apps/desktop/release/`, with npm commands run inside Apple Container.
-`electron-builder.yml` carries the Semiont Desktop product name and the existing Semiont
+Each package includes the matching static `semiont` launcher binary at
+`Resources/launcher/semiont`. The build derives its Go toolchain from
+`apps/launcher/go.mod`; the desktop does not invoke the sidecar yet.
+`electron-builder.yml` carries the Semiont product name and the existing Semiont
 bundle identifier. The `.deb` dependency metadata and package build have been exercised;
 installation and launch still need verification on a Debian or Ubuntu host.

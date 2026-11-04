@@ -57,6 +57,8 @@ interface PdfPageViewProps {
   pageNumber: number;
   /** Raster scale. Display-only: the overlay's geometry never reads it. */
   scale: number;
+  /** Resource zoom applied to the page column by PdfAnnotationCanvas. */
+  zoom: number;
   resourceUri: ResourceId;
   existingAnnotations: Annotation[];
   /** Null while no tool is chosen, and while the canvas does not hold the
@@ -93,6 +95,7 @@ export function PdfPageView({
   doc,
   pageNumber,
   scale,
+  zoom,
   resourceUri,
   existingAnnotations,
   drawing,
@@ -188,8 +191,8 @@ export function PdfPageView({
     if (!imageRef.current) return;
 
     const rect = imageRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = (e.clientX - rect.left) / zoom;
+    const y = (e.clientY - rect.top) / zoom;
 
     // Clear any previous selection when starting new drawing
     setIsDrawing(true);
@@ -199,7 +202,7 @@ export function PdfPageView({
       endX: x,
       endY: y
     });
-  }, [drawing]);
+  }, [drawing, zoom]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDrawing || !selection || !imageRef.current) return;
@@ -208,10 +211,10 @@ export function PdfPageView({
 
     setSelection({
       ...selection,
-      endX: e.clientX - rect.left,
-      endY: e.clientY - rect.top
+      endX: (e.clientX - rect.left) / zoom,
+      endY: (e.clientY - rect.top) / zoom
     });
-  }, [isDrawing, selection]);
+  }, [isDrawing, selection, zoom]);
 
   const handleMouseUp = useCallback(() => {
     if (!isDrawing || !selection || !pageDimensions || !displayDimensions || !session || !drawing) {
@@ -255,7 +258,7 @@ export function PdfPageView({
             selection.endY <= displayY + displayHeight
           );
           if (inside && imageRef.current) {
-            hitRect = toViewportAnchorRect(imageRef.current.getBoundingClientRect(), displayX, displayY, displayWidth, displayHeight);
+            hitRect = toViewportAnchorRect(imageRef.current.getBoundingClientRect(), displayX * zoom, displayY * zoom, displayWidth * zoom, displayHeight * zoom);
           }
           return inside;
         });
@@ -327,7 +330,7 @@ export function PdfPageView({
     setIsDrawing(false);
     // Note: We keep selection so the preview remains visible
     // It will be cleared when drawingMode changes or user starts new selection
-  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, existingAnnotations, session, resourceUri, drawing]);
+  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, existingAnnotations, session, resourceUri, drawing, zoom]);
 
   // Every FragmentSelector rect on this page — one per line for a multi-line
   // (multi-selector) annotation, exactly one for a manual annotation.

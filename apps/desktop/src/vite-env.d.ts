@@ -3,6 +3,11 @@
 declare module 'virtual:app-config' {
   /** App header / browser-tab title (from app.toml). */
   export const appTitle: string;
+  /** Desktop package version, shared with the launcher sidecar build. */
+  export const appVersion: string;
+  /** Commit and UTC build time injected by `make desktop`. */
+  export const appCommit: string;
+  export const appBuildDate: string;
 }
 
 interface Window {
@@ -38,4 +43,6 @@ interface Window {
   /** Electron preload bridge to the knowledge bases' issuers: signing in, and the stored
    *  sessions. Absent in the browser, where no sign-in is possible. */
   authBridge?: import('./lib/auth-bridge').AuthBridge;
+  /** Electron bridge for the prototype launcher-status menu action. */
+  launcherBridge?: import('./lib/launcher-bridge').LauncherBridge;
 }

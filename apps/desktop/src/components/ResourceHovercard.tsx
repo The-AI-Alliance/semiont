@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { useMediaToken, useResourceLoader } from '@semiont/react-ui';
+import { mediaUrl, useMediaToken, useResourceLoader } from '@semiont/react-ui';
 import {
   capabilitiesOf,
   decodeWithCharset,
@@ -105,7 +105,7 @@ export function ResourceHovercard({
 
   // Image thumbnail via a short-lived, authed media-token URL (only fetched for images).
   const { token } = useMediaToken(isImage ? session.client : null, rid);
-  const thumbUrl = isImage && token ? `${session.client.baseUrl}/api/resources/${rid}?token=${token}` : null;
+  const thumbUrl = isImage ? mediaUrl(session.client, rid, token) ?? null : null;
 
   const path = fileUri ?? getStorageUri(resource) ?? resourceId;
   const displayName = resource?.name ?? name;

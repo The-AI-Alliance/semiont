@@ -338,3 +338,43 @@ extension HttpTransport {
     } catch is CancellationError {}
   }
 }
+
+@Test(arguments: [false, true])
+func nativeRequestsPreserveFailureCodesAndRefuseMalformedFailures(malformed: Bool) async throws {
+  try await server(.noHeaders) { base, http in
+    let operation = Operations.frameAddEntityType
+    let transport = HttpTransport(
+      baseUrl: base, httpClient: http, token: nil,
+      channels: [operation.result.name, operation.failure.name])
+    defer { transport.dispose() }
+    await transport.openForTest()
+    let request = Task {
+      try await transport.request(
+        operation: operation.request.name,
+        payload: wirePayload(FrameAddEntityTypeCommand(tag: "Person")), timeoutMs: 10000)
+    }
+    let correlation = try await within(5000) {
+      while true {
+        if let id = await transport.pendingIDForTest() { return id }
+        try await sleepMilliseconds(5)
+      }
+    }
+    let payload =
+      malformed
+      ? [:]
+      : try wirePayload(
+        CommandError(code: .peerUnavailable, message: "still starting"))
+    try await transport.deliverForTest(
+      BusFrame(channel: operation.failure.name, correlationId: correlation, payload: payload),
+      id: "e-failure")
+    do {
+      _ = try await within(5000) { try await request.value }
+      Issue.record("A failed native request succeeded")
+    } catch let error as BusRequestError {
+      #expect(error.reason == (malformed ? unrecognizedBusFailure : .busPeerUnavailable))
+      #expect(
+        error.description
+          == (malformed ? "Malformed failure for \(operation.request.name)" : "still starting"))
+    }
+  }
+}

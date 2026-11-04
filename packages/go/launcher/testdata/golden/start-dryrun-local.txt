@@ -107,7 +107,8 @@ container run -d --name semiont-example.github.io-test-kb-gateway --publish 127.
 # graph state: <data-home>/roots/example.github.io-test-kb/neo4j (created if absent; reused across restarts)
 container run -d --name semiont-example.github.io-test-kb-neo4j --memory 2G -p 127.0.0.1:7474:7474 -p 127.0.0.1:7687:7687 -p <host-addr>:17687:7687 -v <data-home>/roots/example.github.io-test-kb/neo4j/data:/data -v <data-home>/roots/example.github.io-test-kb/neo4j/logs:/logs -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes -e NEO4J_AUTH neo4j:5.26.28-community@sha256:ff32db30b2baff97971e441b46bfd9c832c1b62c970398ef579244c06b21d357
 # wait: http://localhost:7474 (30s)
-# vectors: keep semiont-qdrant if its record says http://<host-addr>:6330/readyz under container with 1G and it runs qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10; else stop/rm it, then run it
+# vectors: keep semiont-qdrant if its record says http://<host-addr>:6330/readyz under container with 1G, it runs qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10 and it answers the machine's API key; else stop/rm it, then run it
+# probe: GET http://<host-addr>:6330/collections with the machine's API key — keep it if Qdrant answers; else refuse while another knowledge base keeps its index there, and run it afresh while none does
 # else:
 container stop semiont-qdrant
 container rm semiont-qdrant

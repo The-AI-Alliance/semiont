@@ -7,7 +7,7 @@ describe('parseAppManifest', () => {
   });
 
   it('falls back to the default title when absent', () => {
-    expect(parseAppManifest(null)).toEqual({ title: 'Semiont Desktop' });
-    expect(parseAppManifest('[other]\nx = 1')).toEqual({ title: 'Semiont Desktop' });
+    expect(parseAppManifest(null)).toEqual({ title: 'Semiont' });
+    expect(parseAppManifest('[other]\nx = 1')).toEqual({ title: 'Semiont' });
   });
 });

@@ -2,4 +2,4 @@
 # app presents itself, NOT who it connects to (that's the per-user runtime config:
 # ~/.config/semiont-desktop/config.toml on desktop, localStorage on the web).
 [app]
-title = "Semiont Desktop"
+title = "Semiont"

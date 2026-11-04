@@ -164,13 +164,16 @@ curl -s http://192.168.64.1:6330/readyz        # The shared Qdrant. A knowledge 
 
 ### Qdrant refuses the smelter or the librarian
 
-Qdrant answers `401` to a request that carries neither its API key nor a token, and `403` to a token signed with another key or one whose claims do not cover the request: the librarian's reads its own knowledge base's collections and writes nothing ([Secrets](../services/SECRETS.md#values-the-launcher-keeps)). Its readiness, `/readyz`, needs neither, so a Qdrant that answers there can still refuse every service.
+Qdrant answers `401` to a request that carries no key, or one that is neither its API key nor a token, and `403` to a token signed with another key or one whose claims do not cover the request: the librarian's reads its own knowledge base's collections and writes nothing ([Secrets](../services/SECRETS.md#values-the-launcher-keeps)). Its readiness, `/readyz`, needs neither, so a Qdrant that answers there can still refuse every service.
 
-- **A key lost while the shared Qdrant runs.** A start keeps a shared Qdrant that runs as recorded. When the machine's `qdrant-api-key` was deleted while it ran, the start generates a new key and signs the tokens with it, and Qdrant, which booted with the old one, refuses them. Qdrant keeps no key in its store, so a restart under the new key is the fix, and every knowledge base that names it restarts to be handed tokens signed with that key:
+- **A key lost while the shared Qdrant runs.** When the machine's `qdrant-api-key` is deleted while the shared Qdrant runs, the next start generates a new key, and Qdrant, which booted with the old one and keeps no key in its store, refuses it. A start that would keep the shared Qdrant asks it with the machine's key first:
+  - When no other knowledge base's stack is recorded on it, the start says so and runs it afresh under the new key.
+  - When others are, the start is refused and names their roots, since their services hold tokens signed with the old key. Stop them, start this knowledge base, which runs the shared Qdrant afresh, then start each of them again:
 
   ```bash
-  semiont stop                     # In each knowledge base that names the shared Qdrant; the last stops it
-  semiont start                    # In each again
+  semiont stop --root <path>       # Each knowledge base the refusal names
+  semiont start                    # This one
+  semiont start --root <path>      # Each of them again
   ```
 
   A knowledge base's own Qdrant restarts with its stack, so a `semiont stop` and `semiont start` there is enough.

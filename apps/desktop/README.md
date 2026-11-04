@@ -1,6 +1,6 @@
-# Semiont Desktop
+# Semiont
 
-Semiont Desktop is the Electron chat client for Semiont knowledge bases. Add the URL of an
+Semiont is the Electron chat client for Semiont knowledge bases. Add the URL of an
 existing knowledge base gateway, sign in through its issuer in your system browser, then
 browse resources and work with them in chat. The app is a client; it does not run a gateway
 or keep a copy of the knowledge base.
@@ -16,7 +16,7 @@ The [`publish-desktop.yml`](../../.github/workflows/publish-desktop.yml) workflo
 installers to Semiont's [GitHub Releases](https://github.com/The-AI-Alliance/semiont/releases).
 It builds these targets:
 
-- **macOS Apple Silicon:** unsigned `.dmg`. Open the disk image and move Semiont Desktop to
+- **macOS Apple Silicon:** unsigned `.dmg`. Open the disk image and move Semiont to
   Applications. Because the app is unsigned, macOS may ask you to confirm its first launch.
 - **Linux x64:** `.deb` for Debian-based systems. The package declares Electron's required
   system libraries. Package creation has been verified; installation and launch on a Linux
@@ -59,8 +59,13 @@ make desktop-macos            # unsigned macOS Apple Silicon DMG
 make desktop-linux   # Linux x64 Debian package
 ```
 
-Both builds install dependencies and run npm inside the selected container runtime; Linux packaging also supports a Linux host. `make desktop` selects the caller OS. The macOS build uses a
+Both builds snapshot the source, including uncommitted files, and install dependencies and build inside the container’s filesystem. Only installer output is copied back; the checkout’s `node_modules` and package build directories are not used or modified. Linux packaging also supports a Linux host. `make desktop` selects the caller OS. The macOS build uses a
 native `hdiutil` on the host for the DMG step; app assembly stays in the Node container; the
 Linux build uses an amd64 Debian container (Rosetta on Apple Silicon). Installers are
 written to `apps/desktop/release/`. Linux host installation and launch have not yet been
 verified.
+
+The macOS icon and DMG artwork are rendered from the SVG sources in `assets/`. On macOS,
+regenerate the PNG, Retina TIFF and ICNS files after changing those sources with
+`apps/desktop/scripts/build-brand-assets.sh`. The Orbitron font and its SIL Open Font
+License are included with the artwork sources.

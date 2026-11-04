@@ -1,10 +1,10 @@
+import { useEffect } from 'react';
 import type { Theme } from '../lib/theme';
 
 /**
- * Settings, behind the gear — currently the colour Theme (Light / Dark / System). KB
- * management lives in the nav, not here. Rendered as a modal over the app shell.
+ * Theme choices (Light / Dark / System), opened from the Semiont menu.
  */
-export function SettingsPanel({
+export function ThemePanel({
   theme,
   onThemeChange,
   onClose,
@@ -13,6 +13,14 @@ export function SettingsPanel({
   onThemeChange: (theme: Theme) => void;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   const options: { value: Theme; label: string; hint: string }[] = [
     { value: 'light', label: 'Light', hint: 'Always light' },
     { value: 'dark', label: 'Dark', hint: 'Always dark' },
@@ -21,10 +29,10 @@ export function SettingsPanel({
 
   return (
     <div className="modal" onClick={onClose}>
-      <div className="config config--modal" onClick={(e) => e.stopPropagation()}>
+      <div className="config config--modal" role="dialog" aria-modal="true" aria-labelledby="theme-title" onClick={(e) => e.stopPropagation()}>
         <div className="config__head">
-          <h1>Settings</h1>
-          <button type="button" className="config__close" onClick={onClose} aria-label="Close settings">
+          <h1 id="theme-title">Theme</h1>
+          <button type="button" className="config__close" onClick={onClose} aria-label="Close theme settings">
             ×
           </button>
         </div>
