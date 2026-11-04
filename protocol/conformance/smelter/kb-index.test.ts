@@ -4,16 +4,19 @@
  * protocol/specs/src/vectors/payload-cases.json states. Another knowledge
  * base's collections on the same Qdrant are none of its: its start neither
  * reads them nor purges them, making its own index anew leaves them as they
- * are, and what it writes lands in its own. With it, that the suite names a
- * knowledge base's collections as the table's `collectionsNamed` cases state,
- * and mints the token of each service it starts with the claims
+ * are, and what it writes lands in its own. A Smelter whose settings name
+ * another knowledge base than the one at its gateway refuses to start before
+ * it reaches the index, and makes no collection of the one they name
+ * (SMELTER.md § Boot). With it, that the suite names a knowledge base's
+ * collections as the table's `collectionsNamed` cases state, and mints the
+ * token of each service it starts with the claims
  * protocol/specs/src/vectors/token-cases.json states, and no others.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { kbDid } from '@semiont/core';
 import { jwtVerify } from 'jose';
-import { describe, expect, inject, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { SPEC_SOURCE } from '../harness/paths';
 import { claimsFor, collectionNames, collectionsAt, minted, vectorIndex, type Claims, type Collection, type Holder, type Point } from '../harness/qdrant';
 import { kbIdentity } from '../harness/spec';
@@ -71,6 +74,9 @@ const COLLECTIONS: readonly Collection[] = ['resources', 'annotations', 'decline
 /** Another knowledge base than the one the suite's Smelter serves. */
 const OTHER_KB = kbIdentity('plain scalars, and a version, which names nothing').did;
 
+/** A knowledge base the gateway does not serve, which a Smelter's settings are made to name. */
+const ELSEWHERE = kbIdentity('a comment is not part of the value');
+
 /** The first case of a part of the table: a case fails here where the table has none. */
 function first<T>(found: T | undefined, what: string): T {
   if (found === undefined) throw new Error(`protocol/specs/src/vectors/payload-cases.json states no ${what}`);
@@ -127,5 +133,25 @@ eachSmelter('a Smelter beside another knowledge base on its Qdrant', (world) => 
     const own = Object.values(collectionNames(kbDid(world().kb.world.served.domain)));
     const others = Object.values(collectionNames(OTHER_KB));
     expect((await collectionsAt(database)).sort()).toEqual([...own, ...others].sort());
+  });
+
+  describe('started with settings that name another knowledge base than the one at its gateway', () => {
+    // A Smelter's health port is a constant: the world's is stopped while the one that must refuse runs.
+    beforeAll(async () => {
+      await world().stop();
+    });
+    afterAll(async () => {
+      await world().start();
+    });
+
+    it('refuses to start, naming both, and makes no collection of the one its settings name', async () => {
+      const { code, output } = await world().refused({ settings: { ...world().settings, kb: { name: ELSEWHERE.name, domain: ELSEWHERE.domain } } });
+      expect(code).not.toBe(0);
+      expect(output).toContain(kbDid(world().kb.world.served.domain));
+      expect(output).toContain(ELSEWHERE.did);
+      // Its token manages the whole Qdrant: only the refusal kept it from making the index of the knowledge base its settings name.
+      const theirs = Object.values(collectionNames(ELSEWHERE.did));
+      expect((await collectionsAt(inject('vectorDatabase'))).filter((name) => theirs.includes(name))).toEqual([]);
+    });
   });
 });

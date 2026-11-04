@@ -93,6 +93,8 @@ def test_its_stream_names_every_event_of_the_record_the_command_it_answers_and_t
     named = (
         *PERSISTED_EVENT_TYPES,
         "smelt:rebuild-anchors",
+        "browse:kb-result",
+        "browse:kb-failed",
         "browse:resources-result",
         "browse:resources-failed",
         "browse:resource-result",
