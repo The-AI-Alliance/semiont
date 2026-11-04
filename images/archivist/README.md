@@ -115,17 +115,17 @@ therefore holds a credential that can write here, and only network access keeps 
 **It is the only container that mounts the knowledge base**, pinned by
 `TestExactlyOneContainerMountsTheKB` in the launcher. `/kb` is the working tree (the document's
 `root`): the resources, and the event log under `.semiont/events/`. The views it derives from the
-log go to the state volume (the document's `stateHome`), under `semiont/<name>`; the Librarian
-reads what it needs of them over the bus. The anchored-text store (`/anchored-text`) holds the text
-the Smelter derives from a PDF, with where each piece of it sits on its page; the Smelter stores
-each entry here over HTTP. No other container mounts the state volume or the anchored-text store
-either. [Where a knowledge base lives on disk](../../docs/architecture/FILESYSTEM.md) has the
-layout.
+log go to the state volume (the document's `stateHome`), at its top; the Librarian reads what it
+needs of them over the bus. The anchored-text store (`/anchored-text`) holds the text the Smelter
+derives from a PDF, with where each piece of it sits on its page; the Smelter stores each entry
+here over HTTP. No other container mounts the state volume or the anchored-text store either.
+[Where a knowledge base lives on disk](../../docs/architecture/FILESYSTEM.md) has the layout.
 
 ## When it starts
 
-It starts **after the gateway** (it asks the gateway who it is as it signs in) and **before the
-worker and the Smelter**, which read bytes from it. Its `/health` answers only once it has booted,
+It starts **after the gateway** (it asks the gateway who it is as it signs in, and then which
+knowledge base it serves, refusing to start where that is not its tree's) and **before the worker
+and the Smelter**, which read bytes from it. Its `/health` answers only once it has booted,
 which is what makes that ordering enforceable.
 
 ## Configuration

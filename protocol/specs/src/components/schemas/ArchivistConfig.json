@@ -30,7 +30,7 @@
     "stateHome": {
       "type": "string",
       "minLength": 1,
-      "description": "The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's."
+      "description": "The state volume, this knowledge base's alone: the Archivist keeps the knowledge base's views and projections in it, at its top."
     },
     "anchoredTextDir": {
       "type": "string",

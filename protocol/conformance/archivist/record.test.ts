@@ -3,7 +3,7 @@
  * shutdown): what survives, what is rebuilt, what is reaped, and how a log
  * written before is read.
  */
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, appendFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, appendFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { expect, it } from 'vitest';
 import { highlight, shardCases, shardOf, withArchivist, type ArchivistWorld } from '../harness/archivist-world';
@@ -43,7 +43,7 @@ withArchivist('the record, across restarts', (world) => {
     expect(system.filter((e) => e.type === 'frame:entity-type-added').at(-1)).toMatchObject({ payload: { entityType: 'Restarted' } });
   });
 
-  it('rebuilds every view and projection from the log when the state directory is gone', async () => {
+  it('rebuilds every view and projection from the log when the state volume is emptied', async () => {
     const { id, annotationId } = await annotated(world(), 'rebuilt');
     const curator = await world().person('curator');
     await curator.ask('frame:add-tag-schema', { schema: { id: 'rebuilt', name: 'Rebuilt', description: 'Survives', domain: 'general', tags: [] } });
@@ -53,7 +53,8 @@ withArchivist('the record, across restarts', (world) => {
     expect(before.entry).toEqual({ uri: 'file://survives/rebuilt.md', resourceId: id });
 
     await world().archivist.stop();
-    rmSync(world().dirs.stateDir, { recursive: true, force: true });
+    const { stateHome } = world().dirs;
+    for (const entry of readdirSync(stateHome)) rmSync(join(stateHome, entry), { recursive: true, force: true });
     await world().restart();
 
     expect(world().view(id)).toEqual(before.view);

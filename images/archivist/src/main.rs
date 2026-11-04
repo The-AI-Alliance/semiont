@@ -1,7 +1,8 @@
 //! The Archivist: it keeps the knowledge base's record, as
 //! protocol/contract/ARCHIVIST.md states it. It boots from the document its
-//! `--config` names, signs in as its service account, makes its views what
-//! its log says, and then answers its channels over the gateway's bus,
+//! `--config` names, signs in as its service account, refuses a gateway that
+//! serves another knowledge base than its tree, makes its views what its log
+//! says, and then answers its channels over the gateway's bus,
 //! publishes every event it appends, and serves its HTTP surface.
 
 #![forbid(unsafe_code)]
@@ -19,7 +20,7 @@ use archivist::Archivist;
 use semiont::bus::{Bus, reply_channels_for};
 use semiont::channels::{Channel, FrameEntityTypeAdded};
 use semiont::identity::{kb_did, kb_resource};
-use semiont::transport::Transport;
+use semiont::transport::{GatewayOperations, Transport};
 use semiont_archivist_record::record::Record;
 use semiont_archivist_record::{Object, kb};
 use semiont_archivist_staging::{Bounds, staging_for};
@@ -31,10 +32,11 @@ use semiont_http_transport::service_account::{Credential, SecretCredential, Serv
 use semiont_http_transport::transport::{HttpTransport, HttpTransportConfig, Timing};
 use semiont_observability::{logging, telemetry};
 use serde_json::{Value, json};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
+use tokio::sync::watch;
 
 #[global_allocator]
 static ALLOCATOR: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
@@ -128,6 +130,13 @@ async fn serve(
     .await
     .map_err(|e| format!("cannot sign in: {e}"))?;
     logging::info("Authenticated", json!({ "component": "archivist" }));
+    // Nothing of the tree is touched before the gateway says it serves the knowledge base the tree is.
+    let served = served_at(agent.gateway(), &http).await?;
+    serves_the_tree(agent.gateway(), &served, &root, &domain)?;
+    logging::info(
+        "Gateway confirmed",
+        json!({ "component": "archivist", "resource": served }),
+    );
 
     let staging = staging_for(
         &root,
@@ -139,10 +148,8 @@ async fn serve(
     );
     staging.ready().await.map_err(|e| e.to_string())?;
 
-    let state_dir = PathBuf::from(&document.state_home)
-        .join("semiont")
-        .join(&committed.name);
-    let mut record = Record::new(&root, &state_dir);
+    // The state volume is this knowledge base's alone: an Archivist serves one.
+    let mut record = Record::new(&root, Path::new(&document.state_home));
     if !document.skip_rebuild {
         logging::info(
             "Rebuilding materialized views from the event log",
@@ -278,6 +285,42 @@ async fn serve(
     Ok(())
 }
 
+/// The knowledge base the gateway at `gateway` serves: the `resource` of its
+/// protected-resource metadata, the audience every token it admits carries.
+async fn served_at(gateway: &str, http: &reqwest::Client) -> Result<String, String> {
+    // Its resource metadata is public: asked with no token, so the transport opens no stream.
+    let asking = HttpTransport::new(HttpTransportConfig {
+        base_url: gateway.to_owned(),
+        token: watch::channel(None).1,
+        refresher: None,
+        channels: Some(Vec::new()),
+        http: http.clone(),
+        timing: Timing::default(),
+        bookmarks: None,
+    });
+    let metadata = asking.get_protected_resource_metadata().await;
+    asking.close().await;
+    metadata.map(|metadata| metadata.resource).map_err(|e| {
+        format!(
+            "The gateway at {gateway} did not say which knowledge base it serves (/.well-known/oauth-protected-resource): {e}"
+        )
+    })
+}
+
+/// Refuses a gateway that serves another knowledge base than the tree at
+/// `root`, whose domain is `domain`: one whose resource is not the tree's.
+fn serves_the_tree(gateway: &str, served: &str, root: &Path, domain: &str) -> Result<(), String> {
+    let tree = kb_resource(domain);
+    if served == tree {
+        return Ok(());
+    }
+    Err(format!(
+        "The gateway at {gateway} serves {served}, and the tree at {} is {tree} ({})",
+        root.display(),
+        kb_did(domain)
+    ))
+}
+
 /// `semiont.archivist.fact_pump.depth`: events appended and not yet
 /// published, when the process exports.
 fn observe_unpublished(archivist: Arc<Archivist>) {
@@ -301,5 +344,36 @@ async fn stop_signal() {
     tokio::select! {
         _ = terminate.recv() => {}
         _ = tokio::signal::ctrl_c() => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::serves_the_tree;
+    use std::path::Path;
+
+    #[test]
+    fn a_gateway_that_serves_the_trees_knowledge_base_is_its_gateway() {
+        let served = serves_the_tree(
+            "http://127.0.0.1:4000",
+            "https://example.github.io/my-kb",
+            Path::new("/kb"),
+            "example.github.io:my-kb",
+        );
+        assert_eq!(served, Ok(()));
+    }
+
+    #[test]
+    fn a_gateway_that_serves_another_knowledge_base_is_refused_naming_both() {
+        let refused = serves_the_tree(
+            "http://127.0.0.1:4000",
+            "https://example.github.io/other-kb",
+            Path::new("/kb"),
+            "example.github.io:my-kb",
+        );
+        assert_eq!(
+            refused,
+            Err("The gateway at http://127.0.0.1:4000 serves https://example.github.io/other-kb, and the tree at /kb is https://example.github.io/my-kb (did:web:example.github.io:my-kb)".to_owned())
+        );
     }
 }
