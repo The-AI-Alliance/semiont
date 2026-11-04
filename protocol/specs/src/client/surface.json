@@ -86,7 +86,6 @@
         },
         {
           "method": "resources",
-          "notYetReached": {"swift": "Live cache queries remain to implement."},
           "shape": "cache",
           "via": { "request": "browse:resources-requested" },
           "cases": [
@@ -128,7 +127,6 @@
         },
         {
           "method": "engines",
-          "notYetReached": {"swift": "Live cache queries remain to implement."},
           "shape": "cache",
           "via": { "request": "browse:engines-requested" },
           "cases": [{ "why": "the engines are asked for first; each key holder's limits after it", "args": {}, "sends": {} }]
@@ -460,7 +458,7 @@
         },
         {
           "method": "resources",
-          "notYetReached": {"swift": "Live resource search queries remain to implement.", "csharp": "C# still needs live resource search queries."},
+          "notYetReached": {"csharp": "C# still needs live resource search queries."},
           "shape": "cache",
           "via": { "request": "match:resources-requested" },
           "cases": [
@@ -665,7 +663,7 @@
         },
         {
           "method": "claim",
-          "notYetReached": {"swift": "Worker claims and held jobs remain to implement.", "csharp": "C# still needs worker claims and held jobs."},
+          "notYetReached": {"csharp": "C# still needs worker claims and held jobs."},
           "shape": "claims",
           "via": { "request": "job:claim" },
           "cases": [
@@ -725,13 +723,14 @@
     {
       "handed": "claims",
       "docs": "What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust and Kotlin (`next`), ranged over in Go.",
-      "notYetReached": {"csharp": "C# is still to implement the claims worker surface.", "swift": "The Swift SDK's claims: What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust and Kotlin (`next`), ranged over in Go."},
+      "notYetReached": {"csharp": "C# is still to implement the claims worker surface."},
       "members": [
         {
           "member": "next",
           "absent": {
             "typescript": "The claims are an rxjs Observable, read by subscribing to them: `subscribe` is rxjs's own, and the SDK declares no member for it.",
-            "python": "The claims are an asynchronous iterator, read with `async for`: `__anext__` is the language's protocol."
+            "python": "The claims are an asynchronous iterator, read with `async for`: `__anext__` is the language's protocol.",
+            "swift": "Claims is an AsyncSequence. Its iterator implements Swift's next()."
           },
           "named": {
             "go": { "name": "All", "why": "The claims are ranged over, `for job, err := range claims.All()`, and Go's standard library names the method that gives a sequence of every element `All` (`maps.All`, `slices.All`)." }
@@ -759,7 +758,7 @@
     {
       "handed": "heldJob",
       "docs": "A job a worker holds, from its claim until it settles it. A held job is its verb's, `mark` or `yield`. A member with `takes` is one a held job has as its verb's, and it takes what that verb's entry names; every other member is the same for both verbs, and a job held as either verb's has it without its verb being asked.",
-      "notYetReached": {"csharp": "C# is still to implement the heldJob worker surface.", "swift": "The Swift SDK's heldJob: A job a worker holds, from its claim until it settles it. A held job is its verb's, `mark` or `yield`. A member with `takes` is one a held job has as its verb's, and it takes what that verb's entry names; every other member is the same for both verbs, and a job held as either verb's has it without its verb being asked."},
+      "notYetReached": {"csharp": "C# is still to implement the heldJob worker surface."},
       "members": [
         { "member": "jobId" },
         { "member": "jobType" },
@@ -1003,8 +1002,8 @@
   },
   "storage": {
     "docs": "Where a client keeps what must outlive it: text under a key, in a store the application supplies (a file, a browser's storage, a platform's store), so nothing above it knows where it runs. A client's sessions, its registry of knowledge bases and its kept caches keep what they keep there. More than one context can write one store, two windows or two processes: what is written from what was read goes through `update`, which a store makes one step, so one writer's change is never lost under another's; and `subscribe` hears what another context writes, and is null where no other context writes.",
-    "notYetReached": {"csharp": "C# is still to implement the storage contract.", "swift": "The Swift SDK's storage: Where a client keeps what must outlive it: text under a key, in a store the application supplies (a file, a browser's storage, a platform's store), so nothing above it knows where it runs. A client's sessions, its registry of knowledge bases and its kept caches keep what they keep there. More than one context can write one store, two windows or two processes: what is written from what was read goes through `update`, which a store makes one step, so one writer's change is never lost under another's; and `subscribe` hears what another context writes, and is null where no other context writes."},
-    "made": { "typescript": "SessionStorage", "rust": "SessionStorage", "python": "SessionStorage", "go": "SessionStorage", "kotlin": "SessionStorage" },
+    "notYetReached": {"csharp": "C# is still to implement the storage contract."},
+    "made": { "typescript": "SessionStorage", "rust": "SessionStorage", "python": "SessionStorage", "go": "SessionStorage", "kotlin": "SessionStorage", "swift": "SessionStorage" },
     "members": [
       { "member": "get" },
       { "member": "set" },
@@ -1240,8 +1239,9 @@
     {
       "module": "jobFilter",
       "docs": "Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by protocol/specs/src/jobs/filter-cases.json.",
-      "notYetReached": {"csharp": "C# is still to implement the jobFilter module.", "swift": "The Swift SDK's jobFilter: Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by protocol/specs/src/jobs/filter-cases.json."},
+      "notYetReached": {"csharp": "C# is still to implement the jobFilter module."},
       "where": {
+        "swift": ["packages/swift/sdk/Sources/Semiont/Worker/Claims.swift"],
         "typescript": [
           "packages/typescript/core/src/job-filter.ts"
         ],
@@ -1272,8 +1272,9 @@
     {
       "module": "claims",
       "docs": "What a worker's stream names, and whether a failed job is run again: the channels claiming reads (the replies of `job:claim`, and the announcements and cancellations a worker hears), the channels committing reads (the replies of `mark:commit`, and of the question whether a batch is recorded), and whether a failed attempt is retried, which a held job reports on `job:fail`. Held by protocol/specs/src/jobs/retry-cases.json.",
-      "notYetReached": {"csharp": "C# is still to implement the claims module.", "swift": "The Swift SDK's claims: What a worker's stream names, and whether a failed job is run again: the channels claiming reads (the replies of `job:claim`, and the announcements and cancellations a worker hears), the channels committing reads (the replies of `mark:commit`, and of the question whether a batch is recorded), and whether a failed attempt is retried, which a held job reports on `job:fail`. Held by protocol/specs/src/jobs/retry-cases.json."},
+      "notYetReached": {"csharp": "C# is still to implement the claims module."},
       "where": {
+        "swift": ["packages/swift/sdk/Sources/Semiont/Worker/Claims.swift"],
         "typescript": [
           "packages/typescript/sdk/src/claims.ts"
         ],

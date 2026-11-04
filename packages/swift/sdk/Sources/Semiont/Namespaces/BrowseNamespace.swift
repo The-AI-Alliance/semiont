@@ -8,6 +8,13 @@ public struct BrowseNamespace: Sendable {
   public func entityTypes() -> Cached<[String]> { live.entityTypes }
   public func tagSchemas() -> Cached<[TagSchema]> { live.tagSchemas }
 
+  public func resources(filters: ResourceFilters = ResourceFilters()) -> Cached<
+    ListResourcesResponse
+  > {
+    live.listedResources.query(filters)
+  }
+  public func engines() -> Cached<[EngineWithLimits]> { live.engines }
+
   public func resource(_ resourceId: ResourceId) -> Cached<ResourceDescriptor> {
     live.resources.query(resourceId)
   }

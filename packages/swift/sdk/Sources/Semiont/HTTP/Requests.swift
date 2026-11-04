@@ -35,6 +35,13 @@ extension HttpTransport {
   public func request(operation: String, payload: [String: JSONValue], timeoutMs: Int? = nil)
     async throws -> [String: JSONValue]
   {
+    try await requestFrame(operation: operation, payload: payload, timeoutMs: timeoutMs).payload
+  }
+
+  func requestFrame(
+    operation: String, payload: [String: JSONValue], timeoutMs: Int?,
+    parent: [String: String]? = nil, enqueued: (@Sendable () -> Void)? = nil
+  ) async throws -> ReceivedFrame {
     guard let descriptor = wireOperations[operation] else {
       throw BusRequestError(.busRejected, "Unknown operation \(operation)")
     }
@@ -47,6 +54,7 @@ extension HttpTransport {
     let correlation = UUID().uuidString
     let senderID = UUID()
     let timerID = UUID()
+    let deadline = timeoutMs ?? timing.busRequestTimeoutMs
     let life = lifetime
     let frame: ReceivedFrame = try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { continuation in
@@ -57,7 +65,9 @@ extension HttpTransport {
             life.cancel(timerID)
           }, complete: { continuation.resume(with: $0) })
         let emission = enqueueEmission(
-          channel: operation, payload: body, correlationId: correlation, afterOpen: true)
+          channel: operation, payload: body, correlationId: correlation, afterOpen: true,
+          parent: parent)
+        enqueued?()
         let send = Task { [self] in
           defer { life.forget(senderID) }
           do {
@@ -72,7 +82,7 @@ extension HttpTransport {
         life.keep(send, id: senderID)
         let timer = Task { [weak self] in
           defer { life.forget(timerID) }
-          do { try await sleepMilliseconds(timeoutMs ?? Timings.busRequestTimeoutMs) } catch {
+          do { try await sleepMilliseconds(deadline) } catch {
             return
           }
           await self?.fail(
@@ -90,7 +100,11 @@ extension HttpTransport {
       }
       throw failure
     }
-    do { return try descriptor.response(frame.payload) } catch {
+    do {
+      var answer = frame
+      answer.payload = try descriptor.response(frame.payload)
+      return answer
+    } catch {
       let lacks = requiredPayloadMembers[descriptor.result]?.lacking(in: .object(frame.payload))
       let detail = lacks.map { ": it has no `\($0)`" } ?? ""
       throw TransportError(

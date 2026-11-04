@@ -35,8 +35,25 @@ public struct Bus: Sendable {
   public func request<Request, Result, Failure>(
     _ operation: Operation<Request, Result, Failure>, _ payload: Request, timeoutMs: Int? = nil
   ) async throws -> Result {
-    let response = try await transport.request(
-      operation: operation.request.name, payload: wirePayload(payload), timeoutMs: timeoutMs)
+    try await request(operation, payload, timeoutMs: timeoutMs, enqueued: nil)
+  }
+
+  func request<Request, Result, Failure>(
+    _ operation: Operation<Request, Result, Failure>, _ payload: Request, timeoutMs: Int? = nil,
+    enqueued: (@Sendable () -> Void)?
+  ) async throws -> Result {
+    let body = try wirePayload(payload)
+    let response: [String: JSONValue]
+    if let enqueued, let http = transport as? HttpTransport {
+      response = try await http.requestFrame(
+        operation: operation.request.name, payload: body, timeoutMs: timeoutMs, enqueued: enqueued
+      )
+      .payload
+    } else {
+      response = try await transport.request(
+        operation: operation.request.name, payload: body, timeoutMs: timeoutMs)
+      enqueued?()
+    }
     do {
       return try JSONDecoder().decode(
         Result.self, from: JSONEncoder().encode(declared(response, stamps: operation.result.stamps))
