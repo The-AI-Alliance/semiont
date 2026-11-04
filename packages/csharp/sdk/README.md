@@ -2,12 +2,15 @@
 
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=csharp-sdk)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
-Under construction. Models and checked identifiers are generated from the protocol schemas
-during compilation. The HTTP transport and wire conformance driver are implemented; the
-sign-in store, issuer renewal, and kept-session lifecycle are implemented.
-Use a project reference until the NuGet package is published.
+Add a project reference to [Semiont.csproj](src/Semiont/Semiont.csproj) until the NuGet
+package is published. Models and checked identifiers are generated from the protocol
+schemas during compilation.
 
-Construct `SemiontClient` with a gateway URL and token to use its typed namespaces.
+Construct `SemiontClient` with a gateway URL and token. Its eight verb namespaces are
+`Yield`, `Mark`, `Bind`, and `Frame` for writes, `Browse`, `Match`, and `Gather` for
+reads, and `Beckon` for attention. The PascalCase property `Yield` can be used directly
+in C# because the contextual keyword is spelled `yield`.
+
 Frame mutations await their replies.
 A batch of entity types sends each mutation after the preceding one settles.
 The client disposes its transport, and a supplied HTTP client stays caller-owned.
@@ -33,6 +36,33 @@ stall deadline applies to the follower, which asks the queue to cancel the job
 if it stops reporting. A `JobError` carries the shared error code, job ID when
 known, and failure class when the worker supplied one.
 
+Gather a resource's context, then delegate a generation grounded in that context.
+The script owns its client and passes its cancellation token to both operations.
+
+```csharp
+using Semiont;
+using Semiont.Identifiers;
+using Semiont.Types;
+
+public static class GatherAndDelegate
+{
+    public static async Task<YieldJobCompleteCommand> RunAsync(
+        string endpoint, string token, ResourceId source, string storageUri,
+        HttpClient? http = null, CancellationToken cancellation = default)
+    {
+        using var client = new SemiontClient(endpoint, token, http);
+        var context = await client.Gather.ResourceAsync(source, cancellation: cancellation);
+        var generation = client.Yield.Delegate(new GenerationJobParams
+        {
+            Context = context,
+            Title = "Notes",
+            StorageUri = storageUri,
+        });
+        return await generation.CompleteAsync(cancellation);
+    }
+}
+```
+
 Workers sign in as agents and open an `HttpTransport` with
 `WorkerRules.JobClaimChannels` from `Semiont.Jobs`. Add
 `WorkerRules.JobCommitChannels` if the worker will commit annotations.
@@ -56,24 +86,47 @@ keep the last value visible while the new request runs. Use `FreshAsync` on the
 query when you need a new answer for a one-off read.
 
 ```csharp
-await foreach (var state in client.Browse.Resource(resourceId))
+using Semiont;
+using Semiont.Identifiers;
+using Semiont.Types;
+
+public static class WatchResource
 {
-    var message = state switch
+    public static async Task RunAsync(SemiontClient client, ResourceId resourceId,
+        TextWriter output, CancellationToken cancellation = default)
     {
-        CacheState<ResourceDescriptor>.Pending => "Loading…",
-        CacheState<ResourceDescriptor>.Ready(var resource) => resource.Name,
-        CacheState<ResourceDescriptor>.Failed(var error) => error.Message,
-        _ => throw new InvalidOperationException("Unknown cache state"), // C# requires a fallback.
-    };
-    Console.WriteLine(message);
+        await foreach (var state in client.Browse.Resource(resourceId).WithCancellation(cancellation))
+        {
+            var message = state switch
+            {
+                CacheState<ResourceDescriptor>.Pending => "Loading…",
+                CacheState<ResourceDescriptor>.Ready(var resource) => resource.Name,
+                CacheState<ResourceDescriptor>.Failed(var error) => error.Message,
+            };
+            await output.WriteLineAsync(message);
+        }
+    }
 }
 ```
+
+The switch covers the cases of the SDK's closed cache-state type. When the SDK
+adds a case, recompiling the switch points out the missing branch.
+
+The SDK has no Rx dependency. Streams use `IAsyncEnumerable<T>`. A host that
+uses Reactive Extensions can adapt a stream with its async-enumerable bridge,
+`client.Browse.Resource(resourceId).ToObservable()`.
 
 Supply `CachePersistence` when constructing a client to keep selected values
 and their replay bookmarks across sessions. Use a separate document for each
 knowledge base and principal. Its `Write` callback should replace the whole
 document atomically. A restored value is visible immediately and revalidated
 when first read.
+
+State units in `Semiont.State` expose read-only `StateValue<T>` properties.
+Read `Value` for a snapshot or enumerate the property to receive the current
+value followed by updates. Dispose the unit to stop its work and end its streams.
+`SemiontSession` owns the kept-session lifecycle and leaves its client with its caller.
+See the [state-unit contract](../../../docs/builder/STATE-UNITS.md).
 
 `Semiont.Registry.SemiontBrowser` keeps registered knowledge bases, the active
 session, and open resources. Give it an `ISessionStorage` and a session factory,
@@ -91,6 +144,24 @@ or a caller-provided text reader and streams changes by address.
 reconciles a quote against its source, and builds annotations from a whole resource,
 plain text, or PDF anchored text. Spans count Unicode code points. The builders
 derive the same ID when they are given the same resource, motivation, span, and body.
+
+## Testing a composition
+
+`Semiont.Testing` is part of the SDK assembly. Use `TestSessions.CreateTestSessionAsync`
+for a real client and offline session. Call `SetToken` to simulate a live sign-in.
+`FaultyTransport` scripts the bus over HTTP and SSE, with a request log and faults
+for drops, delays, duplicates, and emit refusal. Queue responses by operation or
+provide a `Respond` delegate. Use its `Other` handler for content endpoints.
+
+`Liveness.AssertLivenessAxiomsAsync` runs a fresh composition for each fault schedule
+and checks that its output speaks and awaited paths settle within a bounded time.
+`Liveness.AssertExactlyOnceDeliveryAsync` checks that writes survive connection
+transitions exactly once. Use a seeded `Random` with `FaultSchedules` and
+`DeliveryOps` to replay the generated cases. For registry tests, `ScriptedSessions`
+supplies gateway answers, identity and renewal. `SharedStorage.Context()` creates
+another view of the same storage that hears writes from other contexts.
+
+## Building and verifying
 
 The SDK targets .NET 11. [global.json](global.json) pins the SDK exactly, with roll-forward
 disabled. [dotnet-version.sh](../scripts/dotnet-version.sh) derives the container

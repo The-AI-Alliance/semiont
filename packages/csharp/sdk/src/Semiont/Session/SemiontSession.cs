@@ -39,20 +39,20 @@ public sealed class SemiontSession : IStateUnit
     public async Task ReadyAsync(CancellationToken cancellation = default)
     {
         await kept.ReadyAsync(cancellation).ConfigureAwait(false);
-        UpdateIdentity(kept.State);
+        UpdateIdentity();
     }
 
     public async Task<string?> RefreshAsync(string? refused, CancellationToken cancellation = default)
     {
         var token = await kept.RefreshAsync(refused, cancellation).ConfigureAwait(false);
-        UpdateIdentity(kept.State);
+        UpdateIdentity();
         return token;
     }
 
     private async Task FollowIdentityAsync(CancellationToken cancellation)
     {
         await foreach (var _ in kept.States(cancellation).ConfigureAwait(false))
-            UpdateIdentity(kept.State);
+            UpdateIdentity();
     }
 
     private async Task FollowStreamAsync(CancellationToken cancellation)
@@ -61,11 +61,12 @@ public sealed class SemiontSession : IStateUnit
             StreamState.Set(state);
     }
 
-    private void UpdateIdentity(SessionState identity)
+    internal void UpdateIdentity()
     {
         lock (work.Gate)
         {
             if (!work.Active) return;
+            var identity = kept.State;
             Client.Transport.SetToken(identity.Token);
             Token.Set(identity.Token);
             User.Set(identity.User);

@@ -59,11 +59,26 @@ internal static class BusDescriptors
         }
         code.Append("}\npublic static class BusOperations {\n");
         var limits = new List<string>();
+        var replyFields = new StringBuilder();
         foreach (var row in root.GetProperty("operations").EnumerateArray())
         {
             var request = Required(row, "request");
             var result = Required(row, "result");
             var failure = Required(row, "failure");
+            var reply = definitions[types[result]];
+            if (reply.TryGetProperty("oneOf", out _) || reply.TryGetProperty("anyOf", out _))
+                throw new InvalidOperationException("The result " + result + " needs one set of reply fields.");
+            if (reply.TryGetProperty("required", out var required))
+            {
+                var echoed = required.EnumerateArray().Select(field => field.GetString() ??
+                    throw new InvalidOperationException("A reply field has no name")).Where(field => field != "response").ToArray();
+                foreach (var field in echoed)
+                    if (!definitions[types[request]].TryGetProperty("properties", out var properties) || !properties.TryGetProperty(field, out _))
+                        throw new InvalidOperationException("The result " + result + " requires a field the request does not provide: " + field);
+                if (echoed.Length != 0)
+                    replyFields.Append(JsonSerializer.Serialize(request)).Append(" => [")
+                        .Append(string.Join(", ", echoed.Select(field => JsonSerializer.Serialize(field)))).Append("],\n");
+            }
             if (types[result] == "InferenceLimitsResult")
             {
                 if (types[request] != "InferenceLimitsRequest" || types[failure] != "CommandError")
@@ -77,6 +92,8 @@ internal static class BusDescriptors
         }
         code.Append("internal static System.Collections.Generic.IReadOnlyList<BusOperation<InferenceLimitsRequest, InferenceLimitsResult, CommandError>> Limits { get; } = [")
             .Append(string.Join(", ", limits)).Append("];\n");
+        code.Append("internal static string[] ReplyFields(string operation) => operation switch {\n")
+            .Append(replyFields).Append("_ => [],\n};\n");
         return code.Append("}\n").ToString();
     }
 

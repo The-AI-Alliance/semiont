@@ -7,7 +7,7 @@ namespace Semiont.State;
 public sealed class GatherStateUnit : IStateUnit
 {
     private readonly SemiontClient client;
-    private readonly ResourceId resourceId;
+    private readonly ResourceId annotationResource;
     private readonly UnitWork work;
     private readonly GatherSlot annotation = new();
     private readonly GatherSlot resource = new();
@@ -23,7 +23,7 @@ public sealed class GatherStateUnit : IStateUnit
     public GatherStateUnit(SemiontClient client, ResourceId resourceId)
     {
         this.client = client;
-        this.resourceId = resourceId;
+        annotationResource = resourceId;
         work = new UnitWork(client.Transport.Closed);
     }
 
@@ -33,7 +33,7 @@ public sealed class GatherStateUnit : IStateUnit
         {
             if (!work.Active) return;
             AnnotationId.Set(annotationId);
-            Start(annotation, async token => (await client.Gather.Annotation(resourceId, annotationId, options)
+            Start(annotation, async token => (await client.Gather.Annotation(annotationResource, annotationId, options)
                 .CompleteAsync(token).ConfigureAwait(false)).Response);
         }
     }

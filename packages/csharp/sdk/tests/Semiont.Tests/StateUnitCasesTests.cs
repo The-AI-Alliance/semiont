@@ -168,7 +168,8 @@ public sealed partial class TransportTests
                     else gateway.Stream.Push("event: bus-event\ndata: " + JsonSerializer.Serialize(frame) + "\n\n");
                     break;
                 case "answer":
-                    var request = Request(TextValue(action.Value), step.GetProperty("nth").GetInt32());
+                    var nth = step.GetProperty("nth").GetInt32();
+                    var request = (await SentAsync(TextValue(action.Value), nth + 1))[nth];
                     Reply(gateway, request, Text(step, "reply"), Resolve(step.GetProperty("payload")));
                     break;
                 case "queueReply": QueueReply(TextValue(action.Value), Resolve(step.GetProperty("response"))); break;
@@ -194,10 +195,12 @@ public sealed partial class TransportTests
                             CheckValue(Resolve(member.Value), ValueOf(Watch(units[subject.Name], member.Name)), $"{subject.Name}.{member.Name}");
                     break;
                 case "sent":
-                    var payloads = requests.Where(request => Text(request, "channel") == TextValue(action.Value))
-                        .Select(request => request.GetProperty("payload")).ToArray();
-                    if (step.TryGetProperty("count", out var count)) Assert.Equal(count.GetInt32(), payloads.Length);
-                    else CheckValue(Resolve(step.GetProperty("payloads")), payloads, "sent payloads");
+                    var hasCount = step.TryGetProperty("count", out var count);
+                    var expectedPayloads = hasCount ? default : Resolve(step.GetProperty("payloads"));
+                    var expectedCount = hasCount ? count.GetInt32() : expectedPayloads.GetArrayLength();
+                    var sent = await SentAsync(TextValue(action.Value), expectedCount);
+                    if (hasCount) Assert.Equal(expectedCount, sent.Length);
+                    else CheckValue(expectedPayloads, sent.Select(request => request.GetProperty("payload")).ToArray(), "sent payloads");
                     break;
                 case "nothingSent": Assert.Empty(requests); break;
                 case "heard":
@@ -244,6 +247,17 @@ public sealed partial class TransportTests
                 }
                 await Task.Delay(4, deadline.Token);
                 idle = unanswered.IsEmpty ? idle + 1 : 0;
+            }
+        }
+
+        private async Task<JsonElement[]> SentAsync(string operation, int expected)
+        {
+            using var patience = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            while (true)
+            {
+                var sent = requests.Where(request => Text(request, "channel") == operation).ToArray();
+                if (sent.Length >= expected || patience.IsCancellationRequested) return sent;
+                await SettleAsync();
             }
         }
 

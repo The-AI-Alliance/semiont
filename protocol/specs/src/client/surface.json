@@ -1933,7 +1933,7 @@
     {
       "module": "testing",
       "docs": "What a consumer's tests hold a composition and a registry to: the liveness axioms, that under any behaviour of the wire something is eventually said and every event is delivered exactly once; a real session over test doubles; a factory of scripted sessions for a registry; and a storage several contexts share.",
-      "notYetReached": {"csharp": "C# is still to implement the testing module.", "swift": "The Swift SDK's testing: What a consumer's tests hold a composition and a registry to: the liveness axioms, that under any behaviour of the wire something is eventually said and every event is delivered exactly once; a real session over test doubles; a factory of scripted sessions for a registry; and a storage several contexts share."},
+      "notYetReached": {"swift": "The Swift SDK's testing: What a consumer's tests hold a composition and a registry to: the liveness axioms, that under any behaviour of the wire something is eventually said and every event is delivered exactly once; a real session over test doubles; a factory of scripted sessions for a registry; and a storage several contexts share."},
       "where": {
         "typescript": [
           "packages/typescript/core/src/liveness-axioms.ts",
@@ -1954,6 +1954,9 @@
         ],
         "kotlin": [
           "packages/kotlin/sdk/src/main/kotlin/semiont/testing"
+        ],
+        "csharp": [
+          "packages/csharp/sdk/src/Semiont/Testing"
         ]
       },
       "members": [
