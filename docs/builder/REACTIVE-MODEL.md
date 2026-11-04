@@ -429,3 +429,4 @@ The Kotlin README shows [a delegation followed in both languages](../../packages
 - [The Go SDK's README](../../packages/go/sdk/README.md) — the Go form of each shape
 - [The Kotlin SDK's README](../../packages/kotlin/sdk/README.md) — the Kotlin and Java forms of each shape
 - [The Swift SDK’s README](../../packages/swift/sdk/README.md#examples) — Swift async sequences for live queries and delegated work.
+- [The .NET SDK's README](../../packages/csharp/sdk/README.md) explains C# async streams, state units, and the liveness test toolkit.

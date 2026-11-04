@@ -13,13 +13,18 @@ using Semiont.Types;
 using var traces = Sdk.CreateTracerProviderBuilder().AddSource("semiont").AddOtlpExporter(options => options.Protocol = OtlpExportProtocol.HttpProtobuf).Build();
 using var metrics = Sdk.CreateMeterProviderBuilder().AddMeter("semiont").AddOtlpExporter(options => options.Protocol = OtlpExportProtocol.HttpProtobuf).Build();
 var driver = new WireDriver();
+using var live = args.Contains("--live", StringComparer.Ordinal) ? new LiveDriver() : null;
+using var worker = args.Contains("--worker", StringComparer.Ordinal) ? new WorkerDriver() : null;
 WireDriver.Say(new { ready = true });
 var operations = new List<Task>();
 while (await Console.In.ReadLineAsync() is string line)
 {
     using var document = JsonDocument.Parse(line);
-    operations.Add(driver.RunAsync(document.RootElement.Clone()));
+    var command = document.RootElement.Clone();
+    operations.Add(worker?.RunAsync(command) ?? live?.RunAsync(command) ?? driver.RunAsync(command));
 }
+worker?.Dispose();
+live?.Dispose();
 driver.Dispose();
 await Task.WhenAll(operations);
 

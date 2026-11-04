@@ -33,6 +33,8 @@ go get github.com/The-AI-Alliance/semiont/packages/go/sdk
 
 Kotlin and Java: the SDK is not published yet. [Its README](../../packages/kotlin/sdk/README.md#installing) builds its jar from source.
 
+.NET uses a [project reference and runnable C# examples](../../packages/csharp/sdk/README.md) until the NuGet package is published.
+
 **Then go to the [Developer Guide](./DEVELOPER-GUIDE.md).** It is the way in: short recipes in the order you will need them. You connect, read, ingest a document, enrich it, gather context around it, generate from it, react to what other participants do, and test what you built.
 
 The client needs a knowledge base to talk to. The [Quick Start](./QUICK-START.md) gets one running on your machine.
@@ -43,7 +45,7 @@ The client needs a knowledge base to talk to. The [Quick Start](./QUICK-START.md
 
 - **One wire, eight verbs.** Everything a participant does travels over one event bus, as one of eight verbs: four that write (**yield · mark · bind · frame**), three that read (**browse · match · gather**), and one that directs attention (**beckon**). They are the client's namespaces in every SDK.
 - **The SDK is the boundary.** Your code never calls the gateway's HTTP API directly. Something the SDK lacks is a gap to raise, not a reason to reach around it.
-- **Five SDKs, one contract.** TypeScript, Rust, Python, Go and Kotlin have the same namespaces and methods, and are held to one [conformance suite](../../protocol/conformance/sdk/README.md) against a real gateway. What you learn in one carries to the others.
+- **One contract.** TypeScript, Rust, Python, Go, Kotlin and C# have the same namespaces and methods, and are held to one [conformance suite](../../protocol/conformance/sdk/README.md) against a real gateway. What you learn in one carries to the others.
 - **People and AI agents are the same kind of participant.** They use the same client and the same verbs, and every annotation records who made it.
 - **Data is live.** A read is a query that stays current as others write. Work a model does is a job you start and watch.
 

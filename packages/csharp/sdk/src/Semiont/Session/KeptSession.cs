@@ -17,6 +17,7 @@ public sealed class KeptSession : IDisposable
     private readonly Func<string?, CancellationToken, Task<string?>> renew;
     private readonly Func<string, CancellationToken, Task<UserResponse>> validate;
     private readonly Issuer? issuer;
+    private readonly bool offline;
     private readonly CancellationTokenSource lifetime = new();
     private readonly SemaphoreSlim operations = new(1, 1);
     private readonly object gate = new();
@@ -48,9 +49,10 @@ public sealed class KeptSession : IDisposable
     }
 
     internal KeptSession(ISignInKept kept, Func<string?, CancellationToken, Task<string?>> renew,
-        Func<string, CancellationToken, Task<UserResponse>> validate, TimeProvider clock, Random random)
+        Func<string, CancellationToken, Task<UserResponse>> validate, TimeProvider clock, Random random, bool offline = false)
     {
         this.kept = kept;
+        this.offline = offline;
         this.renew = renew;
         this.validate = validate;
         this.clock = clock;
@@ -67,6 +69,7 @@ public sealed class KeptSession : IDisposable
 
     public async Task<string?> RefreshAsync(string? refused, CancellationToken cancellation = default)
     {
+        if (offline) return State.Token == refused ? null : State.Token;
         Task<string?> shared;
         lock (gate)
         {
@@ -75,6 +78,12 @@ public sealed class KeptSession : IDisposable
             shared = renewal;
         }
         return await shared.WaitAsync(cancellation).ConfigureAwait(false);
+    }
+
+    internal void SetOfflineToken(string? token)
+    {
+        if (!offline) throw new InvalidOperationException("Only an offline session accepts a test token.");
+        Set(token, null);
     }
 
     private void Set(string? token, UserResponse? user)
@@ -96,9 +105,15 @@ public sealed class KeptSession : IDisposable
         unanswered = false;
         ended = true;
         Set(null, null);
-        await kept.ForgetAsync(lifetime.Token).ConfigureAwait(false);
+        await ForgetStoredAsync().ConfigureAwait(false);
         EndReason = reason;
         Report(code);
+    }
+
+    private async Task ForgetStoredAsync()
+    {
+        try { await kept.ForgetAsync(lifetime.Token).ConfigureAwait(false); }
+        catch (Exception error) when (error is not OperationCanceledException) { Report("auth-failed", error); }
     }
 
     private async Task<string?> RenewCoreAsync(bool starting = false)
@@ -131,9 +146,18 @@ public sealed class KeptSession : IDisposable
             {
                 ended = true;
                 Set(null, null);
-                await kept.ForgetAsync(lifetime.Token).ConfigureAwait(false);
+                await ForgetStoredAsync().ConfigureAwait(false);
             }
             else await EndAsync("expired", "refresh-exhausted").ConfigureAwait(false);
+            return null;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            lifetime.Token.ThrowIfCancellationRequested();
+            // A host storage write can fail after the issuer answers. Never publish an unkept grant.
+            unanswered = true;
+            Set(null, State.User);
+            Report(starting ? "auth-failed" : "refresh-exhausted", error);
             return null;
         }
     }
@@ -144,6 +168,7 @@ public sealed class KeptSession : IDisposable
         try
         {
             var found = await kept.HeldAsync(lifetime.Token).ConfigureAwait(false);
+            if (offline) { Set(found?.Access, null); return; }
             if (found is null) { ended = true; return; }
             var issued = Tokens.IsTokenExpired(found.Access, clock.GetUtcNow().ToUnixTimeMilliseconds() / 1000d);
             var token = issued ? await RenewCoreAsync(starting: true).ConfigureAwait(false) : found.Access;
@@ -170,7 +195,7 @@ public sealed class KeptSession : IDisposable
         finally
         {
             operations.Release();
-            if (!lifetime.IsCancellationRequested) _ = ScheduleAsync();
+            if (!offline && !lifetime.IsCancellationRequested) _ = ScheduleAsync();
         }
     }
 

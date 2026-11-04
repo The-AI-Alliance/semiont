@@ -30,6 +30,7 @@ public sealed partial class HttpTransport : IDisposable
     private readonly Broadcast<ConnectionState> states = new(replayLatest: true);
     private readonly Broadcast<SemiontError> failures = new(keepForFirst: true);
     private readonly List<FrameView> listeners = [];
+    private readonly List<EventBus> buses = [];
     private readonly Dictionary<string, Pending> pending = [];
     private readonly Dictionary<string, int> holds = [];
     private readonly Dictionary<string, string> watermarks = [];
@@ -42,6 +43,7 @@ public sealed partial class HttpTransport : IDisposable
     private string? token;
     private string? refusedToken;
     private bool closed;
+    private long receivedSequence;
     private ConnectionState state;
     private DateTimeOffset? outage;
 
@@ -67,6 +69,7 @@ public sealed partial class HttpTransport : IDisposable
     }
 
     internal TimeProvider Clock => clock;
+    internal Timing Settings => timing;
     internal CancellationToken Closed => lifetime.Token;
 
     public string BaseUrl { get; }
@@ -109,9 +112,14 @@ public sealed partial class HttpTransport : IDisposable
         return ObserveFrames(selected, resource, cancellation);
     }
 
-    internal IAsyncEnumerable<ReceivedBusFrame> BridgeFrames() => ObserveFrames(null, null, default);
+    internal IDisposable AttachBus(EventBus bus)
+    {
+        lock (gate)
+            if (!closed) buses.Add(bus);
+        return new Hold(() => { lock (gate) buses.Remove(bus); });
+    }
 
-    private async IAsyncEnumerable<ReceivedBusFrame> ObserveFrames(HashSet<string>? selected, ResourceId? resource, [EnumeratorCancellation] CancellationToken cancellation)
+    private async IAsyncEnumerable<ReceivedBusFrame> ObserveFrames(HashSet<string> selected, ResourceId? resource, [EnumeratorCancellation] CancellationToken cancellation)
     {
         var view = new FrameView(selected);
         await using var events = view.Stream.Observe(cancellation).GetAsyncEnumerator();
@@ -159,6 +167,15 @@ public sealed partial class HttpTransport : IDisposable
                 }
             }
             catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        }
+    }
+
+    internal void RestoreWatermarks(IReadOnlyDictionary<string, string> saved)
+    {
+        lock (gate)
+        {
+            if (closed) return;
+            foreach (var (scope, id) in saved) watermarks.TryAdd(scope, id);
         }
     }
 
@@ -249,10 +266,10 @@ public sealed partial class HttpTransport : IDisposable
     public async Task<JsonElement?> RequestAsync(string operation, JsonElement payload, int? timeoutMs = null, CancellationToken cancellation = default)
     {
         var frame = await RequestFrameAsync(operation, payload, timeoutMs, cancellation).ConfigureAwait(false);
-        return frame.Payload.TryGetProperty("response", out var value) ? value.Clone() : null;
+        return frame.Frame.Payload.TryGetProperty("response", out var value) ? value.Clone() : null;
     }
 
-    internal async Task<BusFrame> RequestFrameAsync(string operation, JsonElement payload, int? timeoutMs, CancellationToken cancellation)
+    internal async Task<ReceivedBusFrame> RequestFrameAsync(string operation, JsonElement payload, int? timeoutMs, CancellationToken cancellation)
     {
         var replies = ProtocolFacts.Operation(operation);
         if (!IsSubscribed(replies.Result) || !IsSubscribed(replies.Failure)) throw BusError("unsubscribed", operation);
@@ -277,10 +294,11 @@ public sealed partial class HttpTransport : IDisposable
             sendOrder.Release();
             ownsTurn = false;
             var frame = await reply.Completion.Task.WaitAsync(linked.Token).ConfigureAwait(false);
-            if (frame.Channel == replies.Failure)
+            if (frame.Frame.Channel == replies.Failure)
             {
-                string? code = frame.Payload.TryGetProperty("code", out var field) && field.ValueKind == JsonValueKind.String ? field.GetString() : null;
-                throw new BusRequestError(ProtocolFacts.Failure(code), frame.Payload.ToString());
+                string? code = frame.Frame.Payload.TryGetProperty("code", out var field) && field.ValueKind == JsonValueKind.String ? field.GetString() : null;
+                var detail = FailureText(frame.Frame.Payload, "message") ?? FailureText(frame.Frame.Payload, "error");
+                throw new BusRequestError(ProtocolFacts.Failure(code), detail ?? frame.Frame.Payload.ToString());
             }
             return frame;
         }
@@ -294,6 +312,9 @@ public sealed partial class HttpTransport : IDisposable
             lock (gate) { pending.Remove(correlation); }
         }
     }
+
+    private static string? FailureText(JsonElement payload, string name) =>
+        payload.TryGetProperty(name, out var field) && field.ValueKind == JsonValueKind.String ? field.GetString() : null;
 
     private async Task RunAsync()
     {
@@ -445,13 +466,13 @@ public sealed partial class HttpTransport : IDisposable
                             }
                             using var activity = SdkTelemetry.Start("bus.recv:{channel}", SdkTelemetry.BusTags(frame.Channel, frame.Scope), frame.Channel, parent);
                             BusLog.Line("RECV", frame.Channel, frame.Payload);
-                            if (frame.CorrelationId is string correlation && pending.TryGetValue(correlation, out var reply) && (frame.Channel == reply.Result || frame.Channel == reply.Failure)) reply.Completion.TrySetResult(frame);
-                            if (listeners.Count > 0)
-                            {
-                                var received = new ReceivedBusFrame(frame, parent);
-                                foreach (var listener in listeners)
-                                    if (listener.Channels?.Contains(frame.Channel) != false) listener.Stream.Publish(received);
-                            }
+                            var received = new ReceivedBusFrame(frame, parent) { EventId = message.Id, Sequence = ++receivedSequence };
+                            // Make the wire frame visible before a continuation can publish its derived signal.
+                            foreach (var bus in buses) bus.Receive(received);
+                            foreach (var listener in listeners)
+                                if (listener.Channels.Contains(frame.Channel)) listener.Stream.Publish(received);
+                            if (frame.CorrelationId is string correlation && pending.TryGetValue(correlation, out var reply) &&
+                                (frame.Channel == reply.Result || frame.Channel == reply.Failure)) reply.Completion.TrySetResult(received);
                         }
                     }
                 }
@@ -575,20 +596,21 @@ public sealed partial class HttpTransport : IDisposable
             lifetime.Cancel();
             Transition(ConnectionState.Closed);
             foreach (var listener in listeners) listener.Stream.Close();
+            buses.Clear();
             failures.Close();
             states.Close();
         }
         owned?.Dispose();
     }
 
-    private sealed record FrameView(HashSet<string>? Channels)
+    private sealed record FrameView(HashSet<string> Channels)
     {
         internal Broadcast<ReceivedBusFrame> Stream { get; } = new();
     }
 
     private sealed record Pending(string Result, string Failure)
     {
-        internal TaskCompletionSource<BusFrame> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource<ReceivedBusFrame> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
     private sealed class Hold(Action release) : IDisposable
     {
