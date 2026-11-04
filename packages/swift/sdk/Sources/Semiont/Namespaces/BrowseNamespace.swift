@@ -3,10 +3,24 @@ public struct BrowseNamespace: Sendable {
   let bus: EventBus
   let lifetime: Lifetime
   let content: (any ContentTransport)?
-  let vocabulary: VocabularyQueries
+  let live: LiveQueries
 
-  public func entityTypes() -> Cached<[String]> { vocabulary.entityTypes }
-  public func tagSchemas() -> Cached<[TagSchema]> { vocabulary.tagSchemas }
+  public func entityTypes() -> Cached<[String]> { live.entityTypes }
+  public func tagSchemas() -> Cached<[TagSchema]> { live.tagSchemas }
+
+  public func resource(_ resourceId: ResourceId) -> Cached<ResourceDescriptor> {
+    live.resources.query(resourceId)
+  }
+  public func events(_ resourceId: ResourceId) -> Cached<[AttributedEvent]> {
+    live.events.query(resourceId)
+  }
+
+  public func annotations(_ resourceId: ResourceId) -> Cached<[Annotation]> {
+    live.annotations.query(resourceId)
+  }
+  public func annotation(resourceId: ResourceId, annotationId: AnnotationId) -> Cached<Annotation> {
+    live.annotation(resourceId: resourceId, annotationId: annotationId)
+  }
 
   private var contentTransport: any ContentTransport {
     get throws {

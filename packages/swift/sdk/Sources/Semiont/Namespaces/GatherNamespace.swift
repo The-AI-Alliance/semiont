@@ -1,6 +1,13 @@
 public struct GatherNamespace: Sendable {
   let wire: Bus
   let lifetime: Lifetime
+  let live: LiveQueries
+
+  public func referencedBy(_ resourceId: ResourceId) -> Cached<
+    [GetReferencedByResponseReferencedByItem]
+  > {
+    live.referencedBy.query(resourceId)
+  }
   public func annotation(
     resourceId: ResourceId, annotationId: AnnotationId, options: GatherAnnotationOptions? = nil
   ) -> Running<GatherAnnotationComplete> {

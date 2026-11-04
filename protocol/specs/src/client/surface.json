@@ -79,7 +79,6 @@
       "methods": [
         {
           "method": "resource",
-          "notYetReached": {"swift": "Live cache queries remain to implement."},
           "shape": "cache",
           "via": { "request": "browse:resource-requested" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
@@ -104,14 +103,12 @@
         },
         {
           "method": "annotations",
-          "notYetReached": {"swift": "Live cache queries remain to implement."},
           "shape": "cache",
           "via": { "content": "getAnnotations" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
         },
         {
           "method": "annotation",
-          "notYetReached": {"swift": "Live cache queries remain to implement."},
           "shape": "cache",
           "via": { "request": "browse:annotation-requested" },
           "cases": [{ "args": { "resourceId": "res-1", "annotationId": "ann-1" }, "sends": { "resourceId": "res-1", "annotationId": "ann-1" } }]
@@ -137,7 +134,6 @@
         },
         {
           "method": "events",
-          "notYetReached": {"swift": "Live cache queries remain to implement."},
           "shape": "cache",
           "via": { "request": "browse:events-requested" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
@@ -420,7 +416,6 @@
         },
         {
           "method": "referencedBy",
-          "notYetReached": {"swift": "Live referenced-by queries remain to implement."},
           "shape": "cache",
           "via": { "request": "gather:referenced-by-requested" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
