@@ -25,6 +25,7 @@ struct Call: Equatable, Sendable {
 }
 final class ProbeTransport: Transport, GatewayOperations, Sendable {
   let baseUrl = "http://kb.test"
+  let emitted = Watched(false)
   let state = Watched<ConnectionState>(.open)
   private let hub = Broadcast<ReceivedFrame>()
   private let failureEvents = Broadcast<TransportError>()
@@ -66,10 +67,12 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
   func emit(
     channel: String, payload: [String: JSONValue], scope: ResourceId?, correlationId: String?
   ) async throws -> Int? {
-    storage.withLock {
+    let count = storage.withLock {
       $0.calls.append(Call(via: "emit", name: channel, payload: payload))
       return $0.count
     }
+    emitted.set(true)
+    return count
   }
   func request(operation: String, payload: [String: JSONValue], timeoutMs: Int?) async throws
     -> [String: JSONValue]
@@ -122,8 +125,126 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
       message: "ready", status: "ok", version: "test")
   }
 }
+extension ProbeTransport: ContentTransport {
+  private func recordContent(_ name: String, resource: ResourceId) {
+    storage.withLock {
+      $0.calls.append(
+        Call(via: "content", name: name, payload: ["resourceId": .string(resource.value)]))
+    }
+  }
+  func getBinary(_ resource: ResourceId) async throws -> Content {
+    recordContent("getBinary", resource: resource)
+    return Content(contentType: "application/octet-stream", bytes: Data([0, 255]))
+  }
+  func getBinaryStream(_ resource: ResourceId) async throws -> ContentStream {
+    recordContent("getBinaryStream", resource: resource)
+    let (stream, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
+    continuation.yield(Data([0, 255]))
+    continuation.finish()
+    return ContentStream(contentType: "application/octet-stream", bytes: Events(stream, stop: {}))
+  }
+  func getResourceGraph(_ resource: ResourceId) async throws -> GetResourceResponse {
+    recordContent("getResourceGraph", resource: resource)
+    guard case .resource(let focus) = try contextFixture().focus else {
+      throw SpecFailure.shape("resource focus")
+    }
+    return GetResourceResponse(annotations: [], resource: focus.resource)
+  }
+  func getAnchoredText(_ resource: ResourceId) async throws -> AnchoredTextAnswer {
+    recordContent("getAnchoredText", resource: resource)
+    return .anchoredTextAbsent(AnchoredTextAbsent(kind: .notYet))
+  }
+  func putBinary(_ request: PutBinaryRequest) -> Upload {
+    var payload: [String: JSONValue] = [
+      "name": .string(request.name),
+      "content": .string(String(decoding: request.file, as: UTF8.self)),
+      "format": .string(request.format),
+      "storageUri": .string(request.storageUri),
+    ]
+    if let token = request.cloneToken { payload["cloneToken"] = .string(token) }
+    if let archive = request.archiveOriginal { payload["archiveOriginal"] = .bool(archive) }
+    storage.withLock { $0.calls.append(Call(via: "content", name: "putBinary", payload: payload)) }
+    let (progress, continuation) = AsyncThrowingStream<UploadProgress, any Error>.makeStream()
+    continuation.finish()
+    return Upload(
+      task: Task { try CreateResourceResponse(resourceId: ResourceId("uploaded")) },
+      progress: Events(progress, stop: {}))
+  }
+}
 private let callsByName:
   [String: @Sendable (SemiontClient, [String: JSONValue]) async throws -> JSONValue?] = [
+    "browse.resourceGraph": { client, args in
+      try await encoded(
+        client.browse.resourceGraph(decoded(ResourceId.self, required(args, "resourceId"))))
+    },
+    "browse.resourceAnchoredText": { client, args in
+      try await encoded(
+        client.browse.resourceAnchoredText(decoded(ResourceId.self, required(args, "resourceId"))))
+    },
+    "browse.resourceRepresentation": { client, args in
+      let reply = try await client.browse.resourceRepresentation(
+        decoded(ResourceId.self, required(args, "resourceId")))
+      #expect(reply.contentType == "application/octet-stream")
+      #expect(reply.bytes == Data([0, 255]))
+      return nil
+    },
+    "browse.resourceRepresentationStream": { client, args in
+      let stream = try await client.browse.resourceRepresentationStream(
+        decoded(ResourceId.self, required(args, "resourceId")))
+      defer { stream.dispose() }
+      var bytes = Data()
+      for try await chunk in stream { bytes.append(chunk) }
+      #expect(stream.contentType == "application/octet-stream")
+      #expect(bytes == Data([0, 255]))
+      return nil
+    },
+    "yield.resource": { client, args in
+      let data = try required(args, "data").object
+      let upload = try client.yield.resource(
+        PutBinaryRequest(
+          name: required(data, "name").text, file: Data(required(data, "content").text.utf8),
+          format: required(data, "format").text, storageUri: required(data, "storageUri").text))
+      return try await encoded(upload.completed())
+    },
+    "yield.createFromToken": { client, args in
+      let options = try required(args, "options").object
+      return try await encoded(
+        client.yield.createFromToken(
+          token: required(options, "token").text, name: required(options, "name").text,
+          content: required(options, "content").text,
+          archiveOriginal: options["archiveOriginal"].map { try decoded(Bool.self, $0) }))
+    },
+    "browse.resourceEvents": { client, args in
+      try await encoded(
+        client.browse.resourceEvents(decoded(ResourceId.self, required(args, "resourceId"))))
+    },
+    "browse.annotationHistory": { client, args in
+      try await encoded(
+        client.browse.annotationHistory(
+          resourceId: decoded(ResourceId.self, required(args, "resourceId")),
+          annotationId: decoded(AnnotationId.self, required(args, "annotationId"))))
+    },
+    "browse.files": { client, args in
+      if let path = args["dirPath"] {
+        return try await encoded(
+          client.browse.files(
+            path.text, sort: decoded(BrowseDirectoryRequestSort.self, required(args, "sort"))))
+      }
+      return try await encoded(client.browse.files())
+    },
+    "browse.kb": { client, _ in try await encoded(client.browse.kb()) },
+    "browse.click": { client, args in
+      try client.browse.click(decoded(AnnotationId.self, required(args, "annotationId")))
+      return nil
+    },
+    "browse.openResource": { client, args in
+      try client.browse.openResource(decoded(ResourceId.self, required(args, "resourceId")))
+      return nil
+    },
+    "browse.resourceViewed": { client, args in
+      try client.browse.resourceViewed(decoded(ResourceId.self, required(args, "resourceId")))
+      return nil
+    },
     "mark.annotation": { client, args in
       try await encoded(
         client.mark.annotation(decoded(CreateAnnotationRequest.self, required(args, "input"))))
@@ -321,7 +442,7 @@ private let callsByName:
         let item = try expanded(value, fixtures: required(table, "fixtures").object).object
         let via = try required(row, "via").object
         let probe = ProbeTransport()
-        surfaceReplies(probe)
+        surfaceReplies(probe, cloneAnswer: key == "yield.createFromToken" ? item["answers"] : nil)
         let client = try await SemiontClient(transport: probe, gateway: probe)
         defer { client.dispose() }
         let local = try via["local"].map { client.bus.listen([try $0.text]) }
@@ -347,9 +468,10 @@ private let callsByName:
         }
         for next in try item["then"]?.array ?? [] {
           let next = try next.object
+          let kind = next["content"] == nil ? "request" : "content"
           expected.append(
             Call(
-              via: "request", name: try required(next, "request").text,
+              via: kind, name: try required(next, kind).text,
               payload: try required(next, "sends").object))
         }
         if let local {
@@ -363,9 +485,14 @@ private let callsByName:
             #expect(frame?.correlationId == (try correlation.text))
           }
         } else {
+          if via["emit"] != nil, try required(row, "shape").text == "signal" {
+            try await within(5000) {
+              for await sent in probe.emitted where sent { return }
+            }
+          }
           #expect(probe.calls == expected, "\(key)")
         }
-        if via["emit"] != nil { #expect(result == .number(7)) }
+        if try required(row, "shape").text == "count" { #expect(result == .number(7)) }
         if via["gateway"] != nil { #expect(result != nil) }
       }
     }

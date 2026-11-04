@@ -77,16 +77,18 @@
     {
       "namespace": "browse",
       "docs": "Reads: live queries, one-shot reads, and this viewer's own signals.",
-      "notYetReached": {"csharp": "C# is still to implement the browse namespace.", "swift": "The Swift SDK's browse: Reads: live queries, one-shot reads, and this viewer's own signals."},
+      "notYetReached": {"csharp": "C# is still to implement the browse namespace."},
       "methods": [
         {
           "method": "resource",
+          "notYetReached": {"swift": "Live cache queries remain to implement."},
           "shape": "cache",
           "via": { "request": "browse:resource-requested" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
         },
         {
           "method": "resources",
+          "notYetReached": {"swift": "Live cache queries remain to implement."},
           "shape": "cache",
           "via": { "request": "browse:resources-requested" },
           "cases": [
@@ -104,42 +106,49 @@
         },
         {
           "method": "annotations",
+          "notYetReached": {"swift": "Live cache queries remain to implement."},
           "shape": "cache",
           "via": { "content": "getAnnotations" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
         },
         {
           "method": "annotation",
+          "notYetReached": {"swift": "Live cache queries remain to implement."},
           "shape": "cache",
           "via": { "request": "browse:annotation-requested" },
           "cases": [{ "args": { "resourceId": "res-1", "annotationId": "ann-1" }, "sends": { "resourceId": "res-1", "annotationId": "ann-1" } }]
         },
         {
           "method": "entityTypes",
+          "notYetReached": {"swift": "Live cache queries remain to implement."},
           "shape": "cache",
           "via": { "request": "browse:entity-types-requested" },
           "cases": [{ "args": {}, "sends": {} }]
         },
         {
           "method": "tagSchemas",
+          "notYetReached": {"swift": "Live cache queries remain to implement."},
           "shape": "cache",
           "via": { "request": "browse:tag-schemas-requested" },
           "cases": [{ "args": {}, "sends": {} }]
         },
         {
           "method": "engines",
+          "notYetReached": {"swift": "Live cache queries remain to implement."},
           "shape": "cache",
           "via": { "request": "browse:engines-requested" },
           "cases": [{ "why": "the engines are asked for first; each key holder's limits after it", "args": {}, "sends": {} }]
         },
         {
           "method": "events",
+          "notYetReached": {"swift": "Live cache queries remain to implement."},
           "shape": "cache",
           "via": { "request": "browse:events-requested" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
         },
         {
           "method": "resourceContent",
+          "notYetReached": {"swift": "Content namespace wiring remains to implement."},
           "shape": "promise",
           "via": { "content": "getBinary" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
@@ -487,7 +496,6 @@
       "methods": [
         {
           "method": "resource",
-          "notYetReached": {"swift": "Upload client wiring remains to implement."},
           "shape": "upload",
           "via": { "content": "putBinary" },
           "cases": [
@@ -528,7 +536,6 @@
         },
         {
           "method": "createFromToken",
-          "notYetReached": {"swift": "Clone upload client wiring remains to implement."},
           "shape": "promise",
           "via": { "request": "yield:clone-resource-requested" },
           "cases": [

@@ -35,9 +35,31 @@ func completionFixture(_ create: JobCreateCommand, job: String = "job-1") throws
     return .yieldJobCompleteCommand(YieldJobCompleteCommand(jobId: job, resourceId: resource))
   }
 }
-func surfaceReplies(_ probe: ProbeTransport) {
+func surfaceReplies(_ probe: ProbeTransport, cloneAnswer: JSONValue?) {
   probe.handle { [weak probe] name, payload in
     switch name {
+    case Operations.browseEventsRequested.request.name:
+      let request = try decoded(BrowseEventsRequest.self, .object(payload))
+      return try wirePayload(
+        BrowseEventsResult(
+          response: GetEventsResponse(
+            events: [], resourceId: request.resourceId, total: 0)))
+    case Operations.browseAnnotationHistoryRequested.request.name:
+      let request = try decoded(BrowseAnnotationHistoryRequest.self, .object(payload))
+      return try wirePayload(
+        BrowseAnnotationHistoryResult(
+          response: GetAnnotationHistoryResponse(
+            annotationId: request.annotationId, events: [], resourceId: request.resourceId, total: 0
+          )))
+    case Operations.browseDirectoryRequested.request.name:
+      let request = try decoded(BrowseDirectoryRequest.self, .object(payload))
+      return try wirePayload(
+        BrowseDirectoryResult(
+          response: BrowseDirectoryResultResponse(
+            entries: [], path: request.path)))
+    case Operations.browseKbRequested.request.name:
+      return try wirePayload(
+        BrowseKbResult(response: KbDescription(domain: "kb.test", name: "Test")))
     case Operations.jobCreate.request.name:
       let completion = try completionFixture(decoded(JobCreateCommand.self, .object(payload)))
       probe?.deliver(
@@ -75,6 +97,10 @@ func surfaceReplies(_ probe: ProbeTransport) {
           ResponseEnvelope(
             response: CloneResourceWithTokenResponse(
               expiresAt: "2030-01-01T00:00:00Z", resource: focus.resource, token: "token")))
+      }
+      if let cloneAnswer {
+        return try wirePayload(
+          ResponseEnvelope(response: decoded(GetResourceByTokenResponse.self, cloneAnswer)))
       }
       return try wirePayload(
         ResponseEnvelope(

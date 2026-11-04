@@ -1,5 +1,4 @@
 import Foundation
-import Synchronization
 
 private enum Lifecycle: Sendable {
   case progress(JobReportProgressCommand)
@@ -186,15 +185,7 @@ func follow<Completion: FollowedCompletion>(
     })
 }
 private func cancelStalled(_ job: JobId, wire: Bus, lifetime: Lifetime) {
-  let slot = Mutex<Task<Void, Never>?>(nil)
-  let id = lifetime.onEnd { slot.withLock { $0?.cancel() } }
-  let task = Task {
-    defer { lifetime.forgetEnding(id) }
-    do {
-      try Task.checkCancellation()
-      _ = try await wire.request(Operations.jobCancelRequested, JobCancelRequest(jobId: job))
-    } catch {}
+  lifetime.start {
+    _ = try? await wire.request(Operations.jobCancelRequested, JobCancelRequest(jobId: job))
   }
-  slot.withLock { $0 = task }
-  if lifetime.ended { task.cancel() }
 }

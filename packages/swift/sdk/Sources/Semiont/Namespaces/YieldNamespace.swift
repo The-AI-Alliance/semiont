@@ -5,6 +5,31 @@ public struct YieldNamespace: Sendable {
   let bus: EventBus
   let lifetime: Lifetime
   let timing: FollowTiming
+  let content: (any ContentTransport)?
+
+  public func resource(_ request: PutBinaryRequest) throws -> Upload {
+    guard let content else { throw TransportError(.error, "No content transport is configured") }
+    return content.putBinary(request)
+  }
+  public func createFromToken(
+    token: String, name: String, content text: String, archiveOriginal: Bool? = nil
+  ) async throws -> CreateResourceResponse {
+    guard let content else { throw TransportError(.error, "No content transport is configured") }
+    let source = try await fromToken(token)
+    try Task.checkCancellation()
+    let mediaType: String?
+    switch source.representations {
+    case .representation(let primary): mediaType = primary.mediaType
+    case .list(let representations): mediaType = representations.first?.mediaType
+    }
+    let format = cloneFormat(mediaType)
+    let upload = content.putBinary(
+      PutBinaryRequest(
+        name: name, file: Data(text.utf8), format: format,
+        storageUri: storageURI(name, format: format),
+        cloneToken: token, archiveOriginal: archiveOriginal))
+    return try await upload.completed()
+  }
   public func delegate(params: GenerationJobParams, stallDeadlineMs: Int? = nil) throws
     -> Delegation<YieldJobCompleteCommand>
   {
