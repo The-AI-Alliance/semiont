@@ -1555,6 +1555,7 @@ function csharpShape({ returns }) {
   if (returns === 'void') return 'signal';
   if (returns.startsWith('Cached<')) return 'cache';
   if (returns.startsWith('Running<')) return 'stream';
+  if (returns.startsWith('IAsyncEnumerable<Heard<')) return 'events';
   if (returns.startsWith('Delegation<')) return 'delegation';
   if (returns === 'Upload') return 'upload';
   if (returns === 'Claims') return 'claims';
