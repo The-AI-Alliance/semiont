@@ -2,10 +2,11 @@
 
 A service is told its knowledge base by its document, and signing in at that
 knowledge base's issuer proves it may act there. Before it touches anything
-it keeps for the knowledge base, it asks the knowledge base which it is, over
-the stream it signed in on (`browse:kb-requested`, which the Archivist
-answers from the committed `.semiont/config.yaml`), and refuses to start
-where the answer is another domain than its document's. A document naming one
+it keeps for the knowledge base, it asks the knowledge base which it is
+(`browse:kb-requested`, which the Archivist answers from the committed
+`.semiont/config.yaml`), on a stream that names the answer's replies and
+nothing the service answers, and refuses to start where the answer is
+another domain than its document's. A document naming one
 knowledge base beside a gateway that serves another would have the service
 keep the second's data under the first's name.
 """

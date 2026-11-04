@@ -72,7 +72,7 @@ SURFACE = {
     "index_stamp": ["hold_to", "stamp_of"],
     "telemetry": ["points_held"],
     "config": ["SERVICE", "embedding_key_of", "read_smelter_config", "vectors_token_of"],
-    "service": ["CHANNELS", "boot", "main"],
+    "service": ["CHANNELS", "CONFIRMING_CHANNELS", "boot", "main"],
 }
 
 # The modules that say what a reader and an engine are, and the rules that make a document's text from what one hands over.

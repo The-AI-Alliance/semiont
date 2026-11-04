@@ -472,27 +472,35 @@ A Smelter asks one provider for its vectors: an Ollama
 
 ## Boot
 
-A Smelter starts in this order: it reads its settings; signs in; opens its
-stream, which names every event of the record, and asks the knowledge base
-over it which it is; reaches its embedding provider and its vector database;
-holds the index to what it makes one by, and forgets its cursors where it
-made the index again; follows the record; opens its health port. Once it
-follows the record and its stream is open, it sweeps the record, and a
-resource no cursor names is started by a reconcile.
+A Smelter starts in this order: it reads its settings; signs in; asks the
+knowledge base which it is, on a stream that names no command; reaches its
+embedding provider and its vector database; holds the index to what it makes
+one by, and forgets its cursors where it made the index again; opens its
+stream, which names every event of the record and the command it answers,
+and follows the record; opens its health port. Once it follows the record and
+its stream is open, it sweeps the record, and a resource no cursor names is
+started by a reconcile.
 
 - **It serves the knowledge base its settings name, and no other.** Before it
   reaches its vector database it asks the knowledge base which it is
   (`browse:kb-requested`, which the Archivist answers from the committed
   `.semiont/config.yaml`), and asks again while nothing answers there
-  (`bus.peer-unavailable`), as it asks again for a page of the catalog. Where
-  the answer names another domain than its settings do, it refuses to start,
-  naming both knowledge bases by their DIDs; where it is a failure, it
-  refuses to start saying what failed. Either way it exits with a status
-  other than 0 having made, read and emptied no collection: its token may
-  make any ([The index](#the-index)), and the collections it would reach are
-  those of the knowledge base its settings name. Told to stop while it asks,
-  it exits with status 0.
-  *Held by `packages/python/service/tests/test_knowledge_base.py` and `smelter/kb-index`.*
+  (`bus.peer-unavailable`), as it asks again for a page of the catalog. It
+  asks on a stream of its own, which names that request's replies and not
+  the command it answers (`smelt:rebuild-anchors`), and closes it before it
+  reaches its vector database. A command reaches every stream that names its
+  channel, and fails at once only where it reaches none
+  ([TRANSPORT-HTTP.md § POST /bus/emit](./TRANSPORT-HTTP.md#post-busemit)):
+  no command reaches a Smelter before it can answer one, and one sent while
+  it starts fails as one sent where no Smelter runs. Where the answer names
+  another domain than its settings do, it refuses to start, naming both
+  knowledge bases by their DIDs; where it is a failure, it refuses to start
+  saying what failed. Either way it exits with a status other than 0 having
+  made, read and emptied no collection: its token may make any
+  ([The index](#the-index)), and the collections it would reach are those of
+  the knowledge base its settings name. Told to stop while it asks, it exits
+  with status 0.
+  *Held by `packages/python/service/tests/test_knowledge_base.py`, `images/smelter/tests/test_service.py`, for the stream it asks on, and `smelter/kb-index`.*
 - **It gives up when the embedding provider or the vector database does not
   answer within a minute,** and exits with a status other than 0.
   *Held by `packages/python/service/tests/test_connect.py`.*
