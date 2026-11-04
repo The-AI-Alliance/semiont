@@ -131,12 +131,7 @@ async fn serve(
     .map_err(|e| format!("cannot sign in: {e}"))?;
     logging::info("Authenticated", json!({ "component": "archivist" }));
     // Nothing of the tree is touched before the gateway says it serves the knowledge base the tree is.
-    let served = served_at(agent.gateway(), &http).await?;
-    serves_the_tree(agent.gateway(), &served, &root, &domain)?;
-    logging::info(
-        "Gateway confirmed",
-        json!({ "component": "archivist", "resource": served }),
-    );
+    confirm_gateway(agent.gateway(), &http, &root, &domain).await?;
 
     let staging = staging_for(
         &root,
@@ -308,17 +303,28 @@ async fn served_at(gateway: &str, http: &reqwest::Client) -> Result<String, Stri
 }
 
 /// Refuses a gateway that serves another knowledge base than the tree at
-/// `root`, whose domain is `domain`: one whose resource is not the tree's.
-fn serves_the_tree(gateway: &str, served: &str, root: &Path, domain: &str) -> Result<(), String> {
+/// `root`, whose domain is `domain`: one whose resource is not the tree's, or
+/// that does not say which it serves.
+async fn confirm_gateway(
+    gateway: &str,
+    http: &reqwest::Client,
+    root: &Path,
+    domain: &str,
+) -> Result<(), String> {
+    let served = served_at(gateway, http).await?;
     let tree = kb_resource(domain);
-    if served == tree {
-        return Ok(());
+    if served != tree {
+        return Err(format!(
+            "The gateway at {gateway} serves {served}, and the tree at {} is {tree} ({})",
+            root.display(),
+            kb_did(domain)
+        ));
     }
-    Err(format!(
-        "The gateway at {gateway} serves {served}, and the tree at {} is {tree} ({})",
-        root.display(),
-        kb_did(domain)
-    ))
+    logging::info(
+        "Gateway confirmed",
+        json!({ "component": "archivist", "resource": served }),
+    );
+    Ok(())
 }
 
 /// `semiont.archivist.fact_pump.depth`: events appended and not yet
@@ -349,31 +355,97 @@ async fn stop_signal() {
 
 #[cfg(test)]
 mod tests {
-    use super::serves_the_tree;
+    use super::confirm_gateway;
+    use axum::Router;
+    use axum::http::header;
+    use axum::routing::get;
+    use semiont::types::{
+        ProtectedResourceMetadata, ProtectedResourceMetadataBearerMethodsSupportedItem,
+    };
     use std::path::Path;
 
-    #[test]
-    fn a_gateway_that_serves_the_trees_knowledge_base_is_its_gateway() {
-        let served = serves_the_tree(
-            "http://127.0.0.1:4000",
-            "https://example.github.io/my-kb",
-            Path::new("/kb"),
-            "example.github.io:my-kb",
-        );
-        assert_eq!(served, Ok(()));
+    /// A gateway on a port of its own, answering what `app` routes; its origin.
+    async fn gateway(app: Router) -> String {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move { axum::serve(listener, app).await });
+        origin
     }
 
-    #[test]
-    fn a_gateway_that_serves_another_knowledge_base_is_refused_naming_both() {
-        let refused = serves_the_tree(
-            "http://127.0.0.1:4000",
-            "https://example.github.io/other-kb",
+    /// A gateway whose protected-resource metadata names `resource`.
+    async fn gateway_serving(resource: &'static str) -> String {
+        gateway(Router::new().route(
+            "/.well-known/oauth-protected-resource",
+            get(move || async move {
+                let metadata = ProtectedResourceMetadata {
+                    resource: resource.to_owned(),
+                    authorization_servers: vec!["http://127.0.0.1:8080/realms/kb".to_owned()],
+                    bearer_methods_supported: vec![
+                        ProtectedResourceMetadataBearerMethodsSupportedItem::Header,
+                    ],
+                    resource_name: None,
+                };
+                (
+                    [(header::CONTENT_TYPE, "application/json")],
+                    serde_json::to_string(&metadata).unwrap(),
+                )
+            }),
+        ))
+        .await
+    }
+
+    fn http() -> reqwest::Client {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        reqwest::Client::new()
+    }
+
+    #[tokio::test]
+    async fn a_gateway_that_serves_the_trees_knowledge_base_is_its_gateway() {
+        let origin = gateway_serving("https://example.github.io/my-kb").await;
+        let confirmed = confirm_gateway(
+            &origin,
+            &http(),
             Path::new("/kb"),
             "example.github.io:my-kb",
-        );
+        )
+        .await;
+        assert_eq!(confirmed, Ok(()));
+    }
+
+    #[tokio::test]
+    async fn a_gateway_that_serves_another_knowledge_base_is_refused_naming_both() {
+        let origin = gateway_serving("https://example.github.io/other-kb").await;
+        let refused = confirm_gateway(
+            &origin,
+            &http(),
+            Path::new("/kb"),
+            "example.github.io:my-kb",
+        )
+        .await;
         assert_eq!(
             refused,
-            Err("The gateway at http://127.0.0.1:4000 serves https://example.github.io/other-kb, and the tree at /kb is https://example.github.io/my-kb (did:web:example.github.io:my-kb)".to_owned())
+            Err(format!(
+                "The gateway at {origin} serves https://example.github.io/other-kb, and the tree at /kb is https://example.github.io/my-kb (did:web:example.github.io:my-kb)"
+            ))
+        );
+    }
+
+    #[tokio::test]
+    async fn a_gateway_that_does_not_say_which_knowledge_base_it_serves_is_refused_saying_so() {
+        let origin = gateway(Router::new()).await;
+        let refused = confirm_gateway(
+            &origin,
+            &http(),
+            Path::new("/kb"),
+            "example.github.io:my-kb",
+        )
+        .await;
+        let why = refused.unwrap_err();
+        assert!(
+            why.starts_with(&format!(
+                "The gateway at {origin} did not say which knowledge base it serves (/.well-known/oauth-protected-resource): "
+            )),
+            "{why}"
         );
     }
 }
