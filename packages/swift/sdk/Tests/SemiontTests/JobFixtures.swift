@@ -38,6 +38,13 @@ func completionFixture(_ create: JobCreateCommand, job: String = "job-1") throws
 func surfaceReplies(_ probe: ProbeTransport, cloneAnswer: JSONValue?) {
   probe.handle { [weak probe] name, payload in
     switch name {
+    case Operations.browseEntityTypesRequested.request.name:
+      return try wirePayload(
+        BrowseEntityTypesResult(
+          response: GetEntityTypesResponse(entityTypes: ["Person"])))
+    case Operations.browseTagSchemasRequested.request.name:
+      return try wirePayload(
+        BrowseTagSchemasResult(response: GetTagSchemasResponse(tagSchemas: [])))
     case Operations.browseEventsRequested.request.name:
       let request = try decoded(BrowseEventsRequest.self, .object(payload))
       return try wirePayload(
