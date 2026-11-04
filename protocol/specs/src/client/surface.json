@@ -328,7 +328,6 @@
     {
       "namespace": "bind",
       "docs": "Linking a reference to what it refers to.",
-      "notYetReached": {"csharp": "C# is still to implement the bind namespace."},
       "methods": [
         {
           "method": "body",
@@ -564,7 +563,6 @@
     {
       "namespace": "beckon",
       "docs": "Attention: driving the other participants' viewers, and this viewer's own signals.",
-      "notYetReached": {"csharp": "C# is still to implement the beckon namespace."},
       "methods": [
         {
           "method": "attention",
