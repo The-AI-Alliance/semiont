@@ -2,6 +2,13 @@ public struct MatchNamespace: Sendable {
   let wire: Bus
   let bus: EventBus
   let lifetime: Lifetime
+  let live: LiveQueries
+
+  public func resources(
+    _ search: String, filters: ResourceFilters = ResourceFilters()
+  ) -> Cached<MatchResourcesResponse> {
+    live.matchedResources.query(LiveQueries.SearchKey(text: search, filters: filters))
+  }
   public func search(
     resourceId: ResourceId, referenceId: AnnotationId, context: GatheredContext, limit: Int = 10,
     useSemanticScoring: Bool = true

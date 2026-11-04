@@ -1773,7 +1773,7 @@ function swiftMembers(type, types, seen = new Set()) {
       const parameters = /^\s*(?:<[^>]*>)?\s*\((.*)\)/s.exec(member.header)?.[1];
       if (parameters) for (const parameter of splitOutside(parameters, ',')) {
         const colon = parameter.indexOf(':');
-        if (colon >= 0) takes.push(parameter.slice(colon + 1).replace(/\b(?:inout)\b|@(?:escaping|Sendable)\b/g, '').trim());
+        if (colon >= 0) takes.push({ type: parameter.slice(colon + 1).replace(/\b(?:inout)\b|@(?:escaping|Sendable)\b/g, '').trim() });
       }
       const shape = /\basync\b/.test(member.header) ? (/^Int\?$/.test(returns) ? 'count' : 'promise') : /\bCached\s*</.test(returns) ? 'cache' : /\bRunning\s*</.test(returns) ? 'stream' : /\bDelegation\s*</.test(returns) ? 'delegation' : /^Upload\b/.test(returns) ? 'upload' : /^Claims\b/.test(returns) ? 'claims' : /\bTyped\s*</.test(returns) ? 'events' : returns === 'Void' || returns === '()' ? 'signal' : undefined;
       members.set(member.name, { returns, takes, shape });

@@ -1,20 +1,25 @@
 import Foundation
 import Synchronization
 
-final class ScopedQueries<Key: Hashable & Sendable, Value: Sendable>: Sendable {
+final class KeyedQueries<Key: Hashable & Sendable, Value: Sendable>: Sendable {
   private let entries = Mutex<[Key: Cached<Value>]>([:])
   private let transport: any Transport
   private let lifetime: Lifetime
-  private let scope: @Sendable (Key) -> ResourceId
+  private let scope: (@Sendable (Key) -> ResourceId)?
+  private let kept: (@Sendable (Key) -> KeptValue<Value>?)?
+  private let invalidationWindowMs: Int
   private let fetch: @Sendable (Key) async throws -> Value
 
   init(
-    transport: any Transport, lifetime: Lifetime, scope: @escaping @Sendable (Key) -> ResourceId,
+    transport: any Transport, lifetime: Lifetime, scope: (@Sendable (Key) -> ResourceId)? = nil,
+    kept: (@Sendable (Key) -> KeptValue<Value>?)? = nil, invalidationWindowMs: Int,
     fetch: @escaping @Sendable (Key) async throws -> Value
   ) {
     self.transport = transport
     self.lifetime = lifetime
     self.scope = scope
+    self.kept = kept
+    self.invalidationWindowMs = invalidationWindowMs
     self.fetch = fetch
     lifetime.onEnd { [weak self] in
       self?.entries.withLock { $0.removeAll() }
@@ -24,11 +29,16 @@ final class ScopedQueries<Key: Hashable & Sendable, Value: Sendable>: Sendable {
   func query(_ key: Key) -> Cached<Value> {
     let transport = transport
     let fetch = fetch
-    let resource = scope(key)
+    let hold: (@Sendable () async -> ResourceHold)?
+    if let resource = scope?(key) {
+      hold = { await transport.subscribeToResource(resource) }
+    } else {
+      hold = nil
+    }
     return entries.withLock { entries in
       if let query = entries[key] { return query }
       let query = Cached(
-        lifetime: lifetime, hold: { await transport.subscribeToResource(resource) }
+        lifetime: lifetime, hold: hold, kept: kept?(key), invalidationWindowMs: invalidationWindowMs
       ) {
         try await fetch(key)
       }
@@ -55,7 +65,13 @@ final class ScopedQueries<Key: Hashable & Sendable, Value: Sendable>: Sendable {
 struct LiveQueries: Sendable {
   private enum Query: String, CaseIterable {
     case entityTypes, tagSchemas, resource, events, referencedBy, annotations, annotation
+    case resources, matchedResources, engines
   }
+  struct SearchKey: Hashable, Sendable {
+    let text: String
+    let filters: ResourceFilters
+  }
+
   private struct AnnotationKey: Hashable, Sendable {
     let resource: ResourceId
     let annotation: AnnotationId
@@ -70,48 +86,113 @@ struct LiveQueries: Sendable {
 
   let entityTypes: Cached<[String]>
   let tagSchemas: Cached<[TagSchema]>
-  let resources: ScopedQueries<ResourceId, ResourceDescriptor>
-  let events: ScopedQueries<ResourceId, [AttributedEvent]>
-  let referencedBy: ScopedQueries<ResourceId, [GetReferencedByResponseReferencedByItem]>
-  let annotations: ScopedQueries<ResourceId, [Annotation]>
-  private let details: ScopedQueries<AnnotationKey, Annotation>
+  let resources: KeyedQueries<ResourceId, ResourceDescriptor>
+  let events: KeyedQueries<ResourceId, [AttributedEvent]>
+  let referencedBy: KeyedQueries<ResourceId, [GetReferencedByResponseReferencedByItem]>
+  let annotations: KeyedQueries<ResourceId, [Annotation]>
+  let listedResources: KeyedQueries<ResourceFilters, ListResourcesResponse>
+  let matchedResources: KeyedQueries<SearchKey, MatchResourcesResponse>
+  let engines: Cached<[EngineWithLimits]>
+  private let details: KeyedQueries<AnnotationKey, Annotation>
 
-  init(wire: Bus, transport: any Transport, content: (any ContentTransport)?, lifetime: Lifetime) {
-    entityTypes = Cached(lifetime: lifetime) {
+  init(
+    wire: Bus, transport: any Transport, content: (any ContentTransport)?, lifetime: Lifetime,
+    book: CacheBook?, invalidationWindowMs: Int
+  ) {
+    listedResources = KeyedQueries(
+      transport: transport, lifetime: lifetime, invalidationWindowMs: invalidationWindowMs
+    ) { filters in
+      try await wire.request(
+        Operations.browseResourcesRequested,
+        BrowseResourcesRequest(
+          archived: filters.archived, entityType: filters.entityType, limit: filters.limit,
+          offset: filters.offset)
+      ).response
+    }
+    matchedResources = KeyedQueries(
+      transport: transport, lifetime: lifetime, invalidationWindowMs: invalidationWindowMs
+    ) { search in
+      let filters = search.filters
+      return try await wire.request(
+        Operations.matchResourcesRequested,
+        MatchResourcesRequest(
+          archived: filters.archived, entityType: filters.entityType, limit: filters.limit,
+          offset: filters.offset, search: search.text)
+      ).response
+    }
+    engines = Cached(lifetime: lifetime, invalidationWindowMs: invalidationWindowMs) {
+      try await browseEngines(wire)
+    }
+    entityTypes = Cached(
+      lifetime: lifetime, kept: book.map { KeptValue(book: $0, key: .entityTypes) },
+      invalidationWindowMs: invalidationWindowMs
+    ) {
       try await wire.request(Operations.browseEntityTypesRequested, BrowseEntityTypesRequest())
         .response.entityTypes
     }
-    tagSchemas = Cached(lifetime: lifetime) {
+    tagSchemas = Cached(
+      lifetime: lifetime, kept: book.map { KeptValue(book: $0, key: .tagSchemas) },
+      invalidationWindowMs: invalidationWindowMs
+    ) {
       try await wire.request(Operations.browseTagSchemasRequested, BrowseTagSchemasRequest())
         .response.tagSchemas
     }
-    resources = ScopedQueries(transport: transport, lifetime: lifetime, scope: \.self) { resource in
-      try await wire.request(
-        Operations.browseResourceRequested, BrowseResourceRequest(resourceId: resource)
-      ).response.resource
-    }
-    events = ScopedQueries(transport: transport, lifetime: lifetime, scope: \.self) { resource in
+    resources = KeyedQueries(
+      transport: transport, lifetime: lifetime, scope: \.self,
+      kept: { key in book.map { KeptValue(book: $0, key: .resource(key)) } },
+      invalidationWindowMs: invalidationWindowMs,
+      fetch: { resource in
+        try await wire.request(
+          Operations.browseResourceRequested, BrowseResourceRequest(resourceId: resource)
+        ).response.resource
+      })
+    events = KeyedQueries(
+      transport: transport, lifetime: lifetime, scope: \.self,
+      invalidationWindowMs: invalidationWindowMs
+    ) { resource in
       try await wire.request(
         Operations.browseEventsRequested, BrowseEventsRequest(resourceId: resource)
       ).response.events
     }
-    referencedBy = ScopedQueries(transport: transport, lifetime: lifetime, scope: \.self) {
+    referencedBy = KeyedQueries(
+      transport: transport, lifetime: lifetime, scope: \.self,
+      invalidationWindowMs: invalidationWindowMs
+    ) {
       resource in
       try await wire.request(
         Operations.gatherReferencedByRequested, GatherReferencedByRequest(resourceId: resource)
       ).response.referencedBy
     }
-    annotations = ScopedQueries(transport: transport, lifetime: lifetime, scope: \.self) {
-      resource in
-      guard let content else { throw TransportError(.error, "No content transport is configured") }
-      return try await content.getAnnotations(resource).annotations
-    }
-    details = ScopedQueries(transport: transport, lifetime: lifetime, scope: \.resource) {
-      key in
-      try await wire.request(
-        Operations.browseAnnotationRequested,
-        BrowseAnnotationRequest(annotationId: key.annotation, resourceId: key.resource)
-      ).response.annotation
+    annotations = KeyedQueries(
+      transport: transport, lifetime: lifetime, scope: \.self,
+      kept: { key in book.map { KeptValue(book: $0, key: .annotations(key)) } },
+      invalidationWindowMs: invalidationWindowMs,
+      fetch: { resource in
+        guard let content else {
+          throw TransportError(.error, "No content transport is configured")
+        }
+        return try await content.getAnnotations(resource).annotations
+      })
+    details = KeyedQueries(
+      transport: transport, lifetime: lifetime, scope: \.resource,
+      kept: { key in
+        book.map { KeptValue(book: $0, key: .annotation(key.resource, key.annotation)) }
+      },
+      invalidationWindowMs: invalidationWindowMs,
+      fetch: { key in
+        try await wire.request(
+          Operations.browseAnnotationRequested,
+          BrowseAnnotationRequest(annotationId: key.annotation, resourceId: key.resource)
+        ).response.annotation
+      })
+    for key in book?.keys ?? [] {
+      switch key {
+      case .resource(let resource): _ = resources.query(resource)
+      case .annotations(let resource): _ = annotations.query(resource)
+      case .annotation(let resource, let id):
+        _ = details.query(AnnotationKey(resource: resource, annotation: id))
+      case .entityTypes, .tagSchemas: break
+      }
     }
   }
 
@@ -221,6 +302,9 @@ struct LiveQueries: Sendable {
   private func refresh(_ queries: [Query], subject: Subject, coalescing: Bool) async {
     for query in queries {
       switch query {
+      case .resources: await listedResources.refresh(nil, coalescing: coalescing)
+      case .matchedResources: await matchedResources.refresh(nil, coalescing: coalescing)
+      case .engines: await engines.refreshIfKnown(coalescing: coalescing)
       case .entityTypes: await entityTypes.refreshIfKnown(coalescing: coalescing)
       case .tagSchemas: await tagSchemas.refreshIfKnown(coalescing: coalescing)
       case .resource: await resources.refresh(subject.resource, coalescing: coalescing)

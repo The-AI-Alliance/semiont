@@ -13,9 +13,12 @@ public final class Cached<Value: Sendable>: AsyncSequence, Sendable {
 
   init(
     lifetime: Lifetime, hold: (@Sendable () async -> ResourceHold)? = nil,
+    kept: KeptValue<Value>? = nil, invalidationWindowMs: Int = Timings.invalidationWindowMs,
     fetch: @escaping @Sendable () async throws -> Value
   ) {
-    let entry = CacheEntry(lifetime: lifetime, hold: hold, fetch: fetch)
+    let entry = CacheEntry(
+      lifetime: lifetime, hold: hold, kept: kept, invalidationWindowMs: invalidationWindowMs,
+      fetch: fetch)
     self.entry = entry
     lifetime.onEnd { [weak entry] in
       Task { await entry?.close() }
@@ -64,6 +67,9 @@ private actor CacheEntry<Value: Sendable> {
   private let lifetime: Lifetime
   private let fetch: @Sendable () async throws -> Value
   private let hold: (@Sendable () async -> ResourceHold)?
+  private let kept: KeptValue<Value>?
+  private let invalidationWindowMs: Int
+  private var rehydrated = false
   private var state: State = .pending
   private var listeners: [UUID: (stream: AsyncStream<State>.Continuation, scope: ResourceHold?)] =
     [:]
@@ -78,11 +84,19 @@ private actor CacheEntry<Value: Sendable> {
 
   init(
     lifetime: Lifetime, hold: (@Sendable () async -> ResourceHold)?,
+    kept: KeptValue<Value>?, invalidationWindowMs: Int,
     fetch: @escaping @Sendable () async throws -> Value
   ) {
     self.lifetime = lifetime
     self.hold = hold
     self.fetch = fetch
+    self.kept = kept
+    self.invalidationWindowMs = invalidationWindowMs
+    if let value = kept?.load() {
+      state = .ready(value)
+      rehydrated = true
+      known = true
+    }
   }
 
   nonisolated var ended: Bool { lifetime.ended }
@@ -95,7 +109,7 @@ private actor CacheEntry<Value: Sendable> {
       return nil
     }
     switch state {
-    case .ready: break
+    case .ready: if rehydrated { revalidate() }
     case .failed:
       publish(.pending)
       revalidate()
@@ -118,16 +132,24 @@ private actor CacheEntry<Value: Sendable> {
 
   private func publish(_ state: State) {
     self.state = state
+    switch state {
+    case .ready(let value): kept?.store(value)
+    case .failed: kept?.store(nil)
+    case .pending: break
+    }
     for listener in listeners.values { listener.stream.yield(state) }
   }
 
   private func fetching() -> Task<Value, any Error> {
     if let current, let flight = flights[current] { return flight }
     known = true
+    rehydrated = false
+    kept?.book.begin()
     let id = UUID()
     let revision = mutation
     let task = Task {
       defer {
+        kept?.book.end()
         flights.removeValue(forKey: id)
         flightEdits.removeValue(forKey: id)
         if current == id { current = nil }
@@ -177,7 +199,11 @@ private actor CacheEntry<Value: Sendable> {
     let id = UUID()
     validation = id
     let first = fetching()
-    lifetime.start { await self.validate(first, id: id) }
+    kept?.book.begin()
+    lifetime.start {
+      defer { self.kept?.book.end() }
+      await self.validate(first, id: id)
+    }
   }
 
   private func validate(_ first: Task<Value, any Error>, id: UUID) async {
@@ -197,6 +223,7 @@ private actor CacheEntry<Value: Sendable> {
     if !coalescing {
       invalidate()
     } else if windowOpen {
+      if !refreshOwed { kept?.book.begin() }
       refreshOwed = true
     } else {
       openWindow()
@@ -223,17 +250,20 @@ private actor CacheEntry<Value: Sendable> {
   private func replace(_ state: State) {
     // Earlier reads can finish for their callers but cannot undo a bus mutation.
     mutation &+= 1
+    rehydrated = false
     current = nil
     validation = nil
+    let owed = refreshOwed
     refreshOwed = false
     publish(state)
+    if owed { kept?.book.end() }
   }
 
   private func openWindow() {
     invalidate()
     windowOpen = true
     lifetime.start {
-      guard (try? await sleepMilliseconds(Timings.invalidationWindowMs)) != nil else { return }
+      guard (try? await sleepMilliseconds(self.invalidationWindowMs)) != nil else { return }
       await self.closeWindow()
     }
   }
@@ -243,6 +273,7 @@ private actor CacheEntry<Value: Sendable> {
     if refreshOwed, !lifetime.ended {
       refreshOwed = false
       openWindow()
+      kept?.book.end()
     }
   }
 

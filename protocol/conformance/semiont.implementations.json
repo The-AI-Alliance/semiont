@@ -32,7 +32,9 @@
       "worker": ["../../packages/kotlin/sdk/build/conformance/bin/semiont-kotlin-worker-driver"]
     },
     "swift": {
-      "wire": ["../../packages/swift/sdk/.build/conformance/semiont-swift-wire-driver"]
+      "wire": ["../../packages/swift/sdk/.build/conformance/semiont-swift-wire-driver"],
+      "live": { "command": ["../../packages/swift/sdk/.build/conformance/semiont-swift-wire-driver", "--live"], "tier": "parity" },
+      "worker": ["../../packages/swift/sdk/.build/conformance/semiont-swift-wire-driver", "--worker"]
     },
     "csharp": {
       "wire": ["../../packages/csharp/sdk/conformance/bin/semiont-csharp-wire-driver"],

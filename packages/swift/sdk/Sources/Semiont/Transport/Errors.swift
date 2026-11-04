@@ -68,6 +68,7 @@ func sleepMilliseconds(_ milliseconds: Int) async throws {
 }
 
 public struct TransportTiming: Sendable {
+  public var busRequestTimeoutMs: Int
   public var reconnectMs: Int
   public var lazyRemoveMs: Int
   public var lingerMs: Int
@@ -80,8 +81,10 @@ public struct TransportTiming: Sendable {
   public init(
     reconnectMs: Int? = nil, lazyRemoveMs: Int? = nil, lingerMs: Int? = nil,
     seenEventIdsCount: Int? = nil, httpRequestMs: Int? = nil, streamOpenMs: Int? = nil,
-    emitAttempts: Int? = nil, emitInitialDelayMs: Int? = nil, emitMaxDelayMs: Int? = nil
+    emitAttempts: Int? = nil, emitInitialDelayMs: Int? = nil, emitMaxDelayMs: Int? = nil,
+    busRequestTimeoutMs: Int? = nil
   ) {
+    self.busRequestTimeoutMs = busRequestTimeoutMs ?? Timings.busRequestTimeoutMs
     self.reconnectMs = reconnectMs ?? Timings.reconnectMs
     self.lazyRemoveMs = lazyRemoveMs ?? Timings.lazyRemoveMs
     self.lingerMs = lingerMs ?? Timings.lingerMs

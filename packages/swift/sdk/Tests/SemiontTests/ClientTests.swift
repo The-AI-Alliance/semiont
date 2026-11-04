@@ -180,8 +180,28 @@ extension ProbeTransport: ContentTransport {
       progress: Events(progress, stop: {}))
   }
 }
+private func resourceFilters(_ args: [String: JSONValue]) throws -> ResourceFilters {
+  let filters = try args["filters"]?.object ?? [:]
+  return try ResourceFilters(
+    archived: filters["archived"].map { try decoded(Bool.self, $0) },
+    entityType: filters["entityType"].map { try decoded(String.self, $0) },
+    limit: filters["limit"].map { try decoded(Int.self, $0) } ?? 100,
+    offset: filters["offset"].map { try decoded(Int.self, $0) } ?? 0)
+}
+
 private let callsByName:
   [String: @Sendable (SemiontClient, [String: JSONValue]) async throws -> JSONValue?] = [
+    "browse.resources": { client, args in
+      try await encoded(client.browse.resources(filters: resourceFilters(args)).fresh())
+    },
+    "browse.engines": { client, _ in
+      try await encoded(client.browse.engines().fresh())
+    },
+    "match.resources": { client, args in
+      try await encoded(
+        client.match.resources(required(args, "search").text, filters: resourceFilters(args))
+          .fresh())
+    },
     "browse.resource": { client, args in
       try await encoded(
         client.browse.resource(decoded(ResourceId.self, required(args, "resourceId"))).fresh())
@@ -335,6 +355,13 @@ private let callsByName:
           resourceId: decoded(ResourceId.self, required(args, "resourceId")),
           params: decoded(MarkJobParams.self, required(args, "params"))
         ).completed())
+    },
+    "job.claim": { client, args in
+      let options = try required(args, "options").object
+      let claims = try client.job.claim(decoded([JobFilter].self, required(options, "accepts")))
+      var iterator = claims.makeAsyncIterator()
+      let job = try #require(await iterator.next())
+      return try encoded(job.jobId)
     },
     "job.status": { client, args in
       try await encoded(client.job.status(decoded(JobId.self, required(args, "jobId"))))
@@ -534,7 +561,15 @@ private let callsByName:
               for await sent in probe.emitted where sent { return }
             }
           }
-          #expect(probe.calls == expected, "\(key)")
+          if key == "browse.engines" {
+            #expect(probe.calls.first == expected.first)
+            let limits = Operations.limits.map { $0.request.name }.sorted()
+            #expect(probe.calls.dropFirst().map(\.name).sorted() == limits)
+            #expect(
+              probe.calls.dropFirst().allSatisfy { $0.via == "request" && $0.payload.isEmpty })
+          } else {
+            #expect(probe.calls == expected, "\(key)")
+          }
         }
         if try required(row, "shape").text == "count" { #expect(result == .number(7)) }
         if via["gateway"] != nil { #expect(result != nil) }

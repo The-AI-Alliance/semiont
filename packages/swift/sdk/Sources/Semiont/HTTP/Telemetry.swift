@@ -23,11 +23,14 @@ func transportSpan(
   let builder = OpenTelemetry.instance.tracerProvider.get(instrumentationName: "Semiont")
     .spanBuilder(spanName: name)
     .setSpanKind(spanKind: kind)
-  if let parent,
-    let context = OpenTelemetry.instance.propagators.textMapPropagator.extract(
+  if let parent {
+    if let context = OpenTelemetry.instance.propagators.textMapPropagator.extract(
       carrier: parent, getter: TraceMap())
-  {
-    builder.setParent(context)
+    {
+      builder.setParent(context)
+    } else {
+      builder.setNoParent()
+    }
   }
   if let channel { builder.setAttribute(key: "bus.channel", value: channel) }
   if let scope { builder.setAttribute(key: "bus.scope", value: scope.value) }

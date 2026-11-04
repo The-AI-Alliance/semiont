@@ -17,6 +17,10 @@ export default function setup(project: TestProject): void {
   if (rust !== undefined && !existsSync(rust)) {
     throw new Error(`The Rust worker driver is not built: ${rust} does not exist. Run \`cargo build --release -p semiont-conformance-drivers\` at the repository root.`);
   }
+  const swift = drivers['swift']?.worker?.[0];
+  if (swift !== undefined && !existsSync(swift)) {
+    throw new Error(`The Swift worker driver is not built: ${swift} does not exist. Run \`Scripts/install-driver.sh\` in packages/swift/sdk.`);
+  }
   if (drivers['python']?.worker) makePythonSdkEnvironment();
   if (!drivers['typescript']?.worker) return;
   // The worker driver runs the built SDK over the built transport.
