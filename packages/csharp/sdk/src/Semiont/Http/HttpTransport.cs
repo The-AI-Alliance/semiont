@@ -491,11 +491,10 @@ public sealed partial class HttpTransport : IDisposable
         return new TransportError(code, $"HTTP {status}: {text}", status);
     }
 
-    private double RetryAfter(HttpResponseMessage response)
-    {
-        var header = response.Headers.RetryAfter;
-        return Math.Max(0, header?.Delta?.TotalMilliseconds ?? (header?.Date - clock.GetUtcNow())?.TotalMilliseconds ?? 0);
-    }
+    private static double RetryAfter(HttpResponseMessage response) =>
+        response.Headers.TryGetValues("Retry-After", out var values)
+            ? ProtocolFacts.RetryAfterMilliseconds(values.FirstOrDefault()) ?? 0
+            : 0;
 
     private string? Token() { lock (gate) { return token; } }
     private bool IsRefused(string credential) { lock (gate) { return refusedToken == credential; } }

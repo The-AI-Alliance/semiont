@@ -56,11 +56,6 @@ public sealed partial class HttpTransport
             }
             catch (HttpRequestException error)
             {
-                if (retry && attempt == 0 && method == HttpMethod.Get)
-                {
-                    await Task.Delay(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("requestRetryPauseMs").GetInt32()), clock, linked.Token).ConfigureAwait(false);
-                    continue;
-                }
                 throw Report(new TransportError(ProtocolFacts.Error(503), error.Message, inner: error));
             }
             if (response.IsSuccessStatusCode) return response;
@@ -75,7 +70,7 @@ public sealed partial class HttpTransport
                     continue;
                 }
             }
-            if (retry && attempt == 0 && method == HttpMethod.Get && (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests || (int)response.StatusCode >= 500) && failure.Code != ProtocolFacts.Error(401))
+            if (retry && attempt == 0 && ProtocolFacts.RetryTransport((int)response.StatusCode, method.Method) && failure.Code != ProtocolFacts.Error(401))
             {
                 var delay = Math.Max(RetryAfter(response), ProtocolFacts.Timing("requestRetryPauseMs").GetInt32());
                 response.Dispose();
