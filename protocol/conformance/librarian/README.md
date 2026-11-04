@@ -125,9 +125,10 @@ the stand-in answers what the real Archivist answers when it is asked.
   a graph or a vector index that lives in one process's memory, a settle
   bound that is no time at all or does not end under the stall of a held job,
   half a service account, no password for the graph database, no token for
-  the vector index, and a gateway that does not answer. Each refusal must
+  the vector index, settings that name another knowledge base than the one
+  at its gateway, and a gateway that does not answer. Each refusal must
   name the member of the document, or the variable, that is missing or
-  refused.
+  refused, and the one of another knowledge base names both by their DIDs.
 - **Finding things** (`search.test.ts`): a reference search's candidates from
   each of its four sources, with a score and a reason, and its own resource
   left out, with its model's scoring and without, when the model or the
