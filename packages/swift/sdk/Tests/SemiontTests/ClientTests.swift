@@ -38,6 +38,7 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
     var failure: BusRequestError?
     var holds = 0
     var disposals = 0
+    var annotations: [Annotation] = []
   }
   private let storage = Mutex(State())
   var calls: [Call] { storage.withLock { $0.calls } }
@@ -143,6 +144,14 @@ extension ProbeTransport: ContentTransport {
     continuation.finish()
     return ContentStream(contentType: "application/octet-stream", bytes: Events(stream, stop: {}))
   }
+  func setAnnotations(_ annotations: [Annotation]) {
+    storage.withLock { $0.annotations = annotations }
+  }
+  func getAnnotations(_ resource: ResourceId) async throws -> GetAnnotationsResponse {
+    recordContent("getAnnotations", resource: resource)
+    let annotations = storage.withLock { $0.annotations }
+    return GetAnnotationsResponse(annotations: annotations, total: Double(annotations.count))
+  }
   func getResourceGraph(_ resource: ResourceId) async throws -> GetResourceResponse {
     recordContent("getResourceGraph", resource: resource)
     guard case .resource(let focus) = try contextFixture().focus else {
@@ -173,6 +182,29 @@ extension ProbeTransport: ContentTransport {
 }
 private let callsByName:
   [String: @Sendable (SemiontClient, [String: JSONValue]) async throws -> JSONValue?] = [
+    "browse.resource": { client, args in
+      try await encoded(
+        client.browse.resource(decoded(ResourceId.self, required(args, "resourceId"))).fresh())
+    },
+    "browse.annotations": { client, args in
+      try await encoded(
+        client.browse.annotations(decoded(ResourceId.self, required(args, "resourceId"))).fresh())
+    },
+    "browse.annotation": { client, args in
+      try await encoded(
+        client.browse.annotation(
+          resourceId: decoded(ResourceId.self, required(args, "resourceId")),
+          annotationId: decoded(AnnotationId.self, required(args, "annotationId"))
+        ).fresh())
+    },
+    "browse.events": { client, args in
+      try await encoded(
+        client.browse.events(decoded(ResourceId.self, required(args, "resourceId"))).fresh())
+    },
+    "gather.referencedBy": { client, args in
+      try await encoded(
+        client.gather.referencedBy(decoded(ResourceId.self, required(args, "resourceId"))).fresh())
+    },
     "browse.entityTypes": { client, _ in
       try await encoded(client.browse.entityTypes().fresh())
     },

@@ -24,6 +24,7 @@ public protocol GatewayOperations: Sendable {
 public protocol ContentTransport: Sendable {
   func getBinary(_ resource: ResourceId) async throws -> Content
   func getBinaryStream(_ resource: ResourceId) async throws -> ContentStream
+  func getAnnotations(_ resource: ResourceId) async throws -> GetAnnotationsResponse
   func getResourceGraph(_ resource: ResourceId) async throws -> GetResourceResponse
   func getAnchoredText(_ resource: ResourceId) async throws -> AnchoredTextAnswer
   func putBinary(_ request: PutBinaryRequest) -> Upload
