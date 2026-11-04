@@ -49,7 +49,7 @@ from semiont_service.config import Refused, config_path_of, service_account_of
 from semiont_service.connect import connected
 from semiont_service.follower import Cursors
 from semiont_service.health import Health, bind_health
-from semiont_service.knowledge_base import CONFIRMING, confirmed
+from semiont_service.knowledge_base import CONFIRMING_CHANNELS, confirmed
 from semiont_service.log import configure
 from semiont_service.observability import Exporting, install
 from semiont_vectors.embedding import EmbeddingProvider
@@ -69,15 +69,11 @@ from semiont_smelter.stamp import current_stamp
 from semiont_smelter.telemetry import points_held
 from semiont_smelter.tesseract import TesseractEngine
 
-__all__ = ["CHANNELS", "CONFIRMING_CHANNELS", "boot", "main"]
+__all__ = ["CHANNELS", "boot", "main"]
 
 CHANNELS: Final[tuple[str, ...]] = (*PERSISTED_EVENT_TYPES, SMELT_REBUILD_ANCHORS.name, *reply_channels_for(*READ))
 """What the Smelter's stream names: every event of the record, as every follower of it receives them, the command it answers, and
 the replies of what it asks while it follows: what the record holds."""
-
-CONFIRMING_CHANNELS: Final[tuple[str, ...]] = reply_channels_for(*CONFIRMING)
-"""What the stream it asks the knowledge base on names: the answer's replies, and not the command it answers, which would reach
-a Smelter that answers nothing yet."""
 
 
 @final

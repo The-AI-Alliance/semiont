@@ -70,9 +70,17 @@ the barrier and then fails: the graph stays as it was, and a gather finds nothin
 
 ## When it starts
 
-It reads its document, signs in, connects to the graph database, begins following the record,
-opens its health port, sweeps the record once its stream is open, and once that sweep is done
-runs reconcile. `/health` reports how it follows the record and how reconcile ended.
+It reads its document, signs in, asks the knowledge base which it is, connects to the graph
+database, begins following the record, opens its health port, sweeps the record once its stream
+is open, and once that sweep is done runs reconcile. `/health` reports the knowledge base it
+serves by its DID, how it follows the record and how reconcile ended.
+
+**It serves the knowledge base its document names, and no other.** Before it connects to the
+graph database it asks the knowledge base which it is (`browse:kb-requested`), and asks again
+while the Archivist is not there to answer. It asks on a stream that names nothing it answers,
+so no `weave:rebuild` reaches it before it can answer one. Where the knowledge base says it is
+another, the Weaver refuses to start naming both by their DIDs, and where it cannot say, the
+Weaver refuses saying why. Either way it has read and written nothing of the graph.
 
 **Its first sweep** takes what was recorded while it was not running: from the cursors it kept,
 or every log from its first event where it kept none. **Reconcile** then compares the graph with

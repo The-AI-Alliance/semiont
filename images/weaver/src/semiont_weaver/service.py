@@ -14,8 +14,10 @@ line on stderr that begins `[fatal] `, and status 1. Once it has started,
 everything it writes is its log, on stdout.
 
 It starts in the order `protocol/contract/WEAVER.md` § Boot states: it signs in
-as its account, connects to the graph database, follows the record, opens its
-health port, and once its first sweep of the record is done runs reconcile.
+as its account, asks the knowledge base which it is on a stream that names
+nothing it answers, refusing to start where it is not the one its document
+names, connects to the graph database, follows the record, opens its health
+port, and once its first sweep of the record is done runs reconcile.
 Following, it sweeps the record again each time its stream opens after a drop
 (`semiont_service.follower`). A reconcile that fails is said, in the log and
 at the health port, and does not end the service: ending it would make the
@@ -34,7 +36,7 @@ from pathlib import Path
 from typing import Final, final
 
 from pydantic import JsonValue
-from semiont.bus import reply_channels_for
+from semiont.bus import Bus, reply_channels_for
 from semiont.channels import PERSISTED_EVENT_TYPES, WEAVE_REBUILD
 from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
 from semiont.identity import kb_did
@@ -46,6 +48,7 @@ from semiont_service.config import Refused, config_path_of, service_account_of
 from semiont_service.connect import connected
 from semiont_service.follower import Cursors
 from semiont_service.health import Health, bind_health
+from semiont_service.knowledge_base import CONFIRMING_CHANNELS, confirmed
 from semiont_service.log import configure
 from semiont_service.observability import Exporting, install
 
@@ -117,6 +120,13 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
 
     async with AgentToken(config.gateway_url, service=account) as agent:
         LOG.info("Agent ready", extra={"did": agent.did})
+        # The graph is not reached before the knowledge base says it is the one the document names.
+        kb = kb_did(config.kb.domain)
+        async with HttpTransport(config.gateway_url, token=agent.token, refresher=agent.refresh, channels=CONFIRMING_CHANNELS) as asking:
+            if not await confirmed(Bus(asking), config.kb, told_to_stop):
+                LOG.info("Shutting down")
+                return
+        LOG.info("Knowledge base confirmed", extra={"kb": kb})
         await connected("graph database", started.graph.connect())
         LOG.info("Graph database ready", extra={"type": config.graph.type})
         try:
@@ -130,7 +140,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
                 LOG.info("Following the record")
                 health = await _listening(
                     config.port,
-                    lambda: {"status": "ok", "following": weaver.follower.said(), "reconcile": reconcile},
+                    lambda: {"status": "ok", "kb": kb, "following": weaver.follower.said(), "reconcile": reconcile},
                 )
                 try:
                     await health.start_serving()

@@ -152,7 +152,7 @@ def test_every_module_states_its_public_names_and_has_each() -> None:
         "vectors_token_of",
     ]
     assert importlib.import_module("semiont_librarian.log").__all__ == ["LOG"]
-    assert importlib.import_module("semiont_librarian.service").__all__ == ["CHANNELS", "CONFIRMING_CHANNELS", "boot", "health", "main"]
+    assert importlib.import_module("semiont_librarian.service").__all__ == ["CHANNELS", "boot", "health", "main"]
 
 
 def test_a_public_name_is_imported_from_its_module_and_not_from_the_packages_root() -> None:

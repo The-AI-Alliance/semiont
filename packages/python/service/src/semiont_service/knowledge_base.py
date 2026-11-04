@@ -14,7 +14,7 @@ keep the second's data under the first's name.
 import asyncio
 from typing import Final
 
-from semiont.bus import Bus
+from semiont.bus import Bus, reply_channels_for
 from semiont.errors import SemiontError
 from semiont.identity import kb_did
 from semiont.operations import BROWSE_KB_REQUESTED
@@ -24,10 +24,16 @@ from semiont.types import BrowseKbRequest, BrowseKbResult, KbIdentity
 from semiont_service.config import Refused
 from semiont_service.until_answered import UNTIL_THE_ARCHIVIST_ANSWERS, nobody_answers
 
-__all__ = ["CONFIRMING", "confirmed"]
+__all__ = ["CONFIRMING_CHANNELS", "confirmed"]
 
-CONFIRMING: Final = (BROWSE_KB_REQUESTED,)
-"""What the confirmation asks: the stream of a service that confirms its knowledge base names its replies."""
+CONFIRMING_CHANNELS: Final = reply_channels_for(BROWSE_KB_REQUESTED)
+"""What the stream a service confirms its knowledge base on names: the answer's replies, and nothing the service answers.
+
+A request reaches every stream that names its channel, and is answered at
+once that nothing answers only where it reaches none. A service whose own
+stream named what it answers before it could answer would take what is sent
+meanwhile, and leave whoever sent it to wait out its deadline.
+"""
 
 
 async def confirmed(bus: Bus, kb: KbIdentity, stopping: asyncio.Event) -> bool:

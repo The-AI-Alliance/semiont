@@ -12,7 +12,7 @@ from semiont.testing import FaultyTransport
 from semiont.types import KbIdentity
 
 from semiont_service.config import Refused
-from semiont_service.knowledge_base import CONFIRMING, confirmed
+from semiont_service.knowledge_base import CONFIRMING_CHANNELS, confirmed
 
 _OPERATION: Final = "browse:kb-requested"
 
@@ -47,8 +47,8 @@ class Archivist:
         return {"name": "Whatever it is called", "domain": self.domain}
 
 
-def test_what_the_confirmation_asks_is_the_knowledge_bases_description() -> None:
-    assert [operation.request.name for operation in CONFIRMING] == [_OPERATION]
+def test_the_stream_a_service_confirms_on_names_the_answer_and_nothing_it_answers() -> None:
+    assert CONFIRMING_CHANNELS == ("browse:kb-result", "browse:kb-failed")
 
 
 def test_a_knowledge_base_that_answers_as_the_one_the_document_names_is_confirmed_once_asked() -> None:

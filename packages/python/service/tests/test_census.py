@@ -238,7 +238,7 @@ def test_no_service_keeps_a_copy_of_a_module_here() -> None:
         "content.py": ("class ContentReads", "class ContentUnread"),
         "follower.py": ("class Follower",),
         "health.py": ("def bind_health(",),
-        "knowledge_base.py": ("async def confirmed(bus: Bus",),
+        "knowledge_base.py": ("async def confirmed(bus: Bus", "reply_channels_for(BROWSE_KB_REQUESTED)"),
         "lanes.py": ("class Lanes",),
         "log.py": ("def configure(", "logging.Formatter"),
         "observability.py": ("def install(", "def report_the_process(", "class Exporting"),

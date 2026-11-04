@@ -4,17 +4,26 @@
 answers the channels its stream names, and § Health what its health endpoint
 says. Here is the order of the refusals, which says which is settled first,
 that a refusal is all the process writes, and each word of one. What the
-document itself is refused for is in `test_config.py`.
+document itself is refused for is in `test_config.py`. So is what the
+librarian conformance suite does not reach of § Boot: the stream the
+Librarian asks its knowledge base on, and its being told to stop while it
+asks.
 """
 
 import json
+import signal
 import sys
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Final
+from typing import Final, Self, final
 
 import pytest
 from pydantic import JsonValue
-from semiont.http import SecretCredential
+from semiont.http import SecretCredential, ServiceToken
+from semiont.identifiers import UserId
+from semiont.testing import FaultyTransport
+from semiont.types import GraphConfig, VectorsConfig
+from semiont.watched import Variable, Watched
 from semiont_graph.neo4j import Neo4jGraphReader
 from semiont_inference.ollama import OllamaInferenceClient
 from semiont_service.config import Refused
@@ -23,7 +32,8 @@ from semiont_vectors.qdrant import QdrantVectorReader
 from semiont_vectors.voyage import VoyageEmbeddingProvider
 from test_config import DOCUMENT, ENGINE, VOYAGE, written
 
-from semiont_librarian.service import CHANNELS, CONFIRMING_CHANNELS, boot, health, main
+from semiont_librarian import service
+from semiont_librarian.service import CHANNELS, boot, health, main
 
 pytestmark = pytest.mark.usefixtures("the_log_as_it_was")
 
@@ -91,11 +101,6 @@ def test_its_stream_names_the_eight_requests_it_answers_the_two_signals_it_follo
         ]
     )
     assert len(CHANNELS) == len(set(CHANNELS))
-
-
-def test_the_stream_it_asks_the_knowledge_base_on_names_the_answer_and_no_request() -> None:
-    # A request reaches every stream that names its channel: one named here would reach a Librarian that answers nothing yet.
-    assert CONFIRMING_CHANNELS == ("browse:kb-result", "browse:kb-failed")
 
 
 def test_its_health_says_it_is_up_names_the_knowledge_base_it_serves_and_names_its_two_actors() -> None:
@@ -245,3 +250,153 @@ def test_a_refusal_is_one_line_on_stderr_and_status_1_and_nothing_on_stdout(
     assert said.out == ""
     unset = "SEMIONT_OIDC_CLIENT_ID is not set in the librarian's environment"
     assert said.err == f"[fatal] {unset}: a librarian signs in as a service account\n"
+
+
+@final
+class KnowledgeBaseStoodIn:
+    """The knowledge base at the gateway as a test scripts it: the domain it says it is, or nothing while it is `away`.
+
+    `done` is what the Librarian did there, in order: its sign-in, each stream
+    it opened by the channels it named, each request it asked, each stream it
+    closed, and each store reached. A Librarian that asks while the knowledge
+    base is `away` is told to stop, as a supervisor tells it, the first time it
+    asks.
+    """
+
+    def __init__(self, domain: str, *, away: bool = False) -> None:
+        self.domain: Final = domain
+        self.away: Final = away
+        self.done: Final[list[str]] = []
+
+    def refuse(self, operation: str, payload: Mapping[str, JsonValue]) -> Mapping[str, JsonValue] | None:
+        self.done.append(f"asked {operation}")
+        if not self.away:
+            return None
+        if self.done.count(f"asked {operation}") == 1:
+            signal.raise_signal(signal.SIGTERM)
+        return {"code": "peer-unavailable", "message": "nothing answers"}
+
+    def answer(self, operation: str, payload: Mapping[str, JsonValue]) -> JsonValue:
+        return {"name": "Whatever it is called", "domain": self.domain}
+
+
+def started_at(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, knowledge_base: KnowledgeBaseStoodIn) -> None:
+    """Have `main` start a Librarian whose sign-in, streams and stores are stood in for at `knowledge_base`.
+
+    Its graph database is reached, and its vector index refuses to be: what is
+    reached after it is not this file's.
+    """
+    done = knowledge_base.done
+
+    @final
+    class SignedIn:
+        def __init__(self, gateway: str, *, service: ServiceToken) -> None:
+            self.did: Final = UserId("did:web:example.github.io:example-kb:agents:semiont-librarian")
+            self.token: Final[Watched[str | None]] = Variable[str | None]("issued")
+
+        async def refresh(self) -> str | None:
+            return None
+
+        async def __aenter__(self) -> Self:
+            done.append("signed in")
+            return self
+
+        async def __aexit__(self, *_: object) -> None:
+            return None
+
+    @final
+    class Stream:
+        def __init__(self, gateway: str, *, token: object, refresher: object, channels: Sequence[str]) -> None:
+            self._channels: Final = channels
+            self._transport: Final = FaultyTransport(make_response=knowledge_base.answer)
+            self._transport.refuse_when(knowledge_base.refuse)
+
+        async def __aenter__(self) -> FaultyTransport:
+            done.append(f"opened {' '.join(self._channels)}")
+            return self._transport
+
+        async def __aexit__(self, *_: object) -> None:
+            done.append("closed")
+            await self._transport.close()
+
+    @final
+    class Graph:
+        async def connect(self) -> None:
+            done.append("reached the graph database")
+
+        async def disconnect(self) -> None:
+            return None
+
+    @final
+    class Index:
+        async def connect(self) -> None:
+            done.append("reached the vector index")
+            raise ConnectionRefusedError("nothing listens where the vector index is stood in for")
+
+        async def disconnect(self) -> None:
+            return None
+
+    graph, index = Graph(), Index()
+
+    def read_graph(config: GraphConfig, *, password: str | None) -> Graph:
+        return graph
+
+    def read_index(config: VectorsConfig, *, kb: UserId, token: str | None) -> Index:
+        return index
+
+    monkeypatch.setattr(service, "AgentToken", SignedIn)
+    monkeypatch.setattr(service, "HttpTransport", Stream)
+    monkeypatch.setattr(service, "create_graph_reader", read_graph)
+    monkeypatch.setattr(service, "create_vector_reader", read_index)
+    monkeypatch.setattr(sys, "argv", ["semiont_librarian", "--config", written(tmp_path)])
+    for name, value in {**STARTED, "OTEL_SDK_DISABLED": "true"}.items():
+        monkeypatch.setenv(name, value)
+
+
+ASKED_ON: Final = "opened browse:kb-result browse:kb-failed"
+"""The stream the Librarian asks its knowledge base on: the answer's replies, and none of the requests it cannot answer yet."""
+
+
+def test_it_asks_the_knowledge_base_which_it_is_on_a_stream_of_its_own_and_closes_it_before_it_reaches_either_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    knowledge_base = KnowledgeBaseStoodIn("example.github.io:example-kb")
+    started_at(monkeypatch, tmp_path, knowledge_base)
+
+    assert main() == 1
+
+    assert knowledge_base.done == [
+        "signed in",
+        ASKED_ON,
+        "asked browse:kb-requested",
+        "closed",
+        "reached the graph database",
+        "reached the vector index",
+    ]
+
+
+def test_where_the_knowledge_base_says_it_is_another_it_refuses_naming_both_and_reaches_neither_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    knowledge_base = KnowledgeBaseStoodIn("example.github.io:other-kb")
+    started_at(monkeypatch, tmp_path, knowledge_base)
+
+    assert main() == 1
+
+    assert knowledge_base.done == ["signed in", ASKED_ON, "asked browse:kb-requested", "closed"]
+    assert capsys.readouterr().err == (
+        "[fatal] The knowledge base at the gateway is did:web:example.github.io:other-kb, "
+        "and the document names did:web:example.github.io:example-kb\n"
+    )
+
+
+def test_told_to_stop_while_it_asks_it_exits_0_having_reached_neither_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    knowledge_base = KnowledgeBaseStoodIn("example.github.io:example-kb", away=True)
+    started_at(monkeypatch, tmp_path, knowledge_base)
+
+    assert main() == 0
+
+    assert knowledge_base.done == ["signed in", ASKED_ON, "asked browse:kb-requested", "closed"]
+    assert capsys.readouterr().err == ""
