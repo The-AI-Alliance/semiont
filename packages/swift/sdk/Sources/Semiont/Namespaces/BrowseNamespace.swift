@@ -10,6 +10,10 @@ public struct BrowseNamespace: Sendable {
       return content
     }
   }
+  public func resourceContent(_ resourceId: ResourceId) async throws -> String {
+    let representation = try await resourceRepresentation(resourceId)
+    return try decodeRepresentation(representation.bytes, contentType: representation.contentType)
+  }
   public func resourceGraph(_ resourceId: ResourceId) async throws -> GetResourceResponse {
     try await contentTransport.getResourceGraph(resourceId)
   }

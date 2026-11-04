@@ -148,7 +148,6 @@
         },
         {
           "method": "resourceContent",
-          "notYetReached": {"swift": "Content namespace wiring remains to implement."},
           "shape": "promise",
           "via": { "content": "getBinary" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]

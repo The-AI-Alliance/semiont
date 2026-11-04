@@ -5,11 +5,11 @@
     "rust": ["packages/rust/sdk/src/resources.rs", "packages/rust/sdk/tests/decode_cases.rs"],
     "python": ["packages/python/sdk/tests/test_decode_cases.py"],
     "go": ["packages/go/sdk/resources_test.go"],
-    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/resources/DecodeCasesTest.kt"]
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/resources/DecodeCasesTest.kt"],
+    "swift": ["packages/swift/sdk/Tests/SemiontTests/DecodeRepresentationTests.swift"]
   },
   "notYetReached": {
-    "csharp": "C# is still to implement and run the shared text/decode-cases.json cases.",
-    "swift": "The Swift SDK's reading of a resource's bytes as its text."
+    "csharp": "C# is still to implement and run the shared text/decode-cases.json cases."
   },
   "cases": [
     {
