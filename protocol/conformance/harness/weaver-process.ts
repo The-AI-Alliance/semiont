@@ -59,6 +59,8 @@ export interface Following {
 
 export interface WeaverHealth {
   status: string;
+  /** The DID of the knowledge base it serves, which that knowledge base said it is before the Weaver connected to its graph. */
+  kb: string;
   following: Following;
   reconcile: BootPass;
 }

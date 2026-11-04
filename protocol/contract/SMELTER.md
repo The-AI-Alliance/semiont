@@ -500,7 +500,7 @@ started by a reconcile.
   ([The index](#the-index)), and the collections it would reach are those of
   the knowledge base its settings name. Told to stop while it asks, it exits
   with status 0.
-  *Held by `packages/python/service/tests/test_knowledge_base.py`, `images/smelter/tests/test_service.py`, for the stream it asks on, and `smelter/kb-index`.*
+  *Held by `packages/python/service/tests/test_knowledge_base.py`, `images/smelter/tests/test_service.py`, for the stream it asks on, the order and its being told to stop while it asks, and `smelter/kb-index`.*
 - **It gives up when the embedding provider or the vector database does not
   answer within a minute,** and exits with a status other than 0.
   *Held by `packages/python/service/tests/test_connect.py`.*

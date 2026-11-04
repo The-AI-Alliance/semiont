@@ -89,8 +89,9 @@ again finds what it kept; one that is replaced starts with nothing.
   everything.
 - **As a process** (`boot.test.ts`): what its health reports; a clean stop;
   and every refusal to start: no service account, no password for the graph
-  database, a graph that lives in one process's memory, a gateway that does
-  not answer.
+  database, a graph that lives in one process's memory, settings that name
+  another knowledge base than the one at its gateway (named both by their
+  DIDs), a gateway that does not answer.
 - **What it exports** (`telemetry.test.ts`): a Weaver told where to export,
   held to the telemetry table in both directions: every row the table lists
   for it arrives, under its name, and nothing arrives that the table does not

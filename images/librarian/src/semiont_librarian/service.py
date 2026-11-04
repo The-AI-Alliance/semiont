@@ -62,7 +62,7 @@ from semiont_service.archivist import Archivist
 from semiont_service.config import Refused, config_path_of, service_account_of
 from semiont_service.connect import connected
 from semiont_service.health import bind_health
-from semiont_service.knowledge_base import CONFIRMING, confirmed
+from semiont_service.knowledge_base import CONFIRMING_CHANNELS, confirmed
 from semiont_service.log import configure
 from semiont_service.observability import Exporting, install
 from semiont_vectors.embedding import EmbeddingProvider
@@ -85,7 +85,7 @@ from semiont_librarian.reads import AnchoredText
 from semiont_librarian.record import READ, BusProfiles, BusRecord
 from semiont_librarian.telemetry import GatherDegraded
 
-__all__ = ["CHANNELS", "CONFIRMING_CHANNELS", "boot", "health", "main"]
+__all__ = ["CHANNELS", "boot", "health", "main"]
 
 CHANNELS: Final[tuple[str, ...]] = (
     MATCH_SEARCH_REQUESTED.request.name,
@@ -101,9 +101,6 @@ CHANNELS: Final[tuple[str, ...]] = (
     *reply_channels_for(*READ),
 )
 """What the Librarian's stream names: the eight requests it answers, the two signals it follows, and the replies of what it asks."""
-
-CONFIRMING_CHANNELS: Final[tuple[str, ...]] = reply_channels_for(*CONFIRMING)
-"""What the stream it asks the knowledge base on names: the answer's replies, and no request, so none reaches it before it answers."""
 
 
 def health(kb: str) -> JsonValue:
