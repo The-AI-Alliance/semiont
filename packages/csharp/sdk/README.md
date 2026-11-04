@@ -7,8 +7,8 @@ during compilation. The HTTP transport and wire conformance driver are implement
 sign-in store, issuer renewal, and kept-session lifecycle are implemented.
 Use a project reference until the NuGet package is published.
 
-Construct `SemiontClient` with a gateway URL and token to use the typed
-`Frame`, `Auth`, `System`, `Bind`, and `Beckon` namespaces. Frame mutations await their replies.
+Construct `SemiontClient` with a gateway URL and token to use its typed namespaces.
+Frame mutations await their replies.
 A batch of entity types sends each mutation after the preceding one settles.
 The client disposes its transport, and a supplied HTTP client stays caller-owned.
 
@@ -32,6 +32,18 @@ can be consumed once. Leaving a read stops following the job. Yield's optional
 stall deadline applies to the follower, which asks the queue to cancel the job
 if it stops reporting. A `JobError` carries the shared error code, job ID when
 known, and failure class when the worker supplied one.
+
+Browse reads resource text, bytes, streams, graphs, anchored text, history, and
+knowledge base metadata. Dispose a representation stream when finished with it.
+`Yield.Resource` starts an upload immediately. Read its progress once and await
+the upload for the created resource. Dispose an upload to abandon its request.
+`Yield.CreateFromTokenAsync` reads the source first and uploads the copy in a
+format that can be authored, using plain text for other formats.
+
+`Semiont.Annotations.AnnotationTools` reads annotation bodies and selectors,
+reconciles a quote against its source, and builds annotations from a whole resource,
+plain text, or PDF anchored text. Spans count Unicode code points. The builders
+derive the same ID when they are given the same resource, motivation, span, and body.
 
 The SDK targets .NET 11. [global.json](global.json) pins the SDK exactly, with roll-forward
 disabled. [dotnet-version.sh](../scripts/dotnet-version.sh) derives the container

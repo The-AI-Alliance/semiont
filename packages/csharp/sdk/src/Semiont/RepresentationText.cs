@@ -21,12 +21,9 @@ internal static class RepresentationText
             throw Refusal("The resource's media type does not supply decoded text: " + MediaTypes.Base(contentType));
 
         var label = Charset(contentType).AsSpan().Trim(EncodingWhitespace).ToString();
-        var decoder = Decoders["utf-8"];
-        if (label.Length > 0)
-        {
-            if (!label.All(char.IsAscii) || !Decoders.TryGetValue(label, out decoder) || decoder.Refused)
-                throw Refusal("Unsupported resource charset: " + label);
-        }
+        if (label.Length == 0) label = "utf-8";
+        if (!label.All(char.IsAscii) || !Decoders.TryGetValue(label, out var decoder) || decoder.Refused)
+            throw Refusal("Unsupported resource charset: " + label);
 
         if (bytes.StartsWith(Encoding.UTF8.Preamble)) return Encoding.UTF8.GetString(bytes[3..]);
         if (bytes.StartsWith(Utf16LeMark)) return Utf16(bytes[2..], bigEndian: false);

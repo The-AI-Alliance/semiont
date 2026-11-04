@@ -67,12 +67,13 @@ public sealed class BrowseNamespace
 
     private async Task ReportViewedAsync(ResourceId resourceId)
     {
+        if (closed.IsCancellationRequested) return;
         try
         {
             await wire.EmitAsync(BusChannels.BrowseResourceViewed, new BrowseResourceViewedEvent { ResourceId = resourceId },
                 cancellation: closed).ConfigureAwait(false);
         }
         catch (TransportError) { /* The transport reports the refusal on its error stream. */ }
-        catch (OperationCanceledException) when (closed.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (closed.IsCancellationRequested) { /* Closing abandons pending navigation reports. */ }
     }
 }

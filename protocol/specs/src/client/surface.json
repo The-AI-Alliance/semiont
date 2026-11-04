@@ -1020,8 +1020,8 @@
     {
       "module": "annotations",
       "docs": "The readers of an annotation, its builders, and the reconciling of a quote: what a program that reads or makes annotations is given, so that none parses or builds one by hand. Held by protocol/specs/src/annotations's tables.",
-      "notYetReached": {"csharp": "C# is still to implement the annotations module."},
       "where": {
+        "csharp": ["packages/csharp/sdk/src/Semiont/Annotations"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Annotations/Readers.swift",
           "packages/swift/sdk/Sources/Semiont/Annotations/Spans.swift",
@@ -1201,6 +1201,7 @@
           "member": "SpanRefusal",
           "kind": "type",
           "absent": {
+            "csharp": "C# reports the shared refusal code on SpanRefusedError.",
             "swift": "Swift uses SpanRefusalErrorCode, generated with the other error families.",
             "typescript": "TypeScript's is with @semiont/core's other error codes.",
             "rust": "Rust's is errors::SpanRefusal, which is itself the error a refused span is.",

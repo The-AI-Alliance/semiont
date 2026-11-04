@@ -69,6 +69,7 @@ public sealed class Upload : IAsyncEnumerable<UploadProgress>, IDisposable
             {
                 finished = true;
                 progress.Writer.TryComplete();
+                // Dispose under the same lock used to cancel the in-flight upload.
                 stopping.Dispose();
             }
         }
