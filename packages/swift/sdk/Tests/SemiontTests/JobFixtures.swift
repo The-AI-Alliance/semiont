@@ -35,6 +35,13 @@ func completionFixture(_ create: JobCreateCommand, job: String = "job-1") throws
     return .yieldJobCompleteCommand(YieldJobCompleteCommand(jobId: job, resourceId: resource))
   }
 }
+func annotationReply(_ annotation: Annotation) throws -> [String: JSONValue] {
+  try wirePayload(
+    BrowseAnnotationResult(
+      response: GetAnnotationResponse(annotation: annotation, resolvedResource: nil, resource: nil))
+  )
+}
+
 func surfaceReplies(_ probe: ProbeTransport, cloneAnswer: JSONValue?) {
   probe.handle { [weak probe] name, payload in
     switch name {
@@ -62,6 +69,12 @@ func surfaceReplies(_ probe: ProbeTransport, cloneAnswer: JSONValue?) {
         BrowseEventsResult(
           response: GetEventsResponse(
             events: [], resourceId: request.resourceId, total: 0)))
+    case Operations.browseAnnotationRequested.request.name:
+      let request = try decoded(BrowseAnnotationRequest.self, .object(payload))
+      return try annotationReply(
+        Annotation(
+          created: "2026-11-03T00:00:00Z", id: request.annotationId, motivation: .commenting,
+          target: .resourceId(request.resourceId)))
     case Operations.browseAnnotationHistoryRequested.request.name:
       let request = try decoded(BrowseAnnotationHistoryRequest.self, .object(payload))
       return try wirePayload(

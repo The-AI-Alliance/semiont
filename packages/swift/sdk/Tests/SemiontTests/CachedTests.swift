@@ -186,7 +186,10 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
     }
     let channel = Channels.markBodyUpdated.name
     let edit = try EnrichedResourceEvent(
-      id: "e-edit", metadata: EventMetadata(sequenceNumber: 2), payload: [:], resourceId: second,
+      id: "e-edit", metadata: EventMetadata(sequenceNumber: 2),
+      payload: wirePayload(
+        AnnotationBodyUpdatedPayload(annotationId: AnnotationId("edited"), operations: [])),
+      resourceId: second,
       timestamp: "2026-11-03T00:00:00Z", type: channel,
       userId: UserId("did:web:kb.test:users:person"), version: 1)
     transport.deliver(ReceivedFrame(channel: channel, payload: try wirePayload(edit)))
@@ -202,5 +205,167 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
     #expect(await firstReader.next() == nil)
     #expect(await secondReader.next() == nil)
     #expect(transport.holds == 0)
+  }
+}
+
+@Test func annotationEditsWriteThroughOrRefetchTheNamedCaches() async throws {
+  let transport = ProbeTransport()
+  let resource = try ResourceId("document")
+  let id = try AnnotationId("annotated")
+  let original = Annotation(
+    created: "2026-11-04T00:00:00Z", id: id, motivation: .commenting,
+    target: .resourceId(resource))
+  let enriched = Annotation(
+    created: original.created, id: id, modified: "2026-11-04T00:01:00Z",
+    motivation: original.motivation, target: original.target)
+  let fetched = Annotation(
+    created: original.created, id: id, modified: "2026-11-04T00:02:00Z",
+    motivation: original.motivation, target: original.target)
+  transport.setAnnotations([original])
+  transport.handle { _, _ in try annotationReply(original) }
+  let client = try await SemiontClient(transport: transport)
+  defer { client.dispose() }
+
+  try await within(5000) {
+    let list = client.browse.annotations(resource)
+    let detail = client.browse.annotation(resourceId: resource, annotationId: id)
+    #expect(detail === client.browse.annotation(resourceId: resource, annotationId: id))
+    _ = client.browse.annotation(resourceId: resource, annotationId: try AnnotationId("cold"))
+    _ = try await list.fresh()
+    _ = try await detail.fresh()
+    var listReader = list.makeAsyncIterator()
+    var detailReader = detail.makeAsyncIterator()
+    guard case .ready? = await listReader.next(), case .ready? = await detailReader.next() else {
+      Issue.record("Both queries should have a cached annotation")
+      return
+    }
+    let channel = Channels.markBodyUpdated.name
+    let payload = try wirePayload(AnnotationBodyUpdatedPayload(annotationId: id, operations: []))
+    var event = try EnrichedResourceEvent(
+      annotation: enriched, id: "e-write", metadata: EventMetadata(sequenceNumber: 1),
+      payload: payload, resourceId: resource, timestamp: "2026-11-04T00:01:00Z",
+      type: channel, userId: UserId("did:web:kb.test:users:person"), version: 1)
+    transport.deliver(ReceivedFrame(channel: channel, payload: try wirePayload(event)))
+    guard case .ready(let writtenList)? = await listReader.next(),
+      case .ready(let writtenDetail)? = await detailReader.next()
+    else {
+      Issue.record("An enriched edit should publish both values directly")
+      return
+    }
+    #expect(writtenList.map(\.modified) == [enriched.modified])
+    #expect(writtenDetail.modified == enriched.modified)
+    #expect(transport.calls.count == 2)
+
+    transport.setAnnotations([fetched])
+    transport.handle { _, _ in try annotationReply(fetched) }
+    event.annotation = nil
+    event.id = "e-refetch"
+    transport.deliver(ReceivedFrame(channel: channel, payload: try wirePayload(event)))
+    guard case .ready(let fetchedList)? = await listReader.next(),
+      case .ready(let fetchedDetail)? = await detailReader.next()
+    else {
+      Issue.record("An unenriched edit should refetch without discarding the old value")
+      return
+    }
+    #expect(fetchedList.map(\.modified) == [fetched.modified])
+    #expect(fetchedDetail.modified == fetched.modified)
+    #expect(transport.calls.count == 4)
+  }
+}
+
+@Test(arguments: [false, true])
+func annotationRemovalSurvivesAnEarlierInFlightRead(confirmedByReply: Bool) async throws {
+  let transport = ProbeTransport()
+  let started = Watched(false)
+  let release = Watched(false)
+  let resource = try ResourceId("document")
+  let id = try AnnotationId("removed")
+  let original = Annotation(
+    created: "2026-11-04T00:00:00Z", id: id, motivation: .commenting,
+    target: .resourceId(resource))
+  transport.handle { _, _ in try annotationReply(original) }
+  let client = try await SemiontClient(transport: transport)
+  defer {
+    release.set(true)
+    client.dispose()
+  }
+
+  try await within(5000) {
+    let detail = client.browse.annotation(resourceId: resource, annotationId: id)
+    var reader = detail.makeAsyncIterator()
+    guard case .pending? = await reader.next(), case .ready? = await reader.next() else {
+      Issue.record("The detail should be ready before removal")
+      return
+    }
+    transport.handle { _, _ in
+      started.set(true)
+      for await ready in release where ready { break }
+      return try annotationReply(original)
+    }
+    let stale = Task { try await detail.fresh() }
+    defer { stale.cancel() }
+    for await issued in started where issued { break }
+    if confirmedByReply {
+      let reply = MarkDeleteOk(response: MarkDeleteOkResponse(annotationId: id))
+      transport.deliver(
+        ReceivedFrame(channel: Channels.markDeleteOk.name, payload: try wirePayload(reply)))
+    } else {
+      let channel = Channels.markRemoved.name
+      let event = try StoredEventResponse(
+        id: "e-remove", metadata: EventMetadata(sequenceNumber: 2),
+        payload: wirePayload(AnnotationRemovedPayload(annotationId: id)), resourceId: resource,
+        timestamp: "2026-11-04T00:01:00Z", type: channel,
+        userId: UserId("did:web:kb.test:users:person"), version: 1)
+      transport.deliver(ReceivedFrame(channel: channel, payload: try wirePayload(event)))
+    }
+    guard case .failed(let removed)? = await reader.next() else {
+      Issue.record("Removal should fail the detail directly")
+      return
+    }
+    #expect((removed as? BusRequestError)?.reason == .busNotFound)
+    release.set(true)
+    _ = try await stale.value
+    #expect(transport.calls.count == 2)
+
+    transport.handle { _, _ in throw BusRequestError(.busNotFound, "Missing from service") }
+    var later = detail.makeAsyncIterator()
+    guard case .pending? = await later.next(), case .pending? = await reader.next(),
+      case .failed(let answer)? = await later.next()
+    else {
+      Issue.record("The older result should not resurrect the detail before recovery")
+      return
+    }
+    #expect((answer as? BusRequestError)?.description == "Missing from service")
+  }
+}
+
+@Test func anEditDuringAListReadKeepsOtherItemsFromTheResponse() async throws {
+  let lifetime = Lifetime()
+  let started = Watched(false)
+  let release = Watched(false)
+  let query = Cached(lifetime: lifetime) {
+    started.set(true)
+    for await ready in release where ready { break }
+    return ["old", "added"]
+  }
+  defer {
+    release.set(true)
+    lifetime.end()
+  }
+
+  try await within(5000) {
+    var reader = query.makeAsyncIterator()
+    guard case .pending? = await reader.next() else {
+      Issue.record("The list should still be loading")
+      return
+    }
+    for await issued in started where issued { break }
+    await query.editIfKnown { ["edited"] + $0.dropFirst() }
+    release.set(true)
+    guard case .ready(let result)? = await reader.next() else {
+      Issue.record("The read and edit should publish a merged list")
+      return
+    }
+    #expect(result == ["edited", "added"])
   }
 }

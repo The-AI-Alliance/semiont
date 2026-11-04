@@ -15,6 +15,13 @@ public struct BrowseNamespace: Sendable {
     live.events.query(resourceId)
   }
 
+  public func annotations(_ resourceId: ResourceId) -> Cached<[Annotation]> {
+    live.annotations.query(resourceId)
+  }
+  public func annotation(resourceId: ResourceId, annotationId: AnnotationId) -> Cached<Annotation> {
+    live.annotation(resourceId: resourceId, annotationId: annotationId)
+  }
+
   private var contentTransport: any ContentTransport {
     get throws {
       guard let content else { throw TransportError(.error, "No content transport is configured") }
