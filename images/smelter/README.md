@@ -76,14 +76,16 @@ was; the failure is in the log, and whoever waits is left to the end of its own 
 
 ## When it starts
 
-It reads its document, signs in, opens its stream of the record and asks the knowledge base
-which it is, reaches the vector index, begins following the record, and opens its health port.
+It reads its document, signs in, asks the knowledge base which it is, reaches the vector index,
+opens its stream of the record and begins following it, and opens its health port.
 
 **It serves the knowledge base its document names, and no other.** Before it reaches the
 vector index it asks the knowledge base which it is (`browse:kb-requested`), and asks again
-while the Archivist is not there to answer. Where the knowledge base says it is another, the
-Smelter refuses to start naming both by their DIDs, and where it cannot say, the Smelter
-refuses saying why. Either way it has touched no collection.
+while the Archivist is not there to answer. It asks on a stream that names no command, so no
+`smelt:rebuild-anchors` reaches it before it can answer one: one sent while it starts fails as
+one sent where no Smelter runs. Where the knowledge base says it is another, the Smelter
+refuses to start naming both by their DIDs, and where it cannot say, the Smelter refuses
+saying why. Either way it has touched no collection.
 
 **It follows the record as every follower of it does**: a cursor for each resource's log, kept
 in the file its document names on the container's own disk, and a sweep of the record at its
