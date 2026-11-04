@@ -369,3 +369,34 @@ func annotationRemovalSurvivesAnEarlierInFlightRead(confirmedByReply: Bool) asyn
     #expect(result == ["edited", "added"])
   }
 }
+
+@Test func enginesKeepTheirOrderAndOnlyJoinLimitsForTheSameProviderAndModel() async throws {
+  let transport = ProbeTransport()
+  let first = Engine(model: "shared-name", provider: .openai)
+  let second = Engine(model: "shared-name", provider: .ollama)
+  let answering = try #require(Operations.limits.first).request.name
+  transport.handle { operation, _ in
+    if operation == Operations.browseEnginesRequested.request.name {
+      return try wirePayload(
+        BrowseEnginesResult(
+          response: BrowseEnginesResultResponse(
+            engines: [EngineEntry(engine: first), EngineEntry(engine: second)])))
+    }
+    if operation == answering {
+      return try wirePayload(
+        InferenceLimitsResult(
+          response: InferenceLimitsResultResponse(
+            limits: [
+              EngineLimits(
+                engine: second, limits: InferenceLimits(contextTokens: 8192, maxOutputTokens: 512))
+            ])))
+    }
+    throw BusRequestError(.busPeerUnavailable, "No credentials here")
+  }
+  let client = try await SemiontClient(transport: transport)
+  defer { client.dispose() }
+
+  let engines = try await client.browse.engines().fresh()
+  #expect(engines.map { $0.engine.provider } == [.openai, .ollama])
+  #expect(engines.map { $0.limits?.contextTokens } == [nil, 8192])
+}

@@ -2,36 +2,36 @@ import AsyncHTTPClient
 import Foundation
 import Semiont
 
-private struct Misuse: Error, CustomStringConvertible { let description: String }
+struct Misuse: Error, CustomStringConvertible { let description: String }
 extension Dictionary where Key == String, Value == JSONValue {
-  fileprivate func text(_ key: String) throws -> String {
+  func text(_ key: String) throws -> String {
     guard case .string(let value) = self[key] else {
       throw Misuse(description: "\(key) must be text")
     }
     return value
   }
-  fileprivate func optionalText(_ key: String) throws -> String? {
+  func optionalText(_ key: String) throws -> String? {
     guard self[key] != nil else { return nil }
     return try text(key)
   }
-  fileprivate func integer(_ key: String) throws -> Int {
+  func integer(_ key: String) throws -> Int {
     guard case .number(let n) = self[key], n.rounded() == n, n >= Double(Int.min),
       n < Double(Int.max)
     else { throw Misuse(description: "\(key) must be a whole number") }
     return Int(n)
   }
-  fileprivate func optionalBool(_ key: String) throws -> Bool? {
+  func optionalBool(_ key: String) throws -> Bool? {
     guard let value = self[key] else { return nil }
     guard case .bool(let flag) = value else { throw Misuse(description: "\(key) must be boolean") }
     return flag
   }
-  fileprivate func object(_ key: String) throws -> [String: JSONValue] {
+  func object(_ key: String) throws -> [String: JSONValue] {
     guard case .object(let value) = self[key] else {
       throw Misuse(description: "\(key) must be an object")
     }
     return value
   }
-  fileprivate func texts(_ key: String) throws -> [String] {
+  func texts(_ key: String) throws -> [String] {
     guard case .array(let values) = self[key] else {
       throw Misuse(description: "\(key) must be a list")
     }
@@ -43,10 +43,10 @@ extension Dictionary where Key == String, Value == JSONValue {
     }
   }
 }
-private func encoded<Value: Encodable>(_ value: Value) throws -> JSONValue {
+func encoded<Value: Encodable>(_ value: Value) throws -> JSONValue {
   try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(value))
 }
-private actor Output {
+actor Output {
   func say(_ object: [String: JSONValue]) {
     do {
       var data = try JSONEncoder().encode(object)
@@ -55,13 +55,18 @@ private actor Output {
     } catch { FileHandle.standardError.write(Data("Cannot encode driver output: \(error)\n".utf8)) }
   }
 }
-private func failure(_ error: any Error) -> JSONValue {
+func failure(_ error: any Error) -> JSONValue {
   var fields: [String: JSONValue] = ["detail": .string(String(describing: error))]
   if let error = error as? TransportError {
     fields["code"] = .string(error.code)
     if let status = error.status { fields["status"] = .number(Double(status)) }
   } else if let error = error as? BusRequestError {
     fields["code"] = .string(error.code)
+  } else if let error = error as? JobError {
+    fields["code"] = .string(error.code)
+    if let classification = error.failureClass {
+      fields["failureClass"] = .string(classification.rawValue)
+    }
   }
   return .object(fields)
 }
@@ -75,13 +80,15 @@ private actor Driver {
   let flush: @Sendable () async -> Void
   let http = HTTPClient(eventLoopGroupProvider: .singleton)
   var transport: HttpTransport?
+  let live: LiveDriver?
   var tasks: [Int: Task<Void, Never>] = [:]
   var abandoned: Set<Int> = []
   var reporters: [Task<Void, Never>] = []
   var holds: [String: [ResourceHold]] = [:]
-  init(output: Output, flush: @escaping @Sendable () async -> Void) {
+  init(output: Output, liveMode: Bool, flush: @escaping @Sendable () async -> Void) {
     self.output = output
     self.flush = flush
+    self.live = liveMode ? LiveDriver(output: output, http: http) : nil
   }
   func accept(_ args: [String: JSONValue]) async {
     let id: Int
@@ -99,7 +106,7 @@ private actor Driver {
       "anchored-text", "health", "status", "current-user", "media-token",
       "protected-resource-metadata", "sync",
     ]
-    guard supported.contains(op) else {
+    guard (live == nil ? supported : LiveDriver.operations).contains(op) else {
       await output.say(["id": .number(Double(id)), "unsupported": .bool(true)])
       return
     }
@@ -107,7 +114,7 @@ private actor Driver {
       "open", "close", "set-token", "listen", "subscribe-resource", "release-resource", "abandon",
       "sync",
     ]
-    if immediate.contains(op) {
+    if immediate.contains(op) || (live != nil && LiveDriver.immediate.contains(op)) {
       do {
         let value = try await run(op, args: args, id: id)
         await complete(id, value: value)
@@ -144,6 +151,11 @@ private actor Driver {
     return transport
   }
   func run(_ op: String, args: [String: JSONValue], id: Int) async throws -> JSONValue {
+    if let live {
+      let answer = try await live.run(op, args: args)
+      if op == "close" { await flush() }
+      return answer
+    }
     switch op {
     case "open":
       guard transport == nil else { throw Misuse(description: "A transport is already open") }
@@ -207,6 +219,7 @@ private actor Driver {
                 throw Misuse(description: "A frame must encode as an object")
               }
               fields.removeValue(forKey: "trace")
+              fields.removeValue(forKey: "eventId")
               await output.say(["frame": .object(fields)])
             }
           } catch {}
@@ -326,6 +339,7 @@ private actor Driver {
   }
   func finish() async {
     transport?.dispose()
+    await live?.finish()
     let pending = Array(tasks.values)
     for task in pending { task.cancel() }
     for task in pending { await task.value }
@@ -341,7 +355,9 @@ struct WireDriver {
     let telemetry = DriverTelemetry(
       endpoint: ProcessInfo.processInfo.environment["OTEL_EXPORTER_OTLP_ENDPOINT"])
     let output = Output()
-    let driver = Driver(output: output, flush: { await telemetry?.flush() })
+    let driver = Driver(output: output, liveMode: CommandLine.arguments.dropFirst() == ["--live"]) {
+      await telemetry?.flush()
+    }
     await output.say(["ready": .bool(true)])
     while let line = readLine() {
       do {

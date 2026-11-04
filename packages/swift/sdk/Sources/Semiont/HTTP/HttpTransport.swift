@@ -85,6 +85,10 @@ public actor HttpTransport: Transport, GatewayOperations {
       Task { await self?.removeListener(id) }
     }
   }
+  func restoreBookmarks(_ bookmarks: [ResourceId: String]) {
+    watermarks.merge(bookmarks) { current, _ in current }
+  }
+
   func removeListener(_ id: UUID) { listeners.removeValue(forKey: id) }
   public func isSubscribed(_ channel: String) -> Bool { channels.contains(channel) }
   public func setToken(_ token: String?) {
@@ -277,7 +281,7 @@ public actor HttpTransport: Transport, GatewayOperations {
       .busRecvChannel, channel: wire.channel, scope: wire.scope, parent: trace)
     defer { received.end() }
     wire.payload = payload
-    let frame = ReceivedFrame(wire, trace: trace)
+    let frame = ReceivedFrame(wire, trace: trace, eventId: event.id)
     if let id = event.id, id.hasPrefix("p-"), let scope = frame.scope { watermarks[scope] = id }
     BusLog.line(
       "RECV", channel: frame.channel, payload: frame.payload, scope: frame.scope,

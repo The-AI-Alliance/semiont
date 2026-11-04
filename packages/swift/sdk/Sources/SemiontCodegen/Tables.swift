@@ -108,14 +108,20 @@ package struct TableGenerator {
     _ = try models.inline("", "GatherResourceOptions", gatherOptions)
     var received = try models.schema("BusFrame")
     var fields = try required(received, "properties").object
-    let projection = fields.keys.sorted().map {
-      "\(memberName($0)): frame.\(escaped(memberName($0)))"
+    let receiveMetadata: [String: JSONValue] = [
+      "eventId": .object(["type": .string("string")]),
+      "trace": .object([
+        "type": .string("object"), "additionalProperties": .object(["type": .string("string")]),
+      ]),
+    ]
+    fields.merge(receiveMetadata) { _, metadata in metadata }
+    let projection = fields.keys.sorted().map { name in
+      let member = memberName(name)
+      let source = receiveMetadata[name] == nil ? "frame.\(escaped(member))" : member
+      return "\(member): \(source)"
     }.joined(separator: ", ")
     out +=
-      "extension ReceivedFrame { internal init(_ frame: BusFrame, trace: [String: String]?) { self.init(\(projection), trace: trace) } }\n"
-    fields["trace"] = .object([
-      "type": .string("object"), "additionalProperties": .object(["type": .string("string")]),
-    ])
+      "extension ReceivedFrame { internal init(_ frame: BusFrame, trace: [String: String]?, eventId: String?) { self.init(\(projection)) } }\n"
     received["properties"] = .object(fields)
     _ = try models.inline("", "ReceivedFrame", received)
     let timing = try required(table("client/timing.json"), "timing").array
@@ -350,6 +356,7 @@ package struct TableGenerator {
     }
     out += "}\npublic enum Operations {\n"
     var replies: Set<String> = []
+    var limits: [String] = []
     for raw in try required(registry, "operations").array {
       let row = try raw.object
       let names = try ["request", "result", "failure"].map { try required(row, $0).text }
@@ -360,6 +367,9 @@ package struct TableGenerator {
         return channel
       }
       replies.formUnion(names.dropFirst())
+      if names[0].hasSuffix(":limits-requested") {
+        limits.append(escaped(memberName(names[0])))
+      }
       let answer = try channels[1].schema.map { try models.merged($0) }
       if answer?["oneOf"] != nil || answer?["anyOf"] != nil {
         throw GenerationRefused(description: "union reply needs explicit reply-name handling")
@@ -378,6 +388,8 @@ package struct TableGenerator {
       out +=
         "  public static let \(escaped(memberName(names[0]))): Operation<\(channels.map(\.type).joined(separator: ", "))> = .init(request: Channels.\(escaped(memberName(names[0]))), result: Channels.\(escaped(memberName(names[1]))), failure: Channels.\(escaped(memberName(names[2]))), replyNames: [\(replyNames.map(literal).joined(separator: ", "))])\n"
     }
+    out +=
+      "  public static let limits: [Operation<InferenceLimitsRequest, InferenceLimitsResult, CommandError>] = [\(limits.joined(separator: ", "))]\n"
     out += "}\ninternal let wireOperations: [String: WireOperation] = [\n"
     for raw in try required(registry, "operations").array {
       let row = try raw.object

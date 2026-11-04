@@ -21,10 +21,17 @@ public final class SemiontClient: Sendable {
   public var baseUrl: String { transport.baseUrl }
   private let lifetime = Lifetime()
   private let disposed = Mutex(false)
+  private let book: CacheBook?
   public init(
     transport: any Transport, gateway: (any GatewayOperations)? = nil,
-    content: (any ContentTransport)? = nil, followTiming: FollowTiming = FollowTiming()
+    content: (any ContentTransport)? = nil, followTiming: FollowTiming = FollowTiming(),
+    persistence: CachePersistence? = nil, invalidationWindowMs: Int? = nil
   ) async throws {
+    let book = persistence.map(CacheBook.init)
+    self.book = book
+    if let http = transport as? HttpTransport, let book {
+      await http.restoreBookmarks(book.bookmarks)
+    }
     let source = try await transport.frames([])
     do { try Task.checkCancellation() } catch {
       source.dispose()
@@ -36,11 +43,13 @@ public final class SemiontClient: Sendable {
     let wire = Bus(transport)
     self.wire = wire
     let content = content ?? (transport as? any ContentTransport)
-    let live = LiveQueries(wire: wire, transport: transport, content: content, lifetime: lifetime)
+    let live = LiveQueries(
+      wire: wire, transport: transport, content: content, lifetime: lifetime, book: book,
+      invalidationWindowMs: invalidationWindowMs ?? Timings.invalidationWindowMs)
     browse = BrowseNamespace(
       wire: wire, bus: bus, lifetime: lifetime, content: content, live: live)
     gather = GatherNamespace(wire: wire, lifetime: lifetime, live: live)
-    match = MatchNamespace(wire: wire, bus: bus, lifetime: lifetime)
+    match = MatchNamespace(wire: wire, bus: bus, lifetime: lifetime, live: live)
     yield = YieldNamespace(
       wire: wire, bus: bus, lifetime: lifetime, timing: followTiming, content: content)
     mark = MarkNamespace(wire: wire, bus: bus, lifetime: lifetime, timing: followTiming)
@@ -62,6 +71,7 @@ public final class SemiontClient: Sendable {
           if Task.isCancelled { break }
           bus.receive(frame)
           await live.receive(frame)
+          if let id = frame.eventId, let scope = frame.scope { book?.heard(id, in: scope) }
         }
       } catch {
         // The transport's failures are its public error channel; bridge teardown is silent.
@@ -84,12 +94,18 @@ public final class SemiontClient: Sendable {
       }
     }
   }
-  public static func fromHttp(baseUrl: String, httpClient: HTTPClient, token: String? = nil)
+  public static func fromHttp(
+    baseUrl: String, httpClient: HTTPClient, token: String? = nil,
+    persistence: CachePersistence? = nil
+  )
     async throws -> SemiontClient
   {
     try Task.checkCancellation()
     let transport = HttpTransport(baseUrl: baseUrl, httpClient: httpClient, token: token)
-    do { return try await SemiontClient(transport: transport, gateway: transport) } catch {
+    do {
+      return try await SemiontClient(
+        transport: transport, gateway: transport, persistence: persistence)
+    } catch {
       transport.dispose()
       throw error
     }
@@ -102,6 +118,7 @@ public final class SemiontClient: Sendable {
         return true
       })
     else { return }
+    book?.close()
     lifetime.end()
     transport.dispose()
     bus.dispose()

@@ -35,6 +35,13 @@ extension HttpTransport {
   public func request(operation: String, payload: [String: JSONValue], timeoutMs: Int? = nil)
     async throws -> [String: JSONValue]
   {
+    try await request(operation: operation, payload: payload, timeoutMs: timeoutMs, enqueued: nil)
+  }
+
+  func request(
+    operation: String, payload: [String: JSONValue], timeoutMs: Int?,
+    enqueued: (@Sendable () -> Void)?
+  ) async throws -> [String: JSONValue] {
     guard let descriptor = wireOperations[operation] else {
       throw BusRequestError(.busRejected, "Unknown operation \(operation)")
     }
@@ -47,6 +54,7 @@ extension HttpTransport {
     let correlation = UUID().uuidString
     let senderID = UUID()
     let timerID = UUID()
+    let deadline = timeoutMs ?? timing.busRequestTimeoutMs
     let life = lifetime
     let frame: ReceivedFrame = try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { continuation in
@@ -58,6 +66,7 @@ extension HttpTransport {
           }, complete: { continuation.resume(with: $0) })
         let emission = enqueueEmission(
           channel: operation, payload: body, correlationId: correlation, afterOpen: true)
+        enqueued?()
         let send = Task { [self] in
           defer { life.forget(senderID) }
           do {
@@ -72,7 +81,7 @@ extension HttpTransport {
         life.keep(send, id: senderID)
         let timer = Task { [weak self] in
           defer { life.forget(timerID) }
-          do { try await sleepMilliseconds(timeoutMs ?? Timings.busRequestTimeoutMs) } catch {
+          do { try await sleepMilliseconds(deadline) } catch {
             return
           }
           await self?.fail(
