@@ -784,8 +784,7 @@
     {
       "unit": "mark",
       "docs": "The composing and delegating of annotations on one resource: the annotation being composed, the delegated job's motivation, its progress and what that progress is of, why the last job ended without completing, and the job's id. A request and a submission reach it as the signals the mark namespace publishes, which name its resource; a delegation, the cancelling of the annotation being composed and the dismissing of a job's progress are asked of the unit itself, so none reaches a unit of another resource.",
-      "notYetReached": {"swift": "The Swift SDK's mark: The composing and delegating of annotations on one resource: the annotation being composed, the delegated job's motivation, its progress and what that progress is of, why the last job ended without completing, and the job's id. A request and a submission reach it as the signals the mark namespace publishes, which name its resource; a delegation, the cancelling of the annotation being composed and the dismissing of a job's progress are asked of the unit itself, so none reaches a unit of another resource."},
-      "made": { "csharp": "MarkStateUnit", "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit", "go": "MarkStateUnit", "kotlin": "MarkStateUnit" },
+      "made": { "csharp": "MarkStateUnit", "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit", "go": "MarkStateUnit", "kotlin": "MarkStateUnit", "swift": "MarkStateUnit" },
       "madeBy": { "typescript": "createMarkStateUnit", "go": "NewMarkStateUnit" },
       "members": [
         { "member": "pendingAnnotation" },
@@ -802,8 +801,7 @@
     {
       "unit": "yield",
       "docs": "A generation: whether a run is under way, its progress, what the finished run produced, why the last run ended without a result, and the job's id. It is moved by its own methods.",
-      "notYetReached": {"swift": "The Swift SDK's yield: A generation: whether a run is under way, its progress, what the finished run produced, why the last run ended without a result, and the job's id. It is moved by its own methods."},
-      "made": { "csharp": "YieldStateUnit", "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit", "go": "YieldStateUnit", "kotlin": "YieldStateUnit" },
+      "made": { "csharp": "YieldStateUnit", "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit", "go": "YieldStateUnit", "kotlin": "YieldStateUnit", "swift": "YieldStateUnit" },
       "madeBy": { "typescript": "createYieldStateUnit", "go": "NewYieldStateUnit" },
       "members": [
         { "member": "isGenerating" },
@@ -818,8 +816,7 @@
     {
       "unit": "gather",
       "docs": "The context gathered around one resource: for the annotation last asked about and for the resource last asked about, the context, whether it is loading and why it failed. Each gather is asked of the unit itself, so none reaches a unit of another resource.",
-      "notYetReached": {"swift": "The Swift SDK's gather: The context gathered around one resource: for the annotation last asked about and for the resource last asked about, the context, whether it is loading and why it failed. Each gather is asked of the unit itself, so none reaches a unit of another resource."},
-      "made": { "csharp": "GatherStateUnit", "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit", "go": "GatherStateUnit", "kotlin": "GatherStateUnit" },
+      "made": { "csharp": "GatherStateUnit", "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit", "go": "GatherStateUnit", "kotlin": "GatherStateUnit", "swift": "GatherStateUnit" },
       "madeBy": { "typescript": "createGatherStateUnit", "go": "NewGatherStateUnit" },
       "members": [
         { "member": "context" },
@@ -836,16 +833,14 @@
     {
       "unit": "match",
       "docs": "Matching, run for whoever asks on the client's own bus: a search asked for by a signal is run and answered under the asker's correlation id. It holds no state: what it found is what it said.",
-      "notYetReached": {"swift": "The Swift SDK's match: Matching, run for whoever asks on the client's own bus: a search asked for by a signal is run and answered under the asker's correlation id. It holds no state: what it found is what it said."},
-      "made": { "csharp": "MatchStateUnit", "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit", "go": "MatchStateUnit", "kotlin": "MatchStateUnit" },
+      "made": { "csharp": "MatchStateUnit", "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit", "go": "MatchStateUnit", "kotlin": "MatchStateUnit", "swift": "MatchStateUnit" },
       "madeBy": { "typescript": "createMatchStateUnit", "go": "NewMatchStateUnit" },
       "members": []
     },
     {
       "unit": "beckon",
       "docs": "Attention on one resource: the annotation this participant hovers, a sparkle for one the moment it is hovered, and a focus, naming the unit's resource, for one clicked here or by another participant.",
-      "notYetReached": {"swift": "The Swift SDK's beckon: Attention on one resource: the annotation this participant hovers, a sparkle for one the moment it is hovered, and a focus, naming the unit's resource, for one clicked here or by another participant."},
-      "made": { "csharp": "BeckonStateUnit", "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit", "kotlin": "BeckonStateUnit" },
+      "made": { "csharp": "BeckonStateUnit", "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit", "kotlin": "BeckonStateUnit", "swift": "BeckonStateUnit" },
       "madeBy": { "typescript": "createBeckonStateUnit", "go": "NewBeckonStateUnit" },
       "members": [
         { "member": "hoveredAnnotationId" },
@@ -855,8 +850,7 @@
     {
       "unit": "hoverDwell",
       "docs": "A pointer's rest: an annotation is said to be hovered once the pointer has rested on it for a delay, and none at once when it leaves.",
-      "notYetReached": {"swift": "The Swift SDK's hoverDwell: A pointer's rest: an annotation is said to be hovered once the pointer has rested on it for a delay, and none at once when it leaves."},
-      "made": { "csharp": "HoverDwell", "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell", "go": "HoverDwell", "kotlin": "HoverDwell" },
+      "made": { "csharp": "HoverDwell", "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell", "go": "HoverDwell", "kotlin": "HoverDwell", "swift": "HoverDwell" },
       "madeBy": { "typescript": "createHoverDwell", "go": "NewHoverDwell" },
       "members": [
         { "member": "enter" },
@@ -866,8 +860,7 @@
     {
       "unit": "search",
       "docs": "A search that follows a query as it is typed: the query as last set, and the results of the query it last settled on, once that query has stayed the same for a debounce.",
-      "notYetReached": {"swift": "The Swift SDK's search: A search that follows a query as it is typed: the query as last set, and the results of the query it last settled on, once that query has stayed the same for a debounce."},
-      "made": { "csharp": "SearchPipeline", "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline", "go": "SearchPipeline", "kotlin": "SearchPipeline" },
+      "made": { "csharp": "SearchPipeline", "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline", "go": "SearchPipeline", "kotlin": "SearchPipeline", "swift": "SearchPipeline" },
       "madeBy": { "typescript": "createSearchPipeline", "go": "NewSearchPipeline" },
       "members": [
         { "member": "query" },
@@ -878,8 +871,7 @@
     {
       "unit": "sessionSignals",
       "docs": "What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it.",
-      "notYetReached": {"swift": "The Swift SDK's sessionSignals: What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it."},
-      "made": { "csharp": "SessionSignals", "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals", "kotlin": "SessionSignals" },
+      "made": { "csharp": "SessionSignals", "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals", "kotlin": "SessionSignals", "swift": "SessionSignals" },
       "madeBy": { "typescript": "createSessionSignals", "go": "NewSessionSignals" },
       "members": [
         { "member": "sessionEnded" },
@@ -896,8 +888,7 @@
     {
       "unit": "cache",
       "docs": "Values the knowledge base answers with, kept by key and held as state: each key's state (pending, ready with its value, or failed), fetched when first observed and again when invalidated, and set, removed or invalidated by its methods. What it does is held by the cache's own tables (protocol/specs/src/client/refresh.json and the cache's rules in each SDK), not by the behaviour table.",
-      "notYetReached": {"swift": "The Swift SDK's cache: Values the knowledge base answers with, kept by key and held as state: each key's state (pending, ready with its value, or failed), fetched when first observed and again when invalidated, and set, removed or invalidated by its methods. What it does is held by the cache's own tables (protocol/specs/src/client/refresh.json and the cache's rules in each SDK), not by the behaviour table."},
-      "made": { "csharp": "Cache", "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache", "kotlin": "Cache" },
+      "made": { "csharp": "Cache", "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache", "kotlin": "Cache", "swift": "Cache" },
       "madeBy": { "typescript": "createCache", "go": "NewCache" },
       "members": [
         { "member": "observe" },
@@ -915,9 +906,8 @@
     {
       "unit": "session",
       "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. What it does is held by the session's own table (protocol/specs/src/session/cases.json), not by the behaviour table.",
-      "notYetReached": {"swift": "The Swift SDK's session: A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. What it does is held by the session's own table (protocol/specs/src/session/cases.json), not by the behaviour table."},
-      "made": { "csharp": "SemiontSession", "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession" },
-      "madeBy": { "go": "StartSession", "kotlin": "sessionFromKept" },
+      "made": { "csharp": "SemiontSession", "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession", "swift": "SemiontSession" },
+      "madeBy": { "go": "StartSession", "kotlin": "sessionFromKept", "swift": "sessionFromKept" },
       "members": [
         { "member": "id" },
         { "member": "kb" },
@@ -933,6 +923,7 @@
           "member": "renewer",
           "absent": {
             "csharp": "The transport takes a callback bound to the kept session when the transport is constructed.",
+            "swift": "The transport uses a closure that calls the session's renewal through a weak session reference.",
             "typescript": "A TypeScript transport is handed a closure that calls the session's `refresh`, and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
             "python": "A Python transport is handed a closure that calls the session's `refresh` (`refresher`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
             "go": "A Go transport is handed a TokenRefresher that asks the session's `Refresh` (SessionFromKept's `refreshedBy`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
@@ -1306,8 +1297,11 @@
     {
       "module": "retry",
       "docs": "Doing work again by a backoff, until it succeeds, it fails as nothing can mend, or the attempts run out.",
-      "notYetReached": {"csharp": "C# is still to implement the retry module.", "swift": "The Swift SDK's retry: Doing work again by a backoff, until it succeeds, it fails as nothing can mend, or the attempts run out."},
+      "notYetReached": {"csharp": "C# is still to implement the retry module."},
       "where": {
+        "swift": [
+          "packages/swift/sdk/Sources/Semiont/Transport/Retry.swift"
+        ],
         "typescript": [
           "packages/typescript/core/src/retry.ts"
         ],
@@ -1430,9 +1424,11 @@
     {
       "module": "storagePersister",
       "docs": "Where a client keeps its queries' values: a session storage, under one key, kept within a size.",
-      "notYetReached": {"swift": "The Swift SDK's storagePersister: Where a client keeps its queries' values: a session storage, under one key, kept within a size."},
       "where": {
         "csharp": ["packages/csharp/sdk/src/Semiont"],
+        "swift": [
+          "packages/swift/sdk/Sources/Semiont/CachePersistence.swift"
+        ],
         "typescript": [
           "packages/typescript/sdk/src/cache-persister.ts"
         ],
@@ -1463,8 +1459,11 @@
     {
       "module": "bus",
       "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps.",
-      "notYetReached": {"csharp": "C# is still to implement the bus module.", "swift": "The Swift SDK's bus: What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps."},
+      "notYetReached": {"csharp": "C# is still to implement the bus module."},
       "where": {
+        "swift": [
+          "packages/swift/sdk/Sources/Semiont/Bus/Bus.swift"
+        ],
         "typescript": [
           "packages/typescript/core/src/bus-request.ts",
           "packages/typescript/core/src/persisted-events.ts"
@@ -1511,9 +1510,15 @@
     {
       "module": "registry",
       "docs": "What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered.",
-      "notYetReached": {"swift": "The Swift SDK's registry: What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered."},
       "where": {
         "csharp": ["packages/csharp/sdk/src/Semiont/Registry"],
+        "swift": [
+          "packages/swift/sdk/Sources/Semiont/Registry/OpenResources.swift",
+          "packages/swift/sdk/Sources/Semiont/Registry/SemiontBrowser.swift",
+          "packages/swift/sdk/Sources/Semiont/Registry/SessionFactory.swift",
+          "packages/swift/sdk/Sources/Semiont/Registry/Stored.swift",
+          "packages/swift/sdk/Sources/SemiontCodegen/Tables.swift"
+        ],
         "typescript": [
           "packages/typescript/sdk/src/session/semiont-browser.ts",
           "packages/typescript/sdk/src/session/session-factory.ts",
@@ -1641,7 +1646,10 @@
         },
         {
           "member": "StoredSession",
-          "kind": "type"
+          "kind": "type",
+          "named": {
+            "swift": "HeldSignIn"
+          }
         },
         {
           "member": "knowledgeBasesKey",
@@ -1727,9 +1735,12 @@
     {
       "module": "redirectSignIn",
       "docs": "A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is.",
-      "notYetReached": {"swift": "The Swift SDK's redirectSignIn: A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is."},
       "where": {
         "csharp": ["packages/csharp/sdk/src/Semiont/Authorization"],
+        "swift": [
+          "packages/swift/sdk/Sources/Semiont/Registry/RedirectSignIn.swift",
+          "packages/swift/sdk/Sources/Semiont/Registry/Stored.swift"
+        ],
         "typescript": [
           "packages/typescript/sdk/src/session/oauth.ts",
           "packages/typescript/sdk/src/session/connect.ts"
@@ -1802,8 +1813,10 @@
     {
       "module": "serviceToken",
       "docs": "A service account's token, which a process holds for its own account at the issuer a knowledge base trusts: the issuer's token endpoint discovered once, through the HTTP client the token was made with, one client-credentials grant at a time, the token held until it is due for renewal, and the `Authorization` header's value it gives (`authorization`).",
-      "notYetReached": {"swift": "The Swift SDK service token for external workers, including credential renewal."},
       "where": {
+        "swift": [
+          "packages/swift/sdk/Sources/Semiont/SignIn/ServiceToken.swift"
+        ],
         "csharp": ["packages/csharp/sdk/src/Semiont/SignIn"],
         "typescript": [
           "packages/typescript/core/src/service-account.ts"
@@ -1831,9 +1844,11 @@
     {
       "module": "discovery",
       "docs": "The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read.",
-      "notYetReached": {"swift": "The Swift SDK's discovery: The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read."},
       "where": {
         "csharp": ["packages/csharp/sdk/src/Semiont/Discovery"],
+        "swift": [
+          "packages/swift/sdk/Sources/Semiont/Registry/Discovery.swift"
+        ],
         "typescript": [
           "packages/typescript/sdk/src/discovery.ts"
         ],
@@ -1933,8 +1948,13 @@
     {
       "module": "testing",
       "docs": "What a consumer's tests hold a composition and a registry to: the liveness axioms, that under any behaviour of the wire something is eventually said and every event is delivered exactly once; a real session over test doubles; a factory of scripted sessions for a registry; and a storage several contexts share.",
-      "notYetReached": {"swift": "The Swift SDK's testing: What a consumer's tests hold a composition and a registry to: the liveness axioms, that under any behaviour of the wire something is eventually said and every event is delivered exactly once; a real session over test doubles; a factory of scripted sessions for a registry; and a storage several contexts share."},
       "where": {
+        "swift": [
+          "packages/swift/sdk/Sources/SemiontTesting/Liveness.swift",
+          "packages/swift/sdk/Sources/SemiontTesting/ScriptedTransport.swift",
+          "packages/swift/sdk/Sources/SemiontTesting/Sessions.swift",
+          "packages/swift/sdk/Sources/SemiontTesting/SharedStorage.swift"
+        ],
         "typescript": [
           "packages/typescript/core/src/liveness-axioms.ts",
           "packages/typescript/sdk/src/testing.ts"

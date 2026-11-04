@@ -1,10 +1,11 @@
 import Foundation
 
-public enum SessionEndReason: String, Sendable { case expired, refused }
+public enum SessionEndReason: String, Codable, Sendable { case expired, refused }
 
-public actor SemiontSession {
+public actor SemiontSession: StateUnit {
   public nonisolated let id = "session-" + UUID().uuidString
   public nonisolated let kb: KbTarget
+  public nonisolated let client: SemiontClient
   public nonisolated let streamState: Watched<ConnectionState>
   public nonisolated let token = Watched<String?>(nil)
   public nonisolated let user = Watched<UserResponse?>(nil)
@@ -24,9 +25,8 @@ public actor SemiontSession {
   private var unanswered = false
   private var retryCap: Int
   private var scheduled: UUID?
-  init(
-    kb: KbTarget, kept: any SignInKept,
-    streamState: Watched<ConnectionState> = Watched(.initial),
+  package init(
+    kb: KbTarget, client: SemiontClient, kept: any SignInKept,
     renew: @escaping @Sendable (String?) async throws -> String?,
     validate: @escaping @Sendable (String) async throws -> UserResponse,
     publish: @escaping @Sendable (String?) async -> Void = { _ in },
@@ -35,7 +35,8 @@ public actor SemiontSession {
     onError: (@Sendable (any Error) -> Void)? = nil
   ) {
     self.kb = kb
-    self.streamState = streamState
+    self.client = client
+    self.streamState = client.state
     self.kept = kept
     self.renew = renew
     self.validate = validate
@@ -61,7 +62,7 @@ public actor SemiontSession {
   }
   public nonisolated func errors() -> Events<any Error> { failures.listen() }
   public nonisolated func expiresAt() -> Double? { token.value.flatMap(tokenExpiry) }
-  func start() {
+  package func start() {
     precondition(starting == nil, "A session starts once")
     let id = UUID()
     let life = lifetime

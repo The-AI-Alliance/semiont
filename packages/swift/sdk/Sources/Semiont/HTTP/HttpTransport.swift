@@ -73,7 +73,7 @@ public actor HttpTransport: Transport, GatewayOperations {
   public func frames(_ channels: [String]) throws -> Events<ReceivedFrame> {
     for channel in channels
     where !self.channels.contains(channel) && !busAudience.scoped.contains(channel) {
-      throw BusRequestError(.busUnsubscribed, "Transport is not subscribed to \(channel)")
+      throw unsubscribed(channel)
     }
     let id = UUID()
     let hub = Broadcast<ReceivedFrame>()

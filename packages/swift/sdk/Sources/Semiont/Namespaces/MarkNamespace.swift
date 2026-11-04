@@ -34,7 +34,7 @@ public struct MarkNamespace: Sendable {
     follow(
       create: .markJobCreateCommand(MarkJobCreateCommand(params: params, resourceId: resourceId)),
       resource: resourceId, wire: wire, bus: bus, lifetime: lifetime, timing: timing,
-      completion: MarkJobCompleteCommand.self)
+      clock: timing.clock, completion: MarkJobCompleteCommand.self)
   }
   public func request(source: ResourceId, selector: AnnotationSelector, motivation: Motivation)
     throws

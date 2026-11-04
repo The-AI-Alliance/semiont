@@ -14,8 +14,7 @@ private enum Lifecycle: Sendable {
   }
   init?(_ frame: ReceivedFrame) {
     func read<Payload>(_ channel: Channel<Payload>) -> Payload? {
-      try? JSONDecoder().decode(
-        Payload.self, from: JSONEncoder().encode(declared(frame.payload, stamps: channel.stamps)))
+      try? frame.decode(channel)
     }
     switch frame.channel {
     case Channels.jobReportProgress.name:
@@ -38,11 +37,11 @@ private enum FollowWake: Sendable {
   case status(UUID, Result<JobStatusResponse, any Error>)
   case due(UUID)
 }
-func follow<Completion: FollowedCompletion>(
+func follow<Completion: FollowedCompletion, Timer: Clock>(
   create: JobCreateCommand, resource: ResourceId, wire: Bus, bus: EventBus,
   lifetime: Lifetime, timing: FollowTiming, stallMs: Int? = nil,
-  completion: Completion.Type
-) -> Delegation<Completion> {
+  clock: Timer, completion: Completion.Type
+) -> Delegation<Completion> where Timer.Duration == Duration {
   Delegation(
     Running(lifetime: lifetime) { report in
       let source = bus.listen([
@@ -74,10 +73,9 @@ func follow<Completion: FollowedCompletion>(
         source.dispose()
         send.finish()
       }
-      let clock = ContinuousClock()
       var job: JobCreatedResultResponse?
       var held: [Lifecycle] = []
-      var askAt: ContinuousClock.Instant?
+      var askAt: Timer.Instant?
       var stallAt = stallMs.map { clock.now.advanced(by: .milliseconds($0)) }
       var iterator = wakes.makeAsyncIterator()
       while true {
@@ -95,7 +93,7 @@ func follow<Completion: FollowedCompletion>(
           timerID = id
           timer = Task {
             do {
-              try await clock.sleep(until: due)
+              try await clock.sleep(until: due, tolerance: nil)
               send.yield(.due(id))
             } catch {}
           }
