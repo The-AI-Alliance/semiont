@@ -35,7 +35,7 @@ graph TB
         SMELT["semiont-&lt;kb&gt;-smelter<br/>Smelter — vector pipeline"]
         WEAVE["semiont-&lt;kb&gt;-weaver<br/>Weaver — graph pipeline"]
         ARCH["semiont-&lt;kb&gt;-archivist<br/>Stower · Browser · CloneTokenManager"]
-        QD["semiont-&lt;kb&gt;-qdrant<br/>Qdrant — vector index"]
+        QD["semiont-qdrant<br/>Qdrant — every KB's vector index"]
         NEO["semiont-&lt;kb&gt;-neo4j<br/>Neo4j — graph projection"]
         ANCH[("anchored-text store")]
         VIEWS[("views<br/>resources/ · projections/")]

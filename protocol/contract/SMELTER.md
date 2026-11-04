@@ -57,7 +57,8 @@ the Archivist is, for a resource's bytes; the embedding provider
 its kind, its model and where it is reached, with the name of the environment
 variable that holds its key, for a provider that takes one); the vector index
 ([`VectorsConfig`](../specs/src/components/schemas/VectorsConfig.json): its
-kind, and what that kind needs to be reached); the two numbers a text is cut
+kind, and what that kind needs to be reached, with the name of the variable
+that holds the token the Smelter presents to it); the two numbers a text is cut
 by, a chunk's size and how far one chunk overlaps the next; how many PDFs it
 works on at once; the file it keeps its cursors in
 ([`CursorsPath`](../specs/src/components/schemas/CursorsPath.json): a file
@@ -71,9 +72,10 @@ and anyone else to the same schema.
   names a member of the document and what was expected of it, and never a
   value found there. *Held by `images/smelter/tests/test_service.py`.*
 - **Without the gateway's URL, the issuer, the Archivist's address, the
-  vector database's host, the embedding provider's kind, model or address,
-  how many PDFs it works on at once, or the file of its cursors, it refuses
-  to start,** and names the member that is missing. *Held by `images/smelter/tests/test_service.py` and `smelter/boot`.*
+  vector database's host or the variable its token is in, the embedding
+  provider's kind, model or address, how many PDFs it works on at once, or
+  the file of its cursors, it refuses to start,** and names the member that
+  is missing. *Held by `images/smelter/tests/test_service.py` and `smelter/boot`.*
 - **An index that lives in one process's memory is refused.** Nothing else
   could search it. *Held by `images/smelter/tests/test_service.py`.*
 - **Its service account is `SEMIONT_OIDC_CLIENT_ID` and
@@ -83,6 +85,10 @@ and anyone else to the same schema.
 - **An embedding provider's key is read from the variable its document
   names.** With that variable unset it refuses to start, and names the
   variable. *Held by `images/smelter/tests/test_service.py`.*
+- **Its token for the vector index is read from the variable its document
+  names, `vectors.tokenEnv`.** With that variable unset or empty it refuses
+  to start, and names the member of the document and the variable.
+  *Held by `images/smelter/tests/test_service.py` and `smelter/boot`.*
 
 ## What it follows
 
@@ -391,6 +397,25 @@ states what each kind of document becomes.
   [`payload-cases.json`](../specs/src/vectors/payload-cases.json) states
   what a point of each holds, and what is indexed for a filter.
   *Held by `packages/python/vectors/tests/test_payload_cases.py`, and for the collections a Qdrant then has by `packages/python/vectors/tests/qdrant_live.py`.*
+- **Each knowledge base's index is collections of its own.** A Smelter
+  makes, writes, reads, lists, counts and makes again only the collections of
+  the knowledge base its document names, each named by the SHA-256 of that
+  knowledge base's DID, a hyphen and the collection's word, as
+  [`payload-cases.json`](../specs/src/vectors/payload-cases.json) states. So
+  knowledge bases share one Qdrant, and none reads, purges or empties
+  another's: a reconcile reads its own collections alone, and so purges
+  nothing of another's, and an index made again is its own.
+  *Held by `packages/python/vectors/tests/qdrant_live.py`, against a Qdrant, and `smelter/kb-index`.*
+- **It presents its token on every request to the index,** in Qdrant's
+  `api-key` header: the value of the variable its document's
+  `vectors.tokenEnv` names. The token may do anything with any collection of
+  its Qdrant: its claims are global manage, as
+  [`token-cases.json`](../specs/src/vectors/token-cases.json) states. Qdrant
+  makes and deletes a collection for no token less, and a Smelter makes its
+  knowledge base's collections, and makes them again whenever it makes its
+  index anew. So it is not Qdrant that keeps a Smelter to its own knowledge
+  base's collections: the rule above does.
+  *Held by `packages/python/vectors/tests/qdrant_live.py`, against a Qdrant that asks for a token, and `smelter/kb-index`, for the token the suite hands the Smelter it starts.*
 - **A collection that is searched is as wide as the embedding model's
   vectors,** which the Smelter learns by asking the provider to embed once,
   each time it makes the collections: where there are none when it connects,
@@ -696,7 +721,7 @@ and no others:
 | Variable | What it is |
 |---|---|
 | `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` | Its service account at the knowledge base's issuer. Required |
-| the variable its document names | Its embedding provider's key, for a provider that takes one, and required then. An Ollama takes none |
+| the variables its document names | Its token for the vector index, required. A stack the launcher starts names `QDRANT_TOKEN` for it where the launcher runs the Qdrant, and gives it a token the launcher mints. Its embedding provider's key, for a provider that takes one, and required then. An Ollama takes none |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | The OTLP/HTTP collector its spans and metrics are exported to ([Telemetry](#telemetry)). Without it, and without the console exporter, it exports nothing and writes no span or metric anywhere |
 | `OTEL_SERVICE_NAME` | The `service.name` its spans and metrics carry; `semiont-smelter` when unset or empty |
 | `OTEL_SDK_DISABLED` | Set to `true`, it exports nothing, whatever else is set |

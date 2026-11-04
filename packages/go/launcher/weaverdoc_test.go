@@ -66,7 +66,7 @@ func TestWeaverDocumentStatesWhatThePlacementDecides(t *testing.T) {
 		Uri:         "bolt://192.168.64.1:17687",
 		Username:    "neo4j",
 		Database:    "neo4j",
-		PasswordEnv: daemonPasswords["graph"].env,
+		PasswordEnv: daemonCredentials["graph"].env,
 	}
 	if graph != want {
 		t.Errorf("graph = %+v, want %+v", graph, want)
@@ -151,8 +151,8 @@ func TestWeaverDocumentIsWhereTheImageLooks(t *testing.T) {
 // one the document names, and not the launcher's.
 func TestTheWeaverIsHandedTheLaunchersNeo4jPassword(t *testing.T) {
 	p := placed(t, fixtureStack(t, "ollama-gemma"))
-	if handed := withDaemonCredentialVars(serviceSecrets(p), p.plan, false)["weaver"]; len(handed) != 1 || handed[0] != daemonPasswords["graph"].env {
-		t.Errorf("the Weaver is handed %v, want %s", handed, daemonPasswords["graph"].env)
+	if handed := withDaemonCredentialVars(serviceSecrets(p), p.plan, false)["weaver"]; len(handed) != 1 || handed[0] != daemonCredentials["graph"].env {
+		t.Errorf("the Weaver is handed %v, want %s", handed, daemonCredentials["graph"].env)
 	}
 	st := fixtureStack(t, "ollama-gemma")
 	externalGraph(st)

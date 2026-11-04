@@ -267,8 +267,8 @@ func recordRuntimePref(rt string) {
 // portStride: how far apart two knowledge bases' port blocks place one
 // port. 10 keeps every block's Semiont services (24101–24105 on block 0)
 // clear of the shared worker and collector (24100, 24110), and no two of
-// the ports a block places meet one another, or one of the shared containers', below
-// block 101.
+// the ports a block places meet one another, or one of the machine's
+// containers' (the shared Qdrant's 6330 among them), below block 101.
 const portStride = 10
 
 // blockPort: where block places the port block 0 places at port.

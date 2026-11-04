@@ -17,7 +17,7 @@ func TestStateStoreMountsSemiontStateOnHostVolume(t *testing.T) {
 	harness.Home(t)
 	home := dataDir() // the launcher's data home backs the state store
 
-	args := stateMountArgs("state", "some-root")
+	args := stateStores["state"].mountArgs("some-root")
 	if len(args) == 0 {
 		t.Fatal("the \"state\" store must mount a host volume; got none — the projection tree would be container-ephemeral")
 	}

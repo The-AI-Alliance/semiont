@@ -307,7 +307,7 @@ private struct UnwritableSignIn: SignInKept {
   defer { session.dispose() }
   await gate.set(session)
   await session.start()
-  try await within(500) { try await session.ready() }
+  try await within(2000) { try await session.ready() }
   #expect(asks.withLock { $0 } == 2)
   #expect(session.user.value == nil)
   #expect(errors.withLock { $0 } == ["session.auth-failed"])

@@ -4,7 +4,8 @@
 
 Under construction. Models and checked identifiers are generated from the protocol schemas
 during compilation. The HTTP transport and wire conformance driver are implemented; the
-session and high-level client are next. Nothing is published to NuGet. Consumers will use
+sign-in store, issuer renewal, and kept-session lifecycle are implemented; the high-level
+client is next. Nothing is published to NuGet. Consumers will use
 a project reference until publishing is enabled separately.
 
 The SDK targets .NET 11. [global.json](global.json) pins the SDK exactly, with roll-forward
@@ -55,3 +56,44 @@ Telemetry uses BCL `ActivitySource` and `Meter`; the application chooses its exp
 `SEMIONT_BUS_LOG` enables payload logging to stderr, with credentials withheld according
 to the shared bus-log table. See [the wire driver](conformance/README.md) for self-contained
 builds and black-box conformance.
+
+`Semiont.SignIn.SignInStore` reads and updates the launcher's sign-ins. Give it an
+explicit state directory; `StateDirectory` computes that path from values supplied by
+the application and reads no environment variables. `Entry(stackKey)` returns the kept
+sign-in for that stack; `MemorySignIn` keeps one in memory instead. Changes use the
+launcher's native lock and atomic rename, preserve unknown entries and fields, and
+keep the directory and credential files private to their owner.
+
+`Issuer.RenewAsync(kept, holding)` exchanges the stored refresh token at its stored
+endpoint. It adopts another writer's usable renewal before spending a refresh token,
+preserves a renewal made during its grant, and never resurrects an entry signed out
+meanwhile. A missing refresh token in the issuer's answer preserves the one spent.
+Issuer refusal produces `SignInError`; transient failures use the shared retry budget.
+It accepts a caller-owned `HttpClient`, `TimeProvider`, and `Random`, and disposal
+cancels its pending grants without disposing the caller's client. The session layer
+will decide whether an issuer refusal ends a session; the issuer itself retains the
+kept entry when a grant fails.
+
+`Semiont.Session.KeptSession` starts from an HTTP endpoint and an `ISignInKept`.
+Await `ReadyAsync()` for startup validation, then read `State` or enumerate `States()`
+for the current token and gateway-validated user. An expired credential is renewed
+before validation; a refused credential is renewed once and validated once more.
+`RefreshAsync(refusedToken)` handles a transport refusal; simultaneous callers share
+one renewal, and canceling a caller's wait leaves that renewal running for the others.
+Transient renewal failure retains the kept sign-in and retries on the reconnect backoff.
+`EndReason` distinguishes issuer expiry from gateway refusal of a newly issued token;
+`Errors()` reports the generated session error codes. Disposal cancels owned work and
+completes observers without signing out the kept credentials.
+
+`Gateway.Origin(endpoint)` validates the host and preserves the explicit port.
+`Gateway.GetCurrentUserAsync(origin, token)` asks who a token is with exactly one
+request, without opening a stream, retrying the request, or renewing the token.
+
+`Issuer.SignInDeviceAsync(endpoint, kept, onCode)` discovers the issuer the gateway
+trusts and begins a device sign-in. The callback receives the user code and verification
+address for the application to display. Polling follows the issuer's interval and
+slow-down replies, expires on the supplied clock, and stops on cancellation or issuer
+disposal. Only a successful grant with both access and refresh tokens is kept.
+`Issuer.SignOutAsync(kept)` attempts revocation and forgets the local credentials even
+when the issuer cannot be reached. Discovery rejects an issuer document that describes
+a different issuer or provides invalid endpoint addresses.

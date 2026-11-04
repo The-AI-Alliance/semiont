@@ -42,7 +42,10 @@ Each file runs its cases in a world of its own
   views, a real gateway, and the trusted issuer, which grants each of the
   three services an account of its own;
 - a real neo4j and a real Qdrant, both cleared when the world is made and
-  when it is closed;
+  when it is closed. The Smelter and the Librarian each present the Qdrant a
+  token of its own, minted from the Qdrant's key as
+  [`protocol/specs/src/vectors/token-cases.json`](../../specs/src/vectors/token-cases.json)
+  states, and the suite's own calls present the key;
 - a Weaver, which writes the graph, and a Smelter, which writes the index,
   each started as its own suite starts it;
 - a stand-in for the model of each of the Librarian's two actors, the Matcher
@@ -73,16 +76,19 @@ scripted fails the case, whatever it was about, and so does a request a
 stand-in does not serve.
 
 **The run is told where its databases are,** in `NEO4J_HOST`,
-`NEO4J_PASSWORD` and `QDRANT_HOST`, and starts neither. Without the three it
-fails, and names the ones that are missing; it is not skipped. **It clears the
-graph database and the index it is given,** so it is given ones of its own.
+`NEO4J_PASSWORD`, `QDRANT_HOST` and `QDRANT_API_KEY`, the API key its Qdrant
+was started with, and starts neither. The Qdrant is run with its JWT access
+control on, as the launcher runs one. Without the four it fails, and names
+the ones that are missing, and so does a Qdrant that refuses the key or asks
+for none; it is not skipped. **It clears the graph database and the index it
+is given,** so it is given ones of its own.
 `packages/go/launcher/scripts/neo4j-image.sh` and `packages/go/launcher/scripts/qdrant-image.sh` print the images
 the launcher starts for an operator, which are the ones to run:
 
 ```bash
 docker run -d --name librarian-suite-neo4j -p 7687:7687 -e NEO4J_AUTH=neo4j/a-password "$(packages/go/launcher/scripts/neo4j-image.sh)"
-docker run -d --name librarian-suite-qdrant -p 6333:6333 "$(packages/go/launcher/scripts/qdrant-image.sh)"
-NEO4J_HOST=localhost NEO4J_PASSWORD=a-password QDRANT_HOST=localhost npm run test:librarian
+docker run -d --name librarian-suite-qdrant -p 6333:6333 -e QDRANT__SERVICE__API_KEY=a-key -e QDRANT__SERVICE__JWT_RBAC=true "$(packages/go/launcher/scripts/qdrant-image.sh)"
+NEO4J_HOST=localhost NEO4J_PASSWORD=a-password QDRANT_HOST=localhost QDRANT_API_KEY=a-key npm run test:librarian
 ```
 
 **One world at a time.** The files share the two databases, and the health
@@ -100,9 +106,10 @@ profiles of the principals it names, on the bus. It states the health port, a fr
 harness chooses for each world. It states the two numbers a
 deployment may leave to their defaults too: how long a gather waits for a
 resource's vectors, and the floor of the semantic fallback. The Librarian's
-environment holds its service account, the graph database's password and
-`PATH`, and nothing else. A case that takes a setting away, or changes one,
-takes it out of the document or changes it there.
+environment holds its service account, the graph database's password, its
+token for the vector index and `PATH`, and nothing else. A case that takes a
+setting away, or changes one, takes it out of the document or changes it
+there.
 
 One read is carried to the real Archivist by the harness. A Librarian reads a
 resource's anchored text from the gateway, and the gateway of an Archivist
@@ -117,17 +124,20 @@ the stand-in answers what the real Archivist answers when it is asked.
   database, no vector database, no embedding provider, no model for an actor,
   a graph or a vector index that lives in one process's memory, a settle
   bound that is no time at all or does not end under the stall of a held job,
-  half a service account, no password for the graph database, and a gateway
-  that does not answer. Each refusal must name the member of the document, or
-  the variable, that is missing or refused.
+  half a service account, no password for the graph database, no token for
+  the vector index, and a gateway that does not answer. Each refusal must
+  name the member of the document, or the variable, that is missing or
+  refused.
 - **Finding things** (`search.test.ts`): a reference search's candidates from
   each of its four sources, with a score and a reason, and its own resource
   left out, with its model's scoring and without, when the model or the
   embedding provider fails, and its limit; a text search answered by name
   with previews and by meaning with the passage that matched, a later page,
   blank text, its filters by name and by meaning, the floor a hit by meaning
-  must reach, and a PDF's empty preview; what refers to a resource, and the
-  failure for a resource nobody made; the names of the persons a page and a
+  must reach, a PDF's empty preview, and the empty page of a Librarian whose
+  token reads another knowledge base's index and none of its own; what
+  refers to a resource, and the failure for a resource nobody made; the
+  names of the persons a page and a
   candidate mention; and the limits each
   actor reports of its own engine, with a provider that does not answer left
   out.
@@ -177,5 +187,5 @@ uv sync --locked --no-dev --project images/smelter
 uv sync --locked --no-dev --all-extras --project images/librarian
 cd protocol/conformance
 npm ci
-NEO4J_HOST=<address> NEO4J_PASSWORD=<password> QDRANT_HOST=<address> npm run test:librarian
+NEO4J_HOST=<address> NEO4J_PASSWORD=<password> QDRANT_HOST=<address> QDRANT_API_KEY=<key> npm run test:librarian
 ```

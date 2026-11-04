@@ -1,3 +1,4 @@
+using Semiont.Protocol;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -5,7 +6,7 @@ namespace Semiont.Http;
 
 internal static class BusLog
 {
-    private static readonly JsonDocument Table = JsonDocument.Parse(TransportTables.Log);
+    private static readonly JsonDocument Table = JsonDocument.Parse(ProtocolTables.Log);
     private static readonly HashSet<string> Names = Table.RootElement.GetProperty("names").EnumerateArray()
         .Select(name => name.GetString() ?? throw new InvalidOperationException("Null withheld name")).ToHashSet(StringComparer.Ordinal);
 

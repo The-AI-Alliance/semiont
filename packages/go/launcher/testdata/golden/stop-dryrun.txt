@@ -112,4 +112,11 @@ docker stop semiont-browser
 docker rm semiont-browser
 podman stop semiont-browser
 podman rm semiont-browser
+# stop the shared Qdrant:
+container stop semiont-qdrant
+container rm semiont-qdrant
+docker stop semiont-qdrant
+docker rm semiont-qdrant
+podman stop semiont-qdrant
+podman rm semiont-qdrant
 # wait until the stack's ports are released; report any still-held holder

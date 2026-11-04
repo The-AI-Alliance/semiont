@@ -71,7 +71,7 @@ SURFACE = {
     "smelter": ["ReconcileState", "Smelter"],
     "index_stamp": ["hold_to", "stamp_of"],
     "telemetry": ["points_held"],
-    "config": ["SERVICE", "embedding_key_of", "read_smelter_config"],
+    "config": ["SERVICE", "embedding_key_of", "read_smelter_config", "vectors_token_of"],
     "service": ["CHANNELS", "boot", "main"],
 }
 

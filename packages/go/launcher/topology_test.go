@@ -27,7 +27,7 @@ func externalIssuer(st *stack.Stack) {
 func TestTheLauncherPlacesEveryDaemonItRuns(t *testing.T) {
 	placedByLauncher := []string{
 		"graph: bolt://192.168.64.1:17687",
-		"vectors: 192.168.64.1:6333",
+		"vectors: 192.168.64.1:6330",
 		"identity-store: 192.168.64.1:5432",
 		"messaging: 192.168.64.1:4222",
 		"identity: http://192.168.64.1:8080/realms/example.github.io-test-kb",
@@ -39,7 +39,7 @@ func TestTheLauncherPlacesEveryDaemonItRuns(t *testing.T) {
 	} {
 		p := placed(t, fixtureStack(t, inference))
 		for _, role := range []string{"graph", "vectors", "identity-store", "messaging", "identity"} {
-			if p.plan.Roles[role].Presence != presenceLauncher {
+			if !p.placed(role) {
 				t.Errorf("%s: the launcher does not run the %s its documents leave to it", inference, role)
 			}
 		}
@@ -66,8 +66,8 @@ func TestADocumentsExternalIsSomebodyElsesDaemon(t *testing.T) {
 			func(p placement) string { return p.graphURI() }, "bolt://graph.internal:7687"},
 		{"vectors", "qdrant.internal", func(st *stack.Stack, _ *issuerDocument) {
 			v := &st.KnowledgeIndex.Spec.Vectors
-			v.Image, v.Resources = nil, nil
-			v.External = &stack.HostPort{Host: "qdrant.internal", Port: 7000}
+			v.Shared = nil
+			v.External = &stack.KnowledgeIndexVectorsExternal{Host: "qdrant.internal", Port: 7000, SmelterToken: stack.SecretRef{FromEnv: "VECTORS_SMELTER_TOKEN"}, LibrarianToken: stack.SecretRef{FromEnv: "VECTORS_LIBRARIAN_TOKEN"}}
 		}, func(p placement) string { host, port := p.vectors(); return fmt.Sprintf("%s:%d", host, port) }, "qdrant.internal:7000"},
 		{"identity-store", "pg.internal", func(_ *stack.Stack, issuer *issuerDocument) {
 			d := &issuer.spec.Database
@@ -114,10 +114,10 @@ func TestNoAddressTravelsInAnEnvironment(t *testing.T) {
 	builders := map[string][]string{
 		"gateway":    gatewayArgs("kb", "/stage", exposure{rt: "docker", addr: addr}, "secret", "jwt", "latest", semiontDescriptor("gateway").mem, 4000, nil, nil),
 		"worker":     workerArgs("/state/shared/worker.json", exposure{rt: "docker", addr: addr}, "key", "latest", semiontDescriptor("worker").mem, nil, nil),
-		"smelter":    smelterArgs("kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("smelter").ports[0].port, "secret", "latest", semiontDescriptor("smelter").mem, nil, nil),
+		"smelter":    smelterArgs("kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("smelter").ports[0].port, "secret", "latest", semiontDescriptor("smelter").mem, nil, nil, []string{"--env", vectorsTokenVar + "=token"}),
 		"weaver":     weaverArgs("kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("weaver").ports[0].port, "secret", "latest", semiontDescriptor("weaver").mem, nil, nil),
 		"archivist":  archivistArgs("kb", "/kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("archivist").ports[0].port, "secret", "latest", semiontDescriptor("archivist").mem, nil, nil),
-		"librarian":  librarianArgs("kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("librarian").ports[0].port, "secret", "latest", semiontDescriptor("librarian").mem, nil, nil),
+		"librarian":  librarianArgs("kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("librarian").ports[0].port, "secret", "latest", semiontDescriptor("librarian").mem, nil, nil, []string{"--env", vectorsTokenVar + "=token"}),
 		"dispatcher": dispatcherArgs("kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("dispatcher").ports[0].port, "secret", "latest", semiontDescriptor("dispatcher").mem, nil, nil),
 	}
 	handed := map[string]bool{}

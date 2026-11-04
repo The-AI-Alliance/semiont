@@ -1,3 +1,4 @@
+using Semiont.Protocol;
 using Semiont.Errors;
 using System.Net;
 using System.Text;
@@ -31,7 +32,7 @@ public sealed class TransportTests
     [Fact]
     public async Task ThePublicClockOwnsRequestDeadlines()
     {
-        var clock = new Clock();
+        var clock = new TestClock();
         using var server = new Handler();
         using var client = new HttpClient(server);
         using var transport = new HttpTransport("http://unit.test", "token", ["browse:resource-result", "browse:resource-failed"], httpClient: client, timeProvider: clock);
@@ -39,8 +40,8 @@ public sealed class TransportTests
         var waiting = transport.RequestAsync("browse:resource-requested", JsonSerializer.SerializeToElement(new { resourceId = "r1" }), 1000);
         await server.Emits.Reader.ReadAsync();
         Assert.False(waiting.IsCompleted);
-        await clock.TimerAsync(1000);
-        clock.Advance(1000);
+        await clock.WaitForAsync(TimeSpan.FromMilliseconds(1000));
+        clock.Advance(TimeSpan.FromMilliseconds(1000));
         var error = await Assert.ThrowsAsync<BusRequestError>(() => waiting);
         Assert.Equal("bus.timeout", error.Code);
     }
@@ -208,7 +209,7 @@ public sealed class TransportTests
     [Fact]
     public async Task ResourceHoldsAreRefcountedAndRemovalWaitsOnThePublicClock()
     {
-        var clock = new Clock();
+        var clock = new TestClock();
         using var server = new Handler();
         using var client = new HttpClient(server);
         using var transport = new HttpTransport("http://unit.test", "token", ["beckon:focus"], new Timing { LazyRemoveMs = 50, LingerMs = 0 }, httpClient: client, timeProvider: clock);
@@ -216,17 +217,17 @@ public sealed class TransportTests
         await server.Subscriptions.Reader.ReadAsync();
         var first = transport.SubscribeToResource(ResourceId.Parse("r1"));
         var second = transport.SubscribeToResource(ResourceId.Parse("r1"));
-        await clock.TimerAsync(100);
-        clock.Advance(100);
+        await clock.WaitForAsync(TimeSpan.FromMilliseconds(100));
+        clock.Advance(TimeSpan.FromMilliseconds(100));
         var added = await server.Subscriptions.Reader.ReadAsync();
         Assert.Equal("r1", added.GetProperty("scoped")[0].GetProperty("scope").GetString());
         first.Dispose();
         first.Dispose();
         second.Dispose();
-        await clock.TimerAsync(50);
-        clock.Advance(50);
-        await clock.TimerAsync(100);
-        clock.Advance(100);
+        await clock.WaitForAsync(TimeSpan.FromMilliseconds(50));
+        clock.Advance(TimeSpan.FromMilliseconds(50));
+        await clock.WaitForAsync(TimeSpan.FromMilliseconds(100));
+        clock.Advance(TimeSpan.FromMilliseconds(100));
         var removed = await server.Subscriptions.Reader.ReadAsync();
         Assert.Equal(0, removed.GetProperty("scoped").GetArrayLength());
     }
@@ -251,12 +252,12 @@ public sealed class TransportTests
     [Fact]
     public async Task StreamOpenDeadlineIsNotABodyDeadline()
     {
-        var clock = new Clock();
+        var clock = new TestClock();
         using var server = new Handler { HoldSubscribe = true };
         using var client = new HttpClient(server);
         using var transport = new HttpTransport("http://unit.test", "token", ["beckon:focus"], new Timing { StreamOpenMs = 100 }, httpClient: client, timeProvider: clock);
-        await clock.TimerAsync(100);
-        clock.Advance(100);
+        await clock.WaitForAsync(TimeSpan.FromMilliseconds(100));
+        clock.Advance(TimeSpan.FromMilliseconds(100));
         await using var states = transport.States().GetAsyncEnumerator();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         while (await states.MoveNextAsync().AsTask().WaitAsync(deadline.Token))
@@ -275,15 +276,15 @@ public sealed class TransportTests
     [Fact]
     public async Task AStreamEndingReopensWithoutReportingAFailure()
     {
-        var clock = new Clock();
+        var clock = new TestClock();
         using var server = new Handler();
         using var client = new HttpClient(server);
         using var transport = new HttpTransport("http://unit.test", "token", ["beckon:focus"], new Timing { ReconnectMs = 50 }, httpClient: client, timeProvider: clock);
         await OpenAsync(transport);
         await server.Subscriptions.Reader.ReadAsync();
         server.Stream.Finish();
-        await clock.TimerAsync(50);
-        clock.Advance(50);
+        await clock.WaitForAsync(TimeSpan.FromMilliseconds(50));
+        clock.Advance(TimeSpan.FromMilliseconds(50));
         await server.Subscriptions.Reader.ReadAsync();
         await OpenAsync(transport);
         transport.Dispose();
@@ -353,7 +354,7 @@ public sealed class TransportTests
     public void RetryBudgetShapeIsHeldToItsOwner()
     {
         var actual = typeof(RetryPolicy).GetProperties().Select(property => char.ToLowerInvariant(property.Name[0]) + property.Name[1..]).Order();
-        Assert.Equal(TransportFacts.Timing("emitRetry").EnumerateObject().Select(property => property.Name).Order(), actual);
+        Assert.Equal(ProtocolFacts.Timing("emitRetry").EnumerateObject().Select(property => property.Name).Order(), actual);
     }
 
     private static async Task OpenAsync(HttpTransport transport)
@@ -402,26 +403,7 @@ public sealed class TransportTests
         }
     }
 
-    private sealed class Clock : TimeProvider
-    {
-        private readonly FakeTimeProvider fake = new();
-        private readonly Channel<TimeSpan> timers = Channel.CreateUnbounded<TimeSpan>();
-        public override DateTimeOffset GetUtcNow() => fake.GetUtcNow();
-        public override long GetTimestamp() => fake.GetTimestamp();
-        public override long TimestampFrequency => fake.TimestampFrequency;
-        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
-        {
-            var timer = fake.CreateTimer(callback, state, dueTime, period);
-            timers.Writer.TryWrite(dueTime);
-            return timer;
-        }
-        internal void Advance(int ms) => fake.Advance(TimeSpan.FromMilliseconds(ms));
-        internal async Task TimerAsync(int ms)
-        {
-            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            while (await timers.Reader.ReadAsync(deadline.Token) != TimeSpan.FromMilliseconds(ms)) { }
-        }
-    }
+
 
     private sealed class ByteStream : Stream
     {

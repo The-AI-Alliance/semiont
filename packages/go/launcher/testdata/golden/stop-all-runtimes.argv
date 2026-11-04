@@ -127,6 +127,12 @@ docker stop semiont-browser
 docker rm semiont-browser
 podman stop semiont-browser
 podman rm semiont-browser
+container stop semiont-qdrant
+container rm semiont-qdrant
+docker stop semiont-qdrant
+docker rm semiont-qdrant
+podman stop semiont-qdrant
+podman rm semiont-qdrant
 lsof -nP -iTCP:24100 -sTCP:LISTEN
 lsof -nP -iTCP:4318 -sTCP:LISTEN
 lsof -nP -iTCP:24110 -sTCP:LISTEN

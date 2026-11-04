@@ -176,7 +176,11 @@ func openAdminRealm(u *UI, flags map[string]string, elsewhere string) (adminReal
 	if !ok {
 		return adminRealm{}, false
 	}
-	plan, err := derivePlan(st, issuer, kb.key(), portBlockOf(root))
+	vectors, ok := vectorStoreOf(u, st, true)
+	if !ok {
+		return adminRealm{}, false
+	}
+	plan, err := derivePlan(st, issuer, vectors, kb.key(), portBlockOf(root))
 	if err != nil {
 		u.Fail("%v", err)
 		return adminRealm{}, false

@@ -336,5 +336,11 @@ private func form(_ data: Data) -> [String: String] {
       #expect(opened.session.user.value?.did.value == "did:web:kb:users:alice")
       #expect(grants.withLock { $0 } == 1)
       #expect(asks.withLock { $0 } == 1)
+      #expect(opened.client.baseUrl == origin)
+      let auth = try #require(opened.client.auth)
+      #expect(try await auth.me().did == opened.session.user.value?.did)
+      #expect(asks.withLock { $0 } == 2)
+      opened.dispose()
+      #expect(opened.client.state.value == .closed)
     })
 }

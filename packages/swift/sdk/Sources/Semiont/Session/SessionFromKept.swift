@@ -52,19 +52,26 @@ public func sessionFromKept(
   life.keep(forwarding, id: id)
   await gate.set(session)
   await session.start()
-  return OpenedSession(session: session, transport: transport)
+  do {
+    let client = try await SemiontClient(transport: transport, gateway: transport)
+    return OpenedSession(session: session, client: client)
+  } catch {
+    session.dispose()
+    transport.dispose()
+    throw error
+  }
 }
 
 public final class OpenedSession: Sendable {
   public let session: SemiontSession
-  let transport: HttpTransport
-  init(session: SemiontSession, transport: HttpTransport) {
+  public let client: SemiontClient
+  init(session: SemiontSession, client: SemiontClient) {
     self.session = session
-    self.transport = transport
+    self.client = client
   }
   public func dispose() {
     session.dispose()
-    transport.dispose()
+    client.dispose()
   }
   deinit { dispose() }
 }

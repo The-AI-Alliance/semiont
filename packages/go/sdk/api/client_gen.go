@@ -5666,14 +5666,17 @@ type ProtectedResourceMetadata struct {
 // ProtectedResourceMetadataBearerMethodsSupported defines model for ProtectedResourceMetadata.BearerMethodsSupported.
 type ProtectedResourceMetadataBearerMethodsSupported string
 
-// QdrantVectorsConfig A vector index kept in a Qdrant server, asked over its REST API.
+// QdrantVectorsConfig A vector index kept in a Qdrant server, asked over its REST API with a token.
 type QdrantVectorsConfig struct {
 	// Host The server's host.
 	Host string `json:"host"`
 
 	// Port The port its REST API listens on.
-	Port int                     `json:"port"`
-	Type QdrantVectorsConfigType `json:"type"`
+	Port int `json:"port"`
+
+	// TokenEnv The environment variable holding the token the service presents to the server on every request, which says what of the index it may read and write. The token is never a value here.
+	TokenEnv string                  `json:"tokenEnv"`
+	Type     QdrantVectorsConfigType `json:"type"`
 }
 
 // QdrantVectorsConfigType defines model for QdrantVectorsConfig.Type.

@@ -15,3 +15,7 @@ public abstract class SemiontError : Exception
 public sealed class BusRequestError(string code, string message) : SemiontError(code, message);
 
 public sealed class TransportError(string code, string message, int? status = null, Exception? inner = null) : SemiontError(code, message, status, inner);
+
+public sealed class SignInError(string code, string message, int? status = null, Exception? inner = null) : SemiontError(code, message, status, inner);
+
+public sealed class SessionError(string code, string message, Exception? inner = null) : SemiontError(code, message, inner: inner);

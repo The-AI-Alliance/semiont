@@ -103,6 +103,9 @@ package struct TableGenerator {
     var out = "// Generated from protocol/specs/src tables; do not edit.\nimport Foundation\n"
     _ = try models.inline(
       "", "HeldSignIn", required(table("session/stored.json"), "storedSession").object)
+    var gatherOptions = try models.schema("GatherResourceRequestOptions")
+    gatherOptions.removeValue(forKey: "required")
+    _ = try models.inline("", "GatherResourceOptions", gatherOptions)
     var received = try models.schema("BusFrame")
     var fields = try required(received, "properties").object
     let projection = fields.keys.sorted().map {
@@ -161,7 +164,6 @@ package struct TableGenerator {
       ("sign-in-store/owner-only.json", "directoryMode", "ownerOnlyDirectory"),
       ("sign-in-store/owner-only.json", "fileMode", "ownerOnlyFile"),
       ("media-types/registry.json", "mediaTypes", "mediaTypes"),
-      ("media-types/registry.json", "extensionAliases", "extensionAliases"),
       ("text/encoding-cases.json", "cases", "encodings"),
       ("client/refresh.json", "queries", "cacheQueries"),
       ("client/refresh.json", "refresh", "cacheRefresh"),
@@ -174,6 +176,12 @@ package struct TableGenerator {
       let expression = try expression(value, type: shape, owner: "Spec", part: name)
       out += "internal let \(escaped(name)): \(type) = \(expression)\n"
     }
+    let aliases = try required(table("media-types/registry.json"), "extensionAliases").object
+    out += "internal let extensionAliases: [String: String] = [\n"
+    for (suffix, type) in aliases.sorted(by: { $0.key < $1.key }) {
+      out += "  \(literal(suffix)): \(literal(try type.text)),\n"
+    }
+    out += "]\n"
     let registry = try table("bus/registry.json")
     out +=
       "internal let traceField = \(literal(try required(required(registry, "trace").object, "field").text))\n"
@@ -226,30 +234,66 @@ package struct TableGenerator {
     }
     return found
   }
+  func requiredMembers(_ raw: Schema) throws -> String {
+    let (schema, _) = try models.nonnull(raw)
+    if let ref = schema["$ref"] { return ".reference(\(literal(try ref.text)))" }
+    if let all = schema["allOf"], try all.array.count == 1 {
+      return try requiredMembers(all.array[0].object)
+    }
+    let merged = try models.merged(schema)
+    if merged["oneOf"] != nil || merged["anyOf"] != nil { return ".opaque" }
+    if merged["type"] == .string("array"), let item = merged["items"] {
+      return ".list(\(try requiredMembers(item.object)))"
+    }
+    if merged["type"] == .string("object") {
+      if let properties = merged["properties"] {
+        let fields = try properties.object
+        let names = try merged["required"]?.array.map { try $0.text } ?? []
+        let required = try names.sorted().map { name -> String in
+          guard let field = fields[name] else {
+            throw GenerationRefused(description: "required member has no schema")
+          }
+          var resolved = try field.object
+          if let ref = resolved["$ref"] { resolved = try models.schema(ref.text) }
+          return "\(literal(name)): \(try models.nonnull(resolved).1)"
+        }.joined(separator: ", ")
+        let members = try fields.sorted(by: { $0.key < $1.key }).map {
+          "\(literal($0.key)): \(try requiredMembers($0.value.object))"
+        }.joined(separator: ", ")
+        return
+          ".object(required: [\(required.isEmpty ? ":" : required)], members: [\(members.isEmpty ? ":" : members)])"
+      }
+      if case .object(let item) = merged["additionalProperties"] {
+        return ".map(\(try requiredMembers(item)))"
+      }
+    }
+    return ".opaque"
+  }
   func channels(_ registry: Schema) throws -> String {
     let audience = try required(registry, "audience").object
     let scoped = Set(try required(audience, "scoped").array.map { try $0.text })
     let everyone = Set(try required(audience, "everyone").array.map { try $0.text })
     var rows: [String: (type: String, schema: Schema?)] = [:]
+    var requiredShapes: [String: String] = [:]
     var out = """
-      internal struct Channel<Payload: Codable & Sendable>: Sendable {
-        let name: String
+      public struct Channel<Payload: Codable & Sendable>: Sendable {
+        public let name: String
         let stamps: Set<String>
       }
-      internal struct ScopedChannel<Payload: Codable & Sendable>: Sendable {
-        let name: String
+      public struct ScopedChannel<Payload: Codable & Sendable>: Sendable {
+        public let name: String
         let stamps: Set<String>
       }
-      internal struct ResponseEnvelope<Payload: Codable & Sendable>: Codable, Sendable {
-        let response: Payload
+      public struct ResponseEnvelope<Payload: Codable & Sendable>: Codable, Sendable {
+        public let response: Payload
       }
-      internal struct Operation<Request: Codable & Sendable, Result: Codable & Sendable, Failure: Codable & Sendable>: Sendable {
+      public struct Operation<Request: Codable & Sendable, Result: Codable & Sendable, Failure: Codable & Sendable>: Sendable {
         let request: Channel<Request>
         let result: Channel<Result>
         let failure: Channel<Failure>
         let replyNames: [String]
       }
-      internal enum Channels {
+      public enum Channels {
       """ + "\n"
     _ = try models.inline(
       "Bus", "EmptyPayload", ["type": .string("object"), "additionalProperties": .bool(false)])
@@ -285,15 +329,26 @@ package struct TableGenerator {
         stamps = []
       default: throw GenerationRefused(description: "unknown channel shape \(shape)")
       }
+      let requiredShape: String
+      switch shape {
+      case "schema":
+        requiredShape = try requiredMembers(models.schema(try required(row, "schema").text))
+      case "envelope":
+        requiredShape =
+          ".object(required: [\"response\": false], members: [\"response\": .reference(\(literal(try required(row, "schema").text)))])"
+      case "storedEvent": requiredShape = ".reference(\(literal(payload)))"
+      default: requiredShape = ".opaque"
+      }
+      requiredShapes[name] = requiredShape
       rows[name] = (payload, schema)
       let channelType = scoped.contains(name) ? "ScopedChannel" : "Channel"
       out +=
-        "  static let \(escaped(memberName(name))): \(channelType)<\(payload)> = .init(name: \(literal(name)), stamps: Set([\(stamps.sorted().map(literal).joined(separator: ", "))]))\n"
+        "  public static let \(escaped(memberName(name))): \(channelType)<\(payload)> = .init(name: \(literal(name)), stamps: Set([\(stamps.sorted().map(literal).joined(separator: ", "))]))\n"
     }
     guard scoped.union(everyone).isSubset(of: Set(rows.keys)) else {
       throw GenerationRefused(description: "audience names an unknown channel")
     }
-    out += "}\ninternal enum Operations {\n"
+    out += "}\npublic enum Operations {\n"
     var replies: Set<String> = []
     for raw in try required(registry, "operations").array {
       let row = try raw.object
@@ -321,7 +376,7 @@ package struct TableGenerator {
         }
       }
       out +=
-        "  static let \(escaped(memberName(names[0]))): Operation<\(channels.map(\.type).joined(separator: ", "))> = .init(request: Channels.\(escaped(memberName(names[0]))), result: Channels.\(escaped(memberName(names[1]))), failure: Channels.\(escaped(memberName(names[2]))), replyNames: [\(replyNames.map(literal).joined(separator: ", "))])\n"
+        "  public static let \(escaped(memberName(names[0]))): Operation<\(channels.map(\.type).joined(separator: ", "))> = .init(request: Channels.\(escaped(memberName(names[0]))), result: Channels.\(escaped(memberName(names[1]))), failure: Channels.\(escaped(memberName(names[2]))), replyNames: [\(replyNames.map(literal).joined(separator: ", "))])\n"
     }
     out += "}\ninternal let wireOperations: [String: WireOperation] = [\n"
     for raw in try required(registry, "operations").array {
@@ -330,14 +385,38 @@ package struct TableGenerator {
       guard let request = rows[names[0]], let response = rows[names[1]] else {
         throw GenerationRefused(description: "missing operation channels")
       }
+      guard let failure = rows[names[2]], let failureSchema = failure.schema else {
+        throw GenerationRefused(description: "failure channel has no schema")
+      }
+      let fields = try models.merged(failureSchema)["properties"]?.object ?? [:]
+      let messages = ["message", "error"].filter { fields[$0] != nil }
+      guard messages.count == 1, let message = messages.first else {
+        throw GenerationRefused(description: "failure needs one message field")
+      }
+      let required = Set(
+        try models.merged(failureSchema)["required"]?.array.map { try $0.text } ?? [])
+      guard required.contains(message), let shape = fields[message],
+        try models.nonnull(shape.object).0["type"] == .string("string")
+      else {
+        throw GenerationRefused(description: "failure message must be a required string")
+      }
       out +=
-        "  \(literal(names[0])): WireOperation(result: \(literal(names[1])), failure: \(literal(names[2])), request: { try projectWire(\(request.type).self, $0) }, response: { try projectWire(\(response.type).self, $0) }),\n"
+        "  \(literal(names[0])): WireOperation(result: \(literal(names[1])), failure: \(literal(names[2])), request: { try projectWire(\(request.type).self, $0, stamps: Channels.\(escaped(memberName(names[0]))).stamps) }, response: { try projectWire(\(response.type).self, $0, stamps: Channels.\(escaped(memberName(names[1]))).stamps) }, decodeFailure: { try projectFailure(\(failure.type).self, $0, stamps: Channels.\(escaped(memberName(names[2]))).stamps, messageField: \(literal(message))) }),\n"
     }
     guard scoped.isDisjoint(with: everyone.union(replies)) else {
       throw GenerationRefused(description: "channel delivered both scoped and everywhere")
     }
     out +=
       "]\ninternal let bridgedChannels = [\(everyone.union(replies).sorted().map(literal).joined(separator: ", "))]\n"
+    out += "internal let requiredModelMembers: [String: RequiredMembers] = [\n"
+    for (name, schema) in models.definitions.sorted(by: { $0.key < $1.key }) {
+      out += "  \(literal(name)): \(try requiredMembers(schema.object)),\n"
+    }
+    out += "]\ninternal let requiredPayloadMembers: [String: RequiredMembers] = [\n"
+    for (name, shape) in requiredShapes.sorted(by: { $0.key < $1.key }) {
+      out += "  \(literal(name)): \(shape),\n"
+    }
+    out += "]\n"
     let refresh = try table("client/refresh.json")
     let queries = try required(refresh, "queries").array.map { try $0.object }
     let queryNames = try queries.map { try required($0, "name").text }

@@ -4,7 +4,9 @@
  * answers and writes the views, a gateway, the trusted issuer); the two
  * services that write what a Librarian reads, a Weaver and a Smelter, each
  * with a service account of its own; a real neo4j and a real Qdrant, both
- * cleared when the world is made and when it is closed; a stand-in for the
+ * cleared when the world is made and when it is closed, the Qdrant asked by
+ * the Smelter and the Librarian each with a token of its own, minted from
+ * the Qdrant's key; a stand-in for the
  * model of each of the Librarian's two actors; and two stand-ins for the
  * embedding provider, one the Librarian asks and one the Smelter asks, which
  * give the same text the same vector.
@@ -27,7 +29,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import neo4j, { type Driver } from 'neo4j-driver';
 import { afterAll, afterEach, beforeAll, describe, inject } from 'vitest';
-import type { Annotation, components, EventMap, ResourceDescriptor } from '@semiont/core';
+import { kbDid, type Annotation, type components, type EventMap, type ResourceDescriptor } from '@semiont/core';
 import { ArchivistWorld, sha256, unstamped, type BusClient } from './archivist-world';
 import {
   refusedLibrarianBoot,
@@ -40,7 +42,7 @@ import {
 import { eventually, freePort } from './net';
 import { startOllama, type StandInOllama } from './ollama';
 import { startOllamaEmbed, type StandInEmbedder } from './ollama-embed';
-import { QDRANT_PORT, vectorIndex, type VectorIndex } from './qdrant';
+import { claimsFor, minted, QDRANT_PORT, VECTORS_TOKEN, vectorIndex, type VectorIndex } from './qdrant';
 import { SERVICE_ROLE } from './roles';
 import { startSmelter, type SmelterLaunch, type SmelterProcess } from './smelter-process';
 import { errorsOf, registry, spec } from './spec';
@@ -240,6 +242,9 @@ export class LibrarianWorld {
     const gatewayUrl = kb.world.origin;
     const issuer = kb.world.issuer.origin;
     const archivist = { host: '127.0.0.1', port: kb.settings.port };
+    const did = kbDid(served.domain);
+    const vectors: components['schemas']['QdrantVectorsConfig'] = { type: 'qdrant', host: vectorDatabase.host, port: QDRANT_PORT, tokenEnv: VECTORS_TOKEN };
+    const claims = claimsFor(did);
     const world = new LibrarianWorld({
       kb,
       command,
@@ -249,14 +254,19 @@ export class LibrarianWorld {
         issuer,
         archivist,
         graph,
-        vectors: { type: 'qdrant', host: vectorDatabase.host, port: QDRANT_PORT },
+        vectors,
         embedding: { type: 'ollama', model: EMBEDDING_MODEL, baseUrl: embedder.origin },
         matcher: { type: 'ollama', model: MATCHER_MODEL, baseUrl: matcher.origin },
         gatherer: { type: 'ollama', model: GATHERER_MODEL, baseUrl: gatherer.origin },
         settleTimeoutMs: SETTLE_TIMEOUT_MS,
         semanticFloor: SEMANTIC_FLOOR,
       },
-      env: { SEMIONT_OIDC_CLIENT_ID: LIBRARIAN_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secrets.librarian, [GRAPH_PASSWORD]: graphDatabase.password },
+      env: {
+        SEMIONT_OIDC_CLIENT_ID: LIBRARIAN_CLIENT,
+        SEMIONT_OIDC_CLIENT_SECRET: secrets.librarian,
+        [GRAPH_PASSWORD]: graphDatabase.password,
+        [VECTORS_TOKEN]: minted(vectorDatabase.key, claims.librarian),
+      },
       home: mkdtempSync(join(tmpdir(), 'conformance-librarian-')),
       // Its document tells a Librarian its health port, and each world's is told a free one.
       port: await freePort(),
@@ -277,15 +287,15 @@ export class LibrarianWorld {
           gatewayUrl,
           issuer,
           archivist,
-          vectors: { type: 'qdrant', host: vectorDatabase.host, port: QDRANT_PORT },
+          vectors,
           embedding: { type: 'ollama', model: EMBEDDING_MODEL, baseUrl: smelterEmbedder.origin },
           chunking: { chunkSize: 512, overlap: 64 },
           pdfsAtOnce: 1,
         },
-        env: { SEMIONT_OIDC_CLIENT_ID: SMELTER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secrets.smelter },
+        env: { SEMIONT_OIDC_CLIENT_ID: SMELTER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secrets.smelter, [VECTORS_TOKEN]: minted(vectorDatabase.key, claims.smelter) },
         home: mkdtempSync(join(tmpdir(), 'conformance-librarian-smelter-')),
       },
-      index: vectorIndex(vectorDatabase.host),
+      index: vectorIndex(vectorDatabase, did),
       signals,
       hand: neo4j.driver(graph.uri, neo4j.auth.basic(graph.username, graphDatabase.password)),
       database: graph.database,

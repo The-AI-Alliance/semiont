@@ -55,7 +55,7 @@ from semiont_vectors.store import IndexStamp, VectorStore
 
 from semiont_smelter.anchored_text_store import AnchoredTextStore
 from semiont_smelter.chunking import Chunking
-from semiont_smelter.config import SERVICE, embedding_key_of, read_smelter_config
+from semiont_smelter.config import SERVICE, embedding_key_of, read_smelter_config, vectors_token_of
 from semiont_smelter.extraction import PdfExtractor
 from semiont_smelter.index_stamp import hold_to, stamp_of
 from semiont_smelter.log import LOG, words_of
@@ -91,8 +91,9 @@ def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     configure(SERVICE, config.log_level, config.log_format, own=(LOG.name, "semiont_service", "semiont_vectors", "semiont"))
     credential = service_account_of(SERVICE, config.identity.issuer, environment)
     provider = create_embedding_provider(config.embedding, api_key=embedding_key_of(config, environment))
-    # The index is as wide as the model's vectors, which the store asks the provider when it has to make the index.
-    index = create_vector_store(config.vectors, dimensions=provider.dimensions)
+    # The knowledge base's index, as wide as the model's vectors, which the store asks the provider when it has to make the index.
+    token = vectors_token_of(config, environment)
+    index = create_vector_store(config.vectors, kb=kb_did(config.kb.domain), token=token, dimensions=provider.dimensions)
     return _Started(config=config, credential=credential, provider=provider, index=index)
 
 

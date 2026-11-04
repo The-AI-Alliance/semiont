@@ -2,7 +2,7 @@ import AsyncHTTPClient
 import Foundation
 import OpenTelemetryApi
 
-public actor HttpTransport {
+public actor HttpTransport: Transport, GatewayOperations {
   public nonisolated let baseUrl: String
   public nonisolated let state = Watched<ConnectionState>(.initial)
   nonisolated let lifetime = Lifetime()
@@ -70,7 +70,7 @@ public actor HttpTransport {
   public nonisolated func dispose() { lifetime.end() }
   public nonisolated func failures() -> Events<TransportError> { failureEvents.listen() }
 
-  public func frames(_ channels: String...) throws -> Events<ReceivedFrame> {
+  public func frames(_ channels: [String]) throws -> Events<ReceivedFrame> {
     for channel in channels
     where !self.channels.contains(channel) && !busAudience.scoped.contains(channel) {
       throw BusRequestError(.busUnsubscribed, "Transport is not subscribed to \(channel)")
@@ -289,7 +289,8 @@ public actor HttpTransport {
       waiter.cancel()
       waiter.complete(.success(frame))
     }
-    for listener in listeners.values where listener.channels.contains(frame.channel) {
+    for listener in listeners.values
+    where listener.channels.isEmpty || listener.channels.contains(frame.channel) {
       listener.hub.yield(frame)
     }
   }

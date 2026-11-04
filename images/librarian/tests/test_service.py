@@ -29,6 +29,9 @@ pytestmark = pytest.mark.usefixtures("the_log_as_it_was")
 
 ACCOUNT: Final = {"SEMIONT_OIDC_CLIENT_ID": "semiont-librarian", "SEMIONT_OIDC_CLIENT_SECRET": "s3cret"}
 PASSWORD: Final = {"NEO4J_PASSWORD": "n30"}
+TOKEN: Final = {"QDRANT_TOKEN": "a-token"}
+STARTED: Final = {**ACCOUNT, **PASSWORD, **TOKEN}
+"""Everything the environment holds for a Librarian whose document names no key: its account, the graph's password and the index's token."""
 
 KEYED: Final[dict[str, JsonValue]] = {
     **DOCUMENT,
@@ -51,7 +54,7 @@ def without(member: str) -> dict[str, JsonValue]:
 
 def test_started_with_everything_it_boots_and_dials_nothing(tmp_path: Path) -> None:
     # Nothing listens at any address the document names: a boot that dialled one would fail here.
-    started = boot(["--config", written(tmp_path)], {**ACCOUNT, **PASSWORD})
+    started = boot(["--config", written(tmp_path)], STARTED)
     assert started.config.gateway_url == "http://127.0.0.1:1"
     assert started.credential == SecretCredential(
         issuer="http://127.0.0.1:1/realms/semiont", client_id="semiont-librarian", client_secret="s3cret"
@@ -97,7 +100,7 @@ def test_its_health_says_it_is_up_and_names_its_two_actors() -> None:
 
 def test_the_document_is_named_by_a_flag_and_never_guessed(tmp_path: Path) -> None:
     said = "The librarian's configuration document is not named: start it with --config <path>"
-    environment = {**ACCOUNT, **PASSWORD}
+    environment = STARTED
     assert refusal([], environment) == said
     assert refusal(["--config"], environment) == said
     assert refusal(["--config", "--verbose"], environment) == said
@@ -136,7 +139,7 @@ def test_a_document_that_cannot_be_read_or_is_no_json_is_refused_by_its_path(tmp
 )
 def test_nothing_the_document_leaves_out_is_supplied_and_each_is_refused_by_name(tmp_path: Path, missing: str) -> None:
     path = written(tmp_path, without(missing))
-    said = refusal(["--config", path], {**ACCOUNT, **PASSWORD})
+    said = refusal(["--config", path], STARTED)
     assert said.splitlines() == [
         f"{path} is not a librarian configuration document (LibrarianConfig):",
         f"  Missing required property: {missing}",
@@ -163,7 +166,7 @@ def test_the_document_is_settled_before_the_account_and_the_account_before_each_
     assert refusal(["--config", keyed], {"SEMIONT_OIDC_CLIENT_ID": "semiont-librarian", "SEMIONT_OIDC_CLIENT_SECRET": ""}) == (
         "SEMIONT_OIDC_CLIENT_SECRET is not set in the librarian's environment: a librarian signs in as a service account"
     )
-    # Then the graph database's password, the embedding provider's key, the Matcher's and the Gatherer's.
+    # Then the graph database's password, the embedding provider's key, the vector index's token, the Matcher's key and the Gatherer's.
     environment = dict(ACCOUNT)
     assert refusal(["--config", keyed], environment) == (
         "graph.passwordEnv names NEO4J_PASSWORD, which is not set in the librarian's environment"
@@ -173,6 +176,10 @@ def test_the_document_is_settled_before_the_account_and_the_account_before_each_
         "embedding.apiKeyEnv names VOYAGE_API_KEY, which is not set in the librarian's environment"
     )
     environment["VOYAGE_API_KEY"] = "v-key"
+    assert refusal(["--config", keyed], environment) == (
+        "vectors.tokenEnv names QDRANT_TOKEN, which is not set in the librarian's environment"
+    )
+    environment["QDRANT_TOKEN"] = "a-token"
     assert refusal(["--config", keyed], environment) == (
         "matcher.apiKeyEnv names MATCHER_KEY, which is not set in the librarian's environment"
     )
@@ -187,7 +194,7 @@ def test_the_document_is_settled_before_the_account_and_the_account_before_each_
 
 def test_a_provider_that_takes_a_key_is_refused_by_the_member_where_the_document_names_no_variable_for_one(tmp_path: Path) -> None:
     anthropic: dict[str, JsonValue] = {"engine": {"provider": "anthropic", "model": "a-model"}, "baseUrl": "http://127.0.0.1:1"}
-    environment = {**ACCOUNT, **PASSWORD}
+    environment = STARTED
 
     keyless_matcher = written(tmp_path, {**DOCUMENT, "matcher": anthropic})
     assert refusal(["--config", keyless_matcher], environment) == (
@@ -203,7 +210,7 @@ def test_a_provider_that_takes_a_key_is_refused_by_the_member_where_the_document
 def test_a_model_whose_facts_are_a_catalogue_s_is_refused_by_the_member_without_them_and_a_server_a_deployment_runs_reads_none(
     tmp_path: Path,
 ) -> None:
-    environment = {**ACCOUNT, **PASSWORD, "OPENAI_KEY": "sk-test"}
+    environment = {**STARTED, "OPENAI_KEY": "sk-test"}
     openai: dict[str, JsonValue] = {
         "engine": {"provider": "openai", "model": "gpt-listed"},
         "baseUrl": "http://127.0.0.1:1/v1",
