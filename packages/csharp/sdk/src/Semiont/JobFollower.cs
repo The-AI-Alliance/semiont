@@ -1,4 +1,3 @@
-using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using Semiont.Errors;
 using Semiont.Identifiers;
@@ -28,11 +27,12 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
         double Now() => clock.GetElapsedTime(start).TotalMilliseconds;
 
         CancellationTokenSource? pollLifetime = null;
-        Task<PollAnswer>? polling = null;
+        Task<JobStatusResponse?>? polling = null;
         void StopPoll()
         {
             pollLifetime?.Cancel();
             pollLifetime?.Dispose();
+            if (polling is not null) _ = ObserveDroppedPollAsync(polling);
             pollLifetime = null;
             polling = null;
         }
@@ -84,10 +84,9 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
 
                 if (polling is { IsCompleted: true })
                 {
-                    var answer = await polling.ConfigureAwait(false);
+                    var status = await polling.ConfigureAwait(false);
                     StopPoll();
-                    answer.Error?.Throw();
-                    if (answer.Status is { } status)
+                    if (status is not null)
                     {
                         if (status.JobId != job)
                             throw new TransportError(ProtocolFacts.Error(0), "The status is not the followed job's.");
@@ -164,14 +163,13 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
         }
     }
 
-    private async Task<PollAnswer> PollAsync(JobId job, CancellationToken cancellation)
+    private async Task<JobStatusResponse?> PollAsync(JobId job, CancellationToken cancellation)
     {
-        try { return new(await jobs.StatusAsync(job, cancellation).ConfigureAwait(false), null); }
+        try { return await jobs.StatusAsync(job, cancellation).ConfigureAwait(false); }
         catch (Exception error) when (error is BusRequestError or TransportError or OperationCanceledException)
         {
-            return new(null, null);
+            return null;
         }
-        catch (Exception error) { return new(null, ExceptionDispatchInfo.Capture(error)); }
     }
 
     private async Task CancelStalledAsync(JobId job)
@@ -203,7 +201,7 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
 
     private static BusRequestError Closed() => new(ProtocolFacts.BusError("closed"), "The client closed while following a job.");
 
-    private sealed record PollAnswer(JobStatusResponse? Status, ExceptionDispatchInfo? Error);
+    private static async Task ObserveDroppedPollAsync(Task poll) => await poll.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
     private abstract record Lifecycle(JobId Id)
     {

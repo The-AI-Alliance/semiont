@@ -1,4 +1,7 @@
+using System.Text;
 using Semiont.Errors;
+using Semiont.Http;
+using Semiont.Identifiers;
 using Semiont.Protocol;
 using Semiont.Types;
 
@@ -8,7 +11,50 @@ public sealed class YieldNamespace
 {
     private readonly JobFollower follower;
 
-    internal YieldNamespace(JobFollower follower) => this.follower = follower;
+    private readonly Bus wire;
+    private readonly EventBus bus;
+    private readonly HttpContentTransport content;
+
+    internal YieldNamespace(JobFollower follower, Bus wire, EventBus bus, HttpContentTransport content)
+    {
+        this.follower = follower;
+        this.wire = wire;
+        this.bus = bus;
+        this.content = content;
+    }
+
+    public Upload Resource(ResourceUpload data, CancellationToken cancellation = default) => new(content, data, cancellation);
+
+    public async Task<CloneResourceWithTokenResponse> CloneTokenAsync(ResourceId resourceId, CancellationToken cancellation = default) =>
+        (await wire.RequestAsync(BusOperations.YieldCloneTokenRequested, new YieldCloneTokenRequest { ResourceId = resourceId },
+            cancellation: cancellation).ConfigureAwait(false)).Response;
+
+    public async Task<ResourceDescriptor> FromTokenAsync(string token, CancellationToken cancellation = default) =>
+        (await wire.RequestAsync(BusOperations.YieldCloneResourceRequested, new YieldCloneResourceRequest { Token = token },
+            cancellation: cancellation).ConfigureAwait(false)).Response.SourceResource;
+
+    public async Task<CreateResourceResponse> CreateFromTokenAsync(string token, string name, string text, bool? archiveOriginal = null,
+        CancellationToken cancellation = default)
+    {
+        var source = await FromTokenAsync(token, cancellation).ConfigureAwait(false);
+        var mediaType = source.Representations switch
+        {
+            ResourceDescriptorRepresentations.RepresentationCase(var primary) => primary.MediaType,
+            ResourceDescriptorRepresentations.ArrayCase(var representations) => representations.FirstOrDefault()?.MediaType,
+        };
+        var format = MediaTypes.CloneFormat(mediaType);
+        return await content.UploadAsync(new ResourceUpload
+        {
+            Name = name,
+            File = Encoding.UTF8.GetBytes(text),
+            Format = format,
+            StorageUri = "file://" + MediaTypes.StorageFileName(name, format),
+            CloneToken = token,
+            ArchiveOriginal = archiveOriginal is bool archive ? archive ? "true" : "false" : null,
+        }, null, cancellation).ConfigureAwait(false);
+    }
+
+    public void Clone() => bus.Emit(BusChannels.YieldClone, new EmptyBusPayload());
 
     /// <summary>Follows generation grounded in the supplied context. The stall deadline applies locally.</summary>
     public Delegation<YieldJobCompleteCommand> Delegate(GenerationJobParams parameters, int? stallDeadlineMs = null)

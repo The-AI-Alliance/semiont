@@ -55,7 +55,10 @@ public sealed class HttpContentTransport(HttpTransport transport) : IDisposable
         }
     }
 
-    public async Task<ResourceId> PutBinaryAsync(ResourceUpload request, IProgress<UploadProgress>? progress = null, CancellationToken cancellation = default)
+    public async Task<ResourceId> PutBinaryAsync(ResourceUpload request, IProgress<UploadProgress>? progress = null, CancellationToken cancellation = default) =>
+        (await UploadAsync(request, progress, cancellation).ConfigureAwait(false)).ResourceId;
+
+    internal async Task<CreateResourceResponse> UploadAsync(ResourceUpload request, IProgress<UploadProgress>? progress, CancellationToken cancellation)
     {
         using var linked = Link(cancellation);
         cancellation = linked.Token;
@@ -74,9 +77,8 @@ public sealed class HttpContentTransport(HttpTransport transport) : IDisposable
             form.Add(file, "file", request.Name);
             return form;
         }, upload: true, cancellation: cancellation).ConfigureAwait(false);
-        var created = await response.Content.ReadFromJsonAsync<CreateResourceResponse>(cancellation).ConfigureAwait(false)
+        return await response.Content.ReadFromJsonAsync<CreateResourceResponse>(cancellation).ConfigureAwait(false)
             ?? throw new TransportError(ProtocolFacts.Error(0), "Upload returned null");
-        return created.ResourceId;
     }
 
     public async Task<BinaryContent> GetBinaryAsync(ResourceId resource, CancellationToken cancellation = default)
@@ -85,7 +87,7 @@ public sealed class HttpContentTransport(HttpTransport transport) : IDisposable
         cancellation = linked.Token;
         using var activity = SdkTelemetry.Start("content.get", new ActivityTagsCollection { { "resource.id", resource.Value } });
         using var response = await transport.ExchangeAsync(HttpMethod.Get, Path(resource), cancellation: cancellation).ConfigureAwait(false);
-        return new BinaryContent(response.Content.Headers.ContentType?.ToString() ?? throw new TransportError(ProtocolFacts.Error(0), "The content response has no media type"), await response.Content.ReadAsByteArrayAsync(cancellation).ConfigureAwait(false));
+        return new BinaryContent(ContentType(response.Content), await response.Content.ReadAsByteArrayAsync(cancellation).ConfigureAwait(false));
     }
 
     public async Task<BinaryStream> GetBinaryStreamAsync(ResourceId resource, CancellationToken cancellation = default)
@@ -96,7 +98,7 @@ public sealed class HttpContentTransport(HttpTransport transport) : IDisposable
         var response = await transport.ExchangeAsync(HttpMethod.Get, Path(resource), cancellation: cancellation).ConfigureAwait(false);
         try
         {
-            var mediaType = response.Content.Headers.ContentType?.ToString() ?? throw new TransportError(ProtocolFacts.Error(0), "The content response has no media type");
+            var mediaType = ContentType(response.Content);
             var stream = new ResponseStream(await response.Content.ReadAsStreamAsync(cancellation).ConfigureAwait(false), response, activity, lifetime.Token, Released);
             lock (gate)
             {
@@ -129,6 +131,10 @@ public sealed class HttpContentTransport(HttpTransport transport) : IDisposable
         using var activity = SdkTelemetry.Start("content.get_anchored_text", new ActivityTagsCollection { { "resource.id", resource.Value } });
         return await transport.AnswerAsync<AnchoredTextAnswer>(HttpMethod.Get, Path(resource) + "/anchored-text", cancellation: cancellation).ConfigureAwait(false);
     }
+    private static string ContentType(HttpContent content) =>
+        (content.Headers.NonValidated.TryGetValues("Content-Type", out var values) ? values.FirstOrDefault() : null)
+        ?? throw new TransportError(ProtocolFacts.Error(0), "The content response has no media type");
+
     private static string Path(ResourceId resource) => "/resources/" + Uri.EscapeDataString(resource.Value);
 
     private sealed class ProgressContent(byte[] bytes, IProgress<UploadProgress>? progress) : HttpContent

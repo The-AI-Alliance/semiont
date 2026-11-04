@@ -6,6 +6,8 @@ namespace Semiont;
 
 public sealed class SemiontClient : IDisposable
 {
+    private readonly HttpContentTransport content;
+
     public SemiontClient(string baseUrl, string? token = null, HttpClient? httpClient = null,
         TimeProvider? timeProvider = null, Random? random = null)
         : this(new HttpTransport(baseUrl, token, ProtocolFacts.Channels("everyone").Concat(ProtocolFacts.OperationReplies()),
@@ -20,6 +22,8 @@ public sealed class SemiontClient : IDisposable
         Transport = transport;
         Wire = new Bus(transport);
         Bus = new EventBus();
+        content = new HttpContentTransport(transport);
+        Browse = new BrowseNamespace(Wire, Bus, content, transport.Closed);
         Bind = new BindNamespace(Wire, Bus);
         Beckon = new BeckonNamespace(Wire, Bus);
         Gather = new GatherNamespace(Wire);
@@ -27,7 +31,7 @@ public sealed class SemiontClient : IDisposable
         Job = new JobNamespace(Wire, Bus, transport.Clock, transport.Closed);
         var follower = new JobFollower(Wire, Bus, Job, transport.Clock, transport.Closed);
         Mark = new MarkNamespace(Wire, Bus, follower);
-        Yield = new YieldNamespace(follower);
+        Yield = new YieldNamespace(follower, Wire, Bus, content);
         Frame = new FrameNamespace(Wire);
         Auth = new AuthNamespace(transport);
         System = new SystemNamespace(transport);
@@ -41,6 +45,7 @@ public sealed class SemiontClient : IDisposable
     public GatherNamespace Gather { get; }
     public MatchNamespace Match { get; }
     public MarkNamespace Mark { get; }
+    public BrowseNamespace Browse { get; }
     public YieldNamespace Yield { get; }
     public JobNamespace Job { get; }
     public HttpTransport Transport { get; }
@@ -61,7 +66,11 @@ public sealed class SemiontClient : IDisposable
 
     public void Dispose()
     {
-        Bus.Dispose();
-        Transport.Dispose();
+        try { content.Dispose(); }
+        finally
+        {
+            Bus.Dispose();
+            Transport.Dispose();
+        }
     }
 }
