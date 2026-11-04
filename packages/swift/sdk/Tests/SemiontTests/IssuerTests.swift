@@ -344,3 +344,86 @@ private func form(_ data: Data) -> [String: String] {
       #expect(opened.client.state.value == .closed)
     })
 }
+
+@Test func concurrentRedirectCallbacksExchangeTheCodeOnce() async throws {
+  let origin = Mutex("")
+  let verifier = Mutex("")
+  let exchanges = Mutex(0)
+  let redirect = "semiont://sign-in?where=a+b"
+  try await issuerServer(
+    { path, _, body in
+      let base = origin.withLock { $0 }
+      switch path {
+      case "/.well-known/oauth-protected-resource":
+        return (
+          200,
+          [
+            "authorization_servers": .array([.string(base)]),
+            "bearer_methods_supported": .array([.string("header")]),
+            "resource": .string("https://kb"),
+          ]
+        )
+      case "/.well-known/openid-configuration":
+        return (
+          200,
+          [
+            "issuer": .string(base),
+            "authorization_endpoint": .string(base + "/authorize?keep=yes"),
+            "token_endpoint": .string(base + "/token"),
+          ]
+        )
+      case "/token":
+        exchanges.withLock { $0 += 1 }
+        let posted = form(body)
+        #expect(posted["code"] == "one-use-code")
+        #expect(posted["grant_type"] == "authorization_code")
+        #expect(posted["redirect_uri"] == redirect)
+        #expect(posted["code_verifier"] == verifier.withLock { $0 })
+        return (200, ["access_token": .string("access"), "refresh_token": .string("refresh")])
+      default: return (404, [:])
+      }
+    },
+    run: { base, http in
+      origin.withLock { $0 = base }
+      let url = try #require(URLComponents(string: base))
+      let target = HttpEndpoint(host: "127.0.0.1", port: try #require(url.port), protocol: .http)
+      let storage = MemorySessionStorage()
+      let address = try await beginAuthorization(
+        BeginAuthorizationOptions(target: target, redirectUri: redirect), storage: storage,
+        httpClient: http)
+      let pending = try #require(
+        decodedStorage(PendingAuthorization.self, storage.get(pendingAuthorizationKey)))
+      verifier.withLock { $0 = pending.verifier }
+      let components = try #require(URLComponents(string: address))
+      let parameters = Dictionary(
+        uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+      #expect(parameters["keep"] == "yes")
+      #expect(parameters["code_challenge"] == codeChallenge(pending.verifier))
+      #expect(parameters["code_challenge_method"] == "S256")
+      #expect(parameters["state"] == pending.state)
+      #expect(parameters["redirect_uri"] == redirect)
+      #expect(address.contains("a%2Bb"))
+      let callback = redirect + "&state=" + pending.state + "&code=one-use-code"
+      let signedInCount = try await withThrowingTaskGroup(of: Bool.self) { group in
+        for _ in 0..<2 {
+          group.addTask {
+            do {
+              let (_, session) = try await completeAuthorization(
+                callback, storage: storage, httpClient: http)
+              #expect(session.access == "access")
+              #expect(session.refresh == "refresh")
+              return true
+            } catch let error as SignInError where error.reason == .noPending {
+              return false
+            }
+          }
+        }
+        var signedIn = 0
+        for try await accepted in group where accepted { signedIn += 1 }
+        return signedIn
+      }
+      #expect(signedInCount == 1)
+      #expect(storage.get(pendingAuthorizationKey) == nil)
+    })
+  #expect(exchanges.withLock { $0 } == 1)
+}

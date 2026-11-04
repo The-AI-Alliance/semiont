@@ -20,7 +20,7 @@ actor SessionGate {
 public func sessionFromKept(
   kb: KbTarget, kept: any SignInKept, httpClient: HTTPClient,
   onAuthFailed: (@Sendable (SessionEndReason) -> Void)? = nil,
-  onError: (@Sendable (any Error) -> Void)? = nil
+  onError: (@Sendable (any Error) -> Void)? = nil, persistence: CachePersistence? = nil
 ) async throws -> OpenedSession {
   try Task.checkCancellation()
   guard case .httpEndpoint(let endpoint) = kb.endpoint else {
@@ -53,7 +53,8 @@ public func sessionFromKept(
   await gate.set(session)
   await session.start()
   do {
-    let client = try await SemiontClient(transport: transport, gateway: transport)
+    let client = try await SemiontClient(
+      transport: transport, gateway: transport, persistence: persistence)
     return OpenedSession(session: session, client: client)
   } catch {
     session.dispose()

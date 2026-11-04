@@ -109,7 +109,7 @@ public func renewKept(_ kept: any SignInKept, holding: String?, httpClient: HTTP
     try await retryRenewal { try await refreshAtIssuer(held, http: httpClient) }
   }
 }
-struct IssuerEndpoints: Sendable {
+struct IssuerEndpoints: Codable, Sendable {
   let issuer: String
   let authorization: String
   let token: String

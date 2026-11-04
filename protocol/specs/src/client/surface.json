@@ -886,8 +886,8 @@
     {
       "unit": "sessionSignals",
       "docs": "What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it.",
-      "notYetReached": {"csharp": "C# is still to implement the sessionSignals state unit.", "swift": "The Swift SDK's sessionSignals: What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it."},
-      "made": { "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals", "kotlin": "SessionSignals" },
+      "notYetReached": {"csharp": "C# is still to implement the sessionSignals state unit."},
+      "made": { "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals", "kotlin": "SessionSignals", "swift": "SessionSignals" },
       "madeBy": { "typescript": "createSessionSignals", "go": "NewSessionSignals" },
       "members": [
         { "member": "sessionEnded" },

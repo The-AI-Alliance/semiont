@@ -1,6 +1,6 @@
 import Foundation
 
-public enum SessionEndReason: String, Sendable { case expired, refused }
+public enum SessionEndReason: String, Codable, Sendable { case expired, refused }
 
 public actor SemiontSession {
   public nonisolated let id = "session-" + UUID().uuidString
