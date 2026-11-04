@@ -35,13 +35,13 @@ extension HttpTransport {
   public func request(operation: String, payload: [String: JSONValue], timeoutMs: Int? = nil)
     async throws -> [String: JSONValue]
   {
-    try await request(operation: operation, payload: payload, timeoutMs: timeoutMs, enqueued: nil)
+    try await requestFrame(operation: operation, payload: payload, timeoutMs: timeoutMs).payload
   }
 
-  func request(
+  func requestFrame(
     operation: String, payload: [String: JSONValue], timeoutMs: Int?,
-    enqueued: (@Sendable () -> Void)?
-  ) async throws -> [String: JSONValue] {
+    parent: [String: String]? = nil, enqueued: (@Sendable () -> Void)? = nil
+  ) async throws -> ReceivedFrame {
     guard let descriptor = wireOperations[operation] else {
       throw BusRequestError(.busRejected, "Unknown operation \(operation)")
     }
@@ -65,7 +65,8 @@ extension HttpTransport {
             life.cancel(timerID)
           }, complete: { continuation.resume(with: $0) })
         let emission = enqueueEmission(
-          channel: operation, payload: body, correlationId: correlation, afterOpen: true)
+          channel: operation, payload: body, correlationId: correlation, afterOpen: true,
+          parent: parent)
         enqueued?()
         let send = Task { [self] in
           defer { life.forget(senderID) }
@@ -99,7 +100,11 @@ extension HttpTransport {
       }
       throw failure
     }
-    do { return try descriptor.response(frame.payload) } catch {
+    do {
+      var answer = frame
+      answer.payload = try descriptor.response(frame.payload)
+      return answer
+    } catch {
       let lacks = requiredPayloadMembers[descriptor.result]?.lacking(in: .object(frame.payload))
       let detail = lacks.map { ": it has no `\($0)`" } ?? ""
       throw TransportError(

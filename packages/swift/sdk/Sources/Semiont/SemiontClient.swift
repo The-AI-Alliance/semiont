@@ -53,7 +53,7 @@ public final class SemiontClient: Sendable {
     yield = YieldNamespace(
       wire: wire, bus: bus, lifetime: lifetime, timing: followTiming, content: content)
     mark = MarkNamespace(wire: wire, bus: bus, lifetime: lifetime, timing: followTiming)
-    job = JobNamespace(wire: wire, bus: bus)
+    job = JobNamespace(wire: wire, bus: bus, transport: transport, lifetime: lifetime)
     frame = FrameNamespace(wire: wire)
     bind = BindNamespace(wire: wire, bus: bus)
     beckon = BeckonNamespace(wire: wire, bus: bus)

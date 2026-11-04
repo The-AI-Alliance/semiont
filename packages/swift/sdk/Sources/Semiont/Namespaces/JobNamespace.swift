@@ -1,6 +1,12 @@
 public struct JobNamespace: Sendable {
   let wire: Bus
   let bus: EventBus
+  let transport: any Transport
+  let lifetime: Lifetime
+
+  public func claim(_ accepts: [JobFilter], timing: WorkerTiming = WorkerTiming()) -> Claims {
+    Claims(accepts: accepts, transport: transport, lifetime: lifetime, timing: timing)
+  }
   public func queued() -> Typed<JobQueuedEvent> { bus.frames(Channels.jobQueued) }
   public func progress() -> Typed<JobReportProgressCommand> {
     bus.frames(Channels.jobReportProgress)
