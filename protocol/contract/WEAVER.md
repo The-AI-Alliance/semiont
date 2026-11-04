@@ -237,7 +237,7 @@ reconcile once that sweep is done.
   start saying what failed. Either way it exits with a status other than 0
   having read and written nothing of the graph. Told to stop while it asks,
   it exits with status 0.
-  *Held by `packages/python/service/tests/test_knowledge_base.py` and `weaver/boot`.*
+  *Held by `packages/python/service/tests/test_knowledge_base.py`, `images/weaver/tests/test_service.py`, for the stream it asks on, the order and its being told to stop while it asks, and `weaver/boot`.*
 - **It gives up when the graph database does not answer** within its connect
   deadline. *Held by `packages/python/service/tests/test_connect.py`.*
 - **Its health answers before its first sweep is done,** and events recorded
