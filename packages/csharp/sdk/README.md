@@ -4,9 +4,13 @@
 
 Under construction. Models and checked identifiers are generated from the protocol schemas
 during compilation. The HTTP transport and wire conformance driver are implemented; the
-sign-in store, issuer renewal, and kept-session lifecycle are implemented; the high-level
-client is next. Nothing is published to NuGet. Consumers will use
-a project reference until publishing is enabled separately.
+sign-in store, issuer renewal, and kept-session lifecycle are implemented.
+Use a project reference until the NuGet package is published.
+
+Construct `SemiontClient` with a gateway URL and token to use the typed
+`Frame`, `Auth`, and `System` namespaces. Frame mutations await their replies.
+A batch of entity types sends each mutation after the preceding one settles.
+The client disposes its transport, and a supplied HTTP client stays caller-owned.
 
 The SDK targets .NET 11. [global.json](global.json) pins the SDK exactly, with roll-forward
 disabled. [dotnet-version.sh](../scripts/dotnet-version.sh) derives the container

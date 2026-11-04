@@ -39,7 +39,6 @@
     {
       "namespace": "frame",
       "docs": "The knowledge base's vocabulary: what kinds of things exist.",
-      "notYetReached": {"csharp": "C# is still to implement the frame namespace."},
       "methods": [
         {
           "method": "addEntityType",
@@ -694,7 +693,6 @@
     {
       "namespace": "auth",
       "docs": "The gateway's view of who is signed in. Present when the client was given a gateway.",
-      "notYetReached": {"csharp": "C# is still to implement the auth namespace."},
       "methods": [
         {
           "method": "me",
@@ -719,7 +717,6 @@
     {
       "namespace": "system",
       "docs": "What the knowledge base says about itself. Present when the client was given a gateway.",
-      "notYetReached": {"csharp": "C# is still to implement the system namespace."},
       "methods": [
         {
           "method": "healthCheck",
