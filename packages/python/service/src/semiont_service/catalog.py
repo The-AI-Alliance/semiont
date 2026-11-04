@@ -10,26 +10,16 @@ import asyncio
 from typing import Final
 
 from semiont.bus import Bus
-from semiont.errors import BusRequestError, SemiontError
 from semiont.operations import BROWSE_RESOURCES_REQUESTED
-from semiont.retry import RetryPolicy, retry_with_backoff
+from semiont.retry import retry_with_backoff
 from semiont.types import BrowseResourcesRequest, BrowseResourcesResult, ResourceDescriptor
+
+from semiont_service.until_answered import UNTIL_THE_ARCHIVIST_ANSWERS, nobody_answers
 
 __all__ = ["resources"]
 
 _PAGE: Final = 200
 """How many resources of the catalog are asked for at once."""
-
-_UNTIL_THE_ARCHIVIST_ANSWERS: Final = RetryPolicy(attempts=17, initial_delay_ms=1_000, max_delay_ms=30_000)
-"""How long a page of the catalog is asked for while the Archivist is not there to answer.
-
-The Archivist's own start can take minutes, and this is sized by that: about
-five and a half minutes in all.
-"""
-
-
-def _nobody_answers(failure: SemiontError) -> bool:
-    return isinstance(failure, BusRequestError) and failure.code == "bus.peer-unavailable"
 
 
 async def resources(bus: Bus, stopping: asyncio.Event, *, archived: bool | None) -> list[ResourceDescriptor]:
@@ -51,7 +41,7 @@ async def resources(bus: Bus, stopping: asyncio.Event, *, archived: bool | None)
         async def page(asked: BrowseResourcesRequest = asked) -> BrowseResourcesResult:
             return await bus.request(BROWSE_RESOURCES_REQUESTED, asked)
 
-        answered = (await retry_with_backoff(_UNTIL_THE_ARCHIVIST_ANSWERS, page, retryable=_nobody_answers, give_up=stopping)).response
+        answered = (await retry_with_backoff(UNTIL_THE_ARCHIVIST_ANSWERS, page, retryable=nobody_answers, give_up=stopping)).response
         every.extend(answered.resources)
         if not answered.resources or len(every) >= answered.total:
             return every

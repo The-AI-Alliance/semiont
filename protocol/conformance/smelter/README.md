@@ -110,7 +110,8 @@ A case about what happens while the reconcile runs starts the Smelter to
 
 ## What it checks
 
-- **As a process** (`boot.test.ts`): what its health reports, on a knowledge
+- **As a process** (`boot.test.ts`): what its health reports, the knowledge
+  base it serves among it, on a knowledge
   base with nothing in it, of a reconcile with nothing to mend, and after
   events and a reconcile; that an event recorded while its start's reconcile
   runs is applied then; a clean stop; every
@@ -143,9 +144,12 @@ A case about what happens while the reconcile runs starts the Smelter to
   index a Smelter of another cut made is made again and filled whole.
 - **Beside another knowledge base** (`kb-index.test.ts`): that the suite names
   a knowledge base's collections as the payload table states, and mints each
-  service's token as the token table states; and that a
+  service's token as the token table states; that a
   Smelter whose Qdrant holds another knowledge base's index neither reads nor
-  purges nor writes it, makes its own anew beside it, and fills its own.
+  purges nor writes it, makes its own anew beside it, and fills its own; and
+  that one whose settings name another knowledge base than the one at its
+  gateway refuses to start, naming both, and makes no index of the one they
+  name.
 - **Asking its provider** (`provider.test.ts`): a batch cut into slices of
   128, each text given the vector that came back for it; one request at a
   time; a provider that says it is busy, which is asked again; and a request

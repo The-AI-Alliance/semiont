@@ -78,6 +78,8 @@ export interface ReconcileSummary {
 /** What a Smelter answers at its health port (SMELTER.md § Health). */
 export interface SmelterHealth {
   status: string;
+  /** The DID of the knowledge base it serves, which that knowledge base said it is before the Smelter reached its index. */
+  kb: string;
   /** The state of its own stream of the record. */
   stream: string;
   /** How far it has followed the record, as every follower of the record says it. */

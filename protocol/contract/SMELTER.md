@@ -50,7 +50,7 @@ A Smelter reads its settings from a configuration document, the protocol's
 [`SmelterConfig`](../specs/src/components/schemas/SmelterConfig.json), at
 the path its `--config` flag names. The document is resolved: every address in
 it is literal, every credential is named by the variable that holds it, and the
-Smelter defaults nothing it leaves out. It states the knowledge base it serves ([`KbIdentity`](../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by); the
+Smelter defaults nothing it leaves out. It states the knowledge base it serves ([`KbIdentity`](../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by, and which the knowledge base at its gateway must say it is before the Smelter reaches its index: [Boot](#boot)); the
 gateway's URL; the issuer the Smelter's service account signs in at; where
 the Archivist is, for a resource's bytes; the embedding provider
 ([`EmbeddingConfig`](../specs/src/components/schemas/EmbeddingConfig.json):
@@ -472,13 +472,27 @@ A Smelter asks one provider for its vectors: an Ollama
 
 ## Boot
 
-A Smelter starts in this order: it reads its settings; signs in; reaches its
-embedding provider and its vector database; holds the index to what it makes
-one by, and forgets its cursors where it made the index again; subscribes to
-every event of the record; opens its health port. Once its stream first
-opens it sweeps the record, and a resource no cursor names is started by a
-reconcile.
+A Smelter starts in this order: it reads its settings; signs in; opens its
+stream, which names every event of the record, and asks the knowledge base
+over it which it is; reaches its embedding provider and its vector database;
+holds the index to what it makes one by, and forgets its cursors where it
+made the index again; follows the record; opens its health port. Once it
+follows the record and its stream is open, it sweeps the record, and a
+resource no cursor names is started by a reconcile.
 
+- **It serves the knowledge base its settings name, and no other.** Before it
+  reaches its vector database it asks the knowledge base which it is
+  (`browse:kb-requested`, which the Archivist answers from the committed
+  `.semiont/config.yaml`), and asks again while nothing answers there
+  (`bus.peer-unavailable`), as it asks again for a page of the catalog. Where
+  the answer names another domain than its settings do, it refuses to start,
+  naming both knowledge bases by their DIDs; where it is a failure, it
+  refuses to start saying what failed. Either way it exits with a status
+  other than 0 having made, read and emptied no collection: its token may
+  make any ([The index](#the-index)), and the collections it would reach are
+  those of the knowledge base its settings name. Told to stop while it asks,
+  it exits with status 0.
+  *Held by `packages/python/service/tests/test_knowledge_base.py` and `smelter/kb-index`.*
 - **It gives up when the embedding provider or the vector database does not
   answer within a minute,** and exits with a status other than 0.
   *Held by `packages/python/service/tests/test_connect.py`.*
@@ -625,7 +639,7 @@ A Smelter's health answers for the Smelter alone, and from what it holds: to
 answer, it asks nothing of the gateway, of its embedding provider or of its
 vector database. Whether each of those is up is its own to say, and whoever
 runs the stack watches each for that. What only the Smelter knows is here:
-whether events reach it, how far it has followed the record, how its
+which knowledge base it serves, whether events reach it, how far it has followed the record, how its
 reconcile ended, and what its index is made by. Its index is as the record
 says, as far as the Smelter knows, when `stream` is `open`; `following` says
 the sweep is `done` and no log is stopped; and `reconcile` is `done`, with
@@ -633,7 +647,7 @@ nothing failed and nothing unavailable in its summary, or `pending`, where
 every resource had a cursor at its start.
 
 - **`GET /health`, on the port its document states, answers `200` with a JSON
-  object of six members:** `status`, `stream`, `following`,
+  object of seven members:** `status`, `kb`, `stream`, `following`,
   `eventsProcessed`, `reconcile` and `index`.
   *Held by `smelter/boot`.*
 - **`status` is `ok` whenever the Smelter answers.** It says that the process
@@ -641,6 +655,10 @@ every resource had a cursor at its start.
   whose reconcile failed, answers `ok`, and says what is so in the members
   beside it.
   *Held by `smelter/boot`, for a Smelter whose reconcile has ended and for one whose reconcile is at work.*
+- **`kb` is the DID of the knowledge base it serves:** the one its settings
+  name, which that knowledge base said it is before the Smelter reached its
+  index ([Boot](#boot)).
+  *Held by `smelter/boot`.*
 - **`stream` is the state of the Smelter's own stream of the record,** one of
   the seven of
   [TRANSPORT-HTTP.md § Connection lifecycle](./TRANSPORT-HTTP.md#connection-lifecycle).
