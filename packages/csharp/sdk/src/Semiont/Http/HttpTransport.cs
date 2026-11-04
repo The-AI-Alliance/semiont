@@ -106,7 +106,9 @@ public sealed partial class HttpTransport : IDisposable
         return ObserveFrames(selected, resource, cancellation);
     }
 
-    private async IAsyncEnumerable<ReceivedBusFrame> ObserveFrames(HashSet<string> selected, ResourceId? resource, [EnumeratorCancellation] CancellationToken cancellation)
+    internal IAsyncEnumerable<ReceivedBusFrame> BridgeFrames() => ObserveFrames(null, null, default);
+
+    private async IAsyncEnumerable<ReceivedBusFrame> ObserveFrames(HashSet<string>? selected, ResourceId? resource, [EnumeratorCancellation] CancellationToken cancellation)
     {
         var view = new FrameView(selected);
         await using var events = view.Stream.Observe(cancellation).GetAsyncEnumerator();
@@ -441,7 +443,12 @@ public sealed partial class HttpTransport : IDisposable
                             using var activity = SdkTelemetry.Start("bus.recv:{channel}", SdkTelemetry.BusTags(frame.Channel, frame.Scope), frame.Channel, parent);
                             BusLog.Line("RECV", frame.Channel, frame.Payload);
                             if (frame.CorrelationId is string correlation && pending.TryGetValue(correlation, out var reply) && (frame.Channel == reply.Result || frame.Channel == reply.Failure)) reply.Completion.TrySetResult(frame);
-                            foreach (var listener in listeners) { if (listener.Channels.Contains(frame.Channel)) listener.Stream.Publish(new ReceivedBusFrame(frame, parent)); }
+                            if (listeners.Count > 0)
+                            {
+                                var received = new ReceivedBusFrame(frame, parent);
+                                foreach (var listener in listeners)
+                                    if (listener.Channels?.Contains(frame.Channel) != false) listener.Stream.Publish(received);
+                            }
                         }
                     }
                 }
@@ -572,7 +579,7 @@ public sealed partial class HttpTransport : IDisposable
         owned?.Dispose();
     }
 
-    private sealed record FrameView(HashSet<string> Channels)
+    private sealed record FrameView(HashSet<string>? Channels)
     {
         internal Broadcast<ReceivedBusFrame> Stream { get; } = new();
     }
