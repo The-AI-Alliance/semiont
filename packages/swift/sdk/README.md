@@ -31,7 +31,11 @@ The HTTP transport uses the caller's AsyncHTTPClient `HTTPClient` for every requ
 
 `HttpTransport` exposes connection state, independent lossless `frames` sequences (several channels can share one ordered sequence), scoped holds, correlated requests, uploads and content reads. `dispose()` synchronously cancels owned work and finishes sequences. A second iterator on an events, upload or content stream throws `MultipleConsumers`. Incoming trace carriers are lifted out of payloads into `ReceivedFrame.trace`. OpenTelemetry's API is the library's only telemetry dependency; the application selects its provider and exporters.
 
-The concurrency primitives require macOS 15 or iOS 18; Linux is tested in the Swift container. `Scripts/install-driver.sh` builds the instrumented Linux wire driver and bundles its Swift runtime. The conformance application chooses OTLP/HTTP exporters when the harness supplies `OTEL_EXPORTER_OTLP_ENDPOINT`. Its runtime matches Ubuntu 26.04. `Scripts/conformance-coverage.sh` reports the library code the driver exercised, separately from Rust's LLVM profiles.
+The concurrency primitives require macOS 15 or iOS 18. CI builds and tests the SDK in the Linux Swift container and natively on Apple silicon. Both jobs use the pinned Swift toolchain and run the formatter, census, and compile-failure checks. On the provisioned macOS runner, the unit tests run from `packages/swift/sdk` with `swift test --jobs 4 --force-resolved-versions`.
+
+The dependency lock includes the OpenTelemetry exporter's macOS dependencies. The CI commands use `--force-resolved-versions` so each platform builds from the same lock.
+
+`Scripts/install-driver.sh` builds the instrumented Linux wire driver and bundles its Swift runtime. The conformance application chooses OTLP/HTTP exporters when the harness supplies `OTEL_EXPORTER_OTLP_ENDPOINT`. Its runtime matches Ubuntu 26.04. `Scripts/conformance-coverage.sh` reports the library code the driver exercised, separately from Rust's LLVM profiles.
 
 Sign-in uses the same caller-owned HTTP client. `ServiceToken` supports a client
 secret or an RSA key (`CryptoExtras._RSA.Signing.PrivateKey`); `AgentToken` asks

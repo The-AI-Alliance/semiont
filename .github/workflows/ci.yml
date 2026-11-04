@@ -244,10 +244,10 @@ jobs:
               - 'images/*/Dockerfile'
               - 'images/shared/supervise.sh'
               - 'images/e2e/e2e-localhost-bridge.mjs'
-            # The Kotlin SDK. The JDK its builds run on is its .java-version,
-            # read by packages/kotlin/scripts/jdk-version.sh, which is all's.
             swift:
               - 'packages/swift/**'
+            # The Kotlin SDK. The JDK its builds run on is its .java-version,
+            # read by packages/kotlin/scripts/jdk-version.sh, which is all's.
             kotlin:
               - 'packages/kotlin/**'
             csharp:
@@ -2394,12 +2394,6 @@ jobs:
           verbose: true
         continue-on-error: true
 
-  # The Kotlin SDK: its build, its Kotlin tests and the Java tests that call
-  # it as a Java program does, its ABI against the committed dump, its census
-  # and the programs that must not compile. It runs in the JDK image
-  # .java-version names, as images/scripts/build-session.sh builds it, as this
-  # runner's user, so what it leaves in the checkout and in Gradle's home is
-  # the runner's to cache.
   test-sdk-swift:
     name: Swift SDK
     runs-on: ubuntu-latest
@@ -2429,6 +2423,43 @@ jobs:
           name: swift-sdk
         continue-on-error: true
 
+  test-sdk-swift-macos:
+    name: Swift SDK (macOS)
+    runs-on: macos-26
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.swift == 'true'
+    defaults:
+      run:
+        working-directory: packages/swift/sdk
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+      - name: Install the pinned Swift toolchain
+        run: |
+          version=$("$GITHUB_WORKSPACE/packages/swift/scripts/swift-version.sh")
+          package="$RUNNER_TEMP/swift-$version.pkg"
+          curl --fail --silent --show-error --location --retry 2 \
+            "https://download.swift.org/swift-$version-release/xcode/swift-$version-RELEASE/swift-$version-RELEASE-osx.pkg" \
+            --output "$package"
+          pkgutil --check-signature "$package"
+          sudo installer -pkg "$package" -target /
+          rm -f "$package"
+          bin="/Library/Developer/Toolchains/swift-$version-RELEASE.xctoolchain/usr/bin"
+          test "$("$bin/swift" --version | awk '$1 == "Apple" && $2 == "Swift" && $3 == "version" { print $4 }')" = "$version"
+          printf '%s\n' "$bin" >> "$GITHUB_PATH"
+      - name: Build and check
+        run: |
+          swift test --jobs 4 --force-resolved-versions
+          swift format lint --strict --recursive .
+          Scripts/census.sh
+          Scripts/refusals.sh
+
+  # The Kotlin SDK: its build, its Kotlin tests and the Java tests that call
+  # it as a Java program does, its ABI against the committed dump, its census
+  # and the programs that must not compile. It runs in the JDK image
+  # .java-version names, as images/scripts/build-session.sh builds it, as this
+  # runner's user, so what it leaves in the checkout and in Gradle's home is
+  # the runner's to cache.
   test-sdk-kotlin:
     name: Kotlin SDK
     runs-on: ubuntu-latest
@@ -3849,6 +3880,7 @@ jobs:
       - test-sdk-csharp
       - test-sdk-csharp-windows
       - test-sdk-swift
+      - test-sdk-swift-macos
       - test-sdk-kotlin-store
       - test-inference-python
       - test-service-python
