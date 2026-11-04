@@ -31,6 +31,7 @@ let package = Package(
         .product(name: "AsyncHTTPClient", package: "async-http-client"),
         .product(name: "OpenTelemetryApi", package: "opentelemetry-swift-core"),
       ], swiftSettings: [.treatAllWarnings(as: .error)],
+      linkerSettings: [.linkedLibrary("iconv", .when(platforms: [.macOS, .iOS]))],
       plugins: ["GenerateSemiontPlugin"]),
     .executableTarget(
       name: "GenerateSemiont", dependencies: ["SemiontCodegen"],

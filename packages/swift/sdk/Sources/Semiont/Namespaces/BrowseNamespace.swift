@@ -3,12 +3,20 @@ public struct BrowseNamespace: Sendable {
   let bus: EventBus
   let lifetime: Lifetime
   let content: (any ContentTransport)?
+  let vocabulary: VocabularyQueries
+
+  public func entityTypes() -> Cached<[String]> { vocabulary.entityTypes }
+  public func tagSchemas() -> Cached<[TagSchema]> { vocabulary.tagSchemas }
 
   private var contentTransport: any ContentTransport {
     get throws {
       guard let content else { throw TransportError(.error, "No content transport is configured") }
       return content
     }
+  }
+  public func resourceContent(_ resourceId: ResourceId) async throws -> String {
+    let representation = try await resourceRepresentation(resourceId)
+    return try decodeRepresentation(representation.bytes, contentType: representation.contentType)
   }
   public func resourceGraph(_ resourceId: ResourceId) async throws -> GetResourceResponse {
     try await contentTransport.getResourceGraph(resourceId)

@@ -134,7 +134,7 @@ extension ProbeTransport: ContentTransport {
   }
   func getBinary(_ resource: ResourceId) async throws -> Content {
     recordContent("getBinary", resource: resource)
-    return Content(contentType: "application/octet-stream", bytes: Data([0, 255]))
+    return Content(contentType: "text/plain; charset=windows-1252", bytes: Data([0, 255]))
   }
   func getBinaryStream(_ resource: ResourceId) async throws -> ContentStream {
     recordContent("getBinaryStream", resource: resource)
@@ -173,6 +173,18 @@ extension ProbeTransport: ContentTransport {
 }
 private let callsByName:
   [String: @Sendable (SemiontClient, [String: JSONValue]) async throws -> JSONValue?] = [
+    "browse.entityTypes": { client, _ in
+      try await encoded(client.browse.entityTypes().fresh())
+    },
+    "browse.tagSchemas": { client, _ in
+      try await encoded(client.browse.tagSchemas().fresh())
+    },
+    "browse.resourceContent": { client, args in
+      let decodedText = try await client.browse.resourceContent(
+        decoded(ResourceId.self, required(args, "resourceId")))
+      #expect(decodedText == "\u{0}ÿ")
+      return .string(decodedText)
+    },
     "browse.resourceGraph": { client, args in
       try await encoded(
         client.browse.resourceGraph(decoded(ResourceId.self, required(args, "resourceId"))))
@@ -184,7 +196,7 @@ private let callsByName:
     "browse.resourceRepresentation": { client, args in
       let reply = try await client.browse.resourceRepresentation(
         decoded(ResourceId.self, required(args, "resourceId")))
-      #expect(reply.contentType == "application/octet-stream")
+      #expect(reply.contentType == "text/plain; charset=windows-1252")
       #expect(reply.bytes == Data([0, 255]))
       return nil
     },

@@ -119,14 +119,12 @@
         },
         {
           "method": "entityTypes",
-          "notYetReached": {"swift": "Live cache queries remain to implement."},
           "shape": "cache",
           "via": { "request": "browse:entity-types-requested" },
           "cases": [{ "args": {}, "sends": {} }]
         },
         {
           "method": "tagSchemas",
-          "notYetReached": {"swift": "Live cache queries remain to implement."},
           "shape": "cache",
           "via": { "request": "browse:tag-schemas-requested" },
           "cases": [{ "args": {}, "sends": {} }]
@@ -147,7 +145,6 @@
         },
         {
           "method": "resourceContent",
-          "notYetReached": {"swift": "Content namespace wiring remains to implement."},
           "shape": "promise",
           "via": { "content": "getBinary" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]

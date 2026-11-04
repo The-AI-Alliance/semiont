@@ -36,7 +36,9 @@ public final class SemiontClient: Sendable {
     let wire = Bus(transport)
     self.wire = wire
     let content = content ?? (transport as? any ContentTransport)
-    browse = BrowseNamespace(wire: wire, bus: bus, lifetime: lifetime, content: content)
+    let vocabulary = VocabularyQueries(wire: wire, lifetime: lifetime)
+    browse = BrowseNamespace(
+      wire: wire, bus: bus, lifetime: lifetime, content: content, vocabulary: vocabulary)
     gather = GatherNamespace(wire: wire, lifetime: lifetime)
     match = MatchNamespace(wire: wire, bus: bus, lifetime: lifetime)
     yield = YieldNamespace(
@@ -59,6 +61,7 @@ public final class SemiontClient: Sendable {
         for try await frame in source {
           if Task.isCancelled { break }
           bus.receive(frame)
+          await vocabulary.refresh(on: frame.channel, coalescing: true)
         }
       } catch {
         // The transport's failures are its public error channel; bridge teardown is silent.
@@ -66,6 +69,20 @@ public final class SemiontClient: Sendable {
     }
     life.keep(task, id: id)
     life.onEnd { source.dispose() }
+    let connection = transport.state.observations()
+    life.start {
+      var seenOpen = false
+      var wasOpen = false
+      for await state in connection {
+        if Task.isCancelled || state == .closed { break }
+        let open = state == .open
+        if open, seenOpen, !wasOpen {
+          await vocabulary.refresh(on: "reopened", coalescing: false)
+        }
+        seenOpen = seenOpen || open
+        wasOpen = open
+      }
+    }
   }
   public static func fromHttp(baseUrl: String, httpClient: HTTPClient, token: String? = nil)
     async throws -> SemiontClient
