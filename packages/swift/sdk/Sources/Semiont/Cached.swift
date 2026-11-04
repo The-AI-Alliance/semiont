@@ -52,6 +52,11 @@ public final class Cached<Value: Sendable>: AsyncSequence, Sendable {
   public func fresh() async throws -> Value { try await entry.fresh() }
   public func invalidate() async { await entry.invalidate() }
   func refreshIfKnown(coalescing: Bool) async { await entry.refreshIfKnown(coalescing: coalescing) }
+  func writeIfKnown(_ value: Value) async { await entry.writeIfKnown(value) }
+  func editIfKnown(_ change: @escaping @Sendable (Value) -> Value) async {
+    await entry.editIfKnown(change)
+  }
+  func removeIfKnown(_ error: BusRequestError) async { await entry.removeIfKnown(error) }
 }
 
 private actor CacheEntry<Value: Sendable> {
@@ -63,9 +68,11 @@ private actor CacheEntry<Value: Sendable> {
   private var listeners: [UUID: (stream: AsyncStream<State>.Continuation, scope: ResourceHold?)] =
     [:]
   private var flights: [UUID: Task<Value, any Error>] = [:]
+  private var flightEdits: [UUID: [@Sendable (Value) -> Value]] = [:]
   private var current: UUID?
   private var validation: UUID?
   private var known = false
+  private var mutation: UInt64 = 0
   private var windowOpen = false
   private var refreshOwed = false
 
@@ -118,15 +125,20 @@ private actor CacheEntry<Value: Sendable> {
     if let current, let flight = flights[current] { return flight }
     known = true
     let id = UUID()
+    let revision = mutation
     let task = Task {
       defer {
         flights.removeValue(forKey: id)
+        flightEdits.removeValue(forKey: id)
         if current == id { current = nil }
       }
       try Task.checkCancellation()
       let value = try await fetch()
       guard !lifetime.ended else { throw CancellationError() }
-      publish(.ready(value))
+      if mutation == revision {
+        let edited = (flightEdits[id] ?? []).reduce(value) { value, edit in edit(value) }
+        publish(.ready(edited))
+      }
       return value
     }
     current = id
@@ -191,6 +203,32 @@ private actor CacheEntry<Value: Sendable> {
     }
   }
 
+  func writeIfKnown(_ value: Value) {
+    guard known, !lifetime.ended else { return }
+    replace(.ready(value))
+  }
+
+  func editIfKnown(_ change: @escaping @Sendable (Value) -> Value) {
+    guard known, !lifetime.ended else { return }
+    // Keep unrelated changes from reads already underway, applying the edit to their answers too.
+    for id in flights.keys { flightEdits[id, default: []].append(change) }
+    if case .ready(let value) = state { publish(.ready(change(value))) }
+  }
+
+  func removeIfKnown(_ error: BusRequestError) {
+    guard known, !lifetime.ended else { return }
+    replace(.failed(error))
+  }
+
+  private func replace(_ state: State) {
+    // Earlier reads can finish for their callers but cannot undo a bus mutation.
+    mutation &+= 1
+    current = nil
+    validation = nil
+    refreshOwed = false
+    publish(state)
+  }
+
   private func openWindow() {
     invalidate()
     windowOpen = true
@@ -215,6 +253,7 @@ private actor CacheEntry<Value: Sendable> {
       listener.stream.finish()
     }
     flights.removeAll()
+    flightEdits.removeAll()
     listeners.removeAll()
     refreshOwed = false
   }

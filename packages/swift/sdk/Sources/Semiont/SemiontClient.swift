@@ -36,7 +36,7 @@ public final class SemiontClient: Sendable {
     let wire = Bus(transport)
     self.wire = wire
     let content = content ?? (transport as? any ContentTransport)
-    let live = LiveQueries(wire: wire, transport: transport, lifetime: lifetime)
+    let live = LiveQueries(wire: wire, transport: transport, content: content, lifetime: lifetime)
     browse = BrowseNamespace(
       wire: wire, bus: bus, lifetime: lifetime, content: content, live: live)
     gather = GatherNamespace(wire: wire, lifetime: lifetime, live: live)
