@@ -38,11 +38,12 @@ internal sealed class ScalarText(Rune[] points)
     {
         var result = new StringBuilder();
         var space = false;
+        Span<char> encoded = stackalloc char[2];
         foreach (var point in text.EnumerateRunes())
         {
             if (Rune.IsWhiteSpace(point)) { space = result.Length > 0; continue; }
             if (space) result.Append(' ');
-            result.Append(point.ToString());
+            result.Append(encoded[..point.EncodeToUtf16(encoded)]);
             space = false;
         }
         return result.ToString();

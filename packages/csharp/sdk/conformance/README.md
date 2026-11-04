@@ -1,9 +1,11 @@
-# C# wire conformance driver
+# C# conformance driver
 
 `WireDriver` runs the shared [wire corpus](../../../../protocol/conformance/sdk/wire/)
 through the SDK's public transport APIs. It uses the JSON-line protocol described in
 [the suite](../../../../protocol/conformance/sdk/README.md), including concurrent
 requests, cancellation, observed frames, connection states, failures, and upload progress.
+With `--live`, the driver uses the public client to exercise cached queries and job
+delegation against the shared [live corpus](../../../../protocol/conformance/sdk/live/).
 The driver exports the SDK's BCL activities and metrics through an application-owned
 OpenTelemetry provider. The SDK itself takes no OpenTelemetry package dependency.
 

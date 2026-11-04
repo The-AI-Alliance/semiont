@@ -7,29 +7,31 @@ namespace Semiont;
 public sealed class SemiontClient : IDisposable
 {
     private readonly HttpContentTransport content;
+    private readonly LiveQueries live;
 
     public SemiontClient(string baseUrl, string? token = null, HttpClient? httpClient = null,
-        TimeProvider? timeProvider = null, Random? random = null)
+        TimeProvider? timeProvider = null, Random? random = null, Timing? timing = null, CachePersistence? persistence = null)
         : this(new HttpTransport(baseUrl, token, ProtocolFacts.Channels("everyone").Concat(ProtocolFacts.OperationReplies()),
-            httpClient: httpClient, timeProvider: timeProvider, random: random))
+            timing: timing, httpClient: httpClient, timeProvider: timeProvider, random: random), persistence)
     {
     }
 
     /// <summary>Owns the transport. Supply subscriptions for the operations the client will use.</summary>
-    public SemiontClient(HttpTransport transport)
+    public SemiontClient(HttpTransport transport, CachePersistence? persistence = null)
     {
         ArgumentNullException.ThrowIfNull(transport);
         Transport = transport;
         Wire = new Bus(transport);
         Bus = new EventBus();
         content = new HttpContentTransport(transport);
-        Browse = new BrowseNamespace(Wire, Bus, content, transport.Closed);
+        live = new LiveQueries(Wire, Bus, transport, content, persistence);
+        Browse = new BrowseNamespace(Wire, Bus, content, transport.Closed, live);
         Bind = new BindNamespace(Wire, Bus);
         Beckon = new BeckonNamespace(Wire, Bus);
-        Gather = new GatherNamespace(Wire);
-        Match = new MatchNamespace(Wire, Bus);
+        Gather = new GatherNamespace(Wire, live);
+        Match = new MatchNamespace(Wire, Bus, live);
         Job = new JobNamespace(Wire, Bus, transport.Clock, transport.Closed);
-        var follower = new JobFollower(Wire, Bus, Job, transport.Clock, transport.Closed);
+        var follower = new JobFollower(Wire, Bus, Job, transport.Clock, transport.Closed, transport.Settings);
         Mark = new MarkNamespace(Wire, Bus, follower);
         Yield = new YieldNamespace(follower, Wire, Bus, content);
         Frame = new FrameNamespace(Wire);
@@ -61,11 +63,16 @@ public sealed class SemiontClient : IDisposable
         {
             await foreach (var frame in Transport.BridgeFrames().ConfigureAwait(false)) Bus.Receive(frame);
         }
-        finally { Bus.Dispose(); }
+        finally
+        {
+            live.Dispose();
+            Bus.Dispose();
+        }
     }
 
     public void Dispose()
     {
+        live.Dispose();
         try { content.Dispose(); }
         finally
         {

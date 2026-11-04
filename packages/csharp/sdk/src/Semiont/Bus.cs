@@ -35,6 +35,8 @@ public sealed class BusOperation<TRequest, TResult, TFailure>
 
 public sealed record ReceivedBusFrame(BusFrame Frame, ActivityContext Trace)
 {
+    internal string? EventId { get; init; }
+
     public UserId? UserId =>
         Frame.Payload.TryGetProperty("_userId", out var value) && value.ValueKind == JsonValueKind.String &&
         Identifiers.UserId.TryParse(value.GetString(), out var user) ? user : null;

@@ -40,6 +40,31 @@ the upload for the created resource. Dispose an upload to abandon its request.
 `Yield.CreateFromTokenAsync` reads the source first and uploads the copy in a
 format that can be authored, using plain text for other formats.
 
+Live reads such as `Browse.Resource` share a cache by key. A resource observer
+holds that resource's event subscription until the enumerator ends. Refreshes
+keep the last value visible while the new request runs. Use `FreshAsync` on the
+query when you need a new answer for a one-off read.
+
+```csharp
+await foreach (var state in client.Browse.Resource(resourceId))
+{
+    var message = state switch
+    {
+        CacheState<ResourceDescriptor>.Pending => "Loading…",
+        CacheState<ResourceDescriptor>.Ready(var resource) => resource.Name,
+        CacheState<ResourceDescriptor>.Failed(var error) => error.Message,
+        _ => throw new InvalidOperationException("Unknown cache state"), // C# requires a fallback.
+    };
+    Console.WriteLine(message);
+}
+```
+
+Supply `CachePersistence` when constructing a client to keep selected values
+and their replay bookmarks across sessions. Use a separate document for each
+knowledge base and principal. Its `Write` callback should replace the whole
+document atomically. A restored value is visible immediately and revalidated
+when first read.
+
 `Semiont.Annotations.AnnotationTools` reads annotation bodies and selectors,
 reconciles a quote against its source, and builds annotations from a whole resource,
 plain text, or PDF anchored text. Spans count Unicode code points. The builders

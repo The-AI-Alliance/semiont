@@ -6,8 +6,16 @@ namespace Semiont.Namespaces;
 public sealed class GatherNamespace
 {
     private readonly Bus wire;
+    private readonly LiveQueries live;
 
-    internal GatherNamespace(Bus wire) => this.wire = wire;
+    internal GatherNamespace(Bus wire, LiveQueries live)
+    {
+        this.wire = wire;
+        this.live = live;
+    }
+
+    public Cached<IReadOnlyList<GetReferencedByResponseReferencedByItem>> ReferencedBy(ResourceId resourceId) =>
+        live.ReferencedBy.Observe(resourceId);
 
     public Running<GatherAnnotationComplete> Annotation(ResourceId resourceId, AnnotationId annotationId,
         GatherAnnotationOptions? options = null)

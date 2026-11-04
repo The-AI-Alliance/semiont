@@ -58,16 +58,25 @@ internal static class BusDescriptors
                 .Append(scopes.Contains(channel) ? "true" : "false").Append(");\n");
         }
         code.Append("}\npublic static class BusOperations {\n");
+        var limits = new List<string>();
         foreach (var row in root.GetProperty("operations").EnumerateArray())
         {
             var request = Required(row, "request");
             var result = Required(row, "result");
             var failure = Required(row, "failure");
+            if (types[result] == "InferenceLimitsResult")
+            {
+                if (types[request] != "InferenceLimitsRequest" || types[failure] != "CommandError")
+                    throw new InvalidOperationException("Unexpected limits operation shape " + request);
+                limits.Add(Member(request));
+            }
             code.Append("public static BusOperation<").Append(types[request]).Append(", ")
                 .Append(types[result]).Append(", ").Append(types[failure]).Append("> ").Append(Member(request))
                 .Append(" { get; } = new(BusChannels.").Append(Member(request)).Append(", BusChannels.")
                 .Append(Member(result)).Append(", BusChannels.").Append(Member(failure)).Append(");\n");
         }
+        code.Append("internal static System.Collections.Generic.IReadOnlyList<BusOperation<InferenceLimitsRequest, InferenceLimitsResult, CommandError>> Limits { get; } = [")
+            .Append(string.Join(", ", limits)).Append("];\n");
         return code.Append("}\n").ToString();
     }
 

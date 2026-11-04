@@ -67,6 +67,7 @@ public sealed partial class HttpTransport : IDisposable
     }
 
     internal TimeProvider Clock => clock;
+    internal Timing Settings => timing;
     internal CancellationToken Closed => lifetime.Token;
 
     public string BaseUrl { get; }
@@ -159,6 +160,15 @@ public sealed partial class HttpTransport : IDisposable
                 }
             }
             catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        }
+    }
+
+    internal void RestoreWatermarks(IReadOnlyDictionary<string, string> saved)
+    {
+        lock (gate)
+        {
+            if (closed) return;
+            foreach (var (scope, id) in saved) watermarks.TryAdd(scope, id);
         }
     }
 
@@ -448,7 +458,7 @@ public sealed partial class HttpTransport : IDisposable
                             if (frame.CorrelationId is string correlation && pending.TryGetValue(correlation, out var reply) && (frame.Channel == reply.Result || frame.Channel == reply.Failure)) reply.Completion.TrySetResult(frame);
                             if (listeners.Count > 0)
                             {
-                                var received = new ReceivedBusFrame(frame, parent);
+                                var received = new ReceivedBusFrame(frame, parent) { EventId = message.Id };
                                 foreach (var listener in listeners)
                                     if (listener.Channels?.Contains(frame.Channel) != false) listener.Stream.Publish(received);
                             }

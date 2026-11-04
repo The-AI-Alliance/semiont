@@ -1,18 +1,17 @@
 using System.Text.Json;
 using Semiont.Errors;
 using Semiont.Identifiers;
+using Semiont.Http;
 using Semiont.Namespaces;
 using Semiont.Protocol;
 using Semiont.Types;
 
 namespace Semiont;
 
-internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, TimeProvider clock, CancellationToken closed)
+internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, TimeProvider clock, CancellationToken closed, Timing timing)
 {
     private static readonly string[] LifecycleChannels =
         [BusChannels.JobReportProgress.Name, BusChannels.JobFail.Name, BusChannels.JobComplete.Name];
-    private static readonly int SilenceMs = ProtocolFacts.Timing("jobSilenceMs").GetInt32();
-    private static readonly int PollMs = ProtocolFacts.Timing("jobStatusPollMs").GetInt32();
 
     internal Delegation<T> Follow<T>(JobCreateCommand command, ResourceId resource, Func<JobCompleteCommand, T> complete,
         int? stallMs = null) => new((report, cancellation) => FollowAsync(command, resource, complete, stallMs, report, cancellation));
@@ -43,7 +42,7 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
             var created = await CreateAsync(command, stallMs, stop).ConfigureAwait(false);
             report?.Invoke(new JobEvent<T>.Created(created));
             var job = created.JobId;
-            double? askAt = Now() + SilenceMs;
+            double? askAt = Now() + timing.JobSilenceMs;
             double? stallAt = stallMs;
             Task<bool>? ready = null;
 
@@ -62,7 +61,7 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
                     {
                         case Lifecycle.Progress(var progress):
                             if (progress.Progress is { } detail) report?.Invoke(new JobEvent<T>.Progress(detail));
-                            askAt = now + SilenceMs;
+                            askAt = now + timing.JobSilenceMs;
                             break;
                         case Lifecycle.Failed(var failure):
                             if (failure.WillRetry != true) throw Failed(job, failure.Error, failure.FailureClass);
@@ -106,7 +105,7 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
                 {
                     pollLifetime = CancellationTokenSource.CreateLinkedTokenSource(stop);
                     polling = PollAsync(job, pollLifetime.Token);
-                    askAt = elapsed + PollMs;
+                    askAt = elapsed + timing.JobStatusPollMs;
                 }
 
                 if (ready is { IsCompleted: true })
