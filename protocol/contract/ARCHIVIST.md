@@ -52,7 +52,7 @@ keys:
 
 | Key | Meaning |
 |---|---|
-| `project.name` | The knowledge base's name; it names the state directory |
+| `project.name` | The knowledge base's name, which `browse:kb-requested` answers |
 | `site.domain` | The knowledge base's identity: its DID is `did:web:<domain>`, and the audience of the tokens it accepts is `https://<domain>` with each `:` written `/` |
 | `git.sync` | Whether changes are staged with git |
 
@@ -76,7 +76,7 @@ Three trees:
 | Tree | Where | Holds |
 |---|---|---|
 | The working tree | `root` | The content, and under `.semiont/events/` the event log. Committed by people |
-| The state directory | `<stateHome>/semiont/<name>/` | The views and projections. Rebuilt from the log; never committed |
+| The state directory | `stateHome` | The views and projections, at its top: an Archivist serves one knowledge base, so the volume is that knowledge base's alone. Rebuilt from the log; never committed |
 | The anchored-text store | `anchoredTextDir` | Text extracted from content, with where each word is. Written by the Archivist, from what the Smelter stores over HTTP |
 
 ### Identifiers and shards
@@ -577,17 +577,24 @@ The Archivist boots in this order, and a failure at any step ends the process wi
 4. Sign in: its own account's token at the issuer, which is its bearer on the bus; the gateway
    names it by that account, as an agent, and answers its DID at `GET /api/users/me`. The token is
    renewed before it expires.
-5. Ask staging whether it can work ([Staging](#staging)).
-6. **Rebuild the views from the log,** unless `skipRebuild` is set: replay the `__system__` stream
+5. **Ask the gateway which knowledge base it serves:** the `resource` of its protected-resource
+   metadata (`GET /.well-known/oauth-protected-resource`, public), the audience of every token it
+   admits. Where it is not the tree's (`https://<domain>` with each `:` written `/`), refuse to
+   start, naming the gateway, what it serves, and the tree with its DID; where the gateway does not
+   answer it, refuse saying so. Nothing of the tree has been touched: no view rebuilt, no command
+   taken. A tree beside another knowledge base's issuer, account and gateway would otherwise have
+   that knowledge base's commands written into its log.
+6. Ask staging whether it can work ([Staging](#staging)).
+7. **Rebuild the views from the log,** unless `skipRebuild` is set: replay the `__system__` stream
    into its three projections, each begun empty; then, with the storage-uri index begun empty, for
    every stream, build the view from its events and write it, and replay its events into the
    index. A stream that fails is logged and skipped, and the rest are rebuilt. A directory of the
    log that is not a stream is noted and passed over. Then **reap:** delete every view whose
    resource has no stream.
-7. **Seed the vocabulary:** for each default entity type the `__system__` stream has not recorded —
+8. **Seed the vocabulary:** for each default entity type the `__system__` stream has not recorded —
    `Person`, `Organization`, `Location`, `Event`, `Concept`, `Product`, `Technology`, `Date`,
    `Author` — add it, as the knowledge base itself (`did:web:<domain>`).
-8. Subscribe to its channels on the bus, publish its facts, the seeded vocabulary's first, and
+9. Subscribe to its channels on the bus, publish its facts, the seeded vocabulary's first, and
    serve its HTTP surface.
 
 On `SIGTERM` or `SIGINT` it closes its HTTP surface, stages everything pending, and exits with

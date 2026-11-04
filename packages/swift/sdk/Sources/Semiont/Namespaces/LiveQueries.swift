@@ -1,66 +1,4 @@
 import Foundation
-import Synchronization
-
-final class KeyedQueries<Key: Hashable & Sendable, Value: Sendable>: Sendable {
-  private let entries = Mutex<[Key: Cached<Value>]>([:])
-  private let transport: any Transport
-  private let lifetime: Lifetime
-  private let scope: (@Sendable (Key) -> ResourceId)?
-  private let kept: (@Sendable (Key) -> KeptValue<Value>?)?
-  private let invalidationWindowMs: Int
-  private let fetch: @Sendable (Key) async throws -> Value
-
-  init(
-    transport: any Transport, lifetime: Lifetime, scope: (@Sendable (Key) -> ResourceId)? = nil,
-    kept: (@Sendable (Key) -> KeptValue<Value>?)? = nil, invalidationWindowMs: Int,
-    fetch: @escaping @Sendable (Key) async throws -> Value
-  ) {
-    self.transport = transport
-    self.lifetime = lifetime
-    self.scope = scope
-    self.kept = kept
-    self.invalidationWindowMs = invalidationWindowMs
-    self.fetch = fetch
-    lifetime.onEnd { [weak self] in
-      self?.entries.withLock { $0.removeAll() }
-    }
-  }
-
-  func query(_ key: Key) -> Cached<Value> {
-    let transport = transport
-    let fetch = fetch
-    let hold: (@Sendable () async -> ResourceHold)?
-    if let resource = scope?(key) {
-      hold = { await transport.subscribeToResource(resource) }
-    } else {
-      hold = nil
-    }
-    return entries.withLock { entries in
-      if let query = entries[key] { return query }
-      let query = Cached(
-        lifetime: lifetime, hold: hold, kept: kept?(key), invalidationWindowMs: invalidationWindowMs
-      ) {
-        try await fetch(key)
-      }
-      if !lifetime.ended { entries[key] = query }
-      return query
-    }
-  }
-
-  func existing(_ key: Key) -> Cached<Value>? { entries.withLock { $0[key] } }
-
-  func matching(_ matches: (Key) -> Bool) -> [Cached<Value>] {
-    entries.withLock { entries in entries.compactMap { matches($0.key) ? $0.value : nil } }
-  }
-
-  func refresh(_ key: Key?, coalescing: Bool) async {
-    if let key {
-      await existing(key)?.refreshIfKnown(coalescing: coalescing)
-      return
-    }
-    for query in matching({ _ in true }) { await query.refreshIfKnown(coalescing: coalescing) }
-  }
-}
 
 struct LiveQueries: Sendable {
   private enum Query: String, CaseIterable {
@@ -86,21 +24,21 @@ struct LiveQueries: Sendable {
 
   let entityTypes: Cached<[String]>
   let tagSchemas: Cached<[TagSchema]>
-  let resources: KeyedQueries<ResourceId, ResourceDescriptor>
-  let events: KeyedQueries<ResourceId, [AttributedEvent]>
-  let referencedBy: KeyedQueries<ResourceId, [GetReferencedByResponseReferencedByItem]>
-  let annotations: KeyedQueries<ResourceId, [Annotation]>
-  let listedResources: KeyedQueries<ResourceFilters, ListResourcesResponse>
-  let matchedResources: KeyedQueries<SearchKey, MatchResourcesResponse>
+  let resources: Cache<ResourceId, ResourceDescriptor>
+  let events: Cache<ResourceId, [AttributedEvent]>
+  let referencedBy: Cache<ResourceId, [GetReferencedByResponseReferencedByItem]>
+  let annotations: Cache<ResourceId, [Annotation]>
+  let listedResources: Cache<ResourceFilters, ListResourcesResponse>
+  let matchedResources: Cache<SearchKey, MatchResourcesResponse>
   let engines: Cached<[EngineWithLimits]>
-  private let details: KeyedQueries<AnnotationKey, Annotation>
+  private let details: Cache<AnnotationKey, Annotation>
 
   init(
     wire: Bus, transport: any Transport, content: (any ContentTransport)?, lifetime: Lifetime,
-    book: CacheBook?, invalidationWindowMs: Int
+    book: StoragePersister<KeptQuery>?, invalidationWindowMs: Int
   ) {
-    listedResources = KeyedQueries(
-      transport: transport, lifetime: lifetime, invalidationWindowMs: invalidationWindowMs
+    listedResources = Cache(
+      lifetime: lifetime, invalidationWindowMs: invalidationWindowMs
     ) { filters in
       try await wire.request(
         Operations.browseResourcesRequested,
@@ -109,8 +47,8 @@ struct LiveQueries: Sendable {
           offset: filters.offset)
       ).response
     }
-    matchedResources = KeyedQueries(
-      transport: transport, lifetime: lifetime, invalidationWindowMs: invalidationWindowMs
+    matchedResources = Cache(
+      lifetime: lifetime, invalidationWindowMs: invalidationWindowMs
     ) { search in
       let filters = search.filters
       return try await wire.request(
@@ -137,8 +75,8 @@ struct LiveQueries: Sendable {
       try await wire.request(Operations.browseTagSchemasRequested, BrowseTagSchemasRequest())
         .response.tagSchemas
     }
-    resources = KeyedQueries(
-      transport: transport, lifetime: lifetime, scope: \.self,
+    resources = Cache(
+      lifetime: lifetime, hold: { await transport.subscribeToResource($0) },
       kept: { key in book.map { KeptValue(book: $0, key: .resource(key)) } },
       invalidationWindowMs: invalidationWindowMs,
       fetch: { resource in
@@ -146,25 +84,24 @@ struct LiveQueries: Sendable {
           Operations.browseResourceRequested, BrowseResourceRequest(resourceId: resource)
         ).response.resource
       })
-    events = KeyedQueries(
-      transport: transport, lifetime: lifetime, scope: \.self,
-      invalidationWindowMs: invalidationWindowMs
-    ) { resource in
-      try await wire.request(
-        Operations.browseEventsRequested, BrowseEventsRequest(resourceId: resource)
-      ).response.events
-    }
-    referencedBy = KeyedQueries(
-      transport: transport, lifetime: lifetime, scope: \.self,
-      invalidationWindowMs: invalidationWindowMs
-    ) {
-      resource in
-      try await wire.request(
-        Operations.gatherReferencedByRequested, GatherReferencedByRequest(resourceId: resource)
-      ).response.referencedBy
-    }
-    annotations = KeyedQueries(
-      transport: transport, lifetime: lifetime, scope: \.self,
+    events = Cache(
+      lifetime: lifetime, hold: { await transport.subscribeToResource($0) },
+      invalidationWindowMs: invalidationWindowMs,
+      fetch: { resource in
+        try await wire.request(
+          Operations.browseEventsRequested, BrowseEventsRequest(resourceId: resource)
+        ).response.events
+      })
+    referencedBy = Cache(
+      lifetime: lifetime, hold: { await transport.subscribeToResource($0) },
+      invalidationWindowMs: invalidationWindowMs,
+      fetch: { resource in
+        try await wire.request(
+          Operations.gatherReferencedByRequested, GatherReferencedByRequest(resourceId: resource)
+        ).response.referencedBy
+      })
+    annotations = Cache(
+      lifetime: lifetime, hold: { await transport.subscribeToResource($0) },
       kept: { key in book.map { KeptValue(book: $0, key: .annotations(key)) } },
       invalidationWindowMs: invalidationWindowMs,
       fetch: { resource in
@@ -173,8 +110,8 @@ struct LiveQueries: Sendable {
         }
         return try await content.getAnnotations(resource).annotations
       })
-    details = KeyedQueries(
-      transport: transport, lifetime: lifetime, scope: \.resource,
+    details = Cache(
+      lifetime: lifetime, hold: { await transport.subscribeToResource($0.resource) },
       kept: { key in
         book.map { KeptValue(book: $0, key: .annotation(key.resource, key.annotation)) }
       },
@@ -187,17 +124,17 @@ struct LiveQueries: Sendable {
       })
     for key in book?.keys ?? [] {
       switch key {
-      case .resource(let resource): _ = resources.query(resource)
-      case .annotations(let resource): _ = annotations.query(resource)
+      case .resource(let resource): _ = resources.observe(resource)
+      case .annotations(let resource): _ = annotations.observe(resource)
       case .annotation(let resource, let id):
-        _ = details.query(AnnotationKey(resource: resource, annotation: id))
+        _ = details.observe(AnnotationKey(resource: resource, annotation: id))
       case .entityTypes, .tagSchemas: break
       }
     }
   }
 
   func annotation(resourceId: ResourceId, annotationId: AnnotationId) -> Cached<Annotation> {
-    details.query(AnnotationKey(resource: resourceId, annotation: annotationId))
+    details.observe(AnnotationKey(resource: resourceId, annotation: annotationId))
   }
 
   func reopened() async {

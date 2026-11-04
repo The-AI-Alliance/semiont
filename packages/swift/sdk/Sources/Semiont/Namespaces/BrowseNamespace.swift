@@ -11,19 +11,19 @@ public struct BrowseNamespace: Sendable {
   public func resources(filters: ResourceFilters = ResourceFilters()) -> Cached<
     ListResourcesResponse
   > {
-    live.listedResources.query(filters)
+    live.listedResources.observe(filters)
   }
   public func engines() -> Cached<[EngineWithLimits]> { live.engines }
 
   public func resource(_ resourceId: ResourceId) -> Cached<ResourceDescriptor> {
-    live.resources.query(resourceId)
+    live.resources.observe(resourceId)
   }
   public func events(_ resourceId: ResourceId) -> Cached<[AttributedEvent]> {
-    live.events.query(resourceId)
+    live.events.observe(resourceId)
   }
 
   public func annotations(_ resourceId: ResourceId) -> Cached<[Annotation]> {
-    live.annotations.query(resourceId)
+    live.annotations.observe(resourceId)
   }
   public func annotation(resourceId: ResourceId, annotationId: AnnotationId) -> Cached<Annotation> {
     live.annotation(resourceId: resourceId, annotationId: annotationId)

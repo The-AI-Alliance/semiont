@@ -89,11 +89,14 @@ private struct OperationRefused: Error, Equatable {}
 private actor OperationGate {
   let started = Watched(false)
   private var continuation: CheckedContinuation<Void, Never>?
+  private var released = false
   func wait() async {
+    guard !released else { return }
     started.set(true)
     await withCheckedContinuation { continuation = $0 }
   }
   func release() {
+    released = true
     continuation?.resume()
     continuation = nil
   }
@@ -105,13 +108,36 @@ private actor OperationGate {
     await gate.wait()
     return 7
   }
-  let waiter = Task { try await running.completed() }
-  try await within(testDeadlineMs) { for await value in gate.started where value { return } }
-  life.end()
+  let outcome = Watched<Result<Int, any Error>?>(nil)
+  let waiter = Task {
+    do { outcome.set(.success(try await running.completed())) } catch {
+      outcome.set(.failure(error))
+    }
+  }
+  defer {
+    life.end()
+    waiter.cancel()
+  }
   do {
-    _ = try await within(testDeadlineMs) { try await waiter.value }
-    Issue.record("Closed operation completed")
-  } catch let error as BusRequestError { #expect(error.reason == .busClosed) }
+    try await within(testDeadlineMs) {
+      for await value in gate.started where value { return }
+      throw CancellationError()
+    }
+    life.end()
+    let result = try await within(testDeadlineMs) {
+      for await value in outcome {
+        if let value { return value }
+      }
+      throw CancellationError()
+    }
+    switch result {
+    case .success: Issue.record("Closed operation completed")
+    case .failure(let error as BusRequestError): #expect(error.reason == .busClosed)
+    case .failure(let error): Issue.record("Closing the operation raised \(error)")
+    }
+  } catch {
+    Issue.record("Could not observe the operation start and close: \(error)")
+  }
   await gate.release()
 }
 @Test func runningAwaitCancellationStopsOwnedWorkAndRefusesASecondReader() async throws {

@@ -8,13 +8,13 @@ import Testing
   let resource = try ResourceId("one")
   let key = KeptQuery.annotations(resource)
 
-  let first = CacheBook(config)
+  let first = StoragePersister<KeptQuery>(config)
   first.heard("e-ignored", in: resource)
   first.heard("p-one-1", in: resource)
   first.store(key, ["one"])
   first.close()
 
-  let busy = CacheBook(config)
+  let busy = StoragePersister<KeptQuery>(config)
   #expect(busy.bookmarks == [resource: "p-one-1"])
   #expect(busy.load(key, as: [String].self) == ["one"])
   busy.begin()
@@ -23,7 +23,7 @@ import Testing
   busy.close()
   busy.end()
 
-  let restored = CacheBook(config)
+  let restored = StoragePersister<KeptQuery>(config)
   #expect(restored.bookmarks == [resource: "p-one-1"])
   #expect(restored.load(key, as: [String].self) == ["one", "two"])
   restored.close()

@@ -79,7 +79,8 @@ private func status(_ session: SemiontSession) -> String {
       let told = Mutex<[String]>([])
       let errors = Mutex<[String]>([])
       let session = SemiontSession(
-        kb: target(), kept: kept, renew: { try await script.renew($0) },
+        kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
+        renew: { try await script.renew($0) },
         validate: { try await script.validate($0) }, reconnectMs: 200,
         onAuthFailed: { reason in told.withLock { $0.append(reason.rawValue) } })
       let events = session.errors()
@@ -139,7 +140,7 @@ private func status(_ session: SemiontSession) -> String {
   )
   let calls = Mutex(0)
   let session = SemiontSession(
-    kb: target(), kept: kept,
+    kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
     renew: { _ in
       calls.withLock { $0 += 1 }
       try await sleepMilliseconds(80)
@@ -178,7 +179,7 @@ private func status(_ session: SemiontSession) -> String {
       access: access, clientId: scriptClientID, refresh: "refresh", tokenEndpoint: "issuer"))
   let entered = Watched(false)
   let session = SemiontSession(
-    kb: target(), kept: kept,
+    kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
     renew: { _ in
       entered.set(true)
       try await sleepMilliseconds(10_000)
@@ -218,7 +219,8 @@ private struct UnwritableSignIn: SignInKept {
     entry: HeldSignIn(
       access: access, clientId: scriptClientID, refresh: "refresh", tokenEndpoint: "issuer"))
   let session = SemiontSession(
-    kb: target(), kept: kept, renew: { _ in throw SignInError(.exchange, "refused", status: 400) },
+    kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
+    renew: { _ in throw SignInError(.exchange, "refused", status: 400) },
     validate: { _ in throw SpecFailure.shape("Must not validate") })
   defer { session.dispose() }
   await session.start()
@@ -230,7 +232,8 @@ private struct UnwritableSignIn: SignInKept {
     HeldSignIn(
       access: access, clientId: scriptClientID, refresh: "refresh", tokenEndpoint: "issuer"))
   let session = SemiontSession(
-    kb: target(), kept: kept, renew: { _ in "renewed" },
+    kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
+    renew: { _ in "renewed" },
     validate: { _ in
       try UserResponse(
         did: UserId("did:web:kb:users:alice"), domain: "kb", email: nil, image: nil, name: nil)
@@ -251,7 +254,8 @@ private struct UnwritableSignIn: SignInKept {
   let asked = Watched(false)
   let release = Watched(false)
   let session = SemiontSession(
-    kb: target(), kept: kept, renew: { _ in "new-token" },
+    kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
+    renew: { _ in "new-token" },
     validate: { token in
       if token == old {
         asked.set(true)
@@ -283,7 +287,7 @@ private struct UnwritableSignIn: SignInKept {
   let renewals = Mutex(0)
   let errors = Mutex<[String]>([])
   let session = SemiontSession(
-    kb: target(), kept: kept,
+    kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
     renew: { _ in
       let count = renewals.withLock { count in
         count += 1
