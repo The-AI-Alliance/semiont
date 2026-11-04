@@ -95,6 +95,20 @@
   padding: 0 1.5rem; /* Padding on the scrollable content, not the parent */
 }
 
+/* The PDF renderer owns its scrollport so page virtualization, its rail and
+   zoom all observe and move the same viewport. Keep the browse shell as a
+   clipping flex item and let the renderer fill it. */
+.semiont-browse-view__content[data-scroll-owner="renderer"] {
+  overflow: hidden;
+  padding: 0;
+}
+
+.semiont-browse-view__content[data-scroll-owner="renderer"] > div {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
 /* ── Inline embed variant ────────────────────────────────────────────────────
  * Auto-height to content, no inner scroll container, no pane chrome — the
  * viewer drops into a chat bubble / card / list item and the HOST page

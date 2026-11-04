@@ -48,6 +48,8 @@ interface SvgDrawingCanvasProps {
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
   hoverDelayMs?: number;
+  /** Zoom applied by the resource renderer around this canvas. */
+  zoom?: number;
 }
 
 /**
@@ -69,7 +71,8 @@ export function SvgDrawingCanvas({
   selectedMotivation,
   session,
   hoveredAnnotationId,
-  selectedAnnotationId
+  selectedAnnotationId,
+  zoom = 1,
 }: SvgDrawingCanvasProps) {
   const { hoverDelayMs } = useHoverDelay();
   // A person may draw only while the canvas holds the image's text. The quote
@@ -144,10 +147,10 @@ export function SvgDrawingCanvas({
 
     const rect = imageRef.current.getBoundingClientRect();
     return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
+      x: (e.clientX - rect.left) / zoom,
+      y: (e.clientY - rect.top) / zoom
     };
-  }, []);
+  }, [zoom]);
 
   // Handle mouse down - start drawing
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -227,7 +230,7 @@ export function SvgDrawingCanvas({
               endPoint.y <= displayY + displayHeight
             );
             if (hit && imageRef.current) {
-              hitRect = toViewportAnchorRect(imageRef.current.getBoundingClientRect(), displayX, displayY, displayWidth, displayHeight);
+              hitRect = toViewportAnchorRect(imageRef.current.getBoundingClientRect(), displayX * zoom, displayY * zoom, displayWidth * zoom, displayHeight * zoom);
             }
             return hit;
           }
@@ -310,7 +313,7 @@ export function SvgDrawingCanvas({
     setIsDrawing(false);
     setStartPoint(null);
     setCurrentPoint(null);
-  }, [isDrawing, startPoint, drawing, displayDimensions, imageDimensions, getRelativeCoordinates, selectedMotivation, existingAnnotations]);
+  }, [isDrawing, startPoint, drawing, displayDimensions, imageDimensions, getRelativeCoordinates, selectedMotivation, existingAnnotations, zoom]);
 
   // Cancel drawing on mouse leave
   const handleMouseLeave = useCallback(() => {

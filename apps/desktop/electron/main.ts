@@ -1,11 +1,198 @@
-import { app, BrowserWindow, ipcMain, screen, shell } from 'electron';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { app, BrowserWindow, ipcMain, Menu, screen, shell, type MenuItemConstructorOptions } from 'electron';
+import { execFile } from 'node:child_process';
+import { constants, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
+import { access } from 'node:fs/promises';
+import { delimiter, dirname, join } from 'node:path';
 import { parseAppManifest } from '../src/lib/app-manifest';
+import type { LauncherStatusResult } from '../src/lib/launcher-bridge';
+import type { OllamaInfo, OllamaModelInfo } from '../src/lib/ollama-info';
 import { registerAuthHandlers } from './auth';
 import { appendLog, configDir, logPath } from './paths';
 
 registerAuthHandlers();
+
+let mainWindow: BrowserWindow | null = null;
+
+function launcherPath(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'launcher', 'semiont')
+    : join(process.cwd(), '.build', 'launcher', 'semiont');
+}
+
+function launcherEnvironment(): NodeJS.ProcessEnv {
+  // GUI apps on macOS do not inherit the user's shell PATH. Add the usual
+  // Homebrew and Docker Desktop locations so `semiont` can find a runtime
+  // when Desktop is opened from Finder or the Dock.
+  const home = app.getPath('home');
+  const defaults = process.platform === 'darwin'
+    ? [
+        '/opt/homebrew/bin',
+        '/opt/homebrew/sbin',
+        '/usr/local/bin',
+        '/usr/local/sbin',
+        '/Applications/Docker.app/Contents/Resources/bin',
+        join(home, '.docker', 'bin'),
+        join(home, '.local', 'bin'),
+      ]
+    : [join(home, '.local', 'bin'), '/usr/local/bin', '/usr/bin', '/bin'];
+  const pathEntries = [...new Set([...(process.env.PATH ?? '').split(delimiter), ...defaults].filter(Boolean))];
+  return { ...process.env, PATH: pathEntries.join(delimiter) };
+}
+
+function runLauncher(args: string[]): Promise<LauncherStatusResult> {
+  return new Promise((resolve) => {
+    execFile(
+      launcherPath(),
+      args,
+      {
+        cwd: app.getPath('home'),
+        encoding: 'utf8',
+        env: launcherEnvironment(),
+        maxBuffer: 4 * 1024 * 1024,
+        timeout: 120_000,
+        windowsHide: true,
+      },
+      (error, stdout, stderr) => {
+        const output = [stdout.trimEnd(), stderr.trimEnd()].filter((part) => part.length > 0).join('\n\n');
+        resolve({
+          output: output || (error === null ? '(no output)' : error.message),
+          exitCode: error === null ? 0 : (typeof error.code === 'number' ? error.code : null),
+          error: error?.message ?? null,
+        });
+      },
+    );
+  });
+}
+
+ipcMain.handle('launcher:status', () => runLauncher(['status']));
+ipcMain.handle('launcher:about', () => runLauncher(['about']));
+
+async function ollamaInfo(): Promise<OllamaInfo> {
+  const env = launcherEnvironment();
+  const pathEntries = (env.PATH ?? '').split(delimiter).filter(Boolean);
+  let executablePath: string | null = null;
+  for (const directory of pathEntries) {
+    const candidate = join(directory, process.platform === 'win32' ? 'ollama.exe' : 'ollama');
+    try {
+      await access(candidate, constants.X_OK);
+      executablePath = candidate;
+      break;
+    } catch {
+      // Keep looking through the same PATH Desktop gives the launcher.
+    }
+  }
+
+  // The launcher may use a host Ollama or a containerized one. Try the usual
+  // host address and Apple Container's host bridge; no model requests leave
+  // the machine.
+  const candidates = ['http://localhost:11434', 'http://127.0.0.1:11434', 'http://192.168.64.1:11434'];
+  for (const endpoint of candidates) {
+    try {
+      const response = await fetch(`${endpoint}/api/tags`, { signal: AbortSignal.timeout(1500) });
+      if (!response.ok) continue;
+      const payload: unknown = await response.json();
+      if (typeof payload !== 'object' || payload === null || !('models' in payload) || !Array.isArray(payload.models)) continue;
+
+      let loadedNames = new Set<string>();
+      try {
+        const loadedResponse = await fetch(`${endpoint}/api/ps`, { signal: AbortSignal.timeout(1000) });
+        if (loadedResponse.ok) {
+          const loadedPayload: unknown = await loadedResponse.json();
+          if (typeof loadedPayload === 'object' && loadedPayload !== null && 'models' in loadedPayload && Array.isArray(loadedPayload.models)) {
+            loadedNames = new Set(loadedPayload.models.flatMap((model: unknown) =>
+              typeof model === 'object' && model !== null && 'name' in model && typeof model.name === 'string'
+                ? [model.name]
+                : [],
+            ));
+          }
+        }
+      } catch {
+        // /api/ps is optional; installed model metadata is still useful.
+      }
+
+      const models: OllamaModelInfo[] = payload.models.flatMap((model: unknown) => {
+        if (typeof model !== 'object' || model === null || !('name' in model) || typeof model.name !== 'string') return [];
+        const details = 'details' in model && typeof model.details === 'object' && model.details !== null ? model.details : {};
+        return [{
+          name: model.name,
+          sizeBytes: 'size' in model && typeof model.size === 'number' ? model.size : 0,
+          parameterSize: 'parameter_size' in details && typeof details.parameter_size === 'string' ? details.parameter_size : '',
+          quantizationLevel: 'quantization_level' in details && typeof details.quantization_level === 'string' ? details.quantization_level : '',
+          loaded: loadedNames.has(model.name),
+        }];
+      });
+      return { executablePath, endpoint, models };
+    } catch {
+      // Try the next standard local Ollama endpoint.
+    }
+  }
+  return { executablePath, endpoint: null, models: [] };
+}
+
+ipcMain.handle('system:ollama-info', () => ollamaInfo());
+
+ipcMain.handle('system:git-path', async () => {
+  const pathValue = launcherEnvironment().PATH ?? '';
+  const executableNames = process.platform === 'win32' ? ['git.exe', 'git.cmd', 'git.bat'] : ['git'];
+  for (const directory of pathValue.split(delimiter).filter(Boolean)) {
+    for (const executableName of executableNames) {
+      const candidate = join(directory, executableName);
+      try {
+        await access(candidate, constants.X_OK);
+        return candidate;
+      } catch {
+        // Keep looking through the same PATH Desktop gives the launcher.
+      }
+    }
+  }
+  return null;
+});
+
+ipcMain.handle('system:op-path', async () => {
+  const pathValue = launcherEnvironment().PATH ?? '';
+  const executableNames = process.platform === 'win32' ? ['op.exe'] : ['op'];
+  for (const directory of pathValue.split(delimiter).filter(Boolean)) {
+    for (const executableName of executableNames) {
+      const candidate = join(directory, executableName);
+      try {
+        await access(candidate, constants.X_OK);
+        return candidate;
+      } catch {
+        // Keep looking through the same PATH Desktop gives the launcher.
+      }
+    }
+  }
+  return null;
+});
+
+function setApplicationMenu(): void {
+  const appMenu: MenuItemConstructorOptions[] = [
+    { role: 'about' },
+    { type: 'separator' },
+    {
+      label: 'Launcher Status…',
+      click: () => mainWindow?.webContents.send('launcher:status-requested'),
+    },
+  ];
+  if (process.platform === 'darwin') {
+    appMenu.push(
+      { type: 'separator' },
+      { role: 'services', submenu: [] },
+      { type: 'separator' },
+      { role: 'hide' },
+      { role: 'hideOthers' },
+      { role: 'unhide' },
+    );
+  }
+  appMenu.push({ type: 'separator' }, { role: 'quit' });
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { label: app.getName(), submenu: appMenu },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+  ]));
+}
 
 ipcMain.on('log:append', (_event, line: string) => appendLog(String(line)));
 process.on('uncaughtException', (err) => appendLog(`${new Date().toISOString()} [main uncaught] ${err.stack ?? String(err)}`));
@@ -122,6 +309,10 @@ function createWindow(): void {
       nodeIntegration: false,
     },
   });
+  mainWindow = win;
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null;
+  });
 
   // Deep-links (sidebar docs, upload records, answer references) use target=_blank /
   // window.open. In Electron that would otherwise spawn a bare in-app window — instead
@@ -152,6 +343,7 @@ void app.whenReady().then(() => {
   } catch {
     // best-effort
   }
+  setApplicationMenu();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

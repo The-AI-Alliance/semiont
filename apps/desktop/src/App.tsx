@@ -1,6 +1,7 @@
 import {
   useEffect,
   useLayoutEffect,
+  useCallback,
   useMemo,
   useRef,
   useState,
@@ -9,7 +10,7 @@ import {
 } from 'react';
 import type { ClickAction, SelectionMotivation } from '@semiont/react-ui';
 import type { OpenedSession, SessionEndReason } from '@semiont/sdk';
-import { appTitle } from 'virtual:app-config';
+import { appTitle, appVersion, appCommit, appBuildDate } from 'virtual:app-config';
 import { connect, signOut, type ChatSession, type KbConnection } from './lib/session';
 import { loadUserConfig, saveUserConfig } from './lib/config-store';
 import { kbTargetFor, type KbEntry, type UserConfig } from './lib/user-config';
@@ -24,11 +25,21 @@ import {
 import { getPref, setPref } from './lib/prefs';
 import { CHAT_MIN, DOC_DEFAULT, clampDocWidth, mainLayout } from './lib/split-layout';
 import { KbNav } from './components/KbNav';
-import { SettingsPanel } from './components/SettingsPanel';
+import { ThemePanel } from './components/ThemePanel';
+import { AboutModal } from './components/AboutModal';
+import { InferenceModal } from './components/InferenceModal';
+import { LauncherStatusModal, type LauncherStatusState } from './components/LauncherStatusModal';
+import { TelemetryModal } from './components/TelemetryModal';
+import { RuntimeModal } from './components/RuntimeModal';
+import { GitModal, type GitCheck } from './components/GitModal';
+import { SecretsModal, type SecretsCheck } from './components/SecretsModal';
 import { AppFooter, type KbDisplay } from './components/AppFooter';
 import { ChatPane, type LogEntry } from './components/ChatPane';
 import { ResourceView } from './components/ResourceView';
 import type { ViewerPrefs } from './components/ViewerPrefControls';
+import { DEFAULT_TELEMETRY_LINKS, telemetryLinksFromStatus, type TelemetryLinks } from './lib/telemetry-links';
+import { runtimeInfoFromLauncher, type RuntimeInfo } from './lib/runtime-info';
+import type { OllamaInfo } from './lib/ollama-info';
 
 // In Electron the preload exposes window.configBridge; the web build has no such bridge.
 const isElectron = typeof window !== 'undefined' && window.configBridge !== undefined;
@@ -82,8 +93,120 @@ export function App() {
   // The document shown in the main pane. It coexists with the active chat: when both are
   // set and the pane is wide enough, the main pane splits (chat left, document right).
   const [activeResource, setActiveResource] = useState<{ id: string; kbUri: string; name: string } | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showTheme, setShowTheme] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
+  const [showInference, setShowInference] = useState(false);
+  const [inferenceInfo, setInferenceInfo] = useState<OllamaInfo | null>(null);
+  const [inferenceUnavailable, setInferenceUnavailable] = useState(false);
+  const [showLauncherStatus, setShowLauncherStatus] = useState(false);
+  const [launcherStatus, setLauncherStatus] = useState<LauncherStatusState>({ status: 'loading' });
+  const [showTelemetry, setShowTelemetry] = useState(false);
+  const [telemetryLinks, setTelemetryLinks] = useState<TelemetryLinks>(DEFAULT_TELEMETRY_LINKS);
+  const [showRuntime, setShowRuntime] = useState(false);
+  const [runtimeInfo, setRuntimeInfo] = useState<RuntimeInfo | null>(null);
+  const [showGit, setShowGit] = useState(false);
+  const [gitCheck, setGitCheck] = useState<GitCheck>({ status: 'checking' });
+  const [showSecrets, setShowSecrets] = useState(false);
+  const [secretsCheck, setSecretsCheck] = useState<SecretsCheck>({ status: 'checking' });
   const [theme, setTheme] = useState<Theme>('system');
+
+  const refreshLauncherStatus = useCallback(() => {
+    const bridge = window.launcherBridge;
+    setShowLauncherStatus(true);
+    setLauncherStatus({ status: 'loading' });
+    if (bridge === undefined) {
+      setLauncherStatus({
+        status: 'result',
+        result: { output: 'The launcher sidecar is available in the desktop app only.', exitCode: null, error: null },
+      });
+      return;
+    }
+    void bridge.status().then(
+      (result) => setLauncherStatus({ status: 'result', result }),
+      (error: unknown) => setLauncherStatus({
+        status: 'result',
+        result: {
+          output: error instanceof Error ? error.message : String(error),
+          exitCode: null,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      }),
+    );
+  }, []);
+
+  const openAbout = useCallback(() => setShowAbout(true), []);
+
+  const openInference = useCallback(() => {
+    setShowInference(true);
+    setInferenceInfo(null);
+    setInferenceUnavailable(false);
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) {
+      setInferenceUnavailable(true);
+      return;
+    }
+    void bridge.ollamaInfo().then(
+      setInferenceInfo,
+      () => setInferenceUnavailable(true),
+    );
+  }, []);
+
+  const openTelemetry = useCallback(() => {
+    setShowTelemetry(true);
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) {
+      setTelemetryLinks(DEFAULT_TELEMETRY_LINKS);
+      return;
+    }
+    void bridge.status().then(
+      ({ output }) => setTelemetryLinks(telemetryLinksFromStatus(output)),
+      () => setTelemetryLinks(DEFAULT_TELEMETRY_LINKS),
+    );
+  }, []);
+
+  const openRuntime = useCallback(() => {
+    setShowRuntime(true);
+    setRuntimeInfo(null);
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) {
+      setRuntimeInfo({ active: [], detected: [], statusAvailable: false });
+      return;
+    }
+    void Promise.all([bridge.status(), bridge.about()]).then(
+      ([status, about]) => setRuntimeInfo(runtimeInfoFromLauncher(status, about)),
+      () => setRuntimeInfo({ active: [], detected: [], statusAvailable: false }),
+    );
+  }, []);
+
+  const openGit = useCallback(() => {
+    setShowGit(true);
+    setGitCheck({ status: 'checking' });
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) {
+      setGitCheck({ status: 'unavailable' });
+      return;
+    }
+    void bridge.gitPath().then(
+      (path) => setGitCheck(path === null ? { status: 'missing' } : { status: 'found', path }),
+      () => setGitCheck({ status: 'unavailable' }),
+    );
+  }, []);
+
+  const openSecrets = useCallback(() => {
+    setShowSecrets(true);
+    setSecretsCheck({ status: 'checking' });
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) {
+      setSecretsCheck({ status: 'unavailable' });
+      return;
+    }
+    void bridge.opPath().then(
+      (path) => setSecretsCheck(path === null ? { status: 'missing' } : { status: 'found', path }),
+      () => setSecretsCheck({ status: 'unavailable' }),
+    );
+  }, []);
+
+  useEffect(() => window.launcherBridge?.onStatusRequested(refreshLauncherStatus), [refreshLauncherStatus]);
 
   // App-global viewer prefs (TOOLBAR-PREFS-AS-PROPS): click action + selection motivation are
   // app settings (footer controls by the gear), passed as controlled props to every mounted
@@ -376,7 +499,7 @@ export function App() {
 
   // The footer describes the active chat's KB (the composer's context); with no chat
   // selected it falls back to the open document's. Null hides the status line; the pref
-  // controls + gear always render. (In a split the doc pane's header names the doc — a
+  // controls always render. (In a split the doc pane's header names the doc — a
   // doc from ANOTHER KB is identified there, not here.)
   const footerKbUri = activeKbUri ?? activeResource?.kbUri ?? null;
   const footerConn = footerKbUri !== null ? connections[footerKbUri] : undefined;
@@ -395,12 +518,7 @@ export function App() {
   return (
     <>
       <div className={isElectron ? 'app app--electron' : 'app'}>
-        <header className="app__header">
-          <h1>{appTitle}</h1>
-          <p className="app__powered">
-            Powered by <span className="app__powered-mark">Semiont</span>
-          </p>
-        </header>
+        {isElectron && <div className="app__dragbar" aria-hidden="true" />}
         <div className="app__body" style={{ gridTemplateColumns: `${sidebarWidth}px 1px 1fr` }}>
           <KbNav
             kbs={config.kbs}
@@ -420,6 +538,14 @@ export function App() {
             onSelectSession={selectSession}
             onRenameSession={handleRenameSession}
             onDeleteSession={handleDeleteSession}
+            onOpenAbout={openAbout}
+            onOpenInference={openInference}
+            onOpenSecrets={openSecrets}
+            onOpenTheme={() => setShowTheme(true)}
+            onOpenLauncherStatus={refreshLauncherStatus}
+            onOpenTelemetry={openTelemetry}
+            onOpenRuntime={openRuntime}
+            onOpenGit={openGit}
           />
           <div
             className="app__resizer"
@@ -443,30 +569,53 @@ export function App() {
             onOpenResource={openResource}
             setActiveEntries={setActiveEntries}
             onResourcesChanged={() => setDocsRefresh((n) => n + 1)}
-            onOpenSettings={() => setShowSettings(true)}
             onConnect={() => activeKbUri && void connectKb(activeKbUri, true)}
           />
         </div>
       </div>
-      {showSettings && (
-        <SettingsPanel theme={theme} onThemeChange={setTheme} onClose={() => setShowSettings(false)} />
+      {showTheme && (
+        <ThemePanel theme={theme} onThemeChange={setTheme} onClose={() => setShowTheme(false)} />
       )}
+      {showAbout && (
+        <AboutModal
+          version={appVersion}
+          commit={appCommit}
+          buildDate={appBuildDate}
+          onClose={() => setShowAbout(false)}
+        />
+      )}
+      {showInference && (
+        <InferenceModal
+          info={inferenceInfo}
+          unavailable={inferenceUnavailable}
+          onClose={() => setShowInference(false)}
+        />
+      )}
+      {showLauncherStatus && (
+        <LauncherStatusModal
+          state={launcherStatus}
+          onRefresh={refreshLauncherStatus}
+          onClose={() => setShowLauncherStatus(false)}
+        />
+      )}
+      {showTelemetry && <TelemetryModal links={telemetryLinks} onClose={() => setShowTelemetry(false)} />}
+      {showRuntime && <RuntimeModal info={runtimeInfo} onClose={() => setShowRuntime(false)} />}
+      {showGit && <GitModal check={gitCheck} onClose={() => setShowGit(false)} />}
+      {showSecrets && <SecretsModal check={secretsCheck} onClose={() => setShowSecrets(false)} />}
     </>
   );
 }
 
 /** The right pane: the current body (document / chat / split) over the app footer —
- *  the footer (KB status, viewer pref controls, Settings gear) persists across ALL of them. */
+ *  the footer (KB status and viewer preference controls) persists across ALL of them. */
 function MainPane({
   viewerPrefs,
   footerKb,
-  onOpenSettings,
   ...body
 }: {
   viewerPrefs: ViewerPrefs;
   /** The KB the pane is showing (active chat's, else open document's); null hides the line. */
   footerKb: KbDisplay | null;
-  onOpenSettings: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
   activeResource: { id: string; kbUri: string; name: string } | null;
@@ -483,7 +632,7 @@ function MainPane({
   return (
     <div className="mainwrap">
       <MainBody viewerPrefs={viewerPrefs} {...body} />
-      <AppFooter kb={footerKb} prefs={viewerPrefs} onOpenSettings={onOpenSettings} />
+      <AppFooter kb={footerKb} prefs={viewerPrefs} />
     </div>
   );
 }

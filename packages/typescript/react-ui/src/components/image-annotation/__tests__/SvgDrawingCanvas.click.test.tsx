@@ -109,4 +109,41 @@ describe('SvgDrawingCanvas — drawing-path hit-test anchorRect', () => {
       x: 20, y: 20, left: 20, top: 20, width: 40, height: 40, right: 60, bottom: 60,
     });
   });
+
+  it('keeps image annotation hit testing aligned at resource zoom', async () => {
+    const { session, click } = sessionDouble();
+    const { container } = renderInEnglish(
+      <SvgDrawingCanvas
+        imageUrl="http://test/image.png"
+        resourceUri={resourceId('resource-1')}
+        existingAnnotations={[rectAnnotation]}
+        drawingMode="rectangle"
+        selectedMotivation="highlighting"
+        session={session}
+        zoom={2}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('.semiont-svg-drawing-canvas__overlay-container')).toBeInTheDocument();
+    });
+    const img = container.querySelector('.semiont-svg-drawing-canvas__image') as HTMLImageElement;
+    Object.defineProperty(img, 'clientWidth', { value: 200, configurable: true });
+    Object.defineProperty(img, 'clientHeight', { value: 200, configurable: true });
+    vi.spyOn(img, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, left: 0, top: 0, right: 400, bottom: 400, width: 400, height: 400, toJSON: () => ({}),
+    });
+    fireEvent(window, new Event('resize'));
+
+    const canvas = container.querySelector('.semiont-svg-drawing-canvas')!;
+    await waitFor(() => expect(canvas).toHaveAttribute('data-annotate-deferred', 'false'));
+    // The logical annotation box is 20..60; at 2× it occupies 40..120.
+    fireEvent.mouseDown(canvas, { clientX: 60, clientY: 60 });
+    fireEvent.mouseUp(canvas, { clientX: 60, clientY: 60 });
+
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(click.mock.calls[0]?.[1]).toEqual({
+      x: 40, y: 40, left: 40, top: 40, width: 80, height: 80, right: 120, bottom: 120,
+    });
+  });
 });

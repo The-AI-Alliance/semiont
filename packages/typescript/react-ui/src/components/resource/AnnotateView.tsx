@@ -26,6 +26,8 @@ interface Props {
   /** The '@id' of the shown resource — stamped as `source` on mark:requested (multi-viewer routing). */
   resourceUri: ResourceId;
   annotations: AnnotationsCollection;
+  /** Zoom the rendered resource content, leaving the annotation toolbar at its normal size. */
+  zoom?: number;
   uiState: AnnotationUIState;
   onUIStateChange?: (state: Partial<AnnotationUIState>) => void;
   editable?: boolean;
@@ -69,6 +71,7 @@ export function AnnotateView(props: Props & TranslationSource) {
 function AnnotateViewBody({
   content,
   mimeType = 'text/plain',
+  zoom = 1,
   resourceUri,
   annotations,
   uiState,
@@ -278,23 +281,26 @@ function AnnotateViewBody({
         />
       )}
       <div className="semiont-annotate-view__content" ref={contentRef}>
-        <Renderer
-          content={content}
-          mimeType={mimeType}
-          resourceUri={resourceUri}
-          annotations={allAnnotations}
-          session={session}
-          drawingMode={selectedMotivation ? selectedShape : null}
-          selectedMotivation={selectedMotivation}
-          hoveredAnnotationId={hoveredAnnotationId}
-          hoverDelayMs={hoverDelayMs}
-          sparkleAnnotationIds={sparkleAnnotationIds}
-          scrollToAnnotationId={scrollToAnnotationId}
-          showLineNumbers={showLineNumbers}
-          enableWidgets={enableWidgets}
-          {...(getTargetResourceName && { getTargetResourceName })}
-          generatingReferenceId={generatingReferenceId}
-        />
+        <div style={render === 'pdf' ? undefined : { zoom }}>
+          <Renderer
+            content={content}
+            mimeType={mimeType}
+            zoom={zoom}
+            resourceUri={resourceUri}
+            annotations={allAnnotations}
+            session={session}
+            drawingMode={selectedMotivation ? selectedShape : null}
+            selectedMotivation={selectedMotivation}
+            hoveredAnnotationId={hoveredAnnotationId}
+            hoverDelayMs={hoverDelayMs}
+            sparkleAnnotationIds={sparkleAnnotationIds}
+            scrollToAnnotationId={scrollToAnnotationId}
+            showLineNumbers={showLineNumbers}
+            enableWidgets={enableWidgets}
+            {...(getTargetResourceName && { getTargetResourceName })}
+            generatingReferenceId={generatingReferenceId}
+          />
+        </div>
       </div>
     </div>
   );

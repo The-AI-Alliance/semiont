@@ -58,6 +58,8 @@ interface Props {
   showLineNumbers?: boolean;
   hoverDelayMs?: number;
   hoveredAnnotationId?: string | null;
+  /** Zoom the resource content without scaling surrounding viewer controls. */
+  zoom?: number;
   /**
    * Toolbar preferences as controlled props. Supply a value to own that pref: the
    * instance renders it and reports intents via the callback — it never
@@ -142,6 +144,7 @@ function ResourceViewerBody({
   showLineNumbers = false,
   hoverDelayMs,
   hoveredAnnotationId: hoveredAnnotationIdProp,
+  zoom = 1,
   annotateMode: annotateModeProp,
   onAnnotateModeChange,
   clickAction: clickActionProp,
@@ -382,6 +385,7 @@ function ResourceViewerBody({
           {...language}
           content={resource.content}
           mimeType={mimeType}
+          zoom={zoom}
           resourceUri={resource['@id']}
           annotations={annotationsCollection}
           uiState={uiState}
@@ -407,6 +411,7 @@ function ResourceViewerBody({
           {...language}
           content={resource.content}
           mimeType={mimeType}
+          zoom={zoom}
           resourceUri={resource['@id']}
           annotations={annotationsCollection}
           selectedClick={selectedClick}

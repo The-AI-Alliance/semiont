@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { AuthBridge } from '../src/lib/auth-bridge';
+import type { LauncherBridge } from '../src/lib/launcher-bridge';
 
 /** The main process answers a sign-in or a resume as `{ value }` or `{ error }` (a sentence
  *  a person may read); thrown here, it reaches the renderer unwrapped. */
@@ -53,3 +54,17 @@ const authBridge: AuthBridge = {
   signOut: (kbId) => ipcRenderer.invoke('auth:sign-out', kbId),
 };
 contextBridge.exposeInMainWorld('authBridge', authBridge);
+
+const launcherBridge: LauncherBridge = {
+  onStatusRequested(listener) {
+    const handler = () => listener();
+    ipcRenderer.on('launcher:status-requested', handler);
+    return () => ipcRenderer.removeListener('launcher:status-requested', handler);
+  },
+  status: () => ipcRenderer.invoke('launcher:status'),
+  about: () => ipcRenderer.invoke('launcher:about'),
+  gitPath: () => ipcRenderer.invoke('system:git-path'),
+  opPath: () => ipcRenderer.invoke('system:op-path'),
+  ollamaInfo: () => ipcRenderer.invoke('system:ollama-info'),
+};
+contextBridge.exposeInMainWorld('launcherBridge', launcherBridge);
