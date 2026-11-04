@@ -8,6 +8,7 @@ public sealed class SemiontClient : IDisposable
 {
     private readonly HttpContentTransport content;
     private readonly LiveQueries live;
+    private readonly IDisposable attachedBus;
 
     public SemiontClient(string baseUrl, string? token = null, HttpClient? httpClient = null,
         TimeProvider? timeProvider = null, Random? random = null, Timing? timing = null, CachePersistence? persistence = null)
@@ -37,7 +38,8 @@ public sealed class SemiontClient : IDisposable
         Frame = new FrameNamespace(Wire);
         Auth = new AuthNamespace(transport);
         System = new SystemNamespace(transport);
-        _ = BridgeAsync();
+        attachedBus = transport.AttachBus(Bus);
+        _ = CloseWithTransportAsync();
     }
 
     public Bus Wire { get; }
@@ -57,17 +59,12 @@ public sealed class SemiontClient : IDisposable
     public AuthNamespace Auth { get; }
     public SystemNamespace System { get; }
 
-    private async Task BridgeAsync()
+    private async Task CloseWithTransportAsync()
     {
-        try
-        {
-            await foreach (var frame in Transport.BridgeFrames().ConfigureAwait(false)) Bus.Receive(frame);
-        }
-        finally
-        {
-            live.Dispose();
-            Bus.Dispose();
-        }
+        await foreach (var state in Transport.States().ConfigureAwait(false))
+            if (state == ConnectionState.Closed) break;
+        try { live.Dispose(); }
+        finally { Bus.Dispose(); }
     }
 
     public void Dispose()
@@ -78,6 +75,7 @@ public sealed class SemiontClient : IDisposable
             try { content.Dispose(); }
             finally
             {
+                attachedBus.Dispose();
                 Bus.Dispose();
                 Transport.Dispose();
             }
