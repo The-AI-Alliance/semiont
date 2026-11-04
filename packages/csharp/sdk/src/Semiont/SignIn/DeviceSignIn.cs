@@ -10,7 +10,7 @@ public sealed record DeviceCode(string UserCode, string VerificationUri, string?
 
 public sealed partial class Issuer
 {
-    internal sealed record Endpoints(string Token, string? Device, string? Revocation);
+    internal sealed record Endpoints(string Issuer, string Authorization, string Token, string? Device, string? Revocation);
 
     private static string DiscoveryAddress(string address, int? status = null)
     {
@@ -22,17 +22,19 @@ public sealed partial class Issuer
     internal async Task<Endpoints> ConfigurationAsync(string issuer, CancellationToken cancellation)
     {
         var answer = await AnswerAsync(DiscoveryAddress(issuer).TrimEnd('/') + "/.well-known/openid-configuration", errorCode: "discovery", cancellation: cancellation).ConfigureAwait(false);
-        if (answer.Status is < 200 or >= 300 || answer.Text("issuer") != issuer || string.IsNullOrEmpty(answer.Text("authorization_endpoint")) || answer.Text("token_endpoint") is not string token || token.Length == 0)
+        if (answer.Status is < 200 or >= 300 || answer.Text("issuer") != issuer || answer.Text("authorization_endpoint") is not { Length: > 0 } authorization || answer.Text("token_endpoint") is not string token || token.Length == 0)
             throw new SignInError(ProtocolFacts.SignInError("discovery"), "The issuer did not describe its endpoints", answer.Status);
-        DiscoveryAddress(answer.Text("authorization_endpoint") ?? throw new InvalidOperationException("No authorization endpoint after validation"), answer.Status);
-        return new Endpoints(DiscoveryAddress(token, answer.Status),
+        return new Endpoints(issuer, DiscoveryAddress(authorization, answer.Status), DiscoveryAddress(token, answer.Status),
             answer.Text("device_authorization_endpoint") is string device ? DiscoveryAddress(device, answer.Status) : null,
             answer.Text("revocation_endpoint") is string revocation ? DiscoveryAddress(revocation, answer.Status) : null);
     }
 
-    private async Task<Endpoints> DiscoverAsync(HttpEndpoint endpoint, CancellationToken cancellation)
+    internal async Task<Endpoints> DiscoverAsync(HttpEndpoint endpoint, CancellationToken cancellation)
     {
-        var answer = await AnswerAsync(Gateway.Origin(endpoint) + "/.well-known/oauth-protected-resource", errorCode: "discovery", cancellation: cancellation).ConfigureAwait(false);
+        string origin;
+        try { origin = Gateway.Origin(endpoint); }
+        catch (JsonException error) { throw new SignInError(ProtocolFacts.SignInError("discovery"), "Invalid gateway endpoint.", inner: error); }
+        var answer = await AnswerAsync(origin + "/.well-known/oauth-protected-resource", errorCode: "discovery", cancellation: cancellation).ConfigureAwait(false);
         if (answer.Status == 404) throw new SignInError(ProtocolFacts.SignInError("no-issuer"), "The knowledge base trusts no external issuer", answer.Status);
         if (answer.Status is < 200 or >= 300) throw new SignInError(ProtocolFacts.SignInError("discovery"), "The gateway refused metadata discovery", answer.Status);
         ProtectedResourceMetadata metadata;

@@ -160,6 +160,25 @@ public sealed class SessionTests
     }
 
     [Fact]
+    public async Task AFailedStorageWriteIsReportedToSessionObservers()
+    {
+        var clock = new TestClock();
+        var kept = Stored(clock);
+        var failure = new IOException("Storage was read-only.");
+        using var session = new KeptSession(kept, (_, _) => Task.FromException<string?>(failure),
+            (_, _) => Task.FromResult(User()), clock, new ZeroRandom());
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await session.ReadyAsync(deadline.Token);
+        var original = await kept.HeldAsync(deadline.Token);
+        Assert.Null(await session.RefreshAsync(session.State.Token, deadline.Token));
+        await using var errors = session.Errors(deadline.Token).GetAsyncEnumerator();
+        Assert.True(await errors.MoveNextAsync());
+        Assert.Equal("session.refresh-exhausted", errors.Current.Code);
+        Assert.Same(failure, errors.Current.InnerException);
+        Assert.Equal(original, await kept.HeldAsync(deadline.Token));
+    }
+
+    [Fact]
     public async Task ProactiveRenewalUsesThePublicClockAndAsksNobody()
     {
         var clock = new TestClock();

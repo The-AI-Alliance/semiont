@@ -96,9 +96,15 @@ public sealed class KeptSession : IDisposable
         unanswered = false;
         ended = true;
         Set(null, null);
-        await kept.ForgetAsync(lifetime.Token).ConfigureAwait(false);
+        await ForgetStoredAsync().ConfigureAwait(false);
         EndReason = reason;
         Report(code);
+    }
+
+    private async Task ForgetStoredAsync()
+    {
+        try { await kept.ForgetAsync(lifetime.Token).ConfigureAwait(false); }
+        catch (Exception error) when (error is not OperationCanceledException) { Report("auth-failed", error); }
     }
 
     private async Task<string?> RenewCoreAsync(bool starting = false)
@@ -131,9 +137,18 @@ public sealed class KeptSession : IDisposable
             {
                 ended = true;
                 Set(null, null);
-                await kept.ForgetAsync(lifetime.Token).ConfigureAwait(false);
+                await ForgetStoredAsync().ConfigureAwait(false);
             }
             else await EndAsync("expired", "refresh-exhausted").ConfigureAwait(false);
+            return null;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            lifetime.Token.ThrowIfCancellationRequested();
+            // A host storage write can fail after the issuer answers. Never publish an unkept grant.
+            unanswered = true;
+            Set(null, State.User);
+            Report(starting ? "auth-failed" : "refresh-exhausted", error);
             return null;
         }
     }

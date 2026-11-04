@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Semiont.Protocol;
+using Semiont.Types;
 
 namespace Semiont;
 
@@ -19,6 +20,12 @@ internal static class MediaTypes
         return Rows.TryGetValue(media, out var row) ? Text(row, "textSource") :
             media.StartsWith("text/", StringComparison.Ordinal) ? "decode" : "none";
     }
+
+    internal static string? Primary(ResourceDescriptor descriptor) => descriptor.Representations switch
+    {
+        ResourceDescriptorRepresentations.RepresentationCase(var primary) => primary.MediaType,
+        ResourceDescriptorRepresentations.ArrayCase(var representations) => representations.FirstOrDefault()?.MediaType,
+    };
 
     internal static string CloneFormat(string? format)
     {

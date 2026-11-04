@@ -75,6 +75,18 @@ knowledge base and principal. Its `Write` callback should replace the whole
 document atomically. A restored value is visible immediately and revalidated
 when first read.
 
+`Semiont.Registry.SemiontBrowser` keeps registered knowledge bases, the active
+session, and open resources. Give it an `ISessionStorage` and a session factory,
+such as `HttpSessionFactory`, then hold it with `await using`. `MemoryStorage`
+lasts for the process. A shared store implements atomic `Update` and sends
+`Subscribe` notifications for writes from other contexts.
+
+`BrowserSignIn.BeginSignInAsync` gives the authorization URL with PKCE.
+Pass the callback URL to `CompleteSignInAsync` once. It exchanges the code
+and asks the gateway for its knowledge-base identity before storing credentials.
+`LauncherDiscovery` reads the launcher's discovery document through HTTP
+or a caller-provided text reader and streams changes by address.
+
 `Semiont.Annotations.AnnotationTools` reads annotation bodies and selectors,
 reconciles a quote against its source, and builds annotations from a whole resource,
 plain text, or PDF anchored text. Spans count Unicode code points. The builders

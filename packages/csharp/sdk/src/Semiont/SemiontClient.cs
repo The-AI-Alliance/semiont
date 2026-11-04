@@ -72,12 +72,15 @@ public sealed class SemiontClient : IDisposable
 
     public void Dispose()
     {
-        live.Dispose();
-        try { content.Dispose(); }
+        try { live.Dispose(); }
         finally
         {
-            Bus.Dispose();
-            Transport.Dispose();
+            try { content.Dispose(); }
+            finally
+            {
+                Bus.Dispose();
+                Transport.Dispose();
+            }
         }
     }
 }

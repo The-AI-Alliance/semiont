@@ -37,11 +37,7 @@ public sealed class YieldNamespace
         CancellationToken cancellation = default)
     {
         var source = await FromTokenAsync(token, cancellation).ConfigureAwait(false);
-        var mediaType = source.Representations switch
-        {
-            ResourceDescriptorRepresentations.RepresentationCase(var primary) => primary.MediaType,
-            ResourceDescriptorRepresentations.ArrayCase(var representations) => representations.FirstOrDefault()?.MediaType,
-        };
+        var mediaType = MediaTypes.Primary(source);
         var format = MediaTypes.CloneFormat(mediaType);
         return await content.UploadAsync(new ResourceUpload
         {

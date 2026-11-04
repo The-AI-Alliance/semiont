@@ -999,8 +999,8 @@
   },
   "storage": {
     "docs": "Where a client keeps what must outlive it: text under a key, in a store the application supplies (a file, a browser's storage, a platform's store), so nothing above it knows where it runs. A client's sessions, its registry of knowledge bases and its kept caches keep what they keep there. More than one context can write one store, two windows or two processes: what is written from what was read goes through `update`, which a store makes one step, so one writer's change is never lost under another's; and `subscribe` hears what another context writes, and is null where no other context writes.",
-    "notYetReached": {"csharp": "C# is still to implement the storage contract.", "swift": "The Swift SDK's storage: Where a client keeps what must outlive it: text under a key, in a store the application supplies (a file, a browser's storage, a platform's store), so nothing above it knows where it runs. A client's sessions, its registry of knowledge bases and its kept caches keep what they keep there. More than one context can write one store, two windows or two processes: what is written from what was read goes through `update`, which a store makes one step, so one writer's change is never lost under another's; and `subscribe` hears what another context writes, and is null where no other context writes."},
-    "made": { "typescript": "SessionStorage", "rust": "SessionStorage", "python": "SessionStorage", "go": "SessionStorage", "kotlin": "SessionStorage" },
+    "notYetReached": {"swift": "The Swift SDK's storage: Where a client keeps what must outlive it: text under a key, in a store the application supplies (a file, a browser's storage, a platform's store), so nothing above it knows where it runs. A client's sessions, its registry of knowledge bases and its kept caches keep what they keep there. More than one context can write one store, two windows or two processes: what is written from what was read goes through `update`, which a store makes one step, so one writer's change is never lost under another's; and `subscribe` hears what another context writes, and is null where no other context writes."},
+    "made": { "csharp": "ISessionStorage", "typescript": "SessionStorage", "rust": "SessionStorage", "python": "SessionStorage", "go": "SessionStorage", "kotlin": "SessionStorage" },
     "members": [
       { "member": "get" },
       { "member": "set" },
@@ -1372,10 +1372,8 @@
     {
       "module": "tokens",
       "docs": "What a session reads of an access token: a claim it names as text, when it expires, whether it has, and when to renew it. Held by protocol/specs/src/session/cases.json.",
-      "notYetReached": {
-        "csharp": "C# is still to implement the tokens module."
-      },
       "where": {
+        "csharp": ["packages/csharp/sdk/src/Semiont/Session"],
         "typescript": [
           "packages/typescript/sdk/src/session/storage.ts"
         ],
@@ -1437,8 +1435,9 @@
     {
       "module": "storagePersister",
       "docs": "Where a client keeps its queries' values: a session storage, under one key, kept within a size.",
-      "notYetReached": {"csharp": "C# is still to implement the storagePersister module.", "swift": "The Swift SDK's storagePersister: Where a client keeps its queries' values: a session storage, under one key, kept within a size."},
+      "notYetReached": {"swift": "The Swift SDK's storagePersister: Where a client keeps its queries' values: a session storage, under one key, kept within a size."},
       "where": {
+        "csharp": ["packages/csharp/sdk/src/Semiont"],
         "typescript": [
           "packages/typescript/sdk/src/cache-persister.ts"
         ],
@@ -1460,7 +1459,8 @@
           "member": "StoragePersister",
           "kind": "type",
           "named": {
-            "typescript": "sessionStoragePersister"
+            "typescript": "sessionStoragePersister",
+            "csharp": "CachePersistence"
           }
         }
       ]
@@ -1516,8 +1516,9 @@
     {
       "module": "registry",
       "docs": "What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered.",
-      "notYetReached": {"csharp": "C# is still to implement the registry module.", "swift": "The Swift SDK's registry: What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered."},
+      "notYetReached": {"swift": "The Swift SDK's registry: What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered."},
       "where": {
+        "csharp": ["packages/csharp/sdk/src/Semiont/Registry"],
         "typescript": [
           "packages/typescript/sdk/src/session/semiont-browser.ts",
           "packages/typescript/sdk/src/session/session-factory.ts",
@@ -1559,6 +1560,7 @@
           "member": "newSemiontBrowser",
           "kind": "function",
           "absent": {
+            "csharp": "C# makes one with the public SemiontBrowser constructor.",
             "python": "Python makes one with `SemiontBrowser(config)`, held with `async with`.",
             "typescript": "TypeScript makes one with `new SemiontBrowser(config)`.",
             "rust": "Rust makes one with `SemiontBrowser::new(config)`.",
@@ -1730,8 +1732,9 @@
     {
       "module": "redirectSignIn",
       "docs": "A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is.",
-      "notYetReached": {"csharp": "C# is still to implement the redirectSignIn module.", "swift": "The Swift SDK's redirectSignIn: A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is."},
+      "notYetReached": {"swift": "The Swift SDK's redirectSignIn: A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is."},
       "where": {
+        "csharp": ["packages/csharp/sdk/src/Semiont/Authorization"],
         "typescript": [
           "packages/typescript/sdk/src/session/oauth.ts",
           "packages/typescript/sdk/src/session/connect.ts"
@@ -1833,8 +1836,9 @@
     {
       "module": "discovery",
       "docs": "The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read.",
-      "notYetReached": {"csharp": "C# is still to implement the discovery module.", "swift": "The Swift SDK's discovery: The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read."},
+      "notYetReached": {"swift": "The Swift SDK's discovery: The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read."},
       "where": {
+        "csharp": ["packages/csharp/sdk/src/Semiont/Discovery"],
         "typescript": [
           "packages/typescript/sdk/src/discovery.ts"
         ],

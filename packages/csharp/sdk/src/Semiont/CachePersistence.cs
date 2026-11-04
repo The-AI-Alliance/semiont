@@ -3,11 +3,15 @@ using System.Threading.Channels;
 using Semiont.Http;
 using Semiont.Identifiers;
 using Semiont.Protocol;
+using Semiont.Storage;
 
 namespace Semiont;
 
 /// <summary>Reads and replaces one cache document for a single knowledge base and principal.</summary>
-public sealed record CachePersistence(Func<string?> Read, Action<string> Write);
+public sealed record CachePersistence(Func<string?> Read, Action<string> Write)
+{
+    public CachePersistence(ISessionStorage storage, string key) : this(() => storage.Get(key), value => storage.Set(key, value)) { }
+}
 
 internal sealed record SavedCacheValue(string Cache, JsonElement Key, JsonElement Value, long Written);
 
