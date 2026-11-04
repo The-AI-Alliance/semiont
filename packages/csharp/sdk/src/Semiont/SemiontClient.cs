@@ -8,7 +8,7 @@ public sealed class SemiontClient : IDisposable
 {
     public SemiontClient(string baseUrl, string? token = null, HttpClient? httpClient = null,
         TimeProvider? timeProvider = null, Random? random = null)
-        : this(new HttpTransport(baseUrl, token, ProtocolFacts.Channels("everyone").Concat(FrameNamespace.ReplyChannels()),
+        : this(new HttpTransport(baseUrl, token, ProtocolFacts.Channels("everyone").Concat(ProtocolFacts.OperationReplies()),
             httpClient: httpClient, timeProvider: timeProvider, random: random))
     {
     }
@@ -18,11 +18,13 @@ public sealed class SemiontClient : IDisposable
     {
         ArgumentNullException.ThrowIfNull(transport);
         Transport = transport;
-        Frame = new FrameNamespace(transport);
+        Wire = new Bus(transport);
+        Frame = new FrameNamespace(Wire);
         Auth = new AuthNamespace(transport);
         System = new SystemNamespace(transport);
     }
 
+    public Bus Wire { get; }
     public HttpTransport Transport { get; }
     public string BaseUrl => Transport.BaseUrl;
     public ConnectionState State => Transport.State;
