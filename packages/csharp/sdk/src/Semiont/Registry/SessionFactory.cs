@@ -4,6 +4,7 @@ using Semiont.Protocol;
 using Semiont.Session;
 using Semiont.SignIn;
 using Semiont.Storage;
+using Semiont.State;
 using Semiont.Types;
 
 namespace Semiont.Registry;
@@ -23,9 +24,9 @@ public sealed class OpenedSession : IAsyncDisposable
     private readonly object gate = new();
     private Task? closing;
     public SemiontClient Client { get; }
-    public KeptSession? Session { get; }
+    public SemiontSession? Session { get; }
 
-    public OpenedSession(SemiontClient client, Func<ValueTask>? close = null, KeptSession? session = null)
+    public OpenedSession(SemiontClient client, Func<ValueTask>? close = null, SemiontSession? session = null)
     {
         Client = client;
         Session = session;
@@ -59,18 +60,15 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
             var user = kept.State.User;
             var persistence = user is null ? null : new CachePersistence(options.Storage, RegistryStorage.CacheKey(options.Kb.Id, user.Did));
             var client = new SemiontClient(http, persistence);
-            var watching = Task.WhenAll(FollowTokenAsync(), FollowErrorsAsync(), FollowPermissionAsync());
+            var session = new SemiontSession(new KbTarget { Id = options.Kb.Id, Endpoint = options.Kb.Endpoint, Label = options.Kb.Label },
+                client, kept);
+            var watching = Task.WhenAll(FollowErrorsAsync(), FollowPermissionAsync());
             return new OpenedSession(client, async () =>
             {
-                try { kept.Dispose(); }
+                try { session.Dispose(); }
                 finally { client.Dispose(); }
                 await watching.ConfigureAwait(false);
-            }, kept);
-
-            async Task FollowTokenAsync()
-            {
-                await foreach (var state in kept.States().ConfigureAwait(false)) http.SetToken(state.Token);
-            }
+            }, session);
 
             async Task FollowErrorsAsync()
             {
@@ -108,47 +106,3 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
 }
 
 public enum KbSessionStatus { Authenticated, Expired, SignedOut }
-public sealed record KbIdentityConflict(string ExpectedDid, string ObservedDid);
-public sealed record PermissionDenied(string? Detail);
-public sealed record SessionNotices(string? SessionEnded, PermissionDenied? PermissionDenied, KbIdentityConflict? KbIdentityConflict);
-
-/// <summary>Notices for the host. Raising the same notice twice is observable twice.</summary>
-public sealed class SessionSignals : IDisposable
-{
-    private readonly object gate = new();
-    private readonly Broadcast<SessionNotices> states = new(replayLatest: true);
-    private SessionNotices current = new(null, null, null);
-    private bool closed;
-
-    public SessionSignals() => states.Publish(current);
-    public SessionNotices State => Volatile.Read(ref current);
-    public string? SessionEnded => State.SessionEnded;
-    public PermissionDenied? PermissionDenied => State.PermissionDenied;
-    public KbIdentityConflict? KbIdentityConflict => State.KbIdentityConflict;
-    public IAsyncEnumerable<SessionNotices> States(CancellationToken cancellation = default) => states.Observe(cancellation);
-    public void NotifySessionEnded(string reason) => Change(state => state with { SessionEnded = reason });
-    public void NotifyPermissionDenied(string? detail) => Change(state => state with { PermissionDenied = new PermissionDenied(detail) });
-    public void NotifyKbIdentityConflict(KbIdentityConflict conflict) => Change(state => state with { KbIdentityConflict = conflict });
-    public void AcknowledgeSessionEnded() => Change(state => state with { SessionEnded = null });
-    public void AcknowledgePermissionDenied() => Change(state => state with { PermissionDenied = null });
-    public void AcknowledgeKbIdentityConflict() => Change(state => state with { KbIdentityConflict = null });
-
-    private void Change(Func<SessionNotices, SessionNotices> change)
-    {
-        lock (gate)
-        {
-            if (closed) return;
-            Volatile.Write(ref current, change(current));
-            states.Publish(current);
-        }
-    }
-
-    public void Dispose()
-    {
-        lock (gate)
-        {
-            closed = true;
-            states.Close();
-        }
-    }
-}

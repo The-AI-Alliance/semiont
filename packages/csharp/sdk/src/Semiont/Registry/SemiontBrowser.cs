@@ -6,6 +6,7 @@ using Semiont.Identifiers;
 using Semiont.Protocol;
 using Semiont.Session;
 using Semiont.Storage;
+using Semiont.State;
 using Semiont.Types;
 using static Semiont.Registry.RegistryStorage;
 

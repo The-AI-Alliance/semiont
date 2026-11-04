@@ -8,6 +8,7 @@ using Semiont.Errors;
 using Semiont.Identifiers;
 using Semiont.Registry;
 using Semiont.Storage;
+using Semiont.State;
 using Semiont.Types;
 using Xunit;
 
@@ -127,9 +128,9 @@ public sealed partial class TransportTests
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await browser.SetActiveKbAsync(one.Id, deadline.Token);
         var signals = Assert.IsType<SessionSignals>(browser.State.ActiveSignals);
-        await foreach (var notice in signals.States(deadline.Token))
-            if (notice.KbIdentityConflict is not null) break;
-        Assert.Equal(new KbIdentityConflict(one.Did, "did:web:different.test"), signals.KbIdentityConflict);
+        await foreach (var notice in signals.KbIdentityConflict.WithCancellation(deadline.Token))
+            if (notice is not null) break;
+        Assert.Equal(new KbIdentityConflict(one.Did, "did:web:different.test"), signals.KbIdentityConflict.Value);
         Assert.Empty(browser.State.OpenResources);
         Assert.Null(browser.State.LastViewedResource);
         var otherTabs = RegistryStorage.Read<Dictionary<string, OpenResource[]>>(store.Get(RegistryStorage.OpenResourcesByKbKey));

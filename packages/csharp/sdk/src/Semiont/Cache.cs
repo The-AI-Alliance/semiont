@@ -1,10 +1,11 @@
 using System.Text.Json;
 using Semiont.Protocol;
+using Semiont.State;
 
 namespace Semiont;
 
 /// <summary>A client or host owned cache. Equal keys share a live query and its pending fetch.</summary>
-public sealed class Cache<TKey, T> : IDisposable where TKey : notnull
+public sealed class Cache<TKey, T> : IStateUnit where TKey : notnull
 {
     private readonly object gate = new();
     private readonly Dictionary<TKey, Cached<T>> entries = [];
@@ -13,6 +14,7 @@ public sealed class Cache<TKey, T> : IDisposable where TKey : notnull
     private readonly TimeProvider clock;
     private readonly TimeSpan window;
     private readonly Action? changed;
+    private readonly Func<bool>? savePending;
     private bool closed;
 
     public Cache(Func<TKey, CancellationToken, Task<T>> fetch, TimeProvider? timeProvider = null)
@@ -20,13 +22,14 @@ public sealed class Cache<TKey, T> : IDisposable where TKey : notnull
             TimeSpan.FromMilliseconds(ProtocolFacts.Timing("invalidationWindowMs").GetInt32()))
     { }
 
-    internal Cache(Func<TKey, CancellationToken, Task<T>> fetch, Func<TKey, IDisposable?>? hold, TimeProvider clock, TimeSpan window, Action? changed = null)
+    internal Cache(Func<TKey, CancellationToken, Task<T>> fetch, Func<TKey, IDisposable?>? hold, TimeProvider clock, TimeSpan window, Action? changed = null, Func<bool>? savePending = null)
     {
         this.fetch = fetch;
         this.hold = hold;
         this.clock = clock;
         this.window = window;
         this.changed = changed;
+        this.savePending = savePending;
     }
 
     public Cached<T> Observe(TKey key)
@@ -42,6 +45,13 @@ public sealed class Cache<TKey, T> : IDisposable where TKey : notnull
     }
 
     public Task<T> FetchAsync(TKey key, CancellationToken cancellation = default) => Observe(key).FreshAsync(cancellation);
+    public CacheState<T>.Ready? Get(TKey key) => Find(key)?.CurrentValue;
+    public bool Known(TKey key) => Find(key)?.IsKnown == true;
+    public IReadOnlyList<TKey> Keys() => Array.AsReadOnly(Snapshot().Where(pair => pair.Value.IsKnown).Select(pair => pair.Key).ToArray());
+
+    public bool PersistencePending => savePending is not null && (savePending() ||
+        Snapshot().Any(pair => !pair.Value.Snapshot(requireIdle: true, out _, out _)));
+
     public void Invalidate(TKey key) => Observe(key).Invalidate();
     public void InvalidateAll()
     {

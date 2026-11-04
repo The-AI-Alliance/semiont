@@ -291,7 +291,8 @@ public sealed partial class HttpTransport : IDisposable
             if (frame.Frame.Channel == replies.Failure)
             {
                 string? code = frame.Frame.Payload.TryGetProperty("code", out var field) && field.ValueKind == JsonValueKind.String ? field.GetString() : null;
-                throw new BusRequestError(ProtocolFacts.Failure(code), frame.Frame.Payload.ToString());
+                var detail = FailureText(frame.Frame.Payload, "message") ?? FailureText(frame.Frame.Payload, "error");
+                throw new BusRequestError(ProtocolFacts.Failure(code), detail ?? frame.Frame.Payload.ToString());
             }
             return frame;
         }
@@ -305,6 +306,9 @@ public sealed partial class HttpTransport : IDisposable
             lock (gate) { pending.Remove(correlation); }
         }
     }
+
+    private static string? FailureText(JsonElement payload, string name) =>
+        payload.TryGetProperty(name, out var field) && field.ValueKind == JsonValueKind.String ? field.GetString() : null;
 
     private async Task RunAsync()
     {

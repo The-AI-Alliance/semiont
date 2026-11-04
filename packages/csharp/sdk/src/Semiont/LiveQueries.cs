@@ -41,17 +41,18 @@ internal sealed class LiveQueries : IDisposable
         var clock = transport.Clock;
         persistence = storage is null ? null : new LiveCacheStorage(storage, clock);
         Action? changed = persistence is { } persisted ? persisted.Changed : null;
+        Func<bool>? pending = persistence is { } storageState ? () => storageState.Pending : null;
         var window = TimeSpan.FromMilliseconds(transport.Settings.InvalidationWindowMs);
         ResourcesById = new(async (id, token) => (await wire.RequestAsync(BusOperations.BrowseResourceRequested,
-            new BrowseResourceRequest { ResourceId = id }, cancellation: token).ConfigureAwait(false)).Response.Resource, transport.SubscribeToResource, clock, window, changed);
+            new BrowseResourceRequest { ResourceId = id }, cancellation: token).ConfigureAwait(false)).Response.Resource, transport.SubscribeToResource, clock, window, changed, pending);
         Resources = new(async (filters, token) => (await wire.RequestAsync(BusOperations.BrowseResourcesRequested,
             new BrowseResourcesRequest { Limit = filters.Limit, Offset = filters.Offset, Archived = filters.Archived, EntityType = filters.EntityType },
             cancellation: token).ConfigureAwait(false)).Response, null, clock, window);
         Annotations = new(async (id, token) => (await content.GetAnnotationsAsync(id, token).ConfigureAwait(false)).Annotations,
-            transport.SubscribeToResource, clock, window, changed);
+            transport.SubscribeToResource, clock, window, changed, pending);
         Annotation = new(async (key, token) => (await wire.RequestAsync(BusOperations.BrowseAnnotationRequested,
             new BrowseAnnotationRequest { ResourceId = key.Resource, AnnotationId = key.Annotation }, cancellation: token)
-            .ConfigureAwait(false)).Response.Annotation, key => transport.SubscribeToResource(key.Resource), clock, window, changed);
+            .ConfigureAwait(false)).Response.Annotation, key => transport.SubscribeToResource(key.Resource), clock, window, changed, pending);
         Events = new(async (id, token) => (await wire.RequestAsync(BusOperations.BrowseEventsRequested,
             new BrowseEventsRequest { ResourceId = id }, cancellation: token).ConfigureAwait(false)).Response.Events, transport.SubscribeToResource, clock, window);
         ReferencedBy = new(async (id, token) => (await wire.RequestAsync(BusOperations.GatherReferencedByRequested,
@@ -119,7 +120,7 @@ internal sealed class LiveQueries : IDisposable
 
         Cache<bool, T> Singleton<T>(Func<CancellationToken, Task<T>> fetch, out Cached<T> query, Action? saved = null)
         {
-            var cache = new Cache<bool, T>((_, token) => fetch(token), null, clock, window, saved);
+            var cache = new Cache<bool, T>((_, token) => fetch(token), null, clock, window, saved, saved is not null ? pending : null);
             query = cache.Observe(true);
             return cache;
         }

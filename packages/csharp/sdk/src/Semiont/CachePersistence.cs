@@ -34,6 +34,8 @@ internal sealed class LiveCacheStorage(CachePersistence storage, TimeProvider cl
     private Dictionary<string, string> savedBookmarks = new(StringComparer.Ordinal);
     private ISavedCache[] caches = [];
     private int dirty;
+    private volatile bool saving;
+    internal bool Pending => saving || Volatile.Read(ref dirty) != 0;
     private bool closed;
 
     internal void Start(HttpTransport transport, ISavedCache[] persisted)
@@ -100,6 +102,13 @@ internal sealed class LiveCacheStorage(CachePersistence storage, TimeProvider cl
     }
 
     private bool Flush(bool force)
+    {
+        saving = true;
+        try { return FlushDocument(force); }
+        finally { saving = false; }
+    }
+
+    private bool FlushDocument(bool force)
     {
         if (Interlocked.Exchange(ref dirty, 0) == 0) return true;
         var values = new List<SavedCacheValue>();

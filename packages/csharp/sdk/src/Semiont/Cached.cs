@@ -126,6 +126,9 @@ public sealed class Cached<T> : IAsyncEnumerable<CacheState<T>>
         owed = false;
     }
 
+    internal bool IsKnown { get { lock (gate) return Held(); } }
+    internal CacheState<T>.Ready? CurrentValue { get { lock (gate) return closed ? null : state as CacheState<T>.Ready; } }
+
     private bool Held() => !closed && (flight is not null || validation is not null || state is not CacheState<T>.Pending);
 
     private async IAsyncEnumerable<CacheState<T>> ReadAsync([EnumeratorCancellation] CancellationToken cancellation)

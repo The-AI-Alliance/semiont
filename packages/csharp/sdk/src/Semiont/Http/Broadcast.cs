@@ -10,8 +10,8 @@ internal sealed class Broadcast<T>(bool replayLatest = false, bool keepForFirst 
     private bool closed;
     private readonly List<T> pending = [];
     private bool hadSubscriber;
-    private bool hasLatest;
-    private T? latest;
+    private Recorded? latest;
+    private sealed record Recorded(T Value);
 
     internal async IAsyncEnumerable<T> Observe([EnumeratorCancellation] CancellationToken cancellation = default)
     {
@@ -20,15 +20,15 @@ internal sealed class Broadcast<T>(bool replayLatest = false, bool keepForFirst 
         {
             if (closed)
             {
-                if (replayLatest && hasLatest && latest is T final) channel.Writer.TryWrite(final);
+                if (replayLatest && latest is { } final) channel.Writer.TryWrite(final.Value);
                 channel.Writer.TryComplete();
             }
             else
             {
                 subscribers.Add(channel);
-                if (replayLatest && hasLatest && latest is T value)
+                if (replayLatest && latest is { } value)
                 {
-                    channel.Writer.TryWrite(value);
+                    channel.Writer.TryWrite(value.Value);
                 }
                 if (keepForFirst && !hadSubscriber)
                 {
@@ -73,8 +73,7 @@ internal sealed class Broadcast<T>(bool replayLatest = false, bool keepForFirst 
             if (closed) return;
             if (replayLatest)
             {
-                latest = value;
-                hasLatest = true;
+                latest = new Recorded(value);
             }
             if (keepForFirst && !hadSubscriber)
             {
