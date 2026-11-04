@@ -20,3 +20,11 @@ public protocol GatewayOperations: Sendable {
   func healthCheck() async throws -> HealthResponse
   func getStatus() async throws -> StatusResponse
 }
+
+public protocol ContentTransport: Sendable {
+  func getBinary(_ resource: ResourceId) async throws -> Content
+  func getBinaryStream(_ resource: ResourceId) async throws -> ContentStream
+  func getResourceGraph(_ resource: ResourceId) async throws -> GetResourceResponse
+  func getAnchoredText(_ resource: ResourceId) async throws -> AnchoredTextAnswer
+  func putBinary(_ request: PutBinaryRequest) -> Upload
+}

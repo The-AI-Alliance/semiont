@@ -220,9 +220,10 @@ private final class RecordedSpans: SpanExporter {
       OpenTelemetry.registerTracerProvider(tracerProvider: DefaultTracerProvider.instance)
     }
     let transport = HttpTransport(baseUrl: base, httpClient: http, token: "token", channels: [])
-    defer { transport.dispose() }
+    let client = try await SemiontClient(transport: transport)
+    defer { client.dispose() }
     let resource = UUID().uuidString
-    let read = try await transport.getBinaryStream(ResourceId(resource))
+    let read = try await client.browse.resourceRepresentationStream(ResourceId(resource))
     traces.forceFlush()
     #expect(!exported.ended(resource))
     read.dispose()

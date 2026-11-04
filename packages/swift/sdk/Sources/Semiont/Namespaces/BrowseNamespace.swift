@@ -2,6 +2,26 @@ public struct BrowseNamespace: Sendable {
   let wire: Bus
   let bus: EventBus
   let lifetime: Lifetime
+  let content: (any ContentTransport)?
+
+  private var contentTransport: any ContentTransport {
+    get throws {
+      guard let content else { throw TransportError(.error, "No content transport is configured") }
+      return content
+    }
+  }
+  public func resourceGraph(_ resourceId: ResourceId) async throws -> GetResourceResponse {
+    try await contentTransport.getResourceGraph(resourceId)
+  }
+  public func resourceAnchoredText(_ resourceId: ResourceId) async throws -> AnchoredTextAnswer {
+    try await contentTransport.getAnchoredText(resourceId)
+  }
+  public func resourceRepresentation(_ resourceId: ResourceId) async throws -> Content {
+    try await contentTransport.getBinary(resourceId)
+  }
+  public func resourceRepresentationStream(_ resourceId: ResourceId) async throws -> ContentStream {
+    try await contentTransport.getBinaryStream(resourceId)
+  }
 
   public func resourceEvents(_ resourceId: ResourceId) async throws -> [AttributedEvent] {
     try await wire.request(
