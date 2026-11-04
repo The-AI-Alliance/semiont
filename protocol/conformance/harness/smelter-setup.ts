@@ -3,25 +3,27 @@
  * the run needs is missing, so each reads as that, never as every case
  * failing.
  *
- * The run is told where its Qdrant is, in QDRANT_HOST. It starts none: the
- * database is a server, and a run inside a container cannot start another. A
- * run without the variable fails here and says so. It is not skipped. The
- * suite CLEARS every collection of the database it is given, so it is given
- * one of its own (`packages/go/launcher/scripts/qdrant-image.sh` prints the
- * image to start).
+ * The run is told where its Qdrant is, in QDRANT_HOST, and the API key it was
+ * started with, in QDRANT_API_KEY. It starts none: the database is a server,
+ * and a run inside a container cannot start another. A run without either
+ * variable fails here and names the one that is missing. It is not skipped.
+ * The Qdrant is run with its JWT access control on, as the launcher runs one,
+ * and the suite mints the Smelter's token from the key. The suite CLEARS
+ * every collection of the database it is given, so it is given one of its own
+ * (`packages/go/launcher/scripts/qdrant-image.sh` prints the image to start).
  */
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import type { TestProject } from 'vitest/node';
 import type { Implementations } from './implementations';
-import { collectionsAt, QDRANT_PORT } from './qdrant';
+import { guarded, QDRANT_PORT, type VectorDatabase } from './qdrant';
 
 declare module 'vitest' {
   export interface ProvidedContext {
     /** How each implementation of the Smelter is started: the configuration provides them. */
     smelterServices: Implementations['smelterServices'];
-    /** Where the run's vector database is. */
-    vectorDatabase: { host: string };
+    /** Where the run's vector database is, and its key. */
+    vectorDatabase: VectorDatabase;
   }
 }
 
@@ -43,14 +45,17 @@ export default async function setup(project: TestProject): Promise<void> {
   }
 
   const host = process.env['QDRANT_HOST'];
-  if (!host) {
+  const key = process.env['QDRANT_API_KEY'];
+  if (!host || !key) {
+    const missing = [...(host ? [] : ['QDRANT_HOST']), ...(key ? [] : ['QDRANT_API_KEY'])];
     throw new Error(
-      'The smelter suite runs against a real Qdrant, whose index it clears, and QDRANT_HOST is not set. ' +
-        `Start one for it alone (\`packages/go/launcher/scripts/qdrant-image.sh\` prints the image; its REST port is ${QDRANT_PORT}) ` +
-        'and set QDRANT_HOST to its address.',
+      `The smelter suite runs against a real Qdrant, whose index it clears, and ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} not set. ` +
+        `Start one for it alone (\`packages/go/launcher/scripts/qdrant-image.sh\` prints the image; its REST port is ${QDRANT_PORT}), ` +
+        'with QDRANT__SERVICE__API_KEY=<key> and QDRANT__SERVICE__JWT_RBAC=true, and set QDRANT_HOST to its address and QDRANT_API_KEY to its key.',
     );
   }
-  // Asked once here, so a database that is not there reads as that.
-  await collectionsAt(host);
-  project.provide('vectorDatabase', { host });
+  const database = { host, key };
+  // Asked once here, so a database that is not there, refuses the key or asks for none reads as that.
+  await guarded(database);
+  project.provide('vectorDatabase', database);
 }

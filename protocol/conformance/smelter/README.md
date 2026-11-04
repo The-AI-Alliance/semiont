@@ -31,7 +31,10 @@ store a Smelter writes with. What a point holds is stated by
 [`protocol/specs/src/vectors/payload-cases.json`](../../specs/src/vectors/payload-cases.json);
 the collections' words, and the payload members a point is found by, are read
 from that table, and a knowledge base's collections are named from its DID as
-the table states. The other suites' type check leaves this suite's cases and
+the table states. Every request the suite makes presents the Qdrant's key, and
+the Smelter is handed a token minted from it, whose claims are what
+[`protocol/specs/src/vectors/token-cases.json`](../../specs/src/vectors/token-cases.json)
+states. The other suites' type check leaves this suite's cases and
 its world out (`tsconfig.json`), so an error in one of them is this suite's
 alone; `npm run test:smelter` checks them with `tsconfig.smelter.json`. Its
 setup stays in every suite's check: it declares what `vitest.config.ts`
@@ -58,9 +61,9 @@ Each file runs its cases in a world of its own
 - the anchored-text store, which the Archivist keeps: the Smelter states its
   stamp and stores its entries on the Archivist's surface and mounts none of
   it, and the suite reads the Archivist's files;
-- the Smelter, started with its settings and its environment, its cursors
-  kept in a file of its home, and waited for until its start has swept the
-  record.
+- the Smelter, started with its settings and its environment, which holds
+  its service account and its token for the index, its cursors kept in a
+  file of its home, and waited for until its start has swept the record.
 
 **Nothing is recorded but through the Archivist.** A case uploads, updates,
 archives, tags and annotates as a person, so the Smelter is given the events
@@ -69,14 +72,18 @@ says, a case reads off the bus: a stream of `smelt:settled` is open before any
 Smelter is, and every decision it carries is held to its schema.
 
 **The run is told where its Qdrant is,** in `QDRANT_HOST` (its REST port,
-6333), and starts none. Without it the run fails, and says so; it is not
-skipped. **It clears every collection of the database it is given,** so it is
-given one of its own. `packages/go/launcher/scripts/qdrant-image.sh` prints the image the launcher
+6333), **and the API key it was started with,** in `QDRANT_API_KEY`, and
+starts none. The Qdrant is run with its JWT access control on, as the
+launcher runs one. Without either variable the run fails, and names the one
+that is missing, and so does a Qdrant that refuses the key or asks for none;
+it is not skipped. **It clears every collection of the database it is
+given,** so it is given one of its own.
+`packages/go/launcher/scripts/qdrant-image.sh` prints the image the launcher
 starts for an operator, which is the one to run:
 
 ```bash
-docker run -d --name smelter-suite-qdrant -p 6333:6333 "$(packages/go/launcher/scripts/qdrant-image.sh)"
-QDRANT_HOST=localhost npm run test:smelter
+docker run -d --name smelter-suite-qdrant -p 6333:6333 -e QDRANT__SERVICE__API_KEY=a-key -e QDRANT__SERVICE__JWT_RBAC=true "$(packages/go/launcher/scripts/qdrant-image.sh)"
+QDRANT_HOST=localhost QDRANT_API_KEY=a-key npm run test:smelter
 ```
 
 **One world at a time.** The files share one database, and every Smelter is
@@ -107,8 +114,9 @@ A case about what happens while the reconcile runs starts the Smelter to
   base with nothing in it, of a reconcile with nothing to mend, and after
   events and a reconcile; that an event recorded while its start's reconcile
   runs is applied then; a clean stop; every
-  refusal to start, without either half of its service account, without the
-  directory of the anchored-text store, and without each setting it is told;
+  refusal to start, without either half of its service account, without its
+  token for the index, without the directory of the anchored-text store, and
+  without each setting it is told;
   and that a provider answering 404 as it starts is asked again.
 - **As the record changes** (`index.test.ts`): what a recorded text becomes,
   by the table's points and the provider's vectors; a long text's several
@@ -134,7 +142,8 @@ A case about what happens while the reconcile runs starts the Smelter to
   what it reports. A text it remembers skipping is not read again, and an
   index a Smelter of another cut made is made again and filled whole.
 - **Beside another knowledge base** (`kb-index.test.ts`): that the suite names
-  a knowledge base's collections as the payload table states; and that a
+  a knowledge base's collections as the payload table states, and mints each
+  service's token as the token table states; and that a
   Smelter whose Qdrant holds another knowledge base's index neither reads nor
   purges nor writes it, makes its own anew beside it, and fills its own.
 - **Asking its provider** (`provider.test.ts`): a batch cut into slices of
@@ -162,5 +171,5 @@ uv sync --locked --no-dev --project images/smelter
 npm run build --workspace=@semiont/core
 cd protocol/conformance
 npm ci
-QDRANT_HOST=<address> npm run test:smelter
+QDRANT_HOST=<address> QDRANT_API_KEY=<key> npm run test:smelter
 ```

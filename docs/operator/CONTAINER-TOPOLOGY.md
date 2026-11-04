@@ -9,13 +9,13 @@ For what each container needs (its port, configuration, mounts and health check)
 A stack the launcher runs, on the documents `semiont init` writes, is, in the groups `semiont status` reads it by ([What runs](LOCAL-SEMIONT.md#what-runs)):
 
 - **its record**: the gateway, the dispatcher, the archivist and NATS;
-- **its index**: the librarian, the smelter, the weaver, Neo4j and Qdrant;
+- **its index**: the librarian, the smelter, the weaver, Neo4j and Qdrant, which is the machine's: one serves every knowledge base here, each one's index in collections of its own;
 - **the issuer**: Keycloak and its PostgreSQL, where every knowledge base here has a realm of its own;
 - **the knowledge workers**: the Browser and the worker;
 - **the providers**: Ollama (none when one is installed on the computer, or when every model is a hosted provider's);
 - **the telemetry**: the OpenTelemetry Collector, Jaeger and Prometheus. `--no-observe` leaves out the last two; the collector still runs.
 
-The first two are the knowledge base's own, and its containers are named for it, `semiont-<kb>-<product>`, where `<kb>` is its did:web domain made safe for a name. The last four are shared: one of each serves every knowledge base here, named `semiont-<name>` ([the launcher's names](services/OVERVIEW.md#the-launchers-names)).
+The first two are the knowledge base's own, Qdrant aside, and its containers are named for it, `semiont-<kb>-<product>`, where `<kb>` is its did:web domain made safe for a name. Qdrant and the last four are shared: one of each serves every knowledge base here, named `semiont-<name>` ([the launcher's names](services/OVERVIEW.md#the-launchers-names)).
 
 Semiont's eight are published images that a stack pulls and configures at run time. Nothing about a knowledge base is built into them ([Container Images](administration/IMAGES.md)).
 
@@ -126,7 +126,7 @@ graph TB
         WEAVE["semiont-&lt;kb&gt;-weaver<br/>Weaver — graph pipeline"]
         SMELT["semiont-&lt;kb&gt;-smelter<br/>Smelter — vector pipeline"]
         NEO["semiont-&lt;kb&gt;-neo4j<br/>Neo4j — graph projection"]
-        QD["semiont-&lt;kb&gt;-qdrant<br/>Qdrant — vector index"]
+        QD["semiont-qdrant<br/>Qdrant — every KB's vector index"]
     end
 
     LIB["semiont-&lt;kb&gt;-librarian<br/>Gatherer · Matcher"]
@@ -152,8 +152,8 @@ graph TB
 
     WEAVE --> NEO
     LIB --> NEO
-    SMELT --> QD
-    LIB --> QD
+    SMELT -->|"token — any collection"| QD
+    LIB -->|"token — reads its KB's collections"| QD
     SMELT --> OL
     LIB --> OL
     WORKER --> OL
@@ -207,6 +207,7 @@ Reading the diagram:
 - **Purple cylinders are derived state**, rebuildable from the record.
 - **Amber cylinders are neither.** They are operational state held in JetStream on the broker's `/data`, each with one owner. The job queue is the dispatcher's: a key-value bucket of jobs, where every transition is a compare-and-set, and a work-queue stream whose deliveries are the leases. Pending jobs live only there. The event log records that a job started, completed or failed, never that it was created, so the queue is durable. The signal tables are the gateway's, and every entry in them expires. They hold only what is in flight: who may see the reply to which request, replies kept for a client that reconnects, and each principal's open streams. Sharing them is what lets any gateway replica answer as the others would.
 - **Rectangle-to-rectangle edges** are each service's infrastructure. Dotted edges are telemetry: OTLP into the collector, traces forwarded to Jaeger, metrics scraped by Prometheus.
+- **The Qdrant edges carry tokens.** Qdrant answers only its API key or a token signed with it, and the launcher keeps the key. At each start it signs the smelter a token that may do anything, since only such a token makes a collection, and the librarian one that reads its own knowledge base's three collections and nothing else ([Secrets](services/SECRETS.md#values-the-launcher-keeps)).
 - **The gateway attaches to two things**: the broker, for the signal plane and its tables, and the issuer, whose keys it verifies tokens against. It holds no database and no queue.
 - **The worker's frame is a deployment boundary.** A worker holds no mount and no broker credential. Everything it dials (the gateway, for the bus and for bytes, and an inference provider) is a network address, so it can run on a machine the rest of the stack never shares. A worker that is not the deployment's own joins the same way: its client is granted the worker role at the issuer, and the dispatcher admits its claims by that role ([Admitting a worker someone else runs](./administration/AUTHENTICATION.md#admitting-a-worker-someone-else-runs)).
 - **The Ollama edges show the fully local case.** On an Inference document that names a remote API such as Anthropic's, inference for the workers and the librarian goes there instead. Embeddings stay on Ollama unless the KnowledgeIndex names Voyage.

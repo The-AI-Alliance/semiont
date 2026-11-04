@@ -20,9 +20,10 @@ Every kind's `apiVersion` is [`ApiVersion.json`](ApiVersion.json)'s:
 [`Metadata.json`](Metadata.json), [`Image.json`](Image.json),
 [`Resources.json`](Resources.json), [`SecretRef.json`](SecretRef.json),
 [`HostPort.json`](HostPort.json) and [`Provider.json`](Provider.json).
-[`Runner.json`](Runner.json) is the one rule every daemon follows: the
-launcher runs it, from `image` with `resources`, or somebody else does, at
-`external`, never both.
+[`Runner.json`](Runner.json) is the rule a knowledge base's daemons follow:
+the launcher runs it, from `image` with `resources`, or somebody else does, at
+`external`, never both. The vector store has a third way, `shared`: the one the
+launcher runs for every knowledge base on the machine.
 
 ## Documents outside any knowledge base
 
@@ -37,6 +38,7 @@ the file is what runs.
 | `Browser` | [`Browser.json`](Browser.json) | `stack/browser.yaml` | the Browser: its image, its memory, and the port it is published on, on this computer's loopback |
 | `WorkerPool` | [`WorkerPool.json`](WorkerPool.json) | `stack/workers.yaml` | the worker: its image, its memory and its log level. A knowledge base's jobs are done when its Inference document gives a job an engine |
 | `Issuer` | [`Issuer.json`](Issuer.json) | `stack/issuer.yaml` | the issuer the launcher runs for every knowledge base that names `shared`, with a realm for each: its image, its memory, the port it is published on, and the database it keeps the realms in |
+| `VectorStore` | [`VectorStore.json`](VectorStore.json) | `stack/vectors.yaml` | the vector store the launcher runs for every knowledge base that names `shared`, each knowledge base's index in collections of its own: its image, its memory, and the port it is published on |
 
 ## The project file
 

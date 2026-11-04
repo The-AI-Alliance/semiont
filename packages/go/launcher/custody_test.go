@@ -81,15 +81,16 @@ func TestTheSharedIssuersPasswordsAreTheMachines(t *testing.T) {
 	if !ok {
 		t.Fatal("no admin password")
 	}
-	postgres, ok := loadOrCreateDaemonPassword(u, key, "identity-store")
+	machine := (&launchPlan{}).machineKeeps("identity-store")
+	postgres, ok := loadOrCreateDaemonCredential(u, key, "identity-store", machine)
 	if !ok {
 		t.Fatal("no PostgreSQL password")
 	}
 	other := rootKey("did:web:owner.github.io:other-kb", "")
-	if again, _ := loadOrCreateDaemonPassword(u, other, "identity-store"); again != postgres {
+	if again, _ := loadOrCreateDaemonCredential(u, other, "identity-store", machine); again != postgres {
 		t.Errorf("another knowledge base's start reads PostgreSQL's password as %q, want the machine's %q", again, postgres)
 	}
-	for name, want := range map[string]string{custodyKeycloakAdmin: admin, daemonPasswords["identity-store"].custody: postgres} {
+	for name, want := range map[string]string{custodyKeycloakAdmin: admin, daemonCredentials["identity-store"].custody: postgres} {
 		if got, _ := sharedCustody().get(u, name); got != want {
 			t.Errorf("the machine's store holds %s as %q, want %q", name, got, want)
 		}
@@ -102,6 +103,41 @@ func TestTheSharedIssuersPasswordsAreTheMachines(t *testing.T) {
 		}
 		if slices.Contains(custodyNames(), name) {
 			t.Errorf("%s is among the values a root keeps, which a clean of the root clears and a store change moves", name)
+		}
+	}
+}
+
+// Qdrant's API key is kept where its Qdrant's store is: the machine's for the
+// shared Qdrant, which every knowledge base naming it reads alike, and the
+// root's for a knowledge base's own.
+func TestQdrantsKeyIsKeptWhereItsStoreIs(t *testing.T) {
+	key := custodyKey(t)
+	u := NewUI(false)
+	d := daemonCredentials["vectors"]
+	for _, c := range []struct {
+		why      string
+		presence presence
+		machine  bool
+	}{
+		{"the shared Qdrant", presenceShared, true},
+		{"a knowledge base's own Qdrant", presenceLauncher, false},
+	} {
+		plan := &launchPlan{Roles: map[string]rolePlan{"vectors": {Role: "vectors", Presence: c.presence}}}
+		if got := plan.machineKeeps("vectors"); got != c.machine {
+			t.Fatalf("%s: the machine keeps its key: %v, want %v", c.why, got, c.machine)
+		}
+		minted, ok := loadOrCreateDaemonCredential(u, key, "vectors", plan.machineKeeps("vectors"))
+		if !ok || minted == "" {
+			t.Fatalf("%s: no key", c.why)
+		}
+		root, ok := custodyFor(u, key)
+		if !ok {
+			t.Fatal("no root store")
+		}
+		inMachine, _ := sharedCustody().get(u, d.custody)
+		inRoot, _ := root.get(u, d.custody)
+		if kept := map[bool]string{true: inMachine, false: inRoot}[c.machine]; kept != minted {
+			t.Errorf("%s: its key is kept as %q, want %q", c.why, kept, minted)
 		}
 	}
 }

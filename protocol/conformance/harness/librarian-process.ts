@@ -7,8 +7,9 @@
  * (`LibrarianConfig`), into a home directory of the process's own, and starts
  * the Librarian with `--config <document>`. The document states its health
  * port too. The environment holds its service account, the graph database's
- * password under the name its document gives it, and PATH, which finds its
- * command; nothing else from the developer's shell.
+ * password and its token for the index, each under the name its document
+ * gives it, and PATH, which finds its command; nothing else from the
+ * developer's shell.
  *
  * Every Librarian a world starts is given the world's one health port, so
  * two cannot run at once: a Librarian is not started while anything answers

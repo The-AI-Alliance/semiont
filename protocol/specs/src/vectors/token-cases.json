@@ -1,0 +1,92 @@
+{
+  "$comment": "What a token presented to a Qdrant says its holder may do, as everything that mints one must mint it. Every Qdrant a Smelter writes and a Librarian reads is run with an API key and its JWT access control on, and asks every request for a token or the key, in its `api-key` header; it answers `/readyz` with neither. A TOKEN is a JSON Web Token signed by HS256 with the Qdrant's API key, whose claims are the case's and no others. It states no `exp`: it is minted when its service starts, for a service that runs until it is stopped, and a new key makes every token minted before it fail. THE SMELTER'S, `smelter`, is global manage, whatever the knowledge base. The Smelter makes its knowledge base's collections, and deletes and makes them again whenever it makes its index anew, and Qdrant makes and deletes a collection for global manage alone (1.19.1 and 1.20.0, `lib/storage/src/rbac/ops_checks.rs`): a token limited to collections cannot. So a Smelter's token reaches every knowledge base's collections on its Qdrant. THE LIBRARIAN'S, `librarian`, reads its knowledge base's three collections and nothing else: `r` on each, named as protocol/specs/src/vectors/payload-cases.json names them, in that table's `collections` order. Qdrant refuses it a write, and any request of another knowledge base's collections; asked which collections there are, it answers those three of them it holds. A CASE gives `kb`, a knowledge base's DID, and `claims`, the claims of the two tokens minted for it. A runner mints both for `kb` and fails on claims other than the case's. WHO RUNS WHAT. The launcher mints the tokens of the Smelter and the Librarian it starts, from the key it keeps for the Qdrant it runs. The conformance harness mints them for the Smelter and the Librarian it starts. The vectors package's live test mints them, presents each to a Qdrant run with a key, and holds what Qdrant allows each and refuses it.",
+  "runBy": {
+    "conformance": [
+      "protocol/conformance/smelter/kb-index.test.ts"
+    ],
+    "launcher": [
+      "apps/launcher/launcher_test.go",
+      "packages/go/launcher/vectorstokens_test.go"
+    ],
+    "vectors-python": [
+      "packages/python/vectors/tests/qdrant_live.py"
+    ]
+  },
+  "cases": [
+    {
+      "why": "a knowledge base of the shape semiont init writes: its Smelter may do anything, and its Librarian may read its three collections",
+      "kb": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb",
+      "claims": {
+        "smelter": {
+          "access": "m"
+        },
+        "librarian": {
+          "access": [
+            {
+              "collection": "dab801537d2dd1939a1e75fd6ec796cf0240a9f57cd12b655e21a6c675f2de46-resources",
+              "access": "r"
+            },
+            {
+              "collection": "dab801537d2dd1939a1e75fd6ec796cf0240a9f57cd12b655e21a6c675f2de46-annotations",
+              "access": "r"
+            },
+            {
+              "collection": "dab801537d2dd1939a1e75fd6ec796cf0240a9f57cd12b655e21a6c675f2de46-declined",
+              "access": "r"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "why": "another knowledge base on the same Qdrant: its Librarian reads its own three collections, and none of the first's, and its Smelter's token is the first's",
+      "kb": "did:web:example.github.io:plain-kb",
+      "claims": {
+        "smelter": {
+          "access": "m"
+        },
+        "librarian": {
+          "access": [
+            {
+              "collection": "4f3ef9ebed2e4b1ee7ee748091f2b6adbb5a4c98eb083538678c89f0b5e99b99-resources",
+              "access": "r"
+            },
+            {
+              "collection": "4f3ef9ebed2e4b1ee7ee748091f2b6adbb5a4c98eb083538678c89f0b5e99b99-annotations",
+              "access": "r"
+            },
+            {
+              "collection": "4f3ef9ebed2e4b1ee7ee748091f2b6adbb5a4c98eb083538678c89f0b5e99b99-declined",
+              "access": "r"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "why": "a domain with a port: the Librarian's collections are named by the DID's hash, which holds no `%`",
+      "kb": "did:web:localhost%3A4000",
+      "claims": {
+        "smelter": {
+          "access": "m"
+        },
+        "librarian": {
+          "access": [
+            {
+              "collection": "3c6ae07c9adb577bab51736adb1e149fc9572cfa1af49c6fbc00191c0ed793ea-resources",
+              "access": "r"
+            },
+            {
+              "collection": "3c6ae07c9adb577bab51736adb1e149fc9572cfa1af49c6fbc00191c0ed793ea-annotations",
+              "access": "r"
+            },
+            {
+              "collection": "3c6ae07c9adb577bab51736adb1e149fc9572cfa1af49c6fbc00191c0ed793ea-declined",
+              "access": "r"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

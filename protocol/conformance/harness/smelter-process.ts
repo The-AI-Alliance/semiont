@@ -6,8 +6,9 @@
  * harness writes them as the protocol's configuration document
  * (`SmelterConfig`), into a home directory of the process's own, and starts
  * the Smelter with `--config <document>`. The environment holds its service
- * account and PATH, which finds its command and the `tesseract` it reads a
- * scan with; nothing else from the developer's shell.
+ * account, its token for the index under the name its document gives it, and
+ * PATH, which finds its command and the `tesseract` it reads a scan with;
+ * nothing else from the developer's shell.
  *
  * Every Smelter is told the same health port, so two cannot run at once: a
  * Smelter is not started while anything answers there.
@@ -26,6 +27,8 @@ export const SMELTER_HEALTH_PORT = 24101;
 /** The file, in a Smelter's home, it is told to keep its cursors in (SMELTER.md § Settings). */
 export const CURSORS = 'cursors.json';
 
+type QdrantVectors = components['schemas']['QdrantVectorsConfig'];
+
 /**
  * What a Smelter is told (SMELTER.md § Settings). Every member the page says
  * a Smelter refuses to start without may be left out, for the case that
@@ -39,8 +42,8 @@ export interface SmelterSettings {
   issuer?: string;
   /** Where the Archivist is, for a resource's bytes. */
   archivist?: { host: string; port: number };
-  /** The vector database: its kind, and its host and port. */
-  vectors: { type: 'qdrant'; host?: string; port?: number };
+  /** The vector database: its kind, its host and port, and the variable its token is in. */
+  vectors: { [Member in keyof QdrantVectors]: QdrantVectors[Member] | undefined };
   /** The embedding provider: its kind, its model and its address. */
   embedding: { type?: 'ollama'; model?: string; baseUrl?: string };
   /** The two numbers a text is cut by: a chunk's size, and how far one chunk overlaps the next. */
@@ -141,7 +144,7 @@ function document(settings: SmelterSettings, home: string): string {
       identity: stated({ issuer: settings.issuer }),
       archivist: settings.archivist,
       embedding: stated({ type: settings.embedding.type, model: settings.embedding.model, baseUrl: settings.embedding.baseUrl }),
-      vectors: stated({ type: settings.vectors.type, host: settings.vectors.host, port: settings.vectors.port }),
+      vectors: stated(settings.vectors),
       chunking: settings.chunking,
       pdfsAtOnce: settings.pdfsAtOnce,
       cursorsPath: join(home, CURSORS),

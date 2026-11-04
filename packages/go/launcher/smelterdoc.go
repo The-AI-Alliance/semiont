@@ -6,7 +6,8 @@ package launcher
 // mounts it where the Smelter's image points its `--config` flag, so the
 // Smelter neither reads a knowledge base's documents nor resolves or defaults
 // anything. A secret is never a value in it: Voyage's key is a variable the
-// KnowledgeIndex names (`fromEnv`), and the document names it.
+// KnowledgeIndex names (`fromEnv`), and the document names it, as it names
+// the variable its token to the vector index is in (vectorsTokenVars).
 
 import (
 	"encoding/json"
@@ -69,17 +70,49 @@ func embeddingConfig(p placement, who string) (embedding api.EmbeddingConfig, er
 }
 
 // vectorsConfig: the vector index a service reaches, as its document states
-// it. ONE decider, for the Smelter's document, which writes the index, and the
-// Librarian's, which searches it. who names the service in a refusal.
-func vectorsConfig(p placement, who string) (vectors api.VectorsConfig, err error) {
+// it, with the variable its token is in. ONE decider, for the Smelter's
+// document, which writes the index, and the Librarian's, which searches it.
+// who names the service in a refusal.
+func vectorsConfig(p placement, who, tokenEnv string) (vectors api.VectorsConfig, err error) {
 	v := p.st.KnowledgeIndex.Spec.Vectors
 	if v.Type != string(api.QdrantVectorsConfigTypeQdrant) {
 		return vectors, planErr(p.st.Files.KnowledgeIndex, "spec.vectors.type", "is %q: the launcher writes %s's document for a qdrant index alone", v.Type, who)
 	}
 	var qdrant api.QdrantVectorsConfig
 	qdrant.Host, qdrant.Port = p.vectors()
+	qdrant.TokenEnv = tokenEnv
 	err = vectors.FromQdrantVectorsConfig(qdrant)
 	return vectors, err
+}
+
+// vectorsTokenVars: the variables the Smelter's and the Librarian's tokens to
+// the vector index are in — the ones the operator names for somebody else's
+// Qdrant, else the launcher's, which it mints them into (vectorsTokenEnv).
+func vectorsTokenVars(p placement) (smelter, librarian string) {
+	if external := p.st.KnowledgeIndex.Spec.Vectors.External; external != nil {
+		return external.SmelterToken.FromEnv, external.LibrarianToken.FromEnv
+	}
+	return vectorsTokenVar, vectorsTokenVar
+}
+
+// vectorsSecrets: the variables of the Smelter's and the Librarian's tokens
+// that they are handed among the user's — somebody else's Qdrant's, which the
+// operator names. A Qdrant the launcher runs has none: their tokens are
+// minted.
+func vectorsSecrets(p placement) (smelter, librarian []string) {
+	if p.st.KnowledgeIndex.Spec.Vectors.External == nil {
+		return nil, nil
+	}
+	s, l := vectorsTokenVars(p)
+	return []string{s}, []string{l}
+}
+
+// smelterSecrets: the variables the Smelter's document names, and so the ones
+// it is handed among the user's: Voyage's key, and its token to somebody
+// else's Qdrant (vectorsSecrets).
+func smelterSecrets(p placement) []string {
+	token, _ := vectorsSecrets(p)
+	return append(embeddingSecrets(p), token...)
 }
 
 // smelterDocument renders the document from the start's placement and the
@@ -96,7 +129,8 @@ func smelterDocument(p placement, served api.KbIdentity) ([]byte, error) {
 	if doc.Embedding, err = embeddingConfig(p, "the Smelter"); err != nil {
 		return nil, err
 	}
-	if doc.Vectors, err = vectorsConfig(p, "the Smelter"); err != nil {
+	token, _ := vectorsTokenVars(p)
+	if doc.Vectors, err = vectorsConfig(p, "the Smelter", token); err != nil {
 		return nil, err
 	}
 	doc.Chunking.ChunkSize, doc.Chunking.Overlap = index.Embedding.Chunking.ChunkSize, index.Embedding.Chunking.Overlap

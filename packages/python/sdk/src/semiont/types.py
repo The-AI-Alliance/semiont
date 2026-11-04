@@ -2827,12 +2827,20 @@ class VoyageEmbeddingConfig(WireModel, frozen=True, extra="forbid"):
 
 class QdrantVectorsConfig(WireModel, frozen=True, extra="forbid"):
     """
-    A vector index kept in a Qdrant server, asked over its REST API.
+    A vector index kept in a Qdrant server, asked over its REST API with a token.
     """
 
     type: Literal["qdrant"]
     host: Annotated[str, Field(description="The server's host.", min_length=1)]
     port: Annotated[int, Field(description="The port its REST API listens on.", ge=1, le=65535)]
+    token_env: Annotated[
+        str,
+        Field(
+            alias="tokenEnv",
+            description="The environment variable holding the token the service presents to the server on every request, which says what of the index it may read and write. The token is never a value here.",
+            min_length=1,
+        ),
+    ]
 
 
 class MemoryVectorsConfig(WireModel, frozen=True, extra="forbid"):

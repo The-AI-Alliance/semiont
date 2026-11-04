@@ -277,6 +277,7 @@ func Status(args []string) int {
 				healthy = printSharedGroup(u, g, views, ss, ceilings) && healthy
 			}
 		}
+		healthy = printMachineServed(u, views, ss) && healthy
 	}
 	if service == "" && verbose {
 		printSessions(u, ss)
@@ -580,6 +581,61 @@ func issuerServerRow(ss *StackSet, views []stackView) (statusRow, []string) {
 	return r, serves
 }
 
+// machineServedRow: the row of the machine's container for role, one of
+// machineServedRoles, read from its own record, and the knowledge bases of
+// views whose records name it as serving them. Asked where the start that ran
+// it waits for it.
+func machineServedRow(ss *StackSet, views []stackView, role string) (statusRow, []string) {
+	name := sharedContainer(role)
+	rec := ss.Shared[name]
+	var serves []string
+	for _, v := range views {
+		if machineServes(v.st, role) {
+			serves = append(serves, v.name)
+		}
+	}
+	r := statusRow{role: role, label: role + " (" + driverDisplay(role, probeDriver(role)) + ")", rt: "—", rec: rec}
+	if rec == nil {
+		r.word, r.probe = "absent", "a start of a knowledge base that names it shared runs it"
+		return r, serves
+	}
+	state, rt := containerState([]string{rec.Runtime}, sharedHandles(rec.Runtime, name, rec)[0])
+	if rt != "" {
+		r.rt = rt
+	}
+	r.word, r.probe = state, rec.Endpoint
+	if r.word == "" {
+		r.word = "absent"
+	}
+	r.healthy = roleHealthy(role, rec.Endpoint)
+	return r, serves
+}
+
+// printMachineServed prints a section for each role the machine's container
+// serves for the knowledge bases naming it, when one the report covers names
+// it or its record says it runs: its row once, naming the knowledge bases it
+// serves when the report covers more than one. Returns whether each is
+// healthy that a knowledge base the report covers names.
+func printMachineServed(u *UI, views []stackView, ss *StackSet) bool {
+	healthy := true
+	for _, role := range machineServedRoles {
+		r, serves := machineServedRow(ss, views, role)
+		if len(serves) == 0 && r.rec == nil {
+			continue
+		}
+		u.Section(strings.ToUpper(role))
+		printRowHeader()
+		if len(serves) > 0 {
+			healthy = healthy && r.healthy
+		}
+		if len(views) < 2 {
+			serves = nil
+		}
+		printRow(u, r, serves)
+	}
+	return healthy
+}
+
 // browserRow: the Browser's row. It belongs to no stack, so it reads its own
 // record; the image tag shows browser-vs-stack skew, since a kept Browser
 // can outlive several stacks.
@@ -645,15 +701,18 @@ func statusMark(u *UI, healthy bool) string {
 }
 
 // compactItem: r as one item of a knowledge base's group line — its mark and
-// role, where it runs when somebody else runs it, and its state when it is
-// not healthy.
+// role, where it runs when somebody else or the machine's container runs it,
+// and its state when it is not healthy.
 func compactItem(u *UI, r statusRow) string {
 	if r.unconfigured {
 		return u.Dim("– " + r.role + " not configured")
 	}
 	item := statusMark(u, r.healthy) + " " + r.role
-	if r.rt == "external" || r.rt == "host" {
+	switch {
+	case r.rt == "external" || r.rt == "host":
 		item += " " + u.Dim(r.rt)
+	case contains(machineServedRoles, r.role) && r.rec != nil && r.rec.Provided == providedShared:
+		item += " " + u.Dim("shared")
 	}
 	if !r.healthy {
 		word := r.word
@@ -1369,11 +1428,11 @@ const kbLogsDir = "logs"
 // storeUse: what a directory of stores takes on disk — a knowledge base's,
 // or, shared, the machine's (sharedStateDir) — and each store in it that is
 // there, largest first, with a knowledge base's container logs: absent is
-// absent, not 0 B. The total is the whole directory's, kept secrets and the
-// stamp included.
+// absent, not 0 B. The vector store may be in either. The total is the whole
+// directory's, kept secrets and the stamp included.
 func storeUse(dir string, shared bool) (uses []storeUseRow, total int64, any bool) {
 	for _, spec := range stateStores {
-		if sharedRole(spec.owner) != shared {
+		if spec.machine != shared && !(shared && contains(machineServedRoles, spec.owner)) {
 			continue
 		}
 		if sz, ok := diskUse(filepath.Join(dir, spec.dir)); ok {

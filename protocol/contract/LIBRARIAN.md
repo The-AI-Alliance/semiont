@@ -66,8 +66,9 @@ the Archivist's host and port, for a resource's bytes; the graph database
 ([`GraphConfig`](../specs/src/components/schemas/GraphConfig.json): its
 kind, and what that kind needs to be reached, with the name of the
 environment variable that holds its password); the vector index
-([`VectorsConfig`](../specs/src/components/schemas/VectorsConfig.json));
-the embedding provider
+([`VectorsConfig`](../specs/src/components/schemas/VectorsConfig.json): its
+kind, and what that kind needs to be reached, with the name of the variable
+that holds the token the Librarian presents to it); the embedding provider
 ([`EmbeddingConfig`](../specs/src/components/schemas/EmbeddingConfig.json):
 its kind, its model and where it is reached, with the name of the variable
 that holds its key, for a provider that takes one); a model for each of its
@@ -109,13 +110,13 @@ The Librarian supplies no value.
   With either missing or empty it refuses to start, and names the one that is
   missing. *Held by `images/librarian/tests/test_service.py` and `librarian/boot`.*
 - **A secret is read from the variable the document names for it:** the graph
-  database's password, the embedding provider's key, and the key of each
-  actor's model. With that variable unset or empty it refuses to start, and
-  names the member of the document and the variable. A provider that takes
-  no key names no variable. A provider that takes one, in a document that
-  names no variable for it, is refused by the member: `matcher.apiKeyEnv` or
-  `gatherer.apiKeyEnv`.
-  *Held by `images/librarian/tests/test_config.py` and `images/librarian/tests/test_service.py`, and by `librarian/boot`, for the graph database's password.*
+  database's password, the embedding provider's key, the vector index's
+  token, and the key of each actor's model. With that variable unset or empty
+  it refuses to start, and names the member of the document and the
+  variable. A provider that takes no key names no variable. A provider that
+  takes one, in a document that names no variable for it, is refused by the
+  member: `matcher.apiKeyEnv` or `gatherer.apiKeyEnv`.
+  *Held by `images/librarian/tests/test_config.py` and `images/librarian/tests/test_service.py`, and by `librarian/boot`, for the graph database's password and the vector index's token.*
 - **A model of `google`, `openai` or `together` is asked with what a model
   catalogue says of it,** which those providers' APIs do not say. The
   document's `modelCatalogue` is the catalogue file's path, which every
@@ -185,6 +186,19 @@ anchored text from the gateway's `GET /resources/{id}/anchored-text`.
   [SMELTER.md](./SMELTER.md#the-index) states. A Qdrant that holds other
   knowledge bases' indexes answers it none of their points.
   *Held by `packages/python/vectors/tests/qdrant_live.py`, against a Qdrant.*
+- **It presents its token on every request to the index,** in Qdrant's
+  `api-key` header: the value of the variable its document's
+  `vectors.tokenEnv` names. The token reads the three collections of the
+  knowledge base it serves and nothing else: its claims are a read of each,
+  as [`token-cases.json`](../specs/src/vectors/token-cases.json) states.
+  Qdrant refuses it a write, and every request of another knowledge base's
+  collections, and asked which collections there are, answers those of the
+  three it holds. So one knowledge base's Librarian reads nothing of
+  another's index, and a Librarian given another knowledge base's token
+  reads none of its own: the index refuses each search of it, which is an
+  index that fails, as each operation's own rules say, and not an index
+  with no such collection.
+  *Held by `packages/python/vectors/tests/qdrant_live.py`, against a Qdrant that asks for a token, and by `librarian/search`, for a text search by a Librarian given another knowledge base's token.*
 - **A search of a collection the Smelter has not made yet fails,** and makes
   none. An index nobody has started is no index that found nothing: a
   reference search, a text search and both gathers each answer on their
@@ -396,7 +410,7 @@ search as what each store answers and the page that follows, and is the rule.
 - **Where the embedding or the index fails, the answer is the page with no
   resources, a total of 0, and `lexical`.** A search that found nothing does
   not become a failure. An index with no such collection fails the search.
-  *Held by `images/librarian/tests/test_search_cases.py`, and by `librarian/search`, for an embedding that fails.*
+  *Held by `images/librarian/tests/test_search_cases.py`, and by `librarian/search`, for an embedding that fails and for an index that refuses the Librarian's token.*
 - **Each resource of a lexical page is given a preview as `content`; a
   semantic page's `content` is left as it is.**
   *Held by `images/librarian/tests/test_search_cases.py` and `librarian/search`.*
@@ -954,10 +968,10 @@ requests; opens its health port.
 
 - **Everything it is started with is read before anything is dialled:** the
   document first, then the service account, then the graph database's
-  password, the embedding provider's key, the Matcher's key and the
-  Gatherer's. A Librarian that cannot start on one of them says so in one
-  line on its standard error, which begins `[fatal] `, and writes nothing
-  else. *Held by `images/librarian/tests/test_service.py`.*
+  password, the embedding provider's key, the vector index's token, the
+  Matcher's key and the Gatherer's. A Librarian that cannot start on one of
+  them says so in one line on its standard error, which begins `[fatal] `,
+  and writes nothing else. *Held by `images/librarian/tests/test_service.py`.*
 - **It signs in once, and gives up when the gateway does not answer.** It
   exits with a status other than 0, having said which address did not
   answer. Starting it again is left to whatever supervises it.
@@ -1040,7 +1054,7 @@ and no others:
 | Variable | What it is |
 |---|---|
 | `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` | Its service account at the knowledge base's issuer. Required |
-| the variables its document names | The graph database's password, required; its embedding provider's key and the key of each actor's model, each for a provider that takes one, and required then. A stack the launcher starts names `NEO4J_PASSWORD` for the first, and gives it the password the launcher keeps. An Ollama takes no key |
+| the variables its document names | The graph database's password, required; its token for the vector index, required; its embedding provider's key and the key of each actor's model, each for a provider that takes one, and required then. A stack the launcher starts names `NEO4J_PASSWORD` for the first, and gives it the password the launcher keeps; where the launcher runs the Qdrant, it names `QDRANT_TOKEN` for the second, and gives it a token the launcher mints. An Ollama takes no key |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | The OTLP/HTTP collector its spans and metrics are exported to ([Telemetry](#telemetry)). Without it, and without the console exporter, it exports nothing and writes no span or metric anywhere |
 | `OTEL_SERVICE_NAME` | The `service.name` its spans and metrics carry; `semiont-librarian` when unset or empty |
 | `OTEL_SDK_DISABLED` | Set to `true`, it exports nothing, whatever else is set |

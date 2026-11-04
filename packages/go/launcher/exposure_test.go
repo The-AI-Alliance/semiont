@@ -211,7 +211,7 @@ func TestTheLaunchersProbesGoWhereTheDialersAre(t *testing.T) {
 		{"gateway", driverSemiont, "http://localhost:4000/api/health"},
 		{"graph", "neo4j", "http://localhost:7474"},
 		{"metrics", "prometheus", "http://localhost:9090/-/healthy"},
-		{"vectors", "qdrant", "http://" + bridge + ":6333/readyz"},
+		{"vectors", "qdrant", "http://" + bridge + ":6330/readyz"},
 		{"identity-store", "postgres", "tcp:" + bridge + ":5432"},
 		{"messaging", "jetstream", "tcp:" + bridge + ":4222"},
 		{"collector", "otel", "http://" + bridge + ":24110/metrics"},

@@ -24,6 +24,7 @@ command line.
 | Neo4j's password | `NEO4J_PASSWORD` | `neo4j-password` | Neo4j, the librarian and the weaver |
 | PostgreSQL's password | `POSTGRES_PASSWORD` | `postgres-password`, for the machine rather than a knowledge base | the shared issuer's PostgreSQL, and Keycloak's connection to it |
 | The broker's password | `NATS_PASSWORD` (user `NATS_USER`, always `semiont`) | `nats-password` | the NATS broker, the dispatcher, and the gateway when its signal plane is the broker |
+| Qdrant's API key | `QDRANT_API_KEY` | `qdrant-api-key`, for the machine rather than a knowledge base when the knowledge base names the shared Qdrant | Qdrant, the tokens minted from it, and `semiont clean` when it deletes a knowledge base's index at the shared Qdrant |
 
 There is one service account for each stack service: the gateway, archivist, dispatcher,
 librarian, smelter, weaver and worker. Each proves itself with its secret but the worker, which
@@ -31,10 +32,25 @@ proves itself with a key: one RSA key for the machine, never sent anywhere — t
 each sign-in with it, and a realm holds only its public half. `semiont worker key` prints that
 public half. A daemon's password exists only when the launcher runs that daemon.
 
-The machine's values (the worker's key, and Keycloak's admin and PostgreSQL's passwords for the
-issuer every knowledge base signs in at) are kept in the file store under the launcher's data
-directory, `shared/<name>`, whichever store a knowledge base names: a store is a knowledge
-base's setting, and the machine has none.
+**The vector index's tokens.** Qdrant answers only a request that carries its key or a token
+signed with it. The launcher keeps the key and gives it to no service. At each start it signs a
+token for the Smelter and one for the Librarian, and hands each its own in `QDRANT_TOKEN`; a
+token is kept nowhere, and a new key ends every token signed with the one before.
+
+- The Smelter's token may do anything. The Smelter makes its knowledge base's collections, and
+  makes them again whenever its index is made anew, which Qdrant allows only to a token that may
+  do anything.
+- The Librarian's token reads its own knowledge base's three collections and nothing else, so
+  Qdrant refuses it every write and any other knowledge base's index.
+
+[`token-cases.json`](../../../protocol/specs/src/vectors/token-cases.json) states each token's
+claims. A Qdrant somebody else runs is handed tokens its operator names instead
+([Configuration](../administration/CONFIGURATION.md#graph-and-vectors)).
+
+The machine's values (the worker's key; Keycloak's admin and PostgreSQL's passwords for the
+issuer every knowledge base signs in at; and the shared Qdrant's API key) are kept in the file
+store under the launcher's data directory, `shared/<name>`, whichever store a knowledge base
+names: a store is a knowledge base's setting, and the machine has none.
 
 The broker's own `NATS_USER` and `NATS_PASSWORD` hold the pair in quotes, as strings of the NATS
 configuration syntax: `nats-server` reads a variable's value as configuration, and reads a bare

@@ -67,6 +67,7 @@ var settingsTable = []setting{
 	{name: "browser", scope: scopeMachine, show: showBrowserDocument, changedBy: editBrowserDocument},
 	{name: "worker", scope: scopeMachine, show: showWorkerPoolDocument, changedBy: editWorkerPoolDocument},
 	{name: "issuer", scope: scopeMachine, show: showIssuerDocument, changedBy: editIssuerDocument},
+	{name: "vectors", scope: scopeMachine, show: showVectorStoreDocument, changedBy: editVectorStoreDocument},
 	{name: "keycloak-port", scope: scopeMachine, show: showKeycloakPort, set: setKeycloakPort, unset: unsetKeycloakPort},
 	{name: "network", scope: scopeMachine, show: showNetwork, saves: []string{"rootsRegistry.Network"},
 		set: setNetwork, unset: unsetNetwork},
@@ -90,7 +91,7 @@ var registryBookkeeping = map[string]bool{
 }
 
 const settingsUsage = `Usage: semiont settings [<name> [<value> | --unset]] [--root <path|name>]
-       semiont settings browser|worker|issuer --path
+       semiont settings browser|worker|issuer|vectors --path
 
 Every setting the launcher keeps: its value, and where the value came from.
 Machine settings apply to every knowledge base on this machine; knowledge-base
@@ -106,6 +107,8 @@ settings to the one you are in, or the one --root names.
                                      and nothing else
   semiont settings issuer --path     print where the issuer's document is,
                                      and nothing else
+  semiont settings vectors --path    print where the vector store's document
+                                     is, and nothing else
 
 Settings:
   runtime         machine          The container runtime a start uses:
@@ -129,6 +132,13 @@ Settings:
                                    of its own. Edit it; the next start runs
                                    what it says. The first command that needs
                                    it writes it.
+  vectors         machine          The vector store's document: the image,
+                                   memory and port of the Qdrant this machine
+                                   runs for every knowledge base that names
+                                   spec.vectors.shared, each one's index in
+                                   collections of its own. Edit it; the next
+                                   start runs what it says. The first command
+                                   that needs it writes it.
   keycloak-port   machine          The port in the issuer's document: the
                                    one field of it a setting writes, keeping
                                    the rest as it is
@@ -194,7 +204,7 @@ func Settings(args []string) int {
 	}
 	if pathOnly {
 		if flag != "" || value != "" || unset {
-			u.Fail("--path takes nothing else: semiont settings browser|worker|issuer --path")
+			u.Fail("--path takes nothing else: semiont settings browser|worker|issuer|vectors --path")
 			return 1
 		}
 		switch name {
@@ -204,8 +214,10 @@ func Settings(args []string) int {
 			return workerPoolDocumentPathCmd()
 		case "issuer":
 			return issuerDocumentPathCmd()
+		case "vectors":
+			return vectorStoreDocumentPathCmd()
 		}
-		u.Fail("--path is for the Browser's, the worker's and the issuer's documents: semiont settings browser|worker|issuer --path")
+		u.Fail("--path is for the Browser's, the worker's, the issuer's and the vector store's documents: semiont settings browser|worker|issuer|vectors --path")
 		return 1
 	}
 	rows := settingsTable
@@ -417,7 +429,11 @@ func loadRootStack(u *UI, kb kbRoot, name string) (*stack.Stack, bool) {
 	if !ok {
 		return nil, false
 	}
-	if _, err := derivePlan(st, issuer, kb.key(), 0); err != nil {
+	vectors, ok := vectorStoreOf(u, st, true)
+	if !ok {
+		return nil, false
+	}
+	if _, err := derivePlan(st, issuer, vectors, kb.key(), 0); err != nil {
 		u.Fail("%v", err)
 		return nil, false
 	}
@@ -499,6 +515,40 @@ func editIssuerDocument() string {
 // there is none.
 func issuerDocumentPathCmd() int {
 	doc, ok := readIssuerDocument(NewUI(true), false)
+	if !ok {
+		return 1
+	}
+	fmt.Println(doc.path)
+	return 0
+}
+
+// showVectorStoreDocument: where the vector store's document is, and what it
+// says. It is shown as a start reads it, so showing one where there is none
+// writes it, from the launcher's catalog, at the path the row names.
+func showVectorStoreDocument(u *UI, kb kbRoot) []settingLine {
+	doc, err := loadVectorStoreDocument(false)
+	if err != nil {
+		return []settingLine{{vectorStoreDocumentPath(), fmt.Sprintf("refused, and so is every start on the shared vector store: %v", err)}}
+	}
+	return []settingLine{
+		{doc.path, "the vector store's document: edit it, and the next start runs what it says"},
+		{doc.spec.Type, "spec.type"},
+		{doc.spec.Image, "spec.image"},
+		{doc.spec.Resources.Limits.Memory, "spec.resources.limits.memory"},
+		{fmt.Sprintf("http://localhost:%d", doc.spec.Port), "spec.port"},
+	}
+}
+
+// editVectorStoreDocument: how the vector store's document is changed.
+func editVectorStoreDocument() string {
+	return "editing its document: " + vectorStoreDocumentPath()
+}
+
+// vectorStoreDocumentPathCmd: `semiont settings vectors --path` — the
+// document's path and nothing else, for a script that edits it; written
+// first where there is none.
+func vectorStoreDocumentPathCmd() int {
+	doc, ok := readVectorStoreDocument(NewUI(true), false)
 	if !ok {
 		return 1
 	}

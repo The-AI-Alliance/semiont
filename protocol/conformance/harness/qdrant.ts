@@ -17,14 +17,31 @@
  *
  * A collection that is not there holds no point: an index that was cleared,
  * and that no Smelter has connected to since, reads as empty.
+ *
+ * The Qdrant is run with an API key and its JWT access control on, as the
+ * launcher runs one. Every request the suite makes presents the key, and
+ * each service the suite starts is handed a token, minted here from the key,
+ * whose claims are what protocol/specs/src/vectors/token-cases.json states:
+ * the Smelter's may do anything, and the Librarian's reads its knowledge
+ * base's collections alone. kb-index.test.ts holds the tokens minted here to
+ * the table's cases.
  */
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SPEC_SOURCE } from './paths';
 
 /** The port Qdrant's REST interface answers on. */
 export const QDRANT_PORT = 6333;
+
+/** A Qdrant the suite is given: where it is, and the API key it was started with. */
+export interface VectorDatabase {
+  host: string;
+  key: string;
+}
+
+/** The variable the settings of a Smelter and of a Librarian name for the token each presents to the index, as the launcher names it. */
+export const VECTORS_TOKEN = 'QDRANT_TOKEN';
 
 /** A knowledge base's collections, by their words: the two that are searched, and the declined. */
 export type Collection = 'resources' | 'annotations' | 'declined';
@@ -99,6 +116,35 @@ export function collectionNames(kb: string): Record<string, string> {
   return Object.fromEntries(words().map((word) => [word, `${hashed}-${word}`]));
 }
 
+// ── The tokens ─────────────────────────────────────────────────────────────
+
+/** The services that present a token to the index, by the token table's names for them. */
+export type Holder = 'smelter' | 'librarian';
+
+/** What a token says its holder may do: global manage, or a read of each collection it names. */
+export interface Claims {
+  access: 'm' | Array<{ collection: string; access: 'r' }>;
+}
+
+/**
+ * The claims of each service's token for the knowledge base whose DID is
+ * `kb`: the Smelter's, global manage, since Qdrant makes and deletes a
+ * collection for nothing less; and the Librarian's, a read of each of that
+ * knowledge base's collections, in the payload table's order.
+ */
+export function claimsFor(kb: string): Record<Holder, Claims> {
+  return {
+    smelter: { access: 'm' },
+    librarian: { access: Object.values(collectionNames(kb)).map((collection) => ({ collection, access: 'r' })) },
+  };
+}
+
+/** A token for the Qdrant whose API key is `key`: a JSON Web Token of `claims` and no others, signed by HS256 with the key's UTF-8 bytes. */
+export function minted(key: string, claims: Claims): string {
+  const signed = [{ alg: 'HS256', typ: 'JWT' }, claims].map((part) => Buffer.from(JSON.stringify(part), 'utf8').toString('base64url')).join('.');
+  return `${signed}.${createHmac('sha256', Buffer.from(key, 'utf8')).update(signed).digest('base64url')}`;
+}
+
 /** The payloads the table states for the points of a collection. */
 function statedPayloads(collection: Collection): Record<string, unknown>[] {
   const cases = isObject(table) && Array.isArray(table['cases']) ? table['cases'] : [];
@@ -147,15 +193,20 @@ interface Answer {
   text: string;
 }
 
-async function ask(origin: string, method: string, path: string, body?: unknown): Promise<Answer> {
+const originOf = (host: string) => `http://${host}:${QDRANT_PORT}`;
+
+/** Ask the Qdrant of `database`, presenting its key. */
+async function ask(database: VectorDatabase, method: string, path: string, body?: unknown): Promise<Answer> {
+  const url = `${originOf(database.host)}${path}`;
   let response: Response;
   try {
-    response = await fetch(`${origin}${path}`, {
+    response = await fetch(url, {
       method,
-      ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
+      headers: { 'api-key': database.key, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch (error) {
-    throw new Error(`Qdrant did not answer ${method} ${origin}${path}: ${String(error)}`);
+    throw new Error(`Qdrant did not answer ${method} ${url}: ${String(error)}`);
   }
   const text = await response.text();
   let parsed: unknown;
@@ -173,20 +224,31 @@ function answered(what: string, answer: Answer): unknown {
   return answer.result;
 }
 
-const originOf = (host: string) => `http://${host}:${QDRANT_PORT}`;
-
-/** The names of every collection the Qdrant at `host` holds now, of whichever knowledge base. */
-export async function collectionsAt(host: string): Promise<string[]> {
-  const result = answered('list its collections', await ask(originOf(host), 'GET', '/collections'));
+/** The names of every collection the Qdrant of `database` holds now, of whichever knowledge base. */
+export async function collectionsAt(database: VectorDatabase): Promise<string[]> {
+  const result = answered('list its collections', await ask(database, 'GET', '/collections'));
   const listed = isObject(result) && Array.isArray(result['collections']) ? result['collections'] : [];
   return listed.flatMap((one: unknown) => (isObject(one) && typeof one['name'] === 'string' ? [one['name']] : []));
 }
 
-/** The index of the knowledge base whose DID is `kb`, in the Qdrant at `host`. */
-export function vectorIndex(host: string, kb: string): VectorIndex {
-  const origin = originOf(host);
+/**
+ * Fail unless the Qdrant of `database` is there, answers its key, and
+ * refuses a request that presents nothing. One started without a key
+ * answers every token as it answers the key, and so holds no refusal.
+ */
+export async function guarded(database: VectorDatabase): Promise<void> {
+  await collectionsAt(database);
+  const url = `${originOf(database.host)}/collections`;
+  const bare = await fetch(url);
+  if (bare.status !== 401) {
+    throw new Error(`Qdrant answered ${bare.status} to GET ${url}, which presented no key: it is to be started with an API key and its JWT access control on`);
+  }
+}
+
+/** The index of the knowledge base whose DID is `kb`, in the Qdrant of `database`. */
+export function vectorIndex(database: VectorDatabase, kb: string): VectorIndex {
   const names = collectionNames(kb);
-  const at = (method: string, path: string, body?: unknown) => ask(origin, method, path, body);
+  const at = (method: string, path: string, body?: unknown) => ask(database, method, path, body);
 
   /** The name of the knowledge base's collection of a word. */
   function named(collection: Collection): string {
@@ -273,7 +335,7 @@ export function vectorIndex(host: string, kb: string): VectorIndex {
       answered(`put ${given.length} point(s) into ${name}`, await at('PUT', `/collections/${name}/points?wait=true`, { points: given }));
     },
     async clear() {
-      for (const name of await collectionsAt(host)) answered(`delete the collection ${name}`, await at('DELETE', `/collections/${name}`));
+      for (const name of await collectionsAt(database)) answered(`delete the collection ${name}`, await at('DELETE', `/collections/${name}`));
     },
   };
 }

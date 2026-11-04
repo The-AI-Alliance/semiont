@@ -1,9 +1,13 @@
-"""What the Qdrant store and the Qdrant reader do with no Qdrant under them.
+"""What the Qdrant store and the Qdrant reader do with no Qdrant under them, and the token each presents.
 
 Nothing is asked of a store that is not connected, and a store that cannot
-reach its Qdrant is not connected. The same holds of a reader. Everything
-else either does is done by a Qdrant, and is held against a real one by
-`qdrant_live.py`. What the store asks a
+reach its Qdrant is not connected. The same holds of a reader. Every
+request either makes carries the token it was handed, in the `api-key`
+header and in no other: that is held of a stand-in that answers every
+request alike (`qdrant_stand_in.py`), for every member that asks the index
+something. Everything else either does is done by a Qdrant, and is held
+against a real one by `qdrant_live.py`, which holds too what a Qdrant
+allows each service's token and refuses it. What the store asks a
 Qdrant to make is held there to `protocol/specs/src/vectors/payload-cases.json`, by
 what the Qdrant then says it has: the store's own constants are private to
 it, and a test that read them would hold a name and not what is made.
@@ -15,6 +19,7 @@ from typing import Final
 import httpx
 import pytest
 from aio import run
+from qdrant_stand_in import TOKEN, PlayedQdrant
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.identity import kb_did
 
@@ -39,9 +44,13 @@ async def never_asked() -> int:
     raise AssertionError("a store that reached no Qdrant asks nobody how wide a vector is")
 
 
+async def two_wide() -> int:
+    return 2
+
+
 def store() -> QdrantVectorStore:
     """A store of a Qdrant that is not there: nothing listens on port 1 of this machine."""
-    return QdrantVectorStore(host="127.0.0.1", port=1, kb=KB, dimensions=never_asked)
+    return QdrantVectorStore(host="127.0.0.1", port=1, kb=KB, token=TOKEN, dimensions=never_asked)
 
 
 type Call = Callable[[VectorStore], Awaitable[object]]
@@ -111,12 +120,49 @@ def test_a_store_that_cannot_reach_its_qdrant_raises_and_is_not_connected() -> N
     run(whole())
 
 
+def presented_the_token(played: PlayedQdrant) -> None:
+    """Fail unless every request the stand-in was asked carried the token in its `api-key` header, and none in `authorization`."""
+    assert played.asked, "nothing was asked"
+    for asked in played.asked:
+        assert asked.headers.get("api-key") == TOKEN, f"{asked.method} {asked.path} carries no token"
+        assert "authorization" not in asked.headers, f"{asked.method} {asked.path} carries an authorization header"
+
+
+@pytest.mark.parametrize("member", sorted(CALLS))
+def test_every_request_of_a_store_presents_its_token(member: str) -> None:
+    async def whole() -> None:
+        async with PlayedQdrant() as played:
+            held = QdrantVectorStore(host="127.0.0.1", port=played.port, kb=KB, token=TOKEN, dimensions=two_wide)
+            await held.connect()
+            try:
+                connecting = len(played.asked)
+                await CALLS[member](held)
+                assert len(played.asked) > connecting, f"{member} asked the index nothing"
+            finally:
+                await held.disconnect()
+            presented_the_token(played)
+
+    run(whole())
+
+
+def test_a_store_whose_token_the_qdrant_refuses_raises_saying_what_it_answered_and_is_not_connected() -> None:
+    async def whole() -> None:
+        async with PlayedQdrant() as played:
+            refused = QdrantVectorStore(host="127.0.0.1", port=played.port, kb=KB, token="another-token", dimensions=never_asked)
+            with pytest.raises(RuntimeError, match=r"Qdrant answered 401 to GET /collections/\S+: Must provide an API key"):
+                await refused.connect()
+            with pytest.raises(RuntimeError, match="not connected"):
+                await refused.count()
+
+    run(whole())
+
+
 # ── The reader ─────────────────────────────────────────────────────────
 
 
 def reader() -> QdrantVectorReader:
     """A reader of a Qdrant that is not there: nothing listens on port 1 of this machine."""
-    return QdrantVectorReader(host="127.0.0.1", port=1, kb=KB)
+    return QdrantVectorReader(host="127.0.0.1", port=1, kb=KB, token=TOKEN)
 
 
 type Read = Callable[[VectorReader], Awaitable[object]]
@@ -163,5 +209,34 @@ def test_a_reader_that_cannot_reach_its_qdrant_raises_and_is_not_connected() -> 
             await unreached.connect()
         with pytest.raises(RuntimeError, match="not connected"):
             await unreached.search_resources([1.0, 0.0], ONE)
+
+    run(whole())
+
+
+@pytest.mark.parametrize("member", sorted(READS))
+def test_every_request_of_a_reader_presents_its_token(member: str) -> None:
+    async def whole() -> None:
+        async with PlayedQdrant() as played:
+            held = QdrantVectorReader(host="127.0.0.1", port=played.port, kb=KB, token=TOKEN)
+            await held.connect()
+            try:
+                connecting = len(played.asked)
+                await READS[member](held)
+                assert len(played.asked) > connecting, f"{member} asked the index nothing"
+            finally:
+                await held.disconnect()
+            presented_the_token(played)
+
+    run(whole())
+
+
+def test_a_reader_whose_token_the_qdrant_refuses_raises_saying_what_it_answered_and_is_not_connected() -> None:
+    async def whole() -> None:
+        async with PlayedQdrant() as played:
+            refused = QdrantVectorReader(host="127.0.0.1", port=played.port, kb=KB, token="another-token")
+            with pytest.raises(RuntimeError, match=r"Qdrant answered 401 to GET /collections: Must provide an API key"):
+                await refused.connect()
+            with pytest.raises(RuntimeError, match="not connected"):
+                await refused.search_resources([1.0, 0.0], ONE)
 
     run(whole())

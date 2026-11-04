@@ -41,10 +41,11 @@ const (
 	presenceLauncher                      // the launcher runs it here (driver by type)
 	presenceExternal                      // somebody else runs it: verify, never launch
 	presenceHostPreferred                 // a host process is preferred; a container is the fallback
+	presenceShared                        // the launcher runs it once for every knowledge base here, from the machine's document
 )
 
 func (p presence) String() string {
-	return [...]string{"absent", "provided", "external", "host-process"}[p]
+	return [...]string{"absent", "provided", "external", "host-process", "shared"}[p]
 }
 
 type rolePlan struct {
@@ -362,7 +363,7 @@ func providedRunArgs(e exposure, plan *launchPlan, rp rolePlan, key string, extr
 	// the diagnosis, and --rm destroys them (the runtime's `logs` answers
 	// "No such container"). Cleanup is already explicit at both ends:
 	// start's preflight and stop both stop+rm by name.
-	a := []string{"run", "-d", "--name", spec.containerName(key), "--memory", rp.Memory}
+	a := []string{"run", "-d", "--name", rp.container(key), "--memory", rp.Memory}
 	for _, ap := range spec.auxPorts {
 		a = append(a, e.publish("-p", role, plan.hostPort(role, ap.port), ap.port)...)
 	}
@@ -374,6 +375,16 @@ func providedRunArgs(e exposure, plan *launchPlan, rp rolePlan, key string, extr
 	a = append(a, rp.Image)
 	a = append(a, spec.cmd...)
 	return append(a, rp.CmdExtra...)
+}
+
+// container: the container rp runs for the knowledge base keyed key — the
+// machine's when the knowledge base names it shared, else its own.
+func (rp rolePlan) container(key string) string {
+	spec := descriptorFor(rp.Role, rp.Driver)
+	if rp.Presence == presenceShared {
+		return spec.machineContainer()
+	}
+	return spec.containerName(key)
 }
 
 // ollamaRunArgs: the semiont-ollama `run -d` argv. Separate from
@@ -418,6 +429,11 @@ func (p *launchPlan) workerRuns() bool {
 func planPortChecks(plan *launchPlan, e exposure) []portNeed {
 	var checks []portNeed
 	for _, role := range []string{"graph", "vectors", "messaging"} {
+		// The machine's vector store is checked when a start runs it, as the
+		// shared issuer's daemons are: it keeps running past this stack.
+		if plan.Roles[role].Presence == presenceShared {
+			continue
+		}
 		checks = append(checks, rolePortNeeds(plan, role, e)...)
 	}
 	// The gateway's port is config-owned; every other Semiont port is
@@ -435,11 +451,12 @@ func planPortChecks(plan *launchPlan, e exposure) []portNeed {
 }
 
 // rolePortNeeds: the host ports a start publishes the daemon of role on when
-// the launcher runs it — its aux ports, its own, and the containers' side of
-// one a person dials too — none when it does not run it or publishes no port.
+// the launcher runs it, for the knowledge base or for the machine — its aux
+// ports, its own, and the containers' side of one a person dials too — none
+// when it does not run it or publishes no port.
 func rolePortNeeds(plan *launchPlan, role string, e exposure) []portNeed {
 	rp := plan.Roles[role]
-	if rp.Presence != presenceLauncher || rp.Port == 0 {
+	if rp.Presence != presenceLauncher && rp.Presence != presenceShared || rp.Port == 0 {
 		return nil
 	}
 	spec := descriptorFor(role, rp.Driver)
@@ -579,13 +596,23 @@ func issuerRoles(issuer *issuerDocument) (store, server rolePlan, err error) {
 	return store, server, nil
 }
 
+// sharedVectorsRole: the machine's vector store as its document gives it, a
+// role the launcher runs once for every knowledge base here naming it.
+func sharedVectorsRole(vectors *vectorStoreDocument) rolePlan {
+	return rolePlan{Role: "vectors", Driver: vectors.spec.Type, Presence: presenceShared,
+		Image: vectors.spec.Image, Memory: vectors.spec.Resources.Limits.Memory, Port: vectors.spec.Port}
+}
+
 // derivePlan maps a knowledge base's documents to each role's presence.
 // issuer is the issuer's document (issuerOf) for a knowledge base that names
-// the shared issuer, and nil for one that trusts somebody else's. realm is the
+// the shared issuer, and nil for one that trusts somebody else's. vectors is
+// the vector store's document (vectorStoreOf) for one that names the shared
+// vector store, and nil for one whose vector store is its own or somebody
+// else's. realm is the
 // realm the shared issuer keeps the knowledge base in: its key (rootKey), so
 // each knowledge base has a realm of its own. block is the knowledge base's
 // port block (portBlockOf).
-func derivePlan(st *stack.Stack, issuer *issuerDocument, realm string, block int) (*launchPlan, error) {
+func derivePlan(st *stack.Stack, issuer *issuerDocument, vectors *vectorStoreDocument, realm string, block int) (*launchPlan, error) {
 	kb, index, files := st.KnowledgeBase.Spec, st.KnowledgeIndex.Spec, st.Files
 	plan := &launchPlan{
 		Roles:        map[string]rolePlan{},
@@ -657,10 +684,19 @@ func derivePlan(st *stack.Stack, issuer *issuerDocument, realm string, block int
 		if !ok {
 			return nil, planErr(files.KnowledgeIndex, "spec.vectors.type", "is %q, which no driver runs (known drivers: %s)", v.Type, knownDrivers("vectors"))
 		}
+		if (vectors == nil) != (v.Shared == nil) {
+			panic("derivePlan: a knowledge base naming the shared vector store is planned with its document, and only one")
+		}
 		rp := rolePlan{Role: "vectors", Driver: v.Type, Port: spec.defaultPort}
-		if v.External != nil {
+		switch {
+		case v.Shared != nil:
+			if vectors.spec.Type != v.Type {
+				return nil, planErr(vectors.path, "spec.type", "is %q, and the knowledge base's %s names a %q vector store at spec.vectors.type", vectors.spec.Type, files.KnowledgeIndex, v.Type)
+			}
+			rp = sharedVectorsRole(vectors)
+		case v.External != nil:
 			rp.Presence, rp.Address, rp.Port = presenceExternal, v.External.Host, v.External.Port
-		} else {
+		default:
 			rp.Presence, rp.Image, rp.Memory = presenceLauncher, *v.Image, v.Resources.Limits.Memory
 			rp.Port = plan.hostPort("vectors", spec.defaultPort)
 		}

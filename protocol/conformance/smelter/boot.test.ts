@@ -9,6 +9,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eventually } from '../harness/net';
 import { NOT_FETCHED } from '../harness/ollama-embed';
+import { VECTORS_TOKEN } from '../harness/qdrant';
 import type { SmelterSettings } from '../harness/smelter-process';
 import { eachSmelter } from '../harness/smelter-world';
 
@@ -23,6 +24,7 @@ const REQUIRED: ReadonlyArray<[what: string, without: (settings: SmelterSettings
   ['the issuer', (settings) => ({ ...settings, issuer: undefined }), /issuer/],
   ["the Archivist's address", (settings) => ({ ...settings, archivist: undefined }), /archivist/],
   ["the vector database's host", (settings) => ({ ...settings, vectors: { ...settings.vectors, host: undefined } }), /Missing required property: host/],
+  ['the variable its token for the vector database is in', (settings) => ({ ...settings, vectors: { ...settings.vectors, tokenEnv: undefined } }), /Missing required property: tokenEnv/],
   ["the embedding provider's kind", (settings) => ({ ...settings, embedding: { ...settings.embedding, type: undefined } }), /embedding/],
   ["the embedding provider's model", (settings) => ({ ...settings, embedding: { ...settings.embedding, model: undefined } }), /Missing required property: model/],
   ["the embedding provider's address", (settings) => ({ ...settings, embedding: { ...settings.embedding, baseUrl: undefined } }), /Missing required property: baseUrl/],
@@ -94,6 +96,12 @@ eachSmelter('a Smelter, as a process', (world) => {
       const { code, output } = await world().refused({ env: { ...world().launch().env, [variable]: undefined } });
       expect(code).not.toBe(0);
       expect(output).toContain(variable);
+    });
+
+    it('refuses to start without its token for the index, and names the variable its settings name', async () => {
+      const { code, output } = await world().refused({ env: { ...world().launch().env, [VECTORS_TOKEN]: undefined } });
+      expect(code).not.toBe(0);
+      expect(output).toContain(VECTORS_TOKEN);
     });
 
     it.each(REQUIRED)('refuses to start without %s, and says which is missing', async (_what, without, named) => {

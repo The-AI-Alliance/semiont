@@ -122,7 +122,7 @@ func TestGatewayDocumentNamesTheBrokersPair(t *testing.T) {
 	p := placed(t, st)
 	doc := gatewayDocumentOf(t, p)
 	if doc.Signal.UserEnv == nil || *doc.Signal.UserEnv != "NATS_USER" ||
-		doc.Signal.PasswordEnv == nil || *doc.Signal.PasswordEnv != daemonPasswords["messaging"].env {
+		doc.Signal.PasswordEnv == nil || *doc.Signal.PasswordEnv != daemonCredentials["messaging"].env {
 		t.Errorf("signal = %+v, want the launcher broker's pair named", doc.Signal)
 	}
 	if got := gatewaySecrets(p); len(got) != 0 {

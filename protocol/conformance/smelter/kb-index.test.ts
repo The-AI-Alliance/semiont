@@ -5,14 +5,17 @@
  * base's collections on the same Qdrant are none of its: its start neither
  * reads them nor purges them, making its own index anew leaves them as they
  * are, and what it writes lands in its own. With it, that the suite names a
- * knowledge base's collections as the table's `collectionsNamed` cases state.
+ * knowledge base's collections as the table's `collectionsNamed` cases state,
+ * and mints the token of each service it starts with the claims
+ * protocol/specs/src/vectors/token-cases.json states, and no others.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { kbDid } from '@semiont/core';
+import { jwtVerify } from 'jose';
 import { describe, expect, inject, it } from 'vitest';
 import { SPEC_SOURCE } from '../harness/paths';
-import { collectionNames, collectionsAt, vectorIndex, type Collection, type Point } from '../harness/qdrant';
+import { claimsFor, collectionNames, collectionsAt, minted, vectorIndex, type Claims, type Collection, type Holder, type Point } from '../harness/qdrant';
 import { kbIdentity } from '../harness/spec';
 import { eachSmelter } from '../harness/smelter-world';
 
@@ -35,6 +38,30 @@ const NAMED = table.cases.flatMap((one) => (one.collectionsNamed === undefined ?
 describe("a knowledge base's collections, as the suite names them", () => {
   it.each(NAMED)('$why', ({ kb, names }) => {
     expect(collectionNames(kb)).toEqual(names);
+  });
+});
+
+/** What of the token table these cases read: each knowledge base, and the claims of the token each service is minted for it. */
+interface TokenCases {
+  cases: Array<{ why: string; kb: string; claims: Record<Holder, Claims> }>;
+}
+
+const tokenCases = JSON.parse(readFileSync(join(SPEC_SOURCE, 'vectors/token-cases.json'), 'utf8')) as TokenCases;
+
+describe('the tokens the suite mints for the services it starts', () => {
+  it.each(tokenCases.cases)('$why', async ({ kb, claims }) => {
+    const { key } = inject('vectorDatabase');
+    const carried: Record<string, unknown> = {};
+    for (const [holder, made] of Object.entries(claimsFor(kb))) {
+      const token = minted(key, made);
+      // Three parts of base64url without padding, the first two the header and the claims, signed by HS256 with the key.
+      expect(token).toMatch(/^[\w-]+\.[\w-]+\.[\w-]+$/);
+      const { payload, protectedHeader } = await jwtVerify(token, new TextEncoder().encode(key), { algorithms: ['HS256'] });
+      expect(protectedHeader).toStrictEqual({ alg: 'HS256', typ: 'JWT' });
+      carried[holder] = payload;
+    }
+    // A token for each service the case names, and none it does not, each carrying the case's claims and no others.
+    expect(carried).toStrictEqual(claims);
   });
 });
 
@@ -73,8 +100,8 @@ eachSmelter('a Smelter beside another knowledge base on its Qdrant', (world) => 
     const id = await world().created(text, 'text/plain', { name: 'Its own' });
     expect(await world().settled(id)).toMatchObject({ outcome: 'indexed' });
 
-    const { host } = inject('vectorDatabase');
-    const other = vectorIndex(host, OTHER_KB);
+    const database = inject('vectorDatabase');
+    const other = vectorIndex(database, OTHER_KB);
     await world().stop();
     await world().clearIndex();
     // The other knowledge base's index, made as a store makes one: as wide as the table's vectors, which are not the Smelter's model's.
@@ -99,6 +126,6 @@ eachSmelter('a Smelter beside another knowledge base on its Qdrant', (world) => 
     expect(await other.pointsOf('resources', id)).toEqual([]);
     const own = Object.values(collectionNames(kbDid(world().kb.world.served.domain)));
     const others = Object.values(collectionNames(OTHER_KB));
-    expect((await collectionsAt(host)).sort()).toEqual([...own, ...others].sort());
+    expect((await collectionsAt(database)).sort()).toEqual([...own, ...others].sort());
   });
 });

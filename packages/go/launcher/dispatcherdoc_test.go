@@ -53,7 +53,7 @@ func TestDispatcherDocumentStatesWhatThePlacementDecides(t *testing.T) {
 		t.Errorf("queue.servers = %q, want the broker at the launcher's address", doc.Queue.Servers)
 	}
 	if doc.Queue.UserEnv == nil || *doc.Queue.UserEnv != "NATS_USER" ||
-		doc.Queue.PasswordEnv == nil || *doc.Queue.PasswordEnv != daemonPasswords["messaging"].env {
+		doc.Queue.PasswordEnv == nil || *doc.Queue.PasswordEnv != daemonCredentials["messaging"].env {
 		t.Errorf("queue = %+v, want the launcher broker's pair named", doc.Queue)
 	}
 	if got := dispatcherSecrets(p); len(got) != 0 {

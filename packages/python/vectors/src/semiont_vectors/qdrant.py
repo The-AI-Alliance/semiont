@@ -4,6 +4,16 @@ No library of Qdrant's is used. Each call is one request, with a JSON body,
 to `http://{host}:{port}`. What holds this module's reading of the API is a
 real Qdrant under this package's tests (`tests/qdrant_live.py`).
 
+Every request carries a token, in Qdrant's `api-key` header: the one the
+store or the reader was handed, which says what of the Qdrant its holder may
+read and write. Neither makes one. A token is a JSON Web Token signed with
+the Qdrant's API key, and `protocol/specs/src/vectors/token-cases.json`
+states what each service's says. The store makes and deletes its collections,
+which Qdrant allows a token of global manage alone, so a store's token is one
+that may do anything. A reader's need only read its knowledge base's three
+collections. A request the token does not allow is a failure as any other
+is, and says what Qdrant answered.
+
 A store and a reader are each of one knowledge base, named by its DID. The
 store makes the three collections `protocol/specs/src/vectors/payload-cases.json`
 states under `collections`, each with the distance and the payload indexes
@@ -70,6 +80,26 @@ generates from Qdrant's OpenAPI document.
 - A success is answered as `{"result": ..., "status": "ok", "time": ...}`,
   with `usage` beside them. A failure is a status of 4XX or 5XX, whose body
   is `{"status": {"error": "what went wrong"}, "time": ...}`.
+- A Qdrant run with an API key and its JWT access control on
+  (`QDRANT__SERVICE__API_KEY`, `QDRANT__SERVICE__JWT_RBAC`) asks every
+  request for the key or a token, in its `api-key` header, and answers
+  `/readyz` with neither. A token is signed by HS256 with the key's UTF-8
+  bytes. Its claim `access` is `"m"` for a token that may do anything, or
+  a list of `{"collection": ..., "access": "r"}`, one for each collection
+  it may read. Making, changing and deleting a collection is allowed `"m"`
+  alone. A request with no key and
+  no token is answered 401, and one whose token another key signed 403,
+  each with a body of plain text and no envelope:
+  `Must provide an API key or an Authorization bearer token` and
+  `InvalidSignature`. A request its token does not allow is answered 403,
+  in the envelope: `Forbidden: Access to collection ... is required`,
+  `Forbidden: Write access to collection ... is required` or
+  `Forbidden: Global access is required`. A token that may read a
+  collection that is not there is answered 404, as the key is. Asked
+  `GET /collections`, it is answered the collections it may read, and no
+  others. What a token is allowed is read from Qdrant's source at 1.19.1
+  (`lib/storage/src/rbac/ops_checks.rs`), and what each refusal is
+  answered from a Qdrant of 1.19.1. The tests hold both.
 - `GET /collections/{name}` answers what a collection is: its `size` and
   `distance` under `config.params.vectors`, each indexed member's
   `data_type` under `payload_schema`, and its `metadata` under `config`,
@@ -598,12 +628,14 @@ def _asking_for(members: Sequence[str], limit: int) -> _Body:
 class _QdrantSearches(VectorReader):
     """What the reader and the store share: the way to the Qdrant at `host` and `port`, and a reader's reads of the index of `kb`.
 
-    `kb` is the DID of the knowledge base whose collections they are.
+    `kb` is the DID of the knowledge base whose collections they are, and
+    `token` what every request presents to the Qdrant.
     """
 
-    def __init__(self, *, host: str, port: int, kb: UserId) -> None:
+    def __init__(self, *, host: str, port: int, kb: UserId, token: str) -> None:
         self._origin: Final = f"http://{host}:{port}"
         self._index: Final = _index_of(kb)
+        self._token: Final = token
         self._client: httpx.AsyncClient | None = None
 
     @abstractmethod
@@ -613,7 +645,7 @@ class _QdrantSearches(VectorReader):
     @override
     async def connect(self) -> None:
         # The address a caller names is the address asked: no proxy of the environment stands between.
-        client = httpx.AsyncClient(base_url=self._origin, timeout=_TIMEOUT, trust_env=False)
+        client = httpx.AsyncClient(base_url=self._origin, headers={"api-key": self._token}, timeout=_TIMEOUT, trust_env=False)
         try:
             await self._ready(client)
         except BaseException:
@@ -659,8 +691,10 @@ class QdrantVectorReader(_QdrantSearches):
 
     It makes nothing in the Qdrant: no collection, no index of a payload
     member, no point. Connecting asks the Qdrant which collections it has,
-    which changes nothing, and raises where the Qdrant cannot be reached. A
-    reader is told no width, and asks no embedding provider anything.
+    which changes nothing, and raises where the Qdrant cannot be reached or
+    refuses `token`. A reader is told no width, and asks no embedding
+    provider anything. Its token need only read the knowledge base's three
+    collections.
 
     A read of a collection that is not there raises `CollectionAbsent`. The
     service that writes the index makes its collections, and until it has,
@@ -684,11 +718,12 @@ class QdrantVectorStore(_QdrantSearches, VectorStore):
     index of a payload member. `dimensions` answers how wide the embedding
     provider's vectors are. It is asked only when a collection of those
     vectors must be made: where there is none at connecting, and whenever
-    the index is made anew.
+    the index is made anew. `token` is one of global manage: the store makes
+    and deletes collections.
     """
 
-    def __init__(self, *, host: str, port: int, kb: UserId, dimensions: Callable[[], Awaitable[int]]) -> None:
-        super().__init__(host=host, port=port, kb=kb)
+    def __init__(self, *, host: str, port: int, kb: UserId, token: str, dimensions: Callable[[], Awaitable[int]]) -> None:
+        super().__init__(host=host, port=port, kb=kb, token=token)
         self._dimensions: Final = dimensions
 
     @override

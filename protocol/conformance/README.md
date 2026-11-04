@@ -68,8 +68,9 @@ weaver suite a built Archivist, the Weaver's environment, which `uv` makes
 too, and a neo4j of its own, whose address and password it is told in
 `NEO4J_HOST` and `NEO4J_PASSWORD` ([weaver/README.md](weaver/README.md)), and
 the smelter suite a built Archivist, the Smelter's environment, which `uv`
-makes as well, the `tesseract` program, and a Qdrant of its own, whose address
-it is told in `QDRANT_HOST` ([smelter/README.md](smelter/README.md)), and the
+makes as well, the `tesseract` program, and a Qdrant of its own, run with an
+API key and its JWT access control on, whose address and key it is told in
+`QDRANT_HOST` and `QDRANT_API_KEY` ([smelter/README.md](smelter/README.md)), and the
 librarian suite all that the weaver and smelter suites need, since it starts
 both, and the Librarian's environment, which `uv` makes
 ([librarian/README.md](librarian/README.md)):

@@ -1,12 +1,9 @@
 package launcher
 
 // cleanissuer.go — the shared issuer, for `semiont clean`: run for a realm's
-// delete when none is recorded as running, and its PostgreSQL's store removed by
-// `semiont clean --shared --store identity-store`.
+// delete when none is recorded as running.
 
 import (
-	"fmt"
-	"os"
 	"slices"
 	"strings"
 )
@@ -85,73 +82,4 @@ func issuerForClean(u *UI) (stop func(), ok bool) {
 		return nil, false
 	}
 	return stop, true
-}
-
-// cleanShared: `semiont clean --shared --store identity-store` — the shared
-// issuer's PostgreSQL store, and every knowledge base's realm in it. Refused
-// while a recorded stack signs in at the shared issuer, or while a record says
-// the issuer's server runs: the asymmetry a root's clean keeps (Clean). The
-// issuer's passwords stay, as a --store clean keeps secrets, so its next
-// boot reuses them; each knowledge base's next start creates its realm
-// afresh.
-func cleanShared(u *UI, store string, dryRun bool) int {
-	if store != "identity-store" {
-		u.Fail("--shared names the shared issuer's state, and its one store is identity-store.")
-		fmt.Fprintln(os.Stderr, "  semiont clean --shared --store identity-store")
-		return 1
-	}
-	spec := stateStores[store]
-	sd := spec.storeDir("")
-	if sd == "" {
-		u.Fail("No home directory resolvable; nowhere for state to live.")
-		return 1
-	}
-	ss := LoadStackSet()
-	if ss.refuseUnreadable(u) {
-		return 1
-	}
-	for _, st := range localStacks(ss) {
-		if st.signsInAtSharedIssuer() {
-			u.Fail("A recorded stack signs in at the shared issuer (per %s).", statePath())
-			fmt.Fprintln(os.Stderr, "  Stop it first: semiont stop --root "+st.KBRoot)
-			return 1
-		}
-	}
-	for _, role := range []string{"identity", "identity-store"} {
-		if name := sharedContainer(role); ss.Shared[name] != nil {
-			u.Fail("The shared issuer's %s is recorded as running (per %s).", name, statePath())
-			fmt.Fprintln(os.Stderr, "  Stop it first: semiont stop --group issuer")
-			return 1
-		}
-	}
-	size, exists := diskUse(sd)
-	if !exists {
-		u.Log("Nothing to remove: no %s state under %s", store, spec.home(""))
-		return 0
-	}
-	if dryRun {
-		u.Log("would remove %s — %s (%s: every knowledge base's realm here)", sd, humanBytes(size), store)
-		u.Log("Total: %s %s", humanBytes(size), u.Dim("(dry-run; nothing removed)"))
-		return 0
-	}
-	// The store's contents were written by its container, so a container
-	// empties them, as a root's clean empties its stores.
-	rt, ok := cleanRuntime(u)
-	if !ok {
-		return 1
-	}
-	if err := clearStoreContents(rt, sd); err != nil {
-		u.Fail("cannot empty %s: %v", sd, err)
-		return 1
-	}
-	if err := os.RemoveAll(sd); err != nil {
-		u.Fail("cannot remove %s: %v", sd, err)
-		return 1
-	}
-	u.Ok("Removed %s — %s freed.", sd, humanBytes(size))
-	// Its stamp goes too, so the next start sees first use.
-	meta := loadRootMeta(spec.home(""))
-	delete(meta.Stores, store)
-	saveRootMeta(spec.home(""), meta)
-	return 0
 }

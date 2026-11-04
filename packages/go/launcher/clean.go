@@ -6,8 +6,9 @@ package launcher
 // deliberately leaves it, and start's image-mismatch refusal names this
 // command as the way out. The root's realm at the shared issuer goes with it,
 // through Keycloak's admin API: the PostgreSQL that keeps every realm here is
-// the machine's, and one root's clean leaves it. `--shared` removes that
-// PostgreSQL's store instead (cleanissuer.go).
+// the machine's, and one root's clean leaves it. So does its index at the
+// shared Qdrant, through Qdrant's API (cleanvectors.go). `--shared` removes
+// that PostgreSQL's store, or the shared Qdrant's, instead (cleanshared.go).
 //
 // An UNSCOPED clean also deletes every secret the launcher keeps for the root
 // (custody.go), through the store that keeps them: the accounts the
@@ -29,10 +30,12 @@ const cleanUsage = `Usage: semiont clean [options]
 
 Remove the persistent local-stack state (Qdrant, Neo4j data, the job
 queue, the Archivist's views and anchored text, and the supervisors' logs)
-for one local semiont root, and the knowledge base's realm at the shared
-issuer, its accounts and clients with it. The stack must be stopped first —
-state is never removed while a recorded stack may be mounting it. The realm
-is deleted through the shared Keycloak: the one running, or, with none
+for one local semiont root, the knowledge base's realm at the shared
+issuer, its accounts and clients with it, and, for a knowledge base that
+keeps its index at the shared Qdrant, its collections there. The stack must
+be stopped first — state is never removed while a recorded stack may be
+mounting it. The realm is deleted through the shared Keycloak, and the
+collections through the shared Qdrant: the one running, or, with none
 running, one this clean runs for the delete and stops again.
 
 An unscoped clean also deletes every secret the launcher keeps for this
@@ -48,21 +51,29 @@ stack signs in at the shared issuer and its server is stopped (semiont stop
 --group issuer). The issuer's passwords stay, so its next boot reuses them,
 and each knowledge base's next start creates its realm afresh.
 
+semiont clean --shared --store vectors removes the shared Qdrant's store,
+and the index of every knowledge base naming it, once no recorded stack
+keeps its index there and the shared Qdrant is stopped (semiont stop
+--service vectors). Each knowledge base's next start indexes it afresh.
+
 Options:
   --store <role>   Remove one store only: identity-store (the knowledge
                    base's realm at the shared issuer; the PostgreSQL that
-                   keeps every realm here stays), vectors, graph,
-                   anchored-text, messaging (the NATS daemon's JetStream
-                   store: the job queue and the gateway's ledger claims —
-                   pending work is dropped; jobs are re-submittable), state
-                   (views; they rebuild from the event log on next start), or
-                   gateway or librarian (that service's supervisor's events log)
+                   keeps every realm here stays), vectors (the knowledge
+                   base's index: its own Qdrant's store, or its collections
+                   at the shared Qdrant, which keeps every other knowledge
+                   base's), graph, anchored-text, messaging (the NATS
+                   daemon's JetStream store: the job queue and the gateway's
+                   ledger claims — pending work is dropped; jobs are
+                   re-submittable), state (views; they rebuild from the
+                   event log on next start), or gateway or librarian (that
+                   service's supervisor's events log)
   --root <value>   Another root: a path, a registered basename, or a state
                    key as listed by status --verbose (how orphaned state,
                    whose KB directory no longer exists, is named)
   --shared         The machine's shared state instead of a root's: the
-                   shared issuer's, with --store identity-store. Not with
-                   --root
+                   shared issuer's, with --store identity-store, or the
+                   shared Qdrant's, with --store vectors. Not with --root
   --dry-run        Show what would be removed and its size; remove nothing
   --help           Show this help
 `
@@ -116,7 +127,7 @@ func Clean(args []string) int {
 		return cleanShared(u, store, dryRun)
 	}
 
-	key, dir, kbDir, code := cleanTarget(u, rootArg)
+	key, dir, kbDir, did, code := cleanTarget(u, rootArg)
 	if code != 0 {
 		return code
 	}
@@ -163,13 +174,42 @@ func Clean(args []string) int {
 		}
 	}
 
+	// The knowledge base's index at the shared Qdrant goes with its vector
+	// store and with an unscoped clean, before the root's stores, as its realm
+	// does: its collections there, named by its DID, and no other knowledge
+	// base's. A root with no DID has none.
+	var index indexDelete
+	sharedIndex := false
+	if (store == "" || store == "vectors") && did != "" {
+		var err error
+		if sharedIndex, err = onSharedVectors(kbDir); err != nil {
+			u.Fail("%v", err)
+			return 1
+		}
+		if sharedIndex {
+			var ok bool
+			if index, ok = indexToDelete(u, ss, did); !ok {
+				return 1
+			}
+		}
+		switch {
+		case !dryRun:
+		case index.start:
+			u.Log("would run the shared Qdrant, delete the index of %s if it holds it, and stop it again %s", did, u.Dim("(it is not running)"))
+		default:
+			for _, name := range index.held {
+				u.Log("would delete collection %s %s", name, u.Dim("(the index of "+did+", the shared Qdrant "+index.base+")"))
+			}
+		}
+	}
+
 	type target struct {
 		label, path string
 		size        int64
 	}
 	// A store the machine keeps for every knowledge base is not this root's to
 	// remove.
-	scopedHere := store != "" && !sharedRole(stateStores[store].owner)
+	scopedHere := store != "" && !stateStores[store].machine
 	var targets []target
 	switch {
 	case scopedHere:
@@ -208,8 +248,10 @@ func Clean(args []string) int {
 			u.Log("would remove %s — %s (%s)", tg.path, humanBytes(sz), tg.label)
 		}
 	}
-	if len(kept) == 0 && len(secrets) == 0 && realm == (realmDelete{}) {
+	if len(kept) == 0 && len(secrets) == 0 && realm == (realmDelete{}) && index.none() {
 		switch {
+		case store == "vectors" && sharedIndex:
+			u.Log("Nothing to remove: no index of %s at the shared Qdrant, and no vectors state under %s", did, dir)
 		case scopedHere:
 			u.Log("Nothing to remove: no %s state under %s", store, dir)
 		case store != "":
@@ -228,6 +270,9 @@ func Clean(args []string) int {
 		return 0
 	}
 	if realm != (realmDelete{}) && !cleanRealm(u, realm, key) {
+		return 1
+	}
+	if !index.none() && !cleanIndex(u, index, did) {
 		return 1
 	}
 	for _, name := range secrets {
@@ -392,16 +437,18 @@ func cleanRuntime(u *UI) (string, bool) {
 	return SelectRuntime(u, requested)
 }
 
-// cleanTarget resolves which root's state to clean, and the knowledge base
-// it is, "" for state whose knowledge base is gone. No --root: the same cwd
-// ladder start uses. --root: a path or registered basename first
-// (resolveRootArg), else a literal key with a dir under roots/ — the form
-// status prints for orphans, whose KB resolves no other way.
-func cleanTarget(u *UI, rootArg string) (key, dir, kbDir string, code int) {
+// cleanTarget resolves which root's state to clean, the knowledge base it
+// is, "" for state whose knowledge base is gone, and its DID, as its project
+// file declares it or, for state whose knowledge base is gone, as the state's
+// meta.json kept it; "" for a root with none. No --root: the same cwd ladder
+// start uses. --root: a path or registered basename first (resolveRootArg),
+// else a literal key with a dir under roots/ — the form status prints for
+// orphans, whose KB resolves no other way.
+func cleanTarget(u *UI, rootArg string) (key, dir, kbDir, did string, code int) {
 	d := dataDir()
 	if d == "" {
 		u.Fail("No home directory resolvable; nowhere for state to live.")
-		return "", "", "", 1
+		return "", "", "", "", 1
 	}
 	switch {
 	case rootArg == "":
@@ -411,30 +458,30 @@ func cleanTarget(u *UI, rootArg string) (key, dir, kbDir string, code int) {
 			if !projectFileRefused(err) {
 				fmt.Fprintln(os.Stderr, "  Run inside a KB, or name one: semiont clean --root <path|name|key>")
 			}
-			return "", "", "", 1
+			return "", "", "", "", 1
 		}
-		key, kbDir = kbRoot{dir: root, ident: ident}.key(), root
+		key, kbDir, did = kbRoot{dir: root, ident: ident}.key(), root, ident.didWeb()
 	default:
 		root, ident, err := resolveRootArg(rootArg)
 		if err == nil {
-			key, kbDir = kbRoot{dir: root, ident: ident}.key(), root
+			key, kbDir, did = kbRoot{dir: root, ident: ident}.key(), root, ident.didWeb()
 			break
 		}
 		if projectFileRefused(err) {
 			u.Fail("%v", err)
-			return "", "", "", 1
+			return "", "", "", "", 1
 		}
 		// A literal key must be a plain basename — anything else (".."; a
 		// path) would let RemoveAll reach outside roots/.
 		if rootArg == filepath.Base(rootArg) && rootArg != "." && rootArg != ".." {
 			if fi, statErr := os.Stat(stateRootDir(rootArg)); statErr == nil && fi.IsDir() {
-				key = rootArg
+				key, did = rootArg, loadRootMeta(stateRootDir(rootArg)).Did
 				break
 			}
 		}
 		u.Fail("%v", err)
 		fmt.Fprintf(os.Stderr, "  (and no state key %q under %s)\n", rootArg, filepath.Join(d, "roots"))
-		return "", "", "", 1
+		return "", "", "", "", 1
 	}
-	return key, stateRootDir(key), kbDir, 0
+	return key, stateRootDir(key), kbDir, did, 0
 }

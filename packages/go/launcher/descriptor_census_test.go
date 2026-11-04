@@ -234,11 +234,13 @@ func TestTheServiceCatalogNamesWhatTheDescriptorsRun(t *testing.T) {
 	}
 	var products, shared []string
 	for _, d := range serviceDescriptors {
-		switch c := d.containerName("kb"); {
-		case c == "":
-		case sharedRole(d.role):
-			shared = append(shared, c)
-		default:
+		if d.name == "" {
+			continue
+		}
+		if contains(machineRoles, d.role) {
+			shared = append(shared, d.machineContainer())
+		}
+		if !sharedRole(d.role) {
 			products = append(products, d.name)
 		}
 	}

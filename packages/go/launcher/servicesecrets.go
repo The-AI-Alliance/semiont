@@ -9,7 +9,7 @@ import "sort"
 func serviceSecrets(p placement) map[string][]string {
 	return map[string][]string{
 		"gateway": gatewaySecrets(p), "dispatcher": dispatcherSecrets(p), "archivist": nil,
-		"worker": workerSecrets(p), "smelter": embeddingSecrets(p), "weaver": graphSecrets(p),
+		"worker": workerSecrets(p), "smelter": smelterSecrets(p), "weaver": graphSecrets(p),
 		"librarian": librarianSecrets(p),
 	}
 }
@@ -54,10 +54,10 @@ func withDaemonCredentialVars(byService map[string][]string, plan *launchPlan, s
 	}
 	graphRun := plan.Roles["graph"].Presence == presenceLauncher
 	brokerRun := plan.Roles["messaging"].Presence == presenceLauncher
-	pair := []string{"NATS_USER", daemonPasswords["messaging"].env}
+	pair := []string{"NATS_USER", daemonCredentials["messaging"].env}
 	if graphRun {
-		out["weaver"] = append(out["weaver"], daemonPasswords["graph"].env)
-		out["librarian"] = append(out["librarian"], daemonPasswords["graph"].env)
+		out["weaver"] = append(out["weaver"], daemonCredentials["graph"].env)
+		out["librarian"] = append(out["librarian"], daemonCredentials["graph"].env)
 	}
 	if brokerRun && signalOnBroker {
 		out["gateway"] = append(out["gateway"], pair...)

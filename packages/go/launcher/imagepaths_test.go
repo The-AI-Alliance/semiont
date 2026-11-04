@@ -102,9 +102,9 @@ func TestExactlyOneContainerMountsTheKB(t *testing.T) {
 	fleet := map[string][]string{
 		"gateway":   gatewayArgs("kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, "secret", "jwt", "v", semiontDescriptor("gateway").mem, 4000, nil, nil),
 		"archivist": archivistArgs("kb", kbRoot, "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("archivist").ports[0].port, "client-secret", "v", semiontDescriptor("archivist").mem, nil, nil),
-		"librarian": librarianArgs("kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("librarian").ports[0].port, "client-secret", "v", semiontDescriptor("librarian").mem, nil, nil),
+		"librarian": librarianArgs("kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("librarian").ports[0].port, "client-secret", "v", semiontDescriptor("librarian").mem, nil, nil, nil),
 		"worker":    workerArgs("/state/shared/worker.json", exposure{rt: "container", addr: "1.2.3.4"}, "client-key", "v", semiontDescriptor("worker").mem, nil, nil),
-		"smelter":   smelterArgs("kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("smelter").ports[0].port, "client-secret", "v", semiontDescriptor("smelter").mem, nil, nil),
+		"smelter":   smelterArgs("kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("smelter").ports[0].port, "client-secret", "v", semiontDescriptor("smelter").mem, nil, nil, nil),
 		"weaver":    weaverArgs("kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("weaver").ports[0].port, "client-secret", "v", semiontDescriptor("weaver").mem, nil, nil),
 	}
 
@@ -203,9 +203,9 @@ func TestGatewayDocumentMountsOntoItsOwnPath(t *testing.T) {
 	for name, args := range map[string][]string{
 		"archivist": archivistArgs("kb", "/kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("archivist").ports[0].port, "client-secret", "v", semiontDescriptor("archivist").mem, nil, nil),
 		"worker":    workerArgs("/state/shared/worker.json", exposure{rt: "container", addr: "1.2.3.4"}, "client-key", "v", semiontDescriptor("worker").mem, nil, nil),
-		"smelter":   smelterArgs("kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("smelter").ports[0].port, "client-secret", "v", semiontDescriptor("smelter").mem, nil, nil),
+		"smelter":   smelterArgs("kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("smelter").ports[0].port, "client-secret", "v", semiontDescriptor("smelter").mem, nil, nil, nil),
 		"weaver":    weaverArgs("kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("weaver").ports[0].port, "client-secret", "v", semiontDescriptor("weaver").mem, nil, nil),
-		"librarian": librarianArgs("kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("librarian").ports[0].port, "client-secret", "v", semiontDescriptor("librarian").mem, nil, nil),
+		"librarian": librarianArgs("kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("librarian").ports[0].port, "client-secret", "v", semiontDescriptor("librarian").mem, nil, nil, nil),
 	} {
 		if strings.Contains(strings.Join(args, " "), gatewayDocumentTarget) {
 			t.Errorf("%s mounts the gateway's document path", name)

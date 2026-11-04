@@ -1811,8 +1811,11 @@ jobs:
       # merged into one file per binary: kept below, for Rust Coverage.
       LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage-profiles/%m.profraw
       # Where the suite finds its vector database: a container this job makes,
-      # whose index the suite clears.
+      # whose index the suite clears, run with this key and its JWT access
+      # control on, as the launcher runs one. The suite mints the Smelter's
+      # token from the key.
       QDRANT_HOST: localhost
+      QDRANT_API_KEY: smelter-conformance-ci
 
     steps:
       - name: Checkout code
@@ -1853,7 +1856,7 @@ jobs:
       - name: Start Qdrant
         run: |
           image=$(packages/go/launcher/scripts/qdrant-image.sh)
-          docker run -d --name qdrant -p 6333:6333 "$image"
+          docker run -d --name qdrant -p 6333:6333 -e QDRANT__SERVICE__API_KEY="$QDRANT_API_KEY" -e QDRANT__SERVICE__JWT_RBAC=true "$image"
           for attempt in $(seq 1 60); do
             if curl -fsS "http://${QDRANT_HOST}:6333/readyz" > /dev/null 2>&1; then
               exit 0
@@ -1919,11 +1922,14 @@ jobs:
       # merged into one file per binary: kept below, for Rust Coverage.
       LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage-profiles/%m.profraw
       # Where the suite finds its graph database, with the password it is
-      # started with below, and its vector database: containers this job
-      # makes, and the suite clears.
+      # started with below, and its vector database, with the key it is
+      # started with below and its JWT access control on, as the launcher runs
+      # one: containers this job makes, and the suite clears. The suite mints
+      # the tokens of the services it starts from the key.
       NEO4J_HOST: localhost
       NEO4J_PASSWORD: librarian-conformance-ci
       QDRANT_HOST: localhost
+      QDRANT_API_KEY: librarian-conformance-ci
 
     steps:
       - name: Checkout code
@@ -1980,7 +1986,7 @@ jobs:
       - name: Start Qdrant
         run: |
           image=$(packages/go/launcher/scripts/qdrant-image.sh)
-          docker run -d --name qdrant -p 6333:6333 "$image"
+          docker run -d --name qdrant -p 6333:6333 -e QDRANT__SERVICE__API_KEY="$QDRANT_API_KEY" -e QDRANT__SERVICE__JWT_RBAC=true "$image"
           for attempt in $(seq 1 60); do
             if curl -fsS "http://${QDRANT_HOST}:6333/readyz" > /dev/null 2>&1; then
               exit 0
@@ -2971,8 +2977,11 @@ jobs:
     needs: [census, changes, generated-artifacts]
     if: needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-sdk == 'true'
     env:
-      # Where the run finds its Qdrant: a container this job makes and discards.
+      # Where the run finds its Qdrant: a container this job makes and discards,
+      # run with this key and its JWT access control on, as the launcher runs
+      # one. The run mints its tokens from the key.
       QDRANT_HOST: localhost
+      QDRANT_API_KEY: vectors-qdrant-ci
 
     steps:
       - name: Checkout code
@@ -2993,7 +3002,7 @@ jobs:
       - name: Start Qdrant
         run: |
           image=$(packages/go/launcher/scripts/qdrant-image.sh)
-          docker run -d --name qdrant -p 6333:6333 "$image"
+          docker run -d --name qdrant -p 6333:6333 -e QDRANT__SERVICE__API_KEY="$QDRANT_API_KEY" -e QDRANT__SERVICE__JWT_RBAC=true "$image"
           for attempt in $(seq 1 60); do
             if curl -fsS "http://${QDRANT_HOST}:6333/readyz" > /dev/null 2>&1; then
               exit 0
