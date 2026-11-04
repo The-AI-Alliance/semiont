@@ -91,7 +91,7 @@ public sealed class Bus
         }
     }
 
-    private static T Decode<T>(JsonElement payload) where T : class
+    internal static T Decode<T>(JsonElement payload) where T : class
     {
         JsonObject? copy = null;
         foreach (var property in payload.EnumerateObject())

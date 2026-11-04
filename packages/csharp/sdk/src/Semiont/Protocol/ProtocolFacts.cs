@@ -83,6 +83,10 @@ internal static class ProtocolFacts
         .Select(row => row.GetProperty("code").GetString() ?? throw new InvalidOperationException("Null error code"))
         .Single(code => code == "session." + name);
 
+    internal static string JobError(string name) => Errors.RootElement.GetProperty("job").GetProperty("codes").EnumerateArray()
+        .Select(row => row.GetProperty("code").GetString() ?? throw new InvalidOperationException("Null error code"))
+        .Single(code => code == "job." + name);
+
     internal static bool RetryRefresh(int? status) => RetryStatus("refresh", status >= 500 ? 500 : status);
 
     internal static long? RetryAfterMilliseconds(string? header)

@@ -267,7 +267,6 @@
         },
         {
           "method": "delegate",
-          "notYetReached": {"csharp": "C# still needs the delegation shape."},
           "shape": "delegation",
           "via": { "request": "job:create" },
           "cases": [
@@ -485,10 +484,10 @@
     {
       "namespace": "yield",
       "docs": "Creating resources: by upload, by a generation delegated as a job, by cloning.",
-      "notYetReached": {"csharp": "C# is still to implement the yield namespace."},
       "methods": [
         {
           "method": "resource",
+          "notYetReached": {"csharp": "C# still needs Yield upload and cloning."},
           "shape": "upload",
           "via": { "content": "putBinary" },
           "cases": [
@@ -517,18 +516,21 @@
         },
         {
           "method": "cloneToken",
+          "notYetReached": {"csharp": "C# still needs Yield upload and cloning."},
           "shape": "promise",
           "via": { "request": "yield:clone-token-requested" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
         },
         {
           "method": "fromToken",
+          "notYetReached": {"csharp": "C# still needs Yield upload and cloning."},
           "shape": "promise",
           "via": { "request": "yield:clone-resource-requested" },
           "cases": [{ "args": { "token": "tok-1" }, "sends": { "token": "tok-1" } }]
         },
         {
           "method": "createFromToken",
+          "notYetReached": {"csharp": "C# still needs Yield upload and cloning."},
           "shape": "promise",
           "via": { "request": "yield:clone-resource-requested" },
           "cases": [
@@ -556,6 +558,7 @@
         },
         {
           "method": "clone",
+          "notYetReached": {"csharp": "C# still needs Yield upload and cloning."},
           "shape": "signal",
           "via": { "local": "yield:clone" },
           "cases": [{ "args": {}, "sends": {} }]

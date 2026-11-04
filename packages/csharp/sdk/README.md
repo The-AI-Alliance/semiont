@@ -24,6 +24,15 @@ Read an existing resource scope through the local bus, or use
 Beckon hover and sparkle stay local. Beckon attention and its other remote
 signals return the gateway's subscriber count when it can count observers.
 
+`client.Mark.Delegate(resourceId, parameters)` follows an annotation job, and
+`client.Yield.Delegate(parameters)` follows generation from a gathered context.
+Await a delegation for its typed completion, or use `await foreach` to see the
+job ID, progress, retryable failures, and completion in order. Each delegation
+can be consumed once. Leaving a read stops following the job. Yield's optional
+stall deadline applies to the follower, which asks the queue to cancel the job
+if it stops reporting. A `JobError` carries the shared error code, job ID when
+known, and failure class when the worker supplied one.
+
 The SDK targets .NET 11. [global.json](global.json) pins the SDK exactly, with roll-forward
 disabled. [dotnet-version.sh](../scripts/dotnet-version.sh) derives the container
 tag from that version. No .NET installation on the host is required.

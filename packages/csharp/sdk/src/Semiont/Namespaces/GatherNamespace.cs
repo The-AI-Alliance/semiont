@@ -19,7 +19,7 @@ public sealed class GatherNamespace
             AnnotationId = annotationId,
             Options = options with { ContextWindow = options.ContextWindow ?? 2000 },
         };
-        return new(cancellation => wire.RequestAsync(BusOperations.GatherRequested, request, cancellation: cancellation));
+        return new((_, cancellation) => wire.RequestAsync(BusOperations.GatherRequested, request, cancellation: cancellation));
     }
 
     public async Task<GatheredContext> ResourceAsync(ResourceId resourceId, long depth = 2, long maxResources = 10,

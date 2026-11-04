@@ -25,7 +25,7 @@ public sealed class MatchNamespace
             Limit = limit,
             UseSemanticScoring = useSemanticScoring,
         };
-        return new(cancellation => wire.RequestAsync(BusOperations.MatchSearchRequested, request, cancellation: cancellation));
+        return new((_, cancellation) => wire.RequestAsync(BusOperations.MatchSearchRequested, request, cancellation: cancellation));
     }
 
     public void RequestSearch(MatchSearchRequest input, string correlationId) =>
