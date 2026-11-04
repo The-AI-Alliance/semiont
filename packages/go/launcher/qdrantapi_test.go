@@ -3,6 +3,7 @@ package launcher
 import (
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -24,5 +25,18 @@ func TestAQdrantRefusalIsReportedAsItSaidIt(t *testing.T) {
 				t.Errorf("reported %q, want %q", got, c.want)
 			}
 		})
+	}
+}
+
+// Something at a Qdrant's port that takes its key but answers no list of
+// collections is not taken for a Qdrant that holds none.
+func TestAnAnswerThatIsNoListOfCollectionsIsRefused(t *testing.T) {
+	notQdrant := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "<html>a dashboard</html>")
+	}))
+	defer notQdrant.Close()
+	names, err := qdrantCollections(notQdrant.URL, "the-key")
+	if err == nil || !strings.Contains(err.Error(), "it answered no list of collections") {
+		t.Errorf("an answer that is no list of collections read as %q (%v)", names, err)
 	}
 }
