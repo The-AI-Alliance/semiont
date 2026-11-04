@@ -60,9 +60,10 @@ or derived. Shared annotation, offset and media-type cases run in the unit suite
 `SemiontClient.fromHttp(baseUrl:httpClient:token:)` constructs the HTTP client
 surface. `SemiontClient(transport:gateway:)` takes another `Transport`, with
 `auth` and `system` present only when a `GatewayOperations` is supplied. The
-client implements 41 of the 66 namespace methods: vocabulary writes, binding,
+client implements 48 of the 66 namespace methods: vocabulary writes, binding,
 attention, authentication/status, annotation writes, job events/status/cancellation,
-gather/search operations, delegation and clone-token reads. Browse, cache-backed
+gather/search operations, delegation, clone-token reads, and Browse history,
+directory, knowledge-base and navigation methods. Content reads, cache-backed
 queries, upload/clone wiring and worker claims follow later.
 Dispose the client before shutting down the caller-owned HTTP client.
 

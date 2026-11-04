@@ -6,6 +6,7 @@ public final class SemiontClient: Sendable {
   public let transport: any Transport
   public let bus: EventBus
   public let wire: Bus
+  public let browse: BrowseNamespace
   public let gather: GatherNamespace
   public let match: MatchNamespace
   public let yield: YieldNamespace
@@ -34,6 +35,7 @@ public final class SemiontClient: Sendable {
     self.bus = bus
     let wire = Bus(transport)
     self.wire = wire
+    browse = BrowseNamespace(wire: wire, bus: bus, lifetime: lifetime)
     gather = GatherNamespace(wire: wire, lifetime: lifetime)
     match = MatchNamespace(wire: wire, bus: bus, lifetime: lifetime)
     yield = YieldNamespace(wire: wire, bus: bus, lifetime: lifetime, timing: followTiming)

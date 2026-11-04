@@ -133,6 +133,18 @@ final class Lifetime: Sendable {
     }
     if ended { task.cancel() }
   }
+  func start(_ work: @escaping @Sendable () async -> Void) {
+    let id = UUID()
+    state.withLock { state in
+      guard !state.ended else { return }
+      let task = Task {
+        defer { self.forget(id) }
+        guard !Task.isCancelled else { return }
+        await work()
+      }
+      state.tasks[id] = { task.cancel() }
+    }
+  }
   func cancel(_ id: UUID) { state.withLock { $0.tasks[id] }?() }
   func forget(_ id: UUID) { _ = state.withLock { $0.tasks.removeValue(forKey: id) } }
   @discardableResult

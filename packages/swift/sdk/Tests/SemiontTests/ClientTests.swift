@@ -25,6 +25,7 @@ struct Call: Equatable, Sendable {
 }
 final class ProbeTransport: Transport, GatewayOperations, Sendable {
   let baseUrl = "http://kb.test"
+  let emitted = Watched(false)
   let state = Watched<ConnectionState>(.open)
   private let hub = Broadcast<ReceivedFrame>()
   private let failureEvents = Broadcast<TransportError>()
@@ -66,10 +67,12 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
   func emit(
     channel: String, payload: [String: JSONValue], scope: ResourceId?, correlationId: String?
   ) async throws -> Int? {
-    storage.withLock {
+    let count = storage.withLock {
       $0.calls.append(Call(via: "emit", name: channel, payload: payload))
       return $0.count
     }
+    emitted.set(true)
+    return count
   }
   func request(operation: String, payload: [String: JSONValue], timeoutMs: Int?) async throws
     -> [String: JSONValue]
@@ -124,6 +127,37 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
 }
 private let callsByName:
   [String: @Sendable (SemiontClient, [String: JSONValue]) async throws -> JSONValue?] = [
+    "browse.resourceEvents": { client, args in
+      try await encoded(
+        client.browse.resourceEvents(decoded(ResourceId.self, required(args, "resourceId"))))
+    },
+    "browse.annotationHistory": { client, args in
+      try await encoded(
+        client.browse.annotationHistory(
+          resourceId: decoded(ResourceId.self, required(args, "resourceId")),
+          annotationId: decoded(AnnotationId.self, required(args, "annotationId"))))
+    },
+    "browse.files": { client, args in
+      if let path = args["dirPath"] {
+        return try await encoded(
+          client.browse.files(
+            path.text, sort: decoded(BrowseDirectoryRequestSort.self, required(args, "sort"))))
+      }
+      return try await encoded(client.browse.files())
+    },
+    "browse.kb": { client, _ in try await encoded(client.browse.kb()) },
+    "browse.click": { client, args in
+      try client.browse.click(decoded(AnnotationId.self, required(args, "annotationId")))
+      return nil
+    },
+    "browse.openResource": { client, args in
+      try client.browse.openResource(decoded(ResourceId.self, required(args, "resourceId")))
+      return nil
+    },
+    "browse.resourceViewed": { client, args in
+      try client.browse.resourceViewed(decoded(ResourceId.self, required(args, "resourceId")))
+      return nil
+    },
     "mark.annotation": { client, args in
       try await encoded(
         client.mark.annotation(decoded(CreateAnnotationRequest.self, required(args, "input"))))
@@ -363,9 +397,14 @@ private let callsByName:
             #expect(frame?.correlationId == (try correlation.text))
           }
         } else {
+          if via["emit"] != nil, try required(row, "shape").text == "signal" {
+            try await within(5000) {
+              for await sent in probe.emitted where sent { return }
+            }
+          }
           #expect(probe.calls == expected, "\(key)")
         }
-        if via["emit"] != nil { #expect(result == .number(7)) }
+        if try required(row, "shape").text == "count" { #expect(result == .number(7)) }
         if via["gateway"] != nil { #expect(result != nil) }
       }
     }

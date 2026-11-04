@@ -38,6 +38,28 @@ func completionFixture(_ create: JobCreateCommand, job: String = "job-1") throws
 func surfaceReplies(_ probe: ProbeTransport) {
   probe.handle { [weak probe] name, payload in
     switch name {
+    case Operations.browseEventsRequested.request.name:
+      let request = try decoded(BrowseEventsRequest.self, .object(payload))
+      return try wirePayload(
+        BrowseEventsResult(
+          response: GetEventsResponse(
+            events: [], resourceId: request.resourceId, total: 0)))
+    case Operations.browseAnnotationHistoryRequested.request.name:
+      let request = try decoded(BrowseAnnotationHistoryRequest.self, .object(payload))
+      return try wirePayload(
+        BrowseAnnotationHistoryResult(
+          response: GetAnnotationHistoryResponse(
+            annotationId: request.annotationId, events: [], resourceId: request.resourceId, total: 0
+          )))
+    case Operations.browseDirectoryRequested.request.name:
+      let request = try decoded(BrowseDirectoryRequest.self, .object(payload))
+      return try wirePayload(
+        BrowseDirectoryResult(
+          response: BrowseDirectoryResultResponse(
+            entries: [], path: request.path)))
+    case Operations.browseKbRequested.request.name:
+      return try wirePayload(
+        BrowseKbResult(response: KbDescription(domain: "kb.test", name: "Test")))
     case Operations.jobCreate.request.name:
       let completion = try completionFixture(decoded(JobCreateCommand.self, .object(payload)))
       probe?.deliver(
