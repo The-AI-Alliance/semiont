@@ -43,7 +43,7 @@ A Weaver reads its settings from a configuration document, the protocol's
 [`WeaverConfig`](../specs/src/components/schemas/WeaverConfig.json), at the
 path its `--config` flag names. The document is resolved: every address in it
 is literal, every credential is named by the variable that holds it, and the
-Weaver defaults nothing it leaves out. It states the knowledge base it serves ([`KbIdentity`](../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by); the gateway's
+Weaver defaults nothing it leaves out. It states the knowledge base it serves ([`KbIdentity`](../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by, and which the knowledge base at its gateway must say it is before the Weaver connects to the graph database: [Boot](#boot)); the gateway's
 URL; the issuer the Weaver's service account signs in at; the graph database
 ([`GraphConfig`](../specs/src/components/schemas/GraphConfig.json): its
 kind, and what that kind needs to be reached, with the name of the environment
@@ -213,14 +213,31 @@ taken. It takes a log a run at a time, the run's events one by one in order.
 
 ## Boot
 
-A Weaver starts in this order: it reads its settings; signs in; connects to
-the graph database; subscribes to every event of the record; opens its health
-port; sweeps the record once its stream is open; runs reconcile once that
-sweep is done.
+A Weaver starts in this order: it reads its settings; signs in; asks the
+knowledge base which it is, on a stream that names nothing it answers;
+connects to the graph database; subscribes to every event of the record;
+opens its health port; sweeps the record once its stream is open; runs
+reconcile once that sweep is done.
 
 - **It gives up when the gateway does not answer.** It tries to sign in a
   bounded number of times, then exits with a status other than 0, having said
   which address did not answer. *Held by `weaver/boot`.*
+- **It serves the knowledge base its settings name, and no other.** Before it
+  connects to the graph database it asks the knowledge base which it is
+  (`browse:kb-requested`, which the Archivist answers from the committed
+  `.semiont/config.yaml`), and asks again while nothing answers there
+  (`bus.peer-unavailable`). It asks on a stream of its own, which names that
+  request's replies and not `weave:rebuild`, and closes it before it connects
+  to the graph database. A request reaches every stream that names its
+  channel, and fails at once only where it reaches none
+  ([TRANSPORT-HTTP.md § POST /bus/emit](./TRANSPORT-HTTP.md#post-busemit)):
+  no rebuild reaches a Weaver before it can answer one. Where the answer
+  names another domain than its settings do, it refuses to start, naming
+  both knowledge bases by their DIDs; where it is a failure, it refuses to
+  start saying what failed. Either way it exits with a status other than 0
+  having read and written nothing of the graph. Told to stop while it asks,
+  it exits with status 0.
+  *Held by `packages/python/service/tests/test_knowledge_base.py`, `images/weaver/tests/test_service.py`, for the stream it asks on, the order and its being told to stop while it asks, and `weaver/boot`.*
 - **It gives up when the graph database does not answer** within its connect
   deadline. *Held by `packages/python/service/tests/test_connect.py`.*
 - **Its health answers before its first sweep is done,** and events recorded
@@ -280,7 +297,8 @@ holds what the Weaver once applied to it.
 
 ## Health
 
-- **`GET /health` answers `200` with a JSON object:** `status`; `following`,
+- **`GET /health` answers `200` with a JSON object:** `status`; `kb`, the DID
+  of the knowledge base it serves; `following`,
   what it says of how it follows the record: `sweep` (`pending`, `running`,
   `done`, or `due` while the record did not answer and a sweep waits to be
   tried again), `stopped` (how many resources' logs a failed applying has
@@ -288,6 +306,10 @@ holds what the Weaver once applied to it.
   started) and `streamDrops`; and `reconcile`, a `phase` (`pending`,
   `running`, `done` or `failed`) with the pass's `summary` when it is done, or
   its `error` when it failed.
+  *Held by `weaver/boot`.*
+- **`kb` is the DID of the knowledge base it serves:** the one its settings
+  name, which that knowledge base said it is before the Weaver connected to
+  the graph database ([Boot](#boot)).
   *Held by `weaver/boot`.*
 - **`status` is `ok` whenever the Weaver answers.** It says nothing of whether
   the Weaver can reach the gateway or the graph. *Held by no case.*
