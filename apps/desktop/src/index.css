@@ -199,6 +199,47 @@ button:disabled {
   max-width: 72rem;
 }
 
+.about-modal {
+  max-width: 46rem;
+}
+.about-modal__org {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.about-modal__description,
+.about-modal__stack {
+  color: var(--muted);
+  line-height: 1.55;
+}
+.about-modal__details {
+  display: grid;
+  gap: 0.45rem;
+  margin: 1rem 0;
+}
+.about-modal__details > div {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 0.75rem;
+}
+.about-modal__details dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+.about-modal__details dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.about-modal__details a {
+  color: var(--accent);
+}
+.about-modal__tagline {
+  margin-bottom: 0;
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .telemetry-modal {
   max-width: 36rem;
 }

@@ -26,6 +26,7 @@ export interface KbNavProps {
   onSelectSession: (sessionId: string) => void;
   onRenameSession: (sessionId: string, name: string) => void;
   onDeleteSession: (sessionId: string) => void;
+  onOpenAbout: () => void;
   onOpenTheme: () => void;
   onOpenLauncherStatus: () => void;
   onOpenTelemetry: () => void;
@@ -72,12 +73,12 @@ export function KbNav(props: KbNavProps) {
         )}
       </div>
 
-      <SemiontMenu onOpenTheme={props.onOpenTheme} onOpenLauncherStatus={props.onOpenLauncherStatus} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
+      <SemiontMenu onOpenAbout={props.onOpenAbout} onOpenTheme={props.onOpenTheme} onOpenLauncherStatus={props.onOpenLauncherStatus} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
     </nav>
   );
 }
 
-function SemiontMenu({ onOpenTheme, onOpenLauncherStatus, onOpenTelemetry, onOpenRuntime, onOpenGit }: Pick<KbNavProps, 'onOpenTheme' | 'onOpenLauncherStatus' | 'onOpenTelemetry' | 'onOpenRuntime' | 'onOpenGit'>) {
+function SemiontMenu({ onOpenAbout, onOpenTheme, onOpenLauncherStatus, onOpenTelemetry, onOpenRuntime, onOpenGit }: Pick<KbNavProps, 'onOpenAbout' | 'onOpenTheme' | 'onOpenLauncherStatus' | 'onOpenTelemetry' | 'onOpenRuntime' | 'onOpenGit'>) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -106,6 +107,7 @@ function SemiontMenu({ onOpenTheme, onOpenLauncherStatus, onOpenTelemetry, onOpe
     <div className="nav__footer" ref={menuRef}>
       {open && (
         <div className="semiont-menu" role="menu" aria-label="Semiont menu">
+          <button type="button" role="menuitem" onClick={() => choose(onOpenAbout)}><AboutIcon /><span>About</span></button>
           <button type="button" role="menuitem" onClick={() => choose(onOpenTheme)}><ThemeIcon /><span>Theme</span></button>
           <button type="button" role="menuitem" onClick={() => choose(onOpenTelemetry)}><TelemetryIcon /><span>Telemetry</span></button>
           <button type="button" role="menuitem" onClick={() => choose(onOpenRuntime)}><ContainerIcon /><span>Container runtime</span></button>
@@ -404,6 +406,15 @@ const ICON_PROPS = {
   strokeLinejoin: 'round',
   'aria-hidden': true,
 } as const;
+
+function AboutIcon() {
+  return (
+    <svg width="18" height="18" {...ICON_PROPS}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5m0-8h.01" />
+    </svg>
+  );
+}
 
 function ThemeIcon() {
   return (

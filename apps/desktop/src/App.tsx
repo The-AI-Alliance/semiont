@@ -10,7 +10,7 @@ import {
 } from 'react';
 import type { ClickAction, SelectionMotivation } from '@semiont/react-ui';
 import type { OpenedSession, SessionEndReason } from '@semiont/sdk';
-import { appTitle } from 'virtual:app-config';
+import { appTitle, appVersion, appCommit, appBuildDate } from 'virtual:app-config';
 import { connect, signOut, type ChatSession, type KbConnection } from './lib/session';
 import { loadUserConfig, saveUserConfig } from './lib/config-store';
 import { kbTargetFor, type KbEntry, type UserConfig } from './lib/user-config';
@@ -26,6 +26,7 @@ import { getPref, setPref } from './lib/prefs';
 import { CHAT_MIN, DOC_DEFAULT, clampDocWidth, mainLayout } from './lib/split-layout';
 import { KbNav } from './components/KbNav';
 import { ThemePanel } from './components/ThemePanel';
+import { AboutModal } from './components/AboutModal';
 import { LauncherStatusModal, type LauncherStatusState } from './components/LauncherStatusModal';
 import { TelemetryModal } from './components/TelemetryModal';
 import { RuntimeModal } from './components/RuntimeModal';
@@ -90,6 +91,7 @@ export function App() {
   // set and the pane is wide enough, the main pane splits (chat left, document right).
   const [activeResource, setActiveResource] = useState<{ id: string; kbUri: string; name: string } | null>(null);
   const [showTheme, setShowTheme] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const [showLauncherStatus, setShowLauncherStatus] = useState(false);
   const [launcherStatus, setLauncherStatus] = useState<LauncherStatusState>({ status: 'loading' });
   const [showTelemetry, setShowTelemetry] = useState(false);
@@ -123,6 +125,8 @@ export function App() {
       }),
     );
   }, []);
+
+  const openAbout = useCallback(() => setShowAbout(true), []);
 
   const openTelemetry = useCallback(() => {
     setShowTelemetry(true);
@@ -497,6 +501,7 @@ export function App() {
             onSelectSession={selectSession}
             onRenameSession={handleRenameSession}
             onDeleteSession={handleDeleteSession}
+            onOpenAbout={openAbout}
             onOpenTheme={() => setShowTheme(true)}
             onOpenLauncherStatus={refreshLauncherStatus}
             onOpenTelemetry={openTelemetry}
@@ -531,6 +536,14 @@ export function App() {
       </div>
       {showTheme && (
         <ThemePanel theme={theme} onThemeChange={setTheme} onClose={() => setShowTheme(false)} />
+      )}
+      {showAbout && (
+        <AboutModal
+          version={appVersion}
+          commit={appCommit}
+          buildDate={appBuildDate}
+          onClose={() => setShowAbout(false)}
+        />
       )}
       {showLauncherStatus && (
         <LauncherStatusModal

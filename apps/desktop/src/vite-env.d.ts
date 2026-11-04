@@ -3,6 +3,11 @@
 declare module 'virtual:app-config' {
   /** App header / browser-tab title (from app.toml). */
   export const appTitle: string;
+  /** Desktop package version, shared with the launcher sidecar build. */
+  export const appVersion: string;
+  /** Commit and UTC build time injected by `make desktop`. */
+  export const appCommit: string;
+  export const appBuildDate: string;
 }
 
 interface Window {

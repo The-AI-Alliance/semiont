@@ -112,6 +112,9 @@ if [[ "$TARGET" == "linux" ]]; then
     -v "$SCRIPT_DIR/release":/output \
     -m 8g \
     -e ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
+    -e SEMIONT_BUILD_VERSION="$APP_VERSION" \
+    -e SEMIONT_BUILD_COMMIT="$LAUNCHER_COMMIT" \
+    -e SEMIONT_BUILD_DATE="$LAUNCHER_BUILD_DATE" \
     "$NODE_IMAGE" \
     sh -lc 'mkdir /workspace && tar -xf /source.tar -C /workspace && cd /workspace && apt-get update -qq && apt-get install -y -qq --no-install-recommends fakeroot && npm ci --no-audit --no-fund && npm run build:packages -- @semiont/react-ui @semiont/sdk && npm run build --workspace=semiont-desktop && cd apps/desktop && node ../../node_modules/electron-builder/cli.js --linux deb --x64 && test -x release/linux-unpacked/resources/launcher/semiont && deb=$(find release -maxdepth 1 -name "*.deb" -print -quit) && test -n "$deb" && dpkg-deb --contents "$deb" | grep -F "resources/launcher/semiont" && rm -rf /output/linux-unpacked && cp -a release/. /output/'
 
@@ -126,6 +129,9 @@ run_logged "$RT" run --rm \
   -v "$SCRIPT_DIR/release":/output \
   -m 8g \
   -e ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
+  -e SEMIONT_BUILD_VERSION="$APP_VERSION" \
+  -e SEMIONT_BUILD_COMMIT="$LAUNCHER_COMMIT" \
+  -e SEMIONT_BUILD_DATE="$LAUNCHER_BUILD_DATE" \
   "$NODE_IMAGE" \
   sh -c 'mkdir /workspace && tar -xf /source.tar -C /workspace && cd /workspace && npm ci --no-audit --no-fund && npm run build:packages -- @semiont/react-ui @semiont/sdk && npm run build --workspace=semiont-desktop && cd apps/desktop && node ../../node_modules/electron-builder/cli.js --mac dir --arm64 && rm -rf /output/mac-arm64 && cp -a release/. /output/'
 
