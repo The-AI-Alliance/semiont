@@ -367,7 +367,6 @@
     {
       "namespace": "gather",
       "docs": "Assembling the context a model is given, and what refers to a resource.",
-      "notYetReached": {"csharp": "C# is still to implement the gather namespace."},
       "methods": [
         {
           "method": "annotation",
@@ -417,7 +416,7 @@
         },
         {
           "method": "referencedBy",
-          "notYetReached": {"swift": "Live referenced-by queries remain to implement."},
+          "notYetReached": {"swift": "Live referenced-by queries remain to implement.", "csharp": "C# still needs live referenced-by queries."},
           "shape": "cache",
           "via": { "request": "gather:referenced-by-requested" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
@@ -427,7 +426,6 @@
     {
       "namespace": "match",
       "docs": "Searching: for what a reference could refer to, and for resources by text.",
-      "notYetReached": {"csharp": "C# is still to implement the match namespace."},
       "methods": [
         {
           "method": "search",
@@ -460,7 +458,7 @@
         },
         {
           "method": "resources",
-          "notYetReached": {"swift": "Live resource search queries remain to implement."},
+          "notYetReached": {"swift": "Live resource search queries remain to implement.", "csharp": "C# still needs live resource search queries."},
           "shape": "cache",
           "via": { "request": "match:resources-requested" },
           "cases": [
