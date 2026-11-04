@@ -240,6 +240,73 @@ button:disabled {
   font-weight: 600;
 }
 
+.inference-modal {
+  max-width: 44rem;
+}
+.inference-modal__intro,
+.inference-modal__note,
+.inference-modal__section p {
+  color: var(--muted);
+  line-height: 1.5;
+}
+.inference-modal__section h2 {
+  margin: 1.1rem 0 0.35rem;
+  font-size: 1rem;
+}
+.inference-modal__section p {
+  margin: 0;
+}
+.inference-modal__available strong {
+  color: var(--success);
+}
+.inference-modal__missing {
+  color: var(--danger);
+}
+.inference-modal__endpoint {
+  margin-top: 0.35rem !important;
+  font-size: 0.85rem;
+}
+.inference-modal__download {
+  display: inline-block;
+  margin-top: 0.65rem;
+  color: var(--accent);
+}
+.inference-modal__models {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.inference-modal__models li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+.inference-modal__models span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.inference-modal__note {
+  margin: 1.2rem 0;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code);
+}
+.inference-modal__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem 1rem;
+}
+.inference-modal__links a {
+  color: var(--accent);
+}
+
 .telemetry-modal {
   max-width: 36rem;
 }

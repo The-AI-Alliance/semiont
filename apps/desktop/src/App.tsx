@@ -27,6 +27,7 @@ import { CHAT_MIN, DOC_DEFAULT, clampDocWidth, mainLayout } from './lib/split-la
 import { KbNav } from './components/KbNav';
 import { ThemePanel } from './components/ThemePanel';
 import { AboutModal } from './components/AboutModal';
+import { InferenceModal } from './components/InferenceModal';
 import { LauncherStatusModal, type LauncherStatusState } from './components/LauncherStatusModal';
 import { TelemetryModal } from './components/TelemetryModal';
 import { RuntimeModal } from './components/RuntimeModal';
@@ -37,6 +38,7 @@ import { ResourceView } from './components/ResourceView';
 import type { ViewerPrefs } from './components/ViewerPrefControls';
 import { DEFAULT_TELEMETRY_LINKS, telemetryLinksFromStatus, type TelemetryLinks } from './lib/telemetry-links';
 import { runtimeInfoFromLauncher, type RuntimeInfo } from './lib/runtime-info';
+import type { OllamaInfo } from './lib/ollama-info';
 
 // In Electron the preload exposes window.configBridge; the web build has no such bridge.
 const isElectron = typeof window !== 'undefined' && window.configBridge !== undefined;
@@ -92,6 +94,9 @@ export function App() {
   const [activeResource, setActiveResource] = useState<{ id: string; kbUri: string; name: string } | null>(null);
   const [showTheme, setShowTheme] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [showInference, setShowInference] = useState(false);
+  const [inferenceInfo, setInferenceInfo] = useState<OllamaInfo | null>(null);
+  const [inferenceUnavailable, setInferenceUnavailable] = useState(false);
   const [showLauncherStatus, setShowLauncherStatus] = useState(false);
   const [launcherStatus, setLauncherStatus] = useState<LauncherStatusState>({ status: 'loading' });
   const [showTelemetry, setShowTelemetry] = useState(false);
@@ -127,6 +132,21 @@ export function App() {
   }, []);
 
   const openAbout = useCallback(() => setShowAbout(true), []);
+
+  const openInference = useCallback(() => {
+    setShowInference(true);
+    setInferenceInfo(null);
+    setInferenceUnavailable(false);
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) {
+      setInferenceUnavailable(true);
+      return;
+    }
+    void bridge.ollamaInfo().then(
+      setInferenceInfo,
+      () => setInferenceUnavailable(true),
+    );
+  }, []);
 
   const openTelemetry = useCallback(() => {
     setShowTelemetry(true);
@@ -502,6 +522,7 @@ export function App() {
             onRenameSession={handleRenameSession}
             onDeleteSession={handleDeleteSession}
             onOpenAbout={openAbout}
+            onOpenInference={openInference}
             onOpenTheme={() => setShowTheme(true)}
             onOpenLauncherStatus={refreshLauncherStatus}
             onOpenTelemetry={openTelemetry}
@@ -543,6 +564,13 @@ export function App() {
           commit={appCommit}
           buildDate={appBuildDate}
           onClose={() => setShowAbout(false)}
+        />
+      )}
+      {showInference && (
+        <InferenceModal
+          info={inferenceInfo}
+          unavailable={inferenceUnavailable}
+          onClose={() => setShowInference(false)}
         />
       )}
       {showLauncherStatus && (

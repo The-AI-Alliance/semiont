@@ -27,6 +27,7 @@ export interface KbNavProps {
   onRenameSession: (sessionId: string, name: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onOpenAbout: () => void;
+  onOpenInference: () => void;
   onOpenTheme: () => void;
   onOpenLauncherStatus: () => void;
   onOpenTelemetry: () => void;
@@ -73,12 +74,12 @@ export function KbNav(props: KbNavProps) {
         )}
       </div>
 
-      <SemiontMenu onOpenAbout={props.onOpenAbout} onOpenTheme={props.onOpenTheme} onOpenLauncherStatus={props.onOpenLauncherStatus} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
+      <SemiontMenu onOpenAbout={props.onOpenAbout} onOpenInference={props.onOpenInference} onOpenTheme={props.onOpenTheme} onOpenLauncherStatus={props.onOpenLauncherStatus} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
     </nav>
   );
 }
 
-function SemiontMenu({ onOpenAbout, onOpenTheme, onOpenLauncherStatus, onOpenTelemetry, onOpenRuntime, onOpenGit }: Pick<KbNavProps, 'onOpenAbout' | 'onOpenTheme' | 'onOpenLauncherStatus' | 'onOpenTelemetry' | 'onOpenRuntime' | 'onOpenGit'>) {
+function SemiontMenu({ onOpenAbout, onOpenInference, onOpenTheme, onOpenLauncherStatus, onOpenTelemetry, onOpenRuntime, onOpenGit }: Pick<KbNavProps, 'onOpenAbout' | 'onOpenInference' | 'onOpenTheme' | 'onOpenLauncherStatus' | 'onOpenTelemetry' | 'onOpenRuntime' | 'onOpenGit'>) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -108,6 +109,7 @@ function SemiontMenu({ onOpenAbout, onOpenTheme, onOpenLauncherStatus, onOpenTel
       {open && (
         <div className="semiont-menu" role="menu" aria-label="Semiont menu">
           <button type="button" role="menuitem" onClick={() => choose(onOpenAbout)}><AboutIcon /><span>About</span></button>
+          <button type="button" role="menuitem" onClick={() => choose(onOpenInference)}><InferenceIcon /><span>Inference</span></button>
           <button type="button" role="menuitem" onClick={() => choose(onOpenTheme)}><ThemeIcon /><span>Theme</span></button>
           <button type="button" role="menuitem" onClick={() => choose(onOpenTelemetry)}><TelemetryIcon /><span>Telemetry</span></button>
           <button type="button" role="menuitem" onClick={() => choose(onOpenRuntime)}><ContainerIcon /><span>Container runtime</span></button>
@@ -412,6 +414,15 @@ function AboutIcon() {
     <svg width="18" height="18" {...ICON_PROPS}>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v5m0-8h.01" />
+    </svg>
+  );
+}
+
+function InferenceIcon() {
+  return (
+    <svg width="18" height="18" {...ICON_PROPS}>
+      <path d="M12 3a7 7 0 0 0-4 12.75V19h8v-3.25A7 7 0 0 0 12 3Z" />
+      <path d="M9 22h6m-3-15v4m-2-2h4" />
     </svg>
   );
 }

@@ -5,6 +5,7 @@ import { access } from 'node:fs/promises';
 import { delimiter, dirname, join } from 'node:path';
 import { parseAppManifest } from '../src/lib/app-manifest';
 import type { LauncherStatusResult } from '../src/lib/launcher-bridge';
+import type { OllamaInfo, OllamaModelInfo } from '../src/lib/ollama-info';
 import { registerAuthHandlers } from './auth';
 import { appendLog, configDir, logPath } from './paths';
 
@@ -65,6 +66,70 @@ function runLauncher(args: string[]): Promise<LauncherStatusResult> {
 
 ipcMain.handle('launcher:status', () => runLauncher(['status']));
 ipcMain.handle('launcher:about', () => runLauncher(['about']));
+
+async function ollamaInfo(): Promise<OllamaInfo> {
+  const env = launcherEnvironment();
+  const pathEntries = (env.PATH ?? '').split(delimiter).filter(Boolean);
+  let executablePath: string | null = null;
+  for (const directory of pathEntries) {
+    const candidate = join(directory, process.platform === 'win32' ? 'ollama.exe' : 'ollama');
+    try {
+      await access(candidate, constants.X_OK);
+      executablePath = candidate;
+      break;
+    } catch {
+      // Keep looking through the same PATH Desktop gives the launcher.
+    }
+  }
+
+  // The launcher may use a host Ollama or a containerized one. Try the usual
+  // host address and Apple Container's host bridge; no model requests leave
+  // the machine.
+  const candidates = ['http://localhost:11434', 'http://127.0.0.1:11434', 'http://192.168.64.1:11434'];
+  for (const endpoint of candidates) {
+    try {
+      const response = await fetch(`${endpoint}/api/tags`, { signal: AbortSignal.timeout(1500) });
+      if (!response.ok) continue;
+      const payload: unknown = await response.json();
+      if (typeof payload !== 'object' || payload === null || !('models' in payload) || !Array.isArray(payload.models)) continue;
+
+      let loadedNames = new Set<string>();
+      try {
+        const loadedResponse = await fetch(`${endpoint}/api/ps`, { signal: AbortSignal.timeout(1000) });
+        if (loadedResponse.ok) {
+          const loadedPayload: unknown = await loadedResponse.json();
+          if (typeof loadedPayload === 'object' && loadedPayload !== null && 'models' in loadedPayload && Array.isArray(loadedPayload.models)) {
+            loadedNames = new Set(loadedPayload.models.flatMap((model: unknown) =>
+              typeof model === 'object' && model !== null && 'name' in model && typeof model.name === 'string'
+                ? [model.name]
+                : [],
+            ));
+          }
+        }
+      } catch {
+        // /api/ps is optional; installed model metadata is still useful.
+      }
+
+      const models: OllamaModelInfo[] = payload.models.flatMap((model: unknown) => {
+        if (typeof model !== 'object' || model === null || !('name' in model) || typeof model.name !== 'string') return [];
+        const details = 'details' in model && typeof model.details === 'object' && model.details !== null ? model.details : {};
+        return [{
+          name: model.name,
+          sizeBytes: 'size' in model && typeof model.size === 'number' ? model.size : 0,
+          parameterSize: 'parameter_size' in details && typeof details.parameter_size === 'string' ? details.parameter_size : '',
+          quantizationLevel: 'quantization_level' in details && typeof details.quantization_level === 'string' ? details.quantization_level : '',
+          loaded: loadedNames.has(model.name),
+        }];
+      });
+      return { executablePath, endpoint, models };
+    } catch {
+      // Try the next standard local Ollama endpoint.
+    }
+  }
+  return { executablePath, endpoint: null, models: [] };
+}
+
+ipcMain.handle('system:ollama-info', () => ollamaInfo());
 
 ipcMain.handle('system:git-path', async () => {
   const pathValue = launcherEnvironment().PATH ?? '';

@@ -1,3 +1,5 @@
+import type { OllamaInfo } from './ollama-info';
+
 export interface LauncherStatusResult {
   output: string;
   exitCode: number | null;
@@ -9,4 +11,5 @@ export interface LauncherBridge {
   status(): Promise<LauncherStatusResult>;
   about(): Promise<LauncherStatusResult>;
   gitPath(): Promise<string | null>;
+  ollamaInfo(): Promise<OllamaInfo>;
 }
