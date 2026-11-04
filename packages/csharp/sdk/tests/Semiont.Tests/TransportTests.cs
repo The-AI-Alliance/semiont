@@ -12,7 +12,7 @@ using Xunit;
 
 namespace Semiont.Tests;
 
-public sealed class TransportTests
+public sealed partial class TransportTests
 {
     [Theory]
     [InlineData("bind", "initiate")]
