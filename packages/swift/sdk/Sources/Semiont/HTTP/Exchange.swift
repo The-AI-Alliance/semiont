@@ -198,7 +198,7 @@ extension HttpTransport {
   }
   func enqueueEmission(
     channel: String, payload: [String: JSONValue], scope: ResourceId? = nil,
-    correlationId: String?, afterOpen: Bool = false
+    correlationId: String?, afterOpen: Bool = false, parent: [String: String]? = nil
   ) -> Task<Int?, any Error> {
     let previous = emitTail
     let id = UUID()
@@ -209,7 +209,8 @@ extension HttpTransport {
       try Task.checkCancellation()
       if afterOpen { try await waitUntilOpen() }
       return try await send(
-        channel: channel, payload: payload, scope: scope, correlationId: correlationId)
+        channel: channel, payload: payload, scope: scope, correlationId: correlationId,
+        parent: parent)
     }
     emitTail = Task { _ = try? await task.value }
     life.keep(task, id: id)
@@ -223,9 +224,10 @@ extension HttpTransport {
     }
   }
   func send(
-    channel: String, payload: [String: JSONValue], scope: ResourceId?, correlationId: String?
+    channel: String, payload: [String: JSONValue], scope: ResourceId?, correlationId: String?,
+    parent: [String: String]?
   ) async throws -> Int? {
-    let emission = transportSpan(.busEmitChannel, channel: channel, scope: scope)
+    let emission = transportSpan(.busEmitChannel, channel: channel, scope: scope, parent: parent)
     defer { emission.end() }
     sent(channel: channel, scope: scope)
     let trace = traceCarrier(emission)

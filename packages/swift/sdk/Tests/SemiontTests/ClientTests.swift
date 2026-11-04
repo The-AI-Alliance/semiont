@@ -356,6 +356,13 @@ private let callsByName:
           params: decoded(MarkJobParams.self, required(args, "params"))
         ).completed())
     },
+    "job.claim": { client, args in
+      let options = try required(args, "options").object
+      let claims = try client.job.claim(decoded([JobFilter].self, required(options, "accepts")))
+      var iterator = claims.makeAsyncIterator()
+      let job = try #require(await iterator.next())
+      return try encoded(job.jobId)
+    },
     "job.status": { client, args in
       try await encoded(client.job.status(decoded(JobId.self, required(args, "jobId"))))
     },

@@ -62,7 +62,7 @@ surface. `SemiontClient(transport:gateway:content:)` takes another `Transport`, 
 `auth` and `system` present only when a `GatewayOperations` is supplied. Browse
 content and annotation list reads and Yield uploads use the supplied `ContentTransport` or the
 client transport itself when it conforms. Custom content transports supply
-`getAnnotations(_:)` for the live annotation list. The client implements 65 of the 66
+`getAnnotations(_:)` for the live annotation list. The client implements all 66
 namespace methods: vocabulary writes, binding,
 attention, authentication/status, annotation writes, job events/status/cancellation,
 gather/search operations, delegation, uploads and cloning, and Browse history,
@@ -70,7 +70,7 @@ directory, knowledge-base, navigation, graph, decoded and anchored text, and
 binary reads. Browse also offers live resource details, annotations, event
 history, resource lists, engines with limits, entity types and tag schemas.
 Match offers live resource search results, and Gather offers live incoming
-references. Worker claims follow later.
+references.
 
 Iterate a live query's `Cached` sequence for `CacheState.pending`,
 `.ready(value)`, and `.failed(error)`. Iterating a resource-scoped query holds
@@ -84,6 +84,13 @@ to keep resource details, annotations, and vocabulary in application-provided
 observation shows the saved value while asking for a current one. The HTTP
 transport resumes saved resource scopes from bookmarks committed with the cache.
 Disposal flushes pending settled values.
+
+Workers configure their HTTP transport with `jobClaimChannels` and add
+`jobCommitChannels` when they write annotations. Iterate `client.job.claim`
+to take matching jobs one at a time. A held job exposes cancellation, progress,
+checkpoints, and settlement. Cast it to `HeldMarkJob` or `HeldYieldJob` to
+complete it with that verb's result. Await `claims.stop()` before disposing
+the worker client so it can settle a job it still holds.
 
 Dispose the client before shutting down the caller-owned HTTP client.
 

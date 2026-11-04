@@ -81,14 +81,16 @@ private actor Driver {
   let http = HTTPClient(eventLoopGroupProvider: .singleton)
   var transport: HttpTransport?
   let live: LiveDriver?
+  let worker: WorkerDriver?
   var tasks: [Int: Task<Void, Never>] = [:]
   var abandoned: Set<Int> = []
   var reporters: [Task<Void, Never>] = []
   var holds: [String: [ResourceHold]] = [:]
-  init(output: Output, liveMode: Bool, flush: @escaping @Sendable () async -> Void) {
+  init(output: Output, mode: String?, flush: @escaping @Sendable () async -> Void) {
     self.output = output
     self.flush = flush
-    self.live = liveMode ? LiveDriver(output: output, http: http) : nil
+    self.live = mode == "--live" ? LiveDriver(output: output, http: http) : nil
+    self.worker = mode == "--worker" ? WorkerDriver(output: output, http: http) : nil
   }
   func accept(_ args: [String: JSONValue]) async {
     let id: Int
@@ -106,7 +108,9 @@ private actor Driver {
       "anchored-text", "health", "status", "current-user", "media-token",
       "protected-resource-metadata", "sync",
     ]
-    guard (live == nil ? supported : LiveDriver.operations).contains(op) else {
+    let operations =
+      worker != nil ? WorkerDriver.operations : live != nil ? LiveDriver.operations : supported
+    guard operations.contains(op) else {
       await output.say(["id": .number(Double(id)), "unsupported": .bool(true)])
       return
     }
@@ -114,7 +118,9 @@ private actor Driver {
       "open", "close", "set-token", "listen", "subscribe-resource", "release-resource", "abandon",
       "sync",
     ]
-    if immediate.contains(op) || (live != nil && LiveDriver.immediate.contains(op)) {
+    if immediate.contains(op) || (live != nil && LiveDriver.immediate.contains(op))
+      || (worker != nil && WorkerDriver.immediate.contains(op))
+    {
       do {
         let value = try await run(op, args: args, id: id)
         await complete(id, value: value)
@@ -151,6 +157,11 @@ private actor Driver {
     return transport
   }
   func run(_ op: String, args: [String: JSONValue], id: Int) async throws -> JSONValue {
+    if let worker {
+      let answer = try await worker.run(op, args: args)
+      if op == "close" { await flush() }
+      return answer
+    }
     if let live {
       let answer = try await live.run(op, args: args)
       if op == "close" { await flush() }
@@ -340,6 +351,7 @@ private actor Driver {
   func finish() async {
     transport?.dispose()
     await live?.finish()
+    await worker?.finish()
     let pending = Array(tasks.values)
     for task in pending { task.cancel() }
     for task in pending { await task.value }
@@ -355,7 +367,7 @@ struct WireDriver {
     let telemetry = DriverTelemetry(
       endpoint: ProcessInfo.processInfo.environment["OTEL_EXPORTER_OTLP_ENDPOINT"])
     let output = Output()
-    let driver = Driver(output: output, liveMode: CommandLine.arguments.dropFirst() == ["--live"]) {
+    let driver = Driver(output: output, mode: CommandLine.arguments.dropFirst().first) {
       await telemetry?.flush()
     }
     await output.say(["ready": .bool(true)])

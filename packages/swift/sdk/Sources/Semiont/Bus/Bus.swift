@@ -45,8 +45,10 @@ public struct Bus: Sendable {
     let body = try wirePayload(payload)
     let response: [String: JSONValue]
     if let enqueued, let http = transport as? HttpTransport {
-      response = try await http.request(
-        operation: operation.request.name, payload: body, timeoutMs: timeoutMs, enqueued: enqueued)
+      response = try await http.requestFrame(
+        operation: operation.request.name, payload: body, timeoutMs: timeoutMs, enqueued: enqueued
+      )
+      .payload
     } else {
       response = try await transport.request(
         operation: operation.request.name, payload: body, timeoutMs: timeoutMs)
