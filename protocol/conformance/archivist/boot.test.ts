@@ -1,18 +1,19 @@
 /**
  * Boot, health and shutdown (ARCHIVIST.md § Configuration, § Boot and
  * shutdown): the one document the Archivist reads, every way it refuses to
- * start, what its health answers, and a clean stop.
+ * start, a gateway of another knowledge base among them, what its health
+ * answers, and a clean stop.
  */
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { refusedArchivistBoot, startArchivistProcess, type ArchivistLaunch, type ArchivistSettings } from '../harness/archivist-process';
 import { withArchivist, type ArchivistWorld } from '../harness/archivist-world';
 import { freePort } from '../harness/net';
-import { archivistSpec, errorsOf, spec } from '../harness/spec';
+import { archivistSpec, errorsOf, kbIdentity, spec } from '../harness/spec';
 
 /** A launch like the world's, on a port of its own, changed as a case needs. */
 async function launch(world: ArchivistWorld, change: Partial<ArchivistLaunch> = {}): Promise<ArchivistLaunch> {
@@ -117,6 +118,24 @@ withArchivist("the Archivist's boot", (world) => {
       expect(refusal.code).not.toBe(0);
       expect(refusal.output).toMatch(/git\.sync is true/);
       expect(refusal.output).toMatch(/is not a git checkout/);
+    } finally {
+      kb.remove();
+    }
+  });
+
+  it('refuses a gateway that serves another knowledge base than its tree, naming both, and touches nothing of the tree', async () => {
+    const other = kbIdentity('plain scalars, and a version, which names nothing');
+    const kb = tree(projectFile(other.domain, false), false);
+    const stateHome = join(dirname(kb.root), 'state');
+    mkdirSync(stateHome);
+    try {
+      const options = await launch(world());
+      const refusal = await refusedArchivistBoot({ ...options, settings: { ...options.settings, root: kb.root, stateHome } });
+      expect(refusal.code).toBe(1);
+      expect(refusal.output).toMatch(/\[fatal\]/);
+      for (const named of [world().world.origin, world().world.kb.resource, other.resource, other.did]) expect(refusal.output).toContain(named);
+      expect(readdirSync(stateHome)).toEqual([]);
+      expect(readdirSync(join(kb.root, '.semiont'))).toEqual(['config.yaml']);
     } finally {
       kb.remove();
     }

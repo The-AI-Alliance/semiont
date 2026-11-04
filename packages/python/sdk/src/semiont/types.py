@@ -6819,7 +6819,7 @@ class ArchivistConfig(WireModel, frozen=True, extra="forbid"):
         str,
         Field(
             alias="stateHome",
-            description="The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's.",
+            description="The state volume, this knowledge base's alone: the Archivist keeps the knowledge base's views and projections in it, at its top.",
             min_length=1,
         ),
     ]
