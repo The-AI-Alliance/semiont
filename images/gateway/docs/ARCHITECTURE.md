@@ -199,16 +199,28 @@ client-credentials grant, kept until shortly before it expires:
 | `GET /resources/{id}/anchored-text` | `GET /resources/{id}/anchored-text`, streamed back unread |
 | `POST /bus/subscribe` with a watermark | `GET /events/{resourceId}?fromSequence=N`, held to `ArchivistEventsResponse`, an answer at a time until the stream's `lastSequence` |
 
-A read (`GET`) that gets no answer — its connection could not be made, or
-broke or closed before a response came back, as a pooled connection the
-Archivist closes just as the read is written to it does — is sent once more,
-at once: reqwest's own retry, on the gateway's client, for requests to the
-Archivist's host and port alone. An answer is never asked again, whatever its
-status, and an upload is never sent again: its body is streamed, and a
-streamed body cannot be sent twice. When the second attempt gets no answer
-either, a content route answers 503, `Content store unavailable`, as it does
-an upload that got none, and a replay sends the stream a `bus:resume-gap` with
-reason `query-error` for that scope alone.
+The gateway waits for the Archivist as the Archivist's document states
+(its `x-semiont-limits`): `connectSeconds` for a connection, and `readSeconds`
+for each part of an answer — for the answer to begin once its request is sent
+whole, and for each next part of one that streams. No bound is put on a whole
+answer, nor on sending an upload: an upload's wait begins at its last byte. A
+call whose wait runs out has failed, as one that got no answer has; an answer
+already streaming back to the client when it stops ends that response
+unfinished.
+
+Reads and uploads go on clients of their own. A read (`GET`) that gets no
+answer — its connection could not be made in `connectSeconds`, or broke or
+closed before a response came back, as a pooled connection the Archivist
+closes just as the read is written to it does — is sent once more, at once:
+reqwest's own retry, on the reads client. A read whose answer did not begin
+within `readSeconds` is not sent again. An answer is never asked again,
+whatever its status, and an upload is never sent again: the uploads client
+retries nothing, and an upload's body is streamed, which cannot be sent twice.
+When a read's second attempt gets no answer either, a content route answers
+503, `Content store unavailable`, as it does an upload that got none, and a
+replay sends the stream a `bus:resume-gap` with reason `query-error` for that
+scope alone. The service account's token is asked of the issuer on another
+client, which retries nothing.
 
 Everything else the Archivist answers, it answers over the bus the gateway
 relays. The gateway makes no bus request of its own.

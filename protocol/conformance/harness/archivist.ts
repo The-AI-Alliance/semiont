@@ -106,6 +106,10 @@ export interface FakeArchivist {
      * met by a close.
      */
     hangsUp: number;
+    /** A read of a resource id, or an upload of a `storageUri`, in this set is read whole and never answered. */
+    readonly unanswered: Set<string>;
+    /** A read of the bytes of a resource id in this set is answered its head and the first half of its bytes, and then nothing. */
+    readonly answeredInPart: Set<string>;
   };
   close(): Promise<void>;
 }
@@ -171,6 +175,8 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
     refuseUploads: undefined,
     anchoredTextFails: false,
     hangsUp: 0,
+    unanswered: new Set(),
+    answeredInPart: new Set(),
   };
   const supported = new Set(spec().schema('SupportedMediaType')['enum'] as string[]);
   /** The most events one answer to `GET /events/{resourceId}` holds, as the Archivist's API states it. */
@@ -259,6 +265,7 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
           if (typeof value === 'string') fields[key] = value;
           else file = Buffer.from(await value.arrayBuffer());
         }
+        if (mode.unanswered.has(fields['storageUri'] ?? '')) return;
         const missing = uploadRequired.filter((k) => (k === 'file' ? !file : !fields[k]));
         if (missing.length > 0) return json(400, { error: `Missing required fields: ${missing.join(', ')}` });
         const base = fields['format']!.split(';')[0]!.trim().toLowerCase();
@@ -280,6 +287,7 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
       }
 
       const id = decodeURIComponent(operation.pattern.exec(url.pathname)![1]!);
+      if (mode.unanswered.has(id)) return;
 
       if (operation.path === '/resources/{id}/jsonld') {
         const description = descriptions.get(id);
@@ -305,6 +313,11 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
         if (!stored) return json(404, { error: `Resource not found: ${id}`, code: 'resource' });
         const bytes = content.get(stored.storageUri);
         if (!bytes) return json(404, { error: `Resource representation not found: ${id}`, code: 'representation' });
+        if (mode.answeredInPart.has(id)) {
+          res.writeHead(200, { 'content-type': stored.mediaType, 'content-length': String(bytes.length) });
+          res.write(bytes.subarray(0, bytes.length / 2));
+          return;
+        }
         return reply(200, { 'content-type': stored.mediaType }, bytes);
       }
 
