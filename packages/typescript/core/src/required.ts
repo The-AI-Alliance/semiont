@@ -10,6 +10,7 @@
  * as every other SDK refuses it, and reads the rest as its schema's type.
  */
 
+import { byCodePoint } from './by-code-point';
 import { REQUIRED_SCHEMAS } from './generated/required-schemas';
 import type { components } from './types';
 
@@ -19,12 +20,29 @@ type SchemaName = keyof components['schemas'];
 /** The kind of a JSON value, as a schema names it. An integer is a number with no fractional part. */
 type Kind = 'object' | 'array' | 'string' | 'integer' | 'number' | 'boolean' | 'null';
 
+/** One step of a pattern: at least `min` of a text's next code points, and at most `max` (none: any number), each in one of the ranges `of`. */
+interface Step {
+  readonly of: readonly (readonly [number, number])[];
+  readonly min: number;
+  readonly max?: number;
+}
+
 /** What a value must be: packages/codegen/schemas/required-shapes.mjs states what each part means. */
 export interface Shape {
   readonly ref?: SchemaName;
   readonly kinds?: readonly Kind[];
+  readonly enum?: readonly (string | number | boolean)[];
+  readonly pattern?: readonly Step[];
+  readonly minLength?: number;
+  readonly maxLength?: number;
+  readonly minimum?: number;
+  readonly maximum?: number;
+  readonly minItems?: number;
+  readonly maxItems?: number;
   readonly required?: readonly string[];
   readonly members?: { readonly [name: string]: Shape };
+  /** The only members an object may carry; none, where it may carry any. */
+  readonly closed?: readonly string[];
   readonly items?: Shape;
   readonly values?: Shape;
   readonly oneOf?: readonly Shape[];
@@ -37,7 +55,8 @@ export interface Shape {
  * names of the members it is within, and its own, joined by dots; the empty
  * way is the value itself), and why. `lacks`: the value does not carry the
  * member, or the member holds null where it may not. `malformed`: the member
- * is of a kind its schema does not allow.
+ * is not what its schema allows (of another kind, another value, form or
+ * size), or is one a closed object does not name.
  */
 export interface Fault {
   readonly member: string;
@@ -81,10 +100,50 @@ function resolved(shape: Shape): Shape {
 
 const within = (way: string, name: string): string => (way === '' ? name : `${way}.${name}`);
 
+/** Whether `count` is at least `least` and at most `most`, where each is stated. */
+const counted = (least: number | undefined, count: number, most: number | undefined): boolean =>
+  (least === undefined || count >= least) && (most === undefined || count <= most);
+
+/**
+ * Whether the code points from `at` are of `steps`: the first step takes as
+ * many of them as it may, and gives them back one by one until the steps
+ * after it take the rest.
+ */
+function matches(steps: readonly Step[], points: readonly number[], at: number): boolean {
+  const [first, ...rest] = steps;
+  if (first === undefined) return at === points.length;
+  let taken = 0;
+  while (
+    at + taken < points.length &&
+    (first.max === undefined || taken < first.max) &&
+    first.of.some(([from, to]) => from <= points[at + taken]! && points[at + taken]! <= to)
+  ) {
+    taken += 1;
+  }
+  for (; taken >= first.min; taken -= 1) if (matches(rest, points, at + taken)) return true;
+  return false;
+}
+
+/**
+ * Whether `value` is one of `shape`'s values, a text is of its pattern and
+ * has as many code points as it allows, a number is within its bounds, and an
+ * array has as many items as it allows.
+ */
+function isAsStated(shape: Shape, value: unknown): boolean {
+  if (shape.enum !== undefined && !shape.enum.some((one) => one === value)) return false;
+  if (typeof value === 'string') {
+    const points = Array.from(value, (point) => point.codePointAt(0)!);
+    return counted(shape.minLength, points.length, shape.maxLength) && (shape.pattern === undefined || matches(shape.pattern, points, 0));
+  }
+  if (typeof value === 'number') return counted(shape.minimum, value, shape.maximum);
+  if (Array.isArray(value)) return counted(shape.minItems, value.length, shape.maxItems);
+  return true;
+}
+
 /** The first fault `value` has as a value of `shape`, from `way`. */
 function faultAt(shape: Shape, value: unknown, way: string): Fault | undefined {
   const own = resolved(shape);
-  if (!allows(own.kinds, value)) return { member: way, reason: 'malformed' };
+  if (!allows(own.kinds, value) || !isAsStated(own, value)) return { member: way, reason: 'malformed' };
   if (isObject(value)) {
     const fault = faultOfMembers(own, value, way);
     if (fault !== undefined) return fault;
@@ -108,7 +167,7 @@ function faultAt(shape: Shape, value: unknown, way: string): Fault | undefined {
   return undefined;
 }
 
-/** The first fault of an object in the members `shape` requires, in what its members are, and in its values. */
+/** The first fault of an object in the members `shape` requires, in what its members are, in the members it may not carry, and in its values. */
 function faultOfMembers(shape: Shape, object: Record<string, unknown>, way: string): Fault | undefined {
   for (const name of shape.required ?? []) {
     const held = object[name];
@@ -124,8 +183,13 @@ function faultOfMembers(shape: Shape, object: Record<string, unknown>, way: stri
     const fault = faultAt(member, held, within(way, name));
     if (fault !== undefined) return fault;
   }
+  const { closed } = shape;
+  if (closed !== undefined) {
+    const unnamed = Object.keys(object).filter((name) => object[name] !== undefined && !closed.includes(name)).sort(byCodePoint)[0];
+    if (unnamed !== undefined) return { member: within(way, unnamed), reason: 'malformed' };
+  }
   if (shape.values !== undefined) {
-    for (const key of Object.keys(object).sort()) {
+    for (const key of Object.keys(object).sort(byCodePoint)) {
       const fault = faultAt(shape.values, object[key], way);
       if (fault !== undefined) return fault;
     }
