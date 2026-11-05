@@ -4,8 +4,10 @@
  * frames is disconnected once `pendingWriteBytes` are waiting for it, and a
  * replay that live frames outrun past `replayBufferEvents` is abandoned. A
  * disconnected client is visible on `session:left`. On any connection (the
- * document's `x-semiont-limits`): one that sends no request is closed
- * `requestHeadSeconds` after its last answer.
+ * document's `x-semiont-limits`): its first request's head must come whole
+ * within `requestHeadSeconds` of its opening; after an answer it is kept
+ * `idleConnectionSeconds` for its next request, and a head begun must come
+ * whole within `requestHeadSeconds` of its first byte.
  */
 import { randomUUID } from 'node:crypto';
 import { connect } from 'node:net';
@@ -83,36 +85,106 @@ eachPlane('connection bounds', (world) => {
   }, 120_000);
 });
 
-eachPlane('an idle connection', (world) => {
-  const limitMs = spec().documentLimit('requestHeadSeconds') * 1000;
-
-  it('is closed requestHeadSeconds after its last answer, with nothing written to it', async () => {
-    const { hostname, port } = new URL(world().origin);
-    const socket = connect(Number(port), hostname);
-    let received = Buffer.alloc(0);
-    let answerBytes: number | undefined;
-    let answered: number | undefined;
-    // A reset is a close too; what is asserted is when, and what came before.
-    socket.on('error', () => undefined);
-    const closed = new Promise<number>((resolve) => socket.on('close', () => resolve(Date.now())));
-    socket.on('data', (chunk: Buffer) => {
-      received = Buffer.concat([received, chunk]);
-      const head = received.indexOf('\r\n\r\n');
-      if (answerBytes === undefined && head >= 0) {
-        const length = /\r\ncontent-length: *(\d+)/i.exec(received.subarray(0, head).toString('latin1'));
-        answerBytes = length ? head + 4 + Number(length[1]) : Number.NaN;
+/**
+ * A connection of the case's own to the gateway: what the case writes goes as
+ * it is, and what comes back is read as answers, each framed by its
+ * Content-Length.
+ */
+function rawConnection(origin: string) {
+  const { hostname, port } = new URL(origin);
+  const socket = connect(Number(port), hostname);
+  let received = Buffer.alloc(0);
+  let framed = true;
+  /** Where in `received` the next answer begins. */
+  let next = 0;
+  const answers: Array<{ status: string; end: number }> = [];
+  // A reset is a close too; what is asserted is when, and what came before.
+  socket.on('error', () => undefined);
+  const opened = new Promise<number>((resolve) => socket.on('connect', () => resolve(Date.now())));
+  const closed = new Promise<number>((resolve) => socket.on('close', () => resolve(Date.now())));
+  socket.on('data', (chunk: Buffer) => {
+    received = Buffer.concat([received, chunk]);
+    while (framed) {
+      const head = received.indexOf('\r\n\r\n', next);
+      if (head < 0) return;
+      const headText = received.subarray(next, head).toString('latin1');
+      const length = /\r\ncontent-length: *(\d+)/i.exec(headText);
+      if (!length) {
+        framed = false;
+        return;
       }
-      if (answered === undefined && answerBytes !== undefined && received.length >= answerBytes) answered = Date.now();
-    });
-    socket.write(`GET /api/health HTTP/1.1\r\nHost: ${hostname}:${port}\r\n\r\n`);
+      const end = head + 4 + Number(length[1]);
+      if (received.length < end) return;
+      answers.push({ status: headText.slice(0, 12), end });
+      next = end;
+    }
+  });
+  const health = `GET /api/health HTTP/1.1\r\nHost: ${hostname}:${port}\r\n`;
+  return {
+    /** When the connection was made. */
+    opened,
+    /** When it was closed, from either side. */
+    closed,
+    /** Every byte the gateway has written to it. */
+    received: () => received,
+    /** Ask for /api/health. */
+    ask: () => socket.write(`${health}\r\n`),
+    /** Write a request's head for /api/health, all but the blank line that ends it; say when. */
+    beginHead: () => {
+      socket.write(health);
+      return Date.now();
+    },
+    /** The `n`th answer, counted from 1, once it has come whole: its status line, and the byte it ends at. */
+    answer: (n: number) =>
+      eventually(`answer ${n}`, 10_000, () => {
+        expect(framed, `every answer states its Content-Length:\n${received.toString('latin1')}`).toBe(true);
+        return answers[n - 1];
+      }),
+    end: () => socket.end(),
+  };
+}
 
-    const end = await closed;
-    expect(received.subarray(0, 12).toString('latin1'), received.toString('latin1')).toBe('HTTP/1.1 200');
-    expect(answerBytes, 'the answer states its Content-Length').not.toBeNaN();
-    expect(answered, 'the answer came whole').toBeDefined();
-    expect(received.length, 'nothing is written after the answer').toBe(answerBytes);
-    // Less a quarter second: the gateway's wait began as it wrote the answer, a little before it arrived.
-    expect(end - answered!).toBeGreaterThanOrEqual(limitMs - 250);
-    expect(end - answered!).toBeLessThan(limitMs * 1.3);
-  }, limitMs * 2 + 10_000);
+/** How long a connection is left idle after its answer before a head begins: long enough that a wait counted from the answer would end clearly sooner than one counted from the head's first byte. */
+const IDLE_BEFORE_HEAD_MS = 5_000;
+
+// Plane-independent, and slow: each case waits out requestHeadSeconds.
+eachPlane('how long a connection waits', (world) => {
+  const headMs = spec().documentLimit('requestHeadSeconds') * 1000;
+  const idleMs = spec().documentLimit('idleConnectionSeconds') * 1000;
+  /** Past requestHeadSeconds by the margin a close is given: a connection kept only requestHeadSeconds after its answer is closed by then. */
+  const pastHeadMs = headMs * 1.3;
+
+  // Less a quarter second in each lower bound: the gateway's wait and the case's clock start a moment apart.
+  it('a connection that sends nothing is closed requestHeadSeconds after it opened, with nothing written to it', async () => {
+    const connection = rawConnection(world().origin);
+    const opened = await connection.opened;
+    const end = await connection.closed;
+    expect(connection.received().length, 'nothing is written').toBe(0);
+    expect(end - opened).toBeGreaterThanOrEqual(headMs - 250);
+    expect(end - opened).toBeLessThan(headMs * 1.3);
+  }, headMs * 2 + 10_000);
+
+  it('after an answer, a request sent past requestHeadSeconds later is answered on the same connection', async () => {
+    expect(idleMs, 'idleConnectionSeconds outlasts the wait').toBeGreaterThan(pastHeadMs + 5_000);
+    const connection = rawConnection(world().origin);
+    connection.ask();
+    expect((await connection.answer(1)).status).toBe('HTTP/1.1 200');
+    await new Promise((r) => setTimeout(r, pastHeadMs));
+    connection.ask();
+    expect((await connection.answer(2)).status).toBe('HTTP/1.1 200');
+    connection.end();
+  }, pastHeadMs + 30_000);
+
+  it('after an answer, a head begun and left unfinished is closed requestHeadSeconds after its first byte, with nothing more written', async () => {
+    const connection = rawConnection(world().origin);
+    connection.ask();
+    const answered = await connection.answer(1);
+    expect(answered.status).toBe('HTTP/1.1 200');
+    await new Promise((r) => setTimeout(r, IDLE_BEFORE_HEAD_MS));
+    const begun = connection.beginHead();
+    const end = await connection.closed;
+    expect(connection.received().length, 'nothing is written after the answer').toBe(answered.end);
+    expect(end - begun).toBeGreaterThanOrEqual(headMs - 250);
+    expect(end - begun).toBeLessThan(headMs * 1.3);
+  }, IDLE_BEFORE_HEAD_MS + headMs * 2 + 20_000);
 }, {}, ['in-process']);

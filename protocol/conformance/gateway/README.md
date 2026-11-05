@@ -12,8 +12,8 @@ provides to the cases: in Semiont's, the Rust gateway's binary, built in `images
 Every case runs against a gateway on each signal plane — in-process, and NATS
 with a real `nats-server` — except the ones that need a broker (replicas, a
 broker outage, what the broker holds) or do not depend on the plane (the slow
-heartbeat, reply-retention, key-rotation and key-fetch cases, and knowledge bases
-configured another way).
+heartbeat, reply-retention, connection-wait, key-rotation and key-fetch cases,
+and knowledge bases configured another way).
 
 ## What it checks
 
@@ -51,11 +51,11 @@ configured another way).
     a payload and a scope may carry (`emit.test.ts`);
   - the stream: delivery, reply routing, replay and every gap reason,
     recovery, presence and the heartbeat (`stream.test.ts`);
-  - the bounds on one connection, how long an idle one is kept among them
-    (`bounds.test.ts`), on one principal by role
-    (`principal-limits.test.ts`), on the requests one holder has had refused,
-    and on those that name none (`refusals.test.ts`), and on one process
-    (`capacity.test.ts`);
+  - the bounds on one connection, how long one waits for a request's head
+    and for its next request among them (`bounds.test.ts`), on one principal
+    by role (`principal-limits.test.ts`), on the requests one holder has had
+    refused, and on those that name none (`refusals.test.ts`), and on one
+    process (`capacity.test.ts`);
   - replicas sharing a broker (`replicas.test.ts`), a broker outage
     (`outage.test.ts`), and what the gateway leaves on the broker it shares
     with the dispatcher (`broker.test.ts`);

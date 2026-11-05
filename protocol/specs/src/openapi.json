@@ -3,7 +3,7 @@
   "info": {
     "title": "Semiont API",
     "version": "0.1.0",
-    "description": "Semantic Knowledge Platform API",
+    "description": "Semantic Knowledge Platform API\n\n**How long a connection waits.** A connection must send its first request's head whole within `x-semiont-limits.requestHeadSeconds` of opening. After each answer it is kept open `idleConnectionSeconds` for the first byte of its next request, longer than HTTP clients commonly keep an idle connection pooled, so the gateway is not the side that closes a connection a client may still reuse. Once a head has begun arriving, it must be whole within `requestHeadSeconds` of its first byte. Past any of these, the connection is closed with nothing written to it.",
     "license": {
       "name": "Apache-2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
@@ -24,7 +24,8 @@
     }
   ],
   "x-semiont-limits": {
-    "requestHeadSeconds": 30
+    "requestHeadSeconds": 30,
+    "idleConnectionSeconds": 120
   },
   "paths": {
     "/api/health": {
