@@ -2,7 +2,7 @@
 
 A **state unit** is a piece of state that changes over time, held behind a surface its consumers read but cannot write, with one commitment: `dispose`. Every SDK is built from them, holds its units to the same axioms, and runs one table of what each of the SDK's units does.
 
-The pattern is the same in every language. What differs is what a language reads state with: RxJS Observables in TypeScript, `tokio::sync::watch` receivers and streams in Rust, a `Watched[T]` read with `async for` in Python, a `Watched[T]` ranged over with `for` in Go, a `Watched<T>` collected as a `Flow` in Kotlin. This doc states the pattern first, then each language's form of it.
+The pattern is the same in every language. What differs is what a language reads state with: RxJS Observables in TypeScript, `tokio::sync::watch` receivers and streams in Rust, a `Watched[T]` read with `async for` in Python, a `Watched[T]` ranged over with `for` in Go, a `Watched<T>` collected as a `Flow` in Kotlin, and a `StateValue<T>` read with `await foreach` in C#. This doc states the pattern first, then each language's form of it.
 
 ## What state units do
 
@@ -270,13 +270,24 @@ A unit is a class built over a `SemiontClient` it never closes, made by its cons
 
 As in Rust, a unit is a class, not a closure. The units are the classes of `semiont.state`.
 
+## In C#
+
+An `IStateUnit` implements `IDisposable`. It exposes each piece of state
+as a read-only `StateValue<T>`. Read its `Value` for a snapshot or enumerate
+it to receive the current value followed by updates. Use `WithCancellation`
+to stop an individual reader. Dispose the unit to cancel its work and
+complete all its readers. The client passed to a unit remains caller-owned.
+
+The C# SDK runs the shared behavior cases and exposes L1 through L3 for
+consumer tests in `Semiont.Testing`. See the [testing toolkit](../../packages/csharp/sdk/README.md#testing-a-composition).
+
 ## How these rules are enforced
 
 The structural contract — `dispose()` exists — is the only part the **type system** catches. Everything else is enforced by an executable axiom suite plus CI compliance scripts (the runtime twin of this doc), with a residue of review-only conventions. The executable spec IS the harness — `assertStateUnitAxioms` from `@semiont/core/testing/axioms`, invoked once from each state unit's test file; its property definitions are the authoritative statements of the axioms below.
 
 That is the TypeScript harness. Rust's (`semiont::testing::axioms`), Python's (`semiont.testing.axioms`), Go's (`semionttest.AssertStateUnitAxioms`) and Kotlin's (its tests' `assertStateUnitAxioms`, in `src/test/kotlin/semiont/state/Axioms.kt`) hold their units under the same ids; the last column says which rules they hold too.
 
-What a unit does is held apart from the axioms. [`protocol/specs/src/client/state-units.json`](../../protocol/specs/src/client/state-units.json) states it case by case, and every SDK runs each case of the units it has: `packages/typescript/sdk/src/__tests__/state-cases.test.ts`, `packages/rust/sdk/tests/state_cases.rs`, `packages/python/sdk/tests/test_state_cases.py`, `packages/go/sdk/state/cases_test.go` and `packages/kotlin/sdk/src/test/kotlin/semiont/state/StateUnitCasesTest.kt`.
+What a unit does is held apart from the axioms. [`protocol/specs/src/client/state-units.json`](../../protocol/specs/src/client/state-units.json) states it case by case, and every SDK runs each case of the units it has: `packages/typescript/sdk/src/__tests__/state-cases.test.ts`, `packages/rust/sdk/tests/state_cases.rs`, `packages/python/sdk/tests/test_state_cases.py`, `packages/go/sdk/state/cases_test.go` `packages/kotlin/sdk/src/test/kotlin/semiont/state/StateUnitCasesTest.kt` and [the C# case runner](../../packages/csharp/sdk/tests/Semiont.Tests/StateUnitCasesTests.cs).
 
 Five enforcement tiers:
 

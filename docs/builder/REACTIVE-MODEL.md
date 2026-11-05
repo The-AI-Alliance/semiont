@@ -2,7 +2,7 @@
 
 The Semiont SDKs are for collaborative **knowledge work** — humans and AI agents working as peers on a shared corpus across one or many machines. That collaboration shapes their design: live queries, progress streams, and cross-participant attention signals are all first-class, not data-API afterthoughts.
 
-So a client's methods do not all return the same kind of thing. Some are asked once and answered once. Others have values over time. Every SDK sorts its methods into the same nine shapes, and differs only in how its language says "later": Promises and RxJS Observables in TypeScript; futures, streams and `watch` receivers in Rust; coroutines, async iterators and `async with` in Python; iterators and contexts in Go; `suspend` functions and `Flow`s in Kotlin, and futures and publishers where Java calls the same client. This doc states the shapes first, then each language's form of them.
+So a client's methods do not all return the same kind of thing. Some are asked once and answered once. Others have values over time. Every SDK sorts its methods into the same nine shapes, and differs only in how its language says "later": Promises and RxJS Observables in TypeScript; futures, streams and `watch` receivers in Rust; coroutines, async iterators and `async with` in Python; iterators and contexts in Go; `suspend` functions and `Flow`s in Kotlin, futures and publishers where Java calls the Kotlin client, and tasks and async enumerables in C#. This doc states the shapes first, then each language's form of them.
 
 If you only want to *use* the SDK, [Usage.md](./Usage.md) is the per-namespace tour. Read this if you're curious about the design, deciding whether to await a call or watch it, picking a return shape for a new namespace method, or trying to figure out which path to the bus is right for your use case.
 
@@ -16,22 +16,22 @@ Each SDK makes the same choice: the form that can be read over time is the primi
 
 Every namespace method returns exactly one of these. Which one is the method's row in [`protocol/specs/src/client/surface.json`](../../protocol/specs/src/client/surface.json), the table every SDK is held to: `lint:client-surface` fails a method whose signature is not its row's.
 
-| Shape | What it is | TypeScript | Rust | Python | Go | Kotlin |
-|---|---|---|---|---|---|---|
-| `promise` | Asked once, answered once: the value, or a failure with a code. | `Promise<T>` | `async fn … -> Result<T, SemiontError>` | `async def … -> T`, raising a `SemiontError` | a method given a `context.Context`, returning `(T, error)` | `suspend fun … : T`, throwing a `SemiontError`; for Java, its twin returning a `CompletableFuture<T>` |
-| `stream` | A long-running operation: what it reports as it goes, then its final value. | `StreamObservable<T>` | `Running<T>` | `Running[T]` | `*Running[T]` | `Running<T>` |
-| `delegation` | A job another party does: the job's events as it goes, the queue's naming of it the first of them and its completion the last. The completion is its verb's. | `DelegationObservable<C>` | `Delegation<C>` | `Delegation[C]` | `*Delegation[C]` | `Delegation<C>` |
-| `upload` | An upload in flight: its progress, then the id of the resource created. | `UploadObservable` | `Upload` | `Upload` | `*Upload` | `Upload` |
-| `cache` | A live query. Building it touches nothing; its one-shot read asks the service now. | `CacheObservable<T>` | `Cached<T>` | `Cached[T]` | `*Cached[T]` | `Cached<T>` |
-| `claims` | A worker's claims: each job it comes to hold, one at a time, from the first claim on. A held job starts, reports and settles itself. | `ClaimsObservable` | `Claims` | `Claims` | `*Claims` | `Claims` |
-| `signal` | Fire-and-forget. Nothing is returned and nothing is awaited. | a method returning `void` | a plain `fn` | a plain `def` returning `None` | a method with no result | a plain `fun` returning `Unit` |
-| `count` | A drive at the other participants: how many the gateway reached, or no count when it kept none. | `Promise<number \| undefined>` | `async fn … -> Result<Option<u64>, SemiontError>` | `async def … -> int \| None` | `(subscribers int, counted bool, err error)` | `suspend fun … : Long?` |
-| `events` | The events of one channel of the client's own bus, from now on, each told its reader in its place when its payload is not the channel's. | a property named `<method>$`, an `Observable` of each event's payload or its `FrameRefusal` | `Typed<C, BusFrames>`, each `Result<Delivered<C>, StreamError>` | `Typed[P]`, each a `Heard[P]`: `Delivered[P] \| FrameRefusal` | `iter.Seq2[Delivered[P], error]`, given a context | `Typed<P>`, a `Flow` of `Heard<P>`: `Delivered<P>` or `FrameRefusal` |
+| Shape | What it is | TypeScript | Rust | Python | Go | Kotlin | C# |
+|---|---|---|---|---|---|---| --- |
+| `promise` | Asked once, answered once: the value, or a failure with a code. | `Promise<T>` | `async fn … -> Result<T, SemiontError>` | `async def … -> T`, raising a `SemiontError` | a method given a `context.Context`, returning `(T, error)` | `suspend fun … : T`, throwing a `SemiontError`; for Java, its twin returning a `CompletableFuture<T>` | `Task<T>` or `Task` |
+| `stream` | A long-running operation: what it reports as it goes, then its final value. | `StreamObservable<T>` | `Running<T>` | `Running[T]` | `*Running[T]` | `Running<T>` | `Running<T>` |
+| `delegation` | A job another party does: the job's events as it goes, the queue's naming of it the first of them and its completion the last. The completion is its verb's. | `DelegationObservable<C>` | `Delegation<C>` | `Delegation[C]` | `*Delegation[C]` | `Delegation<C>` | `Delegation<C>` |
+| `upload` | An upload in flight: its progress, then the id of the resource created. | `UploadObservable` | `Upload` | `Upload` | `*Upload` | `Upload` | `Upload` |
+| `cache` | A live query. Building it touches nothing; its one-shot read asks the service now. | `CacheObservable<T>` | `Cached<T>` | `Cached[T]` | `*Cached[T]` | `Cached<T>` | `Cached<T>` |
+| `claims` | A worker's claims: each job it comes to hold, one at a time, from the first claim on. A held job starts, reports and settles itself. | `ClaimsObservable` | `Claims` | `Claims` | `*Claims` | `Claims` | `Claims` |
+| `signal` | Fire-and-forget. Nothing is returned and nothing is awaited. | a method returning `void` | a plain `fn` | a plain `def` returning `None` | a method with no result | a plain `fun` returning `Unit` | a method returning `void` |
+| `count` | A drive at the other participants: how many the gateway reached, or no count when it kept none. | `Promise<number \| undefined>` | `async fn … -> Result<Option<u64>, SemiontError>` | `async def … -> int \| None` | `(subscribers int, counted bool, err error)` | `suspend fun … : Long?` | `Task<int?>` |
+| `events` | The events of one channel of the client's own bus, from now on, each told its reader in its place when its payload is not the channel's. | a property named `<method>$`, an `Observable` of each event's payload or its `FrameRefusal` | `Typed<C, BusFrames>`, each `Result<Delivered<C>, StreamError>` | `Typed[P]`, each a `Heard[P]`: `Delivered[P] \| FrameRefusal` | `iter.Seq2[Delivered[P], error]`, given a context | `Typed<P>`, a `Flow` of `Heard<P>`: `Delivered<P>` or `FrameRefusal` | `IAsyncEnumerable<Heard<P>>` |
 
 Three rules hold in every SDK:
 
 1. **A live query is never read by accident.** Building one touches nothing. Watching it gives its state: pending, ready or failed. A one-shot read is asked for by name, with `.fresh()`, so a cache read never silently becomes a round trip.
-2. **A long-running operation runs once.** Awaiting it gives the final value, reading it gives each report, and `.run()` gives both from one run. A delegated job is held to the same rule: awaiting it gives its completion, and reading it gives each of its events. The completion is typed by the verb that delegated the job, so a `mark` job's result is its counts or a decline, and a `yield` job's is the resource it made or a decline. Rust enforces this, since the operation is consumed by value. Python, Go and Kotlin refuse a second consumer when it runs, and have no `.run()`: reading gives each report and then the final value. TypeScript does not enforce it: awaiting and subscribing to the same instance starts it twice.
+2. **A long-running operation runs once.** Awaiting it gives the final value, reading it gives each report, and `.run()` gives both from one run. A delegated job is held to the same rule: awaiting it gives its completion, and reading it gives each of its events. The completion is typed by the verb that delegated the job, so a `mark` job's result is its counts or a decline, and a `yield` job's is the resource it made or a decline. Rust enforces this, since the operation is consumed by value. Python, Go, Kotlin and C# refuse a second consumer when it runs, and have no `.run()`: reading gives each report and then the final value. TypeScript does not enforce it: awaiting and subscribing to the same instance starts it twice.
 3. **A signal is not a request, and a drive is not a signal.** A signal returns nothing. A drive says how many participants it reached, which is information and not an acknowledgement.
 
 ## In TypeScript
@@ -415,6 +415,24 @@ The Kotlin client has the same nine shapes, on coroutines, with no reactive libr
 
 The Kotlin README shows [a delegation followed in both languages](../../packages/kotlin/sdk/README.md#gathering-then-delegating), and [a watched query](../../packages/kotlin/sdk/README.md#watching-live).
 
+## In C#
+
+Await a `Running<T>` or a `Delegation<C>` for its completion, or enumerate
+it once with `await foreach`. Delegation events use `JobEvent<C>`, whose
+cases carry the job ID, progress, retryable failure, and typed completion.
+`Upload` starts immediately. It can report progress to one enumerator
+and still be awaited for the created resource.
+
+Enumerating a scoped `Cached<T>` query holds the resource scope until the
+enumerator ends. Use `FreshAsync` for a one-shot read. The closed
+`CacheState<T>` record makes a switch expression over all three states
+exhaustive. For a worker, await `Claims.NextAsync` for the next job and await
+`StopAsync` before disposing the client.
+
+The [.NET SDK README](../../packages/csharp/sdk/README.md) has runnable
+examples of following a delegation, running a worker, and watching a live
+query.
+
 ## See also
 
 - [Usage.md](./Usage.md) — per-namespace tour with concrete examples
@@ -429,4 +447,3 @@ The Kotlin README shows [a delegation followed in both languages](../../packages
 - [The Go SDK's README](../../packages/go/sdk/README.md) — the Go form of each shape
 - [The Kotlin SDK's README](../../packages/kotlin/sdk/README.md) — the Kotlin and Java forms of each shape
 - [The Swift SDK’s README](../../packages/swift/sdk/README.md#examples) — Swift async sequences for live queries and delegated work.
-- [The .NET SDK's README](../../packages/csharp/sdk/README.md) explains C# async streams, state units, and the liveness test toolkit.
