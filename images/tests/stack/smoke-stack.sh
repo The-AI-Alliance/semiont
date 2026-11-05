@@ -120,6 +120,13 @@ if [ "$E2E" = true ]; then
 fi
 SEMIONT="$REPO_ROOT/apps/launcher/dist/semiont"
 BUILD="$REPO_ROOT/images/scripts/build-session.sh"
+# semiont: this checkout's launcher, each command shown as the launcher shows the
+# runtime's, on fd 3, the script's own stdout, which a call's redirection does not reach.
+exec 3>&1
+semiont() {
+  { printf '  $ semiont'; printf ' %q' "$@"; printf '\n'; } >&3
+  "$SEMIONT" "$@"
+}
 if [ "$COMMAND" = up ] && [ "$IMAGES" = local ]; then
   echo "Checking the :local images and the TypeScript packages they install against this checkout..."
   CHECK_STARTED=$SECONDS
@@ -175,15 +182,15 @@ summary() { printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"; [ "$FAIL" -eq 0 ]
 # given, as a person choosing a release would.
 init_kb() {
   local dir="$1" domain="$2" tag="$3" doc
-  head_ "Knowledge base ($dir)"
-  echo "  launcher: $SEMIONT ($("$SEMIONT" --version))"
+  head_ "A new knowledge base: semiont init in $dir"
+  echo "  launcher: $SEMIONT ($(semiont --version))"
   mkdir -p "$dir" && cd "$dir" || return 1
   git init -q && git config user.email smoke@example.com && git config user.name smoke
   # The domain is the one setting with no safe default, so it is the one flag.
-  if "$SEMIONT" init --yes --domain "$domain" >/dev/null; then
-    ok "init wrote a config the plan deriver accepts"
+  if semiont init --yes --domain "$domain" >/dev/null; then
+    ok "semiont init --domain $domain made it, with a config the plan deriver accepts"
   else
-    bad "init refused"; return 1
+    bad "semiont init --domain $domain refused"; return 1
   fi
   for doc in "$dir"/.semiont/stack/*.yaml; do
     sed "s#\(ghcr.io/the-ai-alliance/semiont-[a-z]*\):latest#\1:$tag#" "$doc" > "$doc.next" && mv "$doc.next" "$doc"
@@ -207,7 +214,7 @@ gateway_of() {
 # otherwise a container that pulls the two small models.
 start_kb() {
   head_ "Boot from :$1 on $RUNTIME"
-  if "$SEMIONT" start --runtime "$RUNTIME"; then
+  if semiont start --runtime "$RUNTIME"; then
     ok "every health gate opened against a real service"
   else
     bad "start failed: the launcher's reason is above"; return 1
@@ -216,14 +223,14 @@ start_kb() {
 
 # stop_kb <directory>: its stack alone. The shared containers stop with the
 # last knowledge base recorded, so stopping E2E's leaves UP's running.
-stop_kb() { "$SEMIONT" stop --root "$1" --runtime "$RUNTIME" >/dev/null 2>&1; }
+stop_kb() { semiont stop --root "$1" --runtime "$RUNTIME" >/dev/null 2>&1; }
 
 # forget_kb <directory> <removable>: clean a stopped knowledge base's state,
 # forget it, and remove the directory above it when the run made that.
 forget_kb() {
   local dir="$1" removable="$2"
-  "$SEMIONT" clean --root "$dir" >/dev/null 2>&1
-  "$SEMIONT" forget "$dir" >/dev/null 2>&1
+  semiont clean --root "$dir" >/dev/null 2>&1
+  semiont forget "$dir" >/dev/null 2>&1
   [ "$removable" = true ] && rm -rf "$(dirname "$dir")"
 }
 
@@ -255,7 +262,7 @@ if [ "$COMMAND" = up ]; then
   SUCCEEDED=false
   trap 'cd / && [ "$SUCCEEDED" = true ] || down_kb' EXIT
   init_kb "$KB" example.github.io:stack-smoke "$IMAGES" || exit 1
-  if "$SEMIONT" clean --root "$KB" >/dev/null; then
+  if semiont clean --root "$KB" >/dev/null; then
     ok "no state from an earlier run remains"
   else
     bad "clean refused the state an earlier run left"; exit 1
@@ -265,7 +272,7 @@ if [ "$COMMAND" = up ]; then
   # writes one where there is none). DOWN restores both.
   mkdir -p "$KEPT" || exit 1
   for SERVICE in browser worker; do
-    if ! SHARED_DOC=$("$SEMIONT" settings "$SERVICE" --path); then
+    if ! SHARED_DOC=$(semiont settings "$SERVICE" --path); then
       bad "the launcher named no $SERVICE document"; exit 1
     fi
     if ! cp "$SHARED_DOC" "$KEPT/$SERVICE.yaml"; then
@@ -284,7 +291,7 @@ if [ "$COMMAND" = up ]; then
   head_ "Status"
   # `status --root` is the health-coded form: it exits non-zero when a core row
   # is unhealthy, so the exit status IS the assertion.
-  if "$SEMIONT" status --root "$KB"; then ok "every core row healthy"; else bad "a core row is unhealthy"; fi
+  if semiont status --root "$KB"; then ok "every core row healthy"; else bad "a core row is unhealthy"; fi
 
   head_ "The realm the start created"
   # The knowledge base's realm is its key, made from the domain init was given.
@@ -344,7 +351,7 @@ if [ "$COMMAND" = down ]; then
 fi
 
 # e2e
-if [ ! -e "$KEPT" ] || ! "$SEMIONT" status --root "$KB" >/dev/null 2>&1; then
+if [ ! -e "$KEPT" ] || ! semiont status --root "$KB" >/dev/null 2>&1; then
   echo "No healthy stack from up at $KB: bring one up first (make stack-up)." >&2
   exit 1
 fi
@@ -372,7 +379,7 @@ head_ "The e2e default tier, in mcr.microsoft.com/playwright:v$PLAYWRIGHT-noble,
 E2E_EMAIL=e2e@example.com
 E2E_PASSWORD=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
 export E2E_EMAIL E2E_PASSWORD
-if ! printf '%s\n' "$E2E_PASSWORD" | "$SEMIONT" useradd --email "$E2E_EMAIL" --runtime "$RUNTIME" >/dev/null; then
+if ! printf '%s\n' "$E2E_PASSWORD" | semiont useradd --email "$E2E_EMAIL" --runtime "$RUNTIME" >/dev/null; then
   bad "useradd refused $E2E_EMAIL, so the suite has no one to sign in as"; exit 1
 fi
 ok "useradd made $E2E_EMAIL in the realm"
