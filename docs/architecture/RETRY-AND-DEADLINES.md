@@ -87,6 +87,12 @@ the catalog reader asks again for a page nobody answered, and no write path retr
 The boot pass sits above everything and does one thing: record the phase, log, and **not**
 exit. A repair pass that fails leaves a store behind; it does not leave the projector dead.
 
+**The gateway's reads of the Archivist** are sent once more, at once, when they get no answer:
+a read written to a pooled connection just as the Archivist closes it fails without one. It is
+reqwest's own retry on the gateway's client, for requests to the Archivist alone. A status is an
+answer and is not asked again, and an upload is never sent again: its body is streamed
+([the gateway's calls](../../images/gateway/docs/ARCHITECTURE.md#calls-to-the-archivist)).
+
 ## What deliberately does not retry
 
 **Graph, vector store and embedding provider connects** take a deadline instead —

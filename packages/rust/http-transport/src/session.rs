@@ -40,7 +40,7 @@ use semiont::storage::SessionStorage;
 use semiont::transport::BoxFuture;
 use semiont::types::{HttpEndpoint, KbDescription, KbEndpoint, KbTarget, ResourceId};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 use tokio::sync::watch;
 
 /// What a session over a gateway is built with.
@@ -62,17 +62,20 @@ pub struct HttpSession {
     pub bookmarks: Option<Arc<dyn Bookmarks>>,
 }
 
-/// Asks the session to renew, once there is one: the transport is built
-/// first, and holds this.
-struct Renews(Arc<OnceLock<SessionRenewer>>);
+/// Asks the session to renew: the transport is built first, and holds this,
+/// so a renewal asked before the session is made waits for it.
+struct Renews(watch::Receiver<Option<SessionRenewer>>);
 
 impl TokenRefresher for Renews {
     fn refresh(&self) -> BoxFuture<'_, Option<String>> {
+        let mut session = self.0.clone();
         Box::pin(async move {
-            match self.0.get() {
-                Some(renewer) => renewer.refresh().await,
-                None => None,
-            }
+            let renewer = match session.wait_for(Option::is_some).await {
+                Ok(set) => set.clone(),
+                // The sender dropped with nothing sent: no session was made.
+                Err(_) => None,
+            }?;
+            renewer.refresh().await
         })
     }
 }
@@ -89,11 +92,11 @@ pub fn session_over_http(options: HttpSession) -> OpenedSession {
 /// the token they share. Whoever this is built for owns the client too.
 fn built_over_http(options: HttpSession) -> SemiontSession {
     let (token, sent) = watch::channel(options.token);
-    let renewer = Arc::new(OnceLock::new());
+    let (renewer, renews) = watch::channel(None);
     let transport = Arc::new(HttpTransport::new(HttpTransportConfig {
         base_url: options.base_url,
         token: sent,
-        refresher: Some(Arc::new(Renews(renewer.clone()))),
+        refresher: Some(Arc::new(Renews(renews))),
         channels: None,
         http: options.http,
         timing: Timing::default(),
@@ -116,7 +119,7 @@ fn built_over_http(options: HttpSession) -> SemiontSession {
         on_auth_failed: options.on_auth_failed,
         on_error: options.on_error,
     });
-    let _ = renewer.set(session.renewer());
+    renewer.send_replace(Some(session.renewer()));
     session
 }
 
@@ -532,4 +535,60 @@ pub async fn complete_sign_in(
             expected_name: pending.expected_name,
         })
         .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semiont::storage::InMemorySessionStorage;
+    use semiont::testing::{TestClientOptions, create_test_client};
+    use semiont::types::LocalEndpoint;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// A session whose renewal answers `renewed`, counted each time it is asked.
+    fn renewing(asked: Arc<AtomicUsize>) -> SemiontSession {
+        SemiontSession::new(SemiontSessionConfig {
+            kb: KbTarget {
+                id: "kb".to_owned(),
+                label: "KB".to_owned(),
+                endpoint: KbEndpoint::LocalEndpoint(LocalEndpoint::new("here")),
+            },
+            storage: Arc::new(InMemorySessionStorage::new()),
+            client: create_test_client(TestClientOptions::default()).client,
+            token: watch::channel(None).0,
+            refresh: Some(Arc::new(move |_| {
+                asked.fetch_add(1, Ordering::SeqCst);
+                Box::pin(async { Ok(Some("renewed".to_owned())) })
+            })),
+            validate: None,
+            on_auth_failed: None,
+            on_error: None,
+        })
+    }
+
+    #[tokio::test]
+    async fn a_renewal_asked_before_the_session_is_set_waits_for_it_and_is_the_sessions() {
+        let asked = Arc::new(AtomicUsize::new(0));
+        let session = renewing(asked.clone());
+        let (set, unset) = watch::channel(None);
+        let renews = Renews(unset);
+
+        let mut renewal = renews.refresh();
+        assert_eq!(
+            (&mut renewal).now_or_never(),
+            None,
+            "a renewal asked before the session is set waits for it"
+        );
+        set.send_replace(Some(session.renewer()));
+        assert_eq!(renewal.await.as_deref(), Some("renewed"));
+        assert_eq!(asked.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn a_renewal_asked_of_a_session_never_set_is_none() {
+        let (set, unset) = watch::channel(None);
+        let renews = Renews(unset);
+        drop(set);
+        assert_eq!(renews.refresh().await, None);
+    }
 }

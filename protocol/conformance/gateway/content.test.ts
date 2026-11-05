@@ -242,6 +242,56 @@ eachPlane('content', (world) => {
     }
   });
 
+  /** The gateway's reads of a resource's bytes while the Archivist closes the next `hangUps` connections unanswered. */
+  const readMetByHangUps = async (hangUps: number) => {
+    const id = `res-${randomUUID()}`;
+    world().archivist.resources.set(id, { storageUri: `file://${id}`, mediaType: 'text/plain' });
+    world().archivist.content.set(`file://${id}`, EVERY_BYTE);
+    const token = await world().person('reader');
+    const asked = world().archivist.calls.length;
+    world().archivist.mode.hangsUp = hangUps;
+    try {
+      const reply = await call(world().origin, 'GET', `/resources/${id}`, { token });
+      expect(nonConformance('get', '/resources/{id}', reply)).toEqual([]);
+      return { reply, reads: world().archivist.calls.slice(asked).map((c) => `${c.method} ${c.path}`), id };
+    } finally {
+      world().archivist.mode.hangsUp = 0;
+    }
+  };
+
+  it('a read the Archivist closed its connection on, unanswered, is sent once more, and its answer served', async () => {
+    const { reply, reads, id } = await readMetByHangUps(1);
+    expect(reply.status, reply.text).toBe(200);
+    expect(reply.bytes.equals(EVERY_BYTE)).toBe(true);
+    expect(reads).toEqual([`GET /resources/${id}/content`, `GET /resources/${id}/content`]);
+  });
+
+  it('a read is sent once more, not again: a second close unanswered is a 503', async () => {
+    const { reply, reads, id } = await readMetByHangUps(2);
+    expect(reply.status).toBe(503);
+    expect((reply.json as { error: string }).error).toBe('Content store unavailable');
+    expect(reads).toEqual([`GET /resources/${id}/content`, `GET /resources/${id}/content`]);
+  });
+
+  it('an upload the Archivist closed its connection on, unanswered, is not sent again: a 503', async () => {
+    const token = await world().person('uploader');
+    const asked = world().archivist.calls.length;
+    const recorded = world().archivist.uploads.length;
+    world().archivist.mode.hangsUp = 1;
+    try {
+      const reply = await call(world().origin, 'POST', '/resources', {
+        token,
+        body: upload({ name: 'n', format: 'text/plain', storageUri: `file://uploads/${randomUUID()}` }, { bytes: Buffer.from('x'), type: 'text/plain' }),
+      });
+      expect(reply.status).toBe(503);
+      expect(nonConformance('post', '/resources', reply)).toEqual([]);
+    } finally {
+      world().archivist.mode.hangsUp = 0;
+    }
+    expect(world().archivist.calls.slice(asked).map((c) => `${c.method} ${c.path}`)).toEqual(['POST /resources']);
+    expect(world().archivist.uploads.length).toBe(recorded);
+  });
+
   it('the JSON-LD description is the record\'s answer, never cached', async () => {
     const id = `res-${randomUUID()}`;
     const description = {
