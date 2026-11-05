@@ -3,19 +3,18 @@ import type { components } from '@semiont/core';
 type Agent = components['schemas']['Agent'];
 
 /**
- * Compose a display label for an Agent at render time. Software peers
- * read `${provider} ${model}` from their structured fields rather than
- * a producer-side concatenated `name`. Person/Organization fall back
- * to `name`. Unknown shapes fall back to `name` then to `@id`. An agent
- * with none of these has no label.
+ * Compose a display label for an Agent at render time. An agent's `name`
+ * is what its profile says it is called, filled in when the record is read.
+ * A Software agent is labeled by its name followed by the provider and model
+ * it says it runs, `my-highlighter (anthropic claude-haiku-4-5)`, and by
+ * whichever of these it has when it lacks the others. Every agent falls back
+ * to its `@id`. An agent with none of these has no label.
  */
 export function renderAgentLabel(agent: Agent): string | undefined {
   if (agent['@type'] === 'Software') {
-    const provider = (agent as { provider?: string }).provider;
-    const model = (agent as { model?: string }).model;
-    if (provider && model) return `${provider} ${model}`;
-    if (model) return model;
-    if (provider) return provider;
+    const engine = [agent.provider, agent.model].filter(Boolean).join(' ');
+    if (agent.name && engine) return `${agent.name} (${engine})`;
+    return agent.name || engine || agent['@id'];
   }
   return agent.name || agent['@id'];
 }

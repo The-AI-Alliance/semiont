@@ -590,20 +590,20 @@ describe('ResourceInfoPanel Component', () => {
       expect(screen.getByText('Semiont AI')).toBeInTheDocument();
     });
 
-    it('renders Software peers as `${provider} ${model}` from structured fields', () => {
+    it('renders a Software peer by its name, then its provider and model', () => {
       renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           generator={{
             '@type': 'Software',
             '@id': 'did:web:example.com:agents:semiont-worker',
-            name: 'ignored',
+            name: 'my-highlighter',
             provider: 'ollama',
             model: 'gemma2:27b',
           } as never}
         />
       );
-      expect(screen.getByText('ollama gemma2:27b')).toBeInTheDocument();
+      expect(screen.getByText('my-highlighter (ollama gemma2:27b)')).toBeInTheDocument();
     });
   });
 
