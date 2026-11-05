@@ -6,6 +6,10 @@
 //! schema that grows a new shape fails the build rather than generating
 //! something wrong.
 //!
+//! Every type written for a component schema, and not an alias, names that
+//! schema (`Schema::NAME`), so code that needs a type's schema takes it from
+//! the type, and a type with none does not compile there.
+//!
 //! A union is written untagged. One whose schema names the property its
 //! members are told apart by (`status`, `jobType`, `motivation`), each member
 //! stating its own one value of it, is decoded as the member that value
@@ -42,6 +46,8 @@ const EMPTY_OBJECT: &str = "EmptyObject";
 const STATED: &str = "fn stated";
 /// What a constructor of a kind of id refuses with.
 const INVALID_IDENTIFIER: &str = "InvalidIdentifier";
+/// The trait by which a type generated from a component schema names it.
+const SCHEMA: &str = "Schema";
 
 /// The Rust source of a generation's types, from `definitions` (the
 /// `definitions` object of `draft7_definitions`' output).
@@ -89,10 +95,34 @@ impl Types<'_> {
         if !self.written.contains_key(name) {
             let schema = self.schema(name).clone();
             self.written.insert(name.to_owned(), String::new());
-            let code = self.declaration(name, &schema);
+            let mut code = self.declaration(name, &schema);
+            if !code.contains(&format!("pub type {name} = ")) {
+                let _ = writeln!(
+                    code,
+                    "impl {} for {name} {{\n    const NAME: &'static str = {name:?};\n}}\n",
+                    self.schema_trait()
+                );
+            }
             self.written.insert(name.to_owned(), code);
         }
         name.to_owned()
+    }
+
+    /// The path of the trait a generated type names its schema by: written
+    /// here once when this generation owns its types, or the owner's.
+    fn schema_trait(&mut self) -> String {
+        if let Some(owner) = self.generation.elsewhere {
+            return format!("{owner}::{SCHEMA}");
+        }
+        if self.definitions.get(SCHEMA).is_some() {
+            panic!("{SCHEMA} is a schema's name, and the generator's own");
+        }
+        self.written
+            .entry(format!("trait {SCHEMA}"))
+            .or_insert_with(|| {
+                format!("/// A type generated from a component schema, which it names.\npub trait {SCHEMA} {{\n    /// The component schema's name.\n    const NAME: &'static str;\n}}\n\n")
+            });
+        SCHEMA.to_owned()
     }
 
     /// The name of the type of `owner`'s property `property`, when its schema
@@ -862,6 +892,39 @@ mod tests {
                 identifiers: &["ThingId"],
             },
         )
+    }
+
+    #[test]
+    fn a_type_written_for_a_component_schema_names_it_and_an_alias_does_not() {
+        let definitions = json!({
+            "Holder": { "type": "object", "properties": { "name": { "$ref": "#/definitions/Name" }, "inner": { "type": "object", "properties": {} } } },
+            "Name": { "type": "string" }
+        });
+        let code = generated(definitions.clone(), "Holder");
+        assert!(
+            code.contains(
+                "impl Schema for Holder {\n    const NAME: &'static str = \"Holder\";\n}"
+            ),
+            "{code}"
+        );
+        assert_eq!(code.matches("impl Schema for").count(), 1, "{code}");
+        assert_eq!(code.matches("pub trait Schema {").count(), 1, "{code}");
+        let owned_elsewhere = generate(
+            &definitions,
+            &Generation {
+                roots: &["Holder"],
+                elsewhere: Some("owner::types"),
+                identifiers: &[],
+            },
+        );
+        assert!(
+            owned_elsewhere.contains("impl owner::types::Schema for Holder {"),
+            "{owned_elsewhere}"
+        );
+        assert!(
+            !owned_elsewhere.contains("pub trait Schema"),
+            "{owned_elsewhere}"
+        );
     }
 
     #[test]

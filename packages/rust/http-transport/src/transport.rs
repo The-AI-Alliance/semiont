@@ -22,11 +22,11 @@ use semiont::transport::{
     BoxFuture, ConnectionState, Envelope, Events, Failures, FrameHub, Frames, GatewayOperations,
     PendingReply, ReplyRouter, ResourceHold, STREAM_BACKLOG, TraceCarrier, Transport, unsubscribed,
 };
-use semiont::types::ResourceId;
 use semiont::types::{
     BusEmitAccepted, BusEmitRequest, ErrorResponse, HealthResponse, LimitRefusal, LimitRefusalCode,
     MediaTokenRequest, MediaTokenResponse, ProtectedResourceMetadata, StatusResponse, UserResponse,
 };
+use semiont::types::{ResourceId, Schema};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
@@ -62,19 +62,12 @@ fn unanswered(method: &reqwest::Method, path: &str, deadline: Duration) -> Trans
 /// rest).
 pub(crate) const MALFORMED: &str = "it is malformed";
 
-/// The component schema whose generated type `T` is: the last name of its
-/// path, which is its schema's.
-pub(crate) fn schema_of<T>() -> &'static str {
-    let path = std::any::type_name::<T>();
-    path.rsplit_once("::").map_or(path, |(_, name)| name)
-}
-
 /// The body of an answer read as `T`, the generated type of its declared
 /// schema, or what every SDK says of the first fault that keeps it from
 /// being one.
-pub(crate) fn declared<T: DeserializeOwned>(body: &[u8]) -> Result<T, String> {
+pub(crate) fn declared<T: DeserializeOwned + Schema>(body: &[u8]) -> Result<T, String> {
     let value: Value = serde_json::from_slice(body).map_err(|_| MALFORMED.to_owned())?;
-    if let Some(said) = semiont::fault_said(schema_of::<T>(), &value) {
+    if let Some(said) = semiont::fault_said::<T>(&value) {
         return Err(said);
     }
     serde_json::from_value(value).map_err(|_| MALFORMED.to_owned())
@@ -404,7 +397,7 @@ impl Shared {
 
     /// The same, read as the JSON the operation answers. The answer, once
     /// begun, is read within the same deadline.
-    pub async fn answer<T: DeserializeOwned>(
+    pub async fn answer<T: DeserializeOwned + Schema>(
         &self,
         method: reqwest::Method,
         path: &str,
@@ -423,7 +416,7 @@ impl Shared {
 
     /// `answer` with no deadline, for an upload: how long one takes is how
     /// large the resource is.
-    pub async fn answer_at_length<T: DeserializeOwned>(
+    pub async fn answer_at_length<T: DeserializeOwned + Schema>(
         &self,
         method: reqwest::Method,
         path: &str,
@@ -434,7 +427,7 @@ impl Shared {
             .await
     }
 
-    async fn answered<T: DeserializeOwned>(
+    async fn answered<T: DeserializeOwned + Schema>(
         &self,
         method: reqwest::Method,
         path: &str,

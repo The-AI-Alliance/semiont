@@ -7,6 +7,7 @@
 //! does not state is a fault of the value itself, and nothing of serde's own
 //! account is said: it shows what it was given.
 
+use crate::types::Schema;
 use serde_json::{Map, Value};
 use std::fmt;
 
@@ -359,19 +360,16 @@ pub(crate) fn fault_of(shape: &'static Shape, value: &Value) -> Option<Fault> {
 }
 
 /// What every SDK says of the first fault `body` has as the component schema
-/// `schema`, as it refuses it: "it has no \`member\`", "its \`member\` is
-/// malformed", or "it is malformed"; `None` when it has none.
-///
-/// # Panics
-///
-/// When `schema` is no component schema of the spec.
-pub fn fault_said(schema: &str, body: &Value) -> Option<String> {
-    fault_of(self::schema(schema), body).map(|fault| fault.to_string())
+/// `T` is generated from, as it refuses it: "it has no \`member\`", "its
+/// \`member\` is malformed", or "it is malformed"; `None` when it has none.
+pub fn fault_said<T: Schema>(body: &Value) -> Option<String> {
+    fault_of(schema(T::NAME), body).map(|fault| fault.to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::{Fault, Reason, fault_of, fault_said, schema};
+    use crate::types::UserResponse;
     use serde_json::json;
 
     fn malformed(member: &str) -> Option<Fault> {
@@ -474,21 +472,17 @@ mod tests {
     #[test]
     fn the_first_fault_of_a_body_is_said_as_every_sdk_says_it() {
         let user = json!({"did": "did:web:example.org:users:a", "domain": "example.org", "email": null, "name": null, "image": null});
-        assert_eq!(fault_said("UserResponse", &user), None);
+        assert_eq!(fault_said::<UserResponse>(&user), None);
         assert_eq!(
-            fault_said(
-                "UserResponse",
-                &json!({"did": "did:web:example.org:users:a"})
-            )
-            .as_deref(),
+            fault_said::<UserResponse>(&json!({"did": "did:web:example.org:users:a"})).as_deref(),
             Some("it has no `email`")
         );
         assert_eq!(
-            fault_said("UserResponse", &json!({"did": "web", "domain": "example.org", "email": null, "name": null, "image": null})).as_deref(),
+            fault_said::<UserResponse>(&json!({"did": "web", "domain": "example.org", "email": null, "name": null, "image": null})).as_deref(),
             Some("its `did` is malformed")
         );
         assert_eq!(
-            fault_said("UserResponse", &json!("a user")).as_deref(),
+            fault_said::<UserResponse>(&json!("a user")).as_deref(),
             Some("it is malformed")
         );
     }
