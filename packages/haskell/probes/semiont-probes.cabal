@@ -1,0 +1,40 @@
+cabal-version: 3.0
+name: semiont-probes
+version: 0.1.0.0
+synopsis: Acceptance probes for the Semiont Haskell SDK design
+description: Executable P0 experiments for type boundaries, resource ownership,
+             controllable waits, HTTP policy, and native lock interoperability.
+category: Development
+author: The AI Alliance
+maintainer: Semiont contributors
+license: Apache-2.0
+build-type: Simple
+extra-source-files:
+  README.md
+  cabal.project
+  cabal.project.freeze
+  cabal-install.version
+  Containerfile
+  run.sh
+  run.py
+  run-container.sh
+  toolchain.sh
+  refusals/*.hs
+
+executable semiont-probes
+  main-is: Main.hs
+  hs-source-dirs: src
+  other-modules: ProbeTypes, NativeLock
+  default-language: GHC2021
+  ghc-options: -Wall -Wincomplete-patterns -Wincomplete-record-updates -threaded
+  build-depends:
+    base >=4.20 && <4.21,
+    aeson >=2.2 && <2.3,
+    async >=2.2 && <2.3,
+    bytestring >=0.12 && <0.13,
+    http-client >=0.7 && <0.8,
+    http-client-tls >=0.3 && <0.4,
+    stm >=2.5 && <2.6,
+    streaming >=0.2 && <0.3,
+    text >=2.1 && <2.2,
+    unix >=2.8 && <2.9
