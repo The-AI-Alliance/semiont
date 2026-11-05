@@ -59,7 +59,7 @@ from semiont.types import (
     ExtractionOutcome,
     PdfTextItem,
 )
-from semiont_service.archivist import Authorizes
+from semiont_service.archivist import ARCHIVIST_TIMEOUT, Authorizes
 
 from semiont_smelter.log import LOG, words_of
 
@@ -67,13 +67,6 @@ __all__ = ["AnchoredTextStore", "AnchoredTexts", "StoreFailed"]
 
 _VERSION: Final = 3
 """The entry format, which says what an entry's numbers mean. The entry's model takes no other."""
-
-_TIMEOUT: Final = httpx.Timeout(60.0, connect=10.0)
-"""How long the Archivist is waited for: ten seconds to connect, and a minute for each part of an answer.
-
-No bound is put on a whole answer: a large entry takes as long as it takes,
-as long as it keeps coming.
-"""
 
 _STAMP: Final = re.compile(r"\S+")
 """A stamp the Archivist keeps: text with no white space, since it keeps it as a file of one line."""
@@ -230,7 +223,7 @@ class AnchoredTextStore(AnchoredTexts):
         self._stating: Final = asyncio.Lock()
 
     async def __aenter__(self) -> Self:
-        self._client = httpx.AsyncClient(base_url=self._origin, timeout=_TIMEOUT, trust_env=False)
+        self._client = httpx.AsyncClient(base_url=self._origin, timeout=ARCHIVIST_TIMEOUT, trust_env=False)
         return self
 
     async def __aexit__(self, kind: type[BaseException] | None, error: BaseException | None, trace: TracebackType | None) -> None:

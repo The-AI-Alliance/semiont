@@ -40,6 +40,8 @@ configured another way).
   - credentials, the bearer and media-token schemes (`tokens.test.ts`);
   - the issuer's key set: the deadline on a fetch, and one fetch per cooldown
     when it fails (`issuer.test.ts`);
+  - how long the Archivist is waited for: each part of an answer, from a
+    request's last byte (`archivist-waits.test.ts`);
   - content and uploads, the JSON-LD description, a resource's anchored text,
     whole when it is larger than the largest bus message, a path that names
     what is not a resource's id, and a read the Archivist closes its
@@ -49,7 +51,8 @@ configured another way).
     a payload and a scope may carry (`emit.test.ts`);
   - the stream: delivery, reply routing, replay and every gap reason,
     recovery, presence and the heartbeat (`stream.test.ts`);
-  - the bounds on one connection (`bounds.test.ts`), on one principal by role
+  - the bounds on one connection, how long an idle one is kept among them
+    (`bounds.test.ts`), on one principal by role
     (`principal-limits.test.ts`), on the requests one holder has had refused,
     and on those that name none (`refusals.test.ts`), and on one process
     (`capacity.test.ts`);

@@ -10,7 +10,7 @@ you want is [`semiont`](../sdk/README.md).
 
 | Item | What it is |
 |---|---|
-| `serve` | An accept loop whose connections the service can close from its side (`ConnectionAbort`), bounded by how many may be open at once. |
+| `serve` | An accept loop whose connections the service can close from its side (`ConnectionAbort`), bounded by how many may be open at once and by how long one waits for a request's head, after it opens and after each answer. |
 | `bearer_token` | The token an `Authorization: Bearer …` header carries. |
 | `IssuerVerifier` | Tokens of the knowledge base's trusted issuer, verified against the keys it publishes: discovery read once, the key set fetched when it is due, one fetch at a time under a deadline. The service states the three timings (`KeyTimings`). |
 

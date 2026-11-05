@@ -10,6 +10,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::task::{Context, Poll};
+use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::{TcpListener, TcpStream};
 use tower::ServiceExt;
@@ -93,11 +94,15 @@ impl AsyncWrite for Abortable {
 
 /// Serve `router` on `listener` until `stop` resolves; then accept nothing more.
 /// A connection past `connections` open at once is closed unanswered
-/// (capacity), and `refused` is told.
+/// (capacity), and `refused` is told. A connection whose next request's head
+/// has not come whole `request_head` after it opened, or after its last
+/// answer, is closed with nothing written: a slow head and an idle connection
+/// alike.
 pub async fn serve(
     listener: TcpListener,
     router: axum::Router,
     connections: usize,
+    request_head: Duration,
     refused: fn(),
     stop: impl std::future::Future<Output = ()>,
 ) {
@@ -116,7 +121,7 @@ pub async fn serve(
                 let _ = stream.set_nodelay(true);
                 let (open, router) = (open.clone(), router.clone());
                 tokio::spawn(async move {
-                    connection(stream, router).await;
+                    connection(stream, router, request_head).await;
                     open.fetch_sub(1, Ordering::SeqCst);
                 });
             }
@@ -125,7 +130,7 @@ pub async fn serve(
     }
 }
 
-async fn connection(stream: TcpStream, router: axum::Router) {
+async fn connection(stream: TcpStream, router: axum::Router, request_head: Duration) {
     let abort = ConnectionAbort::new();
     let io = TokioIo::new(Abortable {
         stream,
@@ -139,6 +144,7 @@ async fn connection(stream: TcpStream, router: axum::Router) {
     );
     let _ = hyper::server::conn::http1::Builder::new()
         .timer(TokioTimer::new())
+        .header_read_timeout(request_head)
         .serve_connection(io, service)
         .await;
 }

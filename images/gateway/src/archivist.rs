@@ -4,11 +4,13 @@
 //! back, and a scope's persisted events are read for a replay. The gateway
 //! parses none of it; it forwards, and maps the answer onto its own
 //! responses. It reaches the Archivist as itself, with its service account's
-//! token.
+//! token, and waits for it as the Archivist's document says (its
+//! `x-semiont-limits`).
 
 use crate::http::ApiError;
 use axum::body::Body;
-use axum::http::{StatusCode, Uri};
+use axum::http::StatusCode;
+use futures::StreamExt;
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
 use semiont::identity::encode_uri_component;
@@ -17,6 +19,8 @@ use semiont_core::spec::{Spec, spec};
 use semiont_http_transport::service_account::{Credential, ServiceToken};
 use semiont_observability::logging;
 use serde_json::{Value, json};
+use std::task::Poll;
+use std::time::Duration;
 
 /// The Archivist operations the gateway calls. The embedded Archivist
 /// document must declare each, or the gateway does not start.
@@ -31,7 +35,12 @@ const CALLS: [(&str, &str); 6] = [
 
 pub struct Archivist {
     base: String,
-    http: reqwest::Client,
+    /// The reads: each part of an answer waited for `read`, and a read that
+    /// got no answer sent once more.
+    reads: reqwest::Client,
+    /// The uploads: an answer waited for `read` from the upload's last byte.
+    uploads: reqwest::Client,
+    read: Duration,
     token: ServiceToken,
 }
 
@@ -47,50 +56,45 @@ fn client(fields: Value) -> Value {
     fields
 }
 
-/// The retry policy of the client the gateway reaches the Archivist with: a
-/// read that got no answer — its connection could not be made, or broke or
+/// How long the gateway waits for the Archivist, as the Archivist's document
+/// states it (`x-semiont-limits`): `connectSeconds` for a connection, and
+/// `readSeconds` for each part of an answer.
+fn waits() -> Result<(Duration, Duration), String> {
+    let limit = |key: &str| {
+        spec().archivist["x-semiont-limits"][key]
+            .as_u64()
+            .map(Duration::from_secs)
+            .ok_or_else(|| format!("The Archivist's document states no x-semiont-limits.{key}"))
+    };
+    Ok((limit("connectSeconds")?, limit("readSeconds")?))
+}
+
+/// The retry policy of the client the gateway reads from the Archivist with:
+/// a read that got no answer — its connection could not be made, or broke or
 /// closed before a response came back, as a pooled connection the Archivist
 /// closes just as a read is written to it does — is sent once more. An answer
-/// is never asked again, whatever its status, and an upload is never sent
-/// again: its body is streamed, and a streamed body cannot be sent twice.
-pub(crate) fn read_retry(host: &str, port: u16) -> Result<reqwest::retry::Builder, String> {
-    let address = origin(host, port);
-    let archivist = reqwest::Url::parse(&address)
-        .map_err(|e| format!("The Archivist's address {address} is not a URL: {e}"))?;
-    Ok(reqwest::retry::for_host(host.to_owned())
+/// is never asked again, whatever its status. A read whose answer did not
+/// come within its wait is not sent again either: reqwest keeps that timer
+/// outside the policy.
+fn read_retry(host: &str) -> reqwest::retry::Builder {
+    reqwest::retry::for_host(host.to_owned())
         .max_retries_per_request(1)
         // With one retry a read, the most retries can add is a second read
         // to a store that is not answering; a budget would only take some
         // reads' one retry away.
         .no_budget()
-        .classify_fn(move |attempt| {
-            // reqwest asks its scope only before a second retry, so the first
-            // is refused here to every request but the Archivist's, port and
-            // all: the issuer may be on the Archivist's host.
-            if attempt.method() == reqwest::Method::GET
-                && to_archivist(&archivist, attempt.uri())
-                && attempt.status().is_none()
-            {
+        .classify_fn(|attempt| {
+            if attempt.status().is_none() {
                 attempt.retryable()
             } else {
                 attempt.success()
             }
-        }))
+        })
 }
 
 /// Where the gateway's requests to the Archivist at `host` and `port` go.
 fn origin(host: &str, port: u16) -> String {
     format!("http://{host}:{port}")
-}
-
-/// Whether a request to `uri` is one to `archivist`: the same host and port,
-/// each read as the URL parser writes it, which drops a scheme's default port
-/// and lowercases a host, as it did to the request's own URL.
-fn to_archivist(archivist: &reqwest::Url, uri: &Uri) -> bool {
-    reqwest::Url::parse(&uri.to_string()).is_ok_and(|url| {
-        url.host_str() == archivist.host_str()
-            && url.port_or_known_default() == archivist.port_or_known_default()
-    })
 }
 
 /// Every operation the gateway calls is one the Archivist's document declares.
@@ -126,12 +130,32 @@ async fn in_client_span<T>(operation: &str, work: impl std::future::Future<Outpu
 }
 
 impl Archivist {
-    pub fn new(host: &str, port: u16, credential: Credential, http: reqwest::Client) -> Archivist {
-        Archivist {
+    /// The Archivist at `host` and `port`, reached on clients of its own; the
+    /// service account's token is asked for on `http`, the issuer's client.
+    pub fn new(
+        host: &str,
+        port: u16,
+        credential: Credential,
+        http: reqwest::Client,
+    ) -> Result<Archivist, String> {
+        let (connect, read) = waits()?;
+        let built = |builder: reqwest::ClientBuilder| {
+            builder
+                .build()
+                .map_err(|e| format!("cannot build the Archivist's HTTP client: {e}"))
+        };
+        Ok(Archivist {
             base: origin(host, port),
-            token: ServiceToken::new(credential, http.clone()),
-            http,
-        }
+            reads: built(
+                reqwest::Client::builder()
+                    .retry(read_retry(host))
+                    .connect_timeout(connect)
+                    .read_timeout(read),
+            )?,
+            uploads: built(reqwest::Client::builder().connect_timeout(connect))?,
+            read,
+            token: ServiceToken::new(credential, http),
+        })
     }
 
     async fn authorized(&self, operation: &str) -> Result<String, ApiError> {
@@ -155,27 +179,59 @@ impl Archivist {
         roles: &[String],
     ) -> Result<ResourceId, ApiError> {
         let authorization = self.authorized("resources.record").await?;
+        // The wait for the Archivist's answer begins at the upload's last
+        // byte: its own sending takes as long as it takes.
+        let (sent, sent_whole) = tokio::sync::oneshot::channel::<()>();
+        let mut sent = Some(sent);
+        let upload = body
+            .into_data_stream()
+            .chain(futures::stream::poll_fn(move |_| {
+                if let Some(sent) = sent.take() {
+                    let _ = sent.send(());
+                }
+                Poll::Ready(None)
+            }));
         let mut request = self
-            .http
+            .uploads
             .post(format!("{}/resources", self.base))
             .header("authorization", authorization)
             .header("content-type", content_type)
             .header("semiont-principal", principal)
-            .body(reqwest::Body::wrap_stream(body.into_data_stream()));
+            .body(reqwest::Body::wrap_stream(upload));
         if !roles.is_empty() {
             request = request.header("semiont-roles", roles.join(","));
         }
-        let response = in_client_span("resources.record", request.send())
-            .await
-            .map_err(|e| {
-                logging::error(
-                    "Archivist unreachable for an upload",
-                    client(json!({ "error": logging::chain(&e) })),
-                );
-                unavailable()
-            })?;
+        let read = self.read;
+        let unanswered = async move {
+            let _ = sent_whole.await;
+            tokio::time::sleep(read).await;
+        };
+        let response = in_client_span("resources.record", async {
+            tokio::select! {
+                answered = request.send() => answered.map_err(|e| logging::chain(&e)),
+                () = unanswered => Err(format!(
+                    "no answer {}s after the upload's last byte",
+                    read.as_secs()
+                )),
+            }
+        })
+        .await
+        .map_err(|error| {
+            logging::error(
+                "Archivist unreachable for an upload",
+                client(json!({ "error": error })),
+            );
+            unavailable()
+        })?;
         let status = response.status();
-        let answer: Option<Value> = response.json().await.ok();
+        let Ok(answer) = tokio::time::timeout(read, response.json::<Value>()).await else {
+            logging::error(
+                "Archivist's answer to an upload stopped coming",
+                client(json!({ "status": status.as_u16() })),
+            );
+            return Err(unavailable());
+        };
+        let answer = answer.ok();
         if status.is_success() {
             let named = answer.as_ref().and_then(|a| a["resourceId"].as_str());
             if let Some(id) = named.and_then(|id| ResourceId::new(id).ok()) {
@@ -203,7 +259,7 @@ impl Archivist {
     pub async fn describe(&self, resource_id: &ResourceId) -> Result<Option<Value>, ApiError> {
         let authorization = self.authorized("resources.describe").await?;
         let request = self
-            .http
+            .reads
             .get(format!(
                 "{}{}",
                 self.base,
@@ -245,7 +301,7 @@ impl Archivist {
     pub async fn annotations(&self, resource_id: &ResourceId) -> Result<Option<Body>, ApiError> {
         let authorization = self.authorized("resources.annotations").await?;
         let request = self
-            .http
+            .reads
             .get(format!(
                 "{}{}",
                 self.base,
@@ -279,7 +335,7 @@ impl Archivist {
     pub async fn anchored_text(&self, resource_id: &ResourceId) -> Result<Body, ApiError> {
         let authorization = self.authorized("resources.anchored_text").await?;
         let request = self
-            .http
+            .reads
             .get(format!(
                 "{}{}",
                 self.base,
@@ -311,7 +367,7 @@ impl Archivist {
     pub async fn content(&self, resource_id: &ResourceId) -> Result<(Body, String), ApiError> {
         let authorization = self.authorized("content.get").await?;
         let request = self
-            .http
+            .reads
             .get(format!(
                 "{}{}",
                 self.base,
@@ -406,7 +462,7 @@ impl Archivist {
         );
         let response = in_client_span(
             "events.replay",
-            self.http
+            self.reads
                 .get(url)
                 .header("authorization", authorization)
                 .send(),
@@ -432,64 +488,5 @@ impl Archivist {
             return Err("Archivist replay answer holds no events or no lastSequence".to_owned());
         };
         Ok((events, last))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// The Archivist at `host` and `port`, as the retry policy reads it.
-    fn archivist(host: &str, port: u16) -> reqwest::Url {
-        reqwest::Url::parse(&origin(host, port)).unwrap()
-    }
-
-    /// The URI a request to `url` carries: reqwest parses the URL, then writes it as a URI.
-    fn sent_to(url: &str) -> Uri {
-        reqwest::Url::parse(url).unwrap().as_str().parse().unwrap()
-    }
-
-    /// The URI of a content read of the Archivist's at `host` and `port`.
-    fn content_read(host: &str, port: u16) -> Uri {
-        sent_to(&format!(
-            "{}{}",
-            origin(host, port),
-            path("/resources/{id}/content", "res-1")
-        ))
-    }
-
-    #[test]
-    fn a_request_is_the_archivists_by_host_and_port_as_the_url_parser_writes_them() {
-        assert!(
-            to_archivist(&archivist("archivist", 80), &content_read("archivist", 80)),
-            "port 80, written out in the configuration and dropped from the request"
-        );
-        assert!(to_archivist(
-            &archivist("archivist", 9090),
-            &content_read("archivist", 9090)
-        ));
-        assert!(
-            to_archivist(
-                &archivist("Archivist.Internal", 9090),
-                &content_read("Archivist.Internal", 9090)
-            ),
-            "a host configured in capitals, lowercased in the request"
-        );
-
-        let on_loopback = archivist("127.0.0.1", 9090);
-        assert!(
-            !to_archivist(
-                &on_loopback,
-                &sent_to("http://127.0.0.1:8080/realms/semiont/protocol/openid-connect/certs")
-            ),
-            "the issuer, on the Archivist's host at a port of its own"
-        );
-        assert!(
-            !to_archivist(
-                &on_loopback,
-                &sent_to("http://keycloak:9090/realms/semiont/protocol/openid-connect/certs")
-            ),
-            "another host"
-        );
     }
 }

@@ -23,6 +23,9 @@
       }
     }
   ],
+  "x-semiont-limits": {
+    "requestHeadSeconds": 30
+  },
   "paths": {
     "/api/health": {
       "$ref": "paths/api_health.json"

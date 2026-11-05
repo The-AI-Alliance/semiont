@@ -1,7 +1,8 @@
 //! What the gateway reads from the spec for itself: the limits its routes
-//! enforce (each operation's `x-semiont-limits`, and `maxItems`), the timings
-//! of its issuer's key set (the bearer scheme's `x-semiont-limits`), and what
-//! each operation that takes JSON accepts.
+//! enforce (each operation's `x-semiont-limits`, and `maxItems`), how long a
+//! connection waits for a request (the document's `x-semiont-limits`), the
+//! timings of its issuer's key set (the bearer scheme's `x-semiont-limits`), and
+//! what each operation that takes JSON accepts.
 
 use semiont_core::spec::{Spec, spec};
 use serde_json::Value;
@@ -16,10 +17,11 @@ pub struct JsonBody {
     pub max_bytes: usize,
 }
 
-/// The limits the spec states: each operation's `x-semiont-limits`, the bearer
-/// scheme's, and `maxItems`.
+/// The limits the spec states: each operation's `x-semiont-limits`, the
+/// document's, the bearer scheme's, and `maxItems`.
 #[derive(Debug)]
 pub struct Limits {
+    pub request_head_seconds: u64,
     pub key_set_max_age_seconds: u64,
     pub key_refetch_cooldown_seconds: u64,
     pub key_fetch_deadline_seconds: u64,
@@ -205,12 +207,18 @@ impl Limits {
                 .map(|n| n as usize)
                 .ok_or_else(|| format!("BusSubscribeRequest.{property} states no maxItems"))
         };
+        let document_limit = |key: &str| -> Result<u64, String> {
+            document["x-semiont-limits"][key]
+                .as_u64()
+                .ok_or_else(|| format!("the document states no x-semiont-limits.{key}"))
+        };
         let key_set = |key: &str| -> Result<u64, String> {
             document["components"]["securitySchemes"]["bearerAuth"]["x-semiont-limits"][key]
                 .as_u64()
                 .ok_or_else(|| format!("the bearerAuth scheme states no x-semiont-limits.{key}"))
         };
         Ok(Limits {
+            request_head_seconds: document_limit("requestHeadSeconds")?,
             key_set_max_age_seconds: key_set("keySetMaxAgeSeconds")?,
             key_refetch_cooldown_seconds: key_set("keyRefetchCooldownSeconds")?,
             key_fetch_deadline_seconds: key_set("keyFetchDeadlineSeconds")?,

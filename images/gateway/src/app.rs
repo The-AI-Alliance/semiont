@@ -111,10 +111,6 @@ async fn run(
     credential: SecretCredential,
 ) -> Result<i32, String> {
     let http = reqwest::Client::builder()
-        .retry(archivist::read_retry(
-            &config.archivist.host,
-            config.archivist.port,
-        )?)
         .build()
         .map_err(|e| format!("cannot build the HTTP client: {e}"))?;
     let undeclared = archivist::undeclared_calls();
@@ -139,7 +135,7 @@ async fn run(
         config.archivist.port,
         Credential::Secret(credential),
         http,
-    );
+    )?;
 
     let (plane, driver): (Arc<dyn SignalPlane>, &str) = match &signal {
         SignalConfig::InProcess => (Arc::new(InProcessPlane::new()), "in-process"),
@@ -223,6 +219,7 @@ async fn run(
         listener,
         routes::router(app.clone()),
         app.config.capacity.connections as usize,
+        Duration::from_secs(limits().request_head_seconds),
         || crate::metrics::record_refused("connections"),
         async {
             received = rx.await.unwrap_or("SIGTERM");
