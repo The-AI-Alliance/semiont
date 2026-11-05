@@ -2,7 +2,7 @@
 
 A resource is in the record before the Weaver has put it in the graph. Where
 a read only needs a resource's description, the record has it whole, so
-nothing waits and nothing is read twice (`docs/protocol/LIBRARIAN.md` §
+nothing waits and nothing is read twice (`protocol/contract/LIBRARIAN.md` §
 Reference search, § Text search, § What refers to a resource). A graph read
 that fails is taken as a graph that has no such resource.
 

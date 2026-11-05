@@ -31,7 +31,7 @@ package final class ModelGenerator {
   }
   package func generate() throws -> String {
     for name in definitions.keys.sorted() { _ = try named(name) }
-    return "// Generated from specs/src; do not edit.\nimport Foundation\n\n"
+    return "// Generated from protocol/specs/src; do not edit.\nimport Foundation\n\n"
       + written.sorted(by: { $0.key < $1.key }).map(\.value).joined(separator: "\n\n") + "\n"
   }
   func named(_ name: String) throws -> String {

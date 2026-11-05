@@ -1,4 +1,4 @@
-// sdk-telemetry-table.mjs — the reading of specs/src/sdk-telemetry/telemetry.json
+// sdk-telemetry-table.mjs — the reading of protocol/specs/src/sdk-telemetry/telemetry.json
 // that every SDK's generator shares: each span and metric, its kind or
 // instrument, what it means, and its attributes, all of them and those every
 // one carries.

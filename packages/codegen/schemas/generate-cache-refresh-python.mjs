@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generate the Python SDK's cache-refresh table from specs/src/client/refresh.json:
+// Generate the Python SDK's cache-refresh table from protocol/specs/src/client/refresh.json:
 // which live queries each event on the bus, and the reopening of a dropped
 // stream, asks again for, writes, or removes.
 //
@@ -24,7 +24,7 @@ function option(name) {
   return at === -1 ? undefined : process.argv[at + 1];
 }
 
-const TABLE = resolve(option('--table') ?? resolve(ROOT, 'specs/src/client/refresh.json'));
+const TABLE = resolve(option('--table') ?? resolve(ROOT, 'protocol/specs/src/client/refresh.json'));
 const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/python/sdk/src/semiont/refresh.py'));
 const CHECK = process.argv.includes('--check');
 
@@ -33,7 +33,7 @@ function refuse(message) {
   process.exit(1);
 }
 
-const { queries, refresh, whens, WHEN, ACTS } = readCacheRefresh(TABLE, resolve(ROOT, 'specs/src/bus/registry.json'), resolve(ROOT, 'specs/src/openapi.json'), refuse);
+const { queries, refresh, whens, WHEN, ACTS } = readCacheRefresh(TABLE, resolve(ROOT, 'protocol/specs/src/bus/registry.json'), resolve(ROOT, 'protocol/specs/src/openapi.json'), refuse);
 
 /** A tuple of strings, as Python writes one: `("a",)`, never `("a")`. */
 const tuple = (values) => (values.length === 0 ? '()' : `(${values.map(pyString).join(', ')}${values.length === 1 ? ',' : ''})`);
@@ -54,7 +54,7 @@ const entries = triggers.map((on) => {
 
 const literal = (values, indent = '    ') => values.map((value) => `${indent}${pyString(value)},`).join('\n');
 
-const text = `${pyBanner('specs/src/client/refresh.json', 'packages/codegen/schemas/generate-cache-refresh-python.mjs')}
+const text = `${pyBanner('protocol/specs/src/client/refresh.json', 'packages/codegen/schemas/generate-cache-refresh-python.mjs')}
 """What a Semiont client asks again for, and when.
 
 A client's live queries answer from a cache. This table says what each event

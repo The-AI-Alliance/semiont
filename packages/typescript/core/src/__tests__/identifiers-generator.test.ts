@@ -1,7 +1,7 @@
 /**
  * The generator of the kinds of id refuses what cannot be meant.
  *
- * specs/src/identifiers/kinds.json and each kind's schema are what every SDK
+ * protocol/specs/src/identifiers/kinds.json and each kind's schema are what every SDK
  * generates its id types from. A generated constructor cannot drift from
  * them, so what is left to hold is the generator's own refusals: each case
  * hands it the committed inputs with one fault and expects a refusal that
@@ -16,8 +16,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const GENERATOR = fileURLToPath(new URL('../../../../codegen/schemas/generate-identifiers.mjs', import.meta.url));
-const KINDS = fileURLToPath(new URL('../../../../../specs/src/identifiers/kinds.json', import.meta.url));
-const SCHEMAS = fileURLToPath(new URL('../../../../../specs/src/components/schemas', import.meta.url));
+const KINDS = fileURLToPath(new URL('../../../../../protocol/specs/src/identifiers/kinds.json', import.meta.url));
+const SCHEMAS = fileURLToPath(new URL('../../../../../protocol/specs/src/components/schemas', import.meta.url));
 
 /** The types as openapi-typescript writes the four schemas, before any is branded. */
 const TYPES = [

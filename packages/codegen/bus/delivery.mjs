@@ -5,7 +5,7 @@
 // it.
 //
 // A frame's guarantee comes from its identity
-// (docs/protocol/TRANSPORT-CONTRACT.md § Delivery):
+// (protocol/contract/TRANSPORT-CONTRACT.md § Delivery):
 //
 //   positioned — a recorded event delivered on its resource's scope. Its id
 //                is its place in that resource's record, so a client that

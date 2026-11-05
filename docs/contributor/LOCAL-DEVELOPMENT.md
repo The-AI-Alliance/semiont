@@ -1,17 +1,25 @@
 # Local development
 
-Local development is built around **[`images/local-build.sh`](../../images/local-build.sh)**. It builds your working tree into the real service images, and the launcher runs those. What you test is what ships.
+Local development is built around **[`make local-build`](../../Makefile)**. It builds your working tree into the real service images, and the launcher runs those. What you test is what ships.
 
 ## What you need
 
-- **A container runtime**: Apple `container`, Docker or Podman. Nothing else: the script runs npm, cargo, Go and Python inside containers.
+- **Host tools**: GNU Make 3.81 or newer, Bash, Git, curl, and Apple `container`, Docker or Podman. Language toolchains run in containers.
 - **A knowledge base to run against.** Clone [`semiont-template-kb`](https://github.com/The-AI-Alliance/semiont-template-kb), or see [Knowledge Bases](../KNOWLEDGE-BASES.md) for others.
+
+## Container toolchains
+
+The local Make commands obtain Node, Rust, Go, Python build environments, .NET, JDK/Gradle
+and Swift from containers. Their manifests and toolchain readers own the versions; do not
+install those SDKs on the host for this workflow. Python metadata helpers run in a disposable container owned by each operation. Host Python and Node are not required.
+macOS desktop packaging also uses the operating system's `hdiutil` and `PlistBuddy`, with app
+assembly performed in the Node container.
 
 ## The loop
 
 ```bash
 # 1. In the repository: build the packages, all eight images, the launcher, and the Python SDK
-./images/local-build.sh
+make local-build
 
 # 2. In the knowledge base: run the stack on what you built. Name the :local
 #    images in .semiont/stack/*.yaml (ghcr.io/the-ai-alliance/semiont-gateway:local,
@@ -49,38 +57,36 @@ Two things make the stack use your build:
 ### Rebuilding one thing
 
 ```bash
-./images/local-build.sh --package typescript/react-ui --image browser   # one package, then one image
-./images/local-build.sh --packages-only --package rust                 # the Rust crates, nothing else
-./images/local-build.sh --images-only --image librarian                # one image, from the working tree
-./images/local-build.sh --help                                         # every option
+make local-build PACKAGE_NAMES=typescript/react-ui IMAGE_NAMES=browser   # one package, then one image
+make packages  PACKAGE_NAMES=rust                 # the Rust crates, nothing else
+make images-only  IMAGE_NAMES=librarian                # one image, from the working tree
+make help                                          # every option
 ```
 
-- The Browser's image, the one Node image, installs its package from the local registry, so a change to package source reaches it only after that package is rebuilt and republished. `--images-only` skips that step: use it when the package has not changed.
-- The gateway, dispatcher and archivist images compile the Rust workspace from the working tree every time, so `--images-only --image gateway` picks up a Rust change.
-- The worker, weaver, smelter and librarian images are built from the working tree every time too: the Python service in `images/worker`, `images/weaver`, `images/smelter` or `images/librarian` and the Python packages it runs on, with what its `uv.lock` pins. `--images-only --image smelter` picks up a change to any of them.
-- `--package` takes `<language>/<name>` (`typescript/core`, `rust/sdk`), or a language for all of its packages, and `--image` an image's name. What either names always builds, and `--force` builds everything selected; otherwise what is unchanged is skipped. An unknown name is refused with the list.
+- The Browser's image, the one Node image, installs its package from the local registry, so a change to package source reaches it only after that package is rebuilt and republished. `make images-only` skips that step: use it when the package has not changed.
+- The gateway, dispatcher and archivist images compile the Rust workspace from the working tree every time, so `make images-only IMAGE_NAMES=gateway` picks up a Rust change.
+- The worker, weaver, smelter and librarian images are built from the working tree every time too: the Python service in `images/worker`, `images/weaver`, `images/smelter` or `images/librarian` and the Python packages it runs on, with what its `uv.lock` pins. `make images-only IMAGE_NAMES=smelter` picks up a change to any of them.
+- `PACKAGE_NAMES` takes `<language>/<name>` (`typescript/core`, `rust/sdk`), or a language for all of its packages, and `IMAGE_NAMES` an image's name. What either names always builds, and `FORCE=1` builds everything selected; otherwise what is unchanged is skipped. An unknown name is refused with the list.
 
 The script's own README, [images/LOCAL-BUILD.md](../../images/LOCAL-BUILD.md), covers the rest.
 
 ## Working on one package, without a stack
 
-Most changes do not need a running stack. With Node on your machine:
+Most changes do not need a running stack. Build packages with Make:
 
 ```bash
-npm ci --include=optional
-npm run build:packages                  # every library, in dependency order
-npm run typecheck                       # tsc --noEmit across the workspaces
-npm test --workspace=@semiont/sdk       # one workspace's suite
+make packages PACKAGE_NAMES=typescript
+make packages PACKAGE_NAMES=rust
 ```
 
-Without it, run the same commands in a container:
+For a focused TypeScript check, run the workspace command inside its tool container:
 
 ```bash
 container run --rm -v "$PWD":/work -w /work "node:$(packages/typescript/scripts/node-version.sh)-alpine" \
-  sh -c 'npm ci --include=optional && npm run build:packages'
+  sh -c 'npm ci --include=optional && npm run build:packages && npm test --workspace=@semiont/sdk'
 ```
 
-For the Rust workspace, in `packages/rust`, `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace` are what CI runs. For the launcher, `go vet ./...` and `go test ./...` in `apps/launcher`; its suite takes minutes.
+Use `docker` or `podman` in place of `container` when that is your runtime.
 
 [Testing](TESTING.md) has every suite, what each needs, and how to run it in a container.
 
@@ -98,7 +104,7 @@ In the Browser's console, `window.__SEMIONT_BUS_LOG__ = true` logs one line for 
 
 ## Related
 
-- [images/LOCAL-BUILD.md](../../images/LOCAL-BUILD.md): `local-build.sh` and the build and publish scripts
+- [images/LOCAL-BUILD.md](../../images/LOCAL-BUILD.md): `make local-build` and the build and publish scripts
 - [Testing](TESTING.md): the suites and how to run them
 - [The service catalog](../operator/services/OVERVIEW.md): what is running, and on which ports
 - [Running knowledge bases on your computer](../operator/LOCAL-SEMIONT.md): the launcher from an operator's side

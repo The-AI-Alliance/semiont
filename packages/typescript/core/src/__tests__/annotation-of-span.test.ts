@@ -1,6 +1,6 @@
 /**
  * `annotationOfSpan`, beside its table
- * (specs/src/annotations/builder-cases.json, in `builder-cases.test.ts`):
+ * (protocol/specs/src/annotations/builder-cases.json, in `builder-cases.test.ts`):
  * what goes into an annotation's id, built twice and built differently; the
  * selectors of a span of a PDF's anchored text over made-up pages; and the
  * two calls that make an annotation of what a model quoted.
@@ -241,7 +241,7 @@ describe('annotationOfSpan over a PDF\'s anchored text', () => {
     expect(refusal).toMatchObject({ code: 'exact-not-covered' });
   });
 
-  // specs/src/annotations/builder-cases.json holds the rule, with an item that
+  // protocol/specs/src/annotations/builder-cases.json holds the rule, with an item that
   // runs past the text and one given backwards. A number that is no whole
   // number is one more thing a JavaScript item can state, and no table can.
   it('refuses every span of an anchored text one of whose items is stated in fractions', () => {

@@ -21,7 +21,7 @@ It has the same namespaces, methods and behaviour as the
 the [Python SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/python/sdk) ([`semiont`](https://pypi.org/project/semiont/) on PyPI)
 the [Go SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/go/sdk) ([`github.com/The-AI-Alliance/semiont/packages/go/sdk`](https://pkg.go.dev/github.com/The-AI-Alliance/semiont/packages/go/sdk) on pkg.go.dev)
 and the [Kotlin SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/kotlin/sdk), for Kotlin and Java programs,
-and the five are held to the same [conformance suite](https://github.com/The-AI-Alliance/semiont/tree/main/packages/conformance/sdk).
+and the five are held to the same [conformance suite](https://github.com/The-AI-Alliance/semiont/tree/main/protocol/conformance/sdk).
 New to Semiont? The [Introduction](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/INTRODUCTION.md)
 explains the domain and the ideas the API falls out of.
 
@@ -96,7 +96,7 @@ attention. Each is a namespace of the client.
 
 Beside the eight are `job`, and `auth` and `system` when the client has a
 gateway. What each flow means is in
-[docs/protocol/flows](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/flows).
+[protocol/contract/flows](https://github.com/The-AI-Alliance/semiont/tree/main/protocol/contract/flows).
 
 ## A first program
 
@@ -272,7 +272,7 @@ claims.subscribe(async (job) => {
 
 The [`semiont-worker` skill](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/skills/semiont-worker/SKILL.md)
 is a whole worker, sign-in to shutdown, and
-[`docs/protocol/WORKER-CONTRACT.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/WORKER-CONTRACT.md)
+[`protocol/contract/WORKER-CONTRACT.md`](https://github.com/The-AI-Alliance/semiont/blob/main/protocol/contract/WORKER-CONTRACT.md)
 is what a worker promises the dispatcher.
 
 ## Any transport
@@ -288,11 +288,11 @@ is what a worker promises the dispatcher.
   `getEntityTypes`, `isStubReference`, `getTagCategory` and their siblings read an
   annotation whose target is an id or an object, whose selector is one or a list, and whose
   body is absent, one item or a list, so a script checks none of that itself. One table,
-  `specs/src/annotations/reader-cases.json`, holds every SDK's readers to the same answers.
+  `protocol/specs/src/annotations/reader-cases.json`, holds every SDK's readers to the same answers.
 - **Annotation builders** — `reconcile`, `annotationOfSpan` and `annotationOfResource` turn
   the words a model quoted into annotations to commit: where the text has the words, the
   selectors of the span, and an id derived from what the annotation is. Every SDK has the
-  three, and `specs/src/annotations/builder-cases.json` and `reconcile-cases.json` hold them
+  three, and `protocol/specs/src/annotations/builder-cases.json` and `reconcile-cases.json` hold them
   to the same answers.
 - **A worker's side of the job queue** — `job.claim`, the held jobs it hands out,
   `startAgentSession` and `privateKeyFromPem` for a worker's sign-in, and
@@ -310,7 +310,7 @@ is what a worker promises the dispatcher.
   Descriptors only; auth stays per-KB. Types (`DiscoveredKB`, `DiscoveryDocument`) come
   from `@semiont/core`'s generated schema.
 - **Helpers & types** — the cache primitive behind live queries
-  ([`docs/protocol/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/CACHE-SEMANTICS.md)),
+  ([`protocol/contract/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/protocol/contract/CACHE-SEMANTICS.md)),
   `createSearchPipeline`, branded ids, and the unified error hierarchy (`SemiontError`,
   `BusRequestError`) re-exported so you catch every SDK error from one package. (The
   typed bus over a transport, `Bus`, lives in `@semiont/core`; a client hands its own out as
@@ -329,8 +329,8 @@ who the SDK is for, where it goes, and the docs in reading order.
 - [`docs/builder/Usage.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/Usage.md) — per-namespace API tour with concrete examples, plus SSE and error handling.
 - [`docs/builder/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/REACTIVE-MODEL.md) — the Promise-shape-over-Observable design.
 - [`docs/builder/STATE-UNITS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/STATE-UNITS.md) — the state-unit pattern and its enforced axioms.
-- [`docs/protocol/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/CACHE-SEMANTICS.md) — the cache primitive's numbered behavioral contract.
-- [`docs/protocol/TRANSPORT-CONTRACT.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-CONTRACT.md) — what every `ITransport` must honor; HTTP specifics in [TRANSPORT-HTTP.md](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-HTTP.md). New transports implement the `@semiont/core` interfaces directly — no inheritance from `HttpTransport`.
+- [`protocol/contract/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/protocol/contract/CACHE-SEMANTICS.md) — the cache primitive's numbered behavioral contract.
+- [`protocol/contract/TRANSPORT-CONTRACT.md`](https://github.com/The-AI-Alliance/semiont/blob/main/protocol/contract/TRANSPORT-CONTRACT.md) — what every `ITransport` must honor; HTTP specifics in [TRANSPORT-HTTP.md](https://github.com/The-AI-Alliance/semiont/blob/main/protocol/contract/TRANSPORT-HTTP.md). New transports implement the `@semiont/core` interfaces directly — no inheritance from `HttpTransport`.
 
 ## Related packages
 

@@ -20,7 +20,7 @@ import org.junit.jupiter.api.TestFactory
 import semiont.Spec
 import semiont.errors.TransportError
 
-/** Trying again, held to the cases every SDK runs (specs/src/retry/cases.json). */
+/** Trying again, held to the cases every SDK runs (protocol/specs/src/retry/cases.json). */
 class RetryCasesTest {
     private val table = Spec.read("retry/cases.json").jsonObject
 

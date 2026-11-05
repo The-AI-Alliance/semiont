@@ -1,4 +1,4 @@
-//! The transport contract (docs/protocol/TRANSPORT-CONTRACT.md): what a
+//! The transport contract (protocol/contract/TRANSPORT-CONTRACT.md): what a
 //! client needs of whatever carries the bus, the bytes and the gateway's own
 //! answers. Three traits, each usable as a trait object, so a client holds
 //! them without naming what carries them:

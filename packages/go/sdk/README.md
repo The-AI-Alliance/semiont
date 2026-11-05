@@ -220,10 +220,10 @@ func AsMe(ctx context.Context, kb api.KbTarget, home string) error {
   keeps the sign-in, says why (`session.auth-failed` at its start,
   `session.refresh-exhausted` after), and renews it on the reconnect backoff
   or when a request is refused. What a session does at its start and when it is refused is
-  [`specs/src/session/cases.json`][session-cases], row for row.
+  [`protocol/specs/src/session/cases.json`][session-cases], row for row.
 - **A renewal spends its refresh token once.** Renewals asked for together are
   one request of the issuer.
-- **The store is the launcher's** ([`specs/src/sign-in-store`][sign-in-store]):
+- **The store is the launcher's** ([`protocol/specs/src/sign-in-store`][sign-in-store]):
   the same file and the same lock, on macOS, Linux and Windows. A sign-in made
   here serves the launcher's verbs, and one it renewed serves this session.
   `MemorySignIn` keeps one for the life of the process instead, and `SignOut`
@@ -260,7 +260,7 @@ attention. Each is a namespace of the client, a field of `*semiont.Client`.
 | Attention | `Beckon` | Direct attention across participants | `Beckon.Hover`, `Beckon.Sparkle`, `Beckon.OpenResource` |
 
 Beside the eight are `Job`, `Auth` and `System`. What each flow means is in
-[docs/protocol/flows][flows].
+[protocol/contract/flows][flows].
 
 ## A first program
 
@@ -349,7 +349,7 @@ Where to go from here:
 A client is eleven namespaces over one transport: the
 [eight verbs](#eight-verbs), one per [flow of the protocol][protocol], and
 `Job`, `Auth` and `System` beside them. Each method is a row of
-[`specs/src/client/surface.json`][surface], the table every Semiont SDK is
+[`protocol/specs/src/client/surface.json`][surface], the table every Semiont SDK is
 held to.
 
 ```go
@@ -452,7 +452,7 @@ Why the shapes are these, in every SDK, is
 ## Live queries
 
 A query is one of ten reads
-([`specs/src/client/refresh.json`][refresh] names them) that answer from the
+([`protocol/specs/src/client/refresh.json`][refresh] names them) that answer from the
 client's cache. Read once, it asks the knowledge base now. Watched, it is its
 state now, and each state after it, until the context is done or the client
 closes.
@@ -561,7 +561,7 @@ func ShowHover(ctx context.Context, beckon *state.BeckonStateUnit) {
 ```
 
 What every SDK's units do is one table,
-[`specs/src/client/state-units.json`][state-units-cases], which this
+[`protocol/specs/src/client/state-units.json`][state-units-cases], which this
 module's tests run. The ideas behind them are in [State Units][state-units].
 
 ## A worker
@@ -699,7 +699,7 @@ and [its conformance suite][worker-conformance] holds this module to it.
 
 Package `annotations` is what reads an annotation and what builds one, as
 every SDK reads and builds them, case for case
-([`specs/src/annotations`](../../../specs/src/annotations)).
+([`protocol/specs/src/annotations`](../../../protocol/specs/src/annotations)).
 
 - **The readers** take an `api.Annotation` apart: what kind it is
   (`IsHighlight`, `IsComment`, `IsTag`, `IsReference`, `IsAssessment`), the
@@ -914,7 +914,7 @@ func Read(ctx context.Context, origin, token string, resource api.ResourceId) er
   it is now, and each thing it becomes. A dropped stream is a state, never an
   error, and opens again by itself.
 - **Failures** are `semiont.Error`s under the codes of
-  [`specs/src/errors/codes.json`][codes]: `*TransportError`,
+  [`protocol/specs/src/errors/codes.json`][codes]: `*TransportError`,
   `*BusRequestError`, `*SessionError`, `*SignInError` and `*JobError`. What a
   server refused is also on `transport.Failures()`.
 - **The token** is a `*Variable[string]` the transport watches: when it
@@ -1033,7 +1033,7 @@ func Ids() error {
 
 The SDK takes OpenTelemetry's API and installs nothing: it does nothing until
 the application it runs in installs a provider. With one, it exports what
-[`specs/src/sdk-telemetry/telemetry.json`][telemetry] lists, as every Semiont
+[`protocol/specs/src/sdk-telemetry/telemetry.json`][telemetry] lists, as every Semiont
 SDK does: a span for each frame sent and each received, a span for each upload
 and each read, and a count of the emits sent. A request carries the trace it
 is made in, and a frame continues the trace it was sent under (`Frame.Trace`).
@@ -1064,15 +1064,15 @@ log keeps) is written as `[withheld]`.
 
 | Package | Holds | Generated from |
 |---|---|---|
-| `semiont` | The client (`Client`, `NewClient`) and its eleven namespaces; `Cached`, `Running`, `Delegation` and `Upload`; the cache, its refresher and what it keeps (`Cache`, `CachePersistence`, `SessionStorage`, `MemoryStorage`, `CoupledBookmarks`); `Claims` and the held jobs; `HTTPTransport`, `HTTPContentTransport`, `Wire` and the client's own `EventBus`; signing in (`SessionFromKept`, `ResumeSession`, `SignInWithDevice`, `SignOut`, `SignInAgent`, `NewServiceToken`, with a `SecretCredential` or a `KeyCredential`) and `Session`; a person's sign-in by a page redirect (`BeginAuthorization`, `CompleteAuthorization`, `DescribeConnection`); the sign-in store (`SignInStore`, `StateDir`); `SessionSignals`, `StateUnit`, `Variable` and `Watched`; the readers of a resource (`PrimaryRepresentation`, `PrimaryMediaType`, `ResourceEntityTypes`, `DecodeRepresentation`); how a knowledge base and its principals are named (`KbDid`, `PersonDid`, `AgentDid` and the rest); `GatewayURL`; the retry rules; and the generated tables: the failure codes (`errorcodes_gen.go`), the timing (`timing_gen.go`), the refresh table (`refresh_gen.go`), the telemetry names (`telemetry_gen.go`), the sign-in store's entry (`signin_gen.go`), the OAuth clients (`oauthclients_gen.go`) and the Encoding Standard's labels (`encodings_gen.go`) | hand-written; [`specs/src/errors/codes.json`][codes]; [`specs/src/client/timing.json`](../../../specs/src/client/timing.json); [`specs/src/client/refresh.json`][refresh]; [`specs/src/sdk-telemetry/telemetry.json`][telemetry]; [`specs/src/sign-in-store/SignIn.json`](../../../specs/src/sign-in-store/SignIn.json); [`specs/src/session/oauth.json`](../../../specs/src/session/oauth.json) |
-| `api` | `client_gen.go`: a Go type for every schema of the spec, and a typed HTTP call for every operation. `ids_gen.go`: the kinds of id, each a type made only through its kind's rule (`ParseResourceId` and the others) | [`specs/src/openapi.json`](../../../specs/src/openapi.json), bundled; [`specs/src/identifiers/kinds.json`](../../../specs/src/identifiers/kinds.json) |
-| `bus` | The bus's channels, each typed by its payload, its request and reply operations, and the channels a transport delivers | [`specs/src/bus/registry.json`](../../../specs/src/bus/registry.json) |
+| `semiont` | The client (`Client`, `NewClient`) and its eleven namespaces; `Cached`, `Running`, `Delegation` and `Upload`; the cache, its refresher and what it keeps (`Cache`, `CachePersistence`, `SessionStorage`, `MemoryStorage`, `CoupledBookmarks`); `Claims` and the held jobs; `HTTPTransport`, `HTTPContentTransport`, `Wire` and the client's own `EventBus`; signing in (`SessionFromKept`, `ResumeSession`, `SignInWithDevice`, `SignOut`, `SignInAgent`, `NewServiceToken`, with a `SecretCredential` or a `KeyCredential`) and `Session`; a person's sign-in by a page redirect (`BeginAuthorization`, `CompleteAuthorization`, `DescribeConnection`); the sign-in store (`SignInStore`, `StateDir`); `SessionSignals`, `StateUnit`, `Variable` and `Watched`; the readers of a resource (`PrimaryRepresentation`, `PrimaryMediaType`, `ResourceEntityTypes`, `DecodeRepresentation`); how a knowledge base and its principals are named (`KbDid`, `PersonDid`, `AgentDid` and the rest); `GatewayURL`; the retry rules; and the generated tables: the failure codes (`errorcodes_gen.go`), the timing (`timing_gen.go`), the refresh table (`refresh_gen.go`), the telemetry names (`telemetry_gen.go`), the sign-in store's entry (`signin_gen.go`), the OAuth clients (`oauthclients_gen.go`) and the Encoding Standard's labels (`encodings_gen.go`) | hand-written; [`protocol/specs/src/errors/codes.json`][codes]; [`protocol/specs/src/client/timing.json`](../../../protocol/specs/src/client/timing.json); [`protocol/specs/src/client/refresh.json`][refresh]; [`protocol/specs/src/sdk-telemetry/telemetry.json`][telemetry]; [`protocol/specs/src/sign-in-store/SignIn.json`](../../../protocol/specs/src/sign-in-store/SignIn.json); [`protocol/specs/src/session/oauth.json`](../../../protocol/specs/src/session/oauth.json) |
+| `api` | `client_gen.go`: a Go type for every schema of the spec, and a typed HTTP call for every operation. `ids_gen.go`: the kinds of id, each a type made only through its kind's rule (`ParseResourceId` and the others) | [`protocol/specs/src/openapi.json`](../../../protocol/specs/src/openapi.json), bundled; [`protocol/specs/src/identifiers/kinds.json`](../../../protocol/specs/src/identifiers/kinds.json) |
+| `bus` | The bus's channels, each typed by its payload, its request and reply operations, and the channels a transport delivers | [`protocol/specs/src/bus/registry.json`](../../../protocol/specs/src/bus/registry.json) |
 | `state` | The state units a client's bus moves | hand-written |
 | `annotations` | Reading an annotation, building one of a span or of a resource, and `Reconcile` | hand-written |
 | `registry` | Several knowledge bases: `SemiontBrowser`, its storage and its keys, `HttpSessionFactory`, and a person's sign-in landing on the knowledge base that answered | hand-written |
-| `discovery` | The document a launcher publishes of the knowledge bases it manages, read and followed | [`specs/src/discovery/DiscoveryDocument.json`](../../../specs/src/discovery/DiscoveryDocument.json), through `api` |
+| `discovery` | The document a launcher publishes of the knowledge bases it manages, read and followed | [`protocol/specs/src/discovery/DiscoveryDocument.json`](../../../protocol/specs/src/discovery/DiscoveryDocument.json), through `api` |
 | `semionttest` | What a consumer's tests are built on: `NewTestClient`, a real client over `FaultyTransport`, `InMemoryContent` and `StubGateway`; `NewTestSession`; `ScriptedSessions` and `SharedStorage`, for a registry; `AssertStateUnitAxioms`; and the liveness axioms | hand-written |
-| `mediatypes` | The media types a knowledge base admits, and `ForExtension` | [`specs/src/media-types/registry.json`](../../../specs/src/media-types/registry.json) |
+| `mediatypes` | The media types a knowledge base admits, and `ForExtension` | [`protocol/specs/src/media-types/registry.json`](../../../protocol/specs/src/media-types/registry.json) |
 | `internal/readme` | The programs this page shows, each run by its tests. It is internal, so no program outside the module can import it | hand-written |
 
 Everything generated is committed, as the monorepo's other generated
@@ -1095,7 +1095,7 @@ Commit the result. CI runs the same generator and fails while the committed
 client differs from what the spec generates.
 
 What the generator is told is in [`oapi-codegen.yaml`](oapi-codegen.yaml), the
-one file `go generate`, CI and `images/local-build.sh` all give it. Each
+one file `go generate`, CI and `make local-build` all give it. Each
 of the three adds only the spec's path and the path it writes to.
 
 Generation covers the whole spec on purpose: a Go type for every schema and a
@@ -1141,29 +1141,29 @@ Apache-2.0. See [LICENSE](../../../LICENSE).
 [quick-start]: ../../../docs/builder/QUICK-START.md
 [developer-guide]: ../../../docs/builder/DEVELOPER-GUIDE.md
 [skills]: ../../../docs/builder/skills
-[flows]: ../../../docs/protocol/flows/README.md
+[flows]: ../../../protocol/contract/flows/README.md
 [reactive-model]: ../../../docs/builder/REACTIVE-MODEL.md
-[protocol]: ../../../docs/protocol/README.md
-[transport-contract]: ../../../docs/protocol/TRANSPORT-CONTRACT.md
-[transport-http]: ../../../docs/protocol/TRANSPORT-HTTP.md
-[cache-semantics]: ../../../docs/protocol/CACHE-SEMANTICS.md
-[conformance]: ../../conformance/sdk/README.md
-[worker-contract]: ../../../docs/protocol/WORKER-CONTRACT.md
-[worker-conformance]: ../../conformance/worker/README.md
+[protocol]: ../../../protocol/contract/README.md
+[transport-contract]: ../../../protocol/contract/TRANSPORT-CONTRACT.md
+[transport-http]: ../../../protocol/contract/TRANSPORT-HTTP.md
+[cache-semantics]: ../../../protocol/contract/CACHE-SEMANTICS.md
+[conformance]: ../../../protocol/conformance/sdk/README.md
+[worker-contract]: ../../../protocol/contract/WORKER-CONTRACT.md
+[worker-conformance]: ../../../protocol/conformance/worker/README.md
 [sdk-typescript]: ../../typescript/sdk/README.md
 [sdk-rust]: ../../rust/sdk/README.md
 [sdk-python]: ../../python/sdk/README.md
 [sdk-kotlin]: ../../kotlin/sdk/README.md
 [launcher]: ../../../apps/launcher/README.md
-[surface]: ../../../specs/src/client/surface.json
-[refresh]: ../../../specs/src/client/refresh.json
-[codes]: ../../../specs/src/errors/codes.json
-[session-cases]: ../../../specs/src/session/cases.json
-[resource-text]: ../../../docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource
-[sign-in-store]: ../../../specs/src/sign-in-store/README.md
-[telemetry]: ../../../specs/src/sdk-telemetry/telemetry.json
-[bus-log]: ../../../docs/protocol/EVENT-BUS.md#wire-format-the-bus-log
+[surface]: ../../../protocol/specs/src/client/surface.json
+[refresh]: ../../../protocol/specs/src/client/refresh.json
+[codes]: ../../../protocol/specs/src/errors/codes.json
+[session-cases]: ../../../protocol/specs/src/session/cases.json
+[resource-text]: ../../../protocol/contract/W3C-SELECTORS.md#the-text-of-a-resource
+[sign-in-store]: ../../../protocol/specs/src/sign-in-store/README.md
+[telemetry]: ../../../protocol/specs/src/sdk-telemetry/telemetry.json
+[bus-log]: ../../../protocol/contract/EVENT-BUS.md#wire-format-the-bus-log
 [package]: .
 [testing]: ../../../docs/contributor/TESTING.md
 [state-units]: ../../../docs/builder/STATE-UNITS.md
-[state-units-cases]: ../../../specs/src/client/state-units.json
+[state-units-cases]: ../../../protocol/specs/src/client/state-units.json

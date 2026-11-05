@@ -1,4 +1,4 @@
-"""The wire driver: this SDK's transport, as `packages/conformance/sdk/wire` drives it.
+"""The wire driver: this SDK's transport, as `protocol/conformance/sdk/wire` drives it.
 
 It reaches the transport only as an application does, through what `semiont`
 exports, so what the suite observes is what a caller of the SDK gets.
@@ -66,7 +66,7 @@ def _answered(answer: WireModel) -> JsonValue:
 
 
 def _timing(stated: Arguments) -> Timing:
-    """The timing a case states, each entry by its name in `specs/src/client/timing.json`."""
+    """The timing a case states, each entry by its name in `protocol/specs/src/client/timing.json`."""
     known = Timing()
     reconnect_ms, lazy_remove_ms, linger_ms = known.reconnect_ms, known.lazy_remove_ms, known.linger_ms
     emit_retry, seen_event_ids_count = known.emit_retry, known.seen_event_ids_count

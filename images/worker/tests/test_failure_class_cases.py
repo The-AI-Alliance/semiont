@@ -1,4 +1,4 @@
-"""`classify_failure`, held to `specs/src/worker/failure-class-cases.json`.
+"""`classify_failure`, held to `protocol/specs/src/worker/failure-class-cases.json`.
 
 It is the table every worker's classification runs, so that a failure is
 reported in one class whichever language the worker is written in.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -96,5 +97,60 @@ func TestARealmsOtherAnswersReadAsKeycloakMeantThem(t *testing.T) {
 	gone.Close()
 	if _, err := ensureRealm(gone.URL, "example.test-kb", "right", []byte("{}")); err == nil || !strings.Contains(err.Error(), "asking Keycloak for the realm:") {
 		t.Errorf("an unreachable Keycloak should say the ask failed, got: %v", err)
+	}
+}
+
+// A clean's realm, against a stand-in for Keycloak's admin API: deleted with
+// the admin's token, as deleted when it is already gone, and a refusal
+// carrying Keycloak's reason.
+func TestARealmIsDeletedWithTheAdminsToken(t *testing.T) {
+	keycloak := func(answer int, refusal string) (string, *[]string) {
+		var asked []string
+		mux := http.NewServeMux()
+		mux.HandleFunc("/realms/master/protocol/openid-connect/token", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("content-type", "application/json")
+			fmt.Fprint(w, `{"access_token":"admin-token"}`)
+		})
+		mux.HandleFunc("/admin/realms/example.test-kb", func(w http.ResponseWriter, r *http.Request) {
+			asked = append(asked, r.Method+" "+r.Header.Get("Authorization"))
+			w.WriteHeader(answer)
+			fmt.Fprint(w, refusal)
+		})
+		srv := httptest.NewServer(mux)
+		t.Cleanup(srv.Close)
+		return srv.URL, &asked
+	}
+
+	base, asked := keycloak(http.StatusNoContent, "")
+	if err := deleteRealm(base, "example.test-kb", "right"); err != nil {
+		t.Fatalf("deleting a held realm: %v", err)
+	}
+	if want := []string{"DELETE Bearer admin-token"}; !slices.Equal(*asked, want) {
+		t.Errorf("the delete asked %v, want %v", *asked, want)
+	}
+	base, _ = keycloak(http.StatusNotFound, "")
+	if err := deleteRealm(base, "example.test-kb", "right"); err != nil {
+		t.Errorf("a realm gone before the delete should read as deleted, got: %v", err)
+	}
+	base, _ = keycloak(http.StatusForbidden, `{"errorMessage":"Forbidden"}`)
+	if err := deleteRealm(base, "example.test-kb", "right"); err == nil || !strings.Contains(err.Error(), "refused to delete the realm: HTTP 403 Forbidden") {
+		t.Errorf("a refused delete should carry Keycloak's reason, got: %v", err)
+	}
+}
+
+// Whether a realm is held is asked at its public root, which needs no login.
+func TestWhetherARealmIsHeldIsAskedAtItsPublicRoot(t *testing.T) {
+	for answer, want := range map[int]bool{http.StatusOK: true, http.StatusNotFound: false} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/realms/example.test-kb" || r.Header.Get("Authorization") != "" {
+				t.Errorf("asked %s with authorization %q, want the realm's public root", r.URL.Path, r.Header.Get("Authorization"))
+			}
+			w.WriteHeader(answer)
+		}))
+		held, err := realmHeld(srv.URL, "example.test-kb")
+		srv.Close()
+		if err != nil || held != want {
+			t.Errorf("a root answered %d reads as held %v (error %v), want %v", answer, held, err, want)
+		}
 	}
 }

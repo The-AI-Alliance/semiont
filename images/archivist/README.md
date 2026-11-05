@@ -13,8 +13,8 @@ service that serves HTTP on port 24103, and the launcher starts it with `semiont
 | Port | 24103 |
 | Command | `/usr/local/bin/semiont-archivist --config /etc/semiont/archivist.json` |
 | Code | Rust, in this directory: [src](./src), and its crates [record](./record) and [staging](./staging) |
-| Specification | [docs/protocol/ARCHIVIST.md](../../docs/protocol/ARCHIVIST.md) |
-| Judged by | [packages/conformance/archivist](../../packages/conformance/archivist/README.md) |
+| Specification | [protocol/contract/ARCHIVIST.md](../../protocol/contract/ARCHIVIST.md) |
+| Judged by | [protocol/conformance/archivist](../../protocol/conformance/archivist/README.md) |
 | Published | to no package index: the image only |
 
 ## What it does
@@ -63,7 +63,7 @@ with `POST /bus/subscribe` (SSE) and publishes with `POST /bus/emit`. Every comm
 (creating resources and annotations among them) and every `browse:*` read it answers passes
 through the gateway, whether the gateway's bus runs in-process or on NATS. The Archivist never
 connects to NATS. It publishes each persisted event the same way, as an ordinary event: once
-globally, and once scoped to its resource when it names one. See [EVENT-BUS.md](../../docs/protocol/EVENT-BUS.md).
+globally, and once scoped to its resource when it names one. See [EVENT-BUS.md](../../protocol/contract/EVENT-BUS.md).
 
 **HTTP, for bytes and a few reads of the record.**
 
@@ -82,7 +82,7 @@ globally, and once scoped to its resource when it names one. See [EVENT-BUS.md](
 | `GET /events` | every stream of the event log, `__system__` among them, each with the sequence number of its last event | a service that follows the record, when it starts and each time its stream opens again |
 | `GET /events/:resourceId?fromSequence=N` | one stream's events from a sequence number, at most `maxEvents` of them, and the sequence number of its last event; `__system__` is the knowledge base's own stream | the gateway, when a client resumes its subscription with a `lastEventId`; a service that follows the record, for what its stream did not deliver |
 
-The contract is [specs/src/archivist/openapi.json](../../specs/src/archivist/openapi.json): every
+The contract is [protocol/specs/src/archivist/openapi.json](../../protocol/specs/src/archivist/openapi.json): every
 status each route answers and its body — a missing resource's bytes are a 404 whose `code` is
 `resource` or `representation` — and the headers. The Archivist's conformance suite checks every
 reply against it, and the gateway's holds its stand-in Archivist to it.
@@ -115,23 +115,23 @@ therefore holds a credential that can write here, and only network access keeps 
 **It is the only container that mounts the knowledge base**, pinned by
 `TestExactlyOneContainerMountsTheKB` in the launcher. `/kb` is the working tree (the document's
 `root`): the resources, and the event log under `.semiont/events/`. The views it derives from the
-log go to the state volume (the document's `stateHome`), under `semiont/<name>`; the Librarian
-reads what it needs of them over the bus. The anchored-text store (`/anchored-text`) holds the text
-the Smelter derives from a PDF, with where each piece of it sits on its page; the Smelter stores
-each entry here over HTTP. No other container mounts the state volume or the anchored-text store
-either. [Where a knowledge base lives on disk](../../docs/architecture/FILESYSTEM.md) has the
-layout.
+log go to the state volume (the document's `stateHome`), at its top; the Librarian reads what it
+needs of them over the bus. The anchored-text store (`/anchored-text`) holds the text the Smelter
+derives from a PDF, with where each piece of it sits on its page; the Smelter stores each entry
+here over HTTP. No other container mounts the state volume or the anchored-text store either.
+[Where a knowledge base lives on disk](../../docs/architecture/FILESYSTEM.md) has the layout.
 
 ## When it starts
 
-It starts **after the gateway** (it asks the gateway who it is as it signs in) and **before the
-worker and the Smelter**, which read bytes from it. Its `/health` answers only once it has booted,
+It starts **after the gateway** (it asks the gateway who it is as it signs in, and then which
+knowledge base it serves, refusing to start where that is not its tree's) and **before the worker
+and the Smelter**, which read bytes from it. Its `/health` answers only once it has booted,
 which is what makes that ordering enforceable.
 
 ## Configuration
 
 It reads one configuration document, an
-[`ArchivistConfig`](../../specs/src/components/schemas/ArchivistConfig.json), from the path its
+[`ArchivistConfig`](../../protocol/specs/src/components/schemas/ArchivistConfig.json), from the path its
 `--config` flag names; the image passes `/etc/semiont/archivist.json`. The document names the
 gateway, the issuer, the knowledge base's root, the state volume, the anchored-text store, the
 engine for each job and each Librarian actor, the port, and the staging bounds. Mount the knowledge base, the state volume and
@@ -162,8 +162,8 @@ cargo test -p semiont-archivist -p semiont-archivist-record -p semiont-archivist
 ```
 
 runs their tests, which CI's Rust Tests job runs with the rest of the workspace, under
-`cargo llvm-cov`. The [conformance suite](../../packages/conformance/archivist/README.md) holds a
-built Archivist to [ARCHIVIST.md](../../docs/protocol/ARCHIVIST.md), and in CI that Archivist is
+`cargo llvm-cov`. The [conformance suite](../../protocol/conformance/archivist/README.md) holds a
+built Archivist to [ARCHIVIST.md](../../protocol/contract/ARCHIVIST.md), and in CI that Archivist is
 built instrumented, so its coverage counts what the suite runs too.
 
 ## Building it
@@ -176,7 +176,7 @@ docker build --build-arg RUST_TOOLCHAIN=$(packages/rust/scripts/rust-toolchain.s
   --file images/archivist/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-archivist:local .
 ```
 
-[`images/local-build.sh`](../local-build.sh) and the publish workflow pass
+[`make local-build`](../../Makefile) and the publish workflow pass
 the toolchain the same way. The [Dockerfile](Dockerfile)'s builder stage is the gateway's and
 the dispatcher's too, and builds all three binaries (`lint:rust-images`). A built image is
 held to

@@ -79,7 +79,7 @@ internal suspend fun readAll(body: Publisher<List<ByteBuffer>>): ByteArray {
 
 /**
  * The gateway's refusal of a request, under the code it fails with. A refused
- * credential (docs/protocol/TRANSPORT-CONTRACT.md, A refused credential) is
+ * credential (protocol/contract/TRANSPORT-CONTRACT.md, A refused credential) is
  * `unauthorized`: a 401, or a 429 whose body is a `LimitRefusal` naming
  * `refusal-rate`. Its token is renewed, never retried.
  */

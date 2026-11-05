@@ -4,7 +4,7 @@ import { parseAppManifest } from './src/lib/app-manifest.ts';
 
 /**
  * Bake the build-time app manifest (`app.toml`) into the renderer via the virtual
- * module `virtual:app-config` — currently just `appTitle`. No credentials: those are
+ * module `virtual:app-config` — app title and package version. No credentials: those are
  * per-user runtime config (managed in the nav), never baked into the build.
  */
 export function appConfigPlugin(): Plugin {
@@ -19,7 +19,17 @@ export function appConfigPlugin(): Plugin {
       if (id !== RESOLVED) return null;
       const toml = existsSync('app.toml') ? readFileSync('app.toml', 'utf8') : null;
       const manifest = parseAppManifest(toml);
-      return `export const appTitle = ${JSON.stringify(manifest.title)};`;
+      const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as { version?: unknown };
+      const packageVersion = typeof packageJson.version === 'string' ? packageJson.version : 'unknown';
+      const appVersion = process.env.SEMIONT_BUILD_VERSION ?? packageVersion;
+      const appCommit = process.env.SEMIONT_BUILD_COMMIT ?? 'unknown';
+      const appBuildDate = process.env.SEMIONT_BUILD_DATE ?? 'unknown';
+      return [
+        `export const appTitle = ${JSON.stringify(manifest.title)};`,
+        `export const appVersion = ${JSON.stringify(appVersion)};`,
+        `export const appCommit = ${JSON.stringify(appCommit)};`,
+        `export const appBuildDate = ${JSON.stringify(appBuildDate)};`,
+      ].join('\n');
     },
   };
 }

@@ -1,5 +1,5 @@
 //! The state units over a client: each held to the state-unit axioms, and
-//! what the behaviour table (specs/src/client/state-units.json, run by
+//! what the behaviour table (protocol/specs/src/client/state-units.json, run by
 //! `state_cases.rs`) cannot state.
 //!
 //! A unit acts on what it hears a turn of the runtime later, so a test says

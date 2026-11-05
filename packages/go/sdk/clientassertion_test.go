@@ -1,7 +1,7 @@
 package semiont
 
 // A service account's assertion of itself, held to
-// specs/src/session/client-assertion-cases.json: the thumbprint a key is
+// protocol/specs/src/session/client-assertion-cases.json: the thumbprint a key is
 // named by, and the header and claims an assertion carries. The signature over
 // them, and the form a grant posts, are held in keycredential_test.go, where a
 // grant's assertion is checked with the key's public half as an issuer checks
@@ -48,7 +48,7 @@ type assertionTable struct {
 
 func readAssertionTable(t *testing.T) assertionTable {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "session", "client-assertion-cases.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "protocol", "specs", "src", "session", "client-assertion-cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

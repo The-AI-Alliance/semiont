@@ -9,9 +9,9 @@
  * look up, and a row with none promises one that never arrives. What is
  * exported is stated in two tables, and the page is held to both:
  *
- * - specs/src/service-telemetry/telemetry.json: what each service exports.
+ * - protocol/specs/src/service-telemetry/telemetry.json: what each service exports.
  *   Each is held to it from outside by its own conformance suite.
- * - specs/src/sdk-telemetry/telemetry.json: what an SDK's transports export,
+ * - protocol/specs/src/sdk-telemetry/telemetry.json: what an SDK's transports export,
  *   in any language.
  *
  * A metric's rows are those of the page's "Metrics" section that open with a
@@ -39,7 +39,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const PAGE = 'docs/operator/administration/OBSERVABILITY.md';
-const TABLES = ['specs/src/service-telemetry/telemetry.json', 'specs/src/sdk-telemetry/telemetry.json'];
+const TABLES = ['protocol/specs/src/service-telemetry/telemetry.json', 'protocol/specs/src/sdk-telemetry/telemetry.json'];
 
 const failures = [];
 const fail = (message) => failures.push(message);
@@ -134,7 +134,7 @@ function hold(heading, named, stated, { what, column }) {
     seen.add(row.name);
     const statement = stated.get(row.name);
     if (statement === undefined) {
-      fail(`${where} is a row for the ${what} ${row.name}, which nothing exports: neither table of specs/ lists it`);
+      fail(`${where} is a row for the ${what} ${row.name}, which nothing exports: neither table of protocol/specs/ lists it`);
       continue;
     }
     const kind = row.column(column);

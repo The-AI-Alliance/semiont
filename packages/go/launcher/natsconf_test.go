@@ -26,7 +26,7 @@ func TestBrokerReadsItsKeptPairAsText(t *testing.T) {
 		"a quote and a backslash": `pass "word" \ more`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			fc := flowCtx{userEnv: []string{"--env", daemonPasswords["messaging"].env + "=" + kept}}
+			fc := flowCtx{userEnv: []string{"--env", daemonCredentials["messaging"].env + "=" + kept}}
 			env, err := daemonLaunchEnv(fc, "messaging", rolePlan{})
 			if err != nil {
 				t.Fatal(err)
@@ -55,7 +55,7 @@ func TestBrokerReadsItsKeptPairAsText(t *testing.T) {
 // refuses the publish of an emit the gateway accepted, and the emitter is told
 // the plane is down: a reply too large for the broker is never sent.
 func TestBrokerTakesTwiceTheLargestEmit(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "paths", "bus_emit.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "protocol", "specs", "src", "paths", "bus_emit.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

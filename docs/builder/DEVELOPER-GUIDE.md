@@ -4,10 +4,10 @@ Task-oriented recipes for building a real system on `@semiont/sdk`, in roughly t
 you'll need them. Each recipe is a short description of the capability followed by the
 lines of TypeScript that exercise it.
 
-Building in Rust, Python, Go, Kotlin or Java? The recipes are the same: the namespaces and methods
-match, and the [Rust](../../packages/rust/sdk/README.md), [Python](../../packages/python/sdk/README.md),
-[Go](../../packages/go/sdk/README.md) and [Kotlin](../../packages/kotlin/sdk/README.md) READMEs show
-each call in their own language, the Kotlin one in Java too.
+The same namespaces and methods are available in [Rust](../../packages/rust/sdk/README.md),
+[Python](../../packages/python/sdk/README.md), [Go](../../packages/go/sdk/README.md),
+[Kotlin and Java](../../packages/kotlin/sdk/README.md), [C#](../../packages/csharp/sdk/README.md),
+and [Swift](../../packages/swift/sdk/README.md). Each SDK's README has examples in its own language.
 
 This is the **how-to** doc. For the exhaustive per-namespace surface see
 [Usage.md](./Usage.md) (reference); for *why* the surface is shaped the way it is —
@@ -127,7 +127,7 @@ one bounded retry) — a lost or failing load surfaces in-band, never as `pendin
 and the stream itself never errors or terminates. Recovery is built in: a NEW subscription
 to the failed key (e.g. a component remount) clears the marker and starts a fresh attempt
 chain. A query that already holds a value never fails — stale-beats-error, the prior value
-stays visible through a failed refetch. → [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) (B14–B15).
+stays visible through a failed refetch. → [CACHE-SEMANTICS.md](../../protocol/contract/CACHE-SEMANTICS.md) (B14–B15).
 
 **Read an annotation with the SDK's readers.** An annotation's `target` is a resource's id
 or an object, its selector is one selector or a list, and its `body` is absent, one item or
@@ -163,7 +163,7 @@ for (const ann of annotations) {
 
 The Rust, Python, Go and Kotlin SDKs have the same readers (`semiont::annotations`,
 `semiont.annotations`, the Go package `annotations`, Kotlin's `semiont.annotations`), and one
-table, [`reader-cases.json`](../../specs/src/annotations/reader-cases.json), holds all five to
+table, [`reader-cases.json`](../../protocol/specs/src/annotations/reader-cases.json), holds all five to
 the same answer for the same annotation.
 
 Live subscriptions are how you get real-time updates: **freshness follows observation** —
@@ -207,7 +207,7 @@ const { resourceId } = await session.client.yield.resource({
 The params state the `motivation` and what that motivation takes: `'linking'` extracts
 entity references (the connections later retrieval reads as graph context), `'tagging'` applies
 a tag schema, plus `'highlighting'`/`'assessing'`/`'commenting'`. Each motivation takes its own
-params and no others — [the Mark flow](../protocol/flows/MARK.md#delegation) has the table. It's a long-running job —
+params and no others — [the Mark flow](../../protocol/contract/flows/MARK.md#delegation) has the table. It's a long-running job —
 `.run()` for progress. Each snapshot carries a `message` CODE with typed params rather than
 a sentence — the client owns the wording, so a browser localizes it and a CLI renders English
 from the same value. `detecting-entities` names the entity type being worked on, and the last,
@@ -403,8 +403,8 @@ tolerance for a misquote; a span found another way is built the same.
 
 The Rust, Python, Go and Kotlin SDKs have the same three (`semiont::annotations`,
 `semiont.annotations`, the Go package `annotations`, Kotlin's `semiont.annotations`), and two
-tables, [`reconcile-cases.json`](../../specs/src/annotations/reconcile-cases.json) and
-[`builder-cases.json`](../../specs/src/annotations/builder-cases.json), hold all five to
+tables, [`reconcile-cases.json`](../../protocol/specs/src/annotations/reconcile-cases.json) and
+[`builder-cases.json`](../../protocol/specs/src/annotations/builder-cases.json), hold all five to
 the same answer.
 
 ## 10. Find link candidates (semantic search)
@@ -631,7 +631,7 @@ const client = new SemiontClient(raw, new HttpContentTransport(raw), raw, {
 });
 ```
 
-Full behavioral contract: [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) **B17**.
+Full behavioral contract: [CACHE-SEMANTICS.md](../../protocol/contract/CACHE-SEMANTICS.md) **B17**.
 
 ---
 
@@ -709,5 +709,5 @@ after that.
 - **[REACTIVE-MODEL.md](./REACTIVE-MODEL.md)** — return shapes, await-vs-subscribe, the bus.
 - **[STATE-UNITS.md](./STATE-UNITS.md)** — the state-unit pattern for reactive UIs.
 - **[@semiont/react-ui](../../packages/typescript/react-ui/README.md)** — React components for browser UIs, including the embeddable `ResourceViewer` shown above.
-- **[CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md)** — the read-through cache contract behind `browse.*`.
-- **[`docs/protocol/`](../protocol/README.md)** — the contract: the eight verbs, the bus, and what every SDK is held to.
+- **[CACHE-SEMANTICS.md](../../protocol/contract/CACHE-SEMANTICS.md)** — the read-through cache contract behind `browse.*`.
+- **[`protocol/contract/`](../../protocol/contract/README.md)** — the contract: the eight verbs, the bus, and what every SDK is held to.

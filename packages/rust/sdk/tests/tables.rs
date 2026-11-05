@@ -1,7 +1,7 @@
 //! The runners for the shared case tables: the same cases TypeScript and Go
 //! run, against the Rust functions that name the knowledge base and its
 //! principals. And what a registry keeps in its storage, held to
-//! specs/src/session/stored.json.
+//! protocol/specs/src/session/stored.json.
 
 use semiont::identity;
 use semiont::session::{

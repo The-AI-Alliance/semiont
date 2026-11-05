@@ -143,17 +143,6 @@ func (e exposure) containersSideNeed(role string, need portNeed, ctrPort int) []
 	return nil
 }
 
-// recordedExposure: where the local stack of the root keyed key was
-// published, as its record says — for a command that reaches the stack
-// outside a start. The zero exposure, which asks loopback, when no recorded
-// stack runs that root.
-func recordedExposure(key string) exposure {
-	if st := localStack(LoadStackSet(), key); st != nil {
-		return st.exposure()
-	}
-	return exposure{}
-}
-
 // probeHost: where the launcher asks role's port its container listens on at
 // ctrPort — loopback for a port a person dials, else where the containers
 // dial it (D5), so a probe passes only on an address something uses. The

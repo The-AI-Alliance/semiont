@@ -121,7 +121,7 @@ button:disabled {
   color: var(--text);
 }
 
-/* Settings — a group of options (currently just Theme). */
+/* Theme modal — Light / Dark / System. */
 .settings__group {
   margin: 0;
   padding: 0;
@@ -195,19 +195,430 @@ button:disabled {
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
 }
 
-.app__gear {
+.config--launcher-status {
+  max-width: 72rem;
+}
+
+.about-modal {
+  max-width: 46rem;
+}
+.about-modal__org {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.about-modal__description,
+.about-modal__stack {
+  color: var(--muted);
+  line-height: 1.55;
+}
+.about-modal__details {
+  display: grid;
+  gap: 0.45rem;
+  margin: 1rem 0;
+}
+.about-modal__details > div {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 0.75rem;
+}
+.about-modal__details dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+.about-modal__details dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.about-modal__details a {
+  color: var(--accent);
+}
+.about-modal__tagline {
+  margin-bottom: 0;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.inference-modal {
+  max-width: 44rem;
+}
+.inference-modal__intro,
+.inference-modal__note,
+.inference-modal__section p {
+  color: var(--muted);
+  line-height: 1.5;
+}
+.inference-modal__section h2 {
+  margin: 1.1rem 0 0.35rem;
+  font-size: 1rem;
+}
+.inference-modal__section p {
+  margin: 0;
+}
+.inference-modal__available strong {
+  color: var(--success);
+}
+.inference-modal__missing {
+  color: var(--danger);
+}
+.inference-modal__endpoint {
+  margin-top: 0.35rem !important;
+  font-size: 0.85rem;
+}
+.inference-modal__download {
+  display: inline-block;
+  margin-top: 0.65rem;
+  color: var(--accent);
+}
+.inference-modal__models {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.inference-modal__models li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+.inference-modal__models span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.inference-modal__note {
+  margin: 1.2rem 0;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code);
+}
+.inference-modal__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem 1rem;
+}
+.inference-modal__links a {
+  color: var(--accent);
+}
+
+.telemetry-modal {
+  max-width: 36rem;
+}
+.telemetry-modal__hint {
+  margin: -0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.telemetry-modal__services {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.telemetry-service {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 0.4rem;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.telemetry-service__copy {
+  min-width: 0;
+}
+.telemetry-service__heading {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.telemetry-service__heading h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.telemetry-service__copy p {
+  margin: 0.18rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.telemetry-service__state {
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  background: var(--field);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+.telemetry-service__state--running {
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+  color: var(--success);
+}
+.telemetry-service__state--unhealthy,
+.telemetry-service__state--stopped {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.telemetry-service__open,
+.telemetry-modal__collector-actions button,
+.telemetry-modal__collector-actions a {
+  flex: none;
+  padding: 0.4rem 0.7rem;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--field);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+.telemetry-service__open:hover,
+.telemetry-modal__collector-actions button:hover,
+.telemetry-modal__collector-actions a:hover,
+.telemetry-service__open:focus-visible,
+.telemetry-modal__collector-actions button:focus-visible,
+.telemetry-modal__collector-actions a:focus-visible {
+  border-color: var(--accent);
+  background: var(--hover);
+  outline: none;
+}
+.telemetry-service__open--disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.telemetry-modal__advanced {
+  border-top: 1px solid var(--border-soft);
+  padding-top: 0.75rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.telemetry-modal__advanced summary {
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 500;
+}
+.telemetry-modal__collector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0 0.1rem 1.1rem;
+}
+.telemetry-modal__collector p {
+  margin: 0.2rem 0;
+}
+.telemetry-modal__collector code {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+.telemetry-modal__collector-actions {
+  display: flex;
+  flex: none;
+  gap: 0.4rem;
+}
+.runtime-modal {
+  max-width: 38rem;
+}
+.runtime-modal__section + .runtime-modal__section {
+  margin-top: 1.1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-soft);
+}
+.runtime-modal__section h2 {
+  margin: 0 0 0.4rem;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.runtime-modal__section p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+.runtime-modal__active-list,
+.runtime-modal__install-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.runtime-modal__active-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--text);
+  font-size: 0.84rem;
+}
+.runtime-modal__active-list li + li {
+  margin-top: 0.35rem;
+}
+.runtime-modal__active-list span {
   color: var(--muted);
 }
-.app__gear:hover {
+.runtime-modal__install-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.runtime-modal__install-list a {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 10rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+.runtime-modal__install-list a:hover,
+.runtime-modal__install-list a:focus-visible {
+  border-color: var(--accent);
+  background: var(--hover);
+  outline: none;
+}
+.runtime-modal__install-list small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 400;
+}
+.git-modal {
+  max-width: 38rem;
+}
+.git-modal__check {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
   background: var(--surface-sidebar);
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.git-modal__check p {
+  margin: 0;
+}
+.git-modal__check code {
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+.git-modal__available {
+  color: var(--success);
+}
+.git-modal__missing {
+  color: var(--danger);
+}
+.secrets-modal {
+  max-width: 38rem;
+}
+.secrets-modal__intro {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.secrets-modal__provider {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-sidebar);
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.secrets-modal__provider h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.secrets-modal__provider-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.secrets-modal__provider p {
+  margin: 0;
+}
+.secrets-modal__provider code {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
+}
+.secrets-modal__provider a {
+  align-self: flex-start;
   color: var(--accent);
+  font-size: 0.84rem;
+  text-decoration: none;
+}
+.secrets-modal__provider a:hover,
+.secrets-modal__provider a:focus-visible {
+  text-decoration: underline;
+}
+.secrets-modal__available {
+  color: var(--success);
+}
+.secrets-modal__missing {
+  color: var(--danger);
+}
+@media (width <= 560px) {
+  .telemetry-service,
+  .telemetry-modal__collector {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+.launcher-status__output {
+  margin: 0;
+  max-height: calc(100vh - 15rem);
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code);
+  color: var(--text);
+  font: 0.76rem/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: pre;
+}
+
+.launcher-status__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.launcher-status__success,
+.launcher-status__failure {
+  font-size: 0.82rem;
+}
+
+.launcher-status__success {
+  color: var(--success);
+}
+
+.launcher-status__failure {
+  color: var(--danger);
 }
 
 /* ── App shell ────────────────────────────────────────────────────────── */
@@ -217,38 +628,79 @@ button:disabled {
   height: 100vh;
 }
 
-/* The app's title bar: title left, "Powered by SEMIONT" right. In Electron the native
-   title bar is hidden, so this bar IS the draggable window handle — and it's padded left
-   to clear the macOS traffic-light buttons that float over its top-left. */
-.app__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.7rem 1.5rem;
-  border-bottom: 1px solid var(--border-soft);
+/* Keep only a narrow drag target for Electron's hidden native title bar. */
+.app__dragbar {
+  display: none;
 }
-.app__header h1 {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 500;
-  color: var(--text);
-}
-.app--electron .app__header {
-  padding-left: 5rem;
+.app--electron .app__dragbar {
+  display: block;
+  flex: 0 0 1.5rem;
   -webkit-app-region: drag;
 }
 
-/* "Powered by SEMIONT" credit — "Powered by" in our sans, the wordmark in
-   Orbitron with the authentic gradient fill (black → Semiont blue → black). */
-.app__powered {
-  margin: 0;
+/* Semiont menu lives at the bottom of the left navigation and opens upward. */
+.nav__footer {
+  position: relative;
+}
+.semiont-menu {
+  position: absolute;
+  left: 0.35rem;
+  bottom: calc(100% + 0.55rem);
+  z-index: 15;
   display: flex;
-  align-items: baseline;
-  gap: 0.4rem;
-  font-size: 0.78rem;
-  color: var(--faint);
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.2);
+}
+.semiont-menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-radius: 6px;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.semiont-menu button svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.semiont-menu button:hover,
+.semiont-menu button:focus-visible {
+  background: var(--hover);
+  outline: none;
 }
 
+.semiont-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.15rem 0;
+  border: 0;
+  background: transparent;
+}
+.semiont-menu-trigger svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.semiont-menu-trigger:hover svg {
+  stroke: var(--accent);
+}
 .app__powered-mark {
   font-family: Orbitron, system-ui, sans-serif;
   font-weight: 700;
@@ -260,6 +712,9 @@ button:disabled {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
+}
+.semiont-menu-trigger:hover .app__powered-mark {
+  filter: brightness(1.25);
 }
 
 .app__body {
@@ -318,11 +773,27 @@ body.resizing {
 .nav {
   background: var(--surface-sidebar);
   padding: 0.9rem 0.75rem;
-  overflow-y: auto;
+  overflow: hidden;
+  min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+}
+
+.nav__content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.nav__footer {
+  flex: 0 0 auto;
+  padding: 0.65rem 0.35rem 0.1rem;
+  border-top: 1px solid var(--border-soft);
 }
 
 .nav__head {
@@ -900,7 +1371,51 @@ body.resizing {
 .rview__body {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+
+  /* ResourceViewer's active media surface owns scrolling. This host pane clips
+     it without adding a competing scroll position. */
+  overflow: hidden;
+}
+.rview__zoom-canvas {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 100%;
+  min-height: 100%;
+}
+.rview__zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--field);
+}
+.rview__zoom-controls button {
+  min-width: 1.7rem;
+  padding: 0.2rem 0.35rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+.rview__zoom-controls button:not(:disabled):hover {
+  background: var(--surface);
+}
+.rview__zoom-controls button:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+.rview__zoom-controls .rview__zoom-level {
+  min-width: 3rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
 }
 .rview__status {
   margin: 0;
@@ -918,7 +1433,7 @@ body.resizing {
 
 /* ── Main-pane footer (app chrome — AppFooter.tsx) ────────────────────────
    Rendered under EVERY main-pane state (chat, open document, empty/connect):
-   KB status (left), viewer pref controls + settings gear (right). */
+   KB status (left), viewer preference controls (right). */
 .mainwrap {
   display: flex;
   flex-direction: column;
@@ -2252,7 +2767,7 @@ body.resizing {
 
 /* ── Dark-theme touch-ups for a few decorative hard-coded colours ─────────── */
 [data-theme='dark'] .app__powered-mark {
-  /* the light gradient (black → blue → black) is invisible on a dark header */
+  /* the light gradient (black → blue → black) is invisible on a dark sidebar */
   background: linear-gradient(to right, #cbd5e1, #60a5fa, #cbd5e1);
   background-clip: text;
   -webkit-background-clip: text;

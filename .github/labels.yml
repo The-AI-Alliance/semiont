@@ -40,7 +40,7 @@
   color: "bf8700"
   description: "Build, CI or release: the workflows, the scripts they run, and the releases they make"
 
-# verb: the eight verbs, the namespaces of specs/src/client/surface.json:
+# verb: the eight verbs, the namespaces of protocol/specs/src/client/surface.json:
 # writing (yield, mark, bind, frame), reading (browse, match, gather),
 # attention (beckon).
 - name: "verb:yield"
@@ -132,7 +132,8 @@
   description: "An OCaml SDK, not yet written"
 
 # stack: one for each kind of document the launcher reads: those in a knowledge
-# base's .semiont/stack/, and the Browser's, in the launcher's state home.
+# base's .semiont/stack/, and the machine's (the Browser's, the worker's, the
+# issuer's and the vector store's), in the launcher's state home.
 - name: "stack:knowledge-base"
   color: "c2ece8"
   description: "KnowledgeBase: the Gateway, the Dispatcher, the Archivist, the broker, the issuer trusted"
@@ -141,7 +142,10 @@
   description: "KnowledgeIndex: the graph and vector stores, the embedding model, the Librarian, Smelter, Weaver"
 - name: "stack:issuer"
   color: "c2ece8"
-  description: "Issuer: an issuer the launcher runs, and the database it keeps its realm in"
+  description: "Issuer: the machine's issuer the launcher runs, and the database of every KB's realm"
+- name: "stack:vector-store"
+  color: "c2ece8"
+  description: "VectorStore: the machine's Qdrant, every KB's index naming it shared, its image, memory and port"
 - name: "stack:worker-pool"
   color: "c2ece8"
   description: "WorkerPool: the machine's worker document (image, memory, log level)"
@@ -152,7 +156,7 @@
   color: "c2ece8"
   description: "Browser: the machine's Browser, its image, memory and port; in no knowledge base"
 
-# spec: the parts of specs/src/, by who honours them.
+# spec: the parts of protocol/specs/src/, by who honours them.
 - name: "spec:protocol"
   color: "fef2c0"
   description: "The wire every participant speaks: the gateway's API, the bus, ids, principals, jobs"
@@ -189,7 +193,7 @@
 # tests: one for each directory under tests/.
 - name: "tests:conformance"
   color: "f9d0c4"
-  description: "The conformance suites (packages/conformance)"
+  description: "The conformance suites (protocol/conformance)"
 - name: "tests:doc-snippets"
   color: "f9d0c4"
   description: "The documentation's TypeScript examples, typechecked (docs/checks/doc-snippets)"

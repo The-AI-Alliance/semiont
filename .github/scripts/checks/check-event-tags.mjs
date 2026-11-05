@@ -5,7 +5,7 @@
  *
  * A component documents its events in tags: `@emits <channel> - <what it is>.
  * Payload: <payload>`, and `@subscribes` likewise. The channel and the payload
- * restate the registry (specs/src/bus/registry.json) and the schema it names
+ * restate the registry (protocol/specs/src/bus/registry.json) and the schema it names
  * for the channel, and nothing compiles a comment.
  *
  * It fails when a tag
@@ -55,8 +55,8 @@ import { repositoryFiles } from './repository-files.mjs';
 import { withoutComments } from './source-text.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-const REGISTRY = 'specs/src/bus/registry.json';
-const SCHEMAS = 'specs/src/components/schemas';
+const REGISTRY = 'protocol/specs/src/bus/registry.json';
+const SCHEMAS = 'protocol/specs/src/components/schemas';
 const CLIENT = 'packages/typescript/sdk/src/client.ts';
 const NAMESPACES = 'packages/typescript/sdk/src/namespaces';
 const SCANNED = ['packages/typescript/react-ui/src/', 'images/browser/src/'];

@@ -1,6 +1,6 @@
 /**
  * The readers of a resource's description, held to
- * specs/src/resources/reader-cases.json: the table every SDK's readers run, so
+ * protocol/specs/src/resources/reader-cases.json: the table every SDK's readers run, so
  * that every SDK gives one answer for one resource.
  *
  * Every SDK refuses a resource that lacks a member its schema requires as it
@@ -40,7 +40,7 @@ interface Refused {
 }
 
 const table: { cases: (Case | Refused)[] } = JSON.parse(
-  readFileSync(new URL('../../../../../specs/src/resources/reader-cases.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../protocol/specs/src/resources/reader-cases.json', import.meta.url), 'utf8'),
 );
 const read = table.cases.filter((stated): stated is Case => !('refused' in stated));
 const refused = table.cases.filter((stated): stated is Refused => 'refused' in stated);
@@ -66,7 +66,7 @@ function refusedNamingRepresentations(reading: () => unknown, why: string): void
   }
 }
 
-describe('the readers of a resource (specs/src/resources/reader-cases.json)', () => {
+describe('the readers of a resource (protocol/specs/src/resources/reader-cases.json)', () => {
   it('has cases of a resource with a representation and of one with none, with entity types and with none, and refused ones', () => {
     expect(read.some((stated) => stated.primaryRepresentation !== undefined)).toBe(true);
     expect(read.some((stated) => stated.primaryRepresentation === undefined)).toBe(true);

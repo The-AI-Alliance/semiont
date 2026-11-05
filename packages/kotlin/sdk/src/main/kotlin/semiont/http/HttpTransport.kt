@@ -56,7 +56,7 @@ import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
-/** The timing a transport keeps: specs/src/client/timing.json's, unless a caller that must not wait it out says otherwise. */
+/** The timing a transport keeps: protocol/specs/src/client/timing.json's, unless a caller that must not wait it out says otherwise. */
 public data class Timing @JvmOverloads constructor(
     public val reconnectMs: Long = Timings.RECONNECT_MS,
     public val lazyRemoveMs: Long = Timings.LAZY_REMOVE_MS,
@@ -71,7 +71,7 @@ public data class Timing @JvmOverloads constructor(
 
 /**
  * The bus over HTTP: emits to `POST /bus/emit`, and one stream from
- * `POST /bus/subscribe` (docs/protocol/TRANSPORT-HTTP.md). It reads its token
+ * `POST /bus/subscribe` (protocol/contract/TRANSPORT-HTTP.md). It reads its token
  * from `token`, which its owner feeds, and asks `refresher` for another when
  * the gateway refuses it. The stream opens once there is a token and
  * something to carry: a channel it names on no scope, or a resource's scope. With

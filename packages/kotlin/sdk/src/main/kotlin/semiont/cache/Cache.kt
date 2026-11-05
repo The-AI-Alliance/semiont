@@ -56,7 +56,7 @@ private class Key<V : Any>(state: CacheState<V>) {
 
 /**
  * A read-through cache: what a client's live queries answer from
- * (docs/protocol/CACHE-SEMANTICS.md, B1 to B20). A key has one state, and every
+ * (protocol/contract/CACHE-SEMANTICS.md, B1 to B20). A key has one state, and every
  * observer of the key holds it. `observe` is the live view: the first observer
  * of a key with nothing starts a fetch, later ones are given what is there, a
  * failed fetch is tried once more, and a key with a value keeps showing it

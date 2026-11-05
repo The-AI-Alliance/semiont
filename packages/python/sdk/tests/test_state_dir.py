@@ -1,4 +1,4 @@
-"""Where the launcher's state home is, as every program that finds it computes it (`specs/src/sign-in-store/cases.json`)."""
+"""Where the launcher's state home is, as every program that finds it computes it (`protocol/specs/src/sign-in-store/cases.json`)."""
 
 import pytest
 from spec import SPEC, JsonObject, objects, read, text

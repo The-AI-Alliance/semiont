@@ -1,7 +1,7 @@
 package semiont.annotations
 
 /*
- * A text as the case tables under specs/src count it. An offset counts Unicode
+ * A text as the case tables under protocol/specs/src count it. An offset counts Unicode
  * code points from the start of a text, and so does every length a rule
  * states, where a Kotlin string counts UTF-16 units: so a text is worked on as
  * its code points, an offset is an index into them, and a string is made only

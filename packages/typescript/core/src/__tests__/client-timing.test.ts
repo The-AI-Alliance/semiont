@@ -1,7 +1,7 @@
 /**
  * The client-timing table's generator refuses a table that cannot be meant.
  *
- * specs/src/client/timing.json is the authority every SDK generates its
+ * protocol/specs/src/client/timing.json is the authority every SDK generates its
  * deadlines and retry budgets from. A generated constant cannot drift from it,
  * so what is left to hold is the table itself: each case hands the generator
  * the committed table with one fault and expects a refusal that names it. The
@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const GENERATOR = fileURLToPath(new URL('../../../../codegen/schemas/generate-client-timing.mjs', import.meta.url));
-const TABLE = fileURLToPath(new URL('../../../../../specs/src/client/timing.json', import.meta.url));
+const TABLE = fileURLToPath(new URL('../../../../../protocol/specs/src/client/timing.json', import.meta.url));
 
 interface Entry {
   name: string;

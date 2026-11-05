@@ -1,4 +1,4 @@
-"""The Weaver's fold, held to `specs/src/weaver/fold-cases.json`.
+"""The Weaver's fold, held to `protocol/specs/src/weaver/fold-cases.json`.
 
 The table is the one every implementation of the Weaver runs: a case is a
 history of recorded events and the graph it must leave, so the rule of each

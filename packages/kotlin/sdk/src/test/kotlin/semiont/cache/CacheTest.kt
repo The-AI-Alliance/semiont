@@ -134,7 +134,7 @@ private fun TestScope.readied(world: World, value: Int): Observer {
     return observer
 }
 
-/** The cache a client's live queries answer from, held to docs/protocol/CACHE-SEMANTICS.md clause by clause. */
+/** The cache a client's live queries answer from, held to protocol/contract/CACHE-SEMANTICS.md clause by clause. */
 class CacheTest {
     @Test
     fun b1TheFirstObserverOfAKeySeesItPendingCostsOneRequestAndSeesItsAnswer() = runTest {

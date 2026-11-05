@@ -5,7 +5,7 @@ library is not replaced or patched: it sends real requests to the stand-in,
 which answers the Models API and each generation, whole or as a stream, and
 refuses a generation that sends a temperature as API version 2026-10-21
 refuses it. What arrives is held exactly: in P5 the Worker service's
-suite (`packages/conformance/worker-service/anthropic.test.ts`) holds the Python
+suite (`protocol/conformance/worker-service/anthropic.test.ts`) holds the Python
 worker to the same requests.
 """
 

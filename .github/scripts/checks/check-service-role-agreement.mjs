@@ -173,7 +173,7 @@ for (const role of ROLES) {
   if (role.role !== false) agreed.push(values[0]);
 }
 
-const PATHS = 'specs/src/paths';
+const PATHS = 'protocol/specs/src/paths';
 const named = [];
 for (const file of readdirSync(PATHS).filter((f) => f.endsWith('.json'))) {
   const item = JSON.parse(readFileSync(join(PATHS, file), 'utf8'));

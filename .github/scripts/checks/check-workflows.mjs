@@ -59,7 +59,7 @@
  *    for a release and never on a pull request. `changes` outputs `tier`,
  *    which no filter defines.
  *
- * 5. Every directory under apps/, images/ or packages/ that holds a manifest
+ * 5. Every directory under apps/, images/, packages/ or protocol/ that holds a manifest
  *    (package.json, Cargo.toml, pyproject.toml, go.mod, build.gradle.kts,
  *    Package.swift, or a .NET solution, `<name>.slnx`), at any depth, is
  *    under a pattern `<dir>/**` of some filter of the map: the directory's
@@ -415,11 +415,21 @@ function changedAreas(jobs) {
   const isManifest = (name) => MANIFESTS.includes(name) || name.endsWith('.slnx');
   const trees = [...new Set(Object.values(filters).flat())].filter((pattern) => typeof pattern === 'string' && pattern.endsWith('/**')).map((pattern) => pattern.slice(0, -'/**'.length));
   const packages = repository
-    .filter((file) => /^(apps|images|packages)\//.test(file) && isManifest(basename(file)) && !file.split('/').includes('testdata'))
+    .filter((file) => /^(apps|images|packages|protocol)\//.test(file) && isManifest(basename(file)) && !file.split('/').includes('testdata'))
     .map((file) => dirname(file));
   // E2e is an independent project whose PR consumer is Stack Smoke, not ci.yml.
   const smokeWorkflow = yaml.load(readFileSync(join(ROOT, SMOKE), 'utf8'));
   const smokePaths = smokeWorkflow.on?.pull_request?.paths ?? [];
+  const buildRun = (smokeWorkflow.jobs?.boot?.steps ?? []).map((step) => step.run ?? '')
+    .find((run) => /\bmake local-build\b/.test(run));
+  if (!buildRun || !buildRun.includes('PACKAGE_NAMES=typescript') || !buildRun.includes('FANOUT=0') || !buildRun.includes('LAYER_CACHE=')) {
+    failures.push(`${SMOKE}: local images must use make local-build with TypeScript selection, fan-out disabled and the Rust layer cache`);
+  }
+  for (const input of ['Makefile', 'images/scripts/**', 'packages/codegen/**']) {
+    if (!smokePaths.includes(input)) failures.push(`${SMOKE}: Make's local build input ${input} is absent from pull_request paths`);
+  }
+  if (!(filters.all ?? []).includes('Makefile')) failures.push(`${CI}: the root Makefile must select the all area`);
+
   for (const dir of new Set(packages)) {
     if (dir === 'images/e2e') {
       if (!smokePaths.includes(`${dir}/**`)) failures.push(`${SMOKE}: independent e2e project ${dir} is not selected by its pull_request paths`);

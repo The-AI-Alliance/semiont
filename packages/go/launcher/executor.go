@@ -38,15 +38,15 @@ type stager interface {
 type runner interface {
 	verifyImage(svc, img string) (string, bool) // a Semiont image's build provenance, checked; returns it pinned to the digest that runs
 	pull(img string) bool
-	runDetached(args []string) (string, bool)        // echo + run -d; returns runtime-reported id
-	stopRm(name string) bool                         // teardown; reports whether anything existed
-	stopShared(name string, rec *ServiceState) bool  // a shared container's teardown, under this runtime and the one its record names; reports whether anything existed
-	sweepStray(names []string) bool                  // stop+rm the names under every OTHER installed runtime; reports whether anything existed
-	settle(ports ...int)                             // wait for torn-down ports to be released
-	snapshotLogs(kb kbRoot, names []string)          // crash evidence: capture container logs into the root's state area before a teardown deletes them
-	dumpLogs(container, svc string)                  // failed health gate: show the crash where it is
-	issuerProxy(listen, upstream, realm string) bool // `network lan`: the detached filtering proxy that serves the issuer to the network, recorded
-	retireIssuerProxy()                              // end the issuer proxy the record names, if one runs; before the ports it held are checked
+	runDetached(args []string) (string, bool)                  // echo + run -d; returns runtime-reported id
+	stopRm(name string) bool                                   // teardown; reports whether anything existed
+	stopShared(name string, rec *ServiceState) bool            // a shared container's teardown, under this runtime and the one its record names; reports whether anything existed
+	sweepStray(names []string) bool                            // stop+rm the names under every OTHER installed runtime; reports whether anything existed
+	settle(ports ...int)                                       // wait for torn-down ports to be released
+	snapshotLogs(kb kbRoot, names []string)                    // crash evidence: capture container logs into the root's state area before a teardown deletes them
+	dumpLogs(container, svc string)                            // failed health gate: show the crash where it is
+	issuerProxy(listen, upstream string, realms []string) bool // `network lan`: the detached filtering proxy that serves the shared issuer's realms to the network, kept when it passes realms, else replaced and recorded
+	retireIssuerProxy()                                        // end the issuer proxy the record names, if one runs; before the ports it held are checked
 }
 
 // prober: asks whether something is up, and waits on a WALL-CLOCK budget rather than a count
@@ -60,9 +60,10 @@ type prober interface {
 	waitPGAccepting(seconds int) bool                                              // the port gate does not prove PostgreSQL accepts sessions; initdb's temporary server is why
 	probeTCP(role string, rp rolePlan) bool                                        // external-role reachability
 	gatewayReachable(addr string, port int) bool
-	resolveAddr() (string, bool)     // container→host address ("<host-addr>" in plan mode)
-	otelDetect(addr string) []string // --service: OTel iff the collector is up
-	tracesUp(url string) bool        // whether Jaeger answers at url: where the collector sends traces
+	resolveAddr() (string, bool)        // container→host address ("<host-addr>" in plan mode)
+	otelDetect(addr string) []string    // --service: OTel iff the collector is up
+	tracesUp(url string) bool           // whether Jaeger answers at url: where the collector sends traces
+	qdrantTakes(base, key string) error // whether the Qdrant at base answers a request made with key; why not, when it does not
 }
 
 // recorder: the belief record: what this machine thinks is running, and how each role was
@@ -75,6 +76,8 @@ type recorder interface {
 	recorded(role string) ServiceState                       // the stack's record of a role, zero when it has none
 	containerCurrent(name, desired string) bool              // running under this runtime AND image identity matches
 	sharedRecord(name string) *ServiceState                  // a shared container's record, by name
+	sharedIssuerRealms() []string                            // the realms the shared issuer serves for the recorded stacks other than this one, sorted
+	sharedVectorsRoots() []string                            // the roots of the recorded stacks other than this one that keep their index in the shared Qdrant, sorted
 	recordShared(rec ServiceState)                           // a shared container this start ran, under this runtime
 	forgetShared(name string)                                // no shared container of the launcher's runs by this name
 	keepWorkerList(list workerList) bool                     // the knowledge bases the shared worker serves, as this start leaves them
@@ -83,11 +86,11 @@ type recorder interface {
 // keeper: credentials that must OUTLIVE the stack — generated once per root and persisted,
 // because a regenerated one invalidates every token already issued.
 type keeper interface {
-	jwtSecret(kb kbRoot) (string, bool)                       // gateway token-signing key: env, else persisted per-root, else generated
-	identityAdminPassword(kb kbRoot) (string, bool)           // Keycloak's bootstrap admin password: same three sources
-	serviceClientSecret(kb kbRoot, svc string) (string, bool) // one service's account credential, per root
-	workerKey() (workerKey, bool)                             // the key the shared worker proves itself with, one for every knowledge base
-	daemonPassword(kb kbRoot, role string) (string, bool)     // a launcher-run daemon's password, generated and kept per root
+	jwtSecret(kb kbRoot) (string, bool)                                   // gateway token-signing key: env, else persisted per-root, else generated
+	identityAdminPassword() (string, bool)                                // the shared Keycloak's bootstrap admin password: same three sources
+	serviceClientSecret(kb kbRoot, svc string) (string, bool)             // one service's account credential, per root
+	workerKey() (workerKey, bool)                                         // the key the shared worker proves itself with, one for every knowledge base
+	daemonCredential(kb kbRoot, role string, machine bool) (string, bool) // a launcher-run daemon's password or key, generated and kept per root, or for the machine (machine)
 }
 
 // admitter: proves the issuer will admit the services, and the people, BEFORE anything holds a
@@ -101,7 +104,8 @@ type admitter interface {
 // storer: durable state on disk: which mounts a role gets, whose image stamped them, and the
 // database a launcher-run PostgreSQL must already carry.
 type storer interface {
-	stateMounts(role, image string, kb kbRoot) ([]string, bool)   // persistent-state run args; !ok = refuse (data written by another image)
+	// persistent-state run args; !ok = refuse (data written by another image)
+	stateMounts(store string, spec stateStoreSpec, image string, kb kbRoot) ([]string, bool)
 	stateMountsUnstamped(role string, kb kbRoot) ([]string, bool) // the same mounts for a store no image stamps
 	resolveStoreStamps(fc flowCtx) bool                           // preflight: every store's mismatch refuse/clear, before the first container run
 	createDatabase(user, name string) bool                        // a database on the launcher-run PostgreSQL, if absent
@@ -543,7 +547,7 @@ func (x *liveExec) waitTCP(label, pollHost, addr string, port, seconds int) (tim
 }
 
 func (x *liveExec) waitPGAccepting(seconds int) bool {
-	return waitPGAccepting(x.u, x.rt, roleContainer("identity-store", x.kb.key()), seconds)
+	return waitPGAccepting(x.u, x.rt, sharedContainer("identity-store"), seconds)
 }
 
 func (x *liveExec) probeTCP(role string, rp rolePlan) bool {
@@ -643,6 +647,11 @@ func (x *liveExec) otelDetect(addr string) []string {
 
 func (x *liveExec) tracesUp(url string) bool { return httpOK(url) }
 
+func (x *liveExec) qdrantTakes(base, key string) error {
+	_, err := qdrantCollections(base, key)
+	return err
+}
+
 // jwtSecret is per-root and persisted, so a --service gateway restart resolves
 // the SAME value a full start did. Every credential the launcher hands out
 // works this way.
@@ -654,8 +663,8 @@ func (x *liveExec) jwtSecret(kb kbRoot) (string, bool) {
 	return loadOrCreateJWTSecret(x.u, kb.key())
 }
 
-func (x *liveExec) identityAdminPassword(kb kbRoot) (string, bool) {
-	return loadOrCreateKeycloakAdminPassword(x.u, kb.key())
+func (x *liveExec) identityAdminPassword() (string, bool) {
+	return loadOrCreateKeycloakAdminPassword(x.u)
 }
 
 func (x *liveExec) serviceClientSecret(kb kbRoot, svc string) (string, bool) {
@@ -666,8 +675,8 @@ func (x *liveExec) workerKey() (workerKey, bool) {
 	return loadOrCreateWorkerKey(x.u)
 }
 
-func (x *liveExec) daemonPassword(kb kbRoot, role string) (string, bool) {
-	return loadOrCreateDaemonPassword(x.u, kb.key(), role)
+func (x *liveExec) daemonCredential(kb kbRoot, role string, machine bool) (string, bool) {
+	return loadOrCreateDaemonCredential(x.u, kb.key(), role, machine)
 }
 
 func (x *liveExec) stageNatsConf(doc []byte) (string, bool) {
@@ -694,7 +703,7 @@ func (x *liveExec) stageNatsConf(doc []byte) (string, bool) {
 // makes a recovered start look like a broken one.
 func (x *liveExec) createDatabase(user, name string) bool {
 	sql := fmt.Sprintf("SELECT 'CREATE DATABASE %s' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '%s')\\gexec\n", name, name)
-	args := []string{"exec", "-i", roleContainer("identity-store", x.kb.key()), "psql", "-U", user, "-v", "ON_ERROR_STOP=1", "-q"}
+	args := []string{"exec", "-i", sharedContainer("identity-store"), "psql", "-U", user, "-v", "ON_ERROR_STOP=1", "-q"}
 	x.u.EchoCmd(x.rt, args...)
 	var err error
 	var out string
@@ -755,20 +764,44 @@ func (x *liveExec) stack() *StackState {
 	return x.st
 }
 
-func (x *liveExec) issuerProxy(listen, upstream, realm string) bool {
-	pid, ok := spawnIssuerProxy(x.u, listen, upstream, realm)
+func (x *liveExec) issuerProxy(listen, upstream string, realms []string) bool {
+	pid, kept, ok := ensureIssuerProxy(x.u, listen, upstream, realms)
 	if !ok {
 		return false
 	}
 	st := x.stack()
-	st.IssuerProxy = &issuerProxyRecord{PID: pid, Listen: listen, Upstream: upstream, Realm: realm}
 	st.LanAddr = x.lan
 	saveStack(st)
-	x.u.Log("Issuer proxy running %s", x.u.Dim(fmt.Sprintf("(detached, pid %d, %s → %s — recorded; semiont stop ends it)", pid, listen, upstream)))
+	how := fmt.Sprintf("detached, pid %d, %s → %s — recorded; the last stack's stop ends it", pid, listen, upstream)
+	if kept {
+		how = fmt.Sprintf("kept, pid %d", pid)
+	}
+	x.u.Log("Issuer proxy passes %s %s", strings.Join(realms, ", "), x.u.Dim("("+how+")"))
 	return true
 }
 
-func (x *liveExec) retireIssuerProxy() { retireIssuerProxy(x.u, x.kb.key()) }
+func (x *liveExec) retireIssuerProxy() { retireIssuerProxy(x.u) }
+
+func (x *liveExec) sharedIssuerRealms() []string {
+	var realms []string
+	for _, st := range localStacks(LoadStackSet()) {
+		if key := rootKey(st.KBDid, st.KBRoot); key != x.kb.key() && st.signsInAtSharedIssuer() {
+			realms = append(realms, key)
+		}
+	}
+	slices.Sort(realms)
+	return realms
+}
+
+func (x *liveExec) sharedVectorsRoots() []string {
+	var roots []string
+	for _, st := range localStacks(LoadStackSet()) {
+		if rootKey(st.KBDid, st.KBRoot) != x.kb.key() && machineServes(st, "vectors") {
+			roots = append(roots, st.KBRoot)
+		}
+	}
+	return roots
+}
 
 // recorded reads back how an earlier step in THIS run resolved a role.
 // The host-Ollama-vs-container decision is made at runtime, not in the plan,
@@ -824,7 +857,7 @@ func (x *liveExec) verifyRemoteModels(role, base, key string, models []string) {
 // the admin, and a realm that must be created refuses the start on its own —
 // but this says why first.
 func (x *liveExec) openAdminToThisMachine(password string) {
-	args := append([]string{"exec", "--env", "KC_CLI_PASSWORD", roleContainer("identity", x.kb.key())}, masterRealmOverHTTP()...)
+	args := append([]string{"exec", "--env", "KC_CLI_PASSWORD", sharedContainer("identity")}, masterRealmOverHTTP()...)
 	x.u.EchoCmd(x.rt, args...)
 	out, err := runCapturedWithEnv([]string{"KC_CLI_PASSWORD=" + password}, x.rt, args...)
 	if err != nil {
@@ -1046,13 +1079,13 @@ func (x *liveExec) ensureModels(base string, models []modelNeed) {
 }
 
 // resolveStoreStamp is THE decider for existing store data vs the launching
-// image: refuse for the system of record (identity-store — user rows), clear
-// CONTENTS for projections (rebuildable from the log). Never unlinks the
-// store dir: an attached share survives a contents-clear and is orphaned
-// forever by delete-and-recreate.
-func (x *liveExec) resolveStoreStamp(role, image, key string) bool {
-	spec := stateStores[role]
-	dir := stateRootDir(key)
+// image: refuse for the system of record (identity-store — user rows) and for
+// a store the machine keeps, which every knowledge base here reads; clear
+// CONTENTS for a knowledge base's projections (rebuildable from its log).
+// Never unlinks the store dir: an attached share survives a contents-clear
+// and is orphaned forever by delete-and-recreate.
+func (x *liveExec) resolveStoreStamp(role string, spec stateStoreSpec, image, key string) bool {
+	dir := spec.home(key)
 	sd := spec.storeDir(key)
 	meta := loadRootMeta(dir)
 	prev, stamp := meta.Stores[role].Image, stampOf(image)
@@ -1060,8 +1093,12 @@ func (x *liveExec) resolveStoreStamp(role, image, key string) bool {
 		return true
 	}
 	if storeDirNonEmpty(sd) {
-		if !spec.projection {
-			x.u.Fail("%s state at %s was written by %s; this config launches %s.", role, sd, prev, stamp)
+		if !spec.projection || spec.machine {
+			x.u.Fail("%s state at %s was written by %s; this start launches %s.", role, sd, prev, stamp)
+			if spec.machine {
+				fmt.Fprintf(os.Stderr, "  That data is not auto-deleted. It is every knowledge base's here; to start afresh: semiont clean --shared --store %s\n", role)
+				return false
+			}
 			fmt.Fprintln(os.Stderr, "  That data is not auto-deleted. Remove it first: semiont clean --store "+role)
 			return false
 		}
@@ -1090,43 +1127,46 @@ func (x *liveExec) resolveStoreStamps(fc flowCtx) bool {
 		}
 		var img string
 		if rp, ok := fc.plan.Roles[spec.owner]; ok {
-			if rp.Presence != presenceLauncher {
+			if rp.Presence != presenceLauncher && rp.Presence != presenceShared {
 				continue // remote or absent: this boot mounts no such store
 			}
 			img = rp.Image
 		} else {
 			img = fc.plan.Images[spec.owner]
 		}
-		if !x.resolveStoreStamp(role, img, fc.kb.key()) {
+		if !x.resolveStoreStamp(role, storeAt(role, fc.plan), img, fc.kb.key()) {
 			return false
 		}
 	}
 	return true
 }
 
-// stateMounts prepares a role's persistent state dir and returns the run
-// args that mount it. The image-mismatch split lives in resolveStoreStamp:
-// identity-store data is user rows — refuse, fix-it names the clean command;
-// projections (vectors/graph) auto-clean and rebuild.
-func (x *liveExec) stateMounts(role, image string, kb kbRoot) ([]string, bool) {
+// stateMounts prepares the persistent state dir of the store named store,
+// kept as spec says (storeAt), and returns the run args that mount it. The
+// image-mismatch split lives in resolveStoreStamp: identity-store data is
+// user rows, and the machine's stores are every knowledge base's — refuse,
+// fix-it names the clean command; a knowledge base's projections
+// (vectors/graph) auto-clean and rebuild.
+func (x *liveExec) stateMounts(role string, spec stateStoreSpec, image string, kb kbRoot) ([]string, bool) {
 	key := kb.key()
-	args := stateMountArgs(role, key)
+	args := spec.mountArgs(key)
 	if len(args) == 0 {
 		return nil, true
 	}
-	spec := stateStores[role]
-	dir := stateRootDir(key)
+	dir := spec.home(key)
 	meta := loadRootMeta(dir)
 	// A full start has already resolved the stamp in preflight (this re-check
 	// no-ops on the emptied dir); single-service starts resolve here.
-	if !x.resolveStoreStamp(role, image, key) {
+	if !x.resolveStoreStamp(role, spec, image, key) {
 		return nil, false
 	}
 	if !x.openStoreDirs(spec, key) {
 		return nil, false
 	}
-	meta.KBRoot = kb.dir
-	meta.Did = kb.ident.didWeb()
+	if !spec.machine {
+		meta.KBRoot = kb.dir
+		meta.Did = kb.ident.didWeb()
+	}
 	meta.Stores[role] = storeMeta{Image: stampOf(image)}
 	saveRootMeta(dir, meta)
 	return args, true
@@ -1138,7 +1178,7 @@ func (x *liveExec) stateMounts(role, image string, kb kbRoot) ([]string, bool) {
 // line is what happened whichever image wrote it, so no image change clears
 // either; the bind is the one stateMounts makes, without the stamp.
 func (x *liveExec) stateMountsUnstamped(role string, kb kbRoot) ([]string, bool) {
-	args := stateMountArgs(role, kb.key())
+	args := stateStores[role].mountArgs(kb.key())
 	if len(args) == 0 {
 		return nil, true
 	}
@@ -1167,12 +1207,12 @@ func (x *liveExec) openStoreDirs(spec stateStoreSpec, key string) bool {
 			}
 		}
 	}
-	// A mount dir may be open to every uid. The root's state dir is the
+	// A mount dir may be open to every uid. The store's home is the
 	// unmounted parent of all of them — no container sees it — so owner-only
 	// here keeps other local users from traversing to any store.
-	dir := stateRootDir(key)
+	dir := spec.home(key)
 	if err := ownerOnlyDir(dir); err != nil {
-		x.u.Fail("cannot keep this knowledge base's stores directory %s to its owner: %v", dir, err)
+		x.u.Fail("cannot keep the stores directory %s to its owner: %v", dir, err)
 		return false
 	}
 	return true
@@ -1329,7 +1369,7 @@ func (x *planExec) waitHTTP(_, _, url string, seconds int) (time.Duration, bool)
 
 func (x *planExec) waitPGAccepting(seconds int) bool {
 	x.c("wait: %s exec %s pg_isready -h 127.0.0.1 (%ds) — the REAL server; initdb's temporary one answers the socket only",
-		x.rt, roleContainer("identity-store", x.kb.key()), seconds)
+		x.rt, sharedContainer("identity-store"), seconds)
 	return true
 }
 
@@ -1384,11 +1424,16 @@ func (x *planExec) tracesUp(url string) bool {
 	return false
 }
 
+func (x *planExec) qdrantTakes(base, _ string) error {
+	x.c("probe: GET %s/collections with the machine's API key — keep it if Qdrant answers; else refuse while another knowledge base keeps its index there, and run it afresh while none does", base)
+	return nil
+}
+
 // Dry-run reaches for nothing: no file is read and none is minted, so a plan
 // never has the side effect of creating a root's signing key.
 func (x *planExec) jwtSecret(kbRoot) (string, bool) { return "<jwt-secret>", true }
 
-func (x *planExec) identityAdminPassword(kbRoot) (string, bool) {
+func (x *planExec) identityAdminPassword() (string, bool) {
 	return "<keycloak-admin-password>", true
 }
 
@@ -1400,8 +1445,8 @@ func (x *planExec) workerKey() (workerKey, bool) {
 	return workerKey{registeredKey: registeredKey{public: "<worker-public-key>", thumbprint: "<worker-key-thumbprint>"}, private: "<worker-key>"}, true
 }
 
-func (x *planExec) daemonPassword(_ kbRoot, role string) (string, bool) {
-	return "<" + daemonPasswords[role].custody + ">", true
+func (x *planExec) daemonCredential(_ kbRoot, role string, _ bool) (string, bool) {
+	return "<" + daemonCredentials[role].custody + ">", true
 }
 
 func (x *planExec) stageNatsConf(_ []byte) (string, bool) {
@@ -1410,7 +1455,7 @@ func (x *planExec) stageNatsConf(_ []byte) (string, bool) {
 }
 
 func (x *planExec) createDatabase(user, name string) bool {
-	x.c("create database %s on PostgreSQL if absent: %s exec -i %s psql -U %s (SQL on stdin)", name, x.rt, roleContainer("identity-store", x.kb.key()), user)
+	x.c("create database %s on PostgreSQL if absent: %s exec -i %s psql -U %s (SQL on stdin)", name, x.rt, sharedContainer("identity-store"), user)
 	return true
 }
 
@@ -1431,8 +1476,9 @@ func (x *planExec) recorded(string) ServiceState { return ServiceState{} }
 // --dry-run launches nothing, so nothing can crash.
 func (x *planExec) dumpLogs(string, string) {}
 
-func (x *planExec) issuerProxy(listen, upstream, realm string) bool {
-	x.c("run detached: semiont %s — the issuer at the network address, passing the realm's paths alone (recorded; semiont stop ends it)", strings.Join(issuerProxyArgs(listen, upstream, realm), " "))
+func (x *planExec) issuerProxy(listen, upstream string, realms []string) bool {
+	x.c("keep the issuer proxy if it runs as asked, else run detached: semiont %s — the issuer at the network address, passing the paths of this realm and of every other a recorded stack is served (recorded; the last stack's stop ends it)",
+		strings.Join(issuerProxyArgs(listen, upstream, realms), " "))
 	return true
 }
 
@@ -1444,6 +1490,8 @@ func (x *planExec) retireIssuerProxy() {
 // both branches, so these answer neutrally.
 func (x *planExec) containerCurrent(string, string) bool { return false }
 func (x *planExec) sharedRecord(string) *ServiceState    { return nil }
+func (x *planExec) sharedIssuerRealms() []string         { return nil }
+func (x *planExec) sharedVectorsRoots() []string         { return nil }
 func (x *planExec) recordShared(ServiceState)            {}
 func (x *planExec) forgetShared(string)                  {}
 
@@ -1485,7 +1533,7 @@ func (x *planExec) preflightIdentity(issuerBase, audience string, accounts realm
 
 func (x *planExec) openAdminToThisMachine(string) {
 	x.c("open Keycloak's admin to this machine over HTTP: %s exec --env KC_CLI_PASSWORD %s %s",
-		x.rt, roleContainer("identity", x.kb.key()), strings.Join(masterRealmOverHTTP(), " "))
+		x.rt, sharedContainer("identity"), strings.Join(masterRealmOverHTTP(), " "))
 }
 
 // The clients are read OUT OF the document rather than described alongside it.
@@ -1531,18 +1579,18 @@ func (x *planExec) ensureModels(base string, models []modelNeed) {
 // --dry-run computes the real state path (it is derivation, not effect) but
 // creates nothing and never refuses — the image-mismatch check reads disk,
 // a runtime fact the plan only names.
-func (x *planExec) stateMounts(role, _ string, kb kbRoot) ([]string, bool) {
-	args := stateMountArgs(role, kb.key())
+func (x *planExec) stateMounts(role string, spec stateStoreSpec, _ string, kb kbRoot) ([]string, bool) {
+	args := spec.mountArgs(kb.key())
 	if len(args) > 0 {
 		x.c("%s state: %s (created if absent; reused across restarts)",
-			role, stateStores[role].storeDir(kb.key()))
+			role, spec.storeDir(kb.key()))
 	}
 	return args, true
 }
 
 func (x *planExec) stateMountsUnstamped(role string, kb kbRoot) ([]string, bool) {
 	x.c("mount %s state (no image stamps it: an image change clears nothing)", role)
-	return stateMountArgs(role, kb.key()), true
+	return stateStores[role].mountArgs(kb.key()), true
 }
 
 func (x *planExec) resolveStoreStamps(flowCtx) bool {

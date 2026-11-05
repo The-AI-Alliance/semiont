@@ -124,7 +124,7 @@ A document just uploaded has no text until the Smelter has read it. A read
 that comes sooner waits at the Archivist and is answered as soon as the
 Smelter has read the content; past that wait it answers `not-yet`. The viewer
 asks again once `anchoredTextReaskMs` has passed
-(`specs/src/client/timing.json`), and goes on asking at that one wait. It
+(`protocol/specs/src/client/timing.json`), and goes on asking at that one wait. It
 listens for nothing else: the held read is how it learns the text is there.
 
 An image is asked about as a PDF is. Its answer is `no-map`, given at once,
@@ -206,7 +206,7 @@ takes PDFium, the `tesseract` program and a directory to write.
 
 ## Related
 
-- **[../protocol/W3C-SELECTORS.md](../protocol/W3C-SELECTORS.md)** — the selector types an annotation may carry, and which apply to which media.
+- **[../../protocol/contract/W3C-SELECTORS.md](../../protocol/contract/W3C-SELECTORS.md)** — the selector types an annotation may carry, and which apply to which media.
 - **[KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md)** — the actors, and the storage the map sits in.
-- **[../protocol/ARCHIVIST.md](../protocol/ARCHIVIST.md)** — the anchored-text store as the Archivist keeps it, and the wait for the Smelter to settle.
-- **[../protocol/TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md)** — `IContentTransport`, where the map crosses a process boundary.
+- **[../../protocol/contract/ARCHIVIST.md](../../protocol/contract/ARCHIVIST.md)** — the anchored-text store as the Archivist keeps it, and the wait for the Smelter to settle.
+- **[../../protocol/contract/TRANSPORT-CONTRACT.md](../../protocol/contract/TRANSPORT-CONTRACT.md)** — `IContentTransport`, where the map crosses a process boundary.

@@ -125,7 +125,7 @@ The graph is a projection of a knowledge base's record, and not a copy of
 it: it holds what the questions that cross documents need. What is stored of
 an annotation and of a resource, what each stored thing is called, which are
 required and what is refused are stated once, in
-[`specs/src/graph/codec-cases.json`][codec-cases], and every implementation
+[`protocol/specs/src/graph/codec-cases.json`][codec-cases], and every implementation
 of the codecs runs that table. A store keeps its own dialect and decides
 nothing about the shape.
 
@@ -148,4 +148,4 @@ them again.
 
 [semiont]: https://github.com/The-AI-Alliance/semiont
 [sdk-python]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/python/sdk
-[codec-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/graph/codec-cases.json
+[codec-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/graph/codec-cases.json

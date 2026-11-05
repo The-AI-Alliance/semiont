@@ -1,4 +1,4 @@
-//! Completing a job below the bus (docs/protocol/JOBS.md § `job:complete`):
+//! Completing a job below the bus (protocol/contract/JOBS.md § `job:complete`):
 //! a completion is its verb's. Its result is stored in the one shape a
 //! record keeps, whichever verb reported it; a completion whose result is
 //! another verb's is not a completion at all; and one that is well formed

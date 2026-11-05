@@ -1,6 +1,6 @@
 """What a Librarian is handed to read by: each a protocol, and the ways a read fails that the Librarian tells apart.
 
-A Librarian owns no store (`docs/protocol/LIBRARIAN.md`), and mounts no state
+A Librarian owns no store (`protocol/contract/LIBRARIAN.md`), and mounts no state
 volume. It asks the Archivist, on the bus, for what it needs of the record and
 for the profiles of the knowledge base's principals (§ Names), each read
 bounded by its question. It reads the graph the Weaver writes and the index the Smelter

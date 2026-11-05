@@ -1,5 +1,5 @@
 //! Whether a failed job is retried is one table,
-//! specs/src/jobs/retry-cases.json, which every implementation runs: the
+//! protocol/specs/src/jobs/retry-cases.json, which every implementation runs: the
 //! dispatcher's queue acts on the answer, and a worker reports it on
 //! `job:fail` as `willRetry`, so the two must never disagree. In Rust both
 //! answer through this crate's `will_retry_after`.

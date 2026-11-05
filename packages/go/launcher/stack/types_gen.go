@@ -1,4 +1,4 @@
-// Code generated from specs/src/stack and specs/src/kb-identity/ProjectConfig.json — DO NOT EDIT.
+// Code generated from protocol/specs/src/stack and protocol/specs/src/kb-identity/ProjectConfig.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-stack-go.mjs
 
@@ -63,8 +63,9 @@ type KnowledgeBaseSpec struct {
 	// from `image`, or somebody else's, at `external`.
 	Messaging KnowledgeBaseMessaging `json:"messaging"`
 
-	// The issuer the knowledge base trusts: an Issuer document the launcher
-	// runs, named by `ref`, or somebody else's, at `external`.
+	// The issuer the knowledge base trusts: the one the launcher runs for the
+	// knowledge bases on a machine, at `shared`, with the knowledge base's own
+	// realm in it, or somebody else's, at `external`.
 	Issuer KnowledgeBaseIssuer `json:"issuer"`
 }
 
@@ -149,7 +150,11 @@ type KnowledgeBaseMessaging struct {
 	// What a container is given, in Kubernetes' spelling.
 	Resources *Resources `json:"resources,omitempty"`
 
-	// A broker somebody else runs.
+	// A broker somebody else runs, serving this knowledge base alone: a second
+	// knowledge base on it would share the job queue and, on a `nats` signal
+	// plane, the frames and the gateway's record of pending replies. The
+	// launcher refuses to start a knowledge base whose `servers` another
+	// knowledge base on its machine names.
 	External *KnowledgeBaseMessagingExternal `json:"external,omitempty"`
 }
 
@@ -165,7 +170,11 @@ type KnowledgeBaseMessagingSignal struct {
 	Type string `json:"type"`
 }
 
-// KnowledgeBaseMessagingExternal: A broker somebody else runs.
+// KnowledgeBaseMessagingExternal: A broker somebody else runs, serving this
+// knowledge base alone: a second knowledge base on it would share the job
+// queue and, on a `nats` signal plane, the frames and the gateway's record of
+// pending replies. The launcher refuses to start a knowledge base whose
+// `servers` another knowledge base on its machine names.
 type KnowledgeBaseMessagingExternal struct {
 	// Where it listens: `host:port`.
 	Servers string `json:"servers"`
@@ -187,12 +196,14 @@ type SecretRef struct {
 	FromEnv string `json:"fromEnv"`
 }
 
-// KnowledgeBaseIssuer: The issuer the knowledge base trusts: an Issuer
-// document the launcher runs, named by `ref`, or somebody else's, at
-// `external`.
+// KnowledgeBaseIssuer: The issuer the knowledge base trusts: the one the
+// launcher runs for the knowledge bases on a machine, at `shared`, with the
+// knowledge base's own realm in it, or somebody else's, at `external`.
 type KnowledgeBaseIssuer struct {
-	// The name of the Issuer document.
-	Ref *string `json:"ref,omitempty"`
+	// The issuer the launcher runs for the knowledge bases on a machine (the
+	// state home's Issuer document). The launcher creates the knowledge base's
+	// realm in it.
+	Shared *KnowledgeBaseIssuerShared `json:"shared,omitempty"`
 
 	// An issuer somebody else runs.
 	External *KnowledgeBaseIssuerExternal `json:"external,omitempty"`
@@ -200,6 +211,15 @@ type KnowledgeBaseIssuer struct {
 	// The claim a person's DID is built from: did:web:<site domain>:users:<its
 	// value>.
 	SubjectClaim string `json:"subjectClaim"`
+}
+
+// KnowledgeBaseIssuerShared: The issuer the launcher runs for the knowledge
+// bases on a machine (the state home's Issuer document). The launcher creates
+// the knowledge base's realm in it.
+type KnowledgeBaseIssuerShared struct {
+	// How long a token the realm mints stays valid, in seconds: the window in
+	// which a disabled account can still act.
+	AccessTokenLifespan int `json:"accessTokenLifespan"`
 }
 
 // KnowledgeBaseIssuerExternal: An issuer somebody else runs.
@@ -242,10 +262,17 @@ type KnowledgeIndexSpec struct {
 	// most severe, to debug.
 	LogLevel api.LogLevel `json:"logLevel"`
 
-	// The graph store the Weaver writes and the Librarian reads.
+	// The graph store the Weaver writes and the Librarian reads. The knowledge
+	// base's graph is in the database its DID names
+	// (protocol/specs/src/graph/database-cases.json): a Neo4j the launcher runs
+	// makes it when it first starts, and one somebody else runs must already
+	// hold it.
 	Graph KnowledgeIndexGraph `json:"graph"`
 
-	// The vector store the Smelter writes and the Librarian reads.
+	// The vector store the Smelter writes and the Librarian reads: the one the
+	// launcher runs for the knowledge bases on a machine, at `shared`; one of
+	// the knowledge base's own the launcher runs, from `image` with `resources`;
+	// or somebody else's, at `external`. Exactly one of the three.
 	Vectors KnowledgeIndexVectors `json:"vectors"`
 
 	// The model that turns text into vectors. Vectors made by one model are not
@@ -263,16 +290,16 @@ type KnowledgeIndexSpec struct {
 }
 
 // KnowledgeIndexGraph: The graph store the Weaver writes and the Librarian
-// reads.
+// reads. The knowledge base's graph is in the database its DID names
+// (protocol/specs/src/graph/database-cases.json): a Neo4j the launcher runs
+// makes it when it first starts, and one somebody else runs must already hold
+// it.
 type KnowledgeIndexGraph struct {
 	// The graph store's driver: `neo4j`.
 	Type string `json:"type"`
 
 	// The user the services sign in to the store as.
 	Username string `json:"username"`
-
-	// Which of the store's databases holds the graph.
-	Database string `json:"database"`
 
 	// The container image a service runs, as a registry names it:
 	// `ghcr.io/the-ai-alliance/semiont-gateway:latest`.
@@ -296,10 +323,18 @@ type KnowledgeIndexGraphExternal struct {
 }
 
 // KnowledgeIndexVectors: The vector store the Smelter writes and the
-// Librarian reads.
+// Librarian reads: the one the launcher runs for the knowledge bases on a
+// machine, at `shared`; one of the knowledge base's own the launcher runs,
+// from `image` with `resources`; or somebody else's, at `external`. Exactly
+// one of the three.
 type KnowledgeIndexVectors struct {
 	// The vector store's driver: `qdrant`.
 	Type string `json:"type"`
+
+	// The vector store the launcher runs for the knowledge bases on a machine
+	// (the state home's VectorStore document). Each knowledge base keeps its
+	// index in collections of its own there, so nothing is said of it here.
+	Shared *KnowledgeIndexVectorsShared `json:"shared,omitempty"`
 
 	// The container image a service runs, as a registry names it:
 	// `ghcr.io/the-ai-alliance/semiont-gateway:latest`.
@@ -308,8 +343,35 @@ type KnowledgeIndexVectors struct {
 	// What a container is given, in Kubernetes' spelling.
 	Resources *Resources `json:"resources,omitempty"`
 
-	// A vector store somebody else runs.
-	External *HostPort `json:"external,omitempty"`
+	// A vector store somebody else runs, with the token each service presents to
+	// it: the Smelter's may make, write and delete this knowledge base's
+	// collections, and the Librarian's may read them.
+	External *KnowledgeIndexVectorsExternal `json:"external,omitempty"`
+}
+
+// KnowledgeIndexVectorsShared: The vector store the launcher runs for the
+// knowledge bases on a machine (the state home's VectorStore document). Each
+// knowledge base keeps its index in collections of its own there, so nothing
+// is said of it here.
+type KnowledgeIndexVectorsShared struct{}
+
+// KnowledgeIndexVectorsExternal: A vector store somebody else runs, with the
+// token each service presents to it: the Smelter's may make, write and delete
+// this knowledge base's collections, and the Librarian's may read them.
+type KnowledgeIndexVectorsExternal struct {
+	// A host name or address the stack's containers can reach.
+	Host string `json:"host"`
+
+	// The port its REST API listens on.
+	Port int `json:"port"`
+
+	// A secret the document names and does not hold. The launcher hands it to
+	// the service that needs it, from where the reference says it is.
+	SmelterToken SecretRef `json:"smelterToken"`
+
+	// A secret the document names and does not hold. The launcher hands it to
+	// the service that needs it, from where the reference says it is.
+	LibrarianToken SecretRef `json:"librarianToken"`
 }
 
 // KnowledgeIndexEmbedding: The model that turns text into vectors. Vectors
@@ -398,9 +460,12 @@ type KnowledgeIndexWeaver struct {
 	Resources Resources `json:"resources"`
 }
 
-// Issuer: An issuer the launcher runs, and the database it keeps its realm
-// in. A knowledge base trusts it by naming this document; one trusting
-// somebody else's issuer has no Issuer document.
+// Issuer: The issuer the launcher runs for the knowledge bases on a machine,
+// with a realm for each, and the database it keeps their realms in. It
+// belongs to no knowledge base, so its document is kept in the launcher's
+// state home, in `stack/issuer.yaml`, not in a knowledge base's repository. A
+// knowledge base trusts it by naming `shared`; one trusting somebody else's
+// issuer names it at `external`.
 type Issuer struct {
 	// The group and version of Semiont's kinds. The group names who defines a
 	// kind, under the domain the knowledge bases' DIDs use; which knowledge base
@@ -413,11 +478,13 @@ type Issuer struct {
 	// one another by `name`.
 	Metadata Metadata `json:"metadata"`
 
-	// The issuer, and the database it keeps its realm in.
+	// The issuer, where it is published, and the database it keeps its realms
+	// in.
 	Spec IssuerSpec `json:"spec"`
 }
 
-// IssuerSpec: The issuer, and the database it keeps its realm in.
+// IssuerSpec: The issuer, where it is published, and the database it keeps
+// its realms in.
 type IssuerSpec struct {
 	// The issuer's driver: `keycloak`.
 	Type string `json:"type"`
@@ -429,20 +496,20 @@ type IssuerSpec struct {
 	// What a container is given, in Kubernetes' spelling.
 	Resources Resources `json:"resources"`
 
-	// How long a token the realm mints stays valid, in seconds: the window in
-	// which a disabled account can still act.
-	AccessTokenLifespan int `json:"accessTokenLifespan"`
+	// The port the issuer is published on, on this machine: the origin of every
+	// realm's `iss`, so the one number wherever the issuer is reached.
+	Port int `json:"port"`
 
-	// The database the issuer keeps its realm in.
+	// The database the issuer keeps its realms in.
 	Database IssuerDatabase `json:"database"`
 }
 
-// IssuerDatabase: The database the issuer keeps its realm in.
+// IssuerDatabase: The database the issuer keeps its realms in.
 type IssuerDatabase struct {
 	// The database's driver: `postgres`.
 	Type string `json:"type"`
 
-	// The database the issuer keeps its realm in: a lowercase PostgreSQL
+	// The database the issuer keeps its realms in: a lowercase PostgreSQL
 	// identifier, as PostgreSQL itself names an unquoted one. On a PostgreSQL
 	// the launcher runs, the launcher creates it; on one somebody else runs
 	// (`external`), it must already exist there.
@@ -457,6 +524,11 @@ type IssuerDatabase struct {
 
 	// What a container is given, in Kubernetes' spelling.
 	Resources *Resources `json:"resources,omitempty"`
+
+	// The port a PostgreSQL the launcher runs is published on, on this machine,
+	// where the issuer reaches it. One somebody else runs is reached at
+	// `external`.
+	Port *int `json:"port,omitempty"`
 
 	// A database somebody else runs.
 	External *IssuerDatabaseExternal `json:"external,omitempty"`
@@ -473,6 +545,45 @@ type IssuerDatabaseExternal struct {
 	// A secret the document names and does not hold. The launcher hands it to
 	// the service that needs it, from where the reference says it is.
 	Password SecretRef `json:"password"`
+}
+
+// VectorStore: The vector store the launcher runs for the knowledge bases on
+// a machine, each knowledge base's index in collections of its own. It
+// belongs to no knowledge base, so its document is kept in the launcher's
+// state home, in `stack/vectors.yaml`, not in a knowledge base's repository.
+// A knowledge base keeps its index in it by naming `shared` at
+// `spec.vectors`.
+type VectorStore struct {
+	// The group and version of Semiont's kinds. The group names who defines a
+	// kind, under the domain the knowledge bases' DIDs use; which knowledge base
+	// a document is about is said inside it.
+	ApiVersion string `json:"apiVersion"`
+
+	Kind string `json:"kind"`
+
+	// What names a document, as Kubernetes names an object. Documents refer to
+	// one another by `name`.
+	Metadata Metadata `json:"metadata"`
+
+	// The vector store, and where it is published.
+	Spec VectorStoreSpec `json:"spec"`
+}
+
+// VectorStoreSpec: The vector store, and where it is published.
+type VectorStoreSpec struct {
+	// The vector store's driver: `qdrant`.
+	Type string `json:"type"`
+
+	// The container image a service runs, as a registry names it:
+	// `ghcr.io/the-ai-alliance/semiont-gateway:latest`.
+	Image string `json:"image"`
+
+	// What a container is given, in Kubernetes' spelling.
+	Resources Resources `json:"resources"`
+
+	// The port the vector store is published on, on this machine, where every
+	// knowledge base's Smelter and Librarian reach it.
+	Port int `json:"port"`
 }
 
 // WorkerPool: The shared worker that does knowledge bases' jobs: its image,

@@ -1,4 +1,4 @@
-# Generated from specs/src/identifiers/kinds.json and each kind's schema; do not edit.
+# Generated from protocol/specs/src/identifiers/kinds.json and each kind's schema; do not edit.
 # Regenerate: node packages/codegen/schemas/generate-identifiers-python.mjs
 
 """The kinds of id.

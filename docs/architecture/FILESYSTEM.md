@@ -21,11 +21,12 @@ Only the Archivist mounts the working tree. Every other service reaches content 
 └── projections/                         # KB-wide projections and the storage-URI index
 ```
 
-The state dir is `<stateHome>/semiont/<the knowledge base's name>/`. `stateHome` is a member of the
-Archivist's configuration document, and has no default: a path nothing mounted would be written to
-and lost. The launcher writes it as the mount it gives the Archivist, the one service that reaches
-the state tree; every other service reads what it holds of the Archivist, on the bus or over its
-HTTP surface.
+The state dir is `stateHome` itself, the views and projections at its top: an Archivist serves one
+knowledge base, so the volume is that knowledge base's alone, and the supervisor keeps the
+Archivist's log beside them, in `archivist-supervisor/`. `stateHome` is a member of the Archivist's
+configuration document, and has no default: a path nothing mounted would be written to and lost.
+The launcher writes it as the mount it gives the Archivist, the one service that reaches the state
+tree; every other service reads what it holds of the Archivist, on the bus or over its HTTP surface.
 
 On the machine that runs the stack, that mount and every other store (the database, the graph, the
 vectors, the job queue, the anchored text, and the supervisor's log of the gateway and of the
@@ -33,7 +34,7 @@ Librarian) are directories the launcher keeps for the knowledge base. Each is mo
 container: two containers sharing a directory can each see a file at a different length. [The launcher's README](../../apps/launcher/README.md#where-the-launcher-keeps-its-files)
 says where, on each system, and `semiont status --verbose` lists them with what each takes on disk.
 The full layout of the log and the views is
-[specified with the Archivist](../protocol/ARCHIVIST.md).
+[specified with the Archivist](../../protocol/contract/ARCHIVIST.md).
 
 ## Content
 
@@ -83,14 +84,14 @@ the last event applied. It is derived from the event log and can be rebuilt at a
 
 None of it is on this filesystem. The job queue is the dispatcher's, and it keeps job state in the
 broker — a durable stream for delivery and lease, a key-value bucket for each job's record — in the
-layout [specs/src/jobs/storage.json](../../specs/src/jobs/storage.json) states. See
-[docs/protocol/JOBS.md](../protocol/JOBS.md).
+layout [protocol/specs/src/jobs/storage.json](../../protocol/specs/src/jobs/storage.json) states. See
+[protocol/contract/JOBS.md](../../protocol/contract/JOBS.md).
 
 ## Who reaches these paths
 
 The Archivist mounts the working tree and the state dir, and writes both: the event log in the
-tree, the views and the projections in the state dir. The Librarian mounts the state dir to read,
-and no piece of the working tree. No other service mounts either.
+tree, the views and the projections in the state dir. No other service mounts either: the
+Librarian reads what it needs of the views over the bus.
 
 ## Rebuilding what is derived
 
@@ -108,6 +109,6 @@ and [rebuilding derived state](../operator/administration/MAINTENANCE.md#rebuild
 
 ## Related
 
-- [The Archivist's specification](../protocol/ARCHIVIST.md) — the log's and the views' full layout
+- [The Archivist's specification](../../protocol/contract/ARCHIVIST.md) — the log's and the views' full layout
 - [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md) — the actors that read and write these stores
 - [Configuration](../operator/administration/CONFIGURATION.md) — where the paths are configured

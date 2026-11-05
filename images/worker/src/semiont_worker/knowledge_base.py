@@ -1,6 +1,6 @@
 """Each knowledge base the service serves, apart from every other: started, confirmed, worked at, and started again or left refused.
 
-`docs/protocol/WORKER-SERVICE.md` § Knowledge bases states it. What happens at
+`protocol/contract/WORKER-SERVICE.md` § Knowledge bases states it. What happens at
 one knowledge base happens there alone. The service starts every one at once,
 and each is, at any moment, `starting` (signing in, opening its stream,
 confirming it, or waiting to start again), `working` (confirmed, its engines
@@ -73,10 +73,11 @@ class KnowledgeBase:
             return self._agent.health()
         return WorkerKnowledgeBaseHealth(domain=self._served.entry.domain, state=self._state)
 
-    async def run(self) -> None:
+    async def run(self, told_to_stop: asyncio.Event) -> None:
         """Work at the knowledge base until it refuses the service, or is stopped: trouble ends a life, and another begins after a wait.
 
-        A failure nothing classifies is raised.
+        Told to stop while it is being confirmed, it returns. A failure nothing
+        classifies is raised.
         """
         entry = self._served.entry
         wait_ms = RECONNECT_MS
@@ -89,7 +90,8 @@ class KnowledgeBase:
             agent = AgentWorker(entry, self._served.clients, service=ServiceToken(self._served.credential))
             try:
                 async with agent:
-                    await agent.open()
+                    if not await agent.open(told_to_stop):
+                        return
                     LOG.info("Knowledge base confirmed", extra={"domain": entry.domain, "did": agent.did})
                     self._agent, self._state = agent, "working"
                     wait_ms = RECONNECT_MS
@@ -148,7 +150,7 @@ class KnowledgeBases:
         nothing classifies, at any of them, is raised.
         """
         stopping = asyncio.ensure_future(told_to_stop.wait())
-        running = [asyncio.ensure_future(knowledge_base.run()) for knowledge_base in self._each]
+        running = [asyncio.ensure_future(knowledge_base.run(told_to_stop)) for knowledge_base in self._each]
         waiting: set[asyncio.Task[None] | asyncio.Task[Literal[True]]] = {stopping, *running}
         try:
             while waiting != {stopping}:

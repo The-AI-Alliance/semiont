@@ -21,12 +21,12 @@
 #   4. The smelter's alone. It has the `tesseract` program, with its English
 #      data. And with no network, the Smelter's own reader and engine read a
 #      scanned page there: the words that are in the pixels of
-#      specs/src/smelter/fixtures/legible-scan.pdf, a document with no text
+#      protocol/specs/src/smelter/fixtures/legible-scan.pdf, a document with no text
 #      of its own. The reader is PDFium, which comes in a wheel, and the
 #      engine is the program. A Smelter loads the one and runs the other
 #      once it has read its document, which no check above gives it.
 #
-# Run by local-build.sh after it builds such an image, and by the image
+# Run by the local-build session after it builds such an image, and by the image
 # publish workflow before it pushes.
 set -eu
 
@@ -178,7 +178,7 @@ print(asyncio.run(read(Path(sys.argv[1]).read_bytes())))
 # The script runs, and expands, inside the container.
 # shellcheck disable=SC2016
 if ! stamp=$("$RT" run --rm --network none --entrypoint /bin/sh -e READ="$READ" \
-  -v "$REPOSITORY/specs/src/smelter/fixtures:/fixtures:ro" \
+  -v "$REPOSITORY/protocol/specs/src/smelter/fixtures:/fixtures:ro" \
   "$IMAGE" -c 'python -c "$READ" /fixtures/legible-scan.pdf' 2>&1); then
   echo "✗ $IMAGE does not read a scanned page with no network:"
   echo "$stamp"

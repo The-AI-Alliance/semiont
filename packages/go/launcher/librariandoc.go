@@ -1,7 +1,7 @@
 package launcher
 
 // librariandoc.go — the Librarian's configuration document: LibrarianConfig in
-// specs/, the Go type generated from it (packages/go/sdk). The launcher writes
+// protocol/specs/, the Go type generated from it (packages/go/sdk). The launcher writes
 // it for the Librarian it starts, every address a literal (placement), and
 // mounts it where the Librarian's image points its `--config` flag, so the
 // Librarian neither reads a knowledge base's documents nor resolves or
@@ -52,8 +52,9 @@ func librarianEngine(p placement, actor string, engine *api.Engine) (config api.
 
 // librarianSecrets: the variables the Librarian's document names, and so the
 // ones it is handed — the graph database's password, where somebody else runs
-// it; Voyage's key, where Voyage makes the vectors; and the key of each
-// provider an actor's engine names.
+// it; Voyage's key, where Voyage makes the vectors; its token to somebody
+// else's Qdrant (vectorsSecrets); and the key of each provider an actor's
+// engine names.
 func librarianSecrets(p placement) []string {
 	var names []string
 	add := func(found ...string) {
@@ -65,6 +66,8 @@ func librarianSecrets(p placement) []string {
 	}
 	add(graphSecrets(p)...)
 	add(embeddingSecrets(p)...)
+	_, token := vectorsSecrets(p)
+	add(token...)
 	for _, actor := range librarianActors {
 		if engine := actor.engine(p.st.Inference.Spec.Engines); engine != nil {
 			if name := providerKeyName(p, engine.Provider); name != nil {
@@ -87,10 +90,11 @@ func librarianDocument(p placement, served api.KbIdentity) ([]byte, error) {
 	doc.GatewayUrl = p.gatewayURL()
 	doc.Identity.Issuer = p.issuer()
 	doc.Archivist.Host, doc.Archivist.Port = p.archivist()
-	if doc.Graph, err = graphConfig(p, "the Librarian"); err != nil {
+	if doc.Graph, err = graphConfig(p, served, "the Librarian"); err != nil {
 		return nil, err
 	}
-	if doc.Vectors, err = vectorsConfig(p, "the Librarian"); err != nil {
+	_, token := vectorsTokenVars(p)
+	if doc.Vectors, err = vectorsConfig(p, "the Librarian", token); err != nil {
 		return nil, err
 	}
 	if doc.Embedding, err = embeddingConfig(p, "the Librarian"); err != nil {

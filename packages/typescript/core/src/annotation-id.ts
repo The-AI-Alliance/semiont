@@ -1,6 +1,6 @@
 /**
  * The id of an annotation a builder makes: worked out from what the
- * annotation is, never minted. specs/src/annotations/id-cases.json holds the
+ * annotation is, never minted. protocol/specs/src/annotations/id-cases.json holds the
  * rule, for this and for every other implementation.
  *
  * The builders (`annotation-builders.ts`) are its callers, and no one else
@@ -46,7 +46,7 @@ export interface AnnotationIdentity {
 
 /**
  * The order of two names by code point, which is the order the id's rule
- * states (specs/src/annotations/id-cases.json). A string compares by UTF-16
+ * states (protocol/specs/src/annotations/id-cases.json). A string compares by UTF-16
  * code unit, and that is another order: it puts a name with a character
  * outside the Basic Multilingual Plane before one with a character from
  * U+E000 to U+FFFF.

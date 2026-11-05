@@ -4,7 +4,7 @@ The document is the protocol's `WorkerConfig`. It is found, read and refused
 as every Python service's is (`semiont_service.config`), and so is the key the
 service signs in with. A secret is never in the document. The document names
 the variable that holds an engine's key, and the environment is read for it
-here. `docs/protocol/WORKER-SERVICE.md` § Configuration states each refusal.
+here. `protocol/contract/WORKER-SERVICE.md` § Configuration states each refusal.
 """
 
 from collections.abc import Mapping

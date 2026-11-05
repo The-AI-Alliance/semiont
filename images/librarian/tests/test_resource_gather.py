@@ -1,4 +1,4 @@
-"""Gathering around a resource (`docs/protocol/LIBRARIAN.md` § Gathering around a resource), over fakes of what it reads by.
+"""Gathering around a resource (`protocol/contract/LIBRARIAN.md` § Gathering around a resource), over fakes of what it reads by.
 
 The wait for the index is stated in § The two waits. The graph around the
 resource is built by the Librarian's own code: only the stores, the two waits

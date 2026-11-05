@@ -1,4 +1,4 @@
-"""What the SDK tells OpenTelemetry, held to the table every SDK is held to (`specs/src/sdk-telemetry/telemetry.json`).
+"""What the SDK tells OpenTelemetry, held to the table every SDK is held to (`protocol/specs/src/sdk-telemetry/telemetry.json`).
 
 The conformance suite holds it from outside, through an exporter. This holds
 it here, in memory: every row arrives, of its kind, with the attributes every

@@ -238,7 +238,7 @@ func (i Issuer) Revoke(ctx context.Context, revocationEndpoint, clientID, refres
 // took to give up. A renewal another program made while the grant was in
 // flight stands, and its access token is the one given. A sign-in signed out
 // while it was being renewed stays signed out, and its new token is given to
-// nobody (specs/src/sign-in-store/README.md, Renewing it).
+// nobody (protocol/specs/src/sign-in-store/README.md, Renewing it).
 func (i Issuer) RenewKept(ctx context.Context, kept SignInKept, holding string) (string, error) {
 	held, ok, err := kept.Held(ctx)
 	if err != nil || !ok {

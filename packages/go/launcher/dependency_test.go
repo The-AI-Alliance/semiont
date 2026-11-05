@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,14 +74,14 @@ func TestTeardownIsTheStartWalkReversed(t *testing.T) {
 // stop share. It is derived rather than hand-written: a hand-written list can
 // tear the Archivist down ahead of the weaver and smelter that dial it at
 // every request — a dependency ahead of its dependents. Reversing the start
-// walk cannot make that mistake. The worker is shared, stopped from its
-// own record (stopSharedServices).
+// walk cannot make that mistake. The worker and the issuer are shared,
+// stopped from their own records (stopSharedServices).
 func TestAStacksSweepDerivesTheTeardownOrder(t *testing.T) {
 	assertNames(t, "stackContainers", stackContainers("kb"), []string{
 		"semiont-kb-weaver", "semiont-kb-smelter",
 		"semiont-kb-dispatcher", "semiont-kb-librarian", "semiont-kb-archivist",
 		"semiont-kb-qdrant", "semiont-kb-neo4j",
-		"semiont-kb-gateway", "semiont-kb-keycloak", "semiont-kb-nats", "semiont-kb-postgres",
+		"semiont-kb-gateway", "semiont-kb-nats",
 	})
 }
 
@@ -103,7 +104,7 @@ func TestDryRunLaunchOrderFollowsTheDeclaredStartOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	key := rootKey(ident.didWeb(), fixtureRoot)
-	roleOf := map[string]string{}
+	roleOf := maps.Clone(sharedRoleByContainer)
 	for _, d := range serviceDescriptors {
 		if d.name != "" {
 			roleOf[d.containerName(key)] = d.role

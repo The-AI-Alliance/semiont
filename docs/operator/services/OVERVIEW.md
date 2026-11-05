@@ -25,18 +25,18 @@ This is the contract a deployment satisfies, whoever does the deploying. The lau
 
 | Service | Configuration | Mounts | Reaches | Instances |
 |---|---|---|---|---|
-| gateway | `/etc/semiont/gateway.json`, a [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json) document | none | The issuer's published keys; the Archivist; the broker, when the signal plane is `nats` | any number, once the signal plane is `nats` |
-| dispatcher | `/etc/semiont/dispatcher.json`, a [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json) document | none | The gateway's bus; the broker's JetStream | one |
-| archivist | `/etc/semiont/archivist.json`, an [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json) document | The working tree at `/kb`, read-write; the state directory, where it writes views; the anchored-text store, read-write. No other container mounts any of them | The gateway's bus | one |
-| librarian | `/etc/semiont/librarian.json`, a [`LibrarianConfig`](../../../specs/src/components/schemas/LibrarianConfig.json) document | none | The gateway, for the bus (where it reads what the record holds of a resource, and the people a reply names) and for anchored text; graph; vectors; embedding; inference; the Archivist, for bytes | one |
-| worker | `/etc/semiont/worker.json`, a [`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json) document | none | The gateway, for the bus and for bytes; inference | any number |
-| smelter | `/etc/semiont/smelter.json`, a [`SmelterConfig`](../../../specs/src/components/schemas/SmelterConfig.json) document | Its document alone | The gateway's bus; vectors; embedding; the Archivist, for bytes, for a resource's annotations and to keep the anchored-text store | one |
-| weaver | `/etc/semiont/weaver.json`, a [`WeaverConfig`](../../../specs/src/components/schemas/WeaverConfig.json) document | none | The gateway's bus; graph | one |
+| gateway | `/etc/semiont/gateway.json`, a [`GatewayConfig`](../../../protocol/specs/src/components/schemas/GatewayConfig.json) document | none | The issuer's published keys; the Archivist; the broker, when the signal plane is `nats` | any number, once the signal plane is `nats` |
+| dispatcher | `/etc/semiont/dispatcher.json`, a [`DispatcherConfig`](../../../protocol/specs/src/components/schemas/DispatcherConfig.json) document | none | The gateway's bus; the broker's JetStream | one |
+| archivist | `/etc/semiont/archivist.json`, an [`ArchivistConfig`](../../../protocol/specs/src/components/schemas/ArchivistConfig.json) document | The working tree at `/kb`, read-write; the state directory, where it writes views; the anchored-text store, read-write. No other container mounts any of them | The gateway's bus | one |
+| librarian | `/etc/semiont/librarian.json`, a [`LibrarianConfig`](../../../protocol/specs/src/components/schemas/LibrarianConfig.json) document | none | The gateway, for the bus (where it reads what the record holds of a resource, and the people a reply names) and for anchored text; graph; vectors; embedding; inference; the Archivist, for bytes | one |
+| worker | `/etc/semiont/worker.json`, a [`WorkerConfig`](../../../protocol/specs/src/components/schemas/WorkerConfig.json) document | none | The gateway, for the bus and for bytes; inference | any number |
+| smelter | `/etc/semiont/smelter.json`, a [`SmelterConfig`](../../../protocol/specs/src/components/schemas/SmelterConfig.json) document | Its document alone | The gateway's bus; vectors; embedding; the Archivist, for bytes, for a resource's annotations and to keep the anchored-text store | one |
+| weaver | `/etc/semiont/weaver.json`, a [`WeaverConfig`](../../../protocol/specs/src/components/schemas/WeaverConfig.json) document | none | The gateway's bus; graph | one |
 | browser | none; `PORT` only | none | nothing | any number |
 
 Every service but the Browser has its own service account at the knowledge base's issuer, which it receives as `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`. The worker is the exception: it holds one key, `SEMIONT_OIDC_CLIENT_KEY`, and its document names its client at each knowledge base it serves. It signs in with that account, and the issuer's token is its bearer at the gateway, which names it by that account: the agent its work is attributed to.
 
-No service reads the knowledge base's TOML: each reads its document, which names every secret by the variable that holds it. [`service-environment/variables.json`](../../../specs/src/service-environment/variables.json) lists every environment variable the gateway, the dispatcher and the Archivist read.
+No service reads the knowledge base's TOML: each reads its document, which names every secret by the variable that holds it. [`service-environment/variables.json`](../../../protocol/specs/src/service-environment/variables.json) lists every environment variable the gateway, the dispatcher and the Archivist read.
 
 Why each service has one instance or many is in [Scaling](../administration/SCALING.md). Which secrets reach which service is in [Secrets](SECRETS.md).
 
@@ -57,7 +57,7 @@ Each row is a role a stack needs, and the technology the launcher runs for it. A
 | `traces` | Jaeger | 16686 (UI), 14318 (OTLP) | The collector forwards traces to it |
 | `metrics` | Prometheus | 9090 | Scrapes the collector |
 
-The ports in both tables are where each container listens. The launcher publishes a knowledge base's at the same ports on its port block 0, 10 higher on block 1, and so on, and every document it stages names the published ones ([Ports](../LOCAL-SEMIONT.md#ports)). The gateway is published at the port its document commits. The worker, the Browser, Ollama and the telemetry are shared, at their own ports.
+The ports in both tables are where each container listens. The launcher publishes a knowledge base's at the same ports on its port block 0, 10 higher on block 1, and so on, and every document it stages names the published ones ([Ports](../LOCAL-SEMIONT.md#ports)). The gateway is published at the port its document commits. The worker, the Browser, Ollama and the telemetry are shared, at their own ports, and so is the Qdrant of the knowledge bases that name the shared vector store, at the port its document places it, 6330.
 
 `embedding` never has a container of its own: an Ollama embedding is served by the Ollama that `inference` runs, and Voyage is a remote API. `semiont start --no-observe` leaves out `traces` and `metrics`; the collector still runs.
 
@@ -88,7 +88,7 @@ Every service answers a health request on its own port. `semiont status` probes 
 | `identity` | the realm's own URL |
 | `identity-store`, `messaging` | a TCP connect |
 | `graph` | `GET /` on 7474 |
-| `vectors` | `GET /readyz` on 6333 |
+| `vectors` | `GET /readyz` on 6330, the shared Qdrant's, or on the knowledge base's own |
 | `inference`, `embedding` | `GET /api/version` on 11434 |
 | `collector` | `GET /metrics` on 24110 |
 | `traces` | `GET /` on 16686 |
@@ -100,7 +100,9 @@ These answer liveness: the process is up and serving. The gateway's `/api/health
 
 `--service <name>` on `semiont start`, `stop`, `logs` and `status` takes a role name from the tables above: `gateway`, `dispatcher`, `archivist`, `librarian`, `worker`, `smelter`, `weaver`, `browser`, `identity`, `identity-store`, `messaging`, `graph`, `vectors`, `inference`, `embedding`, `collector`, `traces` or `metrics`. It takes exactly one. Omitting it means the whole stack. Each of these commands acts on the knowledge base whose clone you stand in, or the one `--root <path>` names: `semiont logs --service gateway` follows that knowledge base's gateway.
 
-Several knowledge bases run side by side on one machine, so each one's containers are named for it: `semiont-<kb>-<product>`. `<product>` is `gateway`, `dispatcher`, `archivist`, `librarian`, `smelter`, `weaver`, `keycloak`, `postgres`, `nats`, `neo4j` or `qdrant`. `<kb>` is the knowledge base's did:web domain, the `site.domain` in its [`.semiont/config.yaml`](../administration/CONFIGURATION.md#semiontconfigyaml), with each run of characters outside `A-Z a-z 0-9 . _ -` replaced by one `-`. So `did:web:example.org:my-kb` runs its gateway as `semiont-example.org-my-kb-gateway`. The shared services serve every knowledge base here and are named `semiont-<name>`: `semiont-worker`, `semiont-browser`, `semiont-ollama`, `semiont-otel-collector`, `semiont-jaeger`, `semiont-prometheus`.
+Several knowledge bases run side by side on one machine, so each one's containers are named for it: `semiont-<kb>-<product>`. `<product>` is `gateway`, `dispatcher`, `archivist`, `librarian`, `smelter`, `weaver`, `nats`, `neo4j` or `qdrant`. `<kb>` is the knowledge base's did:web domain, the `site.domain` in its [`.semiont/config.yaml`](../administration/CONFIGURATION.md#semiontconfigyaml), with each run of characters outside `A-Z a-z 0-9 . _ -` replaced by one `-`. So `did:web:example.org:my-kb` runs its gateway as `semiont-example.org-my-kb-gateway`. The shared services serve every knowledge base here and are named `semiont-<name>`: `semiont-worker`, `semiont-browser`, `semiont-keycloak`, `semiont-postgres`, `semiont-ollama`, `semiont-otel-collector`, `semiont-jaeger`, `semiont-prometheus`, `semiont-qdrant`.
+
+`semiont-qdrant` is the Qdrant of every knowledge base whose index names the shared vector store, as `semiont init` writes; one whose index runs a Qdrant of its own runs it as `semiont-<kb>-qdrant`.
 
 ## Related
 

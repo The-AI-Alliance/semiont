@@ -51,10 +51,10 @@ func TestHowLongAGenerationMayBeSilentGrowsWithWhatWasAskedOfIt(t *testing.T) {
 	}
 }
 
-// specSchema is a schema of specs/src/components/schemas.
+// specSchema is a schema of protocol/specs/src/components/schemas.
 func specSchema(t *testing.T, name string) map[string]json.RawMessage {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "components", "schemas", name+".json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "protocol", "specs", "src", "components", "schemas", name+".json"))
 	if err != nil {
 		t.Fatal(err)
 	}

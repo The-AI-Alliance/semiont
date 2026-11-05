@@ -1,4 +1,4 @@
-"""What the worker tells OpenTelemetry of its work: its rows of `specs/src/service-telemetry/telemetry.json`.
+"""What the worker tells OpenTelemetry of its work: its rows of `protocol/specs/src/service-telemetry/telemetry.json`.
 
 It takes OpenTelemetry's API and nothing more, so recording does nothing
 until the process it runs in installs a provider

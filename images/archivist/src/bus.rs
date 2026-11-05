@@ -3,7 +3,7 @@
 //!
 //! The rosters and the dispatch name each channel by its type, which exists
 //! only for a channel the bus registry declares. `lint:spec-channel-rosters`
-//! holds the two to each other and to docs/protocol/ARCHIVIST.md.
+//! holds the two to each other and to protocol/contract/ARCHIVIST.md.
 
 use crate::archivist::{Archivist, Refusal};
 use crate::{browse, commands};

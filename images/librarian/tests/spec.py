@@ -1,6 +1,6 @@
 """Where the repository around this project is, for the tests that hold the project to it, and how a case table of it is read.
 
-The Librarian's case tables are in `specs/src/librarian`. A runner names its
+The Librarian's case tables are in `protocol/specs/src/librarian`. A runner names its
 table's path whole, in its own file.
 """
 
@@ -11,7 +11,7 @@ from pydantic import JsonValue, TypeAdapter
 
 PROJECT = Path(__file__).resolve().parents[1]
 ROOT = PROJECT.parents[1]
-SPEC = ROOT / "specs/src"
+SPEC = ROOT / "protocol/specs/src"
 SDK = ROOT / "packages/python/sdk"
 
 type JsonObject = dict[str, JsonValue]

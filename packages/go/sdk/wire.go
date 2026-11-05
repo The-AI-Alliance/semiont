@@ -2,7 +2,7 @@ package semiont
 
 // A client's bus over its transport: emits, frames and requests, by the
 // channel's name. A request is an emit that expects a correlated reply
-// (docs/protocol/TRANSPORT-CONTRACT.md § Requests).
+// (protocol/contract/TRANSPORT-CONTRACT.md § Requests).
 
 import (
 	"bytes"

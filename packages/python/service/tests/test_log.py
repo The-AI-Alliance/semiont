@@ -1,6 +1,6 @@
 """How the process's log is written: an event a line, on stdout, in the form and from the level its configuration document names.
 
-Each service's page of `docs/protocol` states it, and that service's
+Each service's page of `protocol/contract` states it, and that service's
 conformance suite holds the lines a started service writes. Here is each
 form's own shape, and what is and is not written. The service that writes
 here is the Worker, as an example: its word, and the loggers that are its own.

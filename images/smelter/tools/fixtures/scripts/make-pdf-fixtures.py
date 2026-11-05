@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Write the PDF fixtures of the Smelter's extraction cases into specs/src/smelter/fixtures/.
+"""Write the PDF fixtures of the Smelter's extraction cases into protocol/specs/src/smelter/fixtures/.
 
     python3 images/smelter/tools/fixtures/scripts/make-pdf-fixtures.py
 
 Each fixture is written object by object with the standard library alone, and is the same bytes on every run and on
 every machine: no date, no random identifier, and no compression but the deflate written here, so that no build of
-zlib decides a byte. specs/src/smelter/extraction-cases.json states what a reader must find in each. Text is drawn in
+zlib decides a byte. protocol/specs/src/smelter/extraction-cases.json states what a reader must find in each. Text is drawn in
 Helvetica, a standard font that needs no font file, and every page is US Letter (612 by 792 points).
 
     single-line.pdf     one line of text on one page
@@ -37,7 +37,7 @@ from typing import Final
 
 __all__ = ["fixtures"]
 
-_DIRECTORY: Final = Path(__file__).resolve().parents[5] / "specs" / "src" / "smelter" / "fixtures"
+_DIRECTORY: Final = Path(__file__).resolve().parents[5] / "protocol" / "specs" / "src" / "smelter" / "fixtures"
 
 # ── A document ───────────────────────────────────────────────────────────────
 

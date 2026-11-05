@@ -1,12 +1,12 @@
 """Naming the principals a reply mentions, over one read of their profiles.
 
-No stored thing carries a principal's name (`docs/protocol/LIBRARIAN.md` §
+No stored thing carries a principal's name (`protocol/contract/LIBRARIAN.md` §
 Names). A person and an agent are each identified by an id, and what each
 last said it is called is its profile, in the profiles projection, which the
 Archivist keeps and is asked, on the bus, for the profiles of the principals
 a reply mentions. A reply is named as it goes out: every principal in it,
 wherever it is, is given the name the projection states for its id.
-`specs/src/principals/naming-cases.json` states the rule, and the tests run
+`protocol/specs/src/principals/naming-cases.json` states the rule, and the tests run
 every case of it.
 
 A reply is read here as the wire carries it: objects, lists, text, numbers

@@ -2,7 +2,7 @@
  * The annotation builders are the SDK's to hand out: a worker that records
  * what a model found imports them with its client, and restates none of how a
  * quote is found, a selector made or an id derived. The set is the one
- * specs/src/annotations/builder-cases.json holds every SDK to, and each is
+ * protocol/specs/src/annotations/builder-cases.json holds every SDK to, and each is
  * core's own function, whose behaviour that table's test holds.
  */
 
@@ -12,7 +12,7 @@ import * as core from '@semiont/core';
 import { annotationOfResource, annotationOfSpan, reconcile, SpanRefusedError } from '../index';
 
 const table: { builders: string[] } = JSON.parse(
-  readFileSync(new URL('../../../../../specs/src/annotations/builder-cases.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../protocol/specs/src/annotations/builder-cases.json', import.meta.url), 'utf8'),
 );
 
 /** Each builder the SDK exports, under the name the table gives it, beside core's. */

@@ -7,7 +7,7 @@
  * standing in on this machine. What the program sends is read off them. The
  * issuer admits the worker by its key, as a knowledge base's does: it grants
  * a token only for an assertion the worker's key signed
- * (specs/src/session/client-assertion-cases.json).
+ * (protocol/specs/src/session/client-assertion-cases.json).
  *
  * The program imports `@semiont/sdk` and `@semiont/core` by name, so what
  * runs is the built packages: `npm run build:packages -- @semiont/sdk` comes
@@ -28,7 +28,7 @@ const PACKAGE = join(REPO, 'packages/typescript/sdk');
 const SKILL = readFileSync(join(REPO, 'docs/builder/skills/semiont-worker/SKILL.md'), 'utf-8');
 /** What a grant that proves an account by its key posts. */
 const ASSERTION: { form: string[]; grantType: string; assertionType: string } = JSON.parse(
-  readFileSync(join(REPO, 'specs/src/session/client-assertion-cases.json'), 'utf-8'),
+  readFileSync(join(REPO, 'protocol/specs/src/session/client-assertion-cases.json'), 'utf-8'),
 );
 
 /** The skill's TypeScript blocks that are a whole program: the ones that have a `main`. */
@@ -237,7 +237,7 @@ describe('the complete worker of the semiont-worker skill', () => {
     }
 
     // A case of the table the builders are held by: a text that is one sentence, and the highlight of all of it.
-    const table: unknown = JSON.parse(readFileSync(join(REPO, 'specs/src/annotations/builder-cases.json'), 'utf-8'));
+    const table: unknown = JSON.parse(readFileSync(join(REPO, 'protocol/specs/src/annotations/builder-cases.json'), 'utf-8'));
     const stated = list(member(table, 'cases'))[2];
     const page = text(member(stated, 'text'));
     expect([member(stated, 'resourceId'), member(stated, 'motivation'), member(stated, 'span')]).toEqual([

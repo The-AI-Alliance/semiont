@@ -20,7 +20,7 @@ shows nobody anything. What it needs of its surroundings it is given:
   unusable.
 
 **How a token is held** is one rule for every SDK
-(`specs/src/session/cases.json`, which this package's tests run): when a
+(`protocol/specs/src/session/cases.json`, which this package's tests run): when a
 token expires, read from its own claims, and how long to wait before renewing
 it. The margin before expiry is half the token's lifetime, capped at
 `REFRESH_BEFORE_EXP_MS`. A fixed margin can equal the lifetime an issuer

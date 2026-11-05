@@ -1,6 +1,6 @@
 package semiont
 
-// The sign-ins `semiont login` keeps (specs/src/sign-in-store): one per
+// The sign-ins `semiont login` keeps (protocol/specs/src/sign-in-store): one per
 // stack, in <stateDir>/tokens.json, under the stack's key (local,
 // codespace:<owner>/<name>). One sign-in serves the launcher's verbs and an
 // application built on any SDK. What the file holds was issued to the script

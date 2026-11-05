@@ -1,4 +1,4 @@
-//! The sign-ins `semiont login` keeps (specs/src/sign-in-store), as a
+//! The sign-ins `semiont login` keeps (protocol/specs/src/sign-in-store), as a
 //! `SessionStorage`: one sign-in serves the launcher's verbs and an
 //! application built on this SDK.
 //!
@@ -27,7 +27,7 @@
 //! sign-in as this release knows one is written back as it was. Under the
 //! lock, the file's directory is kept to its owner, as the launcher keeps its
 //! state home: the mode, and on Windows the access list, which what is made in
-//! it inherits, that specs/src/sign-in-store/owner-only.json states.
+//! it inherits, that protocol/specs/src/sign-in-store/owner-only.json states.
 //!
 //! A file that cannot be read or written is said to `on_failure`, and the
 //! store then behaves as if the file held nothing, or the write was not
@@ -233,7 +233,7 @@ fn owner_only_file() -> OpenOptions {
 }
 
 /// The systems the state home differs by, as
-/// specs/src/sign-in-store/cases.json names them.
+/// protocol/specs/src/sign-in-store/cases.json names them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum System {
     MacOs,
@@ -265,7 +265,7 @@ impl System {
 }
 
 /// The launcher's state home, from what the system says of the person's
-/// directories (specs/src/sign-in-store/cases.json): `home` is the home
+/// directories (protocol/specs/src/sign-in-store/cases.json): `home` is the home
 /// directory (`HOME`, or `USERPROFILE` on Windows), `xdg_state_home` is
 /// `XDG_STATE_HOME` and `local_app_data` is `LOCALAPPDATA`, each none when it
 /// is not set. None when there is no home.
@@ -571,7 +571,7 @@ impl SessionStorage for SignInStore {
 
     /// What another context writes to the storage beneath. The file is not
     /// watched: what another process renewed is read the next time this
-    /// one renews, and used as it is (specs/src/sign-in-store/README.md,
+    /// one renews, and used as it is (protocol/specs/src/sign-in-store/README.md,
     /// Renewing it).
     fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {
         self.rest.subscribe(on_change)

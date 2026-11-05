@@ -1,4 +1,4 @@
-"""What a point of the index is, held to `specs/src/vectors/payload-cases.json` with no store.
+"""What a point of the index is, held to `protocol/specs/src/vectors/payload-cases.json` with no store.
 
 The table is the one every implementation of the stores runs. Here
 `semiont_vectors.payload` alone is held to all of it: the id a point is kept
@@ -10,8 +10,11 @@ keeps a decline as a point.
 
 What a store answers after it was handed the same writes is the store
 contract's (`store_contract.py`), which every store runs. What the table
-states of Qdrant's collections is the Qdrant store's to be held to, and so
-is the payload of the point that remembers a decline.
+states of Qdrant's collections, their names among it, is the Qdrant store's
+to be held to, and so is the payload of the point that remembers a decline.
+Of the names, here is held only what the table says of them as a whole:
+that each knowledge base it names has a name for each of its collections,
+and that no two knowledge bases share one.
 """
 
 from typing import Final
@@ -62,6 +65,7 @@ PARTS: Final[dict[str, tuple[str, ...]]] = {
     "stampRead": ("payload", "stamp"),
     "annotationStampRead": ("payload", "stamp"),
     "resultRead": ("collection", "payload", "score", "result"),
+    "collectionsNamed": ("kb", "names"),
 }
 """Each part a case may be, and the members that part may have."""
 
@@ -74,7 +78,7 @@ def read_result(payload: JsonObject, score: float) -> JsonObject:
     return stated
 
 
-def test_the_table_has_a_case_of_each_of_its_six_parts_and_each_case_is_of_one() -> None:
+def test_the_table_has_a_case_of_each_of_its_seven_parts_and_each_case_is_of_one() -> None:
     only(TABLE, ("$comment", "runBy", "collections", "cases"), "the table")
     for name in PARTS:
         assert part(name) != [], name
@@ -162,3 +166,16 @@ def test_a_result_read(given: JsonObject) -> None:
     assert text(given["collection"], "collection") in COLLECTIONS
     payload = thing(given["payload"], "payload")
     assert read_result(payload, number(given["score"], "score")) == given["result"]
+
+
+def test_each_knowledge_base_has_a_name_for_each_collection_and_no_two_share_one() -> None:
+    named = [thing(case["collectionsNamed"], "collectionsNamed") for case in PAYLOAD_CASES if "collectionsNamed" in case]
+    kbs = [text(given["kb"], "kb") for given in named]
+    assert len(set(kbs)) == len(kbs), "a knowledge base is named by more than one case"
+    every: list[str] = []
+    for given in named:
+        names = thing(given["names"], "names")
+        assert sorted(names) == sorted(COLLECTIONS), given["kb"]
+        every.extend(text(name, "name") for name in names.values())
+    # Two knowledge bases whose collections met in one name would read and purge each other's points.
+    assert len(set(every)) == len(every)

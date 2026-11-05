@@ -189,14 +189,14 @@ nor `gemma3:1b` answered them correctly within their timeouts.
 [`images/tests/stack/smoke-stack.sh <images> --e2e`](../tests/stack/smoke-stack.sh),
 nightly on `main`, on dispatch, and on a pull request that changes the
 workflow or its script. The script boots a new knowledge base's stack on
-docker, with the inference and embedding models `semiont init` names, and,
+the runtime selected by `CONTAINER_RUNTIME` (or the first responding engine), with the inference and embedding models `semiont init` names, and,
 after its own checks and before it stops the stack:
 
 - makes the suite's user with `semiont useradd`, a password generated for the
   run, and passes both as `E2E_EMAIL` and `E2E_PASSWORD`;
 - runs `npm ci && npm test` here, in `mcr.microsoft.com/playwright:v<version>-noble`,
-  `<version>` read from `package.json`, with `--network host`, so the
-  `localhost` defaults reach the stack;
+  `<version>` read from `package.json`, with `--network host` on Docker/Podman
+  or the existing localhost bridge on Apple `container`, so the `localhost` defaults reach the stack;
 - adds a JSON report to the list and HTML ones, at
   `test-results/report.json`.
 
@@ -204,9 +204,11 @@ A failing suite fails the job, prints the stack's container logs, and still
 stops the stack. Whatever the result, `playwright-report/` and
 `test-results/` are kept as the run's `e2e-report` artifact for 30 days, and a
 table of the specs with the tier's wall time is written to the run's summary.
-On a laptop with docker, `images/tests/stack/smoke-stack.sh local --e2e` does the
-same; Apple's `container` has no `--network host`, so there it refuses, and
-the [Quick start](#quick-start) is the way.
+On a laptop, `make smoke` does the same against `:local` images, including on Apple
+`container`. Use `CONTAINER_RUNTIME=container make smoke` to select it explicitly.
+A selected runtime that is not responding fails with startup instructions; nothing is
+started automatically. The [Quick start](#quick-start) runs the suite alone against a stack
+that is already up.
 
 ## Running against a freshly-built stack
 
@@ -216,7 +218,7 @@ that exactly matches the current branch's source:
 ```sh
 # 1. Build all @semiont/* packages, publish to local Verdaccio,
 #    build the semiont-browser image.
-./images/local-build.sh
+make local-build
 
 # 2. From the KB project (typically ../semiont-template-kb), bring up
 #    the full stack from the :local images just built: name them in
@@ -252,7 +254,7 @@ for inspecting cross-service traces while debugging an e2e failure
   `launchctl setenv OLLAMA_HOST 0.0.0.0` (and quit/relaunch), or use
   `semiont start --config anthropic` to skip Ollama entirely.
 - **Code changes require rebuilding the `:local` images.** Rerun
-  `./images/local-build.sh`, then restart the stack with
+  `make local-build`, then restart the stack with
   `semiont start`, its documents naming the `:local` images. Without the
   rebuild + restart, you'll run yesterday's images with today's source.
 - **SPA tracing is not wired.** Gateway / worker / smelter
@@ -260,5 +262,5 @@ for inspecting cross-service traces while debugging an e2e failure
   therefore start at `bus.dispatch:*` (server-side EMIT receive)
   rather than the SPA's `bus.emit:*`. Enabling SPA tracing
   would need `VITE_OTEL_OTLP_ENDPOINT` threaded
-  through `local-build.sh` into the vite build container, plus
+  through `make local-build` into the vite build container, plus
   `COLLECTOR_OTLP_HTTP_CORS_ALLOWED_ORIGINS=*` on the Jaeger sidecar.

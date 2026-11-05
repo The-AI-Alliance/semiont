@@ -251,7 +251,7 @@ describe('HistoryEvent', () => {
     expect(screen.getByText(PERSON)).toBeInTheDocument();
   });
 
-  it("names a software peer's row by its provider and model", () => {
+  it("names a software peer's row by its name, then its provider and model", () => {
     const event = makeStoredEvent({
       userId: userId(WORKER),
       agent: { '@type': 'Software', '@id': WORKER, name: 'semiont-worker', provider: 'anthropic', model: 'claude-haiku-4-5' },
@@ -268,7 +268,7 @@ describe('HistoryEvent', () => {
       />
     );
 
-    expect(screen.getByText('anthropic claude-haiku-4-5')).toBeInTheDocument();
+    expect(screen.getByText('semiont-worker (anthropic claude-haiku-4-5)')).toBeInTheDocument();
   });
 
   it('renders tag content with tag class', () => {

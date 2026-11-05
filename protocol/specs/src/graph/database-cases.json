@@ -1,0 +1,45 @@
+{
+  "$comment": "Which database of a graph store holds a knowledge base's graph, as whatever names it must name it. A knowledge base's graph is in the database named `kb-` and then the first 60 of the 64 hexadecimal digits, in lower case, of the SHA-256 of the knowledge base's DID, which is `did:web:` and its domain (protocol/specs/src/kb-identity/cases.json), taken of the DID's UTF-8 bytes: the digits its vector index's collections' names begin with (protocol/specs/src/vectors/payload-cases.json). So the graphs of two knowledge bases on one server are in two databases, and nobody can make two DIDs whose databases meet. The DID is hashed and not written into the name: Neo4j takes a database's name of 3 to 63 characters, beginning with a letter, of the letters, the digits, `.` and `-`, and a DID holds `:`, may hold `%` and characters outside ASCII, and may be longer than that. The name begins `kb-` because it must begin with a letter, and it keeps 60 digits because 63 characters is the longest a name may be; the 240 bits they keep are more than any two knowledge bases need to stay apart. Neo4j reads a name without regard to case, and these are in lower case already. Each case is a knowledge base's DID (`kb`) and the `database` its graph is in. WHO RUNS WHAT. The launcher names the database: in the Weaver's document and the Librarian's (`Neo4jGraphConfig.database`), and to a Neo4j it runs, which makes the database when it first starts, as its one database. A Neo4j somebody else runs must already hold it. The Weaver and the Librarian are told the name, and work nothing out. Add a case here before changing an implementation.",
+  "runBy": {
+    "launcher": [
+      "packages/go/launcher/weaverdoc_test.go"
+    ]
+  },
+  "cases": [
+    {
+      "why": "a knowledge base of the shape semiont init writes: its graph is in the database named by the hash of its DID",
+      "kb": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb",
+      "database": "kb-dab801537d2dd1939a1e75fd6ec796cf0240a9f57cd12b655e21a6c675f2"
+    },
+    {
+      "why": "the launcher's fixture knowledge base: its graph is in a database of its own",
+      "kb": "did:web:example.github.io:test-kb",
+      "database": "kb-547e3c826a354cb6ad551216e04fa03e33852e0b03e92a537fb345d702e9"
+    },
+    {
+      "why": "another knowledge base on the same server has a database of its own",
+      "kb": "did:web:example.github.io:plain-kb",
+      "database": "kb-4f3ef9ebed2e4b1ee7ee748091f2b6adbb5a4c98eb083538678c89f0b5e9"
+    },
+    {
+      "why": "a domain with a port holds `%`, which Neo4j refuses in a name, and the hash holds none",
+      "kb": "did:web:localhost%3A4000",
+      "database": "kb-3c6ae07c9adb577bab51736adb1e149fc9572cfa1af49c6fbc00191c0ed7"
+    },
+    {
+      "why": "a domain of several segments: the launcher's key of it, which writes each run of other characters as `-`, is the key of the next case's DID too, and the databases are not",
+      "kb": "did:web:example.org:group:deep-kb",
+      "database": "kb-ef1a9eb2b6bf525d334f9bf56c6d1b1581c46c1711acd66162fb59ae1bd5"
+    },
+    {
+      "why": "the DID the case before this one's meets under the launcher's key: its graph is in another database",
+      "kb": "did:web:example.org:group-deep-kb",
+      "database": "kb-5cea28092b4c71577d3f0b3a0b888ce06445eca89a14765e2cdc71f8c27c"
+    },
+    {
+      "why": "a domain may hold any character but white space: the DID's UTF-8 bytes are hashed, so a character outside ASCII names the same database in every language",
+      "kb": "did:web:bücher.example",
+      "database": "kb-7ad8e1e381bcfd7654f4ed84c214aeae6e40a9512761ae58d077b5fbabf4"
+    }
+  ]
+}

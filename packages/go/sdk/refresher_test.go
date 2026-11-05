@@ -1,7 +1,7 @@
 package semiont_test
 
 // What keeps a client's queries true: each row of
-// specs/src/client/refresh.json, and the rules every row is applied under.
+// protocol/specs/src/client/refresh.json, and the rules every row is applied under.
 //
 // The conformance corpus holds each row against a real gateway. Here each is
 // held against a scripted one, where a test also says what no gateway can be

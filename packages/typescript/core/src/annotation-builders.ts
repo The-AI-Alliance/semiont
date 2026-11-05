@@ -8,8 +8,8 @@
  *   - `annotationOfResource` builds an annotation of a resource as a whole.
  *
  * Every SDK has these three, and no other builder:
- * specs/src/annotations/builder-cases.json names them and holds the two that
- * build, and specs/src/annotations/reconcile-cases.json holds `reconcile`.
+ * protocol/specs/src/annotations/builder-cases.json names them and holds the two that
+ * build, and protocol/specs/src/annotations/reconcile-cases.json holds `reconcile`.
  *
  * A text is a plain string. `start` and `end` are offsets: they count Unicode
  * code points from the start of the text, and so does every length a rule
@@ -90,7 +90,7 @@ export interface ReconciledSpan extends TextSpan {
 
 /**
  * A span `annotationOfSpan` refused. `code` names the refusal: one of the
- * `spanRefusal` codes of specs/src/errors/codes.json, the table every SDK's
+ * `spanRefusal` codes of protocol/specs/src/errors/codes.json, the table every SDK's
  * codes are generated from.
  */
 export class SpanRefusedError extends SemiontError {

@@ -6,7 +6,7 @@
  * is checked with the key's public half, and its claims read. `fetch` is
  * stubbed. The shape the table states is `client-assertion-cases.test.ts`'s;
  * the form a grant posts is read from the same table,
- * specs/src/session/client-assertion-cases.json.
+ * protocol/specs/src/session/client-assertion-cases.json.
  */
 import { generateKeyPairSync, verify, type KeyObject } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -18,7 +18,7 @@ import { SignInError } from '../sign-in-error';
 import { isObject } from '../type-guards';
 
 const table: { form: string[]; grantType: string } = JSON.parse(
-  readFileSync(new URL('../../../../../specs/src/session/client-assertion-cases.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../protocol/specs/src/session/client-assertion-cases.json', import.meta.url), 'utf8'),
 );
 
 const CLIENT = 'semiont-worker-alice-laptop';

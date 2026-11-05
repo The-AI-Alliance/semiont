@@ -4,7 +4,7 @@
 
 For people, and AI agents, writing software that works with a Semiont knowledge base: a web, desktop or mobile application, an ingestion or enrichment pipeline, a service, an agent.
 
-The SDK is one typed client in five languages, and Java programs call the Kotlin one. Install the one you write in.
+Choose the SDK for your language. Java programs use the Kotlin SDK.
 
 TypeScript:
 
@@ -33,17 +33,21 @@ go get github.com/The-AI-Alliance/semiont/packages/go/sdk
 
 Kotlin and Java: the SDK is not published yet. [Its README](../../packages/kotlin/sdk/README.md#installing) builds its jar from source.
 
+.NET uses a [project reference and runnable C# examples](../../packages/csharp/sdk/README.md) until the NuGet package is published.
+
+Swift uses a [local Swift package from a Semiont checkout](../../packages/swift/sdk/README.md#install).
+
 **Then go to the [Developer Guide](./DEVELOPER-GUIDE.md).** It is the way in: short recipes in the order you will need them. You connect, read, ingest a document, enrich it, gather context around it, generate from it, react to what other participants do, and test what you built.
 
 The client needs a knowledge base to talk to. The [Quick Start](./QUICK-START.md) gets one running on your machine.
 
-**What every SDK speaks is [the protocol](../protocol/README.md):** the eight verbs, the event bus they travel over, and the contract each SDK is held to, stated independently of any language.
+**What every SDK speaks is [the protocol](../../protocol/contract/README.md):** the eight verbs, the event bus they travel over, and the contract each SDK is held to, stated independently of any language.
 
 ## What you are building on
 
 - **One wire, eight verbs.** Everything a participant does travels over one event bus, as one of eight verbs: four that write (**yield · mark · bind · frame**), three that read (**browse · match · gather**), and one that directs attention (**beckon**). They are the client's namespaces in every SDK.
 - **The SDK is the boundary.** Your code never calls the gateway's HTTP API directly. Something the SDK lacks is a gap to raise, not a reason to reach around it.
-- **Five SDKs, one contract.** TypeScript, Rust, Python, Go and Kotlin have the same namespaces and methods, and are held to one [conformance suite](../../packages/conformance/sdk/README.md) against a real gateway. What you learn in one carries to the others.
+- **One contract.** TypeScript, Rust, Python, Go, Kotlin, C# and Swift have the same namespaces and methods, and are held to one [conformance suite](../../protocol/conformance/sdk/README.md) against a real gateway. What you learn in one carries to the others.
 - **People and AI agents are the same kind of participant.** They use the same client and the same verbs, and every annotation records who made it.
 - **Data is live.** A read is a query that stays current as others write. Work a model does is a job you start and watch.
 
@@ -54,10 +58,10 @@ The [Introduction](./INTRODUCTION.md) explains these ideas. [Architecture](../ar
 The SDK is a library, not a service. It runs no process of its own: you give a client a transport and somewhere to keep its session, and it lives inside whatever you are building.
 
 - **A web app.** The TypeScript SDK in the page, with the session in the browser's storage. [`@semiont/react-ui`](../../packages/typescript/react-ui/README.md) adds the resource viewer and the annotation components. The Semiont Browser is built this way.
-- **A desktop app.** The TypeScript SDK in a webview, as Semiont's own desktop app has it, or the Rust SDK in a native one. A person signs in in their own browser and is sent back to the app.
+- **A desktop app.** The TypeScript SDK in a webview, as Semiont's own desktop app has it, or the Rust or Swift SDK in a native app. A person signs in in their own browser and is sent back to the app.
 - **A mobile app.** The same shape as a desktop app. Nothing in the SDK assumes a browser or a server around it, and where a session is kept is an interface, so the app keeps it in the platform's own secure store.
 - **An ingestion or enrichment pipeline.** A script or a scheduled job, in any of the SDKs' languages. It signs in once, yields documents, and annotates them itself or has a model do it with `mark.delegate` and follows the job.
-- **A service.** A long-running process that hears what happens in the knowledge base as it happens, and acts on it. It signs in with an account of its own. On the JVM it is the Kotlin SDK, from Kotlin or from Java: the [worker conformance suite](../../packages/conformance/worker/README.md) drives a worker written in Java on it.
+- **A service.** A long-running process that hears what happens in the knowledge base as it happens, and acts on it. It signs in with an account of its own. The [worker conformance suite](../../protocol/conformance/worker/README.md) drives a Java worker built with the Kotlin SDK. For .NET, see [Running a worker](../../packages/csharp/sdk/README.md#running-a-worker).
 - **A command-line program.** The Go SDK in a single binary, as the [`semiont` launcher](../../apps/launcher/README.md) has it. It builds its session over the sign-in `semiont login` keeps, so a person who has signed in approves nothing more.
 - **An agent.** The same client a person's application uses. The [agent skills](./skills/README.md) are ready-made definitions for AI coding assistants, one per task.
 - **An AI application, with no code at all.** `semiont mcp`, the launcher's MCP server, gives Claude and any other MCP client the knowledge bases you have signed in to, as you: `claude mcp add semiont -- semiont mcp`. [Connecting an AI application](./AI-APPLICATIONS.md) has the rest.
@@ -75,20 +79,22 @@ Read in this order. Most people need only the first three.
 | [Quick Start](./QUICK-START.md) | A knowledge base running on your machine, to build against |
 | [Introduction](./INTRODUCTION.md) | The ideas, once: one wire, annotations as data, AI work as jobs, live data, and where your code sits |
 | **[Developer Guide](./DEVELOPER-GUIDE.md)** | **How to build: the recipes, with the exact lines** |
-| [Signing in](./SIGN-IN.md) | Each way a program signs in, by who is signing in, in TypeScript, Python, Rust, Go and Kotlin |
+| [Signing in](./SIGN-IN.md) | Each way a program signs in, by who is signing in, in TypeScript, Python, Rust, Go, Kotlin, C# and Swift |
 | [Connecting an AI application](./AI-APPLICATIONS.md) | `semiont mcp`: the knowledge bases you have signed in to, as tools in Claude and any other MCP client |
 | [Usage](./Usage.md) | The reference: every method of every namespace, its options, what it returns, and the errors |
-| [Reactive model](./REACTIVE-MODEL.md) | Why a method returns what it does: the nine shapes every SDK shares, in TypeScript, Rust, Python, Go and Kotlin |
-| [State units](./STATE-UNITS.md) | The pattern for coordinated page and flow state in an application, in TypeScript, Rust, Python, Go and Kotlin |
-| [Cache semantics](../protocol/CACHE-SEMANTICS.md) | The numbered contract every SDK's live queries are held to |
+| [Reactive model](./REACTIVE-MODEL.md) | The return shapes the SDKs share and why each method uses its shape |
+| [State units](./STATE-UNITS.md) | The pattern for coordinated page and flow state in an application |
+| [Cache semantics](../../protocol/contract/CACHE-SEMANTICS.md) | The numbered contract every SDK's live queries are held to |
 
-The guides' examples are TypeScript. The namespaces, methods and behaviour are the same in Rust, Python, Go and Kotlin, and each SDK's README shows them in its own language:
+The main guide examples use TypeScript. Each SDK README shows how to call the same methods in its own language.
 
 - **[TypeScript](../../packages/typescript/sdk/README.md)**, `@semiont/sdk`: what the guides are written in.
 - **[Rust](../../packages/rust/sdk/README.md)**, the `semiont` crate: maps each TypeScript shape in these docs to its Rust form. [`semiont-http-transport`](../../packages/rust/http-transport/README.md) has the sessions and signing in.
 - **[Python](../../packages/python/sdk/README.md)**, the `semiont` package: runs on asyncio, and is checked by `mypy` and `pyright`, both strict. It has the client, live queries, sessions, the state units, and a registry of several knowledge bases with a person's sign-in by a page redirect.
 - **[Go](../../packages/go/sdk/README.md)**, the module `github.com/The-AI-Alliance/semiont/packages/go/sdk`: reads over time with iterators and is stopped by a context. It has the client, live queries, sessions, the state units, a worker's claims, the annotation readers and builders, and a registry of several knowledge bases with a person's sign-in by a page redirect, and the launcher is built on it.
 - **[Kotlin](../../packages/kotlin/sdk/README.md)**, for Kotlin and Java programs: `suspend` functions and `Flow`s in Kotlin, and in Java a `CompletableFuture` for each and a `Flow.Publisher` for each stream. It has the client, live queries, sessions, the state units, a worker's claims, the annotation readers and builders, and a registry of several knowledge bases with a person's sign-in by a page redirect. It is not published yet.
+- **[C#](../../packages/csharp/sdk/README.md)** uses tasks and async enumerables. The README has runnable examples for delegation, workers, and live queries.
+- **[Swift](../../packages/swift/sdk/README.md)** uses async functions and sequences in Apple apps and Linux services. The README shows local package setup, device sign-in, resource reads, delegation, and live queries.
 
 ## Agent skills
 

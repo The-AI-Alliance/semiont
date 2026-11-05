@@ -56,7 +56,7 @@ a bus refusal both answer no for different reasons.
 | `_not_ready` | the model is not pulled, **or** the provider is not listening | `semiont_vectors` (`_dimensions.py`) |
 
 What counts as worth another attempt is the same in every language: the rules are
-[`specs/src/retry/cases.json`](../../specs/src/retry/cases.json), and each implementation runs
+[`protocol/specs/src/retry/cases.json`](../../protocol/specs/src/retry/cases.json), and each implementation runs
 them.
 
 `_not_ready` is the one composition, and it is deliberate: at boot both failures are the same
@@ -91,7 +91,7 @@ exit. A repair pass that fails leaves a store behind; it does not leave the proj
 
 **Graph, vector store and embedding provider connects** take a deadline instead —
 one minute (`asyncio.timeout`) in the librarian's start, and the same minute in the weaver's and
-the smelter's ([SMELTER.md](../protocol/SMELTER.md#boot)). These are one-shot connects with no transient class worth naming, and an
+the smelter's ([SMELTER.md](../../protocol/contract/SMELTER.md#boot)). These are one-shot connects with no transient class worth naming, and an
 unbounded await leaves a container hung where a restart-on-exit policy can only rescue a process
 that exits.
 
@@ -105,7 +105,7 @@ the package that owns the question, and that placement is load-bearing: an embed
 borrows `STARTUP_FETCH_RETRY` — sized for *until the gateway starts listening* — expires
 waiting for a model download and kills the services that embed on every first boot.
 `STARTUP_FETCH_RETRY` is the one hand-written policy in core. `EMIT_RETRY` is in core too, generated from
-[`specs/src/client/timing.json`](../../specs/src/client/timing.json): it is client timing every
+[`protocol/specs/src/client/timing.json`](../../protocol/specs/src/client/timing.json): it is client timing every
 SDK keeps.
 
 ## See also

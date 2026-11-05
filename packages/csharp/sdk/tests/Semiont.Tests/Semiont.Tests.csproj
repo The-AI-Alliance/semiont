@@ -4,7 +4,14 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <Content Include="../../../../../protocol/specs/src/sign-in-store/README.md" Link="specs/sign-in-store/README.md" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../../../../protocol/specs/src/**/*.json" Link="specs/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../../../../protocol/conformance/**/*.json" Link="corpus/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <ProjectReference Include="../../generators/Semiont.Generator/Semiont.Generator.csproj" />
+    <Content Include="../../README.md" Link="SDK-README.md" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Examples/*.cs" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../refusals/*.cs" Link="refusals/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" PrivateAssets="all" />

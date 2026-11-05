@@ -1,0 +1,172 @@
+/**
+ * How a Smelter starts, answers for itself and stops (SMELTER.md § Settings,
+ * § Boot, § Health, § Stopping): what its health reports, what it refuses to
+ * start without, that what is recorded while its start's reconcile runs is
+ * applied then, and that it stops cleanly. With it, the names of what a
+ * reconcile reports (§ Reconcile), and what a Smelter does when its provider
+ * has not fetched its model yet (§ The embedding provider).
+ */
+import { kbDid } from '@semiont/core';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { eventually } from '../harness/net';
+import { NOT_FETCHED } from '../harness/ollama-embed';
+import { VECTORS_TOKEN } from '../harness/qdrant';
+import type { SmelterSettings } from '../harness/smelter-process';
+import { eachSmelter } from '../harness/smelter-world';
+
+/**
+ * Each setting SMELTER.md § Settings says a Smelter refuses to start without:
+ * the settings without it, and the member of the configuration document its
+ * refusal names.
+ */
+const REQUIRED: ReadonlyArray<[what: string, without: (settings: SmelterSettings) => SmelterSettings, named: RegExp]> = [
+  ['the knowledge base it serves', (settings) => ({ ...settings, kb: undefined }), /Missing required property: kb\b/],
+  ["the gateway's URL", (settings) => ({ ...settings, gatewayUrl: undefined }), /gatewayUrl/],
+  ['the issuer', (settings) => ({ ...settings, issuer: undefined }), /issuer/],
+  ["the Archivist's address", (settings) => ({ ...settings, archivist: undefined }), /archivist/],
+  ["the vector database's host", (settings) => ({ ...settings, vectors: { ...settings.vectors, host: undefined } }), /Missing required property: host/],
+  ['the variable its token for the vector database is in', (settings) => ({ ...settings, vectors: { ...settings.vectors, tokenEnv: undefined } }), /Missing required property: tokenEnv/],
+  ["the embedding provider's kind", (settings) => ({ ...settings, embedding: { ...settings.embedding, type: undefined } }), /embedding/],
+  ["the embedding provider's model", (settings) => ({ ...settings, embedding: { ...settings.embedding, model: undefined } }), /Missing required property: model/],
+  ["the embedding provider's address", (settings) => ({ ...settings, embedding: { ...settings.embedding, baseUrl: undefined } }), /Missing required property: baseUrl/],
+  ['how many PDFs it works on at once', (settings) => ({ ...settings, pdfsAtOnce: undefined }), /pdfsAtOnce/],
+];
+
+eachSmelter('a Smelter, as a process', (world) => {
+  it('answers at its health port for itself: for the knowledge base it serves, for its stream, for how it follows the record, for the events it applied, for its reconcile, and for what it holds its index to', async () => {
+    const health = await world().smelter.health();
+    const { embedding, chunking } = world().settings;
+
+    expect(Object.keys(health).sort()).toEqual(['eventsProcessed', 'following', 'index', 'kb', 'reconcile', 'status', 'stream']);
+    expect(health.status).toBe('ok');
+    expect(health.kb).toBe(kbDid(world().kb.world.served.domain));
+    // Its start has swept the record, which it lists once its stream is open.
+    expect(health.stream).toBe('open');
+    expect(health.following).toEqual({ sweep: 'done', stopped: 0, refused: 0, streamDrops: 0 });
+    expect(health.eventsProcessed).toBe(0);
+    // The stamp is the provider's kind and its model, and the two numbers a text is cut by: what this world's Smelter is started with.
+    expect(health.index.stamp).toEqual({ embedding: { type: embedding.type, model: embedding.model }, chunking });
+    // The knowledge base holds no resource yet: none was without a cursor, and no reconcile was begun.
+    expect(health.reconcile).toEqual({ phase: 'pending' });
+  });
+
+  it('reports the twelve counts of a reconcile that had nothing to mend', async () => {
+    const id = await world().created('A Smelter that starts on an index that holds this has nothing to mend.\n', 'text/plain');
+    await world().settled(id);
+
+    // Started again, its start has no cursor for the resource: a reconcile, which finds the index as the record says.
+    await world().restart();
+
+    expect((await world().smelter.health()).reconcile).toEqual({
+      phase: 'done',
+      summary: {
+        resourcesEmbedded: 0,
+        resourcesSkipped: {},
+        resourcesUnavailable: 0,
+        resourcesFailed: 0,
+        resourcesRestamped: 0,
+        resourcesReanchored: 0,
+        resourceVectorsDeleted: 0,
+        annotationsEmbedded: 0,
+        annotationsRestamped: 0,
+        annotationVectorsDeleted: 0,
+        resourcesEligible: 1,
+        resourcesIndexed: 1,
+      },
+    });
+    // Archived, it is no resource a later case's reconcile counts.
+    await world().archived(id);
+  });
+
+  it('stops when it is told to, and says nothing is wrong by its exit', async () => {
+    expect(await world().stop()).toBe(0);
+    await world().start();
+    // Started again as it was, it finds the index it made, and keeps it.
+    expect((await world().smelter.health()).index.madeAnew).toBe(false);
+  });
+
+  describe('started without something it needs', () => {
+    // Each of these is a Smelter of its own, and a Smelter's health port is a constant: the world's is stopped while they run.
+    beforeAll(async () => {
+      await world().stop();
+    });
+    afterAll(async () => {
+      await world().start();
+    });
+
+    it.each(['SEMIONT_OIDC_CLIENT_ID', 'SEMIONT_OIDC_CLIENT_SECRET'])('refuses to start without %s, half of its service account, and names it', async (variable) => {
+      const { code, output } = await world().refused({ env: { ...world().launch().env, [variable]: undefined } });
+      expect(code).not.toBe(0);
+      expect(output).toContain(variable);
+    });
+
+    it('refuses to start without its token for the index, and names the variable its settings name', async () => {
+      const { code, output } = await world().refused({ env: { ...world().launch().env, [VECTORS_TOKEN]: undefined } });
+      expect(code).not.toBe(0);
+      expect(output).toContain(VECTORS_TOKEN);
+    });
+
+    it.each(REQUIRED)('refuses to start without %s, and says which is missing', async (_what, without, named) => {
+      const { code, output } = await world().refused({ settings: without(world().settings) });
+      expect(code).not.toBe(0);
+      expect(output).toMatch(named);
+    });
+  });
+
+  it('asks its embedding provider again when it answers 404 as the Smelter starts: the model is taken to be on its way', async () => {
+    // A Smelter asks its provider how wide the model's vectors are when it makes its collections, so it is started on an index that has none.
+    await world().stop();
+    await world().clearIndex();
+    const before = world().provider.mark();
+    world().provider.script(NOT_FETCHED);
+
+    await world().start();
+
+    const [first, second] = world().provider.since(before);
+    expect(first?.status).toBe(404);
+    expect(second?.status).toBe(200);
+    expect(second?.body).toEqual(first?.body);
+    expect((await world().smelter.health()).status).toBe('ok');
+  });
+
+  it('counts the events it has applied since it started, and not the work of its reconcile', async () => {
+    const id = await world().created('A Smelter counts each event it applies.\n', 'text/plain');
+    await world().settled(id);
+    expect((await world().applied(1)).eventsProcessed).toBe(1);
+
+    // Started again on an index that was cleared, its reconcile indexes the resource: that is work, and no event.
+    await world().stop();
+    await world().clearIndex();
+    await world().start();
+
+    const health = await world().smelter.health();
+    expect(health.reconcile).toMatchObject({ phase: 'done', summary: { resourcesEmbedded: 1 } });
+    expect(health.eventsProcessed).toBe(0);
+    // An index that was cleared states nothing: this start made it.
+    expect(health.index.madeAnew).toBe(true);
+  });
+
+  it('answers at its health port while its reconcile is still at work, and applies what is recorded meanwhile', async () => {
+    const waitedFor = 'What its reconcile is kept waiting for.';
+    const indexed = await world().created('Indexed before it stopped, and archived while its reconcile ran.\n', 'text/plain');
+    const missing = await world().created(`${waitedFor}\n`, 'text/plain');
+    await world().settled(indexed);
+    await world().settled(missing);
+
+    // It is started with one resource's points gone from the index, and its provider holds the request that would bring them back.
+    await world().stop();
+    await world().index.deletePointsOf('resources', missing);
+    world().provider.choose = (request) => (request.texts.some((text) => text.includes(waitedFor)) ? { hold: true } : undefined);
+    await world().start({}, 'serving');
+    await eventually('its reconcile to ask for the vectors it is kept waiting for', 30_000, () => (world().provider.held === 1 ? true : undefined));
+    const meanwhile = await world().smelter.health();
+    expect([meanwhile.status, meanwhile.reconcile.phase]).toEqual(['ok', 'running']);
+
+    // An event recorded now is applied now, and not when the reconcile has ended.
+    await world().archived(indexed);
+    expect((await world().applied(1)).reconcile.phase).toBe('running');
+
+    world().provider.release();
+    expect((await world().reconciled()).reconcile).toMatchObject({ phase: 'done', summary: { resourcesEmbedded: 1 } });
+  });
+});

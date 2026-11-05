@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // generate-stack-go.mjs — the launcher's types for its documents (a knowledge
-// base's, and the machine's Browser's and worker's), and the schemas it reads
-// them against, from specs/src/stack/ and specs/src/kb-identity/ProjectConfig.json.
+// base's, and the machine's Browser's, worker's, issuer's and vector store's),
+// and the schemas it reads them against, from protocol/specs/src/stack/ and
+// protocol/specs/src/kb-identity/ProjectConfig.json.
 //
 //   packages/go/launcher/stack/types_gen.go    a Go type for each kind of
 //                                                document, and for each object
@@ -13,7 +14,7 @@
 // lint:spec-stack holds the cases to) and only then decodes it into its type,
 // so a type states the schema's shape and no rule of its own: `oneOf`,
 // `pattern`, a bound and the like are the schema's to enforce. A reference
-// into specs/src/components/schemas is the Go SDK's type of that name. A
+// into protocol/specs/src/components/schemas is the Go SDK's type of that name. A
 // schema form this generator does not render is refused by name, rather than
 // rendered as a guess.
 //
@@ -31,15 +32,16 @@ const CHECK = process.argv.includes('--check');
 
 /** The kinds of document, in the order their types are written. */
 const KINDS = [
-  'specs/src/stack/KnowledgeBase.json',
-  'specs/src/stack/KnowledgeIndex.json',
-  'specs/src/stack/Issuer.json',
-  'specs/src/stack/WorkerPool.json',
-  'specs/src/stack/Inference.json',
-  'specs/src/stack/Browser.json',
-  'specs/src/kb-identity/ProjectConfig.json',
+  'protocol/specs/src/stack/KnowledgeBase.json',
+  'protocol/specs/src/stack/KnowledgeIndex.json',
+  'protocol/specs/src/stack/Issuer.json',
+  'protocol/specs/src/stack/VectorStore.json',
+  'protocol/specs/src/stack/WorkerPool.json',
+  'protocol/specs/src/stack/Inference.json',
+  'protocol/specs/src/stack/Browser.json',
+  'protocol/specs/src/kb-identity/ProjectConfig.json',
 ];
-const COMPONENTS = 'specs/src/components/schemas/';
+const COMPONENTS = 'protocol/specs/src/components/schemas/';
 
 /** The keywords a type is made from, and those that are rules the validator enforces. */
 const SHAPE = new Set(['title', 'type', 'description', 'properties', 'required', 'additionalProperties', 'propertyNames', '$ref']);
@@ -133,7 +135,8 @@ function objectType(schema, from, name) {
     return description ? `${goComment(description, '\t')}\n${field}` : field;
   });
   if (!schema.description) refuse(from, `${name} is an object with no description`);
-  types.set(name, `${goComment(`${name}: ${schema.description}`)}\ntype ${name} struct {\n${fields.join('\n\n')}\n}\n`);
+  const body = fields.length > 0 ? ` {\n${fields.join('\n\n')}\n}` : '{}';
+  types.set(name, `${goComment(`${name}: ${schema.description}`)}\ntype ${name} struct${body}\n`);
   return name;
 }
 
@@ -143,7 +146,7 @@ for (const path of KINDS) {
   objectType(schema, path, schema.title);
 }
 
-const typesText = `// Code generated from specs/src/stack and specs/src/kb-identity/ProjectConfig.json — DO NOT EDIT.
+const typesText = `// Code generated from protocol/specs/src/stack and protocol/specs/src/kb-identity/ProjectConfig.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-stack-go.mjs
 
@@ -173,7 +176,7 @@ KINDS.forEach(reach);
 const entries = [...reached].sort().map((path) => `\t${JSON.stringify(path)}: ${JSON.stringify(JSON.stringify(schemaAt(path)))},`);
 const kindEntries = KINDS.map((path) => `\t${JSON.stringify(schemaAt(path).title)}: ${JSON.stringify(path)},`);
 
-const schemasText = `// Code generated from specs/src/stack and specs/src/kb-identity/ProjectConfig.json — DO NOT EDIT.
+const schemasText = `// Code generated from protocol/specs/src/stack and protocol/specs/src/kb-identity/ProjectConfig.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-stack-go.mjs
 

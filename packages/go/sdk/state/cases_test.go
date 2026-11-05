@@ -1,11 +1,11 @@
 package state_test
 
-// The state units against specs/src/client/state-units.json.
+// The state units against protocol/specs/src/client/state-units.json.
 //
 // Each case of a unit this SDK has is run as the table states it: its units
 // are built over a scripted transport, driven step by step, and held to what
 // the case says they hold and said. A unit that the names table
-// (specs/src/client/surface.json, `stateUnits`) says this SDK lacks has its
+// (protocol/specs/src/client/surface.json, `stateUnits`) says this SDK lacks has its
 // cases left unrun. What the table may say is held by
 // .github/scripts/checks/check-state-unit-cases.mjs; what a case cannot say, the axioms,
 // each unit's own test holds.
@@ -72,7 +72,7 @@ type namesTable struct {
 
 func readJSON[T any](t *testing.T, path string) T {
 	t.Helper()
-	text, err := os.ReadFile("../../../../specs/src/" + path)
+	text, err := os.ReadFile("../../../../protocol/specs/src/" + path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func decoded[T any](value any) (T, error) {
 }
 
 // durationOf is a duration as the table states it: milliseconds, or a
-// timing of specs/src/client/timing.json, scaled by `times` and moved by
+// timing of protocol/specs/src/client/timing.json, scaled by `times` and moved by
 // `plusMs`.
 func durationOf(value any) (time.Duration, error) {
 	switch value := value.(type) {

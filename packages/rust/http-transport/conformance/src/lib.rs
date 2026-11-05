@@ -1,5 +1,5 @@
 //! What the Rust drivers of the SDK conformance suite share
-//! (packages/conformance/sdk; its README.md is the protocol): a driver is a
+//! (protocol/conformance/sdk; its README.md is the protocol): a driver is a
 //! process that reads one operation per line on stdin and writes what it did,
 //! and what it saw, one line at a time on stdout.
 //!

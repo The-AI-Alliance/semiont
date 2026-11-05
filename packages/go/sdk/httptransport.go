@@ -1,6 +1,6 @@
 package semiont
 
-// The transport over HTTP (docs/protocol/TRANSPORT-HTTP.md): POST /bus/emit
+// The transport over HTTP (protocol/contract/TRANSPORT-HTTP.md): POST /bus/emit
 // for each frame out, and one held POST /bus/subscribe stream for frames in,
 // which stream.go keeps.
 

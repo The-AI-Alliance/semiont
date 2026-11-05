@@ -97,7 +97,7 @@ internal fun backoffCapMs(reconnectMs: Long, failures: Int): Long {
 }
 
 /**
- * The stream (docs/protocol/TRANSPORT-HTTP.md, The client). One coroutine owns
+ * The stream (protocol/contract/TRANSPORT-HTTP.md, The client). One coroutine owns
  * the subscription, the connections that carry it, and the state they add up
  * to. A drop (the stream ended, or a connect failed with none live) leaves
  * `open` and opens the stream again on a backoff, naming each scope's last

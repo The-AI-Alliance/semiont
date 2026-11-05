@@ -1,7 +1,7 @@
 """How a knowledge base and its principals are named, held to the tables every implementation runs.
 
-`specs/src/principals/cases.json` for a person and an agent, and
-`specs/src/kb-identity/cases.json` for the knowledge base itself, of which this
+`protocol/specs/src/principals/cases.json` for a person and an agent, and
+`protocol/specs/src/kb-identity/cases.json` for the knowledge base itself, of which this
 SDK runs every case that states a domain: reading a knowledge base's own
 configuration is the launcher's and the gateway's.
 """

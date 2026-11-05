@@ -60,15 +60,15 @@ func limits(mem string) stack.Resources {
 	return stack.Resources{Limits: stack.ResourcesLimits{Memory: mem}}
 }
 
-// The fixed names of the documents `semiont init` writes (D17).
-const (
-	initKnowledgeBase = "knowledge-base"
-	initIssuer        = "issuer"
-)
+// initKnowledgeBase: the fixed name of the KnowledgeBase document `semiont
+// init` writes (D17).
+const initKnowledgeBase = "knowledge-base"
 
 // generateStack: the documents `semiont init` writes, each as YAML, by its
-// path below .semiont/stack — the three the knowledge base shares, and the
-// Inference document named name.
+// path below .semiont/stack — the two the knowledge base shares, and the
+// Inference document named name. Its issuer and its vector store are the
+// machine's, whose documents the state home keeps (issuerdoc.go,
+// vectorsdoc.go).
 func generateStack(p genParams, name string) (map[string][]byte, error) {
 	daemon := func(role, driver string) (*string, *stack.Resources) {
 		d := descriptorFor(role, driver)
@@ -96,16 +96,16 @@ func generateStack(p genParams, name string) (map[string][]byte, error) {
 	// in-process plane would hold them in one gateway's memory.
 	kb.Spec.Messaging.Jobs.Type, kb.Spec.Messaging.Signal.Type = "jetstream", "nats"
 	kb.Spec.Messaging.Image, kb.Spec.Messaging.Resources = daemon("messaging", "jetstream")
-	issuerRef := initIssuer
-	kb.Spec.Issuer.Ref, kb.Spec.Issuer.SubjectClaim = &issuerRef, "sub"
+	kb.Spec.Issuer.Shared = &stack.KnowledgeBaseIssuerShared{AccessTokenLifespan: keycloakAccessTokenLifespan}
+	kb.Spec.Issuer.SubjectClaim = "sub"
 
 	var index stack.KnowledgeIndex
 	index.ApiVersion, index.Kind, index.Metadata = meta("KnowledgeIndex", "index")
 	index.Spec.KnowledgeBase, index.Spec.LogLevel = initKnowledgeBase, api.LogLevelInfo
-	index.Spec.Graph.Type, index.Spec.Graph.Username, index.Spec.Graph.Database = "neo4j", "neo4j", "neo4j"
+	index.Spec.Graph.Type, index.Spec.Graph.Username = "neo4j", "neo4j"
 	index.Spec.Graph.Image, index.Spec.Graph.Resources = daemon("graph", "neo4j")
 	index.Spec.Vectors.Type = "qdrant"
-	index.Spec.Vectors.Image, index.Spec.Vectors.Resources = daemon("vectors", "qdrant")
+	index.Spec.Vectors.Shared = &stack.KnowledgeIndexVectorsShared{}
 	index.Spec.Embedding.Type, index.Spec.Embedding.Model = "ollama", p.EmbeddingModel
 	index.Spec.Embedding.Chunking.ChunkSize, index.Spec.Embedding.Chunking.Overlap = initChunking.chunkSize, initChunking.overlap
 	index.Spec.Librarian.Image, index.Spec.Librarian.Resources = service("librarian")
@@ -114,15 +114,6 @@ func generateStack(p genParams, name string) (map[string][]byte, error) {
 	index.Spec.Smelter.Image, index.Spec.Smelter.Resources = service("smelter")
 	index.Spec.Smelter.PdfsAtOnce = max(1, int(memCeilingGB(index.Spec.Smelter.Resources.Limits.Memory))/gigabytesForEachPdf)
 	index.Spec.Weaver.Image, index.Spec.Weaver.Resources = service("weaver")
-
-	var issuer stack.Issuer
-	issuer.ApiVersion, issuer.Kind, issuer.Metadata = meta("Issuer", initIssuer)
-	issuer.Spec.Type = "keycloak"
-	identity := descriptorFor("identity", "keycloak")
-	issuer.Spec.Image, issuer.Spec.Resources = identity.image, limits(identity.mem)
-	issuer.Spec.AccessTokenLifespan = keycloakAccessTokenLifespan
-	issuer.Spec.Database.Type, issuer.Spec.Database.Name, issuer.Spec.Database.User = "postgres", "keycloak", "postgres"
-	issuer.Spec.Database.Image, issuer.Spec.Database.Resources = daemon("identity-store", "postgres")
 
 	var inference stack.Inference
 	inference.ApiVersion, inference.Kind, inference.Metadata = meta("Inference", name)
@@ -150,7 +141,6 @@ func generateStack(p genParams, name string) (map[string][]byte, error) {
 	files := map[string]any{
 		stack.KnowledgeBaseFile:                         kb,
 		stack.KnowledgeIndexFile:                        index,
-		stack.IssuerFile:                                issuer,
 		filepath.Join(stack.InferenceDir, name+".yaml"): inference,
 	}
 	out := map[string][]byte{}
@@ -196,8 +186,18 @@ func writeVettedStack(u *UI, root string, files map[string][]byte) bool {
 	for _, name := range names {
 		st, err := stack.Load(vet, name)
 		if err == nil {
-			// Vetting only: any realm, port and block prove the issuer is planned.
-			_, err = derivePlan(st, "vet", descriptorFor("identity", "keycloak").defaultPort, 0)
+			// Vetting the knowledge base's documents only: any realm and
+			// block, and the catalog's issuer and vector store in place of
+			// this machine's, prove they are planned.
+			var issuer *issuerDocument
+			if st.KnowledgeBase.Spec.Issuer.Shared != nil {
+				issuer = &issuerDocument{spec: catalogIssuer().Spec}
+			}
+			var vectors *vectorStoreDocument
+			if st.KnowledgeIndex.Spec.Vectors.Shared != nil {
+				vectors = &vectorStoreDocument{spec: catalogVectorStore().Spec}
+			}
+			_, err = derivePlan(st, issuer, vectors, "vet", 0)
 		}
 		if err != nil {
 			u.Fail("The documents did not pass the launcher's own reading — refusing to write them: %v", err)

@@ -70,7 +70,7 @@ private fun nearestByTheTablesWords(content: IntArray, exact: IntArray): Pair<In
     return best?.second
 }
 
-/** `reconcile`, held to specs/src/annotations/reconcile-cases.json: the table every SDK's reconciling runs. */
+/** `reconcile`, held to protocol/specs/src/annotations/reconcile-cases.json: the table every SDK's reconciling runs. */
 class ReconcileCasesTest {
     private val cases: List<JsonObject> = Spec.read("annotations/reconcile-cases.json").jsonObject.getValue("cases").jsonArray.map { it.jsonObject }
     private val found = cases.mapNotNull { it["reconciled"] as? JsonObject }

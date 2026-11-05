@@ -1,7 +1,7 @@
 package launcher
 
 // gatewaydoc.go — the gateway's configuration document: GatewayConfig in
-// specs/, the Go type generated from it (packages/go/sdk). The launcher
+// protocol/specs/, the Go type generated from it (packages/go/sdk). The launcher
 // writes it for the gateway it starts, every address a literal (placement), so
 // the gateway neither reads a knowledge base's documents nor resolves or
 // defaults anything. Secrets are never values in it: a credential is a
@@ -50,7 +50,7 @@ func gatewayDocument(p placement, served api.KbIdentity) ([]byte, error) {
 		if p.placed("messaging") {
 			// The broker the launcher runs has the pair the launcher generates
 			// and keeps; the gateway is handed both.
-			user, password := "NATS_USER", daemonPasswords["messaging"].env
+			user, password := "NATS_USER", daemonCredentials["messaging"].env
 			doc.Signal.UserEnv, doc.Signal.PasswordEnv = &user, &password
 		} else {
 			external := kb.Messaging.External

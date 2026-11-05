@@ -50,12 +50,12 @@ import { translated } from './openapi-schema.mjs';
 const KINDS = ['object', 'array', 'string', 'number', 'boolean', 'null'];
 
 /**
- * Every component schema the spec names (specs/src/openapi.json), each with
+ * Every component schema the spec names (protocol/specs/src/openapi.json), each with
  * the shape it requires of a value. `refuse` is called with what makes the
  * schemas unreadable as shapes, and does not return.
  */
 export function readRequiredMembers(root, refuse) {
-  const specs = resolve(root, 'specs/src');
+  const specs = resolve(root, 'protocol/specs/src');
   const index = JSON.parse(readFileSync(resolve(specs, 'openapi.json'), 'utf8')).components.schemas;
 
   /** Each component's file, and the component each file is. */
@@ -73,7 +73,7 @@ export function readRequiredMembers(root, refuse) {
   /** The component a reference in `file` names. */
   function referred(file, ref) {
     const name = nameOf.get(resolve(dirname(file), ref));
-    if (name === undefined) refuse(`${file}: ${ref} names no component of specs/src/openapi.json`);
+    if (name === undefined) refuse(`${file}: ${ref} names no component of protocol/specs/src/openapi.json`);
     return name;
   }
 

@@ -48,7 +48,7 @@ from semiont.types import (
 __all__ = ["BrowseNamespace", "EngineWithLimits"]
 
 # How many resources a list asks for when its caller states no limit. Every
-# SDK asks for as many: the cases of specs/src/client/surface.json hold each to it.
+# SDK asks for as many: the cases of protocol/specs/src/client/surface.json hold each to it.
 _LIST_LIMIT: Final = 100
 
 

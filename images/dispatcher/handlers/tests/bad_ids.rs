@@ -1,4 +1,4 @@
-//! A frame carrying an id its kind refuses (docs/protocol/JOBS.md § Channels):
+//! A frame carrying an id its kind refuses (protocol/contract/JOBS.md § Channels):
 //! it does not decode, so a request is answered on its failure channel, a
 //! one-way command is dropped, and the queue is never asked anything. The
 //! gateway refuses such a payload before it is published, so only a frame

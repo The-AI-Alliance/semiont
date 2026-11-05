@@ -1,6 +1,6 @@
 /**
  * The languages Semiont supports, and lookups over them. The table is
- * generated from specs/src/locales/registry.json.
+ * generated from protocol/specs/src/locales/registry.json.
  */
 
 import { LOCALES, type LocaleInfo } from './generated/locales';

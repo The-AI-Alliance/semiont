@@ -12,13 +12,13 @@ import (
 var stopUsage = fmt.Sprintf(`Usage: semiont stop [--service <name> | --group <name>] [--root <path>] [--runtime container|docker|podman] [--repo <owner/name>] [--delete] [--dry-run]
 
 Stop a knowledge base's Semiont stack — its services and dependencies — and
-clean up its staged configs. The shared containers (the worker, the
-telemetry, the shared Ollama and the Browser) serve every knowledge base
-here, so they stop with the last knowledge base's stack, and a stop that
-leaves another recorded leaves them. Safe to run when nothing is up: every
-step is a no-op then. Persistent stack state (PostgreSQL, Qdrant, Neo4j
-data) is deliberately LEFT: the next start reuses it. Removing it is its own
-explicit command: semiont clean.
+clean up its staged configs. The shared containers (the issuer, the worker,
+the telemetry, the shared Ollama, the shared Qdrant and the Browser) serve
+every knowledge base here, so they stop with the last knowledge base's
+stack, and a stop that leaves another recorded leaves them. Safe to run when nothing is up: every
+step is a no-op then. Persistent stack state (Qdrant and Neo4j data, and
+the realms in the issuer's PostgreSQL) is deliberately LEFT: the next start
+reuses it. Removing it is its own explicit command: semiont clean.
 
 Which stack: --root <path> names a knowledge base's, --repo <owner/name> a
 codespace's. Without either, the knowledge base you stand in names its own:
@@ -36,25 +36,28 @@ With --service <name>, stop just that one service:
 
 %s.
 
---service browser stops the Browser alone. --service collector, traces or
-metrics stops the shared collector, Jaeger or Prometheus alone, and
+--service browser stops the Browser alone. --service identity or
+identity-store stops the shared Keycloak or its PostgreSQL alone, --service
+collector, traces or metrics the shared collector, Jaeger or Prometheus,
 --service inference the shared Ollama, as --service embedding does where
-the stack runs it for the embeddings alone: each serves every KB here, so a
+the stack runs it for the embeddings alone, and --service vectors the shared
+Qdrant where the knowledge base names it: each serves every KB here, so a
 stop of any other one service leaves it.
 
 With --group <name>, stop one group of services:
 
-  record, index, issuer
+  record, index
                  the knowledge base's own, and each of its services that
                  needs one of them, which stops too and is said: a stop of
-                 the record stops the smelter, the weaver and the librarian,
-                 and a stop of the issuer every service behind the gateway.
-                 The worker goes with them only when no other knowledge
-                 base's stack is recorded, as with a bare stop.
-  knowledge-workers, providers, telemetry
-                 the Browser and the worker; the shared Ollama; the
-                 collector, Jaeger and Prometheus. These serve every KB here,
-                 so they stop alone and each KB goes without them.
+                 the record stops the smelter, the weaver and the librarian.
+                 The worker, and the shared Qdrant where the knowledge base
+                 names it, go with them only when no other knowledge base's
+                 stack is recorded, as with a bare stop.
+  issuer, knowledge-workers, providers, telemetry
+                 the shared Keycloak and its PostgreSQL; the Browser and the
+                 worker; the shared Ollama; the collector, Jaeger and
+                 Prometheus. These serve every KB here, so they stop alone
+                 and each KB goes without them.
 
 The staged configs are left in place — the rest of the stack is still
 mounting them.
@@ -92,23 +95,30 @@ func stopSharedContainer(runtimes []string, name string, rec *ServiceState) bool
 	return stopped
 }
 
-// printSharedStop prints what stopSharedContainer would run, for a dry run.
-func printSharedStop(noun string, runtimes []string, name string, rec *ServiceState) {
+// printSharedStop prints what stopSharedService would run, for a dry run.
+func printSharedStop(noun string, runtimes []string, name string, ss *StackSet) {
 	fmt.Println("# stop " + noun + ":")
 	for _, rt := range runtimes {
-		for _, h := range sharedHandles(rt, name, rec) {
+		for _, h := range sharedHandles(rt, name, ss.Shared[name]) {
 			fmt.Println(renderCmd(rt, "stop", h))
 			fmt.Println(renderCmd(rt, "rm", h))
 		}
 	}
+	if p := ss.IssuerProxy; p != nil && name == sharedContainer("identity") {
+		fmt.Printf("# end the issuer proxy (pid %d)\n", p.PID)
+	}
 }
 
 // stopSharedService stops and removes the shared container name under
-// each of runtimes, from its record, and forgets the record. True when there
-// was a container to stop.
-func stopSharedService(runtimes []string, name string, ss *StackSet) bool {
+// each of runtimes, from its record, and forgets the record; the shared
+// Keycloak's issuer proxy goes with it. True when there was a container to
+// stop.
+func stopSharedService(u *UI, runtimes []string, name string, ss *StackSet) bool {
 	stopped := stopSharedContainer(runtimes, name, ss.Shared[name])
 	forgetShared(name)
+	if name == sharedContainer("identity") {
+		retireIssuerProxy(u)
+	}
 	return stopped
 }
 
@@ -128,15 +138,15 @@ func sharedSwept(name string, ss *StackSet, blind bool) bool {
 	return name == sharedContainer("browser") || ss.Shared[name] != nil || blind
 }
 
-// stopSharedServices stops the shared containers under each of runtimes,
-// in sharedRoles' order. A bare stop stops everything, so it ends with
+// stopSharedServices stops the machine's containers under each of runtimes,
+// in machineRoles' order. A bare stop stops everything, so it ends with
 // these; a stop of one service leaves them.
 func stopSharedServices(u *UI, runtimes []string, ss *StackSet, blind bool) sharedStopped {
 	var out sharedStopped
-	for _, role := range sharedRoles {
+	for _, role := range machineRoles {
 		name := sharedContainer(role)
 		rec := ss.Shared[name]
-		if sharedSwept(name, ss, blind) && stopSharedService(runtimes, name, ss) {
+		if sharedSwept(name, ss, blind) && stopSharedService(u, runtimes, name, ss) {
 			u.Ok("%s stopped", sharedNoun(role))
 			out.any = true
 			if rec != nil {
@@ -149,9 +159,9 @@ func stopSharedServices(u *UI, runtimes []string, ss *StackSet, blind bool) shar
 
 // printSharedServicesStop prints what stopSharedServices would run.
 func printSharedServicesStop(runtimes []string, ss *StackSet, blind bool) {
-	for _, role := range sharedRoles {
+	for _, role := range machineRoles {
 		if name := sharedContainer(role); sharedSwept(name, ss, blind) {
-			printSharedStop("the shared "+sharedNoun(role), runtimes, name, ss.Shared[name])
+			printSharedStop("the shared "+sharedNoun(role), runtimes, name, ss)
 		}
 	}
 }
@@ -170,7 +180,7 @@ func stopSharedGroup(u *UI, g serviceGroup, root string, dryRun bool) int {
 	// so each is named once.
 	var names []string
 	for _, m := range groupStops(g, true) {
-		if name, ok := sharedServing(asked, m.role); ok {
+		if name, ok := sharedServing(ss, asked, m.role); ok {
 			names = append(names, name)
 		}
 	}
@@ -178,8 +188,8 @@ func stopSharedGroup(u *UI, g serviceGroup, root string, dryRun bool) int {
 		noun := sharedNoun(sharedRoleByContainer[name])
 		switch {
 		case dryRun:
-			printSharedStop("the shared "+noun, installedRuntimes(), name, ss.Shared[name])
-		case stopSharedService(installedRuntimes(), name, ss):
+			printSharedStop("the shared "+noun, installedRuntimes(), name, ss)
+		case stopSharedService(u, installedRuntimes(), name, ss):
 			u.Ok("%s stopped", noun)
 		default:
 			u.Log("%s was not running.", noun)
@@ -203,6 +213,12 @@ func memberRoles(ms []groupMember) []string {
 	return out
 }
 
+// machineServes: whether the stack recorded st names the machine's
+// container as serving role, one of machineServedRoles.
+func machineServes(st *StackState, role string) bool {
+	return st != nil && contains(machineServedRoles, role) && st.Services[role].Provided == providedShared
+}
+
 // sharedNoun: what the shared container for role is called when it is
 // stopped.
 func sharedNoun(role string) string {
@@ -221,10 +237,11 @@ func sharedNoun(role string) string {
 // serving the role in its record, and the role runs it when it is the first
 // the start walk reaches that names it — a later one shares it (embedding, on
 // the Ollama inference runs). With no record of the role, the roles table's
-// container for a shared role. The worker is shared whatever a stack
-// records of it: one whose jobs have no engine is not on its list, and it
-// goes on serving the rest.
-func sharedServing(st *StackState, role string) (string, bool) {
+// container for a shared role, and the machine's container for one of
+// machineServedRoles when ss records it running. The worker is shared
+// whatever a stack records of it: one whose jobs have no engine is not on
+// its list, and it goes on serving the rest.
+func sharedServing(ss *StackSet, st *StackState, role string) (string, bool) {
 	if st != nil && role != "worker" {
 		if rec, ok := st.Services[role]; ok {
 			if rec.Provided != providedShared {
@@ -237,10 +254,13 @@ func sharedServing(st *StackState, role string) (string, bool) {
 			}
 		}
 	}
-	if !sharedRole(role) {
-		return "", false
+	switch {
+	case sharedRole(role):
+		return sharedContainer(role), true
+	case contains(machineServedRoles, role) && ss.Shared[sharedContainer(role)] != nil:
+		return sharedContainer(role), true
 	}
-	return sharedContainer(role), true
+	return "", false
 }
 
 // stopCodespaceAndShared: a bare stop that resolved to a codespace stack.
@@ -357,10 +377,10 @@ func Stop(args []string) int {
 			u.Log("No Browser is recorded — sweeping the container name to be sure.")
 		}
 		if dryRun {
-			printSharedStop("the shared Browser", installedRuntimes(), browser, ss.Shared[browser])
+			printSharedStop("the shared Browser", installedRuntimes(), browser, ss)
 			return 0
 		}
-		if stopSharedService(installedRuntimes(), browser, ss) {
+		if stopSharedService(u, installedRuntimes(), browser, ss) {
 			u.Ok("Browser stopped %s", u.Dim("(stacks untouched; any start brings it back)"))
 		} else {
 			u.Log("Browser was not running.")
@@ -378,13 +398,13 @@ func Stop(args []string) int {
 		if !ok {
 			return 1
 		}
-		if name, ok := sharedServing(asked, service); ok {
+		if name, ok := sharedServing(ss, asked, service); ok {
 			noun := sharedNoun(sharedRoleByContainer[name])
 			if dryRun {
-				printSharedStop("the shared "+noun, installedRuntimes(), name, ss.Shared[name])
+				printSharedStop("the shared "+noun, installedRuntimes(), name, ss)
 				return 0
 			}
-			if stopSharedService(installedRuntimes(), name, ss) {
+			if stopSharedService(u, installedRuntimes(), name, ss) {
 				u.Ok("%s stopped %s", noun, u.Dim("(every KB it served goes without; a start that runs it brings it back)"))
 			} else {
 				u.Log("%s was not running.", noun)
@@ -490,19 +510,26 @@ func Stop(args []string) int {
 	last := others == 0
 
 	// The roles stopped: one service, a group and what needs it, or (nil)
-	// the whole stack. A group's shared role (the worker) is shared
-	// to stop, and goes first: it needs the rest.
+	// the whole stack. A group's shared role (the worker) is the machine's to
+	// stop, and goes first: it needs the rest. A role the record names the
+	// machine's container as serving (the vector store) stops with the last
+	// stack alone, and goes last: the rest need it.
 	var roles []string
 	if service != "" {
 		roles = []string{service}
 	}
-	var stopping, sharedAlong []groupMember
+	var stopping, sharedAlong, machineAlong []groupMember
 	if group != "" {
 		roles = []string{}
 		for _, m := range groupStops(g, last) {
-			if sharedRole(m.role) {
+			switch {
+			case sharedRole(m.role):
 				sharedAlong = append(sharedAlong, m)
-			} else {
+			case machineServes(st, m.role):
+				if last {
+					machineAlong = append(machineAlong, m)
+				}
+			default:
 				roles = append(roles, m.role)
 			}
 			if m.because != "" {
@@ -514,7 +541,7 @@ func Stop(args []string) int {
 	var left []string
 	if group != "" && !last {
 		for _, m := range groupStops(g, true) {
-			if sharedRole(m.role) {
+			if sharedRole(m.role) || machineServes(st, m.role) {
 				left = append(left, m.role)
 			}
 		}
@@ -579,7 +606,7 @@ func Stop(args []string) int {
 		}
 		for _, m := range sharedAlong {
 			name := sharedContainer(m.role)
-			printSharedStop("the shared "+sharedNoun(m.role), installedRuntimes(), name, ss.Shared[name])
+			printSharedStop("the shared "+sharedNoun(m.role), installedRuntimes(), name, ss)
 		}
 		for _, rt := range runtimes {
 			for _, c := range targets {
@@ -587,8 +614,11 @@ func Stop(args []string) int {
 				fmt.Println(renderCmd(rt, "rm", c))
 			}
 		}
-		if useState && st.IssuerProxy != nil && (roles == nil || slices.Contains(roles, "identity")) {
-			fmt.Printf("# end the issuer proxy (pid %d)\n", st.IssuerProxy.PID)
+		for _, m := range machineAlong {
+			printSharedStop("the shared "+sharedNoun(m.role), installedRuntimes(), sharedContainer(m.role), ss)
+		}
+		if p := ss.IssuerProxy; useState && roles == nil && p != nil && slices.Contains(p.Realms, rootKey(st.KBDid, st.KBRoot)) {
+			fmt.Printf("# the issuer proxy (pid %d) stops passing this knowledge base's realm, and ends when it passes no other\n", p.PID)
 		}
 		for _, rt := range strayRuntimes {
 			fmt.Println("# sweep stray Semiont containers under " + rt + ":")
@@ -623,7 +653,7 @@ func Stop(args []string) int {
 		u.Log("The shared %s left running: another knowledge base's stack is recorded.", sharedNoun(role))
 	}
 	for _, m := range sharedAlong {
-		if stopSharedService(installedRuntimes(), sharedContainer(m.role), ss) {
+		if stopSharedService(u, installedRuntimes(), sharedContainer(m.role), ss) {
 			u.Ok("%s stopped", sharedNoun(m.role))
 		}
 	}
@@ -678,20 +708,22 @@ func Stop(args []string) int {
 		}
 	}
 
+	for _, m := range machineAlong {
+		if stopSharedService(u, installedRuntimes(), sharedContainer(m.role), ss) {
+			u.Ok("%s stopped", sharedNoun(m.role))
+		}
+	}
+
 	if roles != nil {
 		// The record forgets the services stopped; the rest of it stands.
-		// The issuer proxy goes with the issuer it serves.
 		if useState {
-			for _, role := range roles {
-				if role == "identity" {
-					endIssuerProxy(u, st)
-				}
+			for _, role := range slices.Concat(roles, memberRoles(machineAlong)) {
 				delete(st.Services, role)
 			}
 			saveStack(st)
 		}
 		if group != "" {
-			fmt.Printf("%s stopped: %s (staged configs left in place; rest of the stack untouched).\n", group, strings.Join(slices.Concat(memberRoles(sharedAlong), roles), ", "))
+			fmt.Printf("%s stopped: %s (staged configs left in place; rest of the stack untouched).\n", group, strings.Join(slices.Concat(memberRoles(sharedAlong), roles, memberRoles(machineAlong)), ", "))
 		} else {
 			fmt.Printf("%s stopped (staged configs left in place; rest of the stack untouched).\n", service)
 		}
@@ -716,7 +748,7 @@ func Stop(args []string) int {
 		u.Ok("Removed %d staged config dir(s)", len(staged))
 	}
 	if st != nil {
-		endIssuerProxy(u, st)
+		withoutRealm(u, rootKey(st.KBDid, st.KBRoot))
 	}
 	if scope.st != nil {
 		forgetStack(StackKey(scope.st))

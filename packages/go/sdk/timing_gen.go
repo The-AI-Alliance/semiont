@@ -1,4 +1,4 @@
-// Code generated from specs/src/client/timing.json — DO NOT EDIT.
+// Code generated from protocol/specs/src/client/timing.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-client-timing-go.mjs
 // The TypeScript and Python constants are generated from the same table, and
@@ -10,7 +10,7 @@ import "time"
 
 // Timing is the timing a Semiont client keeps: its deadlines, its retry
 // budgets, the cadence of its stream, and what it keeps count of, as
-// specs/src/client/timing.json states them for every SDK. It holds one field
+// protocol/specs/src/client/timing.json states them for every SDK. It holds one field
 // per entry, under the entry's name. DefaultTiming is the table's values; a
 // caller that wants another sets that field.
 type Timing struct {
@@ -46,18 +46,18 @@ type Timing struct {
 	// every renewal after it, for as long as the process lives. An upload has no
 	// deadline: how long it takes is how large the resource is. A read of
 	// anchored text may be held by the Archivist while the Smelter reads the
-	// content, for the time docs/protocol/ARCHIVIST.md states, and this deadline
-	// is longer than that wait.
+	// content, for the time protocol/contract/ARCHIVIST.md states, and this
+	// deadline is longer than that wait.
 	HttpRequestTimeout time.Duration
 	// RequestRetryPause is requestRetryPauseMs: The wait before an HTTP request
 	// that is neither the stream nor an emit is made a second time. It is made
 	// again when the gateway answered it with a status that promises recovery,
 	// or did not answer at all, on a method that cannot cause a second effect
-	// (`transport` in specs/src/retry/cases.json); once, after this wait, or
-	// after a refusal's `Retry-After` when that is longer. A request whose
-	// credential was refused is renewed and sent again at once, without this
-	// wait, and one unanswered at its deadline (`httpRequestTimeoutMs`) is not
-	// made again.
+	// (`transport` in protocol/specs/src/retry/cases.json); once, after this
+	// wait, or after a refusal's `Retry-After` when that is longer. A request
+	// whose credential was refused is renewed and sent again at once, without
+	// this wait, and one unanswered at its deadline (`httpRequestTimeoutMs`) is
+	// not made again.
 	RequestRetryPause time.Duration
 	// StreamOpenTimeout is streamOpenTimeoutMs: How long a client waits for the
 	// gateway to answer the request that opens its stream (POST /bus/subscribe):

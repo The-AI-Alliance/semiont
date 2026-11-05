@@ -81,7 +81,7 @@ private class Stores(val renewer: SignInKept, val another: SignInKept, val holds
 
 /**
  * The sign-in store, held to the tables each SDK that reads it runs
- * (specs/src/sign-in-store/cases.json): where the launcher's state home is,
+ * (protocol/specs/src/sign-in-store/cases.json): where the launcher's state home is,
  * and what a renewal keeps while other programs renew and sign out. And the
  * lock every writer of the store takes.
  */
@@ -212,7 +212,7 @@ class SignInStoreTest {
         override fun close() = letGo()
 
         companion object {
-            // As specs/src/sign-in-store/README.md has every writer take it: `flock`, and on Windows the
+            // As protocol/specs/src/sign-in-store/README.md has every writer take it: `flock`, and on Windows the
             // launcher's own call, LockFileEx on the one byte at OffsetHigh 0x40000000.
             private val python = """
                 import os, sys

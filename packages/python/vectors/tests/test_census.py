@@ -19,6 +19,7 @@ import tomllib
 from pathlib import Path
 
 from pydantic import JsonValue, TypeAdapter
+from semiont.identity import kb_did
 from spec import PACKAGE, SDK
 
 from semiont_vectors.embedding import EmbeddingProvider
@@ -30,6 +31,8 @@ from semiont_vectors.store import VectorReader, VectorStore
 from semiont_vectors.voyage import VoyageEmbeddingProvider
 
 SRC = PACKAGE / "src/semiont_vectors"
+KB = kb_did("example.github.io:plain-kb")
+"""The knowledge base whose index each Qdrant store and reader made here is."""
 SOURCES = sorted(path for top in ("src", "tests") for path in (PACKAGE / top).rglob("*.py"))
 
 # The public names, by the module that has each.
@@ -162,7 +165,7 @@ def test_a_store_has_the_members_of_a_vector_index_and_no_others() -> None:
     assert len(members) == 20
     # Making a store dials nothing, and asks nobody how wide a vector is: each reaches its index when it is connected.
     assert public(MemoryVectorStore()) == members
-    assert public(QdrantVectorStore(host="127.0.0.1", port=1, dimensions=never_asked)) == members
+    assert public(QdrantVectorStore(host="127.0.0.1", port=1, kb=KB, token="a-token", dimensions=never_asked)) == members
 
 
 def test_a_reader_has_the_searches_of_a_vector_index_and_nothing_that_writes() -> None:
@@ -173,7 +176,7 @@ def test_a_reader_has_the_searches_of_a_vector_index_and_nothing_that_writes() -
     in_memory: VectorReader = MemoryVectorStore()
     assert members < public(in_memory)
     # Making a reader dials nothing, and it is told no width.
-    assert public(QdrantVectorReader(host="127.0.0.1", port=1)) == members
+    assert public(QdrantVectorReader(host="127.0.0.1", port=1, kb=KB, token="a-token")) == members
 
 
 def test_a_provider_has_the_members_of_an_embedding_provider_and_no_others() -> None:

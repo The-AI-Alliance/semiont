@@ -2,8 +2,8 @@ package semiont
 
 // How a knowledge base is named, and the principals who act in it. Every
 // function here is held to a case table every implementation runs: the
-// knowledge base's own names to specs/src/kb-identity/cases.json, the rest to
-// specs/src/principals/cases.json.
+// knowledge base's own names to protocol/specs/src/kb-identity/cases.json, the rest to
+// protocol/specs/src/principals/cases.json.
 
 import (
 	"fmt"

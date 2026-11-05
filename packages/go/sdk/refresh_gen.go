@@ -1,4 +1,4 @@
-// Code generated from specs/src/client/refresh.json — DO NOT EDIT.
+// Code generated from protocol/specs/src/client/refresh.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-cache-refresh-go.mjs
 

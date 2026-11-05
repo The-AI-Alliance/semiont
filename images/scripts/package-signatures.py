@@ -7,7 +7,8 @@ signature is one line capturing everything its build reads:
   Swift and C# images, in that order);
 - every file under its directory;
 - what every package of the repository is built from: version.json, the spec, and the
-  scripts that generate from the spec;
+  generators under packages/codegen/ (a path of these that holds no file fails the run,
+  so a move cannot leave it naming nothing);
 - what its language's packages share: for TypeScript the files beside them and the root's
   package.json and lockfile, for Rust the workspace's manifest, lockfile and toolchain (a
   Kotlin package's lockfile, wrapper and version catalog are its own files);
@@ -29,13 +30,24 @@ import sys
 import tomllib
 from pathlib import Path
 
-MANIFESTS = {"package.json": "typescript", "Cargo.toml": "rust", "pyproject.toml": "python", "go.mod": "go", "build.gradle.kts": "kotlin", "Package.swift": "swift"}
+MANIFESTS = {
+    "package.json": "typescript",
+    "Cargo.toml": "rust",
+    "pyproject.toml": "python",
+    "go.mod": "go",
+    "build.gradle.kts": "kotlin",
+    "Package.swift": "swift",
+}
 # A .NET solution is named for what it builds.
 SOLUTION = ".slnx"
-EVERY_PACKAGE = ("version.json", "specs/src/", "scripts/spec/", "scripts/bus/")
+EVERY_PACKAGE = ("version.json", "protocol/specs/src/", "packages/codegen/")
 SHARED = {
     "typescript": ("package.json", "package-lock.json"),
-    "rust": ("packages/rust/Cargo.toml", "packages/rust/Cargo.lock", "packages/rust/rust-toolchain.toml"),
+    "rust": (
+        "packages/rust/Cargo.toml",
+        "packages/rust/Cargo.lock",
+        "packages/rust/rust-toolchain.toml",
+    ),
     "python": (),
     "go": (),
     "kotlin": (),
@@ -43,8 +55,18 @@ SHARED = {
     "csharp": (),
 }
 
-toolchains = dict(zip(("typescript", "rust", "python", "go", "kotlin", "swift", "csharp"), sys.argv[1:8], strict=True))
-files = sorted(f for f in sys.stdin.buffer.read().decode().split("\0") if f)
+toolchains = dict(
+    zip(
+        ("typescript", "rust", "python", "go", "kotlin", "swift", "csharp"),
+        sys.argv[1:8],
+        strict=True,
+    )
+)
+files = sorted(
+    f
+    for f in sys.stdin.buffer.read().decode().split("\0")
+    if f and (Path(f).exists() or Path(f).is_symlink())
+)
 
 
 def toml(path: str) -> dict:
@@ -60,7 +82,11 @@ def digest(paths: list[str]) -> str:
     for path in paths:
         h.update(path.encode() + b"\0")
         # A link is its target, not what it points at: the spec it reaches is hashed as the spec.
-        h.update(str(Path(path).readlink()).encode() if Path(path).is_symlink() else Path(path).read_bytes())
+        h.update(
+            str(Path(path).readlink()).encode()
+            if Path(path).is_symlink()
+            else Path(path).read_bytes()
+        )
         h.update(b"\0")
     return h.hexdigest()
 
@@ -72,13 +98,21 @@ def under(prefix: str) -> list[str]:
 packages: dict[str, dict[str, str]] = {}
 for f in files:
     m = re.fullmatch(r"packages/([^/]+)/([^/]+)/([^/]+)", f)
-    if m and (MANIFESTS.get(m[3]) == m[1] or (m[1] == "csharp" and m[3].endswith(SOLUTION))):
+    if m and (
+        MANIFESTS.get(m[3]) == m[1] or (m[1] == "csharp" and m[3].endswith(SOLUTION))
+    ):
         packages[f"packages/{m[1]}/{m[2]}"] = {"language": m[1], "manifest": f}
 if not packages:
     sys.exit("package-signatures: found no package under packages/<language>/<name>")
 
-npm_dirs = {manifest_json(p["manifest"])["name"]: d for d, p in packages.items() if p["language"] == "typescript"}
-workspace = toml("packages/rust/Cargo.toml").get("workspace", {}).get("dependencies", {})
+npm_dirs = {
+    manifest_json(p["manifest"])["name"]: d
+    for d, p in packages.items()
+    if p["language"] == "typescript"
+}
+workspace = (
+    toml("packages/rust/Cargo.toml").get("workspace", {}).get("dependencies", {})
+)
 
 
 def resolve(base: str, relative: str) -> str:
@@ -87,15 +121,28 @@ def resolve(base: str, relative: str) -> str:
 
 def dependencies(directory: str) -> set[str]:
     """The directories of the repository this package is built on, from its manifest."""
-    language, manifest = packages[directory]["language"], packages[directory]["manifest"]
+    language, manifest = (
+        packages[directory]["language"],
+        packages[directory]["manifest"],
+    )
     found: set[str] = set()
     if language == "typescript":
         stated = manifest_json(manifest)
-        for table in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
-            found |= {npm_dirs[name] for name in stated.get(table, {}) if name in npm_dirs}
+        for table in (
+            "dependencies",
+            "devDependencies",
+            "peerDependencies",
+            "optionalDependencies",
+        ):
+            found |= {
+                npm_dirs[name] for name in stated.get(table, {}) if name in npm_dirs
+            }
     elif language == "rust":
         stated = toml(manifest)
-        tables = [stated.get(t, {}) for t in ("dependencies", "dev-dependencies", "build-dependencies")]
+        tables = [
+            stated.get(t, {})
+            for t in ("dependencies", "dev-dependencies", "build-dependencies")
+        ]
         tables += [
             target.get(t, {})
             for target in stated.get("target", {}).values()
@@ -121,6 +168,11 @@ def dependencies(directory: str) -> set[str]:
     return found
 
 
+for prefix in EVERY_PACKAGE:
+    if not under(prefix):
+        sys.exit(
+            f"package-signatures: {prefix}, which every package is built from, holds no file: name where it is now in EVERY_PACKAGE"
+        )
 every_package = digest([f for prefix in EVERY_PACKAGE for f in under(prefix)])
 signatures: dict[str, str] = {}
 
@@ -129,19 +181,28 @@ def signature(directory: str, seen: tuple[str, ...] = ()) -> str:
     if directory in signatures:
         return signatures[directory]
     if directory in seen:
-        sys.exit(f"package-signatures: {' -> '.join((*seen, directory))} depend on one another")
+        sys.exit(
+            f"package-signatures: {' -> '.join((*seen, directory))} depend on one another"
+        )
     language = packages[directory]["language"]
     shared = [f for f in files if f in SHARED[language]]
     if language == "typescript":
         shared += [f for f in files if re.fullmatch(r"packages/typescript/[^/]+", f)]
-    parts = [f"toolchain:{toolchains[language]}", f"every:{every_package}", f"shared:{digest(shared)}", f"own:{digest(under(directory))}"]
+    parts = [
+        f"toolchain:{toolchains[language]}",
+        f"every:{every_package}",
+        f"shared:{digest(shared)}",
+        f"own:{digest(under(directory))}",
+    ]
     for dependency in sorted(dependencies(directory)):
         if dependency in packages:
             parts.append(f"{dependency}:{signature(dependency, (*seen, directory))}")
         elif under(dependency):
             parts.append(f"{dependency}:{digest(under(dependency))}")
         else:
-            sys.exit(f"package-signatures: {packages[directory]['manifest']} depends on {dependency}, which the repository does not hold")
+            sys.exit(
+                f"package-signatures: {packages[directory]['manifest']} depends on {dependency}, which the repository does not hold"
+            )
     signatures[directory] = hashlib.sha256("\n".join(parts).encode()).hexdigest()
     return signatures[directory]
 

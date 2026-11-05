@@ -53,7 +53,7 @@ async function openHybridInAnnotateMode(page: Page) {
 
   await page.getByRole('button', { name: /^mode$/i }).click();
   await page.getByRole('menuitem', { name: /^annotate$/i }).click();
-  await expect(page.locator(CONTAINER)).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator(slot(1)).locator(CONTAINER)).toBeVisible({ timeout: 30_000 });
 }
 
 /** Highlight + Rectangle. Motivation menuitems TOGGLE and persist, so reset to
@@ -68,7 +68,7 @@ async function armRectangleDrawing(page: Page) {
   await page.getByRole('menuitem', { name: /^highlight$/i }).click();
   await page.getByRole('button', { name: /^shape$/i }).click();
   await page.getByRole('menuitem', { name: /^rectangle$/i }).click();
-  await expect(page.locator(CONTAINER)).toHaveAttribute('data-drawing-mode', 'rectangle', { timeout: 5_000 });
+  await expect(page.locator(slot(1)).locator(CONTAINER)).toHaveAttribute('data-drawing-mode', 'rectangle', { timeout: 5_000 });
 }
 
 test.describe('a hybrid PDF (typed page + scanned page)', () => {

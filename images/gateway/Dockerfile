@@ -1,5 +1,5 @@
 # The gateway image: the binary, built here from the repository, and nothing
-# of its source — no .rs, no Cargo files, no target/, no toolchain, no specs/
+# of its source — no .rs, no Cargo files, no target/, no toolchain, no protocol/specs/
 # (the spec is compiled into the binary). Nothing is built, installed or
 # fetched when the container starts: the entrypoint execs the binary.
 #
@@ -20,7 +20,7 @@ RUN apk add --no-cache make
 RUN cargo install cargo-auditable --locked --version 0.7.6
 WORKDIR /build
 COPY version.json ./
-COPY specs/src specs/src
+COPY protocol/specs/src protocol/specs/src
 # The workspace (packages/rust/Cargo.toml): cargo loads every member
 # to build any one of them, so each member's crate is copied.
 COPY packages/rust/Cargo.toml packages/rust/Cargo.lock packages/rust/
@@ -54,7 +54,7 @@ COPY packages/rust/sdk/Cargo.toml packages/rust/sdk/build.rs packages/rust/sdk/
 COPY packages/rust/sdk/src packages/rust/sdk/src
 # The SDK's build script reads the spec through its own `specs`, a link in the
 # repository: made here, where only what is named is copied.
-RUN ln -s ../../../specs/src packages/rust/sdk/specs
+RUN ln -s ../../../protocol/specs/src packages/rust/sdk/specs
 COPY packages/rust/telemetry/Cargo.toml packages/rust/telemetry/
 COPY packages/rust/telemetry/src packages/rust/telemetry/src
 # The builder stage is the same in each Rust service's Dockerfile

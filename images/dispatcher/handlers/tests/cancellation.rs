@@ -1,4 +1,4 @@
-//! What a `job:cancel-requested` is answered with (docs/protocol/JOBS.md
+//! What a `job:cancel-requested` is answered with (protocol/contract/JOBS.md
 //! § `job:cancel-requested`): whether the queue acted on the job it named.
 //! A pending job is cancelled, and a running one is left to its worker,
 //! which is accepted and not stopped.

@@ -4,7 +4,7 @@
 #
 # actions/setup-node reads that file itself (node-version-file). What cannot,
 # a tooling image's tag (node:<version>-<variant>), asks here, so the file is
-# read in one place and one way: images/local-build.sh,
+# read in one place and one way: images/scripts/build-session.sh,
 # apps/desktop/build.sh and .github/release/version-bump.sh.
 #
 # It is not the floor a package asks of whoever installs it: that is

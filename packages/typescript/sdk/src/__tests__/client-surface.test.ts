@@ -1,5 +1,5 @@
 /**
- * The client's surface against specs/src/client/surface.json: every method
+ * The client's surface against protocol/specs/src/client/surface.json: every method
  * the table lists is called as each of its cases states, and what the call
  * did first is held to the row. Every SDK runs the same table, so two SDKs
  * given the same call send the same thing.
@@ -87,7 +87,7 @@ interface Table {
 }
 
 const TABLE: Table = JSON.parse(
-  readFileSync(new URL('../../../../../specs/src/client/surface.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../protocol/specs/src/client/surface.json', import.meta.url), 'utf8'),
 );
 
 /** `value` with each `{"$fixture": name}` replaced by the table's fixture. */
@@ -377,7 +377,7 @@ function callOf(namespace: string, method: string): Call | undefined {
   return calls[namespace]?.[method];
 }
 
-describe('the client surface (specs/src/client/surface.json)', () => {
+describe('the client surface (protocol/specs/src/client/surface.json)', () => {
   const listed = TABLE.namespaces.flatMap(({ namespace, methods }) =>
     methods.filter((row) => row.absent?.[SDK] === undefined).map((row) => ({ namespace, row })),
   );

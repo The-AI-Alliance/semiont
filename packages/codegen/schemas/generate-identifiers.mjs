@@ -1,4 +1,4 @@
-// Generate the kinds of id from specs/src/identifiers/kinds.json and each
+// Generate the kinds of id from protocol/specs/src/identifiers/kinds.json and each
 // kind's schema: the type of each, the question whether text is one, and the
 // one constructor that makes it.
 //
@@ -27,8 +27,8 @@ function option(name) {
   return at === -1 ? undefined : process.argv[at + 1];
 }
 
-const KINDS = resolve(option('--kinds') ?? resolve(ROOT, 'specs/src/identifiers/kinds.json'));
-const SCHEMAS = resolve(option('--schemas') ?? resolve(ROOT, 'specs/src/components/schemas'));
+const KINDS = resolve(option('--kinds') ?? resolve(ROOT, 'protocol/specs/src/identifiers/kinds.json'));
+const SCHEMAS = resolve(option('--schemas') ?? resolve(ROOT, 'protocol/specs/src/components/schemas'));
 const TYPES = resolve(option('--types') ?? resolve(ROOT, 'packages/typescript/core/src/types.ts'));
 const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/typescript/core/src/generated/identifiers.ts'));
 
@@ -49,7 +49,7 @@ for (const { name, ...schema } of readIdentifierKinds(KINDS, SCHEMAS, refuse)) {
 }
 
 const lines = [
-  '// Generated from specs/src/identifiers/kinds.json and each kind\'s schema; do not edit.',
+  '// Generated from protocol/specs/src/identifiers/kinds.json and each kind\'s schema; do not edit.',
   '//',
   '// A value of one of these types is made here and nowhere else: its guard',
   '// and its constructor hold text to the kind\'s rule, which is the schema\'s',

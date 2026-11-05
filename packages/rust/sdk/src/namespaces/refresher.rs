@@ -1,4 +1,4 @@
-//! What keeps a client's queries true: specs/src/client/refresh.json
+//! What keeps a client's queries true: protocol/specs/src/client/refresh.json
 //! (`crate::refresh`), applied to the caches of the namespaces that hold
 //! queries. Each event on the bus, and the reopening of a dropped stream,
 //! asks again for the queries its row names, writes the ones whose new value
@@ -13,7 +13,7 @@
 //!
 //! An event acts only on a key its cache holds, and the refetches one key is
 //! asked for inside a window are one refetch
-//! (docs/protocol/CACHE-SEMANTICS.md B12–B13b, B19, B20).
+//! (protocol/contract/CACHE-SEMANTICS.md B12–B13b, B19, B20).
 
 use super::browse::{self, BrowseNamespace, WHOLE, invalidate_engines};
 use super::gather::{GatherNamespace, ReferencedBy};

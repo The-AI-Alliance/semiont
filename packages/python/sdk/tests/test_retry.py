@@ -1,4 +1,4 @@
-"""Trying again, held to the cases every SDK runs (`specs/src/retry/cases.json`).
+"""Trying again, held to the cases every SDK runs (`protocol/specs/src/retry/cases.json`).
 
 The table states four rules. This SDK keeps the ones it has a use for, and the
 rest are named below with what will bring each: a rule the table gains, or one

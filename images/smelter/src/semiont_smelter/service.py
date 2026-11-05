@@ -13,11 +13,13 @@ service that cannot start says so while an operator is watching it boot: one
 line on stderr that begins `[fatal] `, and status 1. Once it has started,
 everything it writes is its log, on stdout.
 
-It starts in the order `docs/protocol/SMELTER.md` § Boot states: it signs in
-as its account, reaches its vector index, which asks its provider how wide a
-vector is where the index has to be made, makes the index again where it was
-made by another model or cut another way, and forgets its cursors where it
-did, follows the record, and opens its health port. Once its stream first
+It starts in the order `protocol/contract/SMELTER.md` § Boot states: it signs in
+as its account, asks the knowledge base which it is on a stream that names
+no command, refusing to start where it is not the one its document names,
+reaches its vector index, which asks its provider how wide a vector is where
+the index has to be made, makes the index again where it was made by another
+model or cut another way, and forgets its cursors where it did, follows the
+record, and opens its health port. Once its stream first
 opens it starts following, and a resource no cursor names is started by a
 reconcile. A reconcile that fails is said, in the log and at the health port,
 and does not end the service: ending it would make the index no fresher, and
@@ -37,7 +39,7 @@ from pathlib import Path
 from typing import Final, final
 
 from pydantic import JsonValue
-from semiont.bus import reply_channels_for
+from semiont.bus import Bus, reply_channels_for
 from semiont.channels import PERSISTED_EVENT_TYPES, SMELT_REBUILD_ANCHORS
 from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
 from semiont.identity import kb_did
@@ -47,6 +49,7 @@ from semiont_service.config import Refused, config_path_of, service_account_of
 from semiont_service.connect import connected
 from semiont_service.follower import Cursors
 from semiont_service.health import Health, bind_health
+from semiont_service.knowledge_base import CONFIRMING_CHANNELS, confirmed
 from semiont_service.log import configure
 from semiont_service.observability import Exporting, install
 from semiont_vectors.embedding import EmbeddingProvider
@@ -55,7 +58,7 @@ from semiont_vectors.store import IndexStamp, VectorStore
 
 from semiont_smelter.anchored_text_store import AnchoredTextStore
 from semiont_smelter.chunking import Chunking
-from semiont_smelter.config import SERVICE, embedding_key_of, read_smelter_config
+from semiont_smelter.config import SERVICE, embedding_key_of, read_smelter_config, vectors_token_of
 from semiont_smelter.extraction import PdfExtractor
 from semiont_smelter.index_stamp import hold_to, stamp_of
 from semiont_smelter.log import LOG, words_of
@@ -70,7 +73,7 @@ __all__ = ["CHANNELS", "boot", "main"]
 
 CHANNELS: Final[tuple[str, ...]] = (*PERSISTED_EVENT_TYPES, SMELT_REBUILD_ANCHORS.name, *reply_channels_for(*READ))
 """What the Smelter's stream names: every event of the record, as every follower of it receives them, the command it answers, and
-the replies of what it asks."""
+the replies of what it asks while it follows: what the record holds."""
 
 
 @final
@@ -91,8 +94,9 @@ def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     configure(SERVICE, config.log_level, config.log_format, own=(LOG.name, "semiont_service", "semiont_vectors", "semiont"))
     credential = service_account_of(SERVICE, config.identity.issuer, environment)
     provider = create_embedding_provider(config.embedding, api_key=embedding_key_of(config, environment))
-    # The index is as wide as the model's vectors, which the store asks the provider when it has to make the index.
-    index = create_vector_store(config.vectors, dimensions=provider.dimensions)
+    # The knowledge base's index, as wide as the model's vectors, which the store asks the provider when it has to make the index.
+    token = vectors_token_of(config, environment)
+    index = create_vector_store(config.vectors, kb=kb_did(config.kb.domain), token=token, dimensions=provider.dimensions)
     return _Started(config=config, credential=credential, provider=provider, index=index)
 
 
@@ -110,8 +114,8 @@ async def _reached(index: VectorStore, stamp: IndexStamp) -> bool:
     return await hold_to(index, stamp)
 
 
-def _health_of(smelter: Smelter, transport: HttpTransport, *, stamp: IndexStamp, made_anew: bool) -> dict[str, JsonValue]:
-    """What the health endpoint answers (`docs/protocol/SMELTER.md` § Health).
+def _health_of(smelter: Smelter, transport: HttpTransport, *, kb: str, stamp: IndexStamp, made_anew: bool) -> dict[str, JsonValue]:
+    """What the health endpoint answers (`protocol/contract/SMELTER.md` § Health).
 
     It answers for this Smelter alone, from what the Smelter holds: nothing
     is asked of the gateway, of the embedding provider or of the index's
@@ -120,6 +124,7 @@ def _health_of(smelter: Smelter, transport: HttpTransport, *, stamp: IndexStamp,
     index: dict[str, JsonValue] = {"stamp": dict(stamp), "madeAnew": made_anew}
     return {
         "status": "ok",
+        "kb": kb,
         "stream": transport.state.value,
         "following": smelter.following,
         "eventsProcessed": smelter.events_processed,
@@ -143,6 +148,13 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
 
     async with AgentToken(config.gateway_url, service=account) as agent:
         LOG.info("Agent ready", extra={"did": agent.did})
+        # Nothing kept for the knowledge base is touched before it says it is the one the document names.
+        kb = kb_did(config.kb.domain)
+        async with HttpTransport(config.gateway_url, token=agent.token, refresher=agent.refresh, channels=CONFIRMING_CHANNELS) as asking:
+            if not await confirmed(Bus(asking), config.kb.domain, told_to_stop):
+                LOG.info("Shutting down")
+                return
+        LOG.info("Knowledge base confirmed", extra={"kb": kb})
         stamp = stamp_of(config)
         made_anew = await connected("vector index and the embedding provider", _reached(started.index, stamp))
         LOG.info("Vector index ready", extra={"type": config.vectors.type})
@@ -173,7 +185,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
                 ) as smelter,
             ):
                 LOG.info("Following the record")
-                health = await _listening(config.port, partial(_health_of, smelter, transport, stamp=stamp, made_anew=made_anew))
+                health = await _listening(config.port, partial(_health_of, smelter, transport, kb=kb, stamp=stamp, made_anew=made_anew))
                 try:
                     await health.start_serving()
                     LOG.info("Health endpoint ready", extra={"port": config.port})

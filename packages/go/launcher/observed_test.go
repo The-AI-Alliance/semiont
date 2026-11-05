@@ -18,7 +18,7 @@ const (
 // collectorConfig renders it, which carries each resource attribute as a label
 // (`semiont.kb` as `semiont_kb`, `service.name` as `service_name`) and sorts a
 // series' labels by name. The job outcome counter's are its row of
-// specs/src/service-telemetry/telemetry.json (`job.type`, and `job.motivation`
+// protocol/specs/src/service-telemetry/telemetry.json (`job.type`, and `job.motivation`
 // on a mark job only), with `semiont_kb` on each point.
 const sampleReadout = `# HELP semiont_job_queue_size Job queue size by status
 # TYPE semiont_job_queue_size gauge

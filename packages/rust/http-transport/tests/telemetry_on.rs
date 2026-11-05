@@ -1,6 +1,6 @@
 //! The transport in a process that installs its own OpenTelemetry, after the
 //! client is open: the spans and the count of the SDK telemetry table
-//! (specs/src/sdk-telemetry/telemetry.json) reach what was installed, an emit
+//! (protocol/specs/src/sdk-telemetry/telemetry.json) reach what was installed, an emit
 //! carries its span's trace, and a frame's span continues its sender's. Its
 //! own binary, because what a process installed is the process's.
 

@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // lint:spec-stack — the documents the launcher reads, held to their schemas:
 // those a knowledge base's repository commits, and the machine's: the
-// Browser's and the worker's.
+// Browser's, the worker's, the issuer's and the vector store's.
 //
-// specs/src/stack/ holds one schema for each kind of the stack (KnowledgeBase,
-// KnowledgeIndex, Issuer, Inference) and for the Browser and the worker
-// (WorkerPool), which belong to no knowledge base; specs/src/kb-identity/
+// protocol/specs/src/stack/ holds one schema for each kind of the stack
+// (KnowledgeBase, KnowledgeIndex, Inference) and for the Browser, the worker
+// (WorkerPool), the issuer the launcher runs (Issuer) and the vector store it
+// runs (VectorStore), which belong to no knowledge base; protocol/specs/src/kb-identity/
 // holds the project file's (ProjectConfig). The launcher reads every document
-// against these schemas, with the same cases (specs/src/stack/cases.json),
+// against these schemas, with the same cases (protocol/specs/src/stack/cases.json),
 // so the schema is the one thing that decides a document's shape. It fails
 // when:
 //
@@ -15,9 +16,10 @@
 //     for a reason it does not say;
 //   - a schema has no refused case, or nothing accepted against it: a schema
 //     nothing is refused by holds nothing;
-//   - a document of the launcher's fixture knowledge base does not validate,
-//     or is of no kind a schema is for;
-//   - a project file of specs/src/kb-identity/cases.json validates when its
+//   - a document of the launcher's fixture knowledge base, or its fixtures of
+//     the machine's issuer and vector store documents, does not validate, or is of no kind a
+//     schema is for;
+//   - a project file of protocol/specs/src/kb-identity/cases.json validates when its
 //     case says every reader refuses it, or does not when it says none does;
 //   - a property a schema names has no field of the launcher's generated types
 //     (packages/go/launcher/stack/types_gen.go) tagged with its name;
@@ -34,18 +36,21 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import yaml from 'js-yaml';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
-const CASES = resolve(ROOT, 'specs/src/stack/cases.json');
+const CASES = resolve(ROOT, 'protocol/specs/src/stack/cases.json');
 const FIXTURE = resolve(ROOT, 'packages/go/launcher/testdata/kb/.semiont');
+const ISSUER_FIXTURE = resolve(ROOT, 'packages/go/launcher/testdata/issuer.yaml');
+const VECTOR_STORE_FIXTURE = resolve(ROOT, 'packages/go/launcher/testdata/vectors.yaml');
 
 /** Each schema a document is read against, by the name cases give it. */
 const SCHEMAS = {
-  KnowledgeBase: 'specs/src/stack/KnowledgeBase.json',
-  KnowledgeIndex: 'specs/src/stack/KnowledgeIndex.json',
-  Issuer: 'specs/src/stack/Issuer.json',
-  WorkerPool: 'specs/src/stack/WorkerPool.json',
-  Inference: 'specs/src/stack/Inference.json',
-  Browser: 'specs/src/stack/Browser.json',
-  ProjectConfig: 'specs/src/kb-identity/ProjectConfig.json',
+  KnowledgeBase: 'protocol/specs/src/stack/KnowledgeBase.json',
+  KnowledgeIndex: 'protocol/specs/src/stack/KnowledgeIndex.json',
+  Issuer: 'protocol/specs/src/stack/Issuer.json',
+  VectorStore: 'protocol/specs/src/stack/VectorStore.json',
+  WorkerPool: 'protocol/specs/src/stack/WorkerPool.json',
+  Inference: 'protocol/specs/src/stack/Inference.json',
+  Browser: 'protocol/specs/src/stack/Browser.json',
+  ProjectConfig: 'protocol/specs/src/kb-identity/ProjectConfig.json',
 };
 
 const failures = [];
@@ -161,7 +166,7 @@ function documents(dir) {
     return name.endsWith('.yaml') ? [path] : [];
   });
 }
-const fixtures = [resolve(FIXTURE, 'config.yaml'), ...documents(resolve(FIXTURE, 'stack'))];
+const fixtures = [resolve(FIXTURE, 'config.yaml'), ...documents(resolve(FIXTURE, 'stack')), ISSUER_FIXTURE, VECTOR_STORE_FIXTURE];
 for (const path of fixtures) {
   const where = path.slice(ROOT.length + 1);
   const document = yaml.load(readFileSync(path, 'utf8'));
@@ -174,10 +179,10 @@ for (const path of fixtures) {
 
 // ── the identity cases hold to the project file's schema ───────────────────
 
-// specs/src/kb-identity/cases.json says of each project file whether every
+// protocol/specs/src/kb-identity/cases.json says of each project file whether every
 // reader refuses it; ProjectConfig decides that, so each case's file must
 // validate exactly when the case says it is not refused.
-const identityCases = JSON.parse(readFileSync(resolve(ROOT, 'specs/src/kb-identity/cases.json'), 'utf8')).cases;
+const identityCases = JSON.parse(readFileSync(resolve(ROOT, 'protocol/specs/src/kb-identity/cases.json'), 'utf8')).cases;
 for (const { why, config, refused } of identityCases) {
   if (config === null) continue;
   let document;
@@ -194,11 +199,11 @@ for (const { why, config, refused } of identityCases) {
 // ── the launcher's types hold every property ───────────────────────────────
 
 // An independent count, not the generator's: every property a schema of
-// specs/src/stack or the project file's names has a field tagged with its name
+// protocol/specs/src/stack or the project file's names has a field tagged with its name
 // in the launcher's generated types. A generator that drops a property passes
 // its own drift check; it does not pass this.
 const types = readFileSync(resolve(ROOT, 'packages/go/launcher/stack/types_gen.go'), 'utf8');
-const stackSchemas = readdirSync(resolve(ROOT, 'specs/src/stack')).filter((name) => name.endsWith('.json') && name !== 'cases.json').map((name) => `specs/src/stack/${name}`);
+const stackSchemas = readdirSync(resolve(ROOT, 'protocol/specs/src/stack')).filter((name) => name.endsWith('.json') && name !== 'cases.json').map((name) => `protocol/specs/src/stack/${name}`);
 for (const path of [...stackSchemas, SCHEMAS.ProjectConfig]) {
   (function walk(node, where) {
     if (Array.isArray(node)) node.forEach((item, i) => walk(item, `${where}/${i}`));
@@ -223,11 +228,11 @@ for (const path of [...stackSchemas, SCHEMAS.ProjectConfig]) {
 // same rules: everything but its description.
 const rulesOf = (schema) => JSON.stringify(Object.entries(schema).filter(([key]) => key !== 'description').sort(([a], [b]) => a.localeCompare(b)));
 const project = JSON.parse(readFileSync(resolve(ROOT, SCHEMAS.ProjectConfig), 'utf8')).properties;
-const served = JSON.parse(readFileSync(resolve(ROOT, 'specs/src/components/schemas/KbIdentity.json'), 'utf8')).properties;
+const served = JSON.parse(readFileSync(resolve(ROOT, 'protocol/specs/src/components/schemas/KbIdentity.json'), 'utf8')).properties;
 for (const [key, [section, owned]] of Object.entries({ name: ['project', 'name'], domain: ['site', 'domain'] })) {
   const restated = served[key];
   const owner = project[section].properties[owned];
-  if (rulesOf(restated) !== rulesOf(owner)) fail(`specs/src/components/schemas/KbIdentity.json /properties/${key}: holds it to ${rulesOf(restated)}, and ProjectConfig holds ${section}.${owned} to ${rulesOf(owner)}`);
+  if (rulesOf(restated) !== rulesOf(owner)) fail(`protocol/specs/src/components/schemas/KbIdentity.json /properties/${key}: holds it to ${rulesOf(restated)}, and ProjectConfig holds ${section}.${owned} to ${rulesOf(owner)}`);
 }
 
 for (const [name, { accepted, refused }] of Object.entries(held)) {

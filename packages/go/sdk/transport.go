@@ -1,6 +1,6 @@
 package semiont
 
-// The transport contract (docs/protocol/TRANSPORT-CONTRACT.md): what a client
+// The transport contract (protocol/contract/TRANSPORT-CONTRACT.md): what a client
 // needs of whatever carries the bus. The client holds it without naming what
 // carries it.
 
@@ -43,7 +43,7 @@ type Transport interface {
 	// BridgeInto delivers into sink, the client's own bus, every frame the
 	// transport delivers from now on, each published to everyone there
 	// whichever scope it came on. The bus is the client's: a transport never
-	// makes one (docs/protocol/TRANSPORT-CONTRACT.md § The bus belongs to the
+	// makes one (protocol/contract/TRANSPORT-CONTRACT.md § The bus belongs to the
 	// client).
 	BridgeInto(sink FrameSink)
 	// Failures is the failures the transport meets from now on, each as it is

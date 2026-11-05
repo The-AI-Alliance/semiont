@@ -1,7 +1,7 @@
 // Package mediatypes reads the media-type registry
-// (specs/src/media-types/registry.json): the types a knowledge base admits.
+// (protocol/specs/src/media-types/registry.json): the types a knowledge base admits.
 // The table is generated (registry_gen.go); the rules read from it are here,
-// the ones specs/src/media-types/cases.json holds in every SDK among them: the
+// the ones protocol/specs/src/media-types/cases.json holds in every SDK among them: the
 // format a clone takes, the name content is stored under, and where a type's
 // text comes from, with what follows from that.
 package mediatypes

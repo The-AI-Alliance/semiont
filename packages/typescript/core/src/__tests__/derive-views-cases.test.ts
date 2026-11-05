@@ -1,6 +1,6 @@
 /**
  * The flat views read off a knowledge graph, held to
- * specs/src/librarian/derive-views-cases.json: the table every
+ * protocol/specs/src/librarian/derive-views-cases.json: the table every
  * implementation of the reading runs, so that one graph gives one set of
  * connections, citations and sibling entity types in any language.
  */
@@ -21,10 +21,10 @@ interface Case {
   views: GraphViews;
 }
 
-const TABLE = 'specs/src/librarian/derive-views-cases.json';
+const TABLE = 'protocol/specs/src/librarian/derive-views-cases.json';
 const table: { cases: Case[] } = JSON.parse(readFileSync(new URL(`../../../../../${TABLE}`, import.meta.url), 'utf8'));
 
-describe('the views read off a knowledge graph (specs/src/librarian/derive-views-cases.json)', () => {
+describe('the views read off a knowledge graph (protocol/specs/src/librarian/derive-views-cases.json)', () => {
   it('has cases, with a focal annotation and with none', () => {
     expect(table.cases.length).toBeGreaterThan(0);
     for (const stated of table.cases) {

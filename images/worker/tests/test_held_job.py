@@ -1,6 +1,6 @@
 """One held job from its claim to its settle: what the service does around a processor.
 
-`docs/protocol/WORKER-SERVICE.md` states it rule by rule, and the worker
+`protocol/contract/WORKER-SERVICE.md` states it rule by rule, and the worker
 service's conformance suite holds a started service to those rules. Here is
 what that suite cannot reach, or cannot make happen: a report the gateway is
 slow to take, or does not take; a settle the gateway does not take; a worker

@@ -164,7 +164,7 @@ internal fun telemetryFile(table: JsonObject): String = buildString {
     val kinds = mapOf("client" to "CLIENT", "server" to "SERVER", "producer" to "PRODUCER", "consumer" to "CONSUMER", "internal" to "INTERNAL")
     val taken = mutableSetOf<String>()
     fun constant(name: String): String = constantName(name.replace("{channel}", "")).also { if (!taken.add(it)) refuse("the telemetry table: two rows would both be $it") }
-    append("/** The telemetry a Semiont SDK's transports export (specs/src/sdk-telemetry/telemetry.json). A span's name may hold `{channel}`, the bus channel. */\n")
+    append("/** The telemetry a Semiont SDK's transports export (protocol/specs/src/sdk-telemetry/telemetry.json). A span's name may hold `{channel}`, the bus channel. */\n")
     append("internal object TelemetryTable {\n")
     for (raw in table["spans"].list("the telemetry table's spans")) {
         val row = raw.obj("a span")
@@ -189,7 +189,7 @@ internal fun telemetryFile(table: JsonObject): String = buildString {
 internal fun credentialsFile(table: JsonObject): String = buildString {
     val names = table["names"].list("the bus log's names").map { it.text("a name") }
     if (names.isEmpty() || names.toSet().size != names.size) refuse("the bus log's names are none, or one is named twice")
-    append("/** The names a credential goes by: a bus log line shows `[withheld]` for the value of a member under any of them (specs/src/bus/log-cases.json). */\n")
+    append("/** The names a credential goes by: a bus log line shows `[withheld]` for the value of a member under any of them (protocol/specs/src/bus/log-cases.json). */\n")
     append("internal val CREDENTIAL_NAMES: Set<String> = setOf(${names.joinToString(", ") { literal(it) }})\n")
 }
 
@@ -231,7 +231,7 @@ internal fun ownerOnlyFile(table: JsonObject): String = buildString {
 
 /** The timing a client keeps: each row a constant, `busRequestTimeoutMs` as `BUS_REQUEST_TIMEOUT_MS`, a budget as a `RetryPolicy`. */
 internal fun timingFile(table: JsonObject): String = buildString {
-    append("/** The timing a client keeps (specs/src/client/timing.json). */\n")
+    append("/** The timing a client keeps (protocol/specs/src/client/timing.json). */\n")
     append("internal object Timings {\n")
     for (raw in table["timing"].list("the timing table")) {
         val row = raw.obj("a timing row")

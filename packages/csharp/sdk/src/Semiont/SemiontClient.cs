@@ -1,0 +1,84 @@
+using Semiont.Http;
+using Semiont.Namespaces;
+using Semiont.Protocol;
+
+namespace Semiont;
+
+public sealed class SemiontClient : IDisposable
+{
+    private readonly HttpContentTransport content;
+    private readonly LiveQueries live;
+    private readonly IDisposable attachedBus;
+
+    public SemiontClient(string baseUrl, string? token = null, HttpClient? httpClient = null,
+        TimeProvider? timeProvider = null, Random? random = null, Timing? timing = null, CachePersistence? persistence = null)
+        : this(new HttpTransport(baseUrl, token, ProtocolFacts.Channels("everyone").Concat(ProtocolFacts.OperationReplies()),
+            timing: timing, httpClient: httpClient, timeProvider: timeProvider, random: random), persistence)
+    {
+    }
+
+    /// <summary>Owns the transport. Supply subscriptions for the operations the client will use.</summary>
+    public SemiontClient(HttpTransport transport, CachePersistence? persistence = null)
+    {
+        ArgumentNullException.ThrowIfNull(transport);
+        Transport = transport;
+        Wire = new Bus(transport);
+        Bus = new EventBus();
+        content = new HttpContentTransport(transport);
+        live = new LiveQueries(Wire, Bus, transport, content, persistence);
+        Browse = new BrowseNamespace(Wire, Bus, content, transport.Closed, live);
+        Bind = new BindNamespace(Wire, Bus);
+        Beckon = new BeckonNamespace(Wire, Bus);
+        Gather = new GatherNamespace(Wire, live);
+        Match = new MatchNamespace(Wire, Bus, live);
+        Job = new JobNamespace(Wire, Bus, transport);
+        var follower = new JobFollower(Wire, Bus, Job, transport.Clock, transport.Closed, transport.Settings);
+        Mark = new MarkNamespace(Wire, Bus, follower);
+        Yield = new YieldNamespace(follower, Wire, Bus, content);
+        Frame = new FrameNamespace(Wire);
+        Auth = new AuthNamespace(transport);
+        System = new SystemNamespace(transport);
+        attachedBus = transport.AttachBus(Bus);
+        _ = CloseWithTransportAsync();
+    }
+
+    public Bus Wire { get; }
+    public EventBus Bus { get; }
+    public BindNamespace Bind { get; }
+    public BeckonNamespace Beckon { get; }
+    public GatherNamespace Gather { get; }
+    public MatchNamespace Match { get; }
+    public MarkNamespace Mark { get; }
+    public BrowseNamespace Browse { get; }
+    public YieldNamespace Yield { get; }
+    public JobNamespace Job { get; }
+    public HttpTransport Transport { get; }
+    public string BaseUrl => Transport.BaseUrl;
+    public ConnectionState State => Transport.State;
+    public FrameNamespace Frame { get; }
+    public AuthNamespace Auth { get; }
+    public SystemNamespace System { get; }
+
+    private async Task CloseWithTransportAsync()
+    {
+        await foreach (var state in Transport.States().ConfigureAwait(false))
+            if (state == ConnectionState.Closed) break;
+        try { live.Dispose(); }
+        finally { Bus.Dispose(); }
+    }
+
+    public void Dispose()
+    {
+        try { live.Dispose(); }
+        finally
+        {
+            try { content.Dispose(); }
+            finally
+            {
+                attachedBus.Dispose();
+                Bus.Dispose();
+                Transport.Dispose();
+            }
+        }
+    }
+}

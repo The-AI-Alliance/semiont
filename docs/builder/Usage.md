@@ -28,7 +28,7 @@
 
 Three framings hold the SDK's surface together. Skim them once and the per-namespace details below become predictable.
 
-**Eight verbs.** Every operation belongs to one of eight flows that describe what a participant *does* with a shared corpus: four that write (*yield, mark, bind, frame*), three that read (*browse, match, gather*), and one that directs attention (*beckon*). Frame writes the vocabulary the other writing verbs draw on. Each flow is a namespace on `SemiontClient`. The verb is the unit of mental model; methods belong to flows, not to nouns. The protocol-level definitions live in [`docs/protocol/flows`](../protocol/flows); the per-namespace examples in this guide track the same vocabulary.
+**Eight verbs.** Every operation belongs to one of eight flows that describe what a participant *does* with a shared corpus: four that write (*yield, mark, bind, frame*), three that read (*browse, match, gather*), and one that directs attention (*beckon*). Frame writes the vocabulary the other writing verbs draw on. Each flow is a namespace on `SemiontClient`. The verb is the unit of mental model; methods belong to flows, not to nouns. The protocol-level definitions live in [`protocol/contract/flows`](../../protocol/contract/flows); the per-namespace examples in this guide track the same vocabulary.
 
 **Six return shapes.** Method return types follow a predictable convention:
 
@@ -139,7 +139,7 @@ token$.next(accessToken(newToken));
 
 `@semiont/sdk` re-exports the common branded types and the functions that make them from `@semiont/core`, for one-import convenience.
 
-The four kinds of id are made by their constructors: `resourceId`, `annotationId`, `jobId`, `userId`. Each holds text to its kind's rule, which is the spec's ([`specs/src/identifiers/kinds.json`](../../specs/src/identifiers/kinds.json)), and throws a `TypeError` for text the rule refuses: a resource's, an annotation's and a job's id is a name of 1 to 128 letters, digits, `_` and `-`, never a URI or a path, and whoever did something is named by a DID. One kind is not assignable to another, and what the knowledge base answers is typed already, so a constructor stands only where text enters: a URL, a form, a script's argument.
+The four kinds of id are made by their constructors: `resourceId`, `annotationId`, `jobId`, `userId`. Each holds text to its kind's rule, which is the spec's ([`protocol/specs/src/identifiers/kinds.json`](../../protocol/specs/src/identifiers/kinds.json)), and throws a `TypeError` for text the rule refuses: a resource's, an annotation's and a job's id is a name of 1 to 128 letters, digits, `_` and `-`, never a URI or a path, and whoever did something is named by a DID. One kind is not assignable to another, and what the knowledge base answers is typed already, so a constructor stands only where text enters: a URL, a form, a script's argument.
 
 ```ts
 import { resourceId as makeResourceId } from '@semiont/sdk';
@@ -305,7 +305,7 @@ semiont.mark.delegate(resourceId, {
 });
 ```
 
-Each motivation takes its own params and no others; [the Mark flow](../protocol/flows/MARK.md#delegation) lists them. The completion's `result` is a `mark` job's ([`MarkJobResult`](../../specs/src/components/schemas/MarkJobResult.json)), one of two. A job that did its work gives its counts, the same for every motivation: `found`, what the model proposed; `persisted`, what was written; and `errors`, how many of the proposed could not be anchored in the text, absent when none. A resource whose text could not be read gives a decline, `{ declined: true, reason }`.
+Each motivation takes its own params and no others; [the Mark flow](../../protocol/contract/flows/MARK.md#delegation) lists them. The completion's `result` is a `mark` job's ([`MarkJobResult`](../../protocol/specs/src/components/schemas/MarkJobResult.json)), one of two. A job that did its work gives its counts, the same for every motivation: `found`, what the model proposed; `persisted`, what was written; and `errors`, how many of the proposed could not be anchored in the text, absent when none. A resource whose text could not be read gives a decline, `{ declined: true, reason }`.
 
 ## Bind
 
@@ -379,7 +379,7 @@ semiont.browse.tagSchemas().subscribe((st) => {
 });
 ```
 
-For the full per-flow contract — including the `__system__`-stream event-sourcing layer, projection materialization, and "most-recent wins + log warning" conflict semantics — see [`docs/protocol/flows/FRAME.md`](../protocol/flows/FRAME.md). There are no schema-evolution operations (rename / remove / version / migrate).
+For the full per-flow contract — including the `__system__`-stream event-sourcing layer, projection materialization, and "most-recent wins + log warning" conflict semantics — see [`protocol/contract/flows/FRAME.md`](../../protocol/contract/flows/FRAME.md). There are no schema-evolution operations (rename / remove / version / migrate).
 
 ## Browse
 
@@ -638,7 +638,7 @@ again), outstanding requests' replies are re-requested from the server's
 retention buffer (`pendingReplies`), and the caches fed by events with no
 watermark — lists of resources, resources, entity types, tag schemas, the
 engines — are asked for again. See
-[TRANSPORT-HTTP.md](../protocol/TRANSPORT-HTTP.md) for the wire
+[TRANSPORT-HTTP.md](../../protocol/contract/TRANSPORT-HTTP.md) for the wire
 contract.
 
 ### Worker / actor adapters
@@ -667,7 +667,7 @@ When something on the bus is silently not happening — a job-claim worker that 
 [bus RECV] mark:added scope=res-abc {annotation: ..., ...}
 ```
 
-A line shows the payload, and never a credential in it: the value of a member whose name is one a credential goes by (`token`, `password`, `apiKey` and the rest of a [short list](../../specs/src/bus/log-cases.json)) is written as `[withheld]`.
+A line shows the payload, and never a credential in it: the value of a member whose name is one a credential goes by (`token`, `password`, `apiKey` and the rest of a [short list](../../protocol/specs/src/bus/log-cases.json)) is written as `[withheld]`.
 
 Toggle:
 

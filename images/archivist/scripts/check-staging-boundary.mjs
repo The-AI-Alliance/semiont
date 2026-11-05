@@ -12,7 +12,7 @@
  *     git library;
  *   - in production TypeScript and JavaScript, nothing spawns git or writes
  *     its arguments (`mv`, `rm`, `--cached`, `rev-parse`);
- *   - no schema in `specs/` gives a caller a `noGit` switch. Whether a project
+ *   - no schema in `protocol/specs/` gives a caller a `noGit` switch. Whether a project
  *     stages is the project's `git.sync`, never one command's choice.
  *
  * A test may run git to set a repository up or to read its index. Each allowed
@@ -36,7 +36,7 @@ const productionSource = (file) =>
 
 const rustSource = (file) => /^(apps|images|packages)\/(?!desktop\/)(?:[^/]+\/)+src\/.*\.rs$/.test(file);
 
-const specSchema = (file) => /^specs\/src\/.*\.json$/.test(file);
+const specSchema = (file) => /^protocol\/specs\/src\/.*\.json$/.test(file);
 
 const RULES = [
   {

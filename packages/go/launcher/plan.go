@@ -41,10 +41,11 @@ const (
 	presenceLauncher                      // the launcher runs it here (driver by type)
 	presenceExternal                      // somebody else runs it: verify, never launch
 	presenceHostPreferred                 // a host process is preferred; a container is the fallback
+	presenceShared                        // the launcher runs it once for every knowledge base here, from the machine's document
 )
 
 func (p presence) String() string {
-	return [...]string{"absent", "provided", "external", "host-process"}[p]
+	return [...]string{"absent", "provided", "external", "host-process", "shared"}[p]
 }
 
 type rolePlan struct {
@@ -63,6 +64,9 @@ type rolePlan struct {
 	// User: the login a launcher-kept password belongs to (graph: NEO4J_AUTH's
 	// user half).
 	User string
+	// Database: identity-store — the database the issuer keeps its realms in
+	// (the issuer's document's database.name).
+	Database string
 	// ExternalDBPassword: identity on an EXTERNAL PostgreSQL — the variable its
 	// password is read from (the Issuer document's database.external.password).
 	ExternalDBPassword string
@@ -79,8 +83,8 @@ type rolePlan struct {
 	// one as its document states it, the launcher's Keycloak at localhost on
 	// its port (issuerURL gives a container's view).
 	Issuer string
-	// AccessTokenLifespan: seconds, for the realm the launcher creates.
-	// Zero means the built-in default; only a launcher-run Keycloak has one.
+	// AccessTokenLifespan: seconds, for the realm the launcher creates in the
+	// shared issuer; an issuer somebody else runs has none of ours.
 	AccessTokenLifespan int
 }
 
@@ -91,8 +95,8 @@ type launchPlan struct {
 	Roles       map[string]rolePlan
 	GatewayPort int
 	// Block: the knowledge base's port block (portBlockOf), which places each
-	// port of its stack the launcher publishes but the gateway's and the
-	// Keycloak's, whose ports this start was handed (hostPort).
+	// port of its stack the launcher publishes but the gateway's (hostPort).
+	// The issuer's are the machine's, in its document.
 	Block int
 	// Inference: the file of the Inference document this start chose, for the
 	// messages that name it.
@@ -359,7 +363,7 @@ func providedRunArgs(e exposure, plan *launchPlan, rp rolePlan, key string, extr
 	// the diagnosis, and --rm destroys them (the runtime's `logs` answers
 	// "No such container"). Cleanup is already explicit at both ends:
 	// start's preflight and stop both stop+rm by name.
-	a := []string{"run", "-d", "--name", spec.containerName(key), "--memory", rp.Memory}
+	a := []string{"run", "-d", "--name", rp.container(key), "--memory", rp.Memory}
 	for _, ap := range spec.auxPorts {
 		a = append(a, e.publish("-p", role, plan.hostPort(role, ap.port), ap.port)...)
 	}
@@ -371,6 +375,16 @@ func providedRunArgs(e exposure, plan *launchPlan, rp rolePlan, key string, extr
 	a = append(a, rp.Image)
 	a = append(a, spec.cmd...)
 	return append(a, rp.CmdExtra...)
+}
+
+// container: the container rp runs for the knowledge base keyed key — the
+// machine's when the knowledge base names it shared, else its own.
+func (rp rolePlan) container(key string) string {
+	spec := descriptorFor(rp.Role, rp.Driver)
+	if rp.Presence == presenceShared {
+		return spec.machineContainer()
+	}
+	return spec.containerName(key)
 }
 
 // ollamaRunArgs: the semiont-ollama `run -d` argv. Separate from
@@ -414,21 +428,14 @@ func (p *launchPlan) workerRuns() bool {
 // order the checks run in, and the start goldens pin it.
 func planPortChecks(plan *launchPlan, e exposure) []portNeed {
 	var checks []portNeed
-	addRole := func(role string) {
-		rp := plan.Roles[role]
-		if rp.Presence != presenceLauncher {
-			return
+	for _, role := range []string{"graph", "vectors", "messaging"} {
+		// The machine's vector store is checked when a start runs it, as the
+		// shared issuer's daemons are: it keeps running past this stack.
+		if plan.Roles[role].Presence == presenceShared {
+			continue
 		}
-		spec := descriptorFor(role, rp.Driver)
-		checks = append(checks, plan.AuxPorts(role)...)
-		need := portNeed{rp.Port, spec.portLabel}
-		checks = append(append(checks, need), e.containersSideNeed(role, need, spec.defaultPort)...)
+		checks = append(checks, rolePortNeeds(plan, role, e)...)
 	}
-	addRole("graph")
-	addRole("vectors")
-	addRole("identity-store")
-	addRole("messaging")
-	addRole("identity")
 	// The gateway's port is config-owned; every other Semiont port is
 	// launcher fiat, on the knowledge base's port block. No browser here: the
 	// Browser is not a stack member — its port is checked inside flowBrowser,
@@ -441,6 +448,20 @@ func planPortChecks(plan *launchPlan, e exposure) []portNeed {
 		}
 	}
 	return checks
+}
+
+// rolePortNeeds: the host ports a start publishes the daemon of role on when
+// the launcher runs it, for the knowledge base or for the machine — its aux
+// ports, its own, and the containers' side of one a person dials too — none
+// when it does not run it or publishes no port.
+func rolePortNeeds(plan *launchPlan, role string, e exposure) []portNeed {
+	rp := plan.Roles[role]
+	if rp.Presence != presenceLauncher && rp.Presence != presenceShared || rp.Port == 0 {
+		return nil
+	}
+	spec := descriptorFor(role, rp.Driver)
+	need := portNeed{rp.Port, spec.portLabel}
+	return slices.Concat(plan.AuxPorts(role), []portNeed{need}, e.containersSideNeed(role, need, spec.defaultPort))
 }
 
 // fiatRoles: the stack's roles whose ports are the launcher's fiat, whatever
@@ -459,10 +480,9 @@ func knownDrivers(role string) string {
 
 // blockRoles: the roles whose ports a knowledge base's port block places —
 // Semiont's services behind the gateway, and the daemons of its stack whose
-// port is the launcher's to choose. The gateway's is its document's, the
-// Keycloak's this start's (keycloakPort), and the shared containers' the
-// machine's.
-var blockRoles = slices.Concat(fiatRoles(), []string{"graph", "vectors", "identity-store", "messaging"})
+// port is the launcher's to choose. The gateway's is its document's, and the
+// shared containers' the machine's: the issuer's in its own document.
+var blockRoles = slices.Concat(fiatRoles(), []string{"graph", "vectors", "messaging"})
 
 // hostPort: where this start publishes role's port that its container
 // listens on at ctrPort — on the knowledge base's port block for one of
@@ -518,6 +538,17 @@ func parseHostPort(s string) (host string, port int) {
 	return s, 0
 }
 
+// externalBrokerAt: where a broker somebody else runs listens, from the
+// servers its document states: the host, and the port, the driver's where
+// servers states none.
+func externalBrokerAt(servers string) (host string, port int) {
+	host, port = parseHostPort(servers)
+	if port == 0 {
+		port = descriptorFor("messaging", "jetstream").defaultPort
+	}
+	return host, port
+}
+
 // workerPlan: the worker's row of the plan. The shared worker serves the
 // knowledge base when the engines give a job an engine, and not when they
 // give none. ONE decision, read from the engines the worker's entry and the
@@ -537,13 +568,62 @@ func planErr(file, field, format string, a ...any) error {
 	return fmt.Errorf("%s: %s %s", file, field, fmt.Sprintf(format, a...))
 }
 
+// issuerRoles: the shared issuer's two roles as its document describes them,
+// the PostgreSQL that keeps every realm here and the Keycloak that serves
+// them, before any knowledge base's realm: what a start of a knowledge base
+// that names it runs, and what a clean runs for a realm's delete.
+func issuerRoles(issuer *issuerDocument) (store, server rolePlan, err error) {
+	is := issuer.spec
+	d := is.Database
+	if _, ok := lookupDescriptor("identity-store", d.Type); !ok {
+		return store, server, planErr(issuer.path, "spec.database.type", "is %q, which no driver runs (known drivers: %s)", d.Type, knownDrivers("identity-store"))
+	}
+	if is.Type != "keycloak" {
+		return store, server, planErr(issuer.path, "spec.type", `is %q: the issuer the launcher runs is "keycloak"`, is.Type)
+	}
+	store = rolePlan{Role: "identity-store", Driver: d.Type, Database: d.Name}
+	if d.External != nil {
+		store.Presence, store.Address, store.Port = presenceExternal, d.External.Host, d.External.Port
+	} else {
+		store.Presence, store.Image, store.Memory, store.Port = presenceLauncher, *d.Image, d.Resources.Limits.Memory, *d.Port
+		store.Env = []string{"POSTGRES_DB=" + d.Name}
+		// POSTGRES_USER only when it departs from the image's own.
+		if d.User != "postgres" {
+			store.Env = append(store.Env, "POSTGRES_USER="+d.User)
+		}
+	}
+	server = rolePlan{
+		Role: "identity", Driver: "keycloak", Port: is.Port, Presence: presenceLauncher,
+		Image: is.Image, Memory: is.Resources.Limits.Memory,
+		Env: []string{"KC_DB=postgres", "KC_DB_USERNAME=" + d.User,
+			"KC_BOOTSTRAP_ADMIN_USERNAME=" + keycloakAdminUser},
+	}
+	// A launcher-run PostgreSQL's password is kept by the launcher and handed
+	// to Keycloak at launch; an external one's is read from the variable its
+	// document names.
+	if d.External != nil {
+		server.ExternalDBPassword = d.External.Password.FromEnv
+	}
+	return store, server, nil
+}
+
+// sharedVectorsRole: the machine's vector store as its document gives it, a
+// role the launcher runs once for every knowledge base here naming it.
+func sharedVectorsRole(vectors *vectorStoreDocument) rolePlan {
+	return rolePlan{Role: "vectors", Driver: vectors.spec.Type, Presence: presenceShared,
+		Image: vectors.spec.Image, Memory: vectors.spec.Resources.Limits.Memory, Port: vectors.spec.Port}
+}
+
 // derivePlan maps a knowledge base's documents to each role's presence.
-// realm is the realm the Keycloak the launcher runs keeps the knowledge base
-// in: its key (rootKey), so each knowledge base has a realm of its own.
-// keycloakPort is the port this launch gives the Keycloak it runs
-// (keycloakPort in root.go), and block the knowledge base's port block
-// (portBlockOf).
-func derivePlan(st *stack.Stack, realm string, keycloakPort, block int) (*launchPlan, error) {
+// issuer is the issuer's document (issuerOf) for a knowledge base that names
+// the shared issuer, and nil for one that trusts somebody else's. vectors is
+// the vector store's document (vectorStoreOf) for one that names the shared
+// vector store, and nil for one whose vector store is its own or somebody
+// else's. realm is the
+// realm the shared issuer keeps the knowledge base in: its key (rootKey), so
+// each knowledge base has a realm of its own. block is the knowledge base's
+// port block (portBlockOf).
+func derivePlan(st *stack.Stack, issuer *issuerDocument, vectors *vectorStoreDocument, realm string, block int) (*launchPlan, error) {
 	kb, index, files := st.KnowledgeBase.Spec, st.KnowledgeIndex.Spec, st.Files
 	plan := &launchPlan{
 		Roles:        map[string]rolePlan{},
@@ -615,39 +695,38 @@ func derivePlan(st *stack.Stack, realm string, keycloakPort, block int) (*launch
 		if !ok {
 			return nil, planErr(files.KnowledgeIndex, "spec.vectors.type", "is %q, which no driver runs (known drivers: %s)", v.Type, knownDrivers("vectors"))
 		}
+		if (vectors == nil) != (v.Shared == nil) {
+			panic("derivePlan: a knowledge base naming the shared vector store is planned with its document, and only one")
+		}
 		rp := rolePlan{Role: "vectors", Driver: v.Type, Port: spec.defaultPort}
-		if v.External != nil {
+		switch {
+		case v.Shared != nil:
+			if vectors.spec.Type != v.Type {
+				return nil, planErr(vectors.path, "spec.type", "is %q, and the knowledge base's %s names a %q vector store at spec.vectors.type", vectors.spec.Type, files.KnowledgeIndex, v.Type)
+			}
+			rp = sharedVectorsRole(vectors)
+		case v.External != nil:
 			rp.Presence, rp.Address, rp.Port = presenceExternal, v.External.Host, v.External.Port
-		} else {
+		default:
 			rp.Presence, rp.Image, rp.Memory = presenceLauncher, *v.Image, v.Resources.Limits.Memory
 			rp.Port = plan.hostPort("vectors", spec.defaultPort)
 		}
 		plan.Roles["vectors"] = rp
 	}
 
-	// identity-store — the Issuer's, so present only with the Keycloak the launcher
-	// runs.
-	if st.Issuer == nil {
+	// identity-store — the shared issuer's, so present only with it.
+	if (issuer == nil) != (kb.Issuer.Shared == nil) {
+		panic("derivePlan: a knowledge base naming the shared issuer is planned with its document, and only one")
+	}
+	var issuerServer rolePlan
+	if issuer == nil {
 		plan.Roles["identity-store"] = rolePlan{Role: "identity-store", Presence: presenceAbsent}
 	} else {
-		d := st.Issuer.Spec.Database
-		spec, ok := lookupDescriptor("identity-store", d.Type)
-		if !ok {
-			return nil, planErr(files.Issuer, "spec.database.type", "is %q, which no driver runs (known drivers: %s)", d.Type, knownDrivers("identity-store"))
+		store, server, err := issuerRoles(issuer)
+		if err != nil {
+			return nil, err
 		}
-		rp := rolePlan{Role: "identity-store", Driver: d.Type, Port: spec.defaultPort}
-		if d.External != nil {
-			rp.Presence, rp.Address, rp.Port = presenceExternal, d.External.Host, d.External.Port
-		} else {
-			rp.Presence, rp.Image, rp.Memory = presenceLauncher, *d.Image, d.Resources.Limits.Memory
-			rp.Port = plan.hostPort("identity-store", spec.defaultPort)
-			rp.Env = []string{"POSTGRES_DB=" + d.Name}
-			// POSTGRES_USER only when it departs from the image's own.
-			if d.User != "postgres" {
-				rp.Env = append(rp.Env, "POSTGRES_USER="+d.User)
-			}
-		}
-		plan.Roles["identity-store"] = rp
+		plan.Roles["identity-store"], issuerServer = store, server
 	}
 
 	// messaging — the one broker: the dispatcher's queue is JetStream, and a
@@ -667,11 +746,8 @@ func derivePlan(st *stack.Stack, realm string, keycloakPort, block int) (*launch
 		spec := descriptorFor("messaging", "jetstream")
 		rp := rolePlan{Role: "messaging", Driver: "jetstream", Port: spec.defaultPort}
 		if m.External != nil {
-			host, port := parseHostPort(m.External.Servers)
-			if port != 0 {
-				rp.Port = port
-			}
-			rp.Presence, rp.Address = presenceExternal, host
+			rp.Presence = presenceExternal
+			rp.Address, rp.Port = externalBrokerAt(m.External.Servers)
 		} else {
 			rp.Presence, rp.Image, rp.Memory = presenceLauncher, *m.Image, m.Resources.Limits.Memory
 			rp.Port = plan.hostPort("messaging", spec.defaultPort)
@@ -686,29 +762,15 @@ func derivePlan(st *stack.Stack, realm string, keycloakPort, block int) (*launch
 	// identity — the issuer the gateway trusts. The AUDIENCE is not stated
 	// anywhere: it is the KB's own resource identifier, derived from the
 	// committed did:web domain, so it cannot disagree with the identity the
-	// KB already publishes. An Issuer document is a Keycloak the launcher
-	// runs, with the realm a start creates and its database on the PostgreSQL
-	// that document names; spec.issuer.external is an issuer somebody else
-	// runs, verified, never launched.
-	if ref := kb.Issuer.Ref; ref != nil {
-		is := st.Issuer.Spec
-		if is.Type != "keycloak" {
-			return nil, planErr(files.Issuer, "spec.type", `is %q: the issuer the launcher runs is "keycloak"`, is.Type)
-		}
-		rp := rolePlan{
-			Role: "identity", Driver: "keycloak", Port: keycloakPort, Presence: presenceLauncher,
-			Issuer:              fmt.Sprintf("http://localhost:%d/realms/%s", keycloakPort, realm),
-			AccessTokenLifespan: is.AccessTokenLifespan,
-			Image:               is.Image, Memory: is.Resources.Limits.Memory,
-			Env: []string{"KC_DB=postgres", "KC_DB_USERNAME=" + is.Database.User,
-				"KC_BOOTSTRAP_ADMIN_USERNAME=" + keycloakAdminUser},
-		}
-		// A launcher-run PostgreSQL's password is kept by the launcher and
-		// handed to Keycloak at launch; an external one's is read from the
-		// variable its document names.
-		if external := is.Database.External; external != nil {
-			rp.ExternalDBPassword = external.Password.FromEnv
-		}
+	// KB already publishes. spec.issuer.shared is the Keycloak the launcher
+	// runs for every knowledge base here, as the issuer's document describes
+	// it, with the knowledge base's realm a start creates in it;
+	// spec.issuer.external is an issuer somebody else runs, verified, never
+	// launched.
+	if shared := kb.Issuer.Shared; shared != nil {
+		rp := issuerServer
+		rp.Issuer = fmt.Sprintf("http://localhost:%d/realms/%s", rp.Port, realm)
+		rp.AccessTokenLifespan = shared.AccessTokenLifespan
 		plan.Roles["identity"] = rp
 	} else {
 		external := kb.Issuer.External
@@ -726,7 +788,7 @@ func derivePlan(st *stack.Stack, realm string, keycloakPort, block int) (*launch
 		}
 		plan.Roles["identity"] = rolePlan{
 			Role: "identity", Driver: external.Type, Port: port, Presence: presenceExternal,
-			Address: host, Issuer: external.Url, AccessTokenLifespan: keycloakAccessTokenLifespan,
+			Address: host, Issuer: external.Url,
 		}
 	}
 

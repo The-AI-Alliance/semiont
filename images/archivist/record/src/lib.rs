@@ -1,4 +1,4 @@
-//! The Archivist's record, as docs/protocol/ARCHIVIST.md states it: the event
+//! The Archivist's record, as protocol/contract/ARCHIVIST.md states it: the event
 //! log, the views and the projections, and where each is filed.
 //!
 //! This crate reaches no network and runs no other program: it links no HTTP

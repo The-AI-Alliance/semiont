@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * lint:client-surface — every SDK's client has the surface
- * specs/src/client/surface.json states, and no other.
+ * protocol/specs/src/client/surface.json states, and no other.
  *
  * The table lists each namespace's methods with the shape of what each
  * returns. This reads the signatures each SDK declares and fails on:
@@ -19,7 +19,7 @@
  * What a method does when it is called is not read here: each SDK's surface
  * test runs the table's cases (packages/typescript/sdk/src/__tests__/client-surface.test.ts,
  * packages/rust/sdk/tests/surface.rs, packages/python/sdk/tests/test_surface.py,
- * packages/go/sdk/surface_test.go).
+ * packages/go/sdk/surface_test.go, packages/swift/sdk/Tests/SemiontTests/ClientTests.swift).
  *
  * TypeScript's signatures are the interfaces of
  * packages/typescript/sdk/src/namespaces/types.ts; Rust's are the `pub fn`s of each
@@ -84,7 +84,7 @@
  * `__init__`, a `new` that is not `pub`), Python's names that begin with an
  * underscore, Rust's trait implementations, and what a TypeScript class
  * inherits from a class the SDK does not declare. What a member does is not
- * read here either: docs/protocol/WORKER-CONTRACT.md states it, and the
+ * read here either: protocol/contract/WORKER-CONTRACT.md states it, and the
  * worker conformance suite holds each SDK to it.
  *
  * TypeScript's members are those of `interface Held` and of the class
@@ -214,8 +214,8 @@ import { repositoryFiles } from './repository-files.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const REPOSITORY = repositoryFiles(ROOT);
-const TABLE = 'specs/src/client/surface.json';
-const REGISTRY = 'specs/src/bus/registry.json';
+const TABLE = 'protocol/specs/src/client/surface.json';
+const REGISTRY = 'protocol/specs/src/bus/registry.json';
 const TS_INTERFACES = 'packages/typescript/sdk/src/namespaces/types.ts';
 const RUST_NAMESPACES = 'packages/rust/sdk/src/namespaces';
 const PYTHON_NAMESPACES = 'packages/python/sdk/src/semiont/namespaces';
@@ -232,7 +232,7 @@ const KOTLIN_SDK = 'packages/kotlin/sdk/src/main/kotlin/semiont';
 const KOTLIN_NAMESPACES = `${KOTLIN_SDK}/namespaces`;
 const CSHARP_SDK = 'packages/csharp/sdk/src/Semiont';
 const CSHARP_NAMESPACES = `${CSHARP_SDK}/Namespaces`;
-const SCHEMAS = 'specs/src/components/schemas';
+const SCHEMAS = 'protocol/specs/src/components/schemas';
 /** Each SDK as a message names it. */
 const LANGUAGES = { typescript: 'TypeScript', rust: 'Rust', python: 'Python', go: 'Go', kotlin: 'Kotlin', swift: 'Swift', csharp: 'C#' };
 
@@ -1555,6 +1555,7 @@ function csharpShape({ returns }) {
   if (returns === 'void') return 'signal';
   if (returns.startsWith('Cached<')) return 'cache';
   if (returns.startsWith('Running<')) return 'stream';
+  if (returns.startsWith('IAsyncEnumerable<Heard<')) return 'events';
   if (returns.startsWith('Delegation<')) return 'delegation';
   if (returns === 'Upload') return 'upload';
   if (returns === 'Claims') return 'claims';
@@ -1737,7 +1738,8 @@ function swiftDeclarations(code) {
       if (c === ')') paren--;
       if (c === '[') bracket++;
       if (c === ']') bracket--;
-      if (!paren && !bracket && (c === '{' || c === '\n' || c === ';')) break;
+      const continuation = c === '\n' && /^\s*(?:->|async\b|throws\b|rethrows\b|where\b|\{)/.test(code.slice(end + 1));
+      if (!paren && !bracket && (c === '{' || c === '\n' && !continuation || c === ';')) break;
       end++;
     }
     const block = code[end] === '{' ? swiftBlock(code, end) : { body: '', end };
@@ -1771,7 +1773,7 @@ function swiftMembers(type, types, seen = new Set()) {
       const parameters = /^\s*(?:<[^>]*>)?\s*\((.*)\)/s.exec(member.header)?.[1];
       if (parameters) for (const parameter of splitOutside(parameters, ',')) {
         const colon = parameter.indexOf(':');
-        if (colon >= 0) takes.push(parameter.slice(colon + 1).replace(/\b(?:inout)\b|@(?:escaping|Sendable)\b/g, '').trim());
+        if (colon >= 0) takes.push({ type: parameter.slice(colon + 1).replace(/\b(?:inout)\b|@(?:escaping|Sendable)\b/g, '').trim() });
       }
       const shape = /\basync\b/.test(member.header) ? (/^Int\?$/.test(returns) ? 'count' : 'promise') : /\bCached\s*</.test(returns) ? 'cache' : /\bRunning\s*</.test(returns) ? 'stream' : /\bDelegation\s*</.test(returns) ? 'delegation' : /^Upload\b/.test(returns) ? 'upload' : /^Claims\b/.test(returns) ? 'claims' : /\bTyped\s*</.test(returns) ? 'events' : returns === 'Void' || returns === '()' ? 'signal' : undefined;
       members.set(member.name, { returns, takes, shape });
@@ -1818,7 +1820,49 @@ function swiftMakeable(made, declared, maker) {
   const type = swiftTypes().find((t) => t.name === made);
   return type && [type, ...type.extensions].some((t) => swiftDeclarations(t.body).some((d) => d.kind === 'init' && d.access === 'public')) ? undefined : 'Swift declares no public initializer';
 }
-function swiftExports(files) { return files.flatMap((file) => swiftDeclarations(swiftCode(read(file))).filter((d) => ['public', 'open'].includes(d.access)).map((d) => d.name)); }
+// Formatter-owned line breaks cannot change what a signature means.
+function checkSwiftReader() {
+  const code = swiftCode(`
+    public struct ReaderProbe: Sendable {
+      public func audience(_ callback: @Sendable (String) -> Void) async throws
+        -> Int?
+      { let ignored = "public func forged() -> Cached<Value>" }
+      public func changes()
+        -> Typed<Value>
+      { }
+      private func hidden() { }
+    }
+    public protocol ProtocolProbe {
+      func audience() async throws
+        -> Int?
+      func signal()
+      func load() async throws
+        -> Value
+    }
+  `);
+  const types = swiftDeclarations(code).filter((entry) => ['struct', 'protocol'].includes(entry.kind)).map((entry) => ({ ...entry, file: 'Swift reader probe', extensions: [] }));
+  const expectations = { ReaderProbe: { audience: 'count', changes: 'events' }, ProtocolProbe: { audience: 'count', signal: 'signal', load: 'promise' } };
+  for (const type of types) {
+    const members = swiftMembers(type, types);
+    const wanted = expectations[type.name];
+    if (!wanted || members.size !== Object.keys(wanted).length) fail(`Swift reader probe: wrong members of ${type.name}`);
+    for (const [name, shape] of Object.entries(wanted ?? {})) {
+      if (members.get(name)?.shape !== shape) fail(`Swift reader probe: ${type.name}.${name} is no ${shape}`);
+    }
+  }
+  if (types.length !== Object.keys(expectations).length) fail('Swift reader probe: missing type');
+}
+checkSwiftReader();
+function swiftExports(files) {
+  return files.flatMap((file) => {
+    const source = read(file);
+    if (file === 'packages/swift/sdk/Sources/SemiontCodegen/Tables.swift') {
+      // Top-level models emitted by the build plugin under a literal name.
+      return [...source.matchAll(/models\.inline\(\s*"",\s*"([A-Z]\w*)"/g)].map((match) => match[1]);
+    }
+    return swiftDeclarations(swiftCode(source)).filter((d) => ['public', 'open'].includes(d.access)).map((d) => d.name);
+  });
+}
 
 // ── Each SDK against the table ──────────────────────────────────────────
 
@@ -1928,7 +1972,7 @@ for (const thing of table.worker ?? []) {
     if (members.has(row.member)) fail(`${name} is listed twice`);
     members.set(row.member, row);
     const strays = Object.keys(row).filter((key) => !['member', 'absent', 'named', 'takes', 'notYetReached'].includes(key));
-    if (strays.length > 0) fail(`${name} states ${strays.join(', ')}, which a member's row does not: what a member does is docs/protocol/WORKER-CONTRACT.md's and the worker conformance suite's to hold`);
+    if (strays.length > 0) fail(`${name} states ${strays.join(', ')}, which a member's row does not: what a member does is protocol/contract/WORKER-CONTRACT.md's and the worker conformance suite's to hold`);
     for (const [sdk, why] of Object.entries(row.absent ?? {})) {
       if (!WORKER_SDKS.includes(sdk)) fail(`${name}: \`absent\` names "${sdk}", which is no SDK whose worker's surface this lint reads`);
       if (typeof why !== 'string' || why === '') fail(`${name}: \`absent\` does not say why ${sdk} lacks it`);

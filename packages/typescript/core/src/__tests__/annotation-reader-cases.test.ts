@@ -1,5 +1,5 @@
 /**
- * The annotation readers, held to specs/src/annotations/reader-cases.json:
+ * The annotation readers, held to protocol/specs/src/annotations/reader-cases.json:
  * the table every SDK's readers run, so that every SDK gives one answer for
  * one annotation.
  */
@@ -35,7 +35,7 @@ interface Case {
 }
 
 const table: { readers: string[]; cases: Case[] } = JSON.parse(
-  readFileSync(new URL('../../../../../specs/src/annotations/reader-cases.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../protocol/specs/src/annotations/reader-cases.json', import.meta.url), 'utf8'),
 );
 
 /** Each reader of the table, given the part of the annotation it reads. Nothing is `null`, as the table writes it. */
@@ -64,7 +64,7 @@ const READERS: Record<string, (annotation: Annotation) => unknown> = {
   tagSchemaId: (a) => getTagSchemaId(a) ?? null,
 };
 
-describe('the annotation readers (specs/src/annotations/reader-cases.json)', () => {
+describe('the annotation readers (protocol/specs/src/annotations/reader-cases.json)', () => {
   it('has a reader here for each the table names, and no other', () => {
     expect(Object.keys(READERS).sort()).toEqual([...table.readers].sort());
   });

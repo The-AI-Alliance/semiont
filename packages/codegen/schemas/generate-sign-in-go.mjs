@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // generate-sign-in-go.mjs — generate the Go SDK's entry of the sign-in store
-// from specs/src/sign-in-store/SignIn.json, the schema the Rust and Python SDKs
+// from protocol/specs/src/sign-in-store/SignIn.json, the schema the Rust and Python SDKs
 // generate theirs from, and how the store's directory and files are kept to
-// their owner from specs/src/sign-in-store/owner-only.json, for the SDK and
+// their owner from protocol/specs/src/sign-in-store/owner-only.json, for the SDK and
 // the launcher.
 //
 //   packages/go/sdk/signin_gen.go          the entry, and the names every
@@ -32,8 +32,8 @@ import { forAFile, readOwnerOnly } from './owner-only.mjs';
 import { readSignInSchema } from './sign-in-schema.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const SCHEMA = resolve(ROOT, 'specs/src/sign-in-store/SignIn.json');
-const OWNER_ONLY = resolve(ROOT, 'specs/src/sign-in-store/owner-only.json');
+const SCHEMA = resolve(ROOT, 'protocol/specs/src/sign-in-store/SignIn.json');
+const OWNER_ONLY = resolve(ROOT, 'protocol/specs/src/sign-in-store/owner-only.json');
 const OUT = resolve(ROOT, 'packages/go/sdk/signin_gen.go');
 const SDK_OWNER_ONLY = resolve(ROOT, 'packages/go/sdk/owneronly_gen.go');
 const LAUNCHER_OWNER_ONLY = resolve(ROOT, 'packages/go/launcher/owneronly_gen.go');
@@ -62,7 +62,7 @@ const fields = schema.fields.map(({ name, description, isTime, required: must })
 const lowerFirst = (text) => `${text[0].toLowerCase()}${text.slice(1)}`;
 const requiredName = `${lowerFirst(schema.title)}Required`;
 
-const text = `// Code generated from specs/src/sign-in-store/SignIn.json — DO NOT EDIT.
+const text = `// Code generated from protocol/specs/src/sign-in-store/SignIn.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-sign-in-go.mjs
 // The Rust (semiont::sign_in_store) and Python (semiont.sign_in) SDKs generate
@@ -89,7 +89,7 @@ const { directoryMode, fileMode, accessList } = readOwnerOnly(OWNER_ONLY);
 const listFunction = (name, docs, list) =>
   `${goComment(`${name}: ${docs}`)}\nfunc ${name}(owner string) string {\n\treturn ${JSON.stringify(list.before)} + owner + ${JSON.stringify(list.after)}\n}\n`;
 
-const ownerOnlyText = (pkg, others, lists) => `// Code generated from specs/src/sign-in-store/owner-only.json — DO NOT EDIT.
+const ownerOnlyText = (pkg, others, lists) => `// Code generated from protocol/specs/src/sign-in-store/owner-only.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-sign-in-go.mjs
 // ${others}

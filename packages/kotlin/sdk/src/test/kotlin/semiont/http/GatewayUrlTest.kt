@@ -13,7 +13,7 @@ import semiont.Spec
 import semiont.types.HttpEndpoint
 import semiont.types.wireJson
 
-/** A knowledge base's gateway origin, made from its HTTP endpoint (specs/src/session/gateway-url-cases.json). */
+/** A knowledge base's gateway origin, made from its HTTP endpoint (protocol/specs/src/session/gateway-url-cases.json). */
 class GatewayUrlTest {
     @TestFactory
     fun theOriginIsTheTables(): List<DynamicTest> = Spec.read("session/gateway-url-cases.json").jsonObject.getValue("cases").jsonArray.map { it.jsonObject }.map { case ->

@@ -163,7 +163,13 @@ func TestBareInitProducesAStartableKB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a start does not read the documents init wrote: %v", err)
 	}
-	if _, err := derivePlan(st, fixtureKB(t).key(), 8080, 0); err != nil {
+	if st.KnowledgeBase.Spec.Issuer.Shared == nil {
+		t.Fatal("init wrote a knowledge base that does not name the shared issuer")
+	}
+	if st.KnowledgeIndex.Spec.Vectors.Shared == nil {
+		t.Fatal("init wrote a knowledge base that does not name the shared vector store")
+	}
+	if _, err := derivePlan(st, &issuerDocument{spec: catalogIssuer().Spec}, &vectorStoreDocument{spec: catalogVectorStore().Spec}, fixtureKB(t).key(), 0); err != nil {
 		t.Fatalf("a start cannot plan the documents init wrote: %v", err)
 	}
 	providers := st.Inference.Spec.Providers

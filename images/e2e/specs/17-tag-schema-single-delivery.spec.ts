@@ -20,7 +20,7 @@ import { signInSession } from '../fixtures/sdk-session';
  * a reconnect overlap, this double-delivery needs no make-before-break
  * race — it happens on any steady-state resource-subscribed connection.
  * (The reconnect-overlap half is guarded below the Browser: one id per frame
- * on every connection, `packages/conformance/gateway/stream.test.ts`, and the
+ * on every connection, `protocol/conformance/gateway/stream.test.ts`, and the
  * client's overlap dedup,
  * `packages/typescript/http-transport/src/transport/__tests__/actor-state-unit.test.ts`.)
  *

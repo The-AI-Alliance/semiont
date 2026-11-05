@@ -3,7 +3,7 @@
  * resources by text) and `gather.referencedBy()` (what refers to a resource).
  *
  * They are cached like the queries of `browse`, and refreshed by the same
- * table (specs/src/client/refresh.json), each namespace acting on its own.
+ * table (protocol/specs/src/client/refresh.json), each namespace acting on its own.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

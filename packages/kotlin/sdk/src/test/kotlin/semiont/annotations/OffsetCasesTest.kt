@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.Spec
 
-/** Offsets in code points, held to specs/src/text/offset-cases.json: a text is as long as its code points, and a span is where its offsets say. */
+/** Offsets in code points, held to protocol/specs/src/text/offset-cases.json: a text is as long as its code points, and a span is where its offsets say. */
 class OffsetCasesTest {
     private val cases: List<JsonObject> = Spec.read("text/offset-cases.json").jsonObject.getValue("cases").jsonArray.map { it.jsonObject }
 

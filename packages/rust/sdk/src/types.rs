@@ -4,7 +4,7 @@
 //! they reach. What a schema states that a type cannot — a pattern, a length,
 //! a bound — the receiving side's validators hold.
 //!
-//! The kinds of id are the exception (specs/src/identifiers/kinds.json):
+//! The kinds of id are the exception (protocol/specs/src/identifiers/kinds.json):
 //! `ResourceId`, `AnnotationId`, `JobId` and `UserId` are each a type of its
 //! own, made only by a constructor that holds a value to its kind's rule,
 //! and decoded through that constructor.

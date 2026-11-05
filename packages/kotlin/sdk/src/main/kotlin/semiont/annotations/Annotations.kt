@@ -35,7 +35,7 @@ import java.time.temporal.ChronoUnit
  * reads an annotation narrows those shapes by hand. The builders make the
  * annotations a worker commits, each with the id every SDK gives it, so
  * building it again, in any language, writes nothing new. The case tables in
- * specs/src/annotations hold each to one answer.
+ * protocol/specs/src/annotations hold each to one answer.
  */
 
 /** A body's items: none when there is no body, the one when it is a single item, each when it is a list. */

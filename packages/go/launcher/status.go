@@ -26,15 +26,19 @@ Reports, by what each service is part of:
   KNOWLEDGE BASES
                  each knowledge base's stack — the one of the KB you stand
                  in (or --root), else each one running: its clone, where it
-                 runs, and its record, index and issuer, a line each. Then
-                 how many KBs are known (file:// clones the launcher has
-                 used, and https:// codespace-hosted repos: semiont roots)
+                 runs, and its record, index and issuer, a line each: the
+                 issuer's line is its realm at the shared issuer, or an
+                 issuer somebody else runs. Then how many KBs are known
+                 (file:// clones the launcher has used, and https://
+                 codespace-hosted repos: semiont roots)
+  ISSUER         the shared Keycloak and its PostgreSQL, which keep every
+                 knowledge base's realm here
   KNOWLEDGE WORKERS
                  the Browser and the worker, where people and agents work
   PROVIDERS      inference and embedding, with the models each KB uses
   TELEMETRY      the collector, Jaeger and Prometheus
 
-The services in the last three serve every knowledge base, each shown once,
+The services in the last four serve every knowledge base, each shown once,
 naming the knowledge bases it serves when the report covers several.
 --service <name> shows that service's row alone: its runtime, state and the
 address it was asked at.
@@ -273,6 +277,7 @@ func Status(args []string) int {
 				healthy = printSharedGroup(u, g, views, ss, ceilings) && healthy
 			}
 		}
+		healthy = printMachineServed(u, views, ss) && healthy
 	}
 	if service == "" && verbose {
 		printSessions(u, ss)
@@ -544,6 +549,93 @@ func readRow(v stackView, role string, shared map[string]*ServiceState) statusRo
 	return r
 }
 
+// issuerServerRow: the shared Keycloak's row, read from its own record, and
+// the knowledge bases of views that sign in at it, each in its realm, which
+// its issuer line reads. Asked where the start that ran it waits for it: the
+// server, whatever realms it holds.
+func issuerServerRow(ss *StackSet, views []stackView) (statusRow, []string) {
+	name := sharedContainer("identity")
+	rec := ss.Shared[name]
+	var serves []string
+	for _, v := range views {
+		if v.st != nil && v.st.signsInAtSharedIssuer() {
+			serves = append(serves, v.name)
+		}
+	}
+	r := statusRow{role: "identity", label: "identity", rt: "—", rec: rec}
+	if rec == nil {
+		r.word, r.probe = "absent", "a start of a knowledge base that names it (spec.issuer.shared) runs it"
+		return r, serves
+	}
+	// The issuer the launcher runs is Keycloak, as its document's type is.
+	r.label += " (" + driverDisplay("identity", "keycloak") + ")"
+	state, rt := containerState([]string{rec.Runtime}, sharedHandles(rec.Runtime, name, rec)[0])
+	if rt != "" {
+		r.rt = rt
+	}
+	r.word, r.probe = state, rec.Endpoint
+	if r.word == "" {
+		r.word = "absent"
+	}
+	r.healthy = roleHealthy("identity", rec.Endpoint)
+	return r, serves
+}
+
+// machineServedRow: the row of the machine's container for role, one of
+// machineServedRoles, read from its own record, and the knowledge bases of
+// views whose records name it as serving them. Asked where the start that ran
+// it waits for it.
+func machineServedRow(ss *StackSet, views []stackView, role string) (statusRow, []string) {
+	name := sharedContainer(role)
+	rec := ss.Shared[name]
+	var serves []string
+	for _, v := range views {
+		if machineServes(v.st, role) {
+			serves = append(serves, v.name)
+		}
+	}
+	r := statusRow{role: role, label: role + " (" + driverDisplay(role, probeDriver(role)) + ")", rt: "—", rec: rec}
+	if rec == nil {
+		r.word, r.probe = "absent", "a start of a knowledge base that names it shared runs it"
+		return r, serves
+	}
+	state, rt := containerState([]string{rec.Runtime}, sharedHandles(rec.Runtime, name, rec)[0])
+	if rt != "" {
+		r.rt = rt
+	}
+	r.word, r.probe = state, rec.Endpoint
+	if r.word == "" {
+		r.word = "absent"
+	}
+	r.healthy = roleHealthy(role, rec.Endpoint)
+	return r, serves
+}
+
+// printMachineServed prints a section for each role the machine's container
+// serves for the knowledge bases naming it, when one the report covers names
+// it or its record says it runs: its row once, naming the knowledge bases it
+// serves when the report covers more than one. Returns whether each is
+// healthy that a knowledge base the report covers names.
+func printMachineServed(u *UI, views []stackView, ss *StackSet) bool {
+	healthy := true
+	for _, role := range machineServedRoles {
+		r, serves := machineServedRow(ss, views, role)
+		if len(serves) == 0 && r.rec == nil {
+			continue
+		}
+		u.Section(strings.ToUpper(role))
+		printRowHeader()
+		if len(serves) > 0 {
+			healthy = healthy && r.healthy
+		}
+		if len(views) < 2 {
+			serves = nil
+		}
+		printRow(u, r, serves)
+	}
+	return healthy
+}
+
 // browserRow: the Browser's row. It belongs to no stack, so it reads its own
 // record; the image tag shows browser-vs-stack skew, since a kept Browser
 // can outlive several stacks.
@@ -609,15 +701,18 @@ func statusMark(u *UI, healthy bool) string {
 }
 
 // compactItem: r as one item of a knowledge base's group line — its mark and
-// role, where it runs when somebody else runs it, and its state when it is
-// not healthy.
+// role, where it runs when somebody else or the machine's container runs it,
+// and its state when it is not healthy.
 func compactItem(u *UI, r statusRow) string {
 	if r.unconfigured {
 		return u.Dim("– " + r.role + " not configured")
 	}
 	item := statusMark(u, r.healthy) + " " + r.role
-	if r.rt == "external" || r.rt == "host" {
+	switch {
+	case r.rt == "external" || r.rt == "host":
 		item += " " + u.Dim(r.rt)
+	case contains(machineServedRoles, r.role) && r.rec != nil && r.rec.Provided == providedShared:
+		item += " " + u.Dim("shared")
 	}
 	if !r.healthy {
 		word := r.word
@@ -692,8 +787,8 @@ func printKnowledgeBase(u *UI, v stackView, shared map[string]*ServiceState, rea
 		}
 		if st.LanAddr != "" {
 			field("network", u.Wrap(AnsiYellow, "lan: the gateway and the issuer answer the network at "+st.LanAddr+", over plain HTTP"))
-			reviveIssuerProxy(u, st)
-			if p := st.IssuerProxy; p != nil {
+			reviveIssuerProxy(u)
+			if p := LoadStackSet().IssuerProxy; p != nil && slices.Contains(p.Realms, key) {
 				field("proxy", u.Dim(fmt.Sprintf("issuer pid %d (%s → %s)", p.PID, p.Listen, p.Upstream)))
 			}
 		}
@@ -722,6 +817,22 @@ func printKnowledgeBase(u *UI, v stackView, shared map[string]*ServiceState, rea
 		}
 		field(g.name, strings.Join(items, "  "))
 	}
+	// The issuer is the machine's, shown once among the shared groups; the
+	// knowledge base's line is where it signs in: its realm there, or an
+	// issuer somebody else runs. With no record there is neither to name.
+	issuer := readRow(v, "identity", shared)
+	if issuer.counted("") {
+		healthy = healthy && issuer.healthy
+	}
+	item := compactItem(u, issuer)
+	switch realm := keycloakRealm(issuerPath(issuer.probe)); {
+	case issuer.rec == nil:
+	case issuer.rec.Provided == providedShared && realm != "":
+		item += " " + u.Dim("realm "+realm)
+	default:
+		item += " " + u.Dim(issuer.probe)
+	}
+	field("issuer", item)
 	for _, r := range rows {
 		printInFlightOf(u, v, r, readout)
 	}
@@ -747,6 +858,18 @@ func printSharedGroup(u *UI, g serviceGroup, views []stackView, ss *StackSet, ce
 	for _, role := range g.roles {
 		if role == "browser" {
 			printRow(u, browserRow(ss), nil)
+			continue
+		}
+		if role == "identity" {
+			// Counted when a knowledge base the report covers signs in at it.
+			r, serves := issuerServerRow(ss, views)
+			if len(serves) > 0 {
+				healthy = healthy && r.healthy
+			}
+			if len(views) < 2 {
+				serves = nil
+			}
+			printRow(u, r, serves)
 			continue
 		}
 		var rows []*sharedRow
@@ -1168,6 +1291,15 @@ func printLauncherPaths(u *UI) {
 	if data != "" && data != state {
 		row("data", data, "each knowledge base's stores and kept secrets")
 	}
+	if shared := sharedStateDir(); shared != "" {
+		row("shared", shared, "kept for every knowledge base here: the worker's key, and the shared issuer's passwords and store")
+		if uses, total, any := storeUse(shared, true); any {
+			more(humanBytes(total) + " on disk, the issuer's store among it:")
+			for _, use := range uses {
+				fmt.Printf("  %-10s   %-16s %10s   %s\n", "", use.dir+string(os.PathSeparator), humanBytes(use.bytes), use.holds)
+			}
+		}
+	}
 	if p := logDir(); p != "" {
 		log := filepath.Join(p, "launcher.log")
 		row("log", log, exists(log))
@@ -1249,7 +1381,7 @@ func printKBPaths(u *UI, row func(label, path, note string), more func(string), 
 	if last := loadRootMeta(dir).KBRoot; last != "" && last != root {
 		more("last started from " + last)
 	}
-	uses, total, any := storeUse(dir)
+	uses, total, any := storeUse(dir, false)
 	if !any {
 		more("nothing kept yet")
 	} else {
@@ -1293,16 +1425,21 @@ type storeUseRow struct {
 // containers are kept, beside the stores.
 const kbLogsDir = "logs"
 
-// storeUse: what a knowledge base's directory takes on disk, and each
-// directory in it that is there, largest first — absent is absent, not 0 B.
-// The total is the whole directory's, kept secrets and the stamp included.
-func storeUse(dir string) (uses []storeUseRow, total int64, any bool) {
+// storeUse: what a directory of stores takes on disk — a knowledge base's,
+// or, shared, the machine's (sharedStateDir) — and each store in it that is
+// there, largest first, with a knowledge base's container logs: absent is
+// absent, not 0 B. The vector store may be in either. The total is the whole
+// directory's, kept secrets and the stamp included.
+func storeUse(dir string, shared bool) (uses []storeUseRow, total int64, any bool) {
 	for _, spec := range stateStores {
+		if spec.machine != shared && !(shared && contains(machineServedRoles, spec.owner)) {
+			continue
+		}
 		if sz, ok := diskUse(filepath.Join(dir, spec.dir)); ok {
 			uses = append(uses, storeUseRow{spec.dir, spec.holds, sz})
 		}
 	}
-	if sz, ok := diskUse(filepath.Join(dir, kbLogsDir)); ok {
+	if sz, ok := diskUse(filepath.Join(dir, kbLogsDir)); ok && !shared {
 		uses = append(uses, storeUseRow{kbLogsDir, "container logs kept from earlier starts", sz})
 	}
 	sort.Slice(uses, func(i, j int) bool {

@@ -1,7 +1,7 @@
 package semiont_test
 
 // What a session does, by the session table every SDK runs
-// (specs/src/session/cases.json, startup and refusal): what it renews and whom
+// (protocol/specs/src/session/cases.json, startup and refusal): what it renews and whom
 // it asks, how it ends, and what it says.
 
 import (
@@ -43,7 +43,7 @@ type sessionRow struct {
 
 func readSessionRows(t *testing.T) (startup, refusal []sessionRow) {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "session", "cases.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "protocol", "specs", "src", "session", "cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

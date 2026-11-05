@@ -149,6 +149,7 @@ def test_every_module_states_its_public_names_and_has_each() -> None:
         "embedding_key_of",
         "graph_password_of",
         "read_librarian_config",
+        "vectors_token_of",
     ]
     assert importlib.import_module("semiont_librarian.log").__all__ == ["LOG"]
     assert importlib.import_module("semiont_librarian.service").__all__ == ["CHANNELS", "boot", "health", "main"]
@@ -383,21 +384,21 @@ def test_every_channel_its_stream_names_is_answered_followed_or_a_reply_to_what_
     limits = ["gather:limits-requested", "match:limits-requested"]
     assert sorted([*cases, *limits]) == taken
     # They are the eight requests the protocol's table lists, and the two signals its rule names.
-    page = (ROOT / "docs/protocol/LIBRARIAN.md").read_text(encoding="utf-8")
+    page = (ROOT / "protocol/contract/LIBRARIAN.md").read_text(encoding="utf-8")
     section = re.search(r"^## What it answers\n(.*?)^## ", page, re.DOTALL | re.MULTILINE)
-    assert section is not None, "docs/protocol/LIBRARIAN.md no longer has a section on what a Librarian answers"
+    assert section is not None, "protocol/contract/LIBRARIAN.md no longer has a section on what a Librarian answers"
     requests = re.findall(r"^\s*\| `([a-z]+:[a-z-]+)` \|", section.group(1), re.MULTILINE)
     assert len(requests) == 8
     rule = re.search(r"\*\*It follows two signals:\*\*(.*?)\*Held by", section.group(1), re.DOTALL)
-    assert rule is not None, "docs/protocol/LIBRARIAN.md no longer names the signals a Librarian follows"
+    assert rule is not None, "protocol/contract/LIBRARIAN.md no longer names the signals a Librarian follows"
     signals = re.findall(r"`([a-z]+:[a-z-]+)`", rule.group(1))
     assert sorted([*requests, *signals]) == taken
 
 
 def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> None:
-    page = (ROOT / "docs/protocol/LIBRARIAN.md").read_text(encoding="utf-8")
+    page = (ROOT / "protocol/contract/LIBRARIAN.md").read_text(encoding="utf-8")
     section = re.search(r"^## Environment\n(.*?)^## ", page, re.DOTALL | re.MULTILINE)
-    assert section is not None, "docs/protocol/LIBRARIAN.md no longer has an Environment section"
+    assert section is not None, "protocol/contract/LIBRARIAN.md no longer has an Environment section"
     listed_there = {
         name
         for row in section.group(1).splitlines()

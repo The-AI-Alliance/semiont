@@ -14,12 +14,14 @@ service that cannot start says so while an operator is watching it boot: one
 line on stderr that begins `[fatal] `, and status 1. Once it has started,
 everything it writes is its log, on stdout.
 
-It starts in the order `docs/protocol/LIBRARIAN.md` § Boot states: it signs
-in as its account, reaches the graph database and the vector index, begins to
-take requests from the bus, and opens its health port last, so a Librarian
-whose health answers is answering. It loads nothing and makes nothing: it
-reads what other services write. Told to stop, it stops taking requests,
-closes what it holds open, and exits with status 0.
+It starts in the order `protocol/contract/LIBRARIAN.md` § Boot states: it signs
+in as its account, asks the knowledge base which it is on a stream that names
+no request, refusing to start where it is not the one its document names,
+reaches the graph database and the vector index, begins to take requests from
+the bus, and opens its health port last, so a Librarian whose health answers
+is answering. It loads nothing and makes nothing: it reads what other
+services write. Told to stop, it stops taking requests, closes what it holds
+open, and exits with status 0.
 """
 
 import asyncio
@@ -30,6 +32,7 @@ import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from typing import Final, final, override
 
@@ -59,13 +62,22 @@ from semiont_service.archivist import Archivist
 from semiont_service.config import Refused, config_path_of, service_account_of
 from semiont_service.connect import connected
 from semiont_service.health import bind_health
+from semiont_service.knowledge_base import CONFIRMING_CHANNELS, confirmed
 from semiont_service.log import configure
 from semiont_service.observability import Exporting, install
 from semiont_vectors.embedding import EmbeddingProvider
 from semiont_vectors.factory import create_embedding_provider, create_vector_reader
 from semiont_vectors.store import VectorReader
 
-from semiont_librarian.config import SERVICE, Actor, api_key_of, embedding_key_of, graph_password_of, read_librarian_config
+from semiont_librarian.config import (
+    SERVICE,
+    Actor,
+    api_key_of,
+    embedding_key_of,
+    graph_password_of,
+    read_librarian_config,
+    vectors_token_of,
+)
 from semiont_librarian.librarian import Librarian, words_of
 from semiont_librarian.log import LOG
 from semiont_librarian.progress import SmeltProgress, WeaveProgress
@@ -91,10 +103,10 @@ CHANNELS: Final[tuple[str, ...]] = (
 """What the Librarian's stream names: the eight requests it answers, the two signals it follows, and the replies of what it asks."""
 
 
-def health() -> JsonValue:
-    """What `GET /health` answers: that the service is up, and the two actors it runs."""
+def health(kb: str) -> JsonValue:
+    """What `GET /health` answers: that the service is up, the DID of the knowledge base it serves, and the two actors it runs."""
     actors: list[JsonValue] = ["matcher", "gatherer"]
-    return {"status": "ok", "actors": actors}
+    return {"status": "ok", "kb": kb, "actors": actors}
 
 
 @final
@@ -161,8 +173,8 @@ def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     # A reader of the graph: connecting it makes no constraint and no index there.
     graph = create_graph_reader(config.graph, password=graph_password_of(config, environment))
     embedding = create_embedding_provider(config.embedding, api_key=embedding_key_of(config, environment))
-    # A reader of the index: it is told no width, because it makes nothing there.
-    vectors = create_vector_reader(config.vectors)
+    # A reader of the knowledge base's index: it is told no width, because it makes nothing there.
+    vectors = create_vector_reader(config.vectors, kb=kb_did(config.kb.domain), token=vectors_token_of(config, environment))
     matcher = _client_of("matcher", config, environment)
     gatherer = _client_of("gatherer", config, environment)
     return _Started(
@@ -170,10 +182,10 @@ def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     )
 
 
-async def _listening(port: int) -> asyncio.Server:
+async def _listening(port: int, kb: str) -> asyncio.Server:
     """The health endpoint, holding its port and answering nothing yet. Refused where the port cannot be taken."""
     try:
-        return await bind_health(port, health)
+        return await bind_health(port, partial(health, kb))
     except OSError as unheard:
         raise Refused(f"Cannot listen on port {port}: {unheard}") from unheard
 
@@ -190,6 +202,13 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
 
     async with AgentToken(config.gateway_url, service=account) as agent:
         LOG.info("Agent ready", extra={"did": agent.did})
+        # Neither store is reached before the knowledge base says it is the one the document names.
+        kb = kb_did(config.kb.domain)
+        async with HttpTransport(config.gateway_url, token=agent.token, refresher=agent.refresh, channels=CONFIRMING_CHANNELS) as asking:
+            if not await confirmed(Bus(asking), config.kb.domain, told_to_stop):
+                LOG.info("Shutting down")
+                return
+        LOG.info("Knowledge base confirmed", extra={"kb": kb})
         try:
             await connected("graph database", started.graph.connect())
             LOG.info("Graph database ready", extra={"type": config.graph.type})
@@ -222,7 +241,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
                 LOG.info("Taking requests", extra={"channels": len(CHANNELS)})
                 # The port is taken once the Librarian takes frames, and not before: whatever waits on its health waits
                 # on a Librarian that is answering.
-                listening = await _listening(config.port)
+                listening = await _listening(config.port, kb)
                 try:
                     await listening.start_serving()
                     LOG.info("Health endpoint ready", extra={"port": config.port})

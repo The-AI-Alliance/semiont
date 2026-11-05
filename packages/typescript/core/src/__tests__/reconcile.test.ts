@@ -2,7 +2,7 @@
  * `reconcile`, case by case: each way a quote is found, what is never carried
  * of the model's own words, and texts where a count of code points is not a
  * count of a string's units. The rule itself is held by
- * specs/src/annotations/reconcile-cases.json, in `reconcile-cases.test.ts`.
+ * protocol/specs/src/annotations/reconcile-cases.json, in `reconcile-cases.test.ts`.
  */
 
 import { describe, test, it, expect } from 'vitest';

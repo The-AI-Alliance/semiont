@@ -1,4 +1,4 @@
-"""How a Smelter reads the number of points its index holds, for the gauge that reports it (`docs/protocol/SMELTER.md` § Telemetry)."""
+"""How a Smelter reads the number of points its index holds, for the gauge that reports it (`protocol/contract/SMELTER.md` § Telemetry)."""
 
 import logging
 

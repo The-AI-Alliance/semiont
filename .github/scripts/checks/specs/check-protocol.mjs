@@ -1,10 +1,10 @@
 // The protocol-completeness gate.
 //
 // Each service's protocol lives in the spec: a client, a conformance suite or a
-// second implementation reads `specs/src/` and learns everything the service
+// second implementation reads `protocol/specs/src/` and learns everything the service
 // answers. Two documents are held to it — the gateway's API
-// (`specs/src/openapi.json`) and the Archivist's HTTP surface
-// (`specs/src/archivist/openapi.json`) — and the check fails when either leaves
+// (`protocol/specs/src/openapi.json`) and the Archivist's HTTP surface
+// (`protocol/specs/src/archivist/openapi.json`) — and the check fails when either leaves
 // something to be learned from the code instead:
 //
 //   - a security scheme an operation names but the spec never defines;
@@ -33,7 +33,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '../../../..');
-const ROOT_FILES = ['specs/src/openapi.json', 'specs/src/archivist/openapi.json'].map((f) => resolve(REPO, f));
+const ROOT_FILES = ['protocol/specs/src/openapi.json', 'protocol/specs/src/archivist/openapi.json'].map((f) => resolve(REPO, f));
 
 const cache = new Map();
 function load(file) {
@@ -80,7 +80,7 @@ function refTarget(node, file) {
   return target ? resolve(dirname(file), target) : undefined;
 }
 
-const ERROR_RESPONSE = resolve(REPO, 'specs/src/components/schemas/ErrorResponse.json');
+const ERROR_RESPONSE = resolve(REPO, 'protocol/specs/src/components/schemas/ErrorResponse.json');
 const METHODS = ['get', 'put', 'post', 'delete', 'patch', 'head', 'options'];
 const failures = [];
 /** The document being checked, so each failure names it. */
@@ -241,4 +241,4 @@ if (failures.length > 0) {
   for (const f of failures) console.error(`  ✗ ${f}`);
   process.exit(1);
 }
-console.log('specs/src states the whole protocol of the gateway and the Archivist: every operation, response, header, stream and limit');
+console.log('protocol/specs/src states the whole protocol of the gateway and the Archivist: every operation, response, header, stream and limit');

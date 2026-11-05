@@ -1,7 +1,7 @@
 """The two things a gather waits on: what `weave:applied` and `smelt:settled` have signalled of each resource, each as a fold.
 
 A gather reads stores that are written after the record
-(`docs/protocol/LIBRARIAN.md` § The two waits). The Weaver signals how far it
+(`protocol/contract/LIBRARIAN.md` § The two waits). The Weaver signals how far it
 has applied a resource's events, and the Smelter what it decided of a
 resource's bytes. A fold keeps the last of each for every resource, and is
 something to wait on: a wait is answered at once where the fold already keeps

@@ -1,4 +1,4 @@
-// client-timing-table.mjs — the one reading of specs/src/client/timing.json
+// client-timing-table.mjs — the one reading of protocol/specs/src/client/timing.json
 // that every generator of it shares: each entry named for what it is (a
 // duration, a retry budget, a count), stated once, documented, and a value of
 // its kind.

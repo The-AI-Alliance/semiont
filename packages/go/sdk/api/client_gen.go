@@ -2575,7 +2575,7 @@ type AnnotationTarget struct {
 // AnnotationTargetType Stated by the annotation of a span: the target is a part of its source, which the selector picks out. An annotation of a resource as a whole states none.
 type AnnotationTargetType string
 
-// ArchivistConfig Everything the Archivist reads at boot: nothing in it is defaulted by the Archivist. The launcher writes it for the Archivist it starts, from the knowledge base's stack documents, and the Archivist reads it from the path its `--config` flag names (its image passes `/etc/semiont/archivist.json`). Started without `--config`, or with a path that names no file, the Archivist refuses to start and says which. No secret is a value here. What the knowledge base says of itself is not here either: its name, its `site.domain` and its `git.sync` are read from the committed `.semiont/config.yaml` of the tree at `root`. The Archivist's other inputs are the environment variables specs/src/service-environment/variables.json lists for it. A document that does not validate is refused at boot, naming each failing field.
+// ArchivistConfig Everything the Archivist reads at boot: nothing in it is defaulted by the Archivist. The launcher writes it for the Archivist it starts, from the knowledge base's stack documents, and the Archivist reads it from the path its `--config` flag names (its image passes `/etc/semiont/archivist.json`). Started without `--config`, or with a path that names no file, the Archivist refuses to start and says which. No secret is a value here. What the knowledge base says of itself is not here either: its name, its `site.domain` and its `git.sync` are read from the committed `.semiont/config.yaml` of the tree at `root`. The Archivist's other inputs are the environment variables protocol/specs/src/service-environment/variables.json lists for it. A document that does not validate is refused at boot, naming each failing field.
 type ArchivistConfig struct {
 	// AnchoredTextDir The anchored-text store, which only the Archivist mounts: the Smelter stores each entry in it over HTTP, and the Archivist serves it.
 	AnchoredTextDir string `json:"anchoredTextDir"`
@@ -2616,7 +2616,7 @@ type ArchivistConfig struct {
 		MaxWaitMs int `json:"maxWaitMs"`
 	} `json:"staging"`
 
-	// StateHome The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's.
+	// StateHome The state volume, this knowledge base's alone: the Archivist keeps the knowledge base's views and projections in it, at its top.
 	StateHome string `json:"stateHome"`
 }
 
@@ -3114,7 +3114,7 @@ type BusEmitAccepted struct {
 	Subscribers *int `json:"subscribers,omitempty"`
 }
 
-// BusEmitRequest One event for the bus. `channel` names a channel of the bus registry (specs/src/bus/registry.json) and `payload` must match the schema the registry's `validate` names for it. `scope` publishes a resource-bound broadcast to that resource's subscribers only; everything else is unscoped. `clientId` and `correlationId` are routing facts beside the payload, never inside it.
+// BusEmitRequest One event for the bus. `channel` names a channel of the bus registry (protocol/specs/src/bus/registry.json) and `payload` must match the schema the registry's `validate` names for it. `scope` publishes a resource-bound broadcast to that resource's subscribers only; everything else is unscoped. `clientId` and `correlationId` are routing facts beside the payload, never inside it.
 type BusEmitRequest struct {
 	// Channel A channel of the bus registry.
 	Channel string `json:"channel"`
@@ -3150,7 +3150,7 @@ type BusEventMessage_Id struct {
 
 // BusFrame One frame of the bus stream, as the `data` line of a `bus-event` message carries it (JSON-serialised on one line). `payload` is the channel's payload as its registry entry declares it. A frame on a scoped subscription carries the scope it was published on; a correlated reply carries the `correlationId` of the request it answers.
 type BusFrame struct {
-	// Channel A channel of the bus registry (specs/src/bus/registry.json).
+	// Channel A channel of the bus registry (protocol/specs/src/bus/registry.json).
 	Channel string `json:"channel"`
 
 	// CorrelationId The request this frame answers. Present on correlated replies; absent otherwise.
@@ -3308,7 +3308,7 @@ type CreateResourceResponse struct {
 	ResourceId ResourceId `json:"resourceId"`
 }
 
-// CursorsPath The file a follower of the record keeps its cursors in: for each log of the record it follows, the sequence number of the last event of it taken (docs/protocol/TRANSPORT-CONTRACT.md § What repairs a passing frame). A file of the service's own disk, never of the knowledge base: a service that finds none starts each log as it starts one with no cursor, so losing it costs time and never correctness.
+// CursorsPath The file a follower of the record keeps its cursors in: for each log of the record it follows, the sequence number of the last event of it taken (protocol/contract/TRANSPORT-CONTRACT.md § What repairs a passing frame). A file of the service's own disk, never of the knowledge base: a service that finds none starts each log as it starts one with no cursor, so losing it costs time and never correctness.
 type CursorsPath = string
 
 // DirEntry defines model for DirEntry.
@@ -3371,7 +3371,7 @@ type DiscoveryDocument struct {
 // DiscoveryDocumentVersion Document schema version. Consumers MUST check it and ignore documents they do not understand.
 type DiscoveryDocumentVersion int
 
-// DispatcherConfig Everything the dispatcher reads at boot: nothing in it is defaulted by the dispatcher. The launcher writes it for the dispatcher it starts, from the knowledge base's stack documents, and the dispatcher reads it from the path its `--config` flag names (its image passes `/etc/semiont/dispatcher.json`). Started without `--config`, or with a path that names no file, the dispatcher refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The dispatcher's other inputs are the environment variables specs/src/service-environment/variables.json lists for it, and the ones this document names. A document that does not validate is refused at boot, naming each failing field.
+// DispatcherConfig Everything the dispatcher reads at boot: nothing in it is defaulted by the dispatcher. The launcher writes it for the dispatcher it starts, from the knowledge base's stack documents, and the dispatcher reads it from the path its `--config` flag names (its image passes `/etc/semiont/dispatcher.json`). Started without `--config`, or with a path that names no file, the dispatcher refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The dispatcher's other inputs are the environment variables protocol/specs/src/service-environment/variables.json lists for it, and the ones this document names. A document that does not validate is refused at boot, naming each failing field.
 type DispatcherConfig struct {
 	// GatewayUrl The URL the dispatcher reaches the gateway at: its only route to the bus.
 	GatewayUrl string `json:"gatewayUrl"`
@@ -3382,7 +3382,7 @@ type DispatcherConfig struct {
 		Issuer string `json:"issuer"`
 	} `json:"identity"`
 
-	// Kb A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, specs/src/service-telemetry/telemetry.json).
+	// Kb A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, protocol/specs/src/service-telemetry/telemetry.json).
 	Kb KbIdentity `json:"kb"`
 
 	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
@@ -3394,7 +3394,7 @@ type DispatcherConfig struct {
 	// Port The port the dispatcher answers `/health` on.
 	Port int `json:"port"`
 
-	// Queue The JetStream broker holding the job queue, whose layout is specs/src/jobs/storage.json.
+	// Queue The JetStream broker holding the job queue, whose layout is protocol/specs/src/jobs/storage.json.
 	Queue struct {
 		// PasswordEnv The environment variable holding the broker password, when the broker requires one.
 		PasswordEnv *string `json:"passwordEnv,omitempty"`
@@ -3676,7 +3676,7 @@ type FrameAddTagSchemaCommand struct {
 	Schema TagSchema `json:"schema"`
 }
 
-// GatewayConfig Everything the gateway reads at boot: nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts — from the knowledge base's committed identity and its stack documents — and a gateway started any other way is given the same document at the path its `--config` flag names (the image passes `/etc/semiont/gateway.json`). Started without `--config`, or with a path that names no file, the gateway refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are the environment variables specs/src/service-environment/variables.json lists for it, and the ones this document names. A document that does not validate is refused at boot — the gateway exits without serving — and the refusal names each failing field by its JSON pointer.
+// GatewayConfig Everything the gateway reads at boot: nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts — from the knowledge base's committed identity and its stack documents — and a gateway started any other way is given the same document at the path its `--config` flag names (the image passes `/etc/semiont/gateway.json`). Started without `--config`, or with a path that names no file, the gateway refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are the environment variables protocol/specs/src/service-environment/variables.json lists for it, and the ones this document names. A document that does not validate is refused at boot — the gateway exits without serving — and the refusal names each failing field by its JSON pointer.
 type GatewayConfig struct {
 	// Archivist Where the Archivist listens.
 	Archivist struct {
@@ -3699,7 +3699,7 @@ type GatewayConfig struct {
 		SubjectClaim string `json:"subjectClaim"`
 	} `json:"identity"`
 
-	// Kb A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, specs/src/service-telemetry/telemetry.json).
+	// Kb A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, protocol/specs/src/service-telemetry/telemetry.json).
 	Kb KbIdentity `json:"kb"`
 
 	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
@@ -4193,7 +4193,7 @@ type HighlightingJobParams struct {
 // HighlightingJobParamsMotivation defines model for HighlightingJobParams.Motivation.
 type HighlightingJobParamsMotivation string
 
-// HttpEndpoint A knowledge base reached through its gateway, over HTTP. The gateway's origin is the protocol, the host in lowercase and the port; a host that is not a host's name is refused before it is put into a URL (specs/src/session/gateway-url-cases.json).
+// HttpEndpoint A knowledge base reached through its gateway, over HTTP. The gateway's origin is the protocol, the host in lowercase and the port; a host that is not a host's name is refused before it is put into a URL (protocol/specs/src/session/gateway-url-cases.json).
 type HttpEndpoint struct {
 	// Host The gateway's host, as a person or a discovery document gave it.
 	Host string `json:"host"`
@@ -4503,7 +4503,7 @@ type JobFailCommand struct {
 	// UnitCursors The furthest each unit begun got, keyed by unit, with what it had counted there — the grain `completedUnits` cannot express. A unit named in `completedUnits` is stated here too, by the cursor it ended at: a later attempt skips it whole and counts it by that cursor. A cursor never says a unit is finished; only `completedUnits` does. Merged monotonically per unit, finished or not: a stale snapshot must never move a cursor backward.
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 
-	// WillRetry Whether the queue will re-queue this job for another attempt. Computed by the worker from the SAME rule the queue applies when it takes the failure (specs/src/jobs/retry-cases.json, which every SDK and the dispatcher run) using the retry budget carried on the claimed record. FALSE (or absent) means this failure is TERMINAL: a client's job-watch stream ends here. TRUE means the work continues on a fresh attempt — the failure is an event, not the end, and a stream that terminated on it would report a recovering run as a failed one.
+	// WillRetry Whether the queue will re-queue this job for another attempt. Computed by the worker from the SAME rule the queue applies when it takes the failure (protocol/specs/src/jobs/retry-cases.json, which every SDK and the dispatcher run) using the retry budget carried on the claimed record. FALSE (or absent) means this failure is TERMINAL: a client's job-watch stream ends here. TRUE means the work continues on a fresh attempt — the failure is an event, not the end, and a stream that terminated on it would report a recovering run as a failed one.
 	WillRetry *bool `json:"willRetry,omitempty"`
 }
 
@@ -4657,7 +4657,7 @@ type JobProgress struct {
 	// EntitiesFound Entities found so far (a linking job)
 	EntitiesFound *int `json:"entitiesFound,omitempty"`
 
-	// Message What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). One named schema per code, discriminated on `code`, so generated clients get typed variants and copy-map completeness is statically checkable. The vocabulary is every report Semiont's worker makes (docs/protocol/WORKER-SERVICE.md, D16 to D19 and Y8); extending it means adding a named variant here and copy in every client, gated by the locale-completeness check.
+	// Message What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). One named schema per code, discriminated on `code`, so generated clients get typed variants and copy-map completeness is statically checkable. The vocabulary is every report Semiont's worker makes (protocol/contract/WORKER-SERVICE.md, D16 to D19 and Y8); extending it means adding a named variant here and copy in every client, gated by the locale-completeness check.
 	Message *JobProgressMessage `json:"message,omitempty"`
 
 	// Percentage Completion percentage (0-100)
@@ -4783,7 +4783,7 @@ type JobProgressLoading struct {
 // JobProgressLoadingCode defines model for JobProgressLoading.Code.
 type JobProgressLoadingCode string
 
-// JobProgressMessage What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). One named schema per code, discriminated on `code`, so generated clients get typed variants and copy-map completeness is statically checkable. The vocabulary is every report Semiont's worker makes (docs/protocol/WORKER-SERVICE.md, D16 to D19 and Y8); extending it means adding a named variant here and copy in every client, gated by the locale-completeness check.
+// JobProgressMessage What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). One named schema per code, discriminated on `code`, so generated clients get typed variants and copy-map completeness is statically checkable. The vocabulary is every report Semiont's worker makes (protocol/contract/WORKER-SERVICE.md, D16 to D19 and Y8); extending it means adding a named variant here and copy in every client, gated by the locale-completeness check.
 type JobProgressMessage struct {
 	union json.RawMessage
 }
@@ -4793,7 +4793,7 @@ type JobQueuedEvent struct {
 	union json.RawMessage
 }
 
-// JobRecord One job as the queue stores it: the job, and when it last showed life. The dead-worker sweep reads `lastProgressAt`: a running job whose worker has reported nothing for the configured interval is presumed dead. Where the queue keeps these records is the job storage layout, specs/src/jobs/storage.json.
+// JobRecord One job as the queue stores it: the job, and when it last showed life. The dead-worker sweep reads `lastProgressAt`: a running job whose worker has reported nothing for the configured interval is presumed dead. Where the queue keeps these records is the job storage layout, protocol/specs/src/jobs/storage.json.
 type JobRecord struct {
 	// Job A job as the dispatcher holds it. Its `status` decides which timestamps and outcome fields it carries. It is what a claim returns (`job:claimed`, always `running`) and what the queue stores, inside a JobRecord.
 	Job Job `json:"job"`
@@ -4962,7 +4962,7 @@ type KbEndpoint struct {
 	union json.RawMessage
 }
 
-// KbIdentity A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, specs/src/service-telemetry/telemetry.json).
+// KbIdentity A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, protocol/specs/src/service-telemetry/telemetry.json).
 type KbIdentity struct {
 	// Domain Its did:web domain: its permanent identity, the source of the audience its tokens must carry, and the authority its people and agents are named under.
 	Domain string `json:"domain"`
@@ -5065,7 +5065,7 @@ type LibrarianConfig struct {
 		Issuer string `json:"issuer"`
 	} `json:"identity"`
 
-	// Kb A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, specs/src/service-telemetry/telemetry.json).
+	// Kb A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, protocol/specs/src/service-telemetry/telemetry.json).
 	Kb KbIdentity `json:"kb"`
 
 	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
@@ -5107,7 +5107,7 @@ type LibrarianEngineConfig struct {
 
 // LimitRefusal defines model for LimitRefusal.
 type LimitRefusal struct {
-	// Code `streams`: the principal already holds as many streams as its coefficient of `x-semiont-limits.streamsPerPrincipal` allows. `emit-rate`: the principal's emits have used its bucket, whose rate and burst are its coefficient of `x-semiont-limits.emitsPerPrincipal`, per gateway process. `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can. `refusal-rate`: the request's credential was refused, and the requests its holder has had refused have used their allowance; it answers only a request whose token has already failed verification, so it says what a 401 says, and a client that can renew its token renews it and sends the request again rather than waiting (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential).
+	// Code `streams`: the principal already holds as many streams as its coefficient of `x-semiont-limits.streamsPerPrincipal` allows. `emit-rate`: the principal's emits have used its bucket, whose rate and burst are its coefficient of `x-semiont-limits.emitsPerPrincipal`, per gateway process. `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can. `refusal-rate`: the request's credential was refused, and the requests its holder has had refused have used their allowance; it answers only a request whose token has already failed verification, so it says what a 401 says, and a client that can renew its token renews it and sends the request again rather than waiting (protocol/contract/TRANSPORT-CONTRACT.md § A refused credential).
 	Code    LimitRefusalCode `json:"code"`
 	Details interface{}      `json:"details,omitempty"`
 
@@ -5118,7 +5118,7 @@ type LimitRefusal struct {
 	Hint *string `json:"hint,omitempty"`
 }
 
-// LimitRefusalCode `streams`: the principal already holds as many streams as its coefficient of `x-semiont-limits.streamsPerPrincipal` allows. `emit-rate`: the principal's emits have used its bucket, whose rate and burst are its coefficient of `x-semiont-limits.emitsPerPrincipal`, per gateway process. `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can. `refusal-rate`: the request's credential was refused, and the requests its holder has had refused have used their allowance; it answers only a request whose token has already failed verification, so it says what a 401 says, and a client that can renew its token renews it and sends the request again rather than waiting (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential).
+// LimitRefusalCode `streams`: the principal already holds as many streams as its coefficient of `x-semiont-limits.streamsPerPrincipal` allows. `emit-rate`: the principal's emits have used its bucket, whose rate and burst are its coefficient of `x-semiont-limits.emitsPerPrincipal`, per gateway process. `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can. `refusal-rate`: the request's credential was refused, and the requests its holder has had refused have used their allowance; it answers only a request whose token has already failed verification, so it says what a 401 says, and a client that can renew its token renews it and sends the request again rather than waiting (protocol/contract/TRANSPORT-CONTRACT.md § A refused credential).
 type LimitRefusalCode string
 
 // LinkingJobParams What a linking job takes: mentions of the named entity types are marked as references, each unresolved until it is bound to a resource.
@@ -5666,14 +5666,17 @@ type ProtectedResourceMetadata struct {
 // ProtectedResourceMetadataBearerMethodsSupported defines model for ProtectedResourceMetadata.BearerMethodsSupported.
 type ProtectedResourceMetadataBearerMethodsSupported string
 
-// QdrantVectorsConfig A vector index kept in a Qdrant server, asked over its REST API.
+// QdrantVectorsConfig A vector index kept in a Qdrant server, asked over its REST API with a token.
 type QdrantVectorsConfig struct {
 	// Host The server's host.
 	Host string `json:"host"`
 
 	// Port The port its REST API listens on.
-	Port int                     `json:"port"`
-	Type QdrantVectorsConfigType `json:"type"`
+	Port int `json:"port"`
+
+	// TokenEnv The environment variable holding the token the service presents to the server on every request, which says what of the index it may read and write. The token is never a value here.
+	TokenEnv string                  `json:"tokenEnv"`
+	Type     QdrantVectorsConfigType `json:"type"`
 }
 
 // QdrantVectorsConfigType defines model for QdrantVectorsConfig.Type.
@@ -6439,7 +6442,7 @@ type SmelterConfig struct {
 		Overlap int `json:"overlap"`
 	} `json:"chunking"`
 
-	// CursorsPath The file a follower of the record keeps its cursors in: for each log of the record it follows, the sequence number of the last event of it taken (docs/protocol/TRANSPORT-CONTRACT.md § What repairs a passing frame). A file of the service's own disk, never of the knowledge base: a service that finds none starts each log as it starts one with no cursor, so losing it costs time and never correctness.
+	// CursorsPath The file a follower of the record keeps its cursors in: for each log of the record it follows, the sequence number of the last event of it taken (protocol/contract/TRANSPORT-CONTRACT.md § What repairs a passing frame). A file of the service's own disk, never of the knowledge base: a service that finds none starts each log as it starts one with no cursor, so losing it costs time and never correctness.
 	CursorsPath CursorsPath `json:"cursorsPath"`
 
 	// Embedding The embedding provider a service asks for vectors, and what that kind of provider needs to be asked: one of the providers `semiont-vectors` has, told apart by `type`. Two services that share an index name the same provider and the same model: a vector is compared only with vectors of the model that made it. A secret is never a value here: a provider's key is named by the environment variable that holds it.
@@ -6454,7 +6457,7 @@ type SmelterConfig struct {
 		Issuer string `json:"issuer"`
 	} `json:"identity"`
 
-	// Kb A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, specs/src/service-telemetry/telemetry.json).
+	// Kb A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, protocol/specs/src/service-telemetry/telemetry.json).
 	Kb KbIdentity `json:"kb"`
 
 	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
@@ -6741,7 +6744,7 @@ type WeaverConfig struct {
 		Port int    `json:"port"`
 	} `json:"archivist"`
 
-	// CursorsPath The file a follower of the record keeps its cursors in: for each log of the record it follows, the sequence number of the last event of it taken (docs/protocol/TRANSPORT-CONTRACT.md § What repairs a passing frame). A file of the service's own disk, never of the knowledge base: a service that finds none starts each log as it starts one with no cursor, so losing it costs time and never correctness.
+	// CursorsPath The file a follower of the record keeps its cursors in: for each log of the record it follows, the sequence number of the last event of it taken (protocol/contract/TRANSPORT-CONTRACT.md § What repairs a passing frame). A file of the service's own disk, never of the knowledge base: a service that finds none starts each log as it starts one with no cursor, so losing it costs time and never correctness.
 	CursorsPath CursorsPath `json:"cursorsPath"`
 
 	// GatewayUrl The URL the Weaver reaches the gateway at: its route to the bus.
@@ -6756,7 +6759,7 @@ type WeaverConfig struct {
 		Issuer string `json:"issuer"`
 	} `json:"identity"`
 
-	// Kb A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, specs/src/service-telemetry/telemetry.json).
+	// Kb A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, protocol/specs/src/service-telemetry/telemetry.json).
 	Kb KbIdentity `json:"kb"`
 
 	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
@@ -6771,7 +6774,7 @@ type WeaverConfig struct {
 
 // WorkerConfig Everything a worker reads at boot: nothing in it is defaulted by the worker. The launcher writes it for the machine's worker, from the knowledge bases on that worker's list: each local knowledge base as its start places it, from its stack documents, and each added by `semiont worker kb add`, offered the engines of the local one it was added from. The worker reads it from the path its `--config` flag names (its image passes `/etc/semiont/worker.json`). Whoever starts a worker another way writes the same document: this schema is the contract, and a worker needs no launcher. Started without `--config`, or with a path that names no file, the worker refuses to start and says which. No secret is a value here: a provider's key is named by the environment variable that holds it, and the key the worker signs in with at every knowledge base is `SEMIONT_OIDC_CLIENT_KEY` in its environment, an RSA private key; each knowledge base names the client that holds its public half there. A document that does not validate is refused at boot, naming each failing field.
 type WorkerConfig struct {
-	// KnowledgeBases The knowledge bases this worker does jobs for. At each it signs in, confirms which knowledge base it reached and claims for its engines, apart from every other: one knowledge base's trouble stops that knowledge base's work alone (`docs/protocol/WORKER-SERVICE.md` § Knowledge bases). No two name one `domain`, which the worker refuses at boot.
+	// KnowledgeBases The knowledge bases this worker does jobs for. At each it signs in, confirms which knowledge base it reached and claims for its engines, apart from every other: one knowledge base's trouble stops that knowledge base's work alone (`protocol/contract/WORKER-SERVICE.md` § Knowledge bases). No two name one `domain`, which the worker refuses at boot.
 	KnowledgeBases []WorkerKnowledgeBaseConfig `json:"knowledgeBases"`
 
 	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.

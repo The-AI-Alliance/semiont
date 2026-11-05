@@ -21,7 +21,7 @@ internal enum class Logged { EMIT, RECV, PUT, GET }
  *     [bus EMIT] mark:create-request scope=res-1 cid=a89a670a trace=8f3ca4ed {"resourceId":"res-1"}
  *
  * Every Semiont SDK writes it in one form, so that the lines of several
- * processes read as one timeline (docs/protocol/EVENT-BUS.md, Wire format).
+ * processes read as one timeline (protocol/contract/EVENT-BUS.md, Wire format).
  * A line is written when what it says is done: the frame's channel, or
  * `content` for a read or an upload; the resource's scope, the first eight
  * characters of the correlation id, and the first eight of the id of the

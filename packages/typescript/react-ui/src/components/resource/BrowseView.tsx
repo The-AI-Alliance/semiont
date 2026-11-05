@@ -31,6 +31,8 @@ interface Props {
   mimeType: string;
   resourceUri: ResourceId;
   annotations: AnnotationsCollection;
+  /** Zoom the rendered resource content, leaving the browse toolbar at its normal size. */
+  zoom?: number;
   hoveredAnnotationId?: string | null;
   selectedClick?: ClickAction;
   annotateMode: boolean;
@@ -93,6 +95,7 @@ export const BrowseView = memo(function BrowseView(props: Props & TranslationSou
 function BrowseViewBody({
   content,
   mimeType,
+  zoom = 1,
   resourceUri,
   annotations,
   selectedClick = 'detail',
@@ -290,7 +293,9 @@ function BrowseViewBody({
       if (resourceId !== resourceUri) return;
       if (annotationId === undefined) {
         if (!containerRef.current) return;
-        containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+        const scrollport = containerRef.current.querySelector<HTMLElement>('[data-resource-scrollport]')
+          ?? containerRef.current;
+        scrollport.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
       scrollToAnnotation(annotationId, true);
@@ -348,8 +353,23 @@ function BrowseViewBody({
         compact={inline}
       />
       )}
-      <div ref={containerRef} className="semiont-browse-view__content" onClick={handleContentClick}>
-        <Renderer content={content} mimeType={mimeType} resourceUri={resourceUri} annotations={allAnnotations} session={session} />
+      <div
+        ref={containerRef}
+        className="semiont-browse-view__content"
+        data-scroll-owner={render === 'pdf' && !inline ? 'renderer' : undefined}
+        onClick={handleContentClick}
+      >
+        <div style={render === 'pdf' ? undefined : { zoom }}>
+          <Renderer
+            content={content}
+            mimeType={mimeType}
+            resourceUri={resourceUri}
+            annotations={allAnnotations}
+            session={session}
+            zoom={zoom}
+            ownsScrollport={!inline}
+          />
+        </div>
       </div>
     </div>
   );

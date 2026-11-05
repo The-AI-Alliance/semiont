@@ -14,13 +14,13 @@ serves every knowledge base on its list at once, each apart from the others.
 | Port | 24100 (`/health`, and nothing else) |
 | Command | `python -P -m semiont_worker --config /etc/semiont/worker.json` |
 | Code | Python, in this directory: [`src/semiont_worker`](./src/semiont_worker/) |
-| Specification | [docs/protocol/WORKER-SERVICE.md](../../docs/protocol/WORKER-SERVICE.md) |
-| Judged by | [packages/conformance/worker-service](../../packages/conformance/worker-service/README.md) |
+| Specification | [protocol/contract/WORKER-SERVICE.md](../../protocol/contract/WORKER-SERVICE.md) |
+| Judged by | [protocol/conformance/worker-service](../../protocol/conformance/worker-service/README.md) |
 | Published | to no package index: the image only |
 
 What the worker does is written rule by rule in
-[WORKER-SERVICE.md](../../docs/protocol/WORKER-SERVICE.md), and the
-[worker-service conformance suite](../../packages/conformance/worker-service/README.md) holds an
+[WORKER-SERVICE.md](../../protocol/contract/WORKER-SERVICE.md), and the
+[worker-service conformance suite](../../protocol/conformance/worker-service/README.md) holds an
 implementation to each rule. This page is the image, and how it is run.
 
 ## What it does
@@ -65,11 +65,13 @@ the agent is: the `generator` on everything a job makes names the agent by its D
 knowledge base the job came from and the engine that made it, so `_userId` on the bus and the
 `generator` on every annotation refer to the same agent.
 
-What the agent is called is its profile. At each knowledge base, once the stream is open, it
-first asks which knowledge base it is (`browse:kb-requested`) and goes on only at the domain
-its entry names. Then, before any engine claims, it says it is called by that knowledge base's
-`identity.clientId`, on `principal:profile`, and readers name it from that, as they name a
-person. The `generator` carries no name.
+What the agent is called is its profile. At each knowledge base, once it has signed in, it
+first asks which knowledge base it is (`browse:kb-requested`), as every Semiont service does:
+on a stream that names nothing the agent answers, and again while the Archivist is not there to
+answer. It goes on only at the domain its entry names. Then it opens its own stream there, and,
+before any engine claims, says it is called by that knowledge base's `identity.clientId`, on
+`principal:profile`, and readers name it from that, as they name a person. The `generator`
+carries no name.
 
 ## One knowledge base's trouble is its own
 
@@ -82,7 +84,8 @@ there alone.
   is gone. It is said once in the log (`Knowledge base refused the worker`, at `error`), its
   stream is closed, and it stays refused until the service is started again.
 - **Trouble**: a sign-in that gets no answer, or one the SDK would try again; no answer to
-  `browse:kb-requested` in time; its stream closed for good; a held job that stalls. Its work
+  `browse:kb-requested` in time, or none for as long as it is asked again; its stream closed
+  for good; a held job that stalls. Its work
   ends, failing a job still held there, and it is started again, signed in afresh, after the
   SDK's `reconnectMs`, twice that each further time up to `maxReconnectMs`
   (`Knowledge base in trouble — starting it again`, at `warn`, with `waitMs`). A stream that
@@ -97,7 +100,7 @@ said each refusal already.
 Each call to the model is given **ten minutes**, and while one is under way the job reports
 where it stands every fifteen seconds. A held job that stalls starts its knowledge base again,
 loudly; and a running job nothing has touched for long enough is recovered by the dispatcher's
-sweep ([JOBS.md](../../docs/protocol/JOBS.md#periodic-work)).
+sweep ([JOBS.md](../../protocol/contract/JOBS.md#periodic-work)).
 
 A text is asked about in pieces sized from the model's limits. A piece whose answer cannot
 be used for its size is **asked again in halves** before it is allowed to fail the job.
@@ -113,7 +116,7 @@ When a job does fail, the service classes the failure:
 ## What it reports
 
 With `OTEL_EXPORTER_OTLP_ENDPOINT` set it exports, as `semiont-worker`, the rows
-[`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
+[`protocol/specs/src/service-telemetry/telemetry.json`](../../protocol/specs/src/service-telemetry/telemetry.json)
 lists for the worker: a span and an outcome for every job, every generation, and every
 detection call with its items, tokens and anchoring outcomes (the `semiont.detection.*`
 metrics), so a run's cost, yield and precision can be queried. Its own spans and metrics
@@ -125,7 +128,7 @@ inventory and where the metrics flow.
 ## Configuration
 
 A JSON document, named by `--config` (the image passes `/etc/semiont/worker.json`), whose
-schema is [`WorkerConfig`](../../specs/src/components/schemas/WorkerConfig.json). The worker
+schema is [`WorkerConfig`](../../protocol/specs/src/components/schemas/WorkerConfig.json). The worker
 defaults nothing in it.
 
 | Member | |
@@ -158,7 +161,7 @@ anything: one line on stderr that begins `[fatal] ` and says which, and exit sta
 services.
 
 `GET /health` answers once a knowledge base is confirmed, with a
-[`WorkerHealth`](../../specs/src/components/schemas/WorkerHealth.json):
+[`WorkerHealth`](../../protocol/specs/src/components/schemas/WorkerHealth.json):
 `{"status": "ok", "knowledgeBases": [...]}`, each knowledge base in the document's order with
 its `domain` and `state` (`starting`, `working` or `refused`), and, while it is `working`, the
 agent's `did` there and its `engines`. Each engine is its `engine` (`provider` and `model`),
@@ -186,7 +189,7 @@ image is built with every extra, so it is not rebuilt to be pointed at another p
 
 **The service can be configured for any of the seven providers the protocol names:**
 `anthropic`, `google`, `llamacpp`, `ollama`, `openai`, `together` and `vllm`. An engine of its
-document ([`WorkerEngineConfig`](../../specs/src/components/schemas/WorkerEngineConfig.json))
+document ([`WorkerEngineConfig`](../../protocol/specs/src/components/schemas/WorkerEngineConfig.json))
 names one of them, and a document that names another is refused when the service starts. A
 model of `google`, `openai` or `together` is asked with what the model catalogue says of it,
 which the image carries at `/usr/share/semiont/model-catalogue.json` and the document names
@@ -236,14 +239,14 @@ docker build --build-arg PYTHON_FLOOR=$(packages/python/scripts/python-floor.sh)
   --file images/worker/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-worker:local .
 ```
 
-[`images/local-build.sh`](../local-build.sh) builds it so with the other
+[`make local-build`](../../Makefile) builds it so with the other
 images, and [`images/scripts/check-python-image.sh`](../scripts/check-python-image.sh)
 checks what a built one promises.
 
 ## Related
 
-- [WORKER-SERVICE.md](../../docs/protocol/WORKER-SERVICE.md) — what the worker does, rule by rule
-- [WORKER-CONTRACT.md](../../docs/protocol/WORKER-CONTRACT.md) — the contract every worker keeps
-- [JOBS.md](../../docs/protocol/JOBS.md) — the job protocol, and the dispatcher's side of it
+- [WORKER-SERVICE.md](../../protocol/contract/WORKER-SERVICE.md) — what the worker does, rule by rule
+- [WORKER-CONTRACT.md](../../protocol/contract/WORKER-CONTRACT.md) — the contract every worker keeps
+- [JOBS.md](../../protocol/contract/JOBS.md) — the job protocol, and the dispatcher's side of it
 - [`semiont-worker` skill](../../docs/builder/skills/semiont-worker/SKILL.md) — building your own job-claim daemon
 - [Adding a kind of job](../../docs/contributor/ADDING-A-JOB.md) — the path of a new kind of job through the spec, the SDKs, the dispatcher, this service, its suite and its rules

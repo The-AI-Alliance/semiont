@@ -74,7 +74,7 @@ private fun resolved(value: JsonElement): JsonElement = when (value) {
     else -> value
 }
 
-/** A duration as the table states it, in milliseconds: a number, or a timing of specs/src/client/timing.json, scaled and moved. */
+/** A duration as the table states it, in milliseconds: a number, or a timing of protocol/specs/src/client/timing.json, scaled and moved. */
 private fun durationMs(value: JsonElement): Long {
     if (value is JsonPrimitive) return value.content.toLong()
     val stated = value.jsonObject
@@ -464,7 +464,7 @@ private class Steps(
 }
 
 /**
- * specs/src/client/state-units.json, run against Kotlin's units: each case of
+ * protocol/specs/src/client/state-units.json, run against Kotlin's units: each case of
  * a unit the names table says Kotlin has, step by step, as the table's
  * `$comment` reads them, on a clock only the steps move.
  */

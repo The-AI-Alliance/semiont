@@ -1,0 +1,573 @@
+{
+  "$comment": "What the launcher's documents are held to: a knowledge base's, the stack's kinds (KnowledgeBase, KnowledgeIndex, Inference) and the project file `.semiont/config.yaml` (ProjectConfig, in ../kb-identity); and the shared ones, the Browser's (Browser), the worker's (WorkerPool), the issuer's (Issuer) and the vector store's (VectorStore), which belong to no knowledge base. Each case names the schema it is read against and gives the document: `document`, YAML text, where YAML's own reading is the point or no fixture holds the kind; or `base`, a file of the launcher's fixtures (its fixture knowledge base, and the state home's documents beside it), with `patch`, a JSON merge patch (RFC 7396) applied to it. `verdict` is `accepted`, or `refused` with `at`, the JSON pointer of the value refused, and `reason`: `unknown-field`, a field the schema does not name; `missing-required`; `wrong-type`; `not-allowed`, a value of the right type the schema refuses (a constant, a list, a pattern, a bound); or `exactly-one`, one of the ways to say a thing given more than one or none. A runner reads each case against the schema it names, and fails on a verdict, `at` or `reason` other than the case's. A schema with no refused case is held to nothing.",
+  "runBy": {
+    "launcher": ["packages/go/launcher/stack/read_test.go"]
+  },
+  "cases": [
+    {
+      "why": "the fixture's KnowledgeBase, as it is",
+      "schema": "KnowledgeBase",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "patch": {},
+      "verdict": "accepted"
+    },
+    {
+      "why": "a broker and an issuer somebody else runs",
+      "schema": "KnowledgeBase",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "patch": {
+        "spec": {
+          "messaging": {
+            "signal": { "type": "nats" },
+            "image": null,
+            "resources": null,
+            "external": { "servers": "broker.example.com:4222", "user": { "fromEnv": "NATS_USER" }, "password": { "fromEnv": "NATS_PASSWORD" } }
+          },
+          "issuer": { "shared": null, "external": { "type": "oidc", "url": "https://login.example.com" } }
+        }
+      },
+      "verdict": "accepted"
+    },
+    {
+      "why": "a misspelled field beside the right one",
+      "schema": "KnowledgeBase",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "patch": { "spec": { "gateway": { "imgae": "ghcr.io/the-ai-alliance/semiont-gateway:latest" } } },
+      "verdict": "refused",
+      "at": "/spec/gateway/imgae",
+      "reason": "unknown-field"
+    },
+    {
+      "why": "a field the document's top does not have",
+      "schema": "WorkerPool",
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: WorkerPool\nmetadata:\n  name: workers\nspec:\n  logLevel: info\n  worker:\n    image: ghcr.io/the-ai-alliance/semiont-worker:latest\n    resources:\n      limits:\n        memory: 2G\nstatus:\n  ready: true\n",
+      "verdict": "refused",
+      "at": "/status",
+      "reason": "unknown-field"
+    },
+    {
+      "why": "a port written as text",
+      "schema": "KnowledgeBase",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "patch": { "spec": { "gateway": { "port": "4000" } } },
+      "verdict": "refused",
+      "at": "/spec/gateway/port",
+      "reason": "wrong-type"
+    },
+    {
+      "why": "a service with no image: the document names every image it runs",
+      "schema": "KnowledgeBase",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "patch": { "spec": { "dispatcher": { "image": null } } },
+      "verdict": "refused",
+      "at": "/spec/dispatcher/image",
+      "reason": "missing-required"
+    },
+    {
+      "why": "a service with no memory ceiling: the document states every one",
+      "schema": "WorkerPool",
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: WorkerPool\nmetadata:\n  name: workers\nspec:\n  logLevel: info\n  worker:\n    image: ghcr.io/the-ai-alliance/semiont-worker:latest\n    resources:\n      limits: {}\n",
+      "verdict": "refused",
+      "at": "/spec/worker/resources/limits/memory",
+      "reason": "missing-required"
+    },
+    {
+      "why": "a memory ceiling in another unit",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "smelter": { "resources": { "limits": { "memory": "8GB" } } } } },
+      "verdict": "refused",
+      "at": "/spec/smelter/resources/limits/memory",
+      "reason": "not-allowed"
+    },
+    {
+      "why": "another version of the kinds",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "apiVersion": "semiont.the-ai-alliance.github.io/v1beta1" },
+      "verdict": "refused",
+      "at": "/apiVersion",
+      "reason": "not-allowed"
+    },
+    {
+      "why": "a document of another kind",
+      "schema": "KnowledgeBase",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "patch": { "kind": "KnowledgeIndex" },
+      "verdict": "refused",
+      "at": "/kind",
+      "reason": "not-allowed"
+    },
+    {
+      "why": "a name Kubernetes refuses",
+      "schema": "WorkerPool",
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: WorkerPool\nmetadata:\n  name: Workers\nspec:\n  logLevel: info\n  worker:\n    image: ghcr.io/the-ai-alliance/semiont-worker:latest\n    resources:\n      limits:\n        memory: 2G\n",
+      "verdict": "refused",
+      "at": "/metadata/name",
+      "reason": "not-allowed"
+    },
+    {
+      "why": "a broker the launcher runs and somebody else's at once",
+      "schema": "KnowledgeBase",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "patch": { "spec": { "messaging": { "external": { "servers": "broker.example.com:4222", "user": { "fromEnv": "NATS_USER" }, "password": { "fromEnv": "NATS_PASSWORD" } } } } },
+      "verdict": "refused",
+      "at": "/spec/messaging",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "somebody else's broker, with an image left behind",
+      "schema": "KnowledgeBase",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "patch": { "spec": { "messaging": { "resources": null, "external": { "servers": "broker.example.com:4222", "user": { "fromEnv": "NATS_USER" }, "password": { "fromEnv": "NATS_PASSWORD" } } } } },
+      "verdict": "refused",
+      "at": "/spec/messaging",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "a graph store nobody runs",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "graph": { "image": null, "resources": null } } },
+      "verdict": "refused",
+      "at": "/spec/graph",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "the shared issuer and somebody else's at once",
+      "schema": "KnowledgeBase",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "patch": { "spec": { "issuer": { "external": { "type": "oidc", "url": "https://login.example.com" } } } },
+      "verdict": "refused",
+      "at": "/spec/issuer",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "an issuer named neither shared nor somebody else's",
+      "schema": "KnowledgeBase",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "patch": { "spec": { "issuer": { "shared": null } } },
+      "verdict": "refused",
+      "at": "/spec/issuer",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "an Issuer document named from the knowledge base, which the machine's state home now holds",
+      "schema": "KnowledgeBase",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "patch": { "spec": { "issuer": { "ref": "issuer" } } },
+      "verdict": "refused",
+      "at": "/spec/issuer/ref",
+      "reason": "unknown-field"
+    },
+    {
+      "why": "the shared issuer with no lifespan for the knowledge base's realm",
+      "schema": "KnowledgeBase",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "patch": { "spec": { "issuer": { "shared": { "accessTokenLifespan": null } } } },
+      "verdict": "refused",
+      "at": "/spec/issuer/shared/accessTokenLifespan",
+      "reason": "missing-required"
+    },
+    {
+      "why": "graph and vector stores somebody else runs",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": {
+        "spec": {
+          "graph": { "image": null, "resources": null, "external": { "uri": "bolt://graph.example.com:7687", "password": { "fromEnv": "NEO4J_PASSWORD" } } },
+          "vectors": { "shared": null, "external": { "host": "vectors.example.com", "port": 6333, "smelterToken": { "fromEnv": "VECTORS_SMELTER_TOKEN" }, "librarianToken": { "fromEnv": "VECTORS_LIBRARIAN_TOKEN" } } }
+        }
+      },
+      "verdict": "accepted"
+    },
+    {
+      "why": "a vector store somebody else runs, with no token for the Librarian",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "vectors": { "shared": null, "external": { "host": "vectors.example.com", "port": 6333, "smelterToken": { "fromEnv": "VECTORS_SMELTER_TOKEN" } } } } },
+      "verdict": "refused",
+      "at": "/spec/vectors/external/librarianToken",
+      "reason": "missing-required"
+    },
+    {
+      "why": "a vector store of the knowledge base's own, which the launcher runs",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "vectors": { "shared": null, "image": "qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10", "resources": { "limits": { "memory": "1G" } } } } },
+      "verdict": "accepted"
+    },
+    {
+      "why": "the shared vector store and one of the knowledge base's own at once",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "vectors": { "image": "qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10", "resources": { "limits": { "memory": "1G" } } } } },
+      "verdict": "refused",
+      "at": "/spec/vectors",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "the shared vector store and somebody else's at once",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "vectors": { "external": { "host": "vectors.example.com", "port": 6333, "smelterToken": { "fromEnv": "VECTORS_SMELTER_TOKEN" }, "librarianToken": { "fromEnv": "VECTORS_LIBRARIAN_TOKEN" } } } } },
+      "verdict": "refused",
+      "at": "/spec/vectors",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "a vector store named neither shared, nor the knowledge base's own, nor somebody else's",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "vectors": { "shared": null } } },
+      "verdict": "refused",
+      "at": "/spec/vectors",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "a vector store of the knowledge base's own with no memory ceiling",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "vectors": { "shared": null, "image": "qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10" } } },
+      "verdict": "refused",
+      "at": "/spec/vectors",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "the shared vector store with a port, which is the machine's VectorStore document's to say",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "vectors": { "shared": { "port": 6330 } } } },
+      "verdict": "refused",
+      "at": "/spec/vectors/shared/port",
+      "reason": "unknown-field"
+    },
+    {
+      "why": "the fixture's VectorStore, as it is",
+      "schema": "VectorStore",
+      "base": "packages/go/launcher/testdata/vectors.yaml",
+      "patch": {},
+      "verdict": "accepted"
+    },
+    {
+      "why": "another version of the kinds",
+      "schema": "VectorStore",
+      "base": "packages/go/launcher/testdata/vectors.yaml",
+      "patch": { "apiVersion": "semiont.the-ai-alliance.github.io/v1beta1" },
+      "verdict": "refused",
+      "at": "/apiVersion",
+      "reason": "not-allowed"
+    },
+    {
+      "why": "a VectorStore with no type",
+      "schema": "VectorStore",
+      "base": "packages/go/launcher/testdata/vectors.yaml",
+      "patch": { "spec": { "type": null } },
+      "verdict": "refused",
+      "at": "/spec/type",
+      "reason": "missing-required"
+    },
+    {
+      "why": "a VectorStore with no image",
+      "schema": "VectorStore",
+      "base": "packages/go/launcher/testdata/vectors.yaml",
+      "patch": { "spec": { "image": null } },
+      "verdict": "refused",
+      "at": "/spec/image",
+      "reason": "missing-required"
+    },
+    {
+      "why": "a VectorStore with no resources",
+      "schema": "VectorStore",
+      "base": "packages/go/launcher/testdata/vectors.yaml",
+      "patch": { "spec": { "resources": null } },
+      "verdict": "refused",
+      "at": "/spec/resources",
+      "reason": "missing-required"
+    },
+    {
+      "why": "a VectorStore published on no port",
+      "schema": "VectorStore",
+      "base": "packages/go/launcher/testdata/vectors.yaml",
+      "patch": { "spec": { "port": null } },
+      "verdict": "refused",
+      "at": "/spec/port",
+      "reason": "missing-required"
+    },
+    {
+      "why": "a VectorStore somebody else runs, which a knowledge base names at its own `external`",
+      "schema": "VectorStore",
+      "base": "packages/go/launcher/testdata/vectors.yaml",
+      "patch": { "spec": { "external": { "host": "vectors.example.com", "port": 6333 } } },
+      "verdict": "refused",
+      "at": "/spec/external",
+      "reason": "unknown-field"
+    },
+    {
+      "why": "a similarity above one",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "librarian": { "search": { "semanticFloor": 1.5 } } } },
+      "verdict": "refused",
+      "at": "/spec/librarian/search/semanticFloor",
+      "reason": "not-allowed"
+    },
+    {
+      "why": "a Smelter that works on no PDF at once",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "smelter": { "pdfsAtOnce": 0 } } },
+      "verdict": "refused",
+      "at": "/spec/smelter/pdfsAtOnce",
+      "reason": "not-allowed"
+    },
+    {
+      "why": "a database name that is no lowercase identifier: PostgreSQL would fold it, and the issuer would ask for another",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "database": { "name": "Keycloak" } } },
+      "verdict": "refused",
+      "at": "/spec/database/name",
+      "reason": "not-allowed"
+    },
+    {
+      "why": "a database the launcher runs and somebody else's at once",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "database": { "external": { "host": "db.example.com", "port": 5432, "password": { "fromEnv": "POSTGRES_PASSWORD" } } } } },
+      "verdict": "refused",
+      "at": "/spec/database",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "the fixture's Issuer, as it is",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": {},
+      "verdict": "accepted"
+    },
+    {
+      "why": "an Issuer whose database somebody else runs",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "database": { "image": null, "resources": null, "port": null, "external": { "host": "db.example.com", "port": 5432, "password": { "fromEnv": "POSTGRES_PASSWORD" } } } } },
+      "verdict": "accepted"
+    },
+    {
+      "why": "an Issuer with no type",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "type": null } },
+      "verdict": "refused",
+      "at": "/spec/type",
+      "reason": "missing-required"
+    },
+    {
+      "why": "an Issuer with no image",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "image": null } },
+      "verdict": "refused",
+      "at": "/spec/image",
+      "reason": "missing-required"
+    },
+    {
+      "why": "an Issuer with no resources",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "resources": null } },
+      "verdict": "refused",
+      "at": "/spec/resources",
+      "reason": "missing-required"
+    },
+    {
+      "why": "an Issuer published on no port",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "port": null } },
+      "verdict": "refused",
+      "at": "/spec/port",
+      "reason": "missing-required"
+    },
+    {
+      "why": "an Issuer with no database",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "database": null } },
+      "verdict": "refused",
+      "at": "/spec/database",
+      "reason": "missing-required"
+    },
+    {
+      "why": "an Issuer naming a realm's lifespan, which is each knowledge base's to name",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "accessTokenLifespan": 300 } },
+      "verdict": "refused",
+      "at": "/spec/accessTokenLifespan",
+      "reason": "unknown-field"
+    },
+    {
+      "why": "a database the launcher runs, published on no port the issuer could reach",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "database": { "port": null } } },
+      "verdict": "refused",
+      "at": "/spec/database",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "somebody else's database with a port of the launcher's left behind",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "database": { "image": null, "resources": null, "external": { "host": "db.example.com", "port": 5432, "password": { "fromEnv": "POSTGRES_PASSWORD" } } } } },
+      "verdict": "refused",
+      "at": "/spec/database",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "the fixture's Inference for Anthropic, as it is",
+      "schema": "Inference",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
+      "patch": {},
+      "verdict": "accepted"
+    },
+    {
+      "why": "a provider no engine can name",
+      "schema": "Inference",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
+      "patch": { "spec": { "providers": { "mistral": {} } } },
+      "verdict": "refused",
+      "at": "/spec/providers/mistral",
+      "reason": "not-allowed"
+    },
+    {
+      "why": "engines with none for the actors",
+      "schema": "Inference",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
+      "patch": { "spec": { "engines": { "actors": null } } },
+      "verdict": "refused",
+      "at": "/spec/engines/actors",
+      "reason": "missing-required"
+    },
+    {
+      "why": "a job's engine of a provider no engine can name",
+      "schema": "Inference",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
+      "patch": { "spec": { "engines": { "jobs": { "yield": { "provider": "mistral" } } } } },
+      "verdict": "refused",
+      "at": "/spec/engines/jobs/yield/provider",
+      "reason": "not-allowed"
+    },
+    {
+      "why": "a key written into the document instead of named",
+      "schema": "Inference",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
+      "patch": { "spec": { "providers": { "anthropic": { "apiKey": "the-key-itself-pasted-in" } } } },
+      "verdict": "refused",
+      "at": "/spec/providers/anthropic/apiKey",
+      "reason": "wrong-type"
+    },
+    {
+      "why": "a secret named by a variable name no shell has",
+      "schema": "Inference",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
+      "patch": { "spec": { "providers": { "anthropic": { "apiKey": { "fromEnv": "1KEY" } } } } },
+      "verdict": "refused",
+      "at": "/spec/providers/anthropic/apiKey/fromEnv",
+      "reason": "not-allowed"
+    },
+    {
+      "why": "an unquoted no is the text no in YAML 1.2, so it is refused as a log level, not as a boolean",
+      "schema": "WorkerPool",
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: WorkerPool\nmetadata:\n  name: workers\nspec:\n  knowledgeBase: knowledge-base\n  logLevel: no\n  worker:\n    image: ghcr.io/the-ai-alliance/semiont-worker:latest\n    resources: { limits: { memory: 2G } }\n",
+      "verdict": "refused",
+      "at": "/spec/logLevel",
+      "reason": "not-allowed"
+    },
+    {
+      "why": "the fixture's project file, as it is",
+      "schema": "ProjectConfig",
+      "base": "packages/go/launcher/testdata/kb/.semiont/config.yaml",
+      "patch": {},
+      "verdict": "accepted"
+    },
+    {
+      "why": "a project file with no version, which nothing changes",
+      "schema": "ProjectConfig",
+      "base": "packages/go/launcher/testdata/kb/.semiont/config.yaml",
+      "patch": { "project": { "version": null } },
+      "verdict": "accepted"
+    },
+    {
+      "why": "a project file with a key nothing reads",
+      "schema": "ProjectConfig",
+      "base": "packages/go/launcher/testdata/kb/.semiont/config.yaml",
+      "patch": { "site": { "adminEmail": "admin@example.com" } },
+      "verdict": "refused",
+      "at": "/site/adminEmail",
+      "reason": "unknown-field"
+    },
+    {
+      "why": "a project file with no identity",
+      "schema": "ProjectConfig",
+      "base": "packages/go/launcher/testdata/kb/.semiont/config.yaml",
+      "patch": { "site": { "domain": null } },
+      "verdict": "refused",
+      "at": "/site/domain",
+      "reason": "missing-required"
+    },
+    {
+      "why": "a sync written as text",
+      "schema": "ProjectConfig",
+      "document": "project:\n  name: Test Knowledge Base\ngit:\n  sync: \"yes\"\nsite:\n  domain: example.github.io:test-kb\n  siteName: Test Knowledge Base\n",
+      "verdict": "refused",
+      "at": "/git/sync",
+      "reason": "wrong-type"
+    },
+    {
+      "why": "the Browser's document, as the launcher writes it",
+      "schema": "Browser",
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: Browser\nmetadata:\n  name: browser\nspec:\n  image: ghcr.io/the-ai-alliance/semiont-browser:latest\n  resources:\n    limits:\n      memory: 1G\n  port: 3000\n",
+      "verdict": "accepted"
+    },
+    {
+      "why": "a Browser with no image: the document names the image it runs",
+      "schema": "Browser",
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: Browser\nmetadata:\n  name: browser\nspec:\n  resources:\n    limits:\n      memory: 1G\n  port: 3000\n",
+      "verdict": "refused",
+      "at": "/spec/image",
+      "reason": "missing-required"
+    },
+    {
+      "why": "a Browser placed on an address: it is published on this machine's loopback alone",
+      "schema": "Browser",
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: Browser\nmetadata:\n  name: browser\nspec:\n  image: ghcr.io/the-ai-alliance/semiont-browser:latest\n  resources:\n    limits:\n      memory: 1G\n  host: 0.0.0.0\n  port: 3000\n",
+      "verdict": "refused",
+      "at": "/spec/host",
+      "reason": "unknown-field"
+    },
+    {
+      "why": "a Browser on a port no machine has",
+      "schema": "Browser",
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: Browser\nmetadata:\n  name: browser\nspec:\n  image: ghcr.io/the-ai-alliance/semiont-browser:latest\n  resources:\n    limits:\n      memory: 1G\n  port: 70000\n",
+      "verdict": "refused",
+      "at": "/spec/port",
+      "reason": "not-allowed"
+    },
+    {
+      "why": "the worker's document, as the launcher writes it",
+      "schema": "WorkerPool",
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: WorkerPool\nmetadata:\n  name: workers\nspec:\n  logLevel: info\n  worker:\n    image: ghcr.io/the-ai-alliance/semiont-worker:latest\n    resources:\n      limits:\n        memory: 2G\n",
+      "verdict": "accepted"
+    },
+    {
+      "why": "a worker that names a knowledge base: the worker is shared, not one knowledge base's",
+      "schema": "WorkerPool",
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: WorkerPool\nmetadata:\n  name: workers\nspec:\n  knowledgeBase: knowledge-base\n  logLevel: info\n  worker:\n    image: ghcr.io/the-ai-alliance/semiont-worker:latest\n    resources:\n      limits:\n        memory: 2G\n",
+      "verdict": "refused",
+      "at": "/spec/knowledgeBase",
+      "reason": "unknown-field"
+    }
+  ]
+}

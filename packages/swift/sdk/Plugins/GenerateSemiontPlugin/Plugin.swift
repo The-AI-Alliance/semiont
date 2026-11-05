@@ -4,7 +4,7 @@ import PackagePlugin
 @main
 struct GenerateSemiontPlugin: BuildToolPlugin {
   func createBuildCommands(context: PluginContext, target: any Target) throws -> [Command] {
-    let specs = context.package.directoryURL.appendingPathComponent("../../../specs/src")
+    let specs = context.package.directoryURL.appendingPathComponent("../../../protocol/specs/src")
       .standardizedFileURL
     guard let files = FileManager.default.enumerator(at: specs, includingPropertiesForKeys: nil)
     else {
@@ -21,7 +21,7 @@ struct GenerateSemiontPlugin: BuildToolPlugin {
     let output = context.pluginWorkDirectoryURL.appendingPathComponent("Models.swift")
     return [
       .buildCommand(
-        displayName: "Generate Semiont models from specs/src",
+        displayName: "Generate Semiont models from protocol/specs/src",
         executable: try context.tool(named: "GenerateSemiont").url,
         arguments: [specs.path, output.path, mode],
         environment: [

@@ -68,7 +68,7 @@ row against the literal, not against another document:
 
 | Token | Minted at | Literal |
 |---|---|---|
-| Access | the realm the launcher creates, [`packages/go/launcher/identity.go`](../../../packages/go/launcher/identity.go) | `keycloakAccessTokenLifespan`, which `semiont init` writes into the Issuer document as `spec.accessTokenLifespan`, and the launcher into the realm as `accessTokenLifespan`. A knowledge base changes it in its Issuer document. **Applied only when the realm is created** — a start leaves a realm Keycloak already holds as it is, which keeps what it was created with, and `semiont start` warns when the realm's actual lifespan disagrees with the document. |
+| Access | the realm the launcher creates, [`packages/go/launcher/identity.go`](../../../packages/go/launcher/identity.go) | `keycloakAccessTokenLifespan`, which `semiont init` writes into the KnowledgeBase document as `spec.issuer.shared.accessTokenLifespan`, and the launcher into the knowledge base's realm as `accessTokenLifespan`. A knowledge base changes it there. **Applied only when the realm is created** — a start leaves a realm Keycloak already holds as it is, which keeps what it was created with, and `semiont start` warns when the realm's actual lifespan disagrees with the document. |
 | Media | [`images/gateway/src/tokens.rs`](../../../images/gateway/src/tokens.rs) | `MEDIA_TOKEN_SECONDS` (five minutes) |
 
 ### Revocation
@@ -103,7 +103,7 @@ The gateway, the services behind it, and the administrator who runs them and com
 - `GET /.well-known/oauth-protected-resource` — names the issuer this deployment trusts (RFC 9728)
 - `GET /api/openapi.json` — the OpenAPI document itself
 
-That is the complete list. The OpenAPI spec is the single source of truth for it — an operation declaring `"security": []` is public — and the gateway conformance suite (`packages/conformance`) probes every operation the spec declares, failing if a protected one answers an unauthenticated caller with anything but 401.
+That is the complete list. The OpenAPI spec is the single source of truth for it — an operation declaring `"security": []` is public — and the gateway conformance suite (`protocol/conformance`) probes every operation the spec declares, failing if a protected one answers an unauthenticated caller with anything but 401.
 
 There is no password endpoint, no provider endpoint and no refresh endpoint. People obtain tokens from the issuer.
 
@@ -261,7 +261,7 @@ Create the client yourself. It is the same client:
 - **The client-credentials grant enabled**, and nothing else: no browser flow, no password grant.
 - **A flat `roles` claim** carrying `semiont-service` and `semiont-worker`, a **`kind`** of `agent`, and an **`aud`** carrying this knowledge base's resource identifier ([At the issuer](#at-the-issuer)).
 
-The worker's assertion names the client as its `iss` and its `sub`, and the issuer's token endpoint as its `aud`, so the issuer must accept that audience. Its whole shape is [`specs/src/session/client-assertion-cases.json`](../../../specs/src/session/client-assertion-cases.json). A worker written with any Semiont SDK (TypeScript, Python, Rust, Go or Kotlin) signs it, each SDK held to that table, so a participant's own worker is admitted the same way as Semiont's.
+The worker's assertion names the client as its `iss` and its `sub`, and the issuer's token endpoint as its `aud`, so the issuer must accept that audience. Its whole shape is [`protocol/specs/src/session/client-assertion-cases.json`](../../../protocol/specs/src/session/client-assertion-cases.json). A worker written with any Semiont SDK (TypeScript, Python, Rust, Go or Kotlin) signs it, each SDK held to that table, so a participant's own worker is admitted the same way as Semiont's.
 
 To revoke, delete the client.
 
@@ -277,7 +277,7 @@ The machine runs one worker, serving a list of knowledge bases kept beside its k
 
 A worker started another way is given the same in its document: one `knowledgeBases` entry for each knowledge base, with its domain, its gateway, its issuer and client id, and the engines it offers it ([the worker's configuration](../../../images/worker/README.md#configuration)). Its key is `SEMIONT_OIDC_CLIENT_KEY` in its environment, the same for every knowledge base.
 
-At each knowledge base the worker asks which knowledge base it reached before it claims, and refuses one that answers another domain. A knowledge base that revokes the grant, or that cannot be reached, stops only its own work: the worker keeps working for the others ([Worker Service § Knowledge bases](../../protocol/WORKER-SERVICE.md#knowledge-bases)).
+At each knowledge base the worker asks which knowledge base it reached before it claims, and refuses one that answers another domain. A knowledge base that revokes the grant, or that cannot be reached, stops only its own work: the worker keeps working for the others ([Worker Service § Knowledge bases](../../../protocol/contract/WORKER-SERVICE.md#knowledge-bases)).
 
 The record names a worker's work by its account, `agents:<subject>`, and the engine it ran in each write's `generator`, so two people's workers running one model are two agents there. What a worker is called is what it says of itself: Semiont's worker says its client id, and readers name it from that.
 
@@ -314,15 +314,15 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 
 **For people to sign in at all**, the issuer needs a public client that supports the device grant (for `semiont login`) and an authorization endpoint that enforces PKCE with redirect URIs covering the Browser.
 
-**Each Semiont service needs its own client**, not one shared between them: the archivist, dispatcher, gateway, librarian, smelter, weaver and worker each authenticate as themselves, and a shared credential would let any one of them act as any other. For the Keycloak the launcher runs, named by `spec.issuer.ref`, the launcher creates all seven. For an issuer at `spec.issuer.external` you create them there and supply each secret as `SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>` — but the worker's: the worker proves itself with a key, signing each sign-in (a JWT client assertion, RFC 7523), so its client, `semiont-worker-local`, authenticates by signed JWT and holds the public key `semiont worker key` prints. See [Maintenance](./MAINTENANCE.md) for rotation.
+**Each Semiont service needs its own client**, not one shared between them: the archivist, dispatcher, gateway, librarian, smelter, weaver and worker each authenticate as themselves, and a shared credential would let any one of them act as any other. For the Keycloak the launcher runs, named by `spec.issuer.shared`, the launcher creates all seven in the knowledge base's realm. For an issuer at `spec.issuer.external` you create them there and supply each secret as `SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>` — but the worker's: the worker proves itself with a key, signing each sign-in (a JWT client assertion, RFC 7523), so its client, `semiont-worker-local`, authenticates by signed JWT and holds the public key `semiont worker key` prints. See [Maintenance](./MAINTENANCE.md) for rotation.
 
-`semiont start` preflights every one of these against whatever issuer is configured and reports what it finds, so a federation that does not conform says so at startup rather than one 401 at a time. For a realm the launcher runs, `semiont identity sync` repairs what the preflight finds: it creates missing service-account clients, reconciles an existing client's roles mapper (a realm created before the worker role existed) and its kind mapper (a realm created before the `kind` claim), and the worker's client's key (this machine's), adds the loopback redirect URIs, turns the implicit flow off, and sets the access-token lifetime to match the Issuer document. It reconciles configuration only and never touches accounts.
+`semiont start` preflights every one of these against whatever issuer is configured and reports what it finds, so a federation that does not conform says so at startup rather than one 401 at a time. For a realm the launcher runs, `semiont identity sync` repairs what the preflight finds: it creates missing service-account clients, reconciles an existing client's roles mapper (a realm created before the worker role existed) and its kind mapper (a realm created before the `kind` claim), and the worker's client's key (this machine's), adds the loopback redirect URIs, turns the implicit flow off, and sets the access-token lifetime to match `spec.issuer.shared`. It reconciles configuration only and never touches accounts.
 
 ### API
 
 - Every route requires a bearer token unless the spec declares it public (`security: []`).
-- What one principal may take (the streams it holds, the emits it makes) is limited alike for people and agents, by a baseline and a coefficient per role: see [Limits](../../protocol/TRANSPORT-HTTP.md#limits). A request whose token is refused is limited per holder the token names, and those that name none together: see the same table. Limits per address are an ingress's to apply.
-- Every JSON body is validated against its schema in `specs/`.
+- What one principal may take (the streams it holds, the emits it makes) is limited alike for people and agents, by a baseline and a coefficient per role: see [Limits](../../../protocol/contract/TRANSPORT-HTTP.md#limits). A request whose token is refused is limited per holder the token names, and those that name none together: see the same table. Limits per address are an ingress's to apply.
+- Every JSON body is validated against its schema in `protocol/specs/`.
 
 ## Troubleshooting
 

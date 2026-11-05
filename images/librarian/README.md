@@ -7,7 +7,7 @@ questions that need the graph the Weaver writes, the vector index the Smelter wr
 model — what a reference could refer to, which resources a text finds, what surrounds an
 annotation or a resource, and what refers to a resource. It records nothing. Every question
 reaches it, and every answer leaves it, on the gateway's event
-[bus](../../docs/protocol/EVENT-BUS.md); its one HTTP route is `/health`, on port 24104. The
+[bus](../../protocol/contract/EVENT-BUS.md); its one HTTP route is `/health`, on port 24104. The
 launcher starts it with `semiont start`.
 
 | | |
@@ -16,8 +16,8 @@ launcher starts it with `semiont start`.
 | Port | 24104 (`/health`, and nothing else: everything it answers is on the bus) |
 | Command | `python -P -m semiont_librarian --config /etc/semiont/librarian.json` |
 | Code | Python, in this directory: [`src/semiont_librarian`](./src/semiont_librarian/) |
-| Specification | [docs/protocol/LIBRARIAN.md](../../docs/protocol/LIBRARIAN.md) |
-| Judged by | [packages/conformance/librarian](../../packages/conformance/librarian/README.md) |
+| Specification | [protocol/contract/LIBRARIAN.md](../../protocol/contract/LIBRARIAN.md) |
+| Judged by | [protocol/conformance/librarian](../../protocol/conformance/librarian/README.md) |
 | Published | to no package index: the image only |
 
 ## What it does
@@ -42,7 +42,7 @@ engines are.
 
 **It owns no store, and makes nothing in one.** It reads the graph and the vector index, and
 puts no node, no edge, no collection and no point in either. What it needs of
-[the record](../../docs/protocol/ARCHIVIST.md), and the profiles of the principals a reply
+[the record](../../protocol/contract/ARCHIVIST.md), and the profiles of the principals a reply
 names, it asks the Archivist on the bus, each read bounded by its question. A Librarian that
 is stopped and started again has lost nothing.
 
@@ -72,10 +72,18 @@ It follows no recorded event.
 
 ## When it starts
 
-It reads its document, signs in, reaches the graph database and the vector index, begins to
-take requests from the bus, and opens its health port last. So a Librarian whose health
-answers is answering. It loads nothing at start: no view, no graph and no index is read into
-it.
+It reads its document, signs in, asks the knowledge base which it is, reaches the graph
+database and the vector index, begins to take requests from the bus, and opens its health port
+last. So a Librarian whose health answers is answering, and its health names the knowledge
+base it serves by its DID. It loads nothing at start: no view, no graph and no index is read
+into it.
+
+**It serves the knowledge base its document names, and no other.** Before it reaches the graph
+database it asks the knowledge base which it is (`browse:kb-requested`), and asks again while
+the Archivist is not there to answer. It asks on a stream that names no request, so no request
+reaches it before it can answer one. Where the knowledge base says it is another, the Librarian
+refuses to start naming both by their DIDs, and where it cannot say, the Librarian refuses
+saying why. Either way it has reached neither store.
 
 A graph database or a vector index that does not answer within a minute ends the start, with
 a status other than 0.
@@ -83,20 +91,20 @@ a status other than 0.
 ## Configuration
 
 It reads one document, the protocol's
-[`LibrarianConfig`](../../specs/src/components/schemas/LibrarianConfig.json), at the path
+[`LibrarianConfig`](../../protocol/specs/src/components/schemas/LibrarianConfig.json), at the path
 `--config` names. Whoever starts a Librarian writes it, resolved, and mounts it where the
 image's command looks: `/etc/semiont/librarian.json`. The Librarian defaults nothing in it.
 
 | Member | |
 | --- | --- |
-| `kb` | the knowledge base it serves ([`KbIdentity`](../../specs/src/components/schemas/KbIdentity.json)): its name and its domain |
+| `kb` | the knowledge base it serves ([`KbIdentity`](../../protocol/specs/src/components/schemas/KbIdentity.json)): its name and its domain |
 | `gatewayUrl` | the gateway: its route to the bus |
 | `identity.issuer` | where its service account signs in |
 | `archivist` | the Archivist's host and port |
-| `graph` | the graph database ([`GraphConfig`](../../specs/src/components/schemas/GraphConfig.json)): its kind, where it is reached, and the name of the variable that holds its password |
-| `vectors` | the vector index ([`VectorsConfig`](../../specs/src/components/schemas/VectorsConfig.json)): its kind and where it is |
-| `embedding` | the embedding provider ([`EmbeddingConfig`](../../specs/src/components/schemas/EmbeddingConfig.json)): its kind, its model, and where it is reached |
-| `matcher`, `gatherer` | each actor's engine ([`LibrarianEngineConfig`](../../specs/src/components/schemas/LibrarianEngineConfig.json)): a provider and a model, the provider's address, and the name of the variable that holds its key, where it takes one |
+| `graph` | the graph database ([`GraphConfig`](../../protocol/specs/src/components/schemas/GraphConfig.json)): its kind, where it is reached, and the name of the variable that holds its password |
+| `vectors` | the vector index ([`VectorsConfig`](../../protocol/specs/src/components/schemas/VectorsConfig.json)): its kind, where it is, and, for a Qdrant, the name of the variable that holds the token the Librarian presents to it |
+| `embedding` | the embedding provider ([`EmbeddingConfig`](../../protocol/specs/src/components/schemas/EmbeddingConfig.json)): its kind, its model, and where it is reached |
+| `matcher`, `gatherer` | each actor's engine ([`LibrarianEngineConfig`](../../protocol/specs/src/components/schemas/LibrarianEngineConfig.json)): a provider and a model, the provider's address, and the name of the variable that holds its key, where it takes one |
 | `modelCatalogue` | the path of the model catalogue: what each model of `google`, `openai` and `together` can take, which those providers' APIs do not say. It is read only where an actor's model is one of theirs |
 | `gather.settleTimeoutMs` | how long a gather around a resource waits for the Smelter |
 | `search.semanticFloor` | the least similarity a hit by meaning must have |
@@ -105,9 +113,17 @@ image's command looks: `/etc/semiont/librarian.json`. The Librarian defaults not
 
 Its environment is its service account, **`SEMIONT_OIDC_CLIENT_ID`** and
 **`SEMIONT_OIDC_CLIENT_SECRET`**, and each variable its document names: for the graph
-database's password, for the embedding provider's key, and for the key of each actor's
-model. It signs in as itself, and the gateway names it by its account:
+database's password, for the embedding provider's key, for the vector index's token, and for
+the key of each actor's model. It signs in as itself, and the gateway names it by its account:
 `did:web:<the knowledge base's domain>:agents:<its subject at the issuer>`.
+
+**Its token only reads its own index.** The token it presents to its Qdrant may read its
+knowledge base's three collections and nothing else: Qdrant refuses it every write, and every
+request of another knowledge base's collections.
+[The token cases](../../protocol/specs/src/vectors/token-cases.json) state what it says. The
+launcher mints it from the key it keeps for a Qdrant it runs, and for one somebody else runs
+is handed it in the variable the stack's `KnowledgeIndex` names
+(`spec.vectors.external.librarianToken`).
 
 **Its telemetry goes where `OTEL_EXPORTER_OTLP_ENDPOINT` says**, as `semiont-librarian`, naming
 the knowledge base it serves by its DID (`semiont.kb`): what every Python service says of its
@@ -181,8 +197,8 @@ uv sync --locked
 uv run pytest
 ```
 
-The [librarian conformance suite](../../packages/conformance/librarian/README.md) holds a
-Librarian to [LIBRARIAN.md](../../docs/protocol/LIBRARIAN.md), as a process behind a real
+The [librarian conformance suite](../../protocol/conformance/librarian/README.md) holds a
+Librarian to [LIBRARIAN.md](../../protocol/contract/LIBRARIAN.md), as a process behind a real
 gateway and a real Archivist, reading a Neo4j a real Weaver writes and a Qdrant a real Smelter
 writes.
 
@@ -196,14 +212,14 @@ docker build --build-arg PYTHON_FLOOR=$(packages/python/scripts/python-floor.sh)
   --file images/librarian/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-librarian:local .
 ```
 
-[`images/local-build.sh`](../local-build.sh) builds it so with the other
+[`make local-build`](../../Makefile) builds it so with the other
 images, and [`images/scripts/check-python-image.sh`](../scripts/check-python-image.sh)
 checks what a built one promises.
 
 ## Related
 
-- [LIBRARIAN.md](../../docs/protocol/LIBRARIAN.md) — what a Librarian does, rule by rule
-- [Gather flow](../../docs/protocol/flows/GATHER.md) · [Match flow](../../docs/protocol/flows/MATCH.md) — the client's side of what it answers
+- [LIBRARIAN.md](../../protocol/contract/LIBRARIAN.md) — what a Librarian does, rule by rule
+- [Gather flow](../../protocol/contract/flows/GATHER.md) · [Match flow](../../protocol/contract/flows/MATCH.md) — the client's side of what it answers
 - [`semiont-graph`](../../packages/python/graph/), [`semiont-vectors`](../../packages/python/vectors/)
   and [`semiont-inference`](../../packages/python/inference/) — the stores, the embedding
   providers and the drivers it reads and asks through

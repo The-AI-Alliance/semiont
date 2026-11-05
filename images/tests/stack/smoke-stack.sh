@@ -3,11 +3,11 @@
 #
 #   images/tests/stack/smoke-stack.sh latest          # the published :latest images
 #   images/tests/stack/smoke-stack.sh 0.6.5           # one release's images
-#   images/tests/stack/smoke-stack.sh local           # images from images/local-build.sh
+#   images/tests/stack/smoke-stack.sh local           # images from images/scripts/build-session.sh
 #   images/tests/stack/smoke-stack.sh local --e2e     # and run images/e2e's default tier
 #
 # TWO AXES, and naming them separately is the point. The LAUNCHER is the one
-# built from this checkout, apps/launcher/dist/semiont (images/local-build.sh
+# built from this checkout, apps/launcher/dist/semiont (images/scripts/build-session.sh
 # builds it beside the :local images), never whatever `semiont` is on PATH,
 # which is usually a release; the script refuses when the binary is missing or
 # older than the source it builds from. The IMAGES are the tag given here,
@@ -29,11 +29,10 @@
 # the version images/e2e/package.json pins. A
 # failing suite is a failed check like any other, so the container logs print
 # and the stack stops. The image reaches the stack at localhost through
-# `--network host`, which docker and podman have and Apple's `container` does
-# not, so --e2e refuses that runtime (images/e2e/README.md runs the suite there
-# by hand, through the host bridge). The suite's packages, @semiont/core and
+# `--network host` on Docker and Podman, or the existing localhost bridge
+# on Apple container. The suite's packages, @semiont/core and
 # @semiont/sdk, link to this checkout's packages/, which must be built:
-# images/local-build.sh builds them, as `npm run build:packages` does.
+# images/scripts/build-session.sh builds them, as `npm run build:packages` does.
 #
 # THE KNOWLEDGE BASE is exactly what a new user makes: `init` with only the
 # did:web domain, then `start` with no --config, so the documents init writes
@@ -52,10 +51,10 @@
 # Why this exists as a script and not as steps in a workflow: every other
 # release check in this repo is one (verify-release.sh is its closest peer),
 # and a check that only a runner can perform is a check nobody runs while
-# debugging it. stack-smoke.yml runs it after images/local-build.sh, or,
+# debugging it. stack-smoke.yml runs it after images/scripts/build-session.sh, or,
 # given a published tag, after building only the launcher.
 #
-# Requires: docker (or another runtime via SMOKE_RUNTIME), git, curl, nc.
+# Requires: a responding container runtime (CONTAINER_RUNTIME selects one), git, curl, nc.
 
 set -uo pipefail
 
@@ -71,13 +70,12 @@ case "${2:-}" in
   --e2e) E2E=true ;;
   *) usage ;;
 esac
-RUNTIME="${SMOKE_RUNTIME:-docker}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+source "$REPO_ROOT/images/scripts/container-runtime.sh"
+RUNTIME=$(detect_container_runtime) || exit 2
+E2E_NETWORK=(--network host --ipc host)
+if [[ "$RUNTIME" == container ]]; then E2E_NETWORK=(); fi
 if [ "$E2E" = true ]; then
-  if [ "$RUNTIME" = container ]; then
-    echo "--e2e runs the suite with --network host, which Apple's container has not; run it as images/e2e/README.md says." >&2
-    exit 2
-  fi
   # Playwright refuses to run when the image and the library disagree, so the
   # tag is the version the suite pins, read here and never typed.
   PLAYWRIGHT=$(sed -n 's/^ *"@playwright\/test": "\(.*\)",\{0,1\}$/\1/p' "$REPO_ROOT/images/e2e/package.json")
@@ -88,7 +86,7 @@ if [ "$E2E" = true ]; then
 fi
 SEMIONT="$REPO_ROOT/apps/launcher/dist/semiont"
 if [ ! -x "$SEMIONT" ]; then
-  echo "No launcher built from this checkout at $SEMIONT. Build it with images/local-build.sh." >&2
+  echo "No launcher built from this checkout at $SEMIONT. Build it with make launcher." >&2
   exit 2
 fi
 # The launcher compiles apps/launcher, packages/go/launcher and packages/go/sdk; a source file newer
@@ -96,7 +94,7 @@ fi
 NEWER=$(find "$REPO_ROOT/apps/launcher" "$REPO_ROOT/packages/go/launcher" "$REPO_ROOT/packages/go/sdk" -path "$REPO_ROOT/apps/launcher/dist" -prune -o \
   \( \( -name '*.go' ! -name '*_test.go' \) -o -name go.mod -o -name go.sum \) -newer "$SEMIONT" -print | head -1)
 if [ -n "$NEWER" ]; then
-  echo "$SEMIONT is older than ${NEWER#"$REPO_ROOT"/}. Rebuild it with images/local-build.sh." >&2
+  echo "$SEMIONT is older than ${NEWER#"$REPO_ROOT"/}. Rebuild it with make launcher." >&2
   exit 2
 fi
 KB="${SMOKE_KB:-$(mktemp -d)/kb}"
@@ -223,7 +221,7 @@ if [ "$E2E" = true ]; then
     # run: PLAYWRIGHT_JSON_OUTPUT_NAME is Playwright's, and test-results/ is
     # the suite's output directory, emptied when a run begins.
     STARTED=$SECONDS
-    if "$RUNTIME" run --rm --network host --ipc host \
+    if "$RUNTIME" run --rm -m 8g ${E2E_NETWORK[@]+"${E2E_NETWORK[@]}"} \
       -v "$REPO_ROOT":/workspace -w /workspace/images/e2e \
       -e E2E_EMAIL -e E2E_PASSWORD \
       -e E2E_BROWSER_URL=http://localhost:3000 \
@@ -231,7 +229,18 @@ if [ "$E2E" = true ]; then
       -e PLAYWRIGHT_JSON_OUTPUT_NAME=test-results/report.json \
       -e CI=1 \
       "mcr.microsoft.com/playwright:v$PLAYWRIGHT-noble" \
-      sh -c 'npm ci && npm run test:ci -- --reporter=list,html,json'; then
+      sh -c '
+        set -e
+        npm ci
+        if [ "$1" = container ]; then
+          node e2e-localhost-bridge.mjs &
+          bridge_pid=$!
+          trap "kill $bridge_pid 2>/dev/null || true" EXIT
+          sleep 1
+          kill -0 "$bridge_pid"
+        fi
+        npm run test:ci -- --reporter=list,html,json
+      ' sh "$RUNTIME"; then
       ok "the default tier passed ($((SECONDS - STARTED))s)"
     else
       bad "the default tier failed ($((SECONDS - STARTED))s): images/e2e/playwright-report holds the report"

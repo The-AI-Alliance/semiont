@@ -13,7 +13,7 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/registry"
 )
 
-// storedTable is specs/src/session/stored.json: what a registry keeps in its
+// storedTable is protocol/specs/src/session/stored.json: what a registry keeps in its
 // storage, which Go states by hand and this test holds to the table.
 type storedTable struct {
 	Keys []struct {
@@ -31,7 +31,7 @@ type storedTable struct {
 
 // A key or a member the table gains fails here until Go has it.
 func TestWhatARegistryKeepsIsTheTables(t *testing.T) {
-	text, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "specs", "src", "session", "stored.json"))
+	text, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "protocol", "specs", "src", "session", "stored.json"))
 	must(t, err)
 	var table storedTable
 	must(t, json.Unmarshal(text, &table))

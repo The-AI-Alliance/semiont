@@ -90,9 +90,9 @@ A new resource enters as a **yield**, emitted by an actor like any other event, 
 
 ## Flows
 
-Eight composable flows define how actors interact with the knowledge base. Four write: **Yield**, **Mark**, **Bind** and **Frame**. Three read: **Browse**, **Match** and **Gather**. One directs attention: **Beckon**. See **[../protocol/flows/README.md](../protocol/flows/README.md)** for the full table, relationships, and individual flow documentation.
+Eight composable flows define how actors interact with the knowledge base. Four write: **Yield**, **Mark**, **Bind** and **Frame**. Three read: **Browse**, **Match** and **Gather**. One directs attention: **Beckon**. See **[../../protocol/contract/flows/README.md](../../protocol/contract/flows/README.md)** for the full table, relationships, and individual flow documentation.
 
-For the wire-level definition (channel naming, `correlationId` / `_userId` conventions, the trace carrier), see **[../protocol/EVENT-BUS.md](../protocol/EVENT-BUS.md)**.
+For the wire-level definition (channel naming, `correlationId` / `_userId` conventions, the trace carrier), see **[../../protocol/contract/EVENT-BUS.md](../../protocol/contract/EVENT-BUS.md)**.
 
 ## Why this shape
 
@@ -102,4 +102,4 @@ The actor model makes three things visible that a layered architecture obscures:
 
 2. **The knowledge base is inert.** It records; it does not decide. All intelligence lives in the actors. This means the knowledge base can be simple, append-only, and rebuildable — properties that are hard to maintain when "smart" behavior leaks into the data layer.
 
-3. **Flows are composable.** A Marker Agent does mark + browse + beckon. A Generator Agent does yield + gather. New actor types can mix flows freely. The bus doesn't care who emits an event or who consumes it — only that the event conforms to the [event-bus protocol](../protocol/EVENT-BUS.md).
+3. **Flows are composable.** A Marker Agent does mark + browse + beckon. A Generator Agent does yield + gather. New actor types can mix flows freely. The bus doesn't care who emits an event or who consumes it — only that the event conforms to the [event-bus protocol](../../protocol/contract/EVENT-BUS.md).

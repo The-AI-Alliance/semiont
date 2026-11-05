@@ -2,7 +2,7 @@
 //
 // The dispatcher's protocol is stated in three places that a second
 // implementation reads instead of the code — the Job schemas, the storage
-// layout (`specs/src/jobs/storage.json`) and the dispatcher's configuration
+// layout (`protocol/specs/src/jobs/storage.json`) and the dispatcher's configuration
 // document — and each restates a fact another owns. The check fails when they
 // disagree:
 //
@@ -33,14 +33,14 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = resolve(fileURLToPath(import.meta.url), '../../../../..');
-const SCHEMAS = resolve(REPO, 'specs/src/components/schemas');
+const SCHEMAS = resolve(REPO, 'protocol/specs/src/components/schemas');
 const read = (path) => JSON.parse(readFileSync(path, 'utf8'));
 const schema = (name) => read(resolve(SCHEMAS, `${name}.json`));
 
 const failures = [];
 const fail = (message) => failures.push(message);
 
-const storage = read(resolve(REPO, 'specs/src/jobs/storage.json'));
+const storage = read(resolve(REPO, 'protocol/specs/src/jobs/storage.json'));
 const jobTypes = schema('JobType').enum;
 const motivations = schema('Motivation').enum;
 const same = (a, b) => [...a].sort().join() === [...b].sort().join();

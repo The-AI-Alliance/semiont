@@ -1,7 +1,7 @@
 package launcher
 
 // dispatcherdoc.go — the dispatcher's configuration document: DispatcherConfig
-// in specs/, the Go type generated from it (packages/go/sdk). The launcher
+// in protocol/specs/, the Go type generated from it (packages/go/sdk). The launcher
 // writes it for the dispatcher it starts, every address a literal
 // (placement), and mounts it where the dispatcher's image points its
 // `--config` flag, so the dispatcher neither reads a knowledge base's
@@ -62,7 +62,7 @@ func dispatcherDocument(p placement, served api.KbIdentity) ([]byte, error) {
 	if p.placed("messaging") {
 		// The broker the launcher runs has the pair the launcher generates
 		// and keeps; the dispatcher is handed both.
-		user, password := "NATS_USER", daemonPasswords["messaging"].env
+		user, password := "NATS_USER", daemonCredentials["messaging"].env
 		doc.Queue.UserEnv, doc.Queue.PasswordEnv = &user, &password
 	} else {
 		external := kb.Messaging.External

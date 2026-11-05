@@ -8,7 +8,7 @@ directory here. What runs on a host instead, the `semiont` launcher and Semiont 
 
 | Image | Source | Port | Coverage | What it runs |
 | --- | --- | --- | --- | --- |
-| `semiont-gateway` | [gateway](./gateway/README.md) | 4000 | [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=image-gateway)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components) | **The front door.** It authenticates callers, validates and relays the bus, keeps the reply records, and pipes bytes to and from the Archivist. Rust, built against `specs/` |
+| `semiont-gateway` | [gateway](./gateway/README.md) | 4000 | [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=image-gateway)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components) | **The front door.** It authenticates callers, validates and relays the bus, keeps the reply records, and pipes bytes to and from the Archivist. Rust, built against `protocol/specs/` |
 | `semiont-archivist` | [archivist](./archivist/README.md) | 24103 | [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=image-archivist)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components) | **Keeps the system of record:** the Stower (writes events and projections), the Browser actor (serves `browse:*` reads) and the CloneTokenManager. The only service that mounts the working tree. Rust |
 | `semiont-librarian` | [librarian](./librarian/README.md) | 24104 | [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=image-librarian)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components) | **Searches the record:** the Gatherer (context assembly) and the Matcher (candidate search and scoring). Python |
 | `semiont-smelter` | [smelter](./smelter/README.md) | 24101 | [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=image-smelter)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components) | Chunks and embeds content into the vector store, and owns anchored-text extraction. Python, with PDFium and the `tesseract` program |
@@ -41,7 +41,7 @@ question?"*, the distinction the professions themselves draw.
 ## This directory is the set of images
 
 Every directory here with a `Dockerfile` is an image, and the tooling takes the set from this
-directory, not from a list: `images/local-build.sh` builds what is here, and the supervision
+directory, not from a list: `make local-build` builds what is here, and the supervision
 gate, the NOTICE and Rust-builder lints, the Python licence check and `lint:coverage-roster` all
 read it. Two lists are still written by hand, and each is held to this directory: the matrix in
 [`publish-service-images.yml`](../.github/workflows/publish-service-images.yml), by
@@ -61,7 +61,7 @@ So an image added here needs:
 
 ## Local builds and shared tooling
 
-Run `./images/local-build.sh` from the repository root to build the local stack,
+Run `make local-build` from the repository root to build the local stack,
 including its packages and launcher. [Local builds](LOCAL-BUILD.md) covers the options.
 `shared/` holds the boot entrypoint and supervisor copied into service images;
 `scripts/` holds image build, management, verification, and local-registry helpers.

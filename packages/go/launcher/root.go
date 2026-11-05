@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"iter"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -82,11 +82,6 @@ type rootEntry struct {
 	Did      string `json:"did,omitempty"`      // did:web identity from .semiont/config.yaml site.domain
 	SiteName string `json:"siteName,omitempty"` // human label — kept here so even a missing root stays identifiable
 	Config   string `json:"config,omitempty"`   // sticky --config: the config `init` wrote, then whatever a successful start last used explicitly
-	// KeycloakPort: sticky KEYCLOAK_PORT — what a successful start last took
-	// from the environment. A codespace's post-start runs a bare start on
-	// every resume, so a port the laptop moved it to must outlive the ssh
-	// that set it.
-	KeycloakPort int `json:"keycloakPort,omitempty"`
 	// PortBlock: the block of ports this KB's stack is published on
 	// (portBlockOf), kept from its first start until `semiont forget` drops
 	// the row. Absent until then, and block 0 is a block.
@@ -273,8 +268,8 @@ func recordRuntimePref(rt string) {
 // portStride: how far apart two knowledge bases' port blocks place one
 // port. 10 keeps every block's Semiont services (24101–24105 on block 0)
 // clear of the shared worker and collector (24100, 24110), and no two of
-// the ports a block places meet one another, or one of the shared containers', below
-// block 101.
+// the ports a block places meet one another, or one of the machine's
+// containers' (the shared Qdrant's 6330 among them), below block 101.
 const portStride = 10
 
 // blockPort: where block places the port block 0 places at port.
@@ -336,18 +331,8 @@ func keepPortBlock(kb kbRoot, block int) error {
 // base never shares a known one's. A root whose KnowledgeBase document is
 // gone, or does not hold, commits no port a start could run on.
 func freeGatewayPort(root string) int {
-	if abs, err := filepath.Abs(root); err == nil {
-		root = abs
-	}
 	committed := map[int]bool{}
-	for _, e := range loadRoots().Roots {
-		if e.Path == root {
-			continue
-		}
-		kb, err := stack.Read[stack.KnowledgeBase](filepath.Join(e.Path, stack.Dir, stack.KnowledgeBaseFile), "KnowledgeBase")
-		if err != nil {
-			continue
-		}
+	for _, kb := range otherKnowledgeBases(root) {
 		committed[kb.Spec.Gateway.Port] = true
 	}
 	base := semiontDescriptor("gateway").ports[0].port
@@ -358,49 +343,45 @@ func freeGatewayPort(root string) int {
 	return blockPort(base, block)
 }
 
-// keycloakPortRecorded: keycloakPort's source for the port a root keeps.
-const keycloakPortRecorded = "recorded for this KB; override with KEYCLOAK_PORT"
-
-// keycloakPort: KEYCLOAK_PORT, the issuer's port — one per KB, the same
-// number inside the stack and on the laptop that forwards it, because a
-// token's `iss` carries it. The environment wins, then the port this root
-// last started on explicitly, then Keycloak's own on this root's port block.
-// fromEnv says whether a successful start should record it.
-func keycloakPort(u *UI, root string) (port int, source string, fromEnv, ok bool) {
-	if v := os.Getenv("KEYCLOAK_PORT"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 1 || n > 65535 {
-			u.Fail("KEYCLOAK_PORT=%q is not a port (1-65535).", v)
-			return 0, "", false, false
+// anotherOnBroker: the row of another knowledge base this machine knows whose
+// KnowledgeBase document names the broker at servers, a broker somebody else
+// runs, as kb's does. A broker serves one knowledge base. A clone of kb's
+// knowledge base is that knowledge base, not another.
+func anotherOnBroker(kb kbRoot, servers string) (rootEntry, bool) {
+	host, port := externalBrokerAt(servers)
+	for e, doc := range otherKnowledgeBases(kb.dir) {
+		external := doc.Spec.Messaging.External
+		if external == nil || (e.Did != "" && e.Did == kb.ident.didWeb()) {
+			continue
 		}
-		return n, "KEYCLOAK_PORT", true, true
-	}
-	if abs, err := filepath.Abs(root); err == nil {
-		root = abs
-	}
-	for _, e := range loadRoots().Roots {
-		if e.Path == root && e.KeycloakPort != 0 {
-			return e.KeycloakPort, keycloakPortRecorded, false, true
+		if theirHost, theirPort := externalBrokerAt(external.Servers); strings.EqualFold(theirHost, host) && theirPort == port {
+			return e, true
 		}
 	}
-	block := portBlockOf(root)
-	return blockPort(descriptorFor("identity", "keycloak").defaultPort, block), fmt.Sprintf("port block %d", block), false, true
+	return rootEntry{}, false
 }
 
-// recordKeycloakPort stores a root's sticky KEYCLOAK_PORT — callers pass it
-// only after a start SUCCEEDED with the port taken from the environment.
-func recordKeycloakPort(root string, port int) {
+// otherKnowledgeBases: the row and the KnowledgeBase document of each root
+// this machine knows but root. A root whose KnowledgeBase document is gone,
+// or does not hold, has none to say anything with.
+func otherKnowledgeBases(root string) iter.Seq2[rootEntry, stack.KnowledgeBase] {
 	if abs, err := filepath.Abs(root); err == nil {
 		root = abs
 	}
-	_ = changeRoots(func(reg *rootsRegistry) error {
-		for i := range reg.Roots {
-			if reg.Roots[i].Path == root {
-				reg.Roots[i].KeycloakPort = port
+	return func(yield func(rootEntry, stack.KnowledgeBase) bool) {
+		for _, e := range loadRoots().Roots {
+			if e.Path == root {
+				continue
+			}
+			kb, err := stack.Read[stack.KnowledgeBase](filepath.Join(e.Path, stack.Dir, stack.KnowledgeBaseFile), "KnowledgeBase")
+			if err != nil {
+				continue
+			}
+			if !yield(e, kb) {
+				return
 			}
 		}
-		return nil
-	})
+	}
 }
 
 // configForRealm names the config a realm-administering command must read:

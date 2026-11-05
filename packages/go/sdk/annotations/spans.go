@@ -8,7 +8,7 @@ package annotations
 // character, and where it does not have them so, three looser ways in turn:
 // without regard to white space and to the forms of quotation marks and
 // dashes, without regard to letter case, and by edit distance within an
-// allowance. specs/src/annotations/reconcile-cases.json holds the rule, for
+// allowance. protocol/specs/src/annotations/reconcile-cases.json holds the rule, for
 // this and for every other SDK.
 
 import (

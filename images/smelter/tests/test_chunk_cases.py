@@ -1,4 +1,4 @@
-"""The chunker, held to `specs/src/text/chunk-cases.json`.
+"""The chunker, held to `protocol/specs/src/text/chunk-cases.json`.
 
 It is the table every cutter of a text runs, the Worker's and the Smelter's,
 so that a text is cut the same way whoever cuts it.

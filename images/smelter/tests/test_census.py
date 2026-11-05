@@ -71,7 +71,7 @@ SURFACE = {
     "smelter": ["ReconcileState", "Smelter"],
     "index_stamp": ["hold_to", "stamp_of"],
     "telemetry": ["points_held"],
-    "config": ["SERVICE", "embedding_key_of", "read_smelter_config"],
+    "config": ["SERVICE", "embedding_key_of", "read_smelter_config", "vectors_token_of"],
     "service": ["CHANNELS", "boot", "main"],
 }
 
@@ -199,9 +199,9 @@ def test_each_engine_is_reached_by_one_module_and_the_rules_know_neither() -> No
 
 
 def test_the_events_it_does_something_with_are_the_ones_the_protocol_lists_and_each_has_its_case() -> None:
-    page = (ROOT / "docs/protocol/SMELTER.md").read_text(encoding="utf-8")
+    page = (ROOT / "protocol/contract/SMELTER.md").read_text(encoding="utf-8")
     rule = re.search(r"\*\*Eleven events of the record do something:\*\*(.*?)\*Held by", page, re.DOTALL)
-    assert rule is not None, "docs/protocol/SMELTER.md no longer lists the events a Smelter does something with"
+    assert rule is not None, "protocol/contract/SMELTER.md no longer lists the events a Smelter does something with"
     listed = re.findall(r"`([a-z]+:[a-z-]+)`", rule.group(1))
     assert len(listed) == len(set(listed)) == 11
     # What each does is one `match` over the event's type. An event of the record that has no case there is taken
@@ -304,9 +304,9 @@ def test_one_module_names_the_logger_and_one_reads_the_process_s_environment() -
 
 
 def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> None:
-    page = (ROOT / "docs/protocol/SMELTER.md").read_text(encoding="utf-8")
+    page = (ROOT / "protocol/contract/SMELTER.md").read_text(encoding="utf-8")
     section = re.search(r"^## Environment\n(.*?)^## ", page, re.DOTALL | re.MULTILINE)
-    assert section is not None, "docs/protocol/SMELTER.md no longer has an Environment section"
+    assert section is not None, "protocol/contract/SMELTER.md no longer has an Environment section"
     listed_there = {
         name
         for row in section.group(1).splitlines()

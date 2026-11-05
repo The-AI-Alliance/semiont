@@ -1,17 +1,18 @@
 """The service's agent at one knowledge base: its account there, signed in, and an engine for each of its `engines`, claiming jobs.
 
 The service is an agent at each knowledge base its document names
-(`docs/protocol/WORKER-SERVICE.md` § The agent). At each it signs in as the
+(`protocol/contract/WORKER-SERVICE.md` § The agent). At each it signs in as the
 client that knowledge base's `identity` names, and the DID that knowledge
 base's gateway answers is who the agent is there. It is used as answered and
 derived from nothing else: derived from the address the service happens to
 dial, one agent would have two.
 
-Once its stream is open, the agent asks the knowledge base which it is, and
-goes on only at the one its entry names: there it says what it is called,
-which is that knowledge base's client id, and readers name it from that, as
-they name a person. Then it answers for its engines' limits, and claims for
-each engine.
+Signed in, the agent asks the knowledge base which it is, as every service
+does (`semiont_service.knowledge_base`): on a stream of its own, asked again
+while the Archivist is not there to answer. It goes on only at the one its
+entry names: there it opens its stream, says what it is called, which is that
+knowledge base's client id, and readers name it from that, as they name a
+person. Then it answers for its engines' limits, and claims for each engine.
 
 An engine is a provider and a model. Each entry of the knowledge base's
 `engines` names one, the jobs the agent does with it there and where its
@@ -29,7 +30,9 @@ failed first and nothing more is claimed.
 
 The agent's stream names what a worker reads and no more. The replies of
 every operation a client can ask reach every stream that names them, and a
-worker that named them all would be sent every other client's answers.
+worker that named them all would be sent every other client's answers. It is
+opened once the knowledge base is confirmed: it names a request the agent
+answers, which would reach it while it could not.
 """
 
 import asyncio
@@ -40,16 +43,16 @@ from types import TracebackType
 from typing import Final, Self, final, overload
 
 from pydantic import JsonValue
-from semiont.bus import reply_channels_for
+from semiont.bus import Bus, reply_channels_for
 from semiont.channels import PRINCIPAL_PROFILE
 from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, Claims
 from semiont.client import SemiontClient
-from semiont.errors import BusRequestError, SemiontError
+from semiont.errors import SemiontError
 from semiont.http import AgentToken, HttpTransport, ServiceToken
 from semiont.identifiers import UserId
 from semiont.identity import kb_did
 from semiont.model import written
-from semiont.operations import BROWSE_KB_REQUESTED, BROWSE_RESOURCE_REQUESTED, JOB_LIMITS_REQUESTED
+from semiont.operations import BROWSE_RESOURCE_REQUESTED, JOB_LIMITS_REQUESTED
 from semiont.retry import REFRESH, RetryFacts
 from semiont.transport import Transport
 from semiont.types import (
@@ -65,6 +68,8 @@ from semiont.types import (
 )
 from semiont_inference.interface import InferenceClient
 from semiont_inference.limits_report import answer_limits_requests
+from semiont_service.config import Refused
+from semiont_service.knowledge_base import CONFIRMING_CHANNELS, Unanswered, confirmed
 
 from semiont_worker.failure_class import words_of
 from semiont_worker.held_job import run_job
@@ -75,8 +80,8 @@ WORKER_CHANNELS: Final[tuple[str, ...]] = (
     *JOB_CLAIM_CHANNELS,
     # Every job that makes annotations commits them, and waits for the record to have them.
     *JOB_COMMIT_CHANNELS,
-    # What this service itself awaits: which knowledge base it reached, and a resource's description.
-    *reply_channels_for(BROWSE_KB_REQUESTED, BROWSE_RESOURCE_REQUESTED),
+    # What this service itself awaits: a resource's description.
+    *reply_channels_for(BROWSE_RESOURCE_REQUESTED),
     # What this service answers: the limits of its engines.
     JOB_LIMITS_REQUESTED.request.name,
 )
@@ -245,10 +250,10 @@ class AgentWorker:
     each of its engines' providers and models, in the entry's order. `service`
     is the account the agent signs in as there.
 
-    Signing in opens no stream. `open` does, confirms the knowledge base and
-    says what the agent is called there: the stream, the client over it and
-    each engine's claims are then the agent's until the way out, which ends
-    each engine's claiming first and so fails a job still held.
+    Signing in opens no stream. `open` confirms the knowledge base, opens the
+    agent's stream and says what the agent is called there: the stream, the
+    client over it and each engine's claims are then the agent's until the way
+    out, which ends each engine's claiming first and so fails a job still held.
     """
 
     def __init__(self, knowledge_base: WorkerKnowledgeBaseConfig, clients: Sequence[InferenceClient], *, service: ServiceToken) -> None:
@@ -280,22 +285,31 @@ class AgentWorker:
         """The agent's DID at the knowledge base, as its gateway answered it."""
         return self._signed_in().did
 
-    async def open(self) -> None:
-        """Open the agent's stream and its client over it, confirm the knowledge base (R1), and say what the agent is called there (G5).
+    async def open(self, stopping: asyncio.Event) -> bool:
+        """Confirm the knowledge base (R1), then open the agent's stream and its client over it, and say what it is called there (G5).
 
-        A knowledge base that answers another domain than its entry's, or that
-        answers that it cannot say which it is, raises `KnowledgeBaseRefused`,
-        and nothing more is said there. Anything else that keeps it from being
-        confirmed or told raises `KnowledgeBaseTrouble`. Each engine's claiming
-        begins when the agent is put to work.
+        Whether it opened: not where `stopping` was set while it asked. A
+        knowledge base that answers another domain than its entry's, or a
+        failure, raises `KnowledgeBaseRefused`, and the agent's stream is not
+        opened. Anything else that keeps it from being confirmed or told
+        raises `KnowledgeBaseTrouble`. Each engine's claiming begins when the
+        agent is put to work.
         """
         token = self._signed_in()
         knowledge_base = self._knowledge_base
+        gateway, bearer, refresher = knowledge_base.gateway_url, token.token, token.refresh
+        async with HttpTransport(gateway, token=bearer, refresher=refresher, channels=CONFIRMING_CHANNELS) as asking:
+            try:
+                if not await confirmed(Bus(asking), knowledge_base.domain, stopping):
+                    return False
+            except Unanswered as unanswered:
+                raise KnowledgeBaseTrouble(str(unanswered)) from None
+            except Refused as refused:
+                raise KnowledgeBaseRefused(str(refused)) from None
         transport = await self._held.enter_async_context(
-            HttpTransport(knowledge_base.gateway_url, token=token.token, refresher=token.refresh, channels=WORKER_CHANNELS)
+            HttpTransport(gateway, token=bearer, refresher=refresher, channels=WORKER_CHANNELS)
         )
         client = await self._held.enter_async_context(SemiontClient(transport, transport.content, transport))
-        await self._confirm(client)
         try:
             await client.wire.emit(PRINCIPAL_PROFILE, PrincipalProfileCommand(name=knowledge_base.identity.client_id))
         except SemiontError as unsaid:
@@ -305,17 +319,7 @@ class AgentWorker:
             claims = await self._held.enter_async_context(client.job.claim(entry.jobs))
             engines.append(EngineAtWork(entry, inference, claims, domain=knowledge_base.domain))
         self._opened = (client, tuple(engines))
-
-    async def _confirm(self, client: SemiontClient[HttpTransport]) -> None:
-        """Ask the knowledge base which it is, and go on only where it is the one the entry names."""
-        try:
-            answered = await client.browse.kb()
-        except SemiontError as unconfirmed:
-            if isinstance(unconfirmed, BusRequestError) and unconfirmed.failure is not None:
-                raise KnowledgeBaseRefused(f"it answered browse:kb-requested with browse:kb-failed ({unconfirmed.code})") from None
-            raise KnowledgeBaseTrouble(f"it did not say which knowledge base it is: {words_of(unconfirmed)}") from None
-        if answered.domain != self._knowledge_base.domain:
-            raise KnowledgeBaseRefused(f"it answered browse:kb-requested as {answered.domain}")
+        return True
 
     def _at_work(self) -> tuple[UserId, SemiontClient[HttpTransport], tuple[EngineAtWork, ...]]:
         if self._opened is None:

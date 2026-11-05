@@ -18,7 +18,7 @@ document: a secret written where its variable's name belongs is such a value.
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Final, final
+from typing import Final
 
 from pydantic import ValidationError
 from semiont.http import KeyCredential, NotAnRsaKey, SecretCredential, UnreadableKey, private_key_from_pem
@@ -27,7 +27,6 @@ from semiont.model import WireModel
 __all__ = ["Refused", "config_path_of", "key_account_of", "read_config", "service_account_of", "set_in"]
 
 
-@final
 class Refused(Exception):
     """Why the service does not start. Its words are what it says, once, before it exits."""
 
@@ -105,7 +104,7 @@ def read_config[C: WireModel](service: str, shape: type[C], path: str) -> C:
     except OSError as unread:
         raise Refused(
             f"Cannot read the {service}'s configuration document at {path} ({unread}). "
-            f"The launcher writes it; a {service} started another way is given one ({shape.__name__} in specs/)."
+            f"The launcher writes it; a {service} started another way is given one ({shape.__name__} in protocol/specs/)."
         ) from unread
     try:
         return shape.model_validate_json(written, strict=True, by_alias=True, by_name=False)

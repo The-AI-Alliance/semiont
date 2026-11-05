@@ -5,7 +5,7 @@ package annotations
 // The id is not minted: it is worked out from what the annotation is, so the
 // same annotation built again, by any worker in any language, has the same
 // id, and writing it a second time changes nothing.
-// specs/src/annotations/id-cases.json holds the rule, for this and for every
+// protocol/specs/src/annotations/id-cases.json holds the rule, for this and for every
 // other SDK.
 
 import (

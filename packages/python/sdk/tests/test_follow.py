@@ -1,4 +1,4 @@
-"""Following a job (`docs/protocol/JOBS.md` § Following a job).
+"""Following a job (`protocol/contract/JOBS.md` § Following a job).
 
 Through the two methods that create one: `mark.delegate` and `yield_.delegate`.
 """

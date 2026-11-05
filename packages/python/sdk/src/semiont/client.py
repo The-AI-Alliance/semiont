@@ -52,7 +52,7 @@ __all__ = ["CachePersistence", "ClientTiming", "SemiontClient"]
 @final
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ClientTiming:
-    """The waits a client keeps: `specs/src/client/timing.json`'s, unless a caller that must not wait them out says otherwise."""
+    """The waits a client keeps: `protocol/specs/src/client/timing.json`'s, unless a caller that must not wait them out says otherwise."""
 
     bus_request_ms: int = BUS_REQUEST_TIMEOUT_MS
     """How long a bus request waits for its reply."""

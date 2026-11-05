@@ -1,7 +1,7 @@
 package annotations
 
 // Building the annotations a worker commits, held by
-// specs/src/annotations/builder-cases.json, for this and for every other SDK.
+// protocol/specs/src/annotations/builder-cases.json, for this and for every other SDK.
 
 import (
 	"cmp"

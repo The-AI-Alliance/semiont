@@ -1,5 +1,5 @@
 //! What each annotation reader answers is one table,
-//! specs/src/annotations/reader-cases.json, which every SDK runs: this
+//! protocol/specs/src/annotations/reader-cases.json, which every SDK runs: this
 //! crate's `semiont::annotations` gives, for each case's annotation, what
 //! TypeScript's and Python's readers give.
 

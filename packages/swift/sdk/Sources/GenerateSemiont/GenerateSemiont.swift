@@ -12,7 +12,8 @@ struct GenerateSemiont {
   static func run() throws {
     let args = CommandLine.arguments
     guard args.count == 4 else {
-      throw GenerationRefused(description: "usage: <specs/src> <output.swift> <models|tests>")
+      throw GenerationRefused(
+        description: "usage: <protocol/specs/src> <output.swift> <models|tests>")
     }
     let specs = URL(fileURLWithPath: args[1])
     let definitions = try loadDefinitions(specs)

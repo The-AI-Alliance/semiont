@@ -1,4 +1,4 @@
-"""What is read from a model's reply, held to `specs/src/librarian/reply-cases.json`.
+"""What is read from a model's reply, held to `protocol/specs/src/librarian/reply-cases.json`.
 
 It is the table every Librarian runs: the elements a model answered, and
 what one of the two readers reads from them. Each reader here is a function

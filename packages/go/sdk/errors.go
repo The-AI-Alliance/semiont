@@ -1,7 +1,7 @@
 package semiont
 
 // The failures the SDK reports, one type per vocabulary of
-// specs/src/errors/codes.json, as the other SDKs have them: each a Go error,
+// protocol/specs/src/errors/codes.json, as the other SDKs have them: each a Go error,
 // read with errors.As, and every one an Error.
 
 import (

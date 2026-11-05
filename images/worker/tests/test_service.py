@@ -1,6 +1,6 @@
 """The service as a process: what it is started with, the order it refuses in, how its knowledge bases are worked at apart, and how it ends.
 
-`docs/protocol/WORKER-SERVICE.md` § Configuration states each refusal, and
+`protocol/contract/WORKER-SERVICE.md` § Configuration states each refusal, and
 § Knowledge bases what happens at each knowledge base the service serves. The
 worker service's conformance suite holds a started process to their words.
 Here is the order of the refusals, which says which is settled first, and
@@ -39,6 +39,7 @@ from semiont.transport import Frame
 from semiont.types import WorkerHealth, WorkerKnowledgeBaseConfig
 from semiont_inference.interface import ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredResponse
 from semiont_service.config import Refused
+from semiont_service.knowledge_base import CONFIRMING_CHANNELS
 
 from semiont_worker import agent
 from semiont_worker.knowledge_base import NO_KNOWLEDGE_BASE_ADMITS, KnowledgeBases, Served
@@ -404,15 +405,6 @@ def with_a_job(job_id: str) -> Life:
     return scripted
 
 
-def answering_as(domain: str | None) -> Life:
-    """A knowledge base that answers which it is with `domain`, or with `browse:kb-failed` where it is `None`."""
-
-    def scripted(parties: Parties, life: int) -> None:
-        parties.domain = domain
-
-    return scripted
-
-
 async def settled() -> None:
     """Give the loop turns enough for a knowledge base to be confirmed, or for its work to end and its next life to begin."""
     for _ in range(10):
@@ -463,8 +455,9 @@ def test_each_knowledge_base_s_engines_claim_and_settle_on_its_own_stream_as_the
             assert [annotation["generator"] for annotation in annotations if isinstance(annotation, dict)] == [
                 {"@type": "Software", "@id": did, "provider": "ollama", "model": "mock-model"}
             ]
-            # Asked which it is, then told what the agent is called there, before anything is claimed.
-            assert [frame.channel for frame in parties.frames()][:3] == ["browse:kb-requested", "principal:profile", "job:claim"]
+            # Asked which it is, once, then told on the agent's own stream what the agent is called there, before anything is claimed.
+            assert at.asked == 1
+            assert [frame.channel for frame in parties.frames()][:2] == ["principal:profile", "job:claim"]
             assert parties.sent("principal:profile") == [{"name": name}]
             assert at.sign_ins == 1
         assert said_of(caplog, CONFIRMED, "domain", "did") == [("INFO", "a.example", A_DID), ("INFO", "b.example", B_DID)]
@@ -568,14 +561,8 @@ def test_health_says_each_knowledge_base_in_the_document_s_order_its_did_and_eng
 def test_a_knowledge_base_that_refuses_the_worker_is_said_once_and_left_refused_while_the_other_keeps_working(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, refusing: str
 ) -> None:
-    a = KnowledgeBaseStoodIn(
-        A_GATEWAY,
-        "a.example",
-        A_DID,
-        each_life={"another domain": answering_as("elsewhere.example"), "browse:kb-failed": answering_as(None)}.get(
-            refusing, holding_nothing
-        ),
-    )
+    answers = {"another domain": "elsewhere.example", "browse:kb-failed": None}.get(refusing, "a.example")
+    a = KnowledgeBaseStoodIn(A_GATEWAY, answers, A_DID, each_life=holding_nothing)
     if refusing == "a refused grant":
         a.refusing.append(SignInError("exchange", "Client-credentials grant for worker-at-a failed (HTTP 401)", status=401))
     b = KnowledgeBaseStoodIn(B_GATEWAY, "b.example", B_DID, each_life=with_a_job("job-b"))
@@ -589,10 +576,10 @@ def test_a_knowledge_base_that_refuses_the_worker_is_said_once_and_left_refused_
         await settled()
         assert states(knowledge_bases) == [["a.example", "refused"], ["b.example", "working"]]
         assert completed(b.parties) == ["job-b"]
-        # Asked which it is, the knowledge base that answered otherwise is told nothing more, no name and no claim; its stream is closed.
-        for parties in a.lives:
-            assert [frame.channel for frame in parties.frames()] == ["browse:kb-requested"]
-            assert parties.transport.state.value == "closed"
+        # Asked which it is, the knowledge base that answered otherwise is told nothing more: the agent's own stream is never
+        # opened there, so nothing is named and nothing claimed, and the stream it was asked on is closed.
+        assert a.lives == []
+        assert a.streams == ([] if refusing == "a refused grant" else [("opened", CONFIRMING_CHANNELS), ("closed", CONFIRMING_CHANNELS)])
         # It stays refused: the service does not sign in there again.
         await pass_time(MAX_RECONNECT_MS * 3 / 1000, step=5)
         assert a.sign_ins == 1
@@ -607,13 +594,103 @@ def test_a_knowledge_base_that_refuses_the_worker_is_said_once_and_left_refused_
     assert isinstance(reason, str)
     assert reason.startswith(
         {
-            "another domain": "it answered browse:kb-requested as elsewhere.example",
-            "browse:kb-failed": "it answered browse:kb-requested with browse:kb-failed",
+            "another domain": "The knowledge base at the gateway is did:web:elsewhere.example, and the document names did:web:a.example",
+            "browse:kb-failed": "The knowledge base answered which it is with a failure (browse:kb-failed)",
             "a refused grant": "Client-credentials grant for worker-at-a failed (HTTP 401)",
         }[refusing]
     )
     assert said_of(caplog, TROUBLE) == []
     assert said_of(caplog, CONFIRMED, "domain") == [("INFO", "b.example")]
+
+
+def test_a_knowledge_base_whose_archivist_is_not_there_yet_is_starting_while_it_is_asked_again_and_then_works(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    a = KnowledgeBaseStoodIn(A_GATEWAY, "a.example", A_DID, each_life=holding_nothing)
+    # Nothing answers there the first three times it is asked.
+    a.away = 3
+    b = KnowledgeBaseStoodIn(B_GATEWAY, "b.example", B_DID, each_life=holding_nothing)
+    stand_in(monkeypatch, a, b)
+    caplog.set_level(logging.INFO, logger="semiont_worker")
+
+    async def scenario() -> None:
+        knowledge_bases = KnowledgeBases(a_and_b())
+        stop = asyncio.Event()
+        working = asyncio.ensure_future(knowledge_bases.work(stop))
+        await settled()
+        assert states(knowledge_bases) == [["a.example", "starting"], ["b.example", "working"]]
+        # The waits before the second, third and fourth asking are at most one, two and four seconds.
+        await pass_time(8, step=0.5)
+        await settled()
+        assert states(knowledge_bases) == [["a.example", "working"], ["b.example", "working"]]
+        # Asked again on the one stream, under the one sign-in: it was never refused, nor started again.
+        assert (a.asked, a.sign_ins, len(a.lives)) == (4, 1, 1)
+        stop.set()
+        assert await asyncio.wait_for(working, 5) == 0
+
+    run(scenario())
+    assert said_of(caplog, REFUSED) == []
+    assert said_of(caplog, TROUBLE) == []
+    assert sorted(domain for _, domain in said_of(caplog, CONFIRMED, "domain")) == ["a.example", "b.example"]
+
+
+def test_a_knowledge_base_nobody_answers_for_however_long_it_is_asked_is_trouble_and_started_again(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    a = KnowledgeBaseStoodIn(A_GATEWAY, "a.example", A_DID, each_life=holding_nothing)
+    # Nothing answers there for as long as it is asked, the first time it is started.
+    a.away = 17
+    b = KnowledgeBaseStoodIn(B_GATEWAY, "b.example", B_DID, each_life=holding_nothing)
+    stand_in(monkeypatch, a, b)
+    caplog.set_level(logging.INFO, logger="semiont_worker")
+
+    async def scenario() -> None:
+        knowledge_bases = KnowledgeBases(a_and_b())
+        stop = asyncio.Event()
+        working = asyncio.ensure_future(knowledge_bases.work(stop))
+        await pass_time(400, step=5)
+        await settled()
+        assert states(knowledge_bases) == [["a.example", "working"], ["b.example", "working"]]
+        assert (a.asked, a.sign_ins, len(a.lives)) == (18, 2, 1)
+        assert b.sign_ins == 1
+        stop.set()
+        assert await asyncio.wait_for(working, 5) == 0
+
+    run(scenario())
+    assert said_of(caplog, REFUSED) == []
+    assert said_of(caplog, TROUBLE, "domain", "error", "waitMs") == [
+        (
+            "WARNING",
+            "a.example",
+            "The knowledge base did not answer which it is (browse:kb-requested): Nothing answers browse:kb-requested",
+            RECONNECT_MS,
+        )
+    ]
+
+
+def test_told_to_stop_while_its_one_knowledge_base_is_asked_which_it_is_the_status_is_0_and_nothing_more_is_said_there(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    a = KnowledgeBaseStoodIn(A_GATEWAY, "a.example", A_DID, each_life=holding_nothing)
+    a.away = 100
+    stand_in(monkeypatch, a)
+    caplog.set_level(logging.INFO, logger="semiont_worker")
+
+    async def scenario() -> None:
+        knowledge_bases = KnowledgeBases(a_and_b()[:1])
+        stop = asyncio.Event()
+        working = asyncio.ensure_future(knowledge_bases.work(stop))
+        await settled()
+        assert states(knowledge_bases) == [["a.example", "starting"]]
+        stop.set()
+        assert await asyncio.wait_for(working, 5) == 0
+
+    run(scenario())
+    assert (a.asked, a.lives) == (1, [])
+    assert a.streams == [("opened", CONFIRMING_CHANNELS), ("closed", CONFIRMING_CHANNELS)]
+    assert said_of(caplog, CONFIRMED) == []
+    assert said_of(caplog, REFUSED) == []
+    assert said_of(caplog, TROUBLE) == []
 
 
 def test_a_claim_refused_as_unauthorized_refuses_that_knowledge_base_alone(
@@ -800,8 +877,8 @@ def test_told_to_stop_every_knowledge_base_fails_the_job_it_holds_first_claims_n
 def test_every_knowledge_base_refused_with_none_confirmed_first_is_a_refusal_to_start(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    a = KnowledgeBaseStoodIn(A_GATEWAY, "a.example", A_DID, each_life=answering_as("elsewhere.example"))
-    b = KnowledgeBaseStoodIn(B_GATEWAY, "b.example", B_DID, each_life=answering_as(None))
+    a = KnowledgeBaseStoodIn(A_GATEWAY, "elsewhere.example", A_DID, each_life=holding_nothing)
+    b = KnowledgeBaseStoodIn(B_GATEWAY, None, B_DID, each_life=holding_nothing)
     stand_in(monkeypatch, a, b)
     caplog.set_level(logging.INFO, logger="semiont_worker")
 
@@ -821,7 +898,7 @@ def test_every_knowledge_base_refused_after_one_was_confirmed_is_status_1(
         parties.claim_refused = {"code": "unauthorized", "message": "This agent is not a worker"}
 
     a = KnowledgeBaseStoodIn(A_GATEWAY, "a.example", A_DID, each_life=unauthorized)
-    b = KnowledgeBaseStoodIn(B_GATEWAY, "b.example", B_DID, each_life=answering_as("elsewhere.example"))
+    b = KnowledgeBaseStoodIn(B_GATEWAY, "elsewhere.example", B_DID, each_life=holding_nothing)
     stand_in(monkeypatch, a, b)
     caplog.set_level(logging.INFO, logger="semiont_worker")
 
@@ -919,7 +996,7 @@ def test_the_health_endpoint_answers_a_worker_health_with_each_knowledge_base_in
     in_trouble.refusing.extend([SignInError("exchange", "Client-credentials grant got no answer")] * 100)
     stand_in(
         monkeypatch,
-        KnowledgeBaseStoodIn(A_GATEWAY, "a.example", A_DID, each_life=answering_as("elsewhere.example")),
+        KnowledgeBaseStoodIn(A_GATEWAY, "elsewhere.example", A_DID, each_life=holding_nothing),
         KnowledgeBaseStoodIn(B_GATEWAY, "b.example", B_DID, each_life=holding_nothing),
         in_trouble,
     )
@@ -977,8 +1054,8 @@ def test_a_service_every_knowledge_base_of_which_refused_it_none_confirmed_says_
 ) -> None:
     stand_in(
         monkeypatch,
-        KnowledgeBaseStoodIn(A_GATEWAY, "a.example", A_DID, each_life=answering_as("elsewhere.example")),
-        KnowledgeBaseStoodIn(B_GATEWAY, "b.example", B_DID, each_life=answering_as(None)),
+        KnowledgeBaseStoodIn(A_GATEWAY, "elsewhere.example", A_DID, each_life=holding_nothing),
+        KnowledgeBaseStoodIn(B_GATEWAY, None, B_DID, each_life=holding_nothing),
     )
     monkeypatch.setattr(sys, "argv", ["semiont_worker", "--config", started_document(tmp_path, A_GATEWAY, B_GATEWAY)])
     monkeypatch.setattr(os, "environ", dict(ACCOUNT))
@@ -1000,7 +1077,7 @@ def test_a_service_every_knowledge_base_of_which_refused_it_one_confirmed_first_
     stand_in(
         monkeypatch,
         KnowledgeBaseStoodIn(A_GATEWAY, "a.example", A_DID, each_life=unauthorized),
-        KnowledgeBaseStoodIn(B_GATEWAY, "b.example", B_DID, each_life=answering_as("elsewhere.example")),
+        KnowledgeBaseStoodIn(B_GATEWAY, "elsewhere.example", B_DID, each_life=holding_nothing),
     )
     monkeypatch.setattr(sys, "argv", ["semiont_worker", "--config", started_document(tmp_path, A_GATEWAY, B_GATEWAY)])
     monkeypatch.setattr(os, "environ", dict(ACCOUNT))

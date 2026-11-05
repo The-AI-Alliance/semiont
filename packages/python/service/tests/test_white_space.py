@@ -1,4 +1,4 @@
-"""White space, held to Unicode's White_Space property: the set the case tables under `specs/src` count by.
+"""White space, held to Unicode's White_Space property: the set the case tables under `protocol/specs/src` count by.
 
 The module lists the characters. Here the list is worked out a second way,
 from the Unicode data this Python carries, so a character written wrongly in

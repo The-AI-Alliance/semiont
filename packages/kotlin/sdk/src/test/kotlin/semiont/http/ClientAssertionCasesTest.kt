@@ -17,7 +17,7 @@ import java.util.Base64
 
 /**
  * A service account's assertion of itself, held to the cases every SDK that
- * signs one runs (specs/src/session/client-assertion-cases.json): the
+ * signs one runs (protocol/specs/src/session/client-assertion-cases.json): the
  * thumbprint a key is named by, and the header and claims an assertion
  * carries. The signature over them, and the form a grant posts, are held in
  * KeyCredentialTest, where a grant's assertion is checked with the key's

@@ -1,6 +1,6 @@
 """The knowledge graph around one resource, built from the graph database and the record.
 
-Both gathers build it (`docs/protocol/LIBRARIAN.md` § The knowledge graph).
+Both gathers build it (`protocol/contract/LIBRARIAN.md` § The knowledge graph).
 The first node is the resource. Then each of its connections is a node and
 an edge to it; then each annotation elsewhere that refers to it, with the
 resource that annotation is on; then each annotation on it. A thing is a node

@@ -3,7 +3,7 @@
 It reads the catalog from the Archivist, over the bus, and a resource's
 annotations from the Archivist's own `GET /resources/{id}/annotations`, as its
 service account: their number follows the document's, so they are no bus read
-(`docs/protocol/WEAVER.md` § What it follows). A resource's events it reads as
+(`protocol/contract/WEAVER.md` § What it follows). A resource's events it reads as
 a follower of the record (`semiont_service.follower`). It opens no file of the
 record.
 """

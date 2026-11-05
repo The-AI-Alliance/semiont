@@ -117,8 +117,8 @@ claude mcp add semiont -- semiont mcp
 
 ## Next
 
-Everything you just did travelled over one event bus, spoken as [eight verbs](../protocol/flows/README.md): `semiont yield` and `semiont mark` were two of them. The launcher speaks all eight (`semiont browse --help`, and so on), and so does your code, through the SDK.
+Everything you just did travelled over one event bus, spoken as [eight verbs](../../protocol/contract/flows/README.md): `semiont yield` and `semiont mark` were two of them. The launcher speaks all eight (`semiont browse --help`, and so on), and so does your code, through the SDK.
 
-- **[Building with the Semiont SDK](README.md)**: the same verbs from TypeScript, Rust, Python, Go, Kotlin or Java
+- **[Building with the Semiont SDK](README.md)**: the same verbs from TypeScript, Rust, Python, Go, Kotlin, Java, or C#
 - **[Working in the Browser](../analyst/FEATURES.md)**: what you can do with the document you just opened
 - **[Running knowledge bases on your computer](../operator/LOCAL-SEMIONT.md)**: what this page leaves out about the stack you just started

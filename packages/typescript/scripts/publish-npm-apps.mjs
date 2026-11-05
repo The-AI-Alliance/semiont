@@ -12,17 +12,21 @@
  *   node packages/typescript/scripts/publish-npm-apps.mjs --dry-run      # Show what would be staged
  */
 
-import { mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from 'fs';
+import { mkdirSync, readFileSync, writeFileSync, rmSync, existsSync, mkdtempSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { tmpdir } from 'node:os';
+import { verifyPublication } from './publication-inputs.mjs';
 import { stampInternalDeps } from './stamp-internal-deps.mjs';
 
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(__dirname, '../../..');
 const DRY_RUN = process.argv.includes('--dry-run');
-const STAGE_DIR = resolve(rootDir, '.npm-stage');
+const VERIFY = process.argv.includes('--verify');
+const VERIFY_DIR = VERIFY ? mkdtempSync(resolve(tmpdir(), 'semiont-npm-verify-')) : null;
+const STAGE_DIR = VERIFY_DIR ?? resolve(rootDir, '.npm-stage');
 
 function getVersion() {
   const versionJson = JSON.parse(readFileSync(resolve(rootDir, 'version.json'), 'utf-8'));
@@ -49,12 +53,16 @@ function stageBrowser(version) {
   // Verify built artifacts exist
   const distIndex = resolve(browserDir, 'dist/index.html');
   if (!existsSync(distIndex)) {
-    throw new Error(`Browser not built: ${distIndex} not found. Run 'npm run build' in images/browser first.`);
+    throw new Error(`Browser not built: ${distIndex} not found. Build the Browser's npm artifacts first (make packages PACKAGE_NAMES=typescript includes them).`);
   }
 
   const serverJs = resolve(browserDir, 'server.js');
   if (!existsSync(serverJs)) {
     throw new Error(`Browser server.js not found at ${serverJs}`);
+  }
+
+  for (const input of ['README.npm.md', 'package.publish.json']) {
+    if (!existsSync(resolve(browserDir, input))) throw new Error(`Browser publication input missing: ${input}`);
   }
 
   // Clean and create staging directory
@@ -77,6 +85,7 @@ function stageBrowser(version) {
   // Copy README for npm listing
   execFileSync('cp', [resolve(browserDir, 'README.npm.md'), resolve(stageDir, 'README.md')]);
 
+  verifyPublication(stageDir, publishPkg, 'images/browser');
   log(`  Staged @semiont/browser@${version} to ${stageDir}`);
   log(`  Files: dist/, server.js, package.json, README.md`);
 
@@ -88,8 +97,15 @@ const version = getVersion();
 log(`Version: ${version}`);
 if (DRY_RUN) log('(dry run)\n');
 
-const browserStage = stageBrowser(version);
+let browserStage;
+try {
+  browserStage = stageBrowser(version);
+} finally {
+  if (VERIFY_DIR) rmSync(VERIFY_DIR, { recursive: true, force: true });
+}
 
-log('\n=== Staging complete ===\n');
-log('To publish:');
-log(`  cd ${browserStage} && npm publish --access public`);
+if (!VERIFY) {
+  log('\n=== Staging complete ===\n');
+  log('To publish:');
+  log(`  cd ${browserStage} && npm publish --access public`);
+}

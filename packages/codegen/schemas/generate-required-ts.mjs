@@ -26,7 +26,7 @@ mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(
   OUT,
   `// ⚠ GENERATED FILE — do not edit.
-// Source: the component schemas of specs/src/openapi.json → packages/codegen/schemas/generate-required-ts.mjs,
+// Source: the component schemas of protocol/specs/src/openapi.json → packages/codegen/schemas/generate-required-ts.mjs,
 // by the rules of packages/codegen/schemas/required-members.mjs.
 // Rebuilt by \`npm run prebuild\` in @semiont/core; gitignored on purpose.
 

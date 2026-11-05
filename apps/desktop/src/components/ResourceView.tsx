@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   getSupportedShapes,
+  mediaUrl,
   ResourceTagsInline,
   ResourceViewer,
   useMediaToken,
@@ -27,6 +28,14 @@ import { PendingCreationPopover, useAnnotationCreation } from './AnnotationCreat
 import { DelegationControl } from './DelegationControl';
 import { ShapeControl } from './ShapeControl';
 import type { ViewerPrefs } from './ViewerPrefControls';
+
+const MIN_RESOURCE_ZOOM = 0.5;
+const MAX_RESOURCE_ZOOM = 3;
+const RESOURCE_ZOOM_STEP = 0.1;
+
+function clampResourceZoom(zoom: number): number {
+  return Math.max(MIN_RESOURCE_ZOOM, Math.min(MAX_RESOURCE_ZOOM, zoom));
+}
 
 /**
  * The main pane's in-app document view — native, over `@semiont/react-ui`'s bring-your-own-session
@@ -67,6 +76,32 @@ export function ResourceView({
 
   // Per-document annotate mode — the pencil in the header (controlled prop on the viewer).
   const [annotate, setAnnotate] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  // Chromium reports macOS trackpad pinch as a ctrl+wheel event. Handle it only
+  // while the pointer is over this resource pane, preserving ordinary scrolling
+  // everywhere else in the app. A non-passive listener lets us stop page zoom.
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (body === null) return undefined;
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      const deltaScale = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+        ? 16
+        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          ? body.clientHeight
+          : 1;
+      const next = clampResourceZoom(zoomRef.current * Math.exp(-event.deltaY * deltaScale * 0.002));
+      zoomRef.current = next;
+      setZoom(next);
+    };
+    body.addEventListener('wheel', onWheel, { passive: false });
+    return () => body.removeEventListener('wheel', onWheel);
+  }, []);
 
   // A rejected tag update (the server's vocabulary gate, PR #974) — surfaced inline. The
   // strip's own commit has no catch: rejecting would recover silently + leak an unhandled
@@ -94,6 +129,36 @@ export function ResourceView({
         <span className="rview__name" title={resource?.name ?? name}>
           {resource?.name ?? name}
         </span>
+        <div className="rview__zoom-controls" role="group" aria-label="Resource zoom">
+          <button
+            type="button"
+            onClick={() => setZoom((current) => clampResourceZoom(current - RESOURCE_ZOOM_STEP))}
+            disabled={zoom <= MIN_RESOURCE_ZOOM}
+            aria-label="Zoom out"
+            title="Zoom out"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            className="rview__zoom-level"
+            onClick={() => setZoom(1)}
+            disabled={zoom === 1}
+            aria-label={`Reset resource zoom, currently ${Math.round(zoom * 100)} percent`}
+            title="Reset zoom"
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <button
+            type="button"
+            onClick={() => setZoom((current) => clampResourceZoom(current + RESOURCE_ZOOM_STEP))}
+            disabled={zoom >= MAX_RESOURCE_ZOOM}
+            aria-label="Zoom in"
+            title="Zoom in"
+          >
+            +
+          </button>
+        </div>
         {annotate && markableEntityTypes.length > 0 && (
           <DelegationControl
             className="rview__delegctl"
@@ -161,27 +226,30 @@ export function ResourceView({
           {tagError}
         </p>
       )}
-      <div className="rview__body">
-        {error !== null ? (
-          <p className="rview__status" role="alert">
-            {error.message}
-          </p>
-        ) : loading || resource === undefined ? (
-          <p className="rview__status">Loading…</p>
-        ) : (
-          <LoadedDocument
-            session={session}
-            rid={rid}
-            resource={resource}
-            annotations={annotations}
-            prefs={prefs}
-            annotate={annotate}
-            onAnnotateModeChange={setAnnotate}
-            shape={shape}
-            onShapeChange={setShape}
-            onOpenResource={onOpenResource}
-          />
-        )}
+      <div className="rview__body" ref={bodyRef}>
+        <div className="rview__zoom-canvas">
+          {error !== null ? (
+            <p className="rview__status" role="alert">
+              {error.message}
+            </p>
+          ) : loading || resource === undefined ? (
+            <p className="rview__status">Loading…</p>
+          ) : (
+            <LoadedDocument
+              session={session}
+              rid={rid}
+              resource={resource}
+              annotations={annotations}
+              prefs={prefs}
+              zoom={zoom}
+              annotate={annotate}
+              onAnnotateModeChange={setAnnotate}
+              shape={shape}
+              onShapeChange={setShape}
+              onOpenResource={onOpenResource}
+            />
+          )}
+        </div>
       </div>
       {pending !== null && (
         <PendingCreationPopover session={session} resourceId={rid} pending={pending} onClose={clearPending} />
@@ -199,6 +267,7 @@ function LoadedDocument({
   resource,
   annotations,
   prefs,
+  zoom,
   annotate,
   onAnnotateModeChange,
   shape,
@@ -210,6 +279,7 @@ function LoadedDocument({
   resource: ResourceDescriptor;
   annotations: AnnotationsCollection;
   prefs: ViewerPrefs;
+  zoom: number;
   annotate: boolean;
   onAnnotateModeChange: (on: boolean) => void;
   shape: ShapeType;
@@ -229,9 +299,7 @@ function LoadedDocument({
   );
   const { token } = useMediaToken(isBinary ? session.client : null, rid);
   const content = isBinary
-    ? token
-      ? `${session.client.baseUrl}/api/resources/${rid}?token=${token}`
-      : ''
+    ? mediaUrl(session.client, rid, token) ?? ''
     : textContent;
 
   // Detail click action → the pinned annotation card, anchored to the annotation's own
@@ -254,6 +322,7 @@ function LoadedDocument({
       <ResourceViewer
         session={session}
         translationManager={translationManager}
+        zoom={zoom}
         showToolbar={false}
         resource={{ ...resource, content }}
         annotations={annotations}

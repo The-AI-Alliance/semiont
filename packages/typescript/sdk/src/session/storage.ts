@@ -245,7 +245,7 @@ export function defaultProtocol(host: string): 'http' | 'https' {
  * A host's name: labels of ASCII letters, digits and hyphens with a dot between
  * each two, every label 1 to 63 characters long, none beginning or ending with
  * a hyphen. `localhost` and a dotted address are such names; a host with a
- * slash, a colon or a query is not (specs/src/session/gateway-url-cases.json).
+ * slash, a colon or a query is not (protocol/specs/src/session/gateway-url-cases.json).
  */
 const HOSTNAME_RE = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
 
@@ -256,7 +256,7 @@ export function isValidHostname(host: string): boolean {
 /**
  * The origin of a knowledge base's gateway: the protocol, the host in
  * lowercase and nothing else done to it, and the port
- * (specs/src/session/gateway-url-cases.json). A host that is not a host's
+ * (protocol/specs/src/session/gateway-url-cases.json). A host that is not a host's
  * name is refused, so a name a person typed is never put into a URL unread.
  * HTTP-shaped helper — lives next to the KB list machinery because the
  * frontend Panel needs it for the auth round-trip when adding a KB. Code that
