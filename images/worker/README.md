@@ -65,11 +65,13 @@ the agent is: the `generator` on everything a job makes names the agent by its D
 knowledge base the job came from and the engine that made it, so `_userId` on the bus and the
 `generator` on every annotation refer to the same agent.
 
-What the agent is called is its profile. At each knowledge base, once the stream is open, it
-first asks which knowledge base it is (`browse:kb-requested`) and goes on only at the domain
-its entry names. Then, before any engine claims, it says it is called by that knowledge base's
-`identity.clientId`, on `principal:profile`, and readers name it from that, as they name a
-person. The `generator` carries no name.
+What the agent is called is its profile. At each knowledge base, once it has signed in, it
+first asks which knowledge base it is (`browse:kb-requested`), as every Semiont service does:
+on a stream that names nothing the agent answers, and again while the Archivist is not there to
+answer. It goes on only at the domain its entry names. Then it opens its own stream there, and,
+before any engine claims, says it is called by that knowledge base's `identity.clientId`, on
+`principal:profile`, and readers name it from that, as they name a person. The `generator`
+carries no name.
 
 ## One knowledge base's trouble is its own
 
@@ -82,7 +84,8 @@ there alone.
   is gone. It is said once in the log (`Knowledge base refused the worker`, at `error`), its
   stream is closed, and it stays refused until the service is started again.
 - **Trouble**: a sign-in that gets no answer, or one the SDK would try again; no answer to
-  `browse:kb-requested` in time; its stream closed for good; a held job that stalls. Its work
+  `browse:kb-requested` in time, or none for as long as it is asked again; its stream closed
+  for good; a held job that stalls. Its work
   ends, failing a job still held there, and it is started again, signed in afresh, after the
   SDK's `reconnectMs`, twice that each further time up to `maxReconnectMs`
   (`Knowledge base in trouble — starting it again`, at `warn`, with `waitMs`). A stream that

@@ -68,11 +68,14 @@ eachWorkerService('a worker of two knowledge bases', (world) => {
     await eventually('both knowledge bases to have been claimed at', 15_000, () => (w.claims.length >= 1 && second.claims.length >= 1 ? true : undefined));
     expect(signedInAs(served, [w, second])).toEqual([[w.did], [second.did]]);
     expect([w.world.issuer.grants.get(WORKER_CLIENT) ?? 0, second.world.issuer.grants.get(SECOND_WORKER_CLIENT) ?? 0]).toEqual([grants[0]! + 1, grants[1]! + 1]);
-    // One stream at each, opened as the agent it is there.
-    expect([w, second].map((kb) => served.at(kb).streams().map(({ by }) => by))).toEqual([[w.did], [second.did]]);
+    // At each, the stream it asks which knowledge base it is on, and then one of its own, opened as the agent it is there.
+    expect([w, second].map((kb) => served.at(kb).streams().map(({ by }) => by))).toEqual([
+      [w.did, w.did],
+      [second.did, second.did],
+    ]);
   });
 
-  it('asks each knowledge base which it is, once, on the stream it opened there, and is confirmed by the domain its document names, saying so in its log', async () => {
+  it('asks each knowledge base which it is, once, on a stream that names that answer alone, and opens its own there once it is confirmed by the domain its document names, saying so in its log', async () => {
     const w = world();
     const second = await w.second();
     const served = await servingBoth(w, second);
@@ -80,9 +83,12 @@ eachWorkerService('a worker of two knowledge bases', (world) => {
     for (const kb of [w, second]) {
       const at = served.at(kb);
       expect(at.emits('browse:kb-requested').map(({ by, payload, scope, status }) => ({ by, payload, scope, status })), kb.domain).toEqual([{ by: kb.did, payload: {}, scope: undefined, status: 202 }]);
-      // Asked once the stream is open, so that the answer comes back on it.
-      const [stream] = at.proxy.requests.filter((r) => r.path === '/bus/subscribe');
-      expect(stream!.answered! < at.emits('browse:kb-requested')[0]!.arrived, kb.domain).toBe(true);
+      // Asked once the stream it asks on is open, so that the answer comes back on it; its own is opened once it has
+      // been answered, so that no request it answers reaches it before it can, and the stream it asked on is closed.
+      const [asking, own] = at.proxy.requests.filter((r) => r.path === '/bus/subscribe');
+      const [asked] = at.emits('browse:kb-requested');
+      const answer = at.carried('browse:kb-result').find((c) => c.frame.correlationId === asked!.correlationId);
+      expect([asking!.answered! < asked!.arrived, answer!.at < own!.arrived, asking!.closed, own!.closed], kb.domain).toEqual([true, true, true, false]);
     }
     const confirmed = logged(served.process.stdout, KB_LOG.confirmed).map(({ level, domain, did }) => ({ level, domain, did }));
     expect([...confirmed].sort((a, b) => (String(a.domain) < String(b.domain) ? -1 : 1))).toEqual(
@@ -220,7 +226,8 @@ eachWorkerService('a worker of two knowledge bases', (world) => {
     expect((await health(served.process)).knowledgeBases[0]).toEqual(expect.objectContaining({ domain: w.domain, state: 'working', did: w.did }));
 
     // It opens its stream again, claims once it is open, and runs a job it is handed there.
-    const reopened = await served.proxy.until('its stream to be opened again', () => served.proxy.requests.filter((r) => r.path === '/bus/subscribe' && r.status === 200)[1], 20_000);
+    // The first stream it opened is the one it asked which knowledge base it is on; the second its own.
+    const reopened = await served.proxy.until('its stream to be opened again', () => served.proxy.requests.filter((r) => r.path === '/bus/subscribe' && r.status === 200)[2], 20_000);
     await served.emitted('job:claim', (e) => e.arrived > reopened.answered!, 1, 15_000);
     const job = markJob(w, 'after-a-drop', { motivation: 'highlighting' });
     await w.announce(job);
@@ -232,15 +239,15 @@ eachWorkerService('a worker of two knowledge bases', (world) => {
     expect(logged(served.process.stdout, KB_LOG.confirmed).filter(({ domain }) => domain === w.domain)).toHaveLength(1);
     expect(w.world.issuer.grants.get(WORKER_CLIENT) ?? 0).toBe(grants);
     expect(served.signIns().map(({ did }) => did)).toEqual([w.did]);
-    expect(served.streams().map(({ by }) => by)).toEqual([w.did, w.did]);
+    expect(served.streams().map(({ by }) => by)).toEqual([w.did, w.did, w.did]);
     expect(served.tokens()).toHaveLength(1);
     expect(served.emits('browse:kb-requested')).toHaveLength(1);
     expect(served.emits('principal:profile')).toHaveLength(1);
     expect((await health(served.process)).knowledgeBases[0]).toEqual(expect.objectContaining({ domain: w.domain, state: 'working', did: w.did }));
 
-    // The other kept its one sign-in, its one stream and its job, which it finishes there.
+    // The other kept its one sign-in, its one stream of its own and its job, which it finishes there.
     expect(there.signIns()).toHaveLength(1);
-    expect(there.streams().map(({ closed }) => closed)).toEqual([false]);
+    expect(there.streams().map(({ closed }) => closed)).toEqual([true, false]);
     expect(heldBy((await health(served.process)).knowledgeBases[1]!)).toBe(held.metadata.id);
     w.ollama.release({ response: '[]' });
     await settled(there, held);
@@ -280,15 +287,15 @@ eachWorkerService('a worker of two knowledge bases', (world) => {
     expect(signIn!.arrivedMs - failed!.at).toBeGreaterThanOrEqual(reconnectMs);
     expect(w.world.issuer.grants.get(WORKER_CLIENT) ?? 0).toBe(grants + 1);
     expect(served.signIns().map(({ did }) => did)).toEqual([w.did]);
-    expect(served.streams().map(({ by }) => by)).toEqual([w.did]);
+    expect(served.streams().map(({ by }) => by)).toEqual([w.did, w.did]);
     expect(served.emits('browse:kb-requested')).toHaveLength(1);
     expect(logged(served.process.stdout, KB_LOG.confirmed).filter(({ domain }) => domain === w.domain)).toEqual([expect.objectContaining({ did: w.did })]);
     expect(logged(served.process.stdout, KB_LOG.trouble)).toHaveLength(1);
     expect((await health(served.process)).knowledgeBases[0]).toEqual(expect.objectContaining({ domain: w.domain, state: 'working', did: w.did }));
 
-    // The other kept its one sign-in, its one stream and its job, which it finishes there.
+    // The other kept its one sign-in, its one stream of its own and its job, which it finishes there.
     expect(there.signIns()).toHaveLength(1);
-    expect(there.streams().map(({ closed }) => closed)).toEqual([false]);
+    expect(there.streams().map(({ closed }) => closed)).toEqual([true, false]);
     expect(heldBy((await health(served.process)).knowledgeBases[1]!)).toBe(held.metadata.id);
     w.ollama.release({ response: '[]' });
     await settled(there, held);
