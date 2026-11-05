@@ -300,6 +300,9 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(2));
     const second = FakeXHR.instances[1]!;
     expect(second.setRequestHeaderCalls).toContainEqual({ name: 'Authorization', value: 'Bearer renewed-token' });
+    const keyOf = (xhr: FakeXHR) => xhr.setRequestHeaderCalls.find((h) => h.name === 'Idempotency-Key')?.value;
+    expect(keyOf(first)).toEqual(expect.any(String));
+    expect(keyOf(second), 'the second sending is the same upload').toBe(keyOf(first));
     second.fireProgress(30, 100);
     second.fireProgress(100, 100);
     second.fireSuccess(201, { resourceId: 'r-1' });

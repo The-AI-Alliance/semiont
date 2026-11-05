@@ -27,8 +27,9 @@ tier it is held to.
 A case states a scenario. Whatever the scenario, [case.ts](case.ts) also
 fails a client that:
 
-- sends a request the spec does not declare, or a JSON body the declared
-  operation does not accept;
+- sends a request the spec does not declare, a JSON body the declared
+  operation does not accept, or without a header the operation requires, or
+  with one its schema does not accept;
 - sends anything the case does not account for: the requests on the wire are
   a transcript, read in order, and a request with no step of its own is a
   failure;
@@ -64,7 +65,8 @@ the client:
   the client is pointed at it instead of the gateway. It records every
   request and every event each stream carried, and can end the client's
   connections, refuse new ones, keep a request waiting, answer one itself
-  with a refusal the case scripted, and pass a stream on a byte at a time;
+  with a refusal the case scripted, close one unanswered, and pass a stream
+  on a byte at a time;
 - a **participant**: a software agent the suite plays in place of the
   services, which listens for requests and emits what a case tells it to.
 
@@ -232,7 +234,7 @@ Steps run in order, each waiting for what it states:
 | `{"settles": "name", "returns" or "fails": ...}` | an operation started with `as` settles |
 | `{"abandon": "name"}` | the case abandons a request started with `as`, as its caller would |
 | `{"settles": "name", "abandoned": true}` | it ended because it was abandoned, and reported nothing |
-| `{"wire": "POST /bus/emit", ...}` | the client's next request is this operation of the spec, with each of `status`, `params`, `body`, `token`, `answer` given |
+| `{"wire": "POST /bus/emit", ...}` | the client's next request is this operation of the spec, with each of `status`, `params`, `body`, `token`, `headers` (only the headers named), `answer` given |
 | `{"carried": "name", "is": frame}` | the stream a wire step named has carried this frame to the client |
 | `{"closed": "name"}` | the request a wire step named has ended with no answer: the client closed it |
 | `{"progress": "name"}` | an upload started with `as`, and not yet settled, has reported all of it sent: every report states the same total, none states less than the one before, and the last states the total |
@@ -273,11 +275,13 @@ order. Every other body is compared as sent.
 ### Values
 
 A value a step expects is JSON, compared exactly: the same scalars, the same
-list, the same keys. Two operators:
+list, the same keys. Three operators:
 
 - `{"$var": "name"}` takes the value found there the first time the name is
   met; every later use must equal it, and a step's arguments use it as that
   value. `_` takes anything and keeps nothing.
+- `{"$fresh": "name"}` takes a value as `$var` does, and only one no
+  variable already holds: a request's key of its own, not the last one's.
 - `{"$join": ["p-", {"$var": "r1"}, "-2"]}` is the text its parts make.
 
 The suite binds these before a case begins:
@@ -309,6 +313,7 @@ no other.
 | `anchored-text` | `resource`, `answer` | the Archivist answers this for the resource's anchored text |
 | `uploaded` | `resource`, `fields`, `bytes` | the Archivist recorded this upload, for the case's principal |
 | `refuse` | `wire`, `status`, `retryAfter`, `headers` (any other header the refusal declares, such as a 401's `WWW-Authenticate`), `body`, `times` | the proxy answers the next `times` such requests itself, as the spec lets a gateway answer |
+| `unanswered` | `wire`, `times` | the proxy reads the next `times` such requests whole and closes each one's connection with nothing written |
 | `hold` | `wire` | the proxy keeps such requests waiting |
 | `release` | | held requests go through |
 | `rechunk` | `bytes` | streams reach the client this many bytes at a time |

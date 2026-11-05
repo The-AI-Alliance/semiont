@@ -37,11 +37,14 @@ public sealed partial class HttpTransport
 
     internal async Task<HttpResponseMessage> ExchangeAsync(HttpMethod method, string path, Func<HttpContent>? content = null, bool authenticated = true, bool upload = false, CancellationToken cancellation = default, bool retry = true)
     {
+        var repeatable = retry && ProtocolFacts.RetryTransport(503, method.Method);
+        var key = upload ? Guid.NewGuid().ToString() : null;
         var renewed = false;
         for (var attempt = 0; ; attempt++)
         {
             var sent = authenticated ? Token() : null;
             using var request = Request(method, path, sent);
+            if (key is not null) request.Headers.Add(IdempotencyKey, key);
             request.Content = content?.Invoke();
             using var deadline = new CancellationTokenSource(upload ? Timeout.InfiniteTimeSpan : TimeSpan.FromMilliseconds(timing.HttpRequestMs), clock);
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, lifetime.Token, cancellation);
@@ -53,6 +56,11 @@ public sealed partial class HttpTransport
             catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
             {
                 throw Report(new TransportError(ProtocolFacts.Error(503), path + ": no response"));
+            }
+            catch (HttpRequestException) when (repeatable && attempt == 0 && !lifetime.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("requestRetryPauseMs").GetInt32()), clock, cancellation).ConfigureAwait(false);
+                continue;
             }
             catch (HttpRequestException error)
             {

@@ -4,9 +4,11 @@
  * `{"$var": "name"}`: the first time a name is met it takes the value found
  * there, and every later use must equal it, so a case can say "the same
  * client id" or "the correlation id that request carried" without knowing
- * either. `_` takes anything and keeps nothing. `{"$join": [...]}` is the
- * text its parts make end to end, each a string or a variable already bound:
- * a watermark is `p-`, a scope, `-` and a sequence number.
+ * either. `_` takes anything and keeps nothing. `{"$fresh": "name"}` takes a
+ * value as `$var` does, and only one no variable already holds: "a key of its
+ * own, not the last request's". `{"$join": [...]}` is the text its parts make
+ * end to end, each a string or a variable already bound: a watermark is `p-`,
+ * a scope, `-` and a sequence number.
  */
 import { isDeepStrictEqual } from 'node:util';
 
@@ -16,6 +18,12 @@ const variable = (v: unknown): string | undefined => {
   if (!isObject(v)) return undefined;
   const keys = Object.keys(v);
   return keys.length === 1 && keys[0] === '$var' && typeof v['$var'] === 'string' ? v['$var'] : undefined;
+};
+
+const fresh = (v: unknown): string | undefined => {
+  if (!isObject(v)) return undefined;
+  const keys = Object.keys(v);
+  return keys.length === 1 && keys[0] === '$fresh' && typeof v['$fresh'] === 'string' ? v['$fresh'] : undefined;
 };
 
 const joined = (v: unknown): unknown[] | undefined => {
@@ -78,6 +86,16 @@ export class Bindings {
       }
       if (value === undefined) return `${where} is missing, so ${name} has nothing to take`;
       met.set(name, value);
+      return undefined;
+    }
+    const newName = fresh(pattern);
+    if (newName !== undefined) {
+      if (this.values.has(newName) || met.has(newName)) return `${newName} is already bound: $fresh takes a name not yet used`;
+      if (value === undefined) return `${where} is missing, so ${newName} has nothing to take`;
+      for (const [held, known] of [...this.values, ...met]) {
+        if (isDeepStrictEqual(known, value)) return `${where} is ${show(value)}, which ${held} already holds`;
+      }
+      met.set(newName, value);
       return undefined;
     }
     if (joined(pattern) !== undefined) {

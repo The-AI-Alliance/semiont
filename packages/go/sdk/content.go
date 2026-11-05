@@ -21,6 +21,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
+
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
@@ -270,6 +272,7 @@ func (p *progressReader) Read(buffer []byte) (int, error) {
 
 // PutBinary uploads a resource. Its context abandons it: the connection is
 // closed, nothing is reported on the error stream, and it is not sent again.
+// Every attempt carries the upload's one Idempotency-Key.
 func (c *HTTPContentTransport) PutBinary(ctx context.Context, putting PutBinaryRequest) *Upload {
 	return NewUpload(func(report func(UploadProgress)) (api.CreateResourceResponse, error) {
 		busLog(ctx, busPut, "content", map[string]any{"name": putting.Name, "format": putting.Format, "storageUri": putting.StorageURI, "sizeBytes": len(putting.Bytes)}, Envelope{})
@@ -282,7 +285,7 @@ func (c *HTTPContentTransport) PutBinary(ctx context.Context, putting PutBinaryR
 		var reported int64
 		var mu sync.Mutex
 		return answer[api.CreateResourceResponse](ctx, c.shared, request{
-			method: http.MethodPost, path: "/resources", authenticated: true, contentType: contentType,
+			method: http.MethodPost, path: "/resources", authenticated: true, contentType: contentType, idempotencyKey: uuid.NewString(),
 			body: func() (io.Reader, int64) {
 				return &progressReader{body: body, reported: &reported, mu: &mu, report: report}, int64(len(body))
 			},

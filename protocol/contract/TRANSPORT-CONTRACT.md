@@ -271,6 +271,11 @@ from [`protocol/specs/src/errors/codes.json`](../specs/src/errors/codes.json).
   refusal's `Retry-After`; a stream whose credential was refused waits for
   another credential instead (§ A refused credential).
   *Held by `sdk/wire/stream-rate-limited`, `sdk/wire/unauthenticated`.*
+- **A read that got no answer is sent once more**, after
+  `requestRetryPauseMs`: one whose connection failed, or closed before any
+  response came. A read unanswered at its deadline is not sent again
+  ([`protocol/specs/src/client/timing.json`](../specs/src/client/timing.json)).
+  *Held by `sdk/wire/read-unanswered`.*
 - A gateway that cannot be reached fails an emit or a read as `unavailable`
   once its attempts are spent.
   *Held by `sdk/wire/unreachable`.*
@@ -434,6 +439,11 @@ Bytes do not ride the bus.
 - An upload carries its bytes unchanged, each field under its own name, and
   resolves with the id the gateway answers.
   *Held by `sdk/wire/content-upload`.*
+- An upload carries an `Idempotency-Key` header of the client's making: a
+  new key for each upload, and the same on every sending of it, the one
+  sent again with a renewed credential too
+  ([`protocol/specs/src/paths/resources.json`](../specs/src/paths/resources.json)).
+  *Held by `sdk/wire/upload-keyed`, `sdk/wire/upload-credential-renewed`.*
 - An upload reports its progress as it is sent: how much has gone and how
   much there is, never less than it last said, and all of it by the time it
   resolves.

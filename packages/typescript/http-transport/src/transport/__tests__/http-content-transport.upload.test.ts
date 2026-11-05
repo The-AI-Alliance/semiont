@@ -232,6 +232,9 @@ describe('an upload outside a browser', () => {
     await expect(content.putBinary(upload(file), { auth: TOKEN, onProgress: (report) => reports.push(report) })).resolves.toEqual({ resourceId: 'uploaded' });
 
     expect(received.map((record) => record.headers.authorization)).toEqual(['Bearer first', 'Bearer second']);
+    const [first, second] = received.map((record) => record.headers['idempotency-key']);
+    expect(first).toEqual(expect.any(String));
+    expect(second, 'the second sending is the same upload').toBe(first);
     expect(received[1]!.body!.equals(received[0]!.body!), 'the second sending is the first, byte for byte').toBe(true);
     reports.reduce((before, report) => {
       expect(report.bytesUploaded).toBeGreaterThanOrEqual(before);

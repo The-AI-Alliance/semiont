@@ -53,7 +53,7 @@ export type Step =
   | { driver: string; with?: Record<string, unknown>; returns?: unknown; fails?: unknown; as?: string }
   | { abandon: string }
   | { settles: string; returns?: unknown; fails?: unknown; abandoned?: true }
-  | { wire: string; at?: 'arrival' | 'answer' | 'live'; status?: number; params?: unknown; body?: unknown; token?: unknown; answer?: unknown; as?: string; follows?: string; waited?: string }
+  | { wire: string; at?: 'arrival' | 'answer' | 'live'; status?: number; params?: unknown; body?: unknown; token?: unknown; headers?: unknown; answer?: unknown; as?: string; follows?: string; waited?: string }
   | { carried: string; is: unknown }
   | { closed: string }
   | { progress: string }
@@ -245,11 +245,23 @@ class Run {
       return { operation: `${record.method} ${record.path}`, params: {}, body: record.json, token };
     }
     const name = operationName(operation.method, operation.template);
-    const content = (spec().deref(spec().operation(operation.method, operation.template)['requestBody']) as { content?: Record<string, { schema?: unknown }> } | undefined)?.content;
+    const declaration = spec().operation(operation.method, operation.template);
+    const content = (spec().deref(declaration['requestBody']) as { content?: Record<string, { schema?: unknown }> } | undefined)?.content;
     const schema = content?.['application/json']?.schema;
     if (schema !== undefined) {
       const validate = spec().validator(schema as never);
       if (!validate(record.json)) this.problems.push(`a ${name} whose body the spec does not accept (${errorsOf(validate)}): ${JSON.stringify(record.json)}`);
+    }
+    const parameters = Array.isArray(declaration['parameters']) ? declaration['parameters'] : [];
+    for (const parameter of parameters.map((p) => spec().deref(p) as { name: string; in: string; required?: boolean; schema: unknown })) {
+      if (parameter.in !== 'header') continue;
+      const value = record.headers[parameter.name.toLowerCase()];
+      if (value === undefined) {
+        if (parameter.required === true) this.problems.push(`a ${name} without its ${parameter.name} header`);
+        continue;
+      }
+      const validate = spec().validator(parameter.schema as never);
+      if (!validate(value)) this.problems.push(`a ${name} whose ${parameter.name} header the spec does not accept (${errorsOf(validate)}): ${JSON.stringify(value)}`);
     }
     return { operation: name, params: operation.params, body: name === 'POST /bus/subscribe' ? subscription(record.json) : record.json, token };
   }
@@ -557,6 +569,7 @@ class Run {
       ['params', step.params, seen.params],
       ['body', step.body, seen.body],
       ['token', step.token, seen.token],
+      ['headers', step.headers, isObject(step.headers) ? Object.fromEntries(Object.keys(step.headers).map((header) => [header, record.headers[header.toLowerCase()]])) : step.headers],
       ['answer', step.answer, record.answer],
     ];
     for (const [field, pattern, value] of compared) {
@@ -707,6 +720,10 @@ class Run {
         this.proxy.answer(this.matcher(wire), { status: reply.status, headers, body }, number('times'));
         return;
       }
+      case 'unanswered':
+        allowed('wire', 'times');
+        this.proxy.leaveUnanswered(this.matcher(text('wire')), number('times'));
+        return;
       case 'hold':
         allowed('wire');
         this.proxy.hold(this.matcher(text('wire')));

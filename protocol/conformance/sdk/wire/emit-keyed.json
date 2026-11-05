@@ -1,0 +1,19 @@
+{
+  "about": "every emit carries an Idempotency-Key: one of its own, never another emit's, and the same on each attempt made again inside emitRetry",
+  "source": "protocol/contract/TRANSPORT-HTTP.md § Emitting; protocol/specs/src/paths/bus_emit.json",
+  "steps": [
+    {"driver": "open", "with": {"channels": ["beckon:focus"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:focus"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+    {"backend": "refuse", "with": {"wire": "POST /bus/emit", "status": 503, "body": {"error": "The signal plane's broker is not connected"}, "times": 1}},
+
+    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}}, "as": "first"},
+    {"wire": "POST /bus/emit", "status": 503, "headers": {"Idempotency-Key": {"$fresh": "firstKey"}}, "body": {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}, "clientId": {"$var": "clientId"}}},
+    {"wire": "POST /bus/emit", "status": 202, "headers": {"Idempotency-Key": {"$var": "firstKey"}}, "body": {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}, "clientId": {"$var": "clientId"}}},
+    {"settles": "first"},
+
+    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"resourceId": "res-2"}}},
+    {"wire": "POST /bus/emit", "status": 202, "headers": {"Idempotency-Key": {"$fresh": "secondKey"}}, "body": {"channel": "beckon:focus", "payload": {"resourceId": "res-2"}, "clientId": {"$var": "clientId"}}},
+    {"quiet": 300}
+  ]
+}

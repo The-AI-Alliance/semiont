@@ -11,6 +11,19 @@
         "bearerAuth": []
       }
     ],
+    "parameters": [
+      {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "description": "The client's own name for this emit: a new one for each emit, and the same on every attempt at it, whether its credential was renewed or not.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        }
+      }
+    ],
     "requestBody": {
       "required": true,
       "content": {
