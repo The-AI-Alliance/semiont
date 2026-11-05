@@ -32,6 +32,13 @@ def public_modules():
     return sorted(modules)
 
 
+def canonical_units(declaration):
+    # Hidden units acquire a package qualifier in GHC's pretty printer; an
+    # exposed unit's identical type has only its module qualifier. Dependency
+    # versions are held separately by the hashed Cabal freeze file.
+    return re.sub(r"\b[a-z][a-z0-9_.+-]*(?::[a-z][a-z0-9_.+-]*)*:(?=[A-Z])", "", declaration)
+
+
 def declarations(module):
     commands = f'Prelude.putStrLn "SEMIONT_API_BEGIN"\n:browse! {module}\nPrelude.putStrLn "SEMIONT_API_END"\n:quit\n'
     result = subprocess.run(
@@ -40,7 +47,7 @@ def declarations(module):
     )
     if result.stderr.strip() or result.stdout.count("SEMIONT_API_BEGIN\n") != 1 or result.stdout.count("SEMIONT_API_END\n") != 1:
         raise ValueError(f"compiler inventory failed for {module}: {result.stdout}\n{result.stderr}")
-    body = result.stdout.split("SEMIONT_API_BEGIN\n")[1].split("SEMIONT_API_END\n")[0]
+    body = canonical_units(result.stdout.split("SEMIONT_API_BEGIN\n")[1].split("SEMIONT_API_END\n")[0])
     groups = []
     for line in body.splitlines():
         if not line.strip() or line.startswith("--"):
@@ -93,8 +100,16 @@ def main():
         actual = {"inputs": source, "modules": {module: declarations(module) for module in modules}}
         if args.write:
             snapshot.write_text(json.dumps(actual, indent=2, sort_keys=True) + "\n")
-        elif json.loads(snapshot.read_text()) != actual:
-            raise ValueError("GHC exports differ from public-api.json; regenerate the inventory")
+        else:
+            expected = json.loads(snapshot.read_text())
+            if expected != actual:
+                import difflib
+                difference = difflib.unified_diff(
+                    json.dumps(expected, indent=2, sort_keys=True).splitlines(),
+                    json.dumps(actual, indent=2, sort_keys=True).splitlines(),
+                    fromfile="public-api.json", tofile="GHC exports", lineterm="",
+                )
+                raise ValueError("GHC exports differ from public-api.json:\n" + "\n".join(difference))
     print(f"PASS compiler-derived API inventory: {len(modules)} public modules")
 
 
