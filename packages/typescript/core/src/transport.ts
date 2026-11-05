@@ -203,8 +203,9 @@ export interface ITransport {
   /**
    * Stream of transport-level errors surfaced from typed-wire methods or
    * other transport-mediated round-trips, just before they're thrown to
-   * the caller. Each emission is a `SemiontError` (or subclass — HTTP
-   * emits `APIError`, other transports emit whatever subclass is
+   * the caller, and of each line the stream carried that names no channel.
+   * Each emission is a `SemiontError` (or subclass — HTTP emits `APIError`
+   * for a refusal, other transports emit whatever subclass is
    * appropriate). Consumers can subscribe for global error handling
    * (e.g. surfacing 401/403 as modals, logging) without wrapping every
    * call site in try/catch. Distinct from bus-level errors, which are

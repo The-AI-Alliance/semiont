@@ -37,8 +37,12 @@ table a payload is held to (§ Identity), and refuses one with a fault: one
 that is no JSON, lacks its `channel` or its `payload`, holds a member of a
 kind `BusFrame` does not allow, or carries a member `BusFrame` does not
 name. A refused frame is not delivered, and the stream goes on to the
-frames after it.
-*Held by `protocol/specs/src/bus/frame-cases.json`.*
+frames after it. One that names no channel (it is no JSON object, carries
+no `channel`, or carries one that is not a text of at least one
+character) names no reader, and is told to the error stream: as `error`,
+with no status, saying "the stream carried what is not a frame: " and
+then its first fault, in the words a request's refusal says it in.
+*Held by `protocol/specs/src/bus/frame-cases.json`, `packages/python/sdk/tests/test_http_transport.py`, `packages/rust/http-transport/tests/stream.rs`, `packages/go/sdk/stream_test.go`, `packages/kotlin/sdk/src/test/kotlin/semiont/http/StreamTest.kt`, `packages/typescript/http-transport/src/transport/__tests__/actor-state-unit.test.ts`.*
 
 The **registry** ([`protocol/specs/src/bus/registry.json`](../specs/src/bus/registry.json))
 is the authority for channels. It classifies each on independent axes:
@@ -271,6 +275,7 @@ from which every SDK generates its constants.
 Everything a server refused, and every request the gateway never answered,
 is reported on the error stream as it is thrown to its caller, under a code
 from [`protocol/specs/src/errors/codes.json`](../specs/src/errors/codes.json).
+So is every line the stream carried that names no channel (§ The transport).
 
 - **A listener taken as soon as the client is made hears every failure**,
   from the transport's first request on, even when that request was refused
