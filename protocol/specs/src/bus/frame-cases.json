@@ -7,7 +7,7 @@
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/FrameCasesTest.kt"]
   },
   "notYetReached": {
-    "typescript": "TypeScript's stream reader (packages/typescript/http-transport/src/transport/actor-state-unit.ts) holds a frame to nothing: it delivers a frame that lacks a member BusFrame requires or carries one BusFrame does not name, and a `data` line that is no JSON ends the connection as a drop does. It is to hold each frame to BusFrame, as the other readers do.",
+    "typescript": "TypeScript's stream reader (packages/typescript/http-transport/src/transport/actor-state-unit.ts) tells its failure report of a line that names no channel, but holds a frame that names its channel to nothing: it delivers one that lacks a member BusFrame requires or carries one BusFrame does not name. It is to hold each frame to BusFrame, as the other readers do.",
     "swift": "The Swift SDK's stream reader, which is to hold each frame to BusFrame.",
     "csharp": "The C# SDK's stream reader, which is to hold each frame to BusFrame."
   },

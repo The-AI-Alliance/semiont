@@ -12,8 +12,8 @@ import { APIError } from './api-error';
 
 type Schemas = components['schemas'];
 
-/** What every SDK says of an answer whose body is no JSON. */
-const MALFORMED = 'it is malformed';
+/** What every SDK says of a body or a frame that is no JSON. */
+export const MALFORMED = 'it is malformed';
 
 /** The parts of an answer this reads: its status, and its body as JSON. */
 interface Answer {

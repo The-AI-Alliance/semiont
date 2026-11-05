@@ -1,7 +1,7 @@
 import util from 'node:util';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
-import { EMIT_RETRY, HTTP_REQUEST_TIMEOUT_MS, RECONNECT_MS, STREAM_OPEN_TIMEOUT_MS, annotationId, resourceId } from '@semiont/core';
+import { EMIT_RETRY, HTTP_REQUEST_TIMEOUT_MS, RECONNECT_MS, STREAM_OPEN_TIMEOUT_MS, annotationId, resourceId, type SemiontError } from '@semiont/core';
 import { createActorStateUnit, type ActorStateUnit } from '../actor-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 // The SSE/fetch harness lives in helpers/mock-conn.ts (shared with the
@@ -343,11 +343,11 @@ describe('createActorStateUnit', () => {
       token: 'expired-but-real-tok',
       channels: ['beckon:hover'],
     });
-    const seen401: Array<{ status: number }> = [];
+    const seen401: SemiontError[] = [];
     rejected.errors$.subscribe((e) => seen401.push(e));
     rejected.start();
     await vi.waitFor(() => expect(seen401).toHaveLength(1));
-    expect(seen401[0]!.status).toBe(401);
+    expect(seen401[0]).toMatchObject({ status: 401 });
     rejected.dispose();
 
     mockFetch.mockResolvedValueOnce({ ok: false, headers: new Headers(), status: 500, body: null });
@@ -356,11 +356,11 @@ describe('createActorStateUnit', () => {
       token: 'fine-tok',
       channels: ['beckon:hover'],
     });
-    const seen500: Array<{ status: number }> = [];
+    const seen500: SemiontError[] = [];
     erroring.errors$.subscribe((e) => seen500.push(e));
     erroring.start();
     await vi.waitFor(() => expect(seen500).toHaveLength(1));
-    expect(seen500[0]!.status).toBe(500);
+    expect(seen500[0]).toMatchObject({ status: 500 });
     erroring.dispose();
   });
 
@@ -831,7 +831,7 @@ describe('createActorStateUnit', () => {
     });
     const states: string[] = [];
     stateUnit.state$.subscribe((s) => states.push(s));
-    const refusals: Array<{ message: string; status: number }> = [];
+    const refusals: SemiontError[] = [];
     stateUnit.errors$.subscribe((e) => refusals.push(e));
 
     stateUnit.start();
@@ -839,7 +839,7 @@ describe('createActorStateUnit', () => {
     expect(refusals).toEqual([]);
 
     await vi.advanceTimersByTimeAsync(1);
-    expect(refusals.map((e) => [e.message, e.status])).toEqual([['SSE connect failed: 503', 503]]);
+    expect(refusals).toMatchObject([{ message: 'SSE connect failed: 503', status: 503 }]);
     // The backoff's first wait is at most `RECONNECT_MS`.
     await vi.advanceTimersByTimeAsync(RECONNECT_MS);
     expect(mockFetch).toHaveBeenCalledTimes(2);
@@ -1054,9 +1054,9 @@ describe('createActorStateUnit', () => {
       reconnectMs: 20,
     });
     const states: string[] = [];
-    const failures: number[] = [];
+    const failures: SemiontError[] = [];
     stateUnit.state$.subscribe((s) => states.push(s));
-    stateUnit.errors$.subscribe((e) => failures.push(e.status));
+    stateUnit.errors$.subscribe((e) => failures.push(e));
     stateUnit.start();
     await vi.waitFor(() => expect(states).toContain('open'));
     const before = states.length;
@@ -1068,7 +1068,7 @@ describe('createActorStateUnit', () => {
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
     await new Promise((r) => setTimeout(r, 30));
 
-    expect(failures).toEqual([503]);
+    expect(failures).toMatchObject([{ status: 503 }]);
     expect(states.slice(before)).toEqual([]);
     // The retry carried the changed subscription.
     expect(JSON.parse(mockFetch.mock.calls[2]![1].body).scoped).toEqual([{ scope: 'res-1', channels: ['mark:added'] }]);
