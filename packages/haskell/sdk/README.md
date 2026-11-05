@@ -4,7 +4,8 @@
 
 The Haskell SDK is being built toward the same client and protocol contract
 as the other Semiont SDKs. It currently provides protocol types, checked
-identifiers, typed channels, scoped operation consumption, and retry support.
+identifiers, typed channels, scoped operation consumption, retry support, and
+launcher discovery.
 The client, HTTP transport, sign-in, delegation, live queries, workers,
 registry, and state units are still being implemented.
 
@@ -83,9 +84,33 @@ states the behavior it will implement.
 
 ## Several knowledge bases
 
-In development. Registry, knowledge-base selection, discovery readers, and
-session persistence are still to be implemented. The launcher's discovery
-document types are generated with the other protocol types.
+`Semiont.Discovery` reads a launcher's entire document and distinguishes an
+absent launcher from one managing no knowledge bases. Its types and absent
+reasons are derived from the protocol. Use `textDiscovery` over an application
+reader, for example a launcher file:
+
+```haskell
+module Main (main) where
+
+import qualified Data.Text.IO as Text
+import Semiont.Discovery (readDiscovery, textDiscovery)
+
+main :: IO ()
+main = do
+  found <- readDiscovery
+    (textDiscovery (Text.readFile "/path/to/launcher-state/discovery/kbs.json"))
+  print found
+```
+
+This program also needs `text` in its `build-depends`. `discoveryDiff` compares
+entries by address, keeps separate copies with the same DID, and reports
+duplicate address claims. `subscribeDiscovery` polls with the monotonic time,
+interruptible absolute wait, and interval supplied through `DiscoveryOptions`.
+Stopping consumption leaves no polling task running.
+
+Registry, knowledge-base selection, session persistence, and the SDK's HTTP
+discovery adapter are still being implemented. Reading a discovery document
+does not sign in to any of its knowledge bases.
 
 ## IDs and protocol types
 

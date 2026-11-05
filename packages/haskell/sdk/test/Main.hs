@@ -22,6 +22,7 @@ import Semiont.Internal.Generated.RoundTrip (roundTrip)
 import Semiont.Internal.Generated.ChannelRoundTrip (roundTripChannel)
 import Semiont.Internal.Generated.ErrorRoundTrip (roundTripError)
 import Semiont.Internal.Generated.TimingValues (timingValues)
+import qualified Semiont.Internal.Generated.DiscoveryReasonRoundTrip as DiscoveryReasons
 import qualified Semiont.ErrorCodes as Errors
 import qualified Semiont.Retry as Retry
 import Semiont.Internal.Generated.Schemas (schemas)
@@ -30,6 +31,7 @@ import System.Directory (doesDirectoryExist, listDirectory)
 import System.Environment (getArgs)
 import System.FilePath ((</>), takeBaseName)
 import Runtime (runtimeCases)
+import Discovery (discoveryCases)
 
 require :: String -> Bool -> IO ()
 require label good = unless good (ioError (userError label))
@@ -248,6 +250,13 @@ factCases root = do
   let expectedTiming = Map.fromList [(key, at "value" row) | row <- array (at "timing" timings), String key <- [at "name" row]]
   require "timing constants or retry budgets differ from spec" (not (Map.null expectedTiming) && expectedTiming == timingValues)
   putStrLn "PASS every error vocabulary, wire/HTTP classifiers, timing constant and retry budget"
+  discovery <- readJSON (root </> "protocol/specs/src/client/discovery-absent.json")
+  forM_ (array (at "reasons" discovery)) $ \row -> do
+    let reason = at "reason" row
+    require "discovery reason differs from its authority"
+      (DiscoveryReasons.roundTripError "discoveryAbsent" reason == Right reason)
+  require "unknown discovery reason was accepted"
+    (isLeft (DiscoveryReasons.roundTripError "discoveryAbsent" (String "__unknown_test_reason")))
 
 retryCases :: FilePath -> IO ()
 retryCases root = do
@@ -296,4 +305,9 @@ main = do
   channelCases root
   factCases root
   retryCases root
+  kb <- either (ioError . userError) pure (sample 0 (Object (KM.singleton "$ref" (String "DiscoveredKB.json"))))
+    >>= either (ioError . userError) pure . parseEither parseJSON
+  document <- either (ioError . userError) pure (sample 0 (Object (KM.singleton "$ref" (String "DiscoveryDocument.json"))))
+    >>= either (ioError . userError) pure . parseEither parseJSON
+  discoveryCases kb document
   corpusCases root

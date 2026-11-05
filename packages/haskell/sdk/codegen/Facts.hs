@@ -16,6 +16,7 @@ import Data.Scientific (floatingOrInteger)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Vector as V
 import System.FilePath ((</>))
 
 object :: Value -> Either String (KM.KeyMap Value)
@@ -50,8 +51,8 @@ ensureUnique names = unless (Set.size (Set.fromList names) == length names) (Lef
 header :: Text -> Text
 header source = "-- Generated from " <> source <> "; do not edit.\n{-# LANGUAGE OverloadedStrings #-}\n"
 
-errorCodes :: Value -> Either String [(FilePath, Text)]
-errorCodes source = do
+vocabularies :: Text -> Text -> Text -> Value -> Either String [(FilePath, Text)]
+vocabularies authority moduleName testName source = do
   groups <- object source
   generated <- forM (sortOn fst (KM.toList (KM.delete "$comment" groups))) $ \(key, value) -> do
     fields <- object value
@@ -111,21 +112,33 @@ errorCodes source = do
           ++ [function <> "FromWire" | not (T.null wireCode)] ++ [function <> "FromStatus" | not (T.null statusCode)]
     pure (typ, family, exports, code)
   ensureUnique [typ | (typ, _, _, _) <- generated]
-  let code = header "protocol/specs/src/errors/codes.json" <> "module Semiont.ErrorCodes ("
+  let code = header authority <> "module " <> moduleName <> " ("
         <> T.intercalate ", " (concat [exports | (_, _, exports, _) <- generated]) <> ") where\n"
         <> "import Data.Aeson (FromJSON(..), ToJSON(..), Value(..), withText)\nimport Data.Text (Text)\n"
         <> T.intercalate "\n" [body | (_, _, _, body) <- generated]
-      tests = header "protocol/specs/src/errors/codes.json" <> T.unlines
-        [ "module Semiont.Internal.Generated.ErrorRoundTrip (roundTripError) where"
+      tests = header authority <> T.unlines
+        [ "module Semiont.Internal.Generated." <> testName <> " (roundTripError) where"
         , "import Data.Aeson (Value, parseJSON, toJSON)"
         , "import Data.Aeson.Types (parseEither)"
         , "import Data.Text (Text)"
-        , "import Semiont.ErrorCodes"
+        , "import " <> moduleName
         , "roundTripError :: Text -> Value -> Either String Value"
         , "roundTripError family value = case family of"
         ] <> T.unlines ["  " <> quoted family <> " -> toJSON <$> (parseEither parseJSON value :: Either String " <> typ <> ")" | (typ, family, _, _) <- generated]
         <> "  _ -> Left \"unknown error-code family\"\n"
-  pure [("src/Semiont/ErrorCodes.hs", code), ("test/Semiont/Internal/Generated/ErrorRoundTrip.hs", tests)]
+  pure [("src/" ++ T.unpack (T.replace "." "/" moduleName) ++ ".hs", code), ("test/Semiont/Internal/Generated/" ++ T.unpack testName ++ ".hs", tests)]
+
+discoveryReasons :: Value -> Either String [(FilePath, Text)]
+discoveryReasons source = do
+  fields <- object source
+  unless (all (`elem` ["$comment", "reasons"]) (KM.keys fields)) (Left "unsupported discovery reason fact")
+  reasons <- required "reasons" fields >>= array >>= traverse object
+  codes <- forM reasons $ \row -> do
+    unless (all (`elem` ["reason", "docs"]) (KM.keys row)) (Left "unsupported discovery reason row")
+    reason <- required "reason" row >>= text
+    pure (Object (KM.insert "code" (String reason) (KM.delete "reason" row)))
+  vocabularies "protocol/specs/src/client/discovery-absent.json" "Semiont.Discovery.Reasons" "DiscoveryReasonRoundTrip"
+    (Object (KM.singleton "discoveryAbsent" (Object (KM.singleton "codes" (Array (V.fromList codes))))))
 
 data TimingValue = Scalar Integer | Budget (Map.Map Key.Key Integer)
 
@@ -169,7 +182,9 @@ timing source = do
   pure [("src/Semiont/Timing.hs", code), ("test/Semiont/Internal/Generated/TimingValues.hs", tests)]
 
 generateFacts :: FilePath -> IO [(FilePath, Text)]
-generateFacts root = fmap concat $ forM [("errors/codes.json", errorCodes), ("client/timing.json", timing)] $ \(path, generate) -> do
+generateFacts root = fmap concat $ forM
+  [("errors/codes.json", vocabularies "protocol/specs/src/errors/codes.json" "Semiont.ErrorCodes" "ErrorRoundTrip")
+  , ("client/timing.json", timing), ("client/discovery-absent.json", discoveryReasons)] $ \(path, generate) -> do
   bytes <- Bytes.readFile (root </> "protocol/specs/src" </> path)
   value <- either (ioError . userError) pure (eitherDecodeStrict' bytes)
   either (ioError . userError . ((path ++ ": ") ++)) pure (generate value)

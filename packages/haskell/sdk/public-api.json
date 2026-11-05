@@ -5,7 +5,7 @@
     "api.py": "221b74a17462dc660a611ec89e7ece60b4038866e348e5108a2e7e7c6892c048",
     "cabal.project": "c8486579d3e37d9a46065093f0f02d8a7278b782a92826451ca9bfc7732e8ba3",
     "cabal.project.freeze": "a040c49ea761ad508dd6b63072fa37d41a8e87c27232222414032e8518030d10",
-    "codegen/Facts.hs": "83916f4347804eda674790c64151f0a82f55153292566d64cb91df9cd4c0736a",
+    "codegen/Facts.hs": "eb7965bee6edfb29628a95b680ddb41145187030d9c57ed984e1bb2cc0623721",
     "codegen/Main.hs": "dc83e844ad553924d7b64813479ca290cdb545405d974b93fe58d83107c06d51",
     "generated/Semiont/Internal/Generated/Models/Agent.hs": "9f16d6b0adbdad7edec31fcade8037bd4a591b1dee50a64dfe26e48317445abc",
     "generated/Semiont/Internal/Generated/Models/AgentOrganization.hs": "2735d00995d286d640c26b8bb699fd373f25718140ae51501756cb93657ee554",
@@ -356,9 +356,11 @@
     "internal/Semiont/Internal/Schema.hs": "9d1e672f8f3fd65ffa6a1a5fcaed0614f862d2eaeb3676d94ac969b8b0cd1845",
     "internal/Semiont/Internal/Sse.hs": "763dad6ddfaf6e0f676d3dcc533957f6ec54e530da7d5e8d719b5f0ac081f72b",
     "public-api.inputs.json": "150c411495a0d0dc5cb417a4c7063103bc2fcce758c1ec5e88b955f223d6ebfe",
-    "semiont.cabal": "d4ac70043d2f2a15de3751ca5ac5fc46da7570980c9d67896cc9ec89d615dc01",
-    "semiont.cabal.in": "f1c1cf20a4ad5513f1bf3bd523a855719a248ae36a945dcec767b44af79357fd",
+    "semiont.cabal": "08b496211d79455013263306ea352bc31dca115845af291c337b83cbdbd5b0ff",
+    "semiont.cabal.in": "92688a3e1cc1a31ca89e864f40b661910e3b902517b476d73d7f4c669bc3a923",
     "src/Semiont/Channels.hs": "930a2e30c7e0841d40034346b54e6fe9493461e2598341f9a06feded98d6d00c",
+    "src/Semiont/Discovery.hs": "ebfc710854ff3d7c057fe1cc412768752f80da27b2d8213295cb8a1f1518265a",
+    "src/Semiont/Discovery/Reasons.hs": "9e1d9a770326b331ee43e8e2e3df33c4d25c5f77203c0341b4238f4d9e0f50e3",
     "src/Semiont/ErrorCodes.hs": "f1759d178779f632947eddab1991a7edcf8b3a08a92f0e8a5f770ea65f312917",
     "src/Semiont/Retry.hs": "55c217047a2c8ce515eb588d3aa0b6879c01677fb0d58af99b2150bd910f3c98",
     "src/Semiont/Running.hs": "168b8478bf820fa7eae3c74c4699b7af7e0baeb929c4b380e966f91e0dd76fe7",
@@ -629,6 +631,85 @@
         "operationChannels": "Semiont.Channels.Operation input output failure -> (Semiont.Channels.Channel Semiont.Channels.Global input, Semiont.Channels.Channel Semiont.Channels.Global output, Semiont.Channels.Channel Semiont.Channels.Global failure)"
       }
     },
+    "Semiont.Discovery": {
+      "types": {
+        "DiscoveryAbsentCode": {
+          "definition": "data Semiont.Discovery.Reasons.DiscoveryAbsentCode = ...",
+          "kind": "*"
+        },
+        "DiscoveryDiff": {
+          "definition": "data Semiont.Discovery.DiscoveryDiff = ...",
+          "kind": "*"
+        },
+        "DiscoveryOptions": {
+          "definition": "data Semiont.Discovery.DiscoveryOptions = ...",
+          "kind": "*"
+        },
+        "DiscoveryRead": {
+          "definition": "data Semiont.Discovery.DiscoveryRead = ...",
+          "kind": "*"
+        },
+        "DiscoveryState": {
+          "definition": "data Semiont.Discovery.DiscoveryState = ...",
+          "kind": "*"
+        },
+        "DiscoveryTransport": {
+          "definition": "newtype Semiont.Discovery.DiscoveryTransport = ...",
+          "kind": "*"
+        },
+        "InvalidDiscoveryInterval": {
+          "definition": "data Semiont.Discovery.InvalidDiscoveryInterval = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "Absent": "Semiont.Discovery.Reasons.DiscoveryAbsentCode -> Maybe Data.Text.Internal.Text -> Semiont.Discovery.DiscoveryState",
+        "DiscoveryAbsentInvalid": "Semiont.Discovery.Reasons.DiscoveryAbsentCode",
+        "DiscoveryAbsentNotFound": "Semiont.Discovery.Reasons.DiscoveryAbsentCode",
+        "DiscoveryAbsentNotJson": "Semiont.Discovery.Reasons.DiscoveryAbsentCode",
+        "DiscoveryAbsentUnreadable": "Semiont.Discovery.Reasons.DiscoveryAbsentCode",
+        "DiscoveryAbsentUnsupportedVersion": "Semiont.Discovery.Reasons.DiscoveryAbsentCode",
+        "DiscoveryDiff": "Semiont.Discovery.DiscoveryState -> [semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB] -> [semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB] -> [semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB] -> [Data.Text.Internal.Text] -> Semiont.Discovery.DiscoveryDiff",
+        "DiscoveryOptions": "IO Integer -> (Integer -> IO ()) -> Integer -> Semiont.Discovery.DiscoveryOptions",
+        "DiscoveryTransport": "IO Semiont.Discovery.DiscoveryRead -> Semiont.Discovery.DiscoveryTransport",
+        "InvalidDiscoveryInterval": "Semiont.Discovery.InvalidDiscoveryInterval",
+        "Managed": "[semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB] -> Semiont.Discovery.DiscoveryState",
+        "Read": "Semiont.Discovery.DiscoveryState -> Semiont.Discovery.DiscoveryRead",
+        "Unchanged": "Semiont.Discovery.DiscoveryRead",
+        "added": "Semiont.Discovery.DiscoveryDiff -> [semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB]",
+        "discoveryAbsentCode": "Semiont.Discovery.Reasons.DiscoveryAbsentCode -> Data.Text.Internal.Text",
+        "discoveryDiff": "Maybe Semiont.Discovery.DiscoveryState -> Semiont.Discovery.DiscoveryState -> Maybe Semiont.Discovery.DiscoveryDiff",
+        "discoveryIntervalMs": "Semiont.Discovery.DiscoveryOptions -> Integer",
+        "discoveryNow": "Semiont.Discovery.DiscoveryOptions -> IO Integer",
+        "discoveryWaitUntil": "Semiont.Discovery.DiscoveryOptions -> Integer -> IO ()",
+        "duplicated": "Semiont.Discovery.DiscoveryDiff -> [Data.Text.Internal.Text]",
+        "parseDiscoveryAbsentCode": "Data.Text.Internal.Text -> Maybe Semiont.Discovery.Reasons.DiscoveryAbsentCode",
+        "parseDiscoveryDocument": "Data.Text.Internal.Text -> Semiont.Discovery.DiscoveryState",
+        "readDiscovery": "Semiont.Discovery.DiscoveryTransport -> IO Semiont.Discovery.DiscoveryRead",
+        "removed": "Semiont.Discovery.DiscoveryDiff -> [semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB]",
+        "state": "Semiont.Discovery.DiscoveryDiff -> Semiont.Discovery.DiscoveryState",
+        "subscribeDiscovery": "Semiont.Discovery.DiscoveryOptions -> Semiont.Discovery.DiscoveryTransport -> Streaming.Internal.Stream (Data.Functor.Of.Of Semiont.Discovery.DiscoveryDiff) IO ()",
+        "textDiscovery": "IO Data.Text.Internal.Text -> Semiont.Discovery.DiscoveryTransport",
+        "updated": "Semiont.Discovery.DiscoveryDiff -> [semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB]"
+      }
+    },
+    "Semiont.Discovery.Reasons": {
+      "types": {
+        "DiscoveryAbsentCode": {
+          "definition": "data Semiont.Discovery.Reasons.DiscoveryAbsentCode = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "DiscoveryAbsentInvalid": "Semiont.Discovery.Reasons.DiscoveryAbsentCode",
+        "DiscoveryAbsentNotFound": "Semiont.Discovery.Reasons.DiscoveryAbsentCode",
+        "DiscoveryAbsentNotJson": "Semiont.Discovery.Reasons.DiscoveryAbsentCode",
+        "DiscoveryAbsentUnreadable": "Semiont.Discovery.Reasons.DiscoveryAbsentCode",
+        "DiscoveryAbsentUnsupportedVersion": "Semiont.Discovery.Reasons.DiscoveryAbsentCode",
+        "discoveryAbsentCode": "Semiont.Discovery.Reasons.DiscoveryAbsentCode -> Data.Text.Internal.Text",
+        "parseDiscoveryAbsentCode": "Data.Text.Internal.Text -> Maybe Semiont.Discovery.Reasons.DiscoveryAbsentCode"
+      }
+    },
     "Semiont.ErrorCodes": {
       "types": {
         "BusRequestCode": {
@@ -755,19 +836,19 @@
     "Semiont.Running": {
       "types": {
         "ConsumptionError": {
-          "definition": "data Semiont.Internal.Running.ConsumptionError = ...",
+          "definition": "data semiont-0.7.1:internal:Semiont.Internal.Running.ConsumptionError = ...",
           "kind": "*"
         },
         "Running": {
-          "definition": "data Semiont.Internal.Running.Running report result = ...",
+          "definition": "data semiont-0.7.1:internal:Semiont.Internal.Running.Running report result = ...",
           "kind": "* -> * -> *"
         }
       },
       "values": {
-        "AlreadyConsumed": "Semiont.Internal.Running.ConsumptionError",
-        "ObservationEnded": "Semiont.Internal.Running.ConsumptionError",
-        "await": "Semiont.Internal.Running.Running report result -> IO result",
-        "withReports": "Semiont.Internal.Running.Running report result -> (Streaming.Internal.Stream (Data.Functor.Of.Of report) IO result -> IO value) -> IO value"
+        "AlreadyConsumed": "semiont-0.7.1:internal:Semiont.Internal.Running.ConsumptionError",
+        "ObservationEnded": "semiont-0.7.1:internal:Semiont.Internal.Running.ConsumptionError",
+        "await": "semiont-0.7.1:internal:Semiont.Internal.Running.Running report result -> IO result",
+        "withReports": "semiont-0.7.1:internal:Semiont.Internal.Running.Running report result -> (Streaming.Internal.Stream (Data.Functor.Of.Of report) IO result -> IO value) -> IO value"
       }
     },
     "Semiont.Timing": {
