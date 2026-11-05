@@ -18,6 +18,7 @@ public actor SemiontSession: StateUnit {
   private nonisolated let onError: (@Sendable (any Error) -> Void)?
   private let onAuthFailed: (@Sendable (SessionEndReason) -> Void)?
   private let reconnectMs: Int
+  private let timer: @Sendable (Duration) -> @Sendable () async throws -> Void
   private var starting: Task<Void, any Error>?
   private var renewal: Task<String?, any Error>?
   private var validation: (String?, Task<String?, any Error>)?
@@ -31,6 +32,7 @@ public actor SemiontSession: StateUnit {
     validate: @escaping @Sendable (String) async throws -> UserResponse,
     publish: @escaping @Sendable (String?) async -> Void = { _ in },
     reconnectMs: Int = Timings.reconnectMs,
+    clock: some Clock<Duration> = ContinuousClock(),
     onAuthFailed: (@Sendable (SessionEndReason) -> Void)? = nil,
     onError: (@Sendable (any Error) -> Void)? = nil
   ) {
@@ -42,6 +44,11 @@ public actor SemiontSession: StateUnit {
     self.validate = validate
     self.publish = publish
     self.reconnectMs = reconnectMs
+    timer = { delay in
+      // Measure the delay from scheduling, even if the task starts later.
+      let deadline = clock.now.advanced(by: delay)
+      return { try await clock.sleep(until: deadline, tolerance: nil) }
+    }
     self.retryCap = reconnectMs
     self.onAuthFailed = onAuthFailed
     self.onError = onError
@@ -250,12 +257,13 @@ public actor SemiontSession: StateUnit {
       scheduled = nil
       return
     }
+    let wait = timer(.milliseconds(delay))
     let id = UUID()
     let life = lifetime
     let task = Task { [weak self] in
       defer { life.forget(id) }
       do {
-        try await sleepMilliseconds(delay)
+        try await wait()
         guard !life.ended, let self else { return }
         try await self.due()
       } catch is CancellationError {} catch { self?.report(error) }
