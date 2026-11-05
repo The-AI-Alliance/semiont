@@ -261,14 +261,12 @@ class Gateway:
             await never_answered()
         if path != SUBSCRIBE:
             raise AssertionError(f"the gateway was asked {request.method} {path}, which this subject does not have it answer")
-        match self._stream:
-            case "holds":
-                return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=HeldOpen(self._closed_one))
-            case "refuses":
-                stated = {} if self._retry_after_seconds is None else {"retry-after": str(self._retry_after_seconds)}
-                return httpx.Response(503, headers=stated, json={"error": "The gateway is not ready"})
-            case "never":
-                await never_answered()
+        if self._stream == "holds":
+            return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=HeldOpen(self._closed_one))
+        if self._stream == "refuses":
+            stated = {} if self._retry_after_seconds is None else {"retry-after": str(self._retry_after_seconds)}
+            return httpx.Response(503, headers=stated, json={"error": "The gateway is not ready"})
+        return await never_answered()
 
     def _closed_one(self) -> None:
         self.closed += 1
@@ -604,7 +602,7 @@ def job_queue(operation: str, asked: Mapping[str, JsonValue]) -> JsonValue:
         case "job:status-requested":
             return JOB_RUNNING
         case _:
-            refuse_unscripted_operation(operation, asked)
+            return refuse_unscripted_operation(operation, asked)
 
 
 async def job_follower(given: JsonObject, held: AsyncExitStack) -> Subject:
