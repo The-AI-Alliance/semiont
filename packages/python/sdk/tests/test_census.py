@@ -241,13 +241,11 @@ def clock_escapes(source: str) -> list[str]:
 
     def named(expression: ast.expr) -> str | None:
         """What `expression` names: `time.sleep` for `pause` after `from time import sleep as pause`."""
-        match expression:
-            case ast.Attribute(value=ast.Name(id=owner), attr=attribute) if owner in modules:
-                return f"{modules[owner]}.{attribute}"
-            case ast.Name(id=name) if name in imported:
-                return imported[name]
-            case _:
-                return None
+        if isinstance(expression, ast.Attribute) and isinstance(expression.value, ast.Name) and expression.value.id in modules:
+            return f"{modules[expression.value.id]}.{expression.attr}"
+        if isinstance(expression, ast.Name) and expression.id in imported:
+            return imported[expression.id]
+        return None
 
     def unbounded(call: ast.Call) -> bool:
         """Whether `call` passes `timeout=None`."""
