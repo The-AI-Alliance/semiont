@@ -311,7 +311,8 @@ if [ "$COMMAND" = up ]; then
   else
     bad "the issuer's discovery does not answer at $ISSUER"
   fi
-  TOKEN_ENDPOINT=$(printf '%s' "$DISCOVERY" | grep -o '"token_endpoint" *: *"[^"]*"' | grep -o 'https\{0,1\}://[^"]*')
+  # Keycloak names it again under mtls_endpoint_aliases, after the top-level one.
+  TOKEN_ENDPOINT=$(printf '%s' "$DISCOVERY" | grep -o '"token_endpoint" *: *"[^"]*"' | head -1 | grep -o 'https\{0,1\}://[^"]*')
 
   head_ "The realm allows the Browser's origin"
   # BROWSER-SIGNIN-ORIGIN, live. The Browser exchanges its code from

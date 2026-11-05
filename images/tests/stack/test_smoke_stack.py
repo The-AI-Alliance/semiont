@@ -21,9 +21,13 @@ PROTECTED_RESOURCE = {
     "authorization_servers": [ISSUER],
     "bearer_methods_supported": ["header"],
 }
+# Keycloak's shape: the token endpoint again under mtls_endpoint_aliases, after the top-level one.
 DISCOVERY = {
     "issuer": ISSUER,
     "token_endpoint": f"{ISSUER}/protocol/openid-connect/token",
+    "mtls_endpoint_aliases": {
+        "token_endpoint": f"{ISSUER}/protocol/openid-connect/token"
+    },
 }
 # Each init writes a KnowledgeBase document whose gateway has a port of its own,
 # as init gives a knowledge base beside another the next port block.
