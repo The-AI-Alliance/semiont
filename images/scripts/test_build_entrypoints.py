@@ -234,9 +234,9 @@ if args and args[0]=='exec' and 'python3' in args:
             with self.subTest(arguments=arguments):
                 result = self.run_make("-n", *arguments)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(
-                    result.stdout.split("smoke-stack.sh'", 1)[1].split(), command
-                )
+                # The rest of the recipe's line: -C also prints "Leaving directory" after it.
+                recipe = result.stdout.split("smoke-stack.sh'", 1)[1].splitlines()[0]
+                self.assertEqual(recipe.split(), command)
 
     def test_parallel_public_goals_are_refused_before_runtime_work(self):
         result = self.run_make("-j", "packages", "launcher")
