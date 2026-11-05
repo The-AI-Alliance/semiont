@@ -1,4 +1,4 @@
-"""Run smoke preparation and cleanup against stand-ins, without starting services."""
+"""Run the smoke's up, e2e and down against stand-ins, without starting services."""
 
 import json
 import os
@@ -9,38 +9,72 @@ import tempfile
 import unittest
 from pathlib import Path
 
+SOURCE = Path(__file__).with_name("smoke-stack.sh")
+DOCUMENTS = {
+    "browser": "image: ghcr.io/the-ai-alliance/semiont-browser:previous\nkeep: browser-setting\n",
+    "worker": "image: ghcr.io/the-ai-alliance/semiont-worker:previous\nkeep: worker-setting\n",
+}
+# Each init writes a KnowledgeBase document whose gateway has a port of its own,
+# as init gives a knowledge base beside another the next port block.
+LAUNCHER = """import json
+import os
+from pathlib import Path
+import sys
+root = Path(os.environ["SMOKE_TEST_ROOT"])
+command = sys.argv[1]
+def log(name, entry):
+    with (root / name).open("a") as f:
+        f.write(json.dumps(entry) + "\\n")
+if command == "--version":
+    print("smoke-test launcher")
+elif command == "init":
+    inits = root / "inits.jsonl"
+    count = len(inits.read_text().splitlines()) if inits.exists() else 0
+    log("inits.jsonl", {"cwd": os.getcwd(), "domain": sys.argv[sys.argv.index("--domain") + 1]})
+    stack = Path.cwd() / ".semiont/stack"
+    stack.mkdir(parents=True)
+    port = 4000 + 10 * count
+    (stack / "knowledge-base.yaml").write_text(
+        "kind: KnowledgeBase\\nspec:\\n  gateway:\\n"
+        "    image: ghcr.io/the-ai-alliance/semiont-gateway:latest\\n"
+        f"    port: {port}\\n    publicURL: http://localhost:{port}\\n"
+        "  dispatcher:\\n    image: ghcr.io/the-ai-alliance/semiont-dispatcher:latest\\n"
+    )
+elif command == "settings":
+    print(root / "state home" / f"{sys.argv[2]}.yaml")
+elif command == "start":
+    starts = root / "starts.jsonl"
+    count = len(starts.read_text().splitlines()) if starts.exists() else 0
+    snapshot = {name: (root / "state home" / f"{name}.yaml").read_text() for name in ("browser", "worker")}
+    snapshot["gateway"] = (Path.cwd() / ".semiont/stack/knowledge-base.yaml").read_text()
+    snapshot["cwd"] = os.getcwd()
+    log("starts.jsonl", snapshot)
+    statuses = os.environ["SMOKE_TEST_START_STATUS"].split(",")
+    sys.exit(int(statuses[min(count, len(statuses) - 1)]))
+elif command in ("stop", "clean", "forget", "useradd", "status"):
+    log("launcher.jsonl", sys.argv[1:])
+    if command == "useradd":
+        sys.stdin.read()
+"""
 
-class SmokeDocumentsTest(unittest.TestCase):
-    def test_requested_images_are_used_and_machine_documents_are_restored(self) -> None:
-        for tag in ("local", "latest", "0.7.1"):
-            for start_status in (0, 1):
-                with (
-                    self.subTest(tag=tag, start_status=start_status),
-                    tempfile.TemporaryDirectory() as temporary,
-                ):
-                    self.run_smoke(Path(temporary), tag, start_status)
 
-    def run_smoke(
-        self,
-        root: Path,
-        tag: str,
-        start_status: int,
-        runtime: str = "smoke-test-runtime",
-        e2e: bool = False,
-        e2e_status: int = 0,
-    ) -> None:
-        source = Path(__file__).with_name("smoke-stack.sh")
-        script = root / "images/tests/stack/smoke-stack.sh"
+class SmokeStackTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.kb = self.root / "kb"
+        script = self.root / "images/tests/stack/smoke-stack.sh"
         script.parent.mkdir(parents=True)
-        shutil.copyfile(source, script)
-        runtime_helper = root / "images/scripts/container-runtime.sh"
+        shutil.copyfile(SOURCE, script)
+        runtime_helper = self.root / "images/scripts/container-runtime.sh"
         runtime_helper.parent.mkdir(parents=True)
         shutil.copyfile(
-            source.parents[2] / "scripts/container-runtime.sh", runtime_helper
+            SOURCE.parents[2] / "scripts/container-runtime.sh", runtime_helper
         )
-        e2e_package = root / "images/e2e/package.json"
+        e2e_package = self.root / "images/e2e/package.json"
         e2e_package.parent.mkdir(parents=True)
-        shutil.copyfile(source.parents[2] / "e2e/package.json", e2e_package)
+        shutil.copyfile(SOURCE.parents[2] / "e2e/package.json", e2e_package)
         for directory in (
             "apps/launcher/dist",
             "packages/go/launcher",
@@ -48,87 +82,157 @@ class SmokeDocumentsTest(unittest.TestCase):
             "bin",
             "state home",
         ):
-            (root / directory).mkdir(parents=True)
-        documents = {
-            "browser": "image: ghcr.io/the-ai-alliance/semiont-browser:previous\nkeep: browser-setting\n",
-            "worker": "image: ghcr.io/the-ai-alliance/semiont-worker:previous\nkeep: worker-setting\n",
-        }
-        for name, text in documents.items():
-            (root / "state home" / f"{name}.yaml").write_text(text)
-        launcher = root / "apps/launcher/dist/semiont"
-        launcher.write_text(
-            f"#!{sys.executable}\n"
-            + """import json
-import os
-from pathlib import Path
-import sys
-root = Path(os.environ["SMOKE_TEST_ROOT"])
-command = sys.argv[1]
-if command == "--version":
-    print("smoke-test launcher")
-elif command == "init":
-    stack = Path.cwd() / ".semiont/stack"
-    stack.mkdir(parents=True)
-    (stack / "gateway.yaml").write_text("image: ghcr.io/the-ai-alliance/semiont-gateway:latest\\n")
-elif command == "settings":
-    print(root / "state home" / f"{sys.argv[2]}.yaml")
-elif command == "start":
-    snapshot = {name: (root / "state home" / f"{name}.yaml").read_text() for name in ("browser", "worker")}
-    snapshot["gateway"] = (Path.cwd() / ".semiont/stack/gateway.yaml").read_text()
-    (root / "started.json").write_text(json.dumps(snapshot))
-    sys.exit(int(os.environ["SMOKE_TEST_START_STATUS"]))
-"""
-        )
+            (self.root / directory).mkdir(parents=True)
+        for name, text in DOCUMENTS.items():
+            (self.root / "state home" / f"{name}.yaml").write_text(text)
+        launcher = self.root / "apps/launcher/dist/semiont"
+        launcher.write_text(f"#!{sys.executable}\n" + LAUNCHER)
         launcher.chmod(0o755)
+        self.use_runtime("smoke-test-runtime", 0)
+
+    def use_runtime(self, runtime: str, e2e_status: int) -> None:
+        self.runtime = runtime
+        log = self.root / "runtime.log"
         for name, body in {
             "curl": "printf 'access-control-allow-origin: http://localhost:3000\\n'",
             "nc": "exit 1",
-            runtime: f'printf "%s\\n" "$*" >> "{root / "runtime.log"}"\n[ "$1" != run ] || exit {e2e_status}\nexit 0',
+            runtime: f'printf "%s\\n" "$*" >> "{log}"\n[ "$1" != run ] || exit {e2e_status}\nexit 0',
         }.items():
-            executable = root / "bin" / name
+            executable = self.root / "bin" / name
             executable.write_text(f"#!/bin/sh\n{body}\n")
             executable.chmod(0o755)
-        result = subprocess.run(
-            ["bash", str(script), tag, *(["--e2e"] if e2e else [])],
+
+    def smoke(
+        self, *args: str, start_status: str = "0"
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["bash", str(self.root / "images/tests/stack/smoke-stack.sh"), *args],
             check=False,
             env={
                 **os.environ,
-                "PATH": str(root / "bin") + os.pathsep + os.environ["PATH"],
-                "SMOKE_TEST_ROOT": str(root),
-                "SMOKE_TEST_START_STATUS": str(start_status),
-                "CONTAINER_RUNTIME": runtime,
-                "SMOKE_KB": str(root / "kb"),
+                "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
+                "SMOKE_TEST_ROOT": str(self.root),
+                "SMOKE_TEST_START_STATUS": start_status,
+                "CONTAINER_RUNTIME": self.runtime,
+                "SMOKE_KB": str(self.kb),
             },
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=60,
         )
-        self.assertEqual(
-            result.returncode,
-            int(bool(start_status or e2e_status)),
-            result.stdout + result.stderr,
-        )
-        started = json.loads((root / "started.json").read_text())
-        for name in ("browser", "worker", "gateway"):
-            self.assertIn(
-                f"image: ghcr.io/the-ai-alliance/semiont-{name}:{tag}\n", started[name]
-            )
-        for name, original in documents.items():
-            self.assertEqual(
-                (root / "state home" / f"{name}.yaml").read_text(), original
-            )
-            self.assertIn(f"keep: {name}-setting\n", started[name])
 
-    def test_e2e_uses_the_selected_runtime_and_preserves_cleanup_on_failure(self):
+    def lines(self, name: str) -> list:
+        path = self.root / name
+        return (
+            [json.loads(line) for line in path.read_text().splitlines()]
+            if path.exists()
+            else []
+        )
+
+    def stopped(self) -> list[str]:
+        """The root of each `stop`, resolved: macOS reports a temporary directory's cwd under /private."""
+        stops = [call for call in self.lines("launcher.jsonl") if call[0] == "stop"]
+        for call in stops:
+            self.assertIn(
+                "--root", call, "a stop naming no root stops whichever stack it finds"
+            )
+        return [os.path.realpath(call[call.index("--root") + 1]) for call in stops]
+
+    def assert_documents_restored(self) -> None:
+        for name, original in DOCUMENTS.items():
+            self.assertEqual(
+                (self.root / "state home" / f"{name}.yaml").read_text(), original
+            )
+
+    def test_up_names_the_images_and_down_restores_the_documents(self) -> None:
+        for tag in ("local", "latest", "0.7.1"):
+            with self.subTest(tag=tag):
+                result = self.smoke("up", tag)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                for name in DOCUMENTS:
+                    self.assertIn(
+                        f"image: ghcr.io/the-ai-alliance/semiont-{name}:{tag}\n",
+                        (self.root / "state home" / f"{name}.yaml").read_text(),
+                    )
+                started = self.lines("starts.jsonl")[-1]
+                for name in ("browser", "worker", "gateway"):
+                    self.assertIn(
+                        f"ghcr.io/the-ai-alliance/semiont-{name}:{tag}\n", started[name]
+                    )
+                    if name != "gateway":
+                        self.assertIn(f"keep: {name}-setting\n", started[name])
+                result = self.smoke("down")
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assert_documents_restored()
+                self.assertIn(os.path.realpath(self.kb), self.stopped())
+                shutil.rmtree(self.kb)
+
+    def test_a_failed_up_takes_its_stack_down(self) -> None:
+        result = self.smoke("up", "local", start_status="1")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assert_documents_restored()
+        self.assertFalse((self.kb / ".smoke-kept").exists())
+        self.assertNotEqual(self.smoke("down").returncode, 0)
+
+    def test_e2e_and_down_refuse_without_a_stack_up(self) -> None:
+        for command in ("e2e", "down"):
+            result = self.smoke(command)
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn("up", result.stderr)
+        self.assertEqual(self.lines("starts.jsonl"), [])
+
+    def test_a_second_up_refuses_while_one_is_up(self) -> None:
+        self.assertEqual(self.smoke("up", "local").returncode, 0)
+        result = self.smoke("up", "local")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("make stack-down", result.stderr)
+        self.assertEqual(len(self.lines("starts.jsonl")), 1)
+
+    def test_each_e2e_runs_on_a_fresh_knowledge_base_beside_up(self) -> None:
+        self.assertEqual(self.smoke("up", "0.7.1").returncode, 0)
+        for _ in range(2):
+            result = self.smoke("e2e")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        inits = self.lines("inits.jsonl")
+        self.assertEqual(len(inits), 3)
+        self.assertEqual(len({init["domain"] for init in inits}), 3)
+        self.assertEqual(len({init["cwd"] for init in inits}), 3)
+        for e2e in inits[1:]:
+            self.assertNotEqual(os.path.realpath(e2e["cwd"]), os.path.realpath(self.kb))
+            self.assertFalse(Path(e2e["cwd"]).exists())
+            self.assertIn(os.path.realpath(e2e["cwd"]), self.stopped())
+        for start in self.lines("starts.jsonl")[1:]:
+            self.assertIn("semiont-gateway:0.7.1\n", start["gateway"])
+        self.assertNotIn(os.path.realpath(self.kb), self.stopped())
+        calls = (self.root / "runtime.log").read_text()
+        self.assertIn("E2E_GATEWAY_URL=http://localhost:4010", calls)
+        self.assertIn("E2E_GATEWAY_URL=http://localhost:4020", calls)
+        self.assertTrue((self.kb / ".smoke-kept").exists())
+
+    def test_run_with_e2e_uses_the_selected_runtime_and_takes_everything_down(
+        self,
+    ) -> None:
         for runtime in ("container", "docker", "podman"):
             for status in (0, 7):
-                with (
-                    self.subTest(runtime=runtime, status=status),
-                    tempfile.TemporaryDirectory() as temporary,
-                ):
-                    root = Path(temporary)
-                    self.run_smoke(root, "local", 0, runtime, True, status)
-                    calls = (root / "runtime.log").read_text()
+                with self.subTest(runtime=runtime, status=status):
+                    for name in (
+                        "starts.jsonl",
+                        "inits.jsonl",
+                        "launcher.jsonl",
+                        "runtime.log",
+                    ):
+                        (self.root / name).unlink(missing_ok=True)
+                    shutil.rmtree(self.kb, ignore_errors=True)
+                    self.use_runtime(runtime, status)
+                    result = self.smoke("run", "local", "--e2e")
+                    self.assertEqual(
+                        result.returncode,
+                        int(status != 0),
+                        result.stdout + result.stderr,
+                    )
+                    self.assert_documents_restored()
+                    self.assertFalse((self.kb / ".smoke-kept").exists())
+                    calls = (self.root / "runtime.log").read_text()
                     self.assertIn("e2e-localhost-bridge.mjs", calls)
                     self.assertIn("sh " + runtime, calls)
                     if runtime == "container":
@@ -136,6 +240,9 @@ elif command == "start":
                         self.assertNotIn("--ipc host", calls)
                     else:
                         self.assertIn("--network host --ipc host", calls)
+                    stops = self.stopped()
+                    self.assertEqual(stops[-1], os.path.realpath(self.kb))
+                    self.assertNotIn(os.path.realpath(self.kb), stops[:-1])
 
 
 if __name__ == "__main__":

@@ -1,7 +1,8 @@
 # Stack smoke: boot a real stack and assert the things the hermetic suite
-# cannot, then run images/e2e's default tier against that same stack before it
-# stops. The check itself is images/tests/stack/smoke-stack.sh, which this
-# workflow runs with --e2e and a laptop runs the same way; what it asserts is
+# cannot, then run images/e2e's default tier on a fresh knowledge base beside
+# it before both stop. The check itself is images/tests/stack/smoke-stack.sh,
+# which this workflow runs as `run <images> --e2e` and a laptop runs the same
+# way (make smoke, or make stack-up, e2e and stack-down); what it asserts is
 # said there, once. The stack serves inference and embedding from the models a
 # new knowledge base names. The suite runs without its @model tests, which
 # those models, on a runner with no GPU, do not answer in time.
@@ -154,7 +155,7 @@ jobs:
         # 1.8 GB of image plus two models. That is the supported path,
         # and it exercises the host-probe → container-fallback branch and
         # ensureModels along with everything else.
-        run: images/tests/stack/smoke-stack.sh "$IMAGES" --e2e
+        run: images/tests/stack/smoke-stack.sh run "$IMAGES" --e2e
 
       - name: Summarise the e2e default tier
         if: always()

@@ -282,7 +282,6 @@ func TestTheE2EBridgeForwardsWhereTheContainersDial(t *testing.T) {
 	want := map[int]int{}
 	for role, port := range map[string]int{
 		"browser":  semiontDescriptor("browser").defaultPort,
-		"gateway":  plan.GatewayPort,
 		"identity": plan.Roles["identity"].Port,
 		"worker":   semiontDescriptor("worker").ports[0].port,
 	} {
@@ -293,5 +292,21 @@ func TestTheE2EBridgeForwardsWhereTheContainersDial(t *testing.T) {
 	}
 	if !maps.Equal(got, want) {
 		t.Errorf("the e2e bridge forwards %v, want %v: each port to where a container dials it", got, want)
+	}
+	// The gateway's is the port E2E_GATEWAY_URL names: the knowledge base's
+	// own, in whichever port block it has.
+	above := regexp.MustCompile(`\[gateway\]\s*:\s*gateway\s*\+\s*(\d+)`).FindSubmatch(stated[1])
+	if above == nil {
+		t.Fatal("images/e2e/e2e-localhost-bridge.mjs forwards no `[gateway]: gateway + …`")
+	}
+	offset, err := strconv.Atoi(string(above[1]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, block := range []int{0, 1, 7} {
+		port := blockPort(plan.GatewayPort, block)
+		if want := appleContainer.containersPort("gateway", port, plan.GatewayPort); port+offset != want {
+			t.Errorf("the e2e bridge forwards the gateway at %d to %d, want %d: where a container dials it", port, port+offset, want)
+		}
 	}
 }

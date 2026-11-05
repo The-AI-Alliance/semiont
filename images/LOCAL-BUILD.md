@@ -124,15 +124,45 @@ The desktop helper uses the selected available runtime, builds its
 workspace dependencies, and writes installers to `apps/desktop/release/`. The macOS app is assembled in the Node container; the host uses `hdiutil` to create its DMG. No host Node runtime is used. Unsupported host OSes fail.
 Desktop is not part of `local-build`.
 
+## Clean
+
+```sh
+make clean
+```
+
+`clean` removes what these operations build into the working tree: each package's build
+output, npm staging, the Browser's build, `apps/launcher/dist` and the desktop's `.build` and
+`release`. [Its roster](scripts/clean.sh) is tested to cover the output each package's build
+leaves, as [package signatures](scripts/package-signatures.py) declare it, so the next
+`local-build` or `packages` builds every package whose output is gone. It keeps installs
+(`node_modules`, `.venv`), generated sources, the caches under `~/.cache/semiont` and the
+runtime's images; `FORCE=1` rebuilds images. It needs no container runtime, and it refuses,
+removing nothing, when a path it would remove holds a file git tracks or is not ignored.
+
 ## Verification and implementation
 
 `make smoke SMOKE_TAG=local` runs [the real-stack smoke](tests/stack/smoke-stack.sh) and its
-e2e tier. It uses the same `CONTAINER_RUNTIME` selection and readiness check as the build.
+e2e tier in one run. The same three steps run apart:
+
+```sh
+make stack-up SMOKE_TAG=local
+make e2e
+make stack-down
+```
+
+`stack-up` boots and checks a new knowledge base's stack and leaves it up. Each `e2e` makes a
+knowledge base of its own beside it, with a user of its own, runs the default tier against
+it, and removes it, so a second run starts as fresh as the first. `stack-down` stops the stack,
+puts back the Browser's and Worker's documents and checks every port is released; until then
+they name `SMOKE_TAG`'s images for every knowledge base on the machine. The smoke uses the same
+`CONTAINER_RUNTIME` selection and readiness check as the build.
 Apple `container` runs Playwright through the existing localhost bridge; Docker and Podman
 use host networking. This boots services and requires the selected images and the checkout's launcher.
 Stack Smoke CI calls `make local-build` with TypeScript selection, fan-out disabled and a
 Docker layer cache. Existing native CI build and release publication commands remain direct.
 
+`make help` prints the Makefile's own `##` lines, each beside the target or variable it
+describes ([make-help.awk](scripts/make-help.awk)); a test fails when a public target has none.
 The Makefile forwards arguments to [the session](scripts/build-session.sh). Owner stages under
 `scripts/local-build/` retain drift gates, seven language builds, registry lifecycle, the
 three-image batch, exclusive timed image checks, launcher build and cache maintenance.
