@@ -356,7 +356,9 @@ The Rust binaries the conformance suites start are built once, by `build-rust`, 
 | `smelter-conformance` | Builds `@semiont/core`, starts the Qdrant the launcher runs, installs the `tesseract` program, makes the Smelter's Python environment, and runs the `smelter` project |
 | `librarian-conformance` | Builds `@semiont/core`, starts the neo4j and the Qdrant the launcher runs, installs the `tesseract` program, makes the Librarian's, the Weaver's and the Smelter's Python environments, and runs the `librarian` project |
 | `test-sdk-python` | `pytest` on Python 3.12, 3.13 and 3.14, and on 3.12 `mypy` and `pyright`, each as Linux and as Windows, and `ruff`, for `packages/python/sdk`, with its coverage measured and the 3.12 leg's uploaded under `python-sdk`; the distributions a release uploads are built and checked, on 3.12 |
-| `test-sdk-python-windows` | The Python SDK's sign-in store and state directory tests, on Windows |
+| `test-sdk-python-windows` | The Python SDK's sign-in store and state directory tests, on Windows, with their coverage uploaded under `python-sdk` |
+| `test-sdk-go-windows` | The Go SDK's sign-in store and state home tests, on Windows, with their coverage uploaded under `go-sdk` |
+| `test-sdk-rust-windows` | The Rust SDK's sign-in store tests under `cargo llvm-cov`, on Windows, with their coverage uploaded under `rust-sdk` |
 | `test-sdk-kotlin` | `./gradlew check` for `packages/kotlin/sdk`, in the JDK image its `.java-version` names, with its coverage uploaded under `kotlin-sdk` |
 | `test-sdk-kotlin-store` | The Kotlin SDK's sign-in store tests on macOS and Windows, where its lock is taken otherwise than on Linux, against the lock held from another process |
 | `test-sdk-swift` | Swift SDK and generator tests, formatting, census, and compile-failure checks in the pinned Linux Swift container, with coverage uploaded under `swift-sdk` |
@@ -376,7 +378,7 @@ The Rust binaries the conformance suites start are built once, by `build-rust`, 
 | `generated-artifacts` | Drift between the bus registry and its generated TypeScript and Go, between the bundled OpenAPI spec and `packages/go/sdk/api/client_gen.go`, between `protocol/specs/` and the Python SDK's generated modules and models, and Go schema coverage |
 | `check-launcher` | `gofmt` over both Go modules; `go vet` for the launcher on every target a release ships; `go vet`, `go build` and `go test` for `packages/go/sdk`, its coverage uploaded under `go-sdk`; `govulncheck` for the launcher |
 | `test-launcher` | The launcher's suite, split across three runners by test: each leg lists the root package's tests and runs its third of them, a block in source order so each test follows the one it follows in a serial run, and the first also runs the launcher's libraries (`packages/go/launcher`). Their coverage is uploaded under `go-launcher`: what their tests reach of any of their packages, from the first leg, and what each leg's scenarios reach. The tests bind the stack's real host ports through the fake runtime, so they run side by side only on runners of their own |
-| `test-launcher-windows` | `go vet` and `go test` for the launcher on Windows; tier `full` only |
+| `test-launcher-windows` | `go vet` and `go test` for the launcher, its libraries and the Go SDK on Windows, each one's coverage uploaded under `go-launcher` or `go-sdk`; tier `full` only |
 | `gate` | Needs every job above; fails when any failed or was cancelled |
 
 [`codeql-analysis.yml`](../../.github/workflows/codeql-analysis.yml) runs CodeQL over the TypeScript, Go, Rust, Python and Kotlin nightly at 08:17 UTC and when a release calls it, not on pull requests. GitHub's default-setup Code Quality analysis, which no file here configures, runs on pull requests.
