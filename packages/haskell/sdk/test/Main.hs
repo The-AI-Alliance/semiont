@@ -4,20 +4,26 @@ module Main (main) where
 
 import Control.Applicative ((<|>))
 import Control.Monad (forM_, unless)
-import Data.Aeson (Value(..), eitherDecodeStrict')
+import Data.Aeson (FromJSON, Value(..), eitherDecodeStrict', parseJSON)
+import Data.Aeson.Types (parseEither)
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString as Bytes
 import Data.Either (isLeft)
 import Data.Foldable (toList)
 import Data.IORef (modifyIORef', newIORef, readIORef)
-import Data.List (isSuffixOf)
+import Data.List (isSuffixOf, sortOn)
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Semiont.Internal.Generated.RoundTrip (roundTrip)
 import Semiont.Internal.Generated.ChannelRoundTrip (roundTripChannel)
+import Semiont.Internal.Generated.ErrorRoundTrip (roundTripError)
+import Semiont.Internal.Generated.TimingValues (timingValues)
+import qualified Semiont.ErrorCodes as Errors
+import qualified Semiont.Retry as Retry
 import Semiont.Internal.Generated.Schemas (schemas)
 import Semiont.Internal.Schema (checkSchema, normalize, validate, validateNamed)
 import System.Directory (doesDirectoryExist, listDirectory)
@@ -211,6 +217,64 @@ channelCases root = do
       (roundTripChannel name stamped == Right payload)
   putStrLn ("PASS typed payload decoding and stamp handling for all " ++ show (length channels) ++ " registry channels")
 
+factCases :: FilePath -> IO ()
+factCases root = do
+  errors <- readJSON (root </> "protocol/specs/src/errors/codes.json")
+  let families = KM.delete "$comment" (object errors)
+  require "no error families" (not (KM.null families))
+  forM_ (KM.toList families) $ \(family, group) -> do
+    let codes = array (at "codes" group)
+    require "empty error family" (not (null codes))
+    forM_ codes $ \row -> do
+      let code = at "code" row
+      require "error code codec changed its wire spelling" (roundTripError (Key.toText family) code == Right code)
+    require "unknown error code was accepted" (isLeft (roundTripError (Key.toText family) (String "__unknown_test_code")))
+  let bus = at "busRequest" errors
+  forM_ (array (at "codes" bus)) $ \row -> case at "wire" row of
+    String wire -> require "wire error classifier differs from spec" (String (Errors.busRequestCode (Errors.busRequestCodeFromWire (Just wire))) == at "code" row)
+    _ -> pure ()
+  forM_ [Nothing, Just "__unknown_test_code"] $ \wire ->
+    require "unrecognized wire failure lost its declared fallback" (String (Errors.busRequestCode (Errors.busRequestCodeFromWire wire)) == at "unrecognizedFailure" bus)
+  let transport = at "transport" errors
+      statuses = array (at "codes" transport)
+      exact status = [at "code" row | row <- statuses, at "status" row == Number (fromIntegral status)]
+      ranges status = sortOn (negate . fst) [(floor', at "code" row) | row <- statuses, Number floor' <- [at "statusFrom" row], fromIntegral status >= floor']
+      expected status = case exact status of
+        code : _ -> code
+        [] -> case ranges status of (_, code) : _ -> code; [] -> at "unclassified" transport
+  forM_ [0 .. 600] $ \status ->
+    require "HTTP status classifier differs from spec" (String (Errors.transportCode (Errors.transportCodeFromStatus status)) == expected status)
+  timings <- readJSON (root </> "protocol/specs/src/client/timing.json")
+  let expectedTiming = Map.fromList [(key, at "value" row) | row <- array (at "timing" timings), String key <- [at "name" row]]
+  require "timing constants or retry budgets differ from spec" (not (Map.null expectedTiming) && expectedTiming == timingValues)
+  putStrLn "PASS every error vocabulary, wire/HTTP classifiers, timing constant and retry budget"
+
+retryCases :: FilePath -> IO ()
+retryCases root = do
+  table <- readJSON (root </> "protocol/specs/src/retry/cases.json")
+  let rules = [minBound .. maxBound] :: [Retry.RetryRule]
+      rows = array (at "rules" table)
+      decode :: FromJSON value => Value -> IO value
+      decode value = either (ioError . userError) pure (parseEither parseJSON value)
+  names <- traverse (decode . at "rule") rows
+  require "retry rule vocabulary differs from its authority"
+    (Set.fromList names == Set.fromList (map Retry.ruleName rules))
+  forM_ rows $ \row -> do
+    require "retry table gained an unhandled fact" (all (`elem` ["why", "rule", "status", "method", "retries"]) (KM.keys (object row)))
+    name <- decode (at "rule" row)
+    rule <- case filter ((== name) . Retry.ruleName) rules of
+      [one] -> pure one
+      _ -> ioError (userError "unknown retry rule")
+    status <- decode (at "status" row)
+    method <- decode (at "method" row)
+    expected <- decode (at "retries" row)
+    require ("retry decision differs from spec: " ++ show (at "why" row)) (Retry.retryable rule status method == expected)
+  forM_ (array (at "retryAfter" table)) $ \row -> do
+    header <- decode (at "header" row)
+    expected <- decode (at "ms" row)
+    require "Retry-After differs from spec" (Retry.retryAfterMs header == expected)
+  putStrLn "PASS all retry rules and Retry-After cases"
+
 main :: IO ()
 main = do
   args <- getArgs
@@ -230,4 +294,6 @@ main = do
   identifierCases root
   putStrLn "PASS shared identifier acceptance/refusal cases"
   channelCases root
+  factCases root
+  retryCases root
   corpusCases root

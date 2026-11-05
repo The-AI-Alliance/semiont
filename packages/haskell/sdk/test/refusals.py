@@ -17,6 +17,7 @@ with tempfile.TemporaryDirectory() as output:
         "CoercedIdentifier": "constructor",
         "CrossIdentifier": "GHC-83865",
         "RecordIdentifier": "GHC-22385",
+        "IncompleteErrorCode": "non-exhaustive",
     }
     for name, diagnostic in expected.items():
         result = subprocess.run(

@@ -4,7 +4,7 @@ module Runtime (runtimeCases) where
 
 import Control.Concurrent.Async (async, cancel, wait, waitCatch)
 import Control.Concurrent.STM
-import Control.Exception (SomeAsyncException, IOException, finally, fromException, throwIO, try)
+import Control.Exception (Exception, SomeException, SomeAsyncException, AsyncException(UserInterrupt), IOException, finally, fromException, throwIO, try)
 import Control.Monad (forM_, unless)
 import qualified Data.ByteString as Bytes
 import qualified Data.Aeson.KeyMap as KM
@@ -15,6 +15,8 @@ import qualified Semiont.Channels as Channels
 import qualified Semiont.Internal.Broadcast as Broadcast
 import qualified Semiont.Internal.Delivery as Delivery
 import qualified Semiont.Internal.Running as Running
+import qualified Semiont.Retry as Retry
+import qualified Semiont.Timing as Timing
 import Semiont.Internal.Sse
 import Semiont.Types (BusFrame(..), BusFramePayload(..))
 import System.Timeout (timeout)
@@ -200,9 +202,70 @@ deliveryCases = do
     outcome <- atomically (Broadcast.next reader)
     require "a reader attached to a closed hub did not end" (outcome == Nothing)
 
+data RetryProbeFailure = RetryProbeFailure deriving (Eq, Show)
+instance Exception RetryProbeFailure
+
+retryRuntimeCases :: IO ()
+retryRuntimeCases = do
+  clock <- newTVarIO 0
+  waits <- newTQueueIO
+  attempts <- newTVarIO (0 :: Integer)
+  let budget = Timing.emitRetry
+      options = Retry.RetryOptions
+        { Retry.retryNow = readTVarIO clock
+        , Retry.retryWaitUntil = \deadline -> do
+            atomically (writeTQueue waits deadline)
+            atomically (readTVar clock >>= check . (>= deadline))
+        , Retry.retryRandom = pure 0
+        }
+      accepts :: RetryProbeFailure -> Bool
+      accepts _ = True
+      action = atomically (modifyTVar' attempts (+ 1)) >> throwIO RetryProbeFailure
+  working <- async (try (Retry.retryWithBackoff options budget accepts (const Nothing) action) :: IO (Either RetryProbeFailure ()))
+  let checkWait made cap = do
+        before <- readTVarIO clock
+        deadline <- atomically (readTQueue waits)
+        require "retry ignored supplied jitter or absolute clock" (deadline == before + cap * 500000)
+        atomically (writeTVar clock (deadline - 1))
+        counted <- readTVarIO attempts
+        require "retry ran before its caller-controlled deadline" (counted == made)
+        atomically (writeTVar clock deadline)
+        if made + 1 >= Timing.retryAttempts budget then pure () else
+          checkWait (made + 1) (min (Timing.retryMaxDelayMs budget) (cap * 2))
+  checkWait 1 (Timing.retryInitialDelayMs budget)
+  exhausted <- wait working
+  counted <- readTVarIO attempts
+  require "retry lost the last failure or exceeded its budget" (exhausted == Left RetryProbeFailure && counted == Timing.retryAttempts budget)
+  atomically (writeTVar attempts 0)
+  let advancing = options { Retry.retryWaitUntil = \deadline -> atomically (writeTQueue waits deadline >> writeTVar clock deadline) }
+  beforeStated <- readTVarIO clock
+  answer <- Retry.retryWithBackoff advancing budget accepts (const (Just 5000)) $ do
+    made <- atomically (modifyTVar' attempts (+ 1) >> readTVar attempts)
+    if made == 1 then throwIO RetryProbeFailure else pure True
+  statedDeadline <- atomically (readTQueue waits)
+  require "Retry-After did not take precedence over jitter" (answer && statedDeadline == beforeStated + 5000 * 1000000)
+  atomically (writeTVar attempts 0)
+  let acceptsAny :: SomeException -> Bool
+      acceptsAny _ = True
+  interrupted <- try (Retry.retryWithBackoff advancing budget acceptsAny (const Nothing)
+    (atomically (modifyTVar' attempts (+ 1)) >> throwIO UserInterrupt)) :: IO (Either AsyncException ())
+  countedInterrupt <- readTVarIO attempts
+  require "retry treated an asynchronous exception as a request failure" (interrupted == Left UserInterrupt && countedInterrupt == 1)
+  ready <- newEmptyTMVarIO
+  let parked = options { Retry.retryWaitUntil = \_ -> atomically (putTMVar ready ()) >> atomically retry }
+  cancelled <- async (Retry.retryWithBackoff parked budget accepts (const Nothing) action :: IO ())
+  atomically (takeTMVar ready)
+  cancel cancelled
+  cancelledOutcome <- waitCatch cancelled
+  require "retry swallowed cancellation of its wait" $ case cancelledOutcome of
+    Left exception -> case fromException exception :: Maybe SomeAsyncException of Just _ -> True; Nothing -> False
+    Right _ -> False
+  invalid <- try (Retry.retryWithBackoff options (budget { Timing.retryAttempts = 0 }) accepts (const Nothing) action) :: IO (Either Retry.RetryConfigurationError ())
+  require "invalid retry budget was accepted" (invalid == Left Retry.InvalidRetryBudget)
+
 runtimeCases :: IO ()
 runtimeCases = do
   sseCases
-  outcome <- timeout 5000000 (broadcastCases >> runningCases >> deliveryCases)
+  outcome <- timeout 5000000 (broadcastCases >> runningCases >> deliveryCases >> retryRuntimeCases)
   require "runtime liveness deadline expired" (outcome == Just ())
-  putStrLn "PASS SSE, ordered subscriptions, single-consumer operations and atomic reply delivery"
+  putStrLn "PASS SSE, subscriptions, operation ownership, atomic reply delivery and controlled retry waits"

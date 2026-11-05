@@ -5,7 +5,8 @@
     "api.py": "221b74a17462dc660a611ec89e7ece60b4038866e348e5108a2e7e7c6892c048",
     "cabal.project": "c8486579d3e37d9a46065093f0f02d8a7278b782a92826451ca9bfc7732e8ba3",
     "cabal.project.freeze": "a040c49ea761ad508dd6b63072fa37d41a8e87c27232222414032e8518030d10",
-    "codegen/Main.hs": "40d73aa915f3bcb8aed3b427928df796c72d2e984fe875d1e9cd4d281494c074",
+    "codegen/Facts.hs": "83916f4347804eda674790c64151f0a82f55153292566d64cb91df9cd4c0736a",
+    "codegen/Main.hs": "dc83e844ad553924d7b64813479ca290cdb545405d974b93fe58d83107c06d51",
     "generated/Semiont/Internal/Generated/Models/Agent.hs": "9f16d6b0adbdad7edec31fcade8037bd4a591b1dee50a64dfe26e48317445abc",
     "generated/Semiont/Internal/Generated/Models/AgentOrganization.hs": "2735d00995d286d640c26b8bb699fd373f25718140ae51501756cb93657ee554",
     "generated/Semiont/Internal/Generated/Models/AgentPerson.hs": "b15baf27004b89b455f9c1784264e28726a0d750fe791a89a50d7f37b98984f2",
@@ -103,6 +104,8 @@
     "generated/Semiont/Internal/Generated/Models/CursorsPath.hs": "352deaf15651be2d11343c5c35a0aeccccc31918755bc598fc179d16aa593454",
     "generated/Semiont/Internal/Generated/Models/DirEntry.hs": "e8bbffbfaa898d030fb40cefd2542f13a596ebbedbc4b698651e2d0246f4d07b",
     "generated/Semiont/Internal/Generated/Models/DirectoryEntry.hs": "56935479fe27e2df5bdbd73785bfebc1c3e8fe45fffe93d5d40abde17a50b4ff",
+    "generated/Semiont/Internal/Generated/Models/DiscoveredKB.hs": "fe7bdda84c7d9b9b336df2606b37fb6be372815ad707200cd4cbecfcc88ffead",
+    "generated/Semiont/Internal/Generated/Models/DiscoveryDocument.hs": "fc7312dbda40a05b4d71d2337f1d2b3554bfc2fb928da667944a90fda64c45b1",
     "generated/Semiont/Internal/Generated/Models/DispatcherConfig.hs": "ee437658920f36c668aed391274baccca4eee10c275d67de8c8aaf9d6a4c5974",
     "generated/Semiont/Internal/Generated/Models/DispatcherHealth.hs": "d244024933de5772ce5cc79404a6dc3992729f3cad018a92fdaabc096ee3dc41",
     "generated/Semiont/Internal/Generated/Models/DurabilityEvidence.hs": "0b877acb2bd8a1d8c0f9b7928cb5ef5658d369f70cf1de1813e9a8ba4da02b6f",
@@ -345,7 +348,7 @@
     "generated/Semiont/Internal/Generated/Models/YieldJobResult.hs": "c8e03cbd039d6e98ee7a873b902f6764d20cfb3120f6a7b197a2ba0c2256bddf",
     "generated/Semiont/Internal/Generated/Models/YieldUpdateCommand.hs": "0f8b1ef716fd412f49aa61ef8cda7990ca29481fda32969533663b3bdd448092",
     "generated/Semiont/Internal/Generated/Models/YieldUpdateOk.hs": "743bae600dacc40eb1c9170b0ecc72cb0543a244756b99cc6fd2650f7d0fa3ce",
-    "generated/Semiont/Internal/Generated/Schemas.hs": "8d5698e8b9127604eb741b268e00691f517d456458c0d21400ca6eded56d3b5d",
+    "generated/Semiont/Internal/Generated/Schemas.hs": "d36f7fc3dd1e6074a3d5afc07a2139f9c0c023865627f124195996967ed07abb",
     "internal/Semiont/Internal/Broadcast.hs": "81a79b90958a3dc3dc12bc14989e7ce337eb5ec6c34c3be0ebf5c375d80089d0",
     "internal/Semiont/Internal/Codec.hs": "fbc8af29dc06bc97706d979907ec37e53ae83273b7efb65283a33e81211c56fa",
     "internal/Semiont/Internal/Delivery.hs": "52879e04556e19594e680ba53e9fd14f5cdc895a369a247d734088cc1f5d647e",
@@ -353,11 +356,14 @@
     "internal/Semiont/Internal/Schema.hs": "9d1e672f8f3fd65ffa6a1a5fcaed0614f862d2eaeb3676d94ac969b8b0cd1845",
     "internal/Semiont/Internal/Sse.hs": "763dad6ddfaf6e0f676d3dcc533957f6ec54e530da7d5e8d719b5f0ac081f72b",
     "public-api.inputs.json": "150c411495a0d0dc5cb417a4c7063103bc2fcce758c1ec5e88b955f223d6ebfe",
-    "semiont.cabal": "e265d5b5032c7f8634bcb0ca45f9bfa64f9573b8ccef1967d1f647240a416f1d",
-    "semiont.cabal.in": "763bfb034fa1cf592defa311103bb088fe4f3c44d69f15ada226364c920cad55",
+    "semiont.cabal": "d4ac70043d2f2a15de3751ca5ac5fc46da7570980c9d67896cc9ec89d615dc01",
+    "semiont.cabal.in": "f1c1cf20a4ad5513f1bf3bd523a855719a248ae36a945dcec767b44af79357fd",
     "src/Semiont/Channels.hs": "930a2e30c7e0841d40034346b54e6fe9493461e2598341f9a06feded98d6d00c",
+    "src/Semiont/ErrorCodes.hs": "f1759d178779f632947eddab1991a7edcf8b3a08a92f0e8a5f770ea65f312917",
+    "src/Semiont/Retry.hs": "55c217047a2c8ce515eb588d3aa0b6879c01677fb0d58af99b2150bd910f3c98",
     "src/Semiont/Running.hs": "168b8478bf820fa7eae3c74c4699b7af7e0baeb929c4b380e966f91e0dd76fe7",
-    "src/Semiont/Types.hs": "b473e816ecbf37d9dd6ddf737bac03267a02938f8be70e00a9dda65cb81657cf",
+    "src/Semiont/Timing.hs": "6853473baa7683e95caea1c33e567d3ae96559d1a70ecb1a8f319a8a0df3805a",
+    "src/Semiont/Types.hs": "10ac2f2393780624dd195dcbbb7a9acccbfaf5561ee01dbe14cf421c8fd3d705",
     "src/Semiont/Types/Presence.hs": "fbdb22094e0b0a8d0671ffc220e5f9462f457333e854859d0cd31b69ac1eeda8"
   },
   "modules": {
@@ -623,22 +629,196 @@
         "operationChannels": "Semiont.Channels.Operation input output failure -> (Semiont.Channels.Channel Semiont.Channels.Global input, Semiont.Channels.Channel Semiont.Channels.Global output, Semiont.Channels.Channel Semiont.Channels.Global failure)"
       }
     },
+    "Semiont.ErrorCodes": {
+      "types": {
+        "BusRequestCode": {
+          "definition": "data Semiont.ErrorCodes.BusRequestCode = ...",
+          "kind": "*"
+        },
+        "JobCode": {
+          "definition": "data Semiont.ErrorCodes.JobCode = ...",
+          "kind": "*"
+        },
+        "KbIdentityCode": {
+          "definition": "data Semiont.ErrorCodes.KbIdentityCode = ...",
+          "kind": "*"
+        },
+        "SessionCode": {
+          "definition": "data Semiont.ErrorCodes.SessionCode = ...",
+          "kind": "*"
+        },
+        "SignInCode": {
+          "definition": "data Semiont.ErrorCodes.SignInCode = ...",
+          "kind": "*"
+        },
+        "SpanRefusalCode": {
+          "definition": "data Semiont.ErrorCodes.SpanRefusalCode = ...",
+          "kind": "*"
+        },
+        "TransportCode": {
+          "definition": "data Semiont.ErrorCodes.TransportCode = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "BusRequestClosed": "Semiont.ErrorCodes.BusRequestCode",
+        "BusRequestNonePending": "Semiont.ErrorCodes.BusRequestCode",
+        "BusRequestNotFound": "Semiont.ErrorCodes.BusRequestCode",
+        "BusRequestPeerUnavailable": "Semiont.ErrorCodes.BusRequestCode",
+        "BusRequestRejected": "Semiont.ErrorCodes.BusRequestCode",
+        "BusRequestTimeout": "Semiont.ErrorCodes.BusRequestCode",
+        "BusRequestUnauthorized": "Semiont.ErrorCodes.BusRequestCode",
+        "BusRequestUnsubscribed": "Semiont.ErrorCodes.BusRequestCode",
+        "JobCancelled": "Semiont.ErrorCodes.JobCode",
+        "JobFailed": "Semiont.ErrorCodes.JobCode",
+        "JobStalled": "Semiont.ErrorCodes.JobCode",
+        "KbIdentityNotReported": "Semiont.ErrorCodes.KbIdentityCode",
+        "KbIdentityUnreachable": "Semiont.ErrorCodes.KbIdentityCode",
+        "SessionAuthFailed": "Semiont.ErrorCodes.SessionCode",
+        "SessionConstructFailed": "Semiont.ErrorCodes.SessionCode",
+        "SessionCredentialRefused": "Semiont.ErrorCodes.SessionCode",
+        "SessionRefreshExhausted": "Semiont.ErrorCodes.SessionCode",
+        "SignInAborted": "Semiont.ErrorCodes.SignInCode",
+        "SignInDenied": "Semiont.ErrorCodes.SignInCode",
+        "SignInDiscovery": "Semiont.ErrorCodes.SignInCode",
+        "SignInExchange": "Semiont.ErrorCodes.SignInCode",
+        "SignInExpired": "Semiont.ErrorCodes.SignInCode",
+        "SignInNoIssuer": "Semiont.ErrorCodes.SignInCode",
+        "SignInNoPending": "Semiont.ErrorCodes.SignInCode",
+        "SignInState": "Semiont.ErrorCodes.SignInCode",
+        "SpanRefusalExactMismatch": "Semiont.ErrorCodes.SpanRefusalCode",
+        "SpanRefusalExactNotCovered": "Semiont.ErrorCodes.SpanRefusalCode",
+        "SpanRefusalItemOutOfRange": "Semiont.ErrorCodes.SpanRefusalCode",
+        "SpanRefusalNothingLocated": "Semiont.ErrorCodes.SpanRefusalCode",
+        "SpanRefusalPrefixMismatch": "Semiont.ErrorCodes.SpanRefusalCode",
+        "SpanRefusalSpanOutOfRange": "Semiont.ErrorCodes.SpanRefusalCode",
+        "SpanRefusalSuffixMismatch": "Semiont.ErrorCodes.SpanRefusalCode",
+        "TransportBadRequest": "Semiont.ErrorCodes.TransportCode",
+        "TransportConflict": "Semiont.ErrorCodes.TransportCode",
+        "TransportError": "Semiont.ErrorCodes.TransportCode",
+        "TransportForbidden": "Semiont.ErrorCodes.TransportCode",
+        "TransportNotFound": "Semiont.ErrorCodes.TransportCode",
+        "TransportRateLimited": "Semiont.ErrorCodes.TransportCode",
+        "TransportUnauthorized": "Semiont.ErrorCodes.TransportCode",
+        "TransportUnavailable": "Semiont.ErrorCodes.TransportCode",
+        "busRequestCode": "Semiont.ErrorCodes.BusRequestCode -> Data.Text.Internal.Text",
+        "busRequestCodeFromWire": "Maybe Data.Text.Internal.Text -> Semiont.ErrorCodes.BusRequestCode",
+        "jobCode": "Semiont.ErrorCodes.JobCode -> Data.Text.Internal.Text",
+        "kbIdentityCode": "Semiont.ErrorCodes.KbIdentityCode -> Data.Text.Internal.Text",
+        "parseBusRequestCode": "Data.Text.Internal.Text -> Maybe Semiont.ErrorCodes.BusRequestCode",
+        "parseJobCode": "Data.Text.Internal.Text -> Maybe Semiont.ErrorCodes.JobCode",
+        "parseKbIdentityCode": "Data.Text.Internal.Text -> Maybe Semiont.ErrorCodes.KbIdentityCode",
+        "parseSessionCode": "Data.Text.Internal.Text -> Maybe Semiont.ErrorCodes.SessionCode",
+        "parseSignInCode": "Data.Text.Internal.Text -> Maybe Semiont.ErrorCodes.SignInCode",
+        "parseSpanRefusalCode": "Data.Text.Internal.Text -> Maybe Semiont.ErrorCodes.SpanRefusalCode",
+        "parseTransportCode": "Data.Text.Internal.Text -> Maybe Semiont.ErrorCodes.TransportCode",
+        "sessionCode": "Semiont.ErrorCodes.SessionCode -> Data.Text.Internal.Text",
+        "signInCode": "Semiont.ErrorCodes.SignInCode -> Data.Text.Internal.Text",
+        "spanRefusalCode": "Semiont.ErrorCodes.SpanRefusalCode -> Data.Text.Internal.Text",
+        "transportCode": "Semiont.ErrorCodes.TransportCode -> Data.Text.Internal.Text",
+        "transportCodeFromStatus": "Int -> Semiont.ErrorCodes.TransportCode"
+      }
+    },
+    "Semiont.Retry": {
+      "types": {
+        "RetryConfigurationError": {
+          "definition": "data Semiont.Retry.RetryConfigurationError = ...",
+          "kind": "*"
+        },
+        "RetryOptions": {
+          "definition": "data Semiont.Retry.RetryOptions = ...",
+          "kind": "*"
+        },
+        "RetryRule": {
+          "definition": "data Semiont.Retry.RetryRule = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "Boot": "Semiont.Retry.RetryRule",
+        "InvalidJitter": "Semiont.Retry.RetryConfigurationError",
+        "InvalidRetryAfter": "Semiont.Retry.RetryConfigurationError",
+        "InvalidRetryBudget": "Semiont.Retry.RetryConfigurationError",
+        "Job": "Semiont.Retry.RetryRule",
+        "Refresh": "Semiont.Retry.RetryRule",
+        "RetryOptions": "IO Integer -> (Integer -> IO ()) -> IO Double -> Semiont.Retry.RetryOptions",
+        "Transport": "Semiont.Retry.RetryRule",
+        "retryAfterMs": "Maybe Data.Text.Internal.Text -> Maybe Integer",
+        "retryNow": "Semiont.Retry.RetryOptions -> IO Integer",
+        "retryRandom": "Semiont.Retry.RetryOptions -> IO Double",
+        "retryWaitUntil": "Semiont.Retry.RetryOptions -> Integer -> IO ()",
+        "retryWithBackoff": "GHC.Internal.Exception.Type.Exception failure => Semiont.Retry.RetryOptions -> Semiont.Timing.RetryBudget -> (failure -> Bool) -> (failure -> Maybe Integer) -> IO value -> IO value",
+        "retryable": "Semiont.Retry.RetryRule -> Maybe Int -> Maybe Data.Text.Internal.Text -> Bool",
+        "ruleName": "Semiont.Retry.RetryRule -> Data.Text.Internal.Text"
+      }
+    },
     "Semiont.Running": {
       "types": {
         "ConsumptionError": {
-          "definition": "data semiont-0.7.1:internal:Semiont.Internal.Running.ConsumptionError = ...",
+          "definition": "data Semiont.Internal.Running.ConsumptionError = ...",
           "kind": "*"
         },
         "Running": {
-          "definition": "data semiont-0.7.1:internal:Semiont.Internal.Running.Running report result = ...",
+          "definition": "data Semiont.Internal.Running.Running report result = ...",
           "kind": "* -> * -> *"
         }
       },
       "values": {
-        "AlreadyConsumed": "semiont-0.7.1:internal:Semiont.Internal.Running.ConsumptionError",
-        "ObservationEnded": "semiont-0.7.1:internal:Semiont.Internal.Running.ConsumptionError",
-        "await": "semiont-0.7.1:internal:Semiont.Internal.Running.Running report result -> IO result",
-        "withReports": "semiont-0.7.1:internal:Semiont.Internal.Running.Running report result -> (Streaming.Internal.Stream (Data.Functor.Of.Of report) IO result -> IO value) -> IO value"
+        "AlreadyConsumed": "Semiont.Internal.Running.ConsumptionError",
+        "ObservationEnded": "Semiont.Internal.Running.ConsumptionError",
+        "await": "Semiont.Internal.Running.Running report result -> IO result",
+        "withReports": "Semiont.Internal.Running.Running report result -> (Streaming.Internal.Stream (Data.Functor.Of.Of report) IO result -> IO value) -> IO value"
+      }
+    },
+    "Semiont.Timing": {
+      "types": {
+        "RetryBudget": {
+          "definition": "data Semiont.Timing.RetryBudget = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "RetryBudget": "Integer -> Integer -> Integer -> Semiont.Timing.RetryBudget",
+        "anchoredTextReaskMs": "Integer",
+        "busRequestTimeoutMs": "Integer",
+        "degradedThresholdMs": "Integer",
+        "delegateSilenceMs": "Integer",
+        "devicePollFloorMs": "Integer",
+        "devicePollMs": "Integer",
+        "deviceSlowDownMs": "Integer",
+        "discoveryIntervalMs": "Integer",
+        "emitRetry": "Semiont.Timing.RetryBudget",
+        "emitTimeoutMs": "Integer",
+        "generatedTextAsksCount": "Integer",
+        "generationStallAssumedTokensCount": "Integer",
+        "generationStallFloorMs": "Integer",
+        "generationStallPerTokenMs": "Integer",
+        "heldJobStallCheckMs": "Integer",
+        "heldJobStallMs": "Integer",
+        "hoverDelayMs": "Integer",
+        "httpRequestTimeoutMs": "Integer",
+        "invalidationWindowMs": "Integer",
+        "jobClaimTimeoutMs": "Integer",
+        "jobSilenceMs": "Integer",
+        "jobStatusPollMs": "Integer",
+        "lazyRemoveMs": "Integer",
+        "lingerMs": "Integer",
+        "markCommitTimeoutMs": "Integer",
+        "maxReconnectMs": "Integer",
+        "maxStoredBytesCount": "Integer",
+        "minRefreshDelayMs": "Integer",
+        "reconnectDebounceMs": "Integer",
+        "reconnectMs": "Integer",
+        "refreshBeforeExpMs": "Integer",
+        "refreshRetry": "Semiont.Timing.RetryBudget",
+        "requestRetryPauseMs": "Integer",
+        "retryAttempts": "Semiont.Timing.RetryBudget -> Integer",
+        "retryInitialDelayMs": "Semiont.Timing.RetryBudget -> Integer",
+        "retryMaxDelayMs": "Semiont.Timing.RetryBudget -> Integer",
+        "saveDebounceMs": "Integer",
+        "searchDebounceMs": "Integer",
+        "seenEventIdsCount": "Integer",
+        "streamOpenTimeoutMs": "Integer"
       }
     },
     "Semiont.Types": {
@@ -1249,6 +1429,22 @@
         },
         "DirectoryEntry": {
           "definition": "data semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DirectoryEntry.DirectoryEntry = ...",
+          "kind": "*"
+        },
+        "DiscoveredKB": {
+          "definition": "data semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB = ...",
+          "kind": "*"
+        },
+        "DiscoveredKBPlacement": {
+          "definition": "data semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKBPlacement = ...",
+          "kind": "*"
+        },
+        "DiscoveryDocument": {
+          "definition": "data semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveryDocument.DiscoveryDocument = ...",
+          "kind": "*"
+        },
+        "DiscoveryDocumentVersion": {
+          "definition": "data semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveryDocument.DiscoveryDocumentVersion = ...",
           "kind": "*"
         },
         "DispatcherConfig": {
@@ -3119,6 +3315,11 @@
         "DirEntryTypeDir": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DirEntry.DirEntryType",
         "DirectoryEntryBranch1": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.FileEntry.FileEntry -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DirectoryEntry.DirectoryEntry",
         "DirectoryEntryBranch2": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DirEntry.DirEntry -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DirectoryEntry.DirectoryEntry",
+        "DiscoveredKB": "Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKBPlacement -> Integer -> Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap aeson-2.2.5.1:Data.Aeson.Types.Internal.Value -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB",
+        "DiscoveredKBPlacementCodespace": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKBPlacement",
+        "DiscoveredKBPlacementLocal": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKBPlacement",
+        "DiscoveryDocument": "[semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB] -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveryDocument.DiscoveryDocumentVersion -> Data.Aeson.KeyMap.KeyMap aeson-2.2.5.1:Data.Aeson.Types.Internal.Value -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveryDocument.DiscoveryDocument",
+        "DiscoveryDocumentVersionV1U2e_0": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveryDocument.DiscoveryDocumentVersion",
         "DispatcherConfig": "Data.Text.Internal.Text -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DispatcherConfig.DispatcherConfigIdentity -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.KbIdentity.KbIdentity -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.LogFormat.LogFormat -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.LogLevel.LogLevel -> Integer -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DispatcherConfig.DispatcherConfigQueue -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DispatcherConfig.DispatcherConfigTiming -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DispatcherConfig.DispatcherConfig",
         "DispatcherConfigIdentity": "Data.Text.Internal.Text -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DispatcherConfig.DispatcherConfigIdentity",
         "DispatcherConfigQueue": "Maybe Data.Text.Internal.Text -> Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DispatcherConfig.DispatcherConfigQueue",
@@ -4056,6 +4257,17 @@
         "dirEntryName": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DirEntry.DirEntry -> Data.Text.Internal.Text",
         "dirEntryPath": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DirEntry.DirEntry -> Data.Text.Internal.Text",
         "dirEntryType": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DirEntry.DirEntry -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DirEntry.DirEntryType",
+        "discoveredKBAdditionalProperties": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB -> Data.Aeson.KeyMap.KeyMap aeson-2.2.5.1:Data.Aeson.Types.Internal.Value",
+        "discoveredKBDid": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB -> Data.Text.Internal.Text",
+        "discoveredKBHost": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB -> Data.Text.Internal.Text",
+        "discoveredKBManagedBy": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB -> Data.Text.Internal.Text",
+        "discoveredKBPlacement": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKBPlacement",
+        "discoveredKBPort": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB -> Integer",
+        "discoveredKBRepo": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB -> Maybe Data.Text.Internal.Text",
+        "discoveredKBSiteName": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB -> Maybe Data.Text.Internal.Text",
+        "discoveryDocumentAdditionalProperties": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveryDocument.DiscoveryDocument -> Data.Aeson.KeyMap.KeyMap aeson-2.2.5.1:Data.Aeson.Types.Internal.Value",
+        "discoveryDocumentKbs": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveryDocument.DiscoveryDocument -> [semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveredKB.DiscoveredKB]",
+        "discoveryDocumentVersion": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveryDocument.DiscoveryDocument -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DiscoveryDocument.DiscoveryDocumentVersion",
         "dispatcherConfigGatewayUrl": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DispatcherConfig.DispatcherConfig -> Data.Text.Internal.Text",
         "dispatcherConfigIdentity": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DispatcherConfig.DispatcherConfig -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DispatcherConfig.DispatcherConfigIdentity",
         "dispatcherConfigIdentityIssuer": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.DispatcherConfig.DispatcherConfigIdentity -> Data.Text.Internal.Text",

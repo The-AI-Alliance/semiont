@@ -2,40 +2,92 @@
 
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=haskell-sdk)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
-Development is in progress on one branch toward the complete SDK. The current
-package provides protocol-derived models, checked identifiers, typed
-channel/operation descriptors, and scoped operation consumption. The client, HTTP transport, sign-in, delegation,
-live queries, workers, registry, and state units remain to be implemented.
+The Haskell SDK is being built toward the same client and protocol contract
+as the other Semiont SDKs. It currently provides protocol types, checked
+identifiers, typed channels, scoped operation consumption, and retry support.
+The client, HTTP transport, sign-in, delegation, live queries, workers,
+registry, and state units are still being implemented.
 
-The package is not published. Publishing is outside the current implementation
-scope.
+[Install](#install) · [Signing in](#signing-in) · [Connect](#connect) ·
+[Delegation](#delegation) · [Live queries](#live-queries) ·
+[Running a worker](#running-a-worker)
 
-## Build and generation
+## Install
 
-Build and test inside the development container. The compiler and Cabal pins
-are shared with `../probes`; exact project dependencies are frozen locally.
+Use the local Cabal package in a Semiont checkout. It is not published on
+Hackage. In your application's `cabal.project`, include both packages:
 
-```sh
-# Inside the container, from this directory:
-cabal run semiont-codegen -- /work
-cabal build all --enable-tests -j1
-cabal test schema-cases --test-show-details=direct --test-options=/work
-cabal run semiont-codegen -- --check /work
+```cabal
+packages: ./my-app
+          /path/to/semiont/packages/haskell/sdk
 ```
 
-Here `/work` is the repository root. Ordinary builds use the checked-in
-generated files and require no npm or schema generation. The generator is a
-Haskell executable in the package; it needs the repository inputs only when
-run. It derives the module list and package version as well as the models.
+Add `semiont` to the application's `build-depends`. Use the compiler pinned in
+[the development project](../probes/cabal.project). The repository's
+[container runner](../run-container.sh) builds and tests the SDK without a host
+Haskell installation; see [Building and verifying](#building-and-verifying).
 
-After changing library sources, build the library and run `python3 api.py
---write` inside the container to refresh `public-api.json`. GHC supplies the
-reachable types, constructors, and signatures through the public Cabal modules,
-including re-exports. The repository census checks source freshness; the Haskell
-job independently compares the installed library's actual exports with the
-snapshot. Integration with every shared client-surface section is still open.
+## Signing in
 
-## Types and identifiers
+In development. Kept launcher sign-ins, device sign-in, browser redirect,
+agent credentials, and session renewal are part of this SDK's implementation
+scope. There is no public Haskell sign-in API yet. The shared
+[sign-in guide](../../../docs/builder/SIGN-IN.md) describes the supported flows
+in the other SDKs.
+
+## Connect
+
+In development. The client facade, gateway HTTP transport, and content
+transport are not yet available. The current package supports typed protocol
+data and the operation primitives described below.
+
+## Eight verbs
+
+The Haskell client will implement the same namespaces and methods as the
+[client surface](../../../protocol/specs/src/client/surface.json). Typed
+channel and operation descriptors already exist in `Semiont.Channels`;
+the namespace methods are still being implemented. See the
+[builder guide](../../../docs/builder/README.md) for the shared model.
+
+## Delegation
+
+In development. Job submission, job following, and the per-verb delegation
+methods are not yet available. The operation consumption primitive is in place:
+`Semiont.Running` exposes an opaque `Running report result`.
+
+Constructing an operation starts no work. `await` starts it and returns its
+terminal result; `withReports` instead supplies a `Stream (Of report) IO result`
+from the `streaming` package. Only one consumer may start an operation, once.
+Producer failures propagate to the consumer. Leaving `withReports` cancels
+and joins the producer, and a stream retained past that scope refuses reads.
+
+## Live queries
+
+In development. The cache, one-shot fresh reads, invalidation, and persisted
+query values are not yet exposed. They will follow the shared
+[cache contract](../../../protocol/contract/CACHE-SEMANTICS.md). The internal
+observation primitive already supports ordered independent subscriptions,
+atomic initial state, repeated equal notices, and scoped cancellation.
+
+## State units
+
+In development. The coordinated flow and page state APIs described in
+[State units](../../../docs/builder/STATE-UNITS.md) are still to be implemented.
+
+## Running a worker
+
+In development. Claims, held jobs, checkpoints, progress, settlement, and
+durable commits are part of the full SDK scope. There is no public Haskell
+worker API yet; the shared [worker contract](../../../protocol/contract/WORKER-CONTRACT.md)
+states the behavior it will implement.
+
+## Several knowledge bases
+
+In development. Registry, knowledge-base selection, discovery readers, and
+session persistence are still to be implemented. The launcher's discovery
+document types are generated with the other protocol types.
+
+## IDs and protocol types
 
 Import models from `Semiont.Types`. Distinct identifier types expose checked
 makers such as `mkResourceId`; their constructors are hidden. JSON decoders
@@ -52,17 +104,62 @@ type and scope kind; each operation fixes its request, result, and failure
 types. The runtime bus will require `InScope resourceId` when observing a
 resource-scoped channel.
 
-## Operation consumption
+## Errors and retry
 
-`Semiont.Running` exposes an opaque `Running report result`. Constructing an
-operation starts no work. `await` starts it and returns its terminal result;
-`withReports` instead supplies a `Stream (Of report) IO result` from the
-`streaming` package. Only one of those consumers may start the operation, once.
-Producer failures propagate to the consumer, and leaving `withReports` cancels
-and joins the producer. A stream retained past that scope refuses further reads.
-The namespace methods that create these handles are still in development.
+`Semiont.ErrorCodes` derives closed error vocabularies and wire/HTTP status
+classifiers from the protocol. `Semiont.Timing` derives the timing constants
+and retry budgets.
 
-## Validation
+`Semiont.Retry` provides retry decisions, `Retry-After` parsing, and
+`retryWithBackoff`. Its `RetryOptions` requires caller-supplied monotonic
+nanoseconds, an interruptible wait to an absolute deadline, and non-secret
+jitter. Cancellation is preserved, each retry respects the server's stated
+wait, and the last failure is raised when the budget is exhausted.
+
+## The bus and transport
+
+The current package has typed channel/operation descriptors and an internal
+reply router. Runtime checks preserve raw-reply publication before request
+continuations and keep the wire separate from local derived signals.
+The public bus and HTTP transport are still being implemented.
+
+## Telemetry
+
+In development. The design probes verify host-owned OpenTelemetry providers,
+propagation, and context across asynchronous work. Production transport and
+client instrumentation remain to be implemented.
+
+## Building and verifying
+
+From the repository root, build and test in Apple `container`:
+
+```sh
+bash packages/haskell/run-container.sh
+```
+
+CI runs the same entry point with `docker` as its argument. The compiler and
+Cabal pins are shared with [the design probes](../probes/README.md); exact
+project dependencies are frozen. Ordinary builds use checked-in generated
+files and require no npm or schema generation.
+
+Inside the development container, from this package directory:
+
+```sh
+cabal run semiont-codegen -- /work
+cabal build all --enable-tests --enable-coverage -j1
+python3 api.py --write
+bash run.sh /work
+```
+
+Here `/work` is the repository root. The Haskell generator derives protocol
+types, channel descriptors, error codes, timing, the module list, and the
+package version. Refresh `public-api.json` after library source changes;
+GHC supplies the reachable types, constructors, and signatures through the
+public Cabal modules, including re-exports. The census checks source
+freshness; the Haskell job compares actual compiled exports. Integration
+with every shared client-surface section is still open.
+
+### What the checks cover
 
 The schema suite generates samples from the schema definitions, checks JSON
 round trips, absence/null behavior, closed enums, exact large numbers, and
@@ -77,3 +174,7 @@ close waking pending requests, SSE chunk boundaries, and operation ownership.
 
 See [the design probe results](../probes/README.md) for the measured HTTP,
 resource-lifetime, telemetry, crypto, and native-lock behavior.
+
+## License
+
+[Apache-2.0](LICENSE).

@@ -17,6 +17,9 @@ Sign-in happens at the knowledge base's identity provider, never at the gateway,
 
 See the SDK guides for [TypeScript](../../packages/typescript/sdk/README.md#connect), [Python](../../packages/python/sdk/README.md#signing-in), [Go](../../packages/go/sdk/README.md#signing-in), [Kotlin](../../packages/kotlin/sdk/README.md#signing-in), [Rust](../../packages/rust/http-transport/README.md), [.NET](../../packages/csharp/sdk/README.md#signing-in), and [Swift](../../packages/swift/sdk/README.md#connect).
 
+[Haskell sign-in](../../packages/haskell/sdk/README.md#signing-in) is still being
+implemented and is not included in the availability table above.
+
 ## What every way has in common
 
 - **An access token is short-lived**: five minutes from the Keycloak a launcher stack runs. A session renews it before it expires and stores what it holds. A bare client with a bare token stops working when the token does.

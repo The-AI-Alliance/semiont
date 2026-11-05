@@ -3,8 +3,12 @@
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=haskell)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
 The Haskell SDK is under construction toward full parity on one branch. Its
-model library and typed channel descriptors are implemented; the client and
-conformance drivers remain to be built. The implementation plan is
+model library, typed channel descriptors, operation consumption, and retry
+support are implemented; the client and conformance drivers remain to be built.
+The [SDK README](sdk/README.md) follows the other SDK guides, with feature status
+and local package setup. Development continues on
+[one SDK PR](https://github.com/The-AI-Alliance/semiont/pull/2104).
+The implementation plan is
 `.plans/SDK-HASKELL.md` in the development checkout.
 
 Run the compiled acceptance probes in Apple `container`, without installing a

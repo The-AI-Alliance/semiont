@@ -433,6 +433,15 @@ The [.NET SDK README](../../packages/csharp/sdk/README.md) has runnable
 examples of following a delegation, running a worker, and watching a live
 query.
 
+## In Haskell
+
+The [Haskell SDK](../../packages/haskell/sdk/README.md) is in development.
+Its implemented `Running report result` handle starts work when consumed once:
+`await` returns the final result, while `withReports` gives a
+`Stream (Of report) IO result` from `streaming`. Leaving the report scope cancels
+and joins the producer. The client, delegation, live-query, and state-unit
+APIs that use these primitives are still being implemented.
+
 ## See also
 
 - [Usage.md](./Usage.md) — per-namespace tour with concrete examples

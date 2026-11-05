@@ -20,6 +20,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 import Numeric (showHex)
+import Facts (generateFacts)
 import Semiont.Internal.Schema (Schemas, checkSchema, normalize)
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeFile)
 import System.Environment (getArgs)
@@ -399,10 +400,24 @@ main :: IO ()
 main = do
   args <- getArgs
   (root, checkOnly) <- case args of [directory] -> pure (directory, False); ["--check", directory] -> pure (directory, True); _ -> ioError (userError "expected [--check] repository-root")
-  let source = root </> "protocol/specs/src/components/schemas"
+  let source = root </> "protocol/specs/src"
       output = root </> "packages/haskell/sdk"
-  files <- filter ((== ".json") . takeExtension) . sort <$> listDirectory source
-  schemas <- Map.fromList <$> traverse (\file -> (,) (T.pack (takeBaseName file)) <$> readJSON (source </> file)) files
+  spec <- readJSON (source </> "openapi.json") >>= either (ioError . userError) pure . fieldsOf
+  components <- maybe (ioError (userError "OpenAPI has no components")) pure (KM.lookup "components" spec)
+    >>= either (ioError . userError) pure . fieldsOf
+  entries <- maybe (ioError (userError "OpenAPI has no schemas")) pure (KM.lookup "schemas" components)
+    >>= either (ioError . userError) pure . fieldsOf
+  schemas <- fmap Map.fromList $ forM (KM.toList entries) $ \(key, value) -> do
+    fields <- either (ioError . userError) pure (fieldsOf value)
+    definition <- case textAt "$ref" fields of
+      Nothing -> pure value
+      Just path -> do
+        unless (all (`elem` ["$ref", "description", "$comment"]) (KM.keys fields))
+          (ioError (userError "OpenAPI schema reference has unsupported siblings"))
+        unless (takeExtension (T.unpack path) == ".json" && referenceName path == Key.toText key && not (T.isInfixOf "://" path))
+          (ioError (userError "OpenAPI schema reference needs an explicit Haskell naming rule"))
+        readJSON (source </> T.unpack path)
+    pure (Key.toText key, definition)
   kinds <- readJSON (root </> "protocol/specs/src/identifiers/kinds.json")
   ids <- case kinds of
     Object objectFields -> case KM.lookup "kinds" objectFields of
@@ -412,6 +427,7 @@ main = do
       _ -> ioError (userError "identifier kinds is not an array")
     _ -> ioError (userError "identifier kinds is not an object")
   registry <- readJSON (root </> "protocol/specs/src/bus/registry.json")
+  facts <- generateFacts root
   (busSchemas, busFiles) <- either (ioError . userError) pure (busDescriptors schemas registry)
   (moduleNames, models) <- either (ioError . userError) pure (generate busSchemas (Set.fromList ids))
   template <- T.readFile (output </> "semiont.cabal.in")
@@ -421,7 +437,7 @@ main = do
   version <- maybe (ioError (userError "root package.json has no version")) pure (textAt "version" package)
   license <- T.readFile (root </> "LICENSE")
   let manifest = T.replace "@VERSION@" version $ T.replace "@MODEL_MODULES@" (T.intercalate "\n" (map ("    " <>) moduleNames)) template
-      generated = ("LICENSE", license) : ("semiont.cabal", manifest) : busFiles ++ models
+      generated = ("LICENSE", license) : ("semiont.cabal", manifest) : busFiles ++ models ++ facts
       modelsDirectory = output </> "generated/Semiont/Internal/Generated/Models"
       expected = Set.fromList (map (output </>) (map fst generated))
   existsModels <- doesDirectoryExist modelsDirectory
@@ -443,4 +459,4 @@ main = do
     else do
       actual <- if exists then Just <$> T.readFile path else pure Nothing
       when (actual /= Just content) (createDirectoryIfMissing True (takeDirectory path) >> T.writeFile path content)
-  putStrLn ("Generated " ++ show (length files) ++ " protocol schemas and typed bus descriptors in " ++ show (length moduleNames) ++ " model modules")
+  putStrLn ("Generated " ++ show (Map.size schemas) ++ " protocol schemas and typed bus descriptors in " ++ show (length moduleNames) ++ " model modules")
