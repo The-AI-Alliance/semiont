@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import semiont.Timings
@@ -354,7 +355,16 @@ internal class Stream(
     private fun framed(conn: Int, id: String?, data: String) {
         if (conn !in connections) return
         if (id != null && !seen.remember(id)) return
-        val read = (carried(data) as? Carried.Read)?.frame ?: return
+        val read = when (val carried = carried(data)) {
+            is Carried.Read -> carried.frame
+            is Carried.Refused -> {
+                // What names no channel names no reader: it is told to the failure report.
+                if (carried.channel == null) {
+                    failures.deliver(TransportError(TransportErrorCode.Error, "the stream carried what is not a frame: ${carried.fault}"))
+                }
+                return
+            }
+        }
         val channel = read.channel
         var payload = read.payload
         val correlationId = read.correlationId
@@ -531,8 +541,11 @@ internal sealed interface Carried {
     /** A frame BusFrame allows. */
     data class Read(val frame: BusFrame) : Carried
 
-    /** What BusFrame does not allow, and its first fault. */
-    data class Refused(val fault: Fault) : Carried
+    /**
+     * What BusFrame does not allow: its first fault, and the channel it names when BusFrame allows its `channel`.
+     * One that names no channel names no reader.
+     */
+    data class Refused(val fault: Fault, val channel: String?) : Carried
 }
 
 /** `data` read as a frame, held to BusFrame by the table: a frame carries what BusFrame names, and nothing more. */
@@ -540,15 +553,19 @@ internal fun carried(data: String): Carried {
     val element = try {
         wireJson.parseToJsonElement(data)
     } catch (_: IllegalArgumentException) {
-        return Carried.Refused(UNDECODED)
+        return Carried.Refused(UNDECODED, null)
     }
     val fault = faultOf(BusFrame.serializer().descriptor, element) ?: try {
         return Carried.Read(wireJson.decodeFromJsonElement(BusFrame.serializer(), element))
     } catch (_: IllegalArgumentException) {
         UNDECODED
     }
-    return Carried.Refused(fault)
+    return Carried.Refused(fault, channelOf(element))
 }
+
+/** The channel `element` names: its `channel`, when that is a text of at least one character. */
+private fun channelOf(element: JsonElement): String? =
+    ((element as? JsonObject)?.get("channel") as? JsonPrimitive)?.takeIf { it.isString && it.content.isNotEmpty() }?.content
 
 /** The trace a frame's payload says it was sent under, when it says so. */
 private fun sentUnder(carried: kotlinx.serialization.json.JsonElement?): TraceContext? {

@@ -32,6 +32,7 @@ class FrameCasesTest {
         assertTrue(delivered.isNotEmpty())
         assertTrue(refused.any { it.getValue("reason").jsonPrimitive.content == "lacks" })
         assertTrue(refused.any { it.getValue("reason").jsonPrimitive.content == "malformed" })
+        assertEquals(setOf("readers", "failure-report"), refused.map { it.getValue("told").jsonPrimitive.content }.toSet())
     }
 
     @TestFactory
@@ -46,11 +47,21 @@ class FrameCasesTest {
     }
 
     @TestFactory
-    fun aFrameBusFrameDoesNotAllowIsRefusedForTheFaultTheTableStates(): List<DynamicTest> = refused.map { case ->
+    fun aFrameBusFrameDoesNotAllowIsRefusedForTheFaultTheTableStatesAndToldToWhomItStates(): List<DynamicTest> = refused.map { case ->
         DynamicTest.dynamicTest(case.why()) {
-            assertEquals(setOf("why", "frame", "refused", "member", "reason"), case.keys)
+            val line = case["data"]?.jsonPrimitive?.content
+            val frame = case["frame"]?.jsonObject
+            assertEquals(setOf("why", if (line == null) "frame" else "data", "refused", "member", "reason", "told"), case.keys)
             val reason = FrameRefusalReason.entries.single { it.wire == case.getValue("reason").jsonPrimitive.content }
-            assertEquals(Carried.Refused(Fault(case.getValue("member").jsonPrimitive.content, reason)), carried(case.getValue("frame").toString()))
+            val channel = when (val told = case.getValue("told").jsonPrimitive.content) {
+                "readers" -> checkNotNull(frame).getValue("channel").jsonPrimitive.content
+                "failure-report" -> null
+                else -> error("told to whom the table does not give: $told")
+            }
+            assertEquals(
+                Carried.Refused(Fault(case.getValue("member").jsonPrimitive.content, reason), channel),
+                carried(line ?: checkNotNull(frame).toString()),
+            )
         }
     }
 }
