@@ -74,7 +74,15 @@ public sealed partial class HttpTransport
             {
                 var delay = Math.Max(RetryAfter(response), ProtocolFacts.Timing("requestRetryPauseMs").GetInt32());
                 response.Dispose();
-                await Task.Delay(TimeSpan.FromMilliseconds(delay), clock, linked.Token).ConfigureAwait(false);
+                using var waiting = CancellationTokenSource.CreateLinkedTokenSource(cancellation, lifetime.Token);
+                try
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(delay), clock, waiting.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
+                {
+                    throw Report(new TransportError(ProtocolFacts.Error(0), path + ": the transport is closed"));
+                }
                 continue;
             }
             response.Dispose();
