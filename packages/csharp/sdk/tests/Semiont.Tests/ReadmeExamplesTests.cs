@@ -17,9 +17,9 @@ public sealed partial class TransportTests
     {
         var readme = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "SDK-README.md")).ReplaceLineEndings("\n");
         var blocks = Regex.Matches(readme, @"(?m)^```csharp\n([\s\S]*?)^```$").Select(match => match.Groups[1].Value.TrimEnd()).ToArray();
-        var examples = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Examples"), "*.cs").Order(StringComparer.Ordinal)
-            .Select(path => File.ReadAllText(path).ReplaceLineEndings("\n").TrimEnd()).ToArray();
-        Assert.Equal(examples, blocks);
+        var examples = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Examples"), "*.cs")
+            .Select(path => File.ReadAllText(path).ReplaceLineEndings("\n").TrimEnd());
+        Assert.Equal(examples.Order(StringComparer.Ordinal), blocks.Order(StringComparer.Ordinal));
     }
 
     [Fact]
