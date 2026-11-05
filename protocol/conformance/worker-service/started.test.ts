@@ -1,7 +1,8 @@
 /**
  * A worker that has started at the one knowledge base it serves
  * (WORKER-SERVICE.md § The agent, § Health): the one sign-in it makes as its
- * account there, the one stream it opens, what it says it is called once the
+ * account there, the stream it asks which knowledge base it is on and the one
+ * stream of its own it opens, what it says it is called once the
  * knowledge base is confirmed, the filters each engine claims with, the
  * engine a job is run on and who it is attributed to, and what `GET /health`
  * answers.
@@ -13,17 +14,13 @@ import { operationFor } from '../harness/spec';
 import { eachWorkerService, WORKER_CLIENT, WORKER_ROLES, type Engine, type JobFilter, type Served, type WorkerServiceWorld } from '../harness/worker-service-world';
 import { expectGenerations, FORMATS, generation, health, identity, IDLE, markJob, settled, TEXT, textAnnotation, withoutCreated } from './support';
 
-/** The reply channels of the operations a worker awaits, among them the question of which knowledge base it reached, and the two broadcasts it reads. */
+/** The reply channels of the operations a worker awaits, and the two broadcasts it reads. */
 const replies = (operation: string): string[] => {
   const { result, failure } = operationFor(operation);
   return [result, failure];
 };
 const namedByAWorker = (): string[] =>
-  [
-    ...['job:claim', 'mark:commit', 'browse:annotation-requested', 'browse:resource-requested', 'browse:kb-requested'].flatMap(replies),
-    'job:queued',
-    'job:cancel-requested',
-  ].sort();
+  [...['job:claim', 'mark:commit', 'browse:annotation-requested', 'browse:resource-requested'].flatMap(replies), 'job:queued', 'job:cancel-requested'].sort();
 
 const instant = (value: unknown): boolean => typeof value === 'string' && new Date(value).toISOString() === value;
 
@@ -60,12 +57,14 @@ eachWorkerService('a started worker', (world) => {
     expect(w.world.issuer.grants.get(WORKER_CLIENT) ?? 0).toBe(grants + 1);
   });
 
-  it('opens one stream, naming what a worker reads and the request it answers', async () => {
+  it('asks which knowledge base it is on a stream naming that answer alone, and then opens one stream of its own, naming what a worker reads and the request it answers', async () => {
     const w = world();
     const { served } = await twoEngines(w);
     expect(served.streams().map(({ by, body }) => ({ by, global: [...(body['global'] as string[])].sort(), scoped: body['scoped'] }))).toEqual([
+      { by: w.did, global: replies('browse:kb-requested').sort(), scoped: [] },
       { by: w.did, global: [...namedByAWorker(), 'job:limits-requested'].sort(), scoped: [] },
     ]);
+    expect(served.streams().map(({ closed }) => closed)).toEqual([true, false]);
   });
 
   it('claims for each engine with its own filters and no others, as a worker, all as the one agent', async () => {

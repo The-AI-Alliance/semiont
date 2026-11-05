@@ -229,7 +229,8 @@ def test_no_service_keeps_a_copy_of_a_module_here() -> None:
     # and so are how a service follows the record, the order it does each resource's work in and how it reads the
     # catalog whole. So are what reads a resource's bytes and the reader that asks the Archivist for them and for its
     # annotations, what white space is, how long a start waits for what it connects to, how long a request is asked
-    # again while the Archivist is not there to answer, and how a service confirms which knowledge base it serves.
+    # again while the Archivist is not there to answer, and how a service confirms which knowledge base it serves: no
+    # service asks it itself, by the operation or by the SDK's verb for it.
     stated_here = {
         "archivist.py": ("class Archivist(", "class AnnotationReads", "class Authorizes", "class AnnotationsUnread"),
         "catalog.py": ("BrowseResourcesRequest(archived=",),
@@ -238,7 +239,7 @@ def test_no_service_keeps_a_copy_of_a_module_here() -> None:
         "content.py": ("class ContentReads", "class ContentUnread"),
         "follower.py": ("class Follower",),
         "health.py": ("def bind_health(",),
-        "knowledge_base.py": ("async def confirmed(bus: Bus", "reply_channels_for(BROWSE_KB_REQUESTED)"),
+        "knowledge_base.py": ("async def confirmed(bus: Bus", "BROWSE_KB_REQUESTED"),
         "lanes.py": ("class Lanes",),
         "log.py": ("def configure(", "logging.Formatter"),
         "observability.py": ("def install(", "def report_the_process(", "class Exporting"),
@@ -255,6 +256,7 @@ def test_no_service_keeps_a_copy_of_a_module_here() -> None:
             for marks in stated_here.values():
                 for mark in marks:
                     assert mark not in source, f"{path.relative_to(ROOT)} states {mark}, which is semiont_service's"
+            assert ".browse.kb(" not in source, f"{path.relative_to(ROOT)} asks which knowledge base it is, which is semiont_service's"
         assert not list((service / "src").rglob("follower.py")), service.name
         assert not list((service / "src").rglob("health.py")), service.name
         assert not list((service / "src").rglob("lanes.py")), service.name

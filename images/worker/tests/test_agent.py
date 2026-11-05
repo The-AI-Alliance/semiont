@@ -23,6 +23,7 @@ from semiont.identifiers import UserId
 from semiont.model import written
 from semiont.operations import OPERATIONS
 from semiont.types import WorkerEngineConfig, WorkerKnowledgeBaseConfig
+from semiont_service.knowledge_base import CONFIRMING_CHANNELS
 from standing_in import GENERATOR
 
 from semiont_worker import agent
@@ -56,7 +57,8 @@ def logged(caplog: pytest.LogCaptureFixture, message: str) -> list[logging.LogRe
 
 def test_the_agent_s_stream_names_the_replies_of_what_a_worker_awaits_the_two_broadcasts_it_reads_and_the_request_it_answers() -> None:
     # The reply channels of every operation a client can ask reach every stream that names them: a worker names its own.
-    awaited = ("job:claim", "mark:commit", "browse:annotation-requested", "browse:resource-requested", "browse:kb-requested")
+    # Which knowledge base it is, it asks on a stream of its own.
+    awaited = ("job:claim", "mark:commit", "browse:annotation-requested", "browse:resource-requested")
     replies = [channel.name for operation in awaited for channel in (OPERATIONS[operation].result, OPERATIONS[operation].failure)]
     assert sorted(WORKER_CHANNELS) == sorted([*replies, "job:queued", "job:cancel-requested", "job:limits-requested"])
     assert len(set(WORKER_CHANNELS)) == len(WORKER_CHANNELS)
@@ -281,7 +283,11 @@ def knowledge_base(*engines: WorkerEngineConfig) -> WorkerKnowledgeBaseConfig:
 
 
 def nothing_to_script(parties: Parties, life: int) -> None:
-    """A stream over a knowledge base that holds nothing and is what its entry says."""
+    """A stream over a knowledge base that holds nothing."""
+
+
+ASKED_AND_CLOSED: Final = [("opened", CONFIRMING_CHANNELS), ("closed", CONFIRMING_CHANNELS)]
+"""The stream the agent asks which knowledge base it is on, opened and closed before anything else is."""
 
 
 def test_the_agent_signs_in_once_confirms_the_knowledge_base_says_what_it_is_called_and_runs_every_engine_over_one_stream(
@@ -294,18 +300,20 @@ def test_the_agent_signs_in_once_confirms_the_knowledge_base_says_what_it_is_cal
     async def scenario() -> None:
         worker = AgentWorker(knowledge_base(highlighting, commenting), [answering("[]"), answering("[]")], service=SERVICE)
         async with worker:
-            await worker.open()
+            assert await worker.open(asyncio.Event())
             working = asyncio.ensure_future(worker.work())
             for _ in range(5):
                 await turns()
-            # One sign-in and one stream, whatever the engines; each engine claims with its own filters.
+            # One sign-in. The knowledge base is asked which it is, once, on a stream that names the answer's replies and
+            # nothing the agent answers, closed before the agent's own opens: one, whatever the engines.
             assert there.sign_ins == 1
-            assert there.channels == [WORKER_CHANNELS]
+            assert there.asked == 1
+            assert there.streams == [*ASKED_AND_CLOSED, ("opened", WORKER_CHANNELS)]
             parties = there.parties
+            # Each engine claims with its own filters, once the agent has said what it is called there: the client id
+            # its entry names.
             assert parties.claims == 2
-            # Once the stream is open the knowledge base is asked which it is; then, before any engine claims, the agent
-            # says what it is called there: the client id its entry names.
-            assert [frame.channel for frame in parties.frames()][:3] == ["browse:kb-requested", "principal:profile", "job:claim"]
+            assert [frame.channel for frame in parties.frames()][:2] == ["principal:profile", "job:claim"]
             assert parties.sent("principal:profile") == [{"name": CLIENT_ID}]
             health = worker.health()
             assert (health.domain, health.state, health.did) == (DOMAIN, "working", AGENT)
@@ -321,45 +329,115 @@ def test_the_agent_signs_in_once_confirms_the_knowledge_base_says_what_it_is_cal
     run(scenario())
 
 
-def test_a_knowledge_base_that_answers_another_domain_or_cannot_say_is_refused_and_told_nothing_more(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("domain", "said"),
+    [
+        ("elsewhere.example", "The knowledge base at the gateway is did:web:elsewhere.example, and the document names did:web:test.local"),
+        (None, "The knowledge base answered which it is with a failure (browse:kb-failed): This knowledge base declares no domain"),
+    ],
+    ids=["another domain", "browse:kb-failed"],
+)
+def test_a_knowledge_base_that_answers_another_domain_or_a_failure_is_refused_and_told_nothing_more(
+    monkeypatch: pytest.MonkeyPatch, domain: str | None, said: str
 ) -> None:
-    def elsewhere(parties: Parties, life: int) -> None:
-        parties.domain = "elsewhere.example" if life == 0 else None
-
-    there = KnowledgeBaseStoodIn(GATEWAY, DOMAIN, AGENT, each_life=elsewhere)
-    stand_in(monkeypatch, there)
-
-    async def scenario() -> None:
-        for said in ("it answered browse:kb-requested as elsewhere.example", "it answered browse:kb-requested with browse:kb-failed"):
-            worker = AgentWorker(knowledge_base(entry("ollama", "gemma2:27b", "highlighting")), [answering("[]")], service=SERVICE)
-            async with worker:
-                with pytest.raises(KnowledgeBaseRefused) as refused:
-                    await worker.open()
-                assert str(refused.value).startswith(said)
-            # Asked which it is, and told nothing more: no name, and no claim.
-            assert [frame.channel for frame in there.parties.frames()] == ["browse:kb-requested"]
-
-    run(scenario())
-
-
-def test_a_knowledge_base_that_does_not_say_which_it_is_within_the_request_s_deadline_is_trouble(monkeypatch: pytest.MonkeyPatch) -> None:
-    def never_open(parties: Parties, life: int) -> None:
-        parties.transport.set_state("reconnecting")
-
-    there = KnowledgeBaseStoodIn(GATEWAY, DOMAIN, AGENT, each_life=never_open)
+    there = KnowledgeBaseStoodIn(GATEWAY, domain, AGENT, each_life=nothing_to_script)
     stand_in(monkeypatch, there)
 
     async def scenario() -> None:
         worker = AgentWorker(knowledge_base(entry("ollama", "gemma2:27b", "highlighting")), [answering("[]")], service=SERVICE)
         async with worker:
-            opening = asyncio.ensure_future(worker.open())
+            with pytest.raises(KnowledgeBaseRefused, match=rf"^{re.escape(said)}$"):
+                await worker.open(asyncio.Event())
+        # Asked which it is, once, and told nothing more: the agent's own stream is never opened, so nothing is named
+        # and nothing claimed.
+        assert there.asked == 1
+        assert there.streams == ASKED_AND_CLOSED
+
+    run(scenario())
+
+
+def test_a_knowledge_base_nobody_answers_for_yet_is_asked_again_until_it_answers_and_only_then_is_the_agent_s_stream_opened(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    there = KnowledgeBaseStoodIn(GATEWAY, DOMAIN, AGENT, each_life=nothing_to_script)
+    # The Archivist is not there to answer the first two times it is asked.
+    there.away = 2
+    stand_in(monkeypatch, there)
+
+    async def scenario() -> None:
+        worker = AgentWorker(knowledge_base(entry("ollama", "gemma2:27b", "highlighting")), [answering("[]")], service=SERVICE)
+        async with worker:
+            opening = asyncio.ensure_future(worker.open(asyncio.Event()))
+            await turns()
+            assert (there.asked, opening.done(), there.lives) == (1, False, [])
+            # The waits before the second and the third asking are at most a second and two.
+            await pass_time(4, step=0.5)
+            assert await opening
+            assert there.asked == 3
+            assert there.streams == [*ASKED_AND_CLOSED, ("opened", WORKER_CHANNELS)]
+
+    run(scenario())
+
+
+def test_a_knowledge_base_nobody_answers_for_however_long_it_is_asked_again_is_trouble(monkeypatch: pytest.MonkeyPatch) -> None:
+    there = KnowledgeBaseStoodIn(GATEWAY, DOMAIN, AGENT, each_life=nothing_to_script)
+    there.away = 100
+    stand_in(monkeypatch, there)
+
+    async def scenario() -> None:
+        worker = AgentWorker(knowledge_base(entry("ollama", "gemma2:27b", "highlighting")), [answering("[]")], service=SERVICE)
+        async with worker:
+            opening = asyncio.ensure_future(worker.open(asyncio.Event()))
+            # Seventeen askings, the waits between them doubling from a second to half a minute: about five and a half minutes.
+            await pass_time(400, step=5)
+            said = "The knowledge base did not answer which it is (browse:kb-requested): Nothing answers browse:kb-requested"
+            with pytest.raises(KnowledgeBaseTrouble, match=rf"^{re.escape(said)}$"):
+                await opening
+        assert there.asked == 17
+        assert there.streams == ASKED_AND_CLOSED
+
+    run(scenario())
+
+
+def test_a_knowledge_base_that_does_not_say_which_it_is_within_the_request_s_deadline_is_trouble(monkeypatch: pytest.MonkeyPatch) -> None:
+    there = KnowledgeBaseStoodIn(GATEWAY, DOMAIN, AGENT, each_life=nothing_to_script)
+    there.unheard = True
+    stand_in(monkeypatch, there)
+
+    async def scenario() -> None:
+        worker = AgentWorker(knowledge_base(entry("ollama", "gemma2:27b", "highlighting")), [answering("[]")], service=SERVICE)
+        async with worker:
+            opening = asyncio.ensure_future(worker.open(asyncio.Event()))
             await pass_time(29, step=1)
             assert not opening.done()
             await pass_time(2, step=1)
-            said = "it did not say which knowledge base it is: Bus request timed out after 30000ms on browse:kb-result"
+            said = (
+                "The knowledge base did not answer which it is (browse:kb-requested):"
+                " Bus request timed out after 30000ms on browse:kb-result"
+            )
             with pytest.raises(KnowledgeBaseTrouble, match=rf"^{re.escape(said)}$"):
                 await opening
+        assert there.streams == ASKED_AND_CLOSED
+
+    run(scenario())
+
+
+def test_an_agent_told_to_stop_while_it_asks_which_knowledge_base_it_is_opens_nothing_more(monkeypatch: pytest.MonkeyPatch) -> None:
+    there = KnowledgeBaseStoodIn(GATEWAY, DOMAIN, AGENT, each_life=nothing_to_script)
+    there.away = 100
+    stand_in(monkeypatch, there)
+
+    async def scenario() -> None:
+        worker = AgentWorker(knowledge_base(entry("ollama", "gemma2:27b", "highlighting")), [answering("[]")], service=SERVICE)
+        stopping = asyncio.Event()
+        async with worker:
+            opening = asyncio.ensure_future(worker.open(stopping))
+            await turns()
+            stopping.set()
+            await pass_time(1, step=0.5)
+            assert await opening is False
+        assert there.asked == 1
+        assert there.streams == ASKED_AND_CLOSED
 
     run(scenario())
 
@@ -391,7 +469,7 @@ def test_a_sign_in_the_refresh_rule_would_not_try_again_is_a_refusal_and_any_oth
                 pytest.fail("signed in where the sign-in failed")
         assert str(ended.value) == failure.message
         # No stream was opened.
-        assert there.lives == []
+        assert there.streams == []
 
     run(scenario())
 
@@ -405,7 +483,7 @@ def test_a_claim_refused_as_unauthorized_ends_the_agent_s_work_there_as_a_refusa
     async def scenario() -> None:
         worker = AgentWorker(knowledge_base(entry("ollama", "gemma2:27b", "highlighting")), [answering("[]")], service=SERVICE)
         async with worker:
-            await worker.open()
+            await worker.open(asyncio.Event())
             with pytest.raises(KnowledgeBaseRefused):
                 await asyncio.wait_for(worker.work(), 5)
 
@@ -433,7 +511,7 @@ def test_a_stall_ends_every_engine_s_work_there_each_failing_the_job_it_holds_fi
     async def scenario() -> None:
         worker = AgentWorker(knowledge_base(highlighting, commenting), [answering("[]"), answering("[]")], service=SERVICE)
         async with worker:
-            await worker.open()
+            await worker.open(asyncio.Event())
             working = asyncio.ensure_future(worker.work())
             await turns()
             parties = there.parties
@@ -454,7 +532,7 @@ def test_an_agent_says_nothing_of_itself_before_it_is_signed_in_and_its_stream_i
     async def scenario() -> None:
         worker = AgentWorker(knowledge_base(entry("ollama", "gemma2:27b", "highlighting")), [answering("[]")], service=SERVICE)
         with pytest.raises(RuntimeError, match="not signed in"):
-            await worker.open()
+            await worker.open(asyncio.Event())
         async with worker:
             with pytest.raises(RuntimeError, match="stream is not open"):
                 worker.health()

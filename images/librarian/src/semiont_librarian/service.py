@@ -205,7 +205,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
         # Neither store is reached before the knowledge base says it is the one the document names.
         kb = kb_did(config.kb.domain)
         async with HttpTransport(config.gateway_url, token=agent.token, refresher=agent.refresh, channels=CONFIRMING_CHANNELS) as asking:
-            if not await confirmed(Bus(asking), config.kb, told_to_stop):
+            if not await confirmed(Bus(asking), config.kb.domain, told_to_stop):
                 LOG.info("Shutting down")
                 return
         LOG.info("Knowledge base confirmed", extra={"kb": kb})

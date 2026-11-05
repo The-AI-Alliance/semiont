@@ -18,7 +18,7 @@ document: a secret written where its variable's name belongs is such a value.
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Final, final
+from typing import Final
 
 from pydantic import ValidationError
 from semiont.http import KeyCredential, NotAnRsaKey, SecretCredential, UnreadableKey, private_key_from_pem
@@ -27,7 +27,6 @@ from semiont.model import WireModel
 __all__ = ["Refused", "config_path_of", "key_account_of", "read_config", "service_account_of", "set_in"]
 
 
-@final
 class Refused(Exception):
     """Why the service does not start. Its words are what it says, once, before it exits."""
 
