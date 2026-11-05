@@ -28,7 +28,7 @@
     {
       "name": "requestRetryPauseMs",
       "value": 300,
-      "docs": "The wait before an HTTP request that is neither the stream nor an emit is made a second time. It is made again when the gateway answered it with a status that promises recovery, or did not answer at all, on a method that cannot cause a second effect (`transport` in protocol/specs/src/retry/cases.json); once, after this wait, or after a refusal's `Retry-After` when that is longer. A request whose credential was refused is renewed and sent again at once, without this wait, and one unanswered at its deadline (`httpRequestTimeoutMs`) is not made again."
+      "docs": "The wait before an HTTP request that is neither the stream nor an emit is made a second time. It is made again when the gateway answered it with a status that promises recovery, or did not answer at all, and a repeat cannot cause a second effect: its method cannot, or it carries an `Idempotency-Key`, as an upload does (`transport` in protocol/specs/src/retry/cases.json); once, after this wait, or after a refusal's `Retry-After` when that is longer. A request whose credential was refused is renewed and sent again at once, without this wait, and one unanswered at its deadline (`httpRequestTimeoutMs`) is not made again."
     },
     {
       "name": "streamOpenTimeoutMs",

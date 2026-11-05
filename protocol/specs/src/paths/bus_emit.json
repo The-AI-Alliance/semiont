@@ -2,7 +2,7 @@
   "post": {
     "operationId": "emitOnBus",
     "summary": "Emit an event on the bus",
-    "description": "Publishes one frame. The channel must be one the bus registry declares, and the payload must match the schema its entry names.\n\n**Identity.** The verified holder's DID is written to the payload as `_userId` and the token's roles as `_roles`, replacing anything the caller put there. `_userId` is the only identity fact an event carries: who requested a piece of work is derived by the knowledge base from the job a write cites.\n\n**Profile.** When the channel is one whose registry `effect` writes, and the holder's token carries `name`, a person's or an agent's, the gateway also publishes `principal:profile` `{_userId, name}`.\n\n**Claims.** On a registry operation's request carrying a `correlationId`, the emit claims that id for (`clientId`, principal) before it is published, so the reply reaches only that client (see `POST /bus/subscribe`). A live id cannot be claimed twice (409). A client may have as many unanswered requests as `BusSubscribeRequest.pendingReplies` may name (its `maxItems`); one more is refused with 429 until a reply arrives or a claim expires after `x-semiont-limits.claimSeconds`.\n\n**An unanswerable request.** When a registry operation's request with a `correlationId` reaches no subscriber, the gateway publishes the operation's failure channel itself, with the request's own fields, `code: \"peer-unavailable\"` and a message, so the caller learns at once that the service that answers it is not connected. It does so on every signal plane: one that counts subscribers sees the zero, and a broker answers a request nothing subscribes to with its own no-responders status. Every subscription on a request's subject is some replica's client stream, so on a broker the zero holds across replicas.\n\nReturns 202 once the frame is published; what it causes happens asynchronously.",
+    "description": "Publishes one frame. The channel must be one the bus registry declares, and the payload must match the schema its entry names.\n\n**Identity.** The verified holder's DID is written to the payload as `_userId` and the token's roles as `_roles`, replacing anything the caller put there. `_userId` is the only identity fact an event carries: who requested a piece of work is derived by the knowledge base from the job a write cites.\n\n**Profile.** When the channel is one whose registry `effect` writes, and the holder's token carries `name`, a person's or an agent's, the gateway also publishes `principal:profile` `{_userId, name}`.\n\n**A key.** Every emit carries an `Idempotency-Key`: the client's name for it, a new one for each emit and the same on every attempt at it. A key is its principal's: another principal's key of the same text is another key. Once an emit has an outcome another attempt would get again (an acceptance, or a refusal other than 401, 429 and 503), the gateway holds its key for `x-semiont-limits.idempotencySeconds`, on every replica, and an emit with that key is not carried out again. With the body the key was first sent with, it is answered as the first was, status and body; with another body, it is refused 422. One that arrives while the first is still being carried out waits for it, then is answered the same way; a first attempt that has not settled within `emitTimeoutMs` (protocol/specs/src/client/timing.json) is taken as never carried out. A refusal another attempt may not get holds nothing, so the attempt after it is carried out afresh.\n\n**Claims.** On a registry operation's request carrying a `correlationId`, the emit claims that id for (`clientId`, principal) before it is published, so the reply reaches only that client (see `POST /bus/subscribe`). A live id cannot be claimed twice (409); a repeat of the request that claimed it is answered by its key before it reaches its claim, so a 409 is another request reusing a live id. A claim whose request then cannot be published is let go with the 503, so the attempt after it may claim the id again. A client may have as many unanswered requests as `BusSubscribeRequest.pendingReplies` may name (its `maxItems`); one more is refused with 429 until a reply arrives or a claim expires after `x-semiont-limits.claimSeconds`.\n\n**An unanswerable request.** When a registry operation's request with a `correlationId` reaches no subscriber, the gateway publishes the operation's failure channel itself, with the request's own fields, `code: \"peer-unavailable\"` and a message, so the caller learns at once that the service that answers it is not connected. It does so on every signal plane: one that counts subscribers sees the zero, and a broker answers a request nothing subscribes to with its own no-responders status. Every subscription on a request's subject is some replica's client stream, so on a broker the zero holds across replicas.\n\nReturns 202 once the frame is published; what it causes happens asynchronously.",
     "tags": [
       "Bus"
     ],
@@ -16,7 +16,7 @@
         "name": "Idempotency-Key",
         "in": "header",
         "required": true,
-        "description": "The client's own name for this emit: a new one for each emit, and the same on every attempt at it, whether its credential was renewed or not.",
+        "description": "The client's own name for this emit: a new one for each emit, and the same on every attempt at it, whether its credential was renewed or not. The gateway answers a repeat by it (above).",
         "schema": {
           "type": "string",
           "minLength": 1,
@@ -46,7 +46,7 @@
         }
       },
       "400": {
-        "description": "The body is not JSON or does not match BusEmitRequest; the channel is not in the registry; the payload does not match the channel's schema; or a registry operation's request carries a correlationId and no clientId.",
+        "description": "The body is not JSON or does not match BusEmitRequest; the channel is not in the registry; the payload does not match the channel's schema; a registry operation's request carries a correlationId and no clientId; or the emit carries no `Idempotency-Key`, or one that is not 1 to 255 characters.",
         "content": {
           "application/json": {
             "schema": {
@@ -71,6 +71,16 @@
       "413": {
         "$ref": "../components/responses/PayloadTooLarge.json"
       },
+      "422": {
+        "description": "The `Idempotency-Key` names an emit the gateway holds whose body was another: a key used for two different emits. Nothing is published. Final: the same key with the same body is refused again.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
       "429": {
         "$ref": "../components/responses/TooManyRequests.json"
       },
@@ -78,7 +88,7 @@
         "$ref": "../components/responses/InternalError.json"
       },
       "503": {
-        "description": "The signal plane's broker is not connected. The event is refused rather than accepted: a frame handed to a disconnected broker client is discarded when it reconnects. Retry once the broker is back.",
+        "description": "The signal plane's broker is not connected, or went away while the gateway recorded the emit's claim or key. The event is refused rather than accepted: a frame handed to a disconnected broker client is discarded when it reconnects. Retry once the broker is back; the emit's key makes the retry safe.",
         "content": {
           "application/json": {
             "schema": {
@@ -91,6 +101,7 @@
     "x-semiont-limits": {
       "maxBodyBytes": 4194304,
       "claimSeconds": 900,
+      "idempotencySeconds": 600,
       "emitsPerPrincipal": {
         "baseline": {
           "perSecond": 100,
