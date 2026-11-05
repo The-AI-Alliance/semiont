@@ -32,6 +32,7 @@ import (
 	"io"
 	"maps"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -39,6 +40,7 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
 
 type commandKind int
@@ -390,38 +392,38 @@ func (s *stream) opened(conn uint64) {
 	s.settleConnect(conn, true)
 }
 
-// wireFrame is a frame as the stream's data line carries it.
+// wireFrame is a frame as the stream's data line carries it, its payload as
+// it was written.
 type wireFrame struct {
-	Channel       *string         `json:"channel"`
+	Channel       string          `json:"channel"`
 	Payload       json.RawMessage `json:"payload"`
 	CorrelationID *string         `json:"correlationId"`
 	Scope         *string         `json:"scope"`
 }
 
-// carried is data read as a frame, and whether it is one.
-func carried(data string) (Frame, bool) {
-	// Read by what it means: a frame a later gateway adds a field to is still
-	// a frame. One that is not a frame at all is not delivered.
+// carried is data read as a frame, or the first fault that keeps it from
+// being one, and whether it is one. A frame carries what BusFrame names, and
+// nothing more.
+func carried(data string) (Frame, required.Fault, bool) {
+	if fault, faulty := required.FaultOf([]byte(data), reflect.TypeFor[api.BusFrame]()); faulty {
+		return Frame{}, fault, false
+	}
 	var read wireFrame
-	if json.Unmarshal([]byte(data), &read) != nil || read.Channel == nil {
-		return Frame{}, false
+	if json.Unmarshal([]byte(data), &read) != nil {
+		return Frame{}, required.Undecoded, false
 	}
-	if trimmed := bytes.TrimSpace(read.Payload); len(trimmed) == 0 || trimmed[0] != '{' {
-		return Frame{}, false
-	}
-	frame := Frame{Channel: bus.Channel(*read.Channel), Payload: read.Payload}
+	frame := Frame{Channel: bus.Channel(read.Channel), Payload: read.Payload}
 	if read.CorrelationID != nil {
 		frame.CorrelationID = *read.CorrelationID
 	}
 	if read.Scope != nil {
-		// A scope is a resource's id. One that is not is not a frame.
 		scope, err := api.ParseResourceId(*read.Scope)
 		if err != nil {
-			return Frame{}, false
+			return Frame{}, required.Undecoded, false
 		}
 		frame.Scope = scope
 	}
-	return frame, true
+	return frame, required.Fault{}, true
 }
 
 func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
@@ -431,7 +433,7 @@ func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
 	if hasID && !s.seen.remember(id) {
 		return
 	}
-	frame, ok := carried(data)
+	frame, _, ok := carried(data)
 	if !ok {
 		return
 	}

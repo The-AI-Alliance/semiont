@@ -40,10 +40,10 @@ func readFrameCases(t *testing.T) []frameCase {
 
 func TestEachFrameOfTheTableIsDeliveredAsItStatesOrRefused(t *testing.T) {
 	for _, c := range readFrameCases(t) {
-		frame, ok := carried(string(c.Frame))
+		frame, fault, ok := carried(string(c.Frame))
 		if c.Refused {
-			if ok {
-				t.Errorf("%s: read as %+v, and the table says it is refused for %s `%s`", c.Why, frame, c.Reason, c.Member)
+			if want := (required.Fault{Member: c.Member, Reason: c.Reason}); ok || fault != want {
+				t.Errorf("%s: read as %+v, or refused for %+v, and the table says it is refused for %+v", c.Why, frame, fault, want)
 			}
 			continue
 		}
