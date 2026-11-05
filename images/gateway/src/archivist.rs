@@ -79,10 +79,45 @@ async fn in_client_span<T>(operation: &str, work: impl std::future::Future<Outpu
     .await
 }
 
+fn origin(host: &str, port: u16) -> String {
+    format!("http://{host}:{port}")
+}
+
+/// The gateway's HTTP client sends a read of the Archivist's (a GET) once more
+/// when its connection failed before any answer came. It sends nothing else
+/// again: not an upload, and not a call to the issuer, which shares the client.
+///
+/// reqwest tests the host scope only before a second retry, so the classifier
+/// names the Archivist itself, by its authority as reqwest parses it: a host
+/// lowercased, port 80 left out.
+pub fn retry_policy(host: &str, port: u16) -> Result<reqwest::retry::Builder, String> {
+    let address = reqwest::Url::parse(&origin(host, port))
+        .map_err(|e| format!("the Archivist's address {host}:{port} is not a URL: {e}"))?;
+    let scope = address
+        .host_str()
+        .ok_or_else(|| format!("the Archivist's address {host}:{port} names no host"))?
+        .to_owned();
+    let authority = address.authority().to_owned();
+    Ok(reqwest::retry::for_host(scope)
+        .max_retries_per_request(1)
+        .classify_fn(move |attempt| {
+            let to_archivist =
+                attempt.uri().authority().map(|a| a.as_str()) == Some(authority.as_str());
+            if to_archivist
+                && *attempt.method() == reqwest::Method::GET
+                && attempt.error().is_some()
+            {
+                attempt.retryable()
+            } else {
+                attempt.success()
+            }
+        }))
+}
+
 impl Archivist {
     pub fn new(host: &str, port: u16, credential: Credential, http: reqwest::Client) -> Archivist {
         Archivist {
-            base: format!("http://{host}:{port}"),
+            base: origin(host, port),
             token: ServiceToken::new(credential, http.clone()),
             http,
         }

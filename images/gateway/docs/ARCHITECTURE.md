@@ -199,6 +199,12 @@ client-credentials grant, kept until shortly before it expires:
 | `GET /resources/{id}/anchored-text` | `GET /resources/{id}/anchored-text`, streamed back unread |
 | `POST /bus/subscribe` with a watermark | `GET /events/{resourceId}?fromSequence=N`, held to `ArchivistEventsResponse`, an answer at a time until the stream's `lastSequence` |
 
+A `GET` whose connection failed before the Archivist answered, such as one sent
+on a pooled connection that something between the two had closed, is sent once
+more. An upload is never sent again, and an answer, even a 5xx, is never
+retried. When the second attempt fails as well, the client is answered 503, or,
+for a replay, sent a `query-error` gap.
+
 Everything else the Archivist answers, it answers over the bus the gateway
 relays. The gateway makes no bus request of its own.
 

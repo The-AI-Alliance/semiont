@@ -41,8 +41,9 @@ configured another way).
   - the issuer's key set: the deadline on a fetch, and one fetch per cooldown
     when it fails (`issuer.test.ts`);
   - content and uploads, the JSON-LD description, a resource's anchored text,
-    whole when it is larger than the largest bus message, and a path that names
-    what is not a resource's id (`content.test.ts`);
+    whole when it is larger than the largest bus message, a path that names
+    what is not a resource's id, and a read the Archivist closed its connection
+    on, which is sent once more, as an upload never is (`content.test.ts`);
   - emitting: stamping, claims, profiles, unanswerable requests, and the ids
     a payload and a scope may carry (`emit.test.ts`);
   - the stream: delivery, reply routing, replay and every gap reason,

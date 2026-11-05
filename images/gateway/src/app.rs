@@ -111,6 +111,10 @@ async fn run(
     credential: SecretCredential,
 ) -> Result<i32, String> {
     let http = reqwest::Client::builder()
+        .retry(archivist::retry_policy(
+            &config.archivist.host,
+            config.archivist.port,
+        )?)
         .build()
         .map_err(|e| format!("cannot build the HTTP client: {e}"))?;
     let undeclared = archivist::undeclared_calls();

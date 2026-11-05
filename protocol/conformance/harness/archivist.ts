@@ -100,6 +100,12 @@ export interface FakeArchivist {
     refuseUploads: string | undefined;
     /** A read of anchored text answers 500. */
     anchoredTextFails: boolean;
+    /**
+     * This many requests, from the next, are recorded and read whole, and then
+     * their connection is closed with no answer: a request the gateway wrote,
+     * met by a close.
+     */
+    hangsUp: number;
   };
   close(): Promise<void>;
 }
@@ -164,6 +170,7 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
     replayAnswer: undefined,
     refuseUploads: undefined,
     anchoredTextFails: false,
+    hangsUp: 0,
   };
   const supported = new Set(spec().schema('SupportedMediaType')['enum'] as string[]);
   /** The most events one answer to `GET /events/{resourceId}` holds, as the Archivist's API states it. */
@@ -192,9 +199,9 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
   };
 
   // Node closes an idle connection six seconds after its last answer, a
-  // deadline the Archivist does not set. The gateway pools the connection for
-  // longer, and a read it sends as Node closes it fails and is answered 503.
-  // So an idle connection stays open.
+  // deadline the Archivist does not set, so an idle connection stays open, as
+  // it does at the Archivist. A close the gateway meets is a case's choice:
+  // `mode.hangsUp`.
   const server: Server = createServer({ keepAliveTimeout: 0 }, (req, res) => {
     void (async () => {
       const url = new URL(req.url ?? '/', 'http://archivist');
@@ -210,6 +217,12 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
         return;
       }
       violations.push(...requestProblems(operation, req, url));
+      if (mode.hangsUp > 0) {
+        mode.hangsUp -= 1;
+        await readBody(req);
+        req.socket.destroy();
+        return;
+      }
 
       /** Answer, and check the answer against the operation's declaration first. */
       const reply = (status: number, headers: Record<string, string>, body: Buffer) => {
