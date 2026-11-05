@@ -32,7 +32,7 @@ import Testing
     if case .some = await reader.next() { return false }
     return true
   }
-  try await within(1500) { for await ready in settled where ready { break } }
+  try await within(testDeadlineMs) { for await ready in settled where ready { break } }
   cache.dispose()
   cache.dispose()
   #expect(await watched.value)
@@ -99,14 +99,14 @@ private var registryEndpoint: KbEndpoint {
         session: session))
     let id = first.kb.id
     #expect(browser.activeSession.value?.session.kb.id == id)
-    try await within(2000) {
+    try await within(testDeadlineMs) {
       for await opened in browser.activeSession where opened?.session.kb.id == id { break }
       for await opened in peer.activeSession where opened?.session.kb.id == id { break }
     }
     #expect(try await browser.kbSessionStatus(id) == .authenticated)
     try await browser.addOpenResource(resource, name: "Opened")
     try await browser.setLastViewedResource(resource)
-    try await within(2000) {
+    try await within(testDeadlineMs) {
       for await open in peer.openResources where open.first?.id == resource { break }
       for await viewed in peer.lastViewedResource where viewed == resource { break }
     }
@@ -115,7 +115,7 @@ private var registryEndpoint: KbEndpoint {
     #expect(check.kind == .conflict)
     #expect(browser.openResources.value.map(\.id) == [resource])
     try await browser.signIn(id, session: session)
-    let signals = try await within(2000) {
+    let signals = try await within(testDeadlineMs) {
       for await signals in browser.activeSignals {
         guard let signals else { continue }
         for await conflict in signals.kbIdentityConflict {
@@ -138,7 +138,7 @@ private var registryEndpoint: KbEndpoint {
     #expect(browser.knowledgeBases.value.count == 2)
     try await browser.signOut(id)
     #expect(try await browser.kbSessionStatus(id) == .signedOut)
-    try await within(1000) {
+    try await within(testDeadlineMs) {
       while await factory.revoked.isEmpty { try await Task.sleep(for: .milliseconds(2)) }
     }
   } catch {

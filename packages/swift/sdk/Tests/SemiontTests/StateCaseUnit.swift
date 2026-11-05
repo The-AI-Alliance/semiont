@@ -11,7 +11,7 @@ struct StateReading: Sendable {
   init<Value>(_ watched: Watched<Value>, encode: @escaping @Sendable (Value) throws -> JSONValue) {
     value = { try encode(watched.value) }
     ended = {
-      try await within(1500) {
+      try await within(testDeadlineMs) {
         var iterator = watched.makeAsyncIterator()
         _ = await iterator.next()
         if case .some = await iterator.next() { return false }

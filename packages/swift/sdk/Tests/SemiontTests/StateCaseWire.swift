@@ -45,7 +45,7 @@ final class StateCaseWire: Sendable {
     } else {
       throw SpecFailure.shape("Invalid reply \(reply) to \(channel)")
     }
-    let request = try await within(5000) {
+    let request = try await within(testDeadlineMs) {
       while true {
         if let request = self.script.withLock({ $0.waiting[channel]?.dropFirst(nth).first }) {
           return request
@@ -58,7 +58,7 @@ final class StateCaseWire: Sendable {
     defer { frames.dispose() }
     transport.deliver(ReceivedFrame(channel: reply, correlationId: correlation, payload: payload))
     // Model a wire that delivers the frame before resuming the request waiter.
-    try await within(5000) {
+    try await within(testDeadlineMs) {
       for try await frame in frames where frame.correlationId == correlation { return }
       throw CancellationError()
     }

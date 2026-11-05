@@ -157,7 +157,7 @@ private final class StateCase {
       let expected = row["payloads"]
       let count = try row["count"].map(stateCaseInteger) ?? expected?.array.count ?? 0
       let transport = wire.transport
-      let requests = try await within(5000) {
+      let requests = try await within(testDeadlineMs) {
         func sentRequests() -> [Call] {
           transport.calls.filter { $0.via == "request" && $0.name == channel }
         }
@@ -178,7 +178,7 @@ private final class StateCase {
     } else if let expected = row["heard"] {
       let frames = try expected.array
       let heard = heard
-      try await within(5000) {
+      try await within(testDeadlineMs) {
         for await count in heard.count where count >= frames.count { return }
         throw CancellationError()
       }

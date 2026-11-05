@@ -84,7 +84,7 @@ private struct OperationRefused: Error, Equatable {}
     return 2
   }
   for try await _ in running { break }
-  try await within(1000) { for await value in stopped where value { return } }
+  try await within(testDeadlineMs) { for await value in stopped where value { return } }
 }
 private actor OperationGate {
   let started = Watched(false)
@@ -119,12 +119,12 @@ private actor OperationGate {
     waiter.cancel()
   }
   do {
-    try await within(5000) {
+    try await within(testDeadlineMs) {
       for await value in gate.started where value { return }
       throw CancellationError()
     }
     life.end()
-    let result = try await within(5000) {
+    let result = try await within(testDeadlineMs) {
       for await value in outcome {
         if let value { return value }
       }
@@ -153,15 +153,15 @@ private actor OperationGate {
     return 1
   }
   let waiter = Task { try await running.completed() }
-  try await within(1000) { for await value in began where value { return } }
+  try await within(testDeadlineMs) { for await value in began where value { return } }
   var second = running.makeAsyncIterator()
   await #expect(throws: MultipleConsumers.self) { try await second.next() }
   waiter.cancel()
   do {
-    _ = try await within(1000) { try await waiter.value }
+    _ = try await within(testDeadlineMs) { try await waiter.value }
     Issue.record("Cancelled await completed")
   } catch is CancellationError {}
-  try await within(1000) { for await value in stopped where value { return } }
+  try await within(testDeadlineMs) { for await value in stopped where value { return } }
 }
 @Test func gatherOptionsNormalizationHasACensusGate() throws {
   let fields = try required(
