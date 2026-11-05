@@ -161,7 +161,7 @@ public enum class FrameRefusalReason(
     /** The payload does not carry the member, or the member holds null where it may not. */
     Lacks("lacks"),
 
-    /** The member is of a kind its schema does not allow. */
+    /** The member is not what its schema allows (of another kind, another value, form or size), or is one a closed object does not name. */
     Malformed("malformed"),
 }
 

@@ -9,6 +9,8 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import semiont.annotations.BY_CODE_POINT
+import semiont.annotations.codePointsOf
 import semiont.channels.Empty
 import semiont.channels.Response
 import semiont.types.wireJson
@@ -21,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap
  * src/codegen/required-schemas.json, by the rules of
  * packages/codegen/schemas/required-shapes.mjs) before it decodes it, and
  * names the first fault it finds the same way: a member the value lacks, or
- * one of a kind its schema does not allow. What the decoder refuses that the
+ * one that is not what its schema allows. What the decoder refuses that the
  * table does not state is a fault of the value itself.
  */
 
@@ -30,14 +32,28 @@ import java.util.concurrent.ConcurrentHashMap
 internal data class Shape(
     val ref: String? = null,
     val kinds: List<String>? = null,
+    val enum: List<JsonPrimitive>? = null,
+    val pattern: List<Step>? = null,
+    val minLength: Int? = null,
+    val maxLength: Int? = null,
+    val minimum: Double? = null,
+    val maximum: Double? = null,
+    val minItems: Int? = null,
+    val maxItems: Int? = null,
     val required: List<String>? = null,
     val members: Map<String, Shape>? = null,
+    /** The only members an object may carry; null, where it may carry any. */
+    val closed: List<String>? = null,
     val items: Shape? = null,
     val values: Shape? = null,
     val oneOf: List<Shape>? = null,
     val discriminator: Discriminator? = null,
     val allOf: List<Shape>? = null,
 )
+
+/** One step of a pattern: at least `min` of a text's next code points, and at most `max` (null: any number), each in one of the ranges `of`. */
+@Serializable
+internal data class Step(val of: List<List<Int>>, val min: Int, val max: Int? = null)
 
 /** The member whose value names the variant a union is. */
 @Serializable
@@ -97,17 +113,64 @@ private fun allows(kinds: List<String>?, value: JsonElement): Boolean = kinds ==
 
 private fun within(way: String, name: String): String = if (way.isEmpty()) name else "$way.$name"
 
+/** Whether `count` is at least `least` and at most `most`, where each is stated. */
+private fun counted(least: Int?, count: Int, most: Int?): Boolean = (least == null || count >= least) && (most == null || count <= most)
+
+/** Whether `value` is `one`: a number is one equal to it in value, and a text, a boolean and null are each only themselves. */
+private fun isValue(one: JsonPrimitive, value: JsonElement): Boolean = when {
+    value !is JsonPrimitive -> false
+    one is JsonNull || value is JsonNull -> one == value
+    one.isString || value.isString -> one.isString && value.isString && one.content == value.content
+    one.booleanOrNull != null || value.booleanOrNull != null -> one.booleanOrNull == value.booleanOrNull
+    else -> one.content.toBigDecimal().compareTo(value.content.toBigDecimal()) == 0
+}
+
+/**
+ * Whether the code points from `at` are of `steps`: the first step takes as
+ * many of them as it may, and gives them back one by one until the steps
+ * after it take the rest.
+ */
+private fun matches(steps: List<Step>, points: IntArray, at: Int): Boolean {
+    val first = steps.firstOrNull() ?: return at == points.size
+    var taken = 0
+    while (at + taken < points.size && (first.max == null || taken < first.max) && first.of.any { (from, to) -> points[at + taken] in from..to }) taken++
+    while (taken >= first.min) {
+        if (matches(steps.subList(1, steps.size), points, at + taken)) return true
+        taken--
+    }
+    return false
+}
+
+/**
+ * Whether `value` is one of `shape`'s values, a text is of its pattern and has
+ * as many code points as it allows, a number is within its bounds, and an
+ * array has as many items as it allows.
+ */
+private fun isAsStated(shape: Shape, value: JsonElement): Boolean {
+    if (shape.enum != null && shape.enum.none { isValue(it, value) }) return false
+    return when {
+        value is JsonArray -> counted(shape.minItems, value.size, shape.maxItems)
+        value !is JsonPrimitive || value is JsonNull -> true
+        value.isString -> {
+            val points = codePointsOf(value.content)
+            counted(shape.minLength, points.size, shape.maxLength) && (shape.pattern == null || matches(shape.pattern, points, 0))
+        }
+        value.booleanOrNull != null -> true
+        else -> value.content.toDouble().let { (shape.minimum == null || it >= shape.minimum) && (shape.maximum == null || it <= shape.maximum) }
+    }
+}
+
 /** The first fault `value` has as a value of `shape`, from `way`. */
 private fun faultAt(shape: Shape, value: JsonElement, way: String): Fault? {
     val own = resolved(shape)
-    if (!allows(own.kinds, value)) return Fault(way, FrameRefusalReason.Malformed)
+    if (!allows(own.kinds, value) || !isAsStated(own, value)) return Fault(way, FrameRefusalReason.Malformed)
     if (value is JsonObject) faultOfMembers(own, value, way)?.let { return it }
     if (value is JsonArray && own.items != null) value.firstNotNullOfOrNull { faultAt(own.items, it, way) }?.let { return it }
     if (own.oneOf != null) faultOfOneOf(own, own.oneOf, value, way)?.let { return it }
     return own.allOf?.firstNotNullOfOrNull { faultAt(it, value, way) }
 }
 
-/** The first fault of an object in the members `shape` requires, in what its members are, and in its values. */
+/** The first fault of an object in the members `shape` requires, in what its members are, in the members it may not carry, and in its values. */
 private fun faultOfMembers(shape: Shape, value: JsonObject, way: String): Fault? {
     val members = shape.members.orEmpty()
     for (name in shape.required.orEmpty()) {
@@ -120,7 +183,8 @@ private fun faultOfMembers(shape: Shape, value: JsonObject, way: String): Fault?
         if (held == null || held == JsonNull) continue
         faultAt(member, held, within(way, name))?.let { return it }
     }
-    return shape.values?.let { values -> value.keys.sorted().firstNotNullOfOrNull { faultAt(values, value.getValue(it), way) } }
+    shape.closed?.let { closed -> value.keys.filter { it !in closed }.minWithOrNull(BY_CODE_POINT)?.let { return Fault(within(way, it), FrameRefusalReason.Malformed) } }
+    return shape.values?.let { values -> value.keys.sortedWith(BY_CODE_POINT).firstNotNullOfOrNull { faultAt(values, value.getValue(it), way) } }
 }
 
 /**

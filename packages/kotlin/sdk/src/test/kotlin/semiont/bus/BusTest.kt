@@ -39,7 +39,10 @@ import semiont.transport.TraceContext
 import semiont.transport.Transport
 import semiont.transport.Watched
 import semiont.types.AnchoredTextAnswer
+import semiont.types.BrowseProfilesRequest
+import semiont.types.BusPingMessage
 import semiont.types.FrameAddEntityTypeCommand
+import semiont.types.GatherAnnotationOptions
 import semiont.types.JobCompleteCommand
 import java.util.concurrent.CompletableFuture
 
@@ -177,6 +180,35 @@ class BusTest {
         for (payload in payloads) faultOf(payload.descriptor, json("{}"))
         assertEquals(Fault("", FrameRefusalReason.Malformed), faultOf(AnchoredTextAnswer.serializer().descriptor, Json.parseToJsonElement("[]")))
         assertEquals(Fault("resourceId", FrameRefusalReason.Lacks), faultOf(JobCompleteCommand.serializer().descriptor, json("""{"jobType":"mark"}""")))
+    }
+
+    @Test
+    fun aValueIsHeldToItsValuesItsFormItsSizeAndTheMembersAClosedObjectNames() {
+        fun malformed(member: String) = Fault(member, FrameRefusalReason.Malformed)
+        val ping = BusPingMessage.serializer().descriptor
+        val profiles = BrowseProfilesRequest.serializer().descriptor
+        val options = GatherAnnotationOptions.serializer().descriptor
+        for ((descriptor, text, fault) in listOf(
+            Triple(ping, """{"event":"ping","data":""}""", null),
+            Triple(ping, """{"event":"pong","data":""}""", malformed("event")),
+            Triple(ping, """{"event":"ping","data":"x"}""", malformed("data")),
+            Triple(profiles, """{"dids":["did:web:example.org"]}""", null),
+            Triple(profiles, """{"dids":["did:\ud83d\ude00"]}""", null),
+            Triple(profiles, """{"dids":[]}""", malformed("dids")),
+            Triple(profiles, """{"dids":["web:example.org"]}""", malformed("dids")),
+            Triple(profiles, """{"dids":["did:web:a b"]}""", malformed("dids")),
+            Triple(options, """{"contextWindow":100.0}""", null),
+            Triple(options, """{"contextWindow":5000}""", null),
+            Triple(options, """{"contextWindow":99}""", malformed("contextWindow")),
+            Triple(options, """{"contextWindow":5001}""", malformed("contextWindow")),
+            // A closed object: what it describes first, then the first member it does not name, by code point.
+            Triple(profiles, """{"dids":["did:web:example.org"],"more":1}""", malformed("more")),
+            Triple(profiles, """{"dids":[],"more":1}""", malformed("dids")),
+            Triple(profiles, """{"more":1}""", Fault("dids", FrameRefusalReason.Lacks)),
+            Triple(profiles, """{"dids":["did:web:example.org"],"\ud83d\ude00":1,"\uff61":1}""", malformed("\uff61")),
+        )) {
+            assertEquals(fault, faultOf(descriptor, Json.parseToJsonElement(text)), text)
+        }
     }
 
     @Test
