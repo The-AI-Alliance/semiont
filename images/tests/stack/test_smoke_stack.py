@@ -15,6 +15,16 @@ DOCUMENTS = {
     "browser": "image: ghcr.io/the-ai-alliance/semiont-browser:previous\nkeep: browser-setting\n",
     "worker": "image: ghcr.io/the-ai-alliance/semiont-worker:previous\nkeep: worker-setting\n",
 }
+ISSUER = "http://192.0.2.1:8080/realms/example.github.io-stack-smoke"
+PROTECTED_RESOURCE = {
+    "resource": "https://example.github.io/stack-smoke",
+    "authorization_servers": [ISSUER],
+    "bearer_methods_supported": ["header"],
+}
+DISCOVERY = {
+    "issuer": ISSUER,
+    "token_endpoint": f"{ISSUER}/protocol/openid-connect/token",
+}
 # Each init writes a KnowledgeBase document whose gateway has a port of its own,
 # as init gives a knowledge base beside another the next port block.
 LAUNCHER = """import json
@@ -107,7 +117,15 @@ class SmokeStackTest(unittest.TestCase):
         self.runtime = runtime
         log = self.root / "runtime.log"
         for name, body in {
-            "curl": "printf 'access-control-allow-origin: http://localhost:3000\\n'",
+            # The gateway names an issuer on a host of the runtime's choosing, which
+            # answers discovery and the Browser's origin. The URL is curl's last argument.
+            "curl": f'for url; do :; done\nprintf "%s\\n" "$url" >> "{self.root / "curl.log"}"\n'
+            'case "$url" in\n'
+            f"  */.well-known/oauth-protected-resource) printf '%s' '{json.dumps(PROTECTED_RESOURCE)}' ;;\n"
+            f"  {ISSUER}/.well-known/openid-configuration) printf '%s' '{json.dumps(DISCOVERY)}' ;;\n"
+            f"  {DISCOVERY['token_endpoint']}) printf 'access-control-allow-origin: http://localhost:3000\\n' ;;\n"
+            "  *) exit 7 ;;\n"
+            "esac",
             "nc": "exit 1",
             runtime: f'printf "%s\\n" "$*" >> "{log}"\n[ "$1" != run ] || exit {e2e_status}\n'
             # Another knowledge base's container, stopped, as a machine keeps one.
@@ -268,6 +286,18 @@ class SmokeStackTest(unittest.TestCase):
                 self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
                 self.assertEqual(self.lines("starts.jsonl"), [])
                 self.assertEqual(self.lines("inits.jsonl"), [])
+
+    def test_up_checks_the_realm_at_the_issuer_the_gateway_names(self) -> None:
+        result = self.smoke("up", "local")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            (self.root / "curl.log").read_text().splitlines(),
+            [
+                "http://localhost:4000/.well-known/oauth-protected-resource",
+                f"{ISSUER}/.well-known/openid-configuration",
+                DISCOVERY["token_endpoint"],
+            ],
+        )
 
     def test_a_failed_up_takes_its_stack_down(self) -> None:
         result = self.smoke("up", "local", start_status="1")

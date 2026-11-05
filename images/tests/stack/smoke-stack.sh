@@ -191,6 +191,12 @@ init_kb() {
   fi
 }
 
+# gateway_of <directory>: where clients reach that knowledge base's gateway,
+# spec.gateway.publicURL of its KnowledgeBase document.
+gateway_of() {
+  awk '/^  gateway:/ { inside = 1; next } /^  [^ ]/ { inside = 0 } inside && /^    publicURL:/ { print $2; exit }' "$1/.semiont/stack/knowledge-base.yaml"
+}
+
 # start_kb: start the knowledge base standing here. No --config: a new KB
 # records the config it was made with, and `start` reads that. Its defaults
 # serve inference and embedding from Ollama: the host's when one answers,
@@ -278,13 +284,23 @@ if [ "$COMMAND" = up ]; then
 
   head_ "The realm the start created"
   # The knowledge base's realm is its key, made from the domain init was given.
-  # A new KB's Keycloak holds no realm until the start creates it: if it created
-  # another, or none, this 404s.
+  # A new KB's Keycloak holds no realm until the start creates it. The issuer is
+  # where the gateway's protected-resource metadata (RFC 9728) sends a client to
+  # sign in, as the Browser and the CLI learn it: the runtime decides the host
+  # it is published on, so it is read, never assumed.
   REALM=example.github.io-stack-smoke
-  curl -fsS "http://localhost:8080/realms/$REALM" >/dev/null \
-    && ok "realm '$REALM' answers" || bad "realm '$REALM' does not answer"
-  curl -fsS "http://localhost:8080/realms/$REALM/.well-known/openid-configuration" >/dev/null \
-    && ok "discovery answers" || bad "discovery does not answer"
+  ISSUER=$(curl -fs "$(gateway_of "$KB")/.well-known/oauth-protected-resource" \
+    | grep -o '"authorization_servers"[^]]*' | grep -o 'https\{0,1\}://[^"]*' | head -1)
+  case "$ISSUER" in
+    */realms/"$REALM") ok "the gateway names realm '$REALM' at $ISSUER" ;;
+    *) bad "the gateway names no issuer of realm '$REALM' (read '$ISSUER')" ;;
+  esac
+  if DISCOVERY=$(curl -fs "$ISSUER/.well-known/openid-configuration"); then
+    ok "the issuer's discovery answers"
+  else
+    bad "the issuer's discovery does not answer at $ISSUER"
+  fi
+  TOKEN_ENDPOINT=$(printf '%s' "$DISCOVERY" | grep -o '"token_endpoint" *: *"[^"]*"' | grep -o 'https\{0,1\}://[^"]*')
 
   head_ "The realm allows the Browser's origin"
   # BROWSER-SIGNIN-ORIGIN, live. The Browser exchanges its code from
@@ -295,7 +311,7 @@ if [ "$COMMAND" = up ]; then
     -H "Origin: http://localhost:3000" \
     -H "Content-Type: application/x-www-form-urlencoded" \
     --data "grant_type=authorization_code&client_id=semiont-browser&code=bogus&redirect_uri=http://localhost:3000/en/auth/callback" \
-    "http://localhost:8080/realms/$REALM/protocol/openid-connect/token" \
+    "$TOKEN_ENDPOINT" \
     | tr -d '\r' | grep -i '^access-control-allow-origin:')
   case "$HDR" in
     *"http://localhost:3000"*) ok "origin echoed: $HDR" ;;
@@ -338,9 +354,8 @@ E2E_KB="$(mktemp -d)/kb"
 trap 'cd / && { stop_kb "$E2E_KB"; forget_kb "$E2E_KB" true; }' EXIT
 init_kb "$E2E_KB" "example.github.io:e2e-$RUN" "$IMAGES" || exit 1
 start_kb "$IMAGES" || exit 1
-# Where clients reach this knowledge base's gateway: spec.gateway.publicURL of
-# its KnowledgeBase document, a port of its own beside up's.
-GATEWAY=$(awk '/^  gateway:/ { inside = 1; next } /^  [^ ]/ { inside = 0 } inside && /^    publicURL:/ { print $2; exit }' "$E2E_KB/.semiont/stack/knowledge-base.yaml")
+# A port of its own beside up's.
+GATEWAY=$(gateway_of "$E2E_KB")
 if [ -z "$GATEWAY" ]; then
   bad "$E2E_KB/.semiont/stack/knowledge-base.yaml names no spec.gateway.publicURL"; exit 1
 fi
