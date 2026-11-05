@@ -12,17 +12,21 @@ import { APIError } from './api-error';
 
 type Schemas = components['schemas'];
 
+/** What every SDK says of an answer whose body is no JSON. */
+const MALFORMED = 'it is malformed';
+
 /** The parts of an answer this reads: its status, and its body as JSON. */
 interface Answer {
   readonly status: number;
   readonly statusText: string;
+  /** Rejects with a `SyntaxError` when the body is no JSON. */
   json(): Promise<unknown>;
 }
 
 /**
  * The body of `answer`, the answer to `method` `path`, as `schema`: refused
- * when it has a fault as the schema's. `report`, when given, is told
- * of the refusal before it is thrown: a transport's error stream.
+ * when it is no JSON, or has a fault as the schema's. `report`, when given,
+ * is told of the refusal before it is thrown: a transport's error stream.
  */
 export async function declaredBody<K extends keyof Schemas>(
   schema: K,
@@ -31,16 +35,26 @@ export async function declaredBody<K extends keyof Schemas>(
   answer: Answer,
   report?: (failure: APIError) => void,
 ): Promise<Schemas[K]> {
-  const body = await answer.json();
+  let body: unknown;
+  try {
+    body = await answer.json();
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+    throw refused(MALFORMED);
+  }
   const refusal = faultSaid(schema, body);
-  if (refusal === undefined) return body as Schemas[K];
-  const failure = APIError.fromStatus(
-    `${method} ${path} answered what is not its declared body: ${refusal}`,
-    answer.status,
-    answer.statusText,
-    undefined,
-    undefined,
-  );
-  report?.(failure);
-  throw failure;
+  if (refusal !== undefined) throw refused(refusal);
+  return body as Schemas[K];
+
+  function refused(said: string): APIError {
+    const failure = APIError.fromStatus(
+      `${method} ${path} answered what is not its declared body: ${said}`,
+      answer.status,
+      answer.statusText,
+      undefined,
+      undefined,
+    );
+    report?.(failure);
+    return failure;
+  }
 }
