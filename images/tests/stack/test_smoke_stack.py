@@ -70,7 +70,12 @@ elif command in ("stop", "clean", "forget", "useradd", "status"):
     log("launcher.jsonl", sys.argv[1:])
     if command == "useradd":
         sys.stdin.read()
+    # The dispatcher's line of a status report, as the launcher prints it when the
+    # collector has a reading of its queue.
+    if command == "status" and os.environ["SMOKE_TEST_QUEUE"]:
+        print("    queue    " + os.environ["SMOKE_TEST_QUEUE"])
 """
+DRAINED = "0 pending · 0 running · 4 completed · 0 failed since worker start"
 
 
 class SmokeStackTest(unittest.TestCase):
@@ -131,7 +136,17 @@ class SmokeStackTest(unittest.TestCase):
             "  *) exit 7 ;;\n"
             "esac",
             "nc": "exit 1",
-            runtime: f'printf "%s\\n" "$*" >> "{log}"\n[ "$1" != run ] || exit {e2e_status}\n'
+            # The smoke waits between readings of a queue; the test does not.
+            "sleep": "exit 0",
+            runtime: f'printf "%s\\n" "$*" >> "{log}"\n'
+            # The suite's run: after `sh -c <script>`, the shell's $0 and arguments, one per field.
+            'if [ "$1" = run ]; then\n'
+            '  while [ $# -gt 0 ] && [ "$1" != -c ]; do shift; done\n'
+            "  shift 2\n"
+            f'  printf "%s\\t" "$@" >> "{self.root / "suites.log"}"\n'
+            f'  printf "\\n" >> "{self.root / "suites.log"}"\n'
+            f"  exit {e2e_status}\n"
+            "fi\n"
             # Another knowledge base's container, stopped, as a machine keeps one.
             'case "$1" in ps|ls) echo semiont-another-kb-gateway ;; logs) echo "a log line of $*" ;; esac\nexit 0',
         }.items():
@@ -146,6 +161,7 @@ class SmokeStackTest(unittest.TestCase):
         build_status: str = "0",
         stale: str = "",
         stale_status: str = "0",
+        queue: str = DRAINED,
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["bash", str(self.root / "images/tests/stack/smoke-stack.sh"), *args],
@@ -158,6 +174,7 @@ class SmokeStackTest(unittest.TestCase):
                 "SMOKE_TEST_BUILD_STATUS": build_status,
                 "SMOKE_TEST_STALE": stale,
                 "SMOKE_TEST_STALE_STATUS": stale_status,
+                "SMOKE_TEST_QUEUE": queue,
                 "CONTAINER_RUNTIME": self.runtime,
                 "SMOKE_KB": str(self.kb),
             },
@@ -182,6 +199,23 @@ class SmokeStackTest(unittest.TestCase):
                 "--root", call, "a stop naming no root stops whichever stack it finds"
             )
         return [os.path.realpath(call[call.index("--root") + 1]) for call in stops]
+
+    def asked_status(self) -> list[str]:
+        """The root of each `status`, resolved."""
+        return [
+            os.path.realpath(call[call.index("--root") + 1])
+            for call in self.lines("launcher.jsonl")
+            if call[0] == "status"
+        ]
+
+    def suites(self) -> list[list[str]]:
+        """Each run of the suite: its shell's $0 and arguments."""
+        path = self.root / "suites.log"
+        return (
+            [line.rstrip("\t").split("\t") for line in path.read_text().splitlines()]
+            if path.exists()
+            else []
+        )
 
     def build_calls(self) -> list[str]:
         path = self.root / "builds.log"
@@ -346,6 +380,8 @@ class SmokeStackTest(unittest.TestCase):
             self.assertNotEqual(os.path.realpath(e2e["cwd"]), os.path.realpath(self.kb))
             self.assertFalse(Path(e2e["cwd"]).exists())
             self.assertIn(os.path.realpath(e2e["cwd"]), self.stopped())
+            # A queue that reads empty is read once.
+            self.assertEqual(self.asked_status().count(os.path.realpath(e2e["cwd"])), 1)
         for start in self.lines("starts.jsonl")[1:]:
             self.assertIn("semiont-gateway:0.7.1\n", start["gateway"])
         self.assertNotIn(os.path.realpath(self.kb), self.stopped())
@@ -353,6 +389,102 @@ class SmokeStackTest(unittest.TestCase):
         self.assertIn("E2E_GATEWAY_URL=http://localhost:4010", calls)
         self.assertIn("E2E_GATEWAY_URL=http://localhost:4020", calls)
         self.assertTrue((self.kb / ".smoke-kept").exists())
+
+    def test_e2e_runs_test_ci_unless_another_script_is_named(self) -> None:
+        self.assertEqual(self.smoke("up", "0.7.1").returncode, 0)
+        for args in (
+            (),
+            ("--script", "test:slow"),
+            ("--", "specs/20-x.spec.ts", "--repeat-each=5"),
+            ("--script", "test:model", "--", "--grep", "two words"),
+        ):
+            with self.subTest(args=args):
+                result = self.smoke("e2e", *args)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            self.suites(),
+            [
+                ["sh", "smoke-test-runtime", "test:ci"],
+                ["sh", "smoke-test-runtime", "test:slow"],
+                [
+                    "sh",
+                    "smoke-test-runtime",
+                    "test:ci",
+                    "specs/20-x.spec.ts",
+                    "--repeat-each=5",
+                ],
+                ["sh", "smoke-test-runtime", "test:model", "--grep", "two words"],
+            ],
+        )
+
+    def test_run_gives_its_e2e_the_script_and_arguments(self) -> None:
+        result = self.smoke(
+            "run", "local", "--e2e", "--script", "test:slow", "--", "specs/20-x.spec.ts"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            self.suites(),
+            [["sh", "smoke-test-runtime", "test:slow", "specs/20-x.spec.ts"]],
+        )
+
+    def test_an_option_it_does_not_know_starts_nothing(self) -> None:
+        for args in (
+            ("e2e", "--scirpt", "test:slow"),
+            ("e2e", "--script"),
+            ("e2e", "--script", ""),
+            ("e2e", "specs/20-x.spec.ts"),
+            ("run", "local", "--script", "test:slow"),
+            ("run", "local", "--e2e", "test:slow"),
+        ):
+            with self.subTest(args=args):
+                result = self.smoke(*args)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn("usage", result.stderr)
+        self.assertEqual(self.lines("inits.jsonl"), [])
+        self.assertEqual(self.build_calls(), [])
+
+    def test_a_failed_e2e_leaves_its_knowledge_base_up_until_down(self) -> None:
+        self.assertEqual(self.smoke("up", "0.7.1").returncode, 0)
+        self.use_runtime("smoke-test-runtime", 7)
+        result = self.smoke("e2e")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        kept = os.path.realpath(self.lines("inits.jsonl")[1]["cwd"])
+        self.assertTrue(Path(kept).exists())
+        self.assertNotIn(kept, self.stopped())
+        self.assertIn(Path(kept).parent.name, result.stdout)
+        self.assertIn("make stack-down", result.stdout)
+        result = self.smoke("down")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(Path(kept).exists())
+        # The shared containers stop with the last knowledge base, so UP's is last.
+        self.assertEqual(self.stopped(), [kept, os.path.realpath(self.kb)])
+        self.assert_documents_restored()
+
+    def test_e2e_fails_on_a_job_left_pending_or_running(self) -> None:
+        self.assertEqual(self.smoke("up", "0.7.1").returncode, 0)
+        for queue, reason in (
+            ("2 pending · 0 running", "2 pending and 0 running"),
+            (
+                "0 pending · 1 running · 3 completed · 0 failed since worker start",
+                "0 pending and 1 running",
+            ),
+            ("", "no queue line"),
+        ):
+            with self.subTest(queue=queue):
+                result = self.smoke("e2e", queue=queue)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn(reason, result.stdout)
+                kept = os.path.realpath(self.lines("inits.jsonl")[-1]["cwd"])
+                self.assertTrue(Path(kept).exists(), "a failed run leaves its KB")
+                self.assertNotIn(kept, self.stopped())
+                # Read again and again while it does not read empty.
+                self.assertGreater(self.asked_status().count(kept), 1)
+        left = [os.path.realpath(init["cwd"]) for init in self.lines("inits.jsonl")[1:]]
+        result = self.smoke("down")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for kept in left:
+            self.assertFalse(Path(kept).exists())
+        self.assertEqual(self.stopped(), [*left, os.path.realpath(self.kb)])
 
     def test_run_with_e2e_uses_the_selected_runtime_and_takes_everything_down(
         self,
@@ -365,6 +497,7 @@ class SmokeStackTest(unittest.TestCase):
                         "inits.jsonl",
                         "launcher.jsonl",
                         "runtime.log",
+                        "suites.log",
                     ):
                         (self.root / name).unlink(missing_ok=True)
                     shutil.rmtree(self.kb, ignore_errors=True)
@@ -388,6 +521,11 @@ class SmokeStackTest(unittest.TestCase):
                     stops = self.stopped()
                     self.assertEqual(stops[-1], os.path.realpath(self.kb))
                     self.assertNotIn(os.path.realpath(self.kb), stops[:-1])
+                    # Passed or failed, the e2e's knowledge base is gone when run is done.
+                    e2e = os.path.realpath(self.lines("inits.jsonl")[1]["cwd"])
+                    self.assertIn(e2e, stops)
+                    self.assertFalse(Path(e2e).exists())
+                    self.assertEqual(self.suites(), [["sh", runtime, "test:ci"]])
 
 
 if __name__ == "__main__":

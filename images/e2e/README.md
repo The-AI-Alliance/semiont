@@ -11,8 +11,10 @@ From the repository root (from anywhere, `make -C <repository root> <target>`):
 ```sh
 make stack-up     # a new knowledge base's stack from :local images, checked, left up
 make e2e          # the default tier, on a knowledge base and user of its own beside it
-make e2e          # again: each run makes, and then removes, its own
-make stack-down   # stop the stack and check every port is released
+make e2e          # again: each run makes its own, and removes it when it passes
+make e2e E2E_SCRIPT=test:slow                                 # another of the suite's npm scripts
+make e2e E2E_ARGS='specs/01-sign-in.spec.ts --repeat-each=5'  # Playwright's arguments
+make stack-down   # stop the stack and each knowledge base a failed e2e left; check every port is released
 make smoke        # all three in one run
 ```
 
@@ -26,7 +28,14 @@ selects the engine. Every `semiont` command it runs is shown as it runs.
 
 `make e2e` runs `npm run test:ci`, which typechecks the specs and leaves out `@slow` and
 `@model`, in the Playwright image this suite's version pins, with a user made by
-`semiont useradd` for the run. The report is in `playwright-report/`. The script and the
+`semiont useradd` for the run. `E2E_SCRIPT` names another of the suite's npm scripts
+(`test`, `test:slow`, `test:model`), and `E2E_ARGS` gives Playwright arguments, split at
+spaces: a spec file, `--grep`, `--repeat-each`. `make smoke` passes both on to its `e2e`.
+After the suite, `make e2e` reads the knowledge base's job queue from `semiont status` until
+nothing is pending or running; a job still pending or running two minutes later fails the
+run, though every test passed. A run that passes removes its knowledge base. One that fails
+leaves it running, its logs, jobs and traces there to read, and prints where it is;
+`make stack-down` removes it with the stack. The report is in `playwright-report/`. The script and the
 steps it takes are described in [How CI runs the suite](#how-ci-runs-the-suite), which runs
 the same script.
 
@@ -224,11 +233,13 @@ beside it, as `semiont init` makes one, and:
 
 - makes the suite's user in its realm with `semiont useradd`, a password generated for the
   run, and passes both as `E2E_EMAIL` and `E2E_PASSWORD`;
-- runs `npm ci && npm test` here, in `mcr.microsoft.com/playwright:v<version>-noble`,
+- runs `npm ci && npm run test:ci` here, in `mcr.microsoft.com/playwright:v<version>-noble`,
   `<version>` read from `package.json`, with `--network host` on Docker/Podman
   or the existing localhost bridge on Apple `container`, so the `localhost` defaults reach the stack;
 - adds a JSON report to the list and HTML ones, at
-  `test-results/report.json`.
+  `test-results/report.json`;
+- reads the knowledge base's job queue from `semiont status` until nothing is pending or
+  running, and fails when a job is still pending or running two minutes after the suite.
 
 It passes that knowledge base's gateway as `E2E_GATEWAY_URL`, which the bridge forwards
 too. A failing suite fails the job and still stops the stack; a container whose health
