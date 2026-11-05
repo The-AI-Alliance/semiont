@@ -4,8 +4,8 @@
 //
 //   packages/codegen/schemas/generate-required-ts.mjs     → packages/typescript/core/src/generated/required-schemas.ts
 //   packages/codegen/schemas/generate-required-go.mjs     → packages/go/sdk/internal/required/schemas_gen.json
-//   packages/codegen/schemas/generate-required.mjs        → protocol/specs/src/client/required.json, which Rust's
-//                                                           build and Kotlin's generator read
+//   packages/codegen/schemas/generate-required.mjs        → packages/rust/sdk/src/required-schemas.json and
+//                                                           packages/kotlin/sdk/src/codegen/required-schemas.json
 //   packages/codegen/schemas/generate-required-python.mjs → packages/python/sdk/src/semiont/_required_table.py
 //
 // Each SDK walks a payload by this table before it decodes it, so every SDK

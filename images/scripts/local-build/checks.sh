@@ -214,18 +214,18 @@ fi
 
 # --- The table of what each component schema requires ---
 #
-# protocol/specs/src/client/required.json is COMMITTED: Rust's build and Kotlin's
-# generator read it, and neither runs the rules it is written by
+# Rust's and Kotlin's copies of it are COMMITTED: Rust's build and Kotlin's
+# generator read them, and neither runs the rules they are written by
 # (packages/codegen/schemas/required-shapes.mjs).
 
 if ! run_logged "the table of what each component schema requires matches protocol/specs/src" \
     $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
     npm run generate:required:check; then
-  fail "protocol/specs/src/client/required.json is STALE (or was hand-edited) — it must match the component schemas."
+  fail "Rust's or Kotlin's copy of the table of what each schema requires is STALE (or was hand-edited) — it must match the component schemas."
   echo ""
   echo -e "  Regenerate and commit:"
   echo ""
-  echo -e "    ${BOLD}npm run generate:required${RESET}   (protocol/specs/src/client/required.json)"
+  echo -e "    ${BOLD}npm run generate:required${RESET}   (packages/rust/sdk/src, packages/kotlin/sdk/src/codegen)"
   echo ""
   exit 1
 fi

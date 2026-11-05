@@ -17,8 +17,9 @@ import java.util.concurrent.ConcurrentHashMap
 /*
  * The first fault of a value as one of the protocol's shapes. Every SDK holds
  * what it reads to the table of what each component schema requires
- * (REQUIRED_SCHEMAS, which the generator writes from protocol/specs/src/client/required.json
- * by the rules of packages/codegen/schemas/required-shapes.mjs) before it decodes it, and
+ * (REQUIRED_SCHEMAS, which the generator writes from the SDK's copy of it,
+ * src/codegen/required-schemas.json, by the rules of
+ * packages/codegen/schemas/required-shapes.mjs) before it decodes it, and
  * names the first fault it finds the same way: a member the value lacks, or
  * one of a kind its schema does not allow. What the decoder refuses that the
  * table does not state is a fault of the value itself.

@@ -1,5 +1,5 @@
 {
-  "$comment": "GENERATED from the component schemas of protocol/specs/src/openapi.json by packages/codegen/schemas/generate-required.mjs — do not edit. What each requires of a value, by its name: the rules are packages/codegen/schemas/required-shapes.mjs's. Rust's build and Kotlin's generator read it.",
+  "$comment": "GENERATED from the component schemas of protocol/specs/src/openapi.json by packages/codegen/schemas/generate-required.mjs — do not edit. What each requires of a value, by its name: the rules are packages/codegen/schemas/required-shapes.mjs's.",
   "schemas": {
     "Agent": {"kinds":["object"],"oneOf":[{"ref":"AgentPerson"},{"ref":"AgentOrganization"},{"ref":"AgentSoftware"}],"discriminator":{"property":"@type","mapping":{"Person":0,"Organization":1,"Software":2}}},
     "AgentOrganization": {"kinds":["object"],"required":["@type","name"],"members":{"@id":{"kinds":["string"]},"@type":{"kinds":["string"]},"homepage":{"kinds":["string"]},"name":{"kinds":["string"]}}},

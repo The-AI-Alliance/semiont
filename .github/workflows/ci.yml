@@ -3457,10 +3457,11 @@ jobs:
         run: npm run generate:go:check
 
       # Authority: the component schemas (protocol/specs/src/components/schemas) →
-      # protocol/specs/src/client/required.json, what each requires of a value, which
-      # Rust's build and Kotlin's generator read. The rules it is written by
-      # are packages/codegen/schemas/required-shapes.mjs's, which neither build runs, so
-      # the table is committed, and is what can go stale.
+      # what each requires of a value, the copy Rust's build reads
+      # (packages/rust/sdk/src/required-schemas.json) and the copy Kotlin's
+      # generator reads (packages/kotlin/sdk/src/codegen/required-schemas.json).
+      # The rules they are written by are packages/codegen/schemas/required-shapes.mjs's,
+      # which neither build runs, so the copies are committed, and are what can go stale.
       - name: Component schemas vs the table of what each requires
         run: npm run generate:required:check
 

@@ -304,7 +304,7 @@ mod tests {
         utf8_alone(label.as_deref(), bytes)
     }
 
-    /// Each refused resource of specs/src/resources/reader-cases.json has the
+    /// Each refused resource of protocol/specs/src/resources/reader-cases.json has the
     /// first fault the table states, as every SDK finds it before it decodes
     /// the resource; every other resource has none.
     #[test]

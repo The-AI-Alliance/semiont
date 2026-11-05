@@ -4,6 +4,7 @@ python
 go
 stack-go
 mcp-tools-go
+required
 discovery-go
 encoding-cases
 model-catalogue

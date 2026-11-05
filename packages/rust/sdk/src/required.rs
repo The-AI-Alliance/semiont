@@ -1,7 +1,7 @@
 //! The first fault of a value as one of the protocol's shapes. Every SDK
 //! holds what it reads to the table of what each component schema requires
-//! (`SCHEMAS`, which the build writes from specs/src/client/required.json, by
-//! the rules of scripts/spec/required-shapes.mjs) before it decodes it, and
+//! (`SCHEMAS`, which the build writes from src/required-schemas.json, by the
+//! rules of packages/codegen/schemas/required-shapes.mjs) before it decodes it, and
 //! names the first fault it finds the same way: a member the value lacks, or
 //! one of a kind its schema does not allow. What serde refuses that the table
 //! does not state is a fault of the value itself, and nothing of serde's own
@@ -28,8 +28,8 @@ pub(crate) struct Discriminator {
     pub(crate) mapping: &'static [(&'static str, usize)],
 }
 
-/// What a value must be: scripts/spec/required-shapes.mjs states what each
-/// part means. A part the table does not state is `NONE`'s: no kinds allow
+/// What a value must be: packages/codegen/schemas/required-shapes.mjs states
+/// what each part means. A part the table does not state is `NONE`'s: no kinds allow
 /// any, and an empty list holds nothing.
 pub(crate) struct Shape {
     pub(crate) reference: Option<&'static str>,

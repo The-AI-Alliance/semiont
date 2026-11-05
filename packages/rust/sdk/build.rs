@@ -13,8 +13,9 @@
 //!   tied to its result and its failure; and what each channel's payload must
 //!   be, as `required.rs` states shapes;
 //! - `required.rs`: what each component schema requires of a value
-//!   (client/required.json, which scripts/spec/generate-required.mjs writes by
-//!   the rules of scripts/spec/required-shapes.mjs);
+//!   (src/required-schemas.json, the SDK's copy of the table, which
+//!   packages/codegen/schemas/generate-required.mjs writes by the rules of
+//!   packages/codegen/schemas/required-shapes.mjs);
 //! - `error_codes.rs`: the codes a client reports and what maps onto them
 //!   (errors/codes.json);
 //! - `oauth_clients.rs`: the ids a client signs in under at an issuer, and
@@ -298,9 +299,11 @@ fn main() {
         utf8_labels(&read_json(&specs.join("text/encoding-cases.json"))),
     )
     .expect("cannot write utf8_labels.rs");
+    let required_schemas = crate_dir.join("src/required-schemas.json");
+    println!("cargo:rerun-if-changed={}", required_schemas.display());
     fs::write(
         out.join("required.rs"),
-        required(&read_json(&specs.join("client/required.json"))),
+        required(&read_json(&required_schemas)),
     )
     .expect("cannot write required.rs");
 }
@@ -318,7 +321,7 @@ fn required(table: &Value) -> String {
         panic!("the table of what each schema requires holds none, or not by its names' order");
     }
     let mut code = String::from(
-        "// Generated from specs/src/client/required.json; do not edit.\npub(crate) static SCHEMAS: &[(&str, Shape)] = &[\n",
+        "// Generated from src/required-schemas.json; do not edit.\npub(crate) static SCHEMAS: &[(&str, Shape)] = &[\n",
     );
     for (name, shape) in schemas {
         let _ = writeln!(code, "    ({name:?}, {}),", shape_of(shape, name));
