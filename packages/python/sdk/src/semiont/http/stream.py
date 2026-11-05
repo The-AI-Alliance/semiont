@@ -32,12 +32,12 @@ from dataclasses import dataclass
 from typing import Final, Protocol, final
 
 import httpx
-from pydantic import JsonValue, TypeAdapter, ValidationError
+from pydantic import JsonValue, ValidationError
 
 from semiont import telemetry
 from semiont._bus_log import bus_log, bus_note
 from semiont._reading import Reading
-from semiont._required import UNDECODED, Fault, fault_of
+from semiont._required import Fault, read_as
 from semiont.channels import RESOURCE_SCOPED_CHANNELS, TRACE_FIELD
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast
@@ -101,40 +101,12 @@ def backoff_cap_ms(reconnect_ms: int, failures: int) -> int:
     return min(reconnect_ms << doublings, MAX_RECONNECT_MS)
 
 
-@final
-class _Carried(BusFrame, frozen=True, extra="ignore"):
-    """A frame as a stream carries it, read by what it means.
-
-    One a later gateway adds a field to is still a frame. One whose channel,
-    payload or scope is not what a frame's is, is not.
-    """
-
-
-_FRAME_MEMBERS: Final = frozenset(stated.alias or name for name, stated in BusFrame.model_fields.items())
-_JSON: Final = TypeAdapter[JsonValue](JsonValue)
-
-
-def carried(data: str) -> _Carried | Fault:
+def carried(data: str) -> BusFrame | Fault:
     """`data` read as a frame, or the first fault that keeps it from being one.
 
-    A field a later gateway adds to a frame is no part of it, and is left out
-    before the frame is held to its schema, which names no other. A text that
-    is no JSON, and one the frame's type refuses with no fault the table
-    states, is malformed.
+    A frame carries what BusFrame names and nothing more.
     """
-    try:
-        value = _JSON.validate_json(data)
-    except ValidationError:
-        return UNDECODED
-    if isinstance(value, dict):
-        value = {name: held for name, held in value.items() if name in _FRAME_MEMBERS}
-    fault = fault_of(BusFrame, value)
-    if fault is not None:
-        return fault
-    try:
-        return _Carried.model_validate(value)
-    except ValidationError:
-        return UNDECODED
+    return read_as(BusFrame, data, BusFrame.model_validate_json)
 
 
 @final

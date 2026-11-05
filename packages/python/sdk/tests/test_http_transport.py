@@ -92,6 +92,7 @@ def test_a_frame_is_delivered_with_what_is_beside_its_payload_and_what_is_not_a_
                 },
             )
             gateway.send("e-5", {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}, "addedByALaterGateway": True})
+            gateway.send("e-6", {"channel": "beckon:focus", "payload": {"resourceId": "res-1", "annotationId": "a-3"}})
             delivered = [await soon(anext(frames)), await soon(anext(frames)), await soon(anext(frames))]
         assert [frame async for frame in frames] == []
         return delivered
@@ -103,12 +104,12 @@ def test_a_frame_is_delivered_with_what_is_beside_its_payload_and_what_is_not_a_
         Frame(
             channel="beckon:focus", payload={"resourceId": "res-1", "annotationId": "a-2"}, scope=ResourceId("res-1"), correlation_id="c"
         ),
-        # A frame a later gateway adds a field to is still a frame.
-        Frame(channel="beckon:focus", payload={"resourceId": "res-1"}),
+        Frame(channel="beckon:focus", payload={"resourceId": "res-1", "annotationId": "a-3"}),
     ]
-    assert [record.getMessage().split(":")[0] for record in caplog.records] == [
-        "the stream carried what is not a frame (id e-2)",
-        "the stream carried what is not a frame (id e-3)",
+    assert [record.getMessage() for record in caplog.records] == [
+        "the stream carried what is not a frame (id e-2): its `scope` is malformed",
+        "the stream carried what is not a frame (id e-3): it is malformed",
+        "the stream carried what is not a frame (id e-5): its `addedByALaterGateway` is malformed",
     ]
 
 
