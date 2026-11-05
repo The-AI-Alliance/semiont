@@ -1,0 +1,16 @@
+{
+  "about": "a read whose connection closed with no answer is sent once more, and resolves with what the gateway answers it; nothing is reported",
+  "source": "protocol/contract/TRANSPORT-CONTRACT.md § Failures; protocol/specs/src/client/timing.json requestRetryPauseMs",
+  "steps": [
+    {"backend": "content", "with": {"resource": {"$var": "r1"}, "mediaType": "text/plain", "bytes": "c2VudCB0d2ljZSwgcmVhZCBvbmNl"}},
+    {"driver": "open", "with": {"channels": ["beckon:focus"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:focus"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+    {"backend": "unanswered", "with": {"wire": "GET /resources/{id}", "times": 1}},
+
+    {"driver": "get", "with": {"resource": {"$var": "r1"}}, "returns": {"contentType": "text/plain", "bytes": "c2VudCB0d2ljZSwgcmVhZCBvbmNl"}},
+    {"wire": "GET /resources/{id}", "at": "arrival", "params": {"id": {"$var": "r1"}}},
+    {"wire": "GET /resources/{id}", "status": 200, "params": {"id": {"$var": "r1"}}},
+    {"quiet": 300}
+  ]
+}

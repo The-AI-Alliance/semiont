@@ -146,6 +146,8 @@ public class HttpContentTransport(private val transport: HttpTransport) : Conten
 
     override fun putBinary(request: PutBinaryRequest): Upload {
         val form = Form(request)
+        // The upload's own name, the same on every attempt at it.
+        val key = UUID.randomUUID().toString()
         val progress = Channel<UploadProgress>(Channel.UNLIMITED)
         var said = -1L
         val report = { sent: Long ->
@@ -172,7 +174,7 @@ public class HttpContentTransport(private val transport: HttpTransport) : Conten
                         CreateResourceResponse.serializer(),
                         "POST",
                         "/resources",
-                        headers = mapOf("Content-Type" to "multipart/form-data; boundary=${form.boundary}"),
+                        headers = mapOf("Content-Type" to "multipart/form-data; boundary=${form.boundary}", "Idempotency-Key" to key),
                         body = { form.publisher(report) },
                         atLength = true,
                     )

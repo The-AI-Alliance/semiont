@@ -238,6 +238,7 @@ extension HttpTransport {
       BusEmitRequest(
         channel: channel, clientId: clientID, correlationId: correlationId, payload: payload,
         scope: scope))
+    let idempotencyKey = UUID().uuidString
     var credential = token
     var renewed = false
     var attempts = 1
@@ -248,6 +249,7 @@ extension HttpTransport {
       var request = HTTPClientRequest(url: baseUrl + "/bus/emit")
       request.method = .POST
       request.headers.add(name: "Content-Type", value: "application/json")
+      request.headers.add(name: "Idempotency-Key", value: idempotencyKey)
       if let credential {
         request.headers.add(name: "Authorization", value: "Bearer " + credential)
       }

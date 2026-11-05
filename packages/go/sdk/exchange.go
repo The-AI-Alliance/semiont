@@ -29,6 +29,10 @@ type request struct {
 	// body makes the request's body afresh for each attempt; nil for none.
 	body        func() (io.Reader, int64)
 	contentType string
+	// idempotencyKey is the Idempotency-Key every attempt carries, made once
+	// for a request that changes something; empty for one that changes
+	// nothing.
+	idempotencyKey string
 	// deadline bounds the wait for the answer to begin; zero waits for as
 	// long as it takes, as an upload does.
 	deadline time.Duration
@@ -88,6 +92,9 @@ func (s *transportShared) exchange(ctx context.Context, spec request) (answered,
 		}
 		if spec.contentType != "" {
 			made.Header.Set("Content-Type", spec.contentType)
+		}
+		if spec.idempotencyKey != "" {
+			made.Header.Set("Idempotency-Key", spec.idempotencyKey)
 		}
 		if spec.authenticated && token != "" {
 			made.Header.Set("Authorization", "Bearer "+token)

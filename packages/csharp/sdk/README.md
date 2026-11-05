@@ -378,8 +378,13 @@ its observers and requests and leaves a caller-owned HTTP client usable. Errors 
 `Semiont.Errors.SemiontError`, with distinct transport and bus-request families.
 
 HTTP response retries follow the shared boot, transport, and refresh rules.
+A request the transport rule calls repeatable that got no answer is sent once more
+after `requestRetryPauseMs`; one whose deadline passed is not.
 The transport honors a whole-seconds `Retry-After` header. The separate job
 retry rule belongs to the worker.
+
+Every emit and every upload carries an `Idempotency-Key` the transport makes once,
+and sends unchanged on each of its attempts, including the one after a renewed credential.
 
 ## IDs and protocol types
 

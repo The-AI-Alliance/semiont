@@ -251,6 +251,7 @@ extension HttpTransport: ContentTransport {
         "name": .string(request.name), "format": .string(request.format),
         "storageUri": .string(request.storageUri), "sizeBytes": .number(Double(request.file.count)),
       ], scope: nil, correlationID: nil)
+    let idempotencyKey = UUID().uuidString
     var credential = token
     var renewed = false
     while true {
@@ -261,6 +262,7 @@ extension HttpTransport: ContentTransport {
       for (key, value) in traceCarrier(upload) { wire.headers.add(name: key, value: value) }
       wire.headers.add(
         name: "Content-Type", value: "multipart/form-data; boundary=" + form.boundary)
+      wire.headers.add(name: "Idempotency-Key", value: idempotencyKey)
       if let credential { wire.headers.add(name: "Authorization", value: "Bearer " + credential) }
       wire.body = .stream(
         UploadBytes(data: form.data, report: report), length: .known(Int64(form.data.count)))

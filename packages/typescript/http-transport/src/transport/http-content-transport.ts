@@ -32,7 +32,7 @@
  */
 
 import type { AccessToken, AnchoredTextAnswer, ResourceId, PutBinaryOptions, PutBinaryProgress, components } from '@semiont/core';
-import { busLog, retryAfterMs } from '@semiont/core';
+import { busLog, retryAfterMs, uuidV4 } from '@semiont/core';
 import { SpanKind, getActiveTraceparent, withSpan } from '@semiont/observability';
 import type { HttpTransport } from './http-transport';
 import { APIError, refusalBody } from './api-error';
@@ -61,7 +61,9 @@ export class HttpContentTransport implements IContentTransport {
       async () => {
         const formData = buildFormData(request);
         const token = options?.auth ?? this.transport.getToken();
-        const headers = this.requestHeaders(token);
+        // One key for this upload, the same on its resend with a renewed
+        // credential.
+        const headers = { ...this.requestHeaders(token), 'Idempotency-Key': uuidV4() };
         const path = '/resources';
         const url = `${this.transport.baseUrl}${path}`;
 

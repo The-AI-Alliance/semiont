@@ -6,12 +6,13 @@
 //! (`GET /resources/{id}/anchored-text`). Bytes never ride the bus.
 //!
 //! It uses the bus transport's token, its retry rule and its error stream,
-//! so a request here is refused, renewed and reported as any other. Each is
-//! logged (`[bus PUT]`, `[bus GET]`) and made in a client span
-//! (`content.put`, `content.get`, `content.get_graph`,
+//! so a request here is refused, renewed and reported as any other. An
+//! upload carries one `Idempotency-Key`, the same on every sending of it, as
+//! an emit does. Each request is logged (`[bus PUT]`, `[bus GET]`) and made
+//! in a client span (`content.put`, `content.get`, `content.get_graph`,
 //! `content.get_annotations`, `content.get_anchored_text`).
 
-use crate::transport::{HttpTransport, Shared};
+use crate::transport::{HttpTransport, IDEMPOTENCY_KEY, Shared, idempotency_key};
 use bytes::Bytes;
 use futures::StreamExt;
 use semiont::bus_log::bus_log;
@@ -181,6 +182,7 @@ impl ContentTransport for HttpContentTransport {
                 None,
             );
             let form = Form::of(&request);
+            let key = idempotency_key();
             semiont_telemetry::content_put(
                 &request.format,
                 size as u64,
@@ -191,6 +193,7 @@ impl ContentTransport for HttpContentTransport {
                             format!("multipart/form-data; boundary={}", form.boundary),
                         )
                         .header(reqwest::header::CONTENT_LENGTH, form.len())
+                        .header(IDEMPOTENCY_KEY, key.as_str())
                         .body(form.body(progress.clone(), reported.clone()))
                 }),
             )

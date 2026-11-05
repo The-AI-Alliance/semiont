@@ -2,8 +2,8 @@
  * The client proxy does what the SDK suite leans on it for, against a real
  * gateway: it carries a stream and an emit through unchanged, records what
  * the client sent and what each stream carried, ends or refuses the client's
- * connections from outside, keeps a request waiting, answers one itself, and
- * passes a stream on a byte at a time.
+ * connections from outside, keeps a request waiting, answers one itself,
+ * leaves one unanswered, and passes a stream on a byte at a time.
  */
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, expect, it } from 'vitest';
@@ -113,5 +113,17 @@ eachPlane('the client proxy', (world) => {
     expect(proxy.requests.at(-1)).toMatchObject({ status: 429, retryAfter: 2, answer: { error: 'refused', code: 'emit-rate' } });
 
     expect((await world().emit(token, emit, proxy.origin)).status).toBe(202);
+  });
+
+  it('leaveUnanswered reads a request whole, closes its connection with nothing written, and passes the next one on', async () => {
+    proxy.leaveUnanswered((r) => r.path === '/api/health', 1);
+
+    await expect(call(proxy.origin, 'GET', '/api/health')).rejects.toThrow();
+    const dropped = await proxy.next('the request left unanswered', (r) => r.path === '/api/health');
+    await proxy.until('its connection to close', () => (dropped.closed ? true : undefined));
+    expect(dropped.status).toBeUndefined();
+    expect(dropped.answered).toBeUndefined();
+
+    expect((await call(proxy.origin, 'GET', '/api/health')).status).toBe(200);
   });
 }, {}, ['in-process']);

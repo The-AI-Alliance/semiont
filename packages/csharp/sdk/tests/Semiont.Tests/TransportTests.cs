@@ -553,6 +553,7 @@ public sealed partial class TransportTests
         {
             if (request.Method == HttpMethod.Post)
             {
+                Assert.False(string.IsNullOrEmpty(Assert.Single(request.Headers.GetValues("Idempotency-Key"))));
                 var form = Assert.IsAssignableFrom<MultipartContent>(request.Content);
                 var fields = new Dictionary<string, string>();
                 foreach (var part in form)
@@ -565,6 +566,7 @@ public sealed partial class TransportTests
                 Assert.Equal("[\"Person\"]", fields["entityTypes"]);
                 return new HttpResponseMessage(HttpStatusCode.Accepted) { Content = new StringContent("{\"resourceId\":\"r-uploaded\"}") };
             }
+            Assert.False(request.Headers.Contains("Idempotency-Key"));
             var content = new ByteArrayContent(payload);
             content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
@@ -758,6 +760,7 @@ public sealed partial class TransportTests
         internal bool HoldSubscribe { get; init; }
         private int subscriptions;
         internal Channel<(JsonElement Body, string? Token)> Emits { get; } = Channel.CreateUnbounded<(JsonElement, string?)>();
+        internal Channel<string> EmitKeys { get; } = Channel.CreateUnbounded<string>();
         internal Action<JsonElement>? Answer { get; set; }
         internal Func<JsonElement, CancellationToken, Task>? BeforeEmitReply { get; init; }
         internal Func<string?, HttpStatusCode>? EmitStatus { get; init; }
@@ -781,6 +784,7 @@ public sealed partial class TransportTests
                 using var parsed = JsonDocument.Parse(content);
                 var body = parsed.RootElement.Clone();
                 Emits.Writer.TryWrite((body, request.Headers.Authorization?.Parameter));
+                EmitKeys.Writer.TryWrite(Assert.Single(request.Headers.GetValues("Idempotency-Key")));
                 Answer?.Invoke(body);
                 if (BeforeEmitReply is { } wait) await wait(body, cancellationToken);
                 return new HttpResponseMessage(EmitStatus?.Invoke(request.Headers.Authorization?.Parameter) ?? HttpStatusCode.Accepted) { Content = new StringContent(EmitReply) };

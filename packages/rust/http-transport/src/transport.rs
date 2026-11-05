@@ -36,6 +36,16 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
+/// The header that names an emit or an upload: a new key for each, and the
+/// same on every attempt at it, so a request sent again is not carried out
+/// twice.
+pub(crate) const IDEMPOTENCY_KEY: &str = "Idempotency-Key";
+
+/// A key for one emit or one upload, made before its first attempt.
+pub(crate) fn idempotency_key() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
+
 /// A request the gateway did not answer by its deadline.
 fn unanswered(method: &reqwest::Method, path: &str, deadline: Duration) -> TransportError {
     TransportError::without_response(
@@ -435,10 +445,12 @@ impl Shared {
     /// refusal's `Retry-After`. An emit whose credential is refused is never
     /// retried: it is sent again once, at once, with a renewed token that is
     /// not the one refused, under a budget of its own. Any other refusal is
-    /// final.
+    /// final. Every attempt, the renewed one too, carries the emit's one
+    /// `Idempotency-Key`.
     async fn emit(&self, body: &BusEmitRequest) -> Result<Option<u64>, TransportError> {
         let url = format!("{}/bus/emit", self.base_url);
         let trace = semiont_telemetry::active_trace();
+        let key = idempotency_key();
         let mut token = self.current_token();
         let mut renewed = false;
         loop {
@@ -448,6 +460,7 @@ impl Shared {
                     .http
                     .post(&url)
                     .bearer_auth(sent.unwrap_or_default())
+                    .header(IDEMPOTENCY_KEY, key.as_str())
                     .timeout(timing::EMIT_TIMEOUT)
                     .json(body);
                 if let Some(TraceCarrier {

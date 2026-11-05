@@ -330,6 +330,10 @@ def test_an_emit_whose_token_is_refused_is_sent_again_at_once_with_the_token_its
                 assert source.asked == 1
                 # An emit accepted in the end failed nobody.
                 assert await nothing_reported(failures)
+                # Both attempts were the one emit, by its key; the next emit is another.
+                assert await soon(transport.emit("beckon:focus", {"resourceId": "res-2"})) == 1
+                first, again, second = (asked.headers["idempotency-key"] for asked in gateway.of("POST", "/bus/emit"))
+                assert first == again != second
 
     run(scenario())
 
@@ -385,6 +389,8 @@ def test_an_upload_refused_is_sent_again_whole_and_its_progress_is_reported_once
 
                 sent = gateway.of("POST", "/resources")
                 assert [request.headers.get("authorization") for request in sent] == ["Bearer stale", "Bearer fresh"]
+                # Both were the one upload, by its key.
+                assert sent[0].headers["idempotency-key"] == sent[1].headers["idempotency-key"]
                 # The body was sent from its start both times.
                 assert sent[0].body == sent[1].body
                 assert sent[1].form()["file"][0] == data
