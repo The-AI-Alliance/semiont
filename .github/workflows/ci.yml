@@ -3936,8 +3936,10 @@ jobs:
   # ── The gate ─────────────────────────────────────────────────────────
   # The one check the merge ruleset requires, of a pull request and of the
   # merge queue's commit. It needs every job and runs
-  # whatever they did: a job that failed or was cancelled fails it; one skipped
-  # by a condition passes it, as GitHub reports a skipped job as Success.
+  # whatever they did: a job passes it only by succeeding or by being skipped
+  # by a condition (GitHub reports a skipped job as Success); any other result
+  # fails it, `abandoned` among them, which GitHub gives a job that never got a
+  # runner.
   # `always()`, not `!cancelled()` as the audits next door use: a gate that is
   # skipped when a job is cancelled would itself report Success, and the
   # cancelled job's failure would never reach the ruleset. lint:workflows
@@ -4001,8 +4003,12 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
         run: echo "$NEEDS"
 
-      - name: Fail when a job failed or was cancelled
-        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+      - name: Fail unless every job succeeded or was skipped
+        env:
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          echo "::error::A job failed or was cancelled; its name is above with result failure or cancelled"
-          exit 1
+          others=$(echo "$NEEDS" | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key) \(.value.result)"')
+          if [ -n "$others" ]; then
+            echo "$others" | while read -r job result; do echo "::error::$job: $result"; done
+            exit 1
+          fi

@@ -41,9 +41,12 @@
  *    need no build. Every other job waits, directly or through what it
  *    needs, for every first-stage job, so a tree that fails a census starts
  *    none of the forty-odd matrix legs behind it. The job `gate` runs `always()`, needs
- *    every other job, and is the one check the merge ruleset requires: it
- *    fails when any job failed or was cancelled, and passes a job skipped
- *    by a condition, which GitHub reports as Success.
+ *    every other job, and is the one check the merge ruleset requires: a
+ *    job passes it only by succeeding or by being skipped by a condition,
+ *    which GitHub reports as Success. Any other result fails it: the gate
+ *    names the results that pass, never the ones that fail, since a result
+ *    it left out (GitHub's `abandoned`, for a job that never got a runner)
+ *    would pass.
  *
  * 4. Every job of ci.yml behind the first stage is in the map of changed
  *    areas: its `if` is `needs.changes.outputs.<area> == 'true'` terms joined
@@ -335,6 +338,9 @@ function stagesAndGate(jobs) {
   const gateNeeds = new Set(needsOf('gate'));
   for (const id of ids) if (!gateNeeds.has(id)) failures.push(`${CI}: job gate does not need ${id}, so ${id} cannot fail the gate`);
   for (const id of gateNeeds) if (!(id in jobs)) failures.push(`${CI}: job gate needs ${id}, which is no job`);
+  const gateSteps = gate.steps ?? [];
+  if (!gateSteps.some((step) => String(step.run ?? '').includes('.value.result != "success" and .value.result != "skipped"'))) failures.push(`${CI}: job gate has no step failing on every result but success and skipped`);
+  for (const step of gateSteps) if (/needs\.\*\.result/.test(String(step.if ?? ''))) failures.push(`${CI}: the gate's step ${JSON.stringify(step.name)} runs on the results its if names: a result it leaves out passes the gate`);
 
   /** Every job `id` waits for, directly or through what it needs. */
   const waitsFor = (id, seen = new Set()) => {
