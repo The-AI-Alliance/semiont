@@ -9,8 +9,9 @@
 # TWO AXES, and naming them separately is the point. The LAUNCHER is the one
 # built from this checkout, apps/launcher/dist/semiont (images/scripts/build-session.sh
 # builds it beside the :local images), never whatever `semiont` is on PATH,
-# which is usually a release; the script refuses when the binary is missing or
-# older than the source it builds from. The IMAGES are the tag `up` is given,
+# which is usually a release. UP and E2E build it (images/scripts/build-session.sh
+# launcher, as make launcher does) when it is missing or older than the source it
+# builds from; DOWN stops what UP started with the launcher that is there. The IMAGES are the tag `up` is given,
 # written into the stack's documents init made. So a launcher change is
 # testable against the images people actually run, publishing nothing.
 #
@@ -53,8 +54,8 @@
 # Why this exists as a script and not as steps in a workflow: every other
 # release check in this repo is one (verify-release.sh is its closest peer),
 # and a check that only a runner can perform is a check nobody runs while
-# debugging it. stack-smoke.yml runs `run` after images/scripts/build-session.sh,
-# or, given a published tag, after building only the launcher.
+# debugging it. stack-smoke.yml runs `run` after make local-build, or, given a
+# published tag, on its own.
 #
 # Requires: a responding container runtime (CONTAINER_RUNTIME selects one), git, curl, nc.
 
@@ -114,16 +115,26 @@ if [ "$E2E" = true ]; then
   fi
 fi
 SEMIONT="$REPO_ROOT/apps/launcher/dist/semiont"
-if [ ! -x "$SEMIONT" ]; then
-  echo "No launcher built from this checkout at $SEMIONT. Build it with make launcher." >&2
-  exit 2
-fi
 # The launcher compiles apps/launcher, packages/go/launcher and packages/go/sdk; a source file newer
 # than the binary means the binary is not this checkout's launcher.
-NEWER=$(find "$REPO_ROOT/apps/launcher" "$REPO_ROOT/packages/go/launcher" "$REPO_ROOT/packages/go/sdk" -path "$REPO_ROOT/apps/launcher/dist" -prune -o \
-  \( \( -name '*.go' ! -name '*_test.go' \) -o -name go.mod -o -name go.sum \) -newer "$SEMIONT" -print | head -1)
-if [ -n "$NEWER" ]; then
-  echo "$SEMIONT is older than ${NEWER#"$REPO_ROOT"/}. Rebuild it with make launcher." >&2
+newer_source() {
+  find "$REPO_ROOT/apps/launcher" "$REPO_ROOT/packages/go/launcher" "$REPO_ROOT/packages/go/sdk" -path "$REPO_ROOT/apps/launcher/dist" -prune -o \
+    \( \( -name '*.go' ! -name '*_test.go' \) -o -name go.mod -o -name go.sum \) -newer "$SEMIONT" -print | head -1
+}
+if [ "$COMMAND" != down ]; then
+  if [ ! -x "$SEMIONT" ]; then
+    echo "No launcher built from this checkout at $SEMIONT: building it."
+  elif NEWER=$(newer_source) && [ -n "$NEWER" ]; then
+    echo "$SEMIONT is older than ${NEWER#"$REPO_ROOT"/}: building it again."
+  fi
+  if [ ! -x "$SEMIONT" ] || [ -n "${NEWER:-}" ]; then
+    bash "$REPO_ROOT/images/scripts/build-session.sh" launcher || exit 2
+    # Built from the source as it is now. Go leaves a binary its build did not change as it
+    # was, older than the source a comment changed, so the time is set here.
+    touch "$SEMIONT"
+  fi
+elif [ ! -x "$SEMIONT" ]; then
+  echo "No launcher built from this checkout at $SEMIONT, so nothing can stop what up started. Build it with make launcher." >&2
   exit 2
 fi
 

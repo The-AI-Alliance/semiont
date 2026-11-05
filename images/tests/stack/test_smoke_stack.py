@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -85,9 +86,19 @@ class SmokeStackTest(unittest.TestCase):
             (self.root / directory).mkdir(parents=True)
         for name, text in DOCUMENTS.items():
             (self.root / "state home" / f"{name}.yaml").write_text(text)
-        launcher = self.root / "apps/launcher/dist/semiont"
-        launcher.write_text(f"#!{sys.executable}\n" + LAUNCHER)
-        launcher.chmod(0o755)
+        self.launcher = self.root / "apps/launcher/dist/semiont"
+        self.launcher.write_text(f"#!{sys.executable}\n" + LAUNCHER)
+        self.launcher.chmod(0o755)
+        shutil.copy2(self.launcher, self.root / "built-launcher")
+        # The launcher's build: it writes the launcher where there is none, and, as Go
+        # does for a build that changed nothing, leaves one that is there as it was.
+        build = self.root / "images/scripts/build-session.sh"
+        build.write_text(
+            "#!/bin/sh\n"
+            'printf "%s\\n" "$*" >> "$SMOKE_TEST_ROOT/builds.log"\n'
+            '[ "$SMOKE_TEST_BUILD_STATUS" = 0 ] || exit "$SMOKE_TEST_BUILD_STATUS"\n'
+            f'[ -e "{self.launcher}" ] || cp -p "$SMOKE_TEST_ROOT/built-launcher" "{self.launcher}"\n'
+        )
         self.use_runtime("smoke-test-runtime", 0)
 
     def use_runtime(self, runtime: str, e2e_status: int) -> None:
@@ -103,7 +114,7 @@ class SmokeStackTest(unittest.TestCase):
             executable.chmod(0o755)
 
     def smoke(
-        self, *args: str, start_status: str = "0"
+        self, *args: str, start_status: str = "0", build_status: str = "0"
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["bash", str(self.root / "images/tests/stack/smoke-stack.sh"), *args],
@@ -113,6 +124,7 @@ class SmokeStackTest(unittest.TestCase):
                 "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
                 "SMOKE_TEST_ROOT": str(self.root),
                 "SMOKE_TEST_START_STATUS": start_status,
+                "SMOKE_TEST_BUILD_STATUS": build_status,
                 "CONTAINER_RUNTIME": self.runtime,
                 "SMOKE_KB": str(self.kb),
             },
@@ -137,6 +149,16 @@ class SmokeStackTest(unittest.TestCase):
                 "--root", call, "a stop naming no root stops whichever stack it finds"
             )
         return [os.path.realpath(call[call.index("--root") + 1]) for call in stops]
+
+    def builds(self) -> list[str]:
+        path = self.root / "builds.log"
+        return path.read_text().splitlines() if path.exists() else []
+
+    def edit_launcher_source(self) -> None:
+        """A launcher source file newer than the launcher."""
+        past = time.time() - 100
+        os.utime(self.launcher, (past, past))
+        (self.root / "packages/go/launcher/start.go").write_text("package launcher\n")
 
     def assert_documents_restored(self) -> None:
         for name, original in DOCUMENTS.items():
@@ -166,6 +188,35 @@ class SmokeStackTest(unittest.TestCase):
                 self.assert_documents_restored()
                 self.assertIn(os.path.realpath(self.kb), self.stopped())
                 shutil.rmtree(self.kb)
+
+    def test_up_builds_a_missing_launcher_before_it_starts_anything(self) -> None:
+        self.launcher.unlink()
+        result = self.smoke("up", "local")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.builds(), ["launcher"])
+        self.assertEqual(len(self.lines("starts.jsonl")), 1)
+
+    def test_a_launcher_older_than_its_source_is_built_once(self) -> None:
+        self.edit_launcher_source()
+        self.assertEqual(self.smoke("up", "local").returncode, 0)
+        result = self.smoke("e2e")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.builds(), ["launcher"])
+
+    def test_down_stops_with_the_launcher_that_is_there(self) -> None:
+        self.assertEqual(self.smoke("up", "local").returncode, 0)
+        self.edit_launcher_source()
+        result = self.smoke("down")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.builds(), [])
+        self.assert_documents_restored()
+
+    def test_a_launcher_that_does_not_build_starts_nothing(self) -> None:
+        self.launcher.unlink()
+        result = self.smoke("up", "local", build_status="1")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(self.lines("starts.jsonl"), [])
+        self.assertEqual(self.lines("inits.jsonl"), [])
 
     def test_a_failed_up_takes_its_stack_down(self) -> None:
         result = self.smoke("up", "local", start_status="1")
