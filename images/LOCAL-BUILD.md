@@ -142,7 +142,20 @@ removing nothing, when a path it would remove holds a file git tracks or is not 
 ## Verification and implementation
 
 `make smoke SMOKE_TAG=local` runs [the real-stack smoke](tests/stack/smoke-stack.sh) and its
-e2e tier. It uses the same `CONTAINER_RUNTIME` selection and readiness check as the build.
+e2e tier in one run. The same three steps run apart:
+
+```sh
+make stack-up SMOKE_TAG=local
+make e2e
+make stack-down
+```
+
+`stack-up` boots and checks a new knowledge base's stack and leaves it up. Each `e2e` makes a
+knowledge base of its own beside it, with a user of its own, runs the default tier against
+it, and removes it, so a second run starts as fresh as the first. `stack-down` stops the stack,
+puts back the Browser's and Worker's documents and checks every port is released; until then
+they name `SMOKE_TAG`'s images for every knowledge base on the machine. The smoke uses the same
+`CONTAINER_RUNTIME` selection and readiness check as the build.
 Apple `container` runs Playwright through the existing localhost bridge; Docker and Podman
 use host networking. This boots services and requires the selected images and the checkout's launcher.
 Stack Smoke CI calls `make local-build` with TypeScript selection, fan-out disabled and a

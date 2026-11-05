@@ -99,7 +99,7 @@ reaches it: `:3000`→`:13000`, `:4000`→`:14000`, and `:8080` (Keycloak) and
 needs, and the knowledge base it registers is the origin the launcher
 advertises. The launcher's tests hold the bridge's ports to the launcher's own.
 
-Under Docker, `images/tests/stack/smoke-stack.sh --e2e` runs the suite with
+Under Docker, `images/tests/stack/smoke-stack.sh e2e` runs the suite with
 `--network host`, where `localhost` is the host, and starts no bridge.
 
 > **No CORS origin to configure.** The gateway serves open CORS
@@ -186,13 +186,14 @@ nor `gemma3:1b` answered them correctly within their timeouts.
 ## How CI runs the suite
 
 [`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml) runs
-[`images/tests/stack/smoke-stack.sh <images> --e2e`](../tests/stack/smoke-stack.sh),
+[`images/tests/stack/smoke-stack.sh run <images> --e2e`](../tests/stack/smoke-stack.sh),
 nightly on `main`, on dispatch, and on a pull request that changes the
 workflow or its script. The script boots a new knowledge base's stack on
 the runtime selected by `CONTAINER_RUNTIME` (or the first responding engine), with the inference and embedding models `semiont init` names, and,
-after its own checks and before it stops the stack:
+after its own checks and before it stops the stack, makes a second knowledge base
+beside it, as `semiont init` makes one, and:
 
-- makes the suite's user with `semiont useradd`, a password generated for the
+- makes the suite's user in its realm with `semiont useradd`, a password generated for the
   run, and passes both as `E2E_EMAIL` and `E2E_PASSWORD`;
 - runs `npm ci && npm test` here, in `mcr.microsoft.com/playwright:v<version>-noble`,
   `<version>` read from `package.json`, with `--network host` on Docker/Podman
@@ -200,12 +201,14 @@ after its own checks and before it stops the stack:
 - adds a JSON report to the list and HTML ones, at
   `test-results/report.json`.
 
-A failing suite fails the job, prints the stack's container logs, and still
+It passes that knowledge base's gateway as `E2E_GATEWAY_URL`, which the bridge forwards
+too. A failing suite fails the job, prints the stack's container logs, and still
 stops the stack. Whatever the result, `playwright-report/` and
 `test-results/` are kept as the run's `e2e-report` artifact for 30 days, and a
 table of the specs with the tier's wall time is written to the run's summary.
 On a laptop, `make smoke` does the same against `:local` images, including on Apple
-`container`. Use `CONTAINER_RUNTIME=container make smoke` to select it explicitly.
+`container`; `make stack-up`, `make e2e` and `make stack-down` run its steps apart, each
+`make e2e` on a fresh knowledge base. Use `CONTAINER_RUNTIME=container make smoke` to select it explicitly.
 A selected runtime that is not responding fails with startup instructions; nothing is
 started automatically. The [Quick start](#quick-start) runs the suite alone against a stack
 that is already up.

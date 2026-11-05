@@ -16,7 +16,7 @@ FORCE ?= 0
 FANOUT ?= 1
 ## LAYER_CACHE=dir: Docker's Rust layer cache
 LAYER_CACHE ?=
-## SMOKE_TAG=tag: The images smoke boots (local)
+## SMOKE_TAG=tag: The images stack-up and smoke boot (local)
 SMOKE_TAG ?= local
 unexport SMOKE_TAG
 ## CONTAINER_RUNTIME=name: container|docker|podman; else the first to respond
@@ -31,7 +31,7 @@ ifneq ($(word 2,$(MAKECMDGOALS)),)
 $(error Run one public operation per invocation)
 endif
 
-.PHONY: help local-build packages images-only launcher plan npm-publish-local desktop desktop-macos desktop-linux smoke clean
+.PHONY: help local-build packages images-only launcher plan npm-publish-local desktop desktop-macos desktop-linux stack-up e2e stack-down smoke clean
 help:
 	@awk -v groups=$(call quote,$(BUILD_ROOT)/packages/codegen/groups.txt) -f $(call quote,$(BUILD_ROOT)/images/scripts/make-help.awk) $(call quote,$(BUILD_ROOT)/Makefile) $(call quote,$(BUILD_ROOT)/Makefile)
 
@@ -69,9 +69,21 @@ generate-% check-generated-%: codegen-force
 codegen-force:
 
 ##@ Verify and clean
-## smoke: Boot a real stack and run e2e
+## stack-up: Boot and check SMOKE_TAG's images; leave them up
+stack-up:
+	@bash $(call quote,$(BUILD_ROOT)/images/tests/stack/smoke-stack.sh) up $(call quote,$(SMOKE_TAG))
+
+## e2e: The e2e tier, on a fresh KB beside stack-up's
+e2e:
+	@bash $(call quote,$(BUILD_ROOT)/images/tests/stack/smoke-stack.sh) e2e
+
+## stack-down: Stop stack-up's stack; check its ports are free
+stack-down:
+	@bash $(call quote,$(BUILD_ROOT)/images/tests/stack/smoke-stack.sh) down
+
+## smoke: stack-up, e2e and stack-down, as Stack Smoke runs
 smoke:
-	@bash $(call quote,$(BUILD_ROOT)/images/tests/stack/smoke-stack.sh) $(call quote,$(SMOKE_TAG)) --e2e
+	@bash $(call quote,$(BUILD_ROOT)/images/tests/stack/smoke-stack.sh) run $(call quote,$(SMOKE_TAG)) --e2e
 
 ## clean: Remove build output; keep installs, caches and images
 clean:
