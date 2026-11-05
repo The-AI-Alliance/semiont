@@ -482,7 +482,7 @@ Bytes do not ride the bus.
 - An answer with a fault fails as `error`, with the answer's status,
   saying it is not its declared body and naming its first fault, as
   § Identity says a fault is named; it is reported on the error stream too.
-  *Held by `packages/go/sdk/replies_test.go`, `packages/typescript/http-transport/src/transport/__tests__/http-transport.http-paths.test.ts`, `packages/python/sdk/tests/test_withheld.py`, `packages/kotlin/sdk/src/test/kotlin/semiont/http/HttpTransportTest.kt`.*
+  *Held by `packages/go/sdk/replies_test.go`, `packages/typescript/http-transport/src/transport/__tests__/http-transport.http-paths.test.ts`, `packages/python/sdk/tests/test_withheld.py`, `packages/kotlin/sdk/src/test/kotlin/semiont/http/HttpTransportTest.kt`, `packages/rust/http-transport/tests/answers.rs`.*
 - A read or one of the gateway's own operations whose credential is refused
   is renewed, as § A refused credential says.
   *Held by `sdk/wire/request-credential-renewed`, `sdk/wire/request-credential-limit-refused-twice`.*
