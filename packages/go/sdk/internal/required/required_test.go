@@ -1,6 +1,7 @@
 package required
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -99,6 +100,65 @@ func TestWhatATypeOfASchemaRequiresIsItsSchemas(t *testing.T) {
 	// A map's values each carry what theirs requires.
 	profiles := reflect.TypeFor[api.BrowseProfilesResult]()
 	faults(t, profiles, `{"response":{"profiles":{"did:web:example.org:users:a":{}}}}`, lacks("response.profiles.name"))
+}
+
+// faultsAs holds the JSON text to the shape written as the table writes one.
+func faultsAs(t *testing.T, written string, text string, want Fault) {
+	t.Helper()
+	var s shape
+	var value any
+	if err := json.Unmarshal([]byte(written), &s); err != nil {
+		t.Fatalf("%s is no shape: %v", written, err)
+	}
+	if err := json.Unmarshal([]byte(text), &value); err != nil {
+		t.Fatalf("%s is no JSON: %v", text, err)
+	}
+	fault, faulty := faultOf(&s, value, "")
+	if faulty != (want != none) || fault != want {
+		t.Errorf("%s as %s has the fault %+v (%v), not %+v", text, written, fault, faulty, want)
+	}
+}
+
+func TestAValueIsOneOfItsValuesOfItsFormAndOfItsSize(t *testing.T) {
+	values := `{"kinds":["string","integer"],"enum":["mark",2]}`
+	faultsAs(t, values, `"mark"`, none)
+	faultsAs(t, values, `2.0`, none)
+	faultsAs(t, values, `"yield"`, malformed(""))
+	faultsAs(t, values, `3`, malformed(""))
+
+	anyThenDigits := `{"kinds":["string","null"],"pattern":[{"of":[[0,9],[11,12],[14,8231],[8234,1114111]],"min":1},{"of":[[45,45]],"min":1,"max":1},{"of":[[48,57]],"min":1}]}`
+	faultsAs(t, anyThenDigits, `"p-a-1-2"`, none)
+	faultsAs(t, anyThenDigits, `"\ud83d\ude00-1"`, none)
+	faultsAs(t, anyThenDigits, `null`, none)
+	faultsAs(t, anyThenDigits, `"p-"`, malformed(""))
+	faultsAs(t, anyThenDigits, `"\n-1"`, malformed(""))
+
+	twoOrThree := `{"kinds":["string"],"minLength":2,"maxLength":3}`
+	faultsAs(t, twoOrThree, `"\ud83d\ude00\ud83d\ude00"`, none)
+	faultsAs(t, twoOrThree, `"\ud83d\ude00"`, malformed(""))
+	faultsAs(t, twoOrThree, `"abcd"`, malformed(""))
+
+	unit := `{"kinds":["number"],"minimum":0,"maximum":1}`
+	faultsAs(t, unit, `0`, none)
+	faultsAs(t, unit, `1`, none)
+	faultsAs(t, unit, `-0.5`, malformed(""))
+	faultsAs(t, unit, `1.5`, malformed(""))
+
+	oneOrTwo := `{"kinds":["array"],"minItems":1,"maxItems":2}`
+	faultsAs(t, oneOrTwo, `[1]`, none)
+	faultsAs(t, oneOrTwo, `[]`, malformed(""))
+	faultsAs(t, oneOrTwo, `[1,2,3]`, malformed(""))
+}
+
+func TestAClosedObjectCarriesNoMemberItDoesNotName(t *testing.T) {
+	closed := `{"kinds":["object"],"required":["a"],"members":{"a":{"kinds":["string"]}},"closed":["a"]}`
+	faultsAs(t, closed, `{"a":"x"}`, none)
+	faultsAs(t, closed, `{"b":1}`, lacks("a"))
+	faultsAs(t, closed, `{"a":1,"b":1}`, malformed("a"))
+	faultsAs(t, closed, `{"a":"x","z":1,"b":1}`, malformed("b"))
+	faultsAs(t, closed, `{"a":"x","\ud83d\ude00":1,"\uff61":1}`, malformed("\uff61"))
+	faultsAs(t, `{"kinds":["object"],"closed":[]}`, `{}`, none)
+	faultsAs(t, `{"kinds":["object"],"closed":[]}`, `{"x":1}`, malformed("x"))
 }
 
 func TestATypeWrappingOneOfASchemaHoldsItToTheSchema(t *testing.T) {

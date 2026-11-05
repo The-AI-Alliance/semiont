@@ -31,15 +31,39 @@ import (
 // shape is what a value must be: packages/codegen/schemas/required-shapes.mjs states
 // what each part means.
 type shape struct {
-	Ref           string            `json:"ref"`
-	Kinds         []string          `json:"kinds"`
-	Required      []string          `json:"required"`
-	Members       map[string]*shape `json:"members"`
-	Items         *shape            `json:"items"`
-	Values        *shape            `json:"values"`
-	OneOf         []*shape          `json:"oneOf"`
-	Discriminator *discriminator    `json:"discriminator"`
-	AllOf         []*shape          `json:"allOf"`
+	Ref       string            `json:"ref"`
+	Kinds     []string          `json:"kinds"`
+	Enum      []any             `json:"enum"`
+	Pattern   []step            `json:"pattern"`
+	MinLength *int              `json:"minLength"`
+	MaxLength *int              `json:"maxLength"`
+	Minimum   *float64          `json:"minimum"`
+	Maximum   *float64          `json:"maximum"`
+	MinItems  *int              `json:"minItems"`
+	MaxItems  *int              `json:"maxItems"`
+	Required  []string          `json:"required"`
+	Members   map[string]*shape `json:"members"`
+	// Closed is nil for an object that may carry any member, and empty for
+	// one that may carry none.
+	Closed        []string       `json:"closed"`
+	Items         *shape         `json:"items"`
+	Values        *shape         `json:"values"`
+	OneOf         []*shape       `json:"oneOf"`
+	Discriminator *discriminator `json:"discriminator"`
+	AllOf         []*shape       `json:"allOf"`
+}
+
+// step is one step of a pattern: at least Min of a text's next code points,
+// and at most Max (nil: any number), each in one of the ranges Of.
+type step struct {
+	Of  [][2]rune `json:"of"`
+	Min int       `json:"min"`
+	Max *int      `json:"max"`
+}
+
+// holds is whether point is in one of the step's ranges.
+func (s step) holds(point rune) bool {
+	return slices.ContainsFunc(s.Of, func(r [2]rune) bool { return r[0] <= point && point <= r[1] })
 }
 
 // discriminator is the member whose value names the variant a union is.
@@ -81,7 +105,8 @@ const (
 	// Lacks: the value does not carry the member, or the member holds null
 	// where it may not.
 	Lacks Reason = "lacks"
-	// Malformed: the member is of a kind its schema does not allow.
+	// Malformed: the member is not what its schema allows (of another kind,
+	// another value, form or size), or is one a closed object does not name.
 	Malformed Reason = "malformed"
 )
 
@@ -252,7 +277,7 @@ func allows(kinds []string, value any) bool {
 // faultOf is the first fault value has as a value of s, from way.
 func faultOf(s *shape, value any, way string) (Fault, bool) {
 	s = resolved(s)
-	if !allows(s.Kinds, value) {
+	if !allows(s.Kinds, value) || !isOneOf(s.Enum, value) || !inBounds(s, value) {
 		return Fault{Member: way, Reason: Malformed}, true
 	}
 	if object, isObject := value.(map[string]any); isObject {
@@ -266,6 +291,13 @@ func faultOf(s *shape, value any, way string) (Fault, bool) {
 			if held := object[name]; held != nil {
 				if fault, faulty := faultOf(s.Members[name], held, within(way, name)); faulty {
 					return fault, true
+				}
+			}
+		}
+		if s.Closed != nil {
+			for _, name := range sortedKeys(object) {
+				if !slices.Contains(s.Closed, name) {
+					return Fault{Member: within(way, name), Reason: Malformed}, true
 				}
 			}
 		}
@@ -295,6 +327,55 @@ func faultOf(s *shape, value any, way string) (Fault, bool) {
 		}
 	}
 	return Fault{}, false
+}
+
+// isOneOf is whether value is one of values, where there are any: a number
+// is one equal to it in value.
+func isOneOf(values []any, value any) bool {
+	return values == nil || slices.Contains(values, value)
+}
+
+// inBounds is whether a text is of s's pattern and has as many code points as
+// s allows, a number is within s's bounds, and an array has as many items as
+// s allows.
+func inBounds(s *shape, value any) bool {
+	switch held := value.(type) {
+	case string:
+		points := []rune(held)
+		return counted(s.MinLength, len(points), s.MaxLength) && (s.Pattern == nil || matches(s.Pattern, points))
+	case float64:
+		return (s.Minimum == nil || held >= *s.Minimum) && (s.Maximum == nil || held <= *s.Maximum)
+	case []any:
+		return counted(s.MinItems, len(held), s.MaxItems)
+	default:
+		return true
+	}
+}
+
+// counted is whether count is at least least and at most most, where each is
+// stated.
+func counted(least *int, count int, most *int) bool {
+	return (least == nil || count >= *least) && (most == nil || count <= *most)
+}
+
+// matches is whether points are of steps: the first step takes as many of
+// them as it may, and gives them back one by one until the steps after it
+// take the rest.
+func matches(steps []step, points []rune) bool {
+	if len(steps) == 0 {
+		return len(points) == 0
+	}
+	first := steps[0]
+	taken := 0
+	for taken < len(points) && (first.Max == nil || taken < *first.Max) && first.holds(points[taken]) {
+		taken++
+	}
+	for ; taken >= first.Min; taken-- {
+		if matches(steps[1:], points[taken:]) {
+			return true
+		}
+	}
+	return false
 }
 
 // memberShape is what s's member name must be: any, where s does not say.
