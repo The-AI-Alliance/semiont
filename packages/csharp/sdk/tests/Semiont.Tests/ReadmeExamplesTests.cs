@@ -124,10 +124,13 @@ public sealed partial class TransportTests
         var (claim, renewedToken) = await gateway.Emits.Reader.ReadAsync(deadline.Token);
         Assert.Equal(BusOperations.JobClaim.Request.Name, Text(claim, "channel"));
         Assert.Equal("renewed-token", renewedToken);
+        var claimKey = await gateway.EmitKeys.Reader.ReadAsync(deadline.Token);
+        Assert.Equal(claimKey, await gateway.EmitKeys.Reader.ReadAsync(deadline.Token));
         Reply(gateway, claim, BusOperations.JobClaim.Result.Name, new JobClaimedResult { Response = RunningMarkJob() });
         var (started, startToken) = await gateway.Emits.Reader.ReadAsync(deadline.Token);
         Assert.Equal(BusChannels.JobStart.Name, Text(started, "channel"));
         Assert.Equal(renewedToken, startToken);
+        Assert.NotEqual(claimKey, await gateway.EmitKeys.Reader.ReadAsync(deadline.Token));
         var held = await handling.Task.WaitAsync(deadline.Token);
         stop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker.WaitAsync(deadline.Token));

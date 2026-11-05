@@ -99,9 +99,14 @@ describe('createActorStateUnit', () => {
 
     await stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') });
 
-    const [url, opts] = mockFetch.mock.calls[0] as [string, { method?: string; body: string }];
+    const [url, opts] = mockFetch.mock.calls[0] as [string, { method?: string; body: string; headers: Record<string, string> }];
     expect(url).toBe('http://localhost:4000/bus/emit');
     expect(opts.method).toBe('POST');
+    expect(opts.headers).toEqual({
+      'Content-Type': 'application/json',
+      'Idempotency-Key': expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
+      Authorization: 'Bearer tok',
+    });
     // Parsed, not string-compared: the body carries `clientId` (the routing
     // address for correlated replies) and a key-order-sensitive
     // string match makes every added wire field a spurious failure here.
@@ -182,6 +187,32 @@ describe('createActorStateUnit', () => {
       message: '/bus/emit got no answer: TypeError',
     });
     expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    stateUnit.dispose();
+  });
+
+  it('an emit whose fetch rejects in a browser\'s words is sent again, with the same key, and a second emit has its own', async () => {
+    // A browser rejects a fetch that got no answer with a TypeError in its
+    // own words and no cause; that is no answer as much as Node's is.
+    mockFetch
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true });
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: [],
+      emitRetry: { attempts: 2, initialDelayMs: 1, maxDelayMs: 1 },
+    });
+
+    await expect(stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') })).resolves.toBeUndefined();
+    await stateUnit.emit('beckon:hover', { annotationId: annotationId('a-2') });
+
+    const keys = mockFetch.mock.calls.map(([, opts]) => (opts as { headers: Record<string, string> }).headers['Idempotency-Key']);
+    expect(keys).toHaveLength(3);
+    expect(keys[0]).toEqual(expect.any(String));
+    expect(keys[1], 'every attempt at one emit carries its key').toBe(keys[0]);
+    expect(keys[2], 'another emit has another key').not.toBe(keys[0]);
 
     stateUnit.dispose();
   });

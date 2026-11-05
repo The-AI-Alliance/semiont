@@ -8,7 +8,7 @@ cd "$REPO_ROOT"
 OPERATION="${1:?A build operation is required}"
 shift
 case "$OPERATION" in
-  local-build|packages|images-only|launcher|npm-publish-local|plan) ;;
+  local-build|packages|images-only|launcher|npm-publish-local|plan|stale) ;;
   *) echo "Unknown build operation: $OPERATION" >&2; exit 2 ;;
 esac
 source "$BUILD_DIR/common.sh"
@@ -37,6 +37,21 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+# stale: what plan would build, one `<packages/… or images/…><tab><reason>` line each, on
+# stdout alone. A named package narrows the list rather than forcing its build.
+if [[ "$OPERATION" == stale ]]; then
+  exec 3>&1 1>&2
+  start_python_tools
+  source "$BUILD_DIR/package-plan.sh"
+  printf "%s" "$PACKAGE_REASONS" >&3
+  source "$BUILD_DIR/image-plan.sh"
+  for image in $IMAGES; do
+    decide_image "$image"
+    [[ "$IMAGE_ACTION" == build ]] && printf 'images/%s\t%s\n' "$image" "$IMAGE_REASON" >&3
+  done
+  SESSION_SUCCEEDED=true
+  exit 0
+fi
 if [[ "$OPERATION" == plan ]]; then
   start_python_tools
   source "$BUILD_DIR/package-plan.sh"

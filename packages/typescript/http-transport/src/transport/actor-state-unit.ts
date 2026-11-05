@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusPrimitive, type components, type ConnectionState, type EventMap, type ResourceId, type RetryPolicy, type StateUnit, type TraceCarrier, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, HTTP_REQUEST_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT, STREAM_OPEN_TIMEOUT_MS } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, UnansweredError, retryAfterMs, equalJitter, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusPrimitive, type components, type ConnectionState, type EventMap, type ResourceId, type RetryPolicy, type StateUnit, type TraceCarrier, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, HTTP_REQUEST_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT, STREAM_OPEN_TIMEOUT_MS } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -830,14 +830,16 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       const body: Record<string, unknown> = { channel, payload, clientId };
       if (envelope?.correlationId !== undefined) body.correlationId = envelope.correlationId;
       if (envelope?.scope) body.scope = envelope?.scope;
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      // One key for this emit, the same on every attempt at it, the resend
+      // with a renewed credential too.
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Idempotency-Key': uuidV4() };
       const trace = getActiveTraceparent();
       if (trace) {
         headers['traceparent'] = trace.traceparent;
         if (trace.tracestate) headers['tracestate'] = trace.tracestate;
       }
       // Retried per request, so one refusal does not re-run the requests
-      // that already succeeded: a 429/503/504 or an expired deadline gets
+      // that already succeeded: a 429/503/504, or no answer at all, gets
       // another attempt; a 400/403 rejects on the first, unretried. The
       // predicate is core's, and its statuses are `RETRY_RULES.boot` (the
       // rule for a boot pass or a bus request), so this emit keeps no list
@@ -854,14 +856,19 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // hand back the same unexamined response.
       const send = (token: string) => retryWithBackoff(async () => {
         // Bounded: an unresponsive gateway must not hang
-        // the caller's loop forever. AbortSignal.timeout rejects with a
-        // DOMException named TimeoutError — which the predicate treats as
-        // retryable, since a deadline is the definition of "try again".
+        // the caller's loop forever.
+        //
+        // `fetch()` rejects only when no answer came: on a network error with
+        // a `TypeError` in the runtime's own words (the Fetch standard), on the
+        // deadline with a `TimeoutError`. So its rejection is no answer,
+        // whatever it says, and worth another attempt.
         const attempt = await fetchOf(options.fetch)(`${baseUrl}/bus/emit`, {
           method: 'POST',
           headers: { ...headers, Authorization: `Bearer ${token}` },
           body: JSON.stringify(body),
           signal: AbortSignal.timeout(EMIT_TIMEOUT_MS),
+        }).catch((error: unknown) => {
+          throw new UnansweredError('/bus/emit', error);
         });
         // A refused emit (validation 400, auth 401…) must REJECT — Bus.request's
         // contract detaches its doomed reply and propagates this to the caller.
@@ -888,12 +895,10 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         return attempt;
       }, retryableUnlessRefused, emitRetry)
         .catch((error: unknown) => {
-          if (error instanceof APIError) throw error;
-          // The gateway never answered, on any attempt the budget allowed: the
-          // connection failed or the deadline passed. The runtime's own error
-          // for that carries no code, and a caller routing on codes would not
-          // know an unreachable gateway from a bug.
-          throw APIError.unanswered('/bus/emit', error);
+          // The gateway never answered, on any attempt the budget allowed. It
+          // reaches the caller as every failure of this transport does.
+          if (error instanceof UnansweredError) throw APIError.withoutResponse(error.message, error.name);
+          throw error;
         });
       const token = getToken();
       // A refused credential is renewed once and the emit sent again at once

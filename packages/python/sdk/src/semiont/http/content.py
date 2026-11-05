@@ -199,11 +199,16 @@ class HttpContentTransport(ContentTransport):
         )
         with telemetry.putting(request.format, len(request.file)):
             # No deadline: how long an upload takes is how large the resource is.
+            # Its key is made once: every attempt carries it, so the gateway knows each as the same upload.
             return await self._exchange.answer(
                 CreateResourceResponse,
                 "POST",
                 "/resources",
-                headers={"Content-Type": f"multipart/form-data; boundary={form.boundary}", "Content-Length": str(form.size)},
+                headers={
+                    "Content-Type": f"multipart/form-data; boundary={form.boundary}",
+                    "Content-Length": str(form.size),
+                    "Idempotency-Key": str(uuid.uuid4()),
+                },
                 content=lambda: _Sending(form, progress),
                 at_length=True,
             )

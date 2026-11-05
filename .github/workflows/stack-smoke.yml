@@ -20,7 +20,8 @@
 #     published;
 #   - a published tag, when a run names one (`images`): the release's question,
 #     whether the images people will pull boot with this launcher, asked before
-#     `latest` moves to them (docs/contributor/RELEASE.md).
+#     `latest` moves to them (docs/contributor/RELEASE.md). The smoke script
+#     builds the launcher, as it does wherever none is built from the checkout.
 name: Stack Smoke
 
 on:
@@ -114,6 +115,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-rust-image-layers-
 
+      - name: Wait for Docker
+        # A fresh runner's engine can take longer than the five seconds the build's
+        # and the smoke's readiness check allow before it answers.
+        run: timeout 120 sh -c 'until docker info >/dev/null 2>&1; do sleep 2; done'
+
       - name: Build the packages, images and launcher from this commit
         if: env.IMAGES == 'local'
         # The stack boots under docker, the engine that builds the images, so
@@ -121,19 +127,6 @@ jobs:
         # packages are the ones an image installs; the other languages'
         # packages are built and tested by ci.yml's jobs.
         run: make local-build PACKAGE_NAMES=typescript FANOUT=0 LAYER_CACHE="$RUNNER_TEMP/rust-image-layers"
-
-      - uses: actions/setup-go@v7.0.0
-        if: env.IMAGES != 'local'
-        with:
-          go-version-file: apps/launcher/go.mod
-          cache-dependency-path: |
-            apps/launcher/go.sum
-            packages/go/launcher/go.sum
-
-      - name: Build the launcher from this commit
-        # Where the smoke script runs it from.
-        if: env.IMAGES != 'local'
-        run: cd apps/launcher && go build -o dist/semiont .
 
       - uses: actions/setup-node@v7
         if: env.IMAGES != 'local'

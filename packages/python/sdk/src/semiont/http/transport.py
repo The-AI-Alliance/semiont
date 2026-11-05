@@ -265,30 +265,32 @@ class HttpTransport(Transport, GatewayOperations):
 
         One whose credential is refused is renewed outside the budget: the
         refresher is asked once, and the emit is made again at once with the
-        token it gives. Refused again, it fails.
+        token it gives. Refused again, it fails. Its key is made once, and
+        every attempt carries it, so the gateway knows each as the same emit.
         """
+        key = str(uuid.uuid4())
         token = self._token.value
         try:
-            return await self._within_budget(body, token)
+            return await self._within_budget(body, key, token)
         except TransportError as refused:
             if refused.code != "unauthorized" or self._closing.is_set():
                 raise
             renewed = await self._exchange.renewal(token)
             if renewed is None:
                 raise
-        return await self._within_budget(body, renewed)
+        return await self._within_budget(body, key, renewed)
 
-    async def _within_budget(self, body: str, token: str | None) -> int | None:
-        """An emit's attempts, each with `token`, until one is accepted or `emit_retry` is spent."""
+    async def _within_budget(self, body: str, key: str, token: str | None) -> int | None:
+        """An emit's attempts, each with `key` and `token`, until one is accepted or `emit_retry` is spent."""
         return await retry_with_backoff(
             self._timing.emit_retry,
-            lambda: self._emit_once(body, token),
+            lambda: self._emit_once(body, key, token),
             retryable=_worth_another_emit,
             give_up=self._closing,
         )
 
-    async def _emit_once(self, body: str, token: str | None) -> int | None:
-        """One attempt of an emit: `POST /bus/emit` with `token`, answered within `EMIT_TIMEOUT_MS`."""
+    async def _emit_once(self, body: str, key: str, token: str | None) -> int | None:
+        """One attempt of an emit: `POST /bus/emit` with its `key` and `token`, answered within `EMIT_TIMEOUT_MS`."""
         if self._closing.is_set():
             raise TransportError("error", "/bus/emit was not sent: the transport is closed")
         try:
@@ -300,6 +302,7 @@ class HttpTransport(Transport, GatewayOperations):
                         **telemetry.trace_headers(),
                         "Authorization": f"Bearer {token or ''}",
                         "Content-Type": "application/json",
+                        "Idempotency-Key": key,
                     },
                 )
         except TimeoutError:

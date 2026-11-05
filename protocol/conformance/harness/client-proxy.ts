@@ -13,8 +13,9 @@
  *   ones (`down`) until told otherwise (`up`): a dropped stream and an outage,
  *   as the client meets them;
  * - it keeps a request waiting (`hold`, `release`), answers one itself with a
- *   refusal a case scripted (`answer`), and passes a stream on a few bytes at a
- *   time (`rechunk`).
+ *   refusal a case scripted (`answer`), reads one whole and closes its
+ *   connection with no answer (`leaveUnanswered`), and passes a stream on a few
+ *   bytes at a time (`rechunk`).
  *
  * Everything else passes through untouched, streams included. The gateway
  * behind it is the real one. `answer` is the one place the proxy speaks for
@@ -86,6 +87,12 @@ export interface ClientProxy {
   release(): void;
   /** Answer the next `times` requests `match` accepts with `answer`, without passing them on. */
   answer(match: (r: ProxiedRequest) => boolean, answer: ScriptedAnswer, times: number): void;
+  /**
+   * Read the next `times` requests `match` accepts whole, pass none on, and
+   * close each one's connection with nothing written: a request the gateway
+   * dropped unanswered, as the client meets it.
+   */
+  leaveUnanswered(match: (r: ProxiedRequest) => boolean, times: number): void;
   /** Pass every stream on `bytes` at a time, each piece written on its own. */
   rechunk(bytes: number): void;
   close(): Promise<void>;
@@ -138,6 +145,7 @@ export async function startClientProxy(gatewayOrigin: string): Promise<ClientPro
   let held: ((r: ProxiedRequest) => boolean) | undefined;
   let releases: Array<() => void> = [];
   const scripted: Array<{ match: (r: ProxiedRequest) => boolean; answer: ScriptedAnswer; left: number }> = [];
+  const unanswering: Array<{ match: (r: ProxiedRequest) => boolean; left: number }> = [];
   let pieceBytes: number | undefined;
 
   const wake = () => {
@@ -266,6 +274,12 @@ export async function startClientProxy(gatewayOrigin: string): Promise<ClientPro
         res.end(script.answer.body);
         return;
       }
+      const dropping = unanswering.find((u) => u.left > 0 && u.match(recorded));
+      if (dropping) {
+        dropping.left--;
+        res.destroy();
+        return;
+      }
       if (held?.(recorded)) releases.push(() => forward(recorded, body, res));
       else forward(recorded, body, res);
     });
@@ -328,6 +342,9 @@ export async function startClientProxy(gatewayOrigin: string): Promise<ClientPro
     },
     answer(match, answer, times) {
       scripted.push({ match, answer, left: times });
+    },
+    leaveUnanswered(match, times) {
+      unanswering.push({ match, left: times });
     },
     rechunk(bytes) {
       pieceBytes = bytes;

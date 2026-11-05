@@ -16,6 +16,7 @@ public enum ConnectionState { Connecting, Open, Reconnecting, Degraded, Unauthen
 
 public sealed partial class HttpTransport : IDisposable
 {
+    private const string IdempotencyKey = "Idempotency-Key";
     private readonly object gate = new();
     private readonly HttpClient? client;
     private readonly HttpMessageInvoker? owned;
@@ -214,6 +215,7 @@ public sealed partial class HttpTransport : IDisposable
         lock (gate) { if (closed) throw new TransportError(ProtocolFacts.Error(0), "The transport is closed"); }
         using var waiting = CancellationTokenSource.CreateLinkedTokenSource(cancellation, lifetime.Token);
         var body = new BusEmitRequest { Channel = channel, Payload = payload, Scope = scope, CorrelationId = correlationId, ClientId = clientId };
+        var key = Guid.NewGuid().ToString();
         var cap = timing.EmitRetry.InitialDelayMs;
         var renewed = false;
         for (var attempt = 1; ; attempt++)
@@ -229,6 +231,7 @@ public sealed partial class HttpTransport : IDisposable
                 continue;
             }
             using var request = Request(HttpMethod.Post, "/bus/emit", sent);
+            request.Headers.Add(IdempotencyKey, key);
             request.Content = JsonContent.Create(body);
             using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(timing.EmitTimeoutMs), clock);
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, lifetime.Token, deadline.Token);

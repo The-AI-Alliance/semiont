@@ -7144,6 +7144,18 @@ type TooManyRequests = LimitRefusal
 // Unauthorized The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.
 type Unauthorized = ErrorResponse
 
+// EmitOnBusParams defines parameters for EmitOnBus.
+type EmitOnBusParams struct {
+	// IdempotencyKey The client's own name for this emit: a new one for each emit, and the same on every attempt at it, whether its credential was renewed or not.
+	IdempotencyKey string `json:"Idempotency-Key"`
+}
+
+// UploadResourceParams defines parameters for UploadResource.
+type UploadResourceParams struct {
+	// IdempotencyKey The client's own name for this upload: a new one for each upload, and the same on every attempt at it, whether its credential was renewed or not.
+	IdempotencyKey string `json:"Idempotency-Key"`
+}
+
 // CreateMediaTokenJSONRequestBody defines body for CreateMediaToken for application/json ContentType.
 type CreateMediaTokenJSONRequestBody = MediaTokenRequest
 
@@ -14493,9 +14505,9 @@ type ClientInterface interface {
 	GetCurrentUser(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EmitOnBusWithBody request with any body
-	EmitOnBusWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	EmitOnBusWithBody(ctx context.Context, params *EmitOnBusParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	EmitOnBus(ctx context.Context, body EmitOnBusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	EmitOnBus(ctx context.Context, params *EmitOnBusParams, body EmitOnBusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SubscribeToBusWithBody request with any body
 	SubscribeToBusWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -14503,7 +14515,7 @@ type ClientInterface interface {
 	SubscribeToBus(ctx context.Context, body SubscribeToBusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UploadResourceWithBody request with any body
-	UploadResourceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UploadResourceWithBody(ctx context.Context, params *UploadResourceParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetResourceRepresentation request
 	GetResourceRepresentation(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -14626,8 +14638,8 @@ func (c *Client) GetCurrentUser(ctx context.Context, reqEditors ...RequestEditor
 	return c.Client.Do(req)
 }
 
-func (c *Client) EmitOnBusWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewEmitOnBusRequestWithBody(c.Server, contentType, body)
+func (c *Client) EmitOnBusWithBody(ctx context.Context, params *EmitOnBusParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEmitOnBusRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -14638,8 +14650,8 @@ func (c *Client) EmitOnBusWithBody(ctx context.Context, contentType string, body
 	return c.Client.Do(req)
 }
 
-func (c *Client) EmitOnBus(ctx context.Context, body EmitOnBusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewEmitOnBusRequest(c.Server, body)
+func (c *Client) EmitOnBus(ctx context.Context, params *EmitOnBusParams, body EmitOnBusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEmitOnBusRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -14674,8 +14686,8 @@ func (c *Client) SubscribeToBus(ctx context.Context, body SubscribeToBusJSONRequ
 	return c.Client.Do(req)
 }
 
-func (c *Client) UploadResourceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUploadResourceRequestWithBody(c.Server, contentType, body)
+func (c *Client) UploadResourceWithBody(ctx context.Context, params *UploadResourceParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUploadResourceRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -14971,18 +14983,18 @@ func NewGetCurrentUserRequest(server string) (*http.Request, error) {
 }
 
 // NewEmitOnBusRequest calls the generic EmitOnBus builder with application/json body
-func NewEmitOnBusRequest(server string, body EmitOnBusJSONRequestBody) (*http.Request, error) {
+func NewEmitOnBusRequest(server string, params *EmitOnBusParams, body EmitOnBusJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewEmitOnBusRequestWithBody(server, "application/json", bodyReader)
+	return NewEmitOnBusRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewEmitOnBusRequestWithBody generates requests for EmitOnBus with any type of body
-func NewEmitOnBusRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewEmitOnBusRequestWithBody(server string, params *EmitOnBusParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -15006,6 +15018,19 @@ func NewEmitOnBusRequestWithBody(server string, contentType string, body io.Read
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+	}
 
 	return req, nil
 }
@@ -15051,7 +15076,7 @@ func NewSubscribeToBusRequestWithBody(server string, contentType string, body io
 }
 
 // NewUploadResourceRequestWithBody generates requests for UploadResource with any type of body
-func NewUploadResourceRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewUploadResourceRequestWithBody(server string, params *UploadResourceParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -15075,6 +15100,19 @@ func NewUploadResourceRequestWithBody(server string, contentType string, body io
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+	}
 
 	return req, nil
 }
@@ -15285,9 +15323,9 @@ type ClientWithResponsesInterface interface {
 	GetCurrentUserWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCurrentUserResponse, error)
 
 	// EmitOnBusWithBodyWithResponse request with any body
-	EmitOnBusWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EmitOnBusResponse, error)
+	EmitOnBusWithBodyWithResponse(ctx context.Context, params *EmitOnBusParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EmitOnBusResponse, error)
 
-	EmitOnBusWithResponse(ctx context.Context, body EmitOnBusJSONRequestBody, reqEditors ...RequestEditorFn) (*EmitOnBusResponse, error)
+	EmitOnBusWithResponse(ctx context.Context, params *EmitOnBusParams, body EmitOnBusJSONRequestBody, reqEditors ...RequestEditorFn) (*EmitOnBusResponse, error)
 
 	// SubscribeToBusWithBodyWithResponse request with any body
 	SubscribeToBusWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubscribeToBusResponse, error)
@@ -15295,7 +15333,7 @@ type ClientWithResponsesInterface interface {
 	SubscribeToBusWithResponse(ctx context.Context, body SubscribeToBusJSONRequestBody, reqEditors ...RequestEditorFn) (*SubscribeToBusResponse, error)
 
 	// UploadResourceWithBodyWithResponse request with any body
-	UploadResourceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadResourceResponse, error)
+	UploadResourceWithBodyWithResponse(ctx context.Context, params *UploadResourceParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadResourceResponse, error)
 
 	// GetResourceRepresentationWithResponse request
 	GetResourceRepresentationWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceRepresentationResponse, error)
@@ -15780,16 +15818,16 @@ func (c *ClientWithResponses) GetCurrentUserWithResponse(ctx context.Context, re
 }
 
 // EmitOnBusWithBodyWithResponse request with arbitrary body returning *EmitOnBusResponse
-func (c *ClientWithResponses) EmitOnBusWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EmitOnBusResponse, error) {
-	rsp, err := c.EmitOnBusWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) EmitOnBusWithBodyWithResponse(ctx context.Context, params *EmitOnBusParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EmitOnBusResponse, error) {
+	rsp, err := c.EmitOnBusWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseEmitOnBusResponse(rsp)
 }
 
-func (c *ClientWithResponses) EmitOnBusWithResponse(ctx context.Context, body EmitOnBusJSONRequestBody, reqEditors ...RequestEditorFn) (*EmitOnBusResponse, error) {
-	rsp, err := c.EmitOnBus(ctx, body, reqEditors...)
+func (c *ClientWithResponses) EmitOnBusWithResponse(ctx context.Context, params *EmitOnBusParams, body EmitOnBusJSONRequestBody, reqEditors ...RequestEditorFn) (*EmitOnBusResponse, error) {
+	rsp, err := c.EmitOnBus(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -15814,8 +15852,8 @@ func (c *ClientWithResponses) SubscribeToBusWithResponse(ctx context.Context, bo
 }
 
 // UploadResourceWithBodyWithResponse request with arbitrary body returning *UploadResourceResponse
-func (c *ClientWithResponses) UploadResourceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadResourceResponse, error) {
-	rsp, err := c.UploadResourceWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) UploadResourceWithBodyWithResponse(ctx context.Context, params *UploadResourceParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadResourceResponse, error) {
+	rsp, err := c.UploadResourceWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
