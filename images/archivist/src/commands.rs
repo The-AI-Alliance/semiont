@@ -15,7 +15,7 @@ use semiont::channels::{
 };
 use semiont::media_types::{AnchoringModel, capabilities_of};
 use semiont::roles::WORKER_ROLE;
-use semiont_archivist_record::agents::attribution;
+use semiont_archivist_record::agents::{Attribution, attribution};
 use semiont_archivist_record::{Object, ids, log};
 use serde_json::{Value, json};
 
@@ -107,8 +107,18 @@ fn requester_of(
         })
 }
 
-/// `yield:create`: record a resource whose content is in the working tree.
-pub async fn yield_create(archivist: &Archivist, command: &Object) -> Answered {
+/// What a `yield:create` must pass before anything is recorded for it, and
+/// who the resource it records is for.
+struct Creating<'a> {
+    user: &'a str,
+    uri: &'a str,
+    job_id: Option<&'a str>,
+    source_resource: Option<&'a str>,
+    source_annotation: Option<&'a str>,
+    derived: Attribution,
+}
+
+fn creating<'a>(archivist: &Archivist, command: &'a Object) -> Result<Creating<'a>, Refusal> {
     const CHANNEL: &str = YieldCreate::NAME;
     let user = sender(CHANNEL, command)?;
     let job_id = text(command, "jobId");
@@ -138,17 +148,31 @@ pub async fn yield_create(archivist: &Archivist, command: &Object) -> Answered {
         user,
         command.get("generator").and_then(Value::as_object),
     )?;
-    let uri = required(CHANNEL, command, "storageUri")?;
-    let held = archivist
-        .content
-        .register(uri, text(command, "contentChecksum"))
-        .await?;
-    let resource_id = ids::mint();
+    Ok(Creating {
+        user,
+        uri: required(CHANNEL, command, "storageUri")?,
+        job_id,
+        source_resource,
+        source_annotation,
+        derived,
+    })
+}
 
+/// What `yield:created` records of `command`, whose content's checksum is
+/// `checksum`.
+fn created(command: &Object, creating: Creating, checksum: &str) -> Object {
+    let Creating {
+        uri,
+        job_id,
+        source_resource,
+        source_annotation,
+        derived,
+        ..
+    } = creating;
     let mut payload = Object::new();
     carry(&mut payload, "name", command.get("name"));
     carry(&mut payload, "format", command.get("format"));
-    payload.insert("contentChecksum".into(), json!(held.checksum));
+    payload.insert("contentChecksum".into(), json!(checksum));
     carry(&mut payload, "contentByteSize", command.get("byteSize"));
     payload.insert("storageUri".into(), json!(uri));
     payload.insert("entityTypes".into(), entity_types(command));
@@ -188,7 +212,24 @@ pub async fn yield_create(archivist: &Archivist, command: &Object) -> Answered {
         "wasAttributedTo".into(),
         Value::Array(derived.was_attributed_to),
     );
-    archivist.append(event(YieldCreated::NAME, Some(&resource_id), user, payload))?;
+    payload
+}
+
+/// `yield:create`: record, as `resource_id`, a resource whose content is in
+/// the working tree.
+pub async fn yield_create(archivist: &Archivist, command: &Object, resource_id: &str) -> Answered {
+    let creating = creating(archivist, command)?;
+    let checksum = archivist
+        .content
+        .register(creating.uri, text(command, "contentChecksum"))
+        .await?;
+    let (user, source_resource, source_annotation) = (
+        creating.user,
+        creating.source_resource,
+        creating.source_annotation,
+    );
+    let payload = created(command, creating, &checksum);
+    archivist.append(event(YieldCreated::NAME, Some(resource_id), user, payload))?;
 
     // The new resource is linked from the annotation it was generated for.
     if let Some((resource, annotation)) = source_resource.zip(source_annotation) {
@@ -210,26 +251,22 @@ pub async fn yield_create(archivist: &Archivist, command: &Object) -> Answered {
     Ok(json!({ "resourceId": resource_id }))
 }
 
-/// Record a copy of `parent`, whose content is at the command's URI.
-async fn clone_persist_as(
-    archivist: &Archivist,
+/// What `yield:cloned` records of `command`, a copy of `parent` whose
+/// content's checksum is `checksum`.
+fn cloned(
     channel: &str,
     command: &Object,
     parent: &str,
     types: Value,
-) -> Result<String, Refusal> {
+    checksum: &str,
+) -> Result<Object, Refusal> {
     let user = sender(channel, command)?;
     let derived = attribution(user, user, None)?;
     let uri = required(channel, command, "storageUri")?;
-    let held = archivist
-        .content
-        .register(uri, text(command, "contentChecksum"))
-        .await?;
-    let resource_id = ids::mint();
     let mut payload = Object::new();
     carry(&mut payload, "name", command.get("name"));
     carry(&mut payload, "format", command.get("format"));
-    payload.insert("contentChecksum".into(), json!(held.checksum));
+    payload.insert("contentChecksum".into(), json!(checksum));
     carry(&mut payload, "contentByteSize", command.get("byteSize"));
     payload.insert("storageUri".into(), json!(uri));
     payload.insert("parentResourceId".into(), json!(parent));
@@ -242,16 +279,44 @@ async fn clone_persist_as(
         "wasAttributedTo".into(),
         Value::Array(derived.was_attributed_to),
     );
-    archivist.append(event(YieldCloned::NAME, Some(&resource_id), user, payload))?;
-    Ok(resource_id)
+    Ok(payload)
+}
+
+/// Record, as `resource_id`, a copy of `parent` whose content is at the
+/// command's URI.
+async fn clone_persist_as(
+    archivist: &Archivist,
+    channel: &str,
+    command: &Object,
+    parent: &str,
+    types: Value,
+    resource_id: &str,
+) -> Result<(), Refusal> {
+    let user = sender(channel, command)?;
+    let uri = required(channel, command, "storageUri")?;
+    let checksum = archivist
+        .content
+        .register(uri, text(command, "contentChecksum"))
+        .await?;
+    let payload = cloned(channel, command, parent, types, &checksum)?;
+    archivist.append(event(YieldCloned::NAME, Some(resource_id), user, payload))?;
+    Ok(())
 }
 
 /// `yield:clone-persist`.
 pub async fn yield_clone_persist(archivist: &Archivist, command: &Object) -> Answered {
     const CHANNEL: &str = YieldClonePersist::NAME;
     let parent = required(CHANNEL, command, "parentResourceId")?.to_owned();
-    let resource_id =
-        clone_persist_as(archivist, CHANNEL, command, &parent, entity_types(command)).await?;
+    let resource_id = ids::mint();
+    clone_persist_as(
+        archivist,
+        CHANNEL,
+        command,
+        &parent,
+        entity_types(command),
+        &resource_id,
+    )
+    .await?;
     Ok(json!({ "resourceId": resource_id }))
 }
 
@@ -709,8 +774,16 @@ pub async fn clone_resource(archivist: &Archivist, command: &Object) -> Answered
     Ok(json!({ "sourceResource": view["resource"], "expiresAt": expires_at }))
 }
 
-/// `yield:clone-create`: spend a token on a copy.
-pub async fn clone_create(archivist: &Archivist, command: &Object) -> Answered {
+/// What a copy made by `yield:clone-create` is recorded from: its command,
+/// less any language.
+fn clone_persisting(command: &Object) -> Object {
+    let mut persist = command.clone();
+    persist.remove("language");
+    persist
+}
+
+/// `yield:clone-create`: spend a token on a copy, recorded as `resource_id`.
+pub async fn clone_create(archivist: &Archivist, command: &Object, resource_id: &str) -> Answered {
     const CHANNEL: &str = YieldCloneCreate::NAME;
     let user = sender(CHANNEL, command)?;
     let token = required(CHANNEL, command, "token")?;
@@ -723,9 +796,15 @@ pub async fn clone_create(archivist: &Archivist, command: &Object) -> Answered {
         .filter(|t| t.is_array())
         .cloned()
         .unwrap_or_else(|| json!([]));
-    let mut persist = command.clone();
-    persist.remove("language");
-    let resource_id = clone_persist_as(archivist, CHANNEL, &persist, &source_id, types).await?;
+    clone_persist_as(
+        archivist,
+        CHANNEL,
+        &clone_persisting(command),
+        &source_id,
+        types,
+        resource_id,
+    )
+    .await?;
     let archive = command
         .get("archiveOriginal")
         .and_then(Value::as_bool)
@@ -740,4 +819,46 @@ pub async fn clone_create(archivist: &Archivist, command: &Object) -> Answered {
     }
     locked(&archivist.tokens).remove(token);
     Ok(json!({ "resourceId": resource_id }))
+}
+
+/// Whether `command`, an upload whose key names a resource already recorded,
+/// is the upload that recorded it: whether it would record what `made`, the
+/// event that made the resource, holds. Its content's checksum is the
+/// command's `contentChecksum`. A clone token is spent once its copy is made,
+/// so a copy sent again is held to the parent and entity types its copy was
+/// recorded with, and its token is not compared.
+pub fn repeats(
+    archivist: &Archivist,
+    command: &Object,
+    is_clone: bool,
+    made: &Object,
+) -> Result<bool, Refusal> {
+    let kind = if is_clone {
+        YieldCloned::NAME
+    } else {
+        YieldCreated::NAME
+    };
+    if made.get("type") != Some(&json!(kind)) {
+        return Ok(false);
+    }
+    let Some(recorded) = made.get("payload").and_then(Value::as_object) else {
+        return Err(format!("the {kind} that made a resource holds no payload").into());
+    };
+    let checksum = required(kind, command, "contentChecksum")?;
+    let would = if is_clone {
+        let parent = required(kind, recorded, "parentResourceId")?;
+        let Some(types) = recorded.get("entityTypes") else {
+            return Err(format!("the {kind} that made a resource holds no entityTypes").into());
+        };
+        cloned(
+            YieldCloneCreate::NAME,
+            &clone_persisting(command),
+            parent,
+            types.clone(),
+            checksum,
+        )?
+    } else {
+        created(command, creating(archivist, command)?, checksum)
+    };
+    Ok(&would == recorded)
 }

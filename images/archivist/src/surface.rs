@@ -2,8 +2,8 @@
 //! resource's content, description and anchored text, and the upload that
 //! stores content and records it.
 
-use crate::archivist::{Archivist, Refusal, primary_representation, text};
-use crate::{anchored, browse, commands};
+use crate::archivist::{Archivist, Refusal, locked, primary_representation, text};
+use crate::{anchored, browse, commands, content};
 use axum::Router;
 use axum::body::{Body, Bytes};
 use axum::extract::{DefaultBodyLimit, FromRequest, Multipart, Path, Query, Request, State};
@@ -17,22 +17,49 @@ use semiont_http_service::{IssuerVerifier, bearer_token};
 use semiont_observability::logging;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::ops::RangeInclusive;
+use std::sync::{Arc, Mutex, Weak};
 use tokio::io::AsyncReadExt;
 
 pub struct Surface {
     pub archivist: Arc<Archivist>,
     pub verifier: IssuerVerifier,
     pub limits: Limits,
+    pub uploads: UploadLocks,
 }
 
-/// The limits the Archivist's API states (`x-semiont-limits`): the most each
-/// operation that takes a JSON body is sent, and the most events one answer
-/// of a stream holds.
+/// One lock for each resource an upload is recording: an upload sent again
+/// while the first is recorded waits for it.
+#[derive(Default)]
+pub struct UploadLocks(Mutex<HashMap<String, Weak<tokio::sync::Mutex<()>>>>);
+
+impl UploadLocks {
+    async fn hold(&self, resource_id: &str) -> tokio::sync::OwnedMutexGuard<()> {
+        let lock = {
+            let mut held = locked(&self.0);
+            held.retain(|_, lock| lock.strong_count() > 0);
+            match held.get(resource_id).and_then(Weak::upgrade) {
+                Some(lock) => lock,
+                None => {
+                    let lock = Arc::new(tokio::sync::Mutex::new(()));
+                    held.insert(resource_id.to_owned(), Arc::downgrade(&lock));
+                    lock
+                }
+            }
+        };
+        lock.lock_owned().await
+    }
+}
+
+/// The limits the Archivist's API states: the most each operation that takes
+/// a JSON body is sent, and the most events one answer of a stream holds
+/// (`x-semiont-limits`); and the characters an upload's `Idempotency-Key` may
+/// have.
 pub struct Limits {
     anchored_text: usize,
     stamp: usize,
     events: usize,
+    upload_key: RangeInclusive<usize>,
 }
 
 impl Limits {
@@ -45,10 +72,28 @@ impl Limits {
                 .and_then(|limit| usize::try_from(limit).ok())
                 .ok_or_else(|| format!("the Archivist's API states no {key} for {method} {path}"))
         };
+        let key = document["paths"]["/resources"]["post"]["parameters"]
+            .as_array()
+            .and_then(|parameters| {
+                parameters
+                    .iter()
+                    .find(|p| p["in"] == "header" && p["name"] == "Idempotency-Key")
+            })
+            .map(|parameter| &parameter["schema"])
+            .ok_or("the Archivist's API declares no Idempotency-Key for post /resources")?;
+        let (Some(shortest), Some(longest)) =
+            (key["minLength"].as_u64(), key["maxLength"].as_u64())
+        else {
+            return Err(
+                "the Archivist's API states no minLength and maxLength for post /resources' Idempotency-Key"
+                    .into(),
+            );
+        };
         Ok(Limits {
             anchored_text: limit("/resources/{id}/anchored-text", "put", "maxBodyBytes")?,
             stamp: limit("/anchored-text/stamp", "put", "maxBodyBytes")?,
             events: limit("/events/{resourceId}", "get", "maxEvents")?,
+            upload_key: shortest as usize..=longest as usize,
         })
     }
 }
@@ -310,6 +355,13 @@ fn bad(message: impl AsRef<str>) -> Response {
     error(StatusCode::BAD_REQUEST, message.as_ref())
 }
 
+/// The id of the resource `principal`'s upload under `key` records. The
+/// resource is the Archivist's memory of the key, for as long as it is held.
+fn keyed_id(principal: &str, key: &str) -> String {
+    let named = serde_json::to_vec(&[principal, key]).expect("two strings serialize");
+    content::checksum(&named)[..32].to_owned()
+}
+
 /// The command an upload's fields make: a copy when they carry a clone
 /// token, a new resource otherwise.
 fn recording(
@@ -402,6 +454,20 @@ async fn upload(State(surface): Shared, request: Request) -> Response {
             "Semiont-Principal is required: the record attributes every resource to someone",
         );
     }
+    let Some(key) = headers.get("idempotency-key") else {
+        return bad("Idempotency-Key is required: it names the upload on every attempt at it");
+    };
+    let Ok(key) = key.to_str() else {
+        return bad("The Idempotency-Key is not text: only visible ASCII characters");
+    };
+    let lengths = &surface.limits.upload_key;
+    if !lengths.contains(&key.chars().count()) {
+        return bad(format!(
+            "The Idempotency-Key must be {} to {} characters",
+            lengths.start(),
+            lengths.end()
+        ));
+    }
     let roles: Vec<String> = header_text("semiont-roles")
         .split(',')
         .map(str::trim)
@@ -451,25 +517,35 @@ async fn upload(State(surface): Shared, request: Request) -> Response {
         Ok(recording) => recording,
         Err(why) => return bad(why),
     };
+    command.insert("contentChecksum".into(), json!(content::checksum(&file)));
+    command.insert("byteSize".into(), json!(file.len()));
 
+    // The key names the resource, so an upload sent again finds the one its
+    // first attempt recorded, and is held to it before anything is stored.
     let archivist = &surface.archivist;
-    let recorded: Result<Value, Refusal> = async {
-        let held = archivist
+    let resource_id = keyed_id(&principal, key);
+    let _recording = surface.uploads.hold(&resource_id).await;
+    let made_by_this_upload: Result<bool, Refusal> = async {
+        if let Some(made) = archivist.events(&resource_id)?.first() {
+            return commands::repeats(archivist, &command, is_clone, made);
+        }
+        archivist
             .content
             .store(&fields["storageUri"], &file)
             .await?;
-        command.insert("contentChecksum".into(), json!(held.checksum));
-        command.insert("byteSize".into(), json!(held.byte_size));
-        match is_clone {
-            true => commands::clone_create(archivist, &command).await,
-            false => commands::yield_create(archivist, &command).await,
+        if is_clone {
+            commands::clone_create(archivist, &command, &resource_id).await?;
+        } else {
+            commands::yield_create(archivist, &command, &resource_id).await?;
         }
+        Ok(true)
     }
     .await;
-    match recorded {
-        Ok(response) => json_reply(
-            StatusCode::OK,
-            json!({ "resourceId": response["resourceId"] }),
+    match made_by_this_upload {
+        Ok(true) => json_reply(StatusCode::OK, json!({ "resourceId": resource_id })),
+        Ok(false) => error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "This Idempotency-Key names a resource recorded from other fields or other bytes",
         ),
         Err(refusal) => {
             logging::warn(

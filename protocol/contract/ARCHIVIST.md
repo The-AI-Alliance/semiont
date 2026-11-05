@@ -83,7 +83,9 @@ Three trees:
 
 A resource id is 1 to 128 characters of `A-Z`, `a-z`, `0-9`, `_` and `-`. An id is checked against
 that rule wherever it becomes a file or directory name, and a name that fails it is refused. The
-Archivist mints resource ids and annotation ids as 32 lowercase hex digits.
+Archivist makes resource ids and annotation ids of 32 lowercase hex digits: at random, except for
+a resource recorded by `POST /resources`, whose id its upload's key decides
+([The HTTP surface](#the-http-surface)).
 
 Files are spread over two levels of directories, `<ab>/<cd>`, by the **shard** of a key: a 16-bit
 number written as four lowercase hex digits and split in two. It is computed over the key's UTF-16
@@ -558,14 +560,32 @@ that follows the signal does not wait.
 1. The `Semiont-Principal` header names who the resource is attributed to; without it: `400`
    `{"error":"Semiont-Principal is required: the record attributes every resource to someone"}`.
    `Semiont-Roles` lists that principal's roles, separated by commas.
-2. A body that is not multipart: `400` `{"error":"The body is not multipart/form-data"}`. Fields
+2. The `Idempotency-Key` header names the upload, the same on every attempt at it. Without it,
+   or with one that is not visible ASCII, or of a length outside the header's `minLength` and
+   `maxLength` in the [API](../specs/src/archivist/openapi.json): `400`, whose `error` names
+   `Idempotency-Key`.
+3. A body that is not multipart: `400` `{"error":"The body is not multipart/form-data"}`. Fields
    the schema refuses: `400` with the schema's reasons. A `format` whose media type is not one
    Semiont knows: `400` `{"error":"Unsupported media type: <type>"}`. `entityTypes` must be a JSON
    list of names, and `generator` a JSON agent.
-3. The file is stored at `storageUri`.
-4. With a `cloneToken`, the copy is recorded as `yield:clone-create` does. Otherwise the resource is
-   recorded as `yield:create` does, with the principal as the sender.
-5. `200` `{"resourceId":"<id>"}`. A record that is refused: `500` `{"error":"<the refusal>"}`.
+4. **The key names the resource.** Its id is the first 32 hex digits of the SHA-256 of the JSON
+   array `[principal, key]`, so the same key from two principals names two resources. An upload
+   for a resource already being recorded waits for it. A resource whose stream holds events was
+   made by an upload with this key, and nothing is stored or recorded again:
+   - `200` `{"resourceId":"<id>"}` when this upload would record what the event that made it
+     holds: the same fields and the same bytes. A copy is held to the parent and
+     entity types it was recorded with, since its clone token was spent in making it.
+   - `422` `{"error":"This Idempotency-Key names a resource recorded from other fields or other bytes"}`
+     otherwise, a copy's key sent with no clone token, or a new resource's sent with one, among
+     them.
+
+   The Archivist remembers a key for as long as the resource it made, across restarts, and
+   remembers nothing else of it.
+5. The file is stored at `storageUri`.
+6. With a `cloneToken`, the copy is recorded as `yield:clone-create` does. Otherwise the resource is
+   recorded as `yield:create` does, with the principal as the sender. Either is recorded under the
+   key's id; on the bus, each mints a fresh one.
+7. `200` `{"resourceId":"<id>"}`. A record that is refused: `500` `{"error":"<the refusal>"}`.
 
 ## Boot and shutdown
 

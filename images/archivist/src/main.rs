@@ -258,6 +258,7 @@ async fn serve(
         archivist: archivist.clone(),
         verifier: IssuerVerifier::new(issuer, kb_resource(&domain), KEY_TIMINGS, http),
         limits: surface::Limits::of(&semiont_core::spec::spec().archivist)?,
+        uploads: surface::UploadLocks::default(),
     });
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
         .await
