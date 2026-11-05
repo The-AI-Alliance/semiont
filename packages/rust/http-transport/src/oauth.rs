@@ -500,6 +500,7 @@ pub async fn refresh_stored_session(
             retry::REFRESH.retryable(&RetryFacts {
                 status: error.status,
                 method: Some("POST"),
+                keyed: false,
             })
         },
         |_| None,

@@ -1,12 +1,14 @@
 //! What the gateway reads from the spec for itself: the limits its routes
-//! enforce (each operation's `x-semiont-limits`, and `maxItems`), how long a
-//! connection waits for a request (the document's `x-semiont-limits`), the
-//! timings of its issuer's key set (the bearer scheme's `x-semiont-limits`), and
-//! what each operation that takes JSON accepts.
+//! enforce (each operation's `x-semiont-limits`, `maxItems`, and how long an
+//! `Idempotency-Key` may be), how long a connection waits for a request (the
+//! document's `x-semiont-limits`), the timings of its issuer's key set (the
+//! bearer scheme's `x-semiont-limits`), and what each operation that takes
+//! JSON accepts.
 
 use semiont_core::spec::{Spec, spec};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::ops::RangeInclusive;
 use std::sync::OnceLock;
 
 /// What an operation that takes JSON accepts: the component schema its body
@@ -18,7 +20,8 @@ pub struct JsonBody {
 }
 
 /// The limits the spec states: each operation's `x-semiont-limits`, the
-/// document's, the bearer scheme's, and `maxItems`.
+/// document's, the bearer scheme's, `maxItems`, and the length of each
+/// operation's `Idempotency-Key`.
 #[derive(Debug)]
 pub struct Limits {
     pub request_head_seconds: u64,
@@ -30,6 +33,11 @@ pub struct Limits {
     pub pending_write_bytes: usize,
     pub replay_buffer_events: usize,
     pub claim_seconds: u64,
+    pub idempotency_seconds: u64,
+    /// The characters `POST /bus/emit`'s `Idempotency-Key` may have.
+    pub emit_key_length: RangeInclusive<usize>,
+    /// The characters `POST /resources`' `Idempotency-Key` may have.
+    pub upload_key_length: RangeInclusive<usize>,
     pub pending_replies_max: usize,
     pub scoped_max: usize,
     pub streams_per_principal: PrincipalLimit<u64>,
@@ -212,6 +220,23 @@ impl Limits {
                 .as_u64()
                 .ok_or_else(|| format!("the document states no x-semiont-limits.{key}"))
         };
+        let key_length = |path: &str| -> Result<RangeInclusive<usize>, String> {
+            let schema = document["paths"][path]["post"]["parameters"]
+                .as_array()
+                .and_then(|parameters| {
+                    parameters
+                        .iter()
+                        .find(|p| p["in"] == "header" && p["name"] == "Idempotency-Key")
+                })
+                .map(|parameter| &parameter["schema"])
+                .ok_or_else(|| format!("POST {path} declares no Idempotency-Key header"))?;
+            match (schema["minLength"].as_u64(), schema["maxLength"].as_u64()) {
+                (Some(min), Some(max)) => Ok(min as usize..=max as usize),
+                _ => Err(format!(
+                    "POST {path}'s Idempotency-Key states no minLength and maxLength"
+                )),
+            }
+        };
         let key_set = |key: &str| -> Result<u64, String> {
             document["components"]["securitySchemes"]["bearerAuth"]["x-semiont-limits"][key]
                 .as_u64()
@@ -227,6 +252,9 @@ impl Limits {
             pending_write_bytes: limit("/bus/subscribe", "post", "pendingWriteBytes")? as usize,
             replay_buffer_events: limit("/bus/subscribe", "post", "replayBufferEvents")? as usize,
             claim_seconds: limit("/bus/emit", "post", "claimSeconds")?,
+            idempotency_seconds: limit("/bus/emit", "post", "idempotencySeconds")?,
+            emit_key_length: key_length("/bus/emit")?,
+            upload_key_length: key_length("/resources")?,
             pending_replies_max: max_items("pendingReplies")?,
             scoped_max: max_items("scoped")?,
             streams_per_principal: PrincipalLimit::parse(

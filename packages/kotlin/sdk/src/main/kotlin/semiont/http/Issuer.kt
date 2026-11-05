@@ -122,7 +122,7 @@ public suspend fun renewKept(kept: SignInKept, holding: String?, http: HttpClien
     if (held.access != holding && !isTokenExpired(held.access, System.currentTimeMillis() / 1000.0)) return held.access
     var attempts = 0
     val tokens = try {
-        retryWithBackoff(Timings.REFRESH_RETRY, { REFRESH.retryable(RetryFacts(status = (it as? SignInError)?.status, method = "POST")) }) {
+        retryWithBackoff(Timings.REFRESH_RETRY, { REFRESH.retryable(RetryFacts(status = (it as? SignInError)?.status, method = "POST", keyed = false)) }) {
             attempts += 1
             refreshAtIssuer(held.tokenEndpoint, held.clientId, held.refresh, http)
         }

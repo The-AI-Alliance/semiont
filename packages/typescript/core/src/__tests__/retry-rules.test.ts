@@ -94,7 +94,7 @@ describe('RETRY_RULES', () => {
     });
   });
 
-  describe('the transport rule keys on method as well as status', () => {
+  describe('the transport rule keys on method and Idempotency-Key as well as status', () => {
     // The dimension a ReadonlySet<number> cannot express, and the reason the
     // taxonomy is not typed as one. The transport's retry gate consumes this.
     it('does not retry a 401 on any method — a refused credential is renewed before the rule is asked', () => {
@@ -115,6 +115,21 @@ describe('RETRY_RULES', () => {
       // Absence is not permission. A caller that cannot say which method it used
       // gets the conservative answer rather than a silent yes.
       expect(RETRY_RULES.transport.retryable({ status: 502 })).toBe(false);
+    });
+
+    it('retries a 5xx on a POST that carries an Idempotency-Key, and on no other POST', () => {
+      // The server answers a keyed repeat as it answered the first, so an upload
+      // that got a 502 is sent again without making a second resource.
+      expect(RETRY_RULES.transport.retryable({ status: 502, method: 'POST', keyed: true })).toBe(true);
+      expect(RETRY_RULES.transport.retryable({ status: 502, method: 'POST', keyed: false })).toBe(false);
+      expect(RETRY_RULES.transport.retryable({ status: 502, method: 'POST' })).toBe(false);
+      expect(RETRY_RULES.transport.retryable({ status: 503, keyed: true })).toBe(true);
+    });
+
+    it('keeps a refusal final on a keyed request: a key makes a repeat harmless, not a refused request acceptable', () => {
+      for (const status of [400, 401, 403, 422]) {
+        expect(RETRY_RULES.transport.retryable({ status, method: 'POST', keyed: true }), `on ${status}`).toBe(false);
+      }
     });
   });
 

@@ -14,13 +14,14 @@ public sealed class RetryTests
         {
             int? status = row.TryGetProperty("status", out var code) ? code.GetInt32() : null;
             var method = row.TryGetProperty("method", out var verb) ? verb.GetString() : null;
+            var keyed = row.TryGetProperty("keyed", out var key) && key.GetBoolean();
             var rule = row.GetProperty("rule").GetString();
             if (rule == "job") continue; // This rule belongs to the worker.
             var retries = rule switch
             {
                 "boot" => ProtocolFacts.RetryEmit(status ?? throw new InvalidOperationException("Missing boot status")),
                 "refresh" => ProtocolFacts.RetryRefresh(status),
-                "transport" => ProtocolFacts.RetryTransport(status, method),
+                "transport" => ProtocolFacts.RetryTransport(status, method, keyed),
                 _ => throw new InvalidOperationException("Unrecognized retry rule: " + rule),
             };
             Assert.Equal(row.GetProperty("retries").GetBoolean(), retries);

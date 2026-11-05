@@ -155,7 +155,7 @@ public actor SemiontSession: StateUnit {
         if Task.isCancelled { throw CancellationError() }
         await setToken(nil)
         if failure.reason == .exchange, let status = failure.status,
-          !RetryContext.refresh.retryable(status: status, method: "POST")
+          !RetryContext.refresh.retryable(status: status, method: "POST", keyed: false)
         {
           if startup {
             try await kept.forget()

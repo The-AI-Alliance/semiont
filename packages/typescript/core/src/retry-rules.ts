@@ -35,10 +35,11 @@
 /**
  * What is known about a failure at the moment someone asks.
  *
- * `method` exists because retryability depends on the REQUEST as well as the
- * failure: a `504` on a GET is safe to repeat, a `504` on a POST may already have
- * been processed upstream. Optional, because only the transport rule has an
- * answer for it — and unstated reads as unsafe rather than as permission.
+ * `method` and `keyed` exist because retryability depends on the REQUEST as well
+ * as the failure: a `504` on a GET is safe to repeat, a `504` on a POST may
+ * already have been processed upstream, unless the POST carries a key the server
+ * answers its repeat by. Optional, because only the transport rule has an
+ * answer for them — and unstated reads as unsafe rather than as permission.
  *
  * Deliberately not a `ReadonlySet<number>`: a status set cannot say *`5xx` on
  * idempotent methods only*, which is exactly what the transport needs to say.
@@ -47,6 +48,11 @@ export interface RetryFacts {
   status?: number;
   /** HTTP method, any case. Absent means "not stated", which is treated as unsafe. */
   method?: string;
+  /**
+   * Whether the request carries an `Idempotency-Key`. Absent means it carries
+   * none, as a row of protocol/specs/src/retry/cases.json that omits it states.
+   */
+  keyed?: boolean;
 }
 
 export interface RetryRule {
@@ -97,14 +103,16 @@ const job: RetryRule = {
 const transport: RetryRule = {
   name: 'transport',
   rationale:
-    'An HTTP client\'s request. A retryable status applies only to idempotent methods, ' +
-    'because a POST that got a 502 may already have been processed — and one of them mints a ' +
-    'fresh resource id, so a repeat writes a second resource the caller never learns about. ' +
-    'Method-level is enough: no per-endpoint registry. A 401 is not retried: a refused ' +
+    'An HTTP client\'s request. A retryable status applies only where a repeat cannot cause a ' +
+    'second effect: on an idempotent method, or on a request that carries an Idempotency-Key, ' +
+    'whose repeat the server answers as it answered the first. A POST with no key that got a ' +
+    '502 may already have been processed, so a repeat could do it twice. The method and the ' +
+    'key are enough: no per-endpoint registry. A key makes a repeat harmless, not a refused ' +
+    'request acceptable, so a 400 or 422 stays final. A 401 is not retried: a refused ' +
     'credential is renewed before any rule is asked, and the same token gets the same answer.',
-  retryable: ({ status, method }) => {
+  retryable: ({ status, method, keyed }) => {
     if (status === undefined) return false;
-    const repeatable = method !== undefined && IDEMPOTENT_METHODS.has(method.toUpperCase());
+    const repeatable = keyed === true || (method !== undefined && IDEMPOTENT_METHODS.has(method.toUpperCase()));
     if (!repeatable) return false;
     return status === 408 || status === 413 || status === 429 || status === 500
       || status === 502 || status === 503 || status === 504;

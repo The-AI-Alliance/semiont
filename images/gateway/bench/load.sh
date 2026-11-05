@@ -73,12 +73,30 @@ until [ -s "$WORK/token" ]; do
 done
 TOKEN=$(cat "$WORK/token")
 
+# Every emit carries an Idempotency-Key of its own: the run's tag (wrk's first
+# argument), its wrk thread and its count. The gateway holds a key for
+# idempotencySeconds, so one sent twice would be answered from its table and
+# measure nothing.
 emit_script() { # <file> <body>
   cat > "$1" <<LUA
 wrk.method = "POST"
 wrk.headers["Content-Type"] = "application/json"
 wrk.headers["Authorization"] = "Bearer $TOKEN"
 wrk.body = '$2'
+local threads = 0
+function setup(thread)
+  threads = threads + 1
+  thread:set("id", threads)
+end
+local prefix, sent = "", 0
+function init(args)
+  prefix = args[1] .. "-" .. id .. "-"
+end
+function request()
+  sent = sent + 1
+  wrk.headers["Idempotency-Key"] = prefix .. sent
+  return wrk.format()
+end
 LUA
 }
 emit_script "$WORK/emit.lua" '{"channel":"beckon:focus","payload":{"resourceId":"res-1"}}'
@@ -92,9 +110,10 @@ target() { # <scenario> → its URL
   esac
 }
 
-# <scenario> <duration> → "rps p50 p99" of one run, milliseconds
+# <scenario> <duration> → "rps p50 p99" of one run, milliseconds. Each run is
+# tagged afresh, so no two runs send one key.
 run() {
-  out=$(taskset -c "$WRK_CPUS" wrk -t"$WRK_THREADS" -c"$CONNECTIONS" -d"$2" --latency -s "$WORK/$1.lua" "$(target "$1")")
+  out=$(taskset -c "$WRK_CPUS" wrk -t"$WRK_THREADS" -c"$CONNECTIONS" -d"$2" --latency -s "$WORK/$1.lua" "$(target "$1")" -- "$(cat /proc/sys/kernel/random/uuid)")
   if echo "$out" | grep -q 'Non-2xx'; then
     echo "$1: the gateway refused requests — $(echo "$out" | grep 'Non-2xx')" >&2
     exit 1

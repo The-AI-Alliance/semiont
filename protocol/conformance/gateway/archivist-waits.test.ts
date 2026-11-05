@@ -7,8 +7,11 @@
  * rule). `connectSeconds` is not held here: an address that takes no
  * connection cannot be staged on the loopback.
  *
- * Plane-independent, and slow: the one case waits `readSeconds` out, three
- * waits side by side.
+ * Plane-independent, and slow: the first case waits `readSeconds` out, three
+ * waits side by side, and the second waits it out once more, for an upload
+ * the Archivist recorded and never answered: its resend, under its key, is
+ * answered with the resource it made (protocol/specs/src/paths/resources.json,
+ * A key).
  */
 import { randomUUID } from 'node:crypto';
 import { request } from 'node:http';
@@ -54,6 +57,7 @@ function slowUpload(origin: string, token: string, storageUri: string): Promise<
         method: 'POST',
         headers: {
           authorization: `Bearer ${token}`,
+          'idempotency-key': randomUUID(),
           'content-type': `multipart/form-data; boundary=${boundary}`,
           'content-length': String(head.length + pieces * piece.length + tail.length),
         },
@@ -126,4 +130,33 @@ eachPlane('an Archivist that stops answering', (world) => {
 
     await Promise.all([neverAnswered(), answeredInPart(), uploadNeverAnswered()]);
   }, READ_MS * 2 + SENDING_MS + 30_000);
+
+  it('an upload the Archivist recorded and never answered is a 503, and its resend under its key is answered with the resource it made: one resource', async () => {
+    const token = await world().person('resending');
+    const key = randomUUID();
+    const storageUri = `file://uploads/${randomUUID()}`;
+    const form = () => {
+      const body = new FormData();
+      for (const [k, v] of Object.entries({ name: 'Recorded', format: 'text/plain', storageUri })) body.set(k, v);
+      body.set('file', new Blob([new Uint8Array(BYTES)], { type: 'text/plain' }), 'recorded.txt');
+      return body;
+    };
+    const made = () => world().archivist.uploads.filter((u) => u.fields['storageUri'] === storageUri);
+
+    world().archivist.mode.recordsUnanswered = 1;
+    try {
+      const lost = await world().upload(token, form(), key);
+      expect(lost.status, lost.text).toBe(503);
+      expect(nonConformance('post', '/resources', lost)).toEqual([]);
+    } finally {
+      world().archivist.mode.recordsUnanswered = 0;
+    }
+    expect(made()).toHaveLength(1);
+
+    const resent = await world().upload(token, form(), key);
+    expect(resent.status, resent.text).toBe(202);
+    expect(nonConformance('post', '/resources', resent)).toEqual([]);
+    expect(resent.json).toEqual({ resourceId: made()[0]!.resourceId });
+    expect(made()).toHaveLength(1);
+  }, READ_MS + 30_000);
 }, {}, ['in-process']);

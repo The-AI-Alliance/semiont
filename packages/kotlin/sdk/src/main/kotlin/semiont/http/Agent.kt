@@ -188,7 +188,7 @@ public class ServiceToken @JvmOverloads constructor(private val credential: Cred
  * answer, or one saying "not now", is worth another; a refused grant is not,
  * because the same credential gets the same answer.
  */
-private fun transient(error: SemiontError): Boolean = REFRESH.retryable(RetryFacts(status = (error as? SignInError)?.status, method = "POST"))
+private fun transient(error: SemiontError): Boolean = REFRESH.retryable(RetryFacts(status = (error as? SignInError)?.status, method = "POST", keyed = false))
 
 /**
  * The token of the agent whose account `service` names, at the gateway at

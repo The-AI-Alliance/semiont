@@ -28,6 +28,7 @@ jsonwebtoken = { workspace = true, features = ["rust_crypto"] }
 opentelemetry = { workspace = true, features = ["trace", "metrics"] }
 percent-encoding.workspace = true
 reqwest = { workspace = true, features = ["rustls-no-provider", "stream", "json"] }
+ring.workspace = true
 rustls = { workspace = true, features = ["ring", "std"] }
 semiont.workspace = true
 semiont-core = { workspace = true, features = ["nats"] }

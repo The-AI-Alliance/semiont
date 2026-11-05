@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { request } from 'node:http';
 import { expect, it } from 'vitest';
 import { call, nonConformance, type Reply } from '../harness/http';
-import { METHODS, spec, type Method } from '../harness/spec';
+import { METHODS, spec, type Method, type Operation } from '../harness/spec';
 import { SERVICE_ROLE } from '../harness/roles';
 import { eachPlane } from '../harness/world';
 
@@ -18,6 +18,23 @@ const operations = () => spec().operations();
 const isPublic = (op: Record<string, unknown>) => Array.isArray(op['security']) && op['security'].length === 0;
 const takesJson = (op: Record<string, unknown>) =>
   'application/json' in ((op['requestBody'] as { content?: Record<string, unknown> } | undefined)?.content ?? {});
+
+/**
+ * The headers an operation requires, as a client sends them: a new
+ * `Idempotency-Key` where it takes one. A probe is then refused for what it
+ * probes, and never for a header it left out. A required header no probe
+ * knows how to fill fails here, so one added to the spec is not missed.
+ */
+function requiredHeaders(op: Operation['op']): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const parameter of Array.isArray(op['parameters']) ? op['parameters'] : []) {
+    const p = spec().deref(parameter);
+    if (typeof p !== 'object' || p === null || Array.isArray(p) || p['in'] !== 'header' || p['required'] !== true) continue;
+    if (p['name'] !== 'Idempotency-Key') throw new Error(`the spec requires a header ${String(p['name'])} that no probe fills`);
+    headers['idempotency-key'] = randomUUID();
+  }
+  return headers;
+}
 
 /**
  * A body of `size` bytes — `[]` then spaces, JSON at any size, and never the
@@ -31,11 +48,12 @@ function sized(
   token: string,
   size: number,
   framing: 'length' | 'chunked',
+  required: Record<string, string>,
 ): Promise<{ reply: Reply; askedForBody: boolean }> {
   const body = Buffer.alloc(size, ' ');
   body.write('[]');
   const url = new URL(path, origin);
-  const headers: Record<string, string | number> = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+  const headers: Record<string, string | number> = { ...required, authorization: `Bearer ${token}`, 'content-type': 'application/json' };
   if (framing === 'length') {
     headers['content-length'] = size;
     headers['expect'] = '100-continue';
@@ -90,7 +108,7 @@ eachPlane('every operation the spec declares', (world) => {
       // would be a 400 if the gateway parsed it before authenticating.
       for (const [label, authorization] of [['no header', undefined], ['a Basic header', 'Basic dXNlcjpwYXNz']] as const) {
         const reply = await call(world().origin, method, concrete(path), {
-          ...(authorization ? { headers: { authorization } } : {}),
+          headers: { ...requiredHeaders(op), ...(authorization ? { authorization } : {}) },
           ...(takesJson(op) ? { json: '{"unterminated' } : {}),
         });
         const at = `${method.toUpperCase()} ${path} with ${label}`;
@@ -111,7 +129,7 @@ eachPlane('every operation the spec declares', (world) => {
     const problems: string[] = [];
     for (const { method, path, op } of operations()) {
       if (isPublic(op)) continue;
-      const reply = await call(world().origin, method, concrete(path), { token: 'not-a-token', ...(takesJson(op) ? { json: {} } : {}) });
+      const reply = await call(world().origin, method, concrete(path), { token: 'not-a-token', headers: requiredHeaders(op), ...(takesJson(op) ? { json: {} } : {}) });
       if (reply.status !== 401) {
         problems.push(`${method.toUpperCase()} ${path}: ${reply.status}, not 401`);
         continue;
@@ -158,7 +176,7 @@ eachPlane('every operation the spec declares', (world) => {
     for (const { method, path, op } of operations()) {
       if (!takesJson(op)) continue;
       for (const [label, json] of [['an array', '[]'], ['not JSON', '{"unterminated']] as const) {
-        const reply = await call(world().origin, method, concrete(path), { token, json });
+        const reply = await call(world().origin, method, concrete(path), { token, json, headers: requiredHeaders(op) });
         if (reply.status !== 400) problems.push(`${method.toUpperCase()} ${path} with ${label}: ${reply.status}`);
         else problems.push(...nonConformance(method as Method, path, reply).map((p) => `${method.toUpperCase()} ${path} with ${label}: ${p}`));
       }
@@ -178,12 +196,12 @@ eachPlane('every operation the spec declares', (world) => {
         continue;
       }
       for (const framing of ['length', 'chunked'] as const) {
-        const over = await sized(world().origin, concrete(path), token, limit + 1, framing);
+        const over = await sized(world().origin, concrete(path), token, limit + 1, framing, requiredHeaders(op));
         if (over.reply.status !== 413) problems.push(`${where}, ${limit + 1} bytes by ${framing}: ${over.reply.status}`);
         else problems.push(...nonConformance(method as Method, path, over.reply).map((p) => `${where}, ${limit + 1} bytes by ${framing}: ${p}`));
         if (over.askedForBody) problems.push(`${where}, ${limit + 1} bytes by length: the gateway asked for the body its Content-Length already ruled out`);
 
-        const at = await sized(world().origin, concrete(path), token, limit, framing);
+        const at = await sized(world().origin, concrete(path), token, limit, framing, requiredHeaders(op));
         if (at.reply.status !== 400) problems.push(`${where}, ${limit} bytes by ${framing}: ${at.reply.status}, where reading it finds an array`);
       }
     }

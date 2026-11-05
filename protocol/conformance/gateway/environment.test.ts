@@ -163,7 +163,7 @@ describe("the document's logFormat", () => {
         const reply = await call(world.origin, 'POST', '/bus/emit', {
           token: await world.person('traced'),
           json: { channel: 'beckon:focus', payload: { resourceId: 'res-1' } },
-          headers: { traceparent },
+          headers: { traceparent, 'idempotency-key': randomUUID() },
         });
         expect(reply.status).toBe(202);
         const traced = await eventually(`a line carrying trace ${traceId}`, 5_000, () => world.gateway.stdout.find((l) => l.includes(traceId)));

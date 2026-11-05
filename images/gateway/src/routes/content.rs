@@ -4,7 +4,9 @@
 //! is a resource's anchored text, passed through unread.
 
 use crate::app::App;
-use crate::http::{ApiError, Authenticated, MediaOrBearer, ResourcePath, json_response};
+use crate::http::{
+    ApiError, Authenticated, MediaOrBearer, ResourcePath, idempotency_key, json_response,
+};
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
@@ -23,14 +25,16 @@ fn caller_trace(headers: &HeaderMap) -> opentelemetry::Context {
 }
 
 /// `POST /resources`: the multipart body goes to the Archivist untouched,
-/// naming the uploader; 202 with the id it recorded. A recorded upload is a
-/// write, so the principal making it is named on the record.
+/// naming the uploader, with the upload's key, which the Archivist answers a
+/// repeat by; 202 with the id it recorded. A recorded upload is a write, so
+/// the principal making it is named on the record.
 pub async fn upload(
     State(app): State<Arc<App>>,
     Authenticated(principal): Authenticated,
     headers: HeaderMap,
     body: Body,
 ) -> Result<Response, ApiError> {
+    let key = idempotency_key(&headers, &crate::limits::limits().upload_key_length)?;
     let content_type = headers
         .get(header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
@@ -43,10 +47,12 @@ pub async fn upload(
         Vec::new(),
         caller_trace(&headers),
         app.archivist
-            .record_upload(body, &content_type, &principal.did, &roles),
+            .record_upload(body, &content_type, &principal.did, &roles, key),
     )
     .await?;
-    if let Err(unavailable) = crate::routes::bus::publish_profile(&app, &principal).await {
+    if let Err(unavailable) =
+        crate::routes::bus::publish_profile(app.bus.plane.as_ref(), &principal).await
+    {
         logging::warn(
             "[bus PROFILE-DROPPED] the signal plane could not carry an uploader's name",
             json!({ "component": "bus", "did": principal.did, "error": unavailable.to_string() }),

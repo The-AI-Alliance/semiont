@@ -111,6 +111,15 @@ pub trait SharedTable: Send + Sync {
     fn create(&self, key: String, value: String) -> BoxFuture<'_, Result<bool, String>>;
     /// Set `key` whether or not it is present, its TTL starting again.
     fn put(&self, key: String, value: String) -> BoxFuture<'_, Result<(), String>>;
+    /// Set `key` to `value` only while it holds `expected`, its TTL starting
+    /// again: true once the fabric holds `value`, false when `key` was absent
+    /// or had been written since it held `expected`.
+    fn replace(
+        &self,
+        key: String,
+        expected: String,
+        value: String,
+    ) -> BoxFuture<'_, Result<bool, String>>;
     /// Remove `key`, if present.
     fn delete(&self, key: String) -> BoxFuture<'_, Result<(), String>>;
     /// The authoritative value, if present.

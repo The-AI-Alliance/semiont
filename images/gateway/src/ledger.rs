@@ -8,7 +8,8 @@
 //!
 //!  - `claim` writes the table before the request is published, atomically
 //!    across replicas, so an id claimed anywhere is a conflict here; once it
-//!    returns, a read of the table finds the claim.
+//!    returns, a read of the table finds the claim. A claim whose request
+//!    could not be published is deleted (`let_go`), and every replica forgets it.
 //!  - The projection can lag behind a reply. A frame whose id this replica
 //!    does not hold is not refused on that evidence: the replica reads the
 //!    table — once per id, however many subscribers missed — and decides
@@ -217,8 +218,12 @@ impl Ledger {
         let adopt = weak.clone();
         let claims_watch = claims
             .watch(Arc::new(move |cid, value| {
-                if let (Some(ledger), Some(value)) = (adopt.upgrade(), value) {
-                    ledger.adopt(&cid, &value);
+                let Some(ledger) = adopt.upgrade() else {
+                    return;
+                };
+                match value {
+                    Some(value) => ledger.adopt(&cid, &value),
+                    None => Self::forget(&mut locked(&ledger.state), &cid),
                 }
             }))
             .await?;
@@ -395,6 +400,14 @@ impl Ledger {
             Self::record(&mut state, cid, &stored);
         }
         Ok(ClaimOutcome::Ok)
+    }
+
+    /// Let go of a claim whose request could not be published, so another
+    /// attempt at that request may claim its id again.
+    pub async fn let_go(&self, cid: &str) -> Result<(), String> {
+        self.claims.delete(cid.to_owned()).await?;
+        Self::forget(&mut locked(&self.state), cid);
+        Ok(())
     }
 
     /// One correlated frame, as the composition's standing tap saw it.

@@ -1,18 +1,21 @@
 /**
  * Several gateways on one broker are one gateway to their clients: a reply
  * reaches its requester whichever replica each is connected to, a claim made
- * on one is known to the others, and a reply retained by one is recovered
- * through another — or through the same one after it restarts.
+ * on one is known to the others, an emit's key held by one is recognised by
+ * the others, and a reply retained by one is recovered through another — or
+ * through the same one after it restarts.
  * protocol/contract/TRANSPORT-HTTP.md § POST /bus/emit (Claims) and § Correlated-
- * reply retention. NATS only: the in-process plane is one process.
+ * reply retention; protocol/specs/src/paths/bus_emit.json (A key: held on every
+ * replica). NATS only: the in-process plane is one process.
  */
 import { randomUUID } from 'node:crypto';
 import { beforeAll, expect, it } from 'vitest';
 import type { GatewayProcess } from '../harness/gateway';
+import { nonConformance } from '../harness/http';
 import { eventually } from '../harness/net';
 import { startHoldingProxy } from '../harness/proxy';
 import { operationFor, spec } from '../harness/spec';
-import { subscribe, type StreamMessage } from '../harness/stream';
+import { subscribe, type BusFrame, type BusStream, type StreamMessage } from '../harness/stream';
 import { eachPlane } from '../harness/world';
 
 const REQUEST = 'browse:resource-requested';
@@ -32,13 +35,15 @@ eachPlane('two replicas on one broker', (world) => {
   let b: GatewayProcess;
   /** The participant's token: it answers REQUEST, and replies by hand to LATER. */
   let participant: string;
+  /** The participant's stream: every REQUEST published reaches it. */
+  let heard: BusStream;
 
   beforeAll(async () => {
     b = await world().replica();
     // The service that answers REQUEST is connected to replica B.
-    participant = (
-      await world().responder([REQUEST], (frame) => (frame.payload['resourceId'] === LATER ? undefined : { channel: result, payload: described }), b.origin)
-    ).token;
+    const responder = await world().responder([REQUEST], (frame) => (frame.payload['resourceId'] === LATER ? undefined : { channel: result, payload: described }), b.origin);
+    participant = responder.token;
+    heard = responder.stream;
   });
 
   const answer = (correlationId: string, name = 'r', origin = b.origin) =>
@@ -206,6 +211,44 @@ eachPlane('two replicas on one broker', (world) => {
     expect(first.status).toBe(202);
     const second = await world().emit(alice, { channel, payload: {}, correlationId, clientId: randomUUID() }, b.origin);
     expect(second.status).toBe(409);
+  });
+
+  it('a command sent again under its key through the other replica is recognised there: published once, and answered as the first was', async () => {
+    const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: [BROADCAST] });
+    const emitter = await world().person('emitter');
+    const annotationId = randomUUID();
+    const key = randomUUID();
+    const command = { channel: BROADCAST, payload: { annotationId, resourceId: 'res-1' } };
+    const first = await world().emit(emitter, command, world().origin, key);
+    expect(first.status, first.text).toBe(202);
+    const again = await world().emit(emitter, command, b.origin, key);
+    expect(nonConformance('post', '/bus/emit', again)).toEqual([]);
+    expect({ status: again.status, body: again.json }).toEqual({ status: first.status, body: first.json });
+
+    const carried = (f: BusFrame) => f.payload['annotationId'] === annotationId;
+    await watcher.frame(BROADCAST, carried);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(watcher.frames(BROADCAST).filter(carried)).toHaveLength(1);
+  });
+
+  it('a request sent again under its key through the other replica is answered as the first was, never 409: published once, and its reply reaches its requester', async () => {
+    const alice = await world().person('alice');
+    const clientId = randomUUID();
+    const requester = await world().subscribe(alice, { clientId, global: [result] });
+    const correlationId = randomUUID();
+    const key = randomUUID();
+    const request = { channel: REQUEST, payload: { resourceId: LATER }, correlationId, clientId };
+    const first = await world().emit(alice, request, world().origin, key);
+    expect(first.status, first.text).toBe(202);
+    const again = await world().emit(alice, request, b.origin, key);
+    expect(nonConformance('post', '/bus/emit', again)).toEqual([]);
+    expect({ status: again.status, body: again.json }).toEqual({ status: first.status, body: first.json });
+
+    expect((await answer(correlationId)).status).toBe(202);
+    const reply = await requester.frame(result, (f) => f.correlationId === correlationId);
+    expect(reply.payload['response']).toEqual(described.response);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(heard.frames(REQUEST).filter((f) => f.correlationId === correlationId)).toHaveLength(1);
   });
 
   it('a client\'s unanswered requests count against it on every replica', async () => {

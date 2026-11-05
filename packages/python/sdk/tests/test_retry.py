@@ -42,7 +42,10 @@ def test_a_rule_answers_as_the_table_does(row: JsonObject) -> None:
     rule = RETRY_RULES[text(row["rule"], "a rule")]
     method = row.get("method")
     assert method is None or isinstance(method, str)
-    assert rule.retryable(RetryFacts(status=whole(row, "status"), method=method)) is row["retries"], row["why"]
+    # A row that omits `keyed` states a request with no key (the table's `$comment`).
+    keyed = row.get("keyed", False)
+    assert isinstance(keyed, bool), "keyed is not true or false"
+    assert rule.retryable(RetryFacts(status=whole(row, "status"), method=method, keyed=keyed)) is row["retries"], row["why"]
 
 
 @pytest.mark.parametrize("row", STATED_WAITS, ids=lambda row: str(row["why"]))

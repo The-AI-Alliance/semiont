@@ -169,14 +169,16 @@ impl Archivist {
     }
 
     /// Forward an upload, streamed and untouched, naming the principal this
-    /// gateway verified; answer the id the Archivist recorded it under. Its
-    /// 400 and 500 come back with its message; anything else is a 503.
+    /// gateway verified, with the upload's `Idempotency-Key`; answer the id the
+    /// Archivist recorded it under. Its 400 and 500 come back with its
+    /// message, and its 422 as `unprocessable`; anything else is a 503.
     pub async fn record_upload(
         &self,
         body: Body,
         content_type: &str,
         principal: &str,
         roles: &[String],
+        key: &str,
     ) -> Result<ResourceId, ApiError> {
         let authorization = self.authorized("resources.record").await?;
         // The wait for the Archivist's answer begins at the upload's last
@@ -197,6 +199,7 @@ impl Archivist {
             .header("authorization", authorization)
             .header("content-type", content_type)
             .header("semiont-principal", principal)
+            .header("idempotency-key", key)
             .body(reqwest::Body::wrap_stream(upload));
         if !roles.is_empty() {
             request = request.header("semiont-roles", roles.join(","));
@@ -243,10 +246,14 @@ impl Archivist {
             );
             return Err(unavailable());
         }
-        if (status == StatusCode::BAD_REQUEST || status == StatusCode::INTERNAL_SERVER_ERROR)
-            && let Some(message) = answer.as_ref().and_then(|a| a["error"].as_str())
-        {
-            return Err(ApiError::new(status, message));
+        let message = answer.as_ref().and_then(|a| a["error"].as_str());
+        if let Some(message) = message {
+            if status == StatusCode::BAD_REQUEST || status == StatusCode::INTERNAL_SERVER_ERROR {
+                return Err(ApiError::new(status, message));
+            }
+            if status == StatusCode::UNPROCESSABLE_ENTITY {
+                return Err(ApiError::unprocessable(message));
+            }
         }
         logging::error(
             "Archivist upload failed",

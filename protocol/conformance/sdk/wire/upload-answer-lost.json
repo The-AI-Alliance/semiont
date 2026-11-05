@@ -1,0 +1,18 @@
+{
+  "about": "an upload the gateway answered, whose answer never reached the client, is sent once more with the key it was first sent with; the repeat is answered with the resource the first made, and the upload resolves with its id; nothing is reported",
+  "source": "protocol/contract/TRANSPORT-CONTRACT.md § Failures; protocol/specs/src/retry/cases.json transport; protocol/specs/src/paths/resources.json; protocol/specs/src/archivist/paths/resources.json",
+  "steps": [
+    {"driver": "open", "with": {"channels": ["beckon:focus"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:focus"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+    {"backend": "answer-lost", "with": {"wire": "POST /resources", "times": 1}},
+
+    {"driver": "put", "with": {"name": "Answered twice", "format": "text/plain", "storageUri": "file://uploads/answered-twice.txt", "bytes": "YW5zd2VyZWQgdHdpY2UsIHJlY29yZGVkIG9uY2U="}, "as": "sent"},
+    {"wire": "POST /resources", "status": 202, "headers": {"Idempotency-Key": {"$fresh": "key"}}, "answer": {"resourceId": {"$var": "uploaded"}}, "as": "lost"},
+    {"closed": "lost"},
+    {"wire": "POST /resources", "status": 202, "headers": {"Idempotency-Key": {"$var": "key"}}, "answer": {"resourceId": {"$var": "uploaded"}}},
+    {"settles": "sent", "returns": {"resourceId": {"$var": "uploaded"}}},
+    {"backend": "uploaded", "with": {"resource": {"$var": "uploaded"}, "bytes": "YW5zd2VyZWQgdHdpY2UsIHJlY29yZGVkIG9uY2U=", "fields": {"name": "Answered twice", "format": "text/plain", "storageUri": "file://uploads/answered-twice.txt"}}},
+    {"quiet": 300}
+  ]
+}

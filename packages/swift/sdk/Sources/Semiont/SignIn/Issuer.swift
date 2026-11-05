@@ -74,7 +74,8 @@ func retryRenewal<Value: Sendable>(_ grant: @escaping @Sendable () async throws 
     attempts: budget.attempts, initialDelayMs: budget.initialDelayMs,
     maxDelayMs: budget.maxDelayMs,
     retryable: {
-      RetryContext.refresh.retryable(status: ($0 as? SignInError)?.status, method: "POST")
+      RetryContext.refresh.retryable(
+        status: ($0 as? SignInError)?.status, method: "POST", keyed: false)
     },
     operation: { attempt in
       do {

@@ -56,6 +56,7 @@ impl AgentSignInError {
                 AgentSignInError::Malformed(_) => Some(200),
             },
             method: Some("GET"),
+            keyed: false,
         }
     }
 }

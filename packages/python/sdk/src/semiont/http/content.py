@@ -199,7 +199,8 @@ class HttpContentTransport(ContentTransport):
         )
         with telemetry.putting(request.format, len(request.file)):
             # No deadline: how long an upload takes is how large the resource is.
-            # Its key is made once: every attempt carries it, so the gateway knows each as the same upload.
+            # Its key is made once: every attempt carries it, so the gateway knows each as the same upload,
+            # and one that got no answer, or a status that promises recovery, is sent again as a read is.
             return await self._exchange.answer(
                 CreateResourceResponse,
                 "POST",

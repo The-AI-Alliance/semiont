@@ -27,12 +27,21 @@
  * bus request does, and nothing is put on `transport.errors$`: that stream
  * reports what the gateway did, and this is the caller's own doing.
  *
+ * An upload carries an `Idempotency-Key`, the same on every attempt at it,
+ * and the gateway answers a repeat as it answered the first. So it is sent
+ * once more, as a read is, when the gateway gave no answer or a status
+ * `RETRY_RULES.transport` retries for a keyed request: after the answer's
+ * `Retry-After`, or else `REQUEST_RETRY_PAUSE_MS`. Through ky that is ky's
+ * own retry, and the renewal of a refused credential spends the same one
+ * attempt; through `XMLHttpRequest` it is done here, the same way. Only the
+ * failure of its last attempt is put on `transport.errors$`.
+ *
  * An upload has no deadline (`httpRequestTimeoutMs` in
  * `protocol/specs/src/client/timing.json`): how long it takes is how large it is.
  */
 
 import type { AccessToken, AnchoredTextAnswer, ResourceId, PutBinaryOptions, PutBinaryProgress, components } from '@semiont/core';
-import { busLog, retryAfterMs, uuidV4 } from '@semiont/core';
+import { REQUEST_RETRY_PAUSE_MS, RETRY_RULES, busLog, retryAfterMs, uuidV4 } from '@semiont/core';
 import { SpanKind, getActiveTraceparent, withSpan } from '@semiont/observability';
 import type { HttpTransport } from './http-transport';
 import { APIError, refusalBody } from './api-error';
@@ -61,34 +70,44 @@ export class HttpContentTransport implements IContentTransport {
       async () => {
         const formData = buildFormData(request);
         const token = options?.auth ?? this.transport.getToken();
-        // One key for this upload, the same on its resend with a renewed
-        // credential.
+        // One key for this upload, the same on every attempt at it.
         const headers = { ...this.requestHeaders(token), 'Idempotency-Key': uuidV4() };
         const path = '/resources';
         const url = `${this.transport.baseUrl}${path}`;
 
         if (typeof XMLHttpRequest !== 'undefined' && (options?.onProgress || options?.signal)) {
+          const { signal } = options;
           const onProgress = options.onProgress ? neverLess(options.onProgress) : undefined;
           const report = (err: APIError): void => this.transport.pushError(err);
-          const send = (sentHeaders: Record<string, string>, onApiError: (err: APIError) => void) =>
-            uploadViaXhr({ url, formData, headers: sentHeaders, onProgress, signal: options.signal, onApiError });
-          // A refused credential is renewed once, and the upload sent again
-          // with the token given (protocol/contract/TRANSPORT-CONTRACT.md § A
-          // refused credential). The first refusal is reported only when
-          // nothing renews it: a renewed upload that is accepted reports
-          // nothing, as one through ky does.
+          const send = (sentHeaders: Record<string, string>, onApiError: XhrUploadOptions['onApiError']) =>
+            uploadViaXhr({ url, formData, headers: sentHeaders, onProgress, signal, onApiError });
+          const sentAgain = (err: APIError, unanswered: boolean): boolean =>
+            !signal?.aborted && (unanswered || RETRY_RULES.transport.retryable({ status: err.status, method: 'POST', keyed: true }));
+          // One more sending, as through ky: either a refused credential is
+          // renewed once and the upload sent with the token given
+          // (protocol/contract/TRANSPORT-CONTRACT.md § A refused credential),
+          // or the upload is sent again after a failure `sentAgain` accepts.
+          // The first failure is reported only when nothing follows it: an
+          // upload accepted the second time reports nothing.
+          const held: { failure?: APIError } = {};
           try {
-            return await send(headers, (err) => {
-              if (err.code !== 'unauthorized') report(err);
+            return await send(headers, (err, unanswered) => {
+              if (err.code === 'unauthorized') return;
+              if (sentAgain(err, unanswered)) held.failure = err;
+              else report(err);
             });
           } catch (error) {
-            if (!(error instanceof APIError) || error.code !== 'unauthorized') throw error;
-            const renewed = await this.transport.renewal(token);
-            if (renewed === null) {
-              report(error);
-              throw error;
+            if (error instanceof APIError && error.code === 'unauthorized') {
+              const renewed = await this.transport.renewal(token);
+              if (renewed === null) {
+                report(error);
+                throw error;
+              }
+              return send({ ...headers, Authorization: `Bearer ${renewed}` }, report);
             }
-            return send({ ...headers, Authorization: `Bearer ${renewed}` }, report);
+            if (!(error instanceof APIError) || error !== held.failure) throw error;
+            await pause(pauseBefore(error), signal);
+            return send(headers, report);
           }
         }
 
@@ -104,6 +123,9 @@ export class HttpContentTransport implements IContentTransport {
               body: sent.body,
               headers: { ...headers, ...sent.headers },
               timeout: false,
+              // Keyed, the upload may be sent again as a read is: ky's retry
+              // takes its method, and asks the transport rule of its key.
+              retry: { methods: ['post'] },
               ...(options?.signal ? { signal: options.signal } : {}),
             }),
             (failure) => this.transport.pushError(failure),
@@ -314,8 +336,9 @@ const UPLOAD_PIECE_BYTES = 64 * 1024;
  * the size as it is for a body that is not streamed. A runtime that keeps
  * that header to itself sends the same bytes chunked.
  *
- * A request sent again with a renewed token is ky's copy of this body, which
- * is read once: what the second sending repeats is not reported a second time.
+ * A request sent again, with a renewed token or after no answer or a status
+ * the transport rule retries, is ky's copy of this body, which is read once:
+ * what the second sending repeats is not reported a second time.
  */
 async function inPieces(
   form: FormData,
@@ -344,6 +367,37 @@ async function inPieces(
 }
 
 /**
+ * The wait before an upload is sent once more: `REQUEST_RETRY_PAUSE_MS`, or
+ * the `Retry-After` the gateway's answer states when that is longer.
+ */
+function pauseBefore(failure: APIError): number {
+  return failure.retryAfterMs === undefined ? REQUEST_RETRY_PAUSE_MS : Math.max(failure.retryAfterMs, REQUEST_RETRY_PAUSE_MS);
+}
+
+/** Waits `ms`, or rejects with `signal`'s reason once its caller cancels. */
+function pause(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal === undefined) {
+      setTimeout(resolve, ms);
+      return;
+    }
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', cancelled);
+      resolve();
+    }, ms);
+    const cancelled = (): void => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    signal.addEventListener('abort', cancelled, { once: true });
+  });
+}
+
+/**
  * Progress that never goes back: an upload sent a second time reports again
  * only once it is past what the first sending reported.
  */
@@ -362,15 +416,20 @@ interface XhrUploadOptions {
   headers: Record<string, string>;
   onProgress?: (event: { bytesUploaded: number; totalBytes: number }) => void;
   signal?: AbortSignal;
-  onApiError: (error: APIError) => void;
+  /**
+   * Told of each failure before the promise rejects with it, and whether it
+   * is a sending the gateway never answered: its connection failed, or closed
+   * before any response. One the browser would not make is not that.
+   */
+  onApiError: (error: APIError, unanswered: boolean) => void;
 }
 
 /**
  * A POST through `XMLHttpRequest`, for its `upload.onprogress`. A refusal
- * (4xx/5xx) is reported as it is on the ky path: the `APIError` every
- * refusal is, on `transport.errors$` before the promise rejects. So is a
- * connection that failed. A cancellation rejects with the signal's reason
- * and is not put there.
+ * (4xx/5xx) is the `APIError` every refusal is, as on the ky path, and
+ * `onApiError` is told of it before the promise rejects. So is a connection
+ * that failed. A cancellation rejects with the signal's reason, and
+ * `onApiError` is not told of it.
  */
 function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId }> {
   const { url, formData, headers, onProgress, signal, onApiError } = opts;
@@ -391,9 +450,9 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
     } catch (error) {
       // What a browser will not make a request of, it refuses in words that
       // say it: a token that is no header value among them.
-      const unanswered = APIError.unanswered('POST /resources', error);
-      onApiError(unanswered);
-      reject(unanswered);
+      const unmade = APIError.unanswered('POST /resources', error);
+      onApiError(unmade, false);
+      reject(unmade);
       return;
     }
 
@@ -421,16 +480,16 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
             xhr.responseText,
             retryAfterMs(xhr.getResponseHeader('retry-after')),
           );
-          onApiError(err);
+          onApiError(err, false);
           reject(err);
           return;
         }
         const answer = { status: xhr.status, statusText: xhr.statusText, json: () => Promise.resolve(parsed) };
-        declaredBody('CreateResourceResponse', 'POST', '/resources', answer, onApiError).then((body) => resolve({ resourceId: body.resourceId }), reject);
+        declaredBody('CreateResourceResponse', 'POST', '/resources', answer, (err) => onApiError(err, false)).then((body) => resolve({ resourceId: body.resourceId }), reject);
         return;
       }
       const err = APIError.refusal(xhr.status, xhr.statusText, refusalBody(xhr.responseText), xhr.getResponseHeader('retry-after'));
-      onApiError(err);
+      onApiError(err, false);
       reject(err);
     };
 
@@ -438,7 +497,7 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
       // Network-level failure (DNS, TCP reset, CORS). XHR gives no status
       // here; the vocabulary files a failed network under `unavailable`.
       const err = APIError.withoutResponse('Network error during upload', 'network-error');
-      onApiError(err);
+      onApiError(err, true);
       reject(err);
     };
 

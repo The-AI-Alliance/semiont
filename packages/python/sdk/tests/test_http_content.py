@@ -136,6 +136,76 @@ def test_an_upload_its_caller_abandons_closes_its_connection_reports_nothing_and
     assert run(scenario()) == (1, [])
 
 
+def an_upload() -> PutBinaryRequest:
+    return PutBinaryRequest(name="n", file=EVERY_BYTE, format="image/png", storage_uri="file://n")
+
+
+def test_an_upload_answered_with_a_status_that_promises_recovery_is_sent_again_with_its_key_its_bytes_and_its_fields() -> None:
+    async def scenario() -> tuple[str, bool, bool]:
+        async with GatewayServer() as gateway, transport_to(gateway) as transport:
+            gateway.scripted[("POST", "/resources")] = [Answer(status=503, body=b'{"error":"The Archivist cannot be reached"}')]
+            created = await soon(transport.content.put_binary(an_upload()))
+            first, again = gateway.of("POST", "/resources")
+            return created.resource_id, first.headers["idempotency-key"] == again.headers["idempotency-key"], first.body == again.body
+
+    assert run(scenario()) == ("res-uploaded-2", True, True)
+
+
+def test_an_upload_that_got_no_answer_is_sent_again_once() -> None:
+    async def scenario() -> tuple[str, bool, str, int]:
+        async with GatewayServer() as gateway, transport_to(gateway) as transport:
+            gateway.scripted[("POST", "/resources")] = [Answer(hang_up=True)]
+            created = await soon(transport.content.put_binary(an_upload()))
+            first, again = gateway.of("POST", "/resources")
+            # Unanswered twice: the second is the answer.
+            gateway.scripted[("POST", "/resources")] = [Answer(hang_up=True), Answer(hang_up=True)]
+            with pytest.raises(TransportError) as unanswered:
+                await soon(transport.content.put_binary(an_upload()))
+            sent = len(gateway.of("POST", "/resources"))
+            return created.resource_id, first.headers["idempotency-key"] == again.headers["idempotency-key"], unanswered.value.code, sent
+
+    assert run(scenario()) == ("res-uploaded-2", True, "unavailable", 4)
+
+
+def test_an_upload_refused_as_it_stands_is_not_sent_again() -> None:
+    async def scenario() -> list[tuple[str, int | None, int]]:
+        async with GatewayServer() as gateway, transport_to(gateway) as transport:
+            refusals: list[tuple[str, int | None, int]] = []
+            for status in (400, 422):
+                gateway.scripted[("POST", "/resources")] = [Answer(status=status, body=b'{"error":"Refused"}')]
+                before = len(gateway.of("POST", "/resources"))
+                with pytest.raises(TransportError) as refused:
+                    await soon(transport.content.put_binary(an_upload()))
+                refusals.append((refused.value.code, refused.value.status, len(gateway.of("POST", "/resources")) - before))
+            return refusals
+
+    assert run(scenario()) == [("bad-request", 400, 1), ("unprocessable", 422, 1)]
+
+
+def test_an_upload_its_caller_cancels_while_it_waits_to_be_sent_again_is_not_sent_again() -> None:
+    async def scenario() -> tuple[int, list[SemiontError]]:
+        async with GatewayServer() as gateway:
+            gateway.scripted[("POST", "/resources")] = [Answer(status=503, headers={"Retry-After": "60"}, body=b'{"error":"Not now"}')]
+            async with transport_to(gateway) as transport:
+                failures = transport.failures()
+                upload = transport.content.put_binary(an_upload())
+
+                async def created() -> str:
+                    return (await upload).resource_id
+
+                uploading = asyncio.ensure_future(created())
+                await soon(gateway.arrived("POST", "/resources"))
+                # Answered by now, and waiting out the minute its answer stated.
+                await asyncio.sleep(0.1)
+                uploading.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await soon(uploading)
+                await asyncio.sleep(0.05)
+            return len(gateway.of("POST", "/resources")), [error async for error in failures]
+
+    assert run(scenario()) == (1, [])
+
+
 def test_a_transport_closed_under_an_upload_and_a_read_ends_each_as_a_request_that_got_no_answer() -> None:
     async def scenario() -> tuple[str, str, str]:
         async with GatewayServer() as gateway:

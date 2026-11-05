@@ -33,15 +33,23 @@ configured another way).
   with the id format its frame calls for ([harness/stream.ts](../harness/stream.ts)).
   Behind the gateway, every request it sends the Archivist must be an operation
   the Archivist's spec (`protocol/specs/src/archivist/`) declares, with the parameters
-  that operation requires, and every reply the stand-in Archivist gives must
-  match its declaration ([harness/archivist.ts](../harness/archivist.ts)).
+  that operation requires, each within its schema, and every reply the
+  stand-in Archivist gives must match its declaration; the stand-in answers a
+  repeated upload by its principal and key, as the Archivist does
+  ([harness/archivist.ts](../harness/archivist.ts)).
   A violation fails the case whatever it was about.
 - **Hand-written**, each citing the text it checks:
   - credentials, the bearer and media-token schemes (`tokens.test.ts`);
   - the issuer's key set: the deadline on a fetch, and one fetch per cooldown
     when it fails (`issuer.test.ts`);
   - how long the Archivist is waited for: each part of an answer, from a
-    request's last byte (`archivist-waits.test.ts`);
+    request's last byte, and an upload it recorded and never answered, whose
+    resend under its key is answered with the resource it made
+    (`archivist-waits.test.ts`);
+  - an emit or an upload sent again under its `Idempotency-Key`: answered as
+    the first was and carried out once, refused 422 with another body, waited
+    for while the first is in hand, a key its principal's, and refused 400
+    without a key or with one out of bounds (`keys.test.ts`);
   - content and uploads, the JSON-LD description, a resource's anchored text,
     whole when it is larger than the largest bus message, a path that names
     what is not a resource's id, and a read the Archivist closes its
@@ -56,7 +64,8 @@ configured another way).
     (`principal-limits.test.ts`), on the requests one holder has had refused,
     and on those that name none (`refusals.test.ts`), and on one process
     (`capacity.test.ts`);
-  - replicas sharing a broker (`replicas.test.ts`), a broker outage
+  - replicas sharing a broker, an emit's key recognised by each
+    (`replicas.test.ts`), a broker outage
     (`outage.test.ts`), and what the gateway leaves on the broker it shares
     with the dispatcher (`broker.test.ts`);
   - boot refusals, broker credentials among them, and the signing key ring

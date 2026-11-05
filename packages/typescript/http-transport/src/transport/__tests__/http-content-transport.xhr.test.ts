@@ -12,7 +12,7 @@
 
 import util from 'node:util';
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
-import { baseUrl, resourceId } from '@semiont/core';
+import { REQUEST_RETRY_PAUSE_MS, baseUrl, resourceId } from '@semiont/core';
 import type { KyInstance } from 'ky';
 
 vi.mock('ky', () => ({
@@ -43,9 +43,10 @@ class FakeXHR {
   status = 0;
   statusText = '';
   responseText = '';
-  /** A real XMLHttpRequest answers for any header; this fake's responses carry none. */
-  getResponseHeader(_name: string): string | null {
-    return null;
+  /** The response's headers, by lower-case name: none unless a test gives one. */
+  responseHeaders: Record<string, string> = {};
+  getResponseHeader(name: string): string | null {
+    return this.responseHeaders[name.toLowerCase()] ?? null;
   }
 
   // Captured by the fake so tests can assert on them.
@@ -353,7 +354,7 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     expect(FakeXHR.instances).toHaveLength(1);
   });
 
-  test('rejects with APIError on 5xx with classify code "unavailable"', async () => {
+  test('refused 503 on both sendings, it rejects with APIError classified "unavailable"', async () => {
     const { content } = makeTransportAndContent();
 
     const promise = content.putBinary(
@@ -362,6 +363,8 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     );
 
     FakeXHR.instances[0]!.fireFailure(503, 'Service Unavailable', { error: 'down' });
+    await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(2));
+    FakeXHR.instances[1]!.fireFailure(503, 'Service Unavailable', { error: 'down' });
 
     const err = (await promise.catch((e) => e)) as APIError;
     expect(err).toBeInstanceOf(APIError);
@@ -369,7 +372,7 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     expect(err.code).toBe('unavailable');
   });
 
-  test('rejects with APIError on network failure, classified "unavailable"', async () => {
+  test('unanswered on both sendings, it rejects with APIError classified "unavailable", reported once', async () => {
     const { content, transport } = makeTransportAndContent();
 
     const errors: unknown[] = [];
@@ -381,6 +384,8 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     );
 
     FakeXHR.instances[0]!.fireNetworkError();
+    await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(2));
+    FakeXHR.instances[1]!.fireNetworkError();
 
     const err = (await promise.catch((e) => e)) as APIError;
     expect(err).toBeInstanceOf(APIError);
@@ -388,6 +393,108 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     expect(err.statusText).toBe('network-error');
     expect(err.code).toBe('unavailable');
     expect(errors).toEqual([err]);
+  });
+
+  describe('sent once more, with the same key and form, when a repeat is answered as the first was', () => {
+    const note = { name: 'a', file: Buffer.from('xx'), format: 'text/plain', storageUri: 'file://a' } as const;
+    const keyOf = (xhr: FakeXHR) => xhr.setRequestHeaderCalls.find((h) => h.name === 'Idempotency-Key')?.value;
+
+    test('answered 503, then 202: it resolves, the 503 is not reported, and progress never goes back', async () => {
+      const { content, transport } = makeTransportAndContent();
+      const errors: unknown[] = [];
+      transport.errors$.subscribe((e) => errors.push(e));
+      const progress: number[] = [];
+
+      const promise = content.putBinary(note, { onProgress: ({ bytesUploaded }) => progress.push(bytesUploaded) });
+      const first = FakeXHR.instances[0]!;
+      first.fireProgress(60, 100);
+      first.fireFailure(503, 'Service Unavailable', { error: 'The Archivist is not answering' });
+
+      await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(2));
+      const second = FakeXHR.instances[1]!;
+      expect(keyOf(first)).toEqual(expect.any(String));
+      expect(keyOf(second), 'the second sending is the same upload').toBe(keyOf(first));
+      expect(second.sendCalls[0], 'the same fields and bytes').toBe(first.sendCalls[0]);
+      second.fireProgress(30, 100);
+      second.fireProgress(100, 100);
+      second.fireSuccess(202, { resourceId: 'r-1' });
+
+      await expect(promise).resolves.toEqual({ resourceId: 'r-1' });
+      expect(errors, 'an upload accepted the second time reports nothing').toEqual([]);
+      expect(progress).toEqual([60, 100]);
+    });
+
+    test('given no answer, then 202: it resolves, and the failure is not reported', async () => {
+      const { content, transport } = makeTransportAndContent();
+      const errors: unknown[] = [];
+      transport.errors$.subscribe((e) => errors.push(e));
+
+      const promise = content.putBinary(note, { onProgress: vi.fn() });
+      FakeXHR.instances[0]!.fireNetworkError();
+
+      await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(2));
+      expect(keyOf(FakeXHR.instances[1]!)).toBe(keyOf(FakeXHR.instances[0]!));
+      FakeXHR.instances[1]!.fireSuccess(202, { resourceId: 'r-2' });
+
+      await expect(promise).resolves.toEqual({ resourceId: 'r-2' });
+      expect(errors).toEqual([]);
+    });
+
+    for (const [stated, waited] of [[undefined, REQUEST_RETRY_PAUSE_MS], ['2', 2000]] as const) {
+      test(`waits ${waited} ms first${stated === undefined ? '' : ', the Retry-After its answer states'}`, async () => {
+        const { content } = makeTransportAndContent();
+        vi.useFakeTimers();
+        try {
+          const promise = content.putBinary(note, { onProgress: vi.fn() });
+          const first = FakeXHR.instances[0]!;
+          if (stated !== undefined) first.responseHeaders['retry-after'] = stated;
+          first.fireFailure(503, 'Service Unavailable', { error: 'busy' });
+
+          await vi.advanceTimersByTimeAsync(waited - 1);
+          expect(FakeXHR.instances).toHaveLength(1);
+          await vi.advanceTimersByTimeAsync(1);
+          expect(FakeXHR.instances).toHaveLength(2);
+
+          FakeXHR.instances[1]!.fireSuccess(202, { resourceId: 'r-3' });
+          await expect(promise).resolves.toEqual({ resourceId: 'r-3' });
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+    }
+
+    for (const [status, statusText, code] of [[400, 'Bad Request', 'bad-request'], [422, 'Unprocessable Content', 'unprocessable']] as const) {
+      test(`answered ${status}, it is not sent again: a key makes a repeat harmless, not a refused upload acceptable`, async () => {
+        const { content, transport } = makeTransportAndContent();
+        const errors: unknown[] = [];
+        transport.errors$.subscribe((e) => errors.push(e));
+
+        const promise = content.putBinary(note, { onProgress: vi.fn() });
+        FakeXHR.instances[0]!.fireFailure(status, statusText, { error: 'refused' });
+
+        const err = (await promise.catch((e: unknown) => e)) as APIError;
+        expect(err).toMatchObject({ name: 'APIError', status, code });
+        expect(errors).toEqual([err]);
+        await new Promise((waited) => setTimeout(waited, REQUEST_RETRY_PAUSE_MS + 100));
+        expect(FakeXHR.instances).toHaveLength(1);
+      });
+    }
+
+    test('cancelled while it waits to be sent again, it rejects with its caller\'s reason and is not sent again', async () => {
+      const { content, transport } = makeTransportAndContent();
+      const errors: unknown[] = [];
+      transport.errors$.subscribe((e) => errors.push(e));
+      const controller = new AbortController();
+
+      const promise = content.putBinary(note, { onProgress: vi.fn(), signal: controller.signal });
+      FakeXHR.instances[0]!.fireFailure(503, 'Service Unavailable', { error: 'busy' });
+      controller.abort();
+
+      expect(await promise.catch((e: unknown) => e)).toBe(controller.signal.reason);
+      await new Promise((waited) => setTimeout(waited, REQUEST_RETRY_PAUSE_MS + 100));
+      expect(FakeXHR.instances).toHaveLength(1);
+      expect(errors, 'a cancellation its caller asked for is not a transport failure').toEqual([]);
+    });
   });
 
   test('aborts the in-flight XHR when the AbortSignal fires', async () => {
