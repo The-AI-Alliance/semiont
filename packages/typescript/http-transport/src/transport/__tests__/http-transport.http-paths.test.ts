@@ -692,6 +692,15 @@ describe('HttpTransport — HTTP wire shape', () => {
       } as never);
       await refusedAs(() => transport.getCurrentUser(), 'GET /api/users/me answered what is not its declared body: it is malformed');
     });
+
+    test('is refused: an answer that is no JSON', async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        status: 200,
+        statusText: 'OK',
+        json: vi.fn().mockRejectedValue(new SyntaxError('Unexpected token < in JSON at position 0')),
+      } as never);
+      await refusedAs(() => transport.getCurrentUser(), 'GET /api/users/me answered what is not its declared body: it is malformed');
+    });
   });
 
   describe('token$', () => {
