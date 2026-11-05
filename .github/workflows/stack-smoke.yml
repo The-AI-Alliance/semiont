@@ -115,6 +115,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-rust-image-layers-
 
+      - name: Wait for Docker
+        # A fresh runner's engine can take longer than the five seconds the build's
+        # and the smoke's readiness check allow before it answers.
+        run: timeout 120 sh -c 'until docker info >/dev/null 2>&1; do sleep 2; done'
+
       - name: Build the packages, images and launcher from this commit
         if: env.IMAGES == 'local'
         # The stack boots under docker, the engine that builds the images, so
