@@ -7,7 +7,10 @@
  * document's `x-semiont-limits`): its first request's head must come whole
  * within `requestHeadSeconds` of its opening; after an answer it is kept
  * `idleConnectionSeconds` for its next request, and a head begun must come
- * whole within `requestHeadSeconds` of its first byte.
+ * whole within `requestHeadSeconds` of its first byte. The close
+ * `idleConnectionSeconds` after an answer is too slow to wait out here; the
+ * accept loop's own tests hold it on a paused clock
+ * (packages/rust/http-service/tests/serve.rs).
  */
 import { randomUUID } from 'node:crypto';
 import { connect } from 'node:net';

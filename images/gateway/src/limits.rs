@@ -22,6 +22,7 @@ pub struct JsonBody {
 #[derive(Debug)]
 pub struct Limits {
     pub request_head_seconds: u64,
+    pub idle_connection_seconds: u64,
     pub key_set_max_age_seconds: u64,
     pub key_refetch_cooldown_seconds: u64,
     pub key_fetch_deadline_seconds: u64,
@@ -219,6 +220,7 @@ impl Limits {
         };
         Ok(Limits {
             request_head_seconds: document_limit("requestHeadSeconds")?,
+            idle_connection_seconds: document_limit("idleConnectionSeconds")?,
             key_set_max_age_seconds: key_set("keySetMaxAgeSeconds")?,
             key_refetch_cooldown_seconds: key_set("keyRefetchCooldownSeconds")?,
             key_fetch_deadline_seconds: key_set("keyFetchDeadlineSeconds")?,
