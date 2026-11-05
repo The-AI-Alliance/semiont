@@ -336,14 +336,27 @@ impl Actor {
         {
             return;
         }
-        let Ok(BusFrame {
+        let BusFrame {
             channel,
             correlation_id,
             mut payload,
             scope,
-        }) = carried(data)
-        else {
-            return;
+        } = match carried(data) {
+            Ok(frame) => frame,
+            Err(Refused {
+                said,
+                channel: None,
+            }) => {
+                // What names no channel names no reader: it is told to the failure report.
+                self.shared.failed(TransportError::without_response(
+                    format!("the stream carried what is not a frame: {said}"),
+                    TransportErrorCode::Error,
+                ));
+                return;
+            }
+            Err(Refused {
+                channel: Some(_), ..
+            }) => return,
         };
         let trace = payload.remove(TRACE_FIELD).and_then(carrier);
 
@@ -600,15 +613,42 @@ impl Actor {
     }
 }
 
-/// `data` read as a frame, or what every SDK says of the first fault that
-/// keeps it from being one. A frame carries what BusFrame names, and nothing
-/// more.
-fn carried(data: &str) -> Result<BusFrame, String> {
-    let value: Value = serde_json::from_str(data).map_err(|_| MALFORMED.to_owned())?;
+/// What BusFrame does not allow: what every SDK says of its first fault, and
+/// the channel it names when BusFrame allows its `channel`. One that names no
+/// channel names no reader.
+#[derive(Debug, PartialEq)]
+struct Refused {
+    said: String,
+    channel: Option<String>,
+}
+
+/// `data` read as a frame, or why it is not one. A frame carries what
+/// BusFrame names, and nothing more.
+fn carried(data: &str) -> Result<BusFrame, Refused> {
+    let Ok(value) = serde_json::from_str::<Value>(data) else {
+        return Err(Refused {
+            said: MALFORMED.to_owned(),
+            channel: None,
+        });
+    };
+    let channel = channel_of(&value);
     if let Some(said) = semiont::fault_said::<BusFrame>(&value) {
-        return Err(said);
+        return Err(Refused { said, channel });
     }
-    serde_json::from_value(value).map_err(|_| MALFORMED.to_owned())
+    serde_json::from_value(value).map_err(|_| Refused {
+        said: MALFORMED.to_owned(),
+        channel,
+    })
+}
+
+/// The channel `value` names: its `channel`, when that is a text of at least
+/// one character.
+fn channel_of(value: &Value) -> Option<String> {
+    value
+        .get("channel")
+        .and_then(Value::as_str)
+        .filter(|channel| !channel.is_empty())
+        .map(str::to_owned)
 }
 
 fn carrier(value: Value) -> Option<TraceCarrier> {
@@ -819,7 +859,7 @@ mod tests {
     /// Each frame of protocol/specs/src/bus/frame-cases.json, the table every
     /// SDK's stream reader runs, is read as it states it, or refused.
     #[test]
-    fn each_frame_of_the_table_is_read_as_it_states_or_refused() {
+    fn each_frame_of_the_table_is_read_as_it_states_or_refused_and_told_to_whom_it_states() {
         let table: Value = serde_json::from_str(include_str!(
             "../../../../protocol/specs/src/bus/frame-cases.json"
         ))
@@ -829,7 +869,10 @@ mod tests {
         for case in cases {
             let why = case["why"].as_str().expect("a case says why");
             let frame = &case["frame"];
-            let read = carried(&frame.to_string());
+            let read = carried(&match case["data"].as_str() {
+                Some(data) => data.to_owned(),
+                None => frame.to_string(),
+            });
             if case["refused"] == true {
                 let member = case["member"]
                     .as_str()
@@ -840,9 +883,19 @@ mod tests {
                     Some("malformed") => format!("its `{member}` is malformed"),
                     reason => panic!("{why}: a reason the table does not give: {reason:?}"),
                 };
-                assert_eq!(read, Err(said), "{why}");
+                let channel = match case["told"].as_str() {
+                    Some("readers") => Some(
+                        frame["channel"]
+                            .as_str()
+                            .expect("a frame told to its readers names its channel")
+                            .to_owned(),
+                    ),
+                    Some("failure-report") => None,
+                    told => panic!("{why}: told to whom the table does not give: {told:?}"),
+                };
+                assert_eq!(read, Err(Refused { said, channel }), "{why}");
             } else {
-                let read = read.unwrap_or_else(|said| panic!("{why}: refused: {said}"));
+                let read = read.unwrap_or_else(|said| panic!("{why}: refused: {said:?}"));
                 assert_eq!(
                     &serde_json::to_value(&read).expect("a frame is JSON"),
                     frame,
