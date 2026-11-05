@@ -9,10 +9,14 @@
 # TWO AXES, and naming them separately is the point. The LAUNCHER is the one
 # built from this checkout, apps/launcher/dist/semiont (images/scripts/build-session.sh
 # builds it beside the :local images), never whatever `semiont` is on PATH,
-# which is usually a release; the script refuses when the binary is missing or
-# older than the source it builds from. The IMAGES are the tag `up` is given,
+# which is usually a release. UP and E2E build it (images/scripts/build-session.sh
+# launcher, as make launcher does) when it is missing or older than the source it
+# builds from; DOWN stops what UP started with the launcher that is there. The IMAGES are the tag `up` is given,
 # written into the stack's documents init made. So a launcher change is
-# testable against the images people actually run, publishing nothing.
+# testable against the images people actually run, publishing nothing. UP of
+# `local` first builds what make local-build PACKAGE_NAMES=typescript builds when
+# the build finds the images, or the npm packages the Browser's installs, older
+# than this checkout (images/scripts/build-session.sh stale).
 #
 # UP asserts, and nothing more: that every health gate opens against a real
 # service at a real route, that the realm the start CREATES through Keycloak's
@@ -20,8 +24,9 @@
 # knowledge base is exactly what a new user makes: `init` with only the did:web
 # domain, then `start` with no --config, so the documents init writes and the
 # Inference document it records are what boot. A new KB that could not start
-# is the defect this check found on its first run. A failed `up` prints the
-# containers' logs and stops what it started.
+# is the defect this check found on its first run. A failed `up` stops what it
+# started; the launcher has already printed the last lines of the container
+# whose health gate failed.
 #
 # E2E asks what a model does, which UP does not. Each run makes a knowledge
 # base of its own beside UP's, as `init` makes one, with a domain no other run
@@ -53,8 +58,8 @@
 # Why this exists as a script and not as steps in a workflow: every other
 # release check in this repo is one (verify-release.sh is its closest peer),
 # and a check that only a runner can perform is a check nobody runs while
-# debugging it. stack-smoke.yml runs `run` after images/scripts/build-session.sh,
-# or, given a published tag, after building only the launcher.
+# debugging it. stack-smoke.yml runs `run` after make local-build, or, given a
+# published tag, on its own.
 #
 # Requires: a responding container runtime (CONTAINER_RUNTIME selects one), git, curl, nc.
 
@@ -114,16 +119,50 @@ if [ "$E2E" = true ]; then
   fi
 fi
 SEMIONT="$REPO_ROOT/apps/launcher/dist/semiont"
-if [ ! -x "$SEMIONT" ]; then
-  echo "No launcher built from this checkout at $SEMIONT. Build it with make launcher." >&2
-  exit 2
+BUILD="$REPO_ROOT/images/scripts/build-session.sh"
+# semiont: this checkout's launcher, each command shown as the launcher shows the
+# runtime's, on fd 3, the script's own stdout, which a call's redirection does not reach.
+exec 3>&1
+semiont() {
+  { printf '  $ semiont'; printf ' %q' "$@"; printf '\n'; } >&3
+  "$SEMIONT" "$@"
+}
+if [ "$COMMAND" = up ] && [ "$IMAGES" = local ]; then
+  echo "Checking the :local images and the TypeScript packages they install against this checkout..."
+  CHECK_STARTED=$SECONDS
+  if ! STALE=$(bash "$BUILD" stale --package typescript 2>/dev/null); then
+    echo "Could not read whether the :local images are this checkout's: make plan says why." >&2
+    exit 2
+  fi
+  if [ -n "$STALE" ]; then
+    echo "  older than this checkout ($((SECONDS - CHECK_STARTED))s): $(printf '%s\n' "$STALE" | cut -f1 | paste -sd' ' -). Building them."
+    bash "$BUILD" local-build --package typescript || exit 2
+    # local-build builds the launcher from the source as it is now.
+    touch "$SEMIONT"
+  else
+    echo "  current ($((SECONDS - CHECK_STARTED))s): nothing to build."
+  fi
 fi
 # The launcher compiles apps/launcher, packages/go/launcher and packages/go/sdk; a source file newer
 # than the binary means the binary is not this checkout's launcher.
-NEWER=$(find "$REPO_ROOT/apps/launcher" "$REPO_ROOT/packages/go/launcher" "$REPO_ROOT/packages/go/sdk" -path "$REPO_ROOT/apps/launcher/dist" -prune -o \
-  \( \( -name '*.go' ! -name '*_test.go' \) -o -name go.mod -o -name go.sum \) -newer "$SEMIONT" -print | head -1)
-if [ -n "$NEWER" ]; then
-  echo "$SEMIONT is older than ${NEWER#"$REPO_ROOT"/}. Rebuild it with make launcher." >&2
+newer_source() {
+  find "$REPO_ROOT/apps/launcher" "$REPO_ROOT/packages/go/launcher" "$REPO_ROOT/packages/go/sdk" -path "$REPO_ROOT/apps/launcher/dist" -prune -o \
+    \( \( -name '*.go' ! -name '*_test.go' \) -o -name go.mod -o -name go.sum \) -newer "$SEMIONT" -print | head -1
+}
+if [ "$COMMAND" != down ]; then
+  if [ ! -x "$SEMIONT" ]; then
+    echo "No launcher built from this checkout at $SEMIONT: building it."
+  elif NEWER=$(newer_source) && [ -n "$NEWER" ]; then
+    echo "$SEMIONT is older than ${NEWER#"$REPO_ROOT"/}: building it again."
+  fi
+  if [ ! -x "$SEMIONT" ] || [ -n "${NEWER:-}" ]; then
+    bash "$BUILD" launcher || exit 2
+    # Built from the source as it is now. Go leaves a binary its build did not change as it
+    # was, older than the source a comment changed, so the time is set here.
+    touch "$SEMIONT"
+  fi
+elif [ ! -x "$SEMIONT" ]; then
+  echo "No launcher built from this checkout at $SEMIONT, so nothing can stop what up started. Build it with make launcher." >&2
   exit 2
 fi
 
@@ -137,40 +176,21 @@ bad()   { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
 head_() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 summary() { printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"; [ "$FAIL" -eq 0 ]; }
 
-# `stop` removes the containers and their logs with them, so a failed run
-# prints each one's recent log first.
-print_logs() {
-  local names name
-  head_ "Container logs"
-  case "$RUNTIME" in
-    container) names=$(container ls -a -q) ;;
-    *)         names=$("$RUNTIME" ps -a --format '{{.Names}}') ;;
-  esac
-  for name in $names; do
-    case "$name" in semiont-*) ;; *) continue ;; esac
-    printf '\n--- %s\n' "$name"
-    case "$RUNTIME" in
-      container) container logs -n 50 "$name" 2>&1 ;;
-      *)         "$RUNTIME" logs --tail 50 "$name" 2>&1 ;;
-    esac
-  done
-}
-
 # init_kb <directory> <domain> <images-tag>: a knowledge base as a new user
 # makes one, its documents naming the tag's images. The images are the
 # documents' to name: init names :latest, and the run names the set it was
 # given, as a person choosing a release would.
 init_kb() {
   local dir="$1" domain="$2" tag="$3" doc
-  head_ "Knowledge base ($dir)"
-  echo "  launcher: $SEMIONT ($("$SEMIONT" --version))"
+  head_ "A new knowledge base: semiont init in $dir"
+  echo "  launcher: $SEMIONT ($(semiont --version))"
   mkdir -p "$dir" && cd "$dir" || return 1
   git init -q && git config user.email smoke@example.com && git config user.name smoke
   # The domain is the one setting with no safe default, so it is the one flag.
-  if "$SEMIONT" init --yes --domain "$domain" >/dev/null; then
-    ok "init wrote a config the plan deriver accepts"
+  if semiont init --yes --domain "$domain" >/dev/null; then
+    ok "semiont init --domain $domain made it, with a config the plan deriver accepts"
   else
-    bad "init refused"; return 1
+    bad "semiont init --domain $domain refused"; return 1
   fi
   for doc in "$dir"/.semiont/stack/*.yaml; do
     sed "s#\(ghcr.io/the-ai-alliance/semiont-[a-z]*\):latest#\1:$tag#" "$doc" > "$doc.next" && mv "$doc.next" "$doc"
@@ -182,29 +202,35 @@ init_kb() {
   fi
 }
 
+# gateway_of <directory>: where clients reach that knowledge base's gateway,
+# spec.gateway.publicURL of its KnowledgeBase document.
+gateway_of() {
+  awk '/^  gateway:/ { inside = 1; next } /^  [^ ]/ { inside = 0 } inside && /^    publicURL:/ { print $2; exit }' "$1/.semiont/stack/knowledge-base.yaml"
+}
+
 # start_kb: start the knowledge base standing here. No --config: a new KB
 # records the config it was made with, and `start` reads that. Its defaults
 # serve inference and embedding from Ollama: the host's when one answers,
 # otherwise a container that pulls the two small models.
 start_kb() {
   head_ "Boot from :$1 on $RUNTIME"
-  if "$SEMIONT" start --runtime "$RUNTIME"; then
+  if semiont start --runtime "$RUNTIME"; then
     ok "every health gate opened against a real service"
   else
-    bad "the stack did not come up"; return 1
+    bad "start failed: the launcher's reason is above"; return 1
   fi
 }
 
 # stop_kb <directory>: its stack alone. The shared containers stop with the
 # last knowledge base recorded, so stopping E2E's leaves UP's running.
-stop_kb() { "$SEMIONT" stop --root "$1" --runtime "$RUNTIME" >/dev/null 2>&1; }
+stop_kb() { semiont stop --root "$1" --runtime "$RUNTIME" >/dev/null 2>&1; }
 
 # forget_kb <directory> <removable>: clean a stopped knowledge base's state,
 # forget it, and remove the directory above it when the run made that.
 forget_kb() {
   local dir="$1" removable="$2"
-  "$SEMIONT" clean --root "$dir" >/dev/null 2>&1
-  "$SEMIONT" forget "$dir" >/dev/null 2>&1
+  semiont clean --root "$dir" >/dev/null 2>&1
+  semiont forget "$dir" >/dev/null 2>&1
   [ "$removable" = true ] && rm -rf "$(dirname "$dir")"
 }
 
@@ -234,9 +260,9 @@ if [ "$COMMAND" = up ]; then
     exit 1
   fi
   SUCCEEDED=false
-  trap 'cd / && [ "$SUCCEEDED" = true ] || { print_logs; down_kb; }' EXIT
+  trap 'cd / && [ "$SUCCEEDED" = true ] || down_kb' EXIT
   init_kb "$KB" example.github.io:stack-smoke "$IMAGES" || exit 1
-  if "$SEMIONT" clean --root "$KB" >/dev/null; then
+  if semiont clean --root "$KB" >/dev/null; then
     ok "no state from an earlier run remains"
   else
     bad "clean refused the state an earlier run left"; exit 1
@@ -246,7 +272,7 @@ if [ "$COMMAND" = up ]; then
   # writes one where there is none). DOWN restores both.
   mkdir -p "$KEPT" || exit 1
   for SERVICE in browser worker; do
-    if ! SHARED_DOC=$("$SEMIONT" settings "$SERVICE" --path); then
+    if ! SHARED_DOC=$(semiont settings "$SERVICE" --path); then
       bad "the launcher named no $SERVICE document"; exit 1
     fi
     if ! cp "$SHARED_DOC" "$KEPT/$SERVICE.yaml"; then
@@ -265,17 +291,28 @@ if [ "$COMMAND" = up ]; then
   head_ "Status"
   # `status --root` is the health-coded form: it exits non-zero when a core row
   # is unhealthy, so the exit status IS the assertion.
-  if "$SEMIONT" status --root "$KB"; then ok "every core row healthy"; else bad "a core row is unhealthy"; fi
+  if semiont status --root "$KB"; then ok "every core row healthy"; else bad "a core row is unhealthy"; fi
 
   head_ "The realm the start created"
   # The knowledge base's realm is its key, made from the domain init was given.
-  # A new KB's Keycloak holds no realm until the start creates it: if it created
-  # another, or none, this 404s.
+  # A new KB's Keycloak holds no realm until the start creates it. The issuer is
+  # where the gateway's protected-resource metadata (RFC 9728) sends a client to
+  # sign in, as the Browser and the CLI learn it: the runtime decides the host
+  # it is published on, so it is read, never assumed.
   REALM=example.github.io-stack-smoke
-  curl -fsS "http://localhost:8080/realms/$REALM" >/dev/null \
-    && ok "realm '$REALM' answers" || bad "realm '$REALM' does not answer"
-  curl -fsS "http://localhost:8080/realms/$REALM/.well-known/openid-configuration" >/dev/null \
-    && ok "discovery answers" || bad "discovery does not answer"
+  ISSUER=$(curl -fs "$(gateway_of "$KB")/.well-known/oauth-protected-resource" \
+    | grep -o '"authorization_servers"[^]]*' | grep -o 'https\{0,1\}://[^"]*' | head -1)
+  case "$ISSUER" in
+    */realms/"$REALM") ok "the gateway names realm '$REALM' at $ISSUER" ;;
+    *) bad "the gateway names no issuer of realm '$REALM' (read '$ISSUER')" ;;
+  esac
+  if DISCOVERY=$(curl -fs "$ISSUER/.well-known/openid-configuration"); then
+    ok "the issuer's discovery answers"
+  else
+    bad "the issuer's discovery does not answer at $ISSUER"
+  fi
+  # Keycloak names it again under mtls_endpoint_aliases, after the top-level one.
+  TOKEN_ENDPOINT=$(printf '%s' "$DISCOVERY" | grep -o '"token_endpoint" *: *"[^"]*"' | head -1 | grep -o 'https\{0,1\}://[^"]*')
 
   head_ "The realm allows the Browser's origin"
   # BROWSER-SIGNIN-ORIGIN, live. The Browser exchanges its code from
@@ -286,7 +323,7 @@ if [ "$COMMAND" = up ]; then
     -H "Origin: http://localhost:3000" \
     -H "Content-Type: application/x-www-form-urlencoded" \
     --data "grant_type=authorization_code&client_id=semiont-browser&code=bogus&redirect_uri=http://localhost:3000/en/auth/callback" \
-    "http://localhost:8080/realms/$REALM/protocol/openid-connect/token" \
+    "$TOKEN_ENDPOINT" \
     | tr -d '\r' | grep -i '^access-control-allow-origin:')
   case "$HDR" in
     *"http://localhost:3000"*) ok "origin echoed: $HDR" ;;
@@ -315,7 +352,7 @@ if [ "$COMMAND" = down ]; then
 fi
 
 # e2e
-if [ ! -e "$KEPT" ] || ! "$SEMIONT" status --root "$KB" >/dev/null 2>&1; then
+if [ ! -e "$KEPT" ] || ! semiont status --root "$KB" >/dev/null 2>&1; then
   echo "No healthy stack from up at $KB: bring one up first (make stack-up)." >&2
   exit 1
 fi
@@ -326,12 +363,11 @@ if [ -z "$IMAGES" ]; then
 fi
 RUN=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
 E2E_KB="$(mktemp -d)/kb"
-trap 'cd / && { [ "$FAIL" -eq 0 ] || print_logs; stop_kb "$E2E_KB"; forget_kb "$E2E_KB" true; }' EXIT
+trap 'cd / && { stop_kb "$E2E_KB"; forget_kb "$E2E_KB" true; }' EXIT
 init_kb "$E2E_KB" "example.github.io:e2e-$RUN" "$IMAGES" || exit 1
 start_kb "$IMAGES" || exit 1
-# Where clients reach this knowledge base's gateway: spec.gateway.publicURL of
-# its KnowledgeBase document, a port of its own beside up's.
-GATEWAY=$(awk '/^  gateway:/ { inside = 1; next } /^  [^ ]/ { inside = 0 } inside && /^    publicURL:/ { print $2; exit }' "$E2E_KB/.semiont/stack/knowledge-base.yaml")
+# A port of its own beside up's.
+GATEWAY=$(gateway_of "$E2E_KB")
 if [ -z "$GATEWAY" ]; then
   bad "$E2E_KB/.semiont/stack/knowledge-base.yaml names no spec.gateway.publicURL"; exit 1
 fi
@@ -344,7 +380,7 @@ head_ "The e2e default tier, in mcr.microsoft.com/playwright:v$PLAYWRIGHT-noble,
 E2E_EMAIL=e2e@example.com
 E2E_PASSWORD=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
 export E2E_EMAIL E2E_PASSWORD
-if ! printf '%s\n' "$E2E_PASSWORD" | "$SEMIONT" useradd --email "$E2E_EMAIL" --runtime "$RUNTIME" >/dev/null; then
+if ! printf '%s\n' "$E2E_PASSWORD" | semiont useradd --email "$E2E_EMAIL" --runtime "$RUNTIME" >/dev/null; then
   bad "useradd refused $E2E_EMAIL, so the suite has no one to sign in as"; exit 1
 fi
 ok "useradd made $E2E_EMAIL in the realm"

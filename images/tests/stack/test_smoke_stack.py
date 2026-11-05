@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -13,6 +14,20 @@ SOURCE = Path(__file__).with_name("smoke-stack.sh")
 DOCUMENTS = {
     "browser": "image: ghcr.io/the-ai-alliance/semiont-browser:previous\nkeep: browser-setting\n",
     "worker": "image: ghcr.io/the-ai-alliance/semiont-worker:previous\nkeep: worker-setting\n",
+}
+ISSUER = "http://192.0.2.1:8080/realms/example.github.io-stack-smoke"
+PROTECTED_RESOURCE = {
+    "resource": "https://example.github.io/stack-smoke",
+    "authorization_servers": [ISSUER],
+    "bearer_methods_supported": ["header"],
+}
+# Keycloak's shape: the token endpoint again under mtls_endpoint_aliases, after the top-level one.
+DISCOVERY = {
+    "issuer": ISSUER,
+    "token_endpoint": f"{ISSUER}/protocol/openid-connect/token",
+    "mtls_endpoint_aliases": {
+        "token_endpoint": f"{ISSUER}/protocol/openid-connect/token"
+    },
 }
 # Each init writes a KnowledgeBase document whose gateway has a port of its own,
 # as init gives a knowledge base beside another the next port block.
@@ -85,25 +100,52 @@ class SmokeStackTest(unittest.TestCase):
             (self.root / directory).mkdir(parents=True)
         for name, text in DOCUMENTS.items():
             (self.root / "state home" / f"{name}.yaml").write_text(text)
-        launcher = self.root / "apps/launcher/dist/semiont"
-        launcher.write_text(f"#!{sys.executable}\n" + LAUNCHER)
-        launcher.chmod(0o755)
+        self.launcher = self.root / "apps/launcher/dist/semiont"
+        self.launcher.write_text(f"#!{sys.executable}\n" + LAUNCHER)
+        self.launcher.chmod(0o755)
+        shutil.copy2(self.launcher, self.root / "built-launcher")
+        # The build. `stale` answers what SMOKE_TEST_STALE says is stale. Every other
+        # operation writes the launcher where there is none, and, as Go does for a
+        # build that changed nothing, leaves one that is there as it was.
+        build = self.root / "images/scripts/build-session.sh"
+        build.write_text(
+            "#!/bin/sh\n"
+            'printf "%s\\n" "$*" >> "$SMOKE_TEST_ROOT/builds.log"\n'
+            'if [ "$1" = stale ]; then printf "%s" "$SMOKE_TEST_STALE"; exit "$SMOKE_TEST_STALE_STATUS"; fi\n'
+            '[ "$SMOKE_TEST_BUILD_STATUS" = 0 ] || exit "$SMOKE_TEST_BUILD_STATUS"\n'
+            f'[ -e "{self.launcher}" ] || cp -p "$SMOKE_TEST_ROOT/built-launcher" "{self.launcher}"\n'
+        )
         self.use_runtime("smoke-test-runtime", 0)
 
     def use_runtime(self, runtime: str, e2e_status: int) -> None:
         self.runtime = runtime
         log = self.root / "runtime.log"
         for name, body in {
-            "curl": "printf 'access-control-allow-origin: http://localhost:3000\\n'",
+            # The gateway names an issuer on a host of the runtime's choosing, which
+            # answers discovery and the Browser's origin. The URL is curl's last argument.
+            "curl": f'for url; do :; done\nprintf "%s\\n" "$url" >> "{self.root / "curl.log"}"\n'
+            'case "$url" in\n'
+            f"  */.well-known/oauth-protected-resource) printf '%s' '{json.dumps(PROTECTED_RESOURCE)}' ;;\n"
+            f"  {ISSUER}/.well-known/openid-configuration) printf '%s' '{json.dumps(DISCOVERY)}' ;;\n"
+            f"  {DISCOVERY['token_endpoint']}) printf 'access-control-allow-origin: http://localhost:3000\\n' ;;\n"
+            "  *) exit 7 ;;\n"
+            "esac",
             "nc": "exit 1",
-            runtime: f'printf "%s\\n" "$*" >> "{log}"\n[ "$1" != run ] || exit {e2e_status}\nexit 0',
+            runtime: f'printf "%s\\n" "$*" >> "{log}"\n[ "$1" != run ] || exit {e2e_status}\n'
+            # Another knowledge base's container, stopped, as a machine keeps one.
+            'case "$1" in ps|ls) echo semiont-another-kb-gateway ;; logs) echo "a log line of $*" ;; esac\nexit 0',
         }.items():
             executable = self.root / "bin" / name
             executable.write_text(f"#!/bin/sh\n{body}\n")
             executable.chmod(0o755)
 
     def smoke(
-        self, *args: str, start_status: str = "0"
+        self,
+        *args: str,
+        start_status: str = "0",
+        build_status: str = "0",
+        stale: str = "",
+        stale_status: str = "0",
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["bash", str(self.root / "images/tests/stack/smoke-stack.sh"), *args],
@@ -113,6 +155,9 @@ class SmokeStackTest(unittest.TestCase):
                 "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
                 "SMOKE_TEST_ROOT": str(self.root),
                 "SMOKE_TEST_START_STATUS": start_status,
+                "SMOKE_TEST_BUILD_STATUS": build_status,
+                "SMOKE_TEST_STALE": stale,
+                "SMOKE_TEST_STALE_STATUS": stale_status,
                 "CONTAINER_RUNTIME": self.runtime,
                 "SMOKE_KB": str(self.kb),
             },
@@ -137,6 +182,20 @@ class SmokeStackTest(unittest.TestCase):
                 "--root", call, "a stop naming no root stops whichever stack it finds"
             )
         return [os.path.realpath(call[call.index("--root") + 1]) for call in stops]
+
+    def build_calls(self) -> list[str]:
+        path = self.root / "builds.log"
+        return path.read_text().splitlines() if path.exists() else []
+
+    def builds(self) -> list[str]:
+        """What the smoke built, leaving out what it asked."""
+        return [call for call in self.build_calls() if not call.startswith("stale")]
+
+    def edit_launcher_source(self) -> None:
+        """A launcher source file newer than the launcher."""
+        past = time.time() - 100
+        os.utime(self.launcher, (past, past))
+        (self.root / "packages/go/launcher/start.go").write_text("package launcher\n")
 
     def assert_documents_restored(self) -> None:
         for name, original in DOCUMENTS.items():
@@ -167,12 +226,98 @@ class SmokeStackTest(unittest.TestCase):
                 self.assertIn(os.path.realpath(self.kb), self.stopped())
                 shutil.rmtree(self.kb)
 
+    def test_up_builds_a_missing_launcher_before_it_starts_anything(self) -> None:
+        self.launcher.unlink()
+        result = self.smoke("up", "local")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.builds(), ["launcher"])
+        self.assertEqual(len(self.lines("starts.jsonl")), 1)
+
+    def test_a_launcher_older_than_its_source_is_built_once(self) -> None:
+        self.edit_launcher_source()
+        self.assertEqual(self.smoke("up", "local").returncode, 0)
+        result = self.smoke("e2e")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.builds(), ["launcher"])
+
+    def test_down_stops_with_the_launcher_that_is_there(self) -> None:
+        self.assertEqual(self.smoke("up", "local").returncode, 0)
+        self.edit_launcher_source()
+        result = self.smoke("down")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.builds(), [])
+        self.assert_documents_restored()
+
+    def test_a_launcher_that_does_not_build_starts_nothing(self) -> None:
+        self.launcher.unlink()
+        result = self.smoke("up", "local", build_status="1")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(self.lines("starts.jsonl"), [])
+        self.assertEqual(self.lines("inits.jsonl"), [])
+
+    def test_up_of_local_builds_stale_images_before_it_starts_anything(self) -> None:
+        stale = "images/archivist\tDockerfile, copied source, toolchain or npm dependencies changed\n"
+        result = self.smoke("up", "local", stale=stale)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            self.build_calls(),
+            ["stale --package typescript", "local-build --package typescript"],
+        )
+        self.assertIn("images/archivist", result.stdout)
+        self.assertEqual(len(self.lines("starts.jsonl")), 1)
+
+    def test_up_of_current_local_images_builds_nothing(self) -> None:
+        result = self.smoke("up", "local")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.build_calls(), ["stale --package typescript"])
+        self.assertIn("nothing to build", result.stdout)
+        self.assertIn(
+            "semiont init --domain example.github.io:stack-smoke made it", result.stdout
+        )
+
+    def test_up_of_a_published_tag_asks_nothing_of_the_build(self) -> None:
+        result = self.smoke("up", "0.7.1", stale="images/archivist\tchanged\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.build_calls(), [])
+
+    def test_images_that_do_not_build_start_nothing(self) -> None:
+        for status in ("stale", "build"):
+            with self.subTest(failed=status):
+                (self.root / "builds.log").unlink(missing_ok=True)
+                result = self.smoke(
+                    "up",
+                    "local",
+                    stale="images/archivist\tchanged\n",
+                    stale_status="1" if status == "stale" else "0",
+                    build_status="1" if status == "build" else "0",
+                )
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertEqual(self.lines("starts.jsonl"), [])
+                self.assertEqual(self.lines("inits.jsonl"), [])
+
+    def test_up_checks_the_realm_at_the_issuer_the_gateway_names(self) -> None:
+        result = self.smoke("up", "local")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            (self.root / "curl.log").read_text().splitlines(),
+            [
+                "http://localhost:4000/.well-known/oauth-protected-resource",
+                f"{ISSUER}/.well-known/openid-configuration",
+                DISCOVERY["token_endpoint"],
+            ],
+        )
+
     def test_a_failed_up_takes_its_stack_down(self) -> None:
         result = self.smoke("up", "local", start_status="1")
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assert_documents_restored()
         self.assertFalse((self.kb / ".smoke-kept").exists())
         self.assertNotEqual(self.smoke("down").returncode, 0)
+        self.assertNotIn(
+            "semiont-another-kb-gateway",
+            result.stdout + result.stderr,
+            "the launcher prints a failed container's log; the smoke prints none of the machine's",
+        )
 
     def test_e2e_and_down_refuse_without_a_stack_up(self) -> None:
         for command in ("e2e", "down"):

@@ -1,6 +1,6 @@
 # Real-stack smoke test
 
-After `make local-build`, from the repository root:
+From the repository root:
 
 ```sh
 ./images/tests/stack/smoke-stack.sh up local   # make stack-up
@@ -9,9 +9,10 @@ After `make local-build`, from the repository root:
 ./images/tests/stack/smoke-stack.sh run local --e2e   # all three; make smoke
 ```
 
-A published image tag can stand for `local`. `up` starts a fresh knowledge base with
-the checkout's launcher, checks health, identity and Browser origins, and leaves it
-running. `e2e` makes a knowledge base and user of its own beside it, runs the default
+A published image tag can stand for `local`. `up local` first builds the `:local` images,
+as `make local-build PACKAGE_NAMES=typescript` does, when the build finds them older than
+the checkout. `up` starts a fresh knowledge base with the checkout's launcher, checks
+health, identity and Browser origins, and leaves it running. `e2e` makes a knowledge base and user of its own beside it, runs the default
 end-to-end tier against them, and removes them. `down` stops the stack, checks shutdown,
 and cleans up its state. `.github/workflows/stack-smoke.yml` runs `run <tag> --e2e` in CI.
 
