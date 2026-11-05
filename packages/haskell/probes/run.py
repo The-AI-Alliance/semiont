@@ -34,6 +34,7 @@ def compile_probes():
             "WrongOperation": "Int",
             "IncompleteOutcome": "non-exhaustive",
             "CoercedIdentifier": "constructor",
+            "NetworkInSimulation": "GHC-83865",
         }
         for name, diagnostic in expected.items():
             result = subprocess.run(

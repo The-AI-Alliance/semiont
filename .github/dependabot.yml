@@ -453,6 +453,19 @@ updates:
       prefix: "service-docker"
       include: "scope"
 
+  - package-ecosystem: "docker"
+    directory: "/packages/haskell/probes"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "kind:dependencies"
+    commit-message:
+      prefix: "haskell-build-image"
+      include: "scope"
+
   # The images of the Python services (images/worker/Dockerfile,
   # images/weaver/Dockerfile, images/smelter/Dockerfile,
   # images/librarian/Dockerfile). Their Python base is no

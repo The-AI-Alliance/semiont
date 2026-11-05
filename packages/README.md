@@ -2,7 +2,7 @@
 
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/branch/main/graph/badge.svg)](https://codecov.io/gh/The-AI-Alliance/semiont)
 
-The libraries Semiont is built from, in five languages. The services are in [images/](../images/README.md), and the tools that run on a host in [apps/](../apps/README.md). What they share, and what a program outside this repository installs, is here.
+The libraries Semiont is built from. The services are in [images/](../images/README.md), and the tools that run on a host in [apps/](../apps/README.md). What they share, and what a program outside this repository installs, is here.
 
 | Language | What is here | Published to |
 |---|---|---|
@@ -13,6 +13,7 @@ The libraries Semiont is built from, in five languages. The services are in [ima
 | [C#](./csharp/README.md) | The .NET SDK, under construction | Not published |
 | [Kotlin](./kotlin/README.md) | The SDK, for Kotlin and Java programs | Not published |
 | [Swift](./swift/README.md) | The SDK for Apple apps and Linux services | Not published |
+| [Haskell](./haskell/README.md) | The typed IO SDK, under construction | Not published |
 
 Each language's README lists its packages, with what each is and its coverage, and says how the language's packages are built and measured.
 
@@ -30,6 +31,7 @@ A program that builds on a knowledge base installs one SDK. [Building with the S
 | Go | `go get github.com/The-AI-Alliance/semiont/packages/go/sdk` | [go/sdk](./go/sdk/README.md) |
 | C# / .NET | Not published: project reference when implemented | [csharp/sdk](./csharp/sdk/README.md) |
 | Kotlin or Java | Not published: [build its jar](./kotlin/sdk/README.md#installing) | [kotlin/sdk](./kotlin/sdk/README.md) |
+| Haskell | Not published: local Cabal project reference during development | [haskell/sdk](./haskell/sdk/README.md) |
 | A React interface | `npm install @semiont/react-ui`, beside the SDK | [typescript/react-ui](./typescript/react-ui/README.md) |
 
 The rest is what those are built on, and what Semiont's own services are built on.

@@ -1,0 +1,69 @@
+cabal-version: 3.0
+name: semiont
+version: @VERSION@
+synopsis: Typed Semiont SDK for Haskell
+description: Protocol-derived models for the Semiont knowledge platform.
+license: Apache-2.0
+license-file: LICENSE
+category: Network
+author: The AI Alliance
+maintainer: Semiont contributors
+build-type: Simple
+extra-source-files: semiont.cabal.in, README.md, run.sh, test/refusals.py, test/refusals/*.hs
+
+common settings
+  default-language: GHC2021
+  ghc-options: -Wall -Wincomplete-patterns -Wincomplete-record-updates
+  build-depends:
+    base >=4.20 && <4.21,
+    aeson >=2.2 && <2.3,
+    async >=2.2 && <2.3,
+    bytestring >=0.12 && <0.13,
+    containers >=0.7 && <0.8,
+    regex-tdfa >=1.3 && <1.4,
+    scientific >=0.3 && <0.4,
+    stm >=2.5 && <2.6,
+    streaming >=0.2 && <0.3,
+    text >=2.1 && <2.2,
+    vector >=0.13 && <0.14
+
+library
+  default-language: GHC2021
+  build-depends: base >=4.20 && <4.21, semiont:internal
+  reexported-modules: Semiont.Types, Semiont.Types.Presence, Semiont.Channels, Semiont.Running
+
+library internal
+  import: settings
+  visibility: private
+  hs-source-dirs: src, internal, generated
+  exposed-modules:
+    Semiont.Types
+    Semiont.Types.Presence
+    Semiont.Channels
+    Semiont.Running
+    Semiont.Internal.Schema
+    Semiont.Internal.Broadcast
+    Semiont.Internal.Sse
+    Semiont.Internal.Running
+    Semiont.Internal.Generated.Schemas
+  other-modules:
+    Semiont.Internal.Codec
+@MODEL_MODULES@
+
+executable semiont-codegen
+  import: settings
+  main-is: Main.hs
+  hs-source-dirs: codegen, internal
+  other-modules: Semiont.Internal.Schema
+  ghc-options: -threaded
+  build-depends: mtl >=2.3 && <2.4, directory >=1.3 && <1.4, filepath >=1.5 && <1.6
+
+test-suite schema-cases
+  import: settings
+  build-tool-depends: hpc-codecov:hpc-codecov ==0.6.4.1
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  hs-source-dirs: test
+  other-modules: Semiont.Internal.Generated.RoundTrip, Runtime
+  ghc-options: -threaded
+  build-depends: semiont:internal, directory >=1.3 && <1.4, filepath >=1.5 && <1.6

@@ -125,6 +125,7 @@ import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { TIERS } from '../changed-areas.mjs';
 import { ignoredByGit, repositoryFiles } from './repository-files.mjs';
+import { isPackageManifest } from './package-manifests.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 
@@ -411,12 +412,9 @@ function changedAreas(jobs) {
   }
 
   // Rule 5: every package of the repository is under some filter.
-  const MANIFESTS = ['package.json', 'Cargo.toml', 'pyproject.toml', 'go.mod', 'build.gradle.kts', 'Package.swift'];
-  // .NET solutions and Cabal packages are named for what they build.
-  const isManifest = (name) => MANIFESTS.includes(name) || name.endsWith('.slnx') || name.endsWith('.cabal');
   const trees = [...new Set(Object.values(filters).flat())].filter((pattern) => typeof pattern === 'string' && pattern.endsWith('/**')).map((pattern) => pattern.slice(0, -'/**'.length));
   const packages = repository
-    .filter((file) => /^(apps|images|packages|protocol)\//.test(file) && isManifest(basename(file)) && !file.split('/').includes('testdata'))
+    .filter((file) => /^(apps|images|packages|protocol)\//.test(file) && isPackageManifest(basename(file)) && !file.split('/').includes('testdata'))
     .map((file) => dirname(file));
   // E2e is an independent project whose PR consumer is Stack Smoke, not ci.yml.
   const smokeWorkflow = yaml.load(readFileSync(join(ROOT, SMOKE), 'utf8'));

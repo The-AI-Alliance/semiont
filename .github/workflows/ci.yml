@@ -2321,8 +2321,8 @@ jobs:
         if: matrix.python-version == '3.12'
         run: ../../../packages/python/sdk/scripts/build-python-sdk.sh
 
-  test-haskell-probes:
-    name: Haskell P0 probes
+  test-sdk-haskell:
+    name: Haskell SDK and design probes
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
     if: needs.changes.outputs.haskell == 'true'
@@ -2334,9 +2334,23 @@ jobs:
         uses: actions/cache@v6.1.0
         with:
           path: ~/.cache/semiont/haskell-cabal
-          key: ${{ runner.os }}-${{ runner.arch }}-haskell-p0-${{ hashFiles('packages/haskell/probes/Containerfile', 'packages/haskell/probes/cabal.project*', 'packages/haskell/probes/cabal-install.version') }}
-      - name: Compile and exercise P0 decisions
-        run: bash packages/haskell/probes/run-container.sh docker
+          key: ${{ runner.os }}-${{ runner.arch }}-haskell-${{ hashFiles('packages/haskell/probes/Dockerfile', 'packages/haskell/**/cabal.project*', 'packages/haskell/probes/cabal-install.version') }}
+      - name: Compile and test the SDK and design probes
+        run: bash packages/haskell/run-container.sh docker
+      - name: Upload SDK coverage
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/haskell/sdk/coverage.json
+          flags: haskell-sdk
+          name: haskell-sdk
+      - name: Upload design probe coverage
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/haskell/probes/coverage.json
+          flags: haskell-probes
+          name: haskell-probes
 
   # The C# SDK and its compiler/analyzer gates, on Linux and Windows.
   test-sdk-csharp:
@@ -3996,7 +4010,7 @@ jobs:
       - test-sdk-rust-windows
       - test-sdk-kotlin
       - test-sdk-csharp
-      - test-haskell-probes
+      - test-sdk-haskell
       - test-sdk-csharp-windows
       - test-sdk-swift
       - test-sdk-swift-macos

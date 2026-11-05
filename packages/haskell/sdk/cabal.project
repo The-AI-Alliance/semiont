@@ -1,0 +1,6 @@
+import: ../probes/cabal.project
+packages: .
+
+package semiont
+  ghc-options: -Werror
+

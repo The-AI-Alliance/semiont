@@ -1,5 +1,7 @@
 # Haskell P0 acceptance probes
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=haskell-probes)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
+
 These are executable design experiments, using synthetic types rather than
 copies of Semiont's protocol schemas. They establish candidate building blocks;
 they are not the SDK or a replacement for the shared conformance suites.
@@ -9,7 +11,7 @@ they are not the SDK or a replacement for the shared conformance suites.
 From the repository root on macOS:
 
 ```sh
-bash packages/haskell/probes/run-container.sh
+bash packages/haskell/run-container.sh
 ```
 
 The script uses Apple `container` by default; CI passes `docker`. The image
@@ -26,7 +28,7 @@ Cabal is GHCup's current recommended version. `cabal.project.freeze` holds the
 resolved dependency versions and flags against the dated package index.
 
 The runner checks Cabal metadata, builds with warnings as errors, compiles a
-valid consumer, checks six invalid consumers against specific diagnostics,
+valid consumer, checks seven invalid consumers against specific diagnostics,
 runs the real HTTP and native-lock peers with bounded failure timeouts, and
 produces a source tarball. Dependencies are fetched through Cabal, not npm.
 
@@ -48,6 +50,9 @@ produces a source tarball. Dependencies are fetched through Cabal, not npm.
 | Implicit HTTP retry | After warming a pooled connection, a dropped POST response causes two attempts with the library default and one with `managerRetryableException = const False`. The server counts the requests. |
 | Native locking | Direct `flock` excludes Python's `fcntl.flock` in both directions across processes; contention uses a supplied wait callback, waits cancel, and process exit/death releases the lock. |
 | Standalone source package | The Cabal source tarball rebuilt and passed the same suite in a separate container with only the archive and dependency cache mounted. |
+| Crypto and text | `crypton` provides the SHA-256 known-answer check, RSA signing/verification and secure random bytes. `text` counts supplementary and combining characters as code points. |
+| Telemetry | The pinned OpenTelemetry API delivers two related spans to a host processor, keeps context across an explicitly scoped async task, uses a host propagator, and delivers counter measurements to a host meter. The host retains provider shutdown. |
+| Simulation alternative | `io-sim` advances five seconds and enforces a deadline without waiting in real time. A compiler-refusal case shows that the concrete HTTP library's IO action cannot simply run in `IOSim`; using it requires a different transport composition. |
 
 The upstream [`http-client` manager implementation](https://github.com/snoyberg/http-client/blob/http-client-0.7.19/http-client/Network/HTTP/Client/Manager.hs)
 also establishes that `closeManager` is a deprecated no-op. Response cleanup is
@@ -58,7 +63,9 @@ the meaningful deterministic scope in this probe.
 The results support continuing with GADTs and opaque newtypes, explicit Aeson
 presence handling, scoped `streaming`, STM state and consumption guards,
 interruptible `async` tasks, and supplied IO waits. They do not settle the full
-public signatures, the clock surface, or the `io-sim` alternative.
+public signatures or the complete time/jitter surface. The simulation probe
+supports keeping the concrete IO facade with supplied domain waits: the
+alternative works, but would require a polymorphic HTTP boundary throughout.
 
 The HTTP boundary needs a decision before implementing the production adapter:
 an opaque caller-provided `Manager` cannot be inspected for implicit retry
@@ -67,9 +74,18 @@ must not promise either guarantee from that value alone. Candidate boundaries
 include caller-supplied `ManagerSettings` with explicit SDK request policy or a
 caller-provided transport. Header timeouts cannot implement body deadlines.
 
-Still required for P0 are stock-generator comparison and real schema fidelity,
-compiler-derived export inventory feasibility, telemetry spans/metrics and host
-propagation, crypto package API and platform checks, full time/jitter signatures
+The stock OpenAPI Generator's `haskell-http-client` output was compared using
+version 7.17.0 and a synthetic optional-nullable field: it generated `Maybe Text`,
+decoded with `.:?`, and omitted nulls on encode. That loses explicit null
+membership, so the SDK uses its own generator. The SDK suite now checks its
+generated schema samples and resolved conformance-corpus payloads.
+
+GHCi's compiler-derived `:browse!` output was also measured against the real
+library. It reports the exported GADTs, constructors, functions, and resolved
+types through module re-exports. P1 still needs the inventory parser, freshness
+gate, and surface-lint integration.
+
+Still required for P0 are crypto and telemetry platform checks, full time/jitter signatures
 and simulation comparison, non-replayable upload behavior, launcher-owned lock
 and store integration, durable replacement, and native macOS/Windows locking
 and lifecycle checks. Linux Python interoperability alone establishes neither

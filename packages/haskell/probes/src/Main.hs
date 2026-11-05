@@ -2,6 +2,7 @@
 
 module Main (main) where
 
+import Capabilities (cryptoProbe, telemetryProbe, simulationProbe)
 import Control.Concurrent.Async (async, cancel, poll, race, wait, waitCatch)
 import Control.Concurrent.STM hiding (check)
 import qualified Control.Concurrent.STM as STM
@@ -196,6 +197,9 @@ main = do
         Right _ -> False
       putStrLn "cancelled"
     [origin] -> do
+      check "SHA-256, RSA signing, CSPRNG and Unicode offsets" cryptoProbe
+      check "host telemetry, context across async and custom propagation" telemetryProbe
+      check "io-sim clock advancement and deadline cancellation" simulationProbe
       check "explicit JSON absence and null" jsonProbe
       check "caller-controlled IO wait and cancellation" clockProbe
       check "scoped stream, single consumer, terminal result" streamProbe

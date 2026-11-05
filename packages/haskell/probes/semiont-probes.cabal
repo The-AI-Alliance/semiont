@@ -14,17 +14,17 @@ extra-source-files:
   cabal.project
   cabal.project.freeze
   cabal-install.version
-  Containerfile
+  Dockerfile
   run.sh
   run.py
-  run-container.sh
   toolchain.sh
   refusals/*.hs
 
 executable semiont-probes
+  build-tool-depends: hpc-codecov:hpc-codecov ==0.6.4.1
   main-is: Main.hs
   hs-source-dirs: src
-  other-modules: ProbeTypes, NativeLock
+  other-modules: ProbeTypes, NativeLock, Capabilities
   default-language: GHC2021
   ghc-options: -Wall -Wincomplete-patterns -Wincomplete-record-updates -threaded
   build-depends:
@@ -32,6 +32,10 @@ executable semiont-probes
     aeson >=2.2 && <2.3,
     async >=2.2 && <2.3,
     bytestring >=0.12 && <0.13,
+    crypton >=1.0 && <1.1,
+    hs-opentelemetry-api >=1.0 && <1.1,
+    io-classes >=1.11 && <1.12,
+    io-sim >=1.11 && <1.12,
     http-client >=0.7 && <0.8,
     http-client-tls >=0.3 && <0.4,
     stm >=2.5 && <2.6,
