@@ -148,9 +148,9 @@ runningCases = do
 
 deliveryCases :: IO ()
 deliveryCases = do
-  wire <- atomically Delivery.newHub
-  local <- atomically Delivery.newHub
-  replies <- atomically Delivery.newReplies
+  wire <- atomically (Delivery.newHub busFrameChannel)
+  local <- atomically (Delivery.newHub busFrameChannel)
+  replies <- atomically (Delivery.newReplies busFrameChannel busFrameCorrelationId)
   let (_, resultChannel, failureChannel) = Channels.operationChannels Channels.FrameAddEntityTypeOperation
       resultName = Channels.channelName resultChannel
       replyChannels = Set.fromList [resultName, Channels.channelName failureChannel]

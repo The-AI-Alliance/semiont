@@ -3,7 +3,7 @@
 module Main (main) where
 
 import Control.Applicative ((<|>))
-import Control.Monad (forM_, unless)
+import Control.Monad (forM, forM_, unless)
 import Data.Aeson (FromJSON, Value(..), eitherDecodeStrict', parseJSON)
 import Data.Aeson.Types (parseEither)
 import qualified Data.Aeson.Key as Key
@@ -19,19 +19,22 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Semiont.Internal.Generated.RoundTrip (roundTrip)
-import Semiont.Internal.Generated.ChannelRoundTrip (roundTripChannel)
+import Semiont.Internal.Generated.ChannelRoundTrip (roundTripChannel, channelMetadata, operationMetadata)
+import qualified Semiont.Channels as Channels
 import Semiont.Internal.Generated.ErrorRoundTrip (roundTripError)
 import Semiont.Internal.Generated.TimingValues (timingValues)
 import qualified Semiont.Internal.Generated.DiscoveryReasonRoundTrip as DiscoveryReasons
 import qualified Semiont.ErrorCodes as Errors
 import qualified Semiont.Retry as Retry
 import Semiont.Internal.Generated.Schemas (schemas)
-import Semiont.Internal.Schema (checkSchema, normalize, validate, validateNamed)
+import Semiont.Internal.Schema (normalize, validate, validateNamed)
 import System.Directory (doesDirectoryExist, listDirectory)
 import System.Environment (getArgs)
 import System.FilePath ((</>), takeBaseName)
 import Runtime (runtimeCases)
 import Discovery (discoveryCases)
+import BusCases (busCases)
+import qualified SchemaCases
 
 require :: String -> Bool -> IO ()
 require label good = unless good (ioError (userError label))
@@ -210,6 +213,7 @@ channelCases root = do
       String "empty" -> pure "EmptyBusPayload"
       String "void" -> pure "EmptyBusPayload"
       _ -> ioError (userError "unrecognized channel shape")
+    require "channel metadata disagrees with the registry" (channelMetadata name == Right (name, named, String name `elem` array (at "scoped" (at "audience" registry))))
     schema <- maybe (ioError (userError ("missing generated channel schema: " ++ T.unpack named))) pure (Map.lookup named schemas)
     payload <- either (ioError . userError) pure (sample 0 schema)
     stamped <- case payload of
@@ -217,6 +221,12 @@ channelCases root = do
       _ -> ioError (userError "channel payload is not an object")
     require ("channel decoder lost a declared stamp or retained an unknown one on " ++ T.unpack name)
       (roundTripChannel name stamped == Right payload)
+    require "channel accepted a non-object payload" (isLeft (roundTripChannel name Null))
+  require "channel inventory disagrees with the registry" (map String Channels.channelNames == map (at "channel") channels)
+  let operations = array (at "operations" registry)
+      actualOperations = [(String asked, String result, String failure) | (asked, result, failure) <- operationMetadata]
+  require "operation routing disagrees with the registry" (actualOperations == [(at "request" row, at "result" row, at "failure" row) | row <- operations])
+  require "persisted event vocabulary disagrees with the registry" (map String Channels.persistedEventTypes == [value | row <- channels, let value = at "event" row, value /= Null])
   putStrLn ("PASS typed payload decoding and stamp handling for all " ++ show (length channels) ++ " registry channels")
 
 factCases :: FilePath -> IO ()
@@ -289,9 +299,7 @@ main = do
   args <- getArgs
   root <- case args of [value] -> pure value; _ -> ioError (userError "expected repository root")
   runtimeCases
-  require "unknown schema keyword accepted" (isLeft (checkSchema schemas (Object (KM.singleton "not" (Object KM.empty)))))
-  require "malformed schema bound accepted" (isLeft (checkSchema schemas (Object (KM.fromList [("type", String "string"), ("minLength", String "one")]))))
-  require "unsupported regex escape accepted" (isLeft (checkSchema schemas (Object (KM.fromList [("type", String "string"), ("pattern", String "^\\d+$")]))))
+  SchemaCases.schemaCases
   let noSpace = Object (KM.fromList [("type", String "string"), ("pattern", String "^\\S+$")])
       dot = Object (KM.fromList [("type", String "string"), ("pattern", String "^x.+z$")])
   forM_ ["\xa0", "\x2028", "\xfeff"] $ \separator ->
@@ -310,4 +318,17 @@ main = do
   document <- either (ioError . userError) pure (sample 0 (Object (KM.singleton "$ref" (String "DiscoveryDocument.json"))))
     >>= either (ioError . userError) pure . parseEither parseJSON
   discoveryCases kb document
+  command <- either (ioError . userError) pure (sample 0 (Object (KM.singleton "$ref" (String "FrameAddEntityTypeCommand.json"))))
+    >>= either (ioError . userError) pure . parseEither parseJSON
+  event <- either (ioError . userError) pure (sample 0 (Object (KM.singleton "$ref" (String "EnrichedResourceEvent.json"))))
+  browse <- either (ioError . userError) pure (sample 0 (Object (KM.singleton "$ref" (String "BrowseResourceRequest.json"))))
+    >>= either (ioError . userError) pure . parseEither parseJSON
+  errorTable <- readJSON (root </> "protocol/specs/src/errors/codes.json")
+  let busErrors = at "busRequest" errorTable
+  fallback <- either (ioError . userError) pure (parseEither parseJSON (at "unrecognizedFailure" busErrors))
+  failureRows <- forM [row | row <- array (at "codes" busErrors), String _ <- [at "wire" row]] $ \row -> do
+    wire <- either (ioError . userError) pure (parseEither parseJSON (at "wire" row))
+    code <- either (ioError . userError) pure (parseEither parseJSON (at "code" row))
+    pure (Just wire, code)
+  busCases command browse event (failureRows ++ [(Nothing, fallback), (Just "__unknown_test_code", fallback)])
   corpusCases root

@@ -2,6 +2,8 @@
 
 import subprocess
 import tempfile
+import re
+from pathlib import Path
 
 
 with tempfile.TemporaryDirectory() as output:
@@ -18,6 +20,10 @@ with tempfile.TemporaryDirectory() as output:
         "CrossIdentifier": "GHC-83865",
         "RecordIdentifier": "GHC-22385",
         "IncompleteErrorCode": "non-exhaustive",
+        "BusWrongPayload": "GHC-83865",
+        "BusMissingScope": "GHC-83865",
+        "WritableState": "does not export",
+        "TransportInputCoercion": "constructor",
     }
     for name, diagnostic in expected.items():
         result = subprocess.run(
@@ -27,3 +33,11 @@ with tempfile.TemporaryDirectory() as output:
         if result.returncode == 0 or diagnostic not in result.stdout:
             raise AssertionError(f"{name}: wrong compilation result\n{result.stdout}")
         print(f"PASS SDK external compile refusal: {name}", flush=True)
+    examples = re.findall(r"```haskell\n(.*?)\n```", Path("README.md").read_text(), re.DOTALL)
+    if not examples:
+        raise AssertionError("SDK README declares no Haskell examples")
+    for index, source in enumerate(examples):
+        path = Path(output) / f"ReadmeExample{index}.hs"
+        path.write_text(source + "\n")
+        subprocess.run(command + [str(path)], check=True, timeout=30)
+        print(f"PASS SDK README example {index + 1}", flush=True)

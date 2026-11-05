@@ -527,6 +527,7 @@ roundTrip name value = case name of
   "TextQuoteSelectorType" -> toJSON <$> (parseEither parseJSON value :: Either String TextQuoteSelectorType)
   "TextualBody" -> toJSON <$> (parseEither parseJSON value :: Either String TextualBody)
   "TextualBodyType" -> toJSON <$> (parseEither parseJSON value :: Either String TextualBodyType)
+  "TraceCarrier" -> toJSON <$> (parseEither parseJSON value :: Either String TraceCarrier)
   "UnitCursor" -> toJSON <$> (parseEither parseJSON value :: Either String UnitCursor)
   "UpdateAnnotationBodyRequest" -> toJSON <$> (parseEither parseJSON value :: Either String UpdateAnnotationBodyRequest)
   "UpdateAnnotationBodyRequestOperationsItem" -> toJSON <$> (parseEither parseJSON value :: Either String UpdateAnnotationBodyRequestOperationsItem)

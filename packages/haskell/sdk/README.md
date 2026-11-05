@@ -4,8 +4,8 @@
 
 The Haskell SDK is being built toward the same client and protocol contract
 as the other Semiont SDKs. It currently provides protocol types, checked
-identifiers, typed channels, scoped operation consumption, retry support, and
-launcher discovery.
+identifiers, a typed bus and common carrier runtime, read-only state,
+scoped operation consumption, retry support, and launcher discovery.
 The client, HTTP transport, sign-in, delegation, live queries, workers,
 registry, and state units are still being implemented.
 
@@ -39,8 +39,8 @@ in the other SDKs.
 ## Connect
 
 In development. The client facade, gateway HTTP transport, and content
-transport are not yet available. The current package supports typed protocol
-data and the operation primitives described below.
+transport are not yet available. Custom carriers can already use the common
+transport runtime and typed bus described below.
 
 ## Eight verbs
 
@@ -126,7 +126,7 @@ and date and URI values retain their `Text` spelling.
 
 `Semiont.Channels` provides GADT descriptors. Each channel has its own payload
 type and scope kind; each operation fixes its request, result, and failure
-types. The runtime bus will require `InScope resourceId` when observing a
+types. The typed bus requires `InScope resourceId` when observing a
 resource-scoped channel.
 
 ## Errors and retry
@@ -143,16 +143,56 @@ wait, and the last failure is raised when the budget is exhausted.
 
 ## The bus and transport
 
-The current package has typed channel/operation descriptors and an internal
-reply router. Runtime checks preserve raw-reply publication before request
-continuations and keep the wire separate from local derived signals.
-The public bus and HTTP transport are still being implemented.
+`Semiont.Transport.newTransport` gives a carrier its input handle and the
+transport its consumers use. The carrier supplies sending and teardown, feeds
+received frames through `receive`, and publishes valid connection transitions
+through `setState`. Its subscription snapshot contains the current resource
+holds and pending correlations. `Semiont.StateValue` exposes state observations
+without a public setter.
+
+Build a `Semiont.Bus` with `newBus`, a transport, and `BusOptions`. The options
+supply monotonic time, an interruptible absolute wait, and fresh correlation
+IDs. Each request waits for the stream to open, tracks its reply before sending,
+emits once, and ends on a reply, deadline, cancellation, or transport close.
+For example, given a bus and a typed command:
+
+```haskell
+module ProtocolCalls (addEntityType) where
+
+import qualified Semiont.Bus as Bus
+import qualified Semiont.Channels as Channels
+import qualified Semiont.Timing as Timing
+import Semiont.Types (EmptyBusPayload, FrameAddEntityTypeCommand)
+
+addEntityType :: Bus.Bus -> FrameAddEntityTypeCommand -> IO EmptyBusPayload
+addEntityType wire command =
+  Bus.request wire Channels.FrameAddEntityTypeOperation command
+    Timing.busRequestTimeoutMs
+```
+
+`Bus.frames` requires `InScope resourceId` for a resource channel and holds that
+scope until its reader leaves. It yields `Heard delivered` or `Refused refusal`
+in order, and continues after a refusal. Deliveries retain their emitter,
+envelope, and trace; a refusal keeps the raw frame and the missing-member path
+when it is known. The trace field is lifted out of the payload.
+
+`Semiont.EventBus` is the client's separate local plane. A transport bridge
+publishes raw replies there before request continuations can emit derived
+signals. Detach a bridge through its returned release action. Closing a
+transport completes its observations, ends pending requests, and joins its
+callback workers; closing from one of those callbacks does not join itself.
+
+The gateway HTTP adapter, reconnection and replay machinery are still being
+implemented.
 
 ## Telemetry
 
 In development. The design probes verify host-owned OpenTelemetry providers,
-propagation, and context across asynchronous work. Production transport and
-client instrumentation remain to be implemented.
+propagation, and context across asynchronous work. The common runtime preserves
+the caller's OpenTelemetry context through request work, operation producers,
+and callback tasks using the API's context propagation functions. It creates
+no provider or exporter. HTTP/client spans, metrics, and extraction through the
+host's incoming-frame propagator remain to be implemented.
 
 ## Building and verifying
 

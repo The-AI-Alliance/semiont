@@ -4,9 +4,10 @@
     "../probes/cabal.project": "1ad97a35fa8220dbed9cad2ae21691e06cd3500cd87bc3595a1498d9de6fc38e",
     "api.py": "221b74a17462dc660a611ec89e7ece60b4038866e348e5108a2e7e7c6892c048",
     "cabal.project": "c8486579d3e37d9a46065093f0f02d8a7278b782a92826451ca9bfc7732e8ba3",
-    "cabal.project.freeze": "a040c49ea761ad508dd6b63072fa37d41a8e87c27232222414032e8518030d10",
+    "cabal.project.freeze": "93232c83d2334570c52a8c15a71b1c6920e33c9a0c69424146be6b7e2555487b",
     "codegen/Facts.hs": "eb7965bee6edfb29628a95b680ddb41145187030d9c57ed984e1bb2cc0623721",
-    "codegen/Main.hs": "dc83e844ad553924d7b64813479ca290cdb545405d974b93fe58d83107c06d51",
+    "codegen/Main.hs": "0720f4a54911a63526f28239f2a387975bbad94396bc3707a48a431565311bad",
+    "codegen/TransportFacts.hs": "71f2ec5e5b6e2eecb5f010f7932d951e67a76a1e8b17b6f69e61ad7ae99d942c",
     "generated/Semiont/Internal/Generated/Models/Agent.hs": "9f16d6b0adbdad7edec31fcade8037bd4a591b1dee50a64dfe26e48317445abc",
     "generated/Semiont/Internal/Generated/Models/AgentOrganization.hs": "2735d00995d286d640c26b8bb699fd373f25718140ae51501756cb93657ee554",
     "generated/Semiont/Internal/Generated/Models/AgentPerson.hs": "b15baf27004b89b455f9c1784264e28726a0d750fe791a89a50d7f37b98984f2",
@@ -25,7 +26,7 @@
     "generated/Semiont/Internal/Generated/Models/AnnotationBodies.hs": "67a93c59075e8bece44d8bc90541db13d9a94b473b7350cf7921a2c9d3e1db53",
     "generated/Semiont/Internal/Generated/Models/AnnotationBody.hs": "8dbf4a21cd0c68c8ffdca9f7c8e0a624065830bd7df847def6a4e816942807e2",
     "generated/Semiont/Internal/Generated/Models/AnnotationBodyUpdatedPayload.hs": "8b455621807c3db11b958e65bd1de4fe8eb18aeb0b35fab67edf13209eddf743",
-    "generated/Semiont/Internal/Generated/Models/AnnotationId.hs": "43a83bda136c1040699b7832d247187d44f8c1085144dabed429dbd8267a2601",
+    "generated/Semiont/Internal/Generated/Models/AnnotationId.hs": "15e361bcbbcddf48958776638fffceb9f4178db360f90e014c121e00e9f7317e",
     "generated/Semiont/Internal/Generated/Models/AnnotationRemovedPayload.hs": "677b65af09a0b53b6cef2ff27cc1f829aaabff607c6eee839fff5828e77bd0df",
     "generated/Semiont/Internal/Generated/Models/AnnotationSelector.hs": "9b53c7c838fe6a9e40e8697df877c8b6b581728a37f7ff080c220c9e1c2a3e25",
     "generated/Semiont/Internal/Generated/Models/AnnotationTarget.hs": "16f67bd4bcf0b84fcf83ff73d7a52213692480bfcf64543fb312667f1d0d493c",
@@ -187,7 +188,7 @@
     "generated/Semiont/Internal/Generated/Models/JobFailed.hs": "2fab41819ca5954ca1841d1cd84da7d9fd4f1943e4127373d257058fc83d2c78",
     "generated/Semiont/Internal/Generated/Models/JobFailedPayload.hs": "db7eca898e53a10e55325aa672ce62bb827908071d95beb7df3eb15ec46f473e",
     "generated/Semiont/Internal/Generated/Models/JobFilter.hs": "24df81eb75d9c0637dc48a20fc00e018169188e5ce8726720f4ad077042cf9cb",
-    "generated/Semiont/Internal/Generated/Models/JobId.hs": "cac9c328464283212f9b2fe69cc64b4ed7aaa3bb1858402d67fba56f6eb25f2f",
+    "generated/Semiont/Internal/Generated/Models/JobId.hs": "9325e28bd81643e87f0f328836e2025c90b7e0db7cde6c3786e618d6bce75dda",
     "generated/Semiont/Internal/Generated/Models/JobMetadata.hs": "e2c4427ce4daddf36887120c894937cb759f8617daa94e5ddd7785395c4dadb2",
     "generated/Semiont/Internal/Generated/Models/JobParams.hs": "5a26439fd058f39b33a78efdf04c3fde749a1b54afed3043ff61ad4772249bf8",
     "generated/Semiont/Internal/Generated/Models/JobPending.hs": "6addd68926b472613c06195d77ddf9f1def8476752a3fb77f08e69021ca7428a",
@@ -286,7 +287,7 @@
     "generated/Semiont/Internal/Generated/Models/ResourceCreatedPayload.hs": "02f95813ac0dea2c870902e4e175274fed16f411a90d04d29ce8d58fa042f98b",
     "generated/Semiont/Internal/Generated/Models/ResourceDescriptor.hs": "034ebd8452269956dc7e06fdaa55c82d18b63ce3f4934e641f5bbb6aa3da72c1",
     "generated/Semiont/Internal/Generated/Models/ResourceErrorEvent.hs": "ae596bc9f69e8ef4fca11be2d520866178233f5cea9e4809d9324cf838ca99a3",
-    "generated/Semiont/Internal/Generated/Models/ResourceId.hs": "7352bf6f77e6f0c2acb6f03f79edfa3e7f71200f7285071321712508ca5f86bc",
+    "generated/Semiont/Internal/Generated/Models/ResourceId.hs": "91fd63966eb290e341153cc6030c8dfa72ca225944350e5a7a03deae3ab42f27",
     "generated/Semiont/Internal/Generated/Models/ResourceMovedPayload.hs": "18632e1bbd24bbeee5cb3a322925e0af91084cf829a0c7d49823b0e0c5b0db91",
     "generated/Semiont/Internal/Generated/Models/ResourceUnarchivedPayload.hs": "fc0601650d9ddb33c5126bd6bd26935c8e019776aff75d544f47c1869fce9eca",
     "generated/Semiont/Internal/Generated/Models/ResourceUpdatedPayload.hs": "fd62049f15cebae273f3b8ac49882b0099a8103a5d08a5f0eb50d6571f0a06f6",
@@ -317,9 +318,10 @@
     "generated/Semiont/Internal/Generated/Models/TextPositionSelector.hs": "d27e284b1d608de721bf5f2aa60413cf6a37fa3a6ce9b4b9daf2a942b586b793",
     "generated/Semiont/Internal/Generated/Models/TextQuoteSelector.hs": "b6f5ef3ec0b45af354f49dec976f2533dc0d6a78ca5aa74ae554670e4e4a6913",
     "generated/Semiont/Internal/Generated/Models/TextualBody.hs": "35fe0d97f569b04a254792e9ea7809866401f7a5517986ec62d501ff9eb51c35",
+    "generated/Semiont/Internal/Generated/Models/TraceCarrier.hs": "7862691a7592427e9d6f2c0cb40f235ba6a12b3e9e408ca73e8fc4d42fb21702",
     "generated/Semiont/Internal/Generated/Models/UnitCursor.hs": "9789f08789954b161dbc79cd6de9a15c635b47e39c8d6c0ee0c322e8fffd135f",
     "generated/Semiont/Internal/Generated/Models/UpdateAnnotationBodyRequest.hs": "37e421fe68d806d09363ebf9e95e329d912fcbe719e3b201295e00bf7b9ecf88",
-    "generated/Semiont/Internal/Generated/Models/UserId.hs": "5748879c68cdf081ba6c4f7ff5bdbf31b2752b75e6dbb3ac2807a7b8209888b8",
+    "generated/Semiont/Internal/Generated/Models/UserId.hs": "6cb90fcfa542de2cfa1a43f060cc4f122f55f51a3f92b0d6f7e119c8a1d85b60",
     "generated/Semiont/Internal/Generated/Models/UserResponse.hs": "3e13d84d0db1d90d3dd8c4e6514b5461c49ed1d8a13c6ea3e59da0593bdf04cd",
     "generated/Semiont/Internal/Generated/Models/VectorsConfig.hs": "3d761ab2e270e24035189252787a09f5c75d1d9c41b060951d3958f8796bfcd9",
     "generated/Semiont/Internal/Generated/Models/VoyageEmbeddingConfig.hs": "a68246a98b6e1ddbd5894bd62332302c726ebf06790482e7d912e2dba1129e5c",
@@ -348,27 +350,82 @@
     "generated/Semiont/Internal/Generated/Models/YieldJobResult.hs": "c8e03cbd039d6e98ee7a873b902f6764d20cfb3120f6a7b197a2ba0c2256bddf",
     "generated/Semiont/Internal/Generated/Models/YieldUpdateCommand.hs": "0f8b1ef716fd412f49aa61ef8cda7990ca29481fda32969533663b3bdd448092",
     "generated/Semiont/Internal/Generated/Models/YieldUpdateOk.hs": "743bae600dacc40eb1c9170b0ecc72cb0543a244756b99cc6fd2650f7d0fa3ce",
-    "generated/Semiont/Internal/Generated/Schemas.hs": "d36f7fc3dd1e6074a3d5afc07a2139f9c0c023865627f124195996967ed07abb",
+    "generated/Semiont/Internal/Generated/Schemas.hs": "e2fa4a190b554fd685ad0cbe17b939a79af954983acfd846eedc203cc006f793",
     "internal/Semiont/Internal/Broadcast.hs": "81a79b90958a3dc3dc12bc14989e7ce337eb5ec6c34c3be0ebf5c375d80089d0",
     "internal/Semiont/Internal/Codec.hs": "fbc8af29dc06bc97706d979907ec37e53ae83273b7efb65283a33e81211c56fa",
-    "internal/Semiont/Internal/Delivery.hs": "52879e04556e19594e680ba53e9fd14f5cdc895a369a247d734088cc1f5d647e",
-    "internal/Semiont/Internal/Running.hs": "0fcb856c8faf5f1bd1783aa48af74903cbb309ee189605c2b2a1e721b95c83f5",
-    "internal/Semiont/Internal/Schema.hs": "9d1e672f8f3fd65ffa6a1a5fcaed0614f862d2eaeb3676d94ac969b8b0cd1845",
+    "internal/Semiont/Internal/Delivery.hs": "2fa0818ab8d07cde41a2650fedea8663592777cf9eb522e2c757859ab569dd84",
+    "internal/Semiont/Internal/Required.hs": "62a63c0773205238070d679e5a80d5e74f4a18483e0d01434db81499843d6671",
+    "internal/Semiont/Internal/Running.hs": "07479987021cf84e1a1803ba8bffff076514e3669c82f5fd90f14bddc1770482",
+    "internal/Semiont/Internal/Schema.hs": "dfb70b5f5dd931ea51d8b77b1999202106ad6e74f34f01c4514afdab7e2fc87d",
     "internal/Semiont/Internal/Sse.hs": "763dad6ddfaf6e0f676d3dcc533957f6ec54e530da7d5e8d719b5f0ac081f72b",
+    "internal/Semiont/Internal/StateValue.hs": "39c7d8e97a6b4f0912f6a5b518997842f87ac4009afdff9e0b7756731205154c",
+    "internal/Semiont/Internal/Transport.hs": "3a701ad7d5daa48982e5cb0cec2414f63ede68e59a4c140b57060e16793a453c",
     "public-api.inputs.json": "150c411495a0d0dc5cb417a4c7063103bc2fcce758c1ec5e88b955f223d6ebfe",
-    "semiont.cabal": "08b496211d79455013263306ea352bc31dca115845af291c337b83cbdbd5b0ff",
-    "semiont.cabal.in": "92688a3e1cc1a31ca89e864f40b661910e3b902517b476d73d7f4c669bc3a923",
-    "src/Semiont/Channels.hs": "930a2e30c7e0841d40034346b54e6fe9493461e2598341f9a06feded98d6d00c",
+    "semiont.cabal": "b93201c614e478f6a84f97c3185d406344ad125376a1cd400428abfbf4147b49",
+    "semiont.cabal.in": "7d726dac167948b4f91d3719848d766ee9c29dcfd7aaef86e2d8a5ec6cb4d631",
+    "src/Semiont/Bus.hs": "e97a61618e659cdf6229e8895f7c7b57c60f600e2ca07fd3070b98c7d00c9c40",
+    "src/Semiont/Channels.hs": "c4b946eacac04f1f8badd1db192f1f7b90de1e1a90ed558fcac7e024fa0de448",
     "src/Semiont/Discovery.hs": "ebfc710854ff3d7c057fe1cc412768752f80da27b2d8213295cb8a1f1518265a",
     "src/Semiont/Discovery/Reasons.hs": "9e1d9a770326b331ee43e8e2e3df33c4d25c5f77203c0341b4238f4d9e0f50e3",
     "src/Semiont/ErrorCodes.hs": "f1759d178779f632947eddab1991a7edcf8b3a08a92f0e8a5f770ea65f312917",
+    "src/Semiont/Errors.hs": "9cf57463e3c025e96fa610a9141ec6bf052d16353816d793f911be0427f16b0f",
+    "src/Semiont/EventBus.hs": "561b85f3dbdee8f0fcb381d27d708aa6430fef4486bca7fbea75990ce1587a43",
     "src/Semiont/Retry.hs": "55c217047a2c8ce515eb588d3aa0b6879c01677fb0d58af99b2150bd910f3c98",
     "src/Semiont/Running.hs": "168b8478bf820fa7eae3c74c4699b7af7e0baeb929c4b380e966f91e0dd76fe7",
+    "src/Semiont/StateValue.hs": "6b95705ae944d67fec37611298a8732fa2caa60078b600dc6016f1ba8c5ca4f9",
     "src/Semiont/Timing.hs": "6853473baa7683e95caea1c33e567d3ae96559d1a70ecb1a8f319a8a0df3805a",
-    "src/Semiont/Types.hs": "10ac2f2393780624dd195dcbbb7a9acccbfaf5561ee01dbe14cf421c8fd3d705",
+    "src/Semiont/Transport.hs": "b5a0cd3a7d487e79143711a6d0d8b6c325e1d7934707098f58be0a47d323710b",
+    "src/Semiont/Transport/Facts.hs": "937b031ef4cff5690aa941b0d192c5597e2b7d6cb8e35442e48d2537826855c8",
+    "src/Semiont/Types.hs": "2d92789054c244473426166fd9c4d8cddfc3b0eefc4080b3397658a36b5da828",
     "src/Semiont/Types/Presence.hs": "fbdb22094e0b0a8d0671ffc220e5f9462f457333e854859d0cd31b69ac1eeda8"
   },
   "modules": {
+    "Semiont.Bus": {
+      "types": {
+        "Bus": {
+          "definition": "data Semiont.Bus.Bus = ...",
+          "kind": "*"
+        },
+        "BusOptions": {
+          "definition": "data Semiont.Bus.BusOptions = ...",
+          "kind": "*"
+        },
+        "Delivered": {
+          "definition": "data Semiont.Bus.Delivered payload = ...",
+          "kind": "* -> *"
+        },
+        "FrameRefusal": {
+          "definition": "data Semiont.Bus.FrameRefusal = ...",
+          "kind": "*"
+        },
+        "Heard": {
+          "definition": "data Semiont.Bus.Heard payload = ...",
+          "kind": "* -> *"
+        }
+      },
+      "values": {
+        "BusOptions": "IO Integer -> (Integer -> IO ()) -> IO Data.Text.Internal.Text -> Semiont.Bus.BusOptions",
+        "Delivered": "payload -> semiont-0.7.1:internal:Semiont.Internal.Transport.Frame -> Maybe semiont-0.7.1:internal:Semiont.Internal.Generated.Models.UserId.UserId -> Semiont.Bus.Delivered payload",
+        "FrameRefusal": "semiont-0.7.1:internal:Semiont.Internal.Transport.Frame -> Maybe Data.Text.Internal.Text -> Semiont.Bus.FrameRefusal",
+        "Heard": "Semiont.Bus.Delivered payload -> Semiont.Bus.Heard payload",
+        "Refused": "Semiont.Bus.FrameRefusal -> Semiont.Bus.Heard payload",
+        "deliveredFrame": "Semiont.Bus.Delivered payload -> semiont-0.7.1:internal:Semiont.Internal.Transport.Frame",
+        "deliveredPayload": "Semiont.Bus.Delivered payload -> payload",
+        "emit": "Semiont.Bus.Bus -> Semiont.Channels.Channel scope payload -> payload -> Semiont.Channels.ScopeArg scope -> Maybe Data.Text.Internal.Text -> IO (Maybe Integer)",
+        "emittedBy": "Semiont.Bus.Delivered payload -> Maybe semiont-0.7.1:internal:Semiont.Internal.Generated.Models.UserId.UserId",
+        "frames": "Semiont.Bus.Bus -> Semiont.Channels.Channel scope payload -> Semiont.Channels.ScopeArg scope -> (Streaming.Internal.Stream (Data.Functor.Of.Of (Semiont.Bus.Heard payload)) IO () -> IO result) -> IO result",
+        "lacks": "Semiont.Bus.FrameRefusal -> Maybe Data.Text.Internal.Text",
+        "newBus": "Semiont.Bus.BusOptions -> semiont-0.7.1:internal:Semiont.Internal.Transport.Transport -> Semiont.Bus.Bus",
+        "nextCorrelationId": "Semiont.Bus.BusOptions -> IO Data.Text.Internal.Text",
+        "persistedEventTypes": "[Data.Text.Internal.Text]",
+        "refusedFrame": "Semiont.Bus.FrameRefusal -> semiont-0.7.1:internal:Semiont.Internal.Transport.Frame",
+        "replyChannelsFor": "[Semiont.Channels.SomeOperation] -> [Data.Text.Internal.Text]",
+        "request": "Semiont.Bus.Bus -> Semiont.Channels.Operation input output failure -> input -> Integer -> IO output",
+        "requestNow": "Semiont.Bus.BusOptions -> IO Integer",
+        "requestWaitUntil": "Semiont.Bus.BusOptions -> Integer -> IO ()",
+        "unsubscribed": "Data.Text.Internal.Text -> Semiont.Errors.BusRequestError"
+      }
+    },
     "Semiont.Channels": {
       "types": {
         "Channel": {
@@ -389,6 +446,10 @@
           "definition": "data Semiont.Channels.ScopeArg scope where ...",
           "kind": "Semiont.Channels.Scope -> *",
           "roles": "nominal"
+        },
+        "SomeOperation": {
+          "definition": "data Semiont.Channels.SomeOperation where ...",
+          "kind": "*"
         }
       },
       "values": {
@@ -586,6 +647,7 @@
         "SmeltRebuildAnchorsOk": "Semiont.Channels.Channel Semiont.Channels.Global semiont-0.7.1:internal:Semiont.Internal.Generated.Models.EmptyBusPayload.EmptyBusPayload",
         "SmeltRebuildAnchorsOperation": "Semiont.Channels.Operation semiont-0.7.1:internal:Semiont.Internal.Generated.Models.SmeltRebuildAnchorsCommand.SmeltRebuildAnchorsCommand semiont-0.7.1:internal:Semiont.Internal.Generated.Models.EmptyBusPayload.EmptyBusPayload semiont-0.7.1:internal:Semiont.Internal.Generated.Models.CommandError.CommandError",
         "SmeltSettled": "Semiont.Channels.Channel Semiont.Channels.Global semiont-0.7.1:internal:Semiont.Internal.Generated.Models.SmeltSettled.SmeltSettled",
+        "SomeOperation": "Semiont.Channels.Operation input output failure -> Semiont.Channels.SomeOperation",
         "TabsClose": "Semiont.Channels.Channel Semiont.Channels.Global semiont-0.7.1:internal:Semiont.Internal.Generated.Models.BrowseResourceCloseEvent.BrowseResourceCloseEvent",
         "TabsReorder": "Semiont.Channels.Channel Semiont.Channels.Global semiont-0.7.1:internal:Semiont.Internal.Generated.Models.BrowseResourceReorderEvent.BrowseResourceReorderEvent",
         "WeaveApplied": "Semiont.Channels.Channel Semiont.Channels.Global semiont-0.7.1:internal:Semiont.Internal.Generated.Models.WeaveApplied.WeaveApplied",
@@ -626,9 +688,12 @@
         "YieldUpdated": "Semiont.Channels.Channel Semiont.Channels.Global semiont-0.7.1:internal:Semiont.Internal.Generated.Models.StoredEventResponse.StoredEventResponse",
         "channelIsScoped": "Semiont.Channels.Channel scope payload -> Bool",
         "channelName": "Semiont.Channels.Channel scope payload -> Data.Text.Internal.Text",
+        "channelNames": "[Data.Text.Internal.Text]",
+        "channelSchema": "Semiont.Channels.Channel scope payload -> Data.Text.Internal.Text",
         "decodePayload": "Semiont.Channels.Channel scope payload -> aeson-2.2.5.1:Data.Aeson.Types.Internal.Value -> Either String payload",
         "encodePayload": "Semiont.Channels.Channel scope payload -> payload -> aeson-2.2.5.1:Data.Aeson.Types.Internal.Value",
-        "operationChannels": "Semiont.Channels.Operation input output failure -> (Semiont.Channels.Channel Semiont.Channels.Global input, Semiont.Channels.Channel Semiont.Channels.Global output, Semiont.Channels.Channel Semiont.Channels.Global failure)"
+        "operationChannels": "Semiont.Channels.Operation input output failure -> (Semiont.Channels.Channel Semiont.Channels.Global input, Semiont.Channels.Channel Semiont.Channels.Global output, Semiont.Channels.Channel Semiont.Channels.Global failure)",
+        "persistedEventTypes": "[Data.Text.Internal.Text]"
       }
     },
     "Semiont.Discovery": {
@@ -800,6 +865,43 @@
         "transportCodeFromStatus": "Int -> Semiont.ErrorCodes.TransportCode"
       }
     },
+    "Semiont.Errors": {
+      "types": {
+        "BusRequestError": {
+          "definition": "data Semiont.Errors.BusRequestError = ...",
+          "kind": "*"
+        },
+        "TransportError": {
+          "definition": "data Semiont.Errors.TransportError = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "BusRequestError": "Semiont.ErrorCodes.BusRequestCode -> Data.Text.Internal.Text -> Maybe aeson-2.2.5.1:Data.Aeson.Types.Internal.Object -> Semiont.Errors.BusRequestError",
+        "TransportError": "Semiont.ErrorCodes.TransportCode -> Data.Text.Internal.Text -> Maybe Int -> Maybe Integer -> Semiont.Errors.TransportError",
+        "busRequestErrorCode": "Semiont.Errors.BusRequestError -> Semiont.ErrorCodes.BusRequestCode",
+        "busRequestErrorMessage": "Semiont.Errors.BusRequestError -> Data.Text.Internal.Text",
+        "busRequestFailure": "Semiont.Errors.BusRequestError -> Maybe aeson-2.2.5.1:Data.Aeson.Types.Internal.Object",
+        "httpStatus": "Semiont.Errors.TransportError -> Maybe Int",
+        "retryAfterMs": "Semiont.Errors.TransportError -> Maybe Integer",
+        "transportErrorCode": "Semiont.Errors.TransportError -> Semiont.ErrorCodes.TransportCode",
+        "transportErrorMessage": "Semiont.Errors.TransportError -> Data.Text.Internal.Text"
+      }
+    },
+    "Semiont.EventBus": {
+      "types": {
+        "EventBus": {
+          "definition": "newtype semiont-0.7.1:internal:Semiont.Internal.Transport.EventBus = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "closeEventBus": "semiont-0.7.1:internal:Semiont.Internal.Transport.EventBus -> IO ()",
+        "events": "semiont-0.7.1:internal:Semiont.Internal.Transport.EventBus -> Data.Text.Internal.Text -> (Streaming.Internal.Stream (Data.Functor.Of.Of semiont-0.7.1:internal:Semiont.Internal.Transport.Frame) IO () -> IO result) -> IO result",
+        "local": "semiont-0.7.1:internal:Semiont.Internal.Transport.EventBus -> semiont-0.7.1:internal:Semiont.Internal.Transport.Frame -> IO ()",
+        "newEventBus": "IO semiont-0.7.1:internal:Semiont.Internal.Transport.EventBus"
+      }
+    },
     "Semiont.Retry": {
       "types": {
         "RetryConfigurationError": {
@@ -851,6 +953,18 @@
         "withReports": "semiont-0.7.1:internal:Semiont.Internal.Running.Running report result -> (Streaming.Internal.Stream (Data.Functor.Of.Of report) IO result -> IO value) -> IO value"
       }
     },
+    "Semiont.StateValue": {
+      "types": {
+        "StateValue": {
+          "definition": "data semiont-0.7.1:internal:Semiont.Internal.StateValue.StateValue value = ...",
+          "kind": "* -> *"
+        }
+      },
+      "values": {
+        "current": "semiont-0.7.1:internal:Semiont.Internal.StateValue.StateValue value -> GHC.Internal.Conc.Sync.STM value",
+        "watch": "semiont-0.7.1:internal:Semiont.Internal.StateValue.StateValue value -> (Streaming.Internal.Stream (Data.Functor.Of.Of value) IO () -> IO result) -> IO result"
+      }
+    },
     "Semiont.Timing": {
       "types": {
         "RetryBudget": {
@@ -900,6 +1014,87 @@
         "searchDebounceMs": "Integer",
         "seenEventIdsCount": "Integer",
         "streamOpenTimeoutMs": "Integer"
+      }
+    },
+    "Semiont.Transport": {
+      "types": {
+        "ConnectionState": {
+          "definition": "data Semiont.Transport.Facts.ConnectionState = ...",
+          "kind": "*"
+        },
+        "Frame": {
+          "definition": "data semiont-0.7.1:internal:Semiont.Internal.Transport.Frame = ...",
+          "kind": "*"
+        },
+        "Transport": {
+          "definition": "newtype semiont-0.7.1:internal:Semiont.Internal.Transport.Transport = ...",
+          "kind": "*"
+        },
+        "TransportInput": {
+          "definition": "newtype semiont-0.7.1:internal:Semiont.Internal.Transport.TransportInput = ...",
+          "kind": "*"
+        },
+        "TransportOptions": {
+          "definition": "data semiont-0.7.1:internal:Semiont.Internal.Transport.TransportOptions = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "Closed": "Semiont.Transport.Facts.ConnectionState",
+        "Connecting": "Semiont.Transport.Facts.ConnectionState",
+        "Degraded": "Semiont.Transport.Facts.ConnectionState",
+        "Frame": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.BusFrame.BusFrame -> Maybe semiont-0.7.1:internal:Semiont.Internal.Generated.Models.TraceCarrier.TraceCarrier -> semiont-0.7.1:internal:Semiont.Internal.Transport.Frame",
+        "Initial": "Semiont.Transport.Facts.ConnectionState",
+        "Open": "Semiont.Transport.Facts.ConnectionState",
+        "Reconnecting": "Semiont.Transport.Facts.ConnectionState",
+        "TransportOptions": "Data.Text.Internal.Text -> Data.Set.Internal.Set Data.Text.Internal.Text -> (semiont-0.7.1:internal:Semiont.Internal.Generated.Models.BusFrame.BusFrame -> IO (Maybe Integer)) -> IO () -> semiont-0.7.1:internal:Semiont.Internal.Transport.TransportOptions",
+        "Unauthenticated": "Semiont.Transport.Facts.ConnectionState",
+        "baseUrl": "semiont-0.7.1:internal:Semiont.Internal.Transport.Transport -> Data.Text.Internal.Text",
+        "bridgeInto": "semiont-0.7.1:internal:Semiont.Internal.Transport.Transport -> semiont-0.7.1:internal:Semiont.Internal.Transport.EventBus -> IO (IO ())",
+        "closeDriver": "semiont-0.7.1:internal:Semiont.Internal.Transport.TransportOptions -> IO ()",
+        "connectionStateName": "Semiont.Transport.Facts.ConnectionState -> Data.Text.Internal.Text",
+        "connectionTransitions": "Semiont.Transport.Facts.ConnectionState -> [Semiont.Transport.Facts.ConnectionState]",
+        "dispose": "semiont-0.7.1:internal:Semiont.Internal.Transport.Transport -> IO ()",
+        "emit": "semiont-0.7.1:internal:Semiont.Internal.Transport.Transport -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.BusFrame.BusFrame -> IO (Maybe Integer)",
+        "errors": "semiont-0.7.1:internal:Semiont.Internal.Transport.Transport -> (Streaming.Internal.Stream (Data.Functor.Of.Of Semiont.Errors.TransportError) IO () -> IO result) -> IO result",
+        "frameTrace": "semiont-0.7.1:internal:Semiont.Internal.Transport.Frame -> Maybe semiont-0.7.1:internal:Semiont.Internal.Generated.Models.TraceCarrier.TraceCarrier",
+        "frames": "semiont-0.7.1:internal:Semiont.Internal.Transport.Transport -> Data.Text.Internal.Text -> (Streaming.Internal.Stream (Data.Functor.Of.Of semiont-0.7.1:internal:Semiont.Internal.Transport.Frame) IO () -> IO result) -> IO result",
+        "isSubscribed": "semiont-0.7.1:internal:Semiont.Internal.Transport.Transport -> Data.Text.Internal.Text -> Bool",
+        "newTransport": "semiont-0.7.1:internal:Semiont.Internal.Transport.TransportOptions -> IO (semiont-0.7.1:internal:Semiont.Internal.Transport.Transport, semiont-0.7.1:internal:Semiont.Internal.Transport.TransportInput)",
+        "on": "semiont-0.7.1:internal:Semiont.Internal.Transport.Transport -> Data.Text.Internal.Text -> (aeson-2.2.5.1:Data.Aeson.Types.Internal.Object -> IO ()) -> IO (IO ())",
+        "receive": "semiont-0.7.1:internal:Semiont.Internal.Transport.TransportInput -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.BusFrame.BusFrame -> IO ()",
+        "receiveChannels": "semiont-0.7.1:internal:Semiont.Internal.Transport.TransportOptions -> Data.Set.Internal.Set Data.Text.Internal.Text",
+        "reportError": "semiont-0.7.1:internal:Semiont.Internal.Transport.TransportInput -> Semiont.Errors.TransportError -> IO ()",
+        "sendFrame": "semiont-0.7.1:internal:Semiont.Internal.Transport.TransportOptions -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.BusFrame.BusFrame -> IO (Maybe Integer)",
+        "setState": "semiont-0.7.1:internal:Semiont.Internal.Transport.TransportInput -> Semiont.Transport.Facts.ConnectionState -> IO ()",
+        "state": "semiont-0.7.1:internal:Semiont.Internal.Transport.Transport -> semiont-0.7.1:internal:Semiont.Internal.StateValue.StateValue Semiont.Transport.Facts.ConnectionState",
+        "stream": "semiont-0.7.1:internal:Semiont.Internal.Transport.Transport -> Data.Text.Internal.Text -> (Streaming.Internal.Stream (Data.Functor.Of.Of aeson-2.2.5.1:Data.Aeson.Types.Internal.Object) IO () -> IO result) -> IO result",
+        "subscribeToResource": "semiont-0.7.1:internal:Semiont.Internal.Transport.Transport -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO (IO ())",
+        "subscriptions": "semiont-0.7.1:internal:Semiont.Internal.Transport.TransportInput -> GHC.Internal.Conc.Sync.STM (Integer, [semiont-0.7.1:internal:Semiont.Internal.Generated.Models.ResourceId.ResourceId], [Data.Text.Internal.Text], Bool)",
+        "trackReply": "semiont-0.7.1:internal:Semiont.Internal.Transport.Transport -> Data.Text.Internal.Text -> IO (IO ())",
+        "transportBaseUrl": "semiont-0.7.1:internal:Semiont.Internal.Transport.TransportOptions -> Data.Text.Internal.Text",
+        "wireFrame": "semiont-0.7.1:internal:Semiont.Internal.Transport.Frame -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.BusFrame.BusFrame"
+      }
+    },
+    "Semiont.Transport.Facts": {
+      "types": {
+        "ConnectionState": {
+          "definition": "data Semiont.Transport.Facts.ConnectionState = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "Closed": "Semiont.Transport.Facts.ConnectionState",
+        "Connecting": "Semiont.Transport.Facts.ConnectionState",
+        "Degraded": "Semiont.Transport.Facts.ConnectionState",
+        "Initial": "Semiont.Transport.Facts.ConnectionState",
+        "Open": "Semiont.Transport.Facts.ConnectionState",
+        "Reconnecting": "Semiont.Transport.Facts.ConnectionState",
+        "Unauthenticated": "Semiont.Transport.Facts.ConnectionState",
+        "connectionStateName": "Semiont.Transport.Facts.ConnectionState -> Data.Text.Internal.Text",
+        "connectionTransitions": "Semiont.Transport.Facts.ConnectionState -> [Semiont.Transport.Facts.ConnectionState]",
+        "traceField": "Data.Text.Internal.Text",
+        "userField": "Data.Text.Internal.Text"
       }
     },
     "Semiont.Types": {
@@ -2980,6 +3175,10 @@
           "definition": "data semiont-0.7.1:internal:Semiont.Internal.Generated.Models.TextualBody.TextualBodyType = ...",
           "kind": "*"
         },
+        "TraceCarrier": {
+          "definition": "data semiont-0.7.1:internal:Semiont.Internal.Generated.Models.TraceCarrier.TraceCarrier = ...",
+          "kind": "*"
+        },
         "UnitCursor": {
           "definition": "data semiont-0.7.1:internal:Semiont.Internal.Generated.Models.UnitCursor.UnitCursor = ...",
           "kind": "*"
@@ -3965,6 +4164,7 @@
         "TextQuoteSelectorTypeTextQuoteSelector": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.TextQuoteSelector.TextQuoteSelectorType",
         "TextualBody": "Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Maybe semiont-0.7.1:internal:Semiont.Internal.Generated.Models.BodyPurpose.BodyPurpose -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.TextualBody.TextualBodyType -> Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap aeson-2.2.5.1:Data.Aeson.Types.Internal.Value -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.TextualBody.TextualBody",
         "TextualBodyTypeTextualBody": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.TextualBody.TextualBodyType",
+        "TraceCarrier": "Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.TraceCarrier.TraceCarrier",
         "UnitCursor": "Integer -> Integer -> Integer -> Integer -> Integer -> Data.Aeson.KeyMap.KeyMap aeson-2.2.5.1:Data.Aeson.Types.Internal.Value -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.UnitCursor.UnitCursor",
         "UpdateAnnotationBodyRequest": "[semiont-0.7.1:internal:Semiont.Internal.Generated.Models.UpdateAnnotationBodyRequest.UpdateAnnotationBodyRequestOperationsItem] -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Data.Aeson.KeyMap.KeyMap aeson-2.2.5.1:Data.Aeson.Types.Internal.Value -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.UpdateAnnotationBodyRequest.UpdateAnnotationBodyRequest",
         "UpdateAnnotationBodyRequestOperationsItemBranch1": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.BodyOperationAdd.BodyOperationAdd -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.UpdateAnnotationBodyRequest.UpdateAnnotationBodyRequestOperationsItem",
@@ -5355,6 +5555,8 @@
         "textualBodyPurpose": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.TextualBody.TextualBody -> Maybe semiont-0.7.1:internal:Semiont.Internal.Generated.Models.BodyPurpose.BodyPurpose",
         "textualBodyType": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.TextualBody.TextualBody -> semiont-0.7.1:internal:Semiont.Internal.Generated.Models.TextualBody.TextualBodyType",
         "textualBodyValue": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.TextualBody.TextualBody -> Data.Text.Internal.Text",
+        "traceCarrierTraceparent": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.TraceCarrier.TraceCarrier -> Data.Text.Internal.Text",
+        "traceCarrierTracestate": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.TraceCarrier.TraceCarrier -> Maybe Data.Text.Internal.Text",
         "unitCursorAdditionalProperties": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.UnitCursor.UnitCursor -> Data.Aeson.KeyMap.KeyMap aeson-2.2.5.1:Data.Aeson.Types.Internal.Value",
         "unitCursorEmitted": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.UnitCursor.UnitCursor -> Integer",
         "unitCursorErrors": "semiont-0.7.1:internal:Semiont.Internal.Generated.Models.UnitCursor.UnitCursor -> Integer",

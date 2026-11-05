@@ -13,7 +13,7 @@ import Data.Scientific (Scientific)
 import Data.Text (Text)
 import Semiont.Internal.Codec
 import Semiont.Types.Presence (Presence)
-newtype JobId = JobId (Text) deriving (Eq, Show)
+newtype JobId = JobId (Text) deriving (Eq, Ord, Show)
 instance FromJSON JobId where
   parseJSON = checked "JobId" $ \value -> JobId <$> parseJSON value
 instance ToJSON JobId where toJSON (JobId value) = toJSON value

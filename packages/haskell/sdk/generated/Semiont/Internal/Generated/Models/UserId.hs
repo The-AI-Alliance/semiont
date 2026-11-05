@@ -13,7 +13,7 @@ import Data.Scientific (Scientific)
 import Data.Text (Text)
 import Semiont.Internal.Codec
 import Semiont.Types.Presence (Presence)
-newtype UserId = UserId (Text) deriving (Eq, Show)
+newtype UserId = UserId (Text) deriving (Eq, Ord, Show)
 instance FromJSON UserId where
   parseJSON = checked "UserId" $ \value -> UserId <$> parseJSON value
 instance ToJSON UserId where toJSON (UserId value) = toJSON value

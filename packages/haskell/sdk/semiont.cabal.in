@@ -27,13 +27,16 @@ common settings
     text >=2.1 && <2.2,
     vector >=0.13 && <0.14
 
+common context-propagation
+  build-depends: hs-opentelemetry-api >=1.0 && <1.1
+
 library
   default-language: GHC2021
   build-depends: base >=4.20 && <4.21, semiont:internal
-  reexported-modules: Semiont.Types, Semiont.Types.Presence, Semiont.Channels, Semiont.Running, Semiont.ErrorCodes, Semiont.Timing, Semiont.Retry, Semiont.Discovery, Semiont.Discovery.Reasons
+  reexported-modules: Semiont.Types, Semiont.Types.Presence, Semiont.Channels, Semiont.Running, Semiont.ErrorCodes, Semiont.Timing, Semiont.Retry, Semiont.Discovery, Semiont.Discovery.Reasons, Semiont.Transport, Semiont.Transport.Facts, Semiont.StateValue, Semiont.Errors, Semiont.EventBus, Semiont.Bus
 
 library internal
-  import: settings
+  import: settings, context-propagation
   visibility: private
   hs-source-dirs: src, internal, generated
   exposed-modules:
@@ -46,30 +49,39 @@ library internal
     Semiont.Retry
     Semiont.Discovery
     Semiont.Discovery.Reasons
+    Semiont.Transport
+    Semiont.Transport.Facts
+    Semiont.StateValue
+    Semiont.Errors
+    Semiont.EventBus
+    Semiont.Bus
     Semiont.Internal.Schema
     Semiont.Internal.Broadcast
     Semiont.Internal.Sse
     Semiont.Internal.Running
     Semiont.Internal.Delivery
+    Semiont.Internal.StateValue
+    Semiont.Internal.Transport
     Semiont.Internal.Generated.Schemas
   other-modules:
     Semiont.Internal.Codec
+    Semiont.Internal.Required
 @MODEL_MODULES@
 
 executable semiont-codegen
   import: settings
   main-is: Main.hs
   hs-source-dirs: codegen, internal
-  other-modules: Semiont.Internal.Schema, Facts
+  other-modules: Semiont.Internal.Schema, Facts, TransportFacts
   ghc-options: -threaded
   build-depends: mtl >=2.3 && <2.4, directory >=1.3 && <1.4, filepath >=1.5 && <1.6
 
 test-suite schema-cases
-  import: settings
+  import: settings, context-propagation
   build-tool-depends: hpc-codecov:hpc-codecov ==0.6.4.1
   type: exitcode-stdio-1.0
   main-is: Main.hs
   hs-source-dirs: test
-  other-modules: Semiont.Internal.Generated.RoundTrip, Semiont.Internal.Generated.ChannelRoundTrip, Semiont.Internal.Generated.ErrorRoundTrip, Semiont.Internal.Generated.TimingValues, Semiont.Internal.Generated.DiscoveryReasonRoundTrip, Runtime, Discovery
+  other-modules: Semiont.Internal.Generated.RoundTrip, Semiont.Internal.Generated.ChannelRoundTrip, Semiont.Internal.Generated.ErrorRoundTrip, Semiont.Internal.Generated.TimingValues, Semiont.Internal.Generated.DiscoveryReasonRoundTrip, Runtime, Discovery, BusCases, SchemaCases
   ghc-options: -threaded
   build-depends: semiont:internal, directory >=1.3 && <1.4, filepath >=1.5 && <1.6

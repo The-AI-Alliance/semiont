@@ -2,7 +2,7 @@ module Semiont.Internal.Running
   ( Running, ConsumptionError(..), newRunning, await, withReports
   ) where
 
-import Control.Concurrent.Async (withAsync)
+import OpenTelemetry.Context.ThreadLocal.Propagation (tracedWithAsync)
 import Control.Concurrent.STM
 import Control.Exception (Exception, SomeException, bracket_, mask, throwIO, try)
 import Control.Monad (unless)
@@ -56,4 +56,4 @@ withReports running@(Running _ start) consume = mask $ \restore -> do
           Ended outcome -> liftIO (either throwIO pure outcome)
       work = try (restore (start (offer . Report))) >>= offer . Ended
   bracket_ (pure ()) finish $
-    withAsync work (\_ -> restore (consume reports))
+    tracedWithAsync work (\_ -> restore (consume reports))

@@ -111,6 +111,7 @@ jobs:
           npm run lint:transport-contract || fail=1
           npm run lint:client-surface || fail=1
           npm run lint:haskell-api || fail=1
+          npm run lint:haskell-transport || fail=1
           npm run lint:state-unit-census || fail=1
           npm run lint:state-unit-cases || fail=1
           npm run lint:internal-deps || fail=1
@@ -256,6 +257,10 @@ jobs:
               - 'packages/csharp/**'
             haskell:
               - 'packages/haskell/**'
+              - 'packages/typescript/core/src/event-bus.ts'
+              - 'protocol/contract/TRANSPORT-HTTP.md'
+              - 'package.json'
+              - 'LICENSE'
             # Each Python project; a job lists its own and the ones its
             # pyproject depends on (every one depends on the SDK).
             python-sdk:
@@ -2336,6 +2341,8 @@ jobs:
         with:
           path: ~/.cache/semiont/haskell-cabal
           key: ${{ runner.os }}-${{ runner.arch }}-haskell-${{ hashFiles('packages/haskell/probes/Dockerfile', 'packages/haskell/**/cabal.project*', 'packages/haskell/probes/cabal-install.version') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-haskell-
       - name: Compile and test the SDK and design probes
         run: bash packages/haskell/run-container.sh docker
       - name: Upload SDK coverage
@@ -2343,6 +2350,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./packages/haskell/sdk/coverage.json
+          disable_search: true
           flags: haskell-sdk
           name: haskell-sdk
       - name: Upload design probe coverage
@@ -2350,6 +2358,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./packages/haskell/probes/coverage.json
+          disable_search: true
           flags: haskell-probes
           name: haskell-probes
 

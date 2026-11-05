@@ -13,7 +13,7 @@ import Data.Scientific (Scientific)
 import Data.Text (Text)
 import Semiont.Internal.Codec
 import Semiont.Types.Presence (Presence)
-newtype AnnotationId = AnnotationId (Text) deriving (Eq, Show)
+newtype AnnotationId = AnnotationId (Text) deriving (Eq, Ord, Show)
 instance FromJSON AnnotationId where
   parseJSON = checked "AnnotationId" $ \value -> AnnotationId <$> parseJSON value
 instance ToJSON AnnotationId where toJSON (AnnotationId value) = toJSON value

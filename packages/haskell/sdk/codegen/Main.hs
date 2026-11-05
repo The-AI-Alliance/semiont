@@ -17,10 +17,11 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
+import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import qualified Data.Vector as V
 import Numeric (showHex)
 import Facts (generateFacts)
+import TransportFacts (transportFacts)
 import Semiont.Internal.Schema (Schemas, checkSchema, normalize)
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeFile)
 import System.Environment (getArgs)
@@ -171,7 +172,7 @@ scalar name original opaque = do
       Nothing | KM.null shape -> pure "Value"
       other -> die (T.unpack name ++ ": unsupported scalar " ++ show other)
   let accessor = lower name <> "Value"
-      constructor = "newtype " <> name <> " = " <> name <> (if opaque then " (" <> valueType <> ")" else " { " <> accessor <> " :: " <> valueType <> " }") <> " deriving (Eq, Show)"
+      constructor = "newtype " <> name <> " = " <> name <> (if opaque then " (" <> valueType <> ")" else " { " <> accessor <> " :: " <> valueType <> " }") <> (if opaque then " deriving (Eq, Ord, Show)" else " deriving (Eq, Show)")
       maker = "mk" <> name
       code = T.unlines
         [ constructor
@@ -345,7 +346,7 @@ busDescriptors original registry = do
     pure (request, result, failure)
   let header = "-- Generated from protocol/specs/src/bus/registry.json. Do not edit.\n{-# LANGUAGE DataKinds, GADTs, KindSignatures, OverloadedStrings #-}\n"
       code = header <> T.unlines
-        [ "module Semiont.Channels (Scope(..), ScopeArg(..), Channel(..), Operation(..), channelName, channelIsScoped, encodePayload, decodePayload, operationChannels) where"
+        [ "module Semiont.Channels (Scope(..), ScopeArg(..), Channel(..), Operation(..), SomeOperation(..), channelName, channelNames, channelSchema, channelIsScoped, encodePayload, decodePayload, operationChannels, persistedEventTypes) where"
         , "import Data.Aeson (Value(..), toJSON, parseJSON)"
         , "import qualified Data.Aeson.Key as Key"
         , "import qualified Data.Aeson.KeyMap as KM"
@@ -361,6 +362,11 @@ busDescriptors original registry = do
         ] <> T.unlines ["  " <> constructor <> " :: Channel '" <> (if scope then "Scoped" else "Global") <> " Types." <> typ | (_, constructor, typ, scope, _) <- typed]
         <> "channelName :: Channel scope payload -> Text\n"
         <> T.unlines ["channelName " <> constructor <> " = " <> literal name | (name, constructor, _, _, _) <- typed]
+        <> "channelNames :: [Text]\nchannelNames = [" <> T.intercalate ", " (map literal names) <> "]\n"
+        <> "channelSchema :: Channel scope payload -> Text\n"
+        <> T.unlines ["channelSchema " <> constructor <> " = " <> literal typ | (_, constructor, typ, _, _) <- typed]
+        <> "persistedEventTypes :: [Text]\npersistedEventTypes = ["
+        <> T.intercalate ", " [literal event | row <- rows, Right fields <- [fieldsOf row], Just event <- [textAt "event" fields]] <> "]\n"
         <> "channelIsScoped :: Channel scope payload -> Bool\n"
         <> T.unlines ["channelIsScoped " <> constructor <> " = " <> (if scope then "True" else "False") | (_, constructor, _, scope, _) <- typed]
         <> "encodePayload :: Channel scope payload -> payload -> Value\n"
@@ -372,10 +378,11 @@ busDescriptors original registry = do
         <> "withoutStamps :: [Text] -> Value -> Value\nwithoutStamps declared (Object fields) = Object (KM.filterWithKey (\\key _ -> let name = Key.toText key in not (T.isPrefixOf \"_\" name) || name `elem` declared) fields)\nwithoutStamps _ value = value\n"
         <> "data Operation input output failure where\n"
         <> T.unlines ["  " <> request <> "Operation :: Operation Types." <> input <> " Types." <> output <> " Types." <> failure | ((request, input, _), (_, output, _), (_, failure, _)) <- ops]
+        <> "data SomeOperation where\n  SomeOperation :: Operation input output failure -> SomeOperation\n"
         <> "operationChannels :: Operation input output failure -> (Channel 'Global input, Channel 'Global output, Channel 'Global failure)\n"
         <> T.unlines ["operationChannels " <> request <> "Operation = (" <> request <> ", " <> result <> ", " <> failure <> ")" | ((request, _, _), (result, _, _), (failure, _, _)) <- ops]
       roundTrips = header <> T.unlines
-        [ "module Semiont.Internal.Generated.ChannelRoundTrip (roundTripChannel) where"
+        [ "module Semiont.Internal.Generated.ChannelRoundTrip (roundTripChannel, channelMetadata, operationMetadata) where"
         , "import Data.Aeson (Value)"
         , "import Data.Text (Text)"
         , "import Semiont.Channels"
@@ -383,6 +390,10 @@ busDescriptors original registry = do
         , "roundTripChannel name value = case name of"
         ] <> T.unlines ["  " <> literal name <> " -> encodePayload " <> constructor <> " <$> decodePayload " <> constructor <> " value" | (name, constructor, _, _, _) <- typed]
         <> "  _ -> Left \"unknown channel in round-trip dispatcher\"\n"
+        <> "channelMetadata :: Text -> Either String (Text, Text, Bool)\nchannelMetadata name = case name of\n"
+        <> T.unlines ["  " <> literal name <> " -> Right (channelName " <> constructor <> ", channelSchema " <> constructor <> ", channelIsScoped " <> constructor <> ")" | (name, constructor, _, _, _) <- typed]
+        <> "  _ -> Left \"unknown channel in metadata dispatcher\"\n"
+        <> "operationMetadata :: [(Text, Text, Text)]\noperationMetadata = [" <> T.intercalate ", " ["names " <> request <> "Operation" | ((request, _, _), _, _) <- ops] <> "]\n  where names operation = let (asked, result, failure) = operationChannels operation in (channelName asked, channelName result, channelName failure)\n"
   pure (schemas', [("src/Semiont/Channels.hs", code), ("test/Semiont/Internal/Generated/ChannelRoundTrip.hs", roundTrips)])
   where
     required key fields = maybe (Left ("missing bus field: " ++ show key)) Right (textAt key fields)
@@ -395,6 +406,9 @@ readJSON :: FilePath -> IO Value
 readJSON path = do
   bytes <- Bytes.readFile path
   either (ioError . userError . ((path ++ ": ") ++)) pure (eitherDecodeStrict' bytes)
+
+readUTF8 :: FilePath -> IO Text
+readUTF8 path = Bytes.readFile path >>= either (ioError . userError . ((path ++ ": ") ++) . show) pure . decodeUtf8'
 
 main :: IO ()
 main = do
@@ -427,17 +441,18 @@ main = do
       _ -> ioError (userError "identifier kinds is not an array")
     _ -> ioError (userError "identifier kinds is not an object")
   registry <- readJSON (root </> "protocol/specs/src/bus/registry.json")
+  (carrier, transportFiles) <- transportFacts root registry kinds
   facts <- generateFacts root
-  (busSchemas, busFiles) <- either (ioError . userError) pure (busDescriptors schemas registry)
+  (busSchemas, busFiles) <- either (ioError . userError) pure (busDescriptors (Map.insert "TraceCarrier" carrier schemas) registry)
   (moduleNames, models) <- either (ioError . userError) pure (generate busSchemas (Set.fromList ids))
-  template <- T.readFile (output </> "semiont.cabal.in")
+  template <- readUTF8 (output </> "semiont.cabal.in")
   forM_ ["@VERSION@", "@MODEL_MODULES@"] $ \marker ->
     unless (T.count marker template == 1) (ioError (userError ("manifest template must contain exactly one " ++ T.unpack marker)))
   package <- readJSON (root </> "package.json") >>= either (ioError . userError) pure . fieldsOf
   version <- maybe (ioError (userError "root package.json has no version")) pure (textAt "version" package)
-  license <- T.readFile (root </> "LICENSE")
+  license <- readUTF8 (root </> "LICENSE")
   let manifest = T.replace "@VERSION@" version $ T.replace "@MODEL_MODULES@" (T.intercalate "\n" (map ("    " <>) moduleNames)) template
-      generated = ("LICENSE", license) : ("semiont.cabal", manifest) : busFiles ++ models ++ facts
+      generated = ("LICENSE", license) : ("semiont.cabal", manifest) : busFiles ++ models ++ facts ++ transportFiles
       modelsDirectory = output </> "generated/Semiont/Internal/Generated/Models"
       expected = Set.fromList (map (output </>) (map fst generated))
   existsModels <- doesDirectoryExist modelsDirectory
@@ -446,7 +461,7 @@ main = do
     forM_ [modelsDirectory </> file | file <- previous, takeExtension file == ".hs"] $ \path ->
       unless (Set.member path expected) $ do
         when checkOnly (ioError (userError ("stale generated module: " ++ path)))
-        text <- T.readFile path
+        text <- readUTF8 path
         unless ("-- Generated from protocol/specs/src." `T.isPrefixOf` text) (ioError (userError ("unexpected file in generated modules: " ++ path)))
         removeFile path
   forM_ generated $ \(relative, content) -> do
@@ -454,9 +469,9 @@ main = do
     exists <- doesFileExist path
     if checkOnly then do
       unless exists (ioError (userError ("missing generated file: " ++ path)))
-      actual <- T.readFile path
+      actual <- readUTF8 path
       unless (actual == content) (ioError (userError ("generated file drift: " ++ path)))
     else do
-      actual <- if exists then Just <$> T.readFile path else pure Nothing
-      when (actual /= Just content) (createDirectoryIfMissing True (takeDirectory path) >> T.writeFile path content)
+      actual <- if exists then Just <$> readUTF8 path else pure Nothing
+      when (actual /= Just content) (createDirectoryIfMissing True (takeDirectory path) >> Bytes.writeFile path (encodeUtf8 content))
   putStrLn ("Generated " ++ show (Map.size schemas) ++ " protocol schemas and typed bus descriptors in " ++ show (length moduleNames) ++ " model modules")

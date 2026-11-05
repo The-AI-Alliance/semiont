@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Semiont.Internal.Schema
-  ( Schemas, normalize, checkSchema, validate, validateNamed
+  ( Schemas, normalize, checkSchema, validate, validateNamed, validateProperty
   ) where
 
 import Control.Monad (forM_, unless, when)
@@ -173,6 +173,14 @@ validateNamed :: Schemas -> Text -> Value -> Either String ()
 validateNamed schemas name value = case Map.lookup name schemas of
   Nothing -> Left ("unknown schema: " ++ T.unpack name)
   Just schema -> validate schemas schema value
+
+validateProperty :: Schemas -> Text -> Key.Key -> Value -> Either String ()
+validateProperty schemas named key value = do
+  schema <- maybe (Left "unknown enclosing schema") Right (Map.lookup named schemas)
+  fields <- normalize schemas schema >>= objectFields
+  properties <- maybe (Left "schema declares no properties") objectFields (KM.lookup "properties" fields)
+  member <- maybe (Left "schema does not declare this property") Right (KM.lookup key properties)
+  validate schemas member value
 
 validate :: Schemas -> Value -> Value -> Either String ()
 validate schemas original value = do

@@ -13,7 +13,7 @@ import Data.Scientific (Scientific)
 import Data.Text (Text)
 import Semiont.Internal.Codec
 import Semiont.Types.Presence (Presence)
-newtype ResourceId = ResourceId (Text) deriving (Eq, Show)
+newtype ResourceId = ResourceId (Text) deriving (Eq, Ord, Show)
 instance FromJSON ResourceId where
   parseJSON = checked "ResourceId" $ \value -> ResourceId <$> parseJSON value
 instance ToJSON ResourceId where toJSON (ResourceId value) = toJSON value

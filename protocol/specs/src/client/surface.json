@@ -1478,8 +1478,7 @@
     {
       "module": "bus",
       "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps.",
-      "notYetReached": {"csharp": "C# is still to implement the bus module.",
-      "haskell": "P2: expose the Haskell typed bus over its public transport and decoded frame envelopes."},
+      "notYetReached": {"csharp": "C# is still to implement the bus module."},
       "where": {
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Bus/Bus.swift"
@@ -1504,6 +1503,9 @@
         "kotlin": [
           "packages/kotlin/sdk/src/main/kotlin/semiont/bus",
           "packages/kotlin/sdk/src/main/kotlin/semiont/transport"
+        ],
+        "haskell": [
+          "packages/haskell/sdk/src/Semiont/Bus.hs"
         ]
       },
       "members": [
