@@ -107,7 +107,9 @@ class SmokeStackTest(unittest.TestCase):
         for name, body in {
             "curl": "printf 'access-control-allow-origin: http://localhost:3000\\n'",
             "nc": "exit 1",
-            runtime: f'printf "%s\\n" "$*" >> "{log}"\n[ "$1" != run ] || exit {e2e_status}\nexit 0',
+            runtime: f'printf "%s\\n" "$*" >> "{log}"\n[ "$1" != run ] || exit {e2e_status}\n'
+            # Another knowledge base's container, stopped, as a machine keeps one.
+            'case "$1" in ps|ls) echo semiont-another-kb-gateway ;; logs) echo "a log line of $*" ;; esac\nexit 0',
         }.items():
             executable = self.root / "bin" / name
             executable.write_text(f"#!/bin/sh\n{body}\n")
@@ -224,6 +226,11 @@ class SmokeStackTest(unittest.TestCase):
         self.assert_documents_restored()
         self.assertFalse((self.kb / ".smoke-kept").exists())
         self.assertNotEqual(self.smoke("down").returncode, 0)
+        self.assertNotIn(
+            "semiont-another-kb-gateway",
+            result.stdout + result.stderr,
+            "the launcher prints a failed container's log; the smoke prints none of the machine's",
+        )
 
     def test_e2e_and_down_refuse_without_a_stack_up(self) -> None:
         for command in ("e2e", "down"):

@@ -21,8 +21,9 @@
 # knowledge base is exactly what a new user makes: `init` with only the did:web
 # domain, then `start` with no --config, so the documents init writes and the
 # Inference document it records are what boot. A new KB that could not start
-# is the defect this check found on its first run. A failed `up` prints the
-# containers' logs and stops what it started.
+# is the defect this check found on its first run. A failed `up` stops what it
+# started; the launcher has already printed the last lines of the container
+# whose health gate failed.
 #
 # E2E asks what a model does, which UP does not. Each run makes a knowledge
 # base of its own beside UP's, as `init` makes one, with a domain no other run
@@ -148,25 +149,6 @@ bad()   { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
 head_() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 summary() { printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"; [ "$FAIL" -eq 0 ]; }
 
-# `stop` removes the containers and their logs with them, so a failed run
-# prints each one's recent log first.
-print_logs() {
-  local names name
-  head_ "Container logs"
-  case "$RUNTIME" in
-    container) names=$(container ls -a -q) ;;
-    *)         names=$("$RUNTIME" ps -a --format '{{.Names}}') ;;
-  esac
-  for name in $names; do
-    case "$name" in semiont-*) ;; *) continue ;; esac
-    printf '\n--- %s\n' "$name"
-    case "$RUNTIME" in
-      container) container logs -n 50 "$name" 2>&1 ;;
-      *)         "$RUNTIME" logs --tail 50 "$name" 2>&1 ;;
-    esac
-  done
-}
-
 # init_kb <directory> <domain> <images-tag>: a knowledge base as a new user
 # makes one, its documents naming the tag's images. The images are the
 # documents' to name: init names :latest, and the run names the set it was
@@ -202,7 +184,7 @@ start_kb() {
   if "$SEMIONT" start --runtime "$RUNTIME"; then
     ok "every health gate opened against a real service"
   else
-    bad "the stack did not come up"; return 1
+    bad "start failed: the launcher's reason is above"; return 1
   fi
 }
 
@@ -245,7 +227,7 @@ if [ "$COMMAND" = up ]; then
     exit 1
   fi
   SUCCEEDED=false
-  trap 'cd / && [ "$SUCCEEDED" = true ] || { print_logs; down_kb; }' EXIT
+  trap 'cd / && [ "$SUCCEEDED" = true ] || down_kb' EXIT
   init_kb "$KB" example.github.io:stack-smoke "$IMAGES" || exit 1
   if "$SEMIONT" clean --root "$KB" >/dev/null; then
     ok "no state from an earlier run remains"
@@ -337,7 +319,7 @@ if [ -z "$IMAGES" ]; then
 fi
 RUN=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
 E2E_KB="$(mktemp -d)/kb"
-trap 'cd / && { [ "$FAIL" -eq 0 ] || print_logs; stop_kb "$E2E_KB"; forget_kb "$E2E_KB" true; }' EXIT
+trap 'cd / && { stop_kb "$E2E_KB"; forget_kb "$E2E_KB" true; }' EXIT
 init_kb "$E2E_KB" "example.github.io:e2e-$RUN" "$IMAGES" || exit 1
 start_kb "$IMAGES" || exit 1
 # Where clients reach this knowledge base's gateway: spec.gateway.publicURL of
