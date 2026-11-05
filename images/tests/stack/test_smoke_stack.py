@@ -266,6 +266,7 @@ class SmokeStackTest(unittest.TestCase):
         result = self.smoke("up", "local")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.build_calls(), ["stale --package typescript"])
+        self.assertIn("nothing to build", result.stdout)
 
     def test_up_of_a_published_tag_asks_nothing_of_the_build(self) -> None:
         result = self.smoke("up", "0.7.1", stale="images/archivist\tchanged\n")

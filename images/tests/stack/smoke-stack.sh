@@ -121,15 +121,19 @@ fi
 SEMIONT="$REPO_ROOT/apps/launcher/dist/semiont"
 BUILD="$REPO_ROOT/images/scripts/build-session.sh"
 if [ "$COMMAND" = up ] && [ "$IMAGES" = local ]; then
+  echo "Checking the :local images and the TypeScript packages they install against this checkout..."
+  CHECK_STARTED=$SECONDS
   if ! STALE=$(bash "$BUILD" stale --package typescript 2>/dev/null); then
     echo "Could not read whether the :local images are this checkout's: make plan says why." >&2
     exit 2
   fi
   if [ -n "$STALE" ]; then
-    echo "The :local images are older than this checkout ($(printf '%s\n' "$STALE" | cut -f1 | paste -sd' ' -)): building them."
+    echo "  older than this checkout ($((SECONDS - CHECK_STARTED))s): $(printf '%s\n' "$STALE" | cut -f1 | paste -sd' ' -). Building them."
     bash "$BUILD" local-build --package typescript || exit 2
     # local-build builds the launcher from the source as it is now.
     touch "$SEMIONT"
+  else
+    echo "  current ($((SECONDS - CHECK_STARTED))s): nothing to build."
   fi
 fi
 # The launcher compiles apps/launcher, packages/go/launcher and packages/go/sdk; a source file newer
