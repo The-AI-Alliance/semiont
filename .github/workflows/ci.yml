@@ -2585,7 +2585,19 @@ jobs:
         run: uv sync --locked
 
       - name: Test the sign-in store
-        run: uv run pytest tests/test_sign_in_store.py tests/test_state_dir.py
+        run: uv run pytest --cov --cov-report=xml tests/test_sign_in_store.py tests/test_state_dir.py
+
+      # Merged with the Linux upload of the same flag: the branches only
+      # Windows takes are measured here alone.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/python/sdk/coverage.xml
+          flags: python-sdk
+          name: python-sdk-windows
+          verbose: true
+        continue-on-error: true
 
   # The Go SDK's sign-in store on Windows, which the launcher keeps its
   # sign-ins through: the lock on the launcher's byte, and the access list
@@ -2601,6 +2613,7 @@ jobs:
     defaults:
       run:
         working-directory: packages/go/sdk
+        shell: bash
 
     steps:
       - name: Checkout code
@@ -2613,7 +2626,19 @@ jobs:
           cache-dependency-path: packages/go/sdk/go.sum
 
       - name: Test the sign-in store and the state home
-        run: go test -count=1 -run '^Test(TheStateHomeIsTheTables|TwoWritersOfTheSignInStore|KeepingASignIn|TheSignInStoreIsWrittenPrivately|ASignInIsKept|ATokenThatNames|ARenewalKeeps|EveryRenewalIsTheTables|AWaitingTaker)' .
+        run: go test -count=1 -coverprofile=coverage.out -run '^Test(TheStateHomeIsTheTables|TwoWritersOfTheSignInStore|KeepingASignIn|TheSignInStoreIsWrittenPrivately|ASignInIsKept|ATokenThatNames|ARenewalKeeps|EveryRenewalIsTheTables|AWaitingTaker)' .
+
+      # What Windows runs of the SDK, merged with the Linux upload of the
+      # same flag: the code only Windows compiles is measured here alone.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/go/sdk/coverage.out
+          flags: go-sdk
+          name: go-sdk-windows-store
+          verbose: true
+        continue-on-error: true
 
   # The Rust SDK's sign-in store on Windows: the access list the state home
   # is kept to its owner with, and that tokens.json inherits, read back as
@@ -2634,11 +2659,39 @@ jobs:
 
       - name: Install the pinned Rust toolchain
         working-directory: packages/rust
-        run: rustup toolchain install
+        run: |
+          rustup toolchain install
+          rustup component add llvm-tools-preview
+
+      # Keyed as the Rust Tests job's is, by this file, which pins
+      # cargo-llvm-cov's version, and by the toolchain it builds with.
+      - name: Cache cargo-llvm-cov
+        id: llvm-cov
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-llvm-cov.exe
+          key: ${{ runner.os }}-cargo-llvm-cov-${{ hashFiles('.github/workflows/ci.yml', 'packages/rust/rust-toolchain.toml') }}
+
+      - name: Install cargo-llvm-cov
+        if: steps.llvm-cov.outputs.cache-hit != 'true'
+        working-directory: packages/rust
+        run: cargo install cargo-llvm-cov --locked --version 0.9.1
 
       - name: Test the sign-in store
         working-directory: packages/rust
-        run: cargo test -p semiont --locked --test sign_in_store
+        run: cargo llvm-cov -p semiont --locked --test sign_in_store --lcov --output-path lcov.info
+
+      # Merged with the Rust Tests job's upload of the same flag: the code
+      # only Windows compiles is measured here alone.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/rust/lcov.info
+          flags: rust-sdk
+          name: rust-sdk-windows
+          verbose: true
+        continue-on-error: true
 
   # The Python inference drivers, as the Python SDK is checked: both type
   # checkers, strict, on the oldest Python supported, and the tests on every
@@ -3803,6 +3856,7 @@ jobs:
     defaults:
       run:
         working-directory: apps/launcher
+        shell: bash
 
     steps:
       - name: Checkout code
@@ -3824,18 +3878,60 @@ jobs:
         run: go vet ./...
 
       # An explicit budget, as the Linux job has, under the job's ceiling.
+      # As there, the launcher the suite runs is built with coverage of its
+      # libraries, and every run of it writes that to -launcher-coverdir.
       - name: Test launcher
-        run: go test -timeout 50m ./...
+        run: |
+          dir="$RUNNER_TEMP/launcher-coverage"
+          go test -timeout 50m . -launcher-coverdir="$dir"
+          if [ -z "$(ls -A "$dir")" ]; then
+            echo "::error::no launcher the suite ran wrote its coverage to $dir"
+            exit 1
+          fi
+          go tool covdata percent -i "$dir"
+          go tool covdata textfmt -i "$dir" -o launcher-coverage.out
+
+      # Each upload below is merged with the Linux uploads of its flag: the
+      # code only Windows compiles is measured here alone.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./apps/launcher/launcher-coverage.out
+          flags: go-launcher
+          name: go-launcher-scenarios-windows
+          verbose: true
+        continue-on-error: true
 
       - name: Test the launcher's libraries
         working-directory: packages/go/launcher
-        run: go test -timeout 50m ./...
+        run: go test -timeout 50m -coverpkg=./... -coverprofile=coverage.out ./...
+
+      - name: Upload the libraries' tests' coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/go/launcher/coverage.out
+          flags: go-launcher
+          name: go-launcher-windows
+          verbose: true
+        continue-on-error: true
 
       # The launcher's Windows binary carries this module's client and bus
       # registry.
       - name: Test the Go SDK
         working-directory: packages/go/sdk
-        run: go test -timeout 5m ./...
+        run: go test -timeout 5m -coverprofile=coverage.out ./...
+
+      - name: Upload the Go SDK's coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/go/sdk/coverage.out
+          flags: go-sdk
+          name: go-sdk-windows
+          verbose: true
+        continue-on-error: true
 
   # ── The gate ─────────────────────────────────────────────────────────
   # The one check the merge ruleset requires, of a pull request and of the
