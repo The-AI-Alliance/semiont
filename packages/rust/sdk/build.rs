@@ -368,6 +368,60 @@ fn shape_of(shape: &Value, of: &str) -> String {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
+            "enum" => format!(
+                "enumeration: Some(&[{}])",
+                list(part, of)
+                    .iter()
+                    .map(|one| match one {
+                        Value::String(text) => format!("Listed::Text({text:?})"),
+                        Value::Number(number) => format!(
+                            "Listed::Number({:?})",
+                            number
+                                .as_f64()
+                                .unwrap_or_else(|| panic!("{of}: {number} is no f64"))
+                        ),
+                        Value::Bool(held) => format!("Listed::Boolean({held})"),
+                        other =>
+                            panic!("{of}: it lists {other}, which no reader of the table reads"),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            "pattern" => format!(
+                "pattern: Some(&[{}])",
+                list(part, of)
+                    .iter()
+                    .map(|step| format!(
+                        "Step {{ of: &[{}], min: {}, max: {:?} }}",
+                        list(&step["of"], of)
+                            .iter()
+                            .map(|range| match list(range, of).as_slice() {
+                                [from, to] => format!("({}, {})", point(from, of), point(to, of)),
+                                _ => panic!("{of}: a step's range is no pair: {range}"),
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        count(&step["min"], of),
+                        step.get("max").map(|max| count(max, of)),
+                    ))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            "minLength" => format!("min_length: Some({})", count(part, of)),
+            "maxLength" => format!("max_length: Some({})", count(part, of)),
+            "minimum" => format!("minimum: Some({:?})", bound(part, of)),
+            "maximum" => format!("maximum: Some({:?})", bound(part, of)),
+            "minItems" => format!("min_items: Some({})", count(part, of)),
+            "maxItems" => format!("max_items: Some({})", count(part, of)),
+            "closed" => format!(
+                "closed: Some(&{:?})",
+                list(part, of)
+                    .iter()
+                    .map(|name| name.as_str().unwrap_or_else(|| panic!(
+                        "{of}: a closed object names {name}, which is no name"
+                    )))
+                    .collect::<Vec<_>>()
+            ),
             "required" => format!(
                 "required: &{:?}",
                 list(part, of)
@@ -411,6 +465,26 @@ fn shape_of(shape: &Value, of: &str) -> String {
     }
     parts.push("..NONE".to_owned());
     format!("Shape {{ {} }}", parts.join(", "))
+}
+
+/// A count a shape states: how many code points, items or steps.
+fn count(part: &Value, of: &str) -> u64 {
+    part.as_u64()
+        .unwrap_or_else(|| panic!("{of}: {part} is no count"))
+}
+
+/// A code point a pattern's step states.
+fn point(part: &Value, of: &str) -> u32 {
+    part.as_u64()
+        .and_then(|point| u32::try_from(point).ok())
+        .filter(|point| *point <= 0x10ffff)
+        .unwrap_or_else(|| panic!("{of}: {part} is no code point"))
+}
+
+/// A bound a shape states of a number.
+fn bound(part: &Value, of: &str) -> f64 {
+    part.as_f64()
+        .unwrap_or_else(|| panic!("{of}: {part} is no number"))
 }
 
 /// The labels of UTF-8, as the table of the Encoding Standard's labels has

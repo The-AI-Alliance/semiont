@@ -3,7 +3,7 @@
 //! (`SCHEMAS`, which the build writes from src/required-schemas.json, by the
 //! rules of packages/codegen/schemas/required-shapes.mjs) before it decodes it, and
 //! names the first fault it finds the same way: a member the value lacks, or
-//! one of a kind its schema does not allow. What serde refuses that the table
+//! one that is not what its schema allows. What serde refuses that the table
 //! does not state is a fault of the value itself, and nothing of serde's own
 //! account is said: it shows what it was given.
 
@@ -22,6 +22,42 @@ pub(crate) enum Kind {
     Null,
 }
 
+/// A value a shape lists: the value is one of them.
+pub(crate) enum Listed {
+    Text(&'static str),
+    Number(f64),
+    Boolean(bool),
+}
+
+impl Listed {
+    /// Whether `value` is this one: a number is one equal to it in value.
+    fn is(&self, value: &Value) -> bool {
+        match (self, value) {
+            (Listed::Text(one), Value::String(held)) => one == held,
+            (Listed::Number(one), Value::Number(held)) => held.as_f64() == Some(*one),
+            (Listed::Boolean(one), Value::Bool(held)) => one == held,
+            _ => false,
+        }
+    }
+}
+
+/// One step of a pattern: at least `min` of a text's next code points, and
+/// at most `max` (none: any number), each in one of the ranges `of`, from and
+/// to, both included.
+pub(crate) struct Step {
+    pub(crate) of: &'static [(u32, u32)],
+    pub(crate) min: usize,
+    pub(crate) max: Option<usize>,
+}
+
+impl Step {
+    fn holds(&self, point: char) -> bool {
+        self.of
+            .iter()
+            .any(|(from, to)| (*from..=*to).contains(&u32::from(point)))
+    }
+}
+
 /// The member whose value names the variant a union is.
 pub(crate) struct Discriminator {
     pub(crate) property: &'static str,
@@ -34,8 +70,18 @@ pub(crate) struct Discriminator {
 pub(crate) struct Shape {
     pub(crate) reference: Option<&'static str>,
     pub(crate) kinds: Option<&'static [Kind]>,
+    pub(crate) enumeration: Option<&'static [Listed]>,
+    pub(crate) pattern: Option<&'static [Step]>,
+    pub(crate) min_length: Option<usize>,
+    pub(crate) max_length: Option<usize>,
+    pub(crate) minimum: Option<f64>,
+    pub(crate) maximum: Option<f64>,
+    pub(crate) min_items: Option<usize>,
+    pub(crate) max_items: Option<usize>,
     pub(crate) required: &'static [&'static str],
     pub(crate) members: &'static [(&'static str, Shape)],
+    /// The only members an object may carry; none, where it may carry any.
+    pub(crate) closed: Option<&'static [&'static str]>,
     pub(crate) items: Option<&'static Shape>,
     pub(crate) values: Option<&'static Shape>,
     pub(crate) one_of: &'static [Shape],
@@ -47,8 +93,17 @@ pub(crate) struct Shape {
 pub(crate) const NONE: Shape = Shape {
     reference: None,
     kinds: None,
+    enumeration: None,
+    pattern: None,
+    min_length: None,
+    max_length: None,
+    minimum: None,
+    maximum: None,
+    min_items: None,
+    max_items: None,
     required: &[],
     members: &[],
+    closed: None,
     items: None,
     values: None,
     one_of: &[],
@@ -64,7 +119,8 @@ pub(crate) enum Reason {
     /// The value does not carry the member, or the member holds null where it
     /// may not.
     Lacks,
-    /// The member is of a kind its schema does not allow.
+    /// The member is not what its schema allows (of another kind, another
+    /// value, form or size), or is one a closed object does not name.
     Malformed,
 }
 
@@ -149,10 +205,57 @@ fn malformed(way: &str) -> Fault {
     }
 }
 
+/// Whether `count` is at least `least` and at most `most`, where each is
+/// stated.
+fn counted(least: Option<usize>, count: usize, most: Option<usize>) -> bool {
+    least.is_none_or(|least| count >= least) && most.is_none_or(|most| count <= most)
+}
+
+/// Whether `points` are of `steps`: the first step takes as many of them as
+/// it may, and gives them back one by one until the steps after it take the
+/// rest.
+fn matches(steps: &[Step], points: &[char]) -> bool {
+    let Some((first, rest)) = steps.split_first() else {
+        return points.is_empty();
+    };
+    let most = first.max.map_or(points.len(), |max| max.min(points.len()));
+    let taken = points[..most]
+        .iter()
+        .take_while(|point| first.holds(**point))
+        .count();
+    (first.min..=taken)
+        .rev()
+        .any(|count| matches(rest, &points[count..]))
+}
+
+/// Whether `value` is one of `shape`'s values, a text is of its pattern and
+/// has as many code points as it allows, a number is within its bounds, and
+/// an array has as many items as it allows.
+fn is_as_stated(shape: &Shape, value: &Value) -> bool {
+    if let Some(listed) = shape.enumeration
+        && !listed.iter().any(|one| one.is(value))
+    {
+        return false;
+    }
+    match value {
+        Value::String(text) => {
+            let points: Vec<char> = text.chars().collect();
+            counted(shape.min_length, points.len(), shape.max_length)
+                && shape.pattern.is_none_or(|steps| matches(steps, &points))
+        }
+        Value::Number(number) => number.as_f64().is_some_and(|number| {
+            shape.minimum.is_none_or(|least| number >= least)
+                && shape.maximum.is_none_or(|most| number <= most)
+        }),
+        Value::Array(items) => counted(shape.min_items, items.len(), shape.max_items),
+        _ => true,
+    }
+}
+
 /// The first fault `value` has as a value of `shape`, from `way`.
 fn fault_at(shape: &'static Shape, value: &Value, way: &str) -> Option<Fault> {
     let own = resolved(shape);
-    if !allows(own.kinds, value) {
+    if !allows(own.kinds, value) || !is_as_stated(own, value) {
         return Some(malformed(way));
     }
     if let Value::Object(object) = value
@@ -176,7 +279,7 @@ fn fault_at(shape: &'static Shape, value: &Value, way: &str) -> Option<Fault> {
 }
 
 /// The first fault of an object in the members `shape` requires, in what its
-/// members are, and in its values.
+/// members are, in the members it may not carry, and in its values.
 fn fault_of_members(
     shape: &'static Shape,
     object: &Map<String, Value>,
@@ -204,6 +307,14 @@ fn fault_of_members(
         {
             return Some(fault);
         }
+    }
+    if let Some(closed) = shape.closed
+        && let Some(unnamed) = object
+            .keys()
+            .filter(|name| !closed.contains(&name.as_str()))
+            .min()
+    {
+        return Some(malformed(&within(way, unnamed)));
     }
     let values = shape.values?;
     let mut keys: Vec<&String> = object.keys().collect();
@@ -245,4 +356,107 @@ fn fault_of_one_of(shape: &'static Shape, value: &Value, way: &str) -> Option<Fa
 /// reads the table by; nothing when it has none.
 pub(crate) fn fault_of(shape: &'static Shape, value: &Value) -> Option<Fault> {
     fault_at(shape, value, "")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Fault, Reason, fault_of, schema};
+    use serde_json::json;
+
+    fn malformed(member: &str) -> Option<Fault> {
+        Some(Fault {
+            member: member.to_owned(),
+            reason: Reason::Malformed,
+        })
+    }
+
+    #[test]
+    fn a_value_is_held_to_its_values_its_form_its_size_and_the_members_a_closed_object_names() {
+        let cases = [
+            ("BusPingMessage", json!({"event": "ping", "data": ""}), None),
+            (
+                "BusPingMessage",
+                json!({"event": "pong", "data": ""}),
+                malformed("event"),
+            ),
+            (
+                "BusPingMessage",
+                json!({"event": "ping", "data": "x"}),
+                malformed("data"),
+            ),
+            (
+                "BrowseProfilesRequest",
+                json!({"dids": ["did:web:example.org"]}),
+                None,
+            ),
+            (
+                "BrowseProfilesRequest",
+                json!({"dids": ["did:\u{1f600}"]}),
+                None,
+            ),
+            (
+                "BrowseProfilesRequest",
+                json!({"dids": []}),
+                malformed("dids"),
+            ),
+            (
+                "BrowseProfilesRequest",
+                json!({"dids": ["web:example.org"]}),
+                malformed("dids"),
+            ),
+            (
+                "BrowseProfilesRequest",
+                json!({"dids": ["did:web:a b"]}),
+                malformed("dids"),
+            ),
+            (
+                "GatherAnnotationOptions",
+                json!({"contextWindow": 100.0}),
+                None,
+            ),
+            (
+                "GatherAnnotationOptions",
+                json!({"contextWindow": 5000}),
+                None,
+            ),
+            (
+                "GatherAnnotationOptions",
+                json!({"contextWindow": 99}),
+                malformed("contextWindow"),
+            ),
+            (
+                "GatherAnnotationOptions",
+                json!({"contextWindow": 5001}),
+                malformed("contextWindow"),
+            ),
+            // A closed object: what it describes first, then the first member
+            // it does not name, by code point.
+            (
+                "BrowseProfilesRequest",
+                json!({"dids": ["did:web:example.org"], "more": 1}),
+                malformed("more"),
+            ),
+            (
+                "BrowseProfilesRequest",
+                json!({"dids": [], "more": 1}),
+                malformed("dids"),
+            ),
+            (
+                "BrowseProfilesRequest",
+                json!({"more": 1}),
+                Some(Fault {
+                    member: "dids".to_owned(),
+                    reason: Reason::Lacks,
+                }),
+            ),
+            (
+                "BrowseProfilesRequest",
+                json!({"dids": ["did:web:example.org"], "\u{1f600}": 1, "\u{ff61}": 1}),
+                malformed("\u{ff61}"),
+            ),
+        ];
+        for (name, value, fault) in cases {
+            assert_eq!(fault_of(schema(name), &value), fault, "{name}: {value}");
+        }
+    }
 }
