@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"iter"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -330,18 +331,8 @@ func keepPortBlock(kb kbRoot, block int) error {
 // base never shares a known one's. A root whose KnowledgeBase document is
 // gone, or does not hold, commits no port a start could run on.
 func freeGatewayPort(root string) int {
-	if abs, err := filepath.Abs(root); err == nil {
-		root = abs
-	}
 	committed := map[int]bool{}
-	for _, e := range loadRoots().Roots {
-		if e.Path == root {
-			continue
-		}
-		kb, err := stack.Read[stack.KnowledgeBase](filepath.Join(e.Path, stack.Dir, stack.KnowledgeBaseFile), "KnowledgeBase")
-		if err != nil {
-			continue
-		}
+	for _, kb := range otherKnowledgeBases(root) {
 		committed[kb.Spec.Gateway.Port] = true
 	}
 	base := semiontDescriptor("gateway").ports[0].port
@@ -350,6 +341,47 @@ func freeGatewayPort(root string) int {
 		block++
 	}
 	return blockPort(base, block)
+}
+
+// anotherOnBroker: the row of another knowledge base this machine knows whose
+// KnowledgeBase document names the broker at servers, a broker somebody else
+// runs, as kb's does. A broker serves one knowledge base. A clone of kb's
+// knowledge base is that knowledge base, not another.
+func anotherOnBroker(kb kbRoot, servers string) (rootEntry, bool) {
+	host, port := externalBrokerAt(servers)
+	for e, doc := range otherKnowledgeBases(kb.dir) {
+		external := doc.Spec.Messaging.External
+		if external == nil || (e.Did != "" && e.Did == kb.ident.didWeb()) {
+			continue
+		}
+		if theirHost, theirPort := externalBrokerAt(external.Servers); strings.EqualFold(theirHost, host) && theirPort == port {
+			return e, true
+		}
+	}
+	return rootEntry{}, false
+}
+
+// otherKnowledgeBases: the row and the KnowledgeBase document of each root
+// this machine knows but root. A root whose KnowledgeBase document is gone,
+// or does not hold, has none to say anything with.
+func otherKnowledgeBases(root string) iter.Seq2[rootEntry, stack.KnowledgeBase] {
+	if abs, err := filepath.Abs(root); err == nil {
+		root = abs
+	}
+	return func(yield func(rootEntry, stack.KnowledgeBase) bool) {
+		for _, e := range loadRoots().Roots {
+			if e.Path == root {
+				continue
+			}
+			kb, err := stack.Read[stack.KnowledgeBase](filepath.Join(e.Path, stack.Dir, stack.KnowledgeBaseFile), "KnowledgeBase")
+			if err != nil {
+				continue
+			}
+			if !yield(e, kb) {
+				return
+			}
+		}
+	}
 }
 
 // configForRealm names the config a realm-administering command must read:

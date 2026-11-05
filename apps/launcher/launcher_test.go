@@ -3033,6 +3033,52 @@ func TestEachKnowledgeBaseRunsOnAPortBlockOfItsOwn(t *testing.T) {
 	mustContain(t, "the fourth knowledge base's knowledge-base.yaml", string(kb), "port: 4010", "publicURL: http://localhost:4010")
 }
 
+// externalBroker: the fixture's KnowledgeBase document, in the scenario's
+// knowledge base, with its broker somebody else's, at servers, in place of the
+// launcher's.
+func externalBroker(t *testing.T, s *scenario, servers string) {
+	t.Helper()
+	launchers := regexp.MustCompile(`(?m)^    image: nats:.*\n    resources: \{ limits: \{ memory: 512M \} \}\n`)
+	text := fixtureDocument(t, "knowledge-base.yaml")
+	if n := len(launchers.FindAllString(text, -1)); n != 1 {
+		t.Fatalf("the fixture's knowledge-base.yaml names the launcher's broker %d times, not once", n)
+	}
+	writeDocument(t, s, "knowledge-base.yaml", launchers.ReplaceAllLiteralString(text,
+		"    external: { servers: \""+servers+"\", user: { fromEnv: EXT_NATS_USER }, password: { fromEnv: EXT_NATS_PASSWORD } }\n"))
+}
+
+// A broker somebody else runs serves one knowledge base. A start of one whose
+// KnowledgeBase document names the broker another knowledge base here names is
+// refused, a dry run too, naming the other's document, and how to forget it if
+// it is gone; nothing runs. On a broker of its own it starts.
+func TestAStartOnTheBrokerAnotherKnowledgeBaseHereNamesIsRefused(t *testing.T) {
+	s := newScenario(t, "container")
+	first := s.kb
+	externalBroker(t, s, "nats.example.com:4223")
+	if _, stderr, code := s.run(t, "settings", "config", "ollama-gemma"); code != 0 {
+		t.Fatalf("register the first knowledge base: exit %d\n%s", code, stderr)
+	}
+	s.kb = asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, s.kb, "example.github.io:other-kb")
+	externalBroker(t, s, "nats://nats.example.com:4223")
+	for _, args := range [][]string{{"start", "--dry-run"}, {"start"}} {
+		before := s.argv(t)
+		stdout, stderr, code := s.run(t, args...)
+		label := strings.Join(args, " ")
+		if code != 1 {
+			t.Fatalf("%s on the first's broker: exit %d, want 1\nstdout:\n%s\nstderr:\n%s", label, code, stdout, stderr)
+		}
+		mustContain(t, label, stderr,
+			`spec.messaging.external.servers is "nats://nats.example.com:4223", which `+filepath.Join(first, ".semiont", "stack", "knowledge-base.yaml")+" names too: a broker serves one knowledge base",
+			"semiont forget "+first)
+		mustNotContain(t, label, strings.TrimPrefix(s.argv(t), before), "run -d")
+	}
+	externalBroker(t, s, "nats.example.com:4224")
+	if stdout, stderr, code := s.run(t, "start", "--dry-run"); code != 0 {
+		t.Fatalf("start --dry-run on a broker of its own: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+}
+
 func TestStatePersistsAcrossStarts(t *testing.T) {
 	s := newScenario(t, "container")
 	_, stderr, code := s.run(t, "start")

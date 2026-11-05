@@ -130,7 +130,7 @@
             },
             "external": {
               "type": "object",
-              "description": "A broker somebody else runs.",
+              "description": "A broker somebody else runs, serving this knowledge base alone: a second knowledge base on it would share the job queue and, on a `nats` signal plane, the frames and the gateway's record of pending replies. The launcher refuses to start a knowledge base whose `servers` another knowledge base on its machine names.",
               "properties": {
                 "servers": {
                   "type": "string",

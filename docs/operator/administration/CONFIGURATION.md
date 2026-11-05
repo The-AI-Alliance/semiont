@@ -178,6 +178,8 @@ The KnowledgeBase's `spec.messaging` is the broker. `jobs.type` is `jetstream`, 
 
 One NATS daemon serves both. The launcher runs it from `image`, with a user and password it generates and keeps. A broker somebody else runs is stated at `spec.messaging.external`, with its `servers` and the variables holding its user and password: the schema requires the credentials, because an unauthenticated broker lets anyone who reaches it read and write the job queue. Such a broker also needs `max_payload: 8388608` in its own config, as the launcher's has: a frame on the bus can be as large as the largest emit the gateway takes, 4 MiB, and the broker's default of 1 MiB refuses one larger than that.
 
+A broker somebody else runs serves one knowledge base. A second on it would share the dispatcher's job queue and, with `nats` signals, the frames and the gateway's record of pending replies. So `semiont start`, a dry run too, refuses a knowledge base whose `servers` names the broker another knowledge base this machine knows names: the same host, whatever its case, and the same port, 4222 where `servers` states none. A clone of the same knowledge base is not another. Give each its own broker, or, for a knowledge base that is gone, `semiont forget` drops it from those the machine knows.
+
 ### The issuer
 
 The KnowledgeBase's `spec.issuer` names the one OIDC issuer the knowledge base trusts, in one of two ways:

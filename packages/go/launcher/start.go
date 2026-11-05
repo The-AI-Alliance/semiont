@@ -364,6 +364,9 @@ func Start(args []string) int {
 			u.Fail("%v", err)
 			return 1
 		}
+		if refuseSharedBroker(u, kb, st) {
+			return 1
+		}
 	}
 
 	// Runtime selection, three tiers: a live stack's record (correctness —
@@ -621,6 +624,26 @@ func refuseOtherStacks(u *UI, ss *StackSet, kb kbRoot, st *stack.Stack, plan *la
 		}
 	}
 	return false
+}
+
+// refuseSharedBroker: the refusal of a knowledge base whose broker, somebody
+// else's, another knowledge base here names too. A broker serves one
+// knowledge base: on one, the two would share the dispatcher's job queue and,
+// with nats signals, the frames and the gateway's record of pending replies.
+// It is what the documents say, so a dry run refuses it too.
+func refuseSharedBroker(u *UI, kb kbRoot, st *stack.Stack) bool {
+	external := st.KnowledgeBase.Spec.Messaging.External
+	if external == nil {
+		return false
+	}
+	other, shared := anotherOnBroker(kb, external.Servers)
+	if !shared {
+		return false
+	}
+	u.Fail("%v", planErr(st.Files.KnowledgeBase, "spec.messaging.external.servers",
+		"is %q, which %s names too: a broker serves one knowledge base", external.Servers, filepath.Join(other.Path, stack.Dir, stack.KnowledgeBaseFile)))
+	fmt.Fprintln(os.Stderr, "  Give one of them a broker of its own, or, if "+other.Path+" is gone for good:  semiont forget "+other.Path)
+	return true
 }
 
 // runningFor: whether a service kb's start needs is up already — its
