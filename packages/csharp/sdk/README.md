@@ -37,9 +37,14 @@ if it stops reporting. A `JobError` carries the shared error code, job ID when
 known, and failure class when the worker supplied one.
 
 Gather a resource's context, then delegate a generation grounded in that context.
-The script owns its client and passes its cancellation token to both operations.
+Call `RunAsync` from your program with the gateway URL, a current access token,
+and the source resource ID. The example owns its client and passes the cancellation
+token to both operations.
 
 ```csharp
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 using Semiont;
 using Semiont.Identifiers;
 using Semiont.Types;
@@ -63,15 +68,92 @@ public static class GatherAndDelegate
 }
 ```
 
-Workers sign in as agents and open an `HttpTransport` with
-`WorkerRules.JobClaimChannels` from `Semiont.Jobs`. Add
-`WorkerRules.JobCommitChannels` if the worker will commit annotations.
-`client.Job.Claim(filters)` takes generated `JobFilter` values. Await
-`NextAsync` for an `IHeldJob`, then use the `HeldMarkJob` or `HeldYieldJob`
-completion that matches its verb. A held job exposes its attempt, saved
-checkpoint, and cancellation token. When exporting telemetry, use its
-`Trace` as the parent of the job's activity. Await `StopAsync` before
-disposing the client so the worker can report any job it still holds.
+## Running a worker
+
+Create a `ServiceToken` with your service account credentials and keep it alive
+while the worker runs. `AgentToken.SignInAsync` confirms the agent's identity
+with the gateway. Give the transport the initial token, use `TokensChanged` to
+keep it current, and pass `RefreshAsync` to handle a gateway refusal.
+
+`Claims.NextAsync` returns the next job, or `null` when claiming ends. The
+example starts each job and calls your handler. Complete a `HeldMarkJob` or
+`HeldYieldJob` with the result for its verb, or settle it with `FailAsync` or
+`CancelAsync`. Read the job's attempt and saved checkpoint when resuming work.
+Use its `Trace` as the parent of the job's activity. The example awaits
+`StopAsync` before closing the client so the worker can report any job it
+still holds.
+
+```csharp
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+using Semiont;
+using Semiont.Http;
+using Semiont.Jobs;
+using Semiont.SignIn;
+using Semiont.Types;
+
+public static class RunWorker
+{
+    public static async Task RunAsync(HttpEndpoint endpoint, ServiceToken service,
+        IReadOnlyList<JobFilter> filters, Func<IHeldJob, CancellationToken, Task> settle,
+        bool commitsAnnotations = false, HttpClient? http = null,
+        CancellationToken cancellation = default)
+    {
+        using var agent = new AgentToken(endpoint, service, http);
+        await agent.SignInAsync(cancellation);
+
+        var channels = commitsAnnotations
+            ? WorkerRules.JobClaimChannels.Concat(WorkerRules.JobCommitChannels)
+            : WorkerRules.JobClaimChannels;
+        using var client = new SemiontClient(new HttpTransport(agent.Gateway, agent.Token,
+            channels, refresher: agent.RefreshAsync, httpClient: http));
+        using var updates = new CancellationTokenSource();
+        var following = FollowTokensAsync(agent, client.Transport, updates.Token);
+        var claims = client.Job.Claim(filters);
+        try
+        {
+            while (await claims.NextAsync(cancellation) is { } job)
+            {
+                using var running = CancellationTokenSource.CreateLinkedTokenSource(cancellation, job.Cancelled);
+                try
+                {
+                    await job.StartAsync(running.Token);
+                    await settle(job, running.Token);
+                    if (!job.Settled) throw new InvalidOperationException("The worker must settle its job.");
+                }
+                catch (OperationCanceledException) when (job.Cancelled.IsCancellationRequested && !cancellation.IsCancellationRequested)
+                {
+                    if (!job.Settled) await job.CancelAsync(cancellation: cancellation);
+                }
+            }
+        }
+        finally
+        {
+            try { await claims.StopAsync(); }
+            finally
+            {
+                updates.Cancel();
+                await following;
+            }
+        }
+    }
+
+    private static async Task FollowTokensAsync(AgentToken agent, HttpTransport transport, CancellationToken cancellation)
+    {
+        try
+        {
+            await foreach (var _ in agent.TokensChanged(cancellation)) transport.SetToken(agent.Token);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { return; }
+    }
+}
+```
+
+## Reading and writing resources
 
 Browse reads resource text, bytes, streams, graphs, anchored text, history, and
 knowledge base metadata. Dispose a representation stream when finished with it.
@@ -86,6 +168,9 @@ keep the last value visible while the new request runs. Use `FreshAsync` on the
 query when you need a new answer for a one-off read.
 
 ```csharp
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using Semiont;
 using Semiont.Identifiers;
 using Semiont.Types;
@@ -112,8 +197,9 @@ public static class WatchResource
 The switch covers the cases of the SDK's closed cache-state type. When the SDK
 adds a case, recompiling the switch points out the missing branch.
 
-The SDK has no Rx dependency. Streams use `IAsyncEnumerable<T>`. A host that
-uses Reactive Extensions can adapt a stream with its async-enumerable bridge,
+The SDK uses `IAsyncEnumerable<T>` and has no Rx dependency. To consume a
+stream as an observable, reference `System.Interactive.Async` in the host
+project and import `System.Linq`. Then call
 `client.Browse.Resource(resourceId).ToObservable()`.
 
 Supply `CachePersistence` when constructing a client to keep selected values
@@ -212,6 +298,8 @@ Telemetry uses BCL `ActivitySource` and `Meter`; the application chooses its exp
 to the shared bus-log table. See [the wire driver](conformance/README.md) for self-contained
 builds and black-box conformance.
 
+## Signing in
+
 `Semiont.SignIn.SignInStore` reads and updates the launcher's sign-ins. Give it an
 explicit state directory; `StateDirectory` computes that path from values supplied by
 the application and reads no environment variables. `Entry(stackKey)` returns the kept
@@ -230,8 +318,10 @@ will decide whether an issuer refusal ends a session; the issuer itself retains 
 kept entry when a grant fails.
 
 `Semiont.Session.KeptSession` starts from an HTTP endpoint and an `ISignInKept`.
-Await `ReadyAsync()` for startup validation, then read `State` or enumerate `States()`
-for the current token and gateway-validated user. An expired credential is renewed
+Await `ReadyAsync()` for startup to settle, then read `State` or enumerate
+`States()` for the current token and gateway-validated user. An empty store
+or failed startup can leave either value absent. Read `Errors()` for startup
+errors. An expired credential is renewed
 before validation; a refused credential is renewed once and validated once more.
 `RefreshAsync(refusedToken)` handles a transport refusal; simultaneous callers share
 one renewal, and canceling a caller's wait leaves that renewal running for the others.
@@ -239,6 +329,13 @@ Transient renewal failure retains the kept sign-in and retries on the reconnect 
 `EndReason` distinguishes issuer expiry from gateway refusal of a newly issued token;
 `Errors()` reports the generated session error codes. Disposal cancels owned work and
 completes observers without signing out the kept credentials.
+
+Use `HttpSessionFactory` with `SemiontBrowser` to bind a registered knowledge
+base's session to its client. When building the client yourself, pass
+`kept.RefreshAsync` as the `HttpTransport` refresher and subscribe the
+transport to the result and failure channels for the operations you call.
+A `SemiontSession` over that client and kept session applies credential
+updates to the transport. Dispose the session before closing the client.
 
 `Gateway.Origin(endpoint)` validates the host and preserves the explicit port.
 `Gateway.GetCurrentUserAsync(origin, token)` asks who a token is with exactly one
@@ -248,7 +345,8 @@ request, without opening a stream, retrying the request, or renewing the token.
 trusts and begins a device sign-in. The callback receives the user code and verification
 address for the application to display. Polling follows the issuer's interval and
 slow-down replies, expires on the supplied clock, and stops on cancellation or issuer
-disposal. Only a successful grant with both access and refresh tokens is kept.
+disposal. A successful grant saves the access and refresh tokens in `kept`.
+Use that same entry when constructing a `KeptSession`.
 `Issuer.SignOutAsync(kept)` attempts revocation and forgets the local credentials even
 when the issuer cannot be reached. Discovery rejects an issuer document that describes
 a different issuer or provides invalid endpoint addresses.

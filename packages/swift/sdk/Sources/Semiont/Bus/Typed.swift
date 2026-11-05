@@ -23,6 +23,18 @@ func wirePayload<Value: Encodable>(_ payload: Value) throws -> [String: JSONValu
 func declared(_ payload: [String: JSONValue], stamps: Set<String>) -> [String: JSONValue] {
   payload.filter { !$0.key.hasPrefix("_") || stamps.contains($0.key) }
 }
+func decodePayload<Value: Decodable>(
+  _ type: Value.Type, from payload: [String: JSONValue], stamps: Set<String>
+) throws -> Value {
+  try JSONDecoder().decode(type, from: JSONEncoder().encode(declared(payload, stamps: stamps)))
+}
+
+extension ReceivedFrame {
+  func decode<Value>(_ channel: Channel<Value>) throws -> Value {
+    try decodePayload(Value.self, from: payload, stamps: channel.stamps)
+  }
+}
+
 /// Lossless, from-now-on frames. A malformed payload is refused in its place.
 public final class Typed<Payload: Codable & Sendable>: AsyncSequence, Sendable {
   public typealias Element = Heard<Payload>
@@ -59,16 +71,15 @@ public final class Typed<Payload: Codable & Sendable>: AsyncSequence, Sendable {
         while let frame = try await iterator.next() {
           if frame.channel != owner.channel { continue }
           if let resource = owner.resource, frame.scope != resource { continue }
-          let payload = declared(frame.payload, stamps: owner.stamps)
           do {
-            let decoded = try JSONDecoder().decode(
-              Payload.self, from: JSONEncoder().encode(payload))
+            let decoded = try decodePayload(Payload.self, from: frame.payload, stamps: owner.stamps)
             return .delivered(Delivered(frame: frame, payload: decoded))
           } catch {
             return .refused(
               FrameRefusal(
                 channel: owner.channel,
-                lacks: requiredPayloadMembers[owner.channel]?.lacking(in: .object(payload)),
+                lacks: requiredPayloadMembers[owner.channel]?.lacking(
+                  in: .object(declared(frame.payload, stamps: owner.stamps))),
                 payload: frame.payload))
           }
         }

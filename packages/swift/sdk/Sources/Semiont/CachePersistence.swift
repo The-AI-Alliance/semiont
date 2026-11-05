@@ -19,12 +19,17 @@ enum KeptQuery: Hashable, Codable, Sendable {
   case tagSchemas
 }
 
+protocol CacheWork: Sendable {
+  func begin()
+  func end()
+}
+
 struct KeptValue<Value: Sendable>: Sendable {
-  let book: CacheBook
+  let book: any CacheWork
   let load: @Sendable () -> Value?
   let store: @Sendable (Value?) -> Void
 
-  init(book: CacheBook, key: KeptQuery) where Value: Codable {
+  init<Key>(book: StoragePersister<Key>, key: Key) where Value: Codable {
     self.book = book
     self.load = { book.load(key, as: Value.self) }
     self.store = { book.store(key, $0) }
@@ -32,7 +37,7 @@ struct KeptValue<Value: Sendable>: Sendable {
 }
 
 /// Bookmarks and their settled values are committed together in one storage update.
-final class CacheBook: Sendable {
+public final class StoragePersister<Key: Codable & Hashable & Sendable>: CacheWork {
   private struct Entry: Codable, Sendable {
     let value: Data
     let age: UInt64
@@ -40,14 +45,14 @@ final class CacheBook: Sendable {
 
   private struct Document: Codable, Sendable {
     var version = 1
-    var entries: [KeptQuery: Entry] = [:]
+    var entries: [Key: Entry] = [:]
     var bookmarks: [ResourceId: String] = [:]
   }
 
   private struct State: Sendable {
     var document: Document
     var age: UInt64
-    var changes: Set<KeptQuery> = []
+    var changes: Set<Key> = []
     var pendingBookmarks: [ResourceId: String] = [:]
     var work = 0
     var saving: Task<Void, Never>?
@@ -58,7 +63,7 @@ final class CacheBook: Sendable {
   private let storageKey: String
   private let state: Mutex<State>
 
-  init(_ config: CachePersistence) {
+  public init(_ config: CachePersistence) {
     let storageKey = "semiont.cache.\(config.keyPrefix).swift"
     let saved = Self.decode(try? config.storage.get(storageKey))
     self.config = config
@@ -74,16 +79,20 @@ final class CacheBook: Sendable {
     return value
   }
 
-  var keys: [KeptQuery] { state.withLock { Array($0.document.entries.keys) } }
+  public var keys: [Key] { state.withLock { Array($0.document.entries.keys) } }
   var bookmarks: [ResourceId: String] { state.withLock { $0.document.bookmarks } }
 
-  func load<Value: Decodable>(_ key: KeptQuery, as type: Value.Type) -> Value? {
+  public func load<Value: Decodable>(_ key: Key, as type: Value.Type) -> Value? {
     guard let data = state.withLock({ $0.document.entries[key]?.value }) else { return nil }
     return try? JSONDecoder().decode(type, from: data)
   }
 
   func begin() { state.withLock { if !$0.closed { $0.work += 1 } } }
   func end() { state.withLock { if !$0.closed { $0.work -= 1 } } }
+
+  public var pending: Bool {
+    state.withLock { !$0.closed && ($0.work != 0 || $0.saving != nil || !$0.changes.isEmpty) }
+  }
 
   func heard(_ id: String, in scope: ResourceId) {
     guard id.hasPrefix("p-") else { return }
@@ -92,7 +101,7 @@ final class CacheBook: Sendable {
     }
   }
 
-  func store<Value: Encodable>(_ key: KeptQuery, _ value: Value?) {
+  public func store<Value: Encodable>(_ key: Key, _ value: Value?) {
     let encoded: Data?
     if let value {
       guard let data = try? JSONEncoder().encode(value) else { return }
@@ -120,7 +129,7 @@ final class CacheBook: Sendable {
     }
   }
 
-  func close() {
+  public func close() {
     state.withLock { state in
       guard !state.closed else { return }
       state.saving?.cancel()
@@ -129,6 +138,8 @@ final class CacheBook: Sendable {
       state.closed = true
     }
   }
+
+  deinit { close() }
 
   private func flush(_ state: inout State) {
     guard !state.changes.isEmpty else { return }

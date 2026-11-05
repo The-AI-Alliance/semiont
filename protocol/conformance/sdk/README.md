@@ -348,9 +348,8 @@ to what it asks, so an exemption that has stopped being true fails, and a
 driver that answers `unsupported` to a case it is not exempt from fails that
 case.
 
-The TypeScript, Rust, Python, Go and Kotlin drivers each run every wire case.
-An SDK that arrives in steps names what it has not reached, with what it
-lacks.
+The [implementations file](../semiont.implementations.json) lists each driver's
+exemptions and the reason for each. The C# driver runs every wire case.
 
 ## Cases that restate a table
 
@@ -389,19 +388,30 @@ built into its `bin/`. Kotlin's are
 and
 [`LiveDriver.kt`](../../../packages/kotlin/sdk/src/conformance/kotlin/semiont/conformance/LiveDriver.kt),
 laid out with their start scripts in `packages/kotlin/sdk/build/conformance` by
-`./gradlew installConformance`.
+`./gradlew installConformance`. The [.NET driver](../../../packages/csharp/sdk/conformance/README.md)
+is published self-contained into `packages/csharp/sdk/conformance/bin/`. The same
+binary runs the live protocol with `--live` and the worker protocol with
+`--worker`.
 
 ## Running it
 
-It needs a built gateway and the Rust drivers, the Go drivers, the Kotlin
-drivers with a JDK of the version `packages/kotlin/sdk/.java-version` names,
-`nats-server` (2.10 or later) on `PATH`, the TypeScript SDK built, and, for
-the Python drivers, `uv` and Python 3.12 or later on `PATH`:
+Build the gateway, the TypeScript SDK, and the drivers in the
+[implementations file](../semiont.implementations.json). Use the
+JDK pinned in `packages/kotlin/sdk/.java-version`, the .NET SDK pinned in
+`packages/csharp/sdk/global.json`, and the
+[Swift driver build instructions](../../../packages/swift/sdk/README.md).
+Install `nats-server` 2.10 or later, and put `uv` and Python 3.12 or later on
+`PATH` for the Python drivers.
+
+Run the following from the repository root on Linux x64. On Linux ARM64,
+publish the .NET driver for `linux-arm64` instead.
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-conformance-drivers
 (cd packages/go/sdk/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...)
 (cd packages/kotlin/sdk && ./gradlew installConformance)
+(cd packages/csharp/sdk && dotnet publish conformance/WireDriver -c Release \
+  --self-contained -r linux-x64 -o conformance/bin -p:RestoreLockedMode=true)
 npm run build --workspace=@semiont/sdk
 cd protocol/conformance
 npm ci

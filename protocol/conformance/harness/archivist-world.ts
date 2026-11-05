@@ -71,10 +71,8 @@ export interface ArchivistWorldOptions {
 export interface Directories {
   /** The working tree. */
   root: string;
-  /** The state volume. */
+  /** The state volume: the knowledge base's views and projections, at its top. */
   stateHome: string;
-  /** The knowledge base's state directory under it. */
-  stateDir: string;
   anchoredTextDir: string;
 }
 
@@ -223,11 +221,9 @@ export class ArchivistWorld {
     const secret = randomBytes(24).toString('hex');
     const world = await World.create('in-process', { accounts: { ...options.accounts, [ARCHIVIST_CLIENT]: { secret, roles: [SERVICE_ROLE] } } });
     const base = mkdtempSync(join(tmpdir(), 'conformance-kb-'));
-    const stateHome = join(base, 'state');
     const dirs: Directories = {
       root: join(base, 'kb'),
-      stateHome,
-      stateDir: join(stateHome, 'semiont', world.kb.name),
+      stateHome: join(base, 'state'),
       anchoredTextDir: join(base, 'anchored-text'),
     };
     const gitSync = options.gitSync ?? true;
@@ -411,7 +407,7 @@ export class ArchivistWorld {
   }
 
   viewPath(resourceId: string): string {
-    return join(this.dirs.stateDir, 'resources', ...shardOf(resourceId).split('/'), `${resourceId}.json`);
+    return join(this.dirs.stateHome, 'resources', ...shardOf(resourceId).split('/'), `${resourceId}.json`);
   }
 
   /** A resource's view file, held to the ResourceView schema; undefined when there is none. */
@@ -422,11 +418,11 @@ export class ArchivistWorld {
   /** A `__system__` projection, held to its schema; undefined when there is none. */
   projection<T = Record<string, unknown>>(file: 'entitytypes.json' | 'tagschemas.json' | 'profiles.json'): T | undefined {
     const schema = { 'entitytypes.json': 'EntityTypesProjection', 'tagschemas.json': 'TagSchemasProjection', 'profiles.json': 'ProfilesProjection' }[file];
-    return this.document<T>(join(this.dirs.stateDir, 'projections', '__system__', file), schema);
+    return this.document<T>(join(this.dirs.stateHome, 'projections', '__system__', file), schema);
   }
 
   storageUriPath(uri: string): string {
-    return join(this.dirs.stateDir, 'projections', 'storage-uri', ...shardOf(uri).split('/'), `${sha256(uri)}.json`);
+    return join(this.dirs.stateHome, 'projections', 'storage-uri', ...shardOf(uri).split('/'), `${sha256(uri)}.json`);
   }
 
   /** The storage-uri index's entry for a URI, held to its schema; undefined when there is none. */
@@ -536,7 +532,7 @@ export class ArchivistWorld {
     await this.answering();
   }
 
-  /** Every file under the knowledge base's state directory, by its path from there, with its bytes. */
+  /** Every file in the state volume, by its path from its top, with its bytes. */
   stateFiles(): Map<string, string> {
     const files = new Map<string, string>();
     const walk = (dir: string, from: string): void => {
@@ -548,7 +544,7 @@ export class ArchivistWorld {
         else files.set(name, readFileSync(path, 'utf8'));
       }
     };
-    walk(this.dirs.stateDir, '');
+    walk(this.dirs.stateHome, '');
     return files;
   }
 

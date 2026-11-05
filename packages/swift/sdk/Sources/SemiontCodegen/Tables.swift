@@ -303,6 +303,7 @@ package struct TableGenerator {
       """ + "\n"
     _ = try models.inline(
       "Bus", "EmptyPayload", ["type": .string("object"), "additionalProperties": .bool(false)])
+    var storedEventChannels: [String] = []
     for raw in try required(registry, "channels").array {
       let row = try raw.object
       let name = try required(row, "channel").text
@@ -325,6 +326,7 @@ package struct TableGenerator {
         schema = nil
         stamps = []
       case "storedEvent":
+        storedEventChannels.append(name)
         _ = try models.schema(required(row, "payload").text)
         payload = row["enriched"] == .bool(true) ? "EnrichedResourceEvent" : "StoredEventResponse"
         schema = nil
@@ -420,6 +422,8 @@ package struct TableGenerator {
     }
     out +=
       "]\ninternal let bridgedChannels = [\(everyone.union(replies).sorted().map(literal).joined(separator: ", "))]\n"
+    out +=
+      "internal let storedEventChannels = [\(storedEventChannels.map(literal).joined(separator: ", "))]\n"
     out += "internal let requiredModelMembers: [String: RequiredMembers] = [\n"
     for (name, schema) in models.definitions.sorted(by: { $0.key < $1.key }) {
       out += "  \(literal(name)): \(try requiredMembers(schema.object)),\n"

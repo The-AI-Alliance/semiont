@@ -1853,7 +1853,16 @@ function checkSwiftReader() {
   if (types.length !== Object.keys(expectations).length) fail('Swift reader probe: missing type');
 }
 checkSwiftReader();
-function swiftExports(files) { return files.flatMap((file) => swiftDeclarations(swiftCode(read(file))).filter((d) => ['public', 'open'].includes(d.access)).map((d) => d.name)); }
+function swiftExports(files) {
+  return files.flatMap((file) => {
+    const source = read(file);
+    if (file === 'packages/swift/sdk/Sources/SemiontCodegen/Tables.swift') {
+      // Top-level models emitted by the build plugin under a literal name.
+      return [...source.matchAll(/models\.inline\(\s*"",\s*"([A-Z]\w*)"/g)].map((match) => match[1]);
+    }
+    return swiftDeclarations(swiftCode(source)).filter((d) => ['public', 'open'].includes(d.access)).map((d) => d.name);
+  });
+}
 
 // ── Each SDK against the table ──────────────────────────────────────────
 
