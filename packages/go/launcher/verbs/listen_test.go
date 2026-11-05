@@ -147,3 +147,15 @@ func TestListenWarnsOfAChannelNothingBridgesInProcess(t *testing.T) {
 	run := listened(t, fake, []string{"--channel", string(unbridged)}, noNames, func() {})
 	harness.MustContainAll(t, "warning", run.output, string(unbridged)+" is not a bridged channel")
 }
+
+// An operation's request reaches every stream that names it, which is how the
+// service that answers it hears it, so listen does not warn of one.
+func TestListenDoesNotWarnOfAnOperationsRequestInProcess(t *testing.T) {
+	fake, restore := withFake(t)
+	defer restore()
+	request := bus.FrameAddEntityType.Request().Channel()
+	run := listened(t, fake, []string{"--channel", string(request)}, noNames, func() {})
+	if strings.Contains(run.output, "is not a bridged channel") {
+		t.Errorf("listen warned of %s, which the gateway delivers:\n%s", request, run.output)
+	}
+}

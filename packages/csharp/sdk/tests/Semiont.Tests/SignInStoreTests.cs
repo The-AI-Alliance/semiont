@@ -134,6 +134,11 @@ public sealed class SignInStoreTests
         finally { if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true); }
     }
 
+    // How long the process holding the lock may take to start and say so. A
+    // cold Windows PowerShell on a loaded runner has taken more than ten
+    // seconds; the store's own waits keep their ten.
+    private static readonly TimeSpan LockHolderStart = TimeSpan.FromSeconds(60);
+
     [Fact]
     public async Task StoreWaitsForAnIndependentProcessLock()
     {
@@ -151,7 +156,12 @@ public sealed class SignInStoreTests
         };
         if (OperatingSystem.IsWindows())
         {
+            // Windows PowerShell is given no PSModulePath: the one PowerShell 7
+            // sets, which a CI step's shell hands down, leads it to modules it
+            // cannot load.
+            start.Environment.Remove("PSModulePath");
             start.ArgumentList.Add("-NoProfile");
+            start.ArgumentList.Add("-NonInteractive");
             start.ArgumentList.Add("-Command");
             // FileStream.Lock uses the Windows byte-range lock, independently of the SDK's P/Invoke.
             var offset = ((long)Semiont.Protocol.ProtocolTables.WindowsOffsetHigh << 32).ToString(CultureInfo.InvariantCulture);
@@ -174,7 +184,7 @@ public sealed class SignInStoreTests
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start lock holder");
         try
         {
-            Assert.Equal("ready", await process.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.Equal("ready", await process.StandardOutput.ReadLineAsync().WaitAsync(LockHolderStart));
             var store = new SignInStore(directory);
             var change = store.ChangeAsync(document => { document["written"] = true; return true; });
             if (change.IsCompleted) await change;

@@ -2,11 +2,11 @@ package verbs
 
 // listen.go — `semiont listen`: subscribe to the KB's live event stream and
 // print events until interrupted. The pure-streaming verb: no reply to wait
-// for, just the bus. Only BRIDGED channels can be subscribed to over a
-// transport, so the default set is the bridged broadcasts — asking for an
-// unbridged channel would hang forever with no error, which is exactly the
-// silent-failure trap the bus docs warn about. A resource's scope carries its
-// own channels (bus.ResourceScopedChannels), and nothing else.
+// for, just the bus. Only BRIDGED channels and operations' requests reach a
+// stream over a transport, so the default set is the bridged broadcasts —
+// asking for any other channel would hang forever with no error, which is
+// exactly the silent-failure trap the bus docs warn about. A resource's scope
+// carries its own channels (bus.ResourceScopedChannels), and nothing else.
 
 import (
 	"context"
@@ -43,10 +43,10 @@ Options:
 
 Requires a session:  semiont login
 
-Only channels the transport bridges can be received. A channel that exists
-but is not bridged will deliver nothing at all, so this warns before
-subscribing rather than leaving you watching a stream that can never
-produce an event.
+Only channels the transport bridges, and the requests a service answers, can
+be received. A channel that exists but is neither will deliver nothing at
+all, so this warns before subscribing rather than leaving you watching a
+stream that can never produce an event.
 `
 
 // Name prefetch bounds. One request, small and quick: this is cosmetics, and
@@ -123,12 +123,14 @@ func Listen(args []string) int {
 		channels = bus.BridgedBroadcasts
 	}
 	// A channel nothing delivers stays silent — say so rather than sitting
-	// there pretending to listen.
+	// there pretending to listen. An operation's request reaches every stream
+	// that names it, which is how the service that answers it hears it.
 	for _, ch := range channels {
+		_, requested := bus.Operations[ch]
 		switch {
 		case scope != "" && !slices.Contains(bus.ResourceScopedChannels, ch):
 			u.Warn("%s is not a channel a resource's scope carries — it will deliver nothing.", ch)
-		case scope == "" && !bus.Bridged(ch):
+		case scope == "" && !bus.Bridged(ch) && !requested:
 			u.Warn("%s is not a bridged channel — it will deliver nothing.", ch)
 		}
 	}

@@ -1887,19 +1887,17 @@ func busUnsubscribe(target *busSub) {
 	}
 }
 
-// busSubscriberCount reports how many live subscriptions cover a channel —
-// the fake's answer to the real gateway's observer count.
-func busSubscriberCount(channel string) int {
-	busMu.Lock()
-	defer busMu.Unlock()
-	n := 0
-	for _, s := range busSubs {
-		if s.channels[channel] {
-			n++
-		}
+// busReplies is every operation's reply channel. A frame on one answers the
+// client that asked, as the gateway's claims route it; a frame on any other
+// channel reaches every subscription that names it.
+var busReplies = func() map[string]bool {
+	replies := map[string]bool{}
+	for _, op := range bus.Operations {
+		replies[string(op.Result)] = true
+		replies[string(op.Failure)] = true
 	}
-	return n
-}
+	return replies
+}()
 
 // fakeMarkResults: what a `mark` job of each motivation completes with when a
 // test scripts no result. The counts differ, so a test can tell which job ran.
@@ -1991,35 +1989,70 @@ func fakeCreated(description map[string]any) (message api.JobProgressMessage, ok
 	return message, err == nil
 }
 
-// busPublish fans one frame out to every subscriber listening on its channel.
-// corrID rides the ENVELOPE beside the channel, which is where the real
-// gateway puts it (images/gateway/src/routes/stream.rs writes
-// `{channel, correlationId, payload}`) and where the Go client reads it. A
-// frame carrying one is a reply: it reaches only clientID's subscriptions,
-// under the id `e-<channel>:<correlationId>`, and is retained for a stream
-// that names it in pendingReplies. Job lifecycle events pass "" — they are
-// keyed by jobId, not by the correlation key of the request that created the
-// job — and are broadcast, each under an id of its own.
-func busPublish(channel, corrID, clientID string, payload map[string]any) {
+// busPublish delivers one frame to the subscriptions listening on its channel,
+// and says how many it reached. corrID rides the ENVELOPE beside the channel,
+// which is where the real gateway puts it (images/gateway/src/routes/stream.rs
+// writes `{channel, correlationId, payload}`) and where the Go client reads
+// it; a frame carrying one is stamped `e-<channel>:<correlationId>`, and one
+// without an id of its own. Whether a frame is a reply is its channel's to
+// say, as it is the gateway's: a frame on an operation's reply channel
+// reaches only clientID's subscriptions and is retained for a stream that
+// names it in pendingReplies. Any other frame, a request carrying its
+// correlationId or a broadcast, reaches every subscription that names its
+// channel and is not retained.
+func busPublish(channel, corrID, clientID string, payload map[string]any) int {
+	reply := busReplies[channel]
 	busMu.Lock()
 	frame := busFrame{channel: channel, corrID: corrID, payload: payload}
 	if corrID != "" {
 		frame.id = "e-" + channel + ":" + corrID
-		busRetained[corrID] = retainedReply{clientID: clientID, frame: frame}
 	} else {
 		busPublished++
 		frame.id = fmt.Sprintf("e-%d", busPublished)
 	}
+	addressed := ""
+	if reply {
+		addressed = clientID
+		busRetained[corrID] = retainedReply{clientID: clientID, frame: frame}
+	}
 	subs := append([]*busSub(nil), busSubs...)
+	busRecord(frame, addressed)
 	busMu.Unlock()
+	reached := 0
 	for _, s := range subs {
-		if !s.channels[channel] || (corrID != "" && s.clientID != clientID) {
+		if !s.channels[channel] || (reply && s.clientID != clientID) {
 			continue
 		}
+		reached++
 		select {
 		case s.out <- frame:
 		default: // a stalled reader must not wedge the emitter
 		}
+	}
+	return reached
+}
+
+// busRecord appends a published frame to bus-publish.jsonl, one JSON object
+// per line, beside bus-emit.jsonl: what a test reads of what its verb, having
+// stopped listening, could not show. Called under busMu, so the lines are in
+// the order the frames were published. addressed is the client a reply
+// answers, and "" for a frame that is none.
+func busRecord(frame busFrame, addressed string) {
+	dir := os.Getenv("FAKERT_DIR")
+	if dir == "" {
+		return
+	}
+	record := map[string]any{"channel": frame.channel, "payload": frame.payload}
+	if frame.corrID != "" {
+		record["correlationId"] = frame.corrID
+	}
+	if addressed != "" {
+		record["clientId"] = addressed
+	}
+	b, _ := json.Marshal(record)
+	if f, err := os.OpenFile(filepath.Join(dir, "bus-publish.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); err == nil {
+		_, _ = f.Write(append(b, '\n'))
+		_ = f.Close()
 	}
 }
 
@@ -2035,12 +2068,16 @@ func busPublish(channel, corrID, clientID string, payload map[string]any) {
 // resource a context was gathered for, the reference a search was for) names
 // what asked did, as the gateway's does. job:create and the key holders'
 // limits are answered by fakert itself when no test states theirs. Any other
-// operation nobody scripted is answered as the gateway answers a request
-// nothing subscribes to: on its failure channel, with the request's fields,
-// code peer-unavailable and a message; correlated is whether the request asks
-// for a reply at all, as only one that does is answered so. A stated response
-// that is not JSON is an error, which the emit is refused with.
-func busReplyFor(request string, asked map[string]any, correlated bool) (string, map[string]any, error) {
+// operation nobody scripted is answered as the gateway answers it: heard is
+// how many subscriptions the request reached, and one that reached none is
+// answered on its failure channel, with the request's fields, code
+// peer-unavailable and a message, while one a subscriber heard is that
+// subscriber's to answer, and fakert answers nothing for it. correlated is
+// whether the request asks for a reply at all, as only one that does is
+// answered so. A stated response that is not JSON is an error, which the emit
+// is refused with, as is a job:create response that names no jobId: the job
+// that runs is the one it names.
+func busReplyFor(request string, asked map[string]any, correlated bool, heard int) (string, map[string]any, error) {
 	op, ok := bus.Operations[bus.Channel(request)]
 	if !ok {
 		return "", nil, nil
@@ -2060,7 +2097,7 @@ func busReplyFor(request string, asked map[string]any, correlated bool) (string,
 		}
 	}
 	if raw == "" {
-		if !correlated {
+		if !correlated || heard > 0 {
 			return "", nil, nil
 		}
 		unanswerable := map[string]any{}
@@ -2072,6 +2109,12 @@ func busReplyFor(request string, asked map[string]any, correlated bool) (string,
 	var response any
 	if err := json.Unmarshal([]byte(raw), &response); err != nil {
 		return "", nil, fmt.Errorf("fakert: %s is not JSON: %v", env, err)
+	}
+	if request == "job:create" {
+		named, _ := response.(map[string]any)
+		if id, _ := named["jobId"].(string); id == "" {
+			return "", nil, fmt.Errorf("fakert: %s names no jobId, the job that runs", env)
+		}
 	}
 	result := map[string]any{"response": response}
 	for _, named := range op.ReplyNames {
@@ -2830,15 +2873,16 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 					})
 					return
 				}
-				// The event bus. /bus/subscribe holds an SSE stream open and
-				// replies to whatever /bus/emit receives, echoing the
-				// caller's correlationId — the same contract the real
-				// gateway keeps, so the launcher's subscribe-before-emit
-				// ordering is exercised for real.
+				// The event bus. /bus/subscribe holds an SSE stream open;
+				// /bus/emit delivers what it receives to every stream that
+				// names its channel, then replies to it, echoing the caller's
+				// correlationId — the same contract the real gateway keeps,
+				// so the launcher's subscribe-before-emit ordering is
+				// exercised for real.
 				// FAKERT_BUS_REPLY_<channel-with-colons-as-underscores>:
 				// JSON `response` object for that operation's result; an
-				// operation nobody scripted is answered as nobody heard it
-				// (busReplyFor).
+				// operation nobody scripted is answered as the gateway answers
+				// it (busReplyFor).
 				// FAKERT_BUS_FAIL=<message>: reply on the failure channel.
 				if r.URL.Path == "/bus/emit" && r.Method == http.MethodPost {
 					// Bearer-gated like the real route: the session refresh
@@ -2867,8 +2911,21 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 							_ = f.Close()
 						}
 					}
+					// A reply a client emits is routed by the gateway's claims to
+					// the client that asked. fakert keeps no claims, so it
+					// relays none rather than route one wrong.
+					if busReplies[body.Channel] {
+						http.Error(w, "fakert relays no reply a client emits: "+body.Channel, http.StatusInternalServerError)
+						return
+					}
 					cid := body.CorrelationID
-					ch, payload, err := busReplyFor(body.Channel, body.Payload, cid != "")
+					// FIDELITY: the real gateway answers 202 with the number
+					// of subscribers the emit reached, and answers a request
+					// for nobody only when that number is zero. One count is
+					// both, so the two cannot disagree — and a fake that always
+					// says "1" would let a verb claim an audience it never had.
+					heard := busPublish(body.Channel, cid, body.ClientID, body.Payload)
+					ch, payload, err := busReplyFor(body.Channel, body.Payload, cid != "", heard)
 					if err != nil {
 						// What a test scripted cannot be sent: the emit is
 						// refused with why, which the verb reports.
@@ -2878,10 +2935,12 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 					if ch != "" {
 						busPublish(ch, cid, body.ClientID, payload)
 						// A created job then runs: progress, then a terminal
-						// event, both keyed by jobId — never the correlationId
-						// the request used.
-						if body.Channel == "job:create" {
-							jobID := "fake-job-1"
+						// event, both keyed by the jobId its creation named —
+						// never the correlationId the request used. A job whose
+						// creation was refused never runs.
+						if ch == string(bus.JobCreate.Result().Channel()) {
+							created, _ := payload["response"].(map[string]any)
+							jobID, _ := created["jobId"].(string)
 							// The job is the one that was asked for: its type and
 							// its resource are the request's. A yield job names no
 							// resource (its context's focus does), so the fake's
@@ -2948,15 +3007,9 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 							}
 						}
 					}
-					// FIDELITY: the real gateway answers 202 with the number
-					// of subscribers its target subject had at dispatch, and
-					// the launcher's output turns on that number. Count the
-					// fake's own live subscribers for that channel rather than
-					// inventing one — a fake that always says "1" would let a
-					// verb claim an audience it never had.
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusAccepted)
-					_ = json.NewEncoder(w).Encode(map[string]any{"subscribers": busSubscriberCount(body.Channel)})
+					_ = json.NewEncoder(w).Encode(map[string]any{"subscribers": heard})
 					return
 				}
 				if r.URL.Path == "/bus/subscribe" {

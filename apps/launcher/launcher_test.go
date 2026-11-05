@@ -41,6 +41,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -465,10 +466,9 @@ func (s *scenario) env() []string {
 	return append(env, s.extraEnv...)
 }
 
-func (s *scenario) run(t *testing.T, args ...string) (stdout, stderr string, code int) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	defer cancel()
+// command is the launcher run with args in this scenario: in its directory,
+// with its environment and its stdin.
+func (s *scenario) command(ctx context.Context, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, launcherBin, args...)
 	cmd.Dir = s.kb
 	if s.cwd != "" {
@@ -476,6 +476,14 @@ func (s *scenario) run(t *testing.T, args ...string) (stdout, stderr string, cod
 	}
 	cmd.Env = s.env()
 	cmd.Stdin = strings.NewReader(s.stdin)
+	return cmd
+}
+
+func (s *scenario) run(t *testing.T, args ...string) (stdout, stderr string, code int) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	cmd := s.command(ctx, args...)
 	var out, errb strings.Builder
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	err := cmd.Run()
@@ -489,6 +497,66 @@ func (s *scenario) run(t *testing.T, args ...string) (stdout, stderr string, cod
 		t.Fatalf("running launcher: %v", err)
 	}
 	return out.String(), errb.String(), code
+}
+
+// backgrounded is a run of the launcher left going while the test does more,
+// and what it has printed so far on either stream.
+type backgrounded struct {
+	mu      sync.Mutex
+	printed strings.Builder
+	ended   chan struct{}
+}
+
+func (b *backgrounded) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.printed.Write(p)
+}
+
+func (b *backgrounded) output() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.printed.String()
+}
+
+// background starts the launcher with args and leaves it running. It is
+// killed when the test ends.
+func (s *scenario) background(t *testing.T, args ...string) *backgrounded {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := s.command(ctx, args...)
+	b := &backgrounded{ended: make(chan struct{})}
+	cmd.Stdout, cmd.Stderr = b, b
+	if err := cmd.Start(); err != nil {
+		cancel()
+		t.Fatalf("starting %v: %v", args, err)
+	}
+	go func() {
+		_ = cmd.Wait()
+		close(b.ended)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-b.ended
+	})
+	return b
+}
+
+// waitFor waits, a minute at most, for the run to have printed text.
+func (b *backgrounded) waitFor(t *testing.T, label, text string) {
+	t.Helper()
+	deadline := time.After(time.Minute)
+	for !strings.Contains(b.output(), text) {
+		select {
+		case <-b.ended:
+			if !strings.Contains(b.output(), text) {
+				t.Fatalf("%s ended without printing %q:\n%s", label, text, b.output())
+			}
+		case <-deadline:
+			t.Fatalf("%s printed no %q within a minute:\n%s", label, text, b.output())
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
 }
 
 // containerEnv: the value a container started with for name — whether it rode
@@ -685,6 +753,18 @@ func lastEmit(t *testing.T, s *scenario) string {
 	t.Helper()
 	all := emits(t, s)
 	return all[len(all)-1]
+}
+
+// published returns every frame the fake gateway published to its streams,
+// in order, across every run of the scenario: what a verb that stopped
+// listening cannot show.
+func published(t *testing.T, s *scenario) []string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(s.fakertDir, "bus-publish.jsonl"))
+	if err != nil {
+		t.Fatalf("no frames published: %v", err)
+	}
+	return strings.Split(strings.TrimSpace(string(b)), "\n")
 }
 
 // --- start: full boots against the fake runtime ---
@@ -13122,6 +13202,35 @@ func TestFrameSaysWhenNoServiceAnswers(t *testing.T) {
 	mustContain(t, "failure", stdout+stderr, "frame was rejected", "No subscriber for frame:add-entity-type: the service that answers it is not connected")
 }
 
+// A request a subscriber heard is not answered for it: the gateway delivers an
+// emit to every stream that names its channel, and answers a request
+// peer-unavailable only when it reached none. A `listen` on the request's
+// channel hears it, and the request waits for its answer.
+func TestFrameRequestReachesAListenerAndIsNotAnsweredForIt(t *testing.T) {
+	s := busScenario(t)
+	listener := s.background(t, "listen", "--channel", "frame:add-entity-type", "--json")
+	listener.waitFor(t, "listen", "Listening to this KB")
+	asker := s.background(t, "frame", "--entity-type", "Person")
+	listener.waitFor(t, "listen", `"channel":"frame:add-entity-type"`)
+	mustContain(t, "the request as heard", listener.output(), `"tag":"Person"`)
+	mustNotContain(t, "listen", listener.output(), "is not a bridged channel")
+
+	request := ""
+	for _, frame := range published(t, s) {
+		if strings.Contains(frame, `"channel":"frame:entity-type-add-failed"`) {
+			t.Errorf("a request a subscriber heard was answered as heard by nobody:\n%s", frame)
+		}
+		if strings.Contains(frame, `"channel":"frame:add-entity-type"`) {
+			request = frame
+		}
+	}
+	if request == "" {
+		t.Fatal("the request was never published to its channel")
+	}
+	mustContain(t, "the request's frame", request, `"correlationId"`)
+	mustNotContain(t, "frame", asker.output(), "frame was rejected")
+}
+
 func TestListenRefusesWithoutSession(t *testing.T) {
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
@@ -13311,6 +13420,35 @@ func jobCreate(t *testing.T, emit string) (jobType, resourceID string, params ma
 		t.Errorf("job:create carries no params object; the schema requires one:\n%s", emit)
 	}
 	return e.Payload.JobType, e.Payload.ResourceID, e.Payload.Params
+}
+
+// A job the stack refused to create never runs: no progress, failure or
+// completion of it follows the refusal.
+func TestMarkDelegateRefusedRunsNoJob(t *testing.T) {
+	s := busScenario(t, "FAKERT_BUS_FAIL=the queue is full")
+	stdout, stderr, code := s.run(t, "mark", "--delegate", "res-1", "--motivation", "highlighting")
+	if code == 0 {
+		t.Fatalf("a refused job:create succeeded:\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	mustContain(t, "refusal", stdout+stderr, "the queue is full")
+	for _, frame := range published(t, s) {
+		for _, lifecycle := range []string{"job:report-progress", "job:fail", "job:complete"} {
+			if strings.Contains(frame, `"channel":"`+lifecycle+`"`) {
+				t.Errorf("a job the stack refused to create ran:\n%s", frame)
+			}
+		}
+	}
+}
+
+// The job that runs is the one its creation named.
+func TestMarkDelegateFollowsTheJobItsCreationNamed(t *testing.T) {
+	s := busScenario(t, `FAKERT_BUS_REPLY_job_create={"jobId":"job-7"}`)
+	stdout, stderr, code := s.run(t, "mark", "--delegate", "res-1", "--motivation", "highlighting")
+	if code != 0 {
+		t.Fatalf("mark --delegate: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "job-7", "Marked res-1: created 3 highlights (4 found)")
+	mustNotContain(t, "stdout", stdout, "fake-job-1")
 }
 
 // The delegated form of mark is yield --delegate's sibling: it creates a mark
