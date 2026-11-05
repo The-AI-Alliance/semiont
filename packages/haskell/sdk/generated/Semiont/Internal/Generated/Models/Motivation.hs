@@ -22,5 +22,3 @@ instance ToJSON Motivation where
   toJSON MotivationHighlighting = String "highlighting"
   toJSON MotivationLinking = String "linking"
   toJSON MotivationTagging = String "tagging"
-
-

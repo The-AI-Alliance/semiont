@@ -19,4 +19,3 @@ data GatherResourceRequest = GatherResourceRequest { gatherResourceRequestOption
 instance FromJSON GatherResourceRequest where
   parseJSON = checked "GatherResourceRequest" $ withObject "GatherResourceRequest" (\fields -> GatherResourceRequest <$> fields .: "options" <*> fields .: "resourceId" <*> traverse parseJSON (withoutFields ["options", "resourceId"] fields))
 instance ToJSON GatherResourceRequest where toJSON value = Object (KM.fromList (concat [[("options", toJSON (gatherResourceRequestOptions value))], [("resourceId", toJSON (gatherResourceRequestResourceId value))]]) <> fmap toJSON (withoutFields ["options", "resourceId"] (gatherResourceRequestAdditionalProperties value)))
-

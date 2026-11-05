@@ -19,4 +19,3 @@ data ResourceView = ResourceView { resourceViewAnnotations :: ResourceAnnotation
 instance FromJSON ResourceView where
   parseJSON = checked "ResourceView" $ withObject "ResourceView" (\fields -> ResourceView <$> fields .: "annotations" <*> fields .: "lastSequence" <*> fields .: "resource")
 instance ToJSON ResourceView where toJSON value = Object (KM.fromList (concat [[("annotations", toJSON (resourceViewAnnotations value))], [("lastSequence", toJSON (resourceViewLastSequence value))], [("resource", toJSON (resourceViewResource value))]]))
-

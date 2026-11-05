@@ -24,5 +24,3 @@ instance FromJSON ProtectedResourceMetadataBearerU5f_methodsU5f_supportedItem wh
   parseJSON = checked "ProtectedResourceMetadataBearerU5f_methodsU5f_supportedItem" $ \value -> if value == (String "header") then pure ProtectedResourceMetadataBearerU5f_methodsU5f_supportedItemHeader else fail "unknown enumeration member"
 instance ToJSON ProtectedResourceMetadataBearerU5f_methodsU5f_supportedItem where
   toJSON ProtectedResourceMetadataBearerU5f_methodsU5f_supportedItemHeader = String "header"
-
-

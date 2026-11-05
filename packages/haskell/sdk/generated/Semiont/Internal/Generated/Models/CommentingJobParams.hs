@@ -35,5 +35,3 @@ instance ToJSON CommentingJobParamsTone where
   toJSON CommentingJobParamsToneExplanatory = String "explanatory"
   toJSON CommentingJobParamsToneConversational = String "conversational"
   toJSON CommentingJobParamsToneTechnical = String "technical"
-
-

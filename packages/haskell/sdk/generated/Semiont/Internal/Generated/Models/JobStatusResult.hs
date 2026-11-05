@@ -18,4 +18,3 @@ data JobStatusResult = JobStatusResult { jobStatusResultResponse :: JobStatusRes
 instance FromJSON JobStatusResult where
   parseJSON = checked "JobStatusResult" $ withObject "JobStatusResult" (\fields -> JobStatusResult <$> fields .: "response" <*> traverse parseJSON (withoutFields ["response"] fields))
 instance ToJSON JobStatusResult where toJSON value = Object (KM.fromList (concat [[("response", toJSON (jobStatusResultResponse value))]]) <> fmap toJSON (withoutFields ["response"] (jobStatusResultAdditionalProperties value)))
-

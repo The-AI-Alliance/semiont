@@ -20,5 +20,3 @@ instance FromJSON AnnotationSelector where
 instance ToJSON AnnotationSelector where
   toJSON (AnnotationSelectorBranch1 value) = toJSON value
   toJSON (AnnotationSelectorBranch2 value) = toJSON value
-
-

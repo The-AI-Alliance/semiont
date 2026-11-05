@@ -18,4 +18,3 @@ data BrowseResourceViewedEvent = BrowseResourceViewedEvent { browseResourceViewe
 instance FromJSON BrowseResourceViewedEvent where
   parseJSON = checked "BrowseResourceViewedEvent" $ withObject "BrowseResourceViewedEvent" (\fields -> BrowseResourceViewedEvent <$> fields .: "resourceId" <*> traverse parseJSON (withoutFields ["resourceId"] fields))
 instance ToJSON BrowseResourceViewedEvent where toJSON value = Object (KM.fromList (concat [[("resourceId", toJSON (browseResourceViewedEventResourceId value))]]) <> fmap toJSON (withoutFields ["resourceId"] (browseResourceViewedEventAdditionalProperties value)))
-

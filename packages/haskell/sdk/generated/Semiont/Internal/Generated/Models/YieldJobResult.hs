@@ -21,5 +21,3 @@ instance FromJSON YieldJobResult where
 instance ToJSON YieldJobResult where
   toJSON (YieldJobResultBranch1 value) = toJSON value
   toJSON (YieldJobResultBranch2 value) = toJSON value
-
-

@@ -17,4 +17,3 @@ data GetEntityTypesResponse = GetEntityTypesResponse { getEntityTypesResponseEnt
 instance FromJSON GetEntityTypesResponse where
   parseJSON = checked "GetEntityTypesResponse" $ withObject "GetEntityTypesResponse" (\fields -> GetEntityTypesResponse <$> fields .: "entityTypes" <*> traverse parseJSON (withoutFields ["entityTypes"] fields))
 instance ToJSON GetEntityTypesResponse where toJSON value = Object (KM.fromList (concat [[("entityTypes", toJSON (getEntityTypesResponseEntityTypes value))]]) <> fmap toJSON (withoutFields ["entityTypes"] (getEntityTypesResponseAdditionalProperties value)))
-

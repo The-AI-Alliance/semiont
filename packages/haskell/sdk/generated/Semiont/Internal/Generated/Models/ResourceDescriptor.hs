@@ -130,5 +130,3 @@ instance FromJSON ResourceDescriptorWasDerivedFrom where
 instance ToJSON ResourceDescriptorWasDerivedFrom where
   toJSON (ResourceDescriptorWasDerivedFromBranch1 value) = toJSON value
   toJSON (ResourceDescriptorWasDerivedFromBranch2 value) = toJSON value
-
-

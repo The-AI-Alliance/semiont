@@ -17,4 +17,3 @@ data MediaTokenResponse = MediaTokenResponse { mediaTokenResponseToken :: Text, 
 instance FromJSON MediaTokenResponse where
   parseJSON = checked "MediaTokenResponse" $ withObject "MediaTokenResponse" (\fields -> MediaTokenResponse <$> fields .: "token" <*> traverse parseJSON (withoutFields ["token"] fields))
 instance ToJSON MediaTokenResponse where toJSON value = Object (KM.fromList (concat [[("token", toJSON (mediaTokenResponseToken value))]]) <> fmap toJSON (withoutFields ["token"] (mediaTokenResponseAdditionalProperties value)))
-

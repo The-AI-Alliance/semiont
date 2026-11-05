@@ -27,5 +27,3 @@ instance ToJSON MarkJobParams where
   toJSON (MarkJobParamsBranch3 value) = toJSON value
   toJSON (MarkJobParamsBranch4 value) = toJSON value
   toJSON (MarkJobParamsBranch5 value) = toJSON value
-
-

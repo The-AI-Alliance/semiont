@@ -18,4 +18,3 @@ data ArchivistStreamsResponse = ArchivistStreamsResponse { archivistStreamsRespo
 instance FromJSON ArchivistStreamsResponse where
   parseJSON = checked "ArchivistStreamsResponse" $ withObject "ArchivistStreamsResponse" (\fields -> ArchivistStreamsResponse <$> fields .: "streams")
 instance ToJSON ArchivistStreamsResponse where toJSON value = Object (KM.fromList (concat [[("streams", toJSON (archivistStreamsResponseStreams value))]]))
-

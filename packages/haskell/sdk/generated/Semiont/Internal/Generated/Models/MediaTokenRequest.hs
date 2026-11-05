@@ -18,4 +18,3 @@ data MediaTokenRequest = MediaTokenRequest { mediaTokenRequestResourceId :: Reso
 instance FromJSON MediaTokenRequest where
   parseJSON = checked "MediaTokenRequest" $ withObject "MediaTokenRequest" (\fields -> MediaTokenRequest <$> fields .: "resourceId" <*> traverse parseJSON (withoutFields ["resourceId"] fields))
 instance ToJSON MediaTokenRequest where toJSON value = Object (KM.fromList (concat [[("resourceId", toJSON (mediaTokenRequestResourceId value))]]) <> fmap toJSON (withoutFields ["resourceId"] (mediaTokenRequestAdditionalProperties value)))
-

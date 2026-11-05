@@ -17,4 +17,3 @@ data EntityTypesProjection = EntityTypesProjection { entityTypesProjectionEntity
 instance FromJSON EntityTypesProjection where
   parseJSON = checked "EntityTypesProjection" $ withObject "EntityTypesProjection" (\fields -> EntityTypesProjection <$> fields .: "entityTypes")
 instance ToJSON EntityTypesProjection where toJSON value = Object (KM.fromList (concat [[("entityTypes", toJSON (entityTypesProjectionEntityTypes value))]]))
-

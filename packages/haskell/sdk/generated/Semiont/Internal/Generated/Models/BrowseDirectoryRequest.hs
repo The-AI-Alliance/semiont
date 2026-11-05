@@ -26,5 +26,3 @@ instance ToJSON BrowseDirectoryRequestSort where
   toJSON BrowseDirectoryRequestSortName = String "name"
   toJSON BrowseDirectoryRequestSortMtime = String "mtime"
   toJSON BrowseDirectoryRequestSortAnnotationCount = String "annotationCount"
-
-

@@ -17,4 +17,3 @@ data PrincipalProfiledPayload = PrincipalProfiledPayload { principalProfiledPayl
 instance FromJSON PrincipalProfiledPayload where
   parseJSON = checked "PrincipalProfiledPayload" $ withObject "PrincipalProfiledPayload" (\fields -> PrincipalProfiledPayload <$> fields .: "name" <*> traverse parseJSON (withoutFields ["name"] fields))
 instance ToJSON PrincipalProfiledPayload where toJSON value = Object (KM.fromList (concat [[("name", toJSON (principalProfiledPayloadName value))]]) <> fmap toJSON (withoutFields ["name"] (principalProfiledPayloadAdditionalProperties value)))
-

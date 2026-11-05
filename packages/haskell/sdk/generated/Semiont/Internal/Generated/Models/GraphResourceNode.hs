@@ -31,5 +31,3 @@ instance FromJSON GraphResourceNodeType where
   parseJSON = checked "GraphResourceNodeType" $ \value -> if value == (String "resource") then pure GraphResourceNodeTypeResource else fail "unknown enumeration member"
 instance ToJSON GraphResourceNodeType where
   toJSON GraphResourceNodeTypeResource = String "resource"
-
-

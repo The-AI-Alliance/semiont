@@ -21,5 +21,3 @@ instance FromJSON KbEndpoint where
 instance ToJSON KbEndpoint where
   toJSON (KbEndpointBranch1 value) = toJSON value
   toJSON (KbEndpointBranch2 value) = toJSON value
-
-

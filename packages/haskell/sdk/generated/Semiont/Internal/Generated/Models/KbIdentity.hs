@@ -17,4 +17,3 @@ data KbIdentity = KbIdentity { kbIdentityDomain :: Text, kbIdentityName :: Text 
 instance FromJSON KbIdentity where
   parseJSON = checked "KbIdentity" $ withObject "KbIdentity" (\fields -> KbIdentity <$> fields .: "domain" <*> fields .: "name")
 instance ToJSON KbIdentity where toJSON value = Object (KM.fromList (concat [[("domain", toJSON (kbIdentityDomain value))], [("name", toJSON (kbIdentityName value))]]))
-

@@ -17,4 +17,3 @@ data ResourceArchivedPayload = ResourceArchivedPayload { resourceArchivedPayload
 instance FromJSON ResourceArchivedPayload where
   parseJSON = checked "ResourceArchivedPayload" $ withObject "ResourceArchivedPayload" (\fields -> ResourceArchivedPayload <$> optional fields "reason" <*> traverse parseJSON (withoutFields ["reason"] fields))
 instance ToJSON ResourceArchivedPayload where toJSON value = Object (KM.fromList (concat [optionalPair "reason" (resourceArchivedPayloadReason value)]) <> fmap toJSON (withoutFields ["reason"] (resourceArchivedPayloadAdditionalProperties value)))
-

@@ -17,4 +17,3 @@ data BrowseEnginesRequest = BrowseEnginesRequest { browseEnginesRequestAdditiona
 instance FromJSON BrowseEnginesRequest where
   parseJSON = checked "BrowseEnginesRequest" $ withObject "BrowseEnginesRequest" (\fields -> BrowseEnginesRequest <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON BrowseEnginesRequest where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (browseEnginesRequestAdditionalProperties value)))
-

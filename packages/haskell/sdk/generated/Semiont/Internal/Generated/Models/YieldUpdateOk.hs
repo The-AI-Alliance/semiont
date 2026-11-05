@@ -24,4 +24,3 @@ data YieldUpdateOkResponse = YieldUpdateOkResponse { yieldUpdateOkResponseResour
 instance FromJSON YieldUpdateOkResponse where
   parseJSON = checked "YieldUpdateOkResponse" $ withObject "YieldUpdateOkResponse" (\fields -> YieldUpdateOkResponse <$> fields .: "resourceId" <*> traverse parseJSON (withoutFields ["resourceId"] fields))
 instance ToJSON YieldUpdateOkResponse where toJSON value = Object (KM.fromList (concat [[("resourceId", toJSON (yieldUpdateOkResponseResourceId value))]]) <> fmap toJSON (withoutFields ["resourceId"] (yieldUpdateOkResponseAdditionalProperties value)))
-

@@ -31,4 +31,3 @@ data JobFailCommandUnitCursors = JobFailCommandUnitCursors { jobFailCommandUnitC
 instance FromJSON JobFailCommandUnitCursors where
   parseJSON = checked "JobFailCommandUnitCursors" $ withObject "JobFailCommandUnitCursors" (\fields -> JobFailCommandUnitCursors <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON JobFailCommandUnitCursors where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (jobFailCommandUnitCursorsAdditionalProperties value)))
-

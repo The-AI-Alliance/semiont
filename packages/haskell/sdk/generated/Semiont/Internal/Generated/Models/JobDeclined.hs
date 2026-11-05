@@ -36,5 +36,3 @@ instance ToJSON JobDeclinedReason where
   toJSON JobDeclinedReasonCorrupt = String "corrupt"
   toJSON JobDeclinedReasonTooU2d_large = String "too-large"
   toJSON JobDeclinedReasonEmpty = String "empty"
-
-

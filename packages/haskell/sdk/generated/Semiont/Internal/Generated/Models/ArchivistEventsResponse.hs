@@ -18,4 +18,3 @@ data ArchivistEventsResponse = ArchivistEventsResponse { archivistEventsResponse
 instance FromJSON ArchivistEventsResponse where
   parseJSON = checked "ArchivistEventsResponse" $ withObject "ArchivistEventsResponse" (\fields -> ArchivistEventsResponse <$> fields .: "events" <*> fields .: "lastSequence" <*> traverse parseJSON (withoutFields ["events", "lastSequence"] fields))
 instance ToJSON ArchivistEventsResponse where toJSON value = Object (KM.fromList (concat [[("events", toJSON (archivistEventsResponseEvents value))], [("lastSequence", toJSON (archivistEventsResponseLastSequence value))]]) <> fmap toJSON (withoutFields ["events", "lastSequence"] (archivistEventsResponseAdditionalProperties value)))
-

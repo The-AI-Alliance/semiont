@@ -19,4 +19,3 @@ data GatherAnnotationComplete = GatherAnnotationComplete { gatherAnnotationCompl
 instance FromJSON GatherAnnotationComplete where
   parseJSON = checked "GatherAnnotationComplete" $ withObject "GatherAnnotationComplete" (\fields -> GatherAnnotationComplete <$> fields .: "annotationId" <*> fields .: "response" <*> traverse parseJSON (withoutFields ["annotationId", "response"] fields))
 instance ToJSON GatherAnnotationComplete where toJSON value = Object (KM.fromList (concat [[("annotationId", toJSON (gatherAnnotationCompleteAnnotationId value))], [("response", toJSON (gatherAnnotationCompleteResponse value))]]) <> fmap toJSON (withoutFields ["annotationId", "response"] (gatherAnnotationCompleteAdditionalProperties value)))
-

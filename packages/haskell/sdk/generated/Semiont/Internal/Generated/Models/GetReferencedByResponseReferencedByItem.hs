@@ -31,4 +31,3 @@ data GetReferencedByResponseReferencedByItemTargetSelector = GetReferencedByResp
 instance FromJSON GetReferencedByResponseReferencedByItemTargetSelector where
   parseJSON = checked "GetReferencedByResponseReferencedByItemTargetSelector" $ withObject "GetReferencedByResponseReferencedByItemTargetSelector" (\fields -> GetReferencedByResponseReferencedByItemTargetSelector <$> fields .: "exact" <*> traverse parseJSON (withoutFields ["exact"] fields))
 instance ToJSON GetReferencedByResponseReferencedByItemTargetSelector where toJSON value = Object (KM.fromList (concat [[("exact", toJSON (getReferencedByResponseReferencedByItemTargetSelectorExact value))]]) <> fmap toJSON (withoutFields ["exact"] (getReferencedByResponseReferencedByItemTargetSelectorAdditionalProperties value)))
-

@@ -17,4 +17,3 @@ data KbRead = KbRead { kbReadAt :: Text, kbReadGitBranch :: Maybe (Text), kbRead
 instance FromJSON KbRead where
   parseJSON = checked "KbRead" $ withObject "KbRead" (\fields -> KbRead <$> fields .: "at" <*> optional fields "gitBranch" <*> traverse parseJSON (withoutFields ["at", "gitBranch"] fields))
 instance ToJSON KbRead where toJSON value = Object (KM.fromList (concat [[("at", toJSON (kbReadAt value))], optionalPair "gitBranch" (kbReadGitBranch value)]) <> fmap toJSON (withoutFields ["at", "gitBranch"] (kbReadAdditionalProperties value)))
-

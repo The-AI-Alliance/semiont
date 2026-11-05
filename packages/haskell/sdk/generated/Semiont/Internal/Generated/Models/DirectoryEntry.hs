@@ -21,5 +21,3 @@ instance FromJSON DirectoryEntry where
 instance ToJSON DirectoryEntry where
   toJSON (DirectoryEntryBranch1 value) = toJSON value
   toJSON (DirectoryEntryBranch2 value) = toJSON value
-
-

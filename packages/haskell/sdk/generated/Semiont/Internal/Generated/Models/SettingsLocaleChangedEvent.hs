@@ -17,4 +17,3 @@ data SettingsLocaleChangedEvent = SettingsLocaleChangedEvent { settingsLocaleCha
 instance FromJSON SettingsLocaleChangedEvent where
   parseJSON = checked "SettingsLocaleChangedEvent" $ withObject "SettingsLocaleChangedEvent" (\fields -> SettingsLocaleChangedEvent <$> fields .: "locale" <*> traverse parseJSON (withoutFields ["locale"] fields))
 instance ToJSON SettingsLocaleChangedEvent where toJSON value = Object (KM.fromList (concat [[("locale", toJSON (settingsLocaleChangedEventLocale value))]]) <> fmap toJSON (withoutFields ["locale"] (settingsLocaleChangedEventAdditionalProperties value)))
-

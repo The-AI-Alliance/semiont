@@ -32,5 +32,3 @@ instance ToJSON MarkUpdateBodyCommandOperationsItem where
   toJSON (MarkUpdateBodyCommandOperationsItemBranch1 value) = toJSON value
   toJSON (MarkUpdateBodyCommandOperationsItemBranch2 value) = toJSON value
   toJSON (MarkUpdateBodyCommandOperationsItemBranch3 value) = toJSON value
-
-

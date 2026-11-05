@@ -30,5 +30,3 @@ instance ToJSON BodyPurpose where
   toJSON BodyPurposeQuestioning = String "questioning"
   toJSON BodyPurposeReplying = String "replying"
   toJSON BodyPurposeTagging = String "tagging"
-
-

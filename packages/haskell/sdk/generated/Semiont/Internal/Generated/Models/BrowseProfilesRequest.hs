@@ -18,4 +18,3 @@ data BrowseProfilesRequest = BrowseProfilesRequest { browseProfilesRequestDids :
 instance FromJSON BrowseProfilesRequest where
   parseJSON = checked "BrowseProfilesRequest" $ withObject "BrowseProfilesRequest" (\fields -> BrowseProfilesRequest <$> fields .: "dids")
 instance ToJSON BrowseProfilesRequest where toJSON value = Object (KM.fromList (concat [[("dids", toJSON (browseProfilesRequestDids value))]]))
-

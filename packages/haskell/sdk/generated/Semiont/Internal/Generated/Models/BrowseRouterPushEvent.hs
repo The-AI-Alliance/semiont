@@ -17,4 +17,3 @@ data BrowseRouterPushEvent = BrowseRouterPushEvent { browseRouterPushEventPath :
 instance FromJSON BrowseRouterPushEvent where
   parseJSON = checked "BrowseRouterPushEvent" $ withObject "BrowseRouterPushEvent" (\fields -> BrowseRouterPushEvent <$> fields .: "path" <*> optional fields "reason" <*> traverse parseJSON (withoutFields ["path", "reason"] fields))
 instance ToJSON BrowseRouterPushEvent where toJSON value = Object (KM.fromList (concat [[("path", toJSON (browseRouterPushEventPath value))], optionalPair "reason" (browseRouterPushEventReason value)]) <> fmap toJSON (withoutFields ["path", "reason"] (browseRouterPushEventAdditionalProperties value)))
-

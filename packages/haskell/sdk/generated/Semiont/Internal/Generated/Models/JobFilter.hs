@@ -21,5 +21,3 @@ instance FromJSON JobFilter where
 instance ToJSON JobFilter where
   toJSON (JobFilterBranch1 value) = toJSON value
   toJSON (JobFilterBranch2 value) = toJSON value
-
-

@@ -18,4 +18,3 @@ data MatchResourcesResult = MatchResourcesResult { matchResourcesResultResponse 
 instance FromJSON MatchResourcesResult where
   parseJSON = checked "MatchResourcesResult" $ withObject "MatchResourcesResult" (\fields -> MatchResourcesResult <$> fields .: "response" <*> traverse parseJSON (withoutFields ["response"] fields))
 instance ToJSON MatchResourcesResult where toJSON value = Object (KM.fromList (concat [[("response", toJSON (matchResourcesResultResponse value))]]) <> fmap toJSON (withoutFields ["response"] (matchResourcesResultAdditionalProperties value)))
-

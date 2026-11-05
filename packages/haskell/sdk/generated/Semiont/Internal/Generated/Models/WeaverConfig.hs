@@ -34,4 +34,3 @@ data WeaverConfigIdentity = WeaverConfigIdentity { weaverConfigIdentityIssuer ::
 instance FromJSON WeaverConfigIdentity where
   parseJSON = checked "WeaverConfigIdentity" $ withObject "WeaverConfigIdentity" (\fields -> WeaverConfigIdentity <$> fields .: "issuer")
 instance ToJSON WeaverConfigIdentity where toJSON value = Object (KM.fromList (concat [[("issuer", toJSON (weaverConfigIdentityIssuer value))]]))
-

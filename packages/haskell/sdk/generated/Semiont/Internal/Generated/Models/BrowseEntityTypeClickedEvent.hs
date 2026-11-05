@@ -17,4 +17,3 @@ data BrowseEntityTypeClickedEvent = BrowseEntityTypeClickedEvent { browseEntityT
 instance FromJSON BrowseEntityTypeClickedEvent where
   parseJSON = checked "BrowseEntityTypeClickedEvent" $ withObject "BrowseEntityTypeClickedEvent" (\fields -> BrowseEntityTypeClickedEvent <$> fields .: "entityType" <*> traverse parseJSON (withoutFields ["entityType"] fields))
 instance ToJSON BrowseEntityTypeClickedEvent where toJSON value = Object (KM.fromList (concat [[("entityType", toJSON (browseEntityTypeClickedEventEntityType value))]]) <> fmap toJSON (withoutFields ["entityType"] (browseEntityTypeClickedEventAdditionalProperties value)))
-

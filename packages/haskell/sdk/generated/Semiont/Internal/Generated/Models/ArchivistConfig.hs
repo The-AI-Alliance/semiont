@@ -32,4 +32,3 @@ data ArchivistConfigStaging = ArchivistConfigStaging { archivistConfigStagingFlu
 instance FromJSON ArchivistConfigStaging where
   parseJSON = checked "ArchivistConfigStaging" $ withObject "ArchivistConfigStaging" (\fields -> ArchivistConfigStaging <$> fields .: "flushMs" <*> fields .: "maxWaitMs")
 instance ToJSON ArchivistConfigStaging where toJSON value = Object (KM.fromList (concat [[("flushMs", toJSON (archivistConfigStagingFlushMs value))], [("maxWaitMs", toJSON (archivistConfigStagingMaxWaitMs value))]]))
-

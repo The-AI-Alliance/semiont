@@ -24,4 +24,3 @@ data BrowseResourceResultResponse = BrowseResourceResultResponse { browseResourc
 instance FromJSON BrowseResourceResultResponse where
   parseJSON = checked "BrowseResourceResultResponse" $ withObject "BrowseResourceResultResponse" (\fields -> BrowseResourceResultResponse <$> fields .: "lastSequence" <*> fields .: "resource")
 instance ToJSON BrowseResourceResultResponse where toJSON value = Object (KM.fromList (concat [[("lastSequence", toJSON (browseResourceResultResponseLastSequence value))], [("resource", toJSON (browseResourceResultResponseResource value))]]))
-

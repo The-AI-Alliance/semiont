@@ -27,5 +27,3 @@ instance ToJSON BrowseDirectoryFailedCode where
   toJSON BrowseDirectoryFailedCodeNotU2d_found = String "not-found"
   toJSON BrowseDirectoryFailedCodeUnauthorized = String "unauthorized"
   toJSON BrowseDirectoryFailedCodeNoneU2d_pending = String "none-pending"
-
-

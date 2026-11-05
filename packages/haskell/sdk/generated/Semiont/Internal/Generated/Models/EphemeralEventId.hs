@@ -17,4 +17,3 @@ newtype EphemeralEventId = EphemeralEventId { ephemeralEventIdValue :: Text } de
 instance FromJSON EphemeralEventId where
   parseJSON = checked "EphemeralEventId" $ \value -> EphemeralEventId <$> parseJSON value
 instance ToJSON EphemeralEventId where toJSON (EphemeralEventId value) = toJSON value
-

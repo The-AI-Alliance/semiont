@@ -18,4 +18,3 @@ data AnchoredTextWrite = AnchoredTextWrite { anchoredTextWriteContentChecksum ::
 instance FromJSON AnchoredTextWrite where
   parseJSON = checked "AnchoredTextWrite" $ withObject "AnchoredTextWrite" (\fields -> AnchoredTextWrite <$> fields .: "contentChecksum" <*> fields .: "entry")
 instance ToJSON AnchoredTextWrite where toJSON value = Object (KM.fromList (concat [[("contentChecksum", toJSON (anchoredTextWriteContentChecksum value))], [("entry", toJSON (anchoredTextWriteEntry value))]]))
-

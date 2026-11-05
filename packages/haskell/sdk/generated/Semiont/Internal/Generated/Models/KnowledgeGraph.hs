@@ -39,5 +39,3 @@ instance FromJSON KnowledgeGraphNodesItem where
 instance ToJSON KnowledgeGraphNodesItem where
   toJSON (KnowledgeGraphNodesItemBranch1 value) = toJSON value
   toJSON (KnowledgeGraphNodesItemBranch2 value) = toJSON value
-
-

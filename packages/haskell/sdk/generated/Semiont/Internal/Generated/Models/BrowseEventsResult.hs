@@ -18,4 +18,3 @@ data BrowseEventsResult = BrowseEventsResult { browseEventsResultResponse :: Get
 instance FromJSON BrowseEventsResult where
   parseJSON = checked "BrowseEventsResult" $ withObject "BrowseEventsResult" (\fields -> BrowseEventsResult <$> fields .: "response" <*> traverse parseJSON (withoutFields ["response"] fields))
 instance ToJSON BrowseEventsResult where toJSON value = Object (KM.fromList (concat [[("response", toJSON (browseEventsResultResponse value))]]) <> fmap toJSON (withoutFields ["response"] (browseEventsResultAdditionalProperties value)))
-

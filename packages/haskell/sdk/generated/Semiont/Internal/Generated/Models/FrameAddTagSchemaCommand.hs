@@ -19,4 +19,3 @@ data FrameAddTagSchemaCommand = FrameAddTagSchemaCommand { frameAddTagSchemaComm
 instance FromJSON FrameAddTagSchemaCommand where
   parseJSON = checked "FrameAddTagSchemaCommand" $ withObject "FrameAddTagSchemaCommand" (\fields -> FrameAddTagSchemaCommand <$> optional fields "_userId" <*> fields .: "schema" <*> traverse parseJSON (withoutFields ["_userId", "schema"] fields))
 instance ToJSON FrameAddTagSchemaCommand where toJSON value = Object (KM.fromList (concat [optionalPair "_userId" (frameAddTagSchemaCommandU5f_userId value), [("schema", toJSON (frameAddTagSchemaCommandSchema value))]]) <> fmap toJSON (withoutFields ["_userId", "schema"] (frameAddTagSchemaCommandAdditionalProperties value)))
-

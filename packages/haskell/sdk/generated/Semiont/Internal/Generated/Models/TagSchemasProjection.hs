@@ -18,4 +18,3 @@ data TagSchemasProjection = TagSchemasProjection { tagSchemasProjectionTagSchema
 instance FromJSON TagSchemasProjection where
   parseJSON = checked "TagSchemasProjection" $ withObject "TagSchemasProjection" (\fields -> TagSchemasProjection <$> fields .: "tagSchemas")
 instance ToJSON TagSchemasProjection where toJSON value = Object (KM.fromList (concat [[("tagSchemas", toJSON (tagSchemasProjectionTagSchemas value))]]))
-

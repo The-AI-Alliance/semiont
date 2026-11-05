@@ -17,4 +17,3 @@ newtype ContentFormat = ContentFormat { contentFormatValue :: Text } deriving (E
 instance FromJSON ContentFormat where
   parseJSON = checked "ContentFormat" $ \value -> ContentFormat <$> parseJSON value
 instance ToJSON ContentFormat where toJSON (ContentFormat value) = toJSON value
-

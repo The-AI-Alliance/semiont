@@ -21,4 +21,3 @@ annotationIdValue :: AnnotationId -> Text
 annotationIdValue (AnnotationId value) = value
 mkAnnotationId :: Text -> Either String AnnotationId
 mkAnnotationId value = parseEither parseJSON (toJSON value)
-

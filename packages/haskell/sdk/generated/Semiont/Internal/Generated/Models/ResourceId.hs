@@ -21,4 +21,3 @@ resourceIdValue :: ResourceId -> Text
 resourceIdValue (ResourceId value) = value
 mkResourceId :: Text -> Either String ResourceId
 mkResourceId value = parseEither parseJSON (toJSON value)
-

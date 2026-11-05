@@ -18,4 +18,3 @@ data PrincipalProfileCommand = PrincipalProfileCommand { principalProfileCommand
 instance FromJSON PrincipalProfileCommand where
   parseJSON = checked "PrincipalProfileCommand" $ withObject "PrincipalProfileCommand" (\fields -> PrincipalProfileCommand <$> optional fields "_userId" <*> fields .: "name" <*> traverse parseJSON (withoutFields ["_userId", "name"] fields))
 instance ToJSON PrincipalProfileCommand where toJSON value = Object (KM.fromList (concat [optionalPair "_userId" (principalProfileCommandU5f_userId value), [("name", toJSON (principalProfileCommandName value))]]) <> fmap toJSON (withoutFields ["_userId", "name"] (principalProfileCommandAdditionalProperties value)))
-

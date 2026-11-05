@@ -30,5 +30,3 @@ instance ToJSON EngineProvider where
   toJSON EngineProviderOpenai = String "openai"
   toJSON EngineProviderTogether = String "together"
   toJSON EngineProviderVllm = String "vllm"
-
-

@@ -17,4 +17,3 @@ data ResourceUnarchivedPayload = ResourceUnarchivedPayload { resourceUnarchivedP
 instance FromJSON ResourceUnarchivedPayload where
   parseJSON = checked "ResourceUnarchivedPayload" $ withObject "ResourceUnarchivedPayload" (\fields -> ResourceUnarchivedPayload <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON ResourceUnarchivedPayload where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (resourceUnarchivedPayloadAdditionalProperties value)))
-

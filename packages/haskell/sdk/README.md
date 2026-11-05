@@ -28,6 +28,13 @@ generated files and require no npm or schema generation. The generator is a
 Haskell executable in the package; it needs the repository inputs only when
 run. It derives the module list and package version as well as the models.
 
+After changing library sources, build the library and run `python3 api.py
+--write` inside the container to refresh `public-api.json`. GHC supplies the
+reachable types, constructors, and signatures through the public Cabal modules,
+including re-exports. The repository census checks source freshness; the Haskell
+job independently compares the installed library's actual exports with the
+snapshot. Integration with every shared client-surface section is still open.
+
 ## Types and identifiers
 
 Import models from `Semiont.Types`. Distinct identifier types expose checked
@@ -63,6 +70,10 @@ permitted extra members. It also executes the shared identifier table and
 checks resolved JSON payloads from the wire, live-query, and worker corpora.
 These model checks are distinct from executing the transport conformance
 drivers, which remain to be built.
+
+Runtime tests also cover atomic publication of raw replies before request
+continuations, channel/correlation matching, tracking cleanup on cancellation,
+close waking pending requests, SSE chunk boundaries, and operation ownership.
 
 See [the design probe results](../probes/README.md) for the measured HTTP,
 resource-lifetime, telemetry, crypto, and native-lock behavior.

@@ -18,4 +18,3 @@ data MatchSearchFailed = MatchSearchFailed { matchSearchFailedError :: Text, mat
 instance FromJSON MatchSearchFailed where
   parseJSON = checked "MatchSearchFailed" $ withObject "MatchSearchFailed" (\fields -> MatchSearchFailed <$> fields .: "error" <*> fields .: "referenceId" <*> traverse parseJSON (withoutFields ["error", "referenceId"] fields))
 instance ToJSON MatchSearchFailed where toJSON value = Object (KM.fromList (concat [[("error", toJSON (matchSearchFailedError value))], [("referenceId", toJSON (matchSearchFailedReferenceId value))]]) <> fmap toJSON (withoutFields ["error", "referenceId"] (matchSearchFailedAdditionalProperties value)))
-

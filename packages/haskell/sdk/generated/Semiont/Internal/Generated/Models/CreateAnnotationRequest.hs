@@ -20,4 +20,3 @@ data CreateAnnotationRequest = CreateAnnotationRequest { createAnnotationRequest
 instance FromJSON CreateAnnotationRequest where
   parseJSON = checked "CreateAnnotationRequest" $ withObject "CreateAnnotationRequest" (\fields -> CreateAnnotationRequest <$> optional fields "body" <*> fields .: "motivation" <*> fields .: "target" <*> traverse parseJSON (withoutFields ["body", "motivation", "target"] fields))
 instance ToJSON CreateAnnotationRequest where toJSON value = Object (KM.fromList (concat [optionalPair "body" (createAnnotationRequestBody value), [("motivation", toJSON (createAnnotationRequestMotivation value))], [("target", toJSON (createAnnotationRequestTarget value))]]) <> fmap toJSON (withoutFields ["body", "motivation", "target"] (createAnnotationRequestAdditionalProperties value)))
-

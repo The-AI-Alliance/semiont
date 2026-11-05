@@ -22,5 +22,3 @@ instance ToJSON LogLevel where
   toJSON LogLevelInfo = String "info"
   toJSON LogLevelHttp = String "http"
   toJSON LogLevelDebug = String "debug"
-
-

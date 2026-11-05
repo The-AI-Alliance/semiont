@@ -21,5 +21,3 @@ instance FromJSON BusStreamMessage where
 instance ToJSON BusStreamMessage where
   toJSON (BusStreamMessageBranch1 value) = toJSON value
   toJSON (BusStreamMessageBranch2 value) = toJSON value
-
-

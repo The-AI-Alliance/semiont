@@ -65,5 +65,3 @@ instance FromJSON AnnotationWasAttributedTo where
 instance ToJSON AnnotationWasAttributedTo where
   toJSON (AnnotationWasAttributedToBranch1 value) = toJSON value
   toJSON (AnnotationWasAttributedToBranch2 value) = toJSON value
-
-

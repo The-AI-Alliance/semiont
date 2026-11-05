@@ -18,4 +18,3 @@ data MarkCreateOkResponse = MarkCreateOkResponse { markCreateOkResponseAnnotatio
 instance FromJSON MarkCreateOkResponse where
   parseJSON = checked "MarkCreateOkResponse" $ withObject "MarkCreateOkResponse" (\fields -> MarkCreateOkResponse <$> fields .: "annotationId" <*> traverse parseJSON (withoutFields ["annotationId"] fields))
 instance ToJSON MarkCreateOkResponse where toJSON value = Object (KM.fromList (concat [[("annotationId", toJSON (markCreateOkResponseAnnotationId value))]]) <> fmap toJSON (withoutFields ["annotationId"] (markCreateOkResponseAdditionalProperties value)))
-

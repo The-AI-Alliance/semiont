@@ -26,5 +26,3 @@ instance FromJSON JobCancelledStatus where
   parseJSON = checked "JobCancelledStatus" $ \value -> if value == (String "cancelled") then pure JobCancelledStatusCancelled else fail "unknown enumeration member"
 instance ToJSON JobCancelledStatus where
   toJSON JobCancelledStatusCancelled = String "cancelled"
-
-

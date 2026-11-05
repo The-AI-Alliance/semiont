@@ -20,4 +20,3 @@ data WorkerConfig = WorkerConfig { workerConfigKnowledgeBases :: [WorkerKnowledg
 instance FromJSON WorkerConfig where
   parseJSON = checked "WorkerConfig" $ withObject "WorkerConfig" (\fields -> WorkerConfig <$> fields .: "knowledgeBases" <*> fields .: "logFormat" <*> fields .: "logLevel" <*> fields .: "modelCatalogue" <*> fields .: "port")
 instance ToJSON WorkerConfig where toJSON value = Object (KM.fromList (concat [[("knowledgeBases", toJSON (workerConfigKnowledgeBases value))], [("logFormat", toJSON (workerConfigLogFormat value))], [("logLevel", toJSON (workerConfigLogLevel value))], [("modelCatalogue", toJSON (workerConfigModelCatalogue value))], [("port", toJSON (workerConfigPort value))]]))
-

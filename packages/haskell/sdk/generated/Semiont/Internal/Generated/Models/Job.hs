@@ -27,5 +27,3 @@ instance ToJSON Job where
   toJSON (JobBranch3 value) = toJSON value
   toJSON (JobBranch4 value) = toJSON value
   toJSON (JobBranch5 value) = toJSON value
-
-

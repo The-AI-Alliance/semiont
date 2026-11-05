@@ -17,4 +17,3 @@ data AnchoredTextStamp = AnchoredTextStamp { anchoredTextStampStamp :: Text } de
 instance FromJSON AnchoredTextStamp where
   parseJSON = checked "AnchoredTextStamp" $ withObject "AnchoredTextStamp" (\fields -> AnchoredTextStamp <$> fields .: "stamp")
 instance ToJSON AnchoredTextStamp where toJSON value = Object (KM.fromList (concat [[("stamp", toJSON (anchoredTextStampStamp value))]]))
-

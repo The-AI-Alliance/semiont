@@ -19,4 +19,3 @@ data EngineEntry = EngineEntry { engineEntryEngine :: Engine, engineEntryJobs ::
 instance FromJSON EngineEntry where
   parseJSON = checked "EngineEntry" $ withObject "EngineEntry" (\fields -> EngineEntry <$> fields .: "engine" <*> optional fields "jobs")
 instance ToJSON EngineEntry where toJSON value = Object (KM.fromList (concat [[("engine", toJSON (engineEntryEngine value))], optionalPair "jobs" (engineEntryJobs value)]))
-

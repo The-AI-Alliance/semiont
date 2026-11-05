@@ -44,5 +44,3 @@ instance FromJSON BodyOperationReplaceOp where
   parseJSON = checked "BodyOperationReplaceOp" $ \value -> if value == (String "replace") then pure BodyOperationReplaceOpReplace else fail "unknown enumeration member"
 instance ToJSON BodyOperationReplaceOp where
   toJSON BodyOperationReplaceOpReplace = String "replace"
-
-

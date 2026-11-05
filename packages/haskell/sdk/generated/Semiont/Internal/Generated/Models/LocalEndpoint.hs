@@ -24,5 +24,3 @@ instance FromJSON LocalEndpointKind where
   parseJSON = checked "LocalEndpointKind" $ \value -> if value == (String "local") then pure LocalEndpointKindLocal else fail "unknown enumeration member"
 instance ToJSON LocalEndpointKind where
   toJSON LocalEndpointKindLocal = String "local"
-
-

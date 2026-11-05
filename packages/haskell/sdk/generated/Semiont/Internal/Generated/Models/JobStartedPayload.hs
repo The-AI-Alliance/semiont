@@ -20,4 +20,3 @@ data JobStartedPayload = JobStartedPayload { jobStartedPayloadAnnotationId :: Ma
 instance FromJSON JobStartedPayload where
   parseJSON = checked "JobStartedPayload" $ withObject "JobStartedPayload" (\fields -> JobStartedPayload <$> optional fields "annotationId" <*> fields .: "jobId" <*> fields .: "jobType" <*> optional fields "totalSteps" <*> traverse parseJSON (withoutFields ["annotationId", "jobId", "jobType", "totalSteps"] fields))
 instance ToJSON JobStartedPayload where toJSON value = Object (KM.fromList (concat [optionalPair "annotationId" (jobStartedPayloadAnnotationId value), [("jobId", toJSON (jobStartedPayloadJobId value))], [("jobType", toJSON (jobStartedPayloadJobType value))], optionalPair "totalSteps" (jobStartedPayloadTotalSteps value)]) <> fmap toJSON (withoutFields ["annotationId", "jobId", "jobType", "totalSteps"] (jobStartedPayloadAdditionalProperties value)))
-

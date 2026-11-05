@@ -18,4 +18,3 @@ data BrowseAnnotationHistoryResult = BrowseAnnotationHistoryResult { browseAnnot
 instance FromJSON BrowseAnnotationHistoryResult where
   parseJSON = checked "BrowseAnnotationHistoryResult" $ withObject "BrowseAnnotationHistoryResult" (\fields -> BrowseAnnotationHistoryResult <$> fields .: "response" <*> traverse parseJSON (withoutFields ["response"] fields))
 instance ToJSON BrowseAnnotationHistoryResult where toJSON value = Object (KM.fromList (concat [[("response", toJSON (browseAnnotationHistoryResultResponse value))]]) <> fmap toJSON (withoutFields ["response"] (browseAnnotationHistoryResultAdditionalProperties value)))
-

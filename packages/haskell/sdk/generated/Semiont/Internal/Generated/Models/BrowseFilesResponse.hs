@@ -18,4 +18,3 @@ data BrowseFilesResponse = BrowseFilesResponse { browseFilesResponseEntries :: [
 instance FromJSON BrowseFilesResponse where
   parseJSON = checked "BrowseFilesResponse" $ withObject "BrowseFilesResponse" (\fields -> BrowseFilesResponse <$> fields .: "entries" <*> fields .: "path")
 instance ToJSON BrowseFilesResponse where toJSON value = Object (KM.fromList (concat [[("entries", toJSON (browseFilesResponseEntries value))], [("path", toJSON (browseFilesResponsePath value))]]))
-

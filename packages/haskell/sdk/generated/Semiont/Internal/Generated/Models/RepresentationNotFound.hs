@@ -25,5 +25,3 @@ instance FromJSON RepresentationNotFoundCode where
 instance ToJSON RepresentationNotFoundCode where
   toJSON RepresentationNotFoundCodeResource = String "resource"
   toJSON RepresentationNotFoundCodeRepresentation = String "representation"
-
-

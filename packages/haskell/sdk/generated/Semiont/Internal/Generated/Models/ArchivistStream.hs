@@ -18,4 +18,3 @@ data ArchivistStream = ArchivistStream { archivistStreamLastSequence :: Integer,
 instance FromJSON ArchivistStream where
   parseJSON = checked "ArchivistStream" $ withObject "ArchivistStream" (\fields -> ArchivistStream <$> fields .: "lastSequence" <*> fields .: "resourceId")
 instance ToJSON ArchivistStream where toJSON value = Object (KM.fromList (concat [[("lastSequence", toJSON (archivistStreamLastSequence value))], [("resourceId", toJSON (archivistStreamResourceId value))]]))
-

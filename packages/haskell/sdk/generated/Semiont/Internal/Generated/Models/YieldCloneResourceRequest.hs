@@ -17,4 +17,3 @@ data YieldCloneResourceRequest = YieldCloneResourceRequest { yieldCloneResourceR
 instance FromJSON YieldCloneResourceRequest where
   parseJSON = checked "YieldCloneResourceRequest" $ withObject "YieldCloneResourceRequest" (\fields -> YieldCloneResourceRequest <$> fields .: "token" <*> traverse parseJSON (withoutFields ["token"] fields))
 instance ToJSON YieldCloneResourceRequest where toJSON value = Object (KM.fromList (concat [[("token", toJSON (yieldCloneResourceRequestToken value))]]) <> fmap toJSON (withoutFields ["token"] (yieldCloneResourceRequestAdditionalProperties value)))
-

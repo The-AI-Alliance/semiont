@@ -52,5 +52,3 @@ instance FromJSON GatewayConfigSignalType where
 instance ToJSON GatewayConfigSignalType where
   toJSON GatewayConfigSignalTypeInU2d_process = String "in-process"
   toJSON GatewayConfigSignalTypeNats = String "nats"
-
-

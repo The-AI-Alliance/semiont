@@ -17,4 +17,3 @@ data EntityTypeAddedPayload = EntityTypeAddedPayload { entityTypeAddedPayloadEnt
 instance FromJSON EntityTypeAddedPayload where
   parseJSON = checked "EntityTypeAddedPayload" $ withObject "EntityTypeAddedPayload" (\fields -> EntityTypeAddedPayload <$> fields .: "entityType" <*> traverse parseJSON (withoutFields ["entityType"] fields))
 instance ToJSON EntityTypeAddedPayload where toJSON value = Object (KM.fromList (concat [[("entityType", toJSON (entityTypeAddedPayloadEntityType value))]]) <> fmap toJSON (withoutFields ["entityType"] (entityTypeAddedPayloadAdditionalProperties value)))
-

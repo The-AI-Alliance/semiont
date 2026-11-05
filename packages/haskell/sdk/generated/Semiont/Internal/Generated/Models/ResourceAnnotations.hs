@@ -19,4 +19,3 @@ data ResourceAnnotations = ResourceAnnotations { resourceAnnotationsAnnotations 
 instance FromJSON ResourceAnnotations where
   parseJSON = checked "ResourceAnnotations" $ withObject "ResourceAnnotations" (\fields -> ResourceAnnotations <$> fields .: "annotations" <*> fields .: "resourceId" <*> fields .: "updatedAt" <*> fields .: "version")
 instance ToJSON ResourceAnnotations where toJSON value = Object (KM.fromList (concat [[("annotations", toJSON (resourceAnnotationsAnnotations value))], [("resourceId", toJSON (resourceAnnotationsResourceId value))], [("updatedAt", toJSON (resourceAnnotationsUpdatedAt value))], [("version", toJSON (resourceAnnotationsVersion value))]]))
-

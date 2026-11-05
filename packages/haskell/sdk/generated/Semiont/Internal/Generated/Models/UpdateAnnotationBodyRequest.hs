@@ -30,5 +30,3 @@ instance ToJSON UpdateAnnotationBodyRequestOperationsItem where
   toJSON (UpdateAnnotationBodyRequestOperationsItemBranch1 value) = toJSON value
   toJSON (UpdateAnnotationBodyRequestOperationsItemBranch2 value) = toJSON value
   toJSON (UpdateAnnotationBodyRequestOperationsItemBranch3 value) = toJSON value
-
-

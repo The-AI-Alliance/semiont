@@ -17,4 +17,3 @@ data EventMetadata = EventMetadata { eventMetadataSequenceNumber :: Integer, eve
 instance FromJSON EventMetadata where
   parseJSON = checked "EventMetadata" $ withObject "EventMetadata" (\fields -> EventMetadata <$> fields .: "sequenceNumber" <*> traverse parseJSON (withoutFields ["sequenceNumber"] fields))
 instance ToJSON EventMetadata where toJSON value = Object (KM.fromList (concat [[("sequenceNumber", toJSON (eventMetadataSequenceNumber value))]]) <> fmap toJSON (withoutFields ["sequenceNumber"] (eventMetadataAdditionalProperties value)))
-

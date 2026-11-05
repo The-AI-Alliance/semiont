@@ -35,5 +35,3 @@ instance FromJSON ExtractionDeclinedKind where
   parseJSON = checked "ExtractionDeclinedKind" $ \value -> if value == (String "declined") then pure ExtractionDeclinedKindDeclined else fail "unknown enumeration member"
 instance ToJSON ExtractionDeclinedKind where
   toJSON ExtractionDeclinedKindDeclined = String "declined"
-
-

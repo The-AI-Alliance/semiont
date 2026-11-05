@@ -21,5 +21,3 @@ instance FromJSON EmbeddingConfig where
 instance ToJSON EmbeddingConfig where
   toJSON (EmbeddingConfigBranch1 value) = toJSON value
   toJSON (EmbeddingConfigBranch2 value) = toJSON value
-
-

@@ -28,5 +28,3 @@ instance FromJSON ResourceClonedPayloadWasAttributedTo where
 instance ToJSON ResourceClonedPayloadWasAttributedTo where
   toJSON (ResourceClonedPayloadWasAttributedToBranch1 value) = toJSON value
   toJSON (ResourceClonedPayloadWasAttributedToBranch2 value) = toJSON value
-
-

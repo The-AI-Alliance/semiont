@@ -25,5 +25,3 @@ instance FromJSON WorkerHealthStatus where
   parseJSON = checked "WorkerHealthStatus" $ \value -> if value == (String "ok") then pure WorkerHealthStatusOk else fail "unknown enumeration member"
 instance ToJSON WorkerHealthStatus where
   toJSON WorkerHealthStatusOk = String "ok"
-
-

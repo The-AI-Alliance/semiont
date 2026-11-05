@@ -19,4 +19,3 @@ data GatherSummaryRequest = GatherSummaryRequest { gatherSummaryRequestAnnotatio
 instance FromJSON GatherSummaryRequest where
   parseJSON = checked "GatherSummaryRequest" $ withObject "GatherSummaryRequest" (\fields -> GatherSummaryRequest <$> fields .: "annotationId" <*> fields .: "resourceId" <*> traverse parseJSON (withoutFields ["annotationId", "resourceId"] fields))
 instance ToJSON GatherSummaryRequest where toJSON value = Object (KM.fromList (concat [[("annotationId", toJSON (gatherSummaryRequestAnnotationId value))], [("resourceId", toJSON (gatherSummaryRequestResourceId value))]]) <> fmap toJSON (withoutFields ["annotationId", "resourceId"] (gatherSummaryRequestAdditionalProperties value)))
-

@@ -27,4 +27,3 @@ data WorkerEngineHealthActiveJob = WorkerEngineHealthActiveJob { workerEngineHea
 instance FromJSON WorkerEngineHealthActiveJob where
   parseJSON = checked "WorkerEngineHealthActiveJob" $ withObject "WorkerEngineHealthActiveJob" (\fields -> WorkerEngineHealthActiveJob <$> fields .: "jobId" <*> fields .: "since" <*> fields .: "type")
 instance ToJSON WorkerEngineHealthActiveJob where toJSON value = Object (KM.fromList (concat [[("jobId", toJSON (workerEngineHealthActiveJobJobId value))], [("since", toJSON (workerEngineHealthActiveJobSince value))], [("type", toJSON (workerEngineHealthActiveJobType value))]]))
-

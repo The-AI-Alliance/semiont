@@ -18,4 +18,3 @@ data StorageUriEntry = StorageUriEntry { storageUriEntryResourceId :: ResourceId
 instance FromJSON StorageUriEntry where
   parseJSON = checked "StorageUriEntry" $ withObject "StorageUriEntry" (\fields -> StorageUriEntry <$> fields .: "resourceId" <*> fields .: "uri")
 instance ToJSON StorageUriEntry where toJSON value = Object (KM.fromList (concat [[("resourceId", toJSON (storageUriEntryResourceId value))], [("uri", toJSON (storageUriEntryUri value))]]))
-

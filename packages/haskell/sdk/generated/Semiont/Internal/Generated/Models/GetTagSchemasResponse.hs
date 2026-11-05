@@ -18,4 +18,3 @@ data GetTagSchemasResponse = GetTagSchemasResponse { getTagSchemasResponseTagSch
 instance FromJSON GetTagSchemasResponse where
   parseJSON = checked "GetTagSchemasResponse" $ withObject "GetTagSchemasResponse" (\fields -> GetTagSchemasResponse <$> fields .: "tagSchemas" <*> traverse parseJSON (withoutFields ["tagSchemas"] fields))
 instance ToJSON GetTagSchemasResponse where toJSON value = Object (KM.fromList (concat [[("tagSchemas", toJSON (getTagSchemasResponseTagSchemas value))]]) <> fmap toJSON (withoutFields ["tagSchemas"] (getTagSchemasResponseAdditionalProperties value)))
-

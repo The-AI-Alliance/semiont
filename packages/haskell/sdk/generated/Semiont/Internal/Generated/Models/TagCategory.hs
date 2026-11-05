@@ -17,4 +17,3 @@ data TagCategory = TagCategory { tagCategoryDescription :: Text, tagCategoryExam
 instance FromJSON TagCategory where
   parseJSON = checked "TagCategory" $ withObject "TagCategory" (\fields -> TagCategory <$> fields .: "description" <*> fields .: "examples" <*> fields .: "name" <*> traverse parseJSON (withoutFields ["description", "examples", "name"] fields))
 instance ToJSON TagCategory where toJSON value = Object (KM.fromList (concat [[("description", toJSON (tagCategoryDescription value))], [("examples", toJSON (tagCategoryExamples value))], [("name", toJSON (tagCategoryName value))]]) <> fmap toJSON (withoutFields ["description", "examples", "name"] (tagCategoryAdditionalProperties value)))
-

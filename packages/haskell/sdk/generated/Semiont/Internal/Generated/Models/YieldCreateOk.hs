@@ -24,4 +24,3 @@ data YieldCreateOkResponse = YieldCreateOkResponse { yieldCreateOkResponseResour
 instance FromJSON YieldCreateOkResponse where
   parseJSON = checked "YieldCreateOkResponse" $ withObject "YieldCreateOkResponse" (\fields -> YieldCreateOkResponse <$> fields .: "resourceId" <*> traverse parseJSON (withoutFields ["resourceId"] fields))
 instance ToJSON YieldCreateOkResponse where toJSON value = Object (KM.fromList (concat [[("resourceId", toJSON (yieldCreateOkResponseResourceId value))]]) <> fmap toJSON (withoutFields ["resourceId"] (yieldCreateOkResponseAdditionalProperties value)))
-

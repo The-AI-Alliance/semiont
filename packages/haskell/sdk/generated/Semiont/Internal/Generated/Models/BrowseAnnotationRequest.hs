@@ -19,4 +19,3 @@ data BrowseAnnotationRequest = BrowseAnnotationRequest { browseAnnotationRequest
 instance FromJSON BrowseAnnotationRequest where
   parseJSON = checked "BrowseAnnotationRequest" $ withObject "BrowseAnnotationRequest" (\fields -> BrowseAnnotationRequest <$> fields .: "annotationId" <*> fields .: "resourceId" <*> traverse parseJSON (withoutFields ["annotationId", "resourceId"] fields))
 instance ToJSON BrowseAnnotationRequest where toJSON value = Object (KM.fromList (concat [[("annotationId", toJSON (browseAnnotationRequestAnnotationId value))], [("resourceId", toJSON (browseAnnotationRequestResourceId value))]]) <> fmap toJSON (withoutFields ["annotationId", "resourceId"] (browseAnnotationRequestAdditionalProperties value)))
-

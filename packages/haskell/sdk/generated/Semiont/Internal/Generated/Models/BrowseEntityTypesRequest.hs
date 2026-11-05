@@ -17,4 +17,3 @@ data BrowseEntityTypesRequest = BrowseEntityTypesRequest { browseEntityTypesRequ
 instance FromJSON BrowseEntityTypesRequest where
   parseJSON = checked "BrowseEntityTypesRequest" $ withObject "BrowseEntityTypesRequest" (\fields -> BrowseEntityTypesRequest <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON BrowseEntityTypesRequest where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (browseEntityTypesRequestAdditionalProperties value)))
-

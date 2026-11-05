@@ -18,4 +18,3 @@ data FrameAddEntityTypeCommand = FrameAddEntityTypeCommand { frameAddEntityTypeC
 instance FromJSON FrameAddEntityTypeCommand where
   parseJSON = checked "FrameAddEntityTypeCommand" $ withObject "FrameAddEntityTypeCommand" (\fields -> FrameAddEntityTypeCommand <$> optional fields "_userId" <*> fields .: "tag" <*> traverse parseJSON (withoutFields ["_userId", "tag"] fields))
 instance ToJSON FrameAddEntityTypeCommand where toJSON value = Object (KM.fromList (concat [optionalPair "_userId" (frameAddEntityTypeCommandU5f_userId value), [("tag", toJSON (frameAddEntityTypeCommandTag value))]]) <> fmap toJSON (withoutFields ["_userId", "tag"] (frameAddEntityTypeCommandAdditionalProperties value)))
-

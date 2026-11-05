@@ -18,4 +18,3 @@ data JobCancelResultBusEnvelope = JobCancelResultBusEnvelope { jobCancelResultBu
 instance FromJSON JobCancelResultBusEnvelope where
   parseJSON = checked "JobCancelResultBusEnvelope" $ withObject "JobCancelResultBusEnvelope" (\fields -> JobCancelResultBusEnvelope <$> fields .: "response")
 instance ToJSON JobCancelResultBusEnvelope where toJSON value = Object (KM.fromList (concat [[("response", toJSON (jobCancelResultBusEnvelopeResponse value))]]))
-

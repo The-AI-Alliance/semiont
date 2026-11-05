@@ -24,5 +24,3 @@ instance FromJSON JobProgressGeneratingResourceCode where
   parseJSON = checked "JobProgressGeneratingResourceCode" $ \value -> if value == (String "generating-resource") then pure JobProgressGeneratingResourceCodeGeneratingU2d_resource else fail "unknown enumeration member"
 instance ToJSON JobProgressGeneratingResourceCode where
   toJSON JobProgressGeneratingResourceCodeGeneratingU2d_resource = String "generating-resource"
-
-

@@ -18,4 +18,3 @@ data BrowseResourceCloseEvent = BrowseResourceCloseEvent { browseResourceCloseEv
 instance FromJSON BrowseResourceCloseEvent where
   parseJSON = checked "BrowseResourceCloseEvent" $ withObject "BrowseResourceCloseEvent" (\fields -> BrowseResourceCloseEvent <$> fields .: "resourceId" <*> traverse parseJSON (withoutFields ["resourceId"] fields))
 instance ToJSON BrowseResourceCloseEvent where toJSON value = Object (KM.fromList (concat [[("resourceId", toJSON (browseResourceCloseEventResourceId value))]]) <> fmap toJSON (withoutFields ["resourceId"] (browseResourceCloseEventAdditionalProperties value)))
-

@@ -24,4 +24,3 @@ data BusSubscribeRequestScopedItem = BusSubscribeRequestScopedItem { busSubscrib
 instance FromJSON BusSubscribeRequestScopedItem where
   parseJSON = checked "BusSubscribeRequestScopedItem" $ withObject "BusSubscribeRequestScopedItem" (\fields -> BusSubscribeRequestScopedItem <$> fields .: "channels" <*> optional fields "lastEventId" <*> fields .: "scope")
 instance ToJSON BusSubscribeRequestScopedItem where toJSON value = Object (KM.fromList (concat [[("channels", toJSON (busSubscribeRequestScopedItemChannels value))], optionalPair "lastEventId" (busSubscribeRequestScopedItemLastEventId value), [("scope", toJSON (busSubscribeRequestScopedItemScope value))]]))
-

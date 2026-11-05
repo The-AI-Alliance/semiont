@@ -19,5 +19,3 @@ instance FromJSON LogFormat where
 instance ToJSON LogFormat where
   toJSON LogFormatJson = String "json"
   toJSON LogFormatSimple = String "simple"
-
-

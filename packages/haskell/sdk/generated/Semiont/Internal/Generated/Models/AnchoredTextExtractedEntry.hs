@@ -62,5 +62,3 @@ instance FromJSON AnchoredTextExtractedEntryV where
   parseJSON = checked "AnchoredTextExtractedEntryV" $ \value -> if value == (Number (read "3.0")) then pure AnchoredTextExtractedEntryVV3U2e_0 else fail "unknown enumeration member"
 instance ToJSON AnchoredTextExtractedEntryV where
   toJSON AnchoredTextExtractedEntryVV3U2e_0 = Number (read "3.0")
-
-

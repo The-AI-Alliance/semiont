@@ -18,4 +18,3 @@ data BrowseDirectoryResultResponse = BrowseDirectoryResultResponse { browseDirec
 instance FromJSON BrowseDirectoryResultResponse where
   parseJSON = checked "BrowseDirectoryResultResponse" $ withObject "BrowseDirectoryResultResponse" (\fields -> BrowseDirectoryResultResponse <$> fields .: "entries" <*> fields .: "path" <*> traverse parseJSON (withoutFields ["entries", "path"] fields))
 instance ToJSON BrowseDirectoryResultResponse where toJSON value = Object (KM.fromList (concat [[("entries", toJSON (browseDirectoryResultResponseEntries value))], [("path", toJSON (browseDirectoryResultResponsePath value))]]) <> fmap toJSON (withoutFields ["entries", "path"] (browseDirectoryResultResponseAdditionalProperties value)))
-

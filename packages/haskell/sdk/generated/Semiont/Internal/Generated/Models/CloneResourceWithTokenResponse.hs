@@ -18,4 +18,3 @@ data CloneResourceWithTokenResponse = CloneResourceWithTokenResponse { cloneReso
 instance FromJSON CloneResourceWithTokenResponse where
   parseJSON = checked "CloneResourceWithTokenResponse" $ withObject "CloneResourceWithTokenResponse" (\fields -> CloneResourceWithTokenResponse <$> fields .: "expiresAt" <*> fields .: "resource" <*> fields .: "token" <*> traverse parseJSON (withoutFields ["expiresAt", "resource", "token"] fields))
 instance ToJSON CloneResourceWithTokenResponse where toJSON value = Object (KM.fromList (concat [[("expiresAt", toJSON (cloneResourceWithTokenResponseExpiresAt value))], [("resource", toJSON (cloneResourceWithTokenResponseResource value))], [("token", toJSON (cloneResourceWithTokenResponseToken value))]]) <> fmap toJSON (withoutFields ["expiresAt", "resource", "token"] (cloneResourceWithTokenResponseAdditionalProperties value)))
-

@@ -25,5 +25,3 @@ instance FromJSON FileEntryType where
   parseJSON = checked "FileEntryType" $ \value -> if value == (String "file") then pure FileEntryTypeFile else fail "unknown enumeration member"
 instance ToJSON FileEntryType where
   toJSON FileEntryTypeFile = String "file"
-
-

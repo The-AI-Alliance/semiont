@@ -35,5 +35,3 @@ instance ToJSON AssessingJobParamsTone where
   toJSON AssessingJobParamsToneCritical = String "critical"
   toJSON AssessingJobParamsToneBalanced = String "balanced"
   toJSON AssessingJobParamsToneConstructive = String "constructive"
-
-

@@ -17,4 +17,3 @@ data BrowseResourceReorderEvent = BrowseResourceReorderEvent { browseResourceReo
 instance FromJSON BrowseResourceReorderEvent where
   parseJSON = checked "BrowseResourceReorderEvent" $ withObject "BrowseResourceReorderEvent" (\fields -> BrowseResourceReorderEvent <$> fields .: "newIndex" <*> fields .: "oldIndex" <*> traverse parseJSON (withoutFields ["newIndex", "oldIndex"] fields))
 instance ToJSON BrowseResourceReorderEvent where toJSON value = Object (KM.fromList (concat [[("newIndex", toJSON (browseResourceReorderEventNewIndex value))], [("oldIndex", toJSON (browseResourceReorderEventOldIndex value))]]) <> fmap toJSON (withoutFields ["newIndex", "oldIndex"] (browseResourceReorderEventAdditionalProperties value)))
-

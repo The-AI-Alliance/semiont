@@ -21,5 +21,3 @@ instance FromJSON VectorsConfig where
 instance ToJSON VectorsConfig where
   toJSON (VectorsConfigBranch1 value) = toJSON value
   toJSON (VectorsConfigBranch2 value) = toJSON value
-
-

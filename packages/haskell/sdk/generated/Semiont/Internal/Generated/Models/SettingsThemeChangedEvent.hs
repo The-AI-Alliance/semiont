@@ -26,5 +26,3 @@ instance ToJSON SettingsThemeChangedEventTheme where
   toJSON SettingsThemeChangedEventThemeLight = String "light"
   toJSON SettingsThemeChangedEventThemeDark = String "dark"
   toJSON SettingsThemeChangedEventThemeSystem = String "system"
-
-

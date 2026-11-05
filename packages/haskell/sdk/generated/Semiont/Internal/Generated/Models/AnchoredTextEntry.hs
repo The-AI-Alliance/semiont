@@ -21,5 +21,3 @@ instance FromJSON AnchoredTextEntry where
 instance ToJSON AnchoredTextEntry where
   toJSON (AnchoredTextEntryBranch1 value) = toJSON value
   toJSON (AnchoredTextEntryBranch2 value) = toJSON value
-
-

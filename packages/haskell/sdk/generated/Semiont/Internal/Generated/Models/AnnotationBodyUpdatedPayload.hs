@@ -30,5 +30,3 @@ instance ToJSON AnnotationBodyUpdatedPayloadOperationsItem where
   toJSON (AnnotationBodyUpdatedPayloadOperationsItemBranch1 value) = toJSON value
   toJSON (AnnotationBodyUpdatedPayloadOperationsItemBranch2 value) = toJSON value
   toJSON (AnnotationBodyUpdatedPayloadOperationsItemBranch3 value) = toJSON value
-
-

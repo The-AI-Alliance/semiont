@@ -17,4 +17,3 @@ data HealthResponse = HealthResponse { healthResponseMessage :: Text, healthResp
 instance FromJSON HealthResponse where
   parseJSON = checked "HealthResponse" $ withObject "HealthResponse" (\fields -> HealthResponse <$> fields .: "message" <*> fields .: "status" <*> fields .: "timestamp" <*> fields .: "version" <*> traverse parseJSON (withoutFields ["message", "status", "timestamp", "version"] fields))
 instance ToJSON HealthResponse where toJSON value = Object (KM.fromList (concat [[("message", toJSON (healthResponseMessage value))], [("status", toJSON (healthResponseStatus value))], [("timestamp", toJSON (healthResponseTimestamp value))], [("version", toJSON (healthResponseVersion value))]]) <> fmap toJSON (withoutFields ["message", "status", "timestamp", "version"] (healthResponseAdditionalProperties value)))
-

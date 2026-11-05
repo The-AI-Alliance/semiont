@@ -21,4 +21,3 @@ userIdValue :: UserId -> Text
 userIdValue (UserId value) = value
 mkUserId :: Text -> Either String UserId
 mkUserId value = parseEither parseJSON (toJSON value)
-

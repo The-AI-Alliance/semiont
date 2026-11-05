@@ -21,5 +21,3 @@ instance FromJSON JobQueuedEvent where
 instance ToJSON JobQueuedEvent where
   toJSON (JobQueuedEventBranch1 value) = toJSON value
   toJSON (JobQueuedEventBranch2 value) = toJSON value
-
-

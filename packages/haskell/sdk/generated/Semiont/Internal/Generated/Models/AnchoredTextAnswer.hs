@@ -23,5 +23,3 @@ instance ToJSON AnchoredTextAnswer where
   toJSON (AnchoredTextAnswerBranch1 value) = toJSON value
   toJSON (AnchoredTextAnswerBranch2 value) = toJSON value
   toJSON (AnchoredTextAnswerBranch3 value) = toJSON value
-
-

@@ -17,4 +17,3 @@ data RepresentationRemovedPayload = RepresentationRemovedPayload { representatio
 instance FromJSON RepresentationRemovedPayload where
   parseJSON = checked "RepresentationRemovedPayload" $ withObject "RepresentationRemovedPayload" (\fields -> RepresentationRemovedPayload <$> fields .: "checksum" <*> traverse parseJSON (withoutFields ["checksum"] fields))
 instance ToJSON RepresentationRemovedPayload where toJSON value = Object (KM.fromList (concat [[("checksum", toJSON (representationRemovedPayloadChecksum value))]]) <> fmap toJSON (withoutFields ["checksum"] (representationRemovedPayloadAdditionalProperties value)))
-

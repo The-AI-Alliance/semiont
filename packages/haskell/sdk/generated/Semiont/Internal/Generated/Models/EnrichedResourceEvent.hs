@@ -27,4 +27,3 @@ data EnrichedResourceEventPayload = EnrichedResourceEventPayload { enrichedResou
 instance FromJSON EnrichedResourceEventPayload where
   parseJSON = checked "EnrichedResourceEventPayload" $ withObject "EnrichedResourceEventPayload" (\fields -> EnrichedResourceEventPayload <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON EnrichedResourceEventPayload where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (enrichedResourceEventPayloadAdditionalProperties value)))
-

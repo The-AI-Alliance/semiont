@@ -24,5 +24,3 @@ instance FromJSON AgentPersonU40_type where
   parseJSON = checked "AgentPersonU40_type" $ \value -> if value == (String "Person") then pure AgentPersonU40_typePerson else fail "unknown enumeration member"
 instance ToJSON AgentPersonU40_type where
   toJSON AgentPersonU40_typePerson = String "Person"
-
-

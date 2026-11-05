@@ -17,4 +17,3 @@ newtype ReplyEventId = ReplyEventId { replyEventIdValue :: Text } deriving (Eq, 
 instance FromJSON ReplyEventId where
   parseJSON = checked "ReplyEventId" $ \value -> ReplyEventId <$> parseJSON value
 instance ToJSON ReplyEventId where toJSON (ReplyEventId value) = toJSON value
-

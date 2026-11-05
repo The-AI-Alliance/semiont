@@ -24,4 +24,3 @@ data BrowseEnginesResultResponse = BrowseEnginesResultResponse { browseEnginesRe
 instance FromJSON BrowseEnginesResultResponse where
   parseJSON = checked "BrowseEnginesResultResponse" $ withObject "BrowseEnginesResultResponse" (\fields -> BrowseEnginesResultResponse <$> fields .: "engines" <*> traverse parseJSON (withoutFields ["engines"] fields))
 instance ToJSON BrowseEnginesResultResponse where toJSON value = Object (KM.fromList (concat [[("engines", toJSON (browseEnginesResultResponseEngines value))]]) <> fmap toJSON (withoutFields ["engines"] (browseEnginesResultResponseAdditionalProperties value)))
-

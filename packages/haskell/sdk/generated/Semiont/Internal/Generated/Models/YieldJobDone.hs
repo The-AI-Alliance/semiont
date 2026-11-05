@@ -18,4 +18,3 @@ data YieldJobDone = YieldJobDone { yieldJobDoneResourceId :: ResourceId, yieldJo
 instance FromJSON YieldJobDone where
   parseJSON = checked "YieldJobDone" $ withObject "YieldJobDone" (\fields -> YieldJobDone <$> fields .: "resourceId" <*> fields .: "resourceName" <*> fields .: "truncated")
 instance ToJSON YieldJobDone where toJSON value = Object (KM.fromList (concat [[("resourceId", toJSON (yieldJobDoneResourceId value))], [("resourceName", toJSON (yieldJobDoneResourceName value))], [("truncated", toJSON (yieldJobDoneTruncated value))]]))
-

@@ -24,4 +24,3 @@ data BusEmitRequestPayload = BusEmitRequestPayload { busEmitRequestPayloadAdditi
 instance FromJSON BusEmitRequestPayload where
   parseJSON = checked "BusEmitRequestPayload" $ withObject "BusEmitRequestPayload" (\fields -> BusEmitRequestPayload <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON BusEmitRequestPayload where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (busEmitRequestPayloadAdditionalProperties value)))
-

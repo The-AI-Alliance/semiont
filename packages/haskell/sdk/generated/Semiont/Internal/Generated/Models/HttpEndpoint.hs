@@ -33,5 +33,3 @@ instance FromJSON HttpEndpointProtocol where
 instance ToJSON HttpEndpointProtocol where
   toJSON HttpEndpointProtocolHttp = String "http"
   toJSON HttpEndpointProtocolHttps = String "https"
-
-

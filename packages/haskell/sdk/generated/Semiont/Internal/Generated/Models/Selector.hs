@@ -25,5 +25,3 @@ instance ToJSON Selector where
   toJSON (SelectorBranch2 value) = toJSON value
   toJSON (SelectorBranch3 value) = toJSON value
   toJSON (SelectorBranch4 value) = toJSON value
-
-

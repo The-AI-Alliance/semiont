@@ -26,5 +26,3 @@ instance FromJSON MatchResourcesResponseMatchKind where
 instance ToJSON MatchResourcesResponseMatchKind where
   toJSON MatchResourcesResponseMatchKindLexical = String "lexical"
   toJSON MatchResourcesResponseMatchKindSemantic = String "semantic"
-
-

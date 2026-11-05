@@ -23,4 +23,3 @@ data MarkJobDoneByCategory = MarkJobDoneByCategory { markJobDoneByCategoryAdditi
 instance FromJSON MarkJobDoneByCategory where
   parseJSON = checked "MarkJobDoneByCategory" $ withObject "MarkJobDoneByCategory" (\fields -> MarkJobDoneByCategory <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON MarkJobDoneByCategory where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (markJobDoneByCategoryAdditionalProperties value)))
-

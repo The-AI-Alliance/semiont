@@ -57,5 +57,3 @@ instance ToJSON ExtractedTextPdfClass where
   toJSON ExtractedTextPdfClassE = String "E"
   toJSON ExtractedTextPdfClassF = String "F"
   toJSON ExtractedTextPdfClassG = String "G"
-
-

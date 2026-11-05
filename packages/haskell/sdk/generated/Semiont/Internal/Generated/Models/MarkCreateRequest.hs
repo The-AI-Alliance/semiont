@@ -19,4 +19,3 @@ data MarkCreateRequest = MarkCreateRequest { markCreateRequestRequest :: CreateA
 instance FromJSON MarkCreateRequest where
   parseJSON = checked "MarkCreateRequest" $ withObject "MarkCreateRequest" (\fields -> MarkCreateRequest <$> fields .: "request" <*> fields .: "resourceId" <*> traverse parseJSON (withoutFields ["request", "resourceId"] fields))
 instance ToJSON MarkCreateRequest where toJSON value = Object (KM.fromList (concat [[("request", toJSON (markCreateRequestRequest value))], [("resourceId", toJSON (markCreateRequestResourceId value))]]) <> fmap toJSON (withoutFields ["request", "resourceId"] (markCreateRequestAdditionalProperties value)))
-

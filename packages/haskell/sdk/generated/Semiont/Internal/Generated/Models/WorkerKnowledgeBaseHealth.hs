@@ -27,5 +27,3 @@ instance ToJSON WorkerKnowledgeBaseHealthState where
   toJSON WorkerKnowledgeBaseHealthStateStarting = String "starting"
   toJSON WorkerKnowledgeBaseHealthStateWorking = String "working"
   toJSON WorkerKnowledgeBaseHealthStateRefused = String "refused"
-
-

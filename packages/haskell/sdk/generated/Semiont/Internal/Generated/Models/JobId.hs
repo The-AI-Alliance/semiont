@@ -21,4 +21,3 @@ jobIdValue :: JobId -> Text
 jobIdValue (JobId value) = value
 mkJobId :: Text -> Either String JobId
 mkJobId value = parseEither parseJSON (toJSON value)
-

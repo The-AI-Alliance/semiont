@@ -29,4 +29,3 @@ data JobCancelCommandUnitCursors = JobCancelCommandUnitCursors { jobCancelComman
 instance FromJSON JobCancelCommandUnitCursors where
   parseJSON = checked "JobCancelCommandUnitCursors" $ withObject "JobCancelCommandUnitCursors" (\fields -> JobCancelCommandUnitCursors <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON JobCancelCommandUnitCursors where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (jobCancelCommandUnitCursorsAdditionalProperties value)))
-

@@ -27,5 +27,3 @@ instance ToJSON BindBodyOperationOp where
   toJSON BindBodyOperationOpAdd = String "add"
   toJSON BindBodyOperationOpRemove = String "remove"
   toJSON BindBodyOperationOpReplace = String "replace"
-
-

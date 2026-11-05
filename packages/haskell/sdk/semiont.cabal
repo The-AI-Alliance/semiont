@@ -9,7 +9,7 @@ category: Network
 author: The AI Alliance
 maintainer: Semiont contributors
 build-type: Simple
-extra-source-files: semiont.cabal.in, README.md, run.sh, test/refusals.py, test/refusals/*.hs
+extra-source-files: semiont.cabal.in, README.md, run.sh, api.py, public-api.inputs.json, public-api.json, test/refusals.py, test/refusals/*.hs
 
 common settings
   default-language: GHC2021
@@ -45,6 +45,7 @@ library internal
     Semiont.Internal.Broadcast
     Semiont.Internal.Sse
     Semiont.Internal.Running
+    Semiont.Internal.Delivery
     Semiont.Internal.Generated.Schemas
   other-modules:
     Semiont.Internal.Codec
@@ -402,6 +403,6 @@ test-suite schema-cases
   type: exitcode-stdio-1.0
   main-is: Main.hs
   hs-source-dirs: test
-  other-modules: Semiont.Internal.Generated.RoundTrip, Runtime
+  other-modules: Semiont.Internal.Generated.RoundTrip, Semiont.Internal.Generated.ChannelRoundTrip, Runtime
   ghc-options: -threaded
   build-depends: semiont:internal, directory >=1.3 && <1.4, filepath >=1.5 && <1.6

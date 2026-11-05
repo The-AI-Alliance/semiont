@@ -24,5 +24,3 @@ instance FromJSON SvgSelectorType where
   parseJSON = checked "SvgSelectorType" $ \value -> if value == (String "SvgSelector") then pure SvgSelectorTypeSvgSelector else fail "unknown enumeration member"
 instance ToJSON SvgSelectorType where
   toJSON SvgSelectorTypeSvgSelector = String "SvgSelector"
-
-

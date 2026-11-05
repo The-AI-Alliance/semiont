@@ -21,5 +21,3 @@ instance FromJSON MarkJobResult where
 instance ToJSON MarkJobResult where
   toJSON (MarkJobResultBranch1 value) = toJSON value
   toJSON (MarkJobResultBranch2 value) = toJSON value
-
-

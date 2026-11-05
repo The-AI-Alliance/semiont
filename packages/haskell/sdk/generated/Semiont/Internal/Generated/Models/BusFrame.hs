@@ -24,4 +24,3 @@ data BusFramePayload = BusFramePayload { busFramePayloadAdditionalProperties :: 
 instance FromJSON BusFramePayload where
   parseJSON = checked "BusFramePayload" $ withObject "BusFramePayload" (\fields -> BusFramePayload <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON BusFramePayload where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (busFramePayloadAdditionalProperties value)))
-

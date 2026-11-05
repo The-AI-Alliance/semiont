@@ -24,5 +24,3 @@ instance FromJSON VoyageEmbeddingConfigType where
   parseJSON = checked "VoyageEmbeddingConfigType" $ \value -> if value == (String "voyage") then pure VoyageEmbeddingConfigTypeVoyage else fail "unknown enumeration member"
 instance ToJSON VoyageEmbeddingConfigType where
   toJSON VoyageEmbeddingConfigTypeVoyage = String "voyage"
-
-

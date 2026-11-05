@@ -19,4 +19,3 @@ data BindInitiateCommand = BindInitiateCommand { bindInitiateCommandAnnotationId
 instance FromJSON BindInitiateCommand where
   parseJSON = checked "BindInitiateCommand" $ withObject "BindInitiateCommand" (\fields -> BindInitiateCommand <$> fields .: "annotationId" <*> fields .: "defaultTitle" <*> fields .: "entityTypes" <*> fields .: "resourceId" <*> traverse parseJSON (withoutFields ["annotationId", "defaultTitle", "entityTypes", "resourceId"] fields))
 instance ToJSON BindInitiateCommand where toJSON value = Object (KM.fromList (concat [[("annotationId", toJSON (bindInitiateCommandAnnotationId value))], [("defaultTitle", toJSON (bindInitiateCommandDefaultTitle value))], [("entityTypes", toJSON (bindInitiateCommandEntityTypes value))], [("resourceId", toJSON (bindInitiateCommandResourceId value))]]) <> fmap toJSON (withoutFields ["annotationId", "defaultTitle", "entityTypes", "resourceId"] (bindInitiateCommandAdditionalProperties value)))
-

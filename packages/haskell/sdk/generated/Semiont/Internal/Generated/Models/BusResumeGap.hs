@@ -28,5 +28,3 @@ instance ToJSON BusResumeGapReason where
   toJSON BusResumeGapReasonScopeU2d_mismatch = String "scope-mismatch"
   toJSON BusResumeGapReasonRetentionU2d_exceeded = String "retention-exceeded"
   toJSON BusResumeGapReasonQueryU2d_error = String "query-error"
-
-

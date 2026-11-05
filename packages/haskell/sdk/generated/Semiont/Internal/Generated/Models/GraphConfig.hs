@@ -25,5 +25,3 @@ instance ToJSON GraphConfig where
   toJSON (GraphConfigBranch2 value) = toJSON value
   toJSON (GraphConfigBranch3 value) = toJSON value
   toJSON (GraphConfigBranch4 value) = toJSON value
-
-

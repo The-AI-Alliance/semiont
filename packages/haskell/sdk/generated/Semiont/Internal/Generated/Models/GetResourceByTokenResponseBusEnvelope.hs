@@ -18,4 +18,3 @@ data GetResourceByTokenResponseBusEnvelope = GetResourceByTokenResponseBusEnvelo
 instance FromJSON GetResourceByTokenResponseBusEnvelope where
   parseJSON = checked "GetResourceByTokenResponseBusEnvelope" $ withObject "GetResourceByTokenResponseBusEnvelope" (\fields -> GetResourceByTokenResponseBusEnvelope <$> fields .: "response")
 instance ToJSON GetResourceByTokenResponseBusEnvelope where toJSON value = Object (KM.fromList (concat [[("response", toJSON (getResourceByTokenResponseBusEnvelopeResponse value))]]))
-

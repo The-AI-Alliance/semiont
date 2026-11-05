@@ -17,4 +17,3 @@ newtype PersistedEventId = PersistedEventId { persistedEventIdValue :: Text } de
 instance FromJSON PersistedEventId where
   parseJSON = checked "PersistedEventId" $ \value -> PersistedEventId <$> parseJSON value
 instance ToJSON PersistedEventId where toJSON (PersistedEventId value) = toJSON value
-

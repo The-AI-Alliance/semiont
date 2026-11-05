@@ -18,4 +18,3 @@ data JobCancelRequest = JobCancelRequest { jobCancelRequestJobId :: JobId, jobCa
 instance FromJSON JobCancelRequest where
   parseJSON = checked "JobCancelRequest" $ withObject "JobCancelRequest" (\fields -> JobCancelRequest <$> fields .: "jobId" <*> traverse parseJSON (withoutFields ["jobId"] fields))
 instance ToJSON JobCancelRequest where toJSON value = Object (KM.fromList (concat [[("jobId", toJSON (jobCancelRequestJobId value))]]) <> fmap toJSON (withoutFields ["jobId"] (jobCancelRequestAdditionalProperties value)))
-

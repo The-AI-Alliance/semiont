@@ -19,4 +19,3 @@ data GetAnnotationsResponse = GetAnnotationsResponse { getAnnotationsResponseAnn
 instance FromJSON GetAnnotationsResponse where
   parseJSON = checked "GetAnnotationsResponse" $ withObject "GetAnnotationsResponse" (\fields -> GetAnnotationsResponse <$> fields .: "annotations" <*> presence fields "motivation" <*> fields .: "total" <*> traverse parseJSON (withoutFields ["annotations", "motivation", "total"] fields))
 instance ToJSON GetAnnotationsResponse where toJSON value = Object (KM.fromList (concat [[("annotations", toJSON (getAnnotationsResponseAnnotations value))], presencePair "motivation" (getAnnotationsResponseMotivation value), [("total", toJSON (getAnnotationsResponseTotal value))]]) <> fmap toJSON (withoutFields ["annotations", "motivation", "total"] (getAnnotationsResponseAdditionalProperties value)))
-

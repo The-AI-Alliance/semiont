@@ -28,5 +28,3 @@ instance ToJSON LimitRefusalCode where
   toJSON LimitRefusalCodeUnansweredU2d_requests = String "unanswered-requests"
   toJSON LimitRefusalCodeCapacity = String "capacity"
   toJSON LimitRefusalCodeRefusalU2d_rate = String "refusal-rate"
-
-

@@ -26,5 +26,3 @@ instance FromJSON AnnotationTargetType where
   parseJSON = checked "AnnotationTargetType" $ \value -> if value == (String "SpecificResource") then pure AnnotationTargetTypeSpecificResource else fail "unknown enumeration member"
 instance ToJSON AnnotationTargetType where
   toJSON AnnotationTargetTypeSpecificResource = String "SpecificResource"
-
-

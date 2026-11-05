@@ -39,5 +39,3 @@ instance ToJSON SmeltSettledReason where
   toJSON SmeltSettledReasonEncrypted = String "encrypted"
   toJSON SmeltSettledReasonCorrupt = String "corrupt"
   toJSON SmeltSettledReasonTooU2d_large = String "too-large"
-
-

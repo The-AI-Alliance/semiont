@@ -17,4 +17,3 @@ data UnitCursor = UnitCursor { unitCursorEmitted :: Integer, unitCursorErrors ::
 instance FromJSON UnitCursor where
   parseJSON = checked "UnitCursor" $ withObject "UnitCursor" (\fields -> UnitCursor <$> fields .: "emitted" <*> fields .: "errors" <*> fields .: "found" <*> fields .: "next" <*> fields .: "size" <*> traverse parseJSON (withoutFields ["emitted", "errors", "found", "next", "size"] fields))
 instance ToJSON UnitCursor where toJSON value = Object (KM.fromList (concat [[("emitted", toJSON (unitCursorEmitted value))], [("errors", toJSON (unitCursorErrors value))], [("found", toJSON (unitCursorFound value))], [("next", toJSON (unitCursorNext value))], [("size", toJSON (unitCursorSize value))]]) <> fmap toJSON (withoutFields ["emitted", "errors", "found", "next", "size"] (unitCursorAdditionalProperties value)))
-

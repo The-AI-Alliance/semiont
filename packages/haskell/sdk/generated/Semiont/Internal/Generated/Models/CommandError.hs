@@ -27,5 +27,3 @@ instance ToJSON CommandErrorCode where
   toJSON CommandErrorCodeNotU2d_found = String "not-found"
   toJSON CommandErrorCodeUnauthorized = String "unauthorized"
   toJSON CommandErrorCodeNoneU2d_pending = String "none-pending"
-
-

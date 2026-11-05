@@ -17,4 +17,3 @@ data EmptyBusPayload = EmptyBusPayload deriving (Eq, Show)
 instance FromJSON EmptyBusPayload where
   parseJSON = checked "EmptyBusPayload" $ withObject "EmptyBusPayload" (\_ -> pure EmptyBusPayload)
 instance ToJSON EmptyBusPayload where toJSON _ = Object (KM.fromList (concat []))
-

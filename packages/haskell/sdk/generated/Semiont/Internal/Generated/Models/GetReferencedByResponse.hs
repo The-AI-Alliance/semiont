@@ -18,4 +18,3 @@ data GetReferencedByResponse = GetReferencedByResponse { getReferencedByResponse
 instance FromJSON GetReferencedByResponse where
   parseJSON = checked "GetReferencedByResponse" $ withObject "GetReferencedByResponse" (\fields -> GetReferencedByResponse <$> fields .: "referencedBy" <*> traverse parseJSON (withoutFields ["referencedBy"] fields))
 instance ToJSON GetReferencedByResponse where toJSON value = Object (KM.fromList (concat [[("referencedBy", toJSON (getReferencedByResponseReferencedBy value))]]) <> fmap toJSON (withoutFields ["referencedBy"] (getReferencedByResponseAdditionalProperties value)))
-

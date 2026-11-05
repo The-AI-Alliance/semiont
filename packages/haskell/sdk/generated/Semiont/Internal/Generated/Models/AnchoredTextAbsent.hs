@@ -26,5 +26,3 @@ instance ToJSON AnchoredTextAbsentKind where
   toJSON AnchoredTextAbsentKindNotU2d_yet = String "not-yet"
   toJSON AnchoredTextAbsentKindNoU2d_map = String "no-map"
   toJSON AnchoredTextAbsentKindUnknown = String "unknown"
-
-

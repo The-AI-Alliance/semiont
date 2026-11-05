@@ -21,5 +21,3 @@ instance FromJSON JobCreateCommand where
 instance ToJSON JobCreateCommand where
   toJSON (JobCreateCommandBranch1 value) = toJSON value
   toJSON (JobCreateCommandBranch2 value) = toJSON value
-
-

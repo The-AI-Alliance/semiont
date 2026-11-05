@@ -24,5 +24,3 @@ instance FromJSON BusPingMessageEvent where
   parseJSON = checked "BusPingMessageEvent" $ \value -> if value == (String "ping") then pure BusPingMessageEventPing else fail "unknown enumeration member"
 instance ToJSON BusPingMessageEvent where
   toJSON BusPingMessageEventPing = String "ping"
-
-

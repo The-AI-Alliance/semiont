@@ -18,4 +18,3 @@ data BrowseClickEvent = BrowseClickEvent { browseClickEventAnnotationId :: Annot
 instance FromJSON BrowseClickEvent where
   parseJSON = checked "BrowseClickEvent" $ withObject "BrowseClickEvent" (\fields -> BrowseClickEvent <$> fields .: "annotationId" <*> traverse parseJSON (withoutFields ["annotationId"] fields))
 instance ToJSON BrowseClickEvent where toJSON value = Object (KM.fromList (concat [[("annotationId", toJSON (browseClickEventAnnotationId value))]]) <> fmap toJSON (withoutFields ["annotationId"] (browseClickEventAdditionalProperties value)))
-

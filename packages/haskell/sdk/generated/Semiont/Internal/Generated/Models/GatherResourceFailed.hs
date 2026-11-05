@@ -28,5 +28,3 @@ instance ToJSON GatherResourceFailedCode where
   toJSON GatherResourceFailedCodeNotU2d_found = String "not-found"
   toJSON GatherResourceFailedCodeUnauthorized = String "unauthorized"
   toJSON GatherResourceFailedCodeNoneU2d_pending = String "none-pending"
-
-

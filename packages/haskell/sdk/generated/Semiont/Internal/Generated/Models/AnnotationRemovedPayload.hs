@@ -18,4 +18,3 @@ data AnnotationRemovedPayload = AnnotationRemovedPayload { annotationRemovedPayl
 instance FromJSON AnnotationRemovedPayload where
   parseJSON = checked "AnnotationRemovedPayload" $ withObject "AnnotationRemovedPayload" (\fields -> AnnotationRemovedPayload <$> fields .: "annotationId" <*> traverse parseJSON (withoutFields ["annotationId"] fields))
 instance ToJSON AnnotationRemovedPayload where toJSON value = Object (KM.fromList (concat [[("annotationId", toJSON (annotationRemovedPayloadAnnotationId value))]]) <> fmap toJSON (withoutFields ["annotationId"] (annotationRemovedPayloadAdditionalProperties value)))
-

@@ -17,4 +17,3 @@ data Profile = Profile { profileName :: Text, profileSince :: Text } deriving (E
 instance FromJSON Profile where
   parseJSON = checked "Profile" $ withObject "Profile" (\fields -> Profile <$> fields .: "name" <*> fields .: "since")
 instance ToJSON Profile where toJSON value = Object (KM.fromList (concat [[("name", toJSON (profileName value))], [("since", toJSON (profileSince value))]]))
-

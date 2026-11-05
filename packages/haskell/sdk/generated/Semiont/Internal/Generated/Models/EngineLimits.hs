@@ -19,4 +19,3 @@ data EngineLimits = EngineLimits { engineLimitsEngine :: Engine, engineLimitsLim
 instance FromJSON EngineLimits where
   parseJSON = checked "EngineLimits" $ withObject "EngineLimits" (\fields -> EngineLimits <$> fields .: "engine" <*> fields .: "limits")
 instance ToJSON EngineLimits where toJSON value = Object (KM.fromList (concat [[("engine", toJSON (engineLimitsEngine value))], [("limits", toJSON (engineLimitsLimits value))]]))
-

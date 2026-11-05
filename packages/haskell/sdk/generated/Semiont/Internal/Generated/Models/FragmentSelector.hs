@@ -24,5 +24,3 @@ instance FromJSON FragmentSelectorType where
   parseJSON = checked "FragmentSelectorType" $ \value -> if value == (String "FragmentSelector") then pure FragmentSelectorTypeFragmentSelector else fail "unknown enumeration member"
 instance ToJSON FragmentSelectorType where
   toJSON FragmentSelectorTypeFragmentSelector = String "FragmentSelector"
-
-

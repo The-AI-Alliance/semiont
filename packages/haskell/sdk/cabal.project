@@ -3,4 +3,3 @@ packages: .
 
 package semiont
   ghc-options: -Werror
-

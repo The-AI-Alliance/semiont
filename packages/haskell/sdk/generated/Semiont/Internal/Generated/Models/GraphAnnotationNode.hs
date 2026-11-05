@@ -32,5 +32,3 @@ instance FromJSON GraphAnnotationNodeType where
   parseJSON = checked "GraphAnnotationNodeType" $ \value -> if value == (String "annotation") then pure GraphAnnotationNodeTypeAnnotation else fail "unknown enumeration member"
 instance ToJSON GraphAnnotationNodeType where
   toJSON GraphAnnotationNodeTypeAnnotation = String "annotation"
-
-

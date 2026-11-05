@@ -18,4 +18,3 @@ data TagSchemaAddedPayload = TagSchemaAddedPayload { tagSchemaAddedPayloadSchema
 instance FromJSON TagSchemaAddedPayload where
   parseJSON = checked "TagSchemaAddedPayload" $ withObject "TagSchemaAddedPayload" (\fields -> TagSchemaAddedPayload <$> fields .: "schema" <*> traverse parseJSON (withoutFields ["schema"] fields))
 instance ToJSON TagSchemaAddedPayload where toJSON value = Object (KM.fromList (concat [[("schema", toJSON (tagSchemaAddedPayloadSchema value))]]) <> fmap toJSON (withoutFields ["schema"] (tagSchemaAddedPayloadAdditionalProperties value)))
-

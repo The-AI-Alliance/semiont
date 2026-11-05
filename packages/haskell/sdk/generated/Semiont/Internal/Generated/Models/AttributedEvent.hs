@@ -27,4 +27,3 @@ data AttributedEventPayload = AttributedEventPayload { attributedEventPayloadAdd
 instance FromJSON AttributedEventPayload where
   parseJSON = checked "AttributedEventPayload" $ withObject "AttributedEventPayload" (\fields -> AttributedEventPayload <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON AttributedEventPayload where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (attributedEventPayloadAdditionalProperties value)))
-

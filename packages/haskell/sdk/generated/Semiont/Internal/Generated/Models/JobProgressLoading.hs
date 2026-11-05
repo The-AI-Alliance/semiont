@@ -24,5 +24,3 @@ instance FromJSON JobProgressLoadingCode where
   parseJSON = checked "JobProgressLoadingCode" $ \value -> if value == (String "loading") then pure JobProgressLoadingCodeLoading else fail "unknown enumeration member"
 instance ToJSON JobProgressLoadingCode where
   toJSON JobProgressLoadingCodeLoading = String "loading"
-
-

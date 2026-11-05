@@ -19,4 +19,3 @@ data GetResourceResponse = GetResourceResponse { getResourceResponseAnnotations 
 instance FromJSON GetResourceResponse where
   parseJSON = checked "GetResourceResponse" $ withObject "GetResourceResponse" (\fields -> GetResourceResponse <$> fields .: "annotations" <*> fields .: "resource" <*> traverse parseJSON (withoutFields ["annotations", "resource"] fields))
 instance ToJSON GetResourceResponse where toJSON value = Object (KM.fromList (concat [[("annotations", toJSON (getResourceResponseAnnotations value))], [("resource", toJSON (getResourceResponseResource value))]]) <> fmap toJSON (withoutFields ["annotations", "resource"] (getResourceResponseAdditionalProperties value)))
-

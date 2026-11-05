@@ -18,4 +18,3 @@ data JobRecord = JobRecord { jobRecordJob :: Job, jobRecordLastProgressAt :: Tex
 instance FromJSON JobRecord where
   parseJSON = checked "JobRecord" $ withObject "JobRecord" (\fields -> JobRecord <$> fields .: "job" <*> fields .: "lastProgressAt")
 instance ToJSON JobRecord where toJSON value = Object (KM.fromList (concat [[("job", toJSON (jobRecordJob value))], [("lastProgressAt", toJSON (jobRecordLastProgressAt value))]]))
-

@@ -18,4 +18,3 @@ data ContextualSummaryResponseBusEnvelope = ContextualSummaryResponseBusEnvelope
 instance FromJSON ContextualSummaryResponseBusEnvelope where
   parseJSON = checked "ContextualSummaryResponseBusEnvelope" $ withObject "ContextualSummaryResponseBusEnvelope" (\fields -> ContextualSummaryResponseBusEnvelope <$> fields .: "response")
 instance ToJSON ContextualSummaryResponseBusEnvelope where toJSON value = Object (KM.fromList (concat [[("response", toJSON (contextualSummaryResponseBusEnvelopeResponse value))]]))
-

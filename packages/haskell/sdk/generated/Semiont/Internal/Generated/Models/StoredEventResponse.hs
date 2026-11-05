@@ -26,4 +26,3 @@ data StoredEventResponsePayload = StoredEventResponsePayload { storedEventRespon
 instance FromJSON StoredEventResponsePayload where
   parseJSON = checked "StoredEventResponsePayload" $ withObject "StoredEventResponsePayload" (\fields -> StoredEventResponsePayload <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON StoredEventResponsePayload where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (storedEventResponsePayloadAdditionalProperties value)))
-

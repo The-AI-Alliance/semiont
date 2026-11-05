@@ -17,4 +17,3 @@ data EntityTagChangedPayload = EntityTagChangedPayload { entityTagChangedPayload
 instance FromJSON EntityTagChangedPayload where
   parseJSON = checked "EntityTagChangedPayload" $ withObject "EntityTagChangedPayload" (\fields -> EntityTagChangedPayload <$> fields .: "entityType" <*> traverse parseJSON (withoutFields ["entityType"] fields))
 instance ToJSON EntityTagChangedPayload where toJSON value = Object (KM.fromList (concat [[("entityType", toJSON (entityTagChangedPayloadEntityType value))]]) <> fmap toJSON (withoutFields ["entityType"] (entityTagChangedPayloadAdditionalProperties value)))
-

@@ -24,5 +24,3 @@ instance FromJSON YieldJobFilterJobType where
   parseJSON = checked "YieldJobFilterJobType" $ \value -> if value == (String "yield") then pure YieldJobFilterJobTypeYield else fail "unknown enumeration member"
 instance ToJSON YieldJobFilterJobType where
   toJSON YieldJobFilterJobTypeYield = String "yield"
-
-

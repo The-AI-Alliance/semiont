@@ -35,5 +35,3 @@ instance FromJSON BodyOperationAddOp where
   parseJSON = checked "BodyOperationAddOp" $ \value -> if value == (String "add") then pure BodyOperationAddOpAdd else fail "unknown enumeration member"
 instance ToJSON BodyOperationAddOp where
   toJSON BodyOperationAddOpAdd = String "add"
-
-

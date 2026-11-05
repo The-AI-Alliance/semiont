@@ -19,4 +19,3 @@ data GatherResourceComplete = GatherResourceComplete { gatherResourceCompleteRes
 instance FromJSON GatherResourceComplete where
   parseJSON = checked "GatherResourceComplete" $ withObject "GatherResourceComplete" (\fields -> GatherResourceComplete <$> fields .: "resourceId" <*> fields .: "response" <*> traverse parseJSON (withoutFields ["resourceId", "response"] fields))
 instance ToJSON GatherResourceComplete where toJSON value = Object (KM.fromList (concat [[("resourceId", toJSON (gatherResourceCompleteResourceId value))], [("response", toJSON (gatherResourceCompleteResponse value))]]) <> fmap toJSON (withoutFields ["resourceId", "response"] (gatherResourceCompleteAdditionalProperties value)))
-

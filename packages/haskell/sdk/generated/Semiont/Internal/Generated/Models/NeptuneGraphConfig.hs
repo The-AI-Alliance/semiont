@@ -24,5 +24,3 @@ instance FromJSON NeptuneGraphConfigType where
   parseJSON = checked "NeptuneGraphConfigType" $ \value -> if value == (String "neptune") then pure NeptuneGraphConfigTypeNeptune else fail "unknown enumeration member"
 instance ToJSON NeptuneGraphConfigType where
   toJSON NeptuneGraphConfigTypeNeptune = String "neptune"
-
-

@@ -30,4 +30,3 @@ data BrowseProfilesResultResponseProfiles = BrowseProfilesResultResponseProfiles
 instance FromJSON BrowseProfilesResultResponseProfiles where
   parseJSON = checked "BrowseProfilesResultResponseProfiles" $ withObject "BrowseProfilesResultResponseProfiles" (\fields -> BrowseProfilesResultResponseProfiles <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON BrowseProfilesResultResponseProfiles where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (browseProfilesResultResponseProfilesAdditionalProperties value)))
-

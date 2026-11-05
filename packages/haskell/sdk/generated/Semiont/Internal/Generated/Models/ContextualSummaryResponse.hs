@@ -30,4 +30,3 @@ data ContextualSummaryResponseRelevantFields = ContextualSummaryResponseRelevant
 instance FromJSON ContextualSummaryResponseRelevantFields where
   parseJSON = checked "ContextualSummaryResponseRelevantFields" $ withObject "ContextualSummaryResponseRelevantFields" (\fields -> ContextualSummaryResponseRelevantFields <$> fields .: "entityTypes" <*> fields .: "resourceId" <*> fields .: "resourceName")
 instance ToJSON ContextualSummaryResponseRelevantFields where toJSON value = Object (KM.fromList (concat [[("entityTypes", toJSON (contextualSummaryResponseRelevantFieldsEntityTypes value))], [("resourceId", toJSON (contextualSummaryResponseRelevantFieldsResourceId value))], [("resourceName", toJSON (contextualSummaryResponseRelevantFieldsResourceName value))]]))
-

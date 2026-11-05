@@ -20,4 +20,3 @@ data MarkDeleteCommand = MarkDeleteCommand { markDeleteCommandU5f_userId :: Mayb
 instance FromJSON MarkDeleteCommand where
   parseJSON = checked "MarkDeleteCommand" $ withObject "MarkDeleteCommand" (\fields -> MarkDeleteCommand <$> optional fields "_userId" <*> fields .: "annotationId" <*> optional fields "resourceId" <*> traverse parseJSON (withoutFields ["_userId", "annotationId", "resourceId"] fields))
 instance ToJSON MarkDeleteCommand where toJSON value = Object (KM.fromList (concat [optionalPair "_userId" (markDeleteCommandU5f_userId value), [("annotationId", toJSON (markDeleteCommandAnnotationId value))], optionalPair "resourceId" (markDeleteCommandResourceId value)]) <> fmap toJSON (withoutFields ["_userId", "annotationId", "resourceId"] (markDeleteCommandAdditionalProperties value)))
-

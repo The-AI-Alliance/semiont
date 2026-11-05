@@ -21,4 +21,3 @@ data BindUpdateBodyCommand = BindUpdateBodyCommand { bindUpdateBodyCommandU5f_us
 instance FromJSON BindUpdateBodyCommand where
   parseJSON = checked "BindUpdateBodyCommand" $ withObject "BindUpdateBodyCommand" (\fields -> BindUpdateBodyCommand <$> optional fields "_userId" <*> fields .: "annotationId" <*> fields .: "operations" <*> fields .: "resourceId" <*> traverse parseJSON (withoutFields ["_userId", "annotationId", "operations", "resourceId"] fields))
 instance ToJSON BindUpdateBodyCommand where toJSON value = Object (KM.fromList (concat [optionalPair "_userId" (bindUpdateBodyCommandU5f_userId value), [("annotationId", toJSON (bindUpdateBodyCommandAnnotationId value))], [("operations", toJSON (bindUpdateBodyCommandOperations value))], [("resourceId", toJSON (bindUpdateBodyCommandResourceId value))]]) <> fmap toJSON (withoutFields ["_userId", "annotationId", "operations", "resourceId"] (bindUpdateBodyCommandAdditionalProperties value)))
-

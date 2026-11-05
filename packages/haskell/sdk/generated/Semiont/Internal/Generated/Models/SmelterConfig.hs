@@ -41,4 +41,3 @@ data SmelterConfigIdentity = SmelterConfigIdentity { smelterConfigIdentityIssuer
 instance FromJSON SmelterConfigIdentity where
   parseJSON = checked "SmelterConfigIdentity" $ withObject "SmelterConfigIdentity" (\fields -> SmelterConfigIdentity <$> fields .: "issuer")
 instance ToJSON SmelterConfigIdentity where toJSON value = Object (KM.fromList (concat [[("issuer", toJSON (smelterConfigIdentityIssuer value))]]))
-

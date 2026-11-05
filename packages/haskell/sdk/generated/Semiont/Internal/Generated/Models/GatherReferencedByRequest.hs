@@ -19,4 +19,3 @@ data GatherReferencedByRequest = GatherReferencedByRequest { gatherReferencedByR
 instance FromJSON GatherReferencedByRequest where
   parseJSON = checked "GatherReferencedByRequest" $ withObject "GatherReferencedByRequest" (\fields -> GatherReferencedByRequest <$> optional fields "motivation" <*> fields .: "resourceId" <*> traverse parseJSON (withoutFields ["motivation", "resourceId"] fields))
 instance ToJSON GatherReferencedByRequest where toJSON value = Object (KM.fromList (concat [optionalPair "motivation" (gatherReferencedByRequestMotivation value), [("resourceId", toJSON (gatherReferencedByRequestResourceId value))]]) <> fmap toJSON (withoutFields ["motivation", "resourceId"] (gatherReferencedByRequestAdditionalProperties value)))
-

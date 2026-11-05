@@ -24,5 +24,3 @@ instance FromJSON MemoryVectorsConfigType where
   parseJSON = checked "MemoryVectorsConfigType" $ \value -> if value == (String "memory") then pure MemoryVectorsConfigTypeMemory else fail "unknown enumeration member"
 instance ToJSON MemoryVectorsConfigType where
   toJSON MemoryVectorsConfigTypeMemory = String "memory"
-
-

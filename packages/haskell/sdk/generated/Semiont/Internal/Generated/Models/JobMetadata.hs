@@ -27,4 +27,3 @@ data JobMetadataUnitCursors = JobMetadataUnitCursors { jobMetadataUnitCursorsAdd
 instance FromJSON JobMetadataUnitCursors where
   parseJSON = checked "JobMetadataUnitCursors" $ withObject "JobMetadataUnitCursors" (\fields -> JobMetadataUnitCursors <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON JobMetadataUnitCursors where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (jobMetadataUnitCursorsAdditionalProperties value)))
-

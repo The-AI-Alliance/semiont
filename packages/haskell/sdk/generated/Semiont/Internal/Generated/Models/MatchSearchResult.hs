@@ -19,4 +19,3 @@ data MatchSearchResult = MatchSearchResult { matchSearchResultReferenceId :: Ann
 instance FromJSON MatchSearchResult where
   parseJSON = checked "MatchSearchResult" $ withObject "MatchSearchResult" (\fields -> MatchSearchResult <$> fields .: "referenceId" <*> fields .: "response" <*> traverse parseJSON (withoutFields ["referenceId", "response"] fields))
 instance ToJSON MatchSearchResult where toJSON value = Object (KM.fromList (concat [[("referenceId", toJSON (matchSearchResultReferenceId value))], [("response", toJSON (matchSearchResultResponse value))]]) <> fmap toJSON (withoutFields ["referenceId", "response"] (matchSearchResultAdditionalProperties value)))
-

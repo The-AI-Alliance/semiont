@@ -21,5 +21,3 @@ instance FromJSON ExtractionOutcome where
 instance ToJSON ExtractionOutcome where
   toJSON (ExtractionOutcomeBranch1 value) = toJSON value
   toJSON (ExtractionOutcomeBranch2 value) = toJSON value
-
-

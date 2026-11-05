@@ -24,4 +24,3 @@ data MarkDeleteOkResponse = MarkDeleteOkResponse { markDeleteOkResponseAnnotatio
 instance FromJSON MarkDeleteOkResponse where
   parseJSON = checked "MarkDeleteOkResponse" $ withObject "MarkDeleteOkResponse" (\fields -> MarkDeleteOkResponse <$> fields .: "annotationId" <*> traverse parseJSON (withoutFields ["annotationId"] fields))
 instance ToJSON MarkDeleteOkResponse where toJSON value = Object (KM.fromList (concat [[("annotationId", toJSON (markDeleteOkResponseAnnotationId value))]]) <> fmap toJSON (withoutFields ["annotationId"] (markDeleteOkResponseAdditionalProperties value)))
-

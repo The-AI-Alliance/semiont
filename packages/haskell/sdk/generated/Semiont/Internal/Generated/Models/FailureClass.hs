@@ -20,5 +20,3 @@ instance ToJSON FailureClass where
   toJSON FailureClassTransient = String "transient"
   toJSON FailureClassDeterministic = String "deterministic"
   toJSON FailureClassWithheld = String "withheld"
-
-

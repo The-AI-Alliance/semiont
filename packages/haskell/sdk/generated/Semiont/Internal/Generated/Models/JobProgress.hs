@@ -62,5 +62,3 @@ instance ToJSON JobProgressRequestParamsItemLabel where
   toJSON JobProgressRequestParamsItemLabelInstructions = String "instructions"
   toJSON JobProgressRequestParamsItemLabelTone = String "tone"
   toJSON JobProgressRequestParamsItemLabelDensity = String "density"
-
-

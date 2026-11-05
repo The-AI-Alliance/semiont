@@ -80,5 +80,3 @@ instance ToJSON SupportedMediaType where
   toJSON SupportedMediaTypeFontU2f_woff2 = String "font/woff2"
   toJSON SupportedMediaTypeFontU2f_ttf = String "font/ttf"
   toJSON SupportedMediaTypeFontU2f_otf = String "font/otf"
-
-

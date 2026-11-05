@@ -18,4 +18,3 @@ data TagSchema = TagSchema { tagSchemaDescription :: Text, tagSchemaDomain :: Te
 instance FromJSON TagSchema where
   parseJSON = checked "TagSchema" $ withObject "TagSchema" (\fields -> TagSchema <$> fields .: "description" <*> fields .: "domain" <*> fields .: "id" <*> fields .: "name" <*> fields .: "tags" <*> traverse parseJSON (withoutFields ["description", "domain", "id", "name", "tags"] fields))
 instance ToJSON TagSchema where toJSON value = Object (KM.fromList (concat [[("description", toJSON (tagSchemaDescription value))], [("domain", toJSON (tagSchemaDomain value))], [("id", toJSON (tagSchemaId value))], [("name", toJSON (tagSchemaName value))], [("tags", toJSON (tagSchemaTags value))]]) <> fmap toJSON (withoutFields ["description", "domain", "id", "name", "tags"] (tagSchemaAdditionalProperties value)))
-

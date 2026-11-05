@@ -17,6 +17,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Semiont.Internal.Generated.RoundTrip (roundTrip)
+import Semiont.Internal.Generated.ChannelRoundTrip (roundTripChannel)
 import Semiont.Internal.Generated.Schemas (schemas)
 import Semiont.Internal.Schema (checkSchema, normalize, validate, validateNamed)
 import System.Directory (doesDirectoryExist, listDirectory)
@@ -187,6 +188,29 @@ corpusCases root = do
   require "corpus runner executed no payloads" (count > 0)
   putStrLn ("PASS corpus payloads: " ++ show count ++ " round-trips; " ++ show failures ++ " schema-invalid refusals")
 
+channelCases :: FilePath -> IO ()
+channelCases root = do
+  registry <- readJSON (root </> "protocol/specs/src/bus/registry.json")
+  let channels = array (at "channels" registry)
+  require "registry declares no channels" (not (null channels))
+  forM_ channels $ \channel -> do
+    name <- case at "channel" channel of String value -> pure value; _ -> ioError (userError "channel name missing")
+    named <- case at "shape" channel of
+      String "schema" -> case at "schema" channel of String value -> pure value; _ -> ioError (userError "channel schema missing")
+      String "storedEvent" -> pure (if at "enriched" channel == Bool True then "EnrichedResourceEvent" else "StoredEventResponse")
+      String "envelope" -> case at "schema" channel of String value -> pure (value <> "BusEnvelope"); _ -> ioError (userError "envelope schema missing")
+      String "empty" -> pure "EmptyBusPayload"
+      String "void" -> pure "EmptyBusPayload"
+      _ -> ioError (userError "unrecognized channel shape")
+    schema <- maybe (ioError (userError ("missing generated channel schema: " ++ T.unpack named))) pure (Map.lookup named schemas)
+    payload <- either (ioError . userError) pure (sample 0 schema)
+    stamped <- case payload of
+      Object fields -> pure (Object (KM.insert "__testStamp" (String "gateway-owned") fields))
+      _ -> ioError (userError "channel payload is not an object")
+    require ("channel decoder lost a declared stamp or retained an unknown one on " ++ T.unpack name)
+      (roundTripChannel name stamped == Right payload)
+  putStrLn ("PASS typed payload decoding and stamp handling for all " ++ show (length channels) ++ " registry channels")
+
 main :: IO ()
 main = do
   args <- getArgs
@@ -205,4 +229,5 @@ main = do
   putStrLn "PASS generated schema samples, null presence, open members, exact numbers and enums"
   identifierCases root
   putStrLn "PASS shared identifier acceptance/refusal cases"
+  channelCases root
   corpusCases root

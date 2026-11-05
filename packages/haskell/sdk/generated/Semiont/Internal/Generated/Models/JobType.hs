@@ -19,5 +19,3 @@ instance FromJSON JobType where
 instance ToJSON JobType where
   toJSON JobTypeMark = String "mark"
   toJSON JobTypeYield = String "yield"
-
-

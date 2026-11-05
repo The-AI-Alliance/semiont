@@ -24,5 +24,3 @@ instance FromJSON DirEntryType where
   parseJSON = checked "DirEntryType" $ \value -> if value == (String "dir") then pure DirEntryTypeDir else fail "unknown enumeration member"
 instance ToJSON DirEntryType where
   toJSON DirEntryTypeDir = String "dir"
-
-

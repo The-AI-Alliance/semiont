@@ -24,5 +24,3 @@ instance FromJSON LinkingJobParamsMotivation where
   parseJSON = checked "LinkingJobParamsMotivation" $ \value -> if value == (String "linking") then pure LinkingJobParamsMotivationLinking else fail "unknown enumeration member"
 instance ToJSON LinkingJobParamsMotivation where
   toJSON LinkingJobParamsMotivationLinking = String "linking"
-
-

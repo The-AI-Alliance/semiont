@@ -17,4 +17,3 @@ data BrowseResourcesRequest = BrowseResourcesRequest { browseResourcesRequestArc
 instance FromJSON BrowseResourcesRequest where
   parseJSON = checked "BrowseResourcesRequest" $ withObject "BrowseResourcesRequest" (\fields -> BrowseResourcesRequest <$> optional fields "archived" <*> optional fields "entityType" <*> optional fields "limit" <*> optional fields "offset" <*> traverse parseJSON (withoutFields ["archived", "entityType", "limit", "offset"] fields))
 instance ToJSON BrowseResourcesRequest where toJSON value = Object (KM.fromList (concat [optionalPair "archived" (browseResourcesRequestArchived value), optionalPair "entityType" (browseResourcesRequestEntityType value), optionalPair "limit" (browseResourcesRequestLimit value), optionalPair "offset" (browseResourcesRequestOffset value)]) <> fmap toJSON (withoutFields ["archived", "entityType", "limit", "offset"] (browseResourcesRequestAdditionalProperties value)))
-

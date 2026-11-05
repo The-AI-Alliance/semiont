@@ -36,4 +36,3 @@ data ArchivistEnginesJobsMark = ArchivistEnginesJobsMark { archivistEnginesJobsM
 instance FromJSON ArchivistEnginesJobsMark where
   parseJSON = checked "ArchivistEnginesJobsMark" $ withObject "ArchivistEnginesJobsMark" (\fields -> ArchivistEnginesJobsMark <$> optional fields "assessing" <*> optional fields "commenting" <*> optional fields "highlighting" <*> optional fields "linking" <*> optional fields "tagging")
 instance ToJSON ArchivistEnginesJobsMark where toJSON value = Object (KM.fromList (concat [optionalPair "assessing" (archivistEnginesJobsMarkAssessing value), optionalPair "commenting" (archivistEnginesJobsMarkCommenting value), optionalPair "highlighting" (archivistEnginesJobsMarkHighlighting value), optionalPair "linking" (archivistEnginesJobsMarkLinking value), optionalPair "tagging" (archivistEnginesJobsMarkTagging value)]))
-

@@ -32,4 +32,3 @@ data MarkJobFilterParams = MarkJobFilterParams { markJobFilterParamsMotivation :
 instance FromJSON MarkJobFilterParams where
   parseJSON = checked "MarkJobFilterParams" $ withObject "MarkJobFilterParams" (\fields -> MarkJobFilterParams <$> fields .: "motivation")
 instance ToJSON MarkJobFilterParams where toJSON value = Object (KM.fromList (concat [[("motivation", toJSON (markJobFilterParamsMotivation value))]]))
-

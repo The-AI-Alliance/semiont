@@ -24,5 +24,3 @@ instance FromJSON TextQuoteSelectorType where
   parseJSON = checked "TextQuoteSelectorType" $ \value -> if value == (String "TextQuoteSelector") then pure TextQuoteSelectorTypeTextQuoteSelector else fail "unknown enumeration member"
 instance ToJSON TextQuoteSelectorType where
   toJSON TextQuoteSelectorTypeTextQuoteSelector = String "TextQuoteSelector"
-
-

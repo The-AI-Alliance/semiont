@@ -24,4 +24,3 @@ data WorkerKnowledgeBaseConfigIdentity = WorkerKnowledgeBaseConfigIdentity { wor
 instance FromJSON WorkerKnowledgeBaseConfigIdentity where
   parseJSON = checked "WorkerKnowledgeBaseConfigIdentity" $ withObject "WorkerKnowledgeBaseConfigIdentity" (\fields -> WorkerKnowledgeBaseConfigIdentity <$> fields .: "clientId" <*> fields .: "issuer")
 instance ToJSON WorkerKnowledgeBaseConfigIdentity where toJSON value = Object (KM.fromList (concat [[("clientId", toJSON (workerKnowledgeBaseConfigIdentityClientId value))], [("issuer", toJSON (workerKnowledgeBaseConfigIdentityIssuer value))]]))
-

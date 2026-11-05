@@ -18,4 +18,3 @@ data JobClaimedResult = JobClaimedResult { jobClaimedResultResponse :: JobRunnin
 instance FromJSON JobClaimedResult where
   parseJSON = checked "JobClaimedResult" $ withObject "JobClaimedResult" (\fields -> JobClaimedResult <$> fields .: "response")
 instance ToJSON JobClaimedResult where toJSON value = Object (KM.fromList (concat [[("response", toJSON (jobClaimedResultResponse value))]]))
-

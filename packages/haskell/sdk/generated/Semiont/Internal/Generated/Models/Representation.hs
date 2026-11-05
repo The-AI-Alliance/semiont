@@ -47,5 +47,3 @@ instance FromJSON RepresentationU40_type where
 instance ToJSON RepresentationU40_type where
   toJSON (RepresentationU40_typeBranch1 value) = toJSON value
   toJSON (RepresentationU40_typeBranch2 value) = toJSON value
-
-

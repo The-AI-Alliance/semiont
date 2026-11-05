@@ -18,4 +18,3 @@ data BrowseExternalNavigateEvent = BrowseExternalNavigateEvent { browseExternalN
 instance FromJSON BrowseExternalNavigateEvent where
   parseJSON = checked "BrowseExternalNavigateEvent" $ withObject "BrowseExternalNavigateEvent" (\fields -> BrowseExternalNavigateEvent <$> optional fields "resourceId" <*> fields .: "url" <*> traverse parseJSON (withoutFields ["resourceId", "url"] fields))
 instance ToJSON BrowseExternalNavigateEvent where toJSON value = Object (KM.fromList (concat [optionalPair "resourceId" (browseExternalNavigateEventResourceId value), [("url", toJSON (browseExternalNavigateEventUrl value))]]) <> fmap toJSON (withoutFields ["resourceId", "url"] (browseExternalNavigateEventAdditionalProperties value)))
-

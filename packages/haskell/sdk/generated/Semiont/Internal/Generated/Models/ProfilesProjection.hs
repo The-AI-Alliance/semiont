@@ -24,4 +24,3 @@ data ProfilesProjectionProfiles = ProfilesProjectionProfiles { profilesProjectio
 instance FromJSON ProfilesProjectionProfiles where
   parseJSON = checked "ProfilesProjectionProfiles" $ withObject "ProfilesProjectionProfiles" (\fields -> ProfilesProjectionProfiles <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON ProfilesProjectionProfiles where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (profilesProjectionProfilesAdditionalProperties value)))
-

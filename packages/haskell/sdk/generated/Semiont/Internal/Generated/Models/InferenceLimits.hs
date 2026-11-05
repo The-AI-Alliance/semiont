@@ -17,4 +17,3 @@ data InferenceLimits = InferenceLimits { inferenceLimitsAcceptsTemperature :: Ma
 instance FromJSON InferenceLimits where
   parseJSON = checked "InferenceLimits" $ withObject "InferenceLimits" (\fields -> InferenceLimits <$> optional fields "acceptsTemperature" <*> fields .: "contextTokens" <*> fields .: "maxOutputTokens" <*> traverse parseJSON (withoutFields ["acceptsTemperature", "contextTokens", "maxOutputTokens"] fields))
 instance ToJSON InferenceLimits where toJSON value = Object (KM.fromList (concat [optionalPair "acceptsTemperature" (inferenceLimitsAcceptsTemperature value), [("contextTokens", toJSON (inferenceLimitsContextTokens value))], [("maxOutputTokens", toJSON (inferenceLimitsMaxOutputTokens value))]]) <> fmap toJSON (withoutFields ["acceptsTemperature", "contextTokens", "maxOutputTokens"] (inferenceLimitsAdditionalProperties value)))
-

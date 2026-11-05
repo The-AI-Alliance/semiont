@@ -21,5 +21,3 @@ instance FromJSON AnnotationBody where
 instance ToJSON AnnotationBody where
   toJSON (AnnotationBodyBranch1 value) = toJSON value
   toJSON (AnnotationBodyBranch2 value) = toJSON value
-
-

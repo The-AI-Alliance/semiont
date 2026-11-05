@@ -29,5 +29,3 @@ instance FromJSON MarkJobCompleteCommandJobType where
   parseJSON = checked "MarkJobCompleteCommandJobType" $ \value -> if value == (String "mark") then pure MarkJobCompleteCommandJobTypeMark else fail "unknown enumeration member"
 instance ToJSON MarkJobCompleteCommandJobType where
   toJSON MarkJobCompleteCommandJobTypeMark = String "mark"
-
-

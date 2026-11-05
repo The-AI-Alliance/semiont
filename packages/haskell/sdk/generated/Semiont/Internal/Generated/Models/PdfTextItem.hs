@@ -17,4 +17,3 @@ data PdfTextItem = PdfTextItem { pdfTextItemEnd :: Integer, pdfTextItemHeight ::
 instance FromJSON PdfTextItem where
   parseJSON = checked "PdfTextItem" $ withObject "PdfTextItem" (\fields -> PdfTextItem <$> fields .: "end" <*> fields .: "height" <*> fields .: "page" <*> fields .: "start" <*> fields .: "width" <*> fields .: "x" <*> fields .: "y" <*> traverse parseJSON (withoutFields ["end", "height", "page", "start", "width", "x", "y"] fields))
 instance ToJSON PdfTextItem where toJSON value = Object (KM.fromList (concat [[("end", toJSON (pdfTextItemEnd value))], [("height", toJSON (pdfTextItemHeight value))], [("page", toJSON (pdfTextItemPage value))], [("start", toJSON (pdfTextItemStart value))], [("width", toJSON (pdfTextItemWidth value))], [("x", toJSON (pdfTextItemX value))], [("y", toJSON (pdfTextItemY value))]]) <> fmap toJSON (withoutFields ["end", "height", "page", "start", "width", "x", "y"] (pdfTextItemAdditionalProperties value)))
-

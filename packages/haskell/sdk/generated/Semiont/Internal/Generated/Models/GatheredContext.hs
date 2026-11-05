@@ -100,4 +100,3 @@ data GatheredContextSemanticContext = GatheredContextSemanticContext { gatheredC
 instance FromJSON GatheredContextSemanticContext where
   parseJSON = checked "GatheredContextSemanticContext" $ withObject "GatheredContextSemanticContext" (\fields -> GatheredContextSemanticContext <$> optional fields "excludedEntityTypes" <*> fields .: "similar" <*> traverse parseJSON (withoutFields ["excludedEntityTypes", "similar"] fields))
 instance ToJSON GatheredContextSemanticContext where toJSON value = Object (KM.fromList (concat [optionalPair "excludedEntityTypes" (gatheredContextSemanticContextExcludedEntityTypes value), [("similar", toJSON (gatheredContextSemanticContextSimilar value))]]) <> fmap toJSON (withoutFields ["excludedEntityTypes", "similar"] (gatheredContextSemanticContextAdditionalProperties value)))
-

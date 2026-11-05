@@ -37,5 +37,3 @@ instance FromJSON YieldCreateCommandGenerator where
 instance ToJSON YieldCreateCommandGenerator where
   toJSON (YieldCreateCommandGeneratorBranch1 value) = toJSON value
   toJSON (YieldCreateCommandGeneratorBranch2 value) = toJSON value
-
-

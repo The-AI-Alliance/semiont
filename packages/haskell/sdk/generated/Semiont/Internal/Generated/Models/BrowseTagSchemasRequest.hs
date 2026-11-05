@@ -17,4 +17,3 @@ data BrowseTagSchemasRequest = BrowseTagSchemasRequest { browseTagSchemasRequest
 instance FromJSON BrowseTagSchemasRequest where
   parseJSON = checked "BrowseTagSchemasRequest" $ withObject "BrowseTagSchemasRequest" (\fields -> BrowseTagSchemasRequest <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON BrowseTagSchemasRequest where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (browseTagSchemasRequestAdditionalProperties value)))
-

@@ -7,11 +7,16 @@ import Control.Concurrent.STM
 import Control.Exception (SomeAsyncException, IOException, finally, fromException, throwIO, try)
 import Control.Monad (forM_, unless)
 import qualified Data.ByteString as Bytes
+import qualified Data.Aeson.KeyMap as KM
 import Data.List (mapAccumL)
 import Data.Text.Encoding (encodeUtf8)
+import qualified Data.Set as Set
+import qualified Semiont.Channels as Channels
 import qualified Semiont.Internal.Broadcast as Broadcast
+import qualified Semiont.Internal.Delivery as Delivery
 import qualified Semiont.Internal.Running as Running
 import Semiont.Internal.Sse
+import Semiont.Types (BusFrame(..), BusFramePayload(..))
 import System.Timeout (timeout)
 import Streaming (Of(..))
 import qualified Streaming.Prelude as Stream
@@ -139,9 +144,65 @@ runningCases = do
   cleaned <- atomically (tryTakeTMVar stopped)
   require "await cancellation did not release producer resources" (cleaned == Just ())
 
+deliveryCases :: IO ()
+deliveryCases = do
+  wire <- atomically Delivery.newHub
+  local <- atomically Delivery.newHub
+  replies <- atomically Delivery.newReplies
+  let (_, resultChannel, failureChannel) = Channels.operationChannels Channels.FrameAddEntityTypeOperation
+      resultName = Channels.channelName resultChannel
+      replyChannels = Set.fromList [resultName, Channels.channelName failureChannel]
+      reply = BusFrame resultName (Just "request-1") (BusFramePayload KM.empty) Nothing
+      signal = reply { busFrameCorrelationId = Nothing }
+  Delivery.withFrames wire resultName $ \wireFrames -> Delivery.withFrames local resultName $ \localFrames ->
+    Delivery.withReply replies "request-1" replyChannels $ \pending -> do
+      ids <- atomically (Delivery.awaited replies)
+      require "tracked reply did not appear in the resumption snapshot" (ids == ["request-1"])
+      conflict <- try (Delivery.withReply replies "request-1" replyChannels (const (pure ())))
+      require "duplicate correlation replaced a pending request" (conflict == Left Delivery.CorrelationConflict)
+      continuation <- async $ do
+        frame <- atomically (Delivery.awaitReply pending)
+        require "request received the wrong frame" (frame == Just reply)
+        atomically (Delivery.publish local signal)
+      atomically $ do
+        Delivery.deliver [wire, local] replies reply
+        Delivery.deliver [wire, local] replies (reply { busFrameChannel = Channels.channelName Channels.BeckonFocus })
+      wait continuation
+      atomically (Delivery.closeHub wire >> Delivery.closeHub local)
+      seenWire <- atomically (sequence [Broadcast.next wireFrames, Broadcast.next wireFrames])
+      seenLocal <- atomically (sequence [Broadcast.next localFrames, Broadcast.next localFrames, Broadcast.next localFrames])
+      require "wire received a local signal" (seenWire == [Just reply, Nothing])
+      require "request continuation overtook the raw reply" (seenLocal == [Just reply, Just signal, Nothing])
+      idsAfter <- atomically (Delivery.awaited replies)
+      require "settled reply remained tracked" (null idsAfter)
+  Delivery.withReply replies "wrong-channel" replyChannels $ \pending -> do
+    atomically (Delivery.deliver [] replies (reply { busFrameCorrelationId = Just "wrong-channel", busFrameChannel = Channels.channelName Channels.BeckonFocus }))
+    unanswered <- atomically ((Just <$> Delivery.awaitReply pending) `orElse` pure Nothing)
+    require "an unrelated channel settled a request" (unanswered == Nothing)
+  abandoned <- atomically (Delivery.awaited replies)
+  require "scope exit retained a pending request" (null abandoned)
+  ready <- newEmptyTMVarIO
+  waiter <- async $ Delivery.withReply replies "cancelled" replyChannels $ \pending -> do
+    atomically (putTMVar ready ())
+    atomically (Delivery.awaitReply pending)
+  atomically (takeTMVar ready)
+  cancel waiter
+  afterCancel <- atomically (Delivery.awaited replies)
+  require "cancelled request remained tracked" (null afterCancel)
+  Delivery.withReply replies "closed" replyChannels $ \pending -> do
+    atomically (Delivery.closeReplies replies >> Delivery.closeReplies replies)
+    outcome <- atomically (Delivery.awaitReply pending)
+    require "closing replies left a request waiting" (outcome == Nothing)
+  Delivery.withReply replies "late" replyChannels $ \pending -> do
+    outcome <- atomically (Delivery.awaitReply pending)
+    require "a request tracked after close did not end" (outcome == Nothing)
+  Delivery.withFrames local resultName $ \reader -> do
+    outcome <- atomically (Broadcast.next reader)
+    require "a reader attached to a closed hub did not end" (outcome == Nothing)
+
 runtimeCases :: IO ()
 runtimeCases = do
   sseCases
-  outcome <- timeout 5000000 (broadcastCases >> runningCases)
+  outcome <- timeout 5000000 (broadcastCases >> runningCases >> deliveryCases)
   require "runtime liveness deadline expired" (outcome == Just ())
-  putStrLn "PASS incremental SSE, ordered STM subscriptions and single-consumer operations"
+  putStrLn "PASS SSE, ordered subscriptions, single-consumer operations and atomic reply delivery"

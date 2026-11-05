@@ -17,4 +17,3 @@ data ResourceMovedPayload = ResourceMovedPayload { resourceMovedPayloadFromUri :
 instance FromJSON ResourceMovedPayload where
   parseJSON = checked "ResourceMovedPayload" $ withObject "ResourceMovedPayload" (\fields -> ResourceMovedPayload <$> fields .: "fromUri" <*> fields .: "toUri" <*> traverse parseJSON (withoutFields ["fromUri", "toUri"] fields))
 instance ToJSON ResourceMovedPayload where toJSON value = Object (KM.fromList (concat [[("fromUri", toJSON (resourceMovedPayloadFromUri value))], [("toUri", toJSON (resourceMovedPayloadToUri value))]]) <> fmap toJSON (withoutFields ["fromUri", "toUri"] (resourceMovedPayloadAdditionalProperties value)))
-

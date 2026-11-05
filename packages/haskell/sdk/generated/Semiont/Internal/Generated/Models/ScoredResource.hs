@@ -130,5 +130,3 @@ instance FromJSON ScoredResourceWasDerivedFrom where
 instance ToJSON ScoredResourceWasDerivedFrom where
   toJSON (ScoredResourceWasDerivedFromBranch1 value) = toJSON value
   toJSON (ScoredResourceWasDerivedFromBranch2 value) = toJSON value
-
-

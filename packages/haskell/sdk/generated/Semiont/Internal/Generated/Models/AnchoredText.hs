@@ -18,4 +18,3 @@ data AnchoredText = AnchoredText { anchoredTextItems :: [PdfTextItem], anchoredT
 instance FromJSON AnchoredText where
   parseJSON = checked "AnchoredText" $ withObject "AnchoredText" (\fields -> AnchoredText <$> fields .: "items" <*> fields .: "text" <*> traverse parseJSON (withoutFields ["items", "text"] fields))
 instance ToJSON AnchoredText where toJSON value = Object (KM.fromList (concat [[("items", toJSON (anchoredTextItems value))], [("text", toJSON (anchoredTextText value))]]) <> fmap toJSON (withoutFields ["items", "text"] (anchoredTextAdditionalProperties value)))
-

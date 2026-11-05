@@ -34,5 +34,3 @@ instance ToJSON JobStatusResponseStatus where
   toJSON JobStatusResponseStatusComplete = String "complete"
   toJSON JobStatusResponseStatusFailed = String "failed"
   toJSON JobStatusResponseStatusCancelled = String "cancelled"
-
-

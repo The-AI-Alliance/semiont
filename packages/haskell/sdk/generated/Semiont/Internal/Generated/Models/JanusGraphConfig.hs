@@ -24,5 +24,3 @@ instance FromJSON JanusGraphConfigType where
   parseJSON = checked "JanusGraphConfigType" $ \value -> if value == (String "janusgraph") then pure JanusGraphConfigTypeJanusgraph else fail "unknown enumeration member"
 instance ToJSON JanusGraphConfigType where
   toJSON JanusGraphConfigTypeJanusgraph = String "janusgraph"
-
-

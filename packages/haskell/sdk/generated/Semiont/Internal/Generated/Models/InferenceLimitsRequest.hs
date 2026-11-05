@@ -17,4 +17,3 @@ data InferenceLimitsRequest = InferenceLimitsRequest { inferenceLimitsRequestAdd
 instance FromJSON InferenceLimitsRequest where
   parseJSON = checked "InferenceLimitsRequest" $ withObject "InferenceLimitsRequest" (\fields -> InferenceLimitsRequest <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON InferenceLimitsRequest where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (inferenceLimitsRequestAdditionalProperties value)))
-

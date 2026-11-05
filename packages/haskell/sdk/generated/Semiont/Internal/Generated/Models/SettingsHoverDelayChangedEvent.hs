@@ -17,4 +17,3 @@ data SettingsHoverDelayChangedEvent = SettingsHoverDelayChangedEvent { settingsH
 instance FromJSON SettingsHoverDelayChangedEvent where
   parseJSON = checked "SettingsHoverDelayChangedEvent" $ withObject "SettingsHoverDelayChangedEvent" (\fields -> SettingsHoverDelayChangedEvent <$> fields .: "hoverDelayMs" <*> traverse parseJSON (withoutFields ["hoverDelayMs"] fields))
 instance ToJSON SettingsHoverDelayChangedEvent where toJSON value = Object (KM.fromList (concat [[("hoverDelayMs", toJSON (settingsHoverDelayChangedEventHoverDelayMs value))]]) <> fmap toJSON (withoutFields ["hoverDelayMs"] (settingsHoverDelayChangedEventAdditionalProperties value)))
-

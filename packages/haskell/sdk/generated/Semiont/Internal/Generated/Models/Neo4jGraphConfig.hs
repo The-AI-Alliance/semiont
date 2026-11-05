@@ -24,5 +24,3 @@ instance FromJSON Neo4jGraphConfigType where
   parseJSON = checked "Neo4jGraphConfigType" $ \value -> if value == (String "neo4j") then pure Neo4jGraphConfigTypeNeo4j else fail "unknown enumeration member"
 instance ToJSON Neo4jGraphConfigType where
   toJSON Neo4jGraphConfigTypeNeo4j = String "neo4j"
-
-

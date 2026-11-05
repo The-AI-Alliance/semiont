@@ -18,4 +18,3 @@ data UserResponse = UserResponse { userResponseDid :: UserId, userResponseDomain
 instance FromJSON UserResponse where
   parseJSON = checked "UserResponse" $ withObject "UserResponse" (\fields -> UserResponse <$> fields .: "did" <*> fields .: "domain" <*> fields .: "email" <*> fields .: "image" <*> fields .: "name" <*> traverse parseJSON (withoutFields ["did", "domain", "email", "image", "name"] fields))
 instance ToJSON UserResponse where toJSON value = Object (KM.fromList (concat [[("did", toJSON (userResponseDid value))], [("domain", toJSON (userResponseDomain value))], [("email", toJSON (userResponseEmail value))], [("image", toJSON (userResponseImage value))], [("name", toJSON (userResponseName value))]]) <> fmap toJSON (withoutFields ["did", "domain", "email", "image", "name"] (userResponseAdditionalProperties value)))
-

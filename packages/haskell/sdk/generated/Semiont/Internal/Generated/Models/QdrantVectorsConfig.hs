@@ -24,5 +24,3 @@ instance FromJSON QdrantVectorsConfigType where
   parseJSON = checked "QdrantVectorsConfigType" $ \value -> if value == (String "qdrant") then pure QdrantVectorsConfigTypeQdrant else fail "unknown enumeration member"
 instance ToJSON QdrantVectorsConfigType where
   toJSON QdrantVectorsConfigTypeQdrant = String "qdrant"
-
-

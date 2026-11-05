@@ -25,5 +25,3 @@ instance FromJSON TextualBodyType where
   parseJSON = checked "TextualBodyType" $ \value -> if value == (String "TextualBody") then pure TextualBodyTypeTextualBody else fail "unknown enumeration member"
 instance ToJSON TextualBodyType where
   toJSON TextualBodyTypeTextualBody = String "TextualBody"
-
-

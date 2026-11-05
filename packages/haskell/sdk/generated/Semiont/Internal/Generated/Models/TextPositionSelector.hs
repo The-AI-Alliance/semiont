@@ -24,5 +24,3 @@ instance FromJSON TextPositionSelectorType where
   parseJSON = checked "TextPositionSelectorType" $ \value -> if value == (String "TextPositionSelector") then pure TextPositionSelectorTypeTextPositionSelector else fail "unknown enumeration member"
 instance ToJSON TextPositionSelectorType where
   toJSON TextPositionSelectorTypeTextPositionSelector = String "TextPositionSelector"
-
-

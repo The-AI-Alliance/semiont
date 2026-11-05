@@ -26,5 +26,3 @@ instance FromJSON JobPendingStatus where
   parseJSON = checked "JobPendingStatus" $ \value -> if value == (String "pending") then pure JobPendingStatusPending else fail "unknown enumeration member"
 instance ToJSON JobPendingStatus where
   toJSON JobPendingStatusPending = String "pending"
-
-

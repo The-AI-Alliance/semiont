@@ -18,4 +18,3 @@ data JobStatusRequest = JobStatusRequest { jobStatusRequestJobId :: JobId, jobSt
 instance FromJSON JobStatusRequest where
   parseJSON = checked "JobStatusRequest" $ withObject "JobStatusRequest" (\fields -> JobStatusRequest <$> fields .: "jobId" <*> traverse parseJSON (withoutFields ["jobId"] fields))
 instance ToJSON JobStatusRequest where toJSON value = Object (KM.fromList (concat [[("jobId", toJSON (jobStatusRequestJobId value))]]) <> fmap toJSON (withoutFields ["jobId"] (jobStatusRequestAdditionalProperties value)))
-

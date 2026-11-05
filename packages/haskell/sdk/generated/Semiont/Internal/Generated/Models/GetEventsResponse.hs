@@ -19,4 +19,3 @@ data GetEventsResponse = GetEventsResponse { getEventsResponseEvents :: [Attribu
 instance FromJSON GetEventsResponse where
   parseJSON = checked "GetEventsResponse" $ withObject "GetEventsResponse" (\fields -> GetEventsResponse <$> fields .: "events" <*> fields .: "resourceId" <*> fields .: "total" <*> traverse parseJSON (withoutFields ["events", "resourceId", "total"] fields))
 instance ToJSON GetEventsResponse where toJSON value = Object (KM.fromList (concat [[("events", toJSON (getEventsResponseEvents value))], [("resourceId", toJSON (getEventsResponseResourceId value))], [("total", toJSON (getEventsResponseTotal value))]]) <> fmap toJSON (withoutFields ["events", "resourceId", "total"] (getEventsResponseAdditionalProperties value)))
-

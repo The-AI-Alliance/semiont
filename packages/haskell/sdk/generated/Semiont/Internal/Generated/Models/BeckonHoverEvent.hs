@@ -18,4 +18,3 @@ data BeckonHoverEvent = BeckonHoverEvent { beckonHoverEventAnnotationId :: Maybe
 instance FromJSON BeckonHoverEvent where
   parseJSON = checked "BeckonHoverEvent" $ withObject "BeckonHoverEvent" (\fields -> BeckonHoverEvent <$> fields .: "annotationId" <*> traverse parseJSON (withoutFields ["annotationId"] fields))
 instance ToJSON BeckonHoverEvent where toJSON value = Object (KM.fromList (concat [[("annotationId", toJSON (beckonHoverEventAnnotationId value))]]) <> fmap toJSON (withoutFields ["annotationId"] (beckonHoverEventAdditionalProperties value)))
-

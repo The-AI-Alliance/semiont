@@ -48,4 +48,3 @@ data LibrarianConfigSearch = LibrarianConfigSearch { librarianConfigSearchSemant
 instance FromJSON LibrarianConfigSearch where
   parseJSON = checked "LibrarianConfigSearch" $ withObject "LibrarianConfigSearch" (\fields -> LibrarianConfigSearch <$> fields .: "semanticFloor")
 instance ToJSON LibrarianConfigSearch where toJSON value = Object (KM.fromList (concat [[("semanticFloor", toJSON (librarianConfigSearchSemanticFloor value))]]))
-

@@ -24,5 +24,3 @@ instance FromJSON MemoryGraphConfigType where
   parseJSON = checked "MemoryGraphConfigType" $ \value -> if value == (String "memory") then pure MemoryGraphConfigTypeMemory else fail "unknown enumeration member"
 instance ToJSON MemoryGraphConfigType where
   toJSON MemoryGraphConfigTypeMemory = String "memory"
-
-

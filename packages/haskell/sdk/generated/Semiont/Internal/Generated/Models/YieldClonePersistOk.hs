@@ -24,4 +24,3 @@ data YieldClonePersistOkResponse = YieldClonePersistOkResponse { yieldClonePersi
 instance FromJSON YieldClonePersistOkResponse where
   parseJSON = checked "YieldClonePersistOkResponse" $ withObject "YieldClonePersistOkResponse" (\fields -> YieldClonePersistOkResponse <$> fields .: "resourceId" <*> traverse parseJSON (withoutFields ["resourceId"] fields))
 instance ToJSON YieldClonePersistOkResponse where toJSON value = Object (KM.fromList (concat [[("resourceId", toJSON (yieldClonePersistOkResponseResourceId value))]]) <> fmap toJSON (withoutFields ["resourceId"] (yieldClonePersistOkResponseAdditionalProperties value)))
-

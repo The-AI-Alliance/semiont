@@ -19,4 +19,3 @@ data MarkDelegateTimeoutEvent = MarkDelegateTimeoutEvent { markDelegateTimeoutEv
 instance FromJSON MarkDelegateTimeoutEvent where
   parseJSON = checked "MarkDelegateTimeoutEvent" $ withObject "MarkDelegateTimeoutEvent" (\fields -> MarkDelegateTimeoutEvent <$> fields .: "motivation" <*> fields .: "resourceId" <*> traverse parseJSON (withoutFields ["motivation", "resourceId"] fields))
 instance ToJSON MarkDelegateTimeoutEvent where toJSON value = Object (KM.fromList (concat [[("motivation", toJSON (markDelegateTimeoutEventMotivation value))], [("resourceId", toJSON (markDelegateTimeoutEventResourceId value))]]) <> fmap toJSON (withoutFields ["motivation", "resourceId"] (markDelegateTimeoutEventAdditionalProperties value)))
-

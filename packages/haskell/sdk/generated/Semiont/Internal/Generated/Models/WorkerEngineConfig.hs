@@ -19,4 +19,3 @@ data WorkerEngineConfig = WorkerEngineConfig { workerEngineConfigApiKeyEnv :: Ma
 instance FromJSON WorkerEngineConfig where
   parseJSON = checked "WorkerEngineConfig" $ withObject "WorkerEngineConfig" (\fields -> WorkerEngineConfig <$> optional fields "apiKeyEnv" <*> fields .: "baseUrl" <*> fields .: "engine" <*> fields .: "jobs")
 instance ToJSON WorkerEngineConfig where toJSON value = Object (KM.fromList (concat [optionalPair "apiKeyEnv" (workerEngineConfigApiKeyEnv value), [("baseUrl", toJSON (workerEngineConfigBaseUrl value))], [("engine", toJSON (workerEngineConfigEngine value))], [("jobs", toJSON (workerEngineConfigJobs value))]]))
-

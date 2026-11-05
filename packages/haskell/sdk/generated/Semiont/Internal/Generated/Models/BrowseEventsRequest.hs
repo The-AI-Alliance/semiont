@@ -19,4 +19,3 @@ data BrowseEventsRequest = BrowseEventsRequest { browseEventsRequestLimit :: May
 instance FromJSON BrowseEventsRequest where
   parseJSON = checked "BrowseEventsRequest" $ withObject "BrowseEventsRequest" (\fields -> BrowseEventsRequest <$> optional fields "limit" <*> fields .: "resourceId" <*> optional fields "type" <*> optional fields "userId" <*> traverse parseJSON (withoutFields ["limit", "resourceId", "type", "userId"] fields))
 instance ToJSON BrowseEventsRequest where toJSON value = Object (KM.fromList (concat [optionalPair "limit" (browseEventsRequestLimit value), [("resourceId", toJSON (browseEventsRequestResourceId value))], optionalPair "type" (browseEventsRequestType value), optionalPair "userId" (browseEventsRequestUserId value)]) <> fmap toJSON (withoutFields ["limit", "resourceId", "type", "userId"] (browseEventsRequestAdditionalProperties value)))
-

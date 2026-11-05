@@ -18,4 +18,3 @@ data ResourceErrorEvent = ResourceErrorEvent { resourceErrorEventMessage :: Text
 instance FromJSON ResourceErrorEvent where
   parseJSON = checked "ResourceErrorEvent" $ withObject "ResourceErrorEvent" (\fields -> ResourceErrorEvent <$> fields .: "message" <*> fields .: "resourceId" <*> traverse parseJSON (withoutFields ["message", "resourceId"] fields))
 instance ToJSON ResourceErrorEvent where toJSON value = Object (KM.fromList (concat [[("message", toJSON (resourceErrorEventMessage value))], [("resourceId", toJSON (resourceErrorEventResourceId value))]]) <> fmap toJSON (withoutFields ["message", "resourceId"] (resourceErrorEventAdditionalProperties value)))
-

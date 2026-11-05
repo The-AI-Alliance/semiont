@@ -109,6 +109,7 @@
     "lint:skips-and-any": "node .github/scripts/checks/check-skips-and-any.mjs",
     "lint:event-tags": "node .github/scripts/checks/check-event-tags.mjs",
     "lint:client-surface": "node .github/scripts/checks/check-client-surface.mjs",
+    "lint:haskell-api": "node .github/scripts/checks/check-haskell-api.mjs",
     "lint:state-unit-census": "node .github/scripts/checks/check-state-unit-census.mjs",
     "lint:state-unit-cases": "node .github/scripts/checks/check-state-unit-cases.mjs",
     "lint:internal-deps": "node .github/scripts/checks/check-internal-dep-specifiers.mjs",

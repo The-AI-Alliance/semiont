@@ -23,4 +23,3 @@ data StatusResponseFeatures = StatusResponseFeatures { statusResponseFeaturesCol
 instance FromJSON StatusResponseFeatures where
   parseJSON = checked "StatusResponseFeatures" $ withObject "StatusResponseFeatures" (\fields -> StatusResponseFeatures <$> fields .: "collaboration" <*> fields .: "semanticContent" <*> traverse parseJSON (withoutFields ["collaboration", "semanticContent"] fields))
 instance ToJSON StatusResponseFeatures where toJSON value = Object (KM.fromList (concat [[("collaboration", toJSON (statusResponseFeaturesCollaboration value))], [("semanticContent", toJSON (statusResponseFeaturesSemanticContent value))]]) <> fmap toJSON (withoutFields ["collaboration", "semanticContent"] (statusResponseFeaturesAdditionalProperties value)))
-

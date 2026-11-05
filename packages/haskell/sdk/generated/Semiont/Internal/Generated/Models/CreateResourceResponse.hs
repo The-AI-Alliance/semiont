@@ -18,4 +18,3 @@ data CreateResourceResponse = CreateResourceResponse { createResourceResponseRes
 instance FromJSON CreateResourceResponse where
   parseJSON = checked "CreateResourceResponse" $ withObject "CreateResourceResponse" (\fields -> CreateResourceResponse <$> fields .: "resourceId" <*> traverse parseJSON (withoutFields ["resourceId"] fields))
 instance ToJSON CreateResourceResponse where toJSON value = Object (KM.fromList (concat [[("resourceId", toJSON (createResourceResponseResourceId value))]]) <> fmap toJSON (withoutFields ["resourceId"] (createResourceResponseAdditionalProperties value)))
-

@@ -21,5 +21,3 @@ instance ToJSON DurabilityEvidence where
   toJSON DurabilityEvidenceProbeU2d_confirmed = String "probe-confirmed"
   toJSON DurabilityEvidenceProbeU2d_refused = String "probe-refused"
   toJSON DurabilityEvidenceProbeU2d_unreachable = String "probe-unreachable"
-
-

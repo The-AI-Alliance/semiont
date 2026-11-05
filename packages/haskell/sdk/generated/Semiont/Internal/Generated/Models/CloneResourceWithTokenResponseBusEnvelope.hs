@@ -18,4 +18,3 @@ data CloneResourceWithTokenResponseBusEnvelope = CloneResourceWithTokenResponseB
 instance FromJSON CloneResourceWithTokenResponseBusEnvelope where
   parseJSON = checked "CloneResourceWithTokenResponseBusEnvelope" $ withObject "CloneResourceWithTokenResponseBusEnvelope" (\fields -> CloneResourceWithTokenResponseBusEnvelope <$> fields .: "response")
 instance ToJSON CloneResourceWithTokenResponseBusEnvelope where toJSON value = Object (KM.fromList (concat [[("response", toJSON (cloneResourceWithTokenResponseBusEnvelopeResponse value))]]))
-

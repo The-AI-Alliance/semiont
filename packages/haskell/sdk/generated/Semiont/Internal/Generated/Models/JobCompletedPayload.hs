@@ -28,4 +28,3 @@ data JobCompletedPayloadResult = JobCompletedPayloadResult { jobCompletedPayload
 instance FromJSON JobCompletedPayloadResult where
   parseJSON = checked "JobCompletedPayloadResult" $ withObject "JobCompletedPayloadResult" (\fields -> JobCompletedPayloadResult <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON JobCompletedPayloadResult where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (jobCompletedPayloadResultAdditionalProperties value)))
-

@@ -24,4 +24,3 @@ data MarkCommitOkResponse = MarkCommitOkResponse { markCommitOkResponseAnnotatio
 instance FromJSON MarkCommitOkResponse where
   parseJSON = checked "MarkCommitOkResponse" $ withObject "MarkCommitOkResponse" (\fields -> MarkCommitOkResponse <$> fields .: "annotationIds" <*> fields .: "persisted" <*> traverse parseJSON (withoutFields ["annotationIds", "persisted"] fields))
 instance ToJSON MarkCommitOkResponse where toJSON value = Object (KM.fromList (concat [[("annotationIds", toJSON (markCommitOkResponseAnnotationIds value))], [("persisted", toJSON (markCommitOkResponsePersisted value))]]) <> fmap toJSON (withoutFields ["annotationIds", "persisted"] (markCommitOkResponseAdditionalProperties value)))
-

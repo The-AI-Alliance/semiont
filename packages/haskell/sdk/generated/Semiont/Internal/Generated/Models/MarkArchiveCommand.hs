@@ -19,4 +19,3 @@ data MarkArchiveCommand = MarkArchiveCommand { markArchiveCommandU5f_userId :: M
 instance FromJSON MarkArchiveCommand where
   parseJSON = checked "MarkArchiveCommand" $ withObject "MarkArchiveCommand" (\fields -> MarkArchiveCommand <$> optional fields "_userId" <*> optional fields "keepFile" <*> fields .: "resourceId" <*> optional fields "storageUri" <*> traverse parseJSON (withoutFields ["_userId", "keepFile", "resourceId", "storageUri"] fields))
 instance ToJSON MarkArchiveCommand where toJSON value = Object (KM.fromList (concat [optionalPair "_userId" (markArchiveCommandU5f_userId value), optionalPair "keepFile" (markArchiveCommandKeepFile value), [("resourceId", toJSON (markArchiveCommandResourceId value))], optionalPair "storageUri" (markArchiveCommandStorageUri value)]) <> fmap toJSON (withoutFields ["_userId", "keepFile", "resourceId", "storageUri"] (markArchiveCommandAdditionalProperties value)))
-

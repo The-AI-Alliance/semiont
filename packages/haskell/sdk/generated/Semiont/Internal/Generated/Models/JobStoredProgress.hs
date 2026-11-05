@@ -27,4 +27,3 @@ data JobStoredProgressBranch2Value = JobStoredProgressBranch2Value { jobStoredPr
 instance FromJSON JobStoredProgressBranch2Value where
   parseJSON = checked "JobStoredProgressBranch2Value" $ withObject "JobStoredProgressBranch2Value" (\fields -> JobStoredProgressBranch2Value <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON JobStoredProgressBranch2Value where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (jobStoredProgressBranch2ValueAdditionalProperties value)))
-

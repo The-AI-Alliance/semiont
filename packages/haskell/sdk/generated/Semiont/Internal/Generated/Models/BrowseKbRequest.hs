@@ -17,4 +17,3 @@ data BrowseKbRequest = BrowseKbRequest { browseKbRequestAdditionalProperties :: 
 instance FromJSON BrowseKbRequest where
   parseJSON = checked "BrowseKbRequest" $ withObject "BrowseKbRequest" (\fields -> BrowseKbRequest <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON BrowseKbRequest where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (browseKbRequestAdditionalProperties value)))
-

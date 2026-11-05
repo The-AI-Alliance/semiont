@@ -17,4 +17,3 @@ data ResourceUpdatedPayload = ResourceUpdatedPayload { resourceUpdatedPayloadCon
 instance FromJSON ResourceUpdatedPayload where
   parseJSON = checked "ResourceUpdatedPayload" $ withObject "ResourceUpdatedPayload" (\fields -> ResourceUpdatedPayload <$> optional fields "contentByteSize" <*> fields .: "contentChecksum" <*> traverse parseJSON (withoutFields ["contentByteSize", "contentChecksum"] fields))
 instance ToJSON ResourceUpdatedPayload where toJSON value = Object (KM.fromList (concat [optionalPair "contentByteSize" (resourceUpdatedPayloadContentByteSize value), [("contentChecksum", toJSON (resourceUpdatedPayloadContentChecksum value))]]) <> fmap toJSON (withoutFields ["contentByteSize", "contentChecksum"] (resourceUpdatedPayloadAdditionalProperties value)))
-

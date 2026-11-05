@@ -18,4 +18,3 @@ data GetResourceByTokenResponse = GetResourceByTokenResponse { getResourceByToke
 instance FromJSON GetResourceByTokenResponse where
   parseJSON = checked "GetResourceByTokenResponse" $ withObject "GetResourceByTokenResponse" (\fields -> GetResourceByTokenResponse <$> fields .: "expiresAt" <*> fields .: "sourceResource" <*> traverse parseJSON (withoutFields ["expiresAt", "sourceResource"] fields))
 instance ToJSON GetResourceByTokenResponse where toJSON value = Object (KM.fromList (concat [[("expiresAt", toJSON (getResourceByTokenResponseExpiresAt value))], [("sourceResource", toJSON (getResourceByTokenResponseSourceResource value))]]) <> fmap toJSON (withoutFields ["expiresAt", "sourceResource"] (getResourceByTokenResponseAdditionalProperties value)))
-

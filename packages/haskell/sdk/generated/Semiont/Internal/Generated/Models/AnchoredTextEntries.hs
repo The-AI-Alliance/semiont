@@ -17,4 +17,3 @@ data AnchoredTextEntries = AnchoredTextEntries { anchoredTextEntriesChecksums ::
 instance FromJSON AnchoredTextEntries where
   parseJSON = checked "AnchoredTextEntries" $ withObject "AnchoredTextEntries" (\fields -> AnchoredTextEntries <$> fields .: "checksums")
 instance ToJSON AnchoredTextEntries where toJSON value = Object (KM.fromList (concat [[("checksums", toJSON (anchoredTextEntriesChecksums value))]]))
-

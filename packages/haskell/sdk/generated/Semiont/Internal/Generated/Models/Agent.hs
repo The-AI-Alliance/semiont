@@ -23,5 +23,3 @@ instance ToJSON Agent where
   toJSON (AgentBranch1 value) = toJSON value
   toJSON (AgentBranch2 value) = toJSON value
   toJSON (AgentBranch3 value) = toJSON value
-
-

@@ -17,4 +17,3 @@ data BindBodyUpdated = BindBodyUpdated { bindBodyUpdatedAdditionalProperties :: 
 instance FromJSON BindBodyUpdated where
   parseJSON = checked "BindBodyUpdated" $ withObject "BindBodyUpdated" (\fields -> BindBodyUpdated <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON BindBodyUpdated where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (bindBodyUpdatedAdditionalProperties value)))
-

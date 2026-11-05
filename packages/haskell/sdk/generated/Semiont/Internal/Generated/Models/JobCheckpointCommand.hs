@@ -26,4 +26,3 @@ data JobCheckpointCommandUnitCursors = JobCheckpointCommandUnitCursors { jobChec
 instance FromJSON JobCheckpointCommandUnitCursors where
   parseJSON = checked "JobCheckpointCommandUnitCursors" $ withObject "JobCheckpointCommandUnitCursors" (\fields -> JobCheckpointCommandUnitCursors <$> traverse parseJSON (withoutFields [] fields))
 instance ToJSON JobCheckpointCommandUnitCursors where toJSON value = Object (KM.fromList (concat []) <> fmap toJSON (withoutFields [] (jobCheckpointCommandUnitCursorsAdditionalProperties value)))
-

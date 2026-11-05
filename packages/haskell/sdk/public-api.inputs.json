@@ -1,0 +1,7 @@
+{
+  "directories": ["src", "internal", "generated", "codegen"],
+  "files": [
+    "semiont.cabal", "semiont.cabal.in", "cabal.project", "cabal.project.freeze",
+    "api.py", "public-api.inputs.json", "../probes/cabal.project", "../probes/cabal-install.version"
+  ]
+}

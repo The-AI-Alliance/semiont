@@ -18,4 +18,3 @@ data SessionJoinedEvent = SessionJoinedEvent { sessionJoinedEventConnectionId ::
 instance FromJSON SessionJoinedEvent where
   parseJSON = checked "SessionJoinedEvent" $ withObject "SessionJoinedEvent" (\fields -> SessionJoinedEvent <$> fields .: "connectionId" <*> fields .: "participant" <*> traverse parseJSON (withoutFields ["connectionId", "participant"] fields))
 instance ToJSON SessionJoinedEvent where toJSON value = Object (KM.fromList (concat [[("connectionId", toJSON (sessionJoinedEventConnectionId value))], [("participant", toJSON (sessionJoinedEventParticipant value))]]) <> fmap toJSON (withoutFields ["connectionId", "participant"] (sessionJoinedEventAdditionalProperties value)))
-

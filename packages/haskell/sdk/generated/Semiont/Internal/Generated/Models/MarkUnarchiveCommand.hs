@@ -19,4 +19,3 @@ data MarkUnarchiveCommand = MarkUnarchiveCommand { markUnarchiveCommandU5f_userI
 instance FromJSON MarkUnarchiveCommand where
   parseJSON = checked "MarkUnarchiveCommand" $ withObject "MarkUnarchiveCommand" (\fields -> MarkUnarchiveCommand <$> optional fields "_userId" <*> fields .: "resourceId" <*> optional fields "storageUri" <*> traverse parseJSON (withoutFields ["_userId", "resourceId", "storageUri"] fields))
 instance ToJSON MarkUnarchiveCommand where toJSON value = Object (KM.fromList (concat [optionalPair "_userId" (markUnarchiveCommandU5f_userId value), [("resourceId", toJSON (markUnarchiveCommandResourceId value))], optionalPair "storageUri" (markUnarchiveCommandStorageUri value)]) <> fmap toJSON (withoutFields ["_userId", "resourceId", "storageUri"] (markUnarchiveCommandAdditionalProperties value)))
-

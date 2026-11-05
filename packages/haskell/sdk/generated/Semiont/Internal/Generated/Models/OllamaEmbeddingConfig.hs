@@ -24,5 +24,3 @@ instance FromJSON OllamaEmbeddingConfigType where
   parseJSON = checked "OllamaEmbeddingConfigType" $ \value -> if value == (String "ollama") then pure OllamaEmbeddingConfigTypeOllama else fail "unknown enumeration member"
 instance ToJSON OllamaEmbeddingConfigType where
   toJSON OllamaEmbeddingConfigTypeOllama = String "ollama"
-
-

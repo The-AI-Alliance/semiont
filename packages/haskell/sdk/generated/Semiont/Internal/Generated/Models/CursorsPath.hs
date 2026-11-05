@@ -17,4 +17,3 @@ newtype CursorsPath = CursorsPath { cursorsPathValue :: Text } deriving (Eq, Sho
 instance FromJSON CursorsPath where
   parseJSON = checked "CursorsPath" $ \value -> CursorsPath <$> parseJSON value
 instance ToJSON CursorsPath where toJSON (CursorsPath value) = toJSON value
-

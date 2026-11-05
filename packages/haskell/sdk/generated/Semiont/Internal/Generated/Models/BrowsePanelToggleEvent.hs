@@ -17,4 +17,3 @@ data BrowsePanelToggleEvent = BrowsePanelToggleEvent { browsePanelToggleEventPan
 instance FromJSON BrowsePanelToggleEvent where
   parseJSON = checked "BrowsePanelToggleEvent" $ withObject "BrowsePanelToggleEvent" (\fields -> BrowsePanelToggleEvent <$> fields .: "panel" <*> traverse parseJSON (withoutFields ["panel"] fields))
 instance ToJSON BrowsePanelToggleEvent where toJSON value = Object (KM.fromList (concat [[("panel", toJSON (browsePanelToggleEventPanel value))]]) <> fmap toJSON (withoutFields ["panel"] (browsePanelToggleEventAdditionalProperties value)))
-

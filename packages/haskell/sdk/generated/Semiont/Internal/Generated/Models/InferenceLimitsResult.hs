@@ -24,4 +24,3 @@ data InferenceLimitsResultResponse = InferenceLimitsResultResponse { inferenceLi
 instance FromJSON InferenceLimitsResultResponse where
   parseJSON = checked "InferenceLimitsResultResponse" $ withObject "InferenceLimitsResultResponse" (\fields -> InferenceLimitsResultResponse <$> fields .: "limits" <*> traverse parseJSON (withoutFields ["limits"] fields))
 instance ToJSON InferenceLimitsResultResponse where toJSON value = Object (KM.fromList (concat [[("limits", toJSON (inferenceLimitsResultResponseLimits value))]]) <> fmap toJSON (withoutFields ["limits"] (inferenceLimitsResultResponseAdditionalProperties value)))
-

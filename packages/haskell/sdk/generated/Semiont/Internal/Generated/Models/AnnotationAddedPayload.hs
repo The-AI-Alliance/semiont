@@ -18,4 +18,3 @@ data AnnotationAddedPayload = AnnotationAddedPayload { annotationAddedPayloadAnn
 instance FromJSON AnnotationAddedPayload where
   parseJSON = checked "AnnotationAddedPayload" $ withObject "AnnotationAddedPayload" (\fields -> AnnotationAddedPayload <$> fields .: "annotation" <*> optional fields "contentChecksum" <*> traverse parseJSON (withoutFields ["annotation", "contentChecksum"] fields))
 instance ToJSON AnnotationAddedPayload where toJSON value = Object (KM.fromList (concat [[("annotation", toJSON (annotationAddedPayloadAnnotation value))], optionalPair "contentChecksum" (annotationAddedPayloadContentChecksum value)]) <> fmap toJSON (withoutFields ["annotation", "contentChecksum"] (annotationAddedPayloadAdditionalProperties value)))
-

@@ -17,4 +17,3 @@ data BrowseLinkClickedEvent = BrowseLinkClickedEvent { browseLinkClickedEventHre
 instance FromJSON BrowseLinkClickedEvent where
   parseJSON = checked "BrowseLinkClickedEvent" $ withObject "BrowseLinkClickedEvent" (\fields -> BrowseLinkClickedEvent <$> fields .: "href" <*> optional fields "label" <*> traverse parseJSON (withoutFields ["href", "label"] fields))
 instance ToJSON BrowseLinkClickedEvent where toJSON value = Object (KM.fromList (concat [[("href", toJSON (browseLinkClickedEventHref value))], optionalPair "label" (browseLinkClickedEventLabel value)]) <> fmap toJSON (withoutFields ["href", "label"] (browseLinkClickedEventAdditionalProperties value)))
-

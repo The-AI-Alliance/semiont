@@ -19,4 +19,3 @@ data JobParams = JobParams { jobParamsResourceId :: ResourceId, jobParamsSchema 
 instance FromJSON JobParams where
   parseJSON = checked "JobParams" $ withObject "JobParams" (\fields -> JobParams <$> fields .: "resourceId" <*> optional fields "schema" <*> traverse parseJSON (withoutFields ["resourceId", "schema"] fields))
 instance ToJSON JobParams where toJSON value = Object (KM.fromList (concat [[("resourceId", toJSON (jobParamsResourceId value))], optionalPair "schema" (jobParamsSchema value)]) <> fmap toJSON (withoutFields ["resourceId", "schema"] (jobParamsAdditionalProperties value)))
-

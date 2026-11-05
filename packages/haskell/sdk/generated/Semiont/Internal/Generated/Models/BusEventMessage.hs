@@ -38,5 +38,3 @@ instance ToJSON BusEventMessageId where
   toJSON (BusEventMessageIdBranch1 value) = toJSON value
   toJSON (BusEventMessageIdBranch2 value) = toJSON value
   toJSON (BusEventMessageIdBranch3 value) = toJSON value
-
-

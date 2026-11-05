@@ -17,4 +17,3 @@ data JobCancelResult = JobCancelResult { jobCancelResultCancelled :: Bool, jobCa
 instance FromJSON JobCancelResult where
   parseJSON = checked "JobCancelResult" $ withObject "JobCancelResult" (\fields -> JobCancelResult <$> fields .: "cancelled" <*> traverse parseJSON (withoutFields ["cancelled"] fields))
 instance ToJSON JobCancelResult where toJSON value = Object (KM.fromList (concat [[("cancelled", toJSON (jobCancelResultCancelled value))]]) <> fmap toJSON (withoutFields ["cancelled"] (jobCancelResultAdditionalProperties value)))
-

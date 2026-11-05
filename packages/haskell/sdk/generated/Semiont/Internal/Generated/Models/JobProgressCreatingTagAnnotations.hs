@@ -24,5 +24,3 @@ instance FromJSON JobProgressCreatingTagAnnotationsCode where
   parseJSON = checked "JobProgressCreatingTagAnnotationsCode" $ \value -> if value == (String "creating-tag-annotations") then pure JobProgressCreatingTagAnnotationsCodeCreatingU2d_tagU2d_annotations else fail "unknown enumeration member"
 instance ToJSON JobProgressCreatingTagAnnotationsCode where
   toJSON JobProgressCreatingTagAnnotationsCodeCreatingU2d_tagU2d_annotations = String "creating-tag-annotations"
-
-

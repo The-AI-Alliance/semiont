@@ -37,5 +37,3 @@ instance ToJSON JobProgressMessage where
   toJSON (JobProgressMessageBranch8 value) = toJSON value
   toJSON (JobProgressMessageBranch9 value) = toJSON value
   toJSON (JobProgressMessageBranch10 value) = toJSON value
-
-
