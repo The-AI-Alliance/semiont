@@ -5,7 +5,9 @@
  * bound on a whole answer or on sending a request
  * (protocol/specs/src/archivist/openapi.json, whose description states the
  * rule). `connectSeconds` is not held here: an address that takes no
- * connection cannot be staged on the loopback.
+ * connection cannot be staged on the loopback. The gateway's own tests hold
+ * that a read whose connection is not taken in time is not sent again, over a
+ * stand-in for its connector (images/gateway/src/archivist.rs).
  *
  * Plane-independent, and slow: the one case waits `readSeconds` out, three
  * waits side by side.

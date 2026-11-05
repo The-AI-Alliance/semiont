@@ -90,10 +90,13 @@ exit. A repair pass that fails leaves a store behind; it does not leave the proj
 **The gateway's reads of the Archivist** are sent once more, at once, when they get no answer:
 a read written to a pooled connection just as the Archivist closes it fails without one. It is
 reqwest's own retry on the client the gateway reads the Archivist with. A status is an answer and
-is not asked again, a read whose answer did not begin within its wait is not sent again, and an
-upload is never sent again: its body is streamed. How long the gateway waits is the Archivist's
-document's to say (its `x-semiont-limits`), as it is for the Python services that read it
-([the gateway's calls](../../images/gateway/docs/ARCHITECTURE.md#calls-to-the-archivist)).
+is not asked again; a read whose connection was not taken within its wait is not sent again, since
+the Archivist cannot be reached and a second attempt would wait as long again; a read whose answer
+did not begin within its wait is not sent again; and an upload is never sent again: its body is
+streamed. How long the gateway waits is the Archivist's document's to say (its
+`x-semiont-limits`), as it is for the Python services that read it
+([the gateway's calls](../../images/gateway/docs/ARCHITECTURE.md#calls-to-the-archivist)), and
+those waits end inside a client's own deadline on its request, `httpRequestTimeoutMs`.
 
 ## What deliberately does not retry
 

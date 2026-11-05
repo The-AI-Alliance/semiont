@@ -36,7 +36,8 @@ const CALLS: [(&str, &str); 6] = [
 pub struct Archivist {
     base: String,
     /// The reads: each part of an answer waited for `read`, and a read that
-    /// got no answer sent once more.
+    /// got no answer sent once more, unless its connection was not taken in
+    /// time.
     reads: reqwest::Client,
     /// The uploads: an answer waited for `read` from the upload's last byte.
     uploads: reqwest::Client,
@@ -70,12 +71,14 @@ fn waits() -> Result<(Duration, Duration), String> {
 }
 
 /// The retry policy of the client the gateway reads from the Archivist with:
-/// a read that got no answer — its connection could not be made, or broke or
+/// a read that got no answer — its connection was refused, or broke or
 /// closed before a response came back, as a pooled connection the Archivist
-/// closes just as a read is written to it does — is sent once more. An answer
-/// is never asked again, whatever its status. A read whose answer did not
-/// come within its wait is not sent again either: reqwest keeps that timer
-/// outside the policy.
+/// closes just as a read is written to it does — is sent once more. A read
+/// whose connection was not taken within `connectSeconds` is not: the
+/// Archivist cannot be reached, and a second attempt would only wait as long
+/// again. An answer is never asked again, whatever its status. A read whose
+/// answer did not come within its wait is not sent again either: reqwest
+/// keeps that timer outside the policy.
 fn read_retry(host: &str) -> reqwest::retry::Builder {
     reqwest::retry::for_host(host.to_owned())
         .max_retries_per_request(1)
@@ -84,12 +87,28 @@ fn read_retry(host: &str) -> reqwest::retry::Builder {
         // reads' one retry away.
         .no_budget()
         .classify_fn(|attempt| {
-            if attempt.status().is_none() {
+            let unanswered = attempt.status().is_none();
+            if unanswered && !attempt.error().is_some_and(timed_out_connecting) {
                 attempt.retryable()
             } else {
                 attempt.success()
             }
         })
+}
+
+/// The client the gateway reads from the Archivist at `host` with.
+fn reads_client(host: &str, connect: Duration, read: Duration) -> reqwest::ClientBuilder {
+    reqwest::Client::builder()
+        .retry(read_retry(host))
+        .connect_timeout(connect)
+        .read_timeout(read)
+}
+
+/// Whether a call failed because its connection was not taken in time.
+fn timed_out_connecting(error: &(dyn std::error::Error + 'static)) -> bool {
+    error
+        .downcast_ref::<reqwest::Error>()
+        .is_some_and(|error| error.is_connect() && error.is_timeout())
 }
 
 /// Where the gateway's requests to the Archivist at `host` and `port` go.
@@ -146,12 +165,7 @@ impl Archivist {
         };
         Ok(Archivist {
             base: origin(host, port),
-            reads: built(
-                reqwest::Client::builder()
-                    .retry(read_retry(host))
-                    .connect_timeout(connect)
-                    .read_timeout(read),
-            )?,
+            reads: built(reads_client(host, connect, read))?,
             uploads: built(reqwest::Client::builder().connect_timeout(connect))?,
             read,
             token: ServiceToken::new(credential, http),
@@ -488,5 +502,117 @@ impl Archivist {
             return Err("Archivist replay answer holds no events or no lastSequence".to_owned());
         };
         Ok((events, last))
+    }
+}
+
+/// The reads client's retry, on tokio's paused clock, over connections that a
+/// stand-in for its connector makes none of: an address that takes no
+/// connection cannot be staged on the loopback, but reqwest's own connect
+/// timeout over a connector that never answers ends an attempt exactly as it
+/// ends one to such an address.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io;
+    use std::marker::PhantomData;
+    use std::pin::Pin;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::task::Context;
+
+    const HOST: &str = "archivist.test";
+
+    /// What becomes of an attempt to connect.
+    #[derive(Clone, Copy)]
+    enum Connecting {
+        /// The connection is never taken.
+        NeverTaken,
+        /// The connection is refused at once.
+        Refused,
+    }
+
+    /// Counts each attempt to connect, and makes none.
+    #[derive(Clone)]
+    struct Attempts {
+        made: Arc<AtomicUsize>,
+        connecting: Connecting,
+    }
+
+    #[derive(Clone)]
+    struct Attempt<S> {
+        attempts: Attempts,
+        connector: PhantomData<fn() -> S>,
+    }
+
+    impl<S> tower::Layer<S> for Attempts {
+        type Service = Attempt<S>;
+
+        fn layer(&self, _: S) -> Attempt<S> {
+            Attempt {
+                attempts: self.clone(),
+                connector: PhantomData,
+            }
+        }
+    }
+
+    impl<S, R> tower::Service<R> for Attempt<S>
+    where
+        S: tower::Service<R>,
+        S::Response: Send + 'static,
+        S::Error: From<io::Error> + Send + 'static,
+    {
+        type Response = S::Response;
+        type Error = S::Error;
+        type Future = Pin<Box<dyn Future<Output = Result<S::Response, S::Error>> + Send>>;
+
+        fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), S::Error>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn call(&mut self, _: R) -> Self::Future {
+            self.attempts.made.fetch_add(1, Ordering::SeqCst);
+            match self.attempts.connecting {
+                Connecting::NeverTaken => Box::pin(std::future::pending()),
+                Connecting::Refused => {
+                    let refused = io::Error::from(io::ErrorKind::ConnectionRefused);
+                    Box::pin(std::future::ready(Err(refused.into())))
+                }
+            }
+        }
+    }
+
+    /// A read on the reads client, with the Archivist's waits: how it failed,
+    /// and how many attempts it made.
+    async fn read(connecting: Connecting) -> (reqwest::Error, usize) {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let (connect, read) = waits().unwrap();
+        let made = Arc::new(AtomicUsize::new(0));
+        let client = reads_client(HOST, connect, read)
+            .connector_layer(Attempts {
+                made: made.clone(),
+                connecting,
+            })
+            .build()
+            .unwrap();
+        let failed = client
+            .get(format!("http://{HOST}/health"))
+            .send()
+            .await
+            .unwrap_err();
+        (failed, made.load(Ordering::SeqCst))
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_read_whose_connection_is_not_taken_in_time_is_not_sent_again() {
+        let (failed, attempts) = read(Connecting::NeverTaken).await;
+        assert!(failed.is_connect() && failed.is_timeout(), "{failed:?}");
+        assert_eq!(attempts, 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_read_whose_connection_is_refused_is_sent_once_more() {
+        let (failed, attempts) = read(Connecting::Refused).await;
+        assert!(failed.is_connect() && !failed.is_timeout(), "{failed:?}");
+        assert_eq!(attempts, 2);
     }
 }
