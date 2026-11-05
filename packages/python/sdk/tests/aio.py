@@ -1,7 +1,9 @@
 """Running a test that waits: a scenario is a coroutine, and a test runs it to its end."""
 
 import asyncio
+import heapq
 from collections.abc import Awaitable, Callable, Coroutine
+from contextvars import Context
 from typing import Final, final, override
 
 
@@ -11,25 +13,57 @@ class SteppedLoop(asyncio.SelectorEventLoop):
 
     def __init__(self) -> None:
         super().__init__()
-        self.ahead = 0.0
+        self._ahead = 0.0
 
     @override
     def time(self) -> float:
-        return super().time() + self.ahead
+        return super().time() + self._ahead
+
+    def move(self, seconds: float) -> None:
+        """Move the clock `seconds` ahead."""
+        self._ahead += seconds
 
 
 @final
 class StillLoop(asyncio.SelectorEventLoop):
-    """A loop whose clock moves only when a test moves it: nothing falls due while what is ready runs, however long that takes."""
+    """A loop whose clock moves only when a test moves it: nothing falls due while what is ready runs, however long that takes.
+
+    It keeps the timers it is given, so a test can stop its clock at the
+    instant the next one falls due (`next_due`), and not a moment past it.
+    """
 
     def __init__(self) -> None:
         super().__init__()
-        self._began: Final = super().time()
-        self.ahead = 0.0
+        self._now = super().time()
+        self._timers: Final[list[asyncio.TimerHandle]] = []
 
     @override
     def time(self) -> float:
-        return self._began + self.ahead
+        return self._now
+
+    @override
+    def call_at[*Ts](
+        self, when: float, callback: Callable[[*Ts], object], *args: *Ts, context: Context | None = None
+    ) -> asyncio.TimerHandle:
+        timer = super().call_at(when, callback, *args, context=context)
+        heapq.heappush(self._timers, timer)
+        return timer
+
+    def move(self, seconds: float) -> None:
+        """Move the clock `seconds` ahead."""
+        self._now += seconds
+
+    def move_to(self, instant: float) -> None:
+        """Move the clock to `instant`, which it has not passed."""
+        assert instant >= self._now, f"the clock is at {self._now}, past {instant}"
+        self._now = instant
+
+    def next_due(self) -> float | None:
+        """When, by this clock, the next timer still waiting falls due: none when no timer waits."""
+        timers = self._timers
+        while timers and (timers[0].cancelled() or timers[0].when() <= self._now):
+            heapq.heappop(timers)
+        return timers[0].when() if timers else None
 
 
 def run[T](scenario: Coroutine[None, None, T]) -> T:
@@ -82,7 +116,7 @@ async def pass_time(seconds: float, *, step: float = 1.0) -> None:
     passed = 0.0
     while passed < seconds:
         ahead = min(step, seconds - passed)
-        loop.ahead += ahead
+        loop.move(ahead)
         passed += ahead
         await turns()
 

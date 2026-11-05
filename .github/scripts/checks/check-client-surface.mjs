@@ -60,8 +60,9 @@
  * NOT YET REACHED. An SDK that is to have something and does not yet says
  * so in `notYetReached`, with what is to be built for it: on a member, or on
  * the whole of a namespace, of what a worker is handed, of a state unit, of
- * the bus over the wire, of the storage or of a module. It is held as
- * `absent` is, and is stale once the SDK has what it names. A whole that is
+ * the bus over the wire, of the storage or of a module, or on a maker of the
+ * clock or the random source. It is held as `absent` is, and is stale once
+ * the SDK has what it names. A whole that is
  * not yet reached needs no `made` or `where` for that SDK.
  *
  * WHAT A WORKER IS HANDED. The table's `worker` section lists the members of
@@ -203,6 +204,13 @@
  * C#'s one of packages/csharp/sdk/src/Semiont, each read as a unit's is; Go's is the exported methods of its interface in the
  * root package, packages/go/sdk, and Rust's the functions of its trait in
  * packages/rust/sdk/src. What implements a storage is not read.
+ *
+ * THE CLOCK AND THE RANDOM SOURCE. The table's `clock` section says, for
+ * each source a caller controls (the clock every wait keeps, the random
+ * source every jitter draws), whether each SDK's caller controls it from
+ * outside the SDK (`outside`), or which of the SDK's public makers take it
+ * (`takes`). A maker it lists is held to take it, and an `outside` SDK to
+ * take it nowhere; the section's own reader says how.
  *
  * Which files a directory holds, and whether a schema exists, is what git says
  * the repository holds (`repository-files.mjs`).
@@ -921,6 +929,9 @@ function kotlinDeclarations(body, where, cannot) {
       const from = stated.index + stated[0].length;
       const returns = stated[2] ? squeezed(rest.slice(from, kotlinUntil(rest, from, '={\n')).split(/\bby\b/)[0]) : undefined;
       declarations.push({ ...declaration, name: stated[1], takes: [], returns });
+    } else if (keyword === 'constructor') {
+      const open = rest.indexOf('(');
+      declarations.push({ ...declaration, takes: open === -1 ? [] : kotlinParameters(parenthesised(rest, open)) });
     } else {
       const named = /^\s*`?(\w+)`?/.exec(rest);
       const after = match.index + match[0].length + (named ? named.index + named[0].length : 0);
@@ -929,6 +940,12 @@ function kotlinDeclarations(body, where, cannot) {
   }
   return declarations;
 }
+
+/** A Kotlin parameter list's parameters: each one's name and the type it states, its annotations, its visibility and its `val` or `var` left out. */
+const kotlinParameters = (list) =>
+  splitOutside(list, ',').flatMap((parameter) =>
+    parameters(parameter.replace(/^(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:private|internal|protected|public|override|open|vararg)\s+)*(?:(?:val|var)\s+)?/, '')),
+  );
 
 /** The `.kt` files under `directory` with their code, its tests and its test doubles (`testing`) left out. */
 const kotlinSources = (directory) => sources(directory, '.kt').map((file) => ({ file, code: kotlinCode(read(file)) }));
@@ -3227,6 +3244,427 @@ for (const module of moduleRows ?? []) {
   }
 }
 
+// ── The clock and the random source ─────────────────────────────────────
+
+/**
+ * Whose time an SDK's waits keep, and whose randomness its jitter draws.
+ * Each row of the table's `clock` section is one source (`clock`, `random`)
+ * and says, for every SDK, either how a caller controls it from outside the
+ * SDK (`outside`: the runtime's test clock, or a global a test reaches) or
+ * which of the SDK's public makers take it (`takes`: each maker, spelled as
+ * the SDK spells it, with the types it takes the source as). Each is held
+ * both ways:
+ *
+ *   - a maker `takes` lists takes each of its types: every public way of
+ *     making it has a parameter whose type names each, or is handed another
+ *     maker the row lists for the SDK and does not name in `notYetReached`,
+ *     and keeps the types that one takes. A
+ *     way is a public constructor or initializer of a type (one a type with
+ *     none declared has, which takes nothing), a public function of the name
+ *     (a C# one being static), for a Rust or Go struct its public fields, and
+ *     for a maker named `Type.member` (`Type::member` in Rust) that type's
+ *     public function of the name;
+ *   - a maker the row's `notYetReached` names for an SDK is still to take
+ *     them, with what is to be built; the entry is stale, and fails, once
+ *     every way of making it takes them;
+ *   - an `outside` SDK names none of the row's `typeWords` in the type of a
+ *     parameter or a field, anywhere in its source: a source the caller
+ *     controls from outside needs none, and an SDK that gains one has a
+ *     second clock or source beside the one its caller moves.
+ *
+ * A type names a stated type when that name stands in it as a whole word
+ * (`TimeProvider?`, `any Clock<Duration>`, `*rand.Rand`, `Box<dyn RngCore>`),
+ * and names a word of `typeWords` when an identifier in it that begins with a
+ * capital holds that word's words in order (`SchedulerLike`,
+ * `AbstractEventLoop`). A function's type takes nothing it names: a
+ * parameter `(ScriptedTransport) -> Scenario` is handed no transport. A
+ * generic parameter's bound is not read: a Swift initializer generic in its
+ * clock (`<C: Clock>`) takes a `C`. An SDK's
+ * source is read with its testing module (the `testing` row of `modules`),
+ * its tests and its conformance drivers left out.
+ */
+const CLOCK_SDKS = ['typescript', 'rust', 'python', 'go', 'kotlin', 'swift', 'csharp'];
+const CLOCK_ROW_KEYS = ['source', 'docs', 'typeWords', 'outside', 'takes', 'notYetReached'];
+
+/** Where each SDK's makers and parameters are read, beside its testing module. */
+const CLOCK_SOURCES = {
+  typescript: [TS_SDK, TS_CORE, 'packages/typescript/http-transport/src'],
+  rust: [RUST_SDK, 'packages/rust/http-transport/src'],
+  python: [PYTHON_SDK],
+  go: [GO_SDK],
+  kotlin: [KOTLIN_SDK],
+  swift: [SWIFT_SDK],
+  csharp: [CSHARP_SDK],
+};
+const CLOCK_EXTENSIONS = { typescript: '.ts', rust: '.rs', python: '.py', go: '.go', kotlin: '.kt', swift: '.swift', csharp: '.cs' };
+
+/** The directories of `sdk`'s testing module, as the `testing` row of `modules` says where it is. */
+function testingDirectories(sdk) {
+  const where = moduleRows?.find((module) => module.module === 'testing')?.where?.[sdk] ?? [];
+  return [...new Set(where.map((path) => (BY_DIRECTORY.includes(sdk) ? path : dirname(path))))];
+}
+
+/** The source files of `sdk` this section reads: its source and its testing module, its tests and conformance drivers left out. */
+function clockFiles(sdk) {
+  const roots = [...CLOCK_SOURCES[sdk], ...testingDirectories(sdk)];
+  return REPOSITORY.filter((path) => {
+    if (!roots.some((root) => path.startsWith(`${root}/`)) || !path.endsWith(CLOCK_EXTENSIONS[sdk])) return false;
+    const folders = path.split('/').slice(0, -1);
+    return !folders.includes('__tests__') && !folders.includes('conformance') && !/(?:\.test\.ts|_test\.go)$/.test(path);
+  });
+}
+
+/** The words of an identifier: `AbstractEventLoop` is Abstract, Event and Loop; `HTTPClock` is HTTP and Clock. */
+const identifierWords = (identifier) => identifier.match(/[A-Z]+(?![a-z])|[A-Z][a-z0-9]*|[a-z0-9]+/g) ?? [];
+
+/** The first identifier of `type` that begins with a capital and holds the words of one of `words` in order, with that word; `undefined` when none does. */
+function namedTypeWord(type, words) {
+  for (const identifier of type.match(/(?<![\w$])[A-Z][\w$]*/g) ?? []) {
+    const parts = identifierWords(identifier);
+    for (const word of words) {
+      const wanted = identifierWords(word);
+      if (parts.some((_, at) => wanted.every((part, k) => parts[at + k] === part))) return { identifier, word };
+    }
+  }
+  return undefined;
+}
+
+/** Whether `type` names `stated`: whether that name stands in it as a whole word. */
+const namesType = (type, stated) => new RegExp(`(?<![\\w$])${stated.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w$])`).test(type);
+
+/** Whether `type` is a function's: what it names, the function is handed or gives, and a maker taking it holds none of it. */
+const isFunctionType = (type) => /->|=>|^(?:Func|Action)\s*<|^func\s*\(|\b(?:Fn|FnMut|FnOnce)\s*\(/.test(type);
+
+/** A Swift declaration's parameters, read from its header: each one's label and name, and its type, a default, `inout` and attributes left out. */
+function swiftParameters(header) {
+  const open = header.indexOf('(');
+  if (open === -1) return [];
+  return splitOutside(parenthesised(header, open), ',').flatMap((parameter) => {
+    const colon = parameter.indexOf(':');
+    if (colon === -1) return [];
+    return [{ name: squeezed(parameter.slice(0, colon)), type: squeezed((splitOutside(parameter.slice(colon + 1), '=')[0] ?? '').replace(/\binout\b|@\w+/g, '')) }];
+  });
+}
+
+/**
+ * Each SDK's reader of its makers: given its files, what finds the public
+ * ways `maker` is made, each with what it takes; `undefined` when the SDK
+ * declares no public type or function of that name.
+ */
+const CLOCK_MAKERS = {
+  kotlin(files) {
+    const sourced = files.map((file) => ({ file, code: kotlinCode(read(file)) }));
+    const types = kotlinTypes(sourced);
+    return (maker) => {
+      const type = types.find((found) => found.name === maker);
+      if (type) {
+        if (type.keyword !== 'class' || type.modifiers.includes('abstract') || type.modifiers.includes('sealed')) return [];
+        const secondary = kotlinDeclarations(type.body, type.file, () => {}).filter((inside) => inside.keyword === 'constructor');
+        const ways = secondary.map((inside) => ({ where: `a constructor of ${maker} in ${type.file}`, takes: inside.takes }));
+        if (type.primary === 'public') ways.unshift({ where: `the primary constructor of ${maker} in ${type.file}`, takes: kotlinParameters(type.parameterList) });
+        if (type.primary === null && secondary.length === 0) ways.push({ where: `the constructor ${maker} has of its own, in ${type.file}`, takes: [] });
+        return ways;
+      }
+      const functions = sourced.flatMap(({ file, code }) =>
+        kotlinDeclarations(code, file, () => {})
+          .filter((top) => top.keyword === 'fun' && top.name === maker)
+          .map((top) => ({ where: `fun ${maker} in ${file}`, takes: top.takes })),
+      );
+      return functions.length > 0 ? functions : undefined;
+    };
+  },
+  swift(files) {
+    const declared = files.flatMap((file) => swiftDeclarations(swiftCode(read(file))).map((declaration) => ({ ...declaration, file })));
+    const isPublic = (declaration) => declaration.access === 'public' || declaration.access === 'open';
+    return (maker) => {
+      const dot = maker.indexOf('.');
+      if (dot !== -1) {
+        const owner = maker.slice(0, dot);
+        const member = maker.slice(dot + 1);
+        const blocks = declared.filter((found) => ['class', 'struct', 'actor', 'enum', 'extension'].includes(found.kind) && found.name === owner);
+        const functions = blocks.flatMap((block) =>
+          swiftDeclarations(block.body)
+            .filter((inside) => inside.kind === 'func' && inside.name === member && isPublic(inside))
+            .map((inside) => ({ where: `func ${maker} in ${block.file}`, takes: swiftParameters(inside.header) })),
+        );
+        return functions.length > 0 ? functions : undefined;
+      }
+      const type = declared.find((found) => ['class', 'struct', 'actor', 'enum'].includes(found.kind) && found.name === maker && isPublic(found));
+      if (type) {
+        const blocks = [type, ...declared.filter((found) => found.kind === 'extension' && found.name === maker)];
+        return blocks.flatMap((block) =>
+          swiftDeclarations(block.body)
+            .filter((inside) => inside.kind === 'init' && isPublic(inside))
+            .map((inside) => ({ where: `an initializer of ${maker} in ${block.file}`, takes: swiftParameters(inside.header) })),
+        );
+      }
+      const functions = declared.filter((found) => found.kind === 'func' && found.name === maker && isPublic(found)).map((found) => ({ where: `func ${maker} in ${found.file}`, takes: swiftParameters(found.header) }));
+      return functions.length > 0 ? functions : undefined;
+    };
+  },
+  csharp(files) {
+    const types = csharpTypes(files.map((file) => ({ file, code: csharpCode(read(file)) })));
+    return (maker) => {
+      // A partial type is every declaration of its name.
+      const parts = types.filter((found) => found.name === maker);
+      if (parts.length > 0) {
+        if (parts.some((part) => !['class', 'record', 'record class', 'record struct', 'struct'].includes(part.keyword) || part.modifiers.includes('abstract') || part.modifiers.includes('static'))) return [];
+        const ways = parts.flatMap((part) => [
+          ...(part.parameterList === null ? [] : [{ where: `the primary constructor of ${maker} in ${part.file}`, takes: csharpParameters(part.parameterList) }]),
+          ...csharpDeclarations(part.body, part.file, () => {})
+            .filter((inside) => inside.keyword === 'constructor')
+            .map((inside) => ({ where: `a constructor of ${maker} in ${part.file}`, takes: inside.takes })),
+        ]);
+        // With no constructor declared, the type has one of its own, which is public. Every declaration states its accessibility.
+        const hidden = new RegExp(`\\b(?:private|protected|internal)\\s+(?:(?:private|protected|internal)\\s+)?${maker}\\s*\\(`);
+        if (ways.length === 0 && !parts.some((part) => hidden.test(part.body))) {
+          ways.push({ where: `the constructor ${maker} has of its own, in ${parts[0].file}`, takes: [] });
+        }
+        return ways;
+      }
+      const methods = types.flatMap((owner) =>
+        csharpDeclarations(owner.body, owner.file, () => {})
+          .filter((inside) => inside.keyword === 'method' && inside.isStatic && inside.name === maker)
+          .map((inside) => ({ where: `${owner.name}.${maker} in ${owner.file}`, takes: inside.takes })),
+      );
+      return methods.length > 0 ? methods : undefined;
+    };
+  },
+  rust(files) {
+    const sourced = files.map((file) => ({ file, code: withoutComments(read(file), '"') }));
+    /** The public functions named `name` in `code`, each with what it takes. */
+    const functionsIn = (code, name, where) =>
+      [...code.matchAll(new RegExp(`\\bpub (?:async )?fn ${name}\\b`, 'g'))].map((fn) => {
+        let at = fn.index + fn[0].length;
+        while (/\s/.test(code[at])) at++;
+        if (code[at] === '<') at = closing(code, at);
+        return { where, takes: parameters(parenthesised(code, code.indexOf('(', at))) };
+      });
+    return (maker) => {
+      const path = maker.indexOf('::');
+      if (path !== -1) {
+        const owner = maker.slice(0, path);
+        const member = maker.slice(path + 2);
+        const functions = sourced.flatMap(({ file, code }) =>
+          [...code.matchAll(new RegExp(`^\\s*impl(?:<[^>{]*>)?\\s+${owner}(?:<[^>{]*>)?\\s*\\{`, 'gm'))].flatMap((block) =>
+            functionsIn(braced(code, block.index + block[0].length - 1), member, `fn ${maker} in ${file}`),
+          ),
+        );
+        return functions.length > 0 ? functions : undefined;
+      }
+      for (const { file, code } of sourced) {
+        const struct = new RegExp(`^\\s*pub struct ${maker}\\b`, 'm').exec(code);
+        if (!struct) continue;
+        const open = code.slice(struct.index).search(/[{(;]/) + struct.index;
+        const fields = code[open] !== '{' ? [] : splitOutside(braced(code, open), ',').flatMap((field) => {
+          const stated = /^(?:#\[[^\]]*\]\s*)*pub\s+(\w+)\s*:\s*(.+)$/s.exec(field);
+          return stated ? [{ name: stated[1], type: squeezed(stated[2]) }] : [];
+        });
+        return [{ where: `the public fields of ${maker} in ${file}`, takes: fields }];
+      }
+      const functions = sourced.flatMap(({ file, code }) => functionsIn(code, maker, `fn ${maker} in ${file}`));
+      return functions.length > 0 ? functions : undefined;
+    };
+  },
+  go(files) {
+    const sourced = files.map((file) => ({ file, code: goCode(read(file)) }));
+    return (maker) => {
+      for (const { file, code } of sourced) {
+        const header = goStructHeader(maker).exec(code);
+        if (!header) continue;
+        const open = header.index + header[0].length - 1;
+        const fields = code.slice(open + 1, goClosing(code, open) - 1).split('\n').flatMap((line) => {
+          const field = /^\s*([A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*)\s+(\S.*)$/.exec(line);
+          if (!field) return [];
+          return field[1].split(',').map((name) => name.trim()).filter((name) => /^[A-Z]/.test(name)).map((name) => ({ name, type: squeezed(field[2]) }));
+        });
+        return [{ where: `the exported fields of ${maker} in ${file}`, takes: fields }];
+      }
+      const functions = sourced.flatMap(({ file, code }) =>
+        [...code.matchAll(new RegExp(`^func ${maker}(?:\\[[^\\]\\n]*\\])?\\(`, 'gm'))].map((fn) => {
+          const open = fn.index + fn[0].length - 1;
+          return { where: `func ${maker} in ${file}`, takes: goTypes(code.slice(open + 1, goClosing(code, open) - 1)).map((type) => ({ type })) };
+        }),
+      );
+      return functions.length > 0 ? functions : undefined;
+    };
+  },
+};
+
+/** The index where a type stated at `from` ends: at a `,`, `;`, `=` or line's end outside every bracket, or at the bracket that closes one it is inside. */
+function statedTypeEnd(code, from) {
+  let depth = 0;
+  for (let i = from; i < code.length; i++) {
+    const c = code[i];
+    if ((c === '=' || c === '-') && code[i + 1] === '>') {
+      i++;
+      continue;
+    }
+    if ('(<[{'.includes(c)) {
+      if (c === '{' && depth === 0 && code.slice(from, i).trim() !== '') return i;
+      depth++;
+    } else if (')>]}'.includes(c)) {
+      if (depth === 0) return i;
+      depth--;
+    } else if (depth === 0 && ',;=\n'.includes(c)) return i;
+  }
+  return code.length;
+}
+
+/** The types a language that states a parameter's or a field's type after its name and a colon states in `files`, each with its file, `clean` clearing its comments and strings. */
+const colonTypes = (clean) => (files) =>
+  files.flatMap((file) => {
+    const code = clean(read(file));
+    return [...code.matchAll(/(?<![\w$])[A-Za-z_$][\w$]*\??\s*:(?![:=])/g)].map((stated) => {
+      const from = stated.index + stated[0].length;
+      return { file, type: squeezed(code.slice(from, statedTypeEnd(code, from))) };
+    });
+  });
+
+/** `text` with each string on one line between `quotes` emptied. */
+const withoutStrings = (text, quotes) => text.replace(new RegExp(`([${quotes}])(?:\\\\.|(?!\\1)[^\\\\\\n])*\\1`, 'g'), '$1$1');
+
+/** The types Go states for the parameters of its functions and the fields of its structs in `files`, each with its file. */
+function goStatedTypes(files) {
+  return files.flatMap((file) => {
+    const code = goCode(read(file));
+    const stated = [];
+    for (const fn of code.matchAll(/\bfunc\b\s*(?:\([^()]*\)\s*)?(?:[A-Za-z_]\w*\s*)?(?:\[[^\]\n]*\]\s*)?\(/g)) {
+      const open = fn.index + fn[0].length - 1;
+      stated.push(...goTypes(code.slice(open + 1, goClosing(code, open) - 1)));
+    }
+    for (const struct of code.matchAll(/\bstruct\s*\{/g)) {
+      const open = struct.index + struct[0].length - 1;
+      for (const line of code.slice(open + 1, goClosing(code, open) - 1).split('\n')) {
+        const field = /^\s*[A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*\s+(\S.*)$/.exec(line);
+        if (field) stated.push(field[1]);
+      }
+    }
+    return stated.map((type) => ({ file, type: squeezed(type) }));
+  });
+}
+
+/** Each SDK's reader of the types its source states for its parameters and fields, for an `outside` source. */
+const CLOCK_STATED = {
+  typescript: colonTypes(typescriptCode),
+  python: colonTypes((source) => withoutStrings(withoutPythonComments(source), `"'`)),
+  rust: colonTypes((source) => withoutStrings(withoutComments(source, '"'), '"')),
+  kotlin: colonTypes(kotlinCode),
+  swift: colonTypes(swiftCode),
+  go: goStatedTypes,
+};
+
+const clockFilesOf = new Map();
+const filesFor = (sdk) => {
+  if (!clockFilesOf.has(sdk)) clockFilesOf.set(sdk, clockFiles(sdk));
+  return clockFilesOf.get(sdk);
+};
+const clockMakersOf = new Map();
+const clockStatedOf = new Map();
+
+/** source → row */
+const clockSources = new Map();
+let clockMakers = 0;
+const clockRows = table.clock;
+if (!Array.isArray(clockRows) || clockRows.length === 0) fail(`${TABLE} states no \`clock\`: whose time each SDK's waits keep, and whose randomness its jitter draws`);
+for (const row of clockRows ?? []) {
+  const name = `the \`${row.source}\` row of \`clock\` in ${TABLE}`;
+  if (typeof row.source !== 'string' || row.source === '') fail(`a row of \`clock\` in ${TABLE} names no \`source\``);
+  if (clockSources.has(row.source)) fail(`${name} is listed twice`);
+  clockSources.set(row.source, row);
+  const strays = Object.keys(row).filter((key) => !CLOCK_ROW_KEYS.includes(key));
+  if (strays.length > 0) fail(`${name} states ${strays.join(', ')}, which a row of \`clock\` does not`);
+  if (typeof row.docs !== 'string' || row.docs === '') fail(`${name} does not say what the source is (\`docs\`)`);
+  const words = row.typeWords;
+  if (!Array.isArray(words) || words.length === 0 || !words.every((word) => typeof word === 'string' && /^[A-Z][A-Za-z0-9]*$/.test(word))) {
+    fail(`${name} does not say, as words that begin with a capital, what a type of the source is named by (\`typeWords\`)`);
+  }
+  for (const said of ['outside', 'takes', 'notYetReached']) {
+    for (const sdk of Object.keys(row[said] ?? {})) {
+      if (!CLOCK_SDKS.includes(sdk)) fail(`${name}: \`${said}\` names "${sdk}", which is no SDK this lint reads`);
+    }
+  }
+  for (const sdk of CLOCK_SDKS) {
+    const outside = row.outside?.[sdk];
+    const takes = row.takes?.[sdk];
+    const waiting = row.notYetReached?.[sdk];
+    if (outside === undefined && takes === undefined) {
+      fail(`${name} does not say whether a caller controls ${LANGUAGES[sdk]}'s from outside it (\`outside\`) or which makers take it (\`takes\`)`);
+      continue;
+    }
+    if (outside !== undefined && takes !== undefined) {
+      fail(`${name} says both that a caller controls ${LANGUAGES[sdk]}'s from outside it (\`outside\`) and which makers take it (\`takes\`): it is one or the other`);
+      continue;
+    }
+    if (outside !== undefined) {
+      if (typeof outside !== 'string' || outside === '') fail(`${name}: \`outside\` does not say how a caller controls ${LANGUAGES[sdk]}'s`);
+      if (waiting !== undefined) fail(`${name} says a caller controls ${LANGUAGES[sdk]}'s from outside it, and names makers still to take it (\`notYetReached\`): it is one or the other`);
+      if (!CLOCK_STATED[sdk]) {
+        fail(`${name} says a caller controls ${LANGUAGES[sdk]}'s from outside it, and this lint has no reader of the types ${LANGUAGES[sdk]} states`);
+        continue;
+      }
+      if (!Array.isArray(words)) continue;
+      if (!clockStatedOf.has(sdk)) clockStatedOf.set(sdk, CLOCK_STATED[sdk](filesFor(sdk)));
+      for (const { file, type } of clockStatedOf.get(sdk)) {
+        const named = namedTypeWord(type, words);
+        if (named) fail(`${file} states a parameter or a field of type ${type}, whose ${named.identifier} names ${named.word}; ${name} says a caller controls ${LANGUAGES[sdk]}'s from outside it (${outside}): take the parameter out, or move ${sdk} to the row's \`takes\``);
+      }
+      continue;
+    }
+    if (takes === null || typeof takes !== 'object' || Array.isArray(takes) || Object.keys(takes).length === 0) {
+      fail(`${name}: \`takes\` lists no maker of ${LANGUAGES[sdk]}'s`);
+      continue;
+    }
+    if (waiting !== undefined && (waiting === null || typeof waiting !== 'object' || Array.isArray(waiting))) {
+      fail(`${name}: \`notYetReached\` for ${sdk} is not each maker still to take it, with what is to be built`);
+      continue;
+    }
+    for (const [maker, why] of Object.entries(waiting ?? {})) {
+      if (takes[maker] === undefined) fail(`${name}: \`notYetReached\` names ${sdk}'s ${maker}, which its \`takes\` does not list`);
+      if (typeof why !== 'string' || why === '') fail(`${name}: \`notYetReached\` does not say what is to be built for ${sdk}'s ${maker}`);
+    }
+    if (!CLOCK_MAKERS[sdk]) {
+      fail(`${name} lists makers of ${LANGUAGES[sdk]}'s that take it, and this lint has no reader of ${LANGUAGES[sdk]}'s makers`);
+      continue;
+    }
+    if (!clockMakersOf.has(sdk)) clockMakersOf.set(sdk, CLOCK_MAKERS[sdk](filesFor(sdk)));
+    const waysOf = clockMakersOf.get(sdk);
+    for (const [maker, types] of Object.entries(takes)) {
+      clockMakers++;
+      if (!Array.isArray(types) || types.length === 0 || !types.every((type) => typeof type === 'string' && type !== '') || new Set(types).size !== types.length) {
+        fail(`${name}: \`takes\` does not say, once each, the types ${sdk}'s ${maker} takes it as`);
+        continue;
+      }
+      const ways = waysOf(maker);
+      if (ways === undefined) {
+        fail(`${name} says ${sdk}'s ${maker} takes ${types.join(' and ')}, and ${LANGUAGES[sdk]} declares no public type or function ${maker}`);
+        continue;
+      }
+      if (ways.length === 0) {
+        fail(`${name} says ${sdk}'s ${maker} takes ${types.join(' and ')}, and no public constructor or initializer makes ${maker}`);
+        continue;
+      }
+      const lacking = ways
+        .map((way) => {
+          const held = way.takes.filter((parameter) => !isFunctionType(parameter.type));
+          // Another maker of the row, handed in, carries what it takes once it takes it: once the row's `notYetReached` no longer names it.
+          const carried = Object.entries(takes)
+            .filter(([other, its]) => other !== maker && waiting?.[other] === undefined && Array.isArray(its) && held.some((parameter) => namesType(parameter.type, other)))
+            .flatMap(([, its]) => its);
+          return { way, missing: types.filter((type) => !carried.includes(type) && !held.some((parameter) => namesType(parameter.type, type))) };
+        })
+        .filter(({ missing }) => missing.length > 0);
+      if (waiting?.[maker] !== undefined) {
+        if (lacking.length === 0) fail(`every public way of making ${sdk}'s ${maker} takes ${types.join(' and ')}, and ${name} says it is still to (\`notYetReached\`): take ${maker} out of the row's \`notYetReached\` for ${sdk}`);
+        continue;
+      }
+      for (const { way, missing } of lacking) {
+        fail(`${way.where} takes no ${missing.join(' or ')}, which ${name} says ${sdk}'s ${maker} takes: add it, or say in the row's \`notYetReached\` what is still to be built`);
+      }
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error(`✗ lint:client-surface — ${failures.length} problem${failures.length === 1 ? '' : 's'}`);
   for (const failure of failures) console.error(`  - ${failure}`);
@@ -3248,5 +3686,5 @@ const stillToReach = (value) =>
       ? Object.entries(value).reduce((total, [key, item]) => total + (key === 'notYetReached' ? Object.keys(item).length : stillToReach(item)), 0)
       : 0;
 console.log(
-  `✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, ${heldBy(NAMESPACE_SDKS)}; ${membersCount} members of what a worker is handed, ${heldBy(WORKER_SDKS)}; ${unitMembers} members of ${units.size} state units, ${heldBy(UNIT_SDKS)}; ${wireMembers.size} members of the bus over the wire, ${heldBy(WIRE_SDKS)}; ${storageMembers.size} members of the storage, ${heldBy(STORAGE_SDKS)}; and ${[...modules.values()].reduce((total, module) => total + (module.members?.length ?? 0), 0)} members of ${modules.size} modules, ${heldBy(MODULE_SDKS)}; ${stillToReach(table)} rows name an SDK that is still to reach them`,
+  `✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, ${heldBy(NAMESPACE_SDKS)}; ${membersCount} members of what a worker is handed, ${heldBy(WORKER_SDKS)}; ${unitMembers} members of ${units.size} state units, ${heldBy(UNIT_SDKS)}; ${wireMembers.size} members of the bus over the wire, ${heldBy(WIRE_SDKS)}; ${storageMembers.size} members of the storage, ${heldBy(STORAGE_SDKS)}; ${[...modules.values()].reduce((total, module) => total + (module.members?.length ?? 0), 0)} members of ${modules.size} modules, ${heldBy(MODULE_SDKS)}; and ${clockMakers} makers of ${clockSources.size} sources a caller controls, ${heldBy(CLOCK_SDKS)}; ${stillToReach(table)} rows name an SDK that is still to reach them`,
 );

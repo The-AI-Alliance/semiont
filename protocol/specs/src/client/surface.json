@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for the surface of a Semiont client: every namespace, every method, the shape of what it returns, and what calling it does first. Every SDK is held to this table two ways. Its signatures are read by .github/scripts/checks/check-client-surface.mjs, which fails on a method the table lacks, one an SDK lacks, and one whose return shape is not the row's; each of its sections holds the SDKs it has a reader for. Its behaviour is run: each SDK's surface test calls every method as each of its `cases` states and holds what the call did to the row. A method name is the table's, in camelCase; an SDK spells it by its language's convention (`resourceContent` is `resource_content` in Rust and `ResourceContent` in Go, whose first letter is a capital), and a namespace whose name is a keyword there takes a trailing underscore (`yield_`, `match_`). Swift keeps both names, including its contextual `yield`. Neither is a keyword in Kotlin, which keeps both names; Java reaches them through their getters (`getYield()`), which Java's contextual `yield` does not touch. An `events` row is a property named `<method>$` in TypeScript. `absent` names an SDK that does not have the method, and why: the lint then fails if that SDK has it, so an exemption that stopped being true is caught. Add a row here before adding a method to any SDK. `worker` is the surface of what a worker is handed: the claims `job.claim` returns, and a job the worker holds. Each lists its members by name, and the same lint holds every SDK to the list both ways: a member the list has and an SDK lacks, and a public member an SDK has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's: what a held job states is a property in TypeScript and Python and a method in Rust, and a property that gives a stream of values is named `<member>$` in TypeScript. What a language's own protocols give a type is no member here: how a type is made, Python's names that begin with an underscore, its `__aenter__` and `__anext__` among them, Rust's trait implementations, and what a TypeScript class inherits from a class the SDK does not declare. `absent` is as it is for a method. `named` gives the name an SDK has the member under where its ecosystem has a name of its own for it, and why: the lint then fails if that SDK lacks that name, or has the table's name as well. `takes` marks a member a held job has as its verb's: for each verb, the schema of what the member takes. What a member does is not held here and these rows have no cases: protocol/contract/WORKER-CONTRACT.md states it, and the worker conformance suite (protocol/conformance/worker) holds each SDK to it. Add a member here before adding it to any SDK. `stateUnits` lists each state unit: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways: a unit an SDK does not declare, or declares as no `StateUnit`; a `StateUnit` an SDK declares among its units that no row makes; a member the list has and an SDK's unit lacks; and a public member an SDK's unit has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's, as for `worker`; a member's `absent` names an SDK whose unit has no such member, and why, and the lint then fails if that SDK's unit has it. `dispose` is no member here: every unit has it, being a `StateUnit`. How a unit is made is held apart from its members: every unit can be made from outside its SDK, by the type's own public constructor (Rust's `pub fn new` in the type's own `impl`, Python's class), or by the public function that `madeBy` names for that SDK, spelled as that SDK spells it, where the constructor is not what makes it; Go has no constructors, so every Go unit names one. The same lint fails a unit no public way makes, and a `madeBy` that names a function its SDK lacks, or has but not publicly. Public is reachable from outside the SDK, including what Swift declares `public` or `open`: what TypeScript's entry (packages/typescript/sdk/src/index.ts) exports, an item a module Rust's crate root reaches declares or re-exports, a name in the `__all__` of a Python module whose path has no private part, what Kotlin declares `public`, and what Go exports from a package that is not internal. `absent` names an SDK that has no such unit, and why: the lint then fails if that SDK has one. What a unit does is not held here: each SDK's tests of its units hold that. Add a unit or a member here before adding it to any SDK. `wire` is the typed bus over a client's transport, which every client hands out as `wire`: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways, as for a state unit: a bus an SDK does not declare, a member the list has and an SDK's bus lacks, and a public member an SDK's bus has and the list lacks; a member's `absent` names an SDK whose bus has no such member, and why, and the lint then fails if that SDK's has it. A member is held by its name alone, as for `worker`; how a bus is made is no member. A Go method takes no type parameters, so a member of Go's bus that is generic in its channel is a function of its package that takes the bus (`Emit(ctx, w, bus.MarkSubmit, payload)`). TypeScript's bus is read where @semiont/core declares it. A transport is no member: a bus hands out none. Add a member here before adding it to any SDK. `storage` is where a client keeps text under a key: the interface an application implements (a trait in Rust, a protocol in Python), what each SDK names it (`made`), and its members by name. The same lint holds every SDK to it both ways, as for `wire`: a storage an SDK does not declare, a member the list has and an SDK's storage lacks, and a public member an SDK's storage has and the list lacks; a member's `absent` names an SDK whose storage has no such member, and why, and the lint then fails if that SDK's has it. A member is held by its name alone, as for `worker`. What implements a storage is not read here. Add a member here before adding it to any SDK. `modules` is what each SDK has beside its namespaces: the free functions, types and values of its modules, each module with where each SDK keeps it and its members. A member is named as the table spells it and held by its `kind`: a `function` is spelled by each language's convention, a `reader` as a function but `get` and its name in TypeScript, a `type` as the table spells it, and a `constant` in capitals with underscores but in Go, as a function, and in Swift, as the table spells it. `named` gives an SDK's own name where the rule does not, `absent` says why an SDK has none, and `notYetReached`, on a member or a module, names an SDK still to have it; each is stale, and fails the lint, once it is not so. A module whose `whole` names an SDK is that SDK's files alone, and every public member of them is listed.",
+  "$comment": "AUTHORITY for the surface of a Semiont client: every namespace, every method, the shape of what it returns, and what calling it does first. Every SDK is held to this table two ways. Its signatures are read by .github/scripts/checks/check-client-surface.mjs, which fails on a method the table lacks, one an SDK lacks, and one whose return shape is not the row's; each of its sections holds the SDKs it has a reader for. Its behaviour is run: each SDK's surface test calls every method as each of its `cases` states and holds what the call did to the row. A method name is the table's, in camelCase; an SDK spells it by its language's convention (`resourceContent` is `resource_content` in Rust and `ResourceContent` in Go, whose first letter is a capital), and a namespace whose name is a keyword there takes a trailing underscore (`yield_`, `match_`). Swift keeps both names, including its contextual `yield`. Neither is a keyword in Kotlin, which keeps both names; Java reaches them through their getters (`getYield()`), which Java's contextual `yield` does not touch. An `events` row is a property named `<method>$` in TypeScript. `absent` names an SDK that does not have the method, and why: the lint then fails if that SDK has it, so an exemption that stopped being true is caught. Add a row here before adding a method to any SDK. `worker` is the surface of what a worker is handed: the claims `job.claim` returns, and a job the worker holds. Each lists its members by name, and the same lint holds every SDK to the list both ways: a member the list has and an SDK lacks, and a public member an SDK has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's: what a held job states is a property in TypeScript and Python and a method in Rust, and a property that gives a stream of values is named `<member>$` in TypeScript. What a language's own protocols give a type is no member here: how a type is made, Python's names that begin with an underscore, its `__aenter__` and `__anext__` among them, Rust's trait implementations, and what a TypeScript class inherits from a class the SDK does not declare. `absent` is as it is for a method. `named` gives the name an SDK has the member under where its ecosystem has a name of its own for it, and why: the lint then fails if that SDK lacks that name, or has the table's name as well. `takes` marks a member a held job has as its verb's: for each verb, the schema of what the member takes. What a member does is not held here and these rows have no cases: protocol/contract/WORKER-CONTRACT.md states it, and the worker conformance suite (protocol/conformance/worker) holds each SDK to it. Add a member here before adding it to any SDK. `stateUnits` lists each state unit: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways: a unit an SDK does not declare, or declares as no `StateUnit`; a `StateUnit` an SDK declares among its units that no row makes; a member the list has and an SDK's unit lacks; and a public member an SDK's unit has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's, as for `worker`; a member's `absent` names an SDK whose unit has no such member, and why, and the lint then fails if that SDK's unit has it. `dispose` is no member here: every unit has it, being a `StateUnit`. How a unit is made is held apart from its members: every unit can be made from outside its SDK, by the type's own public constructor (Rust's `pub fn new` in the type's own `impl`, Python's class), or by the public function that `madeBy` names for that SDK, spelled as that SDK spells it, where the constructor is not what makes it; Go has no constructors, so every Go unit names one. The same lint fails a unit no public way makes, and a `madeBy` that names a function its SDK lacks, or has but not publicly. Public is reachable from outside the SDK, including what Swift declares `public` or `open`: what TypeScript's entry (packages/typescript/sdk/src/index.ts) exports, an item a module Rust's crate root reaches declares or re-exports, a name in the `__all__` of a Python module whose path has no private part, what Kotlin declares `public`, and what Go exports from a package that is not internal. `absent` names an SDK that has no such unit, and why: the lint then fails if that SDK has one. What a unit does is not held here: each SDK's tests of its units hold that. Add a unit or a member here before adding it to any SDK. `wire` is the typed bus over a client's transport, which every client hands out as `wire`: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways, as for a state unit: a bus an SDK does not declare, a member the list has and an SDK's bus lacks, and a public member an SDK's bus has and the list lacks; a member's `absent` names an SDK whose bus has no such member, and why, and the lint then fails if that SDK's has it. A member is held by its name alone, as for `worker`; how a bus is made is no member. A Go method takes no type parameters, so a member of Go's bus that is generic in its channel is a function of its package that takes the bus (`Emit(ctx, w, bus.MarkSubmit, payload)`). TypeScript's bus is read where @semiont/core declares it. A transport is no member: a bus hands out none. Add a member here before adding it to any SDK. `storage` is where a client keeps text under a key: the interface an application implements (a trait in Rust, a protocol in Python), what each SDK names it (`made`), and its members by name. The same lint holds every SDK to it both ways, as for `wire`: a storage an SDK does not declare, a member the list has and an SDK's storage lacks, and a public member an SDK's storage has and the list lacks; a member's `absent` names an SDK whose storage has no such member, and why, and the lint then fails if that SDK's has it. A member is held by its name alone, as for `worker`. What implements a storage is not read here. Add a member here before adding it to any SDK. `modules` is what each SDK has beside its namespaces: the free functions, types and values of its modules, each module with where each SDK keeps it and its members. A member is named as the table spells it and held by its `kind`: a `function` is spelled by each language's convention, a `reader` as a function but `get` and its name in TypeScript, a `type` as the table spells it, and a `constant` in capitals with underscores but in Go, as a function, and in Swift, as the table spells it. `named` gives an SDK's own name where the rule does not, `absent` says why an SDK has none, and `notYetReached`, on a member or a module, names an SDK still to have it; each is stale, and fails the lint, once it is not so. A module whose `whole` names an SDK is that SDK's files alone, and every public member of them is listed. `clock` is what a caller controls of an SDK's time and chance: the clock every wait keeps, and the random source every jitter draws, one row each. For every SDK a row says either how a caller controls the source from outside the SDK (`outside`), or which public makers take it (`takes`): each maker as its SDK spells it (`Type.member`, or `Type::member` in Rust, for a type's function), with the types it takes the source as. The same lint holds every SDK to it both ways: every public way of making a listed maker takes each of its types, or is handed another maker of the row that takes them already, and keeps that one's; and no parameter or field of an `outside` SDK has a type the row's `typeWords` name. `notYetReached` names a maker still to take it, with what is to be built, and is stale, and fails the lint, once the maker takes it. When a wait ends under a moved clock is protocol/specs/src/client/clock-cases.json's.",
   "shapes": {
     "promise": "Asked once, answered once: the value, or a failure with a code.",
     "stream": "A long-running operation: what it reports as it goes, then its final value. Awaited, it gives the final value.",
@@ -2085,6 +2085,282 @@
           }
         }
       ]
+    }
+  ],
+  "clock": [
+    {
+      "source": "clock",
+      "docs": "What every wait an SDK makes, and every interval it measures, keeps the time of: a clock its caller controls, so a caller who moves it sees each wait end when protocol/specs/src/client/clock-cases.json says. Where the runtime owns time, the caller moves the runtime's clock from outside the SDK, which takes none (`outside`). Where the ecosystem's waits take a clock, every public maker of something that waits takes one, its system clock when none is given, unless it is handed something that already carries one, whose clock it keeps; and what it makes keeps its clock (`takes`). A reading of the wall clock, which compares now with an instant a server stated or stamps a record, is no part of it.",
+      "typeWords": ["Clock", "TimeSource", "TimeProvider", "Scheduler", "EventLoop"],
+      "outside": {
+        "typescript": "A test runner's fake timers, which fake every timer global and Date: every wait the SDK makes is a timer global.",
+        "rust": "Tokio's paused clock: every wait and interval is tokio::time's, reqwest's request deadline among them.",
+        "python": "The running asyncio loop's clock: every wait is the running loop's, and every request deadline is the SDK's own asyncio timeout.",
+        "go": "testing/synctest: every wait is package time's, on goroutines the caller's call starts."
+      },
+      "takes": {
+        "kotlin": {
+          "SemiontClient": ["CoroutineContext", "TimeSource"],
+          "TestClient": ["CoroutineContext", "TimeSource"],
+          "HttpTransport": ["CoroutineContext", "TimeSource"],
+          "Bus": ["CoroutineContext", "TimeSource"],
+          "request": ["TimeSource"],
+          "HoverDwell": ["CoroutineContext"],
+          "SearchPipeline": ["CoroutineContext"],
+          "Cache": ["CoroutineContext"],
+          "FaultyTransport": ["CoroutineContext"],
+          "ServiceToken": ["TimeSource"],
+          "AgentToken": ["CoroutineContext"],
+          "signInDevice": ["TimeSource"],
+          "sessionFromKept": ["CoroutineContext", "TimeSource"],
+          "HttpSessionFactory": ["CoroutineContext", "TimeSource"],
+          "SemiontBrowserConfig": ["CoroutineContext", "TimeSource"],
+          "ScriptedSessions": ["CoroutineContext", "TimeSource"],
+          "requestFuture": ["CoroutineContext", "TimeSource"],
+          "retryWithBackoffFuture": ["CoroutineContext"],
+          "renewKeptFuture": ["CoroutineContext"],
+          "signInDeviceFuture": ["CoroutineContext", "TimeSource"],
+          "signOutFuture": ["CoroutineContext"],
+          "beginAuthorizationFuture": ["CoroutineContext"],
+          "completeAuthorizationFuture": ["CoroutineContext"],
+          "describeConnectionFuture": ["CoroutineContext"],
+          "sessionFromKeptFuture": ["CoroutineContext", "TimeSource"],
+          "createTestSessionFuture": ["CoroutineContext"]
+        },
+        "swift": {
+          "SemiontClient": ["Clock"],
+          "HttpTransport": ["Clock"],
+          "Cache": ["Clock"],
+          "HoverDwell": ["Clock"],
+          "SearchPipeline": ["Clock"],
+          "subscribeDiscovery": ["Clock"],
+          "httpDiscovery": ["Clock"],
+          "retryWithBackoff": ["Clock"],
+          "signInDevice": ["Clock"],
+          "renewKept": ["Clock"],
+          "ServiceToken": ["Clock"],
+          "AgentToken": ["Clock"],
+          "FollowTiming": ["Clock"],
+          "sessionFromKept": ["Clock"],
+          "HttpSessionFactory": ["Clock"],
+          "SemiontBrowserConfig": ["Clock"],
+          "SemiontClient.fromHttp": ["Clock"],
+          "signOut": ["Clock"],
+          "whoAmI": ["Clock"],
+          "beginAuthorization": ["Clock"],
+          "completeAuthorization": ["Clock"],
+          "describeConnection": ["Clock"],
+          "ScriptedTransport": ["Clock"],
+          "ScriptedSessions": ["Clock"],
+          "TestSessionOptions": ["Clock"],
+          "LivenessSpec": ["Clock"]
+        },
+        "csharp": {
+          "SemiontClient": ["TimeProvider"],
+          "HttpTransport": ["TimeProvider"],
+          "Issuer": ["TimeProvider"],
+          "ServiceToken": ["TimeProvider"],
+          "AgentToken": ["TimeProvider"],
+          "KeptSession": ["TimeProvider"],
+          "SignInStore": ["TimeProvider"],
+          "Cache": ["TimeProvider"],
+          "HoverDwell": ["TimeProvider"],
+          "SearchPipeline": ["TimeProvider"],
+          "HttpDiscovery": ["TimeProvider"],
+          "SubscribeDiscovery": ["TimeProvider"],
+          "GetCurrentUserAsync": ["TimeProvider"],
+          "HttpSessionFactory": ["TimeProvider"],
+          "SemiontBrowserConfig": ["TimeProvider"],
+          "FaultyTransport": ["TimeProvider"],
+          "TestSessionOptions": ["TimeProvider"],
+          "ScriptedSessions": ["TimeProvider"],
+          "BeginAuthorizationAsync": ["TimeProvider"],
+          "CompleteAuthorizationAsync": ["TimeProvider"],
+          "DescribeConnectionAsync": ["TimeProvider"],
+          "LivenessSpec": ["TimeProvider"]
+        }
+      },
+      "notYetReached": {
+        "kotlin": {
+          "SemiontClient": "Its public constructor takes neither: its internal one takes both, and is to be the public one.",
+          "TestClient": "Its public constructor takes neither: its internal one takes both, and is to be the public one.",
+          "HttpTransport": "Takes neither: its scope is Dispatchers.Default, and its stream reads System.nanoTime().",
+          "Bus": "Takes neither: its scope is Dispatchers.Default, and its request deadline reads System.nanoTime().",
+          "request": "Its deadline reads System.nanoTime().",
+          "HoverDwell": "Its public constructor waits on Dispatchers.Default: its internal one takes a context, and is to be the public one.",
+          "SearchPipeline": "Its public constructor waits on Dispatchers.Default: its internal one takes a context, and is to be the public one.",
+          "Cache": "Its public constructors make their own scope on Dispatchers.Default.",
+          "FaultyTransport": "Its public constructor waits on Dispatchers.Default: its internal one takes a context, and is to be the public one.",
+          "ServiceToken": "Its hold reads System.nanoTime(), and its request deadline is the JDK client's.",
+          "AgentToken": "Its renewal retries on a scope of Dispatchers.Default.",
+          "signInDevice": "The device grant's expiry reads System.nanoTime(), and its request deadlines are the JDK client's.",
+          "sessionFromKept": "The session it makes renews on a scope of Dispatchers.Default, by the system clock.",
+          "HttpSessionFactory": "Its sessions are made on Dispatchers.Default, by the system clock.",
+          "SemiontBrowserConfig": "The browser's scope is Dispatchers.Default, and the sign-in it completes keeps the system clock.",
+          "ScriptedSessions": "Its sessions keep Dispatchers.Default and the system clock.",
+          "requestFuture": "It runs on a scope of Dispatchers.Default, and its deadline reads System.nanoTime().",
+          "retryWithBackoffFuture": "It runs on a scope of Dispatchers.Default.",
+          "renewKeptFuture": "It runs on a scope of Dispatchers.Default.",
+          "signInDeviceFuture": "It runs on a scope of Dispatchers.Default, and the device grant's expiry reads System.nanoTime().",
+          "signOutFuture": "It runs on a scope of Dispatchers.Default.",
+          "beginAuthorizationFuture": "It runs on a scope of Dispatchers.Default.",
+          "completeAuthorizationFuture": "It runs on a scope of Dispatchers.Default.",
+          "describeConnectionFuture": "It runs on a scope of Dispatchers.Default.",
+          "sessionFromKeptFuture": "It runs on a scope of Dispatchers.Default, and the session it opens renews by the system clock.",
+          "createTestSessionFuture": "It runs on a scope of Dispatchers.Default."
+        },
+        "swift": {
+          "SemiontClient": "Takes no clock: what it makes waits on the continuous clock.",
+          "HttpTransport": "Takes no clock: its stream, retries and deadlines wait through sleepMilliseconds and within, on the continuous clock.",
+          "Cache": "Takes no clock: its save debounce and invalidation window waits on the continuous clock.",
+          "HoverDwell": "Its public initializer passes ContinuousClock() to a package one that takes a clock.",
+          "SearchPipeline": "Its public initializer passes ContinuousClock() to a package one that takes a clock.",
+          "subscribeDiscovery": "Its interval waits on the continuous clock.",
+          "httpDiscovery": "Its deadline waits on the continuous clock.",
+          "retryWithBackoff": "Its pauses wait through sleepMilliseconds, on the continuous clock.",
+          "signInDevice": "The device grant reads ContinuousClock.",
+          "renewKept": "The issuer's deadline waits on the continuous clock.",
+          "ServiceToken": "Its hold reads ContinuousClock, and its renewal waits on it.",
+          "AgentToken": "It keeps the clock of its ServiceToken, which takes none yet.",
+          "FollowTiming": "Its public initializer passes ContinuousClock() to a package one that takes a clock.",
+          "sessionFromKept": "The session it makes renews on the continuous clock.",
+          "HttpSessionFactory": "Its sessions keep the continuous clock.",
+          "SemiontBrowserConfig": "Takes no clock: the sign-in its browser completes waits on the continuous clock.",
+          "SemiontClient.fromHttp": "Takes no clock: the transport it builds waits on the continuous clock.",
+          "signOut": "The revocation's deadline waits on the continuous clock.",
+          "whoAmI": "Its deadline waits on the continuous clock.",
+          "beginAuthorization": "The issuer's deadline waits on the continuous clock.",
+          "completeAuthorization": "The issuer's deadline waits on the continuous clock.",
+          "describeConnection": "The transport it builds waits on the continuous clock.",
+          "ScriptedSessions": "Its sessions keep the continuous clock.",
+          "LivenessSpec": "The liveness check waits on the continuous clock."
+        },
+        "csharp": {
+          "BeginAuthorizationAsync": "Takes no TimeProvider: the Issuer it builds keeps the system clock.",
+          "CompleteAuthorizationAsync": "Takes no TimeProvider: the Issuer it builds keeps the system clock.",
+          "DescribeConnectionAsync": "Takes no TimeProvider: the HttpTransport it builds keeps the system clock.",
+          "LivenessSpec": "The liveness check waits with a Task.Delay that has no TimeProvider, over a FaultyTransport made without one."
+        }
+      }
+    },
+    {
+      "source": "random",
+      "docs": "What every jitter an SDK draws draws from: a random source its caller controls, so a caller can make each draw the lowest the source gives, as protocol/specs/src/client/clock-cases.json does. Where every draw can already be reached from outside the SDK, the caller reaches it there, and the SDK takes none (`outside`). Elsewhere every public maker of something that backs off, and every public function that draws a jitter, takes one, the system's source when none is given, unless it is handed something that already carries one, whose source it keeps; and what it makes keeps its source (`takes`). The randomness of a secret, a PKCE verifier, a nonce or a client assertion's `jti`, stays the platform's cryptographic source, and is no part of it.",
+      "typeWords": ["Random", "Rng"],
+      "outside": {
+        "typescript": "Math.random, which a test replaces: every jitter draws from it.",
+        "python": "The random module, which a test seeds or patches: every jitter draws random.random()."
+      },
+      "takes": {
+        "rust": {
+          "HttpTransportConfig": ["RngCore"],
+          "SemiontSessionConfig": ["RngCore"],
+          "retry_with_backoff": ["RngCore"],
+          "refresh_stored_session": ["RngCore"],
+          "AgentToken::sign_in": ["RngCore"],
+          "equal_jitter": ["RngCore"]
+        },
+        "go": {
+          "HTTPTransportConfig": ["rand.Rand"],
+          "SessionConfig": ["rand.Rand"],
+          "RetryPolicy": ["rand.Rand"],
+          "Issuer": ["rand.Rand"],
+          "AgentConfig": ["rand.Rand"],
+          "EqualJitter": ["rand.Rand"]
+        },
+        "kotlin": {
+          "HttpTransport": ["Random"],
+          "AgentToken": ["Random"],
+          "sessionFromKept": ["Random"],
+          "HttpSessionFactory": ["Random"],
+          "SemiontBrowserConfig": ["Random"],
+          "ScriptedSessions": ["Random"],
+          "retryWithBackoff": ["Random"],
+          "equalJitter": ["Random"],
+          "describeConnection": ["Random"],
+          "retryWithBackoffFuture": ["Random"],
+          "sessionFromKeptFuture": ["Random"],
+          "describeConnectionFuture": ["Random"]
+        },
+        "swift": {
+          "HttpTransport": ["RandomNumberGenerator"],
+          "retryWithBackoff": ["RandomNumberGenerator"],
+          "sessionFromKept": ["RandomNumberGenerator"],
+          "HttpSessionFactory": ["RandomNumberGenerator"],
+          "SemiontBrowserConfig": ["RandomNumberGenerator"],
+          "SemiontClient.fromHttp": ["RandomNumberGenerator"],
+          "describeConnection": ["RandomNumberGenerator"],
+          "ScriptedSessions": ["RandomNumberGenerator"],
+          "TestSessionOptions": ["RandomNumberGenerator"]
+        },
+        "csharp": {
+          "SemiontClient": ["Random"],
+          "HttpTransport": ["Random"],
+          "Issuer": ["Random"],
+          "ServiceToken": ["Random"],
+          "KeptSession": ["Random"],
+          "SignInStore": ["Random"],
+          "HttpSessionFactory": ["Random"],
+          "SemiontBrowserConfig": ["Random"],
+          "TestSessionOptions": ["Random"],
+          "ScriptedSessions": ["Random"],
+          "BeginAuthorizationAsync": ["Random"],
+          "CompleteAuthorizationAsync": ["Random"],
+          "DescribeConnectionAsync": ["Random"]
+        }
+      },
+      "notYetReached": {
+        "rust": {
+          "HttpTransportConfig": "The stream's reconnect draws its jitter from a v4 UUID.",
+          "SemiontSessionConfig": "A session's renewal retry draws its jitter from a v4 UUID.",
+          "retry_with_backoff": "Its jitter draws from a v4 UUID.",
+          "refresh_stored_session": "Its renewal retry draws its jitter from a v4 UUID.",
+          "AgentToken::sign_in": "The agent's renewal retry draws its jitter from a v4 UUID.",
+          "equal_jitter": "It draws from a v4 UUID."
+        },
+        "go": {
+          "HTTPTransportConfig": "The stream's reconnect draws its jitter from math/rand/v2's global source.",
+          "SessionConfig": "A session's renewal retry draws its jitter from math/rand/v2's global source.",
+          "RetryPolicy": "RetryWithBackoff draws its jitter from math/rand/v2's global source.",
+          "Issuer": "Its renewal retry draws its jitter from math/rand/v2's global source.",
+          "AgentConfig": "The agent's renewal retry draws its jitter from math/rand/v2's global source.",
+          "EqualJitter": "It draws from math/rand/v2's global source."
+        },
+        "kotlin": {
+          "HttpTransport": "The stream's reconnect and the emit retry draw from Random.Default.",
+          "AgentToken": "Its renewal retry draws from Random.Default.",
+          "sessionFromKept": "The session it makes draws its renewal retry from Random.Default.",
+          "HttpSessionFactory": "Its sessions draw their renewal retry from Random.Default.",
+          "ScriptedSessions": "Its sessions draw their renewal retry from Random.Default.",
+          "retryWithBackoff": "Its jitter draws from Random.Default.",
+          "SemiontBrowserConfig": "The sign-in its browser completes builds a transport that draws from Random.Default.",
+          "equalJitter": "It draws from Random.Default.",
+          "describeConnection": "The transport it builds draws its emit retry from Random.Default.",
+          "retryWithBackoffFuture": "retryWithBackoff draws its jitter from Random.Default.",
+          "sessionFromKeptFuture": "The session it opens draws its renewal retry from Random.Default.",
+          "describeConnectionFuture": "The transport it builds draws its emit retry from Random.Default."
+        },
+        "swift": {
+          "HttpTransport": "The stream's reconnect and the emit retry draw Int.random(in:) from the system generator.",
+          "retryWithBackoff": "Its jitter draws Int.random(in:) from the system generator.",
+          "sessionFromKept": "The session it makes draws its renewal retry from the system generator.",
+          "HttpSessionFactory": "Its sessions draw their renewal retry from the system generator.",
+          "SemiontBrowserConfig": "The sign-in its browser completes builds a transport that draws from the system generator.",
+          "SemiontClient.fromHttp": "The transport it builds draws from the system generator.",
+          "describeConnection": "The transport it builds draws its emit retry from the system generator.",
+          "ScriptedSessions": "Its sessions draw their renewal retry from the system generator.",
+          "TestSessionOptions": "The test session draws from the system generator."
+        },
+        "csharp": {
+          "HttpSessionFactory": "Takes no Random: its sessions draw from Random.Shared.",
+          "SemiontBrowserConfig": "Takes no Random: the sign-in its browser completes builds a transport that draws from Random.Shared.",
+          "TestSessionOptions": "Takes no Random: the test session draws from Random.Shared.",
+          "ScriptedSessions": "Takes no Random: its sessions draw from Random.Shared.",
+          "BeginAuthorizationAsync": "Takes no Random: the Issuer it builds draws from Random.Shared.",
+          "CompleteAuthorizationAsync": "Takes no Random: the Issuer it builds draws from Random.Shared.",
+          "DescribeConnectionAsync": "Takes no Random: the HttpTransport it builds draws from Random.Shared."
+        }
+      }
     }
   ]
 }
