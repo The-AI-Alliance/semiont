@@ -40,6 +40,8 @@ configured another way).
   - credentials, the bearer and media-token schemes (`tokens.test.ts`);
   - the issuer's key set: the deadline on a fetch, and one fetch per cooldown
     when it fails (`issuer.test.ts`);
+  - how long the Archivist is waited for: each part of an answer, from a
+    request's last byte (`archivist-waits.test.ts`);
   - content and uploads, the JSON-LD description, a resource's anchored text,
     whole when it is larger than the largest bus message, a path that names
     what is not a resource's id, and a read the Archivist closes its

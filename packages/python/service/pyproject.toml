@@ -73,6 +73,8 @@ relative_files = true
 # No target-version: ruff takes it from requires-python.
 [tool.ruff]
 line-length = 140
+# Generated, held by its own drift gate.
+extend-exclude = ["src/semiont_service/_archivist_waits.py"]
 
 [tool.ruff.lint]
 select = ["ANN", "ASYNC", "B", "C4", "E", "F", "I", "PGH", "PT", "RUF", "SIM", "TID", "UP", "W"]
