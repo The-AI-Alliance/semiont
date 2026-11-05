@@ -346,7 +346,7 @@ export * from './service-account';
 export { privateKeyFromPem } from './client-assertion';
 export { SignInError } from './sign-in-error';
 export { UnansweredError, jsonOf, whyUnanswered } from './unanswered';
-export { faultOf, faultSaid } from './required';
+export { faultSaid } from './required';
 
 // Knowledge-graph view derivation — pure fn over the KnowledgeGraph type,
 // run by @semiont/react-ui.

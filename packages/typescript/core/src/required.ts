@@ -1,6 +1,6 @@
 /**
  * The first fault of a value as one of the spec's component schemas: a member
- * it lacks, or one of a kind its schema does not allow.
+ * it lacks, or one that is not what its schema allows.
  *
  * Every SDK holds a reply to what its schema requires before it reads it, and
  * names the first fault it finds the same way, by the same table: what each
@@ -232,7 +232,17 @@ export function faultOfShape(shape: Shape, value: unknown): Fault | undefined {
 }
 
 /** What every SDK says of `fault`. */
-export function faultSaid(fault: Fault): string {
+export function said(fault: Fault): string {
   if (fault.reason === 'lacks') return `it has no \`${fault.member}\``;
   return fault.member === '' ? 'it is malformed' : `its \`${fault.member}\` is malformed`;
+}
+
+/**
+ * What every SDK says of the first fault `value` has as a `schema`, as it
+ * refuses it: `it has no \`member\``, `its \`member\` is malformed`, or `it is
+ * malformed`; nothing, when it has none.
+ */
+export function faultSaid(schema: SchemaName, value: unknown): string | undefined {
+  const fault = faultOf(schema, value);
+  return fault === undefined ? undefined : said(fault);
 }

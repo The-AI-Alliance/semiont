@@ -57,6 +57,29 @@ fn unanswered(method: &reqwest::Method, path: &str, deadline: Duration) -> Trans
     )
 }
 
+/// What every SDK says of a declared body that is no JSON, or that serde
+/// refuses with no fault the table states (`semiont::fault_said` says the
+/// rest).
+pub(crate) const MALFORMED: &str = "it is malformed";
+
+/// The component schema whose generated type `T` is: the last name of its
+/// path, which is its schema's.
+pub(crate) fn schema_of<T>() -> &'static str {
+    let path = std::any::type_name::<T>();
+    path.rsplit_once("::").map_or(path, |(_, name)| name)
+}
+
+/// The body of an answer read as `T`, the generated type of its declared
+/// schema, or what every SDK says of the first fault that keeps it from
+/// being one.
+pub(crate) fn declared<T: DeserializeOwned>(body: &[u8]) -> Result<T, String> {
+    let value: Value = serde_json::from_slice(body).map_err(|_| MALFORMED.to_owned())?;
+    if let Some(said) = semiont::fault_said(schema_of::<T>(), &value) {
+        return Err(said);
+    }
+    serde_json::from_value(value).map_err(|_| MALFORMED.to_owned())
+}
+
 /// How the sentence about a request that got no answer ends: within what,
 /// when its deadline passed, or what kept it from being sent or answered.
 pub(crate) fn why_unanswered(error: &reqwest::Error) -> String {
@@ -424,16 +447,22 @@ impl Shared {
             .await?;
         let status = response.status().as_u16();
         let read = match deadline {
-            Some(deadline) => tokio::time::timeout(deadline, response.json::<T>())
+            Some(deadline) => tokio::time::timeout(deadline, response.bytes())
                 .await
                 .map_err(|_| self.failed(unanswered(&method, path, deadline)))?,
-            None => response.json::<T>().await,
+            None => response.bytes().await,
         };
-        read.map_err(|error| {
+        let body = read.map_err(|error| {
+            self.failed(TransportError::without_response(
+                format!("{method} {path} got no answer{}", why_unanswered(&error)),
+                TransportErrorCode::Unavailable,
+            ))
+        })?;
+        declared(&body).map_err(|said| {
             self.failed(TransportError {
                 code: TransportErrorCode::Error,
                 status: Some(status),
-                message: format!("{method} {path} answered what is not its declared body: {error}"),
+                message: format!("{method} {path} answered what is not its declared body: {said}"),
                 retry_after: None,
             })
         })

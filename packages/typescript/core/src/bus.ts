@@ -28,7 +28,7 @@ import type { ConnectionState } from './transport';
 import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
 import { BusRequestError, classifyFailureCode, type BusReply } from './bus-request';
 import { SemiontError } from './errors';
-import { faultOfShape, faultSaid, type Fault, type Shape } from './required';
+import { faultOfShape, said, type Fault, type Shape } from './required';
 import { BUS_REQUEST_TIMEOUT_MS } from './generated/client-timing';
 import { isResourceScopedChannel, type ResourceScopedChannel, type UnscopedChannel } from './bridged-channels';
 import { uuidV4 } from './id-generation';
@@ -145,7 +145,7 @@ export class FrameRefusal {
   readonly channel: keyof EventMap;
   /** The way to the member the fault is at: the names of the members it is within and its own, joined by dots; empty for the payload itself. */
   readonly member: string;
-  /** Why: `lacks`, the payload does not carry the member or it holds null where it may not; `malformed`, the member is of a kind its schema does not allow. */
+  /** Why: `lacks`, the payload does not carry the member or it holds null where it may not; `malformed`, the member is not what its schema allows (of another kind, another value, form or size), or is one a closed object does not name. */
   readonly reason: Fault['reason'];
   /** The payload as it came, the gateway's stamps and all. */
   readonly payload: unknown;
@@ -176,7 +176,7 @@ function payloadShape(channel: keyof EventMap): Shape {
 }
 
 /** What is said of a payload on `channel` that has `fault`, in every SDK's words. */
-const notTheChannels = (channel: string, fault: Fault): string => `a payload on ${channel} is not that channel's: ${faultSaid(fault)}`;
+const notTheChannels = (channel: string, fault: Fault): string => `a payload on ${channel} is not that channel's: ${said(fault)}`;
 
 /**
  * `payload` as `channel` types it: the rule every SDK's typed read keeps. A

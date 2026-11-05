@@ -64,6 +64,8 @@ pub mod timing;
 pub mod transport;
 pub mod types;
 
+pub use required::fault_said;
+
 use std::sync::{Mutex, MutexGuard};
 
 /// What `mutex` guards. A holder that panicked left it as it was, and it is

@@ -2085,6 +2085,46 @@
           }
         }
       ]
+    },
+    {
+      "module": "refusals",
+      "docs": "What every SDK says of the first fault a body has as a component schema, as it refuses it (`it has no `x``, `its `x` is malformed`, `it is malformed`), or nothing when the body has none: for an SDK whose HTTP transport is a package of its own, which reads its answers by it. Held by the table of what each schema requires (packages/codegen/schemas/required-shapes.mjs).",
+      "where": {
+        "typescript": [
+          "packages/typescript/core/src/required.ts"
+        ],
+        "rust": [
+          "packages/rust/sdk/src/required.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/bus.py"
+        ],
+        "go": [
+          "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/bus"
+        ],
+        "swift": [
+          "packages/swift/sdk/Sources/Semiont/Bus/Bus.swift"
+        ],
+        "csharp": [
+          "packages/csharp/sdk/src/Semiont"
+        ]
+      },
+      "members": [
+        {
+          "member": "faultSaid",
+          "kind": "function",
+          "absent": {
+            "python": "Its HTTP transport is in the SDK's own package, and reads its answers by the table there.",
+            "go": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
+            "kotlin": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
+            "swift": "Its HTTP transport is in the SDK's own package.",
+            "csharp": "Its HTTP transport is in the SDK's own assembly."
+          }
+        }
+      ]
     }
   ],
   "clock": [

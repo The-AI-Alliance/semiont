@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { faultOf, faultOfShape, faultSaid, type Fault, type Shape } from '../required';
+import { faultOf, faultOfShape, faultSaid, said, type Fault, type Shape } from '../required';
 
 const lacks = (member: string): Fault => ({ member, reason: 'lacks' });
 const malformed = (member: string): Fault => ({ member, reason: 'malformed' });
@@ -108,10 +108,19 @@ describe('faultOfShape', () => {
   });
 });
 
-describe('faultSaid', () => {
+describe('said', () => {
   it('says each fault as every SDK says it', () => {
-    expect(faultSaid(lacks('representations.mediaType'))).toBe('it has no `representations.mediaType`');
-    expect(faultSaid(malformed('representations'))).toBe('its `representations` is malformed');
-    expect(faultSaid(malformed(''))).toBe('it is malformed');
+    expect(said(lacks('representations.mediaType'))).toBe('it has no `representations.mediaType`');
+    expect(said(malformed('representations'))).toBe('its `representations` is malformed');
+    expect(said(malformed(''))).toBe('it is malformed');
+  });
+});
+
+describe('faultSaid', () => {
+  it('says the first fault of a value as a schema, and nothing of a value with none', () => {
+    expect(faultSaid('ResourceDescriptor', { '@id': 'r', name: 'n', representations: [] })).toBe('it has no `@context`');
+    expect(faultSaid('ResourceDescriptor', { '@context': 'c', '@id': 'r refused', name: 'n', representations: [] })).toBe('its `@id` is malformed');
+    expect(faultSaid('ResourceDescriptor', 'a resource')).toBe('it is malformed');
+    expect(faultSaid('ResourceDescriptor', { '@context': 'c', '@id': 'r', name: 'n', representations: [] })).toBeUndefined();
   });
 });
