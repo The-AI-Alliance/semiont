@@ -6,33 +6,51 @@ type Agent = components['schemas']['Agent'];
 
 describe('renderAgentLabel', () => {
   describe('Software peers', () => {
-    it('composes `${provider} ${model}` from structured fields', () => {
+    it('is labeled by its name, then the provider and model it runs', () => {
       const agent: Agent = {
         '@type': 'Software',
         '@id': 'did:web:example.com:agents:semiont-worker',
-        name: 'unused-display-name',
+        name: 'my-highlighter',
+        provider: 'ollama',
+        model: 'gemma2:27b',
+      };
+      expect(renderAgentLabel(agent)).toBe('my-highlighter (ollama gemma2:27b)');
+    });
+
+    it('is labeled by its name and its model when it states no provider', () => {
+      const agent: Agent = {
+        '@type': 'Software',
+        name: 'my-highlighter',
+        model: 'gpt-4',
+      };
+      expect(renderAgentLabel(agent)).toBe('my-highlighter (gpt-4)');
+    });
+
+    it('is labeled by its name and its provider when it states no model', () => {
+      const agent: Agent = {
+        '@type': 'Software',
+        name: 'my-highlighter',
+        provider: 'anthropic',
+      };
+      expect(renderAgentLabel(agent)).toBe('my-highlighter (anthropic)');
+    });
+
+    it('is labeled by its provider and model when it has no profile', () => {
+      const agent: Agent = {
+        '@type': 'Software',
+        '@id': 'did:web:example.com:agents:semiont-worker',
         provider: 'ollama',
         model: 'gemma2:27b',
       };
       expect(renderAgentLabel(agent)).toBe('ollama gemma2:27b');
     });
 
-    it('falls back to model alone when provider is absent', () => {
+    it('is labeled by its model alone when it has no profile and states no provider', () => {
       const agent: Agent = {
         '@type': 'Software',
-        name: 'unused',
         model: 'gpt-4',
       };
       expect(renderAgentLabel(agent)).toBe('gpt-4');
-    });
-
-    it('falls back to provider alone when model is absent', () => {
-      const agent: Agent = {
-        '@type': 'Software',
-        name: 'unused',
-        provider: 'anthropic',
-      };
-      expect(renderAgentLabel(agent)).toBe('anthropic');
     });
 
     it('falls back to name when both provider and model are absent', () => {
@@ -71,19 +89,7 @@ describe('renderAgentLabel', () => {
     });
   });
 
-  describe('Legacy and degraded shapes', () => {
-    it('renders the stored `name` for legacy SoftwareAgent shape (graceful fallback)', () => {
-      // A stored generator with @type='SoftwareAgent' and a concatenated name
-      const legacy = {
-        '@type': 'SoftwareAgent',
-        name: 'worker-pool / ollama gemma4:26b',
-        worker: 'worker-pool',
-        inferenceProvider: 'ollama',
-        model: 'gemma4:26b',
-      } as unknown as Agent;
-      expect(renderAgentLabel(legacy)).toBe('worker-pool / ollama gemma4:26b');
-    });
-
+  describe('Degraded shapes', () => {
     it('falls back to @id when name is empty', () => {
       const agent = {
         '@type': 'Person',
