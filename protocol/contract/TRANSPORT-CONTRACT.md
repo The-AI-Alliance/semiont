@@ -412,7 +412,8 @@ this emit, never provenance.
   *Held by no case.*
 - An SDK delivers a payload as its channel types it: a stamp the channel's
   payload schema does not declare is the bus's, not the payload's, and is
-  left out. A transport's own frames are the wire's, and keep every stamp.
+  left out before the payload is held to its schema. A transport's own
+  frames are the wire's, and keep every stamp.
   *Held by `sdk/live/job-failed`, `sdk/live/generation-retried`, `sdk/live/job-created`, `sdk/wire/chunked-stream`.*
 - A payload with a fault is not its channel's, wherever the fault is.
   Every SDK holds a payload, before it decodes it, to the table of what
@@ -422,10 +423,18 @@ this emit, never provenance.
   (the names of the members it is within and its own, joined by dots; empty
   for the payload itself), and its `reason`, `lacks` (a required member it
   does not carry, or one that holds null where it may not) or `malformed`
-  (a member of a kind its schema does not allow; an integer is a number
-  with no fractional part). A member inside a union is named as any other.
-  What an SDK's decoding refuses past the table is a fault of the payload
-  itself, `malformed` with the empty way. A typed read tells its reader, in
+  (a member of a kind its schema does not allow, an integer being a number
+  with no fractional part; a value its enumeration does not list; a text
+  not of its pattern, or with fewer or more code points than it allows; a
+  number past its bounds; an array with fewer or more items than it allows;
+  or a member a closed object does not name). A member inside a union is
+  named as any other. The table states whatever a schema states that some
+  SDK's decoding refuses, but a `format` and `uniqueItems`, which none
+  refuses. What an SDK's decoding refuses past the table is a fault of the
+  payload itself, `malformed` with the empty way: a payload that is no JSON,
+  a number past what the SDK's integer holds, and, in Go, Rust and Kotlin,
+  whose decoding reads an integer only from a number written without a
+  fraction, `1.0` where an integer is required. A typed read tells its reader, in
   place of the frame, and goes on to the frames after it; nothing is
   dropped and nothing is logged instead. Rust and Go give the refusal as
   the stream's error, saying the payload is not its channel's and then

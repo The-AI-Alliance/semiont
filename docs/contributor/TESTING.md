@@ -259,7 +259,7 @@ This stays invisible until the mock is given a throwing implementation. Then the
 | `Unit test attempted a network request: <url>` | react-ui's setup file refuses every `fetch`. Build the client from `@semiont/sdk/testing`, or through `renderWithProviders`, and script the response |
 | `No response scripted for bus operation "<op>"` | The unit reached an operation the test did not script. Add `transport.queueReply('<op>', <response>)` |
 | ``a payload on <channel> is not that channel's: it has no `<member>` `` | The reply the test scripted lacks a member its schema requires. Complete it: the schema is the channel's, in `protocol/specs/src/components/schemas` |
-| ``a payload on <channel> is not that channel's: its `<member>` is malformed`` | The reply the test scripted holds a member of a kind its schema does not allow: text where it states a list, a fraction where it states an integer. Write it as the schema states it |
+| ``a payload on <channel> is not that channel's: its `<member>` is malformed`` | The reply the test scripted holds a member its schema does not allow: text where it states a list, a fraction where it states an integer, a value its enumeration does not list, an id not of its pattern, a number below its least, or a member a closed object does not name. Write it as the schema states it |
 | A global such as `describe` is not defined | The workspace's config does not merge the shared one, which sets `globals: true` |
 
 `transport.requestLog` lists every request a `FaultyTransport` saw, in order, with the action its schedule applied.
