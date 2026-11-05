@@ -22,7 +22,7 @@
 //! this one task in order, so the state machine has no locks and no races.
 
 use crate::sse::SseParser;
-use crate::transport::{Shared, gateway_words, locked, refusal};
+use crate::transport::{MALFORMED, Shared, gateway_words, locked, refusal};
 use futures::StreamExt;
 use semiont::bus_log::{bus_log, bus_note};
 use semiont::channels::{RESOURCE_SCOPED_CHANNELS, TRACE_FIELD};
@@ -336,7 +336,7 @@ impl Actor {
         {
             return;
         }
-        let Some(BusFrame {
+        let Ok(BusFrame {
             channel,
             correlation_id,
             mut payload,
@@ -600,35 +600,15 @@ impl Actor {
     }
 }
 
-/// `data` read as a frame; `None` when it is none.
-fn carried(data: &str) -> Option<BusFrame> {
-    // Read by what it means: a frame a later gateway adds a field to is
-    // still a frame. One that is not a frame at all is not delivered.
-    let Ok(Value::Object(mut frame)) = serde_json::from_str::<Value>(data) else {
-        return None;
-    };
-    let (Some(Value::String(channel)), Some(Value::Object(payload))) =
-        (frame.remove("channel"), frame.remove("payload"))
-    else {
-        return None;
-    };
-    let text = |value: Option<Value>| match value {
-        Some(Value::String(text)) => Some(text),
-        _ => None,
-    };
-    let correlation_id = text(frame.remove("correlationId"));
-    // A scope is a resource's id. One that is not is not a frame.
-    let scope = match text(frame.remove("scope")).map(ResourceId::new) {
-        None => None,
-        Some(Ok(scope)) => Some(scope),
-        Some(Err(_)) => return None,
-    };
-    Some(BusFrame {
-        channel,
-        correlation_id,
-        payload,
-        scope,
-    })
+/// `data` read as a frame, or what every SDK says of the first fault that
+/// keeps it from being one. A frame carries what BusFrame names, and nothing
+/// more.
+fn carried(data: &str) -> Result<BusFrame, String> {
+    let value: Value = serde_json::from_str(data).map_err(|_| MALFORMED.to_owned())?;
+    if let Some(said) = semiont::fault_said::<BusFrame>(&value) {
+        return Err(said);
+    }
+    serde_json::from_value(value).map_err(|_| MALFORMED.to_owned())
 }
 
 fn carrier(value: Value) -> Option<TraceCarrier> {
@@ -851,9 +831,18 @@ mod tests {
             let frame = &case["frame"];
             let read = carried(&frame.to_string());
             if case["refused"] == true {
-                assert!(read.is_none(), "{why}: read as {read:?}");
+                let member = case["member"]
+                    .as_str()
+                    .expect("a refused case names a member");
+                let said = match case["reason"].as_str() {
+                    Some("lacks") => format!("it has no `{member}`"),
+                    Some("malformed") if member.is_empty() => MALFORMED.to_owned(),
+                    Some("malformed") => format!("its `{member}` is malformed"),
+                    reason => panic!("{why}: a reason the table does not give: {reason:?}"),
+                };
+                assert_eq!(read, Err(said), "{why}");
             } else {
-                let read = read.unwrap_or_else(|| panic!("{why}: refused"));
+                let read = read.unwrap_or_else(|said| panic!("{why}: refused: {said}"));
                 assert_eq!(
                     &serde_json::to_value(&read).expect("a frame is JSON"),
                     frame,

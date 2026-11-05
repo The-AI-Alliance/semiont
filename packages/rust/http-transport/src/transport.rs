@@ -57,9 +57,9 @@ fn unanswered(method: &reqwest::Method, path: &str, deadline: Duration) -> Trans
     )
 }
 
-/// What every SDK says of a declared body that is no JSON, or that serde
-/// refuses with no fault the table states (`semiont::fault_said` says the
-/// rest).
+/// What every SDK says of a declared body or a frame that is no JSON, or
+/// that serde refuses with no fault the table states (`semiont::fault_said`
+/// says the rest).
 pub(crate) const MALFORMED: &str = "it is malformed";
 
 /// The body of an answer read as `T`, the generated type of its declared
