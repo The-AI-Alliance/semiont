@@ -20,7 +20,9 @@ bash packages/haskell/run-container.sh
 ```
 
 CI runs the same entry point with `docker` as its argument. It checks both
-[the SDK](sdk/README.md) and [the design probes](probes/README.md).
+[the SDK](sdk/README.md) and [the design probes](probes/README.md). Both
+write HPC coverage as LCOV, with line hits, function counts and branch counts
+reported separately. The path normalizer changes only source paths.
 
 | Package | Coverage |
 | --- | --- |

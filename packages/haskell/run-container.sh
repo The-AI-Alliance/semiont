@@ -11,4 +11,4 @@ mkdir -p "$cache_dir"
 "$engine" run --rm --memory 4g \
   --volume "$root:/work" --volume "$cache_dir:/root/.cabal" \
   --workdir /work/packages/haskell semiont-haskell-development \
-  bash -c 'bash probes/run.sh && bash sdk/run.sh /work && python3 coverage.py probes/coverage.json && python3 coverage.py sdk/coverage.json'
+  bash -c 'bash probes/run.sh && bash sdk/run.sh /work && python3 coverage.py probes/coverage.lcov && python3 coverage.py sdk/coverage.lcov'

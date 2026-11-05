@@ -2349,7 +2349,7 @@ jobs:
         uses: codecov/codecov-action@v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./packages/haskell/sdk/coverage.json
+          files: ./packages/haskell/sdk/coverage.lcov
           disable_search: true
           flags: haskell-sdk
           name: haskell-sdk
@@ -2357,7 +2357,7 @@ jobs:
         uses: codecov/codecov-action@v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./packages/haskell/probes/coverage.json
+          files: ./packages/haskell/probes/coverage.lcov
           disable_search: true
           flags: haskell-probes
           name: haskell-probes

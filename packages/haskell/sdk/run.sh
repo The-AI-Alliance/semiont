@@ -9,5 +9,5 @@ cabal build all --enable-tests --enable-coverage -j1
 python3 api.py --compiler-check
 cabal test schema-cases --enable-coverage -j1 --test-show-details=direct --test-options="$root"
 python3 test/refusals.py
-cabal exec -- hpc-codecov --ignore-dittos -x Main cabal:schema-cases -o coverage.json
+cabal exec -- hpc-codecov --format=lcov --ignore-dittos -x Main cabal:schema-cases -o coverage.lcov
 cabal sdist
