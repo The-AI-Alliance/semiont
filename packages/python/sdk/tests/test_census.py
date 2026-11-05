@@ -10,6 +10,13 @@ Every state unit (a class of `src` that names `StateUnit` as its base) has a
 test that runs the axioms against it, and nothing in `src` holds state outside
 an instance (axiom X3): a module states constants marked `Final`, type
 aliases, `__all__`, its imports and its definitions, and nothing else.
+
+Nothing in `src` waits, measures or draws a jitter outside what its caller
+controls: the running loop's clock, which a test moves, and the `random`
+module's draws, which a test patches. It reads no monotonic clock and sleeps no
+thread (`time`), starts no thread's timer, makes no generator of its own, and
+builds no httpx client with a timeout of its own. A reading of the wall clock,
+`time.time()`, is no wait, and is allowed.
 """
 
 import ast
@@ -199,6 +206,90 @@ def test_nothing_in_the_package_holds_state_outside_an_instance() -> None:
         for line in statics(path.read_text(encoding="utf-8"))
     ]
     assert found == [], f"state outside any instance (X3): {found}"
+
+
+CLOCK_ESCAPES = frozenset(
+    {
+        "time.monotonic",
+        "time.monotonic_ns",
+        "time.perf_counter",
+        "time.perf_counter_ns",
+        "time.sleep",
+        "threading.Timer",
+        "random.Random",
+        "random.SystemRandom",
+        "httpx.Timeout",
+    }
+)
+HTTP_CLIENTS = frozenset({"httpx.AsyncClient", "httpx.Client"})
+
+
+def clock_escapes(source: str) -> list[str]:
+    """Each line of `source` that waits, measures or draws outside the running loop's clock and the `random` module's draws.
+
+    That is a name in `CLOCK_ESCAPES`, however it was imported, and an httpx
+    client built without `timeout=None`, which keeps httpx's own.
+    """
+    tree = ast.parse(source)
+    modules = {alias.asname or alias.name: alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names}
+    imported = {
+        alias.asname or alias.name: f"{node.module}.{alias.name}"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module is not None
+        for alias in node.names
+    }
+
+    def named(expression: ast.expr) -> str | None:
+        """What `expression` names: `time.sleep` for `pause` after `from time import sleep as pause`."""
+        match expression:
+            case ast.Attribute(value=ast.Name(id=owner), attr=attribute) if owner in modules:
+                return f"{modules[owner]}.{attribute}"
+            case ast.Name(id=name) if name in imported:
+                return imported[name]
+            case _:
+                return None
+
+    def unbounded(call: ast.Call) -> bool:
+        """Whether `call` passes `timeout=None`."""
+        return any(given.arg == "timeout" and ast.unparse(given.value) == "None" for given in call.keywords)
+
+    found: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute | ast.Name) and (name := named(node)) is not None and name in CLOCK_ESCAPES:
+            found.append((node.lineno, name))
+        if isinstance(node, ast.Call) and (client := named(node.func)) is not None and client in HTTP_CLIENTS and not unbounded(node):
+            found.append((node.lineno, f"{client} without timeout=None"))
+    return [f"{line}: {what}" for line, what in sorted(found)]
+
+
+def test_the_clock_gate_reads_what_it_is_shown() -> None:
+    sample = (
+        "import time\nimport time as clock\nimport random\nimport httpx\n"
+        "from threading import Timer\nfrom time import perf_counter as tick\n"
+        "time.sleep(1)\nclock.monotonic()\ntick()\nTimer(1, print)\nrandom.Random(7)\n"
+        "random.random()\ntime.time()\nasyncio.sleep(1)\n"
+        "httpx.AsyncClient(timeout=None)\nhttpx.AsyncClient()\nhttpx.Client(timeout=5)\nhttpx.Timeout(5)\n"
+    )
+    assert clock_escapes(sample) == [
+        "7: time.sleep",
+        "8: time.monotonic",
+        "9: time.perf_counter",
+        "10: threading.Timer",
+        "11: random.Random",
+        "16: httpx.AsyncClient without timeout=None",
+        "17: httpx.Client without timeout=None",
+        "18: httpx.Timeout",
+    ]
+
+
+def test_nothing_in_the_package_waits_or_draws_outside_what_its_caller_controls() -> None:
+    found = [
+        f"{path.relative_to(PACKAGE)}:{escape}"
+        for path in SOURCES
+        if path.is_relative_to(PACKAGE / "src")
+        for escape in clock_escapes(path.read_text(encoding="utf-8"))
+    ]
+    assert found == [], f"a wait, a measure or a draw the caller's clock and the random module do not reach: {found}"
 
 
 def raw_states(source: str) -> list[str]:
