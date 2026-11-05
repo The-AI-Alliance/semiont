@@ -16,7 +16,10 @@ The authority is **[`protocol/specs/src/bus/registry.json`](../specs/src/bus/reg
 **The bus mediates subsystem messaging.** A request between two Semiont processes is a channel, a
 payload and an envelope — not an HTTP call. That is what makes a subsystem relocatable: the
 gateway's own handlers receive their frames from the broker through a queue group, so a handler
-moving to another process costs no extra hop.
+moving to another process costs no extra hop. A frame carries what `BusFrame` names (its
+`channel` and `payload`, and its `scope` and `correlationId` when it has them) and nothing
+more; a reader refuses one that carries more
+([TRANSPORT-CONTRACT.md § The transport](./TRANSPORT-CONTRACT.md#the-transport)).
 
 Six paths are deliberately not on the bus. They are the whole list; a seventh is a design change,
 not an oversight.

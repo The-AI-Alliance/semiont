@@ -456,7 +456,10 @@ data:
 
 There is no compression and no chunked-JSON framing: `data:` is always
 exactly one line, followed by one terminating blank line. A client ignores
-an `event` it does not know.
+an `event` it does not know. A frame carries what BusFrame names and
+nothing more, and a client refuses one that carries more, as it refuses
+one that lacks what BusFrame requires
+([TRANSPORT-CONTRACT.md § The transport](./TRANSPORT-CONTRACT.md#the-transport)).
 
 **A parser holds its state across reads.** One frame can span many reads
 of the connection (a reply carrying a resource and its annotations runs to

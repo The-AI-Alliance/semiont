@@ -31,6 +31,15 @@ goes: its `channel`; a `scope`, when it belongs to one resource; a
 `correlationId`, when it is a request or the reply to one. The payload is
 the channel's own type and carries no routing.
 
+A frame carries what `BusFrame` names and nothing more. A reader holds
+every frame it is given to `BusFrame` before it delivers it, through the
+table a payload is held to (§ Identity), and refuses one with a fault: one
+that is no JSON, lacks its `channel` or its `payload`, holds a member of a
+kind `BusFrame` does not allow, or carries a member `BusFrame` does not
+name. A refused frame is not delivered, and the stream goes on to the
+frames after it.
+*Held by `protocol/specs/src/bus/frame-cases.json`.*
+
 The **registry** ([`protocol/specs/src/bus/registry.json`](../specs/src/bus/registry.json))
 is the authority for channels. It classifies each on independent axes:
 whether it is half of an operation (a request, its result, its failure);
