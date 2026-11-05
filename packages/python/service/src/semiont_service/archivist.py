@@ -41,16 +41,18 @@ from semiont.types import (
     StoredEventResponse,
 )
 
+from semiont_service._archivist_waits import CONNECT_SECONDS, READ_SECONDS
 from semiont_service.content import Content, ContentReads, ContentUnread
 from semiont_service.follower import Record, RecordUnread
 
-__all__ = ["AnnotationReads", "AnnotationsUnread", "Archivist", "Authorizes"]
+__all__ = ["ARCHIVIST_TIMEOUT", "AnnotationReads", "AnnotationsUnread", "Archivist", "Authorizes"]
 
-_TIMEOUT: Final = httpx.Timeout(60.0, connect=10.0)
-"""How long the Archivist is waited for: ten seconds to connect, and a minute for each part of an answer to come.
+ARCHIVIST_TIMEOUT: Final = httpx.Timeout(READ_SECONDS, connect=CONNECT_SECONDS)
+"""How long the Archivist is waited for: its document's `x-semiont-limits` (`protocol/specs/src/archivist/openapi.json`).
 
-No bound is put on a whole answer: a large document takes as long as it
-takes, as long as it keeps coming.
+`connectSeconds` to take a connection, and `readSeconds` for each part of an
+answer to come. No bound is put on a whole answer: a large document takes as
+long as it takes, as long as it keeps coming.
 """
 
 _NOT_FOUND: Final = 404
@@ -102,7 +104,7 @@ class Archivist(ContentReads, AnnotationReads, Record):
         self._client: httpx.AsyncClient | None = None
 
     async def __aenter__(self) -> Self:
-        self._client = httpx.AsyncClient(base_url=self._origin, timeout=_TIMEOUT, trust_env=False)
+        self._client = httpx.AsyncClient(base_url=self._origin, timeout=ARCHIVIST_TIMEOUT, trust_env=False)
         return self
 
     async def __aexit__(self, kind: type[BaseException] | None, error: BaseException | None, trace: TracebackType | None) -> None:

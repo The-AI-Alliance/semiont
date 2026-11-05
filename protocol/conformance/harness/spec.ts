@@ -163,6 +163,14 @@ export class Spec {
     return out;
   }
 
+  /** One of the document's own `x-semiont-limits`, which hold for every connection. */
+  documentLimit(key: string): number {
+    const limits = this.doc['x-semiont-limits'];
+    const value = isObject(limits) ? limits[key] : undefined;
+    if (typeof value !== 'number') throw new Error(`the spec states no x-semiont-limits.${key}`);
+    return value;
+  }
+
   /** One of a security scheme's `x-semiont-limits`. */
   schemeLimit(scheme: string, key: string): number {
     const components = this.doc['components'];

@@ -92,6 +92,7 @@ def test_the_walk_found_the_project() -> None:
     assert len(SOURCES) > 10
     assert sorted(path.name for path in SRC.rglob("*.py")) == [
         "__init__.py",
+        "_archivist_waits.py",
         "archivist.py",
         "catalog.py",
         "config.py",

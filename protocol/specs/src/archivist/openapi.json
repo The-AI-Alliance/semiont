@@ -3,7 +3,7 @@
   "info": {
     "title": "Semiont Archivist",
     "version": "0.1.0",
-    "description": "The Archivist's HTTP surface: what the gateway (and only the fleet's own services) call to store and read the knowledge base's bytes, read its linked-data descriptions and the text extracted from its content, and read the event log by position, to replay a resource's events and to follow the record; and what the Smelter calls to keep the anchored-text store. Everything else reaches the Archivist over the bus.",
+    "description": "The Archivist's HTTP surface: what the gateway (and only the fleet's own services) call to store and read the knowledge base's bytes, read its linked-data descriptions and the text extracted from its content, and read the event log by position, to replay a resource's events and to follow the record; and what the Smelter calls to keep the anchored-text store. Everything else reaches the Archivist over the bus.\n\n**How long a caller waits.** A caller gives the Archivist `x-semiont-limits.connectSeconds` to take its connection, and `readSeconds` for each part of an answer: for the answer to begin once its request is sent whole, and for each next part of an answer that streams. Past either, the call has failed. No bound is put on a whole answer, nor on sending a request: a large upload or a large document takes as long as it takes, as long as it keeps coming.",
     "license": {
       "name": "Apache-2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
@@ -23,6 +23,10 @@
       }
     }
   ],
+  "x-semiont-limits": {
+    "connectSeconds": 10,
+    "readSeconds": 60
+  },
   "paths": {
     "/health": {
       "$ref": "paths/health.json"
