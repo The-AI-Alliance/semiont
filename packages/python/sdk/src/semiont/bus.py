@@ -181,7 +181,8 @@ class FrameRefusal:
     reason: Literal["lacks", "malformed"]
     """Why: `lacks`, the payload does not carry the member, or it holds null where it may not.
 
-    `malformed`: the member is of a kind its schema does not allow.
+    `malformed`: the member is not what its schema allows (of another kind, another value, form or
+    size), or is one a closed object does not name.
     """
     payload: Mapping[str, JsonValue]
     """The payload as it came, the gateway's stamps and all."""

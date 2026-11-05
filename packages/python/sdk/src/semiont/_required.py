@@ -4,7 +4,7 @@ Every SDK holds what it reads to the table of what each component schema
 requires (`semiont._required_table`, written by the rules of
 packages/codegen/schemas/required-shapes.mjs) before it decodes it, and
 names the first fault it finds the same way: a member the value lacks, or
-one of a kind its schema does not allow, by the names the schema gives the
+one that is not what its schema allows, by the names the schema gives the
 way to it. What a
 decoder refuses that the table does not state is a fault of the value
 itself. Whatever decodes a value shows, in its account of a failure, what it
@@ -32,13 +32,34 @@ class _Discriminator(BaseModel, frozen=True, extra="forbid"):
     mapping: dict[str, int]
 
 
+class _Step(BaseModel, frozen=True, extra="forbid"):
+    """One step of a pattern: at least `least` of a text's next code points, and at most `most` (None: any number).
+
+    Each is in one of the ranges `of`, from and to, both included.
+    """
+
+    of: tuple[tuple[int, int], ...]
+    least: int = Field(alias="min")
+    most: int | None = Field(default=None, alias="max")
+
+
 class _Shape(BaseModel, frozen=True, extra="forbid"):
     """What a value must be: packages/codegen/schemas/required-shapes.mjs states what each part means."""
 
     ref: str | None = None
     kinds: tuple[_Kind, ...] | None = None
+    enum: tuple[JsonValue, ...] | None = None
+    pattern: tuple[_Step, ...] | None = None
+    min_length: int | None = Field(default=None, alias="minLength")
+    max_length: int | None = Field(default=None, alias="maxLength")
+    minimum: float | None = None
+    maximum: float | None = None
+    min_items: int | None = Field(default=None, alias="minItems")
+    max_items: int | None = Field(default=None, alias="maxItems")
     required: tuple[str, ...] | None = None
     members: dict[str, "_Shape"] | None = None
+    closed: tuple[str, ...] | None = None
+    """The only members an object may carry; None, where it may carry any."""
     items: "_Shape | None" = None
     values: "_Shape | None" = None
     one_of: tuple["_Shape", ...] | None = Field(default=None, alias="oneOf")
@@ -58,7 +79,8 @@ class Fault:
     The way is the names of the members it is within, and its own, joined by
     dots; the empty way is the value itself. `lacks`: the value does not carry
     the member, or the member holds null where it may not. `malformed`: the
-    member is of a kind its schema does not allow.
+    member is not what its schema allows (of another kind, another value, form
+    or size), or is one a closed object does not name.
     """
 
     member: str
@@ -120,10 +142,51 @@ def _within(way: str, name: str) -> str:
     return name if way == "" else f"{way}.{name}"
 
 
+def _counted(least: float | None, count: float, most: float | None) -> bool:
+    """Whether `count` is at least `least` and at most `most`, where each is stated."""
+    return (least is None or count >= least) and (most is None or count <= most)
+
+
+def _matches(steps: tuple[_Step, ...], text: str, at: int) -> bool:
+    """Whether the code points of `text` from `at` are of `steps`.
+
+    The first step takes as many of them as it may, and gives them back one by
+    one until the steps after it take the rest.
+    """
+    if not steps:
+        return at == len(text)
+    first, rest = steps[0], steps[1:]
+    taken = 0
+    while (
+        at + taken < len(text)
+        and (first.most is None or taken < first.most)
+        and any(low <= ord(text[at + taken]) <= high for low, high in first.of)
+    ):
+        taken += 1
+    return any(_matches(rest, text, at + count) for count in range(taken, first.least - 1, -1))
+
+
+def _is_as_stated(shape: _Shape, value: JsonValue) -> bool:
+    """Whether `value` is one of `shape`'s values, and is of its form, its sizes and its bounds.
+
+    A number is one of the values where it is equal to one in value; a
+    boolean is never a number.
+    """
+    if shape.enum is not None and not any(one == value and isinstance(one, bool) == isinstance(value, bool) for one in shape.enum):
+        return False
+    if isinstance(value, str):
+        return _counted(shape.min_length, len(value), shape.max_length) and (shape.pattern is None or _matches(shape.pattern, value, 0))
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        return _counted(shape.minimum, value, shape.maximum)
+    if isinstance(value, list):
+        return _counted(shape.min_items, len(value), shape.max_items)
+    return True
+
+
 def _fault_at(shape: _Shape, value: JsonValue, way: str) -> Fault | None:
     """The first fault `value` has as a value of `shape`, from `way`."""
     own = _resolved(shape)
-    if not _allows(own.kinds, value):
+    if not _allows(own.kinds, value) or not _is_as_stated(own, value):
         return Fault(member=way, reason="malformed")
     if isinstance(value, dict):
         fault = _fault_of_members(own, value, way)
@@ -146,7 +209,7 @@ def _fault_at(shape: _Shape, value: JsonValue, way: str) -> Fault | None:
 
 
 def _fault_of_members(shape: _Shape, value: dict[str, JsonValue], way: str) -> Fault | None:
-    """The first fault of an object in the members `shape` requires, in what its members are, and in its values."""
+    """The first fault of an object: in the members `shape` requires, what they are, the members it may not carry, and its values."""
     members = shape.members or {}
     for name in shape.required or ():
         if name not in value or (value[name] is None and name in members and not _allows(_resolved(members[name]).kinds, None)):
@@ -158,6 +221,10 @@ def _fault_of_members(shape: _Shape, value: dict[str, JsonValue], way: str) -> F
         fault = _fault_at(member, held, _within(way, name))
         if fault is not None:
             return fault
+    if shape.closed is not None:
+        unnamed = min((name for name in value if name not in shape.closed), default=None)
+        if unnamed is not None:
+            return Fault(member=_within(way, unnamed), reason="malformed")
     if shape.values is not None:
         for key in sorted(value):
             fault = _fault_at(shape.values, value[key], way)
