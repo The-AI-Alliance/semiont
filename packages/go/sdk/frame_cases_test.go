@@ -9,15 +9,27 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
 
 type frameCase struct {
-	Why     string          `json:"why"`
-	Frame   json.RawMessage `json:"frame"`
+	Why   string          `json:"why"`
+	Frame json.RawMessage `json:"frame"`
+	// Data is the line of a case that is no JSON, in place of a frame.
+	Data    string          `json:"data"`
 	Refused bool            `json:"refused"`
 	Member  string          `json:"member"`
 	Reason  required.Reason `json:"reason"`
+	Told    string          `json:"told"`
+}
+
+// line is the data line the case's stream carries.
+func (c frameCase) line() string {
+	if c.Frame == nil {
+		return c.Data
+	}
+	return string(c.Frame)
 }
 
 func readFrameCases(t *testing.T) []frameCase {
@@ -38,12 +50,26 @@ func readFrameCases(t *testing.T) []frameCase {
 	return table.Cases
 }
 
-func TestEachFrameOfTheTableIsDeliveredAsItStatesOrRefused(t *testing.T) {
+func TestEachFrameOfTheTableIsDeliveredAsItStatesOrRefusedAndToldToWhomItStates(t *testing.T) {
 	for _, c := range readFrameCases(t) {
-		frame, fault, ok := carried(string(c.Frame))
+		frame, refused, ok := carried(c.line())
 		if c.Refused {
-			if want := (required.Fault{Member: c.Member, Reason: c.Reason}); ok || fault != want {
-				t.Errorf("%s: read as %+v, or refused for %+v, and the table says it is refused for %+v", c.Why, frame, fault, want)
+			want := refusedFrame{fault: required.Fault{Member: c.Member, Reason: c.Reason}}
+			switch c.Told {
+			case "readers":
+				var named struct {
+					Channel bus.Channel `json:"channel"`
+				}
+				if err := json.Unmarshal(c.Frame, &named); err != nil {
+					t.Fatal(err)
+				}
+				want.channel = named.Channel
+			case "failure-report":
+			default:
+				t.Fatalf("%s: told to whom the table does not give: %q", c.Why, c.Told)
+			}
+			if ok || refused != want {
+				t.Errorf("%s: read as %+v, or refused as %+v, and the table says it is refused as %+v", c.Why, frame, refused, want)
 			}
 			continue
 		}
