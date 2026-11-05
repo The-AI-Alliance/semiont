@@ -18,8 +18,9 @@ use serde_json::json;
 use std::sync::{Arc, Mutex};
 use tokio::sync::watch;
 
-/// Each upload that arrived: the credential it carried, and its body.
-type Arrived = Arc<Mutex<Vec<(String, Bytes)>>>;
+/// Each upload that arrived: the credential it carried, its key, and its
+/// body.
+type Arrived = Arc<Mutex<Vec<(String, String, Bytes)>>>;
 
 /// Refuses the first upload as one whose token has expired, and accepts
 /// every one after it.
@@ -33,9 +34,14 @@ async fn upload(
         .and_then(|value| value.to_str().ok())
         .unwrap_or_default()
         .to_owned();
+    let key = headers
+        .get("idempotency-key")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_owned();
     let nth = {
         let mut arrived = arrived.lock().unwrap();
-        arrived.push((credential, body));
+        arrived.push((credential, key, body));
         arrived.len()
     };
     if nth == 1 {
@@ -82,9 +88,10 @@ async fn an_upload_sent_again_with_a_renewed_token_never_reports_less_than_it_la
         bookmarks: None,
     });
     let bytes: Bytes = (0..300 * 1024).map(|i| (i % 251) as u8).collect();
-    let mut sending = HttpContentTransport::new(&transport).put_binary(PutBinaryRequest::new(
+    let content = HttpContentTransport::new(&transport);
+    let mut sending = content.put_binary(PutBinaryRequest::new(
         "Every byte",
-        bytes,
+        bytes.clone(),
         "image/png",
         "file://uploads/every-byte.png",
     ));
@@ -96,17 +103,35 @@ async fn an_upload_sent_again_with_a_renewed_token_never_reports_less_than_it_la
     let created = sending.await.expect("the second sending is accepted");
 
     assert_eq!(created.resource_id, "uploaded");
+    content
+        .put_binary(PutBinaryRequest::new(
+            "Another",
+            bytes,
+            "image/png",
+            "file://uploads/another.png",
+        ))
+        .await
+        .expect("a second upload is accepted");
     let arrived = arrived.lock().unwrap();
     assert_eq!(
         arrived
             .iter()
-            .map(|(credential, _)| credential.as_str())
+            .map(|(credential, _, _)| credential.as_str())
             .collect::<Vec<_>>(),
-        ["Bearer first", "Bearer second"]
+        ["Bearer first", "Bearer second", "Bearer first"]
     );
-    assert_eq!(arrived[0].1.len(), arrived[1].1.len());
+    assert!(!arrived[0].1.is_empty(), "an upload carries a key");
+    assert_eq!(
+        arrived[0].1, arrived[1].1,
+        "an upload sent again carries the key it was first sent with"
+    );
+    assert_ne!(
+        arrived[1].1, arrived[2].1,
+        "a second upload carries a key of its own"
+    );
+    assert_eq!(arrived[0].2.len(), arrived[1].2.len());
     let total = reports[0].total_bytes;
-    assert_eq!(total as usize, arrived[1].1.len());
+    assert_eq!(total as usize, arrived[1].2.len());
     let mut before = 0;
     for report in &reports {
         assert_eq!(report.total_bytes, total);

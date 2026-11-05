@@ -257,19 +257,22 @@ type emitted struct {
 // it will recover, or nothing answered; no sooner than a refusal's
 // Retry-After. An emit whose credential is refused is never retried: it is
 // sent again once, at once, with a renewed token that is not the one refused.
-// Any other refusal is final. A failure is reported on the error stream as it
-// is returned; an emit its caller abandoned reports nothing.
+// Any other refusal is final. Every attempt carries the emit's one
+// Idempotency-Key, so the gateway knows each for the same emit. A failure is
+// reported on the error stream as it is returned; an emit its caller abandoned
+// reports nothing.
 func (s *transportShared) emit(ctx context.Context, body api.BusEmitRequest) (int, bool, error) {
 	encoded, err := json.Marshal(body)
 	if err != nil {
 		return 0, false, s.failures.report(transportErrorWithoutResponse(fmt.Sprintf("an emit on %s that does not serialize: %v", body.Channel, err), TransportErrorCodeError))
 	}
+	key := uuid.NewString()
 	token := s.token.Value()
 	renewed := false
 	for {
 		sent := token
 		answer, err := RetryWithBackoff(ctx, s.timing.EmitRetry,
-			func(ctx context.Context) (emitted, error) { return s.emitOnce(ctx, sent, encoded) },
+			func(ctx context.Context) (emitted, error) { return s.emitOnce(ctx, sent, key, encoded) },
 			func(err error) bool {
 				var refused *TransportError
 				if !errors.As(err, &refused) || refused.Code == TransportErrorCodeUnauthorized {
@@ -309,8 +312,8 @@ func (s *transportShared) emit(ctx context.Context, body api.BusEmitRequest) (in
 	}
 }
 
-// emitOnce is one attempt of an emit.
-func (s *transportShared) emitOnce(ctx context.Context, token string, body []byte) (emitted, error) {
+// emitOnce is one attempt of an emit whose Idempotency-Key is key.
+func (s *transportShared) emitOnce(ctx context.Context, token, key string, body []byte) (emitted, error) {
 	attempt, cancel := context.WithTimeout(ctx, s.timing.EmitTimeout)
 	defer cancel()
 	request, err := http.NewRequestWithContext(attempt, http.MethodPost, s.baseURL+"/bus/emit", bytes.NewReader(body))
@@ -319,6 +322,7 @@ func (s *transportShared) emitOnce(ctx context.Context, token string, body []byt
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Idempotency-Key", key)
 	carryTrace(ctx, request.Header)
 	response, err := s.http.Do(request)
 	if err != nil {

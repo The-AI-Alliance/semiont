@@ -217,6 +217,10 @@
             },
             "body": {},
             "token": {},
+            "headers": {
+              "description": "The request's headers named here, each as a pattern; headers not named are not compared.",
+              "type": "object"
+            },
             "answer": {},
             "as": {
               "$ref": "#/definitions/name"
@@ -375,6 +379,7 @@
                 "anchored-text",
                 "uploaded",
                 "refuse",
+                "unanswered",
                 "hold",
                 "release",
                 "rechunk",

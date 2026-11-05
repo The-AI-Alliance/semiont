@@ -44,6 +44,9 @@ function refusedCredential(retryAfterSeconds: number): Response {
 /** The bearer the `n`th request carried. */
 const bearerOf = (n: number): string => (mockFetch.mock.calls[n]![1] as { headers: Record<string, string> }).headers['Authorization']!;
 
+/** The idempotency key the `n`th request carried. */
+const keyOf = (n: number): string | undefined => (mockFetch.mock.calls[n]![1] as { headers: Record<string, string> }).headers['Idempotency-Key'];
+
 function accepted() {
   return { ok: true, status: 202, statusText: 'Accepted', headers: new Headers(), json: async () => ({ subscribers: 1 }) };
 }
@@ -145,6 +148,8 @@ describe('a refused credential is renewed, never waited out', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(bearerOf(0)).toBe('Bearer tok');
     expect(bearerOf(1)).toBe('Bearer fresh-tok');
+    expect(keyOf(0)).toEqual(expect.any(String));
+    expect(keyOf(1), 'the renewed resend is the same emit').toBe(keyOf(0));
     expect(refresher).toHaveBeenCalledTimes(1);
     actor.dispose();
   });

@@ -1,0 +1,15 @@
+{
+  "about": "every upload carries an Idempotency-Key of its own, never another upload's",
+  "source": "protocol/contract/TRANSPORT-CONTRACT.md § Content and the gateway's own operations; protocol/specs/src/paths/resources.json",
+  "steps": [
+    {"driver": "open", "with": {"channels": ["beckon:focus"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:focus"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+
+    {"driver": "put", "with": {"name": "One", "format": "text/plain", "storageUri": "file://uploads/one.txt", "bytes": "b25lIHVwbG9hZA=="}, "returns": {"resourceId": {"$var": "one"}}},
+    {"wire": "POST /resources", "status": 202, "headers": {"Idempotency-Key": {"$fresh": "oneKey"}}, "answer": {"resourceId": {"$var": "one"}}},
+    {"driver": "put", "with": {"name": "Another", "format": "text/plain", "storageUri": "file://uploads/another.txt", "bytes": "YW5vdGhlciB1cGxvYWQ="}, "returns": {"resourceId": {"$var": "another"}}},
+    {"wire": "POST /resources", "status": 202, "headers": {"Idempotency-Key": {"$fresh": "anotherKey"}}, "answer": {"resourceId": {"$var": "another"}}},
+    {"quiet": 300}
+  ]
+}

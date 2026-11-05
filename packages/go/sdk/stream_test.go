@@ -388,8 +388,9 @@ type renewedMeanwhile struct {
 	*httptest.Server
 	token *Variable[string]
 	mu    sync.Mutex
-	// sent is each request's path and the token it carried.
-	sent [][2]string
+	// sent is each request's path, the token it carried and its
+	// Idempotency-Key.
+	sent [][3]string
 }
 
 func newRenewedMeanwhile(t *testing.T, refusing string) *renewedMeanwhile {
@@ -398,7 +399,7 @@ func newRenewedMeanwhile(t *testing.T, refusing string) *renewedMeanwhile {
 		_, _ = io.Copy(io.Discard, r.Body)
 		bearer := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		g.mu.Lock()
-		g.sent = append(g.sent, [2]string{r.URL.Path, bearer})
+		g.sent = append(g.sent, [3]string{r.URL.Path, bearer, r.Header.Get("Idempotency-Key")})
 		g.mu.Unlock()
 		if r.URL.Path == refusing && bearer == tokenSent {
 			g.token.Set(tokenRenewed)
@@ -426,16 +427,23 @@ func newRenewedMeanwhile(t *testing.T, refusing string) *renewedMeanwhile {
 }
 
 // sentOn is the tokens the requests on path carried, in the order they arrived.
-func (g *renewedMeanwhile) sentOn(path string) []string {
+func (g *renewedMeanwhile) sentOn(path string) []string { return g.carriedOn(path, 1) }
+
+// keysOn is the Idempotency-Keys the requests on path carried, in the order
+// they arrived.
+func (g *renewedMeanwhile) keysOn(path string) []string { return g.carriedOn(path, 2) }
+
+// carriedOn is member of each request on path, in the order they arrived.
+func (g *renewedMeanwhile) carriedOn(path string, member int) []string {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	var tokens []string
+	var carried []string
 	for _, sent := range g.sent {
 		if sent[0] == path {
-			tokens = append(tokens, sent[1])
+			carried = append(carried, sent[member])
 		}
 	}
-	return tokens
+	return carried
 }
 
 // renewedRefresher answers every refusal with the token the client holds,
@@ -545,6 +553,12 @@ func TestARefusedEmitTellsItsRefresherTheTokenItSent(t *testing.T) {
 	}
 	if sent := gateway.sentOn("/bus/emit"); !slices.Equal(sent, []string{tokenSent, tokenRenewed}) {
 		t.Errorf("the emits carried %q, want [%q %q]", sent, tokenSent, tokenRenewed)
+	}
+	if _, _, err := transport.Emit(context.Background(), bus.BeckonFocus.Channel(), map[string]any{}, Envelope{}); err != nil {
+		t.Fatalf("a second emit: %v", err)
+	}
+	if keys := gateway.keysOn("/bus/emit"); len(keys) != 3 || keys[0] == "" || keys[1] != keys[0] || keys[2] == "" || keys[2] == keys[0] {
+		t.Errorf("the emits carried the Idempotency-Keys %q, want one key on both attempts of the first emit and another on the second", keys)
 	}
 }
 

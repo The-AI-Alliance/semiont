@@ -418,6 +418,11 @@ client delivers a frame only if its id is not among the last
 - An emit carries the client's `clientId`, and its `scope` and
   `correlationId` on the request's envelope, beside the payload.
   *Held by `sdk/wire/emit-counted`, `sdk/wire/request-reply`.*
+- An emit carries an `Idempotency-Key` header of the client's making: a new
+  key for each emit, and the same on every attempt at it, the one sent
+  again with a renewed credential too
+  ([`protocol/specs/src/paths/bus_emit.json`](../specs/src/paths/bus_emit.json)).
+  *Held by `sdk/wire/emit-keyed`, `sdk/wire/emit-credential-renewed`.*
 - Each attempt has a deadline of `emitTimeoutMs`. An attempt refused by a
   limit (429), by a gateway that says it will recover (503, 504), or
   unanswered at its deadline is made again inside `emitRetry`, no sooner
