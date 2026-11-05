@@ -545,6 +545,58 @@ public sealed partial class TransportTests
     }
 
     [Fact]
+    public async Task ARetryAfterLongerThanTheRequestDeadlineIsWaitedOut()
+    {
+        var clock = new TestClock();
+        var calls = 0;
+        using var server = new Handler();
+        server.Other = (_, _) =>
+        {
+            if (++calls > 1)
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""{"did":"did:web:example.org:users:ada","domain":"example.org","email":null,"name":null,"image":null}"""),
+                });
+
+            var response = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("{}") };
+            response.Headers.TryAddWithoutValidation("Retry-After", "2");
+            return Task.FromResult(response);
+        };
+        using var client = new HttpClient(server);
+        using var transport = new HttpTransport("http://unit.test", "token", [], new Timing { HttpRequestMs = 1000 }, httpClient: client, timeProvider: clock);
+        var request = transport.GetCurrentUserAsync();
+        await clock.WaitForAsync(TimeSpan.FromSeconds(2));
+        clock.Advance(TimeSpan.FromSeconds(1));
+        clock.Advance(TimeSpan.FromSeconds(1));
+        var user = await request.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal("did:web:example.org:users:ada", user.Did.ToString());
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task ATransportClosedDuringARetryPauseFailsTheRequestAsClosed()
+    {
+        var clock = new TestClock();
+        var calls = 0;
+        using var server = new Handler();
+        server.Other = (_, _) =>
+        {
+            calls++;
+            var response = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("{}") };
+            response.Headers.TryAddWithoutValidation("Retry-After", "2");
+            return Task.FromResult(response);
+        };
+        using var client = new HttpClient(server);
+        using var transport = new HttpTransport("http://unit.test", "token", [], httpClient: client, timeProvider: clock);
+        var request = transport.GetCurrentUserAsync();
+        await clock.WaitForAsync(TimeSpan.FromSeconds(2));
+        transport.Dispose();
+        var error = await Assert.ThrowsAsync<TransportError>(() => request.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Equal(ProtocolFacts.Error(0), error.Code);
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
     public async Task ContentUsesTheGivenClientAndKeepsBinaryBytesAndUploadFields()
     {
         var payload = new byte[] { 0, 1, 127, 128, 255 };
