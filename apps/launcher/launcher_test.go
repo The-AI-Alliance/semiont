@@ -2963,10 +2963,21 @@ func TestEachKnowledgeBaseRunsOnAPortBlockOfItsOwn(t *testing.T) {
 	}
 
 	// The first names the machine's Qdrant, which is on no block; the second
-	// runs its own, on its block.
+	// runs its own, on its block. Each one's graph is in the database its DID
+	// names (protocol/specs/src/graph/database-cases.json), which its Neo4j
+	// makes and its Weaver and Librarian are told.
+	const (
+		firstsDatabase = "kb-547e3c826a354cb6ad551216e04fa03e33852e0b03e92a537fb345d702e9"
+		othersDatabase = "kb-c7d44f8631ce97155bb3c8e66da8a573e100425c563af223fb1ff020dc5b"
+	)
 	withOwnVectors(t, other)
-	if got := startOf("the first knowledge base's start"); !strings.Contains(got, "-p 192.168.64.1:4222:4222") || !strings.Contains(got, "-p 192.168.64.1:6330:6333") {
-		t.Errorf("the first knowledge base's start is not on block 0, beside the machine's Qdrant:\n%s", got)
+	firstStart := startOf("the first knowledge base's start")
+	if !strings.Contains(firstStart, "-p 192.168.64.1:4222:4222") || !strings.Contains(firstStart, "-p 192.168.64.1:6330:6333") {
+		t.Errorf("the first knowledge base's start is not on block 0, beside the machine's Qdrant:\n%s", firstStart)
+	}
+	mustContain(t, "the first knowledge base's start", firstStart, "-e NEO4J_initial_dbms_default__database="+firstsDatabase+" ")
+	for _, staged := range []string{"weaver.json", "librarian.json"} {
+		mustContain(t, "the first start's "+staged, stagedFile(t, s, staged), `"database": "`+firstsDatabase+`"`)
 	}
 	run("stop", "stop")
 	if got := blockOf(first); got != "0" {
@@ -2997,6 +3008,10 @@ func TestEachKnowledgeBaseRunsOnAPortBlockOfItsOwn(t *testing.T) {
 	mustContain(t, "the second start's librarian.json", stagedFile(t, s, "librarian.json"),
 		"bolt://192.168.64.1:17697", "http://192.168.64.1:8080/realms/example.github.io-other-kb", `"port": 24113`)
 	mustContain(t, "the second start's dispatcher.json", stagedFile(t, s, "dispatcher.json"), "192.168.64.1:4232")
+	mustContain(t, "the second knowledge base's start", second, "-e NEO4J_initial_dbms_default__database="+othersDatabase+" ")
+	for _, staged := range []string{"weaver.json", "librarian.json"} {
+		mustContain(t, "the second start's "+staged, stagedFile(t, s, staged), `"database": "`+othersDatabase+`"`)
+	}
 	mustContain(t, "the second start's smelter.json", stagedFile(t, s, "smelter.json"), `"port": 6343`, `"port": 24113`)
 	if got := blockOf(other); got != "1" {
 		t.Errorf("the second knowledge base keeps port block %s, want 1", got)

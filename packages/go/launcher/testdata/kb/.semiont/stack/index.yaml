@@ -8,7 +8,6 @@ spec:
   graph:
     type: neo4j
     username: neo4j
-    database: neo4j
     image: neo4j:5.26.28-community@sha256:ff32db30b2baff97971e441b46bfd9c832c1b62c970398ef579244c06b21d357
     resources: { limits: { memory: 2G } }
   vectors:

@@ -668,6 +668,11 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			return 1
 		}
 		rp.Env = append(append([]string{}, rp.Env...), creds...)
+		// A Neo4j the launcher runs keeps the knowledge base's graph in the
+		// database its DID names, which Neo4j makes when it first starts.
+		if role == "graph" {
+			rp.Env = append(rp.Env, neo4jDatabaseVar+"="+graphDatabase(fc.kb.ident.didWeb()))
+		}
 		args := providedRunArgs(x.exposure(addr), fc.plan, rp, fc.kb.key(), extra...)
 		id, ok := x.runDetached(args)
 		if !ok {

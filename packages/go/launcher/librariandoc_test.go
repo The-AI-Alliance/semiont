@@ -66,7 +66,7 @@ func TestLibrarianDocumentStatesWhatThePlacementDecides(t *testing.T) {
 		Type:        api.Neo4jGraphConfigTypeNeo4j,
 		Uri:         "bolt://192.168.64.1:17687",
 		Username:    "neo4j",
-		Database:    "neo4j",
+		Database:    exampleGraphDatabase,
 		PasswordEnv: daemonCredentials["graph"].env,
 	}
 	if got := shapeOf[api.Neo4jGraphConfig](t, doc.Graph); got != wantGraph {

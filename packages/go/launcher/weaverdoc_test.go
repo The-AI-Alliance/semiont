@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -14,13 +15,15 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
+// exampleGraphDatabase: the database exampleKB's graph is in.
+var exampleGraphDatabase = graphDatabase("did:web:example.github.io:example-kb")
+
 // externalGraph: st with a Neo4j somebody else runs at graph.internal, signed
-// in to as semiont, the graph in its kb database, its password named
-// GRAPH_PASSWORD.
+// in to as semiont, its password named GRAPH_PASSWORD.
 func externalGraph(st *stack.Stack) {
 	g := &st.KnowledgeIndex.Spec.Graph
 	g.Image, g.Resources = nil, nil
-	g.Username, g.Database = "semiont", "kb"
+	g.Username = "semiont"
 	g.External = &stack.KnowledgeIndexGraphExternal{Uri: "bolt://graph.internal:7687", Password: stack.SecretRef{FromEnv: "GRAPH_PASSWORD"}}
 }
 
@@ -65,7 +68,7 @@ func TestWeaverDocumentStatesWhatThePlacementDecides(t *testing.T) {
 		Type:        api.Neo4jGraphConfigTypeNeo4j,
 		Uri:         "bolt://192.168.64.1:17687",
 		Username:    "neo4j",
-		Database:    "neo4j",
+		Database:    exampleGraphDatabase,
 		PasswordEnv: daemonCredentials["graph"].env,
 	}
 	if graph != want {
@@ -86,13 +89,14 @@ func TestWeaverDocumentStatesWhatThePlacementDecides(t *testing.T) {
 }
 
 // Somebody else's Neo4j is where its document states it, and its password is
-// the variable the document names: the Weaver is handed that one.
+// the variable the document names: the Weaver is handed that one. The graph is
+// in the knowledge base's database there too, which that Neo4j must hold.
 func TestWeaverDocumentNamesTheGraphPassword(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	externalGraph(st)
 	p := placed(t, st)
 	_, graph := weaverDocumentOf(t, p)
-	if graph.PasswordEnv != "GRAPH_PASSWORD" || graph.Uri != "bolt://graph.internal:7687" || graph.Username != "semiont" || graph.Database != "kb" {
+	if graph.PasswordEnv != "GRAPH_PASSWORD" || graph.Uri != "bolt://graph.internal:7687" || graph.Username != "semiont" || graph.Database != exampleGraphDatabase {
 		t.Errorf("graph = %+v, want somebody else's Neo4j as its document states it, its password by name", graph)
 	}
 	if got := graphSecrets(p); len(got) != 1 || got[0] != "GRAPH_PASSWORD" {
@@ -100,6 +104,54 @@ func TestWeaverDocumentNamesTheGraphPassword(t *testing.T) {
 	}
 	if got := graphSecrets(placed(t, fixtureStack(t, "ollama-gemma"))); len(got) != 0 {
 		t.Errorf("a Neo4j the launcher runs names %v of the user's", got)
+	}
+}
+
+// A knowledge base's graph is in the database named as every case of
+// protocol/specs/src/graph/database-cases.json names it.
+func TestTheGraphDatabaseIsNamedAsTheTableNamesIt(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "protocol", "specs", "src", "graph", "database-cases.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var table struct {
+		Cases []struct {
+			Why      string `json:"why"`
+			KB       string `json:"kb"`
+			Database string `json:"database"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(b, &table); err != nil {
+		t.Fatal(err)
+	}
+	if len(table.Cases) == 0 {
+		t.Fatal("the table states no case")
+	}
+	for _, c := range table.Cases {
+		t.Run(c.Why, func(t *testing.T) {
+			if got := graphDatabase(c.KB); got != c.Database {
+				t.Errorf("%s's graph is in %q, want %q", c.KB, got, c.Database)
+			}
+		})
+	}
+}
+
+// Each knowledge base's graph is in a database of its own, which the Weaver
+// that writes it and the Librarian that reads it are both told.
+func TestEachKnowledgeBasesGraphIsInADatabaseOfItsOwn(t *testing.T) {
+	p := placed(t, fixtureStack(t, "ollama-gemma"))
+	other := api.KbIdentity{Name: "Other KB", Domain: "example.github.io:other-kb"}
+	b, err := weaverDocument(p, other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, theirs := weaverDocumentFrom(t, b)
+	_, ours := weaverDocumentOf(t, p)
+	if ours.Database != exampleGraphDatabase || theirs.Database != graphDatabase("did:web:example.github.io:other-kb") || ours.Database == theirs.Database {
+		t.Errorf("the Weavers of two knowledge bases are told the databases %q and %q, want each its own", ours.Database, theirs.Database)
+	}
+	if read := shapeOf[api.Neo4jGraphConfig](t, librarianDocumentOf(t, p).Graph); read.Database != ours.Database {
+		t.Errorf("the Librarian reads the database %q, and the Weaver writes %q", read.Database, ours.Database)
 	}
 }
 

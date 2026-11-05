@@ -198,7 +198,7 @@ var publicEnv = map[string]bool{
 	"OTEL_EXPORTER_OTLP_ENDPOINT": true, "SEMIONT_SUPERVISE": true,
 	"PGDATA": true, "POSTGRES_DB": true, "POSTGRES_USER": true,
 	"KC_DB": true, "KC_DB_URL": true, "KC_DB_USERNAME": true, "KC_BOOTSTRAP_ADMIN_USERNAME": true, "KC_HOSTNAME": true,
-	"NEO4J_ACCEPT_LICENSE_AGREEMENT": true, "QDRANT__SERVICE__JWT_RBAC": true,
+	"NEO4J_ACCEPT_LICENSE_AGREEMENT": true, neo4jDatabaseVar: true, "QDRANT__SERVICE__JWT_RBAC": true,
 }
 
 // injectedVars: the variables the launcher sets in a service's environment
