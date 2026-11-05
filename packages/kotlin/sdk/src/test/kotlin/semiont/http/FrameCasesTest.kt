@@ -11,6 +11,8 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.Spec
+import semiont.bus.Fault
+import semiont.bus.FrameRefusalReason
 import semiont.sameJson
 import semiont.types.BusFrame
 import semiont.types.wireJson
@@ -37,17 +39,18 @@ class FrameCasesTest {
         DynamicTest.dynamicTest(case.why()) {
             assertEquals(setOf("why", "frame"), case.keys)
             val read = carried(case.getValue("frame").toString())
-            assertTrue(read != null, "it is refused")
-            val written = wireJson.encodeToJsonElement(BusFrame.serializer(), checkNotNull(read))
+            assertTrue(read is Carried.Read, "it is $read")
+            val written = wireJson.encodeToJsonElement(BusFrame.serializer(), (read as Carried.Read).frame)
             assertTrue(sameJson(case.getValue("frame"), written), "it is read as $written")
         }
     }
 
     @TestFactory
-    fun aFrameBusFrameDoesNotAllowIsRefused(): List<DynamicTest> = refused.map { case ->
+    fun aFrameBusFrameDoesNotAllowIsRefusedForTheFaultTheTableStates(): List<DynamicTest> = refused.map { case ->
         DynamicTest.dynamicTest(case.why()) {
             assertEquals(setOf("why", "frame", "refused", "member", "reason"), case.keys)
-            assertEquals(null, carried(case.getValue("frame").toString()))
+            val reason = FrameRefusalReason.entries.single { it.wire == case.getValue("reason").jsonPrimitive.content }
+            assertEquals(Carried.Refused(Fault(case.getValue("member").jsonPrimitive.content, reason)), carried(case.getValue("frame").toString()))
         }
     }
 }
