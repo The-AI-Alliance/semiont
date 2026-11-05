@@ -300,7 +300,8 @@ def test_the_agent_signs_in_once_confirms_the_knowledge_base_says_what_it_is_cal
     async def scenario() -> None:
         worker = AgentWorker(knowledge_base(highlighting, commenting), [answering("[]"), answering("[]")], service=SERVICE)
         async with worker:
-            assert await worker.open(asyncio.Event())
+            opened = await worker.open(asyncio.Event())
+            assert opened
             working = asyncio.ensure_future(worker.work())
             for _ in range(5):
                 await turns()
