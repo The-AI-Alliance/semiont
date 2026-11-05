@@ -1218,7 +1218,10 @@
             "kotlin": "Go's alone: Go's builder takes what it builds from as one struct, where Kotlin's takes each as an argument."
           }
         }
-      ]
+      ],
+      "notYetReached": {
+        "haskell": "P3: implement the Haskell annotation readers, builders, reconciliation and PDF location."
+      }
     },
     {
       "module": "jobFilter",
@@ -1253,7 +1256,10 @@
           "member": "jobMatchesFilter",
           "kind": "function"
         }
-      ]
+      ],
+      "notYetReached": {
+        "haskell": "P5: implement Haskell worker claim filters and their membership predicate."
+      }
     },
     {
       "module": "claims",
@@ -1292,7 +1298,10 @@
           "member": "willRetryAfter",
           "kind": "function"
         }
-      ]
+      ],
+      "notYetReached": {
+        "haskell": "P5: expose Haskell claims and held jobs over the taking-side transport."
+      }
     },
     {
       "module": "retry",
@@ -1316,6 +1325,9 @@
         ],
         "kotlin": [
           "packages/kotlin/sdk/src/main/kotlin/semiont/retry"
+        ],
+        "haskell": [
+          "packages/haskell/sdk/src/Semiont/Retry.hs"
         ]
       },
       "members": [
@@ -1329,7 +1341,8 @@
       "module": "hostName",
       "docs": "Whether a host is one a knowledge base's HTTP endpoint may name. Held by protocol/specs/src/session/gateway-url-cases.json.",
       "notYetReached": {
-        "csharp": "C# is still to implement the hostName module."
+        "csharp": "C# is still to implement the hostName module.",
+        "haskell": "P4: implement the Haskell identity and host helpers with sign-in support."
       },
       "where": {
         "typescript": [
@@ -1419,7 +1432,10 @@
             "typescript": "refreshDelayMs"
           }
         }
-      ]
+      ],
+      "notYetReached": {
+        "haskell": "P4: implement Haskell token parsing and sign-in helpers."
+      }
     },
     {
       "module": "storagePersister",
@@ -1454,12 +1470,16 @@
             "csharp": "CachePersistence"
           }
         }
-      ]
+      ],
+      "notYetReached": {
+        "haskell": "P4: implement Haskell storage-backed session and registry persistence."
+      }
     },
     {
       "module": "bus",
       "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps.",
-      "notYetReached": {"csharp": "C# is still to implement the bus module."},
+      "notYetReached": {"csharp": "C# is still to implement the bus module.",
+      "haskell": "P2: expose the Haskell typed bus over its public transport and decoded frame envelopes."},
       "where": {
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Bus/Bus.swift"
@@ -1730,7 +1750,10 @@
             "typescript": "TypeScript's is a method of `SemiontBrowser`."
           }
         }
-      ]
+      ],
+      "notYetReached": {
+        "haskell": "P5: implement the Haskell knowledge-base registry and serial session transitions."
+      }
     },
     {
       "module": "redirectSignIn",
@@ -1808,7 +1831,10 @@
             "rust": "IdentityUnverifiable"
           }
         }
-      ]
+      ],
+      "notYetReached": {
+        "haskell": "P4: implement the Haskell redirect sign-in grant and its pending state."
+      }
     },
     {
       "module": "serviceToken",
@@ -1839,7 +1865,10 @@
           "member": "ServiceToken",
           "kind": "type"
         }
-      ]
+      ],
+      "notYetReached": {
+        "haskell": "P4: implement Haskell service-account assertions and credential renewal."
+      }
     },
     {
       "module": "discovery",
@@ -1866,6 +1895,9 @@
         "kotlin": [
           "packages/kotlin/sdk/src/main/kotlin/semiont/discovery",
           "packages/kotlin/sdk/src/main/kotlin/semiont/http"
+        ],
+        "haskell": [
+          "packages/haskell/sdk/src/Semiont/Discovery.hs"
         ]
       },
       "whole": [
@@ -1877,12 +1909,16 @@
           "member": "discoveryInterval",
           "kind": "constant",
           "absent": {
-            "typescript": "TypeScript's subscription is given its interval by its caller."
+            "typescript": "TypeScript's subscription is given its interval by its caller.",
+            "haskell": "DiscoveryOptions requires its interval from the caller; Semiont.Timing supplies the protocol default."
           }
         },
         {
           "member": "DiscoveryAbsentReason",
-          "kind": "type"
+          "kind": "type",
+          "named": {
+            "haskell": "DiscoveryAbsentCode"
+          }
         },
         {
           "member": "DiscoveryRead",
@@ -1900,7 +1936,8 @@
           "kind": "type",
           "absent": {
             "typescript": "TypeScript's state is a union told apart by its `kind`.",
-            "rust": "Rust's state is an enum, whose variants are its kinds."
+            "rust": "Rust's state is an enum, whose variants are its kinds.",
+            "haskell": "Haskell represents this case as an algebraic data constructor of DiscoveryState or DiscoveryRead, rather than a separate type."
           }
         },
         {
@@ -1908,7 +1945,8 @@
           "kind": "type",
           "absent": {
             "typescript": "TypeScript's state is a union told apart by its `kind`.",
-            "rust": "Rust's state is an enum, whose variants are its kinds."
+            "rust": "Rust's state is an enum, whose variants are its kinds.",
+            "haskell": "Haskell represents this case as an algebraic data constructor of DiscoveryState or DiscoveryRead, rather than a separate type."
           }
         },
         {
@@ -1916,7 +1954,8 @@
           "kind": "type",
           "absent": {
             "typescript": "TypeScript's read is a union told apart by its `kind`.",
-            "rust": "Rust's read is an enum, whose variants are its kinds."
+            "rust": "Rust's read is an enum, whose variants are its kinds.",
+            "haskell": "Haskell represents this case as an algebraic data constructor of DiscoveryState or DiscoveryRead, rather than a separate type."
           }
         },
         {
@@ -1933,7 +1972,10 @@
         },
         {
           "member": "httpDiscovery",
-          "kind": "function"
+          "kind": "function",
+          "notYetReached": {
+            "haskell": "P4: implement the HTTP discovery adapter over the Haskell HTTP exchange owner."
+          }
         },
         {
           "member": "DiscoveryDiff",
@@ -2084,7 +2126,10 @@
             "typescript": "TypeScript's testing module has no storage several contexts share."
           }
         }
-      ]
+      ],
+      "notYetReached": {
+        "haskell": "P7: implement the Haskell consumer testing toolkit over the real client."
+      }
     }
   ],
   "clock": [

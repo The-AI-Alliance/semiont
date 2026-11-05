@@ -242,7 +242,7 @@ const CSHARP_SDK = 'packages/csharp/sdk/src/Semiont';
 const CSHARP_NAMESPACES = `${CSHARP_SDK}/Namespaces`;
 const SCHEMAS = 'protocol/specs/src/components/schemas';
 /** Each SDK as a message names it. */
-const LANGUAGES = { typescript: 'TypeScript', rust: 'Rust', python: 'Python', go: 'Go', kotlin: 'Kotlin', swift: 'Swift', csharp: 'C#' };
+const LANGUAGES = { typescript: 'TypeScript', rust: 'Rust', python: 'Python', go: 'Go', kotlin: 'Kotlin', swift: 'Swift', csharp: 'C#', haskell: 'Haskell' };
 
 const failures = [];
 const fail = (message) => failures.push(message);
@@ -3081,7 +3081,6 @@ else {
  * `whole` lists an SDK is that SDK's files and nothing else: every public
  * member of them is listed.
  */
-const MODULE_SDKS = ['typescript', 'rust', 'python', 'go', 'kotlin', 'swift', 'csharp'];
 /** The SDKs whose module is a package, given by its directory. */
 const BY_DIRECTORY = ['go', 'kotlin', 'csharp'];
 const MODULE_KINDS = ['function', 'reader', 'type', 'constant'];
@@ -3090,6 +3089,7 @@ const snakeCase = (name) => name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerC
 
 /** A member's name as `sdk` spells a member of `kind`. */
 function spelledAs(sdk, kind, name) {
+  if (sdk === 'haskell') return name;
   if (sdk === 'swift' || kind === 'type') return name;
   if (sdk === 'csharp') return capitalized(name);
   if (kind === 'constant') return sdk === 'go' ? capitalized(name) : snakeCase(name).toUpperCase();
@@ -3160,7 +3160,20 @@ function goExports(directories) {
   });
 }
 
-const EXPORTS = { typescript: typescriptExports, rust: rustExports, python: pythonExports, go: goExports, kotlin: kotlinExports, swift: swiftExports, csharp: csharpExports };
+/** GHC's reachable exports, including re-exports; constructors belong to their type. */
+function haskellExports(files) {
+  const inventory = JSON.parse(read('packages/haskell/sdk/public-api.json'));
+  return files.flatMap((file) => {
+    const declared = /^module\s+([A-Z][\w.]*)\b/m.exec(read(file));
+    if (!declared) throw new Error(`${file}: no readable Haskell module declaration`);
+    const exported = inventory.modules[declared[1]];
+    if (!exported) throw new Error(`${file}: ${declared[1]} is not reachable through the public Cabal library`);
+    return [...Object.keys(exported.types), ...Object.keys(exported.values).filter((name) => /^[a-z_]/.test(name))];
+  });
+}
+
+const EXPORTS = { typescript: typescriptExports, rust: rustExports, python: pythonExports, go: goExports, kotlin: kotlinExports, swift: swiftExports, csharp: csharpExports, haskell: haskellExports };
+const MODULE_SDKS = Object.keys(EXPORTS);
 
 /** module → row */
 const modules = new Map();
