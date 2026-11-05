@@ -1,4 +1,5 @@
 import Foundation
+import SemiontTesting
 import Synchronization
 import Testing
 
@@ -77,17 +78,20 @@ private func status(_ session: SemiontSession) -> String {
         kept: kept, issuer: required(row, "issuer").array.map { try $0.text },
         gateway: part == "refusal" ? ["accepts"] + gateway : gateway)
       let told = Mutex<[String]>([])
-      let errors = Mutex<[String]>([])
+      let errors = Watched<[String]>([])
+      let clock = TestClock()
+      let reconnectMs = 200
       let session = SemiontSession(
         kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
-        renew: { try await script.renew($0) },
-        validate: { try await script.validate($0) }, reconnectMs: 200,
+        renew: { try await script.renew($0) }, validate: { try await script.validate($0) },
+        reconnectMs: reconnectMs, clock: clock,
         onAuthFailed: { reason in told.withLock { $0.append(reason.rawValue) } })
+      defer { session.dispose() }
       let events = session.errors()
       let observing = Task {
         for try await error in events {
           if let error = error as? SessionError {
-            errors.withLock { $0.append(error.code) }
+            errors.set(errors.value + [error.code])
           } else {
             Issue.record("Unexpected session error: \(error)")
           }
@@ -99,7 +103,6 @@ private func status(_ session: SemiontSession) -> String {
         let given = try await session.refresh()
         #expect((given != nil) == (row["given"] == .bool(true)))
       }
-      try await sleepMilliseconds(5)
       let counts = await script.counts()
       #expect(
         counts.0 - (part == "refusal" ? 1 : 0) == Int(try number(required(row, "asks"))),
@@ -112,17 +115,32 @@ private func status(_ session: SemiontSession) -> String {
       let expectedErrors: [String] =
         if case .string(let error) = row["error"] { [error] } else { [] }
       #expect(told.withLock { $0 } == expectedTold)
-      #expect(errors.withLock { $0 } == expectedErrors)
+      if !expectedErrors.isEmpty {
+        try await within(testDeadlineMs) {
+          for await seen in errors where seen.count >= expectedErrors.count { return }
+          throw CancellationError()
+        }
+      }
+      #expect(errors.value == expectedErrors)
       if let next = row["then"] {
-        try await sleepMilliseconds(235)
         let expected = try next.object
+        let renewals = Int(try number(required(expected, "renewals")))
+        let end = try required(expected, "ends").text
+        // Move through the first retry window, then leave the clock stopped.
+        clock.advance(by: .milliseconds(reconnectMs * 6 / 5))
+        try await within(testDeadlineMs) {
+          while await script.counts().1 < renewals || status(session) != end {
+            try await sleepMilliseconds(1)
+          }
+        }
         let after = await script.counts()
         #expect(
           after.0 - (part == "refusal" ? 1 : 0) == Int(try number(required(expected, "asks"))),
           "\(row["why"] ?? .null): asks \(after.0)")
-        #expect(after.1 == Int(try number(required(expected, "renewals"))))
-        #expect(status(session) == (try required(expected, "ends").text))
+        #expect(after.1 == renewals)
+        #expect(status(session) == end)
       } else if row["kept"] == .bool(false) {
+        clock.advance(by: .milliseconds(reconnectMs * 6 / 5))
         try await sleepMilliseconds(240)
         let after = await script.counts()
         #expect(after == counts)
