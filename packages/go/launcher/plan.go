@@ -538,6 +538,17 @@ func parseHostPort(s string) (host string, port int) {
 	return s, 0
 }
 
+// externalBrokerAt: where a broker somebody else runs listens, from the
+// servers its document states: the host, and the port, the driver's where
+// servers states none.
+func externalBrokerAt(servers string) (host string, port int) {
+	host, port = parseHostPort(servers)
+	if port == 0 {
+		port = descriptorFor("messaging", "jetstream").defaultPort
+	}
+	return host, port
+}
+
 // workerPlan: the worker's row of the plan. The shared worker serves the
 // knowledge base when the engines give a job an engine, and not when they
 // give none. ONE decision, read from the engines the worker's entry and the
@@ -735,11 +746,8 @@ func derivePlan(st *stack.Stack, issuer *issuerDocument, vectors *vectorStoreDoc
 		spec := descriptorFor("messaging", "jetstream")
 		rp := rolePlan{Role: "messaging", Driver: "jetstream", Port: spec.defaultPort}
 		if m.External != nil {
-			host, port := parseHostPort(m.External.Servers)
-			if port != 0 {
-				rp.Port = port
-			}
-			rp.Presence, rp.Address = presenceExternal, host
+			rp.Presence = presenceExternal
+			rp.Address, rp.Port = externalBrokerAt(m.External.Servers)
 		} else {
 			rp.Presence, rp.Image, rp.Memory = presenceLauncher, *m.Image, m.Resources.Limits.Memory
 			rp.Port = plan.hostPort("messaging", spec.defaultPort)

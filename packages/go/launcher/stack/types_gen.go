@@ -150,7 +150,11 @@ type KnowledgeBaseMessaging struct {
 	// What a container is given, in Kubernetes' spelling.
 	Resources *Resources `json:"resources,omitempty"`
 
-	// A broker somebody else runs.
+	// A broker somebody else runs, serving this knowledge base alone: a second
+	// knowledge base on it would share the job queue and, on a `nats` signal
+	// plane, the frames and the gateway's record of pending replies. The
+	// launcher refuses to start a knowledge base whose `servers` another
+	// knowledge base on its machine names.
 	External *KnowledgeBaseMessagingExternal `json:"external,omitempty"`
 }
 
@@ -166,7 +170,11 @@ type KnowledgeBaseMessagingSignal struct {
 	Type string `json:"type"`
 }
 
-// KnowledgeBaseMessagingExternal: A broker somebody else runs.
+// KnowledgeBaseMessagingExternal: A broker somebody else runs, serving this
+// knowledge base alone: a second knowledge base on it would share the job
+// queue and, on a `nats` signal plane, the frames and the gateway's record of
+// pending replies. The launcher refuses to start a knowledge base whose
+// `servers` another knowledge base on its machine names.
 type KnowledgeBaseMessagingExternal struct {
 	// Where it listens: `host:port`.
 	Servers string `json:"servers"`

@@ -1033,7 +1033,10 @@ stack, and one server carries both drivers the KnowledgeBase's
 
 A broker of your own is stated once, at `spec.messaging.external`, with its
 `servers` and the variables holding its user and password: one role is one
-daemon. The daemon runs one way — `-js -sd /data` with the state mount —
+daemon. It serves that knowledge base alone: a start, a dry run too, refuses
+a knowledge base whose `servers` names the broker another registered root's
+KnowledgeBase document names (the same host and port), unless that root is a
+clone of the same knowledge base. The daemon runs one way — `-js -sd /data` with the state mount —
 because both drivers use the store. `semiont status` lists it as
 `messaging (NATS)`.
 
