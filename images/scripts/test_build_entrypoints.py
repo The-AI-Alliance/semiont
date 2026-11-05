@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -106,6 +107,29 @@ if args and args[0]=='exec' and 'python3' in args:
             self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(self.log.exists())
         self.assertFalse(self.cache.exists())
+
+    def test_help_lists_every_public_target_and_nothing_else(self):
+        result = self.run_make("help")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        listed = {
+            re.match(r"  (\S+)", line)[1].split("[")[0]
+            for line in result.stdout.splitlines()
+            if re.match(r"  [a-z]", line)
+        }
+        public = {
+            target
+            for line in (self.root / "Makefile").read_text().splitlines()
+            if line.startswith(".PHONY:")
+            for target in line.split()[1:]
+        } - {"help", "codegen-force"}
+        self.assertEqual(listed, public)
+
+    def test_help_refuses_an_entry_without_its_text(self):
+        makefile = self.root / "Makefile"
+        makefile.write_text(makefile.read_text() + "## clean Remove build output\n")
+        result = self.run_make("help")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("clean Remove build output", result.stderr)
 
     def test_plan_does_not_build_or_write_cache(self):
         result = self.run_make("plan", "PACKAGE_NAMES=rust", "IMAGE_NAMES=worker")

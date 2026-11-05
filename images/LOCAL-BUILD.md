@@ -148,6 +148,8 @@ use host networking. This boots services and requires the selected images and th
 Stack Smoke CI calls `make local-build` with TypeScript selection, fan-out disabled and a
 Docker layer cache. Existing native CI build and release publication commands remain direct.
 
+`make help` prints the Makefile's own `##` lines, each beside the target or variable it
+describes ([make-help.awk](scripts/make-help.awk)); a test fails when a public target has none.
 The Makefile forwards arguments to [the session](scripts/build-session.sh). Owner stages under
 `scripts/local-build/` retain drift gates, seven language builds, registry lifecycle, the
 three-image batch, exclusive timed image checks, launcher build and cache maintenance.

@@ -1,14 +1,25 @@
 .DEFAULT_GOAL := help
 
+# `make help` prints the `##` lines below, in order (images/scripts/make-help.awk).
+##@ Usage: make <target> [VARIABLE=value ...], one target per run
+
 # Keep values as arguments, including command-line selectors Make would otherwise export.
 unexport PACKAGE_NAMES IMAGE_NAMES FORCE FANOUT LAYER_CACHE
+##@ Variables
+## PACKAGE_NAMES=list: language[/name],..., e.g. rust,typescript/sdk
 PACKAGE_NAMES ?=
+## IMAGE_NAMES=list: Images, e.g. browser,worker
 IMAGE_NAMES ?=
+## FORCE=1: Rebuild what is selected even when it is unchanged
 FORCE ?= 0
+## FANOUT=0: Leave images only in the runtime that built them
 FANOUT ?= 1
+## LAYER_CACHE=dir: Docker's Rust layer cache
 LAYER_CACHE ?=
+## SMOKE_TAG=tag: The images smoke boots (local)
 SMOKE_TAG ?= local
 unexport SMOKE_TAG
+## CONTAINER_RUNTIME=name: container|docker|podman; else the first to respond
 
 # Resolving this file's directory is the only parse-time command; no runtime is probed.
 BUILD_ROOT := $(shell cd "$$(dirname "$(lastword $(MAKEFILE_LIST))")" && pwd)
@@ -22,37 +33,30 @@ endif
 
 .PHONY: help local-build packages images-only launcher plan npm-publish-local desktop desktop-macos desktop-linux smoke clean
 help:
-	@printf '%s\n' \
-	  'make local-build              Build packages, local images and host launcher' \
-	  'make packages                 Build packages only (PACKAGE_NAMES=rust or typescript/sdk)' \
-	  'make images-only              Rebuild images using an existing local registry' \
-	  'make plan                     Describe selection without building or publishing' \
-	  'make npm-publish-local        Publish built npm artifacts to fresh local Verdaccio' \
-	  'make launcher                 Build the host launcher only' \
-	  'make desktop                  Build the installer for the caller OS' \
-	  'make desktop-macos            Build the macOS arm64 DMG (macOS host)' \
-	  'make desktop-linux            Build the Linux x64 Debian package' \
-	  'make generate[-GROUP]         Regenerate output; groups are listed below' \
-	  'make check-generated[-GROUP]  Check generated output without repairing committed files' \
-	  'make smoke                    Boot/check a real stack and run e2e (SMOKE_TAG=local)' \
-	  'make clean                    Remove build output from the tree; keep installs, caches, images' \
-	  'Selectors: PACKAGE_NAMES=language/name,... IMAGE_NAMES=browser,... FORCE=1 FANOUT=0' \
-	  'Runtime: CONTAINER_RUNTIME=container|docker|podman; LAYER_CACHE=directory (Docker)' \
-	  'Host: GNU Make >=3.81, Bash, Git, curl, container runtime and platform utilities.'
-	@printf 'Codegen groups: '; tr '\n' ' ' < $(call quote,$(BUILD_ROOT)/packages/codegen/groups.txt); printf '\n'
+	@awk -v groups=$(call quote,$(BUILD_ROOT)/packages/codegen/groups.txt) -f $(call quote,$(BUILD_ROOT)/images/scripts/make-help.awk) $(call quote,$(BUILD_ROOT)/Makefile) $(call quote,$(BUILD_ROOT)/Makefile)
 
+##@ Build
+## local-build: Packages, local images and the host launcher
+## packages: Packages only
+## images-only: Images, from an existing local registry
+## launcher: The host launcher only
+## plan: What would build, building nothing
+##@ Publish
+## npm-publish-local: Built npm packages, to a fresh local Verdaccio
 local-build packages images-only launcher plan npm-publish-local:
 	@bash $(call quote,$(BUILD_ROOT)/images/scripts/build-session.sh) $@ $(build_arguments)
 
+##@ Desktop installers
+## desktop: For this OS
+## desktop-macos: macOS arm64 DMG, on a macOS host
+## desktop-linux: Linux x64 Debian package
 desktop desktop-macos desktop-linux:
 	@bash $(call quote,$(BUILD_ROOT)/apps/desktop/build.sh) $@
 
-smoke:
-	@bash $(call quote,$(BUILD_ROOT)/images/tests/stack/smoke-stack.sh) $(call quote,$(SMOKE_TAG)) --e2e
-
-clean:
-	@bash $(call quote,$(BUILD_ROOT)/images/scripts/clean.sh)
-
+##@ Generated code
+## generate[-GROUP]: Regenerate
+## check-generated[-GROUP]: Check, repairing nothing
+## GROUP: <codegen groups>
 .PHONY: generate check-generated
 generate check-generated:
 	@bash $(call quote,$(BUILD_ROOT)/packages/codegen/run.sh) $@
@@ -63,3 +67,14 @@ generate-% check-generated-%: codegen-force
 
 .PHONY: codegen-force
 codegen-force:
+
+##@ Verify and clean
+## smoke: Boot a real stack and run e2e
+smoke:
+	@bash $(call quote,$(BUILD_ROOT)/images/tests/stack/smoke-stack.sh) $(call quote,$(SMOKE_TAG)) --e2e
+
+## clean: Remove build output; keep installs, caches and images
+clean:
+	@bash $(call quote,$(BUILD_ROOT)/images/scripts/clean.sh)
+
+##@ Host needs: GNU Make 3.81+, Bash, Git, curl, a container runtime, platform tools
