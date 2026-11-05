@@ -130,14 +130,14 @@ engine share its provider's client.
   answers `GET /api/users/me` with. The service uses it as answered, and
   derives it from nothing else. No engine signs in for itself.
   *Held by `worker-service/started`, `worker-service/knowledge-bases`.*
-- **G2.** At each knowledge base the service opens one stream, and every
+- **G2.** At each knowledge base, once it is confirmed
+  ([R1](#knowledge-bases)), the service opens one stream of its own, and every
   engine of that knowledge base claims and runs its jobs over it. It names
   what a worker's stream names
   ([WORKER-CONTRACT S1](./WORKER-CONTRACT.md#the-stream)): the reply channels
   of `job:claim`, of `mark:commit` and `browse:annotation-requested`, and of
   `browse:resource-requested`; and the broadcasts `job:queued` and
-  `job:cancel-requested`. It also names the reply channels of
-  `browse:kb-requested` ([R1](#knowledge-bases)), and `job:limits-requested`
+  `job:cancel-requested`. It also names `job:limits-requested`
   ([Limits](#limits)). It names no scope.
   *Held by `worker-service/started`.*
 - **G3.** Each engine's claims name its entry's `jobs` as their `accepts`, as
@@ -164,17 +164,27 @@ every knowledge base of its document at once, and each is, at any moment,
 `starting` (signing in, opening its stream, confirming it, or waiting to start
 again), `working` (confirmed, its engines claiming), or `refused`.
 
-- **R1.** Once it has opened a knowledge base's stream, and before it says what
-  the agent is called there, the service asks the knowledge base which it is:
-  one `browse:kb-requested`. A knowledge base whose answer's `domain` is the
-  entry's `domain` is confirmed, and is `working`; the service says so in its
-  log, at `info`, as `Knowledge base confirmed`, with `domain` and `did`, the
-  agent's DID there. One whose answer names
-  another domain, or that answers `browse:kb-failed`, is refused
-  ([R2](#knowledge-bases)): nothing more is said on its stream, and none of
-  its engines claims. One that gives no answer within the request's deadline
-  is trouble ([R3](#knowledge-bases)).
-  *Held by `worker-service/knowledge-bases`.*
+- **R1.** Once it has signed in at a knowledge base, and before it opens its
+  stream there, the service asks the knowledge base which it is:
+  `browse:kb-requested`, asked again while nothing answers there
+  (`bus.peer-unavailable`), as every service asks it while the Archivist is
+  not there to answer. It asks on a stream of its own, which names that
+  request's replies and no request the service answers, and closes it before
+  it opens its stream there. A request reaches every stream that names its
+  channel, and fails at once only where it reaches none
+  ([TRANSPORT-HTTP.md § POST /bus/emit](./TRANSPORT-HTTP.md#post-busemit)):
+  no `job:limits-requested` reaches the service at a knowledge base before it
+  can answer one. A knowledge base whose answer's `domain` is the entry's
+  `domain` is confirmed, and is `working`; the service says so in its log, at
+  `info`, as `Knowledge base confirmed`, with `domain` and `did`, the agent's
+  DID there. One whose answer names another domain, or that answers
+  `browse:kb-failed` with any other failure, is refused
+  ([R2](#knowledge-bases)): its stream there is never opened, so nothing is
+  said there and none of its engines claims. One that gives no answer within
+  the request's deadline, or none for as long as it is asked again, is
+  trouble ([R3](#knowledge-bases)). Told to stop while it asks, the service
+  asks no more.
+  *Held by `worker-service/knowledge-bases`, and by `images/worker/tests/test_agent.py` and `images/worker/tests/test_service.py` for its asking again, the stream it asks on being closed before its own opens, and its being told to stop while it asks.*
 - **R2.** A refused knowledge base stays refused until the service is started
   again: its stream is closed, its engines claim nothing there, and the
   service does not sign in there again. A knowledge base is refused when its
@@ -189,7 +199,8 @@ again), `working` (confirmed, its engines claiming), or `refused`.
   *Held by `worker-service/knowledge-bases`, `worker-service/stop`.*
 - **R3.** Any other trouble at a knowledge base ends that knowledge base's
   work, and the service starts it again: a sign-in that gets no answer, or an
-  answer the `refresh` rule tries again; a confirmation not answered in time;
+  answer the `refresh` rule tries again; a confirmation not answered
+  ([R1](#knowledge-bases));
   its stream closed, so that nothing more can be claimed there; and a held
   job that stalls ([P4](#stopping)). A stream that drops is not trouble: it
   is `reconnecting`, and the SDK opens it again by itself

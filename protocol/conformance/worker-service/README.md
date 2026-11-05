@@ -41,7 +41,7 @@ second beside it, another case of that table. Each knowledge base has:
 - a recording proxy in front of the gateway, which that knowledge base's
   `gatewayUrl` names in the service's document: everything the service sends
   the gateway is read from it as a transcript, in order (its sign-in, the
-  stream it opens and what that stream carries, each emit, each read of bytes
+  streams it opens and what each carries, each emit, each read of bytes
   or of anchored text, each upload), and a case can end the service's
   connections through it, which the service meets as a stream that drops;
 - the suite itself on the gateway's bus, as the two parties a worker asks
@@ -121,9 +121,10 @@ the Archivist's spec.
   description and of the bytes or the anchored text, each commit and each
   checkpoint, the settle, the next claim) are compared in the order the
   gateway received them. What a service says at a knowledge base as it
-  starts there (its sign-in, its stream, the question of which knowledge base
-  this is, and what the agent is called) is compared apart, against the
-  frames its stream carried, on the one clock the proxy keeps.
+  starts there (its sign-in, the question of which knowledge base this is and
+  the stream it is asked on, its own stream, and what the agent is called) is
+  compared apart, against the frames its streams carried, on the one clock
+  the proxy keeps.
 - **Health** is held to the spec's `WorkerHealth` each time a case reads it,
   and then compared as the case needs.
 - **Progress reports** are compared as a set with repeats: every report, as
@@ -185,7 +186,7 @@ rule names exists, and every case is named by a rule.
 | A `yield` job to PDF, and the citations of a generated PDF | It needs the `typst` binary in the suite's environment |
 | A real dispatcher, Archivist or Smelter | The suite stands in for them, so that it can hand a service answers a correct one never gives and see every message |
 | How long a knowledge base in trouble waits after its first start again, and its ceiling (R3) | The first wait is stated in the log and held as waited; the doubling and `maxReconnectMs` take seconds to a minute that a case cannot shorten. `images/worker/tests/test_service.py` holds them, on a clock it moves |
-| A knowledge base whose confirmation is not answered in time (R1, R3) | The request's deadline is the SDK's `busRequestTimeoutMs`, thirty seconds, which a case cannot shorten. `knowledge-bases.test.ts` holds a confirmation held unanswered for less, and, as the trouble that is started again, a grant its issuer answers 503 or ends unanswered |
+| A knowledge base whose confirmation is not answered in time, or is answered that nothing answers it for as long as it is asked again (R1, R3) | The request's deadline is the SDK's `busRequestTimeoutMs`, thirty seconds, and asking again while nothing answers takes about five and a half minutes, neither of which a case can shorten. The suite answers `browse:kb-requested` from the start, so the gateway never answers that nothing does. `knowledge-bases.test.ts` holds a confirmation held unanswered for less, and, as the trouble that is started again, a grant its issuer answers 503 or ends unanswered; `images/worker/tests/test_agent.py` and `test_service.py` hold the asking again, on a clock they move |
 | A sign-in, or the gateway's naming of the agent, accepted and never answered (R3) | Its deadline is the SDK's `httpRequestTimeoutMs`, thirty seconds, which a case cannot shorten. `knowledge-bases.test.ts` holds a grant whose connection ends unanswered |
 | A knowledge base whose stream is closed, so that nothing more can be claimed there (R3) | Nothing outside a service closes its stream: a transport's stream is `closed` only once its client is disposed ([TRANSPORT-CONTRACT § State](../../contract/TRANSPORT-CONTRACT.md#state)). One a case ends through the proxy drops and is opened again, which `knowledge-bases.test.ts` holds as no trouble |
 | A knowledge base whose gateway refuses to name the agent (R2), or answers its naming with a status the `refresh` rule tries again (R3) | Not written: `knowledge-bases.test.ts` holds an issuer that refuses the sign-in, and one that answers it 503 or not at all, and `stop.test.ts` a claim refused as unauthorized |
