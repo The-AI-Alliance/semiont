@@ -24,7 +24,6 @@ one task, in order, so the state has one writer.
 """
 
 import asyncio
-import json
 import logging
 from collections import OrderedDict
 from collections.abc import Mapping
@@ -33,7 +32,7 @@ from dataclasses import dataclass
 from typing import Final, Protocol, final
 
 import httpx
-from pydantic import JsonValue, ValidationError
+from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont import telemetry
 from semiont._bus_log import bus_log, bus_note
@@ -125,11 +124,14 @@ def carried(data: str) -> BusFrame | Refused:
     return read
 
 
+_JSON: Final = TypeAdapter[JsonValue](JsonValue)
+
+
 def _channel_of(data: str) -> str | None:
     """The channel `data` names: the `channel` of a JSON object, when it is a text of at least one character."""
     try:
-        value: JsonValue = json.loads(data)
-    except ValueError:
+        value = _JSON.validate_json(data)
+    except ValidationError:
         return None
     if not isinstance(value, dict):
         return None
