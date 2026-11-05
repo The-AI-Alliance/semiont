@@ -36,7 +36,7 @@ if [[ "$IMAGES_ONLY" != true ]]; then
     fi
     reason=""
     if [[ "$FORCE" == true ]]; then reason="forced"
-    elif [[ -n "$PACKAGES_NAMED" ]]; then reason="explicitly selected"
+    elif [[ -n "$PACKAGES_NAMED" && "$OPERATION" != stale ]]; then reason="explicitly selected"
     elif [[ -n "$output" && ! -e "$REPO_ROOT/$output" ]]; then reason="missing output: $output"
     elif [[ "$(state_get "$dir")" != "$signature" ]]; then reason="new or changed inputs"
     fi

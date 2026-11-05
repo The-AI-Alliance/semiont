@@ -144,6 +144,42 @@ if args and args[0]=='exec' and 'python3' in args:
         )
         self.assertIn("package-signatures.py", " ".join(self.calls()[0]))
 
+    def test_stale_lists_what_would_build_and_narrows_without_forcing(self):
+        state = self.cache / "semiont/local-build-state.json"
+        state.parent.mkdir(parents=True)
+        state.write_text(json.dumps({"packages/typescript/core": "other-signature"}))
+        before = state.read_text()
+
+        def stale(*selection):
+            result = subprocess.run(
+                [
+                    "bash",
+                    str(self.root / "images/scripts/build-session.sh"),
+                    "stale",
+                    *selection,
+                ],
+                check=False,
+                env=self.env,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            return result.stdout.splitlines()
+
+        self.assertEqual(
+            stale(),
+            [
+                "packages/rust/sdk\tnew or changed inputs",
+                "images/worker\tno verified build signature",
+            ],
+        )
+        self.assertEqual(
+            stale("--package", "typescript"),
+            ["images/worker\tno verified build signature"],
+        )
+        self.assertEqual(state.read_text(), before)
+        self.assertFalse(any(args[0] == "build" for args in self.calls()))
+
     def test_state_lookups_do_not_consume_the_remaining_package_plan(self):
         result = self.run_make("plan")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -364,7 +400,9 @@ for argument in args:
         self.assertGreaterEqual(len(calls), 3, calls)
         launcher_build = next(args for args in calls if "go build" in " ".join(args))
         self.assertIn("GOOS=linux", launcher_build)
-        installer_build = next(args for args in calls if "--linux deb --x64" in " ".join(args))
+        installer_build = next(
+            args for args in calls if "--linux deb --x64" in " ".join(args)
+        )
         self.assertIn("--platform", installer_build)
         self.assertNotIn("--rosetta", installer_build)
         result = self.run_make("desktop-macos")

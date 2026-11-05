@@ -13,7 +13,10 @@
 # launcher, as make launcher does) when it is missing or older than the source it
 # builds from; DOWN stops what UP started with the launcher that is there. The IMAGES are the tag `up` is given,
 # written into the stack's documents init made. So a launcher change is
-# testable against the images people actually run, publishing nothing.
+# testable against the images people actually run, publishing nothing. UP of
+# `local` first builds what make local-build PACKAGE_NAMES=typescript builds when
+# the build finds the images, or the npm packages the Browser's installs, older
+# than this checkout (images/scripts/build-session.sh stale).
 #
 # UP asserts, and nothing more: that every health gate opens against a real
 # service at a real route, that the realm the start CREATES through Keycloak's
@@ -116,6 +119,19 @@ if [ "$E2E" = true ]; then
   fi
 fi
 SEMIONT="$REPO_ROOT/apps/launcher/dist/semiont"
+BUILD="$REPO_ROOT/images/scripts/build-session.sh"
+if [ "$COMMAND" = up ] && [ "$IMAGES" = local ]; then
+  if ! STALE=$(bash "$BUILD" stale --package typescript 2>/dev/null); then
+    echo "Could not read whether the :local images are this checkout's: make plan says why." >&2
+    exit 2
+  fi
+  if [ -n "$STALE" ]; then
+    echo "The :local images are older than this checkout ($(printf '%s\n' "$STALE" | cut -f1 | paste -sd' ' -)): building them."
+    bash "$BUILD" local-build --package typescript || exit 2
+    # local-build builds the launcher from the source as it is now.
+    touch "$SEMIONT"
+  fi
+fi
 # The launcher compiles apps/launcher, packages/go/launcher and packages/go/sdk; a source file newer
 # than the binary means the binary is not this checkout's launcher.
 newer_source() {
@@ -129,7 +145,7 @@ if [ "$COMMAND" != down ]; then
     echo "$SEMIONT is older than ${NEWER#"$REPO_ROOT"/}: building it again."
   fi
   if [ ! -x "$SEMIONT" ] || [ -n "${NEWER:-}" ]; then
-    bash "$REPO_ROOT/images/scripts/build-session.sh" launcher || exit 2
+    bash "$BUILD" launcher || exit 2
     # Built from the source as it is now. Go leaves a binary its build did not change as it
     # was, older than the source a comment changed, so the time is set here.
     touch "$SEMIONT"

@@ -90,12 +90,14 @@ class SmokeStackTest(unittest.TestCase):
         self.launcher.write_text(f"#!{sys.executable}\n" + LAUNCHER)
         self.launcher.chmod(0o755)
         shutil.copy2(self.launcher, self.root / "built-launcher")
-        # The launcher's build: it writes the launcher where there is none, and, as Go
-        # does for a build that changed nothing, leaves one that is there as it was.
+        # The build. `stale` answers what SMOKE_TEST_STALE says is stale. Every other
+        # operation writes the launcher where there is none, and, as Go does for a
+        # build that changed nothing, leaves one that is there as it was.
         build = self.root / "images/scripts/build-session.sh"
         build.write_text(
             "#!/bin/sh\n"
             'printf "%s\\n" "$*" >> "$SMOKE_TEST_ROOT/builds.log"\n'
+            'if [ "$1" = stale ]; then printf "%s" "$SMOKE_TEST_STALE"; exit "$SMOKE_TEST_STALE_STATUS"; fi\n'
             '[ "$SMOKE_TEST_BUILD_STATUS" = 0 ] || exit "$SMOKE_TEST_BUILD_STATUS"\n'
             f'[ -e "{self.launcher}" ] || cp -p "$SMOKE_TEST_ROOT/built-launcher" "{self.launcher}"\n'
         )
@@ -116,7 +118,12 @@ class SmokeStackTest(unittest.TestCase):
             executable.chmod(0o755)
 
     def smoke(
-        self, *args: str, start_status: str = "0", build_status: str = "0"
+        self,
+        *args: str,
+        start_status: str = "0",
+        build_status: str = "0",
+        stale: str = "",
+        stale_status: str = "0",
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["bash", str(self.root / "images/tests/stack/smoke-stack.sh"), *args],
@@ -127,6 +134,8 @@ class SmokeStackTest(unittest.TestCase):
                 "SMOKE_TEST_ROOT": str(self.root),
                 "SMOKE_TEST_START_STATUS": start_status,
                 "SMOKE_TEST_BUILD_STATUS": build_status,
+                "SMOKE_TEST_STALE": stale,
+                "SMOKE_TEST_STALE_STATUS": stale_status,
                 "CONTAINER_RUNTIME": self.runtime,
                 "SMOKE_KB": str(self.kb),
             },
@@ -152,9 +161,13 @@ class SmokeStackTest(unittest.TestCase):
             )
         return [os.path.realpath(call[call.index("--root") + 1]) for call in stops]
 
-    def builds(self) -> list[str]:
+    def build_calls(self) -> list[str]:
         path = self.root / "builds.log"
         return path.read_text().splitlines() if path.exists() else []
+
+    def builds(self) -> list[str]:
+        """What the smoke built, leaving out what it asked."""
+        return [call for call in self.build_calls() if not call.startswith("stale")]
 
     def edit_launcher_source(self) -> None:
         """A launcher source file newer than the launcher."""
@@ -219,6 +232,42 @@ class SmokeStackTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertEqual(self.lines("starts.jsonl"), [])
         self.assertEqual(self.lines("inits.jsonl"), [])
+
+    def test_up_of_local_builds_stale_images_before_it_starts_anything(self) -> None:
+        stale = "images/archivist\tDockerfile, copied source, toolchain or npm dependencies changed\n"
+        result = self.smoke("up", "local", stale=stale)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            self.build_calls(),
+            ["stale --package typescript", "local-build --package typescript"],
+        )
+        self.assertIn("images/archivist", result.stdout)
+        self.assertEqual(len(self.lines("starts.jsonl")), 1)
+
+    def test_up_of_current_local_images_builds_nothing(self) -> None:
+        result = self.smoke("up", "local")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.build_calls(), ["stale --package typescript"])
+
+    def test_up_of_a_published_tag_asks_nothing_of_the_build(self) -> None:
+        result = self.smoke("up", "0.7.1", stale="images/archivist\tchanged\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.build_calls(), [])
+
+    def test_images_that_do_not_build_start_nothing(self) -> None:
+        for status in ("stale", "build"):
+            with self.subTest(failed=status):
+                (self.root / "builds.log").unlink(missing_ok=True)
+                result = self.smoke(
+                    "up",
+                    "local",
+                    stale="images/archivist\tchanged\n",
+                    stale_status="1" if status == "stale" else "0",
+                    build_status="1" if status == "build" else "0",
+                )
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertEqual(self.lines("starts.jsonl"), [])
+                self.assertEqual(self.lines("inits.jsonl"), [])
 
     def test_a_failed_up_takes_its_stack_down(self) -> None:
         result = self.smoke("up", "local", start_status="1")

@@ -157,9 +157,12 @@ puts back the Browser's and Worker's documents and checks every port is released
 they name `SMOKE_TAG`'s images for every knowledge base on the machine. The smoke uses the same
 `CONTAINER_RUNTIME` selection and readiness check as the build.
 Apple `container` runs Playwright through the existing localhost bridge; Docker and Podman
-use host networking. This boots services and requires the selected images. `stack-up`, `e2e` and
-`smoke` build the checkout's launcher, as `make launcher` does, when it is missing or older than
-its Go source; `stack-down` stops the stack with the launcher that is there.
+use host networking. With `SMOKE_TAG=local`, `stack-up` and `smoke` first build what
+`make local-build PACKAGE_NAMES=typescript` builds when the build finds an image, or an npm
+package the Browser's image installs, older than the checkout; the same signatures `make plan`
+reads decide it. A published tag's images are pulled. `stack-up`, `e2e` and `smoke` build the
+checkout's launcher, as `make launcher` does, when it is missing or older than its Go source;
+`stack-down` stops the stack with the launcher that is there.
 Stack Smoke CI calls `make local-build` with TypeScript selection, fan-out disabled and a
 Docker layer cache. Existing native CI build and release publication commands remain direct.
 
