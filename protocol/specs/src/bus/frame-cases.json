@@ -1,0 +1,38 @@
+{
+  "$comment": "What a stream's reader takes for a frame, as every SDK's reader must. A frame is the JSON object the `data` line of a `bus-event` message carries, and it carries what BusFrame (protocol/specs/src/components/schemas/BusFrame.json) names and nothing more: its `channel` and its `payload`, and its `correlationId` and its `scope` when it has them. THE RULE. A reader holds every frame to BusFrame before it delivers it. A frame BusFrame allows is delivered, with its channel, payload, correlationId and scope as it states them. A frame BusFrame does not allow is refused: it is not delivered, and what else the stream carries is. It is refused for its first fault, found as every SDK finds a value's first fault (packages/codegen/schemas/required-shapes.mjs): a member it lacks (`lacks`), or a member that is not what BusFrame allows (`malformed`), a member BusFrame does not name among them. A CASE is a `frame` that is delivered, or a `frame`, `refused`: true, and its first fault: its `member` (the way to it: the names of the members it is within, and its own, joined by dots) and its `reason`.",
+  "runBy": {
+    "rust": ["packages/rust/http-transport/src/actor.rs"],
+    "python": ["packages/python/sdk/tests/test_frame_cases.py"],
+    "go": ["packages/go/sdk/frame_cases_test.go"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/FrameCasesTest.kt"]
+  },
+  "notYetReached": {
+    "typescript": "TypeScript's stream reader (packages/typescript/http-transport/src/transport/actor-state-unit.ts) holds a frame to nothing: it delivers a frame that lacks a member BusFrame requires or carries one BusFrame does not name, and a `data` line that is no JSON ends the connection as a drop does. It is to hold each frame to BusFrame, as the other readers do.",
+    "swift": "The Swift SDK's stream reader, which is to hold each frame to BusFrame.",
+    "csharp": "The C# SDK's stream reader, which is to hold each frame to BusFrame."
+  },
+  "cases": [
+    {
+      "why": "a frame that carries its channel and its payload is delivered",
+      "frame": {"channel": "beckon:focus", "payload": {"resourceId": "res-1", "annotationId": "a-1"}}
+    },
+    {
+      "why": "a frame that carries every member BusFrame names is delivered with each",
+      "frame": {"channel": "browse:resource-result", "correlationId": "c-1", "payload": {"response": {}}, "scope": "res-1"}
+    },
+    {
+      "why": "a frame that carries no channel is refused, naming the channel",
+      "frame": {"payload": {"resourceId": "res-1"}},
+      "refused": true,
+      "member": "channel",
+      "reason": "lacks"
+    },
+    {
+      "why": "a frame that carries a member BusFrame does not name is refused, naming the member",
+      "frame": {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}, "addedByALaterGateway": true},
+      "refused": true,
+      "member": "addedByALaterGateway",
+      "reason": "malformed"
+    }
+  ]
+}

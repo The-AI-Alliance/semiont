@@ -835,4 +835,31 @@ mod tests {
             assert!(!allowed(Closed, to), "closed is terminal");
         }
     }
+
+    /// Each frame of protocol/specs/src/bus/frame-cases.json, the table every
+    /// SDK's stream reader runs, is read as it states it, or refused.
+    #[test]
+    fn each_frame_of_the_table_is_read_as_it_states_or_refused() {
+        let table: Value = serde_json::from_str(include_str!(
+            "../../../../protocol/specs/src/bus/frame-cases.json"
+        ))
+        .expect("the table is JSON");
+        let cases = table["cases"].as_array().expect("the table has cases");
+        assert!(!cases.is_empty(), "the table was not read");
+        for case in cases {
+            let why = case["why"].as_str().expect("a case says why");
+            let frame = &case["frame"];
+            let read = carried(&frame.to_string());
+            if case["refused"] == true {
+                assert!(read.is_none(), "{why}: read as {read:?}");
+            } else {
+                let read = read.unwrap_or_else(|| panic!("{why}: refused"));
+                assert_eq!(
+                    &serde_json::to_value(&read).expect("a frame is JSON"),
+                    frame,
+                    "{why}"
+                );
+            }
+        }
+    }
 }
