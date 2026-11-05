@@ -1,11 +1,14 @@
 /**
- * The two bounds on a connection (`x-semiont-limits` on /bus/subscribe;
- * protocol/contract/TRANSPORT-HTTP.md § Limits): a client that stops taking
+ * The bounds on a connection (protocol/contract/TRANSPORT-HTTP.md § Limits).
+ * On /bus/subscribe (its `x-semiont-limits`): a client that stops taking
  * frames is disconnected once `pendingWriteBytes` are waiting for it, and a
  * replay that live frames outrun past `replayBufferEvents` is abandoned. A
- * disconnected client is visible on `session:left`.
+ * disconnected client is visible on `session:left`. On any connection (the
+ * document's `x-semiont-limits`): one that sends no request is closed
+ * `requestHeadSeconds` after its last answer.
  */
 import { randomUUID } from 'node:crypto';
+import { connect } from 'node:net';
 import { expect, it } from 'vitest';
 import { storedEvent } from '../harness/archivist';
 import { eventually } from '../harness/net';
@@ -79,3 +82,37 @@ eachPlane('connection bounds', (world) => {
     expect(over.frames(CHANNEL).length).toBeLessThan(limit + 2);
   }, 120_000);
 });
+
+eachPlane('an idle connection', (world) => {
+  const limitMs = spec().documentLimit('requestHeadSeconds') * 1000;
+
+  it('is closed requestHeadSeconds after its last answer, with nothing written to it', async () => {
+    const { hostname, port } = new URL(world().origin);
+    const socket = connect(Number(port), hostname);
+    let received = Buffer.alloc(0);
+    let answerBytes: number | undefined;
+    let answered: number | undefined;
+    // A reset is a close too; what is asserted is when, and what came before.
+    socket.on('error', () => undefined);
+    const closed = new Promise<number>((resolve) => socket.on('close', () => resolve(Date.now())));
+    socket.on('data', (chunk: Buffer) => {
+      received = Buffer.concat([received, chunk]);
+      const head = received.indexOf('\r\n\r\n');
+      if (answerBytes === undefined && head >= 0) {
+        const length = /\r\ncontent-length: *(\d+)/i.exec(received.subarray(0, head).toString('latin1'));
+        answerBytes = length ? head + 4 + Number(length[1]) : Number.NaN;
+      }
+      if (answered === undefined && answerBytes !== undefined && received.length >= answerBytes) answered = Date.now();
+    });
+    socket.write(`GET /api/health HTTP/1.1\r\nHost: ${hostname}:${port}\r\n\r\n`);
+
+    const end = await closed;
+    expect(received.subarray(0, 12).toString('latin1'), received.toString('latin1')).toBe('HTTP/1.1 200');
+    expect(answerBytes, 'the answer states its Content-Length').not.toBeNaN();
+    expect(answered, 'the answer came whole').toBeDefined();
+    expect(received.length, 'nothing is written after the answer').toBe(answerBytes);
+    // Less a quarter second: the gateway's wait began as it wrote the answer, a little before it arrived.
+    expect(end - answered!).toBeGreaterThanOrEqual(limitMs - 250);
+    expect(end - answered!).toBeLessThan(limitMs * 1.3);
+  }, limitMs * 2 + 10_000);
+}, {}, ['in-process']);
