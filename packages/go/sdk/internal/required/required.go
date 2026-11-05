@@ -238,6 +238,62 @@ func ReadAs[T any](payload []byte) (T, bool) {
 	return value, true
 }
 
+// FaultOfFramePayload is FaultOf of a frame's payload as its type reads it:
+// what a gateway stamps on a payload (a member whose name begins `_`) that a
+// value of generated does not name is the bus's, not the payload's, and is
+// left out before the payload is held to its shape.
+func FaultOfFramePayload(payload []byte, generated reflect.Type) (Fault, bool) {
+	var value any
+	if json.Unmarshal(payload, &value) != nil {
+		return Fault{}, false
+	}
+	read := shapeOf(generated)
+	return faultOf(read, unstamped(read, value), "")
+}
+
+// ReadFramePayloadAs is ReadAs of a frame's payload, held to T as
+// FaultOfFramePayload holds it.
+func ReadFramePayloadAs[T any](payload []byte) (T, bool) {
+	var value T
+	if _, faulty := FaultOfFramePayload(payload, reflect.TypeFor[T]()); faulty || json.Unmarshal(payload, &value) != nil {
+		return value, false
+	}
+	return value, true
+}
+
+// unstamped is value without the members whose names begin `_` that s names
+// nowhere: not as its own, nor as a variant's or a part's.
+func unstamped(s *shape, value any) any {
+	object, isObject := value.(map[string]any)
+	if !isObject {
+		return value
+	}
+	named := map[string]bool{}
+	nameMembers(s, named)
+	kept := make(map[string]any, len(object))
+	for name, held := range object {
+		if !strings.HasPrefix(name, "_") || named[name] {
+			kept[name] = held
+		}
+	}
+	return kept
+}
+
+// nameMembers adds to named each member s describes, and each its variants
+// and parts describe.
+func nameMembers(s *shape, named map[string]bool) {
+	s = resolved(s)
+	for name := range s.Members {
+		named[name] = true
+	}
+	for _, variant := range s.OneOf {
+		nameMembers(variant, named)
+	}
+	for _, part := range s.AllOf {
+		nameMembers(part, named)
+	}
+}
+
 // within is way, then name.
 func within(way, name string) string {
 	if way == "" {

@@ -8,7 +8,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { Bus, FrameRefusal, type Delivered, type Heard } from '../bus';
+import { asDeclared, Bus, FrameRefusal, type Delivered, type Heard } from '../bus';
 import { FaultyTransport } from '../faulty-transport';
 import { EventBus } from '../event-bus';
 import type { EventMap } from '../bus-protocol';
@@ -224,5 +224,15 @@ describe('Bus.emit', () => {
 
     expect(count).toBe(1);
     expect(seen.map((frame) => frame.correlationId)).toEqual(['c-2']);
+  });
+});
+
+describe('asDeclared', () => {
+  it('holds a payload to its shape without the stamps its type does not declare, which a closed object does not name', () => {
+    const gap = { scope: resourceId('res-1'), lastSeenId: 'e-1', reason: 'scope-mismatch' as const };
+    const stamped = { ...gap, _userId: 'did:web:example.org:users:a', _roles: ['admin'] };
+    expect(asDeclared('bus:resume-gap', stamped)).toStrictEqual(gap);
+    const more = { ...gap, more: 1 };
+    expect(asDeclared('bus:resume-gap', more)).toStrictEqual(new FrameRefusal('bus:resume-gap', 'more', 'malformed', more));
   });
 });

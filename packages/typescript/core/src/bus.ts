@@ -182,20 +182,21 @@ const notTheChannels = (channel: string, fault: Fault): string => `a payload on 
  * `payload` as `channel` types it: the rule every SDK's typed read keeps. A
  * stamp the gateway put on it that the channel's payload type does not
  * declare (`CHANNEL_STAMPS`) is the bus's, not the payload's, and is left
- * out. A payload with a fault as its channel's is not its channel's: its
- * refusal is given in its place, as every SDK's typed read gives one. A
- * refusal, which a bus a transport bridged into carries and a relay passes
- * on, is one already.
+ * out before the payload is held to its shape. A payload with a fault as its
+ * channel's is not its channel's: its refusal is given in its place, as every
+ * SDK's typed read gives one. A refusal, which a bus a transport bridged into
+ * carries and a relay passes on, is one already.
  */
 export function asDeclared<K extends keyof EventMap>(channel: K, payload: EventMap[K] | FrameRefusal): EventMap[K] | FrameRefusal {
   if (payload instanceof FrameRefusal) return payload;
-  const fault = faultOfShape(payloadShape(channel), payload);
+  const stamps: readonly string[] = CHANNEL_STAMPS[channel];
+  const declared =
+    typeof payload === 'object' && payload !== null && !Array.isArray(payload)
+      ? Object.fromEntries(Object.entries(payload).filter(([name]) => !name.startsWith('_') || stamps.includes(name)))
+      : payload;
+  const fault = faultOfShape(payloadShape(channel), declared);
   if (fault !== undefined) return new FrameRefusal(channel, fault.member, fault.reason, payload);
-  if (typeof payload !== 'object' || payload === null) return payload;
-  const declared: readonly string[] = CHANNEL_STAMPS[channel];
-  return Object.fromEntries(
-    Object.entries(payload).filter(([name]) => !name.startsWith('_') || declared.includes(name)),
-  ) as EventMap[K];
+  return declared as EventMap[K];
 }
 
 /** `frame` as a frame of `channel`, or its refusal when its payload is not that channel's. */
@@ -345,16 +346,16 @@ export class Bus {
       bus.frames(resultChannel as keyof EventMap).pipe(
         filter((frame) => frame.correlationId === correlationId),
         map(({ payload: e }) => {
-          const fault = faultOfShape(payloadShape(resultChannel), e);
-          return fault === undefined
-            ? { ok: true as const, response: (e as Record<string, unknown>).response as BusReply<Op> }
-            : {
+          const read = asDeclared(resultChannel as keyof EventMap, e);
+          return read instanceof FrameRefusal
+            ? {
                 ok: false as const,
-                error: new SemiontError(notTheChannels(resultChannel, fault), 'error', {
+                error: new SemiontError(notTheChannels(resultChannel, { member: read.member, reason: read.reason }), 'error', {
                   channel: resultChannel,
                   correlationId,
                 }),
-              };
+              }
+            : { ok: true as const, response: (read as Record<string, unknown>).response as BusReply<Op> };
         }),
       ),
       bus.frames(failureChannel as keyof EventMap).pipe(

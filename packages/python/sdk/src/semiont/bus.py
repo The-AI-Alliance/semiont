@@ -143,14 +143,22 @@ async def _result_of(transport: Transport, operation: AnyOperation, payload: Map
 # ── By type ─────────────────────────────────────────────────────────────
 
 
-def decoded[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], payload: Mapping[str, JsonValue]) -> P:
-    """A payload as `channel` types it. Raises `ValidationError` for one that is not that channel's.
+def _unstamped[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], payload: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    """`payload` without what the gateway stamped on it that `channel`'s type does not declare.
 
     What the gateway stamps on a payload (a member whose name begins `_`) is
     the bus's, not the payload's: one the channel's type does not declare is
-    left out before the payload is read.
+    left out before the payload is held to its shape and read.
     """
-    return channel.decode({name: value for name, value in payload.items() if not name.startswith("_") or name in channel.stamps})
+    return {name: value for name, value in payload.items() if not name.startswith("_") or name in channel.stamps}
+
+
+def decoded[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], payload: Mapping[str, JsonValue]) -> P:
+    """A payload as `channel` types it, without the stamps it does not declare.
+
+    Raises `ValidationError` for one that is not that channel's.
+    """
+    return channel.decode(_unstamped(channel, payload))
 
 
 @final
@@ -207,7 +215,7 @@ def _delivered[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], 
 
 def _heard[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], frame: Frame) -> Delivered[P] | Fault:
     """`frame`, its payload as `channel` types it; or the first fault of a payload that is not that channel's."""
-    fault = fault_of(channel.payload, dict(frame.payload))
+    fault = fault_of(channel.payload, _unstamped(channel, frame.payload))
     if fault is not None:
         return fault
     try:

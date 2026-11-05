@@ -167,7 +167,7 @@ func delivered[P any](frame Frame) (Delivered[P], error) {
 	notTheChannels := func(fault required.Fault) error {
 		return transportErrorWithoutResponse(fmt.Sprintf("a payload on %s is not that channel's: %s", frame.Channel, fault), TransportErrorCodeError)
 	}
-	if fault, faulty := required.FaultOf(frame.Payload, reflect.TypeFor[P]()); faulty {
+	if fault, faulty := required.FaultOfFramePayload(frame.Payload, reflect.TypeFor[P]()); faulty {
 		return Delivered[P]{}, notTheChannels(fault)
 	}
 	var payload P

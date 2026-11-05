@@ -161,6 +161,24 @@ func TestAClosedObjectCarriesNoMemberItDoesNotName(t *testing.T) {
 	faultsAs(t, `{"kinds":["object"],"closed":[]}`, `{"x":1}`, malformed("x"))
 }
 
+func TestAFramePayloadIsHeldToItsShapeWithoutTheStampsItsTypeDoesNotName(t *testing.T) {
+	request := reflect.TypeFor[api.BrowseProfilesRequest]()
+	stamped := []byte(`{"dids":["did:web:example.org:users:a"],"_userId":"did:web:example.org:users:b","_roles":["admin"]}`)
+	if fault, faulty := FaultOfFramePayload(stamped, request); faulty {
+		t.Errorf("a payload with the gateway's stamps has the fault %+v", fault)
+	}
+	if fault, _ := FaultOf(stamped, request); fault != malformed("_roles") {
+		t.Errorf("a reply that carries what a closed object does not name has the fault %+v", fault)
+	}
+	more := []byte(`{"dids":["did:web:example.org:users:a"],"more":1}`)
+	if fault, _ := FaultOfFramePayload(more, request); fault != malformed("more") {
+		t.Errorf("a payload that carries what a closed object does not name has the fault %+v", fault)
+	}
+	if read, ok := ReadFramePayloadAs[api.BrowseProfilesRequest](stamped); !ok || len(read.Dids) != 1 {
+		t.Errorf("a payload with the gateway's stamps reads as %+v, %v", read, ok)
+	}
+}
+
 func TestATypeWrappingOneOfASchemaHoldsItToTheSchema(t *testing.T) {
 	type response[T any] struct {
 		Response T `json:"response"`
