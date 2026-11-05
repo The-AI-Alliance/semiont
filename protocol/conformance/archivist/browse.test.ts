@@ -7,7 +7,10 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { anchoredEntry, sha256, shardOf, withArchivist, type Engines } from '../harness/archivist-world';
-import { spec } from '../harness/spec';
+import { archivistSpec, spec } from '../harness/spec';
+
+/** Well short of how long a read of anchored text is held for the Smelter: a read answered within it was not held. */
+const UNHELD_MS = (archivistSpec().limits('get', '/resources/{id}/anchored-text')['settleWaitSeconds']! * 1000 * 2) / 3;
 
 // Written out of the order the engines' schema states them in: the answer is
 // in the schema's.
@@ -290,8 +293,8 @@ withArchivist('browsing', (world) => {
     const asked = Date.now();
     expect(await world().anchoredText(image)).toEqual({ kind: 'no-map' });
     expect(await world().anchoredText(markdown)).toEqual({ kind: 'no-map' });
-    // A held read is given fifteen seconds. Neither of these was held.
-    expect(Date.now() - asked).toBeLessThan(10_000);
+    // Neither of these was held.
+    expect(Date.now() - asked).toBeLessThan(UNHELD_MS);
   });
 
   it('answers no-map for a media type whose text is not derived, though the store holds an entry for the same bytes', async () => {
@@ -342,8 +345,8 @@ withArchivist('browsing', (world) => {
 
       expect(answer).toEqual({ kind: 'not-yet' });
       expect(code).toBe(0);
-      // A held read is given fifteen seconds. The stop ended this one: it did not wait the read out.
-      expect(Date.now() - asked).toBeLessThan(10_000);
+      // The stop ended this one: it did not wait the read out.
+      expect(Date.now() - asked).toBeLessThan(UNHELD_MS);
     } finally {
       await world().restart();
     }

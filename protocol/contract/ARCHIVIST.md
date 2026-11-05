@@ -526,9 +526,9 @@ The answer is decided from the resource's first representation, in this order:
    text, and asking again does not change that.
 3. The stored entry for the checksum, when the store has one: the extracted text with each word's
    place, or the decline.
-4. With no entry, the Archivist waits up to 15 seconds for the Smelter to say on the bus that it
-   has settled that content (`smelt:settled`, naming the resource and the checksum), and then
-   reads the entry again. If there is still none, or the wait runs out: `{"kind":"not-yet"}`,
+4. With no entry, the Archivist waits up to the operation's `x-semiont-limits.settleWaitSeconds`
+   for the Smelter to say on the bus that it has settled that content (`smelt:settled`, naming the
+   resource and the checksum), and then reads the entry again. If there is still none, or the wait runs out: `{"kind":"not-yet"}`,
    whether the Smelter said it indexed the content or skipped it. The Smelter stores what deriving
    a text came to, a decline included, so settled content with no entry is content whose entry was
    lost, and the Smelter derives it again when it next starts.
