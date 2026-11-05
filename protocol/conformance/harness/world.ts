@@ -171,12 +171,12 @@ export class World {
   }
 
   /** An emit, as an SDK makes one: under a new `Idempotency-Key`, or under `key` when a case sends one again. */
-  emit(token: string, body: Record<string, unknown>, origin = this.origin, key = randomUUID()): Promise<Reply> {
+  emit(token: string, body: Record<string, unknown>, origin = this.origin, key: string = randomUUID()): Promise<Reply> {
     return call(origin, 'POST', '/bus/emit', { token, json: body, headers: { 'idempotency-key': key } });
   }
 
   /** An upload, as an SDK makes one: under a new `Idempotency-Key`, or under `key` when a case sends one again. */
-  upload(token: string, form: FormData, key = randomUUID()): Promise<Reply> {
+  upload(token: string, form: FormData, key: string = randomUUID()): Promise<Reply> {
     return call(this.origin, 'POST', '/resources', { token, body: form, headers: { 'idempotency-key': key } });
   }
 

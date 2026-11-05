@@ -24,7 +24,7 @@
 //! (`ledger_replies`) for `replyRetentionSeconds`; recovery answers from any
 //! replica, and only to the claim's owner.
 
-use crate::signal::{Meta, SharedTable, SignalPlane, Subscription};
+use crate::signal::{Meta, SharedTable, SignalPlane, Subscription, now_ms};
 use crate::{limits, metrics};
 use futures::FutureExt;
 use futures::future::{BoxFuture, Shared};
@@ -34,7 +34,7 @@ use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 const CLAIMS: &str = "ledger_claims";
 const REPLIES: &str = "ledger_replies";
@@ -43,13 +43,6 @@ const ANSWERED: &str = "ledger_answered";
 /// Claims one replica's projection holds at once; past this the oldest is
 /// evicted. Correct clients cannot reach it: each is capped far below.
 const CLAIM_MAX_GLOBAL: usize = 4096;
-
-fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
-}
 
 fn bus(fields: Value) -> Value {
     let mut fields = fields;

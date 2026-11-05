@@ -108,10 +108,11 @@ export interface FakeArchivist {
      */
     hangsUp: number;
     /**
-     * This many uploads, from the next, are stored and recorded, and then
-     * never answered: a resource made whose id the gateway was never told.
+     * An upload of a `storageUri` in this set is stored and recorded, once,
+     * and then never answered: a resource made whose id the gateway was never
+     * told. Its repeat is answered.
      */
-    recordsUnanswered: number;
+    readonly recordsUnanswered: Set<string>;
     /** A read of a resource id, or an upload of a `storageUri`, in this set is read whole and never answered. */
     readonly unanswered: Set<string>;
     /** A read of the bytes of a resource id in this set is answered its head and the first half of its bytes, and then nothing. */
@@ -187,7 +188,7 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
     refuseUploads: undefined,
     anchoredTextFails: false,
     hangsUp: 0,
-    recordsUnanswered: 0,
+    recordsUnanswered: new Set(),
     unanswered: new Set(),
     answeredInPart: new Set(),
   };
@@ -303,10 +304,7 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
         const recorded: RecordedUpload = { fields, file: file!, principal, roles: typeof roles === 'string' ? roles : undefined, key, resourceId };
         uploads.push(recorded);
         keyed.set(keyedAs, recorded);
-        if (mode.recordsUnanswered > 0) {
-          mode.recordsUnanswered -= 1;
-          return;
-        }
+        if (mode.recordsUnanswered.delete(fields['storageUri']!)) return;
         return json(200, { resourceId });
       }
 

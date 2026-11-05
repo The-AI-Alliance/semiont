@@ -18,7 +18,7 @@
 
 use crate::http::{ApiError, json_response};
 use crate::limits;
-use crate::signal::{SharedTable, SignalPlane};
+use crate::signal::{SharedTable, SignalPlane, now_ms};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use base64::Engine;
@@ -30,19 +30,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use std::future::Future;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 const TABLE: &str = "emit_keys";
 
 /// How often a repeat reads the entry of the attempt it waits for.
 const WAIT_POLL: Duration = Duration::from_millis(100);
-
-fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("the host's clock reads after 1970")
-        .as_millis() as u64
-}
 
 /// An entry as the table holds it.
 #[derive(Serialize, Deserialize)]

@@ -18,7 +18,7 @@ use futures::future::BoxFuture;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Routing facts that ride beside a payload, carried verbatim.
 pub type Meta = HashMap<String, String>;
@@ -101,6 +101,15 @@ impl std::fmt::Display for Unavailable {
 /// `ingest_request` observes: the broker's own answer that nothing subscribes.
 pub struct IngestReceipt {
     pub observers: Option<usize>,
+}
+
+/// The wall-clock time, in milliseconds since the epoch, that shared tables'
+/// entries are stamped with: every replica reads its own clock.
+pub fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("the host's clock reads after 1970")
+        .as_millis() as u64
 }
 
 /// A table every replica on one fabric shares. An entry lives for the table's
