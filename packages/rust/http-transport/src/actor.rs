@@ -31,7 +31,7 @@ use semiont::retry::{equal_jitter, retry_after};
 use semiont::timing::{DEGRADED_THRESHOLD, MAX_RECONNECT, RECONNECT_DEBOUNCE};
 use semiont::transport::{ConnectionState, Envelope, Frame, TraceCarrier};
 use semiont::types::ResourceId;
-use semiont::types::{BusSubscribeRequest, BusSubscribeRequestScopedItem};
+use semiont::types::{BusFrame, BusSubscribeRequest, BusSubscribeRequestScopedItem};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::sync::Arc;
@@ -336,26 +336,14 @@ impl Actor {
         {
             return;
         }
-        // Read by what it means: a frame a later gateway adds a field to is
-        // still a frame. One that is not a frame at all is not delivered.
-        let Ok(Value::Object(mut frame)) = serde_json::from_str::<Value>(data) else {
-            return;
-        };
-        let (Some(Value::String(channel)), Some(Value::Object(mut payload))) =
-            (frame.remove("channel"), frame.remove("payload"))
+        let Some(BusFrame {
+            channel,
+            correlation_id,
+            mut payload,
+            scope,
+        }) = carried(data)
         else {
             return;
-        };
-        let text = |value: Option<Value>| match value {
-            Some(Value::String(text)) => Some(text),
-            _ => None,
-        };
-        let correlation_id = text(frame.remove("correlationId"));
-        // A scope is a resource's id. One that is not is not a frame.
-        let scope = match text(frame.remove("scope")).map(ResourceId::new) {
-            None => None,
-            Some(Ok(scope)) => Some(scope),
-            Some(Err(_)) => return,
         };
         let trace = payload.remove(TRACE_FIELD).and_then(carrier);
 
@@ -610,6 +598,37 @@ impl Actor {
         self.shared.router.close();
         *locked(&self.shared.failures) = None;
     }
+}
+
+/// `data` read as a frame; `None` when it is none.
+fn carried(data: &str) -> Option<BusFrame> {
+    // Read by what it means: a frame a later gateway adds a field to is
+    // still a frame. One that is not a frame at all is not delivered.
+    let Ok(Value::Object(mut frame)) = serde_json::from_str::<Value>(data) else {
+        return None;
+    };
+    let (Some(Value::String(channel)), Some(Value::Object(payload))) =
+        (frame.remove("channel"), frame.remove("payload"))
+    else {
+        return None;
+    };
+    let text = |value: Option<Value>| match value {
+        Some(Value::String(text)) => Some(text),
+        _ => None,
+    };
+    let correlation_id = text(frame.remove("correlationId"));
+    // A scope is a resource's id. One that is not is not a frame.
+    let scope = match text(frame.remove("scope")).map(ResourceId::new) {
+        None => None,
+        Some(Ok(scope)) => Some(scope),
+        Some(Err(_)) => return None,
+    };
+    Some(BusFrame {
+        channel,
+        correlation_id,
+        payload,
+        scope,
+    })
 }
 
 fn carrier(value: Value) -> Option<TraceCarrier> {

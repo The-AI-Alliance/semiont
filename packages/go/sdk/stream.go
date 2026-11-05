@@ -398,27 +398,18 @@ type wireFrame struct {
 	Scope         *string         `json:"scope"`
 }
 
-func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
-	if _, ok := s.connections[conn]; !ok {
-		return
-	}
-	if hasID && !s.seen.remember(id) {
-		return
-	}
+// carried is data read as a frame, and whether it is one.
+func carried(data string) (Frame, bool) {
 	// Read by what it means: a frame a later gateway adds a field to is still
 	// a frame. One that is not a frame at all is not delivered.
 	var read wireFrame
 	if json.Unmarshal([]byte(data), &read) != nil || read.Channel == nil {
-		return
+		return Frame{}, false
 	}
 	if trimmed := bytes.TrimSpace(read.Payload); len(trimmed) == 0 || trimmed[0] != '{' {
-		return
+		return Frame{}, false
 	}
-	payload, sentUnder, ok := withoutTrace(read.Payload)
-	if !ok {
-		return
-	}
-	frame := Frame{Channel: bus.Channel(*read.Channel), Payload: payload}
+	frame := Frame{Channel: bus.Channel(*read.Channel), Payload: read.Payload}
 	if read.CorrelationID != nil {
 		frame.CorrelationID = *read.CorrelationID
 	}
@@ -426,10 +417,29 @@ func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
 		// A scope is a resource's id. One that is not is not a frame.
 		scope, err := api.ParseResourceId(*read.Scope)
 		if err != nil {
-			return
+			return Frame{}, false
 		}
 		frame.Scope = scope
 	}
+	return frame, true
+}
+
+func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
+	if _, ok := s.connections[conn]; !ok {
+		return
+	}
+	if hasID && !s.seen.remember(id) {
+		return
+	}
+	frame, ok := carried(data)
+	if !ok {
+		return
+	}
+	payload, sentUnder, ok := withoutTrace(frame.Payload)
+	if !ok {
+		return
+	}
+	frame.Payload = payload
 	busLog(context.Background(), busRecv, string(frame.Channel), payload, frame.Envelope)
 	if _, retired := s.superseded[conn]; retired {
 		// What closing a retired connection at once would have lost.

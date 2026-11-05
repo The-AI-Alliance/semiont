@@ -114,7 +114,7 @@ _FRAME_MEMBERS: Final = frozenset(stated.alias or name for name, stated in BusFr
 _JSON: Final = TypeAdapter[JsonValue](JsonValue)
 
 
-def _carried(data: str) -> _Carried | Fault:
+def carried(data: str) -> _Carried | Fault:
     """`data` read as a frame, or the first fault that keeps it from being one.
 
     A field a later gateway adds to a frame is no part of it, and is left out
@@ -549,26 +549,26 @@ class Stream:
             return
         if event_id is not None and not self._seen.remember(event_id):
             return
-        carried = _carried(data)
-        if isinstance(carried, Fault):
+        read = carried(data)
+        if isinstance(read, Fault):
             # What is not a frame is not delivered, and is said so.
-            _LOG.warning("the stream carried what is not a frame (id %s): %s", event_id, carried)
+            _LOG.warning("the stream carried what is not a frame (id %s): %s", event_id, read)
             return
-        bus_log("RECV", carried.channel, carried.payload, scope=carried.scope, correlation_id=carried.correlation_id)
+        bus_log("RECV", read.channel, read.payload, scope=read.scope, correlation_id=read.correlation_id)
         if conn in self._superseded:
             # What closing a retired connection at once would have lost.
-            bus_note("LINGER", carried.channel, "delivered on superseded connection")
-        payload = carried.payload
+            bus_note("LINGER", read.channel, "delivered on superseded connection")
+        payload = read.payload
         sent_under: TraceContext | None = None
         if TRACE_FIELD in payload:
             sent_under = _sent_under(payload[TRACE_FIELD])
             payload = {name: value for name, value in payload.items() if name != TRACE_FIELD}
         frame = Frame(
-            channel=carried.channel,
+            channel=read.channel,
             payload=payload,
-            correlation_id=carried.correlation_id,
-            scope=carried.scope,
-            trace=telemetry.received(carried.channel, carried.scope, sent_under),
+            correlation_id=read.correlation_id,
+            scope=read.scope,
+            trace=telemetry.received(read.channel, read.scope, sent_under),
         )
         self._router.route(frame)
         # A scope's position is the last recorded event delivered on it: only

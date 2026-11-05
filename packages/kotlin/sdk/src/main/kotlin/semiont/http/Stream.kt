@@ -35,6 +35,7 @@ import semiont.transport.ConnectionState
 import semiont.transport.Frame
 import semiont.transport.ReplyRouter
 import semiont.transport.TraceContext
+import semiont.types.BusFrame
 import semiont.types.BusSubscribeRequest
 import semiont.types.BusSubscribeRequestScopedItem
 import semiont.types.wireJson
@@ -353,18 +354,11 @@ internal class Stream(
     private fun framed(conn: Int, id: String?, data: String) {
         if (conn !in connections) return
         if (id != null && !seen.remember(id)) return
-        val carried = try {
-            wireJson.parseToJsonElement(data).jsonObject
-        } catch (_: SerializationException) {
-            return
-        } catch (_: IllegalArgumentException) {
-            return
-        }
-        val channel = (carried["channel"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return
-        var payload = carried["payload"] as? JsonObject ?: return
-        val correlationId = (carried["correlationId"] as? JsonPrimitive)?.contentOrNull
-        val scopeText = (carried["scope"] as? JsonPrimitive)?.contentOrNull
-        val scope = scopeText?.let { ResourceId.parse(it) ?: return }
+        val read = carried(data) ?: return
+        val channel = read.channel
+        var payload = read.payload
+        val correlationId = read.correlationId
+        val scope = read.scope
         BusLog.line(Logged.RECV, channel, payload, scope, correlationId)
         // What closing a retired connection at once would have lost.
         if (conn in superseded) BusLog.note("LINGER", channel, "delivered on superseded connection")
@@ -530,6 +524,23 @@ internal class Stream(
         }
         reports.send(Ended(conn))
     }
+}
+
+/** `data` read as a frame; null when it is none. */
+internal fun carried(data: String): BusFrame? {
+    val carried = try {
+        wireJson.parseToJsonElement(data).jsonObject
+    } catch (_: SerializationException) {
+        return null
+    } catch (_: IllegalArgumentException) {
+        return null
+    }
+    val channel = (carried["channel"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+    val payload = carried["payload"] as? JsonObject ?: return null
+    val correlationId = (carried["correlationId"] as? JsonPrimitive)?.contentOrNull
+    val scopeText = (carried["scope"] as? JsonPrimitive)?.contentOrNull
+    val scope = scopeText?.let { ResourceId.parse(it) ?: return null }
+    return BusFrame(channel, correlationId, payload, scope)
 }
 
 /** The trace a frame's payload says it was sent under, when it says so. */
