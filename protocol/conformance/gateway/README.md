@@ -49,7 +49,8 @@ configured another way).
     a payload and a scope may carry (`emit.test.ts`);
   - the stream: delivery, reply routing, replay and every gap reason,
     recovery, presence and the heartbeat (`stream.test.ts`);
-  - the bounds on one connection (`bounds.test.ts`), on one principal by role
+  - the bounds on one connection, how long an idle one is kept among them
+    (`bounds.test.ts`), on one principal by role
     (`principal-limits.test.ts`), on the requests one holder has had refused,
     and on those that name none (`refusals.test.ts`), and on one process
     (`capacity.test.ts`);

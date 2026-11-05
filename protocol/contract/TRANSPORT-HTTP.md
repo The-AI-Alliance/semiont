@@ -107,6 +107,7 @@ The numbers live in the spec, not here:
 | Emits one principal makes, per gateway process | `/bus/emit` `x-semiont-limits.emitsPerPrincipal` (a rate and a burst) | 429 `emit-rate` |
 | Bytes queued for all of one gateway's streams | GatewayConfig `capacity.queuedBytes` | 503 `capacity` on the next `/bus/subscribe` |
 | Connections one gateway holds open | GatewayConfig `capacity.connections` | the connection is closed unanswered |
+| How long a connection waits for a request's head, after it opens and after each answer | the document's `x-semiont-limits.requestHeadSeconds` | the connection is closed with nothing written to it |
 | How long a claim lasts unanswered | `/bus/emit` `x-semiont-limits.claimSeconds` | the claim expires; its reply is no longer routed |
 | How long a reply is retained | `/bus/subscribe` `x-semiont-limits.replyRetentionSeconds` | `pendingReplies` no longer recovers it |
 | Heartbeat interval | `x-semiont-limits.heartbeatSeconds` | — |

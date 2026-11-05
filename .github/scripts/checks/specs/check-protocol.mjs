@@ -158,6 +158,7 @@ function checkStream(where, schema, file) {
 for (const ROOT_FILE of ROOT_FILES) {
   const root = load(ROOT_FILE);
   current = ROOT_FILE.slice(REPO.length + 1);
+  checkLimits('the document', root['x-semiont-limits']);
 
   // ── Security schemes ────────────────────────────────────────────────────
   const schemes = root.components?.securitySchemes ?? {};
