@@ -6,16 +6,16 @@ Sign-in happens at the knowledge base's identity provider, never at the gateway,
 
 ## Which way
 
-| Who is signing in | The way | TypeScript | Python | Rust | Go | Kotlin | .NET |
-|---|---|---|---|---|---|---| --- |
-| A person, at a script | [The device grant](#the-device-grant): the script shows an address, the person approves in any browser | `SemiontSession.signInDevice` | `sign_in_device` | `sign_in_device` | `SignInWithDevice` | `signInDevice` | `Issuer.SignInDeviceAsync`, then `KeptSession` |
-| A person who has run `semiont login` | [The sign-in the launcher keeps](#the-sign-in-semiont-login-keeps): nothing to approve | none | `session_from_kept` | `SignInStore` | `SessionFromKept` | `sessionFromKept` | `SignInStore.Entry` and `KeptSession` |
-| A service or a worker | [A service account](#a-service-or-a-worker): the program signs in as its own account, an agent | `startAgentSession` | `AgentToken` | `AgentToken::sign_in` | `SignInAgent` | `AgentToken` | `ServiceToken` and `AgentToken.SignInAsync` |
-| A person, in an application | [A page redirect](#an-application) to the identity provider and back | `SemiontBrowser.beginSignIn`, `completeSignIn` | `begin_sign_in`, `complete_sign_in` | `begin_sign_in`, `complete_sign_in` | `BeginSignIn`, `CompleteSignIn` | `beginSignIn`, `completeSignIn` | `BrowserSignIn.BeginSignInAsync` and `CompleteSignInAsync` |
-| A program that already holds tokens | [The tokens themselves](#tokens-you-already-hold) | `SemiontSession.fromIssuedSession`, `SemiontSession.fromHttp` | its README | its README | its README | its README | `KeptSession` or `SemiontClient` |
-| Every way above | [The HTTP client you give it](#the-http-client): its requests go through that client | `fetch` | `http=` | `http` | `HTTP` | `http` | `HttpClient` |
+| Who is signing in | The way | TypeScript | Python | Rust | Go | Kotlin | .NET | Swift |
+|---|---|---|---|---|---|---|---|---|
+| A person, at a script | [The device grant](#the-device-grant): the script shows an address, the person approves in any browser | `SemiontSession.signInDevice` | `sign_in_device` | `sign_in_device` | `SignInWithDevice` | `signInDevice` | `Issuer.SignInDeviceAsync`, then `KeptSession` | `signInDevice`, then `sessionFromKept` |
+| A person who has run `semiont login` | [The sign-in the launcher keeps](#the-sign-in-semiont-login-keeps): nothing to approve | none | `session_from_kept` | `SignInStore` | `SessionFromKept` | `sessionFromKept` | `SignInStore.Entry` and `KeptSession` | `SignInStore` and `sessionFromKept` |
+| A service or a worker | [A service account](#a-service-or-a-worker): the program signs in as its own account, an agent | `startAgentSession` | `AgentToken` | `AgentToken::sign_in` | `SignInAgent` | `AgentToken` | `ServiceToken` and `AgentToken.SignInAsync` | `ServiceToken` and `AgentToken` |
+| A person, in an application | [A page redirect](#an-application) to the identity provider and back | `SemiontBrowser.beginSignIn`, `completeSignIn` | `begin_sign_in`, `complete_sign_in` | `begin_sign_in`, `complete_sign_in` | `BeginSignIn`, `CompleteSignIn` | `beginSignIn`, `completeSignIn` | `BrowserSignIn.BeginSignInAsync` and `CompleteSignInAsync` | `SemiontBrowser.beginSignIn` and `completeSignIn` |
+| A program that already holds tokens | [The tokens themselves](#tokens-you-already-hold) | `SemiontSession.fromIssuedSession`, `SemiontSession.fromHttp` | its README | its README | its README | its README | `KeptSession` or `SemiontClient` | `SemiontClient.fromHttp` or `sessionFromKept` |
+| Every way above | [The HTTP client you give it](#the-http-client): its requests go through that client | `fetch` | `http=` | `http` | `HTTP` | `http` | `HttpClient` | `HTTPClient` |
 
-See the SDK guides for [TypeScript](../../packages/typescript/sdk/README.md#connect), [Python](../../packages/python/sdk/README.md#signing-in), [Go](../../packages/go/sdk/README.md#signing-in), [Kotlin](../../packages/kotlin/sdk/README.md#signing-in), [Rust](../../packages/rust/http-transport/README.md), and [.NET](../../packages/csharp/sdk/README.md#signing-in).
+See the SDK guides for [TypeScript](../../packages/typescript/sdk/README.md#connect), [Python](../../packages/python/sdk/README.md#signing-in), [Go](../../packages/go/sdk/README.md#signing-in), [Kotlin](../../packages/kotlin/sdk/README.md#signing-in), [Rust](../../packages/rust/http-transport/README.md), [.NET](../../packages/csharp/sdk/README.md#signing-in), and [Swift](../../packages/swift/sdk/README.md#connect).
 
 ## What every way has in common
 

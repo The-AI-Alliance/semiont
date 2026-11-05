@@ -1,4 +1,3 @@
-import AsyncHTTPClient
 import Foundation
 import SemiontTesting
 import Testing
@@ -12,24 +11,16 @@ import Testing
   let readme = try String(
     contentsOf: Spec.repository.appendingPathComponent("packages/swift/sdk/README.md"),
     encoding: .utf8)
-  let code = try #require(
-    source.components(separatedBy: "// README examples begin\n").dropFirst().first)
-  let examples = try #require(code.components(separatedBy: "// README examples end").first)
+  let examples = try source.components(separatedBy: "// README examples begin\n").dropFirst()
+    .map { snippet in
+      let end = try #require(snippet.range(of: "\n// README examples end"))
+      return String(snippet[..<end.lowerBound])
+    }
   let blocks = readme.components(separatedBy: "```swift\n").dropFirst().compactMap { block in
     block.range(of: "\n```").map { range in String(block[..<range.lowerBound]) }
   }
-  #expect(blocks == [String(examples.dropLast())])
-
-  let http = HTTPClient(eventLoopGroupProvider: .singleton)
-  do {
-    let client = try await connect(to: "http://localhost:4000", token: nil, using: http)
-    #expect(client.baseUrl == "http://localhost:4000")
-    client.dispose()
-    try await http.shutdown()
-  } catch {
-    try? await http.shutdown()
-    throw error
-  }
+  #expect(!examples.isEmpty)
+  #expect(blocks == examples)
 
   let table = try Spec.read("client/state-units.json").object
   let context = try decoded(
@@ -39,6 +30,15 @@ import Testing
   case .resource(let focus): resource = focus.resource
   case .annotation: throw SpecFailure.shape("Expected a resource focus in the shared fixture")
   }
+  let invalidTarget = KbTarget(
+    endpoint: .httpEndpoint(HttpEndpoint(host: "bad host", port: 4000, protocol: .http)),
+    id: "local", label: "Local")
+  await #expect(throws: SignInError.self) {
+    try await readFirstResource(resource.id, in: invalidTarget) { _ in
+      Issue.record("An invalid endpoint produced a device code")
+    }
+  }
+
   let job = try JobId("job-1")
   let transport = ScriptedTransport { operation, _ in
     switch operation {

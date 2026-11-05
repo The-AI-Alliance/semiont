@@ -2,12 +2,29 @@
 import AsyncHTTPClient
 import Semiont
 
-func connect(
-  to gateway: String, token: String?, using http: HTTPClient
-) async throws -> SemiontClient {
-  try await SemiontClient.fromHttp(baseUrl: gateway, httpClient: http, token: token)
+func readFirstResource(
+  _ resource: ResourceId, in kb: KbTarget,
+  showCode: @Sendable (DeviceCode) -> Void
+) async throws -> ResourceDescriptor {
+  let http = HTTPClient(eventLoopGroupProvider: .singleton)
+  let kept = MemorySignIn()
+  let descriptor: ResourceDescriptor
+  do {
+    try await signInDevice(kb: kb, kept: kept, httpClient: http, onCode: showCode)
+    let opened = try await sessionFromKept(kb: kb, kept: kept, httpClient: http)
+    defer { opened.dispose() }
+    try await opened.session.ready()
+    descriptor = try await opened.client.browse.resource(resource).fresh()
+  } catch {
+    try? await http.shutdown()
+    throw error
+  }
+  try await http.shutdown()
+  return descriptor
 }
+// README examples end
 
+// README examples begin
 func generate(
   from resource: ResourceId, using client: SemiontClient
 ) async throws -> YieldJobCompleteCommand {
@@ -17,7 +34,9 @@ func generate(
       context: context, storageUri: "file://summary.md", title: "Summary"))
   return try await run.completed()
 }
+// README examples end
 
+// README examples begin
 func watchResource(
   _ resource: ResourceId, using client: SemiontClient,
   show: (CacheState<ResourceDescriptor>) -> Void

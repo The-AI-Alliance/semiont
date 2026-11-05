@@ -4,10 +4,10 @@ Task-oriented recipes for building a real system on `@semiont/sdk`, in roughly t
 you'll need them. Each recipe is a short description of the capability followed by the
 lines of TypeScript that exercise it.
 
-Building in Rust, Python, Go, Kotlin or Java? The recipes are the same: the namespaces and methods
-match, and the [Rust](../../packages/rust/sdk/README.md), [Python](../../packages/python/sdk/README.md),
-[Go](../../packages/go/sdk/README.md) and [Kotlin](../../packages/kotlin/sdk/README.md) READMEs show
-each call in their own language, the Kotlin one in Java too.
+The same namespaces and methods are available in [Rust](../../packages/rust/sdk/README.md),
+[Python](../../packages/python/sdk/README.md), [Go](../../packages/go/sdk/README.md),
+[Kotlin and Java](../../packages/kotlin/sdk/README.md), [C#](../../packages/csharp/sdk/README.md),
+and [Swift](../../packages/swift/sdk/README.md). Each SDK's README has examples in its own language.
 
 This is the **how-to** doc. For the exhaustive per-namespace surface see
 [Usage.md](./Usage.md) (reference); for *why* the surface is shaped the way it is —

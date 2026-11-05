@@ -446,4 +446,4 @@ query.
 - [The Python SDK's README](../../packages/python/sdk/README.md) — the Python form of each shape
 - [The Go SDK's README](../../packages/go/sdk/README.md) — the Go form of each shape
 - [The Kotlin SDK's README](../../packages/kotlin/sdk/README.md) — the Kotlin and Java forms of each shape
-- [The Swift SDK’s README](../../packages/swift/sdk/README.md#examples) — Swift async sequences for live queries and delegated work.
+- The Swift SDK shows [live queries](../../packages/swift/sdk/README.md#live-queries) and [delegated work](../../packages/swift/sdk/README.md#a-first-program) using async functions and sequences.
