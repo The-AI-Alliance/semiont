@@ -32,12 +32,12 @@ from dataclasses import dataclass
 from typing import Final, Protocol, final
 
 import httpx
-from pydantic import JsonValue, ValidationError
+from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont import telemetry
 from semiont._bus_log import bus_log, bus_note
 from semiont._reading import Reading
-from semiont._required import Fault, read_as
+from semiont._required import UNDECODED, Fault, fault_of
 from semiont.channels import RESOURCE_SCOPED_CHANNELS, TRACE_FIELD
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast
@@ -108,6 +108,33 @@ class _Carried(BusFrame, frozen=True, extra="ignore"):
     One a later gateway adds a field to is still a frame. One whose channel,
     payload or scope is not what a frame's is, is not.
     """
+
+
+_FRAME_MEMBERS: Final = frozenset(stated.alias or name for name, stated in BusFrame.model_fields.items())
+_JSON: Final = TypeAdapter[JsonValue](JsonValue)
+
+
+def _carried(data: str) -> _Carried | Fault:
+    """`data` read as a frame, or the first fault that keeps it from being one.
+
+    A field a later gateway adds to a frame is no part of it, and is left out
+    before the frame is held to its schema, which names no other. A text that
+    is no JSON, and one the frame's type refuses with no fault the table
+    states, is malformed.
+    """
+    try:
+        value = _JSON.validate_json(data)
+    except ValidationError:
+        return UNDECODED
+    if isinstance(value, dict):
+        value = {name: held for name, held in value.items() if name in _FRAME_MEMBERS}
+    fault = fault_of(BusFrame, value)
+    if fault is not None:
+        return fault
+    try:
+        return _Carried.model_validate(value)
+    except ValidationError:
+        return UNDECODED
 
 
 @final
@@ -522,7 +549,7 @@ class Stream:
             return
         if event_id is not None and not self._seen.remember(event_id):
             return
-        carried = read_as(BusFrame, data, _Carried.model_validate_json)
+        carried = _carried(data)
         if isinstance(carried, Fault):
             # What is not a frame is not delivered, and is said so.
             _LOG.warning("the stream carried what is not a frame (id %s): %s", event_id, carried)
