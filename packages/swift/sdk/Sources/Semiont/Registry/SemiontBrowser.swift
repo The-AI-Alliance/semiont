@@ -100,7 +100,7 @@ public actor SemiontBrowser {
     activeKbId = Watched(stored.first { $0.id == active }?.id ?? stored.first?.id)
   }
 
-  isolated deinit {
+  deinit {
     for task in tasks.values { task.cancel() }
     activeSession.value?.dispose()
     activeSignals.value?.dispose()
@@ -552,7 +552,7 @@ public actor SemiontBrowser {
     }
   }
 
-  private func finish() {
+  private nonisolated func finish() {
     knowledgeBases.finish()
     activeKbId.finish()
     activeSession.finish(with: nil)

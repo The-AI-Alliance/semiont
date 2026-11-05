@@ -1,5 +1,6 @@
 import Foundation
 import OpenTelemetryApi
+import Synchronization
 
 public protocol HeldJob: Sendable {
   var jobId: JobId { get }
@@ -56,7 +57,7 @@ actor HeldWork<Result: Sendable>: WorkerLease {
   private let transport: any Transport
   private weak var owner: Claims?
   private let timing: WorkerTiming
-  private var span: (any Span)?
+  private let span: Mutex<(any Span)?>
   private let workingTrace: [String: String]
   private var begun = false
   private var operating = false
@@ -81,23 +82,36 @@ actor HeldWork<Result: Sendable>: WorkerLease {
     self.transport = transport
     self.owner = owner
     self.timing = timing
+    let span = Self.startSpan(jobId: metadata.id, jobType: metadata.type, trace: trace)
+    workingTrace = traceCarrier(span)
+    self.span = Mutex(span)
+  }
+
+  deinit {
+    endSpan()
+    cancelled.finish()
+  }
+
+  private static func startSpan(jobId: JobId, jobType: JobType, trace: [String: String]?)
+    -> any Span
+  {
     let builder = OpenTelemetry.instance.tracerProvider.get(instrumentationName: "Semiont")
-      .spanBuilder(spanName: "job:\(metadata.type.rawValue)")
-      .setAttribute(key: "job.id", value: metadata.id.value)
+      .spanBuilder(spanName: "job:\(jobType.rawValue)")
+      .setAttribute(key: "job.id", value: jobId.value)
     if let trace,
       let parent = OpenTelemetry.instance.propagators.textMapPropagator.extract(
         carrier: trace, getter: TraceMap())
     {
       builder.setParent(parent)
     }
-    let span = builder.startSpan()
-    self.span = span
-    workingTrace = traceCarrier(span)
+    return builder.startSpan()
   }
 
-  isolated deinit {
-    span?.end()
-    cancelled.finish()
+  private nonisolated func endSpan() {
+    span.withLock {
+      $0?.end()
+      $0 = nil
+    }
   }
 
   private static func anchor(_ record: JobRunning) -> AnnotationId? {
@@ -242,8 +256,7 @@ actor HeldWork<Result: Sendable>: WorkerLease {
   }
 
   private func release(completed: Bool) async {
-    span?.end()
-    span = nil
+    endSpan()
     cancelled.finish()
     await owner?.released(self, completed: completed)
   }

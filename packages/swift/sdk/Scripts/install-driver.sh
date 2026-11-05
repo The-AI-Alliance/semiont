@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
-swift build --jobs 4 --enable-code-coverage --product SemiontWireDriver
-bin=$(swift build --show-bin-path)
+swift build --jobs 4 --force-resolved-versions --enable-code-coverage --product SemiontWireDriver
+bin=$(swift build --force-resolved-versions --show-bin-path)
 mkdir -p .build/conformance/bin .build/conformance/lib
 cp "$bin/SemiontWireDriver" .build/conformance/bin/
 # The suite's Ubuntu runner supplies libc and curl; Swift's runtime travels with the driver.
