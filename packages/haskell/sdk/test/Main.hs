@@ -34,6 +34,8 @@ import System.FilePath ((</>), takeBaseName)
 import Runtime (runtimeCases)
 import Discovery (discoveryCases)
 import BusCases (busCases)
+import HttpCases (httpCases)
+import LifetimeCases (lifetimeCases)
 import qualified SchemaCases
 
 require :: String -> Bool -> IO ()
@@ -299,6 +301,7 @@ main = do
   args <- getArgs
   root <- case args of [value] -> pure value; _ -> ioError (userError "expected repository root")
   runtimeCases
+  lifetimeCases
   SchemaCases.schemaCases
   let noSpace = Object (KM.fromList [("type", String "string"), ("pattern", String "^\\S+$")])
       dot = Object (KM.fromList [("type", String "string"), ("pattern", String "^x.+z$")])
@@ -331,4 +334,6 @@ main = do
     code <- either (ioError . userError) pure (parseEither parseJSON (at "code" row))
     pure (Just wire, code)
   busCases command browse event (failureRows ++ [(Nothing, fallback), (Just "__unknown_test_code", fallback)])
+  fixtures <- traverse (either (ioError . userError) pure . sample 0) schemas
+  httpCases root fixtures
   corpusCases root

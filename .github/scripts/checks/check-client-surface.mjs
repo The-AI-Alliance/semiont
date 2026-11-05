@@ -1934,8 +1934,42 @@ function held(sdk, where, surface) {
   }
 }
 
+/** Read compiler exports reachable through the Haskell client's namespace getters. */
+function haskellSurface() {
+  const inventory = JSON.parse(read('packages/haskell/sdk/public-api.json'));
+  const client = inventory.modules['Semiont.Client'];
+  if (!client) { fail('Haskell has no compiler-derived client exports'); return new Map(); }
+  const result = new Map();
+  const getters = new Map();
+  for (const [name, signature] of Object.entries(client.values)) {
+    const getter = /^Semiont\.Client\.Client -> (?:Maybe )?(?:\S+\.)?(\w+Namespace)$/.exec(signature);
+    if (!getter) continue;
+    const namespace = getter[1][0].toLowerCase() + getter[1].slice(1, -'Namespace'.length);
+    if (name !== namespace) fail(`Haskell client.${name} aliases the ${namespace} namespace`);
+    getters.set(namespace, getter[1]);
+  }
+  for (const [moduleName, exported] of Object.entries(inventory.modules)) {
+    for (const type of Object.keys(exported.types).filter((name) => name.endsWith('Namespace'))) {
+      const namespace = type[0].toLowerCase() + type.slice(1, -'Namespace'.length);
+      if (getters.get(namespace) !== type) fail(`Haskell exports ${type} without handing it out as client.${namespace}`);
+      const members = result.get(namespace) ?? new Map();
+      for (const [method, returns] of Object.entries(exported.values)) {
+        const receiver = returns.split(' -> ')[0];
+        if (!receiver.endsWith(`.${type}`)) continue;
+        if (members.has(method) && members.get(method).returns !== returns) fail(`Haskell has conflicting declarations of ${namespace}.${method} in ${moduleName}`);
+        const shape = / -> IO \S/.test(returns) ? 'promise' : undefined;
+        members.set(method, { shape, returns });
+      }
+      result.set(namespace, members);
+    }
+  }
+  for (const namespace of getters.keys()) if (!result.has(namespace)) fail(`Haskell client.${namespace} returns an unreachable namespace`);
+  return result;
+}
+
 /** Each SDK whose namespaces this reads: where they are, and their reader. */
 const NAMESPACES = {
+  haskell: { where: 'packages/haskell/sdk/src/Semiont/Client.hs', surface: haskellSurface },
   typescript: { where: TS_INTERFACES, surface: typescriptSurface },
   rust: { where: RUST_NAMESPACES, surface: rustSurface },
   python: { where: PYTHON_NAMESPACES, surface: pythonSurface },
@@ -2942,7 +2976,28 @@ function sectionMembers(section, row, roster, noun) {
  * bus as; where the bus is declared (TypeScript's is @semiont/core's); and
  * where the SDK's client hands it out as `wire`, with what says it does.
  */
+function haskellWire(made, where) {
+  const inventory = JSON.parse(read('packages/haskell/sdk/public-api.json'));
+  const module = inventory.modules['Semiont.Bus'];
+  if (!module?.types[made]) return undefined;
+  const receiver = `Semiont.Bus.${made} -> `;
+  return { where, members: new Set(Object.entries(module.values)
+    .filter(([, signature]) => signature.startsWith(receiver)).map(([name]) => name)) };
+}
+
 const WIRES = {
+  haskell: {
+    read: haskellWire,
+    sources: 'packages/haskell/sdk/src/Semiont/Bus.hs',
+    handedOut: {
+      file: 'packages/haskell/sdk/public-api.json',
+      says: (made) => ({ test: (source) => {
+        const signature = JSON.parse(source).modules['Semiont.Client']?.values.wire;
+        const returned = /^Semiont\.Client\.Client -> Semiont\.Bus\.(\w+)$/.exec(signature ?? '');
+        return returned !== null && new RegExp(`^${made}$`).test(returned[1]);
+      } }),
+    },
+  },
   typescript: {
     read: typescriptUnit,
     sources: TS_CORE,

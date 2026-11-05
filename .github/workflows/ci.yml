@@ -257,6 +257,8 @@ jobs:
               - 'packages/csharp/**'
             haskell:
               - 'packages/haskell/**'
+              - 'protocol/specs/src/**'
+              - 'packages/typescript/http-transport/src/transport/api-error.ts'
               - 'packages/typescript/core/src/event-bus.ts'
               - 'protocol/contract/TRANSPORT-HTTP.md'
               - 'package.json'

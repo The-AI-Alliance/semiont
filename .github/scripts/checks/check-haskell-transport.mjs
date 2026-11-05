@@ -56,6 +56,9 @@ function same(label, expected, actual) {
 const transportSource = read('packages/typescript/core/src/transport.ts');
 same('Haskell transport', declaredMembers(transportSource, 'export interface ITransport {'), haskellMembers('Semiont.Transport', 'Transport'));
 same('Haskell typed bus', declaredMembers(read('packages/typescript/core/src/bus.ts'), 'export class Bus {'), haskellMembers('Semiont.Bus', 'Bus'));
+same('Haskell content transport', declaredMembers(transportSource, 'export interface IContentTransport {'), haskellMembers('Semiont.Content', 'ContentTransport'));
+same('Haskell gateway operations', declaredMembers(transportSource, 'export interface IGatewayOperations {'), haskellMembers('Semiont.Gateway', 'GatewayOperations'));
+
 const states = /export type ConnectionState\s*=([\s\S]*?);/.exec(transportSource);
 if (!states) throw new Error('no reference connection-state vocabulary');
 const expectedStates = new Set([...states[1].matchAll(/'([a-z-]+)'/g)].map((match) => match[1]));

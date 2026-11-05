@@ -6,8 +6,10 @@ The Haskell SDK is being built toward the same client and protocol contract
 as the other Semiont SDKs. It currently provides protocol types, checked
 identifiers, a typed bus and common carrier runtime, read-only state,
 scoped operation consumption, retry support, and launcher discovery.
-The client, HTTP transport, sign-in, delegation, live queries, workers,
-registry, and state units are still being implemented.
+HTTP/SSE and content adapters and the client facade are available, including
+the Frame, Auth and System namespaces. The other namespaces, sign-in,
+delegation, live queries, workers, registry and state units are still being
+implemented.
 
 [Install](#install) · [Signing in](#signing-in) · [Connect](#connect) ·
 [Delegation](#delegation) · [Live queries](#live-queries) ·
@@ -38,16 +40,52 @@ in the other SDKs.
 
 ## Connect
 
-In development. The client facade, gateway HTTP transport, and content
-transport are not yet available. Custom carriers can already use the common
-transport runtime and typed bus described below.
+Build a reusable HTTP pool with `Semiont.Http.newHttpClient`, supplying an
+explicit proxy policy and your `http-client` `ManagerSettings`. For example,
+`newHttpClient noProxy tlsManagerSettings` uses your TLS settings without an
+environment-selected proxy; `tlsManagerSettings` is supplied by
+`http-client-tls`. The pool disables implicit retries and response timeouts so
+Semiont owns its attempt budgets and deadlines. A transport never closes the
+caller's pool. Its active requests and response scopes end on disposal.
+
+Supply the pool through `HttpOptions`, together with the base URL, token reader,
+refused-token renewal action, fresh UUID action, global channel profile, monotonic
+clock/wait/jitter actions, and replay-position load/save actions. Use
+`Semiont.Channels.globalChannels` for a full client. All these choices are
+explicit. `Client.fromHttp` builds the bus, content and gateway adapters with
+the same clock and ID source. Keep the client scoped:
+
+```haskell
+module HttpConnection (withConnection) where
+
+import Control.Exception (bracket)
+import Semiont.Client (Client, fromHttp, dispose)
+import Semiont.Http (HttpOptions)
+
+withConnection :: HttpOptions -> (Client -> IO result) -> IO result
+withConnection options = bracket (fromHttp options) dispose
+```
+
+`Client.newClient` also accepts independently supplied bus/content adapters and
+an optional gateway. Each client constructs and bridges its own local bus.
+Disposal closes the transport and content operations before completing that
+local bus. `Client.wire` is its typed wire bus; `Client.frame`, `Client.auth` and
+`Client.system` expose the currently implemented namespaces.
+
+HTTP content supports scoped binary streams, buffered binary reads, metadata,
+annotations and anchored text. Uploads take generated `ResourceUploadMetadata`
+and a `ReplayableBody`; `bytesBody` builds a byte source. A source opens again
+when a refused credential is renewed. Its idempotency key stays the same and
+progress never decreases across replay. A stream retained beyond its callback
+refuses further reads.
 
 ## Eight verbs
 
 The Haskell client will implement the same namespaces and methods as the
 [client surface](../../../protocol/specs/src/client/surface.json). Typed
 channel and operation descriptors already exist in `Semiont.Channels`;
-the namespace methods are still being implemented. See the
+Frame, Auth and System namespace methods are available; the remaining namespace
+methods are still being implemented. See the
 [builder guide](../../../docs/builder/README.md) for the shared model.
 
 ## Delegation

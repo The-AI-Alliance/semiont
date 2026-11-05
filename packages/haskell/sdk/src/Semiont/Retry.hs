@@ -12,23 +12,8 @@ import Control.Exception (Exception, SomeAsyncException, fromException, throwIO,
 import Control.Monad (unless, when)
 import Data.Text (Text)
 import qualified Data.Text as T
+import Semiont.Internal.RetryPolicy (RetryRule(..), ruleName, retryable)
 import Semiont.Timing (RetryBudget(..))
-
-data RetryRule = Boot | Job | Transport | Refresh deriving (Eq, Ord, Show, Enum, Bounded)
-
-ruleName :: RetryRule -> Text
-ruleName Boot = "boot"
-ruleName Job = "job"
-ruleName Transport = "transport"
-ruleName Refresh = "refresh"
-
-retryable :: RetryRule -> Maybe Int -> Maybe Text -> Bool
-retryable Boot status _ = status `elem` map Just [429, 503, 504]
-retryable Job status _ = maybe False (\value -> value `elem` [408, 429] || value >= 500) status
-retryable Transport status method =
-  status `elem` map Just [408, 413, 429, 500, 502, 503, 504]
-    && fmap T.toUpper method `elem` map Just ["GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE"]
-retryable Refresh status _ = maybe True (\value -> value `elem` [408, 429] || value >= 500) status
 
 retryAfterMs :: Maybe Text -> Maybe Integer
 retryAfterMs header = do

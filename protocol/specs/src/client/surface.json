@@ -76,6 +76,7 @@
     {
       "namespace": "browse",
       "docs": "Reads: live queries, one-shot reads, and this viewer's own signals.",
+      "notYetReached": {"haskell": "The Haskell client is still to implement this namespace and its operation lifetimes."},
       "methods": [
         {
           "method": "resource",
@@ -216,6 +217,7 @@
     {
       "namespace": "mark",
       "docs": "Annotations: their creation and removal, a resource's own metadata, and the annotating of a resource delegated as a job.",
+      "notYetReached": {"haskell": "The Haskell client is still to implement this namespace and its operation lifetimes."},
       "methods": [
         {
           "method": "annotation",
@@ -326,6 +328,7 @@
     {
       "namespace": "bind",
       "docs": "Linking a reference to what it refers to.",
+      "notYetReached": {"haskell": "The Haskell client is still to implement this namespace and its operation lifetimes."},
       "methods": [
         {
           "method": "body",
@@ -365,6 +368,7 @@
     {
       "namespace": "gather",
       "docs": "Assembling the context a model is given, and what refers to a resource.",
+      "notYetReached": {"haskell": "The Haskell client is still to implement this namespace and its operation lifetimes."},
       "methods": [
         {
           "method": "annotation",
@@ -423,6 +427,7 @@
     {
       "namespace": "match",
       "docs": "Searching: for what a reference could refer to, and for resources by text.",
+      "notYetReached": {"haskell": "The Haskell client is still to implement this namespace and its operation lifetimes."},
       "methods": [
         {
           "method": "search",
@@ -475,6 +480,7 @@
     {
       "namespace": "yield",
       "docs": "Creating resources: by upload, by a generation delegated as a job, by cloning.",
+      "notYetReached": {"haskell": "The Haskell client is still to implement this namespace and its operation lifetimes."},
       "methods": [
         {
           "method": "resource",
@@ -554,6 +560,7 @@
     {
       "namespace": "beckon",
       "docs": "Attention: driving the other participants' viewers, and this viewer's own signals.",
+      "notYetReached": {"haskell": "The Haskell client is still to implement this namespace and its operation lifetimes."},
       "methods": [
         {
           "method": "attention",
@@ -602,6 +609,7 @@
     {
       "namespace": "job",
       "docs": "Jobs: their lifecycle as it is announced, their status, their cancellation, and, for a worker, the claiming of them.",
+      "notYetReached": {"haskell": "The Haskell client is still to implement this namespace and its operation lifetimes."},
       "methods": [
         {
           "method": "queued",
@@ -936,6 +944,7 @@
   "wire": {
     "docs": "The typed bus over a client's transport, which a client hands out as `wire`: what it emits goes over the wire, and what it reads is what the wire delivers. A read gives each frame with its envelope, who emitted it and the trace it was sent under. A channel of a resource's scope is read for one resource, and the read holds that resource's scope while it is read. The client's own in-process signals are on its own bus, never here. It hands out no transport: a client's transport is the client's `transport`, and only there.",
     "made": {
+      "haskell": "Bus",
       "csharp": "Bus",
       "swift": "Bus", "typescript": "Bus", "rust": "Bus", "python": "Bus", "go": "Wire", "kotlin": "Bus" },
     "members": [
@@ -944,6 +953,7 @@
       {
         "member": "framesOf",
         "absent": {
+          "haskell": "Haskell passes typed channel/operation values and a ScopeArg to the same functions.",
           "csharp": "C# uses generated channel and operation values, and Frames accepts a resource scope.",
           "swift": "Swift uses typed channel and operation values; frames is overloaded for a resource scope.",
           "typescript": "`frames` is overloaded: a channel of a resource's scope is read as `frames(channel, resourceId)`. Rust, which has no overloading, names that read apart.",
@@ -955,6 +965,7 @@
       {
         "member": "emitOn",
         "absent": {
+          "haskell": "Haskell passes typed channel/operation values and a ScopeArg to the same functions.",
           "csharp": "C# uses generated channel and operation values, and Frames accepts a resource scope.",
           "swift": "Swift uses typed channel and operation values; frames is overloaded for a resource scope.",
           "typescript": "A TypeScript channel is a value, checked against the registry's names, so a channel chosen at run time is emitted on with `emit`. Rust's typed `emit` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
@@ -965,6 +976,7 @@
       {
         "member": "framesOn",
         "absent": {
+          "haskell": "Haskell passes typed channel/operation values and a ScopeArg to the same functions.",
           "csharp": "C# uses generated channel and operation values, and Frames accepts a resource scope.",
           "swift": "Swift uses typed channel and operation values; frames is overloaded for a resource scope.",
           "typescript": "A TypeScript channel is a value, checked against the registry's names, so a channel chosen at run time is read with `frames`. Rust's typed `frames` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
@@ -975,6 +987,7 @@
       {
         "member": "requestOf",
         "absent": {
+          "haskell": "Haskell passes typed channel/operation values and a ScopeArg to the same functions.",
           "csharp": "C# uses generated channel and operation values, and Frames accepts a resource scope.",
           "swift": "Swift uses typed channel and operation values; frames is overloaded for a resource scope.",
           "typescript": "A TypeScript operation is a value, checked against the registry's operations, so one chosen at run time is asked with `request`. Rust's typed `request` takes its operation as a type parameter, and an operation named at run time needs a method of its own.",

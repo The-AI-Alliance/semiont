@@ -4,8 +4,8 @@ module Semiont.Internal.Transport
   ( Transport, TransportInput, TransportOptions(..), Frame(..), EventBus
   , newTransport, baseUrl, emit, frames, stream, on, state, errors, isSubscribed
   , subscribeToResource, trackReply, bridgeInto, dispose
-  , receive, setState, subscriptions, reportError, withPendingReply
-  , raiseTransportError
+  , receiveSTM, receive, setState, subscriptions, reportError, withPendingReply
+  , ownAction, raiseTransportError
   , newEventBus, local, events, closeEventBus
   ) where
 
@@ -59,6 +59,7 @@ data Runtime = Runtime
   , listeners :: TVar (Map.Map Integer (Async ()))
   , nextKey :: TVar Integer
   , closing :: TVar Bool
+  , ownedThreads :: TVar (Map.Map ThreadId Integer)
   , closer :: TVar (Maybe ThreadId)
   , closed :: TMVar (Either SomeException ())
   }
@@ -73,7 +74,7 @@ newTransport configuration = atomically $ do
     <*> State.newStateValue Initial <*> Broadcast.newEvents
     <*> newTVar Map.empty <*> newTVar Map.empty <*> newTVar 0
     <*> newTVar Map.empty <*> newTVar Map.empty <*> newTVar 0
-    <*> newTVar False <*> newTVar Nothing <*> newEmptyTMVar
+    <*> newTVar False <*> newTVar Map.empty <*> newTVar Nothing <*> newEmptyTMVar
   pure (Transport runtime, TransportInput runtime)
 
 baseUrl :: Transport -> Text
@@ -228,7 +229,10 @@ bridgeInto (Transport runtime) bus = mask_ $ do
   pure (atomically (modifyTVar' (bridges runtime) (Map.delete key)))
 
 receive :: TransportInput -> BusFrame -> IO ()
-receive (TransportInput runtime) raw = atomically $ do
+receive source = atomically . receiveSTM source
+
+receiveSTM :: TransportInput -> BusFrame -> STM ()
+receiveSTM (TransportInput runtime) raw = do
   over <- readTVar (closing runtime)
   unless over $ do
     let payload = busFramePayloadAdditionalProperties (busFramePayload raw)
@@ -256,6 +260,7 @@ dispose (Transport runtime) = mask $ \restore -> do
   (startClose, owned) <- atomically $ do
     already <- readTVar (closing runtime)
     active <- Map.elems <$> readTVar (listeners runtime)
+    threads <- readTVar (ownedThreads runtime)
     owner <- readTVar (closer runtime)
     unless already $ do
       writeTVar (closing runtime) True
@@ -267,7 +272,7 @@ dispose (Transport runtime) = mask $ \restore -> do
       writeTVar (tracked runtime) Map.empty
       writeTVar (bridges runtime) Map.empty
       modifyTVar' (revision runtime) (+ 1)
-    pure (not already, owner == Just thread || any ((== thread) . asyncThreadId) active)
+    pure (not already, Map.member thread threads || owner == Just thread || any ((== thread) . asyncThreadId) active)
   when startClose $ void $ tracedAsync $ do
     identity <- myThreadId
     atomically (writeTVar (closer runtime) (Just identity))
@@ -282,3 +287,11 @@ dispose (Transport runtime) = mask $ \restore -> do
       Broadcast.close (failures runtime)
       putTMVar (closed runtime) outcome
   unless owned $ restore (atomically (readTMVar (closed runtime))) >>= either throwIO pure
+
+ownAction :: Transport -> IO result -> IO result
+ownAction (Transport runtime) action = do
+  thread <- myThreadId
+  bracket
+    (atomically (ensureOpenLifetime runtime >> modifyTVar' (ownedThreads runtime) (Map.insertWith (+) thread 1)))
+    (\() -> atomically (modifyTVar' (ownedThreads runtime) (Map.update (\count -> if count > 1 then Just (count - 1) else Nothing) thread)))
+    (const action)

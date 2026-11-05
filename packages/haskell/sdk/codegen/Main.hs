@@ -12,7 +12,7 @@ import qualified Data.ByteString as Bytes
 import Data.Char (isAlphaNum, isDigit, toLower, toUpper)
 import Data.Foldable (toList)
 import Data.Graph (flattenSCC, stronglyConnComp)
-import Data.List (sort)
+import Data.List (nub, sort)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -21,6 +21,7 @@ import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import qualified Data.Vector as V
 import Numeric (showHex)
 import Facts (generateFacts)
+import HttpFacts (httpFacts)
 import TransportFacts (transportFacts)
 import Semiont.Internal.Schema (Schemas, checkSchema, normalize)
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeFile)
@@ -302,6 +303,7 @@ busDescriptors original registry = do
   operations <- arrayAt "operations" root
   audience <- maybe (Left "bus audience missing") fieldsOf (KM.lookup "audience" root)
   scoped <- arrayAt "scoped" audience >>= mapM stringValue
+  everyone <- arrayAt "everyone" audience >>= mapM stringValue
   typed <- forM rows $ \row -> do
     fields <- fieldsOf row
     name <- required "channel" fields
@@ -346,7 +348,7 @@ busDescriptors original registry = do
     pure (request, result, failure)
   let header = "-- Generated from protocol/specs/src/bus/registry.json. Do not edit.\n{-# LANGUAGE DataKinds, GADTs, KindSignatures, OverloadedStrings #-}\n"
       code = header <> T.unlines
-        [ "module Semiont.Channels (Scope(..), ScopeArg(..), Channel(..), Operation(..), SomeOperation(..), channelName, channelNames, channelSchema, channelIsScoped, encodePayload, decodePayload, operationChannels, persistedEventTypes) where"
+        [ "module Semiont.Channels (Scope(..), ScopeArg(..), Channel(..), Operation(..), SomeOperation(..), channelName, channelNames, globalChannels, scopedChannels, channelSchema, channelIsScoped, encodePayload, decodePayload, operationChannels, persistedEventTypes) where"
         , "import Data.Aeson (Value(..), toJSON, parseJSON)"
         , "import qualified Data.Aeson.Key as Key"
         , "import qualified Data.Aeson.KeyMap as KM"
@@ -363,6 +365,8 @@ busDescriptors original registry = do
         <> "channelName :: Channel scope payload -> Text\n"
         <> T.unlines ["channelName " <> constructor <> " = " <> literal name | (name, constructor, _, _, _) <- typed]
         <> "channelNames :: [Text]\nchannelNames = [" <> T.intercalate ", " (map literal names) <> "]\n"
+        <> "globalChannels :: [Text]\nglobalChannels = [" <> T.intercalate ", " (map literal (nub (everyone ++ [name | value <- operations, Right fields <- [fieldsOf value], key <- ["result", "failure"], Just name <- [textAt key fields]]))) <> "]\n"
+        <> "scopedChannels :: [Text]\nscopedChannels = [" <> T.intercalate ", " (map literal scoped) <> "]\n"
         <> "channelSchema :: Channel scope payload -> Text\n"
         <> T.unlines ["channelSchema " <> constructor <> " = " <> literal typ | (_, constructor, typ, _, _) <- typed]
         <> "persistedEventTypes :: [Text]\npersistedEventTypes = ["
@@ -442,8 +446,21 @@ main = do
     _ -> ioError (userError "identifier kinds is not an object")
   registry <- readJSON (root </> "protocol/specs/src/bus/registry.json")
   (carrier, transportFiles) <- transportFacts root registry kinds
+  upload <- maybe (ioError (userError "ResourceUpload schema missing")) pure (Map.lookup "ResourceUpload" schemas)
+    >>= either (ioError . userError) pure . fieldsOf
+  properties <- maybe (ioError (userError "ResourceUpload has no properties")) pure (KM.lookup "properties" upload)
+    >>= either (ioError . userError) pure . fieldsOf
+  unless (KM.member "file" properties) (ioError (userError "ResourceUpload has no file property"))
+  requiredUpload <- case KM.lookup "required" upload of
+    Just (Array required) -> pure required
+    _ -> ioError (userError "ResourceUpload has no required list")
+  let metadata = Object (KM.insert "properties" (Object (KM.delete "file" properties))
+        (KM.insert "required" (Array (V.filter (/= String "file") requiredUpload)) upload))
+  (httpSchemas, httpFiles) <- httpFacts root (Object spec) schemas
+  forM_ ("ResourceUploadMetadata" : "TraceCarrier" : map fst httpSchemas) $ \name ->
+    when (Map.member name schemas) (ioError (userError ("adapter schema name is owned by OpenAPI: " ++ T.unpack name)))
   facts <- generateFacts root
-  (busSchemas, busFiles) <- either (ioError . userError) pure (busDescriptors (Map.insert "TraceCarrier" carrier schemas) registry)
+  (busSchemas, busFiles) <- either (ioError . userError) pure (busDescriptors (Map.insert "TraceCarrier" carrier (Map.insert "ResourceUploadMetadata" metadata (Map.fromList httpSchemas <> schemas))) registry)
   (moduleNames, models) <- either (ioError . userError) pure (generate busSchemas (Set.fromList ids))
   template <- readUTF8 (output </> "semiont.cabal.in")
   forM_ ["@VERSION@", "@MODEL_MODULES@"] $ \marker ->
@@ -452,7 +469,7 @@ main = do
   version <- maybe (ioError (userError "root package.json has no version")) pure (textAt "version" package)
   license <- readUTF8 (root </> "LICENSE")
   let manifest = T.replace "@VERSION@" version $ T.replace "@MODEL_MODULES@" (T.intercalate "\n" (map ("    " <>) moduleNames)) template
-      generated = ("LICENSE", license) : ("semiont.cabal", manifest) : busFiles ++ models ++ facts ++ transportFiles
+      generated = ("LICENSE", license) : ("semiont.cabal", manifest) : busFiles ++ models ++ facts ++ transportFiles ++ httpFiles
       modelsDirectory = output </> "generated/Semiont/Internal/Generated/Models"
       expected = Set.fromList (map (output </>) (map fst generated))
   existsModels <- doesDirectoryExist modelsDirectory

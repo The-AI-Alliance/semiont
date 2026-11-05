@@ -24,6 +24,8 @@ with tempfile.TemporaryDirectory() as output:
         "BusMissingScope": "GHC-83865",
         "WritableState": "does not export",
         "TransportInputCoercion": "constructor",
+        "HttpPoolCoercion": "constructor",
+        "WrongHttpAnswer": "GHC-83865",
     }
     for name, diagnostic in expected.items():
         result = subprocess.run(
