@@ -205,8 +205,10 @@ Archivist closes just as the read is written to it does — is sent once more,
 at once: reqwest's own retry, on the gateway's client, for requests to the
 Archivist's host and port alone. An answer is never asked again, whatever its
 status, and an upload is never sent again: its body is streamed, and a
-streamed body cannot be sent twice. A content route whose call still gets no
-answer is a 503, `Content store unavailable`.
+streamed body cannot be sent twice. When the second attempt gets no answer
+either, a content route answers 503, `Content store unavailable`, as it does
+an upload that got none, and a replay sends the stream a `bus:resume-gap` with
+reason `query-error` for that scope alone.
 
 Everything else the Archivist answers, it answers over the bus the gateway
 relays. The gateway makes no bus request of its own.

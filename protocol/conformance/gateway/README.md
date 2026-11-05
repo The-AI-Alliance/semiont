@@ -42,9 +42,9 @@ configured another way).
     when it fails (`issuer.test.ts`);
   - content and uploads, the JSON-LD description, a resource's anchored text,
     whole when it is larger than the largest bus message, a path that names
-    what is not a resource's id, and a read sent once more when the Archivist
-    closes its connection without answering, where an upload is not
-    (`content.test.ts`);
+    what is not a resource's id, and a read the Archivist closes its
+    connection on without answering, which is sent once more and not again,
+    as an upload never is (`content.test.ts`);
   - emitting: stamping, claims, profiles, unanswerable requests, and the ids
     a payload and a scope may carry (`emit.test.ts`);
   - the stream: delivery, reply routing, replay and every gap reason,
