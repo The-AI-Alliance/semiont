@@ -24,6 +24,7 @@ one task, in order, so the state has one writer.
 """
 
 import asyncio
+import json
 import logging
 from collections import OrderedDict
 from collections.abc import Mapping
@@ -101,12 +102,39 @@ def backoff_cap_ms(reconnect_ms: int, failures: int) -> int:
     return min(reconnect_ms << doublings, MAX_RECONNECT_MS)
 
 
-def carried(data: str) -> BusFrame | Fault:
-    """`data` read as a frame, or the first fault that keeps it from being one.
+@final
+@dataclass(frozen=True, slots=True)
+class Refused:
+    """What BusFrame does not allow: its first fault, and the channel it names when BusFrame allows its `channel`.
+
+    One that names no channel names no reader.
+    """
+
+    fault: Fault
+    channel: str | None
+
+
+def carried(data: str) -> BusFrame | Refused:
+    """`data` read as a frame, or why it is not one.
 
     A frame carries what BusFrame names and nothing more.
     """
-    return read_as(BusFrame, data, BusFrame.model_validate_json)
+    read = read_as(BusFrame, data, BusFrame.model_validate_json)
+    if isinstance(read, Fault):
+        return Refused(read, _channel_of(data))
+    return read
+
+
+def _channel_of(data: str) -> str | None:
+    """The channel `data` names: the `channel` of a JSON object, when it is a text of at least one character."""
+    try:
+        value: JsonValue = json.loads(data)
+    except ValueError:
+        return None
+    if not isinstance(value, dict):
+        return None
+    channel = value.get("channel")
+    return channel if isinstance(channel, str) and channel != "" else None
 
 
 @final
@@ -522,9 +550,13 @@ class Stream:
         if event_id is not None and not self._seen.remember(event_id):
             return
         read = carried(data)
-        if isinstance(read, Fault):
-            # What is not a frame is not delivered, and is said so.
-            _LOG.warning("the stream carried what is not a frame (id %s): %s", event_id, read)
+        if isinstance(read, Refused):
+            if read.channel is None:
+                # What names no channel names no reader: it is told to the failure report.
+                self._failures.deliver(TransportError("error", f"the stream carried what is not a frame: {read.fault}"))
+            else:
+                # What is not a frame is not delivered, and is said so.
+                _LOG.warning("the stream carried what is not a frame (id %s): %s", event_id, read.fault)
             return
         bus_log("RECV", read.channel, read.payload, scope=read.scope, correlation_id=read.correlation_id)
         if conn in self._superseded:
