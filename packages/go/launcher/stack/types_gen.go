@@ -262,7 +262,11 @@ type KnowledgeIndexSpec struct {
 	// most severe, to debug.
 	LogLevel api.LogLevel `json:"logLevel"`
 
-	// The graph store the Weaver writes and the Librarian reads.
+	// The graph store the Weaver writes and the Librarian reads. The knowledge
+	// base's graph is in the database its DID names
+	// (protocol/specs/src/graph/database-cases.json): a Neo4j the launcher runs
+	// makes it when it first starts, and one somebody else runs must already
+	// hold it.
 	Graph KnowledgeIndexGraph `json:"graph"`
 
 	// The vector store the Smelter writes and the Librarian reads: the one the
@@ -286,16 +290,16 @@ type KnowledgeIndexSpec struct {
 }
 
 // KnowledgeIndexGraph: The graph store the Weaver writes and the Librarian
-// reads.
+// reads. The knowledge base's graph is in the database its DID names
+// (protocol/specs/src/graph/database-cases.json): a Neo4j the launcher runs
+// makes it when it first starts, and one somebody else runs must already hold
+// it.
 type KnowledgeIndexGraph struct {
 	// The graph store's driver: `neo4j`.
 	Type string `json:"type"`
 
 	// The user the services sign in to the store as.
 	Username string `json:"username"`
-
-	// Which of the store's databases holds the graph.
-	Database string `json:"database"`
 
 	// The container image a service runs, as a registry names it:
 	// `ghcr.io/the-ai-alliance/semiont-gateway:latest`.

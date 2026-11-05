@@ -90,7 +90,7 @@ func librarianDocument(p placement, served api.KbIdentity) ([]byte, error) {
 	doc.GatewayUrl = p.gatewayURL()
 	doc.Identity.Issuer = p.issuer()
 	doc.Archivist.Host, doc.Archivist.Port = p.archivist()
-	if doc.Graph, err = graphConfig(p, "the Librarian"); err != nil {
+	if doc.Graph, err = graphConfig(p, served, "the Librarian"); err != nil {
 		return nil, err
 	}
 	_, token := vectorsTokenVars(p)

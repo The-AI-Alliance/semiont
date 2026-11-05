@@ -11,8 +11,11 @@ package launcher
 // either way.
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
@@ -46,15 +49,33 @@ func graphSecrets(p placement) []string {
 	return nil
 }
 
-// graphConfig: the graph database a service reaches, as its document states
-// it. ONE decider, for the Weaver's document, which writes the graph, and the
-// Librarian's, which reads it. who names the service in a refusal.
-func graphConfig(p placement, who string) (graph api.GraphConfig, err error) {
+// graphDatabase: the database the graph of the knowledge base whose DID is did
+// is in, named as protocol/specs/src/graph/database-cases.json names it: `kb-`
+// and the first 60 hexadecimal digits of the DID's SHA-256, the digits its
+// index's collections are named by (indexCollections).
+func graphDatabase(did string) string {
+	sum := sha256.Sum256([]byte(did))
+	return "kb-" + hex.EncodeToString(sum[:])[:60]
+}
+
+// neo4jDatabaseVar: Neo4j's setting for the name of the one database it makes
+// when it first starts, and serves from then on.
+const neo4jDatabaseVar = "NEO4J_initial_dbms_default__database"
+
+// graphConfig: the graph database a service of the knowledge base served
+// reaches, as its document states it. ONE decider, for the Weaver's document,
+// which writes the graph, and the Librarian's, which reads it. who names the
+// service in a refusal.
+func graphConfig(p placement, served api.KbIdentity, who string) (graph api.GraphConfig, err error) {
 	g := p.st.KnowledgeIndex.Spec.Graph
 	if g.Type != string(api.Neo4jGraphConfigTypeNeo4j) {
 		return graph, planErr(p.st.Files.KnowledgeIndex, "spec.graph.type", "is %q: the launcher writes %s's document for a neo4j graph alone", g.Type, who)
 	}
-	neo4j := api.Neo4jGraphConfig{Username: g.Username, Database: g.Database, Uri: p.graphURI()}
+	did, err := semiont.KbDid(served.Domain)
+	if err != nil {
+		return graph, err
+	}
+	neo4j := api.Neo4jGraphConfig{Username: g.Username, Database: graphDatabase(did.String()), Uri: p.graphURI()}
 	if g.External != nil {
 		neo4j.PasswordEnv = g.External.Password.FromEnv
 	} else {
@@ -76,7 +97,7 @@ func weaverDocument(p placement, served api.KbIdentity) ([]byte, error) {
 	doc.GatewayUrl = p.gatewayURL()
 	doc.Identity.Issuer = p.issuer()
 	doc.Archivist.Host, doc.Archivist.Port = p.archivist()
-	if doc.Graph, err = graphConfig(p, "the Weaver"); err != nil {
+	if doc.Graph, err = graphConfig(p, served, "the Weaver"); err != nil {
 		return nil, err
 	}
 	doc.CursorsPath = cursorsPath("weaver")

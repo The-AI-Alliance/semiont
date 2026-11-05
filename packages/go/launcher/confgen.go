@@ -102,7 +102,7 @@ func generateStack(p genParams, name string) (map[string][]byte, error) {
 	var index stack.KnowledgeIndex
 	index.ApiVersion, index.Kind, index.Metadata = meta("KnowledgeIndex", "index")
 	index.Spec.KnowledgeBase, index.Spec.LogLevel = initKnowledgeBase, api.LogLevelInfo
-	index.Spec.Graph.Type, index.Spec.Graph.Username, index.Spec.Graph.Database = "neo4j", "neo4j", "neo4j"
+	index.Spec.Graph.Type, index.Spec.Graph.Username = "neo4j", "neo4j"
 	index.Spec.Graph.Image, index.Spec.Graph.Resources = daemon("graph", "neo4j")
 	index.Spec.Vectors.Type = "qdrant"
 	index.Spec.Vectors.Shared = &stack.KnowledgeIndexVectorsShared{}
