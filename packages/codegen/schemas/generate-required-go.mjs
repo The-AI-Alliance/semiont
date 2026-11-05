@@ -10,9 +10,12 @@
 // api writes of its schema, which is the schema's own. So each component must
 // have such a type. One oapi-codegen writes as an alias (`type X = Y`) is
 // read by the type it names, whose name is not the component's: its shape
-// may state no more than the kind that type is, which is what the package
-// reads of it. A component that breaks either fails the generator and its
-// `--check`. The output is committed; `--check` compares without writing (the
+// may state no kind but the one that type is, and nothing of what an object,
+// an array or a union holds, which is what the package reads of it. What it
+// states besides of the value (its enumeration, pattern, lengths and bounds)
+// the package holds a value to where a component refers to it, and not where
+// Go reads a value of the alias that no component holds. A component that
+// breaks either fails the generator and its `--check`. The output is committed; `--check` compares without writing (the
 // CI drift gate).
 
 import { readFileSync } from 'node:fs';
@@ -25,6 +28,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const OUT = resolve(ROOT, 'packages/go/sdk/internal/required/schemas_gen.json');
 const DECLARED = ['packages/go/sdk/api/client_gen.go', 'packages/go/sdk/api/ids_gen.go'];
 const CHECK = process.argv.includes('--check');
+/** The parts of a shape that say what the value is, and nothing of what it holds. */
+const OF_THE_VALUE = ['enum', 'pattern', 'minLength', 'maxLength', 'minimum', 'maximum', 'minItems', 'maxItems'];
 
 function refuse(message) {
   console.error(`✗ ${message}`);
@@ -55,11 +60,11 @@ for (const name of names) {
   if (!aliased.has(name)) refuse(`${name} is a component of protocol/specs/src/openapi.json, and package api declares no type of its name`);
   const named = aliased.get(name);
   if (named === undefined) continue;
-  const shape = shapes.get(name);
+  const held = Object.fromEntries(Object.entries(shapes.get(name)).filter(([part]) => !OF_THE_VALUE.includes(part)));
   const kind = kindOfGo(named);
   const readAs = kind === undefined ? {} : { kinds: [kind] };
-  if (JSON.stringify(shape) !== JSON.stringify(readAs)) {
-    refuse(`package api writes ${name} as an alias of ${named}, which is read as ${JSON.stringify(readAs)}, and its schema requires ${JSON.stringify(shape)}`);
+  if (JSON.stringify(held) !== JSON.stringify(readAs)) {
+    refuse(`package api writes ${name} as an alias of ${named}, which is read as ${JSON.stringify(readAs)}, and its schema requires ${JSON.stringify(held)} of it`);
   }
 }
 
