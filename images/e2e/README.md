@@ -4,6 +4,35 @@ Real-browser Playwright tests that drive the Browser against a locally
 running gateway. Intended to catch cross-layer regressions (SSE timing,
 React lifecycle, bus round-trips) that unit and component tests can't.
 
+## With `make`
+
+From the repository root (from anywhere, `make -C <repository root> <target>`):
+
+```sh
+make stack-up     # a new knowledge base's stack from :local images, checked, left up
+make e2e          # the default tier, on a knowledge base and user of its own beside it
+make e2e          # again: each run makes, and then removes, its own
+make stack-down   # stop the stack and check every port is released
+make smoke        # all three in one run
+```
+
+`make stack-up` builds what it needs first: the `:local` images, as
+`make local-build PACKAGE_NAMES=typescript` does, when the build finds them or the
+TypeScript packages they install older than the checkout, and the launcher when it is
+older than its Go source. It then runs `semiont init` in a new directory and
+`semiont start`, and checks health, the realm the start created and the Browser's origin.
+`SMOKE_TAG=<tag>` boots a published release's images instead, and `CONTAINER_RUNTIME`
+selects the engine. Every `semiont` command it runs is shown as it runs.
+
+`make e2e` runs `npm run test:ci`, which typechecks the specs and leaves out `@slow` and
+`@model`, in the Playwright image this suite's version pins, with a user made by
+`semiont useradd` for the run. The report is in `playwright-report/`. The script and the
+steps it takes are described in [How CI runs the suite](#how-ci-runs-the-suite), which runs
+the same script.
+
+To run the suite by hand instead, against a stack you started yourself, see the
+[Quick start](#quick-start) and [Running against a freshly-built stack](#running-against-a-freshly-built-stack).
+
 ## Quick start
 
 Prereqs: the dev stack is up, with its ports published on the host. Full
@@ -202,13 +231,14 @@ beside it, as `semiont init` makes one, and:
   `test-results/report.json`.
 
 It passes that knowledge base's gateway as `E2E_GATEWAY_URL`, which the bridge forwards
-too. A failing suite fails the job, prints the stack's container logs, and still
-stops the stack. Whatever the result, `playwright-report/` and
+too. A failing suite fails the job and still stops the stack; a container whose health
+gate fails has its last log lines printed by the launcher. Whatever the result, `playwright-report/` and
 `test-results/` are kept as the run's `e2e-report` artifact for 30 days, and a
 table of the specs with the tier's wall time is written to the run's summary.
 On a laptop, `make smoke` does the same against `:local` images, including on Apple
 `container`; `make stack-up`, `make e2e` and `make stack-down` run its steps apart, each
-`make e2e` on a fresh knowledge base. Use `CONTAINER_RUNTIME=container make smoke` to select it explicitly.
+`make e2e` on a fresh knowledge base ([With `make`](#with-make)). Use
+`CONTAINER_RUNTIME=container make smoke` to select it explicitly.
 A selected runtime that is not responding fails with startup instructions; nothing is
 started automatically. The [Quick start](#quick-start) runs the suite alone against a stack
 that is already up.
@@ -256,9 +286,9 @@ for inspecting cross-service traces while debugging an e2e failure
   container can't reach it. Either configure Ollama Desktop with
   `launchctl setenv OLLAMA_HOST 0.0.0.0` (and quit/relaunch), or use
   `semiont start --config anthropic` to skip Ollama entirely.
-- **Code changes require rebuilding the `:local` images.** Rerun
-  `make local-build`, then restart the stack with
-  `semiont start`, its documents naming the `:local` images. Without the
+- **Code changes require rebuilding the `:local` images.** `make stack-up` does it
+  for you. On a stack you started yourself, rerun `make local-build`, then restart
+  the stack with `semiont start`, its documents naming the `:local` images. Without the
   rebuild + restart, you'll run yesterday's images with today's source.
 - **SPA tracing is not wired.** Gateway / worker / smelter
   produce traces; the Browser SPA does not. End-to-end traces
