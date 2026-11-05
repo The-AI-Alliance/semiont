@@ -207,11 +207,38 @@ def signature(directory: str, seen: tuple[str, ...] = ()) -> str:
     return signatures[directory]
 
 
+# What each language's build leaves in its package. Cargo compiles in its container and
+# `go build ./...` keeps nothing, so their packages build again only when their inputs change.
+OUTPUTS = {
+    "typescript": "dist",
+    "python": "dist",
+    "kotlin": "build",
+    "swift": ".build",
+    "rust": "",
+    "go": "",
+}
+
+
+def output(directory: str) -> str:
+    language = packages[directory]["language"]
+    if language != "csharp":
+        return f"{directory}/{OUTPUTS[language]}" if OUTPUTS[language] else ""
+    # dotnet build leaves bin/ in each of the solution's projects; the one it is named for stands for all.
+    solution = packages[directory]["manifest"]
+    project = f"{directory}/src/{Path(solution).stem}"
+    if f"{project}/{Path(solution).stem}.csproj" not in files:
+        sys.exit(
+            f"package-signatures: {solution} has no {project}/{Path(solution).stem}.csproj, whose bin/ says it was built"
+        )
+    return f"{project}/bin"
+
+
 for directory in sorted(packages):
     language = packages[directory]["language"]
     if language == "rust":
         name = toml(packages[directory]["manifest"])["package"]["name"]
     else:
         name = directory.rsplit("/", 1)[1]
-    output = f"{directory}/dist" if language in ("typescript", "python") else ""
-    print("\t".join((directory, language, name, signature(directory), output)))
+    print(
+        "\t".join((directory, language, name, signature(directory), output(directory)))
+    )

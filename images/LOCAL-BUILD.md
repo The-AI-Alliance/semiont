@@ -124,6 +124,21 @@ The desktop helper uses the selected available runtime, builds its
 workspace dependencies, and writes installers to `apps/desktop/release/`. The macOS app is assembled in the Node container; the host uses `hdiutil` to create its DMG. No host Node runtime is used. Unsupported host OSes fail.
 Desktop is not part of `local-build`.
 
+## Clean
+
+```sh
+make clean
+```
+
+`clean` removes what these operations build into the working tree: each package's build
+output, npm staging, the Browser's build, `apps/launcher/dist` and the desktop's `.build` and
+`release`. [Its roster](scripts/clean.sh) is tested to cover the output each package's build
+leaves, as [package signatures](scripts/package-signatures.py) declare it, so the next
+`local-build` or `packages` builds every package whose output is gone. It keeps installs
+(`node_modules`, `.venv`), generated sources, the caches under `~/.cache/semiont` and the
+runtime's images; `FORCE=1` rebuilds images. It needs no container runtime, and it refuses,
+removing nothing, when a path it would remove holds a file git tracks or is not ignored.
+
 ## Verification and implementation
 
 `make smoke SMOKE_TAG=local` runs [the real-stack smoke](tests/stack/smoke-stack.sh) and its

@@ -67,9 +67,11 @@ const paths = [...tree, ...directories];
 /**
  * What a build makes beneath directories the glob reaches: the longest head of
  * it that matches directories the tree holds, and below one of them, the rest
- * with each wildcard given a name, is a path git ignores. So
- * apps/launcher/dist/ with an archive glob after it names goreleaser's
- * output, and a glob whose head matches nothing names nothing.
+ * with each wildcard given a name, is a path git ignores, as a file or as a
+ * directory: git matches a rule like `dist/` to an absent path only when told
+ * it is one. So apps/launcher/dist/ with an archive glob after it names
+ * goreleaser's output, a build directory one wildcard below packages/kotlin
+ * names Gradle's, and a glob whose head matches nothing names nothing.
  */
 function namesBuildOutput(glob) {
   const parts = glob.split('/');
@@ -78,7 +80,7 @@ function namesBuildOutput(glob) {
     const reached = [...directories].filter((directory) => head.test(directory));
     if (reached.length === 0) continue;
     const rest = parts.slice(k).filter((part) => part !== '**').map((part) => part.replaceAll('*', 'x')).join('/');
-    return rest !== '' && reached.some((directory) => ignoredByGit(ROOT, `${directory}/${rest}`));
+    return rest !== '' && reached.some((directory) => ignoredByGit(ROOT, `${directory}/${rest}`) || ignoredByGit(ROOT, `${directory}/${rest}/`));
   }
   return false;
 }

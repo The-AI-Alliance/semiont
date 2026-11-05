@@ -20,7 +20,7 @@ ifneq ($(word 2,$(MAKECMDGOALS)),)
 $(error Run one public operation per invocation)
 endif
 
-.PHONY: help local-build packages images-only launcher plan npm-publish-local desktop desktop-macos desktop-linux smoke
+.PHONY: help local-build packages images-only launcher plan npm-publish-local desktop desktop-macos desktop-linux smoke clean
 help:
 	@printf '%s\n' \
 	  'make local-build              Build packages, local images and host launcher' \
@@ -35,6 +35,7 @@ help:
 	  'make generate[-GROUP]         Regenerate output; groups are listed below' \
 	  'make check-generated[-GROUP]  Check generated output without repairing committed files' \
 	  'make smoke                    Boot/check a real stack and run e2e (SMOKE_TAG=local)' \
+	  'make clean                    Remove build output from the tree; keep installs, caches, images' \
 	  'Selectors: PACKAGE_NAMES=language/name,... IMAGE_NAMES=browser,... FORCE=1 FANOUT=0' \
 	  'Runtime: CONTAINER_RUNTIME=container|docker|podman; LAYER_CACHE=directory (Docker)' \
 	  'Host: GNU Make >=3.81, Bash, Git, curl, container runtime and platform utilities.'
@@ -48,6 +49,9 @@ desktop desktop-macos desktop-linux:
 
 smoke:
 	@bash $(call quote,$(BUILD_ROOT)/images/tests/stack/smoke-stack.sh) $(call quote,$(SMOKE_TAG)) --e2e
+
+clean:
+	@bash $(call quote,$(BUILD_ROOT)/images/scripts/clean.sh)
 
 .PHONY: generate check-generated
 generate check-generated:
