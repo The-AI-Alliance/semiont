@@ -230,6 +230,12 @@ func (g *recordingGateway) send(id string, frame map[string]any) {
 	if err != nil {
 		panic(err)
 	}
+	g.sendData(id, string(data))
+}
+
+// sendData gives the newest stream a bus-event whose data line is data, a
+// frame or not.
+func (g *recordingGateway) sendData(id, data string) {
 	g.mu.Lock()
 	newest := g.streams[len(g.streams)-1]
 	g.mu.Unlock()

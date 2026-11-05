@@ -1,91 +1,25 @@
 package semiont.storage
 
-import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import semiont.http.HttpTransport
+import semiont.http.StreamGateway
 import semiont.http.Timing
+import semiont.http.firstOf
 import semiont.identifiers.ResourceId
 import semiont.testing.SharedStorage
-import java.io.OutputStream
-import java.net.InetAddress
-import java.net.InetSocketAddress
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.Executors
 
 private const val KEY = "semiont.lastEventId.kb-a"
 private const val CACHE = "semiont.cache.kb-a.resource"
 private val RESOURCE = ResourceId("res-1")
 private val OTHER = ResourceId("res-2")
 private val QUICK = Timing(reconnectMs = 10, lazyRemoveMs = 10, lingerMs = 10)
-
-/** A gateway of one stream at a time: it keeps what each subscribe asked, holds the latest stream open, and writes there what a test gives it. */
-private class Gateway : AutoCloseable {
-    private val handling = Executors.newCachedThreadPool()
-    private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
-    val subscriptions = CopyOnWriteArrayList<JsonObject>()
-
-    @Volatile
-    private var stream = CompletableFuture<OutputStream>()
-
-    init {
-        server.createContext("/bus/subscribe") { exchange ->
-            subscriptions += Json.parseToJsonElement(String(exchange.requestBody.readAllBytes())).jsonObject
-            exchange.responseHeaders.add("Content-Type", "text/event-stream")
-            exchange.sendResponseHeaders(200, 0)
-            val out = exchange.responseBody
-            out.write(": open\n\n".toByteArray())
-            out.flush()
-            stream.complete(out)
-            stream = CompletableFuture<OutputStream>().also { it.complete(out) }
-        }
-        server.executor = handling
-        server.start()
-    }
-
-    val origin: String get() = "http://127.0.0.1:${server.address.port}"
-
-    fun send(id: String, frame: String) {
-        val out = stream.get()
-        synchronized(out) {
-            out.write("id: $id\nevent: bus-event\ndata: $frame\n\n".toByteArray())
-            out.flush()
-        }
-    }
-
-    /** Where a subscription of `scopes` scopes asks each to begin, once the gateway has been sent one. */
-    suspend fun placesAskedFrom(scopes: Int): Map<String, String?> = withTimeout(5_000) {
-        var found: Map<String, String?>? = null
-        while (found == null) {
-            found = subscriptions.reversed().firstNotNullOfOrNull { subscription ->
-                (subscription["scoped"] as? JsonArray)?.takeIf { it.size == scopes }?.associate { entry ->
-                    val stated = entry.jsonObject
-                    stated.getValue("scope").jsonPrimitive.content to stated["lastEventId"]?.jsonPrimitive?.contentOrNull
-                }
-            }
-            if (found == null) kotlinx.coroutines.delay(5)
-        }
-        found
-    }
-
-    override fun close() {
-        server.stop(0)
-        handling.shutdownNow()
-    }
-}
 
 /** A stream's place in each scope, kept with what the caches keep: never ahead of them. */
 class BookmarksTest {
@@ -199,7 +133,7 @@ class BookmarksTest {
         val storage = MemoryStorage()
         storage.set(KEY, """{"res-1": "p-41"}""")
         val places = CoupledBookmarks(storage, KEY)
-        Gateway().use { gateway ->
+        StreamGateway().use { gateway ->
             HttpTransport(gateway.origin, MutableStateFlow("t"), emptyList(), QUICK, null, places).use { transport ->
                 val heard = transport.frames("mark:added")
                 transport.subscribeToResource(RESOURCE).use {
@@ -209,7 +143,7 @@ class BookmarksTest {
                         // A recorded event's id is its scope's place, once it has been delivered. A passing frame's is no place.
                         gateway.send("p-42", """{"channel":"mark:added","payload":{"n":1},"scope":"res-1"}""")
                         gateway.send("e-9", """{"channel":"mark:added","payload":{"n":2},"scope":"res-2"}""")
-                        val read = withTimeout(5_000) { heard.take(2) }
+                        val read = withTimeout(5_000) { heard.firstOf(2) }
                         assertEquals(listOf(JsonPrimitive(1), JsonPrimitive(2)), read.map { it.payload.getValue("n") })
                         assertEquals("""{"res-1": "p-41"}""", storage.get(KEY))
                         places.storage.set(CACHE, "{}")
@@ -219,7 +153,7 @@ class BookmarksTest {
             }
         }
         // With no bookmarks, a stream begins every scope at the present and keeps nothing.
-        Gateway().use { gateway ->
+        StreamGateway().use { gateway ->
             HttpTransport(gateway.origin, MutableStateFlow("t"), emptyList(), QUICK).use { transport ->
                 transport.subscribeToResource(RESOURCE).use {
                     assertEquals(mapOf("res-1" to null), gateway.placesAskedFrom(1))
@@ -227,14 +161,4 @@ class BookmarksTest {
             }
         }
     }
-}
-
-/** The first `count` frames read. */
-private suspend fun <T : Any> semiont.transport.Events<T>.take(count: Int): List<T> {
-    val read = mutableListOf<T>()
-    collect {
-        read += it
-        if (read.size == count) close()
-    }
-    return read
 }

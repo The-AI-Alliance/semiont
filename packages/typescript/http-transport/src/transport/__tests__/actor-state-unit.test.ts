@@ -59,6 +59,40 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
+  it('a line that names no channel is told on errors$, and the stream goes on', async () => {
+    const sse = mockSSEResponse();
+
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['gather:requested'],
+    });
+    const told: { code: string; message: string }[] = [];
+    stateUnit.errors$.subscribe((error) => told.push({ code: error.code, message: error.message }));
+
+    stateUnit.start();
+
+    const gathered = firstValueFrom(stateUnit.stream('gather:requested'));
+
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+
+    sse.push(sseChunk('bus-event', '{"channel": "gather:requested", "payload": {'));
+    sse.push(sseChunk('bus-event', JSON.stringify({ payload: { resourceId: 'res-1' } })));
+    sse.push(sseChunk('bus-event', JSON.stringify({ channel: 7, payload: { resourceId: 'res-1' } })));
+    sse.push(sseChunk('bus-event', JSON.stringify({ channel: 'gather:requested', payload: { resourceId: 'after' } })));
+
+    expect(await gathered).toEqual({ resourceId: 'after' });
+    expect(told).toEqual(
+      ['it is malformed', 'it has no `channel`', 'its `channel` is malformed'].map((said) => ({
+        code: 'error',
+        message: `the stream carried what is not a frame: ${said}`,
+      })),
+    );
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    stateUnit.dispose();
+  });
+
   it('stream is multicast — multiple subscribers share the stream', async () => {
     const sse = mockSSEResponse();
 
