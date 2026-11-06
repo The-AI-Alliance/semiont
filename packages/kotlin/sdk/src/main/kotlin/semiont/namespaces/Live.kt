@@ -15,6 +15,7 @@ import semiont.cache.Source
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
 import semiont.errors.SemiontError
+import semiont.registry.cacheKey
 import semiont.storage.CachePersistence
 import semiont.storage.StoragePersister
 import semiont.identifiers.AnnotationId
@@ -103,7 +104,7 @@ internal class Live(private val links: Links, private val content: ContentTransp
 
     /** What keeps the cache named `name`, when the client keeps its caches. */
     private fun <K : Any, V : Any> kept(name: String, key: KSerializer<K>, value: KSerializer<V>): CachePersister<K, V>? = persistence?.let {
-        StoragePersister(it.storage, "semiont.cache.${it.keyPrefix}.$name", key, value, KEPT_VERSION, Timings.MAX_STORED_BYTES_COUNT)
+        StoragePersister(it.storage, cacheKey(it.keyPrefix, name), key, value, KEPT_VERSION, Timings.MAX_STORED_BYTES_COUNT)
     }
 
     /** Whether every cache the client keeps is at rest: none is fetching, and none owes a save. */

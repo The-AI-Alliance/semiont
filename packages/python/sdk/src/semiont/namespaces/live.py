@@ -30,6 +30,7 @@ from semiont.operations import (
 )
 from semiont.refresh import CacheQuery, CacheRefreshWhen
 from semiont.storage import SessionStorage, StoragePersister
+from semiont.stored import cache_key
 from semiont.timing import MAX_STORED_BYTES_COUNT
 from semiont.transport import ContentTransport
 from semiont.types import (
@@ -175,7 +176,7 @@ class Live:
         """What keeps the cache named `name`, when the client keeps its caches."""
         if self._persistence is None:
             return None
-        kept_under = f"semiont.cache.{self._persistence.key_prefix}.{name}"
+        kept_under = cache_key(self._persistence.key_prefix, name)
         return StoragePersister(
             self._persistence.storage, kept_under, key=key, value=value, version=_KEPT_VERSION, max_bytes=MAX_STORED_BYTES_COUNT
         )

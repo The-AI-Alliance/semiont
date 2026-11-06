@@ -32,6 +32,12 @@ pub fn kb_of_session_key(key: &str) -> Option<&str> {
     key.strip_prefix(SESSION_PREFIX)
 }
 
+/// The key the query `name` is kept under, by a persistence whose key prefix
+/// is `key_prefix`.
+pub(crate) fn cache_key(key_prefix: &str, name: &str) -> String {
+    format!("semiont.cache.{key_prefix}.{name}")
+}
+
 /// What is kept of a sign-in: the tokens an issuer issued, the client they
 /// were issued to, and the issuer's endpoints a renewal and a sign-out need,
 /// learned once at sign-in so no session asks again.
@@ -106,4 +112,26 @@ pub fn save_knowledge_bases(
     // A list of structs of strings and numbers always serializes.
     let written = serde_json::to_string(knowledge_bases).unwrap_or_default();
     storage.set(KNOWLEDGE_BASES_KEY, &written)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::Value;
+
+    /// protocol/specs/src/session/stored.json. tests/tables.rs holds the
+    /// table's other keys, which are public.
+    const STORED: &str = include_str!("../../specs/session/stored.json");
+
+    #[test]
+    fn a_kept_query_is_kept_under_the_tables_prefix_its_persistences_key_prefix_and_its_name() {
+        let table: Value = serde_json::from_str(STORED).expect("the table is JSON");
+        let prefix = table["cacheKeyPrefix"]["prefix"]
+            .as_str()
+            .expect("the table states the prefix of a kept query's key");
+        assert_eq!(
+            cache_key("kb-a", "resource"),
+            format!("{prefix}kb-a.resource")
+        );
+    }
 }

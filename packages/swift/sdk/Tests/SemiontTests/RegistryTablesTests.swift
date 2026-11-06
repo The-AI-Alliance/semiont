@@ -46,6 +46,16 @@ import Testing
   #expect(try storedSession(storage, kbId: id) == nil)
 }
 
+@Test func aKeptCacheIsKeptUnderTheStoredTablesPrefix() throws {
+  let table = try Spec.read("session/stored.json").object
+  let prefix = try required(required(table, "cacheKeyPrefix").object, "prefix").text
+  let storage = MemorySessionStorage()
+  let persister = StoragePersister<KeptQuery>(CachePersistence(storage: storage, keyPrefix: "kb-a"))
+  persister.store(.annotations(try ResourceId("one")), ["one"])
+  persister.close()
+  #expect(storage.get(prefix + "kb-a.swift") != nil)
+}
+
 @Test func onePlaceRunsEverySharedCase() throws {
   for value in try required(Spec.read("session/registry-cases.json").object, "cases").array {
     let row = try value.object

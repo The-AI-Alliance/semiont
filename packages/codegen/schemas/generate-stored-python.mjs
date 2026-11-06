@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 // generate-stored-python.mjs — generate what the Python SDK's registry keeps
 // in a SessionStorage from protocol/specs/src/session/stored.json: the key each thing
-// is kept under, the key of a knowledge base's session, and the stored
-// session's shape.
+// is kept under, the key of a knowledge base's session, the keys of what a
+// session keeps of its stream and its queries, and the stored session's shape.
 //
 //   packages/python/sdk/src/semiont/stored.py
 //
 // A registry in one SDK finds what one in another wrote, over one storage,
-// only if both say these alike. TypeScript, Rust, Go and Kotlin state them by hand,
-// each held to the table by a test; Python's are this. The reading of the
-// session's schema is sign-in-schema.mjs's.
+// only if both say these alike. The other SDKs state them by hand or read the
+// table, each held to it by a test; Python's are this. The reading of the
+// session's schema is sign-in-schema.mjs's. The pending sign-in's shape is
+// not rendered here: semiont/http/oauth.py states it, and
+// packages/python/sdk/tests/test_registry_http.py holds it to the table.
 //
 // --check compares without writing (the CI drift gate).
 
@@ -34,7 +36,7 @@ const table = JSON.parse(readFileSync(TABLE, 'utf8'));
 const stated = (value) => typeof value === 'string' && value !== '';
 
 for (const member of Object.keys(table)) {
-  if (!['$comment', 'keys', 'sessionKeyPrefix', 'storedSession'].includes(member)) refuse(`states \`${member}\`, which this generator does not render`);
+  if (!['$comment', 'keys', 'sessionKeyPrefix', 'lastEventIdKeyPrefix', 'cacheKeyPrefix', 'storedSession', 'pendingAuthorization'].includes(member)) refuse(`states \`${member}\`, which this generator does not render`);
 }
 if (!Array.isArray(table.keys) || table.keys.length === 0) refuse('states no `keys`');
 const seen = new Set();
@@ -44,9 +46,16 @@ for (const entry of table.keys) {
   if (seen.has(entry.key)) refuse(`the key ${JSON.stringify(entry.key)} is stated twice`);
   seen.add(entry.key);
 }
-const prefix = table.sessionKeyPrefix;
-if (!stated(prefix?.prefix) || !stated(prefix?.docs)) refuse('states no `sessionKeyPrefix` with its `prefix` and `docs`');
-if (table.keys.some(({ key }) => key.startsWith(prefix.prefix))) refuse(`a fixed key begins with the session's prefix ${JSON.stringify(prefix.prefix)}, so it would read as a session's`);
+/** The prefix `member` states, refused unless it has its `docs` and no fixed key begins with it. */
+function prefixOf(member) {
+  const prefixed = table[member];
+  if (!stated(prefixed?.prefix) || !stated(prefixed?.docs)) refuse(`states no \`${member}\` with its \`prefix\` and \`docs\``);
+  if (table.keys.some(({ key }) => key.startsWith(prefixed.prefix))) refuse(`a fixed key begins with \`${member}\`'s ${JSON.stringify(prefixed.prefix)}, so it would read as one of its keys`);
+  return prefixed;
+}
+const prefix = prefixOf('sessionKeyPrefix');
+const lastEventIdPrefix = prefixOf('lastEventIdKeyPrefix');
+const cachePrefix = prefixOf('cacheKeyPrefix');
 const session = readFlatSchema(table.storedSession, (message) => refuse(`\`storedSession\` ${message}`));
 if (session.fields.some(({ isTime }) => isTime)) refuse('`storedSession` has a date-time, which a stored session does not');
 
@@ -90,6 +99,24 @@ def session_key(kb_id: str) -> str:
 def kb_of_session_key(key: str) -> str | None:
     """The knowledge base a key is the session of; nothing when it is no session's key."""
     return key.removeprefix(_SESSION_KEY_PREFIX) if key.startswith(_SESSION_KEY_PREFIX) else None
+
+
+${pyComment(lastEventIdPrefix.docs)}
+_LAST_EVENT_ID_KEY_PREFIX: Final = ${pyString(lastEventIdPrefix.prefix)}
+
+
+def last_event_id_key(kb_id: str) -> str:
+    """The key a knowledge base's stream's places are kept under."""
+    return f"{_LAST_EVENT_ID_KEY_PREFIX}{kb_id}"
+
+
+${pyComment(cachePrefix.docs)}
+_CACHE_KEY_PREFIX: Final = ${pyString(cachePrefix.prefix)}
+
+
+def cache_key(key_prefix: str, name: str) -> str:
+    """The key the query \`name\` is kept under, by a persistence whose key prefix is \`key_prefix\`."""
+    return f"{_CACHE_KEY_PREFIX}{key_prefix}.{name}"
 
 
 @final
