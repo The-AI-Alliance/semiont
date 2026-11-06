@@ -109,7 +109,8 @@ const opened = SemiontSession.fromHttp({
   storage: new InMemorySessionStorage(),
   baseUrl: 'http://localhost:4000',
   token: 'your-jwt',
-  refresh: async () => /* return new access token, or null */ null,
+  // Given the token the session holds; return a new access token, or null.
+  refresh: async (holding: string | null) => null,
 });
 await opened.session.ready;
 ```

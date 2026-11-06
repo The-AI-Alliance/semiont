@@ -78,7 +78,7 @@ export async function connect(
     storage: new InMemorySessionStorage(),
     baseUrl: kbGatewayUrl(kb.endpoint),
     token: access,
-    refresh: () => bridge.refresh(kb.id),
+    refresh: (holding) => bridge.refresh(kb.id, holding),
     onAuthFailed: options.onEnded,
   });
   try {

@@ -4,7 +4,8 @@
 //
 // One place for the checks, shared by the generators that read the file
 // (generate-sign-in-go.mjs for the Go SDK and the launcher,
-// generate-sign-in-python.mjs for the Python SDK), so no generated artifact
+// generate-sign-in-python.mjs for the Python SDK, generate-sign-in.mjs for
+// the TypeScript SDK), so no generated artifact
 // comes from a file another would refuse. The Rust SDK's build script and the
 // Kotlin SDK's generator make the same checks.
 

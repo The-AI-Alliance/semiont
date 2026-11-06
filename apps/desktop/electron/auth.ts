@@ -8,6 +8,7 @@ import {
   SignInError,
   beginAuthorization,
   completeAuthorization,
+  getStoredSession,
   parseJwtExpiry,
   refreshStoredSession,
   revokeAtIssuer,
@@ -68,11 +69,13 @@ function refusedByIssuer(err: unknown): err is SignInError {
 }
 
 /** One renewal at a time per knowledge base: an issuer that rotates refresh tokens refuses
- *  the second of two that present the same one. */
-function renew(kbId: string): Promise<string | null> {
+ *  the second of two that present the same one. `holding` is the access token whoever asks
+ *  holds, null for none: a kept one that is another and has not expired is given, and no
+ *  grant is made. */
+function renew(kbId: string, holding: string | null): Promise<string | null> {
   const underway = renewals.get(kbId);
   if (underway !== undefined) return underway;
-  const renewal = refreshStoredSession(storageFor(kbId), kbId)
+  const renewal = refreshStoredSession(storageFor(kbId), kbId, holding)
     .then((access) => {
       if (access === null) held.delete(kbId);
       else held.set(kbId, access);
@@ -90,7 +93,7 @@ async function resume(kbId: string): Promise<Resumed> {
     return { kind: 'resumed', access };
   }
   try {
-    const renewed = await renew(kbId);
+    const renewed = await renew(kbId, access === undefined ? null : access);
     return renewed === null ? { kind: 'none' } : { kind: 'resumed', access: renewed };
   } catch (err) {
     if (refusedByIssuer(err)) return { kind: 'refused', reason: describe(err) };
@@ -130,20 +133,6 @@ function signIn(kbId: string, target: HttpEndpoint): Promise<string> {
   return attempt;
 }
 
-/** What a sign-out needs of a stored session, read back out of the file. The SDK writes a
- *  `StoredSession` as JSON and exports no reader for one. */
-function revocable(value: string): Pick<StoredSession, 'refresh' | 'clientId' | 'revocationEndpoint'> | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    return null;
-  }
-  if (!isObject(parsed) || !isString(parsed.refresh) || !isString(parsed.clientId)) return null;
-  if (!isString(parsed.revocationEndpoint)) return null;
-  return { refresh: parsed.refresh, clientId: parsed.clientId, revocationEndpoint: parsed.revocationEndpoint };
-}
-
 async function signOut(kbId: string): Promise<void> {
   held.delete(kbId);
   let storage: FileSessionStorage;
@@ -156,9 +145,8 @@ async function signOut(kbId: string): Promise<void> {
     rmSync(sessionPath(kbId), { force: true });
     return;
   }
-  for (const value of storage.values()) {
-    const session = revocable(value);
-    if (session?.revocationEndpoint === undefined) continue;
+  const session = getStoredSession(storage, kbId);
+  if (session !== null && session.revocationEndpoint !== undefined) {
     try {
       await revokeAtIssuer(session.revocationEndpoint, session.clientId, session.refresh);
     } catch (err) {
@@ -173,6 +161,11 @@ async function signOut(kbId: string): Promise<void> {
 function kbIdOf(value: unknown): string {
   if (!isString(value) || value === '') throw new Error('auth: a knowledge base id is a non-empty string');
   return value;
+}
+
+function holdingOf(value: unknown): string | null {
+  if (value === null || isString(value)) return value;
+  throw new Error('auth: a held access token is a string, or null for none');
 }
 
 function endpointOf(value: unknown): HttpEndpoint {
@@ -203,6 +196,6 @@ export function registerAuthHandlers(): void {
   ipcMain.handle('auth:sign-in', (_event, kbId: unknown, address: unknown) =>
     answered('sign-in', () => signIn(kbIdOf(kbId), endpointOf(address))),
   );
-  ipcMain.handle('auth:refresh', (_event, kbId: unknown) => renew(kbIdOf(kbId)));
+  ipcMain.handle('auth:refresh', (_event, kbId: unknown, holding: unknown) => renew(kbIdOf(kbId), holdingOf(holding)));
   ipcMain.handle('auth:sign-out', (_event, kbId: unknown) => signOut(kbIdOf(kbId)));
 }

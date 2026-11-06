@@ -553,7 +553,7 @@ export class SemiontBrowser {
       // and, for a truly dead session, WITHOUT clearing storage, so every
       // reload would restore the corpse and re-arm an effectively
       // undismissable modal (both its buttons navigate — into the same
-      // loop). `session.refresh()` covers both ends: success heals in
+      // loop). `session.refresh(refused)` covers both ends: success heals in
       // silence; exhaustion runs the session's own teardown — stored session
       // cleared, `onAuthFailed` fires the modal once, with the session's own
       // reason instead of the raw transport line. `forbidden` has no

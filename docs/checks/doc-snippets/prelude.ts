@@ -29,6 +29,7 @@ import type {
   UserId as _UserId,
   DeviceCode as _DeviceCode,
   AgentSession as _AgentSession,
+  SignInFiles as _SignInFiles,
 } from '@semiont/sdk';
 import type { GenerationJobParams as _GenerationJobParams } from '@semiont/core';
 import type { FaultyTransport as _FaultyTransport } from '@semiont/sdk/testing';
@@ -94,6 +95,8 @@ declare global {
   const MY_TAG_SCHEMA: _TagSchema;
   const kb: _KnowledgeBase;
   const storage: _SessionStorage;
+  /** A program's files over the directory a `SignInStore` keeps its sign-ins in. */
+  const signInFiles: _SignInFiles;
   const logger: _Logger;
   const sub: Subscription;
   const ourSubs: Subscription[];
