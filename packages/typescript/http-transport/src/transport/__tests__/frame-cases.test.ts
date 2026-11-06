@@ -91,7 +91,7 @@ describe('frame-cases.json', () => {
     const heard = firstValueFrom(
       new Bus({ ...stream, subscribeToResource: () => () => undefined }).frames(READ).pipe(takeWhile((one) => !isAfter(one), true), toArray()),
     );
-    sse.push(sseChunk('bus-event', stated.data ?? JSON.stringify(stated.frame)));
+    sse.push(sseChunk('bus-event', stated.data === undefined ? JSON.stringify(stated.frame) : stated.data));
     sse.push(sseChunk('bus-event', JSON.stringify(AFTER)));
     const before = (await heard).slice(0, -1);
     if (stated.told === 'readers') {
