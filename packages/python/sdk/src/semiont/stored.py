@@ -57,6 +57,28 @@ def kb_of_session_key(key: str) -> str | None:
     return key.removeprefix(_SESSION_KEY_PREFIX) if key.startswith(_SESSION_KEY_PREFIX) else None
 
 
+# Where a knowledge base's stream was is kept under this followed by the knowledge base's id: a
+# JSON object from a scope, a resource's id, to the id of the last recorded event delivered on
+# it. It is written only with a write of the caches kept beside it, so it never leads them.
+_LAST_EVENT_ID_KEY_PREFIX: Final = "semiont.lastEventId."
+
+
+def last_event_id_key(kb_id: str) -> str:
+    """The key a knowledge base's stream's places are kept under."""
+    return f"{_LAST_EVENT_ID_KEY_PREFIX}{kb_id}"
+
+
+# What a client keeps of a query is kept under this followed by its persistence's key prefix, a
+# dot and the query's name. A registry's session takes the knowledge base's id for its key
+# prefix.
+_CACHE_KEY_PREFIX: Final = "semiont.cache."
+
+
+def cache_key(key_prefix: str, name: str) -> str:
+    """The key the query `name` is kept under, by a persistence whose key prefix is `key_prefix`."""
+    return f"{_CACHE_KEY_PREFIX}{key_prefix}.{name}"
+
+
 @final
 class StoredSession(WireModel, frozen=True):
     """What is kept of a sign-in: the tokens an issuer issued, the client they were issued to, and

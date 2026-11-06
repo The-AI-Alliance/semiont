@@ -57,6 +57,7 @@ from typing import Annotated, Final, Literal, Protocol, Self, final, override
 
 from pydantic import Field, JsonValue, TypeAdapter, ValidationError
 
+from semiont._endpoints import same_place
 from semiont._reading import Reading
 from semiont.errors import BusRequestError, SemiontError, SessionError, TransportError
 from semiont.event_bus import EventBus
@@ -77,7 +78,7 @@ from semiont.stored import (
     session_key,
 )
 from semiont.transport import Transport
-from semiont.types import HttpEndpoint, KbDescription, KbEndpoint, KbRead, KnowledgeBase, NewKnowledgeBase
+from semiont.types import KbDescription, KbEndpoint, KbRead, KnowledgeBase, NewKnowledgeBase
 from semiont.watched import Variable, Watched
 
 __all__ = [
@@ -460,13 +461,6 @@ class KbReadVerdict:
 _NO_VERDICT: Final = KbReadVerdict(kind="no-verdict")
 
 
-def _same_place(one: KbEndpoint, other: KbEndpoint) -> bool:
-    """Whether two endpoints are one place: for a gateway, its host and port; for a loaded knowledge base, its id."""
-    if isinstance(one, HttpEndpoint):
-        return isinstance(other, HttpEndpoint) and (one.host, one.port) == (other.host, other.port)
-    return not isinstance(other, HttpEndpoint) and one.kb_id == other.kb_id
-
-
 def _read_now(description: KbDescription) -> KbRead:
     """What a knowledge base said of itself now, beyond its name: the time as RFC 3339, in UTC, to the millisecond."""
     at = datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
@@ -692,7 +686,7 @@ class SemiontBrowser:
         label = signed_in.description.name
         last_read = _read_now(signed_in.description)
         kbs = self._kbs.value
-        at_address = [kb for kb in kbs if _same_place(kb.endpoint, signed_in.endpoint)]
+        at_address = [kb for kb in kbs if same_place(kb.endpoint, signed_in.endpoint)]
         # An address with several entries singles out no belief of its own.
         believed: KnowledgeBase | None = None
         if signed_in.kb_id is not None:

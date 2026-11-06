@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
 
 // PendingAuthorizationKey is the key a pending sign-in is remembered under.
@@ -133,7 +134,9 @@ func BeginAuthorization(ctx context.Context, issuer Issuer, options BeginAuthori
 // CompleteAuthorization finishes the authorization-code grant from the URL
 // the issuer sent the person back to. The pending record is taken before
 // anything else happens: a code is good once, and a callback that is replayed
-// finds nothing to complete.
+// finds nothing to complete. A record that lacks a member
+// protocol/specs/src/session/stored.json's pendingAuthorization requires is
+// no pending sign-in.
 func CompleteAuthorization(ctx context.Context, issuer Issuer, callbackURL string, pending SessionStorage) (PendingAuthorization, IssuedTokens, error) {
 	var taken string
 	var had bool
@@ -143,8 +146,8 @@ func CompleteAuthorization(ctx context.Context, issuer Issuer, callbackURL strin
 	}); err != nil {
 		return PendingAuthorization{}, IssuedTokens{}, err
 	}
-	var record PendingAuthorization
-	if !had || json.Unmarshal([]byte(taken), &record) != nil {
+	record, readable := required.ReadAs[PendingAuthorization]([]byte(taken))
+	if !had || !readable {
 		return PendingAuthorization{}, IssuedTokens{}, signInUnanswered(SignInErrorCodeNoPending, "No sign-in is pending here")
 	}
 

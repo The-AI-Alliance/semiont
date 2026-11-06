@@ -345,6 +345,65 @@ private func form(_ data: Data) -> [String: String] {
     })
 }
 
+@Test func aSignInBegunIsKeptAsTheStoredTableStatesIt() async throws {
+  let origin = Mutex("")
+  try await issuerServer(
+    { path, _, _ in
+      let base = origin.withLock { $0 }
+      switch path {
+      case "/.well-known/oauth-protected-resource":
+        return (
+          200,
+          [
+            "authorization_servers": .array([.string(base)]),
+            "bearer_methods_supported": .array([.string("header")]),
+            "resource": .string("https://kb"),
+          ]
+        )
+      case "/.well-known/openid-configuration":
+        return (
+          200,
+          [
+            "issuer": .string(base), "authorization_endpoint": .string(base + "/authorize"),
+            "token_endpoint": .string(base + "/token"),
+          ]
+        )
+      default: return (404, [:])
+      }
+    },
+    run: { base, http in
+      origin.withLock { $0 = base }
+      let schema = try required(Spec.read("session/stored.json").object, "pendingAuthorization")
+        .object
+      let issuerSchema = try required(required(schema, "properties").object, "issuer").object
+      func members(_ schema: [String: JSONValue]) throws -> Set<String> {
+        Set(try required(schema, "properties").object.keys)
+      }
+      func requiredMembers(_ schema: [String: JSONValue]) throws -> Set<String> {
+        Set(try required(schema, "required").array.map { try $0.text })
+      }
+      let url = try #require(URLComponents(string: base))
+      let target = HttpEndpoint(host: "127.0.0.1", port: try #require(url.port), protocol: .http)
+      func kept(_ options: BeginAuthorizationOptions) async throws -> [String: JSONValue] {
+        let storage = MemorySessionStorage()
+        _ = try await beginAuthorization(options, storage: storage, httpClient: http)
+        let text = try #require(storage.get(pendingAuthorizationKey))
+        return try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)).object
+      }
+      let full = try await kept(
+        BeginAuthorizationOptions(
+          target: target, redirectUri: "semiont://sign-in", kbId: "kb-a",
+          expectedDid: "did:web:kb-a", expectedName: "A"))
+      #expect(Set(full.keys) == (try members(schema)))
+      let issuer = Set(try required(full, "issuer").object.keys)
+      #expect((try requiredMembers(issuerSchema)).isSubset(of: issuer))
+      #expect(issuer.isSubset(of: try members(issuerSchema)))
+      let bare = try await kept(
+        BeginAuthorizationOptions(target: target, redirectUri: "semiont://sign-in"))
+      #expect(Set(bare.keys) == (try requiredMembers(schema)))
+    })
+}
+
 @Test func concurrentRedirectCallbacksExchangeTheCodeOnce() async throws {
   let origin = Mutex("")
   let verifier = Mutex("")

@@ -25,6 +25,7 @@ use crate::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
 use crate::locked;
 use crate::refresh::CacheQuery;
 use crate::resources::decode_representation;
+use crate::session::cache_key;
 use crate::state_unit::StateUnit;
 use crate::timing::{MAX_STORED_BYTES_COUNT, SAVE_DEBOUNCE};
 use crate::transport::{BoxFuture, Content, ContentStream, ContentTransport, Envelope};
@@ -186,7 +187,7 @@ where
         Some(persistence) => {
             let persister: Arc<dyn CachePersister<K, V>> = Arc::new(StoragePersister::new(
                 persistence.storage.clone(),
-                format!("semiont.cache.{}.{name}", persistence.key_prefix),
+                cache_key(&persistence.key_prefix, name),
                 PERSISTED_VERSION,
                 MAX_STORED_BYTES_COUNT,
             ));

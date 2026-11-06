@@ -4,6 +4,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
+import semiont.Spec
 import semiont.errors.IdentityUnverifiableError
 import semiont.errors.IdentityUnverifiableReason
 import semiont.errors.SignInError
@@ -110,11 +112,30 @@ class AuthorizationTest {
             assertTrue(record.verifier.length >= 43)
             assertTrue(record.state.length >= 32)
             assertTrue(record.verifier != record.state)
-            // Kept as every SDK keeps it, so a sign-in another SDK began is one this completes.
-            assertEquals(
-                setOf("state", "verifier", "redirectUri", "target", "issuer", "kbId", "expectedDid", "expectedName"),
-                wireJson.parseToJsonElement(checkNotNull(storage.get(PENDING_AUTHORIZATION_KEY))).jsonObject.keys,
-            )
+        }
+    }
+
+    /** Kept as protocol/specs/src/session/stored.json states it, so a sign-in another SDK began is one this completes. */
+    @Test
+    fun aSignInBegunIsKeptAsTheStoredTableStatesIt() = runBlocking {
+        val pending = Spec.read("session/stored.json").jsonObject.getValue("pendingAuthorization").jsonObject
+        val issuer = pending.getValue("properties").jsonObject.getValue("issuer").jsonObject
+        fun membersOf(shape: JsonObject) = shape.getValue("properties").jsonObject.keys
+        fun requiredOf(shape: JsonObject) = shape.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet()
+        fun written(storage: SessionStorage): JsonObject {
+            val record = wireJson.parseToJsonElement(checkNotNull(storage.get(PENDING_AUTHORIZATION_KEY))).jsonObject
+            val kept = record.getValue("issuer").jsonObject.keys
+            assertTrue(kept.containsAll(requiredOf(issuer)) && membersOf(issuer).containsAll(kept), "its issuer is kept with $kept")
+            return record
+        }
+        Realm().use { realm ->
+            val believed = MemoryStorage()
+            beginAuthorization(BeginAuthorizationOptions(endpointOf(realm), REDIRECT, "kb-a", DID_A, "KB A"), believed)
+            assertEquals(membersOf(pending), written(believed).keys)
+            // What the person named nothing of is not written.
+            val bare = MemoryStorage()
+            beginAuthorization(BeginAuthorizationOptions(endpointOf(realm), REDIRECT), bare)
+            assertEquals(requiredOf(pending), written(bare).keys)
         }
     }
 

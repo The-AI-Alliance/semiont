@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for what a registry of knowledge bases keeps in a SessionStorage: the key each thing it keeps is kept under, and the shape of a knowledge base's stored session. A registry in any SDK finds what one in another wrote, over one storage, only if every SDK says these alike. TypeScript (packages/typescript/sdk/src/session/storage.ts and oauth.ts), Rust (packages/rust/sdk/src/session/stored.rs and packages/rust/http-transport/src/oauth.rs) Go (packages/go/sdk/registry/stored.go and packages/go/sdk/authorization.go) and Kotlin (packages/kotlin/sdk/src/main/kotlin/semiont/registry/Stored.kt) state them by hand, and a test in each fails when its copy differs from this table: packages/typescript/sdk/src/session/__tests__/stored-table.test.ts; packages/rust/sdk/tests/tables.rs, with packages/rust/http-transport/tests/sign_in.rs for the key the transport's crate keeps; packages/go/sdk/registry/stored_test.go; packages/kotlin/sdk/src/test/kotlin/semiont/registry/StoredTest.kt. Python: packages/codegen/schemas/generate-stored-python.mjs writes packages/python/sdk/src/semiont/stored.py. READING IT. `keys` are the fixed keys, each named as protocol/specs/src/client/surface.json names its constant. A knowledge base's session is kept under `sessionKeyPrefix` followed by the knowledge base's id. `storedSession` is what is kept there, as JSON: a flat object schema whose every member is text.",
+  "$comment": "AUTHORITY for what a registry of knowledge bases keeps in a SessionStorage, and what the sessions it makes keep there: the key each thing is kept under, the shape of a knowledge base's stored session, and the shape of a sign-in by a page redirect that is under way. A registry in any SDK finds what one in another wrote, over one storage, only if every SDK says these alike. WHO HOLDS IT. TypeScript states it by hand in packages/typescript/sdk/src/session/storage.ts and oauth.ts, held by packages/typescript/sdk/src/session/__tests__/stored-table.test.ts and oauth.test.ts. Rust in packages/rust/sdk/src/session/stored.rs, held by packages/rust/sdk/tests/tables.rs and stored.rs's own tests, and in packages/rust/http-transport/src/oauth.rs and session.rs, held by packages/rust/http-transport/tests/sign_in.rs and session.rs's own tests. Go in packages/go/sdk/registry/stored.go, held by packages/go/sdk/registry/stored_test.go, and in packages/go/sdk/authorization.go and storage.go, held by packages/go/sdk/stored_test.go. Kotlin in packages/kotlin/sdk/src/main/kotlin/semiont/registry/Stored.kt and semiont/http/Authorization.kt, held by packages/kotlin/sdk/src/test/kotlin/semiont/registry/StoredTest.kt and semiont/http/AuthorizationTest.kt. Swift in packages/swift/sdk/Sources/Semiont/Registry/Stored.swift and RedirectSignIn.swift, held by packages/swift/sdk/Tests/SemiontTests/RegistryTablesTests.swift and IssuerTests.swift; its generator, packages/swift/sdk/Sources/SemiontCodegen/Tables.swift, makes its stored session of `storedSession`. C# reads the table, which its generator (packages/csharp/sdk/generators/Semiont.Generator/ProtocolGenerator.cs) embeds, in packages/csharp/sdk/src/Semiont/Registry/RegistryStorage.cs, and states the pending sign-in in packages/csharp/sdk/src/Semiont/Authorization/RedirectSignIn.cs, held by packages/csharp/sdk/tests/Semiont.Tests/RegistryTests.cs. Python: packages/codegen/schemas/generate-stored-python.mjs writes packages/python/sdk/src/semiont/stored.py, and packages/python/sdk/tests/test_registry_http.py holds the pending sign-in of packages/python/sdk/src/semiont/http/oauth.py. Swift and C# keep what a client keeps of its queries under `cacheKeyPrefix` in one document of their own (Swift's key is the prefix, the knowledge base's id and `.swift`; C#'s the prefix, `csharp.v1.` and a digest of the knowledge base's id and the person), with the stream's places inside it, and so keep nothing under `lastEventIdKeyPrefix`: their tests hold the prefix alone. READING IT. `keys` are the fixed keys, each named as protocol/specs/src/client/surface.json names its constant. A knowledge base's session is kept under `sessionKeyPrefix` followed by the knowledge base's id, and `storedSession` is what is kept there, as JSON: a flat object schema whose every member is text. `lastEventIdKeyPrefix` and `cacheKeyPrefix` begin the keys of what a session keeps of its stream and its queries, as each one's `docs` says. `pendingAuthorization` is what is kept under `pendingAuthorizationKey`, as JSON; a member it does not require is not written when there is none.",
   "keys": [
     {
       "member": "knowledgeBasesKey",
@@ -31,6 +31,14 @@
     "prefix": "semiont.session.",
     "docs": "A knowledge base's stored session is kept under this followed by the knowledge base's id."
   },
+  "lastEventIdKeyPrefix": {
+    "prefix": "semiont.lastEventId.",
+    "docs": "Where a knowledge base's stream was is kept under this followed by the knowledge base's id: a JSON object from a scope, a resource's id, to the id of the last recorded event delivered on it. It is written only with a write of the caches kept beside it, so it never leads them."
+  },
+  "cacheKeyPrefix": {
+    "prefix": "semiont.cache.",
+    "docs": "What a client keeps of a query is kept under this followed by its persistence's key prefix, a dot and the query's name. A registry's session takes the knowledge base's id for its key prefix."
+  },
   "storedSession": {
     "title": "StoredSession",
     "type": "object",
@@ -58,5 +66,68 @@
       }
     },
     "required": ["access", "refresh", "clientId", "tokenEndpoint"]
+  },
+  "pendingAuthorization": {
+    "title": "PendingAuthorization",
+    "type": "object",
+    "description": "What a sign-in by a page redirect remembers across the trip to the issuer and back: the verifier and the state the issuer's response must match, where the person was connecting, what they believed they were connecting to, and the issuer's endpoints, so its completion asks nothing twice.",
+    "properties": {
+      "state": {
+        "type": "string",
+        "description": "What the issuer's response must carry back to belong to this sign-in: random, as base64url."
+      },
+      "verifier": {
+        "type": "string",
+        "description": "The PKCE code verifier (RFC 7636) the authorization code is exchanged with: random, as base64url."
+      },
+      "redirectUri": {
+        "type": "string",
+        "description": "Where the issuer sends the person back to, named again when the code is exchanged."
+      },
+      "target": {
+        "allOf": [{ "$ref": "../components/schemas/HttpEndpoint.json" }],
+        "description": "Where the person was connecting."
+      },
+      "issuer": {
+        "type": "object",
+        "description": "The issuer the knowledge base trusts, and the endpoints of it a client uses.",
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "description": "The issuer's identifier."
+          },
+          "authorization": {
+            "type": "string",
+            "description": "The issuer's authorization endpoint, where the person is sent."
+          },
+          "token": {
+            "type": "string",
+            "description": "The issuer's token endpoint, where the code is exchanged."
+          },
+          "device": {
+            "type": "string",
+            "description": "The issuer's device authorization endpoint (RFC 8628). Absent when the issuer has none."
+          },
+          "revocation": {
+            "type": "string",
+            "description": "The issuer's revocation endpoint (RFC 7009). Absent when the issuer has none."
+          }
+        },
+        "required": ["issuer", "authorization", "token"]
+      },
+      "kbId": {
+        "type": "string",
+        "description": "The registered knowledge base being signed in to again. Absent when it is none."
+      },
+      "expectedDid": {
+        "type": "string",
+        "description": "The did of what the person believed they clicked, checked against the answer and never assumed. Absent when they named nothing."
+      },
+      "expectedName": {
+        "type": "string",
+        "description": "The name of what the person believed they clicked. Absent when they named nothing."
+      }
+    },
+    "required": ["state", "verifier", "redirectUri", "target", "issuer"]
   }
 }

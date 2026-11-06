@@ -192,7 +192,7 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 		// The stream's place rides the caches' writes, and only when every
 		// cache is at rest: a place kept ahead of a cache still taking in the
 		// event it names would have the next session skip that event.
-		places = NewCoupledBookmarks(config.Storage, "semiont.lastEventId."+config.Kb.Id)
+		places = NewCoupledBookmarks(config.Storage, lastEventIDKey(config.Kb.Id))
 		persistence = &CachePersistence{Storage: places.Storage(), KeyPrefix: config.Kb.Id}
 		transportConfig.Bookmarks = places
 	}

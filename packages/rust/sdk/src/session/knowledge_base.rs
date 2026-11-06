@@ -52,10 +52,13 @@ impl HttpEndpoint {
         ))
     }
 
-    /// Whether this is the same address: the host and the port. Two
-    /// endpoints that differ only in protocol are one place.
+    /// Whether this is the same address: one origin, the protocol, the host
+    /// in lowercase and the port. Two endpoints that differ only in protocol
+    /// are two places.
     pub fn same_address(&self, other: &HttpEndpoint) -> bool {
-        self.host == other.host && self.port == other.port
+        self.protocol == other.protocol
+            && self.host.eq_ignore_ascii_case(&other.host)
+            && self.port == other.port
     }
 }
 

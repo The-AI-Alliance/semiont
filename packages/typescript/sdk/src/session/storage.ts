@@ -3,7 +3,8 @@
  * session layer.
  *
  * Contains:
- *  - Storage key shape (constants, `sessionKey(kbId)`)
+ *  - Storage key shape (constants, `sessionKey(kbId)`, `lastEventIdKey(kbId)`,
+ *    `cacheKey(keyPrefix, name)`)
  *  - JWT expiry parsing and "is expired" check
  *  - URL/protocol helpers for KB instances
  *  - Loaders/savers that take a `SessionStorage` and operate over it
@@ -21,6 +22,8 @@ import type { SessionStorage } from './session-storage';
 // ---------- Storage keys ----------
 
 const SESSION_PREFIX = 'semiont.session.';
+const LAST_EVENT_ID_PREFIX = 'semiont.lastEventId.';
+const CACHE_PREFIX = 'semiont.cache.';
 export const STORAGE_KEY = 'semiont.knowledgeBases';
 export const ACTIVE_KEY = 'semiont.activeKnowledgeBaseId';
 /** Per-KB open-resource tabs: Record<kbId, OpenResource[]>. */
@@ -111,6 +114,16 @@ export interface StoredSession {
 
 export function sessionKey(kbId: string): string {
   return `${SESSION_PREFIX}${kbId}`;
+}
+
+/** The key a knowledge base's stream's places are kept under. */
+export function lastEventIdKey(kbId: string): string {
+  return `${LAST_EVENT_ID_PREFIX}${kbId}`;
+}
+
+/** The key the query `name` is kept under, by a persistence whose key prefix is `keyPrefix`. */
+export function cacheKey(keyPrefix: string, name: string): string {
+  return `${CACHE_PREFIX}${keyPrefix}.${name}`;
 }
 
 // ---------- Per-KB session storage ----------

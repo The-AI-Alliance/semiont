@@ -7,6 +7,7 @@ public let openResourcesByKbKey = "semiont.openResourcesByKb"
 public let lastViewedResourceByKbKey = "semiont.lastViewedResourceByKb"
 public let pendingAuthorizationKey = "semiont.pendingAuthorization"
 private let sessionPrefix = "semiont.session."
+let cacheKeyPrefix = "semiont.cache."
 
 public func sessionKey(_ kbId: String) -> String { sessionPrefix + kbId }
 
