@@ -28,11 +28,11 @@ public struct HttpSessionFactory: SessionFactory {
 
   public func session(_ options: SessionFactoryOptions) async throws -> OpenedSession {
     let kb = options.kb
-    return try await openSession(
+    return try await sessionFromKept(
       kb: KbTarget(endpoint: kb.endpoint, id: kb.id, label: kb.label),
       kept: keptIn(options.storage, kbId: kb.id), httpClient: httpClient,
       onAuthFailed: options.signals.notifySessionEnded, onError: options.onError,
-      storage: options.storage, followsSignIn: true, clock: clock, random: random)
+      storage: options.storage, clock: clock, random: random)
   }
 
   public func revoke(_ session: HeldSignIn) async {

@@ -21,25 +21,15 @@ actor SessionGate {
 /// A session with the knowledge base `kb`, over the sign-in `kept` holds. Given a `storage`, its
 /// client keeps its persisted queries' answers there for the person the gateway says the token
 /// is, once `kept` records them (``SignInKept/recordPersonKey(holding:_:)``), and from the start
-/// when it names them already.
+/// when it names them already. Over the sign-in a registry keeps there (``keptIn(_:kbId:)``), the
+/// client writes only while that sign-in names its person: forgetting the saved sign-in deletes
+/// what was kept of them, and nothing the client writes after puts it back.
 public func sessionFromKept(
   kb: KbTarget, kept: any SignInKept, httpClient: HTTPClient,
   onAuthFailed: (@Sendable (SessionEndReason) -> Void)? = nil,
   onError: (@Sendable (any Error) -> Void)? = nil, storage: (any SessionStorage)? = nil,
   clock: any Clock<Duration> = ContinuousClock(),
   random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator()
-) async throws -> OpenedSession {
-  try await openSession(
-    kb: kb, kept: kept, httpClient: httpClient, onAuthFailed: onAuthFailed, onError: onError,
-    storage: storage, followsSignIn: false, clock: clock, random: random)
-}
-/// `sessionFromKept`, whose caches, when `followsSignIn`, keep while the sign-in kept beside them
-/// in `storage` names their person.
-func openSession(
-  kb: KbTarget, kept: any SignInKept, httpClient: HTTPClient,
-  onAuthFailed: (@Sendable (SessionEndReason) -> Void)?, onError: (@Sendable (any Error) -> Void)?,
-  storage: (any SessionStorage)?, followsSignIn: Bool, clock: any Clock<Duration>,
-  random: any RandomNumberGenerator & Sendable
 ) async throws -> OpenedSession {
   try Task.checkCancellation()
   guard case .httpEndpoint(let endpoint) = kb.endpoint else {
@@ -58,7 +48,8 @@ func openSession(
   let failures = transport.failures()
   let persistence = storage.map {
     CachePersistence(
-      storage: $0, kbId: kb.id, person: found?.personKey, followsSignIn: followsSignIn)
+      storage: $0, kbId: kb.id, person: found?.personKey,
+      followsSignIn: (kept as? RegistryKept)?.kbId == kb.id)
   }
   let client: SemiontClient
   do {

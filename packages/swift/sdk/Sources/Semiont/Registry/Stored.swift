@@ -28,7 +28,8 @@ func cacheKey(_ kbId: String, _ personKey: String, _ query: KeptQuery) -> String
 }
 
 /// Deletes what every client kept of the person `personKey` on the knowledge base `kbId`: each
-/// persisted query's document and the stream's places.
+/// persisted query's document and the stream's places. Forgetting a saved sign-in deletes them for
+/// the person it named.
 func forgetKept(_ storage: any SessionStorage, kbId: String, personKey: String) throws {
   for query in KeptQuery.allCases { try storage.delete(cacheKey(kbId, personKey, query)) }
   try storage.delete(lastEventIdKey(kbId, personKey))
@@ -58,8 +59,23 @@ public func storeSession(
   try storage.set(sessionKey(kbId), storedText(session))
 }
 
+/// Forgets the knowledge base `kbId`'s saved sign-in, and what every client kept there of the
+/// person it named.
 public func clearStoredSession(_ storage: any SessionStorage, kbId: String) throws {
-  try storage.delete(sessionKey(kbId))
+  if let person = try takeStoredSession(storage, kbId: kbId)?.personKey {
+    try forgetKept(storage, kbId: kbId, personKey: person)
+  }
+}
+
+/// Clears the knowledge base `kbId`'s stored sign-in in one update, and gives what it held: the
+/// person whose keys forgetting it deletes.
+func takeStoredSession(_ storage: any SessionStorage, kbId: String) throws -> HeldSignIn? {
+  let taken = Mutex<String?>(nil)
+  try storage.update(sessionKey(kbId)) { text in
+    taken.withLock { $0 = text }
+    return nil
+  }
+  return decodedStorage(HeldSignIn.self, taken.withLock { $0 })
 }
 
 func readKnowledgeBases(_ text: String?) -> [KnowledgeBase] {
@@ -80,7 +96,8 @@ public func saveKnowledgeBases(
   try storage.set(knowledgeBasesKey, storedText(knowledgeBases))
 }
 
-private struct RegistryKept: SignInKept {
+/// The sign-in a registry keeps in `storage` for the knowledge base `kbId`.
+struct RegistryKept: SignInKept {
   let storage: any SessionStorage
   let kbId: String
 

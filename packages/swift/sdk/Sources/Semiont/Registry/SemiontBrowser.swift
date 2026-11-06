@@ -237,10 +237,14 @@ public actor SemiontBrowser {
 
   public func removeKb(_ id: String) async throws {
     try requireOpen()
-    try clearStoredSession(storage, kbId: id)
+    let old = try takeStoredSession(storage, kbId: id)
     try forgetResources(id)
     try changeKnowledgeBases { $0.removeAll { $0.id == id } }
-    if activeKbId.value == id { try await setActiveKb(knowledgeBases.value.first?.id) }
+    let active = activeKbId.value == id
+    if active { try chooseActiveKb(knowledgeBases.value.first?.id) }
+    // After the client has closed: whatever its closing wrote of the person goes too.
+    if let person = old?.personKey { try forgetKept(storage, kbId: id, personKey: person) }
+    if active { try await waitForActivation() }
   }
 
   public func updateKb(_ id: String, label: String? = nil, lastRead: KbRead? = nil) throws {
@@ -300,8 +304,7 @@ public actor SemiontBrowser {
 
   public func signOut(_ id: String) throws {
     try requireOpen()
-    let old = try storedSession(storage, kbId: id)
-    try clearStoredSession(storage, kbId: id)
+    let old = try takeStoredSession(storage, kbId: id)
     knowledgeBases.set(knowledgeBases.value)
     if activeKbId.value == id { activate() }
     guard let old else { return }
