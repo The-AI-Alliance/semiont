@@ -12,7 +12,10 @@ import Control.Monad (unless, when)
 import Data.Aeson (Object, Value(..), eitherDecodeStrict', encode, fromJSON, Result(..), toJSON)
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
+import Crypto.Random (getRandomBytes)
 import qualified Data.ByteString as Bytes
+import qualified Data.ByteString.Base64.URL as Base64
+import qualified Data.ByteString.Char8 as Char8
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
@@ -34,7 +37,7 @@ import System.Directory (createDirectoryIfMissing, renameFile, removeFile)
 import System.FilePath (takeDirectory, takeFileName, (</>))
 import qualified System.FilePath.Posix as Posix
 import qualified System.FilePath.Windows as Windows
-import System.IO (openBinaryTempFile, hClose, hFlush, hIsClosed)
+import System.IO (IOMode(WriteMode), openBinaryFile, hClose, hFlush, hIsClosed)
 import System.IO.Error (isDoesNotExistError)
 import qualified System.Info as System
 
@@ -101,12 +104,15 @@ change store@(SignInStore options filename turn) transform = withMVar turn $ \()
 
 writeDocument :: SignInStore -> Object -> IO ()
 writeDocument store document = do
-  let directory=takeDirectory (path store)
-      cleanup (temporary,handle) = do
+  -- Named here, not by openBinaryTempFile: on Windows that names its file with
+  -- GetTempFileNameW, which refuses a directory longer than MAX_PATH.
+  suffix <- Char8.unpack . Base64.encodeUnpadded <$> (getRandomBytes 16 :: IO Bytes.ByteString)
+  let temporary=path store<>".tmp"<>suffix
+      cleanup handle = do
         closed <- hIsClosed handle
         (unless closed (hClose handle)) `finally` (removeFile temporary `catch` \failure ->
           if isDoesNotExistError failure then pure () else throwIO (failure::IOException))
-  bracketOnError (openBinaryTempFile directory (takeFileName (path store)<>".tmp")) cleanup $ \(temporary,handle) -> do
+  bracketOnError (openBinaryFile temporary WriteMode) cleanup $ \handle -> do
     Native.fileMode temporary
     Lazy.hPut handle (encode (Object document))
     hFlush handle
