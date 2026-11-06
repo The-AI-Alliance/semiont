@@ -4,6 +4,7 @@ using Semiont.Http;
 using Semiont.Identifiers;
 using Semiont.Protocol;
 using Semiont.Types;
+using static Semiont.Resources.ResourceReaders;
 
 namespace Semiont.Namespaces;
 
@@ -37,7 +38,7 @@ public sealed class YieldNamespace
         CancellationToken cancellation = default)
     {
         var source = await FromTokenAsync(token, cancellation).ConfigureAwait(false);
-        var mediaType = MediaTypes.Primary(source);
+        var mediaType = PrimaryMediaType(source);
         var format = MediaTypes.CloneFormat(mediaType);
         return await content.UploadAsync(new ResourceUpload
         {

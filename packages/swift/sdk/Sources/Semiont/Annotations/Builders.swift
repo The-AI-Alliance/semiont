@@ -74,9 +74,7 @@ func canonicalAnnotationJSON(_ value: JSONValue) throws -> String {
   case .array(let items):
     return "[" + (try items.map(canonicalAnnotationJSON).joined(separator: ",")) + "]"
   case .object(let members):
-    let ordered = members.keys.sorted {
-      $0.unicodeScalars.lexicographicallyPrecedes($1.unicodeScalars)
-    }
+    let ordered = members.keys.sorted(by: byCodePoint)
     return "{"
       + (try ordered.map { key in
         guard let value = members[key] else {

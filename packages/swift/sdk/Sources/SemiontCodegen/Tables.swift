@@ -2,11 +2,15 @@ import Foundation
 
 /// Tables become typed values at build time, with no JSON parser or fallback in the SDK.
 package struct TableGenerator {
-  package init(specs: URL, models: ModelGenerator) {
+  package init(specs: URL, required: URL, models: ModelGenerator) {
     self.specs = specs
+    self.requiredTable = required
     self.models = models
   }
   let specs: URL
+  /// The SDK's copy of the table of what each component schema requires, which
+  /// packages/codegen/schemas/generate-required.mjs writes.
+  let requiredTable: URL
   let models: ModelGenerator
 
   func table(_ path: String) throws -> Schema {
@@ -240,47 +244,130 @@ package struct TableGenerator {
     }
     return found
   }
-  func requiredMembers(_ raw: Schema) throws -> String {
-    let (schema, _) = try models.nonnull(raw)
-    if let ref = schema["$ref"] { return ".reference(\(literal(try ref.text)))" }
-    if let all = schema["allOf"], try all.array.count == 1 {
-      return try requiredMembers(all.array[0].object)
+  /// What each component schema requires of a value, by its name, as the shared generator wrote it.
+  func requiredShapes() throws -> Schema {
+    let shapes = try required(loadJSON(requiredTable).object, "schemas").object
+    guard !shapes.isEmpty else {
+      throw GenerationRefused(description: "the table of what each schema requires holds none")
     }
-    let merged = try models.merged(schema)
-    if merged["oneOf"] != nil || merged["anyOf"] != nil { return ".opaque" }
-    if merged["type"] == .string("array"), let item = merged["items"] {
-      return ".list(\(try requiredMembers(item.object)))"
+    return shapes
+  }
+  /// A shape of the table as the value the walk reads (Sources/Semiont/Bus/Required.swift). Each
+  /// part's meaning is packages/codegen/schemas/required-shapes.mjs's; a part this does not know
+  /// refuses generation, so the walk cannot fall behind the table unseen.
+  func shapeLiteral(_ raw: JSONValue) throws -> String {
+    let shape = try raw.object
+    let parts = [
+      "ref", "kinds", "enum", "pattern", "minLength", "maxLength", "minimum", "maximum",
+      "minItems", "maxItems", "required", "members", "closed", "items", "values", "oneOf",
+      "discriminator", "allOf",
+    ]
+    for key in shape.keys where !parts.contains(key) {
+      throw GenerationRefused(description: "a shape states \(key), which the walk does not read")
     }
-    if merged["type"] == .string("object") {
-      if let properties = merged["properties"] {
-        let fields = try properties.object
-        let names = try merged["required"]?.array.map { try $0.text } ?? []
-        let required = try names.sorted().map { name -> String in
-          guard let field = fields[name] else {
-            throw GenerationRefused(description: "required member has no schema")
-          }
-          var resolved = try field.object
-          if let ref = resolved["$ref"] { resolved = try models.schema(ref.text) }
-          return "\(literal(name)): \(try models.nonnull(resolved).1)"
-        }.joined(separator: ", ")
-        let members = try fields.sorted(by: { $0.key < $1.key }).map {
-          "\(literal($0.key)): \(try requiredMembers($0.value.object))"
-        }.joined(separator: ", ")
-        return
-          ".object(required: [\(required.isEmpty ? ":" : required)], members: [\(members.isEmpty ? ":" : members)])"
+    var stated: [String] = []
+    for key in parts {
+      guard let value = shape[key] else { continue }
+      let label = key == "enum" ? "enumeration" : key
+      stated.append("\(label): \(try partLiteral(key, value))")
+    }
+    return "Shape(\(stated.joined(separator: ", ")))"
+  }
+  func partLiteral(_ key: String, _ value: JSONValue) throws -> String {
+    switch key {
+    case "ref": return literal(try value.text)
+    case "kinds": return "[\(try value.array.map(kindLiteral).joined(separator: ", "))]"
+    case "enum": return "[\(try value.array.map(listedLiteral).joined(separator: ", "))]"
+    case "pattern": return "[\(try value.array.map(stepLiteral).joined(separator: ", "))]"
+    case "minLength", "maxLength", "minItems", "maxItems": return try countLiteral(value)
+    case "minimum", "maximum":
+      guard case .number(let number) = value else {
+        throw GenerationRefused(description: "\(key) is \(value), which is no number")
       }
-      if case .object(let item) = merged["additionalProperties"] {
-        return ".map(\(try requiredMembers(item)))"
+      return "\(number)"
+    case "required", "closed":
+      return "[\(try value.array.map { literal(try $0.text) }.joined(separator: ", "))]"
+    case "members":
+      let members = try value.object.sorted(by: { $0.key < $1.key }).map {
+        "\(literal($0.key)): \(try shapeLiteral($0.value))"
       }
+      return members.isEmpty ? "[:]" : "[\(members.joined(separator: ", "))]"
+    case "items", "values": return try shapeLiteral(value)
+    case "oneOf", "allOf": return "[\(try value.array.map(shapeLiteral).joined(separator: ", "))]"
+    case "discriminator": return try discriminatorLiteral(value.object)
+    default: throw GenerationRefused(description: "a shape states \(key)")
     }
-    return ".opaque"
+  }
+  func kindLiteral(_ value: JSONValue) throws -> String {
+    let kind = try value.text
+    guard ["object", "array", "string", "integer", "number", "boolean", "null"].contains(kind)
+    else {
+      throw GenerationRefused(description: "\(kind) is no kind of value")
+    }
+    return "." + kind
+  }
+  func listedLiteral(_ value: JSONValue) throws -> String {
+    switch value {
+    case .null: return ".null"
+    case .bool(let truth): return ".bool(\(truth))"
+    case .number(let number): return ".number(\(number))"
+    case .string(let text): return ".string(\(literal(text)))"
+    case .array, .object: throw GenerationRefused(description: "an enum states \(value)")
+    }
+  }
+  func countLiteral(_ value: JSONValue) throws -> String {
+    guard case .number(let number) = value, number.rounded() == number, number >= 0 else {
+      throw GenerationRefused(description: "\(value) is no count")
+    }
+    return "\(Int(number))"
+  }
+  func stepLiteral(_ value: JSONValue) throws -> String {
+    let step = try value.object
+    let ranges = try required(step, "of").array.map { range -> String in
+      let ends = try range.array.map(countLiteral)
+      guard ends.count == 2 else {
+        throw GenerationRefused(description: "\(range) is no range of code points")
+      }
+      return "\(ends[0])...\(ends[1])"
+    }
+    let least = try countLiteral(required(step, "min"))
+    guard let most = step["max"] else {
+      return "Step(of: [\(ranges.joined(separator: ", "))], min: \(least), max: nil)"
+    }
+    return
+      "Step(of: [\(ranges.joined(separator: ", "))], min: \(least), max: \(try countLiteral(most)))"
+  }
+  /// A table of shapes by name, built one entry to a statement: the type checker takes one
+  /// dictionary literal of every shape as a single expression, which outgrows its time and memory.
+  func shapeTable(_ name: String, _ shapes: [String: String]) -> String {
+    var out = "internal let \(name): [String: Shape] = {\n  var shapes: [String: Shape] = [:]\n"
+    for (key, shape) in shapes.sorted(by: { $0.key < $1.key }) {
+      out += "  shapes[\(literal(key))] = \(shape)\n"
+    }
+    return out + "  return shapes\n}()\n"
+  }
+  func discriminatorLiteral(_ discriminator: Schema) throws -> String {
+    let property = literal(try required(discriminator, "property").text)
+    let mapping = try required(discriminator, "mapping").object.sorted(by: { $0.key < $1.key }).map
+    {
+      "\(literal($0.key)): \(try countLiteral($0.value))"
+    }
+    return
+      "Discriminator(property: \(property), mapping: [\(mapping.isEmpty ? ":" : mapping.joined(separator: ", "))])"
   }
   func channels(_ registry: Schema) throws -> String {
     let audience = try required(registry, "audience").object
     let scoped = Set(try required(audience, "scoped").array.map { try $0.text })
     let everyone = Set(try required(audience, "everyone").array.map { try $0.text })
     var rows: [String: (type: String, schema: Schema?)] = [:]
-    var requiredShapes: [String: String] = [:]
+    let schemaShapes = try requiredShapes()
+    func componentShape(_ name: String) throws -> String {
+      guard schemaShapes[name] != nil else {
+        throw GenerationRefused(description: "\(name) is in no table of what a schema requires")
+      }
+      return "Shape(ref: \(literal(name)))"
+    }
+    var payloadShapes: [String: String] = [:]
     var out = """
       public struct Channel<Payload: Codable & Sendable>: Sendable {
         public let name: String
@@ -319,35 +406,29 @@ package struct TableGenerator {
         payload = try required(row, "schema").text
         schema = try models.schema(payload)
         stamps = try self.stamps(models.schema(payload))
+        payloadShapes[name] = try componentShape(payload)
       case "envelope":
         let inner = try required(row, "schema").text
         _ = try models.named(inner)
         payload = "ResponseEnvelope<\(inner)>"
         schema = nil
         stamps = []
+        payloadShapes[name] =
+          "Shape(kinds: [.object], required: [\"response\"], members: [\"response\": \(try componentShape(inner))])"
       case "storedEvent":
         storedEventChannels.append(name)
         _ = try models.schema(required(row, "payload").text)
         payload = row["enriched"] == .bool(true) ? "EnrichedResourceEvent" : "StoredEventResponse"
         schema = nil
         stamps = try self.stamps(models.schema(payload))
+        payloadShapes[name] = try componentShape(payload)
       case "empty", "void":
         payload = "BusEmptyPayload"
         schema = nil
         stamps = []
+        payloadShapes[name] = "Shape(kinds: [.object])"
       default: throw GenerationRefused(description: "unknown channel shape \(shape)")
       }
-      let requiredShape: String
-      switch shape {
-      case "schema":
-        requiredShape = try requiredMembers(models.schema(try required(row, "schema").text))
-      case "envelope":
-        requiredShape =
-          ".object(required: [\"response\": false], members: [\"response\": .reference(\(literal(try required(row, "schema").text)))])"
-      case "storedEvent": requiredShape = ".reference(\(literal(payload)))"
-      default: requiredShape = ".opaque"
-      }
-      requiredShapes[name] = requiredShape
       rows[name] = (payload, schema)
       let channelType = scoped.contains(name) ? "ScopedChannel" : "Channel"
       out +=
@@ -415,7 +496,7 @@ package struct TableGenerator {
         throw GenerationRefused(description: "failure message must be a required string")
       }
       out +=
-        "  \(literal(names[0])): WireOperation(result: \(literal(names[1])), failure: \(literal(names[2])), request: { try projectWire(\(request.type).self, $0, stamps: Channels.\(escaped(memberName(names[0]))).stamps) }, response: { try projectWire(\(response.type).self, $0, stamps: Channels.\(escaped(memberName(names[1]))).stamps) }, decodeFailure: { try projectFailure(\(failure.type).self, $0, stamps: Channels.\(escaped(memberName(names[2]))).stamps, messageField: \(literal(message))) }),\n"
+        "  \(literal(names[0])): WireOperation(result: \(literal(names[1])), resultStamps: Channels.\(escaped(memberName(names[1]))).stamps, failure: \(literal(names[2])), request: { try projectWire(\(request.type).self, $0, stamps: Channels.\(escaped(memberName(names[0]))).stamps) }, response: { try projectWire(\(response.type).self, $0, stamps: Channels.\(escaped(memberName(names[1]))).stamps) }, decodeFailure: { try projectFailure(\(failure.type).self, $0, stamps: Channels.\(escaped(memberName(names[2]))).stamps, messageField: \(literal(message))) }),\n"
     }
     guard scoped.isDisjoint(with: everyone.union(replies)) else {
       throw GenerationRefused(description: "channel delivered both scoped and everywhere")
@@ -424,15 +505,9 @@ package struct TableGenerator {
       "]\ninternal let bridgedChannels = [\(everyone.union(replies).sorted().map(literal).joined(separator: ", "))]\n"
     out +=
       "internal let storedEventChannels = [\(storedEventChannels.map(literal).joined(separator: ", "))]\n"
-    out += "internal let requiredModelMembers: [String: RequiredMembers] = [\n"
-    for (name, schema) in models.definitions.sorted(by: { $0.key < $1.key }) {
-      out += "  \(literal(name)): \(try requiredMembers(schema.object)),\n"
-    }
-    out += "]\ninternal let requiredPayloadMembers: [String: RequiredMembers] = [\n"
-    for (name, shape) in requiredShapes.sorted(by: { $0.key < $1.key }) {
-      out += "  \(literal(name)): \(shape),\n"
-    }
-    out += "]\n"
+    out += shapeTable(
+      "requiredSchemas", try schemaShapes.mapValues { try shapeLiteral($0) })
+    out += shapeTable("requiredPayloadShapes", payloadShapes)
     let refresh = try table("client/refresh.json")
     let queries = try required(refresh, "queries").array.map { try $0.object }
     let queryNames = try queries.map { try required($0, "name").text }
