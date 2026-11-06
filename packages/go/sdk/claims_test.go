@@ -128,6 +128,12 @@ func (w *workerWire) relay(channel bus.Channel, payload string) {
 	w.hub.Deliver(Frame{Channel: channel, Payload: json.RawMessage(payload)})
 }
 
+// refuse is a broadcast on channel the gateway relays to this worker, which
+// its transport refuses: its payload is no object.
+func (w *workerWire) refuse(channel bus.Channel) {
+	w.hub.DeliverRefusal(&FrameRefusal{Channel: channel, Member: "payload", Reason: bus.FrameRefusalReasonMalformed, Payload: json.RawMessage(`"job-8"`)})
+}
+
 // sent is the payload of every emit on channel so far, in order.
 func (w *workerWire) sent(channel bus.Channel) []string {
 	w.mu.Lock()
@@ -169,6 +175,9 @@ type claimWorld struct {
 	// askedOf is the failure the record answers a question about an
 	// annotation with, by the annotation's id.
 	askedOf map[string]string
+	// claimTurns, when a test makes it, holds each claim in flight until
+	// the test gives it a turn, or closes it.
+	claimTurns chan struct{}
 }
 
 func newClaimWorld(t *testing.T, timing Timing) *claimWorld {
@@ -197,6 +206,9 @@ func (w *claimWorld) offer(jobs ...string) {
 }
 
 func (w *claimWorld) answer(request bus.Channel, payload map[string]any) (string, bool, bool) {
+	if request == bus.JobClaim.Request().Channel() && w.claimTurns != nil {
+		<-w.claimTurns
+	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	switch request {
@@ -540,6 +552,71 @@ func TestAMatchingAnnouncementClaimsAndOneThatMatchesNoFilterDoesNot(t *testing.
 		t.Fatal("the matching announcement claimed nothing")
 	}
 	eventually(t, "the settle asks", func() bool { return claimsSent() == 3 })
+}
+
+// An announcement its transport refused was received all the same, and is
+// stamped; no filter can be compared with what cannot be read, so it wakes
+// an idle worker as a matching one would.
+func TestARefusedAnnouncementIsStampedAndClaimsForAnIdleWorker(t *testing.T) {
+	w := newClaimWorld(t, DefaultTiming())
+	claims := w.client.Job.Claim(filters(t, `[{"jobType": "mark", "params": {"motivation": "tagging"}}]`))
+	defer claims.Close()
+	claimsSent := func() int { return len(w.wire.sent(bus.JobClaim.Request().Channel())) }
+	came := pulling(t, claims).asking()
+	eventually(t, "the first claim, answered with nothing pending", func() bool { return claimsSent() == 1 })
+	if stamped := claims.Vitals().LastQueuedEventAt; !stamped.IsZero() {
+		t.Fatalf("stamped %v before any announcement", stamped)
+	}
+	w.offer(running("job-1", "mark", "", `"motivation": "tagging"`))
+	w.wire.refuse(bus.JobQueued.Channel())
+	one := cameWithin(t, came)
+	if !one.ok || one.err != nil {
+		t.Fatalf("the refused announcement claimed nothing: ended %v, refused %v", !one.ok, one.err)
+	}
+	if claims.Vitals().LastQueuedEventAt.IsZero() {
+		t.Error("the refused announcement was not stamped")
+	}
+	finish(t, one.job)
+}
+
+// A refused announcement that arrives while a claim is in flight is owed
+// exactly one more claim, and one that arrives while a job is held is
+// ignored: the settle claims.
+func TestARefusedAnnouncementClaimsOnceMoreAfterAClaimInFlightAndNotWhileAJobIsHeld(t *testing.T) {
+	w := newClaimWorld(t, DefaultTiming())
+	turns := make(chan struct{})
+	w.claimTurns = turns
+	claims := w.client.Job.Claim(filters(t, everything))
+	defer claims.Close()
+	// Before the claims close: what is in flight is answered.
+	defer close(turns)
+	claimsSent := func() int { return len(w.wire.sent(bus.JobClaim.Request().Channel())) }
+	came := pulling(t, claims).asking()
+	eventually(t, "the first claim", func() bool { return claimsSent() == 1 })
+	w.wire.refuse(bus.JobQueued.Channel())
+	settledFor()
+	if claimsSent() != 1 {
+		t.Fatalf("%d claims while one was in flight", claimsSent())
+	}
+	turns <- struct{}{}
+	eventually(t, "the claim the refused announcement is owed", func() bool { return claimsSent() == 2 })
+	turns <- struct{}{}
+	settledFor()
+	if claimsSent() != 2 {
+		t.Fatalf("%d claims, and one more was owed", claimsSent())
+	}
+	w.offer(running("job-1", "mark", "", ""))
+	w.wire.refuse(bus.JobQueued.Channel())
+	eventually(t, "the claim of an idle worker", func() bool { return claimsSent() == 3 })
+	turns <- struct{}{}
+	if one := cameWithin(t, came); !one.ok || one.err != nil {
+		t.Fatalf("a job was not handed out: ended %v, refused %v", !one.ok, one.err)
+	}
+	w.wire.refuse(bus.JobQueued.Channel())
+	settledFor()
+	if claimsSent() != 3 {
+		t.Fatalf("%d claims while holding a job", claimsSent())
+	}
 }
 
 func TestClaimsWhenTheStreamOpensAndWhenItOpensAgain(t *testing.T) {

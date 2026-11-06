@@ -42,9 +42,10 @@ type Frame struct {
 	Trace TraceContext
 }
 
-// FrameRefusal is what a transport delivers to a channel's readers in place
-// of a frame it refuses: one BusFrame does not allow, whose channel and
-// scope name its readers. It is refused for its first fault.
+// FrameRefusal is what a channel's readers are given in place of a frame
+// refused for its first fault: by its transport, as one BusFrame does not
+// allow whose channel and scope name its readers, or by its channel's typed
+// reader, as one whose payload is not its channel's.
 type FrameRefusal struct {
 	// Channel is the channel the frame names.
 	Channel bus.Channel
@@ -56,9 +57,11 @@ type FrameRefusal struct {
 	Reason bus.FrameRefusalReason
 	// Payload is the frame's payload as it came; nil when it carried none.
 	Payload json.RawMessage
-	// Scope is the resource whose scope the frame names; the zero ResourceId
-	// for a frame on no scope.
-	Scope api.ResourceId
+	// Envelope is the scope the frame names, and its correlation id when it
+	// carries one BusFrame allows: empty when its correlation id cannot be
+	// read. A request awaiting the reply that correlation id names is told
+	// of the refusal (ReplyRouter.RouteRefusal).
+	Envelope
 }
 
 // Error is what every SDK says of a frame its channel's reader is given a
@@ -75,11 +78,11 @@ type arrival struct {
 }
 
 // told is the arrival as a sequence of frames gives it: the frame and no
-// error, or the channel and scope the refused frame names, with its refusal
-// as the error.
+// error, or the channel and envelope the refused frame names, with its
+// refusal as the error.
 func (a arrival) told() (Frame, error) {
 	if a.refusal != nil {
-		return Frame{Channel: a.refusal.Channel, Envelope: Envelope{Scope: a.refusal.Scope}}, a.refusal
+		return Frame{Channel: a.refusal.Channel, Envelope: a.refusal.Envelope}, a.refusal
 	}
 	return a.frame, nil
 }

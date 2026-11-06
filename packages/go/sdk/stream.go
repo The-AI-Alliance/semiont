@@ -446,7 +446,7 @@ func refusalOf(data string, fault required.Fault) (*FrameRefusal, bool) {
 	if !ok {
 		return nil, false
 	}
-	return &FrameRefusal{Channel: readers.Channel, Member: fault.Member, Reason: fault.Reason, Payload: members["payload"], Scope: readers.Scope}, true
+	return &FrameRefusal{Channel: readers.Channel, Member: fault.Member, Reason: fault.Reason, Payload: members["payload"], Envelope: Envelope{Scope: readers.Scope}}, true
 }
 
 func (s *stream) frame(conn uint64, id string, hasID bool, data string) {

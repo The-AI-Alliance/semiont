@@ -42,9 +42,9 @@ import (
 )
 
 // JobEvent is what a followed job reports, and how it ends: a JobCreated
-// first, then JobProgressed and JobAttemptFailed as they come, and a
-// JobCompleted last. As JSON it is {"kind": "progress", "data": …}, the same
-// event in every SDK.
+// first, then JobProgressed, JobAttemptFailed and JobRefused as they come,
+// and a JobCompleted last. As JSON it is {"kind": "progress", "data": …}, the
+// same event in every SDK.
 type JobEvent interface {
 	jobEvent()
 }
@@ -66,6 +66,20 @@ type JobAttemptFailed struct {
 	Data api.JobFailCommand
 }
 
+// JobRefused is a frame of a job's progress, completion or failure that the
+// follower's reading refused: its transport refused the frame, or its
+// payload is not its channel's. It names the frame's channel, and the member
+// and reason of its fault. It names no job, so it may be this job's or
+// another's, and it is no word of the job: the job goes on being followed,
+// and its silence goes on being counted.
+type JobRefused struct {
+	Data struct {
+		Channel bus.Channel            `json:"channel"`
+		Member  string                 `json:"member"`
+		Reason  bus.FrameRefusalReason `json:"reason"`
+	}
+}
+
 // JobCompleted is the job's completion, as its verb's jobs give it. A
 // follower's last event.
 type JobCompleted[C any] struct {
@@ -75,6 +89,7 @@ type JobCompleted[C any] struct {
 func (JobCreated) jobEvent()       {}
 func (JobProgressed) jobEvent()    {}
 func (JobAttemptFailed) jobEvent() {}
+func (JobRefused) jobEvent()       {}
 func (JobCompleted[C]) jobEvent()  {}
 
 // kinded is a JobEvent as JSON: its kind, and what it carries.
@@ -88,6 +103,7 @@ func kinded(kind string, data any) ([]byte, error) {
 func (e JobCreated) MarshalJSON() ([]byte, error)       { return kinded("created", e.Data) }
 func (e JobProgressed) MarshalJSON() ([]byte, error)    { return kinded("progress", e.Data) }
 func (e JobAttemptFailed) MarshalJSON() ([]byte, error) { return kinded("failed", e.Data) }
+func (e JobRefused) MarshalJSON() ([]byte, error)       { return kinded("refused", e.Data) }
 func (e JobCompleted[C]) MarshalJSON() ([]byte, error)  { return kinded("complete", e.Data) }
 
 // Delegation is a job another party does (Mark.Delegate, Yield.Delegate),

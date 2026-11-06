@@ -167,7 +167,7 @@ type Delivered[P any] struct {
 func delivered[P any](frame Frame) (Delivered[P], error) {
 	read, fault, faulty := payloadAs[P](frame)
 	if faulty {
-		refused := FrameRefusal{Channel: frame.Channel, Member: fault.Within("payload").Member, Reason: fault.Reason, Payload: frame.Payload, Scope: frame.Scope}
+		refused := FrameRefusal{Channel: frame.Channel, Member: fault.Within("payload").Member, Reason: fault.Reason, Payload: frame.Payload, Envelope: Envelope{Scope: frame.Scope}}
 		return Delivered[P]{}, transportErrorWithoutResponse(refused.Error(), TransportErrorCodeError)
 	}
 	return read, nil
