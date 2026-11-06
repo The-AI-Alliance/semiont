@@ -301,7 +301,7 @@ The table of what each event does to which cache is `protocol/specs/src/client/r
 // SemiontBrowser, when a session activates (packages/typescript/sdk/src/session/semiont-browser.ts)
 const signals = createSessionSignals(); // handed to the session factory, then published as activeSignals$
 session.errors$.subscribe((err) => {
-  if (err.code === 'unauthorized') void session.refresh();
+  if (err.code === 'unauthorized') void session.refresh(session.token$.getValue());
   else if (err.code === 'forbidden') signals.notifyPermissionDenied(err.message);
 });
 ```
