@@ -907,9 +907,10 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // re-run the request and then hand back the same unexamined response.
       //
       // Each attempt is bounded, its reading too: an unresponsive gateway
-      // must not hang the caller's loop forever. The caller's own deadline
-      // (`signal`) bounds them all: when it falls due the attempt in flight is
-      // cancelled, the wait for the next is cut short, and none is made after.
+      // must not hang the caller's loop forever. The caller's `signal` (a
+      // request's deadline, or its abandonment) bounds them all: when it
+      // aborts the attempt in flight is cancelled, the wait for the next is
+      // cut short, and none is made after.
       const send = (token: string): Promise<number | undefined> => retryWithBackoff(() => withinDeadline(EMIT_TIMEOUT_MS, async (attemptDue) => {
         // `fetch()` rejects only when no answer came: on a network error with
         // a `TypeError` in the runtime's own words (the Fetch standard), on the

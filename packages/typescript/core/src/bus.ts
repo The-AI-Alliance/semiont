@@ -45,8 +45,8 @@ export interface BusPrimitive {
    * Matches `ITransport.emit`'s return: the subscriber count, absent when
    * there is none. A request ignores it — the reply channel is its ack — but
    * the primitive must stay assignable from every ITransport. A request gives
-   * its emit its deadline as `signal`, and the emit is given up when it falls
-   * due.
+   * its emit a `signal` that aborts when its deadline falls due or its caller
+   * abandons it, and the emit is given up then.
    */
   emit<K extends keyof EventMap>(
     channel: K,
@@ -342,7 +342,8 @@ export class Bus {
    *
    * `signal` lets the caller ABANDON the request. Abandoned, it rejects with
    * the signal's reason, as an abortable API does, and that is all it does:
-   * what was already sent stays sent, the reply stops being tracked, and a
+   * what was already sent stays sent, an emit still in flight is given up as
+   * it is when the deadline falls due, the reply stops being tracked, and a
    * reply that arrives later is reported to nobody. Abandoned before the
    * stream that carries its reply opened, it sends nothing. The rejection
    * carries no `BusRequestErrorCode`: it states the caller's own act, not a
@@ -437,8 +438,9 @@ export class Bus {
     );
 
     // The request's one deadline, from the call: a timer global, which a
-    // test's fake timers move. It rejects the reply, and gives up the emit if
-    // the emit is still in flight when it falls due.
+    // test's fake timers move. It ends the request, as its caller's
+    // abandonment does: either rejects the reply, and gives up the emit if
+    // the emit is still in flight.
     const due = new AbortController();
     const dueAt = setTimeout(() => {
       due.abort(
@@ -524,8 +526,10 @@ export class Bus {
       emitAllowed = outcome === 'open';
     }
 
-    // An emit rejection (e.g. /bus/emit 4xx) propagates to the caller; an
-    // emit given up because the deadline fell due rejects `bus.timeout`.
+    // An emit rejection (e.g. /bus/emit 4xx) propagates to the caller. An
+    // emit given up because the request ended rejects as the request ended:
+    // `bus.timeout` when the deadline fell due, the caller's reason when it
+    // abandoned the request.
     //
     // Reply tracking, the client side of correlated-reply retention: register
     // the cid BEFORE the emit — a reconnect body built while the emit is in
@@ -540,11 +544,11 @@ export class Bus {
       try {
         // The key goes on the ENVELOPE. A responder reads it from there and
         // echoes it back on one; no channel's domain type ever carries it.
-        await bus.emit(operation as keyof EventMap, payload as EventMap[keyof EventMap], { correlationId }, due.signal);
+        await bus.emit(operation as keyof EventMap, payload as EventMap[keyof EventMap], { correlationId }, ended);
       } catch (emitError) {
         releaseTracking?.();
         releaseTracking = undefined;
-        if (due.signal.aborted) throw due.signal.reason;
+        if (ended.aborted) throw ended.reason;
         throw emitError;
       }
     }
