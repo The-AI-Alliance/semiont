@@ -25,6 +25,8 @@ function invoke(channel: string, ...args: unknown[]): Promise<unknown> {
  *  the refresh token), one refuses the way Keycloak refuses a dead refresh token. */
 let issuer: Server;
 let issuerUrl = '';
+/** The path of every request the issuer has been sent. */
+const asked: (string | undefined)[] = [];
 
 function storeSession(kbId: string, tokenEndpoint: string): void {
   setStoredSession(new FileSessionStorage(sessionPath(kbId)), kbId, {
@@ -35,10 +37,17 @@ function storeSession(kbId: string, tokenEndpoint: string): void {
   });
 }
 
+/** An access token an hour from its expiry. Only its expiry is read. */
+function unexpiredAccess(): string {
+  const part = (value: object): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  return `${part({ alg: 'none', typ: 'JWT' })}.${part({ exp: Math.floor(Date.now() / 1000) + 3600 })}.signature`;
+}
+
 beforeAll(async () => {
   process.env['XDG_CONFIG_HOME'] = mkdtempSync(join(tmpdir(), 'chat-auth-'));
   registerAuthHandlers();
   issuer = createServer((request, response) => {
+    asked.push(request.url);
     if (request.url === '/renews') {
       response
         .writeHead(200, { 'content-type': 'application/json' })
@@ -68,6 +77,18 @@ describe('auth:resume — what a stored session is found to be', () => {
     storeSession('renews:4000', `${issuerUrl}/renews`);
     expect(await invoke('auth:resume', 'renews:4000')).toEqual({ value: { kind: 'resumed', access: 'renewed-access' } });
     expect(readFileSync(sessionPath('renews:4000'), 'utf8')).toContain('rotated-refresh');
+  });
+
+  it('kept and unexpired, this process holding none: the kept access token, and the issuer not asked', async () => {
+    const kept = unexpiredAccess();
+    setStoredSession(new FileSessionStorage(sessionPath('current:4000')), 'current:4000', {
+      access: kept,
+      refresh: 'stored-refresh',
+      clientId: 'semiont-browser',
+      tokenEndpoint: `${issuerUrl}/current`,
+    });
+    expect(await invoke('auth:resume', 'current:4000')).toEqual({ value: { kind: 'resumed', access: kept } });
+    expect(asked).not.toContain('/current');
   });
 
   it('refused by the issuer: the person signs in again, told the issuer’s own answer', async () => {
