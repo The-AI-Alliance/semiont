@@ -11,6 +11,7 @@ use axum::body::Body;
 use axum::extract::State;
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::Response;
+use futures::StreamExt;
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
 use semiont::bus_log::bus_log;
@@ -34,7 +35,10 @@ pub async fn upload(
     headers: HeaderMap,
     body: Body,
 ) -> Result<Response, ApiError> {
-    let key = idempotency_key(&headers, &crate::limits::limits().upload_key_length)?;
+    let key = match idempotency_key(&headers, &crate::limits::limits().upload_key_length) {
+        Ok(key) => key,
+        Err(refusal) => return Err(once_sent(body, refusal).await),
+    };
     let content_type = headers
         .get(header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
@@ -62,6 +66,15 @@ pub async fn upload(
         StatusCode::ACCEPTED,
         &CreateResourceResponse { resource_id },
     ))
+}
+
+/// `refusal`, answered once the whole upload has arrived. A client still
+/// sending its file when the answer closes the connection is reset, and
+/// reads no answer. Nothing of the body is kept.
+async fn once_sent(body: Body, refusal: ApiError) -> ApiError {
+    let mut data = body.into_data_stream();
+    while let Some(Ok(_)) = data.next().await {}
+    refusal
 }
 
 async fn bytes_of(
