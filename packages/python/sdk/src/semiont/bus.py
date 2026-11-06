@@ -81,7 +81,11 @@ async def request(
     *,
     timeout_ms: int = BUS_REQUEST_TIMEOUT_MS,
 ) -> Mapping[str, JsonValue]:
-    """Send `payload` as the request of `operation`, and wait up to `timeout_ms` for its reply.
+    """Send `payload` as the request of `operation`, and wait for its reply, all within `timeout_ms` of the call.
+
+    The deadline covers the wait for the stream to open, the emit with its
+    retries and the waits between them, and the wait for the reply; when it
+    falls due, what is still in flight is given up.
 
     Returns the payload of the reply on the operation's result channel.
     Raises `BusRequestError` when it is answered with a failure, when no
@@ -103,36 +107,31 @@ async def _result_of(transport: Transport, operation: AnyOperation, payload: Map
                 "Add this operation's reply channels to the transport's channels.",
             )
 
+    # One deadline, taken at the call, over the whole request: the wait for
+    # the stream, the emit with its retries and the waits between them, and
+    # the wait for the reply. What is in flight when it falls due is given up.
     deadline = asyncio.get_running_loop().time() + timeout_ms / 1000
-
-    def timed_out() -> BusRequestError:
-        return BusRequestError("bus.timeout", f"Bus request timed out after {timeout_ms}ms on {result}")
-
-    # No request before its reply can arrive: wait, inside the request's own
-    # deadline, for the stream to be open. Only `open` delivers. A closed bus
-    # fails at once, and does not spend the deadline.
     try:
         async with asyncio.timeout_at(deadline):
-            state = await reached(transport.state, _settled)
-    except TimeoutError:
-        raise timed_out() from None
-    except NeverReached:
-        # A state that will change no more, and is not open, will not deliver.
-        state = "closed"
-    if state != "open":
-        raise BusRequestError("bus.closed", f"Bus closed before emit on {asked}")
+            # No request before its reply can arrive: wait for the stream to
+            # be open. Only `open` delivers. A closed bus fails at once, and
+            # does not spend the deadline.
+            try:
+                state = await reached(transport.state, _settled)
+            except NeverReached:
+                # A state that will change no more, and is not open, will not deliver.
+                state = "closed"
+            if state != "open":
+                raise BusRequestError("bus.closed", f"Bus closed before emit on {asked}")
 
-    # Tracked before the emit, so a stream opened while the emit is in flight
-    # already names the reply. The emit is not cut short by the deadline: a
-    # request half sent is one nobody can account for.
-    correlation_id = str(uuid.uuid4())
-    with transport.track_reply(correlation_id, (result, failure)) as pending:
-        await transport.emit(asked, payload, correlation_id=correlation_id)
-        try:
-            async with asyncio.timeout_at(deadline):
+            # Tracked before the emit, so a stream opened while the emit is in
+            # flight already names the reply.
+            correlation_id = str(uuid.uuid4())
+            with transport.track_reply(correlation_id, (result, failure)) as pending:
+                await transport.emit(asked, payload, correlation_id=correlation_id)
                 reply = await pending.frame()
-        except TimeoutError:
-            raise timed_out() from None
+    except TimeoutError:
+        raise BusRequestError("bus.timeout", f"Bus request timed out after {timeout_ms}ms on {result}") from None
 
     if reply is None:
         raise BusRequestError("bus.closed", f"Bus closed before a reply on {result}")
@@ -335,7 +334,7 @@ class Bus:
     async def request[Q: WireModel, R: WireModel, F: WireModel](
         self, operation: Operation[Q, R, F], payload: Q, *, timeout_ms: int = BUS_REQUEST_TIMEOUT_MS
     ) -> R:
-        """Send `payload` as the request of `operation`, and wait up to `timeout_ms` for its result.
+        """Send `payload` as the request of `operation`, and wait for its result, all within `timeout_ms` of the call.
 
         Raises as `request` does, and `TransportError` when the result that
         came is not the operation's.
