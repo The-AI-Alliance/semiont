@@ -189,7 +189,7 @@ func TestScriptedSessionsAnswerWhatEachKnowledgeBaseWasToldToAndRefuseTheRestByN
 				return json.RawMessage(`{"name":"A","domain":"a.example"}`), nil
 			}
 			return nil, fmt.Errorf("%s does not answer %s", kbID, operation)
-		})
+		}, nil)
 		a := newAsked()
 		ofA, ofB := built(t, sessions, a.of("kb-a")), built(t, sessions, a.of("kb-b"))
 
@@ -205,7 +205,7 @@ func TestScriptedSessionsAnswerWhatEachKnowledgeBaseWasToldToAndRefuseTheRestByN
 		}
 
 		// One built with nothing to answer refuses everything, naming both.
-		silent := semionttest.NewScriptedSessions(nil)
+		silent := semionttest.NewScriptedSessions(nil, nil)
 		ofC := built(t, silent, a.of("kb-c"))
 		if _, err := ofC.Client().Browse.Kb(context.Background()); err == nil || !strings.Contains(message(err), `No response scripted for "browse:kb-requested" of knowledge base "kb-c"`) {
 			t.Errorf("C: %v", err)
@@ -226,7 +226,7 @@ func TestScriptedSessionsAnswerWhatEachKnowledgeBaseWasToldToAndRefuseTheRestByN
 
 func TestScriptedSessionsSayWhoATokenIsOnlyWhenToldAndAfterAsLongAsTold(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		sessions := semionttest.NewScriptedSessions(nil)
+		sessions := semionttest.NewScriptedSessions(nil, nil)
 		a := newAsked()
 		a.signedIn(t, "kb-a")
 
@@ -254,7 +254,7 @@ func TestScriptedSessionsSayWhoATokenIsOnlyWhenToldAndAfterAsLongAsTold(t *testi
 
 func TestScriptedSessionsRenewAsToldInOrderAndRefuseARenewalNobodyScripted(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		sessions := semionttest.NewScriptedSessions(nil)
+		sessions := semionttest.NewScriptedSessions(nil, nil)
 		sessions.SaysWho(alice())
 		a := newAsked()
 		a.signedIn(t, "kb-a")
@@ -306,7 +306,7 @@ func TestScriptedSessionsRenewalsFailWithTheSignInErrorTheyWereGiven(t *testing.
 	} {
 		t.Run(row.why, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				sessions := semionttest.NewScriptedSessions(nil)
+				sessions := semionttest.NewScriptedSessions(nil, nil)
 				sessions.SaysWho(alice())
 				a := newAsked()
 				a.signedIn(t, "kb-a")
@@ -330,7 +330,7 @@ func TestScriptedSessionsRenewalsFailWithTheSignInErrorTheyWereGiven(t *testing.
 
 func TestScriptedSessionsCanRefuseToBuildAndKeepWhatWasRevoked(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		sessions := semionttest.NewScriptedSessions(nil)
+		sessions := semionttest.NewScriptedSessions(nil, nil)
 		a := newAsked()
 
 		sessions.RefuseToBuild("this knowledge base cannot be reached")

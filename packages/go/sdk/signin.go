@@ -15,6 +15,7 @@ package semiont
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"net/http"
 	"sync"
 
@@ -55,9 +56,9 @@ func (r *renewing) renew(ctx context.Context, once func(context.Context) (string
 // asking is a way to ask the gateway at baseURL who a token is: one request,
 // by a transport that opens no stream and renews nothing, so a refusal is the
 // answer.
-func asking(baseURL string, client *http.Client, timing Timing) func(context.Context, string) (api.UserResponse, error) {
+func asking(baseURL string, client *http.Client, timing Timing, random *rand.Rand) func(context.Context, string) (api.UserResponse, error) {
 	return func(ctx context.Context, token string) (api.UserResponse, error) {
-		asker := NewHTTPTransport(HTTPTransportConfig{BaseURL: baseURL, Token: NewVariable(token), HTTP: client, Timing: timing})
+		asker := NewHTTPTransport(HTTPTransportConfig{BaseURL: baseURL, Token: NewVariable(token), HTTP: client, Timing: timing, Random: random})
 		defer asker.Close()
 		return asker.GetCurrentUser(ctx)
 	}
@@ -80,6 +81,9 @@ type ResumeConfig struct {
 	// over.
 	HTTP   *http.Client
 	Timing Timing
+	// Random is what the jitter of the session's renewals tried again is
+	// drawn from, as EqualJitter draws it.
+	Random *rand.Rand
 	// AskWhoTokenIs is whether the gateway is asked who the token is, at the
 	// start and after each renewal a refusal asked for.
 	AskWhoTokenIs bool
@@ -98,7 +102,7 @@ func ResumeSession(ctx context.Context, config ResumeConfig) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	issuer := Issuer{HTTP: config.HTTP, Timing: config.Timing}
+	issuer := Issuer{HTTP: config.HTTP, Timing: config.Timing, Random: config.Random}
 	renewals := &renewing{}
 	session := SessionConfig{
 		Kb:     config.Kb,
@@ -113,9 +117,10 @@ func ResumeSession(ctx context.Context, config ResumeConfig) (*Session, error) {
 		OnAuthFailed: config.OnAuthFailed,
 		OnError:      config.OnError,
 		Timing:       config.Timing,
+		Random:       config.Random,
 	}
 	if config.AskWhoTokenIs {
-		session.Validate = asking(baseURL, config.HTTP, config.Timing)
+		session.Validate = asking(baseURL, config.HTTP, config.Timing, config.Random)
 	}
 	return StartSession(ctx, session)
 }
@@ -153,6 +158,9 @@ type SessionFromKeptConfig struct {
 	// over.
 	HTTP   *http.Client
 	Timing Timing
+	// Random is what the jitter of every backoff of the transport and the
+	// session is drawn from, as EqualJitter draws it.
+	Random *rand.Rand
 	// AskWhoTokenIs is whether the gateway is asked who the token is.
 	AskWhoTokenIs bool
 	// Channels is the global channels the transport's stream names
@@ -186,7 +194,7 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 	var persistence *CachePersistence
 	transportConfig := HTTPTransportConfig{
 		BaseURL: baseURL, Token: token, Refresher: renewer,
-		Channels: config.Channels, HTTP: config.HTTP, Timing: config.Timing,
+		Channels: config.Channels, HTTP: config.HTTP, Timing: config.Timing, Random: config.Random,
 	}
 	if config.Storage != nil {
 		// The stream's place rides the caches' writes, and only when every
@@ -202,7 +210,7 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 		places.SetFlushGate(client.PersistenceSettled)
 	}
 	session, err = ResumeSession(ctx, ResumeConfig{
-		Kb: config.Kb, Client: client, Kept: config.Kept, Token: token, HTTP: config.HTTP, Timing: config.Timing,
+		Kb: config.Kb, Client: client, Kept: config.Kept, Token: token, HTTP: config.HTTP, Timing: config.Timing, Random: config.Random,
 		AskWhoTokenIs: config.AskWhoTokenIs, OnAuthFailed: config.OnAuthFailed, OnError: config.OnError,
 	})
 	if err != nil {

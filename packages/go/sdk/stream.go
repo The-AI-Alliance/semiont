@@ -227,7 +227,7 @@ func (s *stream) scheduleRetry(after time.Duration, keepPrevious bool) {
 	}
 }
 
-// backoff is equal-jitter exponential backoff: a wait in [cap/2, cap], where
+// backoff is equal-jitter exponential backoff: a wait in [cap/2, cap), where
 // cap is the reconnect wait doubled per failure up to MaxReconnect.
 func (s *stream) backoff() time.Duration {
 	limit := s.shared.timing.MaxReconnect
@@ -239,7 +239,7 @@ func (s *stream) backoff() time.Duration {
 		wait *= 2
 	}
 	s.retryAttempt++
-	return EqualJitter(min(wait, limit))
+	return EqualJitter(min(wait, limit), s.shared.random)
 }
 
 func (s *stream) abort(conn uint64) {

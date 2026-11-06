@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand/v2"
 	"slices"
 	"sync"
 	"time"
@@ -49,6 +50,7 @@ type Renewal struct {
 // see the file's documentation.
 type ScriptedSessions struct {
 	answer Answer
+	random *rand.Rand
 
 	mu             sync.Mutex
 	refuse         Refusal
@@ -69,13 +71,14 @@ type builtFor struct {
 var _ registry.SessionFactory = (*ScriptedSessions)(nil)
 
 // NewScriptedSessions is sessions of knowledge bases whose gateways answer as
-// answer says. With none, every request is refused, naming its operation and
-// its knowledge base.
-func NewScriptedSessions(answer Answer) *ScriptedSessions {
+// answer says, the jitter of each session's renewals tried again drawn from
+// random as semiont.EqualJitter draws it. With no answer, every request is
+// refused, naming its operation and its knowledge base.
+func NewScriptedSessions(answer Answer, random *rand.Rand) *ScriptedSessions {
 	if answer == nil {
 		answer = refuseUnscripted
 	}
-	return &ScriptedSessions{answer: answer}
+	return &ScriptedSessions{answer: answer, random: random}
 }
 
 // refuseUnscripted is what answers a request of a knowledge base nothing was
@@ -215,6 +218,7 @@ func (s *ScriptedSessions) Session(ctx context.Context, options registry.Session
 		OnAuthFailed: options.Signals.NotifySessionEnded,
 		OnError:      options.OnError,
 		Timing:       semiont.DefaultTiming(),
+		Random:       s.random,
 	})
 	if err != nil {
 		client.Close()

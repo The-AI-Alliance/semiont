@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"strings"
@@ -35,6 +36,9 @@ const deviceGrant = "urn:ietf:params:oauth:grant-type:device_code"
 type Issuer struct {
 	HTTP   *http.Client
 	Timing Timing
+	// Random is what the jitter of a renewal tried again is drawn from, as
+	// EqualJitter draws it.
+	Random *rand.Rand
 }
 
 // IssuerEndpoints is an issuer, and the endpoints of it a client uses. Device
@@ -157,7 +161,7 @@ func (i Issuer) do(request *http.Request) (int, issuerAnswer, error) {
 func (i Issuer) Discover(ctx context.Context, baseURL string) (IssuerEndpoints, error) {
 	// Its resource metadata is public: asked with no token, by a transport
 	// that opens no stream without one.
-	asking := NewHTTPTransport(HTTPTransportConfig{BaseURL: baseURL, Token: NewVariable(""), HTTP: i.HTTP, Timing: i.Timing})
+	asking := NewHTTPTransport(HTTPTransportConfig{BaseURL: baseURL, Token: NewVariable(""), HTTP: i.HTTP, Timing: i.Timing, Random: i.Random})
 	metadata, err := asking.GetProtectedResourceMetadata(ctx)
 	asking.Close()
 	if err != nil {
@@ -248,7 +252,7 @@ func (i Issuer) RenewKept(ctx context.Context, kept SignInKept, holding string) 
 		return held.Access, nil
 	}
 	attempts := 0
-	tokens, err := RetryWithBackoff(ctx, i.Timing.RefreshRetry,
+	tokens, err := RetryWithBackoff(ctx, i.Timing.RefreshRetry, i.Random,
 		func(ctx context.Context) (IssuedTokens, error) {
 			attempts++
 			return i.Refresh(ctx, held.TokenEndpoint, held.ClientID, held.Refresh)
