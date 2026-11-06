@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"math/rand/v2"
 	"sync"
 	"time"
 
@@ -134,6 +135,9 @@ type SessionConfig struct {
 	// OnError is told each failure that makes the session unusable. May be nil.
 	OnError func(*SessionError)
 	Timing  Timing
+	// Random is what the jitter of a renewal tried again after it got no
+	// answer is drawn from, as EqualJitter draws it.
+	Random *rand.Rand
 }
 
 // Session is a session with a knowledge base. It is a TokenRefresher: a
@@ -379,7 +383,7 @@ func (s *Session) renewWhenUnanswered() {
 		}
 		step := s.config.Timing.Reconnect
 		for s.unanswered.Value() {
-			timer := time.NewTimer(EqualJitter(step))
+			timer := time.NewTimer(EqualJitter(step, s.config.Random))
 			select {
 			case <-s.alive.Done():
 				timer.Stop()

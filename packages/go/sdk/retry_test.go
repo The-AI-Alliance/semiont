@@ -131,7 +131,7 @@ func TestARetryAfterHeaderStatesTheWaitTheTableGives(t *testing.T) {
 
 func TestJitterStaysBetweenHalfTheCapAndTheCap(t *testing.T) {
 	for range 1000 {
-		if wait := semiont.EqualJitter(time.Second); wait < 500*time.Millisecond || wait > time.Second {
+		if wait := semiont.EqualJitter(time.Second, nil); wait < 500*time.Millisecond || wait > time.Second {
 			t.Fatalf("a jittered wait of %v, for a cap of 1s", wait)
 		}
 	}

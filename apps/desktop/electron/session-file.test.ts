@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { setStoredSession } from '@semiont/sdk';
+import { getStoredSession, setStoredSession } from '@semiont/sdk';
 import { FileSessionStorage } from './session-file';
 
 const freshPath = () => join(mkdtempSync(join(tmpdir(), 'chat-sessions-')), 'nested', 'kb.json');
@@ -28,23 +28,26 @@ describe('FileSessionStorage', () => {
     storage.set('a', 'one');
     storage.set('b', 'two');
     storage.delete('a');
-    expect(new FileSessionStorage(path).values()).toEqual(['two']);
+    const reopened = new FileSessionStorage(path);
+    expect(reopened.get('a')).toBeNull();
+    expect(reopened.get('b')).toBe('two');
 
     storage.remove();
     expect(existsSync(path)).toBe(false);
-    expect(storage.values()).toEqual([]);
+    expect(storage.get('b')).toBeNull();
   });
 
-  it('holds a stored session as the SDK writes one', () => {
+  it('holds a stored session as the SDK writes one, for the SDK to read back', () => {
     const path = freshPath();
-    setStoredSession(new FileSessionStorage(path), 'localhost:4000', {
+    const session = {
       access: 'access-token',
       refresh: 'refresh-token',
       clientId: 'semiont-browser',
       tokenEndpoint: 'http://issuer.example/token',
-    });
-    const [stored] = new FileSessionStorage(path).values();
-    expect(JSON.parse(stored ?? '')).toEqual(expect.objectContaining({ refresh: 'refresh-token' }));
+      revocationEndpoint: 'http://issuer.example/revoke',
+    };
+    setStoredSession(new FileSessionStorage(path), 'localhost:4000', session);
+    expect(getStoredSession(new FileSessionStorage(path), 'localhost:4000')).toEqual(session);
   });
 
   it('refuses to open a file that is not one of its own', () => {

@@ -8,6 +8,7 @@ package semiont
 import (
 	"context"
 	"errors"
+	"math/rand/v2"
 	"net/http"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
@@ -21,10 +22,11 @@ type ConnectionIdentity struct {
 }
 
 // DescribeConnection asks the knowledge base at target what it is, with a
-// token just issued. The failure is an *IdentityUnverifiableError: the
+// token just issued, the jitter of its emit's retries drawn from random as
+// EqualJitter draws it. The failure is an *IdentityUnverifiableError: the
 // knowledge base was not reached, or it answered that it cannot say what it
 // is.
-func DescribeConnection(ctx context.Context, target api.HttpEndpoint, access string, client *http.Client, timing Timing) (ConnectionIdentity, error) {
+func DescribeConnection(ctx context.Context, target api.HttpEndpoint, access string, client *http.Client, timing Timing, random *rand.Rand) (ConnectionIdentity, error) {
 	baseURL, err := GatewayURL(target)
 	if err != nil {
 		return ConnectionIdentity{}, &IdentityUnverifiableError{Reason: IdentityUnverifiableReasonUnreachable, Detail: err.Error()}
@@ -36,6 +38,7 @@ func DescribeConnection(ctx context.Context, target api.HttpEndpoint, access str
 		Channels: bus.ReplyChannelsFor(bus.BrowseKbRequested.Request().Channel()),
 		HTTP:     client,
 		Timing:   timing,
+		Random:   random,
 	})
 	asking := NewClient(ClientConfig{Transport: transport, Content: NewHTTPContentTransport(transport), Gateway: transport, Timing: timing})
 	description, err := asking.Browse.Kb(ctx)

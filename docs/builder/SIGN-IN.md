@@ -9,7 +9,7 @@ Sign-in happens at the knowledge base's identity provider, never at the gateway,
 | Who is signing in | The way | TypeScript | Python | Rust | Go | Kotlin | .NET | Swift |
 |---|---|---|---|---|---|---|---|---|
 | A person, at a script | [The device grant](#the-device-grant): the script shows an address, the person approves in any browser | `SemiontSession.signInDevice` | `sign_in_device` | `sign_in_device` | `SignInWithDevice` | `signInDevice` | `Issuer.SignInDeviceAsync`, then `KeptSession` | `signInDevice`, then `sessionFromKept` |
-| A person who has run `semiont login` | [The sign-in the launcher keeps](#the-sign-in-semiont-login-keeps): nothing to approve | none | `session_from_kept` | `SignInStore` | `SessionFromKept` | `sessionFromKept` | `SignInStore.Entry` and `KeptSession` | `SignInStore` and `sessionFromKept` |
+| A person who has run `semiont login` | [The sign-in the launcher keeps](#the-sign-in-semiont-login-keeps): nothing to approve | `SignInStore` and `SemiontSession.fromStoredSession` | `session_from_kept` | `SignInStore` | `SessionFromKept` | `sessionFromKept` | `SignInStore.Entry` and `KeptSession` | `SignInStore` and `sessionFromKept` |
 | A service or a worker | [A service account](#a-service-or-a-worker): the program signs in as its own account, an agent | `startAgentSession` | `AgentToken` | `AgentToken::sign_in` | `SignInAgent` | `AgentToken` | `ServiceToken` and `AgentToken.SignInAsync` | `ServiceToken` and `AgentToken` |
 | A person, in an application | [A page redirect](#an-application) to the identity provider and back | `SemiontBrowser.beginSignIn`, `completeSignIn` | `begin_sign_in`, `complete_sign_in` | `begin_sign_in`, `complete_sign_in` | `BeginSignIn`, `CompleteSignIn` | `beginSignIn`, `completeSignIn` | `BrowserSignIn.BeginSignInAsync` and `CompleteSignInAsync` | `SemiontBrowser.beginSignIn` and `completeSignIn` |
 | A program that already holds tokens | [The tokens themselves](#tokens-you-already-hold) | `SemiontSession.fromIssuedSession`, `SemiontSession.fromHttp` | its README | its README | its README | its README | `KeptSession` or `SemiontClient` | `SemiontClient.fromHttp` or `sessionFromKept` |
@@ -30,7 +30,7 @@ Every way makes its requests, of the gateway and of the identity provider, with 
 
 | SDK | What it takes | Where | Given none |
 |---|---|---|---|
-| TypeScript | a `fetch` | `fetch` in the options of `SemiontSession.signInDevice`, `fromIssuedSession` and `fromHttp`, `startAgentSession` and `SemiontBrowser`; the last argument of `createHttpSessionFactory` and of `ServiceToken` | the runtime's own |
+| TypeScript | a `fetch` | `fetch` in the options of `SemiontSession.signInDevice`, `fromIssuedSession`, `fromStoredSession` and `fromHttp`, `startAgentSession` and `SemiontBrowser`; the last argument of `createHttpSessionFactory` and of `ServiceToken` | the runtime's own |
 | Python | an `httpx.AsyncClient` | `http=` on `sign_in_device`, `session_from_kept`, `ServiceToken`, `AgentToken`, `begin_sign_in`, `complete_sign_in` and `HttpSessionFactory` | one of its own |
 | Rust | a `reqwest::Client` | `http` in `SignInDevice` and `StoredSignIn`, and the argument `http` of `ServiceToken::new`, `AgentToken::sign_in`, `begin_sign_in`, `complete_sign_in` and `HttpSessionFactory::new` | none: it is required |
 | Go | a `*http.Client` | `HTTP` in the `Issuer` that `SignInWithDevice`, `NewServiceToken`, `BeginSignIn` and `CompleteSignIn` take, and in `AgentConfig`, `SessionFromKeptConfig` and `registry.HttpSessionFactory` | none: it is required |
@@ -79,9 +79,9 @@ how to attach the session to a client.
 
 [`semiont login`](../../apps/launcher/README.md#login-and-upload) signs a person in to a running stack's knowledge base and keeps the sign-in, one for each stack, in the launcher's state directory. The [sign-in store](../../protocol/specs/src/sign-in-store/README.md) is the contract for that file: where it is on each system, what an entry holds, the lock every writer takes, and what a renewal keeps.
 
-A Go, Python, Rust, Kotlin or C# program builds its session over that entry, so a person who has run `semiont login` approves nothing more, and one sign-in serves the launcher and the program. Each reads the entry, renews it, and writes it back under the lock. A renewal another program made meanwhile stands, and a stack signed out meanwhile stays signed out.
+A program on any of the SDKs builds its session over that entry, so a person who has run `semiont login` approves nothing more, and one sign-in serves the launcher and the program. Each reads the entry, renews it, and writes it back under the lock. A renewal another program made meanwhile stands, and a stack signed out meanwhile stays signed out.
 
-The TypeScript SDK does not read the store: a TypeScript script signs in by the device grant.
+The TypeScript SDK reaches no file itself: a TypeScript program gives its `SignInStore` the files it reads, writes and locks (`SignInFiles`), and the store tells them which file and mode to use. The [TypeScript SDK guide](../../packages/typescript/sdk/README.md#the-sign-in-semiont-login-keeps) says what those files must do to share the store with the launcher.
 
 A program in a container sees the launcher's state directory only if it is mounted into the container.
 

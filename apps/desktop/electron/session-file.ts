@@ -57,11 +57,6 @@ export class FileSessionStorage implements SessionStorage {
     return null;
   }
 
-  /** Everything stored, without its keys. */
-  values(): string[] {
-    return [...this.entries.values()];
-  }
-
   /** Forget everything, and the file with it. */
   remove(): void {
     this.entries.clear();
