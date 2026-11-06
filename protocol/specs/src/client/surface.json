@@ -1258,21 +1258,20 @@
         ],
         "kotlin": [
           "packages/kotlin/sdk/src/main/kotlin/semiont/jobs"
-        ]
+        ],
+        "haskell": ["packages/haskell/sdk/src/Semiont/JobFilter.hs"]
       },
       "whole": [
         "rust",
-        "python"
+        "python",
+        "haskell"
       ],
       "members": [
         {
           "member": "jobMatchesFilter",
           "kind": "function"
         }
-      ],
-      "notYetReached": {
-        "haskell": "P5: implement Haskell worker claim filters and their membership predicate."
-      }
+      ]
     },
     {
       "module": "claims",
@@ -1296,8 +1295,10 @@
         ],
         "kotlin": [
           "packages/kotlin/sdk/src/main/kotlin/semiont/jobs"
-        ]
+        ],
+        "haskell": ["packages/haskell/sdk/src/Semiont/Claims.hs"]
       },
+      "whole": ["haskell"],
       "members": [
         {
           "member": "jobClaimChannels",
@@ -1311,10 +1312,7 @@
           "member": "willRetryAfter",
           "kind": "function"
         }
-      ],
-      "notYetReached": {
-        "haskell": "P5: expose Haskell claims and held jobs over the taking-side transport."
-      }
+      ]
     },
     {
       "module": "retry",
@@ -1354,8 +1352,7 @@
       "module": "hostName",
       "docs": "Whether a host is one a knowledge base's HTTP endpoint may name. Held by protocol/specs/src/session/gateway-url-cases.json.",
       "notYetReached": {
-        "csharp": "C# is still to implement the hostName module.",
-        "haskell": "P4: implement the Haskell identity and host helpers with sign-in support."
+        "csharp": "C# is still to implement the hostName module."
       },
       "where": {
         "typescript": [
@@ -1375,8 +1372,10 @@
         ],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Session/Identity.swift"
-        ]
+        ],
+        "haskell": ["packages/haskell/sdk/src/Semiont/HostName.hs"]
       },
+      "whole": ["haskell"],
       "members": [
         {
           "member": "isValidHostname",

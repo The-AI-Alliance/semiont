@@ -37,6 +37,8 @@ import Discovery (discoveryCases)
 import BusCases (busCases)
 import HttpCases (httpCases)
 import LifetimeCases (lifetimeCases)
+import WorkerCases (workerCases)
+import GatewayCases (gatewayCases)
 import qualified SchemaCases
 
 require :: String -> Bool -> IO ()
@@ -330,6 +332,10 @@ main = do
   channelCases root
   factCases root
   retryCases root
+  metadata <- either (ioError . userError) pure (sample 0 (Object (KM.singleton "$ref" (String "JobMetadata.json"))))
+    >>= either (ioError . userError) pure . parseEither parseJSON
+  workerCases root metadata
+  gatewayCases root
   kb <- either (ioError . userError) pure (sample 0 (Object (KM.singleton "$ref" (String "DiscoveredKB.json"))))
     >>= either (ioError . userError) pure . parseEither parseJSON
   document <- either (ioError . userError) pure (sample 0 (Object (KM.singleton "$ref" (String "DiscoveryDocument.json"))))

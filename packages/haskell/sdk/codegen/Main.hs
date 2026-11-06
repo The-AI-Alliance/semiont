@@ -23,6 +23,7 @@ import Numeric (showHex)
 import Facts (generateFacts)
 import HttpFacts (httpFacts)
 import TransportFacts (transportFacts)
+import WorkerFacts (workerFacts)
 import Semiont.Internal.Schema (Schemas, checkSchema, normalize)
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeFile)
 import System.Environment (getArgs)
@@ -296,6 +297,9 @@ schemaStamps schemas value = do
     Just _ -> Left "schema union is not an array"
   pure (Set.toAscList (Set.fromList (filter (T.isPrefixOf "_") (map Key.toText (KM.keys properties)) ++ nested)))
 
+member :: Text -> Text
+member = T.concat . map identifier . T.split (\character -> character == ':' || character == '-')
+
 busDescriptors :: Schemas -> Value -> Either String (Schemas, [(FilePath, Text)])
 busDescriptors original registry = do
   root <- fieldsOf registry
@@ -405,7 +409,6 @@ busDescriptors original registry = do
     arrayAt key fields = case KM.lookup key fields of Just (Array values) -> Right (toList values); _ -> Left ("missing bus array: " ++ show key)
     stringValue (String value) = Right value
     stringValue _ = Left "bus name is not a string"
-    member = T.concat . map identifier . T.split (\character -> character == ':' || character == '-')
 
 readJSON :: FilePath -> IO Value
 readJSON path = do
@@ -461,6 +464,7 @@ main = do
   forM_ ("ResourceUploadMetadata" : "TraceCarrier" : map fst httpSchemas) $ \name ->
     when (Map.member name schemas) (ioError (userError ("adapter schema name is owned by OpenAPI: " ++ T.unpack name)))
   facts <- generateFacts root
+  workerFiles <- workerFacts root member
   (busSchemas, busFiles) <- either (ioError . userError) pure (busDescriptors (Map.insert "TraceCarrier" carrier (Map.insert "ResourceUploadMetadata" metadata (Map.fromList httpSchemas <> schemas))) registry)
   (moduleNames, models) <- either (ioError . userError) pure (generate busSchemas (Set.fromList ids))
   template <- readUTF8 (output </> "semiont.cabal.in")
@@ -470,7 +474,7 @@ main = do
   version <- maybe (ioError (userError "root package.json has no version")) pure (textAt "version" package)
   license <- readUTF8 (root </> "LICENSE")
   let manifest = T.replace "@VERSION@" version $ T.replace "@MODEL_MODULES@" (T.intercalate "\n" (map ("    " <>) moduleNames)) template
-      generated = ("LICENSE", license) : ("semiont.cabal", manifest) : busFiles ++ models ++ facts ++ transportFiles ++ httpFiles
+      generated = ("LICENSE", license) : ("semiont.cabal", manifest) : busFiles ++ models ++ facts ++ transportFiles ++ httpFiles ++ workerFiles
       modelsDirectory = output </> "generated/Semiont/Internal/Generated/Models"
       expected = Set.fromList (map (output </>) (map fst generated))
   existsModels <- doesDirectoryExist modelsDirectory

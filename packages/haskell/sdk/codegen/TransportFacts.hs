@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module TransportFacts (transportFacts) where
+module TransportFacts (transportFacts, between) where
 
 import Control.Monad (forM, unless)
 import Data.Aeson (Value(..))
@@ -18,11 +18,11 @@ import System.FilePath ((</>))
 between :: Text -> Text -> Text -> Either String Text
 between start end source = do
   let (_, rest) = T.breakOn start source
-  unless (not (T.null rest)) (Left ("missing transport authority marker: " ++ T.unpack start))
+  unless (not (T.null rest)) (Left ("missing authority marker: " ++ T.unpack start))
   let (body, trailing) = T.breakOn end (T.drop (T.length start) rest)
-  unless (not (T.null trailing)) (Left "unterminated transport authority section")
+  unless (not (T.null trailing)) (Left "unterminated authority section")
   unless (T.count start body == 0 && T.count start (T.drop (T.length end) trailing) == 0)
-    (Left "ambiguous transport authority section")
+    (Left "ambiguous authority section")
   pure body
 
 constructor :: Text -> Text

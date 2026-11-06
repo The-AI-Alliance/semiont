@@ -7,8 +7,9 @@
     "cabal.project.freeze": "03bf4afef9abef0686589361407a3296f47d1690d0723f55d2730c5861b1bd14",
     "codegen/Facts.hs": "5e41344fe0e680146801034aa0d37754dcbcb6f84c09b4d0f20debc26e9baaaf",
     "codegen/HttpFacts.hs": "51b09ace5bf07d7e44e6b79a6d1fe6edd1855a2bb5721590bf942230d7fc5dff",
-    "codegen/Main.hs": "3b6b4a28a2b5e597ac56848627d03be34577ca780ba91b52ade6995216002672",
-    "codegen/TransportFacts.hs": "24cc4462834ce1ec6bc3a96ad22cccb5fe30f59a74c00b3dd5ac4b5f836555d0",
+    "codegen/Main.hs": "f4113a1ab25669012def189f3400b9fa373d8ea0275dffae454a32178ece3ac7",
+    "codegen/TransportFacts.hs": "9d801421300ae21ac723a2655dbbdf21eef3824ee62877b1e9f7d14ac113bca7",
+    "codegen/WorkerFacts.hs": "6b3acf8ef12063559c1fccc7180e129f85673d9845d078ab1f7373173266077c",
     "generated/Semiont/Internal/Generated/Models/Agent.hs": "9f16d6b0adbdad7edec31fcade8037bd4a591b1dee50a64dfe26e48317445abc",
     "generated/Semiont/Internal/Generated/Models/AgentOrganization.hs": "2735d00995d286d640c26b8bb699fd373f25718140ae51501756cb93657ee554",
     "generated/Semiont/Internal/Generated/Models/AgentPerson.hs": "b15baf27004b89b455f9c1784264e28726a0d750fe791a89a50d7f37b98984f2",
@@ -356,6 +357,7 @@
     "generated/Semiont/Internal/Generated/Models/YieldUpdateCommand.hs": "0f8b1ef716fd412f49aa61ef8cda7990ca29481fda32969533663b3bdd448092",
     "generated/Semiont/Internal/Generated/Models/YieldUpdateOk.hs": "743bae600dacc40eb1c9170b0ecc72cb0543a244756b99cc6fd2650f7d0fa3ce",
     "generated/Semiont/Internal/Generated/Schemas.hs": "98fa6298090fedd6970dde21678f102b43309f58792c94ed0b60291fb3ff7f51",
+    "generated/Semiont/Internal/Generated/WorkerChannels.hs": "c48c5494a2ce12d6840296216b086f1cdbd49adad82a8cd9f95d8b6b6f43626b",
     "internal/Semiont/Internal/Broadcast.hs": "81a79b90958a3dc3dc12bc14989e7ce337eb5ec6c34c3be0ebf5c375d80089d0",
     "internal/Semiont/Internal/Codec.hs": "fbc8af29dc06bc97706d979907ec37e53ae83273b7efb65283a33e81211c56fa",
     "internal/Semiont/Internal/Delivery.hs": "2fa0818ab8d07cde41a2650fedea8663592777cf9eb522e2c757859ab569dd84",
@@ -372,11 +374,12 @@
     "internal/Semiont/Internal/Telemetry.hs": "3e4116285bbb9ed281c0d0c8608f8267213bd68674bafb4acbd1f08a226fa7c0",
     "internal/Semiont/Internal/Transport.hs": "9eb3f38052bb3be66866a48c11313c3bfce50c6a04ad2463a631e1b42bddecd9",
     "public-api.inputs.json": "150c411495a0d0dc5cb417a4c7063103bc2fcce758c1ec5e88b955f223d6ebfe",
-    "semiont.cabal": "f04f50fb86e566254fce4af9b1d5f42a66eee2c9a7aa252e225cddfb752e268c",
-    "semiont.cabal.in": "33a83b85d6b791ae86a3b6f780824a1f48cf5e9322a2d21de1335d3a8985cdd2",
+    "semiont.cabal": "3a56075acbc1957e498ad8a0149be100380d24554d8f99ff5fb9505cb496e233",
+    "semiont.cabal.in": "59d27b66a063e700466400f0902a15da48e452615294a4f6cb9201e45fa735ae",
     "src/Semiont/Auth.hs": "1b82d21a297f0b724242094ddb763c0ebf70dffbb2c4d208468dc3c03b9b945d",
     "src/Semiont/Bus.hs": "e97a61618e659cdf6229e8895f7c7b57c60f600e2ca07fd3070b98c7d00c9c40",
     "src/Semiont/Channels.hs": "54992808f1254897811d1745b23343b353c5cbb0453bc18168c816c78953255d",
+    "src/Semiont/Claims.hs": "c56dd2175b12fd1fc44126e4298f93dcb2ba4b20894e33710434e5d74db3b95d",
     "src/Semiont/Client.hs": "ddbefcf00b338600942ace1b05cccca673960e7997c982caf4e38570cf63ece9",
     "src/Semiont/Content.hs": "95514c7d127c98be19baab81d6ff1604e46c3f24747964dcd2281595aa7f1ab4",
     "src/Semiont/Discovery.hs": "ebfc710854ff3d7c057fe1cc412768752f80da27b2d8213295cb8a1f1518265a",
@@ -385,9 +388,11 @@
     "src/Semiont/Errors.hs": "9cf57463e3c025e96fa610a9141ec6bf052d16353816d793f911be0427f16b0f",
     "src/Semiont/EventBus.hs": "561b85f3dbdee8f0fcb381d27d708aa6430fef4486bca7fbea75990ce1587a43",
     "src/Semiont/Frame.hs": "d0f6d3a82dce7a4864959d629e8f53e3341a648aa662830047f5ee2c42ee9fdb",
-    "src/Semiont/Gateway.hs": "0c46a8f39efec605b5bf07242a0a0935ec56abbf8787d71dd6a9984a92ccf5fd",
+    "src/Semiont/Gateway.hs": "5e890ffe0811f88d2a8b9dab01e32616d735326ee11ed2151a2d9454499a8c11",
+    "src/Semiont/HostName.hs": "2eb5a6a767564649e59677a5d578e429df7be46d5636bf01ff9a8820ebb2ef77",
     "src/Semiont/Http.hs": "b987e9f5a4cafc9e0add0ccea5358a84a202f550eda313650ca09be89f3e2571",
     "src/Semiont/Http/Routes.hs": "6e2af1ff1afd238a2226e0796bac2fc1e931b996436bfe2bbbf5ea066c78eb7c",
+    "src/Semiont/JobFilter.hs": "8c8309e1f86d20d211b1ec3020d27bda851e2b08f763e785a4d8e8fe2717dc13",
     "src/Semiont/Retry.hs": "c13b609b5f6e29bfea5156e592e4a652462be405b75ef6ad7fd64953022b9bf6",
     "src/Semiont/Running.hs": "168b8478bf820fa7eae3c74c4699b7af7e0baeb929c4b380e966f91e0dd76fe7",
     "src/Semiont/StateValue.hs": "6b95705ae944d67fec37611298a8732fa2caa60078b600dc6016f1ba8c5ca4f9",
@@ -733,6 +738,14 @@
         "scopedChannels": "[Data.Text.Internal.Text]"
       }
     },
+    "Semiont.Claims": {
+      "types": {},
+      "values": {
+        "jobClaimChannels": "[Data.Text.Internal.Text]",
+        "jobCommitChannels": "[Data.Text.Internal.Text]",
+        "willRetryAfter": "Semiont.Internal.Generated.Models.JobMetadata.JobMetadata -> Maybe Semiont.Internal.Generated.Models.FailureClass.FailureClass -> Bool"
+      }
+    },
     "Semiont.Client": {
       "types": {
         "Client": {
@@ -1024,11 +1037,18 @@
       },
       "values": {
         "GatewayOperations": "IO Semiont.Internal.Generated.Models.UserResponse.UserResponse -> (Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Internal.Generated.Models.MediaTokenResponse.MediaTokenResponse) -> IO Semiont.Internal.Generated.Models.ProtectedResourceMetadata.ProtectedResourceMetadata -> IO Semiont.Internal.Generated.Models.HealthResponse.HealthResponse -> IO Semiont.Internal.Generated.Models.StatusResponse.StatusResponse -> Semiont.Gateway.GatewayOperations",
+        "gatewayUrl": "Semiont.Internal.Generated.Models.HttpEndpoint.HttpEndpoint -> Either Data.Text.Internal.Text Data.Text.Internal.Text",
         "getCurrentUser": "Semiont.Gateway.GatewayOperations -> IO Semiont.Internal.Generated.Models.UserResponse.UserResponse",
         "getMediaToken": "Semiont.Gateway.GatewayOperations -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Internal.Generated.Models.MediaTokenResponse.MediaTokenResponse",
         "getProtectedResourceMetadata": "Semiont.Gateway.GatewayOperations -> IO Semiont.Internal.Generated.Models.ProtectedResourceMetadata.ProtectedResourceMetadata",
         "getStatus": "Semiont.Gateway.GatewayOperations -> IO Semiont.Internal.Generated.Models.StatusResponse.StatusResponse",
         "healthCheck": "Semiont.Gateway.GatewayOperations -> IO Semiont.Internal.Generated.Models.HealthResponse.HealthResponse"
+      }
+    },
+    "Semiont.HostName": {
+      "types": {},
+      "values": {
+        "isValidHostname": "Data.Text.Internal.Text -> Bool"
       }
     },
     "Semiont.Http": {
@@ -1064,6 +1084,12 @@
         "newHttpClient": "Network.HTTP.Client.Types.ProxyOverride -> Network.HTTP.Client.Types.ManagerSettings -> IO Semiont.Internal.Http.HttpClient",
         "newHttpTransport": "Semiont.Internal.Http.HttpOptions -> IO Semiont.Http.HttpTransport",
         "transport": "Semiont.Http.HttpTransport -> Semiont.Internal.Transport.Transport"
+      }
+    },
+    "Semiont.JobFilter": {
+      "types": {},
+      "values": {
+        "jobMatchesFilter": "Data.Aeson.Types.ToJSON.ToJSON job => Semiont.Internal.Generated.Models.JobFilter.JobFilter -> job -> Bool"
       }
     },
     "Semiont.Retry": {

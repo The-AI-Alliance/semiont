@@ -1,8 +1,5 @@
 {
   "$comment": "Whether a failed attempt is retried, as every implementation of the retry predicate must answer it: the dispatcher's queue acts on the answer, and a worker reports it on job:fail as willRetry, so the two must never disagree. A retry is allowed exactly when failureClass is neither \"deterministic\" nor \"withheld\" and retryCount < maxRetries, on the record before the failure is applied (protocol/contract/JOBS.md, Retries). Every SDK's `willRetryAfter`, spelled in its own convention, runs every case and fails on any difference; the dispatcher decides with an SDK's, and has none of its own. `failureClass` absent means the failure was not classified. Add a case here before changing an implementation.",
-  "notYetReached": {
-    "haskell": "P5: implement worker filters and retryable job-failure classification and execute their shared cases."
-  },
   "runBy": {
     "csharp": ["packages/csharp/sdk/tests/Semiont.Tests/WorkerTests.cs"],
     "swift": ["packages/swift/sdk/Tests/SemiontTests/WorkerTablesTests.swift"],
@@ -10,7 +7,8 @@
     "rust": ["packages/rust/sdk/tests/job_retry_cases.rs"],
     "python": ["packages/python/sdk/tests/test_claims.py"],
     "go": ["packages/go/sdk/claims_test.go"],
-    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/jobs/JobTablesTest.kt"]
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/jobs/JobTablesTest.kt"],
+    "haskell": ["packages/haskell/sdk/test/WorkerCases.hs"]
   },
   "cases": [
     { "why": "a transient failure with budget left", "retryCount": 0, "maxRetries": 1, "failureClass": "transient", "retries": true },

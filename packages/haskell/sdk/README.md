@@ -117,12 +117,29 @@ In development. The coordinated flow and page state APIs described in
 
 ## Running a worker
 
-In development. Claims, held jobs, checkpoints, progress, settlement, and
-durable commits are part of the full SDK scope. There is no public Haskell
-worker API yet; the shared [worker contract](../../../protocol/contract/WORKER-CONTRACT.md)
-states the behavior it will implement.
+`Semiont.JobFilter.jobMatchesFilter` compares a typed `JobFilter` with a job's
+JSON representation, including queued events and claimed job descriptions.
+It compares every field the filter states at the same path; other fields do
+not affect the match. `Semiont.Claims.willRetryAfter` takes the job's metadata
+before applying a failure and its optional `FailureClass`. Its answer follows
+the shared job retry cases: deterministic and withheld failures do not retry;
+transient and unclassified failures retry while the record has budget left.
+
+`Semiont.Claims.jobClaimChannels` and `jobCommitChannels` give a worker the
+channels to subscribe to for claiming and committing. They are generated from
+the existing SDK's worker channel declarations and the typed bus descriptors.
+
+Claims streams, held jobs, checkpoints, progress, settlement, and durable
+commits are still in development. The shared
+[worker contract](../../../protocol/contract/WORKER-CONTRACT.md) states their
+behavior.
 
 ## Several knowledge bases
+
+`Semiont.HostName.isValidHostname` checks the host names an HTTP endpoint may
+use. `Semiont.Gateway.gatewayUrl` validates a typed `HttpEndpoint` and returns
+its origin, with the host in lowercase and an explicit port. Invalid host
+names are refused before they become part of a URL.
 
 `Semiont.Discovery` reads a launcher's entire document and distinguishes an
 absent launcher from one managing no knowledge bases. Its types and absent
@@ -278,7 +295,8 @@ with every shared client-surface section is still open.
 The schema suite generates samples from the schema definitions, checks JSON
 round trips, absence/null behavior, closed enums, exact large numbers, and
 permitted extra members. It also executes the shared identifier table and
-checks resolved JSON payloads from the wire, live-query, and worker corpora.
+every shared job-filter, job-retry, and gateway URL case, and checks resolved
+JSON payloads from the wire, live-query, and worker corpora.
 The wire driver additionally executes the transport scenarios against the real
 gateway on both signal planes. Live-query and worker drivers remain outstanding.
 
