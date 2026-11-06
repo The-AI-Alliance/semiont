@@ -57,7 +57,8 @@ final class StateCaseWire: Sendable {
     let correlation = stateCaseCorrelation(channel, nth)
     let frames = bus.listen([reply])
     defer { frames.dispose() }
-    transport.deliver(ReceivedFrame(channel: reply, correlationId: correlation, payload: payload))
+    transport.deliver(
+      .frame(ReceivedFrame(channel: reply, correlationId: correlation, payload: payload)))
     // Model a wire that delivers the frame before resuming the request waiter.
     try await withinTestDeadline {
       for try await frame in frames where frame.correlationId == correlation { return }
@@ -110,9 +111,10 @@ final class StateCaseWire: Sendable {
         default: answer
         }
       transport.deliver(
-        ReceivedFrame(
-          channel: descriptor.result, correlationId: stateCaseCorrelation(channel, index),
-          payload: payload))
+        .frame(
+          ReceivedFrame(
+            channel: descriptor.result, correlationId: stateCaseCorrelation(channel, index),
+            payload: payload)))
       return payload
     }
     guard mode == "never" else {

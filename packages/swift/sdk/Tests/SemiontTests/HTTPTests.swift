@@ -307,7 +307,13 @@ extension HttpTransport {
     }
     transport.dispose()
     var received: [ReceivedFrame] = []
-    for try await frame in events { received.append(frame) }
+    for try await carried in events {
+      guard case .frame(let frame) = carried else {
+        Issue.record("A frame BusFrame allows was refused: \(carried)")
+        continue
+      }
+      received.append(frame)
+    }
     #expect(
       received.map(\.channel) == ["beckon:focus", "beckon:sparkle", "beckon:focus", "beckon:focus"])
     #expect(received.allSatisfy { $0.payload[traceField] == nil && $0.trace == trace })

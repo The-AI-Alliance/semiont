@@ -225,7 +225,19 @@ private actor Driver {
       reporters.append(
         Task {
           do {
-            for try await frame in frames {
+            for try await carried in frames {
+              let frame: ReceivedFrame
+              switch carried {
+              case .frame(let delivered): frame = delivered
+              // The suite's backend sends only frames BusFrame allows, and its lines have none for
+              // a refusal: a frame the transport refused is its bug, which ends the driver.
+              case .refused(let refusal):
+                FileHandle.standardError.write(
+                  Data(
+                    ("the transport refused a frame on \(channel): \(refusal.reason.rawValue), "
+                      + "at its `\(refusal.member)`\n").utf8))
+                exit(1)
+              }
               guard case .object(var fields) = try encoded(frame) else {
                 throw Misuse(description: "A frame must encode as an object")
               }

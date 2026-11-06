@@ -16,7 +16,7 @@ public actor HttpTransport: Transport, GatewayOperations {
   var token: String?
   let refresher: (@Sendable (String?) async throws -> String?)?
   var renewal: (UUID, Task<String?, Error>)?
-  var listeners: [UUID: (channels: Set<String>, hub: Broadcast<ReceivedFrame>)] = [:]
+  var listeners: [UUID: (channels: Set<String>, hub: Broadcast<Carried>)] = [:]
   var holds: [ResourceId: Int] = [:]
   var watermarks: [ResourceId: String] = [:]
   var seen: SeenEventIDs
@@ -75,13 +75,13 @@ public actor HttpTransport: Transport, GatewayOperations {
   public nonisolated func dispose() { lifetime.end() }
   public nonisolated func failures() -> Events<TransportError> { failureEvents.listen() }
 
-  public func frames(_ channels: [String]) throws -> Events<ReceivedFrame> {
+  public func frames(_ channels: [String]) throws -> Events<Carried> {
     for channel in channels
     where !self.channels.contains(channel) && !busAudience.scoped.contains(channel) {
       throw unsubscribed(channel)
     }
     let id = UUID()
-    let hub = Broadcast<ReceivedFrame>()
+    let hub = Broadcast<Carried>()
     let lifetime = self.lifetime
     listeners[id] = (Set(channels), hub)
     lifetime.onEnd(id: id) { hub.finish() }
@@ -272,9 +272,32 @@ public actor HttpTransport: Transport, GatewayOperations {
   func received(_ event: SSEEvent, connection: UUID) {
     guard connections[connection] != nil, !lifetime.ended else { return }
     if let id = event.id, !seen.remember(id) { return }
-    guard let data = event.data.data(using: .utf8),
-      var wire = try? JSONDecoder().decode(BusFrame.self, from: data)
-    else { return }
+    switch lineOf(event.data) {
+    case .allowed(let wire): deliver(wire, id: event.id)
+    case .refused(let refusal): refuse(refusal)
+    case .unaddressed(let fault):
+      failureEvents.yield(
+        TransportError(.error, "the stream carried what is not a frame: \(fault.said)"))
+    }
+  }
+  /// Tell a refused frame to the request awaiting the reply it names, on its channel, which fails
+  /// with it, and to its channel's readers. Its id is remembered, and it moves no watermark.
+  private func refuse(_ refusal: FrameRefusal) {
+    if let correlation = refusal.correlationId, let waiter = pending[correlation],
+      refusal.channel == waiter.result || refusal.channel == waiter.failure
+    {
+      fail(correlation, error: TransportError(.error, notTheFrames(refusal)))
+    }
+    told(.refused(refusal))
+  }
+  private func told(_ carried: Carried) {
+    for listener in listeners.values
+    where listener.channels.isEmpty || listener.channels.contains(carried.channel) {
+      listener.hub.yield(carried)
+    }
+  }
+  private func deliver(_ allowed: BusFrame, id eventId: String?) {
+    var wire = allowed
     var payload = wire.payload
     let trace: [String: String]?
     if case .object(let fields) = payload.removeValue(forKey: traceField) {
@@ -288,8 +311,8 @@ public actor HttpTransport: Transport, GatewayOperations {
       .busRecvChannel, channel: wire.channel, scope: wire.scope, parent: trace)
     defer { received.end() }
     wire.payload = payload
-    let frame = ReceivedFrame(wire, trace: trace, eventId: event.id)
-    if let id = event.id, id.hasPrefix("p-"), let scope = frame.scope { watermarks[scope] = id }
+    let frame = ReceivedFrame(wire, trace: trace, eventId: eventId)
+    if let id = eventId, id.hasPrefix("p-"), let scope = frame.scope { watermarks[scope] = id }
     BusLog.line(
       "RECV", channel: frame.channel, payload: frame.payload, scope: frame.scope,
       correlationID: frame.correlationId, traceID: received.context.traceId.hexString)
@@ -300,10 +323,7 @@ public actor HttpTransport: Transport, GatewayOperations {
       waiter.cancel()
       waiter.complete(.success(frame))
     }
-    for listener in listeners.values
-    where listener.channels.isEmpty || listener.channels.contains(frame.channel) {
-      listener.hub.yield(frame)
-    }
+    told(.frame(frame))
   }
   func connectionRefused(_ id: UUID, error: TransportError) {
     guard let connection = connections.removeValue(forKey: id), !lifetime.ended else { return }
@@ -378,4 +398,60 @@ public actor HttpTransport: Transport, GatewayOperations {
     renewal = nil
     if !lifetime.ended, let token { self.token = token }
   }
+}
+
+/// What a `bus-event` line carried, read as a frame.
+private enum Line: Sendable {
+  /// A frame BusFrame allows.
+  case allowed(BusFrame)
+  /// A frame BusFrame does not allow that names its readers, whose refusal is told to them in its
+  /// place.
+  case refused(FrameRefusal)
+  /// What names no reader, told to the failure report by its first fault.
+  case unaddressed(Fault)
+}
+
+/// `data` read as a frame, held to BusFrame by the table: a frame carries what BusFrame names, and
+/// nothing more. A frame BusFrame does not allow names its readers when its `channel` is a text of
+/// at least one character and it carries no `scope` or one that is a resource's id, whatever its
+/// first fault.
+private func lineOf(_ data: String) -> Line {
+  let bytes = Data(data.utf8)
+  guard let value = try? JSONDecoder().decode(JSONValue.self, from: bytes) else {
+    return .unaddressed(.undecoded)
+  }
+  let fault: Fault
+  if let found = faultOf("BusFrame", value) {
+    fault = found
+  } else {
+    do { return .allowed(try JSONDecoder().decode(BusFrame.self, from: bytes)) } catch {
+      fault = .undecoded
+    }
+  }
+  guard case .object(let stated) = value, case .string(let channel)? = stated["channel"],
+    !channel.isEmpty
+  else { return .unaddressed(fault) }
+  // A null where a member may be absent is its absence, as BusFrame reads it.
+  let scope: ResourceId?
+  switch stated["scope"] {
+  case nil, .null?: scope = nil
+  case .string(let text)?:
+    guard let resource = ResourceId.parse(text) else { return .unaddressed(fault) }
+    scope = resource
+  case .some: return .unaddressed(fault)
+  }
+  return .refused(
+    FrameRefusal(
+      channel: channel, member: fault.member, reason: fault.reason, payload: stated["payload"],
+      correlationId: correlationIdOf(channel, stated["correlationId"]), scope: scope))
+}
+
+/// The correlation id a frame on `channel` carries as `held`, when BusFrame allows it, whatever the
+/// frame's other faults.
+private func correlationIdOf(_ channel: String, _ held: JSONValue?) -> String? {
+  guard case .string(let text)? = held else { return nil }
+  let alone = JSONValue.object([
+    "channel": .string(channel), "payload": .object([:]), "correlationId": .string(text),
+  ])
+  return faultOf("BusFrame", alone) == nil ? text : nil
 }

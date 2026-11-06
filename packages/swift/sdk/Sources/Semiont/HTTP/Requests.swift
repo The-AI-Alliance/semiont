@@ -26,10 +26,11 @@ func projectFailure(_ payload: [String: JSONValue], on channel: String, stamps: 
   -> any Error
 {
   let failure = declared(payload, stamps: stamps)
-  guard payloadFault(of: failure, on: channel) == nil,
-    case .string(let message) = failure["message"]
-  else {
-    return TransportError(.error, notTheChannels(channel, refusedFault(of: failure, on: channel)))
+  if let fault = faultOf(payload: failure, on: channel) {
+    return TransportError(.error, notTheChannels(channel, fault))
+  }
+  guard case .string(let message) = failure["message"] else {
+    return TransportError(.error, notTheChannels(channel, .undecoded))
   }
   let code: BusRequestErrorCode
   if case .string(let wireCode) = failure["code"] {
@@ -105,14 +106,16 @@ extension HttpTransport {
     if frame.channel == descriptor.failure {
       throw projectFailure(frame.payload, on: descriptor.failure, stamps: descriptor.failureStamps)
     }
+    let stated = declared(frame.payload, stamps: descriptor.resultStamps)
+    if let fault = faultOf(payload: stated, on: descriptor.result) {
+      throw TransportError(.error, notTheChannels(descriptor.result, fault))
+    }
     do {
       var answer = frame
       answer.payload = try descriptor.response(frame.payload)
       return answer
     } catch {
-      let fault = refusedFault(
-        of: declared(frame.payload, stamps: descriptor.resultStamps), on: descriptor.result)
-      throw TransportError(.error, notTheChannels(descriptor.result, fault))
+      throw TransportError(.error, notTheChannels(descriptor.result, .undecoded))
     }
   }
   func fail(_ correlation: String, error: any Error) {

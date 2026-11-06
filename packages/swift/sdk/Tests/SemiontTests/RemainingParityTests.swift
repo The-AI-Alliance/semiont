@@ -80,7 +80,7 @@ private var registryEndpoint: KbEndpoint {
     case Channels.browseResourceRequested.name:
       try wirePayload(
         BrowseResourceResult(
-          response: BrowseResourceResultResponse(lastSequence: 0, resource: description)))
+          response: BrowseResourceResultResponse(lastSequence: 1, resource: description)))
     default: throw BusRequestError(.busNotFound, "Gone")
     }
   }

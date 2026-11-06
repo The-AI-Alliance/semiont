@@ -8,6 +8,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { HTTP_REQUEST_TIMEOUT_MS } from '../generated/client-timing';
 import { ServiceToken } from '../service-account';
 import { SignInError } from '../sign-in-error';
+import { UnansweredError } from '../unanswered';
 
 const ACCOUNT = { issuer: 'https://issuer.test/realms/kb', clientId: 'semiont-worker', clientSecret: 'client-secret' };
 
@@ -40,6 +41,7 @@ describe('ServiceToken', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it('discovers the token endpoint, then presents the credential for the grant', async () => {
@@ -51,18 +53,33 @@ describe('ServiceToken', () => {
     expect(String(asked[1]!.init?.body)).toBe('grant_type=client_credentials&client_id=semiont-worker&client_secret=client-secret');
   });
 
-  it('bounds the discovery and the grant by the request deadline', async () => {
+  it.each([
+    ['the discovery', '/.well-known/openid-configuration', `OIDC discovery for ${ACCOUNT.issuer} got no answer: TimeoutError`],
+    ['the grant', '/token', `Client-credentials grant for semiont-worker at ${ACCOUNT.issuer} got no answer: TimeoutError`],
+  ])('bounds %s by the request deadline: one never answered has failed at it, and not before', async (_what, path, message) => {
     // An issuer that accepts a connection and never answers would otherwise
     // hold a process's start, and every renewal after it, for as long as the
-    // process lives.
-    const deadline = vi.spyOn(AbortSignal, 'timeout');
-    const asked = stubFetch(() => Response.json({ access_token: 'service-account-token' }));
+    // process lives. The double never answers and, as fetch does, rejects
+    // with its signal's reason when that signal is aborted.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (!url.endsWith(path)) return Response.json({ token_endpoint: `${new URL(url).origin}/token` });
+      return new Promise<Response>((_answer, fail) => {
+        init?.signal?.addEventListener('abort', () => fail(init.signal?.reason), { once: true });
+      });
+    }));
+    let outcome: unknown = 'unsettled';
+    void new ServiceToken(ACCOUNT).token({ renewed: false }).then(
+      (token) => { outcome = token; },
+      (error: unknown) => { outcome = error; },
+    );
 
-    await new ServiceToken(ACCOUNT).token({ renewed: false });
-
-    expect(asked).toHaveLength(2);
-    for (const { url, init } of asked) expect(init?.signal, url).toBeInstanceOf(AbortSignal);
-    expect(deadline.mock.calls).toEqual([[HTTP_REQUEST_TIMEOUT_MS], [HTTP_REQUEST_TIMEOUT_MS]]);
+    await vi.advanceTimersByTimeAsync(HTTP_REQUEST_TIMEOUT_MS - 1);
+    expect(outcome).toBe('unsettled');
+    await vi.advanceTimersByTimeAsync(1);
+    expect(outcome).toBeInstanceOf(UnansweredError);
+    expect(outcome).toHaveProperty('message', message);
   });
 
   it('a refusal names the client and the issuer, with the status and never the body', async () => {

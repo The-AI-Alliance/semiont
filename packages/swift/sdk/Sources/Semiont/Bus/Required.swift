@@ -9,7 +9,7 @@ import Foundation
 
 /// The first thing wrong with a value: the way to the member it is at (the names of the members it
 /// is within, and its own, joined by dots; empty for the value itself), and why.
-struct Fault: Equatable, Sendable {
+struct Fault: Error, Equatable, Sendable {
   let member: String
   let reason: FrameRefusalReason
 
@@ -99,20 +99,13 @@ func faultOf(_ schema: String, _ value: JSONValue) -> Fault? {
   faultAt(component(schema), value, way: "")
 }
 
-/// The first fault `payload` has as a payload on `channel`, by the rules every SDK reads the table
+/// The first fault of `payload` as a payload on `channel`, by the rules every SDK reads the table
 /// by; nil when it has none.
-func payloadFault(of payload: [String: JSONValue], on channel: String) -> Fault? {
+func faultOf(payload: [String: JSONValue], on channel: String) -> Fault? {
   guard let shape = requiredPayloadShapes[channel] else {
     preconditionFailure("\(channel) is no channel of the bus's registry")
   }
   return faultAt(shape, .object(payload), way: "")
-}
-
-/// What a payload `channel`'s decoder refused is refused for: its first fault, or, where the table
-/// finds none, the payload itself.
-func refusedFault(of payload: [String: JSONValue], on channel: String) -> Fault {
-  if let fault = payloadFault(of: payload, on: channel) { return fault }
-  return .undecoded
 }
 
 private func component(_ name: String) -> Shape {
