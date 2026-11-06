@@ -20,7 +20,7 @@
  * consumers that need bus/HTTP access continue to subscribe to the session.
  *
  * Session auth-state cleanup (clearing token, clearing storage) is
- * the session's own responsibility inside `refresh()` — by the time
+ * the session's own responsibility inside `refresh(refused)` — by the time
  * `notifySessionEnded` runs, the session has already torn down.
  * Signals only surfaces the notification.
  *

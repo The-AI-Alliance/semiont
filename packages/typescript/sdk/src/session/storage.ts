@@ -65,10 +65,23 @@ export function refreshDelayMs(token: string, now: number = Date.now()): number 
 
 /** The two claims scheduling depends on. Absent or unreadable reads as null. */
 function parseJwtClaims(token: string): { exp?: number; iat?: number } | null {
+  return jwtPayload(token) as { exp?: number; iat?: number } | null;
+}
+
+/** A claim the token names as text; null when it names none, or is no JWT. */
+export function textClaim(token: string, name: string): string | null {
+  const payload = jwtPayload(token);
+  if (!isObject(payload)) return null;
+  const claim = payload[name];
+  return isString(claim) ? claim : null;
+}
+
+/** A JWT's payload; null when the token is no JWT, or its payload no JSON. */
+function jwtPayload(token: string): unknown {
   try {
     const parts = token.split('.');
     if (parts.length !== 3 || !parts[1]) return null;
-    return JSON.parse(decodeBase64Url(parts[1])) as { exp?: number; iat?: number };
+    return JSON.parse(decodeBase64Url(parts[1]));
   } catch {
     return null;
   }
@@ -114,6 +127,11 @@ export interface StoredSession {
 
 export function sessionKey(kbId: string): string {
   return `${SESSION_PREFIX}${kbId}`;
+}
+
+/** The knowledge base whose session `key` is kept under; null when it is no session's key. */
+export function kbOfSessionKey(key: string): string | null {
+  return key.startsWith(SESSION_PREFIX) ? key.slice(SESSION_PREFIX.length) : null;
 }
 
 /** The key a knowledge base's stream's places are kept under. */

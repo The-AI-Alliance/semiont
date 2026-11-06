@@ -63,14 +63,59 @@ The sign-in gives an `OpenedSession`: the session, and the client it was built w
 only uses its client, so the two end together.
 
 Already hold tokens? `SemiontSession.fromIssuedSession(...)` takes the access and refresh pair.
-`SemiontSession.fromHttp(...)` takes a bare access token and the `refresh` that renews it. Each
-gives an `OpenedSession` too.
+`SemiontSession.fromHttp(...)` takes a bare access token and the `refresh` that renews it, which
+is given the token the session holds. Each gives an `OpenedSession` too.
 `SemiontClient.fromHttp({ baseUrl, token })` takes a bare token and never renews it, which suits
 a one-shot script that finishes inside one token's life.
 
+### The sign-in `semiont login` keeps
+
+A person who has run `semiont login` has a sign-in the launcher keeps for each stack, in
+`tokens.json` in the launcher's state home
+([the sign-in store](https://github.com/The-AI-Alliance/semiont/tree/main/protocol/specs/src/sign-in-store)).
+A `SignInStore` is a `SessionStorage` over that file. `SemiontSession.fromStoredSession` builds a
+session over the entry keyed by `kb.id`, and gives null when there is none. The session renews
+the sign-in by the contract's rules and writes each renewal back, so one sign-in serves the
+launcher and the script.
+
+```ts
+import { SemiontSession, SignInStore, InMemorySessionStorage, httpKb } from '@semiont/sdk';
+
+const opened = await SemiontSession.fromStoredSession({
+  kb: httpKb({ id: 'local:example.org-my-kb', label: 'My KB',
+               host: 'localhost', port: 4000, protocol: 'http' }),
+  storage: new SignInStore(signInFiles, new InMemorySessionStorage()),
+  baseUrl: 'http://localhost:4000',
+});
+```
+
+The SDK reaches no file and takes no lock. The program gives the store a `SignInFiles` over
+the state home's directory. `stateDir` computes that directory from the system and from what
+HOME (USERPROFILE on Windows), XDG_STATE_HOME and LOCALAPPDATA say. The store tells each member
+which file to use, and gives it the mode, the access list and the Windows offset. To share the
+file with the launcher and the other SDKs, each member must do the following:
+
+- **`lock`** takes an exclusive lock and waits until it holds it. On Unix that is `flock(2)`,
+  never `fcntl` or `lockf`, whose locks do not exclude a `flock` on Linux. On Windows it is
+  `LockFileEx` on the one byte at the offset given, or on the whole file. It opens the lock
+  file for reading and writing, makes it with the mode given when it is not there, and never
+  renames or removes it. It returns the function that lets the lock go.
+- **`keepToOwner`** gives the directory the mode given. On Windows it gives the directory the
+  access list for the SID of the user the process runs as.
+- **`read`** returns null for a file that is not there, and throws on any other failure.
+- **`replace`** writes a temporary file beside the document with the mode given, and renames it
+  over the document. It removes the temporary file when that fails.
+
+Each member is synchronous, as `SessionStorage` is. The store holds the lock from before its read
+until after its rename, and never asks for it while it holds it.
+
+To sign out, revoke the refresh token that `getStoredSession` gives with `revokeAtIssuer`, then
+call `clearStoredSession(store, kb.id)`.
+
 Every request these make, of the gateway and of the issuer, is sent with the `fetch` they are
 given, or with the runtime's own when they are given none. `signInDevice`, `fromIssuedSession`,
-`fromHttp`, `startAgentSession` and `SemiontBrowser` take it in their options as `fetch`;
+`fromStoredSession`, `fromHttp`, `startAgentSession` and `SemiontBrowser` take it in their options as
+`fetch`;
 `createHttpSessionFactory` and `httpDiscovery` take it as their last argument. The certificates a
 request trusts, and the proxy it goes through, are that fetch's: the SDK reads no setting of its
 own for either. In Node, a gateway whose certificate another authority signed is reached with
@@ -300,8 +345,9 @@ is what a worker promises the dispatcher.
   `startAgentSession` and `privateKeyFromPem` for a worker's sign-in, and
   `JOB_CLAIM_CHANNELS` and `JOB_COMMIT_CHANNELS` for its stream.
 - **Session layer** — `SemiontSession` (per-KB auth, proactive token refresh, lifecycle),
-  `SemiontBrowser` (multi-KB orchestration), `SessionStorage` adapters, and the `httpKb`
-  helper for endpoint shapes.
+  `SemiontBrowser` (multi-KB orchestration), `SessionStorage` adapters, the `httpKb`
+  helper for endpoint shapes, and `SignInStore` and `stateDir` for the sign-in `semiont login`
+  keeps.
 - **Flow state machines** — closure-based factories (`createMarkStateUnit`, `…Gather…`,
   `…Match…`, `…Yield…`, `…Beckon…`) wrapping each long-running flow with `loading$`/`error$`/
   progress observables; UI-shape-agnostic ([`docs/builder/STATE-UNITS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/STATE-UNITS.md)).

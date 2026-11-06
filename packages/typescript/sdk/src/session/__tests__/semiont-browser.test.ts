@@ -900,7 +900,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
    * WITHOUT `clearStoredSession`, so every reload restores the corpse and
    * re-arms it — and both modal buttons navigate, into the same loop: an
    * undismissable "Session Expired — HTTP 401" that survives hard reloads.
-   * Routing into `session.refresh()` covers both: success is silence;
+   * Routing into `session.refresh(refused)` covers both: success is silence;
    * exhaustion runs the session's own teardown — storage cleared, the modal
    * fired once with the session's own reason.
    */
@@ -945,7 +945,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     it('a 401 with NO stored credentials is not an expiry: no modal, no teardown theater', async () => {
       // activeKnowledgeBaseId persists forever, so every load activates the
       // KB signed-out; the actor connects with a null token and 401s, and
-      // refresh() has NOTHING to refresh. Declaring "session expired" there
+      // `refresh(null)` has NOTHING to refresh. Declaring "session expired" there
       // would re-arm the modal on every load. You cannot
       // expire a session that never existed: the signed-out shell is the
       // correct and sufficient UX, and the modal must stay silent.
@@ -1298,7 +1298,7 @@ describe('SemiontBrowser — performRefresh (the refresh grant at the issuer)', 
   });
 
   it('dedupes concurrent refresh calls for the same KB (single network round-trip)', async () => {
-    // Two simultaneous `session.refresh()` calls should converge on a
+    // Two simultaneous refusals of the token held, `session.refresh(held)`, should converge on a
     // single underlying performRefresh call via the in-flight Map.
     // We construct one session, then fire refresh twice concurrently
     // and assert the refreshToken endpoint was hit only once.
@@ -1310,7 +1310,7 @@ describe('SemiontBrowser — performRefresh (the refresh grant at the issuer)', 
     const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
     fetchMock.mockClear();
 
-    // Hold the issuer's answer open so both session.refresh() calls see
+    // Hold the issuer's answer open so both session.refresh(held) calls see
     // an in-flight entry in the Map.
     let resolveRefresh!: (value: Response) => void;
     fetchMock.mockImplementation(async (url: string) =>
@@ -1718,7 +1718,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     const signals = browser.activeSignals$.getValue()!;
     expect(signals.sessionEnded$.getValue()).toBeNull();
 
-    // Manually trigger session.refresh() to simulate a proactive-refresh miss.
+    // Refuse the token held, session.refresh(held), to simulate a proactive-refresh miss.
     await session!.refresh(session!.token$.getValue());
     expect(signals.sessionEnded$.getValue()).toEqual({ reason: 'expired' });
 

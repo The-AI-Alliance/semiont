@@ -1384,30 +1384,27 @@
       "members": [
         {
           "member": "textClaim",
-          "kind": "function",
-          "absent": {
-            "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
-          }
+          "kind": "function"
         },
         {
           "member": "tokenExpiry",
           "kind": "function",
-          "absent": {
-            "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
+          "named": {
+            "typescript": "parseJwtExpiry"
           }
         },
         {
           "member": "isTokenExpired",
           "kind": "function",
-          "absent": {
-            "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
+          "named": {
+            "typescript": "isJwtExpired"
           }
         },
         {
           "member": "renewalDelay",
           "kind": "function",
           "absent": {
-            "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
+            "typescript": "TypeScript's session reads when to renew from the token itself (refreshDelayMs), and hands out no reckoning from a lifetime and what is left of it."
           }
         },
         {
@@ -1708,10 +1705,7 @@
         },
         {
           "member": "kbOfSessionKey",
-          "kind": "function",
-          "absent": {
-            "typescript": "TypeScript's registry hears another context's writes by key without reading a session's key back."
-          }
+          "kind": "function"
         },
         {
           "member": "storedSession",
@@ -1870,6 +1864,93 @@
         {
           "member": "ServiceToken",
           "kind": "type"
+        }
+      ]
+    },
+    {
+      "module": "signInStore",
+      "docs": "The sign-ins `semiont login` keeps, as protocol/specs/src/sign-in-store states them: the store, whose every change holds the lock every writer takes, and where the launcher's state home is on each system. Held by sign-in-store/cases.json.",
+      "where": {
+        "csharp": ["packages/csharp/sdk/src/Semiont/SignIn"],
+        "swift": [
+          "packages/swift/sdk/Sources/Semiont/SignIn/SignInStore.swift",
+          "packages/swift/sdk/Sources/Semiont/SignIn/Kept.swift"
+        ],
+        "typescript": [
+          "packages/typescript/sdk/src/session/sign-in-store.ts"
+        ],
+        "rust": [
+          "packages/rust/sdk/src/sign_in_store.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/sign_in_store.py"
+        ],
+        "go": [
+          "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/signin"
+        ]
+      },
+      "members": [
+        {
+          "member": "SignInStore",
+          "kind": "type"
+        },
+        {
+          "member": "stateDir",
+          "kind": "function",
+          "absent": {
+            "csharp": "C#'s state home is SignInStore.StateDirectory, a static member of the store, which takes the system's name as text."
+          }
+        },
+        {
+          "member": "System",
+          "kind": "type",
+          "named": {
+            "kotlin": "Platform",
+            "swift": "Platform"
+          },
+          "absent": {
+            "csharp": "C#'s SignInStore.StateDirectory takes the system's name as text."
+          }
+        },
+        {
+          "member": "thisSystem",
+          "kind": "function",
+          "named": {
+            "kotlin": "thisPlatform"
+          },
+          "absent": {
+            "typescript": "TypeScript reads nothing of the system it runs on: its caller says which it is.",
+            "rust": "Rust's is a function of the type, System::of_this_build.",
+            "swift": "Swift's caller says which system it runs on.",
+            "csharp": "C#'s caller names the system it runs on."
+          }
+        },
+        {
+          "member": "fileName",
+          "kind": "constant",
+          "named": {
+            "go": "SignInFile"
+          },
+          "absent": {
+            "typescript": "TypeScript's is SIGN_IN_STORE_FILE, generated into @semiont/core, which the store hands to its caller's files.",
+            "swift": "Swift's store is made at a path its caller gives.",
+            "csharp": "C#'s store is made in a directory its caller gives, and names the file there itself."
+          }
+        },
+        {
+          "member": "SignInFiles",
+          "kind": "type",
+          "absent": {
+            "rust": "Rust reads, writes and locks the file itself, through its standard library.",
+            "python": "Python reads, writes and locks the file itself, through its standard library and ctypes.",
+            "go": "Go reads, writes and locks the file itself, through its standard library.",
+            "kotlin": "Kotlin reads, writes and locks the file itself, through the JDK and its foreign-function interface.",
+            "swift": "Swift reads, writes and locks the file itself, through Foundation and the C library.",
+            "csharp": "C# reads, writes and locks the file itself, through .NET and the C library."
+          }
         }
       ]
     },

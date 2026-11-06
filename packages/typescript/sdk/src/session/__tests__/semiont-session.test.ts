@@ -55,7 +55,7 @@ const ALICE: UserInfo = {
 };
 
 let storage: TestStorage;
-let refresh: SemiontSessionConfig['refresh'] & ReturnType<typeof vi.fn>;
+let refresh: NonNullable<SemiontSessionConfig['refresh']> & ReturnType<typeof vi.fn>;
 let validate: NonNullable<SemiontSessionConfig['validate']> & ReturnType<typeof vi.fn>;
 
 /** Shortcut: new session with the default test callbacks. */
@@ -77,7 +77,7 @@ function newSession(overrides?: Partial<SemiontSessionConfig>): SemiontSession {
 beforeEach(() => {
   storage = new TestStorage();
   mockDispose.mockReset();
-  refresh = vi.fn<() => Promise<string | null>>(async () => null) as typeof refresh;
+  refresh = vi.fn<NonNullable<SemiontSessionConfig['refresh']>>(async () => null) as typeof refresh;
   validate = vi.fn<NonNullable<SemiontSessionConfig['validate']>>(async () => ALICE) as typeof validate;
 });
 
@@ -229,8 +229,44 @@ describe('SemiontSession — refresh', () => {
     session.dispose();
   });
 
+  it('gives the refresh callback the token it holds, when the gateway refuses that token', async () => {
+    const held = freshJwt();
+    seedStoredSession(storage, KB.id, held, 'refresh-tok');
+    refresh.mockResolvedValue(freshJwt());
+
+    const session = newSession();
+    await session.ready;
+    await session.refresh(held);
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledWith(held);
+
+    session.dispose();
+  });
+
+  it('gives the refresh callback the token it holds, when that token is due', async () => {
+    vi.useFakeTimers();
+    try {
+      // No `iat`: half the remaining 300 s is due in about 150 s.
+      const held = freshJwt(300);
+      seedStoredSession(storage, KB.id, held, 'refresh-tok');
+      refresh.mockImplementation(async () => freshJwt(300));
+
+      const session = newSession();
+      await session.ready;
+      await vi.advanceTimersByTimeAsync(151_000);
+
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(refresh).toHaveBeenCalledWith(held);
+
+      session.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   // ── A refresh margin equal to the token lifetime ────────────────────
-  // The unit tests above drive `refresh()` DIRECTLY, so to them a schedule
+  // To a test that drives `refresh(refused)` DIRECTLY, a schedule
   // that fires at `delay = 0` is indistinguishable from one that fires
   // correctly — and a zero delay is a signed-in tab issuing 1418 successful
   // `POST /token` in ten idle seconds. This one asserts the SCHEDULE.
