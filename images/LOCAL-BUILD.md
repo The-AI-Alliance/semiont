@@ -152,8 +152,8 @@ make stack-down
 
 `stack-up` boots and checks a new knowledge base's stack and leaves it up. Each `e2e` makes a
 knowledge base of its own beside it, with a user of its own, runs the default tier against
-it (`E2E_SCRIPT` names another of the suite's npm scripts, `E2E_ARGS` gives Playwright's
-arguments), waits for its job queue to empty, and removes it when everything passed, so a
+it (`E2E_SCRIPT` names another of the suite's npm scripts, `E2E_MODEL` the model its
+knowledge base is bound to, `E2E_ARGS` gives Playwright's arguments), waits for its job queue to empty, and removes it when everything passed, so a
 second run starts as fresh as the first. A run that failed leaves its knowledge base running
 to read. `stack-down` removes each one a failed `e2e` left, then stops the stack,
 puts back the Browser's and Worker's documents and checks every port is released; until then

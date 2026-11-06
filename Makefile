@@ -21,9 +21,11 @@ SMOKE_TAG ?= local
 unexport SMOKE_TAG
 ## E2E_SCRIPT=name: The images/e2e npm script e2e and smoke run, e.g. test:slow (test:ci)
 E2E_SCRIPT ?=
+## E2E_MODEL=id: The model e2e's and smoke's knowledge base is bound to, e.g. gemma4:26b (init's)
+E2E_MODEL ?=
 ## E2E_ARGS=words: Playwright's arguments, e.g. specs/01-sign-in.spec.ts --repeat-each=5
 E2E_ARGS ?=
-unexport E2E_SCRIPT E2E_ARGS
+unexport E2E_SCRIPT E2E_MODEL E2E_ARGS
 ## CONTAINER_RUNTIME=name: container|docker|podman; else the first to respond
 
 # Resolving this file's directory is the only parse-time command; no runtime is probed.
@@ -31,7 +33,7 @@ BUILD_ROOT := $(shell cd "$$(dirname "$(lastword $(MAKEFILE_LIST))")" && pwd)
 quote = '$(subst ','"'"',$(1))'
 build_arguments = --package $(call quote,$(PACKAGE_NAMES)) --image $(call quote,$(IMAGE_NAMES)) $(if $(filter 1,$(FORCE)),--force) $(if $(filter 0,$(FANOUT)),--no-fanout) $(if $(LAYER_CACHE),--layer-cache $(call quote,$(LAYER_CACHE)))
 # E2E_ARGS is a list of words, so the shell splits it; every other value stays one argument.
-e2e_options = $(if $(E2E_SCRIPT),--script $(call quote,$(E2E_SCRIPT))) $(if $(E2E_ARGS),-- $(E2E_ARGS))
+e2e_options = $(if $(E2E_SCRIPT),--script $(call quote,$(E2E_SCRIPT))) $(if $(E2E_MODEL),--model $(call quote,$(E2E_MODEL))) $(if $(E2E_ARGS),-- $(E2E_ARGS))
 
 # A session owns mutable state, port 4873 and timing-sensitive image checks.
 ifneq ($(word 2,$(MAKECMDGOALS)),)
