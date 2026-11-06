@@ -45,7 +45,8 @@ private func statedFault(_ row: [String: JSONValue]) throws -> Fault {
     case .representation: one += 1
     case .list(let listed): if listed.isEmpty { none += 1 } else { several += 1 }
     }
-    #expect(try primaryRepresentation(descriptor).map(encoded) == row["primaryRepresentation"], "\(why)")
+    #expect(
+      try primaryRepresentation(descriptor).map(encoded) == row["primaryRepresentation"], "\(why)")
     #expect(primaryMediaType(descriptor).map(JSONValue.string) == row["primaryMediaType"], "\(why)")
     #expect(
       JSONValue.array(resourceEntityTypes(descriptor).map(JSONValue.string))
