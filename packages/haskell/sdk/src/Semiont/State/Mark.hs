@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- | Composition and delegated marking for one resource. A quiet job remains
--- followed; a silence notice does not turn it into a failed job.
+-- followed; a silence notice does not turn it into a failed job. A frame the
+-- follower refuses names no job, so it neither restarts the quiet nor, once the
+-- silence is said, arms it again.
 module Semiont.State.Mark
   ( MarkStateUnit, PendingAnnotation(..), newMarkStateUnit
   , pendingAnnotation, delegatingMotivation, progress, progressMotivation, failure, jobId
@@ -125,8 +127,11 @@ follow unit@(MarkStateUnit _ client resource clock timing _ _ _ _ _ _) params mo
                       Right Nothing -> pure ()
                       Right (Just event) -> do
                         report event
-                        now <- retryNow clock
-                        monitor True (now + Timing.delegateSilenceMs timing * 1000000)
+                        case event of
+                          Delegation.Refused _ -> monitor listening due
+                          _ -> do
+                            now <- retryNow clock
+                            monitor True (now + Timing.delegateSilenceMs timing * 1000000)
           now <- retryNow clock
           tracedWithAsync readEvents (\_ -> monitor True (now + Timing.delegateSilenceMs timing * 1000000))
       failed problem cancelled=atomically $ do

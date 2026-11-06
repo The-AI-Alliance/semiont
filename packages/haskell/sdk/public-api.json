@@ -505,7 +505,7 @@
     "src/Semiont/State/Beckon.hs": "521a53d92042fb5825a24c31b1a6596b0305876d479659c329f2b905d4714c6b",
     "src/Semiont/State/Gather.hs": "1523a36b8dd851df5fe00827df9b13734c41616eb88972df4fe74e3c9fa61a98",
     "src/Semiont/State/HoverDwell.hs": "d68254dc49670e94b195752c48cd05b657c7b9e95a3e63e37d256d7a19587696",
-    "src/Semiont/State/Mark.hs": "26c596b2022868a973c1bde0381a6f67b298096a99ee97b4daa0ca0eb0ebd8f2",
+    "src/Semiont/State/Mark.hs": "012e5cc70ab6991823369278e93459af16a87f40e3574a772c1ca63dd647e07b",
     "src/Semiont/State/Match.hs": "9ef6327cd598b17e4b3647ea997febf34c75235436d877dba83a2f4444e927c5",
     "src/Semiont/State/Search.hs": "cc69a036177d1fbde416065793ea1beed6e9f62c35a722c8c998f3c731d8942c",
     "src/Semiont/State/SessionSignals.hs": "cd4a4628965ea025830e48417803707f0dbf183aefd7ceda7a96a546634c4e6f",
