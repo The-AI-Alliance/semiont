@@ -323,8 +323,7 @@ describe('the sign-in store', () => {
 
     setStoredSession(store, KEY, scriptSession(access, 'refresh-1'));
 
-    const entry = directory.document()[KEY] as Record<string, string>;
-    expect(entry).toEqual({
+    expect(directory.document()[KEY]).toEqual({
       token: access,
       refreshToken: 'refresh-1',
       email: EMAIL,

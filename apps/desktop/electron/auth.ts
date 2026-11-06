@@ -72,7 +72,8 @@ function refusedByIssuer(err: unknown): err is SignInError {
 function renew(kbId: string): Promise<string | null> {
   const underway = renewals.get(kbId);
   if (underway !== undefined) return underway;
-  const renewal = refreshStoredSession(storageFor(kbId), kbId)
+  const holding = held.get(kbId);
+  const renewal = refreshStoredSession(storageFor(kbId), kbId, holding === undefined ? null : holding)
     .then((access) => {
       if (access === null) held.delete(kbId);
       else held.set(kbId, access);

@@ -615,11 +615,18 @@ export class SemiontSession implements StateUnit {
     onAuthFailed?: (reason: SessionEndReason) => void;
     onError?: (err: SemiontSessionError) => void;
   }): OpenedSession {
-    const url = typeof opts.baseUrl === 'string' ? baseUrl(opts.baseUrl) : opts.baseUrl;
     const tok = opts.token == null
       ? null
       : (typeof opts.token === 'string' ? accessToken(opts.token) : opts.token);
-    const token$ = new BehaviorSubject<AccessToken | null>(tok);
+    return SemiontSession.overHttp(opts, new BehaviorSubject<AccessToken | null>(tok));
+  }
+
+  /** `fromHttp`'s session, sending what `token$` holds. */
+  private static overHttp(
+    opts: Omit<Parameters<typeof SemiontSession.fromHttp>[0], 'token'>,
+    token$: BehaviorSubject<AccessToken | null>,
+  ): OpenedSession {
+    const url = typeof opts.baseUrl === 'string' ? baseUrl(opts.baseUrl) : opts.baseUrl;
     const transport = new HttpTransport({ baseUrl: url, token$, ...(opts.fetch ? { fetch: opts.fetch } : {}) });
     const content = new HttpContentTransport(transport);
     const client = new SemiontClient(transport, content, transport);
@@ -661,24 +668,55 @@ export class SemiontSession implements StateUnit {
     onError?: (err: SemiontSessionError) => void;
   }): Promise<OpenedSession> {
     setStoredSession(opts.storage, opts.kb.id, opts.session);
+    return SemiontSession.overStored(opts, opts.session.access);
+  }
+
+  /**
+   * A session over the session `storage` keeps for `kb`: the sign-in
+   * `semiont login` keeps, when `storage` is a `SignInStore` and `kb.id` the
+   * stack's key. Null when nothing is kept. It starts with the kept access
+   * token, renewed first when it has expired, and each renewal is written
+   * back to `storage`; the session's `ready` has resolved when this returns.
+   * Gives it with the client it was built with, as `fromHttp` does. The
+   * gateway and the issuer are asked with `fetch`, or the runtime's own.
+   */
+  static async fromStoredSession(opts: {
+    kb: KbTarget;
+    storage: SessionStorage;
+    baseUrl: BaseUrl | string;
+    fetch?: typeof fetch;
+    validate?: (token: AccessToken) => Promise<UserInfo | null>;
+    onAuthFailed?: (reason: SessionEndReason) => void;
+    onError?: (err: SemiontSessionError) => void;
+  }): Promise<OpenedSession | null> {
+    const stored = getStoredSession(opts.storage, opts.kb.id);
+    if (stored === null) return null;
+    return SemiontSession.overStored(opts, stored.access);
+  }
+
+  /** A ready session over what `opts.storage` keeps for `opts.kb`, starting with `access`, renewed as it is kept. */
+  private static async overStored(
+    opts: Parameters<typeof SemiontSession.fromStoredSession>[0],
+    access: string,
+  ): Promise<OpenedSession> {
+    const token$ = new BehaviorSubject<AccessToken | null>(accessToken(access));
     // One renewal at a time. A stream refused and a request refused at the
     // same moment each ask for one, and an issuer that rotates refresh tokens
     // refuses the second grant, which would end a session that was fine.
     let renewing: Promise<string | null> | null = null;
-    const opened = SemiontSession.fromHttp({
+    const opened = SemiontSession.overHttp({
       kb: opts.kb,
       storage: opts.storage,
       baseUrl: opts.baseUrl,
-      token: opts.session.access,
       refresh: () => {
-        renewing ??= refreshStoredSession(opts.storage, opts.kb.id, opts.fetch).finally(() => { renewing = null; });
+        renewing ??= refreshStoredSession(opts.storage, opts.kb.id, token$.getValue(), opts.fetch).finally(() => { renewing = null; });
         return renewing;
       },
       ...(opts.fetch ? { fetch: opts.fetch } : {}),
       ...(opts.validate ? { validate: opts.validate } : {}),
       ...(opts.onAuthFailed ? { onAuthFailed: opts.onAuthFailed } : {}),
       ...(opts.onError ? { onError: opts.onError } : {}),
-    });
+    }, token$);
     await opened.session.ready;
     return opened;
   }

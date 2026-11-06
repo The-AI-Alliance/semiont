@@ -49,7 +49,7 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
       const existing = inFlightRefreshes.get(kb.id);
       if (existing) return existing;
 
-      const promise = refreshStoredSession(storage, kb.id, fetch);
+      const promise = refreshStoredSession(storage, kb.id, token$.getValue(), fetch);
 
       inFlightRefreshes.set(kb.id, promise);
       try {
