@@ -162,7 +162,7 @@ public sealed partial class TransportTests
         using var transport = new HttpTransport("http://unit.test", "token", [], httpClient: http);
         var clock = new TestClock();
         var store = new MemoryStorage();
-        using var storage = new LiveCacheStorage(new CachePersistence(store, "kb-a", KeptPerson), clock);
+        using var storage = new LiveCacheStorage(new CachePersistence(store, "kb-a", RegistryStorage.PersonKey(KeptPerson)), clock);
         var answer = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cache = new Cache<ResourceId, int>((_, cancellation) => answer.Task.WaitAsync(cancellation), null,
             clock, TimeSpan.Zero, storage.Changed);
@@ -216,7 +216,7 @@ public sealed partial class TransportTests
         using var transport = new HttpTransport("http://unit.test", "token", [], httpClient: http);
         var store = new MemoryStorage();
         store.Set(RegistryStorage.CacheKey("kb-a", RegistryStorage.PersonKey(KeptPerson), "resource"), document);
-        using var storage = new LiveCacheStorage(new CachePersistence(store, "kb-a", KeptPerson), TimeProvider.System);
+        using var storage = new LiveCacheStorage(new CachePersistence(store, "kb-a", RegistryStorage.PersonKey(KeptPerson)), TimeProvider.System);
         using var cache = new Cache<ResourceId, int>((_, _) => Task.FromResult(7));
         storage.Start(transport, [cache.PersistAs("resource")]);
 

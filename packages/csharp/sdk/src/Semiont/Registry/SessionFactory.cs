@@ -41,14 +41,24 @@ public sealed class OpenedSession : IAsyncDisposable
     private async Task CloseAsync() => await close().ConfigureAwait(false);
 }
 
-/// <summary>Opens an active knowledge base with the same kept session used for other HTTP clients.</summary>
+/// <summary>
+/// Opens an active knowledge base with the same kept session used for other HTTP clients. Its client keeps what it holds
+/// for the person the knowledge base's sign-in names, from when the sign-in names them.
+/// </summary>
 public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvider? timeProvider = null) : SessionFactory
 {
     public async Task<OpenedSession> OpenAsync(SessionFactoryOptions options, CancellationToken cancellation = default)
     {
         if (options.Kb.Endpoint is not KbEndpoint.HttpEndpointCase(var endpoint))
             throw new SessionError(ProtocolFacts.SessionError("construct-failed"), "This factory requires an HTTP endpoint.");
-        var kept = new KeptSession(endpoint, RegistryStorage.KeptIn(options.Storage, options.Kb.Id), httpClient, timeProvider);
+        var signIn = RegistryStorage.KeptIn(options.Storage, options.Kb.Id);
+        var persistence = CachePersistence.ForSignIn(options.Storage, options.Kb.Id);
+        if (RegistryStorage.StoredSession(options.Storage, options.Kb.Id) is { PersonKey: { } named }) persistence.Attach(named);
+        var kept = new KeptSession(endpoint, signIn, httpClient, timeProvider, random: null, answered: async (token, user, recording) =>
+        {
+            var person = RegistryStorage.PersonKey(user.Did);
+            if (await signIn.RecordPersonKeyAsync(token, person, recording).ConfigureAwait(false)) persistence.Attach(person);
+        });
         HttpTransport? transport = null;
         try
         {
@@ -57,8 +67,6 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
                 BusRegistry.FullClientChannels, refresher: kept.RefreshAsync,
                 httpClient: httpClient, timeProvider: timeProvider);
             transport = http;
-            var user = kept.State.User;
-            var persistence = user is null ? null : new CachePersistence(options.Storage, RegistryStorage.CacheKey(options.Kb.Id, user.Did));
             var client = new SemiontClient(http, persistence);
             var session = new SemiontSession(new KbTarget { Id = options.Kb.Id, Endpoint = options.Kb.Endpoint, Label = options.Kb.Label },
                 client, kept);

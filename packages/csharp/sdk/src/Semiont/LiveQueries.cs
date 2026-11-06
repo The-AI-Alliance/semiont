@@ -17,6 +17,8 @@ internal sealed class LiveQueries : IDisposable
     internal readonly record struct AnnotationKey(ResourceId Resource, AnnotationId Annotation);
 
     private static readonly JsonDocument Table = JsonDocument.Parse(ProtocolTables.CacheRefresh);
+    internal static readonly IReadOnlyList<string> PersistedQueries = Array.AsReadOnly(Table.RootElement.GetProperty("queries").EnumerateArray()
+        .Where(row => row.TryGetProperty("persisted", out var persisted) && persisted.GetBoolean()).Select(row => Text(row, "name")).ToArray());
     private const string Reopened = "reopened";
     private readonly EventBus.Subscription events;
     private readonly Dictionary<string, Query> queries;
@@ -109,12 +111,20 @@ internal sealed class LiveQueries : IDisposable
         Add(BusChannels.FrameEntityTypeAdded, _ => new());
         Add(BusChannels.FrameTagSchemaAdded, _ => new());
 
+        var persistable = new Dictionary<string, Func<string, ISavedCache>>(StringComparer.Ordinal)
+        {
+            ["resource"] = ResourcesById.PersistAs,
+            ["annotations"] = Annotations.PersistAs,
+            ["annotation"] = Annotation.PersistAs,
+            ["entityTypes"] = entityTypes.PersistAs,
+            ["tagSchemas"] = tagSchemas.PersistAs,
+        };
+
         refresh = Table.RootElement.GetProperty("refresh").EnumerateArray().ToLookup(row => Text(row, "on"), StringComparer.Ordinal);
-        CheckRefresh();
+        CheckRefresh(persistable.Keys);
         var channels = persistence is null ? subjects.Keys : subjects.Keys.Concat(ProtocolFacts.Channels("scoped")).Distinct(StringComparer.Ordinal);
         events = bus.Listen(channels.ToArray());
-        persistence?.Start(transport, [ResourcesById.PersistAs("resource"), Annotations.PersistAs("annotations"),
-            Annotation.PersistAs("annotation"), entityTypes.PersistAs("entityTypes"), tagSchemas.PersistAs("tagSchemas")]);
+        persistence?.Start(transport, PersistedQueries.Select(name => persistable[name](name)).ToArray());
         _ = ReadEventsAsync();
         _ = ReadReopensAsync(transport);
 
@@ -197,10 +207,11 @@ internal sealed class LiveQueries : IDisposable
             if (AnnotationMatches(pair.Key, subject)) pair.Value.Remove(onlyIfHeld: true);
     }
 
-    private void CheckRefresh()
+    private void CheckRefresh(IEnumerable<string> persisted)
     {
         var named = Table.RootElement.GetProperty("queries").EnumerateArray().Select(row => Text(row, "name"));
         if (!queries.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(named) ||
+            !persisted.ToHashSet(StringComparer.Ordinal).SetEquals(PersistedQueries) ||
             !subjects.Keys.Append(Reopened).ToHashSet(StringComparer.Ordinal).SetEquals(refresh.Select(group => group.Key)))
             throw new InvalidOperationException("The live cache does not cover the refresh table.");
         foreach (var group in refresh)

@@ -15,6 +15,7 @@ public sealed class Cache<TKey, T> : IStateUnit where TKey : notnull
     private readonly TimeSpan window;
     private readonly Action? changed;
     private readonly Func<bool>? savePending;
+    private long revision;
     private bool closed;
 
     public Cache(Func<TKey, CancellationToken, Task<T>> fetch, TimeProvider? timeProvider = null)
@@ -28,7 +29,11 @@ public sealed class Cache<TKey, T> : IStateUnit where TKey : notnull
         this.hold = hold;
         this.clock = clock;
         this.window = window;
-        this.changed = changed;
+        this.changed = changed is null ? null : () =>
+        {
+            Interlocked.Increment(ref revision);
+            changed();
+        };
         this.savePending = savePending;
     }
 
@@ -50,7 +55,7 @@ public sealed class Cache<TKey, T> : IStateUnit where TKey : notnull
     public IReadOnlyList<TKey> Keys() => Array.AsReadOnly(Snapshot().Where(pair => pair.Value.IsKnown).Select(pair => pair.Key).ToArray());
 
     public bool PersistencePending => savePending is not null && (savePending() ||
-        Snapshot().Any(pair => !pair.Value.Snapshot(requireIdle: true, out _, out _)));
+        Snapshot().Any(pair => !pair.Value.Snapshot(requireIdle: true, out _)));
 
     public void Invalidate(TKey key) => Observe(key).Invalidate();
     public void InvalidateAll()
@@ -77,27 +82,27 @@ public sealed class Cache<TKey, T> : IStateUnit where TKey : notnull
     private sealed class SavedCache(Cache<TKey, T> cache, string name) : ISavedCache
     {
         public string Name => name;
+        public long Revision => Interlocked.Read(ref cache.revision);
 
         public bool Collect(List<SavedCacheValue> values, bool requireIdle)
         {
             foreach (var (key, query) in cache.Snapshot())
             {
-                if (!query.Snapshot(requireIdle, out var ready, out var written)) return false;
+                if (!query.Snapshot(requireIdle, out var ready)) return false;
                 if (ready is not null)
-                    values.Add(new SavedCacheValue(name, JsonSerializer.SerializeToElement(key),
-                        JsonSerializer.SerializeToElement(ready.Value), written));
+                    values.Add(new SavedCacheValue(JsonSerializer.SerializeToElement(key),
+                        JsonSerializer.SerializeToElement(ready.Value)));
             }
             return true;
         }
 
         public void Rehydrate(SavedCacheValue saved)
         {
-            if (saved.Key.ValueKind == JsonValueKind.Undefined || saved.Value.ValueKind == JsonValueKind.Undefined) return;
             try
             {
                 var key = saved.Key.Deserialize<TKey>();
                 var value = saved.Value.Deserialize<T>();
-                if (key is not null && value is not null) cache.Observe(key).Rehydrate(value, saved.Written);
+                if (key is not null && value is not null) cache.Observe(key).Rehydrate(value);
             }
             catch (JsonException) { /* An invalid saved value is treated as absent. */ }
         }

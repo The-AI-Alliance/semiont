@@ -193,9 +193,21 @@ public sealed class SemiontBrowser : IAsyncDisposable
                     catch (SignInError) { /* Revocation is best effort after local sign-out. */ }
                 }, background: true);
             Publish(state);
-            return state.ActiveKbId == kbId
+            var closing = state.ActiveKbId == kbId
                 ? Select(kbId, replace: true, background: false, cancellation, openSession: false)
                 : Task.CompletedTask;
+            return removed is { PersonKey: { } person } ? ForgetPersonAsync(closing, kbId, person) : closing;
+        }
+    }
+
+    // What is kept for the person goes only once the client has closed, so nothing its close writes is left.
+    private async Task ForgetPersonAsync(Task closing, string kbId, string personKey)
+    {
+        try { await closing.ConfigureAwait(false); }
+        finally
+        {
+            foreach (var query in LiveQueries.PersistedQueries) Storage.Delete(CacheKey(kbId, personKey, query));
+            Storage.Delete(LastEventIdKey(kbId, personKey));
         }
     }
 

@@ -33,6 +33,14 @@ public sealed class KeptSession : IDisposable
 
     public KeptSession(HttpEndpoint endpoint, ISignInKept kept, HttpClient? httpClient = null,
         TimeProvider? timeProvider = null, Random? random = null)
+        : this(endpoint, kept, httpClient, timeProvider, random, static (_, _, _) => Task.CompletedTask) { }
+
+    /// <summary>
+    /// <paramref name="answered"/> is given each token the gateway names a person for, and that person, before the
+    /// session holds the answer.
+    /// </summary>
+    internal KeptSession(HttpEndpoint endpoint, ISignInKept kept, HttpClient? httpClient, TimeProvider? timeProvider, Random? random,
+        Func<string, UserResponse, CancellationToken, Task> answered)
     {
         string origin;
         try { origin = Gateway.Origin(endpoint); }
@@ -43,7 +51,12 @@ public sealed class KeptSession : IDisposable
         this.random = random ?? Random.Shared;
         issuer = new Issuer(httpClient, clock, this.random);
         renew = (holding, cancellation) => issuer.RenewAsync(kept, holding, cancellation);
-        validate = (token, cancellation) => Gateway.GetCurrentUserAsync(origin, token, httpClient, clock, cancellation);
+        validate = async (token, cancellation) =>
+        {
+            var user = await Gateway.GetCurrentUserAsync(origin, token, httpClient, clock, cancellation).ConfigureAwait(false);
+            await answered(token, user, cancellation).ConfigureAwait(false);
+            return user;
+        };
         states.Publish(state);
         ready = Task.Run(StartAsync);
     }

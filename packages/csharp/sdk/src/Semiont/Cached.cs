@@ -28,7 +28,6 @@ public sealed class Cached<T> : IAsyncEnumerable<CacheState<T>>
     private Task<T>? flight;
     private object? validation;
     private long writeEpoch;
-    private long written;
     private int activeLoads;
     private bool rehydrated;
     private bool windowOpen;
@@ -179,28 +178,25 @@ public sealed class Cached<T> : IAsyncEnumerable<CacheState<T>>
 
     private void Ready(T value)
     {
-        written = clock.GetUtcNow().UtcTicks;
         changed?.Invoke();
         Publish(new CacheState<T>.Ready(value));
     }
 
-    internal void Rehydrate(T value, long savedAt)
+    internal void Rehydrate(T value)
     {
         lock (gate)
         {
-            if (closed) return;
+            if (closed || Held()) return;
             state = new CacheState<T>.Ready(value);
-            written = savedAt;
             rehydrated = true;
         }
     }
 
-    internal bool Snapshot(bool requireIdle, out CacheState<T>.Ready? value, out long savedAt)
+    internal bool Snapshot(bool requireIdle, out CacheState<T>.Ready? value)
     {
         lock (gate)
         {
             value = state as CacheState<T>.Ready;
-            savedAt = written;
             return !requireIdle || activeLoads == 0 && validation is null && !owed;
         }
     }

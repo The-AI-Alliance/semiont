@@ -1,3 +1,6 @@
+using System.Buffers.Text;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Semiont.Identifiers;
@@ -12,6 +15,7 @@ public static class RegistryStorage
 {
     private static readonly JsonElement Table = JsonSerializer.Deserialize<JsonElement>(ProtocolTables.Stored);
     private static readonly string Prefix = Text(Table.GetProperty("sessionKeyPrefix"), "prefix");
+    private static readonly string LastEventIdPrefix = Text(Table.GetProperty("lastEventIdKeyPrefix"), "prefix");
     private static readonly string CachePrefix = Text(Table.GetProperty("cacheKeyPrefix"), "prefix");
     public static readonly string KnowledgeBasesKey = Key("knowledgeBasesKey");
     public static readonly string ActiveKey = Key("activeKey");
@@ -27,8 +31,13 @@ public static class RegistryStorage
     private static string Key(string member) => Text(Table.GetProperty("keys").EnumerateArray().Single(row => Text(row, "member") == member), "key");
     private static string Text(JsonElement value, string name) => value.GetProperty(name).GetString() ?? throw new InvalidOperationException("Missing " + name);
 
-    internal static string CacheKey(string kbId, UserId user) => CachePrefix + "csharp.v1." +
-        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new[] { kbId, user.Value })));
+    /// <summary>
+    /// The key what a client keeps for a person is kept under, never their did: the unpadded base64url SHA-256 of the
+    /// UTF-8 of <paramref name="did"/>, as the gateway answers who a token is.
+    /// </summary>
+    public static string PersonKey(UserId did) => Base64Url.EncodeToString(SHA256.HashData(Encoding.UTF8.GetBytes(did.Value)));
+    internal static string LastEventIdKey(string kbId, string personKey) => LastEventIdPrefix + kbId + "." + personKey;
+    internal static string CacheKey(string kbId, string personKey, string query) => CachePrefix + kbId + "." + personKey + "." + query;
 
     public static string SessionKey(string kbId) => Prefix + kbId;
     public static string? KbOfSessionKey(string key) => key.StartsWith(Prefix, StringComparison.Ordinal) ? key[Prefix.Length..] : null;
@@ -95,6 +104,20 @@ public static class RegistryStorage
                 return Write(stored with { Access = access, Refresh = refresh });
             });
             return Task.FromResult(adopted);
+        }
+
+        public Task<bool> RecordPersonKeyAsync(string access, string personKey, CancellationToken cancellation = default)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var recorded = false;
+            storage.Update(SessionKey(kbId), value =>
+            {
+                if (Read<StoredSession>(value) is not { } stored || stored.Access != access) return value;
+                if (stored.PersonKey is { } named) { recorded = named == personKey; return value; }
+                recorded = true;
+                return Write(stored with { PersonKey = personKey });
+            });
+            return Task.FromResult(recorded);
         }
     }
 }
