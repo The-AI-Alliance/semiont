@@ -232,18 +232,8 @@ export function faultOfShape(shape: Shape, value: unknown): Fault | undefined {
   return faultAt(shape, value, '');
 }
 
-/** What every SDK says of `fault`. */
+/** What every SDK says of `fault`, as it refuses what has it: `it has no \`member\``, `its \`member\` is malformed`, or `it is malformed`. */
 export function said(fault: Fault): string {
   if (fault.reason === 'lacks') return `it has no \`${fault.member}\``;
   return fault.member === '' ? 'it is malformed' : `its \`${fault.member}\` is malformed`;
-}
-
-/**
- * What every SDK says of the first fault `value` has as a `schema`, as it
- * refuses it: `it has no \`member\``, `its \`member\` is malformed`, or `it is
- * malformed`; nothing, when it has none.
- */
-export function faultSaid(schema: SchemaName, value: unknown): string | undefined {
-  const fault = faultOf(schema, value);
-  return fault === undefined ? undefined : said(fault);
 }

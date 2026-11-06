@@ -2116,7 +2116,7 @@
     },
     {
       "module": "refusals",
-      "docs": "What every SDK says of the first fault a body has as a component schema, as it refuses it (`it has no `x``, `its `x` is malformed`, `it is malformed`), or nothing when the body has none: for an SDK whose HTTP transport is a package of its own, which reads its answers by it. Held by the table of what each schema requires (packages/codegen/schemas/required-shapes.mjs).",
+      "docs": "The first fault a body has as a component schema, and what every SDK says of it as it refuses it (`it has no `x``, `its `x` is malformed`, `it is malformed`): for an SDK whose HTTP transport is a package of its own, which reads its answers and holds its stream's frames by them. Held by the table of what each schema requires (packages/codegen/schemas/required-shapes.mjs).",
       "where": {
         "typescript": [
           "packages/typescript/core/src/required.ts"
@@ -2145,6 +2145,43 @@
           "member": "faultSaid",
           "kind": "function",
           "absent": {
+            "typescript": "TypeScript's transport finds a body's fault with faultOf and says it with said.",
+            "python": "Its HTTP transport is in the SDK's own package, and reads its answers by the table there.",
+            "go": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
+            "kotlin": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
+            "swift": "Its HTTP transport is in the SDK's own package.",
+            "csharp": "Its HTTP transport is in the SDK's own assembly."
+          }
+        },
+        {
+          "member": "faultOf",
+          "kind": "function",
+          "absent": {
+            "rust": "Rust's transport crate is told a body's fault in words (fault_said), and a refused frame's as its refusal (FrameRefusal::of).",
+            "python": "Its HTTP transport is in the SDK's own package, and reads its answers by the table there.",
+            "go": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
+            "kotlin": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
+            "swift": "Its HTTP transport is in the SDK's own package.",
+            "csharp": "Its HTTP transport is in the SDK's own assembly."
+          }
+        },
+        {
+          "member": "said",
+          "kind": "function",
+          "absent": {
+            "rust": "Rust's transport crate is told a body's fault in words (fault_said), and a refused frame's as its refusal (FrameRefusal::of).",
+            "python": "Its HTTP transport is in the SDK's own package, and reads its answers by the table there.",
+            "go": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
+            "kotlin": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
+            "swift": "Its HTTP transport is in the SDK's own package.",
+            "csharp": "Its HTTP transport is in the SDK's own assembly."
+          }
+        },
+        {
+          "member": "Fault",
+          "kind": "type",
+          "absent": {
+            "rust": "Rust's transport crate is told a body's fault in words (fault_said), and a refused frame's as its refusal (FrameRefusal::of).",
             "python": "Its HTTP transport is in the SDK's own package, and reads its answers by the table there.",
             "go": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
             "kotlin": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
