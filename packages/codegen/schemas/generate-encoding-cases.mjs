@@ -160,6 +160,9 @@ const table = {
     'to write where the two disagree about a label. Every SDK runs it, for every label of every case. Its runs ' +
     'include one through encoding_rs, which is the standard as Firefox has it, and that run is the check of this ' +
     'table against a second implementation, label by label and byte by byte. A reader in another language runs it too.',
+  notYetReached: {
+    haskell: 'P5: implement text decoding, encoding and code-point offset helpers and execute their shared cases.',
+  },
   runBy: {
     typescript: ['packages/typescript/core/src/__tests__/decode-cases.test.ts'],
     rust: ['packages/rust/sdk/src/resources.rs', 'packages/rust/sdk/tests/decode_cases.rs'],
