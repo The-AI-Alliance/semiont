@@ -18,6 +18,7 @@ use semiont_http_transport::transport::{
 };
 use serde_json::json;
 use std::collections::VecDeque;
+use std::future::IntoFuture;
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
@@ -366,7 +367,7 @@ async fn a_cancelled_upload_is_not_sent_again() {
 
     // Leaving the select drops the upload: that is its cancelling.
     tokio::select! {
-        _ = sending.into_future() => panic!("the upload ended before it was cancelled"),
+        _ = IntoFuture::into_future(sending) => panic!("the upload ended before it was cancelled"),
         () = gateway.arrival.notified() => {}
     }
     tokio::time::sleep(REQUEST_RETRY_PAUSE * 3).await;
