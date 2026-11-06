@@ -150,8 +150,11 @@ impl Bus {
         self.transport.frames(channel)
     }
 
-    /// Send `payload` as the request of `operation` and wait up to `within`
-    /// for its reply: the reply's `response`, or `None` when it carries none.
+    /// Send `payload` as the request of `operation` and wait for its reply,
+    /// all within `within` of the call: the reply's `response`, or `None` when
+    /// it carries none. The deadline covers the wait for the stream to open,
+    /// the emit with its retries and the waits between them, and the wait for
+    /// the reply; when it falls due, what is still in flight is given up.
     pub async fn request_of(
         &self,
         operation: &Operation,
@@ -163,7 +166,8 @@ impl Bus {
     }
 
     /// A request, as far as its result: the frame that answers it on its
-    /// operation's result channel. A failure is the request's error.
+    /// operation's result channel. A failure is the request's error. Its one
+    /// deadline, taken at the call, is over all of it.
     async fn result_of(
         &self,
         operation: &Operation,
@@ -194,50 +198,51 @@ impl Bus {
             )
         };
 
-        // No request before its reply can arrive: wait, inside the request's
-        // own deadline, for the stream to be open. Only `Open` delivers; a
-        // closed bus fails at once rather than burning the deadline.
-        let closed_before_emit = || {
-            BusRequestError::new(
-                BusRequestErrorCode::Closed,
-                format!("Bus closed before emit on {}", operation.request),
-            )
-        };
-        let mut state = self.transport.state();
-        loop {
-            match *state.borrow_and_update() {
-                ConnectionState::Open => break,
-                ConnectionState::Closed => return Err(closed_before_emit().into()),
-                _ => {}
-            }
-            tokio::select! {
-                changed = state.changed() => {
-                    if changed.is_err() {
-                        return Err(closed_before_emit().into());
-                    }
+        let answered = async {
+            // No request before its reply can arrive: wait for the stream to
+            // be open. Only `Open` delivers; a closed bus fails at once rather
+            // than burning the deadline.
+            let closed_before_emit = || {
+                BusRequestError::new(
+                    BusRequestErrorCode::Closed,
+                    format!("Bus closed before emit on {}", operation.request),
+                )
+            };
+            let mut state = self.transport.state();
+            loop {
+                match *state.borrow_and_update() {
+                    ConnectionState::Open => break,
+                    ConnectionState::Closed => return Err(closed_before_emit().into()),
+                    _ => {}
                 }
-                () = tokio::time::sleep_until(deadline) => return Err(timed_out().into()),
+                if state.changed().await.is_err() {
+                    return Err(closed_before_emit().into());
+                }
             }
-        }
 
-        // Tracked before the emit, so a stream opened while the emit is in
-        // flight already names the reply.
-        let correlation_id = uuid::Uuid::new_v4().to_string();
-        let mut pending = self
-            .transport
-            .track_reply(&correlation_id, &[operation.result, operation.failure]);
-        let envelope = Envelope {
-            correlation_id: Some(correlation_id),
-            scope: None,
+            // Tracked before the emit, so a stream opened while the emit is
+            // in flight already names the reply.
+            let correlation_id = uuid::Uuid::new_v4().to_string();
+            let mut pending = self
+                .transport
+                .track_reply(&correlation_id, &[operation.result, operation.failure]);
+            let envelope = Envelope {
+                correlation_id: Some(correlation_id),
+                scope: None,
+            };
+            self.transport
+                .emit(operation.request, payload, envelope)
+                .await?;
+            Ok::<_, SemiontError>(pending.frame().await)
         };
-        self.transport
-            .emit(operation.request, payload, envelope)
-            .await?;
-
-        let reply = tokio::select! {
-            biased;
-            reply = pending.frame() => reply,
-            () = tokio::time::sleep_until(deadline) => return Err(timed_out().into()),
+        // The whole request is under its deadline: the wait for the stream,
+        // the emit with its retries and the waits between them, and the wait
+        // for the reply. Dropped when it falls due, what is in flight is
+        // given up. A reply ready at that instant is still taken: the request
+        // is polled before its deadline.
+        let reply = match tokio::time::timeout_at(deadline, answered).await {
+            Ok(answered) => answered?,
+            Err(_) => return Err(timed_out().into()),
         };
         let reply = match reply {
             Some(Ok(reply)) => reply,
