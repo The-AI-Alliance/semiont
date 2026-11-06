@@ -17,6 +17,7 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.cache.CACHE_REFRESH
+import semiont.cache.CACHE_REFRESH_CHANNELS
 import semiont.cache.CacheQuery
 import semiont.cache.CacheRefreshReach
 import semiont.cache.CacheRefreshTrigger
@@ -114,10 +115,12 @@ class RefresherTest {
         }
 
     @Test
-    fun everyTriggerButTheReopeningIsAChannelAClientHears() {
-        val events = CacheRefreshTrigger.entries.filter { it != CacheRefreshTrigger.Reopened }
-        assertTrue(events.isNotEmpty())
-        for (trigger in events) assertTrue(trigger.wire in BRIDGED_CHANNELS || trigger.wire in RESOURCE_SCOPED_CHANNELS, trigger.wire)
+    fun everyChannelOfTheRefreshTableIsOneAClientHears() {
+        assertTrue(CACHE_REFRESH_CHANNELS.isNotEmpty())
+        for ((name, channel) in CACHE_REFRESH_CHANNELS) {
+            assertEquals(name, channel.trigger.wire)
+            assertTrue(name in BRIDGED_CHANNELS || name in RESOURCE_SCOPED_CHANNELS, name)
+        }
         assertEquals(CacheQuery.entries.toSet(), ASKS.keys)
     }
 
@@ -233,15 +236,25 @@ class RefresherTest {
     }
 
     @Test
-    fun anEventThatCannotBeReadAsksAgainForEverythingHeld() = runTest {
+    fun anEventThatCannotBeReadAsksAgainForEverythingHeldAndOneThatLacksAMemberNamesNone() = runTest {
         val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource)
         watched(world, everything(world))
         delay(SETTLE)
-        // Something changed and nothing says what.
+        // Something changed and nothing says what: a frame its channel's reading refuses.
         var before = world.asked()
         world.kb.deliver(Frame("mark:added", json("""{"not":"a recorded event"}"""), null, RESOURCE))
         delay(SETTLE)
         assertEquals(expected(CacheQuery.entries, CacheRefreshReach.Held), since(world, before))
+        // And one its channel's reading takes, whose annotation id its row names is present and is no AnnotationId.
+        before = world.asked()
+        world.kb.deliver(Frame("mark:removed", recorded("mark:removed", RESOURCE, json("""{"annotationId":"not an annotation id"}""")), null, RESOURCE))
+        delay(SETTLE)
+        assertEquals(expected(CacheQuery.entries, CacheRefreshReach.Held), since(world, before))
+        // One that lacks the annotation id names none, and its row applies to the resource it names.
+        before = world.asked()
+        world.kb.deliver(Frame("mark:removed", recorded("mark:removed", RESOURCE), null, RESOURCE))
+        delay(SETTLE)
+        assertEquals(expected(CACHE_REFRESH.getValue(CacheRefreshTrigger.MarkRemoved).single().refetches, CacheRefreshReach.Subject), since(world, before))
         // And a frame on a channel that is no trigger asks for nothing.
         before = world.asked()
         world.kb.deliver(Frame("beckon:focus", json("""{"resourceId":"${RESOURCE.value}","annotationId":"${ANNOTATION.value}"}""")))

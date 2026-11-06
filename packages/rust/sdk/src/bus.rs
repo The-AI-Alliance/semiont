@@ -39,7 +39,7 @@
 //! registry's name and the payload a JSON object: for what relays frames it
 //! does not read, or is told its channels at run time.
 
-use crate::channels::{Channel, Request, Scoped, Unscoped, payload_shape};
+use crate::channels::{Channel, Request, Scoped, Unscoped, payload_shape, payload_stamps};
 use crate::errors::{
     BusRequestError, BusRequestErrorCode, SemiontError, TransportError, TransportErrorCode,
 };
@@ -308,20 +308,24 @@ impl fmt::Display for StreamError {
 
 impl std::error::Error for StreamError {}
 
-/// A payload as the channel `C` types it. A gateway's stamps the type does
+/// A payload held to the channel `channel`. A gateway's stamps its type does
 /// not declare are the bus's, not the payload's, and are left out. A payload
 /// with a fault as the channel's is refused, for the fault.
-pub(crate) fn decoded<C: Channel>(mut payload: Map<String, Value>) -> Result<C::Payload, Fault> {
-    payload.retain(|key, _| !key.starts_with('_') || C::STAMPS.contains(&key.as_str()));
+pub(crate) fn held_to(channel: &str, mut payload: Map<String, Value>) -> Result<Value, Fault> {
+    let stamps = payload_stamps(channel);
+    payload.retain(|key, _| !key.starts_with('_') || stamps.contains(&key.as_str()));
     let payload = Value::Object(payload);
-    let fault = match fault_of(payload_shape(C::NAME), &payload) {
-        Some(fault) => fault,
-        None => match serde_json::from_value(payload) {
-            Ok(decoded) => return Ok(decoded),
-            Err(_) => Fault::undecoded(),
-        },
-    };
-    Err(fault)
+    match fault_of(payload_shape(channel), &payload) {
+        Some(fault) => Err(fault),
+        None => Ok(payload),
+    }
+}
+
+/// A payload as the channel `C` types it: held to the channel (`held_to`),
+/// and refused as malformed where serde refuses what has no fault the table
+/// states.
+pub(crate) fn decoded<C: Channel>(payload: Map<String, Value>) -> Result<C::Payload, Fault> {
+    serde_json::from_value(held_to(C::NAME, payload)?).map_err(|_| Fault::undecoded())
 }
 
 /// A frame of the channel `C`, its payload decoded; or, refused, what

@@ -42,7 +42,7 @@ from typing import Final, Literal, Self, final, overload
 from pydantic import JsonValue, ValidationError
 
 from semiont._required import UNDECODED, Fault, fault_of
-from semiont.channel import AnyOperation, Channel, Operation, ScopedChannel
+from semiont.channel import AnyChannel, AnyOperation, Channel, Operation, ScopedChannel
 from semiont.errors import BusRequestError, TransportError
 from semiont.events import Events
 from semiont.identifiers import ResourceId, UserId
@@ -148,7 +148,7 @@ async def _result_of(transport: Transport, operation: AnyOperation, payload: Map
 # ── By type ─────────────────────────────────────────────────────────────
 
 
-def _unstamped[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], payload: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+def _unstamped(channel: AnyChannel, payload: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
     """`payload` without what the gateway stamped on it that `channel`'s type does not declare.
 
     What the gateway stamps on a payload (a member whose name begins `_`) is
@@ -158,10 +158,20 @@ def _unstamped[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], 
     return {name: value for name, value in payload.items() if not name.startswith("_") or name in channel.stamps}
 
 
-def decoded[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], payload: Mapping[str, JsonValue]) -> P:
+@overload
+def decoded[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], payload: Mapping[str, JsonValue]) -> P: ...
+
+
+@overload
+def decoded(channel: AnyChannel, payload: Mapping[str, JsonValue]) -> WireModel: ...
+
+
+def decoded(channel: AnyChannel, payload: Mapping[str, JsonValue]) -> WireModel:
     """A payload as `channel` types it, without the stamps it does not declare.
 
-    Raises `ValidationError` for one that is not that channel's.
+    A channel by name (`semiont.channels.CHANNELS`) types it as one of the
+    protocol's shapes. Raises `ValidationError` for one that is not that
+    channel's.
     """
     return channel.decode(_unstamped(channel, payload))
 

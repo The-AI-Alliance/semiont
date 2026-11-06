@@ -78,7 +78,8 @@ windowCases fixtures = withCarrier $ \carrier input local -> do
       readTVarIO count >>= require "an event fetched an unheld key" . (==1)
       Transport.receive input (BusFrame (Channel.channelName Channel.MarkAdded) Nothing (BusFramePayload KM.empty) Nothing)
       Time.settle
-      readTVarIO count >>= require "an invalid event mutated a live query" . (==1)
+      readTVarIO count >>= require "an unreadable event did not ask again for what is held" . (==2)
+      waitWindow
       caller <- getContext
       applied <- bracket (attachContext (Context.insert key ("frame-owner"::Text) caller)) detachContext $ \_ -> do
         parent <- getContext
@@ -87,27 +88,27 @@ windowCases fixtures = withCarrier $ \carrier input local -> do
           Cache.persistencePending cache
       require "cache effects did not land in the frame's transaction" applied
       Time.settle
-      readTVarIO count >>= require "first source invalidation was delayed" . (==2)
+      readTVarIO count >>= require "first source invalidation was delayed" . (==3)
       readTVarIO parents >>= require "refresh work lost the delivered frame's context" . ((==Just "frame-owner") . last)
       require "coalescing let a bookmark outrun an open window" =<< atomically (Refresh.pending refresher)
       Transport.receive input (event resource)
       Transport.receive input (event resource)
       Time.settle
-      readTVarIO count >>= require "source invalidations did not coalesce" . (==2)
+      readTVarIO count >>= require "source invalidations did not coalesce" . (==3)
       Time.advance time (Timing.invalidationWindowMs Timing.protocolSettings * 1000000 - 1000000)
-      readTVarIO count >>= require "owed invalidation ran before its deadline" . (==2)
+      readTVarIO count >>= require "owed invalidation ran before its deadline" . (==3)
       Time.advance time 1000000
-      readTVarIO count >>= require "owed invalidation did not run at its deadline" . (==3)
+      readTVarIO count >>= require "owed invalidation did not run at its deadline" . (==4)
       readTVarIO parents >>= require "a later frame inherited an earlier frame's context" . ((==Nothing) . last)
       waitWindow
       require "an empty invalidation window did not close" . not =<< atomically (Refresh.pending refresher)
       Transport.receive input (BusFrame (Channel.channelName Channel.BusResumeGap) Nothing (payload gap { busResumeGapScope = resource }) Nothing)
       Time.settle
-      readTVarIO count >>= require "a resumption gap did not refresh its held scope" . (==4)
+      readTVarIO count >>= require "a resumption gap did not refresh its held scope" . (==5)
       Refresh.dispose refresher
       Transport.receive input (event resource)
       waitWindow
-      readTVarIO count >>= require "disposed refresh work issued a fetch" . (==4)
+      readTVarIO count >>= require "disposed refresh work issued a fetch" . (==5)
 
 writeCases :: Map.Map Text Value -> IO ()
 writeCases fixtures = withCarrier $ \carrier input local -> do

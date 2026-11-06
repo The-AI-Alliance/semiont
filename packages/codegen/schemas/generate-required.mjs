@@ -16,6 +16,7 @@ import { dirname, resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { readRequiredShapes } from './required-shapes.mjs';
+import { storedEventComponent } from '../bus/stored-event.mjs';
 import { writeOrCheck } from '../lib/committed-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -57,7 +58,7 @@ for (const row of registry.channels) {
   let shape;
   switch (row.shape) {
     case 'schema': shape = { ref: row.schema }; break;
-    case 'storedEvent': shape = { ref: row.enriched ? 'EnrichedResourceEvent' : 'StoredEventResponse' }; break;
+    case 'storedEvent': shape = { ref: storedEventComponent(row) }; break;
     case 'envelope': shape = { kinds: ['object'], required: ['response'], members: { response: { ref: row.schema } }, closed: ['response'] }; break;
     case 'empty': case 'void': shape = { kinds: ['object'], closed: [] }; break;
     default: throw new Error(`unsupported required Haskell channel shape: ${row.shape}`);

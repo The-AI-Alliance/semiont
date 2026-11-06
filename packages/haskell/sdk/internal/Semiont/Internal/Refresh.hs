@@ -50,23 +50,35 @@ data Refresher = Refresher
   , release :: IO ()
   }
 
-valueAt :: [Text] -> Value -> Maybe Value
-valueAt [] value = Just value
-valueAt (key:rest) (Object fields) = KM.lookup (Key.fromText key) fields >>= valueAt rest
-valueAt _ _ = Nothing
+-- | The member a way ends at: Just Nothing where it, or a member on it, is
+-- absent or null; Nothing where a member on it is present and no object, which
+-- makes the event unreadable.
+memberAt :: [Text] -> Value -> Maybe (Maybe Value)
+memberAt _ Null = Just Nothing
+memberAt [] value = Just (Just value)
+memberAt (key:rest) (Object fields) = maybe (Just Nothing) (memberAt rest) (KM.lookup (Key.fromText key) fields)
+memberAt _ _ = Nothing
+-- | What a way names, read as its type: Nothing where the event is unreadable there.
 readPart :: FromJSON value => Maybe [Text] -> Value -> Maybe (Maybe value)
 readPart Nothing _ = Just Nothing
-readPart (Just path) value = case valueAt path value of
-  Nothing -> Just Nothing
-  Just Null -> Just Nothing
-  Just raw -> case fromJSON raw of Error _ -> Nothing; Success parsed -> Just (Just parsed)
-subject :: Fact.Extractor -> Value -> Maybe SubjectInfo
-subject extractor value =
-  let paths = case extractor of
-        Fact.Direct direct -> direct
-        Fact.Present path present absent -> case valueAt path value of Just held | held /= Null -> present; _ -> absent
-      Fact.Paths label resource annotation written = paths
-  in SubjectInfo label <$> readPart resource value <*> readPart annotation value <*> readPart written value
+readPart (Just way) value = memberAt way value >>= traverse (\raw -> case fromJSON raw of Error _ -> Nothing; Success parsed -> Just parsed)
+-- | What an event on a channel names, by the ways of its row; Nothing when
+-- the event is unreadable. A split channel's event is enriched when the member
+-- its enriched row carries is present.
+subject :: Text -> Value -> Maybe SubjectInfo
+subject channel value = do
+  row <- chosen
+  let Fact.Row _ label _ (Fact.Ways resource annotation carried) _ _ _ = row
+  SubjectInfo label <$> readPart resource value <*> readPart annotation value <*> readPart carried value
+  where
+    ofChannel = [row | row@(Fact.Row on _ _ _ _ _ _) <- Fact.rows, on == channel]
+    split label = find (\(Fact.Row _ condition _ _ _ _ _) -> condition == Just label) ofChannel
+    chosen = case (split "enriched", split "unenriched") of
+      (Just enriched@(Fact.Row _ _ _ (Fact.Ways _ _ carried) _ _ _), Just unenriched) ->
+        maybe unenriched (const enriched) <$> (readPart carried value :: Maybe (Maybe Annotation))
+      _ -> case ofChannel of
+        [one] -> Just one
+        _ -> error "the refresh table has no single row for a channel it names"
 
 withParent :: Parent -> IO value -> IO value
 withParent parent action = bracket (attachContext (fromMaybe Context.empty parent)) detachContext (const action)
@@ -76,7 +88,7 @@ newRefresher local wire options settings controls = mask $ \restore -> do
   when (Timing.invalidationWindowMs settings < 0) (ioError (userError "negative invalidation window"))
   let owned = Map.fromList controls
   unless (Map.size owned == length controls) (ioError (userError "duplicate live-query owner"))
-  forM_ Fact.rows $ \(Fact.Row _ _ _ _ writes removes) -> do
+  forM_ Fact.rows $ \(Fact.Row _ _ _ _ _ writes removes) -> do
     forM_ writes $ \query -> forM_ (Map.lookup query owned) $ \control ->
       when (isNothing (write control)) (ioError (userError "a refresh row writes a query its owner cannot write"))
     forM_ removes $ \query -> forM_ (Map.lookup query owned) $ \control ->
@@ -107,7 +119,7 @@ newRefresher local wire options settings controls = mask $ \restore -> do
                   Left () -> pure ()
                   Right (state,rest) -> case state of
                     Connection.Open -> do
-                      when (opened && dropped) (atomically (apply result "reopened" Nothing (SubjectInfo Nothing Nothing Nothing Nothing)))
+                      when (opened && dropped) (atomically (apply result Fact.reopened Nothing nothingNamed))
                       loop True False rest
                     Connection.Closed -> pure ()
                     _ -> loop opened (dropped || opened) rest
@@ -115,24 +127,31 @@ newRefresher local wire options settings controls = mask $ \restore -> do
         pure result
   begin `onException` (detach `finally` Lifetime.close life)
 
+nothingNamed :: SubjectInfo
+nothingNamed = SubjectInfo Nothing Nothing Nothing Nothing
+
+-- | A frame on one of the table's channels: its row, or, when its reading
+-- refuses it or a member its row names is not what it names, the row of an
+-- unreadable event.
 receive :: Refresher -> Transport.Carried -> Parent -> STM ()
-receive _ (Transport.FrameRejected _) _ = pure ()
-receive runtime (Transport.Arrived delivered) parent = do
-  stopped <- readTVar (closed runtime)
-  unless stopped $ do
-    let frame = Transport.wireFrame delivered
-        name = busFrameChannel frame
-        raw = Object (busFramePayloadAdditionalProperties (busFramePayload frame))
-    forM_ (Map.lookup name Fact.extractors) $ \extractor ->
-      when (Required.faultChannel name raw == Nothing) $ forM_ (subject extractor raw) (apply runtime name parent)
+receive runtime carried parent = when (name `elem` Fact.channels) $ case carried of
+  Transport.FrameRejected _ -> unreadable
+  Transport.Arrived delivered -> do
+    let raw = Object (busFramePayloadAdditionalProperties (busFramePayload (Transport.wireFrame delivered)))
+    case (Required.faultChannel name raw, subject name raw) of
+      (Nothing, Just info) -> apply runtime name parent info
+      _ -> unreadable
+  where
+    name = Transport.carriedChannel carried
+    unreadable = apply runtime Fact.unreadable parent nothingNamed
 
 apply :: Refresher -> Text -> Parent -> SubjectInfo -> STM ()
 apply runtime trigger parent info = do
   stopped <- readTVar (closed runtime)
   unless stopped $ do
-    let candidates = [row | row@(Fact.Row on condition _ _ _ _) <- Fact.rows, on == trigger, condition == subjectWhen info]
+    let candidates = [row | row@(Fact.Row on condition _ _ _ _ _) <- Fact.rows, on == trigger, condition == subjectWhen info]
     row <- case candidates of [one] -> pure one; _ -> throwSTM (userError "refresh trigger has no single matching row")
-    let Fact.Row _ _ reach fetches writes removes = row
+    let Fact.Row _ _ reach _ fetches writes removes = row
         immediate select query = forM_ (Map.lookup query (acts runtime)) $ \control -> do
           action <- case select control of Just value -> pure value; Nothing -> throwSTM (userError "refresh action has no implementation")
           targets <- action info
