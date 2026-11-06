@@ -231,7 +231,11 @@ private struct Loopback: Sendable {
     let server = try await ServerBootstrap(group: MultiThreadedEventLoopGroup.singleton)
       .childChannelInitializer { channel in
         channel.eventLoop.makeCompletedFuture {
-          try channel.pipeline.syncOperations.configureHTTPServerPipeline()
+          // Pipelining assistance stops reading a connection until its response ends, and a held
+          // stream's never does. On kqueue a peer's close is seen only by reading, so it would
+          // never reach channelInactive there; epoll reports it unasked.
+          try channel.pipeline.syncOperations.configureHTTPServerPipeline(
+            withPipeliningAssistance: false)
           try channel.pipeline.syncOperations.addHandler(Answering(ledger))
         }
       }.bind(host: "127.0.0.1", port: 0).get()
