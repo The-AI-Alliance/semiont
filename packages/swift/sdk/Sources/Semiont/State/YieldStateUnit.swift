@@ -54,7 +54,7 @@ public final class YieldStateUnit: StateUnit {
         isGenerating.set(true)
       case .complete(let answer):
         if case .yieldJobDone(let result) = answer.result { outcome.set(result) }
-      case .failed: break
+      case .failed, .refused: break
       }
     }
   }

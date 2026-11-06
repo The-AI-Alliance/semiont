@@ -83,7 +83,7 @@ func surfaceReplies(_ probe: ProbeTransport, cloneAnswer: JSONValue?) {
       }
       return try wirePayload(
         BrowseResourceResult(
-          response: BrowseResourceResultResponse(lastSequence: 0, resource: focus.resource)))
+          response: BrowseResourceResultResponse(lastSequence: 1, resource: focus.resource)))
     case Operations.gatherReferencedByRequested.request.name:
       return try wirePayload(
         GatherReferencedByResult(
@@ -119,7 +119,8 @@ func surfaceReplies(_ probe: ProbeTransport, cloneAnswer: JSONValue?) {
     case Operations.jobCreate.request.name:
       let completion = try completionFixture(decoded(JobCreateCommand.self, .object(payload)))
       probe?.deliver(
-        ReceivedFrame(channel: Channels.jobComplete.name, payload: try wirePayload(completion)))
+        .frame(
+          ReceivedFrame(channel: Channels.jobComplete.name, payload: try wirePayload(completion))))
       return try jobCreatedFixture()
     case Operations.jobClaim.request.name:
       return try jobClaimedFixture()

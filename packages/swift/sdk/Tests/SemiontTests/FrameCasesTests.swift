@@ -36,6 +36,12 @@ private func isAfter(_ heard: Heard<BeckonFocusEvent>) -> Bool {
   return delivered.payload.resourceId.value == "after"
 }
 
+/// What a typed reader is given, as a case states it: a refusal, or none for a payload it heard.
+private func refusalOf<Payload>(_ heard: Heard<Payload>) -> FrameRefusal? {
+  guard case .refused(let refusal) = heard else { return nil }
+  return refusal
+}
+
 private func isTheFrameAfter(_ carried: Carried) -> Bool {
   guard case .frame(let frame) = carried else { return false }
   return frame.payload["resourceId"] == .string("after")
@@ -234,12 +240,13 @@ private func awaitingReply(_ transport: HttpTransport) async throws -> (
       let readByType = try await before(typed, isAfter)
       // A reply's channel carries nothing but the case's line, and the frame after it is on another.
       let carried = try await replied ? first(1, of: frames) : before(frames, isTheFrameAfter)
-      let heard = try await replied ? first(1, of: typedReply) : readByType
+      let heard =
+        try await replied ? first(1, of: typedReply).map(refusalOf) : readByType.map(refusalOf)
       switch told {
       case "readers":
         let frame = try #require(frame, "\(why)")
         #expect(frame["channel"] == .string(channel), "\(why)")
-        guard heard.count == 1, case .refused(let refusal) = heard[0] else {
+        guard heard.count == 1, let refusal = heard[0] else {
           Issue.record("its typed reader is given \(heard), not its refusal: \(why)")
           return
         }

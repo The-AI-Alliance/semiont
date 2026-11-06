@@ -1527,8 +1527,7 @@
             "typescript": "TypeScript's transport delivers a refusal where a frame's payload would be, on the frame's envelope (`BusFrame<P | FrameRefusal>`), as its client's bus does.",
             "rust": "Rust's transport delivers a frame or its refusal as a `Result<Frame, FrameRefusal>`.",
             "python": "Python's transport delivers a frame or its refusal as the union `Frame | FrameRefusal`.",
-            "go": "Go's transport delivers a frame or, as its error, its refusal (`iter.Seq2[Frame, error]`).",
-            "swift": "Swift's transport does not yet deliver a frame's refusal; its catch-up says how."
+            "go": "Go's transport delivers a frame or, as its error, its refusal (`iter.Seq2[Frame, error]`)."
           },
           "notYetReached": {
             "csharp": "C#'s transport does not yet deliver a frame's refusal; its frame catch-up says how."
