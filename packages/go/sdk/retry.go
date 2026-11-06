@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -115,25 +116,45 @@ func RetryAfter(header string) (wait time.Duration, ok bool) {
 	return time.Duration(seconds) * time.Second, true
 }
 
-// EqualJitter is half of the cap, and a random share of the other half.
+// EqualJitter is half of the cap, and a share of the other half drawn from
+// random: from the system's source when random is nil.
 //
 // Callers that back off by one schedule against one gateway come back at the
 // same instant and deliver again the burst that failed. The random half keeps
 // them apart, and the wait never exceeds the cap.
-func EqualJitter(cap time.Duration) time.Duration {
+func EqualJitter(cap time.Duration, random *rand.Rand) time.Duration {
 	half := cap / 2
-	return half + time.Duration(rand.Int64N(int64(cap-half)+1))
+	return half + time.Duration(draw(random)*float64(cap-half))
+}
+
+// draws is held for each draw from a source a caller gave. A *rand.Rand is
+// for one goroutine at a time, and the SDK backs off on many: drawn from one
+// at a time, one source may be given to every maker that takes one. A caller
+// that draws from it as well does so while nothing it was given to runs.
+var draws sync.Mutex
+
+// draw is a number in [0, 1) drawn from random, or from the system's source
+// when random is nil.
+func draw(random *rand.Rand) float64 {
+	if random == nil {
+		return rand.Float64()
+	}
+	draws.Lock()
+	defer draws.Unlock()
+	return random.Float64()
 }
 
 // RetryWithBackoff runs attempt until it succeeds, the policy's attempts are
 // spent, or it fails in a way retryable does not accept. The wait before each
-// further attempt is the policy's jittered backoff, and never less than the
-// wait the failure itself stated (a refusal's Retry-After). A context that is
-// done ends the wait in progress, and its error is returned; otherwise the
-// last failure is returned as it was.
+// further attempt is the policy's backoff, its jitter drawn from random
+// (EqualJitter), and never less than the wait the failure itself stated (a
+// refusal's Retry-After). A context that is done ends the wait in progress,
+// and its error is returned; otherwise the last failure is returned as it
+// was.
 func RetryWithBackoff[T any](
 	ctx context.Context,
 	policy RetryPolicy,
+	random *rand.Rand,
 	attempt func(context.Context) (T, error),
 	retryable func(error) bool,
 	stated func(error) (time.Duration, bool),
@@ -144,7 +165,7 @@ func RetryWithBackoff[T any](
 		if err == nil || made >= policy.Attempts || ctx.Err() != nil || !retryable(err) {
 			return value, err
 		}
-		wait := EqualJitter(limit)
+		wait := EqualJitter(limit, random)
 		if floor, ok := stated(err); ok && floor > wait {
 			wait = floor
 		}

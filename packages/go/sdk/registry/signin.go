@@ -30,7 +30,7 @@ func CompleteSignIn(ctx context.Context, browser *SemiontBrowser, issuer semiont
 	if err != nil {
 		return SignInOutcome{}, err
 	}
-	identity, err := semiont.DescribeConnection(ctx, pending.Target, tokens.Access, issuer.HTTP, issuer.Timing)
+	identity, err := semiont.DescribeConnection(ctx, pending.Target, tokens.Access, issuer.HTTP, issuer.Timing, issuer.Random)
 	if err != nil {
 		return SignInOutcome{}, err
 	}

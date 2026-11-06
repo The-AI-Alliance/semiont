@@ -471,7 +471,7 @@ func TestAskedWithATokenTheKnowledgeBaseSaysWhoItIs(t *testing.T) {
 	s := newStage(t)
 	issuer := s.issuerOf()
 
-	identity, err := semiont.DescribeConnection(context.Background(), s.target(t), jwt(time.Hour), issuer.HTTP, issuer.Timing)
+	identity, err := semiont.DescribeConnection(context.Background(), s.target(t), jwt(time.Hour), issuer.HTTP, issuer.Timing, issuer.Random)
 	must(t, err)
 
 	if identity.Did.String() != didA || identity.Description.Name != "KB A" || identity.Description.GitBranch == nil || *identity.Description.GitBranch != "main" {
