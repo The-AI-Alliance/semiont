@@ -109,3 +109,9 @@ In .NET, pass an existing access token to `SemiontClient`. For a credential
 with a refresh token, store the grant in an `ISignInKept` and open a
 `KeptSession`. A host with its own renewal logic can pass a `refresher` to
 `HttpTransport` and construct the client over that transport.
+
+In every SDK a transport's refresher is told the token the gateway refused,
+or that the request carried none. A refresher that holds another token by
+then, because it already renewed for an earlier refusal of that one, gives
+the token it holds and renews nothing. The sessions and agents of every SDK
+answer this way.

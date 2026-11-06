@@ -157,7 +157,7 @@ Java reaches the ids as their own types, not as text, through Kotlin's `@JvmExpo
 
 ## The wire
 
-`semiont.http.HttpTransport` is the bus over HTTP: emits to `POST /bus/emit` and one event stream from `POST /bus/subscribe` (protocol/contract/TRANSPORT-HTTP.md). It reads its token from a `StateFlow` its owner feeds, and asks a `TokenRefresher` for another when the gateway refuses it. `HttpContentTransport` carries what never rides the bus: uploads, and a resource's bytes, description, annotations and anchored text.
+`semiont.http.HttpTransport` is the bus over HTTP: emits to `POST /bus/emit` and one event stream from `POST /bus/subscribe` (protocol/contract/TRANSPORT-HTTP.md). It reads its token from a `StateFlow` its owner feeds, and asks a `TokenRefresher` for another when the gateway refuses it, telling it the token refused: a session or an agent that holds another by then gives it and renews nothing. `HttpContentTransport` carries what never rides the bus: uploads, and a resource's bytes, description, annotations and anchored text.
 
 `semiont.bus.Bus` is the bus typed by channel. A channel is a constant of `Channels`, typed by the payload its frames carry, and an operation a constant of `Operations`, typed by what it sends and what each reply carries: `emit`, `frames` and `request` each take one, and the compiler refuses a payload that is not its channel's.
 

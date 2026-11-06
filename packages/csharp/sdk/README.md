@@ -98,7 +98,9 @@ usable for the service token's lifetime.
 `AgentToken` uses a service token to sign in to a knowledge base and confirm
 its DID. It renews the token when due or after a credential refusal.
 `RefreshAsync` can serve as a transport refresher, and `TokensChanged` exposes
-updates to consumers. Dispose the agent before disposing its service token.
+updates to consumers. A transport tells its refresher the token refused: an
+agent or a kept session that holds another by then gives it and renews
+nothing. Dispose the agent before disposing its service token.
 
 See the [builder sign-in guide](../../../docs/builder/SIGN-IN.md) for the shared flows.
 
