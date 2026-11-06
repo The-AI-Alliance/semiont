@@ -87,7 +87,7 @@ newHttp configuration receives actor = do
       && maybe False ((== "") . uriUserInfo) (uriAuthority uri) -> pure ()
     _ -> throwIO (TransportError Code.TransportError "HTTP base URL is not an absolute credential-free HTTP URL" Nothing Nothing)
   base <- parseRequest (Text.unpack address)
-  life <- Lifetime.newLifetime
+  life <- Lifetime.newLifetime "HTTP transport is closed"
   holder <- newEmptyMVar
   let send frame = readMVar holder >>= \http -> emit http frame
   (wire, source) <- Transport.newTransport (Transport.TransportOptions address receives send (Lifetime.close life))

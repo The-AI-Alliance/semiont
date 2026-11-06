@@ -1,8 +1,8 @@
 {-# LANGUAGE DataKinds, GADTs, OverloadedStrings, ScopedTypeVariables #-}
-module HeldCases (heldCases) where
+module HeldCases (heldCases, heldClockCases) where
 
 import Control.Concurrent (yield)
-import Control.Concurrent.Async (async, wait, concurrently)
+import Control.Concurrent.Async (async, cancel, wait, concurrently)
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
 import Control.Exception (IOException, bracket, try)
@@ -26,6 +26,8 @@ import qualified Semiont.Worker as Worker
 import Semiont.Worker.Types
 import qualified Streaming.Prelude as Stream
 import System.Timeout (timeout)
+import ClockCases (Scenario(..), clockCasesFor)
+import qualified ControlledTime as Time
 
 require :: String -> Bool -> IO ()
 require label value = unless value (ioError (userError label))
@@ -231,3 +233,32 @@ yieldJob fixtures = rig fixtures $ \rigValue@(Rig worker _ _ _ _) -> do
       _ <- outgoing rigValue (channelName Ch.JobComplete)
       pure ()
     _ -> ioError (userError "yield job was not handed over with its own result type")
+
+-- Public worker owner for the heldJobStall subjects of client/clock-cases.json.
+heldClockCases :: FilePath -> Map.Map Text Value -> IO ()
+heldClockCases root fixtures = clockCasesFor root ["heldJobStall"] $ \clock _ -> do
+  sent <- newTQueueIO
+  ids <- newTVarIO (0::Integer)
+  stalls <- newTVarIO 0
+  accepts <- fixture fixtures "JobFilter"
+  running <- record fixtures
+  progressValue <- fixture fixtures "JobProgress"
+  let options = Bus.BusOptions (Time.now clock) (Time.waitUntil clock)
+        (atomically (modifyTVar' ids (+1) >> T.pack . show <$> readTVar ids))
+      config = Worker.WorkerOptions (accepts NE.:| []) options Timing.protocolSettings (pure "2026-11-05T00:00:00Z")
+      send frame = atomically (writeTQueue sent frame) >> pure Nothing
+  (carrier,input) <- Transport.newTransport (Transport.TransportOptions "local://clock-worker" (Set.fromList channelNames) send (pure ()))
+  Transport.setState input Transport.Connecting
+  Transport.setState input Transport.Open
+  worker <- Worker.newClaims carrier config
+  observer <- async (Worker.stalled worker (Stream.mapM_ (\_ -> atomically (modifyTVar' stalls (+1)))))
+  reader <- async (Worker.next worker)
+  asked <- atomically (readTQueue sent)
+  require "clock worker did not claim" (busFrameChannel asked == channelName JobClaim)
+  case encodePayload JobClaimed (JobClaimedResult running) of
+    Object fields -> Transport.receive input (BusFrame (channelName JobClaimed) (busFrameCorrelationId asked) (BusFramePayload fields) Nothing)
+    _ -> ioError (userError "clock claim reply is not an object")
+  received <- wait reader
+  job <- case received of Just (Worker.HeldMark value) -> pure value; _ -> ioError (userError "clock worker did not receive its held job")
+  pure (Scenario (Worker.progress job progressValue) (readTVarIO stalls)
+    (cancel observer >> Worker.stop worker >> Transport.dispose carrier))

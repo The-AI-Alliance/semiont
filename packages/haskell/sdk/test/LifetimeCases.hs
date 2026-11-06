@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module LifetimeCases (lifetimeCases) where
 
 import Control.Concurrent.Async (Async, AsyncCancelled, async, cancel, waitCatch)
@@ -15,7 +16,7 @@ require label good = unless good (ioError (userError label))
 lifetimeCases :: IO ()
 lifetimeCases = do
   outcome <- timeout 5000000 $ do
-    life <- Lifetime.newLifetime
+    life <- Lifetime.newLifetime "test lifetime is closed"
     entered <- newEmptyTMVarIO
     cleanup <- newEmptyTMVarIO
     release <- newEmptyTMVarIO
@@ -32,12 +33,12 @@ lifetimeCases = do
     refused <- try (Lifetime.start life (pure ())) :: IO (Either BusRequestError (Async ()))
     require "closed lifetime started new work" (either ((== BusRequestClosed) . busRequestErrorCode) (const False) refused)
 
-    self <- Lifetime.newLifetime
+    self <- Lifetime.newLifetime "test lifetime is closed"
     ended <- try (Lifetime.run self (Lifetime.close self)) :: IO (Either BusRequestError ())
     require "self-close did not terminate its operation" (either ((== BusRequestClosed) . busRequestErrorCode) (const False) ended)
     Lifetime.close self
 
-    abandoned <- Lifetime.newLifetime
+    abandoned <- Lifetime.newLifetime "test lifetime is closed"
     running <- newEmptyTMVarIO
     released <- newEmptyTMVarIO
     request <- async (Lifetime.run abandoned ((atomically (putTMVar running ()) >> atomically retry)

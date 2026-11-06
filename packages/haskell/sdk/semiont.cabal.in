@@ -33,7 +33,7 @@ common context-propagation
 library
   default-language: GHC2021
   build-depends: base >=4.20 && <4.21, semiont:internal
-  reexported-modules: Semiont.Types, Semiont.Types.Presence, Semiont.Channels, Semiont.Running, Semiont.ErrorCodes, Semiont.Timing, Semiont.Timing.Settings, Semiont.Retry, Semiont.Discovery, Semiont.Discovery.Reasons, Semiont.Transport, Semiont.Transport.Facts, Semiont.StateValue, Semiont.Errors, Semiont.EventBus, Semiont.Bus, Semiont.Http, Semiont.Content, Semiont.Gateway, Semiont.Frame, Semiont.Auth, Semiont.System, Semiont.Client, Semiont.JobFilter, Semiont.Claims, Semiont.HostName, Semiont.Worker, Semiont.Worker.Types, Semiont.Bind, Semiont.Beckon, Semiont.Job
+  reexported-modules: Semiont.Types, Semiont.Types.Presence, Semiont.Channels, Semiont.Running, Semiont.ErrorCodes, Semiont.Timing, Semiont.Timing.Settings, Semiont.Retry, Semiont.Discovery, Semiont.Discovery.Reasons, Semiont.Transport, Semiont.Transport.Facts, Semiont.StateValue, Semiont.Errors, Semiont.EventBus, Semiont.Bus, Semiont.Http, Semiont.Content, Semiont.Gateway, Semiont.Frame, Semiont.Auth, Semiont.System, Semiont.Client, Semiont.JobFilter, Semiont.Claims, Semiont.HostName, Semiont.Worker, Semiont.Worker.Types, Semiont.Bind, Semiont.Beckon, Semiont.Job, Semiont.Cache
 
 library internal
   import: settings, context-propagation
@@ -78,6 +78,7 @@ library internal
     Semiont.Bind
     Semiont.Beckon
     Semiont.Job
+    Semiont.Cache
     Semiont.Internal.Http
     Semiont.Internal.HttpActor
     Semiont.Internal.HttpContent
@@ -110,7 +111,7 @@ test-suite schema-cases
   type: exitcode-stdio-1.0
   main-is: Main.hs
   hs-source-dirs: test
-  other-modules: Semiont.Internal.Generated.RoundTrip, Semiont.Internal.Generated.ChannelRoundTrip, Semiont.Internal.Generated.ErrorRoundTrip, Semiont.Internal.Generated.TimingValues, Semiont.Internal.Generated.DiscoveryReasonRoundTrip, Runtime, Discovery, BusCases, SchemaCases, HttpCases, LifetimeCases, WorkerCases, GatewayCases, HeldCases, SurfaceCases
+  other-modules: Semiont.Internal.Generated.RoundTrip, Semiont.Internal.Generated.ChannelRoundTrip, Semiont.Internal.Generated.ErrorRoundTrip, Semiont.Internal.Generated.TimingValues, Semiont.Internal.Generated.DiscoveryReasonRoundTrip, Runtime, Discovery, BusCases, SchemaCases, HttpCases, LifetimeCases, WorkerCases, GatewayCases, HeldCases, SurfaceCases, CacheCases, ControlledTime, ClockCases
   ghc-options: -threaded
   build-depends: semiont:internal, process >=1.6 && <1.7, directory >=1.3 && <1.4, filepath >=1.5 && <1.6
 

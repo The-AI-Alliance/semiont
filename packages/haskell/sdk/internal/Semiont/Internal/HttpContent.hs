@@ -34,7 +34,7 @@ import qualified Streaming.Prelude as Stream
 
 newContent :: Http -> IO Content.ContentTransport
 newContent http = do
-  life <- Lifetime.newLifetime
+  life <- Lifetime.newLifetime "HTTP transport is closed"
   let owned :: IO result -> IO result
       owned = Lifetime.run life
       stream :: Bool -> ResourceId -> (Text.Text -> Stream.Stream (Stream.Of Bytes.ByteString) IO () -> IO result) -> IO result

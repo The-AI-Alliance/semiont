@@ -134,3 +134,45 @@ if (!bus.includes('fromJSON (Object (KM.delete "code" fields)) :: Result Command
   throw new Error('failure fields besides the forward-compatible code must use the generated CommandError decoder');
 }
 console.log('PASS Haskell transport, typed bus and failure-reader censuses');
+
+const cacheSource = read('packages/typescript/sdk/src/cache.ts');
+const cacheState = /export type CacheState<T>\s*=([\s\S]*?);\n/.exec(cacheSource)?.[1];
+if (!cacheState) throw new Error('no reference cache-state vocabulary');
+const expectedCacheStates = new Set([...cacheState.matchAll(/status: '([^']+)'/g)].map((match) => match[1]));
+const cacheModule = inventory.modules['Semiont.Cache'];
+if (!cacheModule) throw new Error('no compiled Haskell cache');
+const actualCacheStates = new Set(Object.entries(cacheModule.values)
+  .filter(([name, signature]) => /^[A-Z]/.test(name) && /Semiont\.Cache\.CacheState value$/.test(signature))
+  .map(([name]) => name[0].toLowerCase() + name.slice(1)));
+same('Haskell three-outcome cache states', expectedCacheStates, actualCacheStates);
+
+// These records carry executable native IO actions, rather than an SDK clock
+// class. Check the compiler's field types, as well as the makers that take them.
+for (const [module, fields] of [
+  ['Semiont.Retry', { retryNow: 'IO Integer', retryWaitUntil: 'Integer -> IO ()', retryRandom: 'IO Double' }],
+  ['Semiont.Bus', { requestNow: 'IO Integer', requestWaitUntil: 'Integer -> IO ()' }],
+  ['Semiont.Discovery', { discoveryNow: 'IO Integer', discoveryWaitUntil: 'Integer -> IO ()' }],
+  ['Semiont.Cache', { cacheNow: 'IO Integer', cacheWaitUntil: 'Integer -> IO ()' }],
+]) {
+  for (const [field, expected] of Object.entries(fields)) {
+    const signature = inventory.modules[module]?.values[field];
+    if (signature?.slice(signature.indexOf(' -> ') + 4) !== expected) throw new Error(`${module}.${field} must carry ${expected}; GHC says ${signature}`);
+  }
+}
+console.log('PASS Haskell cache outcomes and caller-controlled time/wait/jitter action types');
+
+// Native IO does not have a caller-replaceable process-wide timer. A protocol
+// owner may use only the actions its options carry, never these ambient sources.
+for (const directory of ['packages/haskell/sdk/src', 'packages/haskell/sdk/internal']) {
+  const { readdirSync } = await import('node:fs');
+  const walk = (path) => readdirSync(path, { withFileTypes: true }).flatMap((entry) => {
+    const file = `${path}/${entry.name}`;
+    return entry.isDirectory() ? walk(file) : file.endsWith('.hs') ? [file] : [];
+  });
+  for (const file of walk(directory)) {
+    if (/\b(?:threadDelay|registerDelay|getMonotonicTimeNSec|randomIO|randomRIO|newStdGen|responseTimeoutMicro)\b|\b(?:GHC\.Clock|System\.Timeout|System\.Clock)\b/.test(read(file))) {
+      throw new Error(`${file} introduces a wait or jitter source its caller does not control`);
+    }
+  }
+}
+console.log('PASS Haskell protocol owners use no ambient timer or non-secret random source');

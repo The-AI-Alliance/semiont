@@ -111,6 +111,7 @@
     "lint:skips-and-any": "node .github/scripts/checks/check-skips-and-any.mjs",
     "lint:event-tags": "node .github/scripts/checks/check-event-tags.mjs",
     "lint:client-surface": "node .github/scripts/checks/check-client-surface.mjs",
+    "lint:haskell-complete": "node .github/scripts/checks/check-client-surface.mjs --complete-sdk=haskell",
     "lint:haskell-api": "node .github/scripts/checks/check-haskell-api.mjs",
     "lint:haskell-transport": "node .github/scripts/checks/check-haskell-transport.mjs",
     "lint:state-unit-census": "node .github/scripts/checks/check-state-unit-census.mjs",

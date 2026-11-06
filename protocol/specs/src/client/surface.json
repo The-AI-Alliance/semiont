@@ -2276,8 +2276,46 @@
           "CompleteAuthorizationAsync": ["TimeProvider"],
           "DescribeConnectionAsync": ["TimeProvider"],
           "LivenessSpec": ["TimeProvider"]
-        }
-      },
+        },
+      "haskell": {
+        "newClient": [
+          "BusOptions"
+        ],
+        "fromHttp": [
+          "HttpOptions"
+        ],
+        "newHttpTransport": [
+          "HttpOptions"
+        ],
+        "HttpOptions": [
+          "RetryOptions"
+        ],
+        "newCache": [
+          "CacheOptions"
+        ],
+        "newClaims": [
+          "WorkerOptions"
+        ],
+        "WorkerOptions": [
+          "BusOptions"
+        ],
+        "newBus": [
+          "BusOptions"
+        ],
+        "newJob": [
+          "BusOptions"
+        ],
+        "subscribeDiscovery": [
+          "DiscoveryOptions"
+        ],
+        "retryWithBackoff": [
+          "RetryOptions"
+        ],
+        "pollUntilComplete": [
+          "JobNamespace"
+        ]
+      }
+    },
       "notYetReached": {
         "kotlin": {
           "SemiontClient": "Its public constructor takes neither: its internal one takes both, and is to be the public one.",
@@ -2405,8 +2443,22 @@
           "BeginAuthorizationAsync": ["Random"],
           "CompleteAuthorizationAsync": ["Random"],
           "DescribeConnectionAsync": ["Random"]
-        }
-      },
+        },
+      "haskell": {
+        "newHttpTransport": [
+          "HttpOptions"
+        ],
+        "HttpOptions": [
+          "RetryOptions"
+        ],
+        "fromHttp": [
+          "HttpOptions"
+        ],
+        "retryWithBackoff": [
+          "RetryOptions"
+        ]
+      }
+    },
       "notYetReached": {
         "rust": {
           "HttpTransportConfig": "The stream's reconnect draws its jitter from a v4 UUID.",

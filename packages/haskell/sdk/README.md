@@ -104,11 +104,45 @@ and joins the producer, and a stream retained past that scope refuses reads.
 
 ## Live queries
 
-In development. The cache, one-shot fresh reads, invalidation, and persisted
-query values are not yet exposed. They will follow the shared
-[cache contract](../../../protocol/contract/CACHE-SEMANTICS.md). The internal
-observation primitive already supports ordered independent subscriptions,
-atomic initial state, repeated equal notices, and scoped cancellation.
+`Semiont.Cache` provides lazy read-through queries with three outcomes:
+`Pending`, `Ready value`, and `Failed exception`. `Cache.query` is pure;
+`Cache.watch` starts a scoped live observation, and `Cache.fresh` forces a
+one-shot read. Concurrent readers share a fetch. Invalidation keeps a stale
+value visible, retries a failed background read once, and prevents an obsolete
+response from overwriting a newer value.
+
+```haskell
+module CachedReads (nameCache, readName) where
+
+import Data.Text (Text)
+import qualified Semiont.Cache as Cache
+import qualified Semiont.Timing.Settings as Timing
+
+nameCache :: (Text -> IO Text) -> IO Integer -> (Integer -> IO ())
+          -> IO (Cache.Cache Text Text)
+nameCache reader monotonic waitUntil = Cache.newCache reader Cache.CacheOptions
+  { Cache.cacheNow = monotonic
+  , Cache.cacheWaitUntil = waitUntil
+  , Cache.cacheSaveDebounceMs = Timing.saveDebounceMs Timing.protocolSettings
+  , Cache.cachePersister = Nothing
+  , Cache.cacheScope = const (pure (pure ()))
+  }
+
+readName :: Cache.Cache Text Text -> Text -> IO Text
+readName cache key = Cache.fresh (Cache.query cache key)
+```
+
+The clock actions count monotonic nanoseconds and use the same coordinate
+system. An optional `CachePersister` restores settled values, revalidates each
+on first observation, debounces saves, and flushes on `dispose`. Failure
+markers are never saved. `persistencePending` remains true while a fetch or
+unsaved content could let a resumption bookmark lead its document. Dispose
+cancels and joins owned work and completes readers.
+
+The Browse, Gather and Match live-query facades, event refresh table, storage
+adapter and gateway live-query conformance driver remain in development.
+Their behavior follows the
+[cache contract](../../../protocol/contract/CACHE-SEMANTICS.md).
 
 ## State units
 
@@ -357,6 +391,12 @@ JSON payloads from the wire, live-query, and worker corpora.
 The wire driver additionally executes the transport scenarios against the real
 gateway on both signal planes. The worker driver runs every worker case against
 the real gateway on both planes as well. The live-query driver remains outstanding.
+The shared clock cases exercise HTTP waits, scope handoffs, cache saves,
+discovery and held-job stalls in-process at the protocol timings; session,
+delegation and invalidation-window clock cases remain outstanding.
+`npm run lint:haskell-complete` rejects any remaining Haskell table exemption,
+missing census reader or missing parity conformance driver. CI runs it as
+**Haskell SDK Completion**, separately from checks of the implemented surface.
 
 Runtime tests also cover atomic publication of raw replies before request
 continuations, channel/correlation matching, tracking cleanup on cancellation,

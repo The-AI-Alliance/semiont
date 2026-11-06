@@ -31,16 +31,19 @@ import Semiont.Internal.Generated.Schemas (schemas)
 import Semiont.Internal.Schema (normalize, validate, validateNamed)
 import System.Directory (doesDirectoryExist, listDirectory)
 import System.Environment (getArgs)
+import System.IO (hSetBuffering, stdout, BufferMode(LineBuffering))
 import System.FilePath ((</>), takeBaseName)
 import Runtime (runtimeCases)
 import Discovery (discoveryCases)
 import BusCases (busCases)
 import HttpCases (httpCases)
 import LifetimeCases (lifetimeCases)
+import CacheCases (cacheCases)
 import WorkerCases (workerCases)
 import GatewayCases (gatewayCases)
-import HeldCases (heldCases)
+import HeldCases (heldCases, heldClockCases)
 import SurfaceCases (surfaceCases)
+import ClockCases (cacheClockCases, httpClockCases, discoveryClockCases)
 import qualified SchemaCases
 
 require :: String -> Bool -> IO ()
@@ -316,10 +319,14 @@ retryCases root = do
 
 main :: IO ()
 main = do
+  hSetBuffering stdout LineBuffering
   args <- getArgs
   root <- case args of [value] -> pure value; _ -> ioError (userError "expected repository root")
   runtimeCases
   lifetimeCases
+  cacheCases
+  cacheClockCases root
+  httpClockCases root
   SchemaCases.schemaCases
   let noSpace = Object (KM.fromList [("type", String "string"), ("pattern", String "^\\S+$")])
       dot = Object (KM.fromList [("type", String "string"), ("pattern", String "^x.+z$")])
@@ -343,6 +350,7 @@ main = do
   document <- either (ioError . userError) pure (sample 0 (Object (KM.singleton "$ref" (String "DiscoveryDocument.json"))))
     >>= either (ioError . userError) pure . parseEither parseJSON
   discoveryCases kb document
+  discoveryClockCases root kb
   command <- either (ioError . userError) pure (sample 0 (Object (KM.singleton "$ref" (String "FrameAddEntityTypeCommand.json"))))
     >>= either (ioError . userError) pure . parseEither parseJSON
   event <- either (ioError . userError) pure (sample 0 (Object (KM.singleton "$ref" (String "EnrichedResourceEvent.json"))))
@@ -359,5 +367,6 @@ main = do
   fixtures <- traverse (either (ioError . userError) pure . sample 0) schemas
   surfaceCases root fixtures
   heldCases fixtures
+  heldClockCases root fixtures
   httpCases root fixtures
   corpusCases root

@@ -364,10 +364,10 @@
     "internal/Semiont/Internal/Bus.hs": "faf19fbfd50ca11d345ffc922b8bd67215f28d642cf8e22b9e6a0532d4c9b55d",
     "internal/Semiont/Internal/Codec.hs": "fbc8af29dc06bc97706d979907ec37e53ae83273b7efb65283a33e81211c56fa",
     "internal/Semiont/Internal/Delivery.hs": "2fa0818ab8d07cde41a2650fedea8663592777cf9eb522e2c757859ab569dd84",
-    "internal/Semiont/Internal/Http.hs": "d60236efacc71c7c02c9b1e2ccf0e4fad064f69db9b0f035d79ca90778796f70",
+    "internal/Semiont/Internal/Http.hs": "5da0993cb69cd00bfb65e53246eb1c3339ff0f0ab936bad4c216e481aefe792e",
     "internal/Semiont/Internal/HttpActor.hs": "6cf0c01dfcbfb95e9e3cb4a659a53a3e7c392e192426daec4b4877b19e784932",
-    "internal/Semiont/Internal/HttpContent.hs": "a157d792ba855736e5b7f2b0a114c9fb351286c731602d6c9cdc4a7a51bc056c",
-    "internal/Semiont/Internal/Lifetime.hs": "3a4d989183bb3fba34141cad5214ce37117e335584171d6a98648c95b3ddec5e",
+    "internal/Semiont/Internal/HttpContent.hs": "9db4e1b8fec7512eb750f6f7f89bee0c261e38394226854c4b49f51679671d49",
+    "internal/Semiont/Internal/Lifetime.hs": "691b1d2ea7466a7e4de0987faf4a95e2096b8ea3ef126e781b36a23c40e5f0c7",
     "internal/Semiont/Internal/Local.hs": "217ad44d8ee7d7a8500c2a1ada04c7923f6adfb561dcb66e3be92d78ce7805c6",
     "internal/Semiont/Internal/Required.hs": "62a63c0773205238070d679e5a80d5e74f4a18483e0d01434db81499843d6671",
     "internal/Semiont/Internal/RetryPolicy.hs": "baf4eba213d5e252a7ec3a62fd4745680f951c264e67f9b4fcfc64176e7a3028",
@@ -378,12 +378,13 @@
     "internal/Semiont/Internal/Telemetry.hs": "3e4116285bbb9ed281c0d0c8608f8267213bd68674bafb4acbd1f08a226fa7c0",
     "internal/Semiont/Internal/Transport.hs": "ef57f7c69e46f3f85e268ad64b3caf363ecde0c3bc890b95c7b541522b2056c6",
     "public-api.inputs.json": "150c411495a0d0dc5cb417a4c7063103bc2fcce758c1ec5e88b955f223d6ebfe",
-    "semiont.cabal": "0c613d4014fe4d93a532f5525867d19ba9a85b89810b9b6931afdc2efac281c8",
-    "semiont.cabal.in": "379f2b45a8f6d9915d0ae913f54f52cdd3314e77b9428fdef965cd26354e4bfc",
+    "semiont.cabal": "5c3db217367109bcdcf26a7e379b6c5462795ac08a6938365227f85fd75c275f",
+    "semiont.cabal.in": "7c1d378d33a4e619a4a3f85947f0d06d56a4fb1bfc6cf3306ff76b14831a041f",
     "src/Semiont/Auth.hs": "1b82d21a297f0b724242094ddb763c0ebf70dffbb2c4d208468dc3c03b9b945d",
     "src/Semiont/Beckon.hs": "c6e90eab2db81fbb73f990c15eb6e818051b2790ffdaf4f7a2ff29fdccc5ecff",
     "src/Semiont/Bind.hs": "d9b8650a082e92e679d6e69341cb3253aa8a8fd81b6f511fe2a2b1cd5b17745b",
     "src/Semiont/Bus.hs": "b721fd2f9528fd174ae80422b5525563a30cfa70dbd5b1dbe00d58cef7af3c77",
+    "src/Semiont/Cache.hs": "6b128efcfa074944210e36dda7a7d7567b68ae24d061acb1975f47a85f88e1aa",
     "src/Semiont/Channels.hs": "54992808f1254897811d1745b23343b353c5cbb0453bc18168c816c78953255d",
     "src/Semiont/Claims.hs": "c56dd2175b12fd1fc44126e4298f93dcb2ba4b20894e33710434e5d74db3b95d",
     "src/Semiont/Client.hs": "5451df81a7a60bd5bd1f8513749dbb5fe5b4cab35c84a993f6485abad1620692",
@@ -502,6 +503,63 @@
         "requestNow": "Semiont.Internal.Bus.BusOptions -> IO Integer",
         "requestWaitUntil": "Semiont.Internal.Bus.BusOptions -> Integer -> IO ()",
         "unsubscribed": "Data.Text.Internal.Text -> Semiont.Errors.BusRequestError"
+      }
+    },
+    "Semiont.Cache": {
+      "types": {
+        "Cache": {
+          "definition": "data Semiont.Cache.Cache key value = ...",
+          "kind": "* -> * -> *"
+        },
+        "CacheOptions": {
+          "definition": "data Semiont.Cache.CacheOptions key value = ...",
+          "kind": "* -> * -> *"
+        },
+        "CachePersister": {
+          "definition": "data Semiont.Cache.CachePersister key value = ...",
+          "kind": "* -> * -> *"
+        },
+        "CacheState": {
+          "definition": "data Semiont.Cache.CacheState value = ...",
+          "kind": "* -> *"
+        },
+        "Query": {
+          "definition": "data Semiont.Cache.Query value = ...",
+          "kind": "* -> *",
+          "roles": "nominal"
+        }
+      },
+      "values": {
+        "CacheOptions": "IO Integer -> (Integer -> IO ()) -> Integer -> Maybe (Semiont.Cache.CachePersister key value) -> (key -> IO (IO ())) -> Semiont.Cache.CacheOptions key value",
+        "CachePersister": "IO [(key, value)] -> ([(key, value)] -> IO ()) -> Semiont.Cache.CachePersister key value",
+        "Failed": "GHC.Internal.Exception.Type.SomeException -> Semiont.Cache.CacheState value",
+        "Pending": "Semiont.Cache.CacheState value",
+        "Ready": "value -> Semiont.Cache.CacheState value",
+        "cacheNow": "Semiont.Cache.CacheOptions key value -> IO Integer",
+        "cachePersister": "Semiont.Cache.CacheOptions key value -> Maybe (Semiont.Cache.CachePersister key value)",
+        "cacheSaveDebounceMs": "Semiont.Cache.CacheOptions key value -> Integer",
+        "cacheScope": "Semiont.Cache.CacheOptions key value -> key -> IO (IO ())",
+        "cacheWaitUntil": "Semiont.Cache.CacheOptions key value -> Integer -> IO ()",
+        "current": "Semiont.Cache.Query value -> GHC.Internal.Conc.Sync.STM (Semiont.Cache.CacheState value)",
+        "dispose": "Semiont.Cache.Cache key value -> IO ()",
+        "fetch": "Semiont.Cache.Cache key value -> key -> IO value",
+        "fresh": "Semiont.Cache.Query value -> IO value",
+        "get": "Semiont.Cache.Cache key value -> key -> GHC.Internal.Conc.Sync.STM (Maybe value)",
+        "invalidate": "Semiont.Cache.Cache key value -> key -> IO ()",
+        "invalidateAll": "Semiont.Cache.Cache key value -> IO ()",
+        "isReady": "Semiont.Cache.CacheState value -> Bool",
+        "keys": "Semiont.Cache.Cache key value -> GHC.Internal.Conc.Sync.STM [key]",
+        "known": "Semiont.Cache.Cache key value -> key -> GHC.Internal.Conc.Sync.STM Bool",
+        "load": "Semiont.Cache.CachePersister key value -> IO [(key, value)]",
+        "newCache": "(Data.Aeson.Types.ToJSON.ToJSON key, Eq value) => (key -> IO value) -> Semiont.Cache.CacheOptions key value -> IO (Semiont.Cache.Cache key value)",
+        "observe": "Semiont.Cache.Cache key value -> key -> (Streaming.Internal.Stream (Data.Functor.Of.Of (Semiont.Cache.CacheState value)) IO () -> IO result) -> IO result",
+        "persistencePending": "Semiont.Cache.Cache key value -> GHC.Internal.Conc.Sync.STM Bool",
+        "query": "Semiont.Cache.Cache key value -> key -> Semiont.Cache.Query value",
+        "readyValue": "Semiont.Cache.CacheState value -> Maybe value",
+        "remove": "Semiont.Cache.Cache key value -> key -> GHC.Internal.Exception.Type.SomeException -> IO ()",
+        "save": "Semiont.Cache.CachePersister key value -> [(key, value)] -> IO ()",
+        "set": "Semiont.Cache.Cache key value -> key -> value -> IO ()",
+        "watch": "Semiont.Cache.Query value -> (Streaming.Internal.Stream (Data.Functor.Of.Of (Semiont.Cache.CacheState value)) IO () -> IO result) -> IO result"
       }
     },
     "Semiont.Channels": {

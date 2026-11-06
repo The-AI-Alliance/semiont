@@ -9,7 +9,9 @@
 //     tests, or for Rust its source's own tests;
 //   - `absent`: an SDK that does not run it, and why;
 //   - `notYetReached`: an SDK that is to run it and does not yet, and what is
-//     to be built for it to.
+//     to be built for it to. A partially implemented subject-based table may
+//     state { why, runBy, subjects } instead: its incomplete obligation stays,
+//     with the runners and the proper subset of subjects they already cover.
 //
 // An implementation is named by its key in IMPLEMENTATIONS, which says where
 // its files are. The table owns who runs it; this gate holds the table to it.
@@ -141,15 +143,15 @@ for (const table of tables) {
   const absent = content.absent ?? {};
   const notYetReached = content.notYetReached ?? {};
 
-  for (const [implementation, runners] of Object.entries(runBy)) {
+  const validateRunners = (implementation, runners) => {
     const directories = IMPLEMENTATIONS[implementation];
     if (directories === undefined) {
-      fail(`${table}: runBy names ${implementation}, which is no implementation this gate knows (IMPLEMENTATIONS)`);
-      continue;
+      fail(`${table}: runner names ${implementation}, which is no implementation this gate knows`);
+      return;
     }
-    if (!Array.isArray(runners) || runners.length === 0) {
-      fail(`${table}: runBy names ${implementation} with no runner`);
-      continue;
+    if (!Array.isArray(runners) || runners.length === 0 || !runners.every((runner) => typeof runner === 'string') || new Set(runners).size !== runners.length) {
+      fail(`${table}: ${implementation} has no unique list of runners`);
+      return;
     }
     for (const runner of runners) {
       if (!directories.some((directory) => runner.startsWith(`${directory}/`))) {
@@ -160,12 +162,35 @@ for (const table of tables) {
         fail(`${runner} does not name ${table}, the table it is said to run`);
       }
     }
-  }
+  };
+  for (const [implementation, runners] of Object.entries(runBy)) validateRunners(implementation, runners);
+  const partialRunners = new Map();
 
   for (const [said, entries] of [['absent', absent], ['notYetReached', notYetReached]]) {
     for (const [sdk, why] of Object.entries(entries)) {
       if (!SDKS.includes(sdk)) fail(`${table}: ${said} names ${sdk}, which is no SDK`);
-      if (typeof why !== 'string' || why.trim() === '') fail(`${table}: ${said} names ${sdk} and says nothing of why`);
+      if (said === 'notYetReached' && why !== null && typeof why === 'object' && !Array.isArray(why)) {
+        const keys = Object.keys(why);
+        if (keys.length !== 3 || !['why', 'runBy', 'subjects'].every((key) => keys.includes(key)) || typeof why.why !== 'string' || !why.why.trim()) {
+          fail(`${table}: ${sdk}'s partial obligation must state why, runBy and subjects`);
+          continue;
+        }
+        validateRunners(sdk, why.runBy);
+        const subjects = new Set(content.cases?.map((row) => row.subject));
+        if (subjects.has(undefined) || !Array.isArray(why.subjects) || why.subjects.length === 0 || new Set(why.subjects).size !== why.subjects.length
+          || why.subjects.some((subject) => typeof subject !== 'string' || !subjects.has(subject))) {
+          fail(`${table}: ${sdk}'s partial subjects are not a unique nonempty subset of the table's subjects`);
+        } else if (why.subjects.length === subjects.size) {
+          fail(`${table}: ${sdk} covers every subject and belongs in runBy, with no notYetReached`);
+        } else {
+          const runners = Array.isArray(why.runBy) ? why.runBy.filter((runner) => typeof runner === 'string' && existsSync(resolve(REPO, runner))) : [];
+          const source = runners.map((runner) => readFileSync(resolve(REPO, runner), 'utf8')).join('\n');
+          for (const subject of why.subjects) if (!source.includes(JSON.stringify(subject)) && !source.includes(`'${subject}'`)) {
+            fail(`${table}: ${sdk}'s partial runners name no subject ${subject}`);
+          }
+          partialRunners.set(sdk, new Set(runners));
+        }
+      } else if (typeof why !== 'string' || why.trim() === '') fail(`${table}: ${said} names ${sdk} and says nothing of why`);
     }
   }
   for (const sdk of SDKS) {
@@ -181,8 +206,10 @@ for (const table of tables) {
     const running = (IMPLEMENTATIONS[sdk] ?? [])
       .flatMap(filesUnder)
       .filter((path) => isTest(path) && names(readFileSync(resolve(REPO, path), 'utf8'), table));
-    if (running.length > 0) {
-      fail(`${table}: ${sdk} is notYetReached, and ${running.join(', ')} names it: it runs the table now, and belongs in runBy`);
+    const partial = partialRunners.get(sdk);
+    const unstated = partial ? running.filter((runner) => !partial.has(runner)) : running;
+    if (unstated.length > 0) {
+      fail(`${table}: ${sdk} is notYetReached, and ${unstated.join(', ')} names it: declare its partial subjects or put it in runBy`);
     }
   }
 }

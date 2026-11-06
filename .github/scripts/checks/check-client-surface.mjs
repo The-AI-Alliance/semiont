@@ -3405,11 +3405,12 @@ for (const module of moduleRows ?? []) {
  * source is read with its testing module (the `testing` row of `modules`),
  * its tests and its conformance drivers left out.
  */
-const CLOCK_SDKS = ['typescript', 'rust', 'python', 'go', 'kotlin', 'swift', 'csharp'];
+const CLOCK_SDKS = ['typescript', 'rust', 'python', 'go', 'kotlin', 'swift', 'csharp', 'haskell'];
 const CLOCK_ROW_KEYS = ['source', 'docs', 'typeWords', 'outside', 'takes', 'notYetReached'];
 
 /** Where each SDK's makers and parameters are read, beside its testing module. */
 const CLOCK_SOURCES = {
+  haskell: ['packages/haskell/sdk/src', 'packages/haskell/sdk/internal'],
   typescript: [TS_SDK, TS_CORE, 'packages/typescript/http-transport/src'],
   rust: [RUST_SDK, 'packages/rust/http-transport/src'],
   python: [PYTHON_SDK],
@@ -3418,7 +3419,7 @@ const CLOCK_SOURCES = {
   swift: [SWIFT_SDK],
   csharp: [CSHARP_SDK],
 };
-const CLOCK_EXTENSIONS = { typescript: '.ts', rust: '.rs', python: '.py', go: '.go', kotlin: '.kt', swift: '.swift', csharp: '.cs' };
+const CLOCK_EXTENSIONS = { haskell: '.hs', typescript: '.ts', rust: '.rs', python: '.py', go: '.go', kotlin: '.kt', swift: '.swift', csharp: '.cs' };
 
 /** The directories of `sdk`'s testing module, as the `testing` row of `modules` says where it is. */
 function testingDirectories(sdk) {
@@ -3474,6 +3475,36 @@ function swiftParameters(header) {
  * declares no public type or function of that name.
  */
 const CLOCK_MAKERS = {
+  haskell() {
+    const inventory = JSON.parse(read('packages/haskell/sdk/public-api.json'));
+    return (maker) => {
+      const ways = [];
+      for (const [moduleName, exported] of Object.entries(inventory.modules)) {
+        const signature = exported.values[maker];
+        if (signature === undefined) continue;
+        // GHC prints Haskell application without angle brackets. Only arrows
+        // outside parentheses/brackets separate this function's parameters.
+        const parts = [];
+        let depth = 0;
+        let start = 0;
+        for (let i = 0; i < signature.length; i++) {
+          if ('([{'.includes(signature[i])) depth++;
+          else if (')]}'.includes(signature[i])) depth--;
+          else if (depth === 0 && signature.slice(i, i + 4) === ' => ') {
+            start = i + 4;
+            i += 3;
+          } else if (depth === 0 && signature.slice(i, i + 4) === ' -> ') {
+            parts.push(signature.slice(start, i));
+            start = i + 4;
+            i += 3;
+          }
+        }
+        parts.push(signature.slice(start));
+        ways.push({ where: `${moduleName}.${maker} from GHC`, takes: parts.slice(0, -1).map((type) => ({ type })) });
+      }
+      return ways.length ? ways : undefined;
+    };
+  },
   kotlin(files) {
     const sourced = files.map((file) => ({ file, code: kotlinCode(read(file)) }));
     const types = kotlinTypes(sourced);
@@ -3784,6 +3815,33 @@ for (const row of clockRows ?? []) {
         fail(`${way.where} takes no ${missing.join(' or ')}, which ${name} says ${sdk}'s ${maker} takes: add it, or say in the row's \`notYetReached\` what is still to be built`);
       }
     }
+  }
+}
+
+const completionSdk = process.argv.find((argument) => argument.startsWith('--complete-sdk='))?.slice('--complete-sdk='.length);
+if (completionSdk !== undefined) {
+  if (!(completionSdk in LANGUAGES)) fail(`unknown SDK completion target: ${completionSdk}`);
+  for (const [section, roster] of Object.entries({ namespaces: NAMESPACE_SDKS, worker: WORKER_SDKS, stateUnits: UNIT_SDKS,
+    wire: WIRE_SDKS, storage: STORAGE_SDKS, modules: MODULE_SDKS, clock: CLOCK_SDKS })) {
+    if (!roster.includes(completionSdk)) fail(`${completionSdk} completion: the ${section} census has no reader for it`);
+  }
+  const pending = (value, path) => {
+    if (Array.isArray(value)) value.forEach((entry, index) => pending(entry, `${path}[${index}]`));
+    else if (value !== null && typeof value === 'object') {
+      if (value.notYetReached?.[completionSdk] !== undefined) fail(`${completionSdk} completion: ${path} is not yet reached`);
+      for (const [key, entry] of Object.entries(value)) if (key !== 'notYetReached') pending(entry, `${path}.${key}`);
+    }
+  };
+  pending(table, TABLE);
+  for (const file of REPOSITORY.filter((path) => path.startsWith('protocol/specs/src/') && path.endsWith('.json') && path !== TABLE)) {
+    pending(JSON.parse(read(file)), file);
+  }
+  const drivers = JSON.parse(read('protocol/conformance/semiont.implementations.json')).sdks[completionSdk];
+  for (const role of ['wire', 'worker']) {
+    if (!Array.isArray(drivers?.[role]) || drivers[role].length === 0) fail(`${completionSdk} completion: no ${role} conformance driver`);
+  }
+  if (!Array.isArray(drivers?.live?.command) || drivers.live.command.length === 0 || drivers.live.tier !== 'parity') {
+    fail(`${completionSdk} completion: no live-query conformance driver at parity`);
   }
 }
 
