@@ -49,7 +49,8 @@ public func decodeRepresentation(_ bytes: Data, contentType: String) throws -> S
   case "utf-16be": return decodeUTF16(bytes, littleEndian: false)
   default:
     guard let scalars = singleByteScalars[encoding] else {
-      preconditionFailure("the table of encodings names \(encoding), which it neither refuses nor reads byte by byte")
+      preconditionFailure(
+        "the table of encodings names \(encoding), which it neither refuses nor reads byte by byte")
     }
     return String(String.UnicodeScalarView(bytes.map { scalars[Int($0)] }))
   }
