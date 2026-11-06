@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+	"time"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
@@ -51,7 +52,7 @@ func TestARequiredListLeftNilIsEmittedAsTheEmptyList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	w := semiont.NewWire(semionttest.NewFaultyTransport(semionttest.FaultyConfig{}))
 	read, err := semiont.Frames(ctx, w, bus.BindInitiate)
