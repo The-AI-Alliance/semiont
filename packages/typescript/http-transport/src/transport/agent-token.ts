@@ -27,6 +27,7 @@ import {
   retryAfterMs,
   retryWithBackoff,
   userId,
+  withinDeadline,
   type RetryAttemptInfo,
   type ServiceToken,
   type UserId,
@@ -83,13 +84,15 @@ export async function agentToken(opts: AgentSignIn): Promise<{ token: string; di
 async function named(baseUrl: string, token: string, fetch: typeof globalThis.fetch | undefined): Promise<UserId> {
   const url = `${baseUrl.replace(/\/$/, '')}/api/users/me`;
   const unanswered = (error: unknown) => new UnansweredError(url, error);
-  const response = await fetchOf(fetch)(url, {
-    headers: { authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
-  }).catch((error: unknown) => {
-    throw unanswered(error);
+  const { response, answer } = await withinDeadline(HTTP_REQUEST_TIMEOUT_MS, async (signal) => {
+    const response = await fetchOf(fetch)(url, {
+      headers: { authorization: `Bearer ${token}` },
+      signal,
+    }).catch((error: unknown) => {
+      throw unanswered(error);
+    });
+    return { response, answer: await jsonOf(response, unanswered) };
   });
-  const answer = await jsonOf(response, unanswered);
 
   if (!response.ok) {
     const said = isObject(answer) && isString(answer['error']) ? answer['error'] : `HTTP ${response.status} ${response.statusText}`;

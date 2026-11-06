@@ -25,7 +25,9 @@
 //!
 //! A delegated job that says nothing for `DELEGATE_SILENCE` has gone quiet,
 //! which is not over: the unit says so once (`mark:delegate-timeout`) and
-//! keeps following, so a completion that arrives later still ends it.
+//! keeps following, so a completion that arrives later still ends it. A
+//! frame on the job's channels that its follower refuses is not the job
+//! saying something: the silence goes on being counted past it.
 
 use super::{Held, Tasks, cancelled, said, signal};
 use crate::channels::{Channel, MarkCreateError, MarkDelegateTimeout, MarkRequested, MarkSubmit};
@@ -44,6 +46,7 @@ use crate::types::{JobId, ResourceId};
 use serde::Serialize;
 use std::sync::Arc;
 use tokio::sync::watch;
+use tokio::time::Instant;
 
 /// An annotation being composed: where it is, and why it is made. Its
 /// selector is what `client.mark.submit` takes.
@@ -238,15 +241,16 @@ async fn delegate(shared: Arc<Shared>, params: MarkJobParams, motivation: Motiva
             shared.job_id.forget(job_id);
         }
     };
-    // Whether the next silence is still to be said. It is said once, and
-    // again only after the job has said something.
-    let mut listening_for_silence = true;
+    // When the silence is to be said, counted from the last thing the job
+    // said. It is said once, and again only after the job has said
+    // something; none while it is not to be said again.
+    let mut quiet_at = Some(Instant::now() + DELEGATE_SILENCE);
     loop {
-        let event = if listening_for_silence {
-            match tokio::time::timeout(DELEGATE_SILENCE, run.next()).await {
+        let event = if let Some(deadline) = quiet_at {
+            match tokio::time::timeout_at(deadline, run.next()).await {
                 Ok(event) => event,
                 Err(_) => {
-                    listening_for_silence = false;
+                    quiet_at = None;
                     gone_quiet(&shared, motivation);
                     continue;
                 }
@@ -254,7 +258,11 @@ async fn delegate(shared: Arc<Shared>, params: MarkJobParams, motivation: Motiva
         } else {
             run.next().await
         };
-        listening_for_silence = true;
+        // A frame refused names no job: it is no word of this one, and the
+        // silence goes on being counted.
+        if !matches!(event, Some(Ok(JobEvent::Refused { .. }))) {
+            quiet_at = Some(Instant::now() + DELEGATE_SILENCE);
+        }
         match event {
             Some(Ok(JobEvent::Created(job))) => {
                 shared.job_id.set(Some(job.job_id.clone()));

@@ -2,8 +2,9 @@
 public protocol Transport: Sendable {
   var baseUrl: String { get }
   var state: Watched<ConnectionState> { get }
-  /// An empty channel list listens to every frame this transport delivers.
-  func frames(_ channels: [String]) async throws -> Events<ReceivedFrame>
+  /// What this transport delivers on `channels`: each frame, or a frame's refusal in its place. An
+  /// empty channel list listens to everything it delivers.
+  func frames(_ channels: [String]) async throws -> Events<Carried>
   func subscribeToResource(_ resource: ResourceId) async -> ResourceHold
   func emit(
     channel: String, payload: [String: JSONValue], scope: ResourceId?, correlationId: String?

@@ -102,14 +102,16 @@ extension HttpTransport {
       }
       throw failure
     }
+    let stated = declared(frame.payload, stamps: descriptor.resultStamps)
+    if let fault = faultOf(payload: stated, on: descriptor.result) {
+      throw TransportError(.error, notTheChannels(descriptor.result, fault))
+    }
     do {
       var answer = frame
       answer.payload = try descriptor.response(frame.payload)
       return answer
     } catch {
-      let fault = refusedFault(
-        of: declared(frame.payload, stamps: descriptor.resultStamps), on: descriptor.result)
-      throw TransportError(.error, notTheChannels(descriptor.result, fault))
+      throw TransportError(.error, notTheChannels(descriptor.result, .undecoded))
     }
   }
   func fail(_ correlation: String, error: any Error) {

@@ -77,7 +77,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
       id: "e-frame", metadata: EventMetadata(sequenceNumber: 0), payload: [:],
       timestamp: "2026-11-03T00:00:00Z", type: channel,
       userId: UserId("did:web:kb.test:users:person"), version: 1)
-    transport.deliver(ReceivedFrame(channel: channel, payload: try wirePayload(event)))
+    transport.deliver(.frame(ReceivedFrame(channel: channel, payload: try wirePayload(event))))
     guard case .ready(let updated)? = await observer.next() else {
       Issue.record("Invalidation should replace the ready value without emitting pending")
       return
@@ -179,7 +179,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
 
     let gap = BusResumeGap(lastSeenId: "p-first-1", reason: .retentionExceeded, scope: first)
     transport.deliver(
-      ReceivedFrame(channel: Channels.busResumeGap.name, payload: try wirePayload(gap)))
+      .frame(ReceivedFrame(channel: Channels.busResumeGap.name, payload: try wirePayload(gap))))
     guard case .ready? = await firstReader.next() else {
       Issue.record("A replay gap should refresh the affected query")
       return
@@ -192,7 +192,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
       resourceId: second,
       timestamp: "2026-11-03T00:00:00Z", type: channel,
       userId: UserId("did:web:kb.test:users:person"), version: 1)
-    transport.deliver(ReceivedFrame(channel: channel, payload: try wirePayload(edit)))
+    transport.deliver(.frame(ReceivedFrame(channel: channel, payload: try wirePayload(edit))))
     guard case .ready? = await secondReader.next() else {
       Issue.record("An annotation edit should refresh the history of its resource")
       return
@@ -245,7 +245,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
       annotation: enriched, id: "e-write", metadata: EventMetadata(sequenceNumber: 1),
       payload: payload, resourceId: resource, timestamp: "2026-11-04T00:01:00Z",
       type: channel, userId: UserId("did:web:kb.test:users:person"), version: 1)
-    transport.deliver(ReceivedFrame(channel: channel, payload: try wirePayload(event)))
+    transport.deliver(.frame(ReceivedFrame(channel: channel, payload: try wirePayload(event))))
     guard case .ready(let writtenList)? = await listReader.next(),
       case .ready(let writtenDetail)? = await detailReader.next()
     else {
@@ -260,7 +260,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
     transport.handle { _, _ in try annotationReply(fetched) }
     event.annotation = nil
     event.id = "e-refetch"
-    transport.deliver(ReceivedFrame(channel: channel, payload: try wirePayload(event)))
+    transport.deliver(.frame(ReceivedFrame(channel: channel, payload: try wirePayload(event))))
     guard case .ready(let fetchedList)? = await listReader.next(),
       case .ready(let fetchedDetail)? = await detailReader.next()
     else {
@@ -308,7 +308,7 @@ func annotationRemovalSurvivesAnEarlierInFlightRead(confirmedByReply: Bool) asyn
     if confirmedByReply {
       let reply = MarkDeleteOk(response: MarkDeleteOkResponse(annotationId: id))
       transport.deliver(
-        ReceivedFrame(channel: Channels.markDeleteOk.name, payload: try wirePayload(reply)))
+        .frame(ReceivedFrame(channel: Channels.markDeleteOk.name, payload: try wirePayload(reply))))
     } else {
       let channel = Channels.markRemoved.name
       let event = try StoredEventResponse(
@@ -316,7 +316,7 @@ func annotationRemovalSurvivesAnEarlierInFlightRead(confirmedByReply: Bool) asyn
         payload: wirePayload(AnnotationRemovedPayload(annotationId: id)), resourceId: resource,
         timestamp: "2026-11-04T00:01:00Z", type: channel,
         userId: UserId("did:web:kb.test:users:person"), version: 1)
-      transport.deliver(ReceivedFrame(channel: channel, payload: try wirePayload(event)))
+      transport.deliver(.frame(ReceivedFrame(channel: channel, payload: try wirePayload(event))))
     }
     guard case .failed(let removed)? = await reader.next() else {
       Issue.record("Removal should fail the detail directly")

@@ -26,7 +26,9 @@ package state
 //
 // A delegated job that says nothing for Timing.DelegateSilence has gone
 // quiet, which is not over: the unit says so once (mark:delegate-timeout) and
-// keeps following, so a completion that arrives later still ends it.
+// keeps following, so a completion that arrives later still ends it. A frame
+// on the job's channels that its follower refuses is not the job saying
+// something: the silence goes on being counted past it.
 
 import (
 	"time"
@@ -254,8 +256,11 @@ func (u *MarkStateUnit) follow(run *semiont.Delegation[api.MarkJobCompleteComman
 				u.ended(created)
 				return
 			}
-			silence.Reset(u.silence)
-			listening = true
+			// A frame refused names no job: it is no word of this one, and the silence goes on being counted.
+			if _, refused := said.event.(semiont.JobRefused); !refused {
+				silence.Reset(u.silence)
+				listening = true
+			}
 			u.mu.Lock()
 			if u.closed {
 				u.mu.Unlock()
