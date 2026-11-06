@@ -85,7 +85,7 @@ private fun saidIn(frame: Frame): Any? = try {
         Channels.JOB_FAIL.name -> decoded(Channels.JOB_FAIL, frame.payload)
         else -> null
     }
-} catch (_: IllegalArgumentException) {
+} catch (_: TransportError) {
     null
 }
 

@@ -506,12 +506,23 @@ class SignInTest {
     }
 
     @Test
-    fun aGatewayThatDoesNotSayWhoTheAgentIsSaysSoAndNothingOfTheAnswer() = runBlocking {
-        val realm = realm()
-        realm.script("/api/users/me", Said(200, buildJsonObject { put("secret", "not-a-principal") }))
-        agent(realm).use { agent ->
-            val failed = assertThrows(semiont.errors.TransportError::class.java) { runBlocking { agent.signIn() } }
-            assertTrue(!failed.message!!.contains("not-a-principal"), failed.message)
+    fun aGatewayThatDoesNotSayWhoTheAgentIsIsRefusedForItsFirstFaultAndNothingOfTheAnswer() = runBlocking {
+        val carried = "not-a-principal"
+        val agentNamed = named(AGENT_DID).body
+        for ((answer, fault) in listOf(
+            buildJsonObject { put("secret", carried) } to "it has no `did`",
+            JsonObject(agentNamed + ("did" to buildJsonArray { add(JsonPrimitive(carried)) })) to "its `did` is malformed",
+            // A DID of no DID's form: the table states a DID's form, so the refusal names the `did`.
+            JsonObject(agentNamed + ("did" to JsonPrimitive(carried))) to "its `did` is malformed",
+            JsonObject(agentNamed + ("name" to buildJsonArray { add(JsonPrimitive(carried)) })) to "its `name` is malformed",
+        )) {
+            val realm = realm()
+            realm.script("/api/users/me", Said(200, answer))
+            agent(realm).use { agent ->
+                val failed = assertThrows(semiont.errors.TransportError::class.java) { runBlocking { agent.signIn() } }
+                assertEquals("${realm.origin}/api/users/me did not answer who the agent is: $fault", failed.message)
+                assertEquals(200, failed.status)
+            }
         }
     }
 

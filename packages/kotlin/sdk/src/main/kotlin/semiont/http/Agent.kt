@@ -14,6 +14,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import semiont.Timings
+import semiont.bus.UNDECODED
+import semiont.bus.faultIn
 import semiont.errors.SemiontError
 import semiont.errors.SignInError
 import semiont.errors.SignInErrorCode
@@ -275,12 +277,14 @@ public class AgentToken @JvmOverloads constructor(gateway: String, private val s
         if (status !in 200..299) {
             throw refusal("the gateway refused the agent's token (HTTP $status)", status, response.body(), retryAfterMs(response.headers().firstValue("retry-after").orElse(null)))
         }
-        return try {
-            wireJson.decodeFromString(UserResponse.serializer(), response.body().toString(Charsets.UTF_8)).did
+        val text = response.body().toString(Charsets.UTF_8)
+        val fault = faultIn(UserResponse.serializer().descriptor, text) ?: try {
+            return wireJson.decodeFromString(UserResponse.serializer(), text).did
         } catch (_: IllegalArgumentException) {
-            // What it lacks, and none of what it holds.
-            throw TransportError(TransportErrorCode.Error, "$url did not answer who the agent is", status)
+            UNDECODED
         }
+        // Its first fault, and none of what it holds.
+        throw TransportError(TransportErrorCode.Error, "$url did not answer who the agent is: $fault", status)
     }
 
     /** Sign the agent out of this process: its renewals stop. Closing twice is closing once. */

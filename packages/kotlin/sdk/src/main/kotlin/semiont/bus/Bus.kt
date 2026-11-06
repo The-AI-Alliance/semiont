@@ -50,22 +50,30 @@ public fun replyChannelsFor(vararg operations: Operation<*, *, *>): List<String>
     operations.flatMap { listOf(it.result.name, it.failure.name) }.distinct()
 
 /**
- * A payload as its channel types it. What the gateway stamps on a payload (a
- * member whose name begins `_`) is the bus's, not the payload's: one the
- * channel's payload does not declare is left out before the payload is read.
- * Throws `IllegalArgumentException` (a `SerializationException`, or an id's
- * own refusal) for a payload that is not that channel's.
+ * A payload as its channel types it, held to the table before it is decoded.
+ * What the gateway stamps on a payload (a member whose name begins `_`) is the
+ * bus's, not the payload's: one the channel's payload does not declare is left
+ * out before the payload is read. Throws `TransportError` (`error`) for a
+ * payload that is not that channel's, saying its first fault in every SDK's
+ * words.
  */
-public fun <P> decoded(channel: Channel<P>, payload: JsonObject): P = decode(channel.payload, channel.stamps, payload)
+public fun <P> decoded(channel: Channel<P>, payload: JsonObject): P = decode(channel.name, channel.payload, channel.stamps, payload)
 
 /** `decoded`, for a channel a resource's scope carries. */
-public fun <P> decoded(channel: ScopedChannel<P>, payload: JsonObject): P = decode(channel.payload, channel.stamps, payload)
+public fun <P> decoded(channel: ScopedChannel<P>, payload: JsonObject): P = decode(channel.name, channel.payload, channel.stamps, payload)
 
 /** `payload` without what the gateway stamped on it that `stamps` does not declare. */
 private fun declared(stamps: Set<String>, payload: JsonObject): JsonObject = JsonObject(payload.filterKeys { !it.startsWith("_") || it in stamps })
 
-private fun <P> decode(serializer: KSerializer<P>, stamps: Set<String>, payload: JsonObject): P =
-    wireJson.decodeFromJsonElement(serializer, declared(stamps, payload))
+private fun <P> decode(channel: String, serializer: KSerializer<P>, stamps: Set<String>, payload: JsonObject): P {
+    val declared = declared(stamps, payload)
+    val fault = faultOf(serializer.descriptor, declared) ?: try {
+        return wireJson.decodeFromJsonElement(serializer, declared)
+    } catch (_: IllegalArgumentException) {
+        UNDECODED
+    }
+    throw TransportError(TransportErrorCode.Error, notTheChannels(channel, fault))
+}
 
 private fun <P> encoded(channel: Channel<P>, payload: P): JsonObject = wireJson.encodeToJsonElement(channel.payload, payload).jsonObject
 
@@ -279,16 +287,8 @@ public class Bus(private val transport: Transport) {
      * `timeoutMs` for its result. Throws as the free `request` does, and
      * `TransportError` when the result that came is not the operation's.
      */
-    public suspend fun <Q, R, F> request(operation: Operation<Q, R, F>, payload: Q, timeoutMs: Long = Timings.BUS_REQUEST_TIMEOUT_MS): R {
-        val reply = resultOf(transport, operation, encoded(operation.request, payload), timeoutMs)
-        val declared = declared(operation.result.stamps, reply.payload)
-        val fault = faultOf(operation.result.payload.descriptor, declared) ?: try {
-            return wireJson.decodeFromJsonElement(operation.result.payload, declared)
-        } catch (_: IllegalArgumentException) {
-            UNDECODED
-        }
-        throw TransportError(TransportErrorCode.Error, notTheChannels(operation.result.name, fault))
-    }
+    public suspend fun <Q, R, F> request(operation: Operation<Q, R, F>, payload: Q, timeoutMs: Long = Timings.BUS_REQUEST_TIMEOUT_MS): R =
+        decoded(operation.result, resultOf(transport, operation, encoded(operation.request, payload), timeoutMs).payload)
 
     /** `request`, for Java. */
     public fun <Q, R, F> requestFuture(operation: Operation<Q, R, F>, payload: Q, timeoutMs: Long): CompletableFuture<R> =
