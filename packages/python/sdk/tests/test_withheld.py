@@ -32,7 +32,7 @@ from tokens import token
 
 from semiont._required import Fault, fault_of
 from semiont._required_table import SCHEMAS
-from semiont.bus import Bus, FrameRefusal
+from semiont.bus import Bus
 from semiont.channel import Channel
 from semiont.channels import (
     BECKON_HOVER,
@@ -53,6 +53,7 @@ from semiont.model import WireModel
 from semiont.operations import YIELD_CLONE_TOKEN_REQUESTED
 from semiont.retry import RetryPolicy
 from semiont.testing import FaultyTransport
+from semiont.transport import Frame, FrameRefusal
 from semiont.types import YieldCloneTokenRequest
 from semiont.watched import Variable, reached
 
@@ -311,20 +312,20 @@ DESCRIBED: Final[dict[str, JsonValue]] = {"@context": "https://schema.org", "@id
 @pytest.mark.parametrize(
     ("channel", "payload", "member", "reason"),
     [
-        (YIELD_CLONE_RESOURCE_REQUESTED, {"token": [CARRIED]}, "token", "malformed"),
-        (YIELD_CLONE_TOKEN_GENERATED, {"token": CARRIED, "resource": DESCRIBED}, "response", "lacks"),
-        (YIELD_CLONE_TOKEN_GENERATED, {"response": {"token": [CARRIED], "resource": DESCRIBED}}, "response.expiresAt", "lacks"),
-        (BECKON_HOVER, {"annotation_id": [CARRIED]}, "annotationId", "lacks"),
-        (PANEL_CLOSE, {CARRIED[:12]: CARRIED}, "", "malformed"),
+        (YIELD_CLONE_RESOURCE_REQUESTED, {"token": [CARRIED]}, "payload.token", "malformed"),
+        (YIELD_CLONE_TOKEN_GENERATED, {"token": CARRIED, "resource": DESCRIBED}, "payload.response", "lacks"),
+        (YIELD_CLONE_TOKEN_GENERATED, {"response": {"token": [CARRIED], "resource": DESCRIBED}}, "payload.response.expiresAt", "lacks"),
+        (BECKON_HOVER, {"annotation_id": [CARRIED]}, "payload.annotationId", "lacks"),
+        (PANEL_CLOSE, {CARRIED[:12]: CARRIED}, "payload", "malformed"),
         (
             JOB_CHECKPOINT,
             {"jobId": "job-1", "completedUnits": [[CARRIED]], "unitCursors": {CARRIED: {"next": CARRIED}}},
-            "completedUnits",
+            "payload.completedUnits",
             "malformed",
         ),
-        (JOB_COMPLETE, {"jobType": "mark", "result": [CARRIED]}, "resourceId", "lacks"),
-        (JOB_COMPLETE, {"jobType": CARRIED}, "resourceId", "lacks"),
-        (JOB_COMPLETE, {"result": {"token": CARRIED}}, "resourceId", "lacks"),
+        (JOB_COMPLETE, {"jobType": "mark", "result": [CARRIED]}, "payload.resourceId", "lacks"),
+        (JOB_COMPLETE, {"jobType": CARRIED}, "payload.resourceId", "lacks"),
+        (JOB_COMPLETE, {"result": {"token": CARRIED}}, "payload.resourceId", "lacks"),
     ],
     ids=[
         "a member that is malformed",
@@ -351,7 +352,9 @@ def test_a_payload_that_is_not_its_channel_s_is_refused_to_its_reader_by_the_way
         bus.emit(channel.name, payload)
         bus.destroy()
         # The payload is its reader's, as it came; the way to its fault is named by the shape, never by the payload.
-        assert [heard async for heard in read] == [FrameRefusal(channel=channel.name, member=member, reason=reason, payload=payload)]
+        assert [heard async for heard in read] == [
+            FrameRefusal(channel=channel.name, member=member, reason=reason, payload=payload, scope=None)
+        ]
 
     with caplog.at_level(logging.WARNING, logger="semiont.bus"):
         run(scenario())
@@ -386,16 +389,17 @@ def test_what_a_stream_carries_that_is_no_frame_is_said_by_its_first_fault_and_i
             gateway.write(f'id: e-3\nevent: bus-event\ndata: {{"token": "{CARRIED}" not json\n\n')
             gateway.send("e-4", {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}})
             # The stream is read in order: what came before this frame has been read.
-            assert (await soon(anext(frames))).payload == {"resourceId": "res-1"}
-            return [await soon(anext(failures)), await soon(anext(failures))]
+            after = await soon(anext(frames))
+            assert isinstance(after, Frame), after
+            assert after.payload == {"resourceId": "res-1"}
+            return [await soon(anext(failures)) for _ in range(3)]
 
     with caplog.at_level(logging.WARNING, logger="semiont.http"):
         told = run(scenario())
-    # What names a channel is logged; what names none is told to the failure report.
-    assert [record.getMessage() for record in caplog.records] == [
-        "the stream carried what is not a frame (id e-1): its `scope` is malformed",
-    ]
+    # What names no reader, by its channel or by its scope, is told to the failure report, and nothing is logged.
+    assert caplog.records == []
     assert [str(failure) for failure in told] == [
+        "the stream carried what is not a frame: its `scope` is malformed",
         "the stream carried what is not a frame: it has no `channel`",
         "the stream carried what is not a frame: it is malformed",
     ]

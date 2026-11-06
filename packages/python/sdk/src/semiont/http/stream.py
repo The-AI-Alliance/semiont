@@ -24,7 +24,6 @@ one task, in order, so the state has one writer.
 """
 
 import asyncio
-import logging
 from collections import OrderedDict
 from collections.abc import Mapping
 from contextlib import suppress
@@ -57,13 +56,11 @@ from semiont.timing import (
     SEEN_EVENT_IDS_COUNT,
     STREAM_OPEN_TIMEOUT_MS,
 )
-from semiont.transport import CONNECTION_STATE_MAY_BECOME, ConnectionState, Frame, FrameHub, ReplyRouter, TraceContext
+from semiont.transport import CONNECTION_STATE_MAY_BECOME, ConnectionState, Frame, FrameHub, FrameRefusal, ReplyRouter, TraceContext
 from semiont.types import BusFrame, BusSubscribeRequest, BusSubscribeRequestScopedItem, ErrorResponse
 from semiont.watched import Variable, Watched
 
 __all__ = ["Bookmarks", "SeenIds", "Stream", "Timing", "backoff_cap_ms"]
-
-_LOG: Final = logging.getLogger("semiont.http")
 
 
 def _sent_under(carried: JsonValue) -> TraceContext | None:
@@ -103,40 +100,43 @@ def backoff_cap_ms(reconnect_ms: int, failures: int) -> int:
 
 @final
 @dataclass(frozen=True, slots=True)
-class Refused:
-    """What BusFrame does not allow: its first fault, and the channel it names when BusFrame allows its `channel`.
+class Unaddressed:
+    """What BusFrame does not allow and names no reader: its first fault.
 
-    One that names no channel names no reader.
+    It names no reader when it is no JSON object, when its `channel` is not a
+    text of at least one character, or when it carries a `scope` that is not
+    a resource's id.
     """
 
     fault: Fault
-    channel: str | None
 
 
-def carried(data: str) -> BusFrame | Refused:
-    """`data` read as a frame, or why it is not one.
+def carried(data: str) -> BusFrame | FrameRefusal | Unaddressed:
+    """`data` read as a frame; or, refused for its first fault, its refusal for the readers it names, or that it names none.
 
     A frame carries what BusFrame names and nothing more.
     """
     read = read_as(BusFrame, data, BusFrame.model_validate_json)
-    if isinstance(read, Fault):
-        return Refused(read, _channel_of(data))
-    return read
-
-
-_JSON: Final = TypeAdapter[JsonValue](JsonValue)
-
-
-def _channel_of(data: str) -> str | None:
-    """The channel `data` names: the `channel` of a JSON object, when it is a text of at least one character."""
+    if not isinstance(read, Fault):
+        return read
     try:
         value = _JSON.validate_json(data)
     except ValidationError:
-        return None
+        return Unaddressed(read)
     if not isinstance(value, dict):
-        return None
-    channel = value.get("channel")
-    return channel if isinstance(channel, str) and channel != "" else None
+        return Unaddressed(read)
+    channel, scope = value.get("channel"), value.get("scope")
+    if not isinstance(channel, str) or channel == "":
+        return Unaddressed(read)
+    if scope is None:
+        return FrameRefusal(channel=channel, member=read.member, reason=read.reason, payload=value.get("payload"), scope=None)
+    held = ResourceId.parse(scope) if isinstance(scope, str) else None
+    if held is None:
+        return Unaddressed(read)
+    return FrameRefusal(channel=channel, member=read.member, reason=read.reason, payload=value.get("payload"), scope=held)
+
+
+_JSON: Final = TypeAdapter[JsonValue](JsonValue)
 
 
 @final
@@ -552,13 +552,11 @@ class Stream:
         if event_id is not None and not self._seen.remember(event_id):
             return
         read = carried(data)
-        if isinstance(read, Refused):
-            if read.channel is None:
-                # What names no channel names no reader: it is told to the failure report.
-                self._failures.deliver(TransportError("error", f"the stream carried what is not a frame: {read.fault}"))
-            else:
-                # What is not a frame is not delivered, and is said so.
-                _LOG.warning("the stream carried what is not a frame (id %s): %s", event_id, read.fault)
+        if isinstance(read, Unaddressed):
+            self._failures.deliver(TransportError("error", f"the stream carried what is not a frame: {read.fault}"))
+            return
+        if isinstance(read, FrameRefusal):
+            self._hub.deliver(read)
             return
         bus_log("RECV", read.channel, read.payload, scope=read.scope, correlation_id=read.correlation_id)
         if conn in self._superseded:

@@ -9,7 +9,7 @@ from aio import run, soon
 from kb import recorded, refusing
 from pydantic import JsonValue, ValidationError
 
-from semiont.bus import Bus, Delivered, FrameRefusal, decoded, reply_channels_for
+from semiont.bus import Bus, Delivered, decoded, reply_channels_for
 from semiont.channel import Empty
 from semiont.channels import BECKON_FOCUS, BECKON_HOVER, JOB_CREATE, JOB_QUEUED, MARK_ARCHIVED, MARK_DELETE, PANEL_CLOSE
 from semiont.errors import BusRequestError, TransportError
@@ -17,7 +17,7 @@ from semiont.identifiers import AnnotationId, JobId, ResourceId
 from semiont.model import stated, written
 from semiont.operations import BROWSE_KB_REQUESTED, FRAME_ADD_ENTITY_TYPE, JOB_STATUS_REQUESTED, MARK_CREATE_REQUEST
 from semiont.testing import FaultyTransport
-from semiont.transport import Frame
+from semiont.transport import Frame, FrameRefusal
 from semiont.types import (
     BeckonFocusEvent,
     BeckonHoverEvent,
@@ -170,14 +170,14 @@ def test_frames_by_type_carry_their_payload_decoded_and_who_emitted_them(caplog:
             assert isinstance(first, Delivered)
             assert first.payload == BeckonFocusEvent(resource_id=RESOURCE, annotation_id=ANNOTATION)
             assert (first.correlation_id, first.scope, first.user_id) == ("cid-1", RESOURCE, "did:web:example.org:users:alice")
-            # What is not the channel's is told the reader in its place, by the way to its first fault and with the
-            # payload as it came; the frames after it follow.
+            # What is not the channel's is told the reader in its place, by the way to its first fault from the frame and
+            # with the payload as it came; the frames after it follow.
             refused = await soon(anext(frames))
-            assert refused == FrameRefusal(channel="beckon:focus", member="resourceId", reason="lacks", payload=lacking)
+            assert refused == FrameRefusal(channel="beckon:focus", member="payload.resourceId", reason="lacks", payload=lacking, scope=None)
             assert refused.status == "refused"
             # One that holds a member of a kind its schema does not allow is malformed there.
             assert await soon(anext(frames)) == FrameRefusal(
-                channel="beckon:focus", member="annotationId", reason="malformed", payload=malformed
+                channel="beckon:focus", member="payload.annotationId", reason="malformed", payload=malformed, scope=None
             )
             last = await soon(anext(frames))
             assert isinstance(last, Delivered)
@@ -220,7 +220,7 @@ def test_a_resource_s_channel_is_read_for_a_resource_whose_scope_the_read_holds_
             unsequenced: dict[str, JsonValue] = {**recorded("mark:archived", RESOURCE), "metadata": {}}
             transport.deliver(Frame(channel="mark:archived", payload=unsequenced, scope=RESOURCE))
             assert await soon(anext(mine)) == FrameRefusal(
-                channel="mark:archived", member="metadata.sequenceNumber", reason="lacks", payload=unsequenced
+                channel="mark:archived", member="payload.metadata.sequenceNumber", reason="lacks", payload=unsequenced, scope=RESOURCE
             )
         # Let go with the read.
         assert transport.holds(RESOURCE) == 0

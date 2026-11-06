@@ -93,7 +93,7 @@ from semiont.job_filter import job_matches_filter
 from semiont.model import WireModel, written
 from semiont.operations import BROWSE_ANNOTATION_REQUESTED, JOB_CLAIM, MARK_COMMIT
 from semiont.timing import HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, JOB_CLAIM_TIMEOUT_MS, MARK_COMMIT_TIMEOUT_MS
-from semiont.transport import Frame, TraceContext, Transport
+from semiont.transport import Frame, FrameRefusal, TraceContext, Transport
 from semiont.types import (
     Annotation,
     BrowseAnnotationRequest,
@@ -714,7 +714,7 @@ class Claims:
         self._handed: Final[asyncio.Queue[HeldJob | ClaimRefusal | _Ended]] = asyncio.Queue()
         self._tasks: Final[set[asyncio.Task[None]]] = set()
         self._claim_in_flight: asyncio.Task[None] | None = None
-        self._listening: Final[list[Events[Frame]]] = []
+        self._listening: Final[list[Events[Frame | FrameRefusal]]] = []
         self._stall: Final = Variable[HeldJobStall | None](None)
         self._begun = False
         self._stopped = False
@@ -786,8 +786,11 @@ class Claims:
         self._run(self._watch_the_stream())
         self._run(self._look_for_stalls())
 
-    async def _hear_announcements(self, announced: Events[Frame]) -> None:
+    async def _hear_announcements(self, announced: Events[Frame | FrameRefusal]) -> None:
         async for frame in announced:
+            if isinstance(frame, FrameRefusal):
+                # A frame refused announces nothing.
+                continue
             # Every announcement received is stamped, before any filtering.
             self._last_queued_event_at = datetime.now(UTC)
             if any(job_matches_filter(accepted, frame.payload) for accepted in self._filters):
@@ -795,8 +798,11 @@ class Claims:
         # The stream has ended: nothing more can be claimed.
         self._end()
 
-    async def _hear_cancellations(self, cancellations: Events[Frame]) -> None:
+    async def _hear_cancellations(self, cancellations: Events[Frame | FrameRefusal]) -> None:
         async for frame in cancellations:
+            if isinstance(frame, FrameRefusal):
+                # A frame refused names no job to cancel.
+                continue
             # A cancellation is the held job's only when it names it, and one
             # that arrives after the settle signals nothing.
             held, cancelling = self._held, self._cancelling

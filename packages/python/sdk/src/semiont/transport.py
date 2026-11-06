@@ -8,11 +8,15 @@ is, as a type, is `semiont.channels`' to say, above this.
 Beside the contract are the parts every transport builds it from: the frames
 of each channel as their readers are given them (`FrameHub`), and the replies
 its requests still await (`ReplyRouter`).
+
+A frame a transport refuses, whose channel and scope it can read, is given to
+that channel's readers in its place, as a `FrameRefusal`; what names no reader
+is told to its failures.
 """
 
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Collection, Generator, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from types import TracebackType
 from typing import Final, Literal, Protocol, Self, final
 
@@ -44,6 +48,7 @@ __all__ = [
     "ContentTransport",
     "Frame",
     "FrameHub",
+    "FrameRefusal",
     "FrameSink",
     "GatewayOperations",
     "PendingReply",
@@ -118,6 +123,34 @@ class Frame:
     """The trace the work done for this frame continues, when the frame was sent under one."""
 
 
+@final
+@dataclass(frozen=True, slots=True, kw_only=True)
+class FrameRefusal:
+    """A frame refused, in its place: it is not what BusFrame allows, or its payload is not its channel's.
+
+    A transport gives one for a frame BusFrame does not allow, and a typed read
+    for one whose payload is not its channel's, or passes on the transport's.
+    """
+
+    channel: str
+    member: str
+    """The way to the member its first fault is at, from the frame: the names of the members it is within and its own, joined by dots.
+
+    A fault of its payload is within `payload` (`payload.resourceId`); the payload itself is `payload`.
+    """
+    reason: Literal["lacks", "malformed"]
+    """Why: `lacks`, the frame does not carry the member, or it holds null where it may not.
+
+    `malformed`: the member is not what its schema allows (of another kind, another value, form or
+    size), or is one a closed object does not name.
+    """
+    payload: JsonValue
+    """The payload as it came, the gateway's stamps and all; None when the frame carries none."""
+    scope: ResourceId | None
+    """The resource whose scope the frame was delivered on."""
+    status: Literal["refused"] = field(default="refused", init=False)
+
+
 def unsubscribed(channel: str) -> BusRequestError:
     """The refusal a transport gives for a channel it can never deliver."""
     return BusRequestError(
@@ -128,19 +161,22 @@ def unsubscribed(channel: str) -> BusRequestError:
 
 
 class FrameSink(Protocol):
-    """Where a transport delivers every frame it receives: its client's own bus."""
+    """Where a transport delivers every frame it receives, or its refusal: its client's own bus."""
 
-    def deliver(self, frame: Frame) -> None:
-        """Take one frame, as the transport delivered it."""
+    def deliver(self, frame: Frame | FrameRefusal) -> None:
+        """Take one frame, or its refusal, as the transport delivered it."""
         ...
 
 
 @final
 class FrameHub:
-    """The frames of every channel anybody listens to, a broadcast per channel, and the buses every frame is bridged into."""
+    """The frames of every channel anybody listens to, a broadcast per channel, and the buses every frame is bridged into.
+
+    A frame's refusal goes where the frame would have.
+    """
 
     def __init__(self) -> None:
-        self._channels: dict[str, Broadcast[Frame]] = {}
+        self._channels: dict[str, Broadcast[Frame | FrameRefusal]] = {}
         self._bridged: list[FrameSink] = []
         self._closed = False
 
@@ -154,19 +190,19 @@ class FrameHub:
         if not self._closed:
             self._bridged.append(bus)
 
-    def frames(self, channel: str) -> Events[Frame]:
-        """The frames delivered on `channel` from now on. Of a closed hub, events that have ended."""
+    def frames(self, channel: str) -> Events[Frame | FrameRefusal]:
+        """The frames delivered on `channel` from now on, and the refusals of those refused. Of a closed hub, events that have ended."""
         broadcast = self._channels.get(channel)
         if broadcast is None:
-            broadcast = Broadcast[Frame]()
+            broadcast = Broadcast[Frame | FrameRefusal]()
             if self._closed:
                 broadcast.close()
             else:
                 self._channels[channel] = broadcast
         return broadcast.listen()
 
-    def deliver(self, frame: Frame) -> int:
-        """Give `frame` to its channel's readers, and to every bus bridged into. Returns how many readers there were."""
+    def deliver(self, frame: Frame | FrameRefusal) -> int:
+        """Give `frame`, or its refusal, to its channel's readers, and to every bus bridged into. Returns how many readers there were."""
         for bus in self._bridged:
             bus.deliver(frame if frame.scope is None else replace(frame, scope=None))
         broadcast = self._channels.get(frame.channel)
@@ -309,8 +345,8 @@ class Transport(Protocol):
         """
         ...
 
-    def frames(self, channel: str) -> Events[Frame]:
-        """The frames delivered on `channel` from now on.
+    def frames(self, channel: str) -> Events[Frame | FrameRefusal]:
+        """The frames delivered on `channel` from now on, each a frame or, in place of one it refused, its refusal.
 
         Raises `BusRequestError`, as `bus.unsubscribed`, for a channel this
         transport can never deliver.
@@ -334,12 +370,13 @@ class Transport(Protocol):
         """The failures the transport meets from now on.
 
         Everything a server refused, every request never answered, and every
-        line its stream carried that names no channel.
+        line its stream carried that names no reader: one whose channel or
+        scope cannot be read.
         """
         ...
 
     def bridge_into(self, bus: FrameSink) -> None:
-        """Publish into `bus` every frame this transport delivers. The bus is its client's: a transport never makes one."""
+        """Publish into `bus` every frame this transport delivers, and every refusal. The bus is its client's; a transport makes none."""
         ...
 
     def track_reply(self, correlation_id: str, reply_channels: Collection[str]) -> PendingReply:

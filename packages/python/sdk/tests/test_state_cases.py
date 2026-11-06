@@ -40,7 +40,7 @@ from semiont.state import (
 )
 from semiont.state_unit import StateUnit
 from semiont.testing import Delay, DropReply, FaultAction, FaultyTransport, create_test_client, refuse_unscripted_operation
-from semiont.transport import Frame, Transport
+from semiont.transport import Frame, FrameRefusal, Transport
 from semiont.watched import Watched
 
 # The SDK this runner is, as the names table's `absent` names it.
@@ -310,7 +310,7 @@ async def has_ended(state: Watched[object]) -> bool:
 # ── A case, played ──────────────────────────────────────────────────────
 
 
-async def collect(frames: Events[Frame], heard: list[Frame]) -> None:
+async def collect(frames: Events[Frame | FrameRefusal], heard: list[Frame | FrameRefusal]) -> None:
     """Keep what `frames` gives, in order."""
     async with frames:
         async for frame in frames:
@@ -330,7 +330,7 @@ async def play(case: JsonObject) -> None:
         for name, given in made_from.items():
             assert isinstance(given, dict)
             units[name] = MAKERS[unit_kind](client, searches, given)
-        heard: list[Frame] = []
+        heard: list[Frame | FrameRefusal] = []
         listening = strings(case.get("listen", []), "listen")
         # Taken now, before anything runs, so what is said from the moment the units are made is heard.
         collector = asyncio.ensure_future(collect(client.bus.frames_among(listening), heard)) if listening else None
@@ -368,7 +368,7 @@ async def perform(
     transport: FaultyTransport,
     searches: Searches,
     units: Mapping[str, StateUnit],
-    heard: list[Frame],
+    heard: list[Frame | FrameRefusal],
     told: int,
 ) -> int:
     """Perform one step. Returns how much of what was heard has been checked."""
@@ -427,7 +427,10 @@ async def perform(
         assert list(transport.request_log) == [], f"requests were sent: {list(transport.request_log)!r}"
     elif "heard" in step:
         await settle()
-        frames = heard[told:]
+        frames: list[Frame] = []
+        for one in heard[told:]:
+            assert isinstance(one, Frame), f"heard a refusal: {one!r}"
+            frames.append(one)
         stated = step["heard"]
         assert isinstance(stated, list)
         got = [{"channel": frame.channel, "payload": dict(frame.payload), "correlationId": frame.correlation_id} for frame in frames]

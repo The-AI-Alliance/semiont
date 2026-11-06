@@ -36,6 +36,7 @@ from semiont.transport import (
     ContentTransport,
     Frame,
     FrameHub,
+    FrameRefusal,
     FrameSink,
     GatewayOperations,
     PendingReply,
@@ -193,7 +194,7 @@ class HttpTransport(Transport, GatewayOperations):
         return channel in self._global
 
     @override
-    def frames(self, channel: str) -> Events[Frame]:
+    def frames(self, channel: str) -> Events[Frame | FrameRefusal]:
         # A channel this stream can never carry would be a reader that is
         # never given anything, which reads as a quiet system: refused at the
         # call. A resource-scoped channel passes with no scope held yet, since

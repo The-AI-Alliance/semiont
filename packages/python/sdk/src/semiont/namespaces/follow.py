@@ -36,15 +36,15 @@ from typing import Final, Literal, final
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont._required import UNDECODED, fault_of
-from semiont.bus import decoded
+from semiont.bus import Heard, heard
 from semiont.channels import JOB_COMPLETE, JOB_FAIL, JOB_REPORT_PROGRESS
 from semiont.errors import BusRequestError, JobError, SemiontError, TransportError
 from semiont.identifiers import JobId, ResourceId
-from semiont.model import written
+from semiont.model import WireModel, written
 from semiont.namespaces.links import Links
 from semiont.operations import JOB_CANCEL_REQUESTED, JOB_CREATE, JOB_STATUS_REQUESTED
 from semiont.running import Running
-from semiont.transport import Frame
+from semiont.transport import Frame, FrameRefusal
 from semiont.types import (
     JobCancelRequest,
     JobCompleteCommand,
@@ -146,18 +146,21 @@ type _Heard = JobReportProgressCommand | JobCompleteCommand | JobFailCommand
 _LIFECYCLE: Final = (JOB_REPORT_PROGRESS, JOB_COMPLETE, JOB_FAIL)
 
 
-def _heard(frame: Frame) -> _Heard | None:
-    """A frame of some job's lifecycle, read as its channel's. One that is not its channel's is nobody's to act on."""
-    try:
-        if frame.channel == JOB_REPORT_PROGRESS.name:
-            return decoded(JOB_REPORT_PROGRESS, frame.payload)
-        if frame.channel == JOB_COMPLETE.name:
-            return decoded(JOB_COMPLETE, frame.payload)
-        if frame.channel == JOB_FAIL.name:
-            return decoded(JOB_FAIL, frame.payload)
-    except ValidationError:
-        return None
-    return None
+def _said[P: WireModel](read: Heard[P]) -> P | FrameRefusal:
+    return read if isinstance(read, FrameRefusal) else read.payload
+
+
+def _heard(carried: Frame | FrameRefusal) -> _Heard | FrameRefusal:
+    """A frame of some job's lifecycle, read as its channel's; or its refusal."""
+    match carried.channel:
+        case JOB_REPORT_PROGRESS.name:
+            return _said(heard(JOB_REPORT_PROGRESS, carried))
+        case JOB_COMPLETE.name:
+            return _said(heard(JOB_COMPLETE, carried))
+        case JOB_FAIL.name:
+            return _said(heard(JOB_FAIL, carried))
+        case other:
+            raise AssertionError(f"a follower reads the lifecycle of a job, and {other} is not one of its channels")
 
 
 def _learned[C: JobCompleteCommand](completion: type[C], delegated: JobType, status: JobStatusResponse, resource_id: ResourceId) -> C:
@@ -220,7 +223,7 @@ async def _followed[C: JobCompleteCommand](
     # One reader of the three channels, so the job's frames are heard in the order they were published.
     frames = links.own.frames_among([channel.name for channel in _LIFECYCLE])
     creating: asyncio.Task[JobCreatedResult] | None = asyncio.ensure_future(links.request(JOB_CREATE, create))
-    hearing: asyncio.Task[Frame | None] = asyncio.ensure_future(anext(frames, None))
+    hearing: asyncio.Task[Frame | FrameRefusal | None] = asyncio.ensure_future(anext(frames, None))
     asking: asyncio.Task[JobStatusResponse] | None = None
     job_id: JobId | None = None
     held: list[_Heard] = []
@@ -248,7 +251,7 @@ async def _followed[C: JobCompleteCommand](
             due = min((at for at in (ask_at, stall_at) if at is not None), default=None)
             done, _ = await asyncio.wait(waiting, timeout=None if due is None else max(due - now, 0), return_when=asyncio.FIRST_COMPLETED)
             now = loop.time()
-            heard: list[_Heard] = []
+            to_act_on: list[_Heard] = []
 
             if creating is not None and creating in done:
                 created = creating.result()
@@ -257,7 +260,7 @@ async def _followed[C: JobCompleteCommand](
                 # Ahead of the frames held for it: the job's id is the first thing its follower gives.
                 report(JobCreated(created.response))
                 ask_at = now + silence
-                heard, held = held, []
+                to_act_on, held = held, []
 
             if hearing in done:
                 frame = hearing.result()
@@ -265,8 +268,9 @@ async def _followed[C: JobCompleteCommand](
                     raise BusRequestError("bus.closed", "The client closed while it was following a job")
                 hearing = asyncio.ensure_future(anext(frames, None))
                 said = _heard(frame)
-                if said is not None:
-                    (held if job_id is None else heard).append(said)
+                # A refusal is read as no job's: what a follower reports of one, the protocol does not yet say.
+                if not isinstance(said, FrameRefusal):
+                    (held if job_id is None else to_act_on).append(said)
 
             if asking is not None and asking in done:
                 answered, asking = asking, None
@@ -294,7 +298,7 @@ async def _followed[C: JobCompleteCommand](
                 if asking is None and job_id is not None:
                     asking = asyncio.ensure_future(_status(links, job_id))
 
-            for said in heard:
+            for said in to_act_on:
                 if said.job_id != job_id:
                     continue
                 match said:

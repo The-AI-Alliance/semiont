@@ -45,7 +45,7 @@ from semiont.state._jobs import cancelled
 from semiont.state._tasks import Tasks
 from semiont.state_unit import StateUnit
 from semiont.timing import DELEGATE_SILENCE_MS
-from semiont.transport import Frame, Transport
+from semiont.transport import Frame, FrameRefusal, Transport
 from semiont.types import (
     AnnotationSelector,
     AnnotationTarget,
@@ -147,9 +147,12 @@ class MarkStateUnit(StateUnit):
         self._progress_motivation.set(None)
         self._failure.set(None)
 
-    async def _listen(self, heard: Events[Frame]) -> None:
+    async def _listen(self, heard: Events[Frame | FrameRefusal]) -> None:
         async with heard:
             async for frame in heard:
+                if isinstance(frame, FrameRefusal):
+                    # A frame refused is nobody's to act on.
+                    continue
                 try:
                     self._heard(frame)
                 except ValidationError:

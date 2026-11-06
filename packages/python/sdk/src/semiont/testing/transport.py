@@ -34,7 +34,18 @@ from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast, Events
 from semiont.identifiers import ResourceId
 from semiont.operations import OPERATIONS
-from semiont.transport import ConnectionState, Frame, FrameHub, FrameSink, PendingReply, ReplyRouter, ResourceHold, Transport, unsubscribed
+from semiont.transport import (
+    ConnectionState,
+    Frame,
+    FrameHub,
+    FrameRefusal,
+    FrameSink,
+    PendingReply,
+    ReplyRouter,
+    ResourceHold,
+    Transport,
+    unsubscribed,
+)
 from semiont.watched import Variable, Watched
 
 __all__ = [
@@ -312,7 +323,7 @@ class FaultyTransport(Transport):
             self.deliver(reply)
 
     @override
-    def frames(self, channel: str) -> Events[Frame]:
+    def frames(self, channel: str) -> Events[Frame | FrameRefusal]:
         if not self.is_subscribed(channel):
             raise unsubscribed(channel)
         return self._hub.frames(channel)

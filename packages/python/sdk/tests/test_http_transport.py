@@ -9,7 +9,6 @@ lands among the writes (L3, `semiont.testing.liveness`).
 """
 
 import asyncio
-import logging
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from typing import Final, final, override
@@ -29,7 +28,7 @@ from semiont.operations import BROWSE_RESOURCE_REQUESTED
 from semiont.retry import RetryPolicy
 from semiont.testing.liveness import DeliverySubject, assert_exactly_once_delivery
 from semiont.timing import MAX_RECONNECT_MS, RECONNECT_MS
-from semiont.transport import ConnectionState, Frame, ResourceHold
+from semiont.transport import ConnectionState, Frame, FrameRefusal, ResourceHold
 from semiont.watched import Variable, reached
 
 QUICK = Timing(reconnect_ms=10, lazy_remove_ms=10, linger_ms=10, emit_retry=RetryPolicy(attempts=2, initial_delay_ms=1, max_delay_ms=1))
@@ -63,8 +62,8 @@ async def opened(transport: HttpTransport) -> None:
     await soon(reached(transport.state, lambda state: state == "open"))
 
 
-def test_a_frame_is_delivered_with_what_is_beside_its_payload_and_what_is_not_a_frame_is_not(caplog: pytest.LogCaptureFixture) -> None:
-    async def scenario() -> tuple[list[Frame], list[SemiontError]]:
+def test_a_frame_is_delivered_with_what_is_beside_its_payload_and_what_is_not_a_frame_is_refused() -> None:
+    async def scenario() -> tuple[list[Frame | FrameRefusal], list[SemiontError]]:
         async with (
             GatewayServer() as gateway,
             HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=CHANNELS, timing=QUICK) as transport,
@@ -95,36 +94,36 @@ def test_a_frame_is_delivered_with_what_is_beside_its_payload_and_what_is_not_a_
             gateway.send("e-6", {"payload": {"resourceId": "res-1"}})
             gateway.send("e-7", {"channel": 7, "payload": {"resourceId": "res-1"}})
             gateway.send("e-8", {"channel": "beckon:focus", "payload": {"resourceId": "res-1", "annotationId": "a-3"}})
-            delivered = [await soon(anext(frames)), await soon(anext(frames)), await soon(anext(frames))]
-            told = [await soon(anext(failures)), await soon(anext(failures)), await soon(anext(failures))]
+            delivered = [await soon(anext(frames)) for _ in range(4)]
+            told = [await soon(anext(failures)) for _ in range(4)]
             assert transport.state.value == "open", "the stream goes on"
         assert [frame async for frame in frames] == []
         return delivered, told
 
-    with caplog.at_level(logging.WARNING, logger="semiont.http"):
-        delivered, told = run(scenario())
+    delivered, told = run(scenario())
     assert delivered == [
         Frame(channel="beckon:focus", payload={"resourceId": "res-1", "annotationId": "a-1", "_userId": "did:web:example.org:users:a"}),
         Frame(
             channel="beckon:focus", payload={"resourceId": "res-1", "annotationId": "a-2"}, scope=ResourceId("res-1"), correlation_id="c"
         ),
+        # What names its readers is told to them in its place.
+        FrameRefusal(
+            channel="beckon:focus", member="addedByALaterGateway", reason="malformed", payload={"resourceId": "res-1"}, scope=None
+        ),
         Frame(channel="beckon:focus", payload={"resourceId": "res-1", "annotationId": "a-3"}),
     ]
-    # What names no channel names no reader, and is told to the failure report.
+    # What names no reader, by its channel or by its scope, is told to the failure report.
     assert [(failure.code, failure.status, str(failure)) for failure in told] == [
+        ("error", None, "the stream carried what is not a frame: its `scope` is malformed"),
         ("error", None, "the stream carried what is not a frame: it is malformed"),
         ("error", None, "the stream carried what is not a frame: it has no `channel`"),
         ("error", None, "the stream carried what is not a frame: its `channel` is malformed"),
     ]
     assert all(isinstance(failure, TransportError) for failure in told)
-    assert [record.getMessage() for record in caplog.records] == [
-        "the stream carried what is not a frame (id e-2): its `scope` is malformed",
-        "the stream carried what is not a frame (id e-5): its `addedByALaterGateway` is malformed",
-    ]
 
 
 def test_a_closed_transport_has_ended_everything_it_began() -> None:
-    async def scenario() -> tuple[list[ConnectionState], list[Frame], list[SemiontError], str, str, list[str]]:
+    async def scenario() -> tuple[list[ConnectionState], list[Frame | FrameRefusal], list[SemiontError], str, str, list[str]]:
         async with GatewayServer() as gateway:
             transport = HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=CHANNELS, timing=QUICK)
             states: list[ConnectionState] = []
@@ -321,6 +320,7 @@ class OverTheWire(DeliverySubject):
     async def read(self) -> None:
         """Take each frame the transport delivers, as it comes."""
         async for frame in self._frames:
+            assert isinstance(frame, Frame), frame
             self._delivered.append(str(frame.payload["annotationId"]))
 
     @override
