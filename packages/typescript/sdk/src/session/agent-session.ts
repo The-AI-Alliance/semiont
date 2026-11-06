@@ -31,7 +31,8 @@
  * Two recovery paths:
  *   - `refresh` is handed to HttpTransport as its `tokenRefresher`, which
  *     renews once and sends again a request, an emit or the stream whose
- *     credential is refused (a 401, or a 429 `refusal-rate`).
+ *     credential is refused (a 401, or a 429 `refusal-rate`). It is told the
+ *     token refused, and renews nothing for one already replaced.
  *   - the proactive timer covers the listen-only case, where nothing ever
  *     401s because nothing is being requested.
  * Either asks the issuer for a new grant, and never the gateway: the DID the
@@ -70,8 +71,13 @@ export interface AgentSession {
   readonly did: UserId;
   /** The current token, for HttpTransport's `token$`. Only the agent's renewal writes it. */
   readonly token$: Watched<AccessToken | null>;
-  /** Ask the issuer for a new token now, and push it. HttpTransport's `tokenRefresher`. */
-  refresh(): Promise<string | null>;
+  /**
+   * The gateway refused `refused`: ask the issuer for a new token, and push
+   * it. A token the agent no longer holds was renewed already: the one it
+   * holds is given, and the issuer is not asked. HttpTransport's
+   * `tokenRefresher`.
+   */
+  refresh(refused: string | null): Promise<string | null>;
   /** Stop the proactive refresh. Call from the shutdown path. */
   stop(): void;
 }
@@ -122,7 +128,7 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
     const delay = refreshDelayMs(token);
     if (delay === null) return;
     timer = setTimeout(() => {
-      refresh().catch((error: unknown) => {
+      renew().catch((error: unknown) => {
         const detail = { error: error instanceof Error ? error.message : String(error) };
         // The issuer's answer is the verdict; its absence never is. A refused
         // credential cannot become valid again, so re-arming against it is an
@@ -142,11 +148,16 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
     timer.unref?.();
   };
 
-  const refresh = async (): Promise<string | null> => {
+  const renew = async (): Promise<string> => {
     const next = await service.token({ renewed: true });
     token$.next(makeAccessToken(next));
     rearm(next);
     return next;
+  };
+
+  const refresh = async (refused: string | null): Promise<string | null> => {
+    const held = token$.value;
+    return held !== refused ? held : renew();
   };
 
   rearm(first.token);

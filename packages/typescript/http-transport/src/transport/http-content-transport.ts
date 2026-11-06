@@ -83,7 +83,7 @@ export class HttpContentTransport implements IContentTransport {
             });
           } catch (error) {
             if (!(error instanceof APIError) || error.code !== 'unauthorized') throw error;
-            const renewed = await this.transport.renewal(token);
+            const renewed = await this.transport.renewal(token === undefined ? null : token);
             if (renewed === null) {
               report(error);
               throw error;

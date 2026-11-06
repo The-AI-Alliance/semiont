@@ -550,7 +550,9 @@ export class SemiontBrowser {
       // `errors$` completes on dispose.
       session.errors$.subscribe((err) => {
         if (err.code === 'unauthorized') {
-          void session.refresh();
+          // A failure does not say which token was refused: the one the
+          // session holds as it is read is.
+          void session.refresh(session.token$.getValue());
         } else if (err.code === 'forbidden') {
           signals.notifyPermissionDenied(err.message);
         }

@@ -12,8 +12,9 @@
  *   - a REFUSED credential fails the first attempt loudly and is not retried
  *     (the far end is up and said no); a CONNECTION failure is retried with
  *     backoff (the gateway may be mid-restart);
- *   - `refresh()` asks the issuer for a new grant on demand, pushes it, and
- *     asks the gateway nothing;
+ *   - `refresh(refused)` asks the issuer for a new grant on demand, pushes
+ *     it, and asks the gateway nothing; told a token it has already
+ *     replaced, it gives the one it holds and asks nobody;
  *   - the proactive timer is armed from the token's OWN lifetime via
  *     `refreshDelayMs` — not a restated lifetime, and not a fixed margin —
  *     re-arms from every new token, survives a failed refresh, stops on a
@@ -160,10 +161,23 @@ describe('startAgentSession', () => {
     const seen: Array<string | null> = [];
     session.token$.subscribe((t) => seen.push(t));
 
-    await expect(session.refresh()).resolves.toBe(second);
+    await expect(session.refresh(session.token$.getValue())).resolves.toBe(second);
     expect(seen).toEqual([first, second]);
     expect(grant).toHaveBeenCalledTimes(2);
     expect(gateway, 'the account is who it was: its DID is not asked again').toHaveBeenCalledTimes(1);
+  });
+
+  it('a refusal of a token it has already replaced is given the token it holds, and the issuer is not asked', async () => {
+    const first = tokenExpiringIn(60 * 60 * 1000, 'first');
+    const second = tokenExpiringIn(2 * 60 * 60 * 1000, 'second');
+    grant.mockReturnValueOnce(granted(first, 60 * 60 * 1000)).mockReturnValueOnce(granted(second, 2 * 60 * 60 * 1000));
+    session = await start();
+    await session.refresh(first);
+    expect(grant).toHaveBeenCalledTimes(2);
+
+    // A request sent with the first token is refused after the renewal.
+    await expect(session.refresh(first)).resolves.toBe(session.token$.getValue());
+    expect(grant).toHaveBeenCalledTimes(2);
   });
 
   it('signs in and renews through the fetch it is given, and nothing through the runtime\'s', async () => {
@@ -176,7 +190,7 @@ describe('startAgentSession', () => {
     grant.mockReturnValueOnce(granted(first, 60 * 60 * 1000)).mockReturnValueOnce(granted(second, 2 * 60 * 60 * 1000));
 
     session = await startAgentSession({ baseUrl: 'http://gateway.test', credential, logger: makeLogger(), fetch: given });
-    await expect(session.refresh()).resolves.toBe(second);
+    await expect(session.refresh(session.token$.getValue())).resolves.toBe(second);
 
     expect(given.mock.calls.map(([input]) => new URL(String(input instanceof Request ? input.url : input)).pathname)).toEqual([
       '/realms/kb/.well-known/openid-configuration',

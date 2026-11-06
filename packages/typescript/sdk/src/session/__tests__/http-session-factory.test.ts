@@ -118,7 +118,7 @@ describe('a session over HTTP, starting on a stored credential', () => {
     expect(asked.who).toEqual([stored]);
     expect(asked.streams).toEqual([stored]);
     // And its renewal at the issuer.
-    await session.refresh();
+    await session.refresh(session.token$.getValue());
     expect(asked.renewals).toBe(1);
     expect(runtimes).not.toHaveBeenCalled();
     session.dispose();

@@ -197,7 +197,7 @@ describe('SemiontSession — construction & initial token', () => {
     ]);
 
     // The issuer answers again: a request refused for want of a token renews it.
-    expect(await session.refresh()).toBe(renewed);
+    expect(await session.refresh(session.token$.getValue())).toBe(renewed);
     expect(session.token$.getValue()).toBe(renewed);
     expect(refresh).toHaveBeenCalledTimes(2);
 
@@ -228,7 +228,7 @@ describe('SemiontSession — refresh', () => {
     const session = newSession();
     await session.ready;
 
-    const tok = await session.refresh();
+    const tok = await session.refresh(session.token$.getValue());
     expect(tok).toBe(newJwt);
     expect(session.token$.getValue()).toBe(newJwt);
 
@@ -302,7 +302,7 @@ describe('SemiontSession — refresh', () => {
 
       const session = newSession();
       await session.ready;
-      await expect(session.refresh()).resolves.toBeNull();
+      await expect(session.refresh(session.token$.getValue())).resolves.toBeNull();
       // Past every wait at its longest: the renewal made ends them.
       await vi.advanceTimersByTimeAsync(waits.reduce((all, wait) => all + wait, 0) + 30_000);
       expect(refresh).toHaveBeenCalledTimes(waits.length + 1);
@@ -335,7 +335,7 @@ describe('SemiontSession — refresh', () => {
 
       const session = newSession({ onAuthFailed });
       await session.ready;
-      await expect(session.refresh()).resolves.toBeNull();
+      await expect(session.refresh(session.token$.getValue())).resolves.toBeNull();
       await vi.advanceTimersByTimeAsync((RECONNECT_MS * 6) / 5);
       expect(refresh).toHaveBeenCalledTimes(2);
       expect(getStoredSession(storage, KB.id)).toBeNull();
@@ -358,7 +358,7 @@ describe('SemiontSession — refresh', () => {
     const session = newSession({ onAuthFailed });
     await session.ready;
 
-    await session.refresh();
+    await session.refresh(session.token$.getValue());
     expect(onAuthFailed).toHaveBeenCalledWith('expired');
     expect(session.token$.getValue()).toBeNull();
 
@@ -386,7 +386,7 @@ describe('SemiontSession — refresh', () => {
 
     // It must not propagate: the caller (and the proactive timer) treat this
     // as "no token", not as an exception to handle.
-    await expect(session.refresh()).resolves.toBeNull();
+    await expect(session.refresh(session.token$.getValue())).resolves.toBeNull();
 
     expect(session.token$.getValue()).toBeNull();
     expect(getStoredSession(storage, KB.id)).toBeNull();
@@ -412,7 +412,7 @@ describe('SemiontSession — refresh', () => {
     const session = newSession({ onAuthFailed, onError });
     await session.ready;
 
-    await expect(session.refresh()).resolves.toBeNull();
+    await expect(session.refresh(session.token$.getValue())).resolves.toBeNull();
     // No usable token, what is stored stays, and the session is not over.
     expect(session.token$.getValue()).toBeNull();
     expect(getStoredSession(storage, KB.id)).not.toBeNull();
@@ -421,7 +421,7 @@ describe('SemiontSession — refresh', () => {
       [expect.objectContaining({ code: 'session.refresh-exhausted', message: `Token refresh failed: ${failure.message}` })],
     ]);
 
-    expect(await session.refresh()).toBe(renewed);
+    expect(await session.refresh(session.token$.getValue())).toBe(renewed);
     expect(session.token$.getValue()).toBe(renewed);
 
     session.dispose();
@@ -435,7 +435,7 @@ describe('SemiontSession — refresh', () => {
 
     const session = newSession({ onError });
     await session.ready;
-    await session.refresh();
+    await session.refresh(session.token$.getValue());
 
     expect(onError).toHaveBeenCalledWith(
       expect.objectContaining({ message: expect.stringContaining('ECONNREFUSED') }),
@@ -457,7 +457,7 @@ describe('SemiontSession — refresh', () => {
     const session = newSession({ onAuthFailed });
     await session.ready;
 
-    const result = await session.refresh();
+    const result = await session.refresh(session.token$.getValue());
 
     expect(result).toBeNull();
     expect(session.token$.getValue()).toBeNull();
@@ -493,7 +493,7 @@ describe('SemiontSession — a refusal while the session is still starting', () 
     const session = newSession({ onAuthFailed, onError });
 
     // The stream's refusal: renewed, and nobody asked. The start does that.
-    expect(await session.refresh()).toBe(renewed);
+    expect(await session.refresh(session.token$.getValue())).toBe(renewed);
     expect(asked).toEqual([stored]);
 
     // The start's answer about the stored token arrives: refused. It finds
@@ -533,7 +533,7 @@ describe('SemiontSession — a refusal while the session is still starting', () 
 
     // The start is refused and asks for a renewal; so does the stream.
     await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
-    const refreshing = session.refresh();
+    const refreshing = session.refresh(session.token$.getValue());
     await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(2));
     issue(renewed);
     await vi.waitFor(() => expect(asked).toEqual([stored, renewed]));
@@ -565,7 +565,7 @@ describe('SemiontSession — a refusal while the session is still starting', () 
     const session = newSession({ onAuthFailed });
 
     // The stream's refusal: renewed, and nobody asked.
-    expect(await session.refresh()).toBe(renewed);
+    expect(await session.refresh(session.token$.getValue())).toBe(renewed);
     expect(asked).toEqual([stored]);
 
     // The start's answer about the stored token arrives: refused. The
@@ -599,14 +599,14 @@ describe('SemiontSession — a refusal of a running session', () => {
     await session.ready;
 
     // Three requests refused at once: each asks the session to refresh.
-    const given = await Promise.all([session.refresh(), session.refresh(), session.refresh()]);
+    const given = await Promise.all([session.refresh(session.token$.getValue()), session.refresh(session.token$.getValue()), session.refresh(session.token$.getValue())]);
 
     expect(given).toEqual([renewed, renewed, renewed]);
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(asked).toEqual([stored, renewed]);
 
     // A refusal after that is a new one.
-    await session.refresh();
+    await session.refresh(session.token$.getValue());
     expect(refresh).toHaveBeenCalledTimes(2);
     session.dispose();
   });
@@ -629,7 +629,7 @@ describe('SemiontSession — a refusal of a running session', () => {
     const session = newSession({ onAuthFailed });
     await session.ready;
 
-    const refreshing = session.refresh();
+    const refreshing = session.refresh(session.token$.getValue());
     await vi.waitFor(() => expect(validate).toHaveBeenCalledTimes(2));
     // Another context signs in again while the gateway is being asked.
     storage.dispatch(storageKey(KB.id), JSON.stringify({ ...testSession(elsewhere, 'r2') }));
@@ -692,7 +692,7 @@ describe('SemiontSession — dispose', () => {
     await session.ready;
     session.dispose();
 
-    await expect(session.refresh()).resolves.toBeNull();
+    await expect(session.refresh(session.token$.getValue())).resolves.toBeNull();
     expect(refresh).not.toHaveBeenCalled();
   });
 });
@@ -705,7 +705,7 @@ describe('SemiontSession — StateUnit axioms', () => {
       setup: () => newSession({ refresh: undefined, validate: undefined }),
       // `streamState$` and `errors$` are the client's, and end with it.
       surfaces: (u) => [u.token$, u.user$],
-      invocations: (u) => [() => void u.refresh()],
+      invocations: (u) => [() => void u.refresh(u.token$.getValue())],
     });
   });
 });

@@ -1324,8 +1324,8 @@ describe('SemiontBrowser — performRefresh (the refresh grant at the issuer)', 
         ? new Promise<Response>((r) => { resolveRefresh = r; })
         : issuerReply({ error: 'invalid_grant' }, 400));
 
-    const r1 = session!.refresh();
-    const r2 = session!.refresh();
+    const r1 = session!.refresh(session!.token$.getValue());
+    const r2 = session!.refresh(session!.token$.getValue());
     resolveRefresh(issuerReply({ access_token: freshJwt() }));
     await Promise.all([r1, r2]);
 
@@ -1725,7 +1725,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     expect(signals.sessionEnded$.getValue()).toBeNull();
 
     // Manually trigger session.refresh() to simulate a proactive-refresh miss.
-    await session!.refresh();
+    await session!.refresh(session!.token$.getValue());
     expect(signals.sessionEnded$.getValue()).toEqual({ reason: 'expired' });
 
     await browser.dispose();
