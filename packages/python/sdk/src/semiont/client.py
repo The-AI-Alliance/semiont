@@ -55,7 +55,7 @@ class ClientTiming:
     """The waits a client keeps: `protocol/specs/src/client/timing.json`'s, unless a caller that must not wait them out says otherwise."""
 
     bus_request_ms: int = BUS_REQUEST_TIMEOUT_MS
-    """How long a bus request waits for its reply."""
+    """How long a bus request has, from the call, to be answered: its emit included."""
     job_silence_ms: int = JOB_SILENCE_MS
     """How long a followed job may say nothing before its status is asked for."""
     job_status_poll_ms: int = JOB_STATUS_POLL_MS
