@@ -9,6 +9,9 @@ import semiont.storage.SessionStorage
 import semiont.telemetry.futureOf
 import semiont.types.KnowledgeBase
 import java.util.concurrent.CompletableFuture
+import kotlin.coroutines.CoroutineContext
+import kotlin.random.Random
+import kotlin.time.TimeSource
 
 /** What a session is built from. */
 public class SessionFactoryOptions(
@@ -44,15 +47,26 @@ public interface SessionFactory {
      */
     public suspend fun revoke(stored: StoredSession)
 
-    /** `session`, for Java. */
-    public fun sessionFuture(options: SessionFactoryOptions): CompletableFuture<OpenedSession> = CoroutineScope(Dispatchers.Default).futureOf { session(options) }
+    /** `session`, for Java: run where `session` runs it, a factory that keeps a context running it there. */
+    public fun sessionFuture(options: SessionFactoryOptions): CompletableFuture<OpenedSession> = CoroutineScope(Dispatchers.Unconfined).futureOf { session(options) }
 
-    /** `revoke`, for Java. */
-    public fun revokeFuture(stored: StoredSession): CompletableFuture<Unit> = CoroutineScope(Dispatchers.Default).futureOf { revoke(stored) }
+    /** `revoke`, for Java: run where `revoke` runs it, a factory that keeps a context running it there. */
+    public fun revokeFuture(stored: StoredSession): CompletableFuture<Unit> = CoroutineScope(Dispatchers.Unconfined).futureOf { revoke(stored) }
 }
 
-/** What a registry is made of: where everything it keeps is kept, and what builds a knowledge base's session. */
-public data class SemiontBrowserConfig(public val storage: SessionStorage, public val sessionFactory: SessionFactory)
+/**
+ * What a registry is made of: where everything it keeps is kept, what builds
+ * a knowledge base's session, where its work runs (`context`), the time that
+ * work keeps (`clock`), and the random source its jitter draws from: what a
+ * sign-in it completes keeps.
+ */
+public data class SemiontBrowserConfig @JvmOverloads constructor(
+    public val storage: SessionStorage,
+    public val sessionFactory: SessionFactory,
+    public val context: CoroutineContext = Dispatchers.Default,
+    public val clock: TimeSource = TimeSource.Monotonic,
+    public val random: Random = Random.Default,
+)
 
 /**
  * What the credential stored for a knowledge base says, read without asking

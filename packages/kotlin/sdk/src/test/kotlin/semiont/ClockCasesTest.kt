@@ -217,7 +217,7 @@ private class Network(private val answer: (HttpRequest) -> Reply?) : HttpClient(
         val reply = answer(request) ?: return CompletableFuture()
         val info = Info(reply)
         val reader = handler.apply(info)
-        val read = reader.body().toCompletableFuture()
+        val read = reader.body.toCompletableFuture()
         reader.onSubscribe(Body(reader, reply))
         return read.thenApply<HttpResponse<T>> { Response(request, info, it) }
     }

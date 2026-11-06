@@ -13,8 +13,7 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import java.net.http.HttpTimeoutException
-import java.time.Duration
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** A transport that reads the discovery document at `url` with `http`, each read within `deadlineMs`. */
 private class HttpDiscovery(private val url: String, private val deadlineMs: Long, private val http: HttpClient) : DiscoveryTransport {
@@ -23,15 +22,13 @@ private class HttpDiscovery(private val url: String, private val deadlineMs: Lon
     private var tag: String? = null
 
     override suspend fun read(): DiscoveryRead {
-        val asked = HttpRequest.newBuilder(URI.create(url)).GET().timeout(Duration.ofMillis(deadlineMs))
+        val asked = HttpRequest.newBuilder(URI.create(url)).GET()
         tag?.let { asked.header("If-None-Match", it) }
         val response = try {
-            http.exchange(asked.build(), HttpResponse.BodyHandlers.ofString())
-        } catch (_: HttpTimeoutException) {
-            return Absent(DiscoveryAbsentReason.Unreadable, "the document was not served within ${deadlineMs}ms")
+            withTimeoutOrNull(deadlineMs) { http.exchange(asked.build(), HttpResponse.BodyHandlers.ofString()) }
         } catch (unanswered: IOException) {
             return Absent(DiscoveryAbsentReason.Unreadable, unanswered.message ?: unanswered::class.java.simpleName)
-        }
+        } ?: return Absent(DiscoveryAbsentReason.Unreadable, "the document was not served within ${deadlineMs}ms")
         val status = response.statusCode()
         if (status == 304) return Unchanged
         if (status !in 200..299) return Absent(DiscoveryAbsentReason.NotFound, "HTTP $status")

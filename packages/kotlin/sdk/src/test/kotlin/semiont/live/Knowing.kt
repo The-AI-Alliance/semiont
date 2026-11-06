@@ -1,5 +1,6 @@
 package semiont.live
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -122,7 +123,7 @@ private val ANSWERS: Map<String, JsonElement> = mapOf(
  */
 internal class Kb(private val answered: Boolean = true) : Transport {
     val emitted = CopyOnWriteArrayList<Frame>()
-    private val router = ReplyRouter()
+    private val router = ReplyRouter(Dispatchers.Unconfined)
     private var sink: FrameSink? = null
     private val now = MutableStateFlow(ConnectionState.Open)
     private val holds = ConcurrentHashMap<ResourceId, Int>()

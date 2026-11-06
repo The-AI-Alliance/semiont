@@ -5,7 +5,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -36,6 +35,7 @@ import semiont.types.KbTarget
 import semiont.types.UserResponse
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import kotlin.random.Random
 
 /** Why a session ended: its issuer refused to renew its token (`EXPIRED`), or the gateway refused a token its issuer had just issued (`REFUSED`). */
 public enum class SessionEndReason(
@@ -70,7 +70,8 @@ private fun now(): Double = System.currentTimeMillis() / 1000.0
  * twice and the issuer at most once. Whenever a token is renewed, what is kept
  * is forgotten only when the issuer refuses: a renewal that got no answer leaves
  * the session no usable token and keeps what is kept, and the next refusal
- * renews again, and so does the session on its own, on the reconnect backoff.
+ * renews again, and so does the session on its own, on the reconnect backoff,
+ * its jitter drawn from `random`.
  */
 public class SemiontSession internal constructor(
     /** The knowledge base the session is with: where it is reached, and `id`, the key its credentials are kept under. */
@@ -83,6 +84,7 @@ public class SemiontSession internal constructor(
     private val validate: (suspend (String) -> UserResponse)?,
     private val onAuthFailed: ((SessionEndReason) -> Unit)?,
     private val onError: ((SessionError) -> Unit)?,
+    private val random: Random,
 ) : StateUnit {
     /** Which live session this is: a new one for the same knowledge base has another. */
     public val id: String = "session-${UUID.randomUUID()}"
@@ -126,14 +128,14 @@ public class SemiontSession internal constructor(
 
     /**
      * Start the session: a kept token that is still good is what the transport
-     * sends first, and the session's renewals and its start run on the
-     * dispatcher of whoever starts it, as no child of theirs.
+     * sends first, and the session's renewals and its start run on its
+     * client's context, as no child of whoever starts it.
      */
     internal suspend fun start() {
         check(work == null && !closing) { "a session is started once" }
         val found = kept.held()
         if (found != null && !isTokenExpired(found.access, now()) && tokens.value == null) tokens.value = found.access
-        val scope = CoroutineScope(currentCoroutineContext().minusKey(Job) + SupervisorJob())
+        val scope = CoroutineScope(client.links.scope.coroutineContext.minusKey(Job) + SupervisorJob())
         work = scope
         scope.launch { renewWhenDue(tokens) { renewed() } }
         scope.launch { renewWhenUnanswered() }
@@ -222,7 +224,7 @@ public class SemiontSession internal constructor(
             unanswered.first { it }
             var step = Timings.RECONNECT_MS
             while (unanswered.value) {
-                delay(equalJitter(step))
+                delay(equalJitter(step, random))
                 when {
                     tokens.value != null -> unanswered.value = false
                     !unanswered.value -> {}

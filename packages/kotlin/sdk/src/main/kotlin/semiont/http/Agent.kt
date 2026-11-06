@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import semiont.Timings
 import semiont.bus.UNDECODED
 import semiont.bus.faultIn
@@ -41,9 +42,13 @@ import java.security.KeyFactory
 import java.security.interfaces.RSAPrivateCrtKey
 import java.security.spec.InvalidKeySpecException
 import java.security.spec.PKCS8EncodedKeySpec
-import java.time.Duration
 import java.util.Base64
 import java.util.concurrent.CompletableFuture
+import kotlin.coroutines.CoroutineContext
+import kotlin.random.Random
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 /** A service account at an issuer, by how it proves itself. */
 public sealed interface Credential {
@@ -123,26 +128,32 @@ private fun proof(credential: Credential, tokenEndpoint: String): List<Pair<Stri
  * keeps, half its lifetime before it expires and at most
  * `refreshBeforeExpMs`. A service reaches another as itself with this token.
  * Its issuer is asked with `http`. A failure names the issuer and the client,
- * and never the secret or the key.
+ * and never the secret or the key. How long a token is held is measured by
+ * `clock`, and a future runs on `context`.
  */
-public class ServiceToken @JvmOverloads constructor(private val credential: Credential, private val http: HttpClient = ownHttp) {
+public class ServiceToken @JvmOverloads constructor(
+    private val credential: Credential,
+    private val http: HttpClient = ownHttp,
+    private val context: CoroutineContext = Dispatchers.Default,
+    private val clock: TimeSource = TimeSource.Monotonic,
+) {
     // One grant at a time: those who ask while one is under way are given what it brings.
     private val asking = Mutex()
     private var tokenEndpoint: String? = null
 
-    /** The token, and until when it is used, by the monotonic clock in nanoseconds. */
-    private var held: Pair<String, Long>? = null
+    /** The token, and when it stops being used, by `clock`. */
+    private var held: Pair<String, TimeMark>? = null
 
     private suspend fun endpoint(): String {
         tokenEndpoint?.let { return it }
         val issuer = credential.issuer
         val url = "${if (issuer.endsWith('/')) issuer else "$issuer/"}.well-known/openid-configuration"
-        val request = HttpRequest.newBuilder(URI.create(url)).GET().timeout(Duration.ofMillis(Timings.HTTP_REQUEST_TIMEOUT_MS)).build()
+        val request = HttpRequest.newBuilder(URI.create(url)).GET().build()
         val response = try {
-            http.exchange(request, HttpResponse.BodyHandlers.ofString())
+            withTimeoutOrNull(Timings.HTTP_REQUEST_TIMEOUT_MS) { http.exchange(request, HttpResponse.BodyHandlers.ofString()) }
         } catch (error: IOException) {
             throw SignInError(SignInErrorCode.Discovery, "OIDC discovery for $issuer got no answer: ${error.message ?: error::class.simpleName}")
-        }
+        } ?: throw SignInError(SignInErrorCode.Discovery, "OIDC discovery for $issuer got no answer within ${Timings.HTTP_REQUEST_TIMEOUT_MS}ms")
         val status = response.statusCode()
         if (status !in 200..299) throw SignInError(SignInErrorCode.Discovery, "OIDC discovery for $issuer failed: HTTP $status from $url", status)
         val found = Answer(status, objectIn(response.body())).text("token_endpoint")
@@ -161,7 +172,7 @@ public class ServiceToken @JvmOverloads constructor(private val credential: Cred
      * neither is not kept.
      */
     internal suspend fun token(renewed: Boolean): String = asking.withLock {
-        if (!renewed) held?.let { (token, until) -> if (System.nanoTime() < until) return@withLock token }
+        if (!renewed) held?.let { (token, until) -> if (!until.hasPassedNow()) return@withLock token }
         val issuer = credential.issuer
         val clientId = credential.clientId
         val endpoint = endpoint()
@@ -176,12 +187,12 @@ public class ServiceToken @JvmOverloads constructor(private val credential: Cred
         val lifetime = answer.seconds("expires_in")
         // Used until it is due for renewal, and never past its expiry.
         val renewIn = refreshDelay(token, System.currentTimeMillis() / 1000.0) ?: lifetime?.let { renewalDelay(it, it) }
-        held = renewIn?.let { token to System.nanoTime() + ((if (lifetime == null) it else minOf(it, lifetime)) * 1e9).toLong() }
+        held = renewIn?.let { token to clock.markNow() + (if (lifetime == null) it else minOf(it, lifetime)).seconds }
         token
     }
 
-    /** `authorization`, for Java. */
-    public fun authorizationFuture(): CompletableFuture<String> = CoroutineScope(Dispatchers.Default).futureOf { authorization() }
+    /** `authorization`, for Java, on its context. */
+    public fun authorizationFuture(): CompletableFuture<String> = CoroutineScope(context).futureOf { authorization() }
 }
 
 /**
@@ -203,13 +214,21 @@ private fun transient(error: SemiontError): Boolean = REFRESH.retryable(RetryFac
  * process holding a token that still works does not stop over one bad round
  * trip. `signIn` signs it in, and it is kept signed in until `close`. The
  * gateway is asked who the agent is with `http`; its issuer is asked with the
- * client `service` was given.
+ * client `service` was given. Its renewals run on `context`, under the job
+ * `context` has when it has one, by `service`'s clock, and each retry's
+ * jitter is drawn from `random`.
  */
-public class AgentToken @JvmOverloads constructor(gateway: String, private val service: ServiceToken, private val http: HttpClient = ownHttp) : TokenRefresher, AutoCloseable {
+public class AgentToken @JvmOverloads constructor(
+    gateway: String,
+    private val service: ServiceToken,
+    private val http: HttpClient = ownHttp,
+    context: CoroutineContext = Dispatchers.Default,
+    private val random: Random = Random.Default,
+) : TokenRefresher, AutoCloseable {
     /** The gateway the agent signs in at. */
     public val gateway: String = gateway.trimEnd('/')
     private val current = MutableStateFlow<String?>(null)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(context + SupervisorJob(context[Job]))
     private var keeping: Job? = null
     private var signedInAs: UserId? = null
 
@@ -239,8 +258,8 @@ public class AgentToken @JvmOverloads constructor(gateway: String, private val s
         return this
     }
 
-    /** `signIn`, for Java. */
-    public fun signInFuture(): CompletableFuture<AgentToken> = CoroutineScope(Dispatchers.Default).futureOf { signIn() }
+    /** `signIn`, for Java, on its context. */
+    public fun signInFuture(): CompletableFuture<AgentToken> = scope.futureOf { signIn() }
 
     /**
      * The gateway refused `refused`: ask the issuer for another. The new token, or null when the issuer gave none.
@@ -261,7 +280,7 @@ public class AgentToken @JvmOverloads constructor(gateway: String, private val s
     /** A due renewal: tried again inside the renewal budget when its failure is transient; spent or refused, the token is left as it is. */
     private suspend fun renewWithinBudget() {
         try {
-            retryWithBackoff(Timings.REFRESH_RETRY, ::transient) { renew() }
+            retryWithBackoff(Timings.REFRESH_RETRY, ::transient, random) { renew() }
         } catch (_: SemiontError) {
             // The next renewal is due a floor later.
         }
@@ -273,13 +292,12 @@ public class AgentToken @JvmOverloads constructor(gateway: String, private val s
         val request = HttpRequest.newBuilder(URI.create(url))
             .GET()
             .header("Authorization", "Bearer $token")
-            .timeout(Duration.ofMillis(Timings.HTTP_REQUEST_TIMEOUT_MS))
             .build()
         val response = try {
-            http.exchange(request, HttpResponse.BodyHandlers.ofByteArray())
+            withTimeoutOrNull(Timings.HTTP_REQUEST_TIMEOUT_MS) { http.exchange(request, HttpResponse.BodyHandlers.ofByteArray()) }
         } catch (error: IOException) {
             throw TransportError.withoutResponse("$url got no answer: ${error.message ?: error::class.simpleName}")
-        }
+        } ?: throw TransportError.withoutResponse("$url got no answer within ${Timings.HTTP_REQUEST_TIMEOUT_MS}ms")
         val status = response.statusCode()
         if (status !in 200..299) {
             throw refusal("the gateway refused the agent's token (HTTP $status)", status, response.body(), retryAfterMs(response.headers().firstValue("retry-after").orElse(null)))

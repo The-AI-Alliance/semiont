@@ -4,7 +4,6 @@ package semiont.transport
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -29,6 +28,7 @@ import java.util.Optional
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Flow.Publisher
+import kotlin.coroutines.CoroutineContext
 
 /**
  * What happens, one thing after another, from when it was asked for: read by
@@ -366,12 +366,17 @@ public class ResourceHold internal constructor(release: () -> Unit) : AutoClosea
 }
 
 /** A reply a request awaits. Closing it stops the wait: the transport names the reply no more, and one that comes anyway reaches nobody. */
-public class PendingReply internal constructor(private val reply: CompletableDeferred<Carried?>, private val forget: () -> Unit) : AutoCloseable {
+public class PendingReply internal constructor(
+    private val reply: CompletableDeferred<Carried?>,
+    /** Where its transport's work runs. */
+    private val context: CoroutineContext,
+    private val forget: () -> Unit,
+) : AutoCloseable {
     /** The reply, or in its place the reply's refusal. Null when the transport closed before either came. */
     public suspend fun frame(): Carried? = reply.await()
 
-    /** `frame`, for Java. */
-    public fun frameFuture(): CompletableFuture<Carried?> = CoroutineScope(Dispatchers.Default).futureOf { frame() }
+    /** `frame`, for Java, on its transport's context. */
+    public fun frameFuture(): CompletableFuture<Carried?> = CoroutineScope(context).futureOf { frame() }
 
     override fun close(): Unit = forget()
 }
@@ -386,9 +391,10 @@ public fun unsubscribed(channel: String): BusRequestError = BusRequestError(
  * The replies a transport's requests still await. A reply is handed, by its
  * correlation id, to the one request that awaits it; and the ids here are
  * what a wire transport names when it opens a stream, so a reply published
- * while the stream was down is sent again.
+ * while the stream was down is sent again. A reply awaited from Java is
+ * awaited on `context`, its transport's.
  */
-internal class ReplyRouter {
+internal class ReplyRouter(private val context: CoroutineContext) {
     private class Awaited(val channels: Set<String>, val reply: CompletableDeferred<Carried?>)
 
     private val awaited = mutableMapOf<String, Awaited>()
@@ -398,7 +404,7 @@ internal class ReplyRouter {
     fun track(correlationId: String, replyChannels: Collection<String>): PendingReply {
         val reply = CompletableDeferred<Carried?>()
         if (closed) reply.complete(null) else awaited[correlationId] = Awaited(replyChannels.toSet(), reply)
-        return PendingReply(reply) {
+        return PendingReply(reply, context) {
             synchronized(this) { if (awaited[correlationId]?.reply === reply) awaited.remove(correlationId) }
         }
     }

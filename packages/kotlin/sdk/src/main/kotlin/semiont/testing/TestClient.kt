@@ -13,26 +13,20 @@ import kotlin.time.TimeSource
  * double. A test scripts the doubles (`transport`, `content`, `gateway`) and
  * observes through the client. A double a test does not give is one that
  * nothing is scripted to answer and that holds nothing. Whoever made the
- * client closes it, and whoever made the transport closes that.
+ * client closes it, and whoever made the transport closes that. The client's
+ * work runs on `context`, and its waits keep `clock`; a transport it makes
+ * itself delivers on the default dispatcher, so a test that moves the clock
+ * gives it one made on `context`.
  */
-public class TestClient internal constructor(
-    public val transport: FaultyTransport,
-    public val content: InMemoryContent,
-    public val gateway: StubGateway,
-    timing: ClientTiming,
-    persistence: CachePersistence?,
-    context: CoroutineContext,
-    clock: TimeSource,
+public class TestClient @JvmOverloads constructor(
+    public val transport: FaultyTransport = FaultyTransport(),
+    public val content: InMemoryContent = InMemoryContent(),
+    public val gateway: StubGateway = StubGateway(),
+    timing: ClientTiming = ClientTiming(),
+    persistence: CachePersistence? = null,
+    context: CoroutineContext = Dispatchers.Default,
+    clock: TimeSource = TimeSource.Monotonic,
 ) {
-    /** A client whose work runs on the default dispatcher. */
-    @JvmOverloads
-    public constructor(
-        transport: FaultyTransport = FaultyTransport(),
-        content: InMemoryContent = InMemoryContent(),
-        gateway: StubGateway = StubGateway(),
-        timing: ClientTiming = ClientTiming(),
-        persistence: CachePersistence? = null,
-    ) : this(transport, content, gateway, timing, persistence, Dispatchers.Default, TimeSource.Monotonic)
 
     /** The client, over the doubles. */
     public val client: SemiontClient = SemiontClient(transport, content, gateway, timing, persistence, context, clock)

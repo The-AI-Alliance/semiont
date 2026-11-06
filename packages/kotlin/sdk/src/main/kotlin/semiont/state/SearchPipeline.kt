@@ -31,19 +31,12 @@ public data class SearchState<T>(
  * other. A search that is abandoned has its collection cancelled. Its waits are
  * timed in `context`.
  */
-public class SearchPipeline<T> internal constructor(
+public class SearchPipeline<T> @JvmOverloads constructor(
     private val search: (String) -> Flow<List<T>?>,
-    private val debounceMs: Long,
-    initialQuery: String,
-    context: CoroutineContext,
+    private val debounceMs: Long = Timings.SEARCH_DEBOUNCE_MS,
+    initialQuery: String = "",
+    context: CoroutineContext = Dispatchers.Default,
 ) : StateUnit {
-    /** A pipeline timed on the default dispatcher. */
-    @JvmOverloads
-    public constructor(
-        search: (String) -> Flow<List<T>?>,
-        debounceMs: Long = Timings.SEARCH_DEBOUNCE_MS,
-        initialQuery: String = "",
-    ) : this(search, debounceMs, initialQuery, Dispatchers.Default)
 
     private val queries = Variable(initialQuery)
     private val states = Variable(SearchState<T>(emptyList(), false))

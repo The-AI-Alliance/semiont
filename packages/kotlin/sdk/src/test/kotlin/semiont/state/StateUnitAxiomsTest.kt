@@ -33,6 +33,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.extension
 import kotlin.io.path.readText
+import kotlin.random.Random
 
 private val ANNOTATION = AnnotationId("ann-1")
 private val RESOURCE = ResourceId("res-1")
@@ -148,7 +149,7 @@ private object Caches : AxiomSubject<Cache<String, Int>>() {
 private object Sessions : AxiomSubject<SemiontSession>() {
     override fun setup(bench: Bench): Fresh<SemiontSession> {
         val client = bench.client()
-        return Fresh(SemiontSession(TARGET, client, MutableStateFlow(null), MemorySignIn(), null, null, null, null)).given(client)
+        return Fresh(SemiontSession(TARGET, client, MutableStateFlow(null), MemorySignIn(), null, null, null, null, Random(0))).given(client)
     }
 
     // Its stream state and its errors are its client's, and end with it.

@@ -4,7 +4,6 @@ package semiont.registry
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asContextElement
@@ -59,6 +58,9 @@ import java.time.format.DateTimeFormatter
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
+import kotlin.coroutines.CoroutineContext
+import kotlin.random.Random
+import kotlin.time.TimeSource
 
 /**
  * What a completed sign-in learned: where it was, who the knowledge base
@@ -204,9 +206,21 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
 
     private val factory = config.sessionFactory
 
+    /** Where the registry's work runs, as no child of whoever asked for it. */
+    internal val context: CoroutineContext = config.context.minusKey(Job)
+
+    /** The time the registry's work keeps, which a sign-in it completes keeps. */
+    internal val clock: TimeSource = config.clock
+
+    /** What the jitter of a sign-in it completes is drawn from. */
+    internal val random: Random = config.random
+
     /** Whether this thread is running the registry's own work: closing from there cannot wait for that work to stop. */
     private val inside = ThreadLocal.withInitial { false }
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + inside.asContextElement(true))
+    private val scope = CoroutineScope(config.context + SupervisorJob(config.context[Job]) + inside.asContextElement(true))
+
+    /** `work` as a future, for Java: a task of the registry's. */
+    internal fun <T> future(work: suspend () -> T): CompletableFuture<T> = scope.futureOf(work)
     private val lock = Any()
 
     /** One activation at a time: an activation that waits its turn waits here. */
@@ -551,8 +565,8 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
         // The signals exist before the session does: the session says it is over through them, and may be over before it is ready.
         val signals = SessionSignals()
         val opened = try {
-            // Built on the registry's own threads, whoever asked: a session works on the dispatcher it is started on.
-            withContext(Dispatchers.Default) { factory.session(SessionFactoryOptions(kb, storage, signals, ::failed)) }
+            // Built on the registry's own context, whoever asked.
+            withContext(context) { factory.session(SessionFactoryOptions(kb, storage, signals, ::failed)) }
         } catch (refused: SemiontError) {
             if (!closing) failed(constructFailed(refused, kb.id))
             signals.close()

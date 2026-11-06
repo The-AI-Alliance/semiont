@@ -18,13 +18,11 @@ import kotlin.coroutines.CoroutineContext
  * Closing it forgets a rest that has not run its time, and it says nothing
  * more. Its rest is timed in `context`.
  */
-public class HoverDwell internal constructor(
+public class HoverDwell @JvmOverloads constructor(
     private val say: (AnnotationId?) -> Unit,
     private val delayMs: Long,
-    context: CoroutineContext,
+    context: CoroutineContext = Dispatchers.Default,
 ) : StateUnit {
-    /** A dwell whose rest is timed on the default dispatcher. */
-    public constructor(say: (AnnotationId?) -> Unit, delayMs: Long) : this(say, delayMs, Dispatchers.Default)
 
     private val tasks = Tasks(context)
 
