@@ -50,7 +50,7 @@ contextBridge.exposeInMainWorld('windowBridge', {
 const authBridge: AuthBridge = {
   resume: (kbId) => answer(ipcRenderer.invoke('auth:resume', kbId)),
   signIn: (kbId, address) => answer(ipcRenderer.invoke('auth:sign-in', kbId, address)),
-  refresh: (kbId) => ipcRenderer.invoke('auth:refresh', kbId),
+  refresh: (kbId, holding) => ipcRenderer.invoke('auth:refresh', kbId, holding),
   signOut: (kbId) => ipcRenderer.invoke('auth:sign-out', kbId),
 };
 contextBridge.exposeInMainWorld('authBridge', authBridge);

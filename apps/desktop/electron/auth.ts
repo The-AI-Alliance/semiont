@@ -69,12 +69,13 @@ function refusedByIssuer(err: unknown): err is SignInError {
 }
 
 /** One renewal at a time per knowledge base: an issuer that rotates refresh tokens refuses
- *  the second of two that present the same one. */
-function renew(kbId: string): Promise<string | null> {
+ *  the second of two that present the same one. `holding` is the access token whoever asks
+ *  holds, null for none: a kept one that is another and has not expired is given, and no
+ *  grant is made. */
+function renew(kbId: string, holding: string | null): Promise<string | null> {
   const underway = renewals.get(kbId);
   if (underway !== undefined) return underway;
-  const holding = held.get(kbId);
-  const renewal = refreshStoredSession(storageFor(kbId), kbId, holding === undefined ? null : holding)
+  const renewal = refreshStoredSession(storageFor(kbId), kbId, holding)
     .then((access) => {
       if (access === null) held.delete(kbId);
       else held.set(kbId, access);
@@ -92,7 +93,7 @@ async function resume(kbId: string): Promise<Resumed> {
     return { kind: 'resumed', access };
   }
   try {
-    const renewed = await renew(kbId);
+    const renewed = await renew(kbId, access === undefined ? null : access);
     return renewed === null ? { kind: 'none' } : { kind: 'resumed', access: renewed };
   } catch (err) {
     if (refusedByIssuer(err)) return { kind: 'refused', reason: describe(err) };
@@ -162,6 +163,11 @@ function kbIdOf(value: unknown): string {
   return value;
 }
 
+function holdingOf(value: unknown): string | null {
+  if (value === null || isString(value)) return value;
+  throw new Error('auth: a held access token is a string, or null for none');
+}
+
 function endpointOf(value: unknown): HttpEndpoint {
   if (
     !isObject(value) ||
@@ -190,6 +196,6 @@ export function registerAuthHandlers(): void {
   ipcMain.handle('auth:sign-in', (_event, kbId: unknown, address: unknown) =>
     answered('sign-in', () => signIn(kbIdOf(kbId), endpointOf(address))),
   );
-  ipcMain.handle('auth:refresh', (_event, kbId: unknown) => renew(kbIdOf(kbId)));
+  ipcMain.handle('auth:refresh', (_event, kbId: unknown, holding: unknown) => renew(kbIdOf(kbId), holdingOf(holding)));
   ipcMain.handle('auth:sign-out', (_event, kbId: unknown) => signOut(kbIdOf(kbId)));
 }

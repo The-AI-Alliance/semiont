@@ -30,9 +30,11 @@ export interface AuthBridge {
    *  store the session. Resolves to its access token; rejects when the sign-in is refused,
    *  abandoned, or the knowledge base cannot be reached. */
   signIn(kbId: string, address: KbCoordinates): Promise<string>;
-  /** Renew the stored session. Null when nothing is stored; rejects when the issuer
-   *  refuses the renewal or cannot be reached. */
-  refresh(kbId: string): Promise<string | null>;
+  /** Renew the stored session's access token, `holding` being the one the renderer holds
+   *  (null for none): a stored one that is another and has not expired is given, and the
+   *  issuer is not asked. Null when nothing is stored; rejects when the issuer refuses the
+   *  renewal or cannot be reached. */
+  refresh(kbId: string, holding: string | null): Promise<string | null>;
   /** Revoke the stored session at its issuer and forget it. */
   signOut(kbId: string): Promise<void>;
 }
