@@ -203,6 +203,60 @@ class ClaimsTest {
     }
 
     @Test
+    fun aRefusedAnnouncementIsHeardAndClaimsAsAMatchingOneDoes() = runTest(timeout = LIMIT) {
+        val w = World(this)
+        val claims = w.client.job.claim(TAGGING)
+        val reading = async { claims.next() }
+        runCurrent()
+        assertEquals(1, w.desk.sent("job:claim").size, "nothing was pending")
+        assertNull(claims.vitals().lastQueuedEventAt)
+        w.desk.offered += running("job-8", params = obj("motivation" to "tagging"))
+        // No filter can be compared with what cannot be read.
+        w.desk.relayRefused("job:queued", JsonPrimitive("job-8"))
+        runCurrent()
+        assertNotNull(claims.vitals().lastQueuedEventAt)
+        assertEquals(2, w.desk.sent("job:claim").size)
+        assertEquals(JobId("job-8"), reading.await()?.jobId)
+        claims.stop()
+        w.over()
+    }
+
+    @Test
+    fun aRefusedAnnouncementWhileAClaimIsInFlightEarnsOneMoreClaim() = runTest(timeout = LIMIT) {
+        val w = World(this, wire = listOf(DropReply, Deliver))
+        val claims = w.client.job.claim(EVERYTHING, jobClaimTimeoutMs = 1_000)
+        val reading = async { claims.next() }
+        runCurrent()
+        assertEquals(1, w.desk.sent("job:claim").size)
+        w.desk.relayRefused("job:queued", JsonPrimitive("job-9"))
+        runCurrent()
+        assertEquals(1, w.desk.sent("job:claim").size, "one claim is in flight at a time")
+        advanceTimeBy(1_001)
+        runCurrent()
+        assertEquals(2, w.desk.sent("job:claim").size)
+        reading.cancel()
+        claims.stop()
+        w.over()
+    }
+
+    @Test
+    fun aRefusedAnnouncementWhileAJobIsHeldIsHeardAndIgnored() = runTest(timeout = LIMIT) {
+        val w = World(this)
+        w.desk.offered += running("job-1")
+        val claims = w.client.job.claim(EVERYTHING)
+        val job = held(claims)
+        w.desk.relayRefused("job:queued", JsonPrimitive("job-8"))
+        runCurrent()
+        assertNotNull(claims.vitals().lastQueuedEventAt)
+        assertEquals(1, w.desk.sent("job:claim").size)
+        finish(job)
+        runCurrent()
+        assertEquals(2, w.desk.sent("job:claim").size, "the settle claims, and nothing was owed")
+        claims.stop()
+        w.over()
+    }
+
+    @Test
     fun claimsWhenTheStreamOpensAndWhenItOpensAgain() = runTest(timeout = LIMIT) {
         val w = World(this)
         w.desk.transport.setState(ConnectionState.Connecting)

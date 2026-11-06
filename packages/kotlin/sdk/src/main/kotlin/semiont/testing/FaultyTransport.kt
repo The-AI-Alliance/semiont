@@ -171,10 +171,10 @@ public class FaultyTransport internal constructor(
     /** Change the connection's state, as a wire would. */
     public fun setState(state: ConnectionState): Unit = connection.set(state)
 
-    /** Deliver a frame as if the stream had carried it. */
-    public fun deliver(frame: Frame) {
-        router.route(frame)
-        hub.deliver(frame)
+    /** Deliver a frame, or a frame's refusal, as if the stream had carried it. */
+    public fun deliver(carried: Carried) {
+        if (carried is Frame) router.route(carried)
+        hub.deliver(carried)
     }
 
     /** Every request sent, in order. */

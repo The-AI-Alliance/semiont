@@ -12,6 +12,7 @@ import semiont.JobCompleted
 import semiont.JobCreated
 import semiont.JobEvent
 import semiont.JobProgressed
+import semiont.JobRefused
 import semiont.SemiontClient
 import semiont.StateUnit
 import semiont.Timings
@@ -216,8 +217,9 @@ public class MarkStateUnit @JvmExposeBoxed constructor(private val client: Semio
                             created = event.data.jobId
                         }
                         is JobProgressed -> progressing.set(event.data)
-                        // An attempt that will be tried again, or the completion, which the end follows.
-                        is JobAttemptFailed, is JobCompleted -> Unit
+                        // An attempt that will be tried again, a refused frame, which is no word of the job, or the
+                        // completion, which the end follows.
+                        is JobAttemptFailed, is JobRefused, is JobCompleted -> Unit
                     }
                 }
             }

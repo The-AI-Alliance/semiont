@@ -79,6 +79,33 @@ public final class semiont/JobProgressed : semiont/JobEvent {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class semiont/JobRefused : semiont/JobEvent {
+	public fun <init> (Lsemiont/RefusedFrame;)V
+	public final fun component1 ()Lsemiont/RefusedFrame;
+	public final fun copy (Lsemiont/RefusedFrame;)Lsemiont/JobRefused;
+	public static synthetic fun copy$default (Lsemiont/JobRefused;Lsemiont/RefusedFrame;ILjava/lang/Object;)Lsemiont/JobRefused;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getData ()Lsemiont/RefusedFrame;
+	public fun getKind ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/RefusedFrame {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/FrameRefusalReason;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Lsemiont/transport/FrameRefusalReason;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/FrameRefusalReason;)Lsemiont/RefusedFrame;
+	public static synthetic fun copy$default (Lsemiont/RefusedFrame;Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/FrameRefusalReason;ILjava/lang/Object;)Lsemiont/RefusedFrame;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getChannel ()Ljava/lang/String;
+	public final fun getMember ()Ljava/lang/String;
+	public final fun getReason ()Lsemiont/transport/FrameRefusalReason;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class semiont/Running : kotlinx/coroutines/flow/Flow {
 	public final fun asPublisher ()Ljava/util/concurrent/Flow$Publisher;
 	public final fun await (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -2016,7 +2043,7 @@ public final class semiont/testing/FaultyTransport : semiont/transport/Transport
 	public synthetic fun <init> (Ljava/util/List;Lsemiont/testing/Respond;Ljava/util/Collection;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun bridgeInto (Lsemiont/transport/FrameSink;)V
 	public fun close ()V
-	public final fun deliver (Lsemiont/transport/Frame;)V
+	public final fun deliver (Lsemiont/transport/Carried;)V
 	public fun emit-6b3uWpE (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun emitFuture (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Lsemiont/identifiers/ResourceId;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public fun emitFuture-NOvym2Y (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
@@ -2308,6 +2335,7 @@ public final class semiont/testing/TestSessionOptions {
 
 public abstract interface class semiont/transport/Carried {
 	public abstract fun getChannel ()Ljava/lang/String;
+	public abstract fun getCorrelationId ()Ljava/lang/String;
 }
 
 public final class semiont/transport/ConnectionState : java/lang/Enum {
@@ -2391,7 +2419,7 @@ public final class semiont/transport/Frame : semiont/transport/Carried {
 	public static synthetic fun copy-Ne8IA3g$default (Lsemiont/transport/Frame;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/TraceContext;ILjava/lang/Object;)Lsemiont/transport/Frame;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getChannel ()Ljava/lang/String;
-	public final fun getCorrelationId ()Ljava/lang/String;
+	public fun getCorrelationId ()Ljava/lang/String;
 	public final fun getPayload ()Lkotlinx/serialization/json/JsonObject;
 	public final fun getScope ()Lsemiont/identifiers/ResourceId;
 	public final fun getScope-Au_5XH8 ()Ljava/lang/String;
@@ -2401,17 +2429,19 @@ public final class semiont/transport/Frame : semiont/transport/Carried {
 }
 
 public final class semiont/transport/FrameRefusal : semiont/transport/Carried, semiont/transport/Heard {
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/FrameRefusalReason;Lkotlinx/serialization/json/JsonElement;Ljava/lang/String;Lkotlin/jvm/internal/BoxingConstructorMarker;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/FrameRefusalReason;Lkotlinx/serialization/json/JsonElement;Lsemiont/identifiers/ResourceId;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/FrameRefusalReason;Lkotlinx/serialization/json/JsonElement;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/BoxingConstructorMarker;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/FrameRefusalReason;Lkotlinx/serialization/json/JsonElement;Ljava/lang/String;Lsemiont/identifiers/ResourceId;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Lsemiont/transport/FrameRefusalReason;
 	public final fun component4 ()Lkotlinx/serialization/json/JsonElement;
-	public final fun component5-Au_5XH8 ()Ljava/lang/String;
-	public final fun copy-RvWYgJA (Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/FrameRefusalReason;Lkotlinx/serialization/json/JsonElement;Ljava/lang/String;)Lsemiont/transport/FrameRefusal;
-	public static synthetic fun copy-RvWYgJA$default (Lsemiont/transport/FrameRefusal;Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/FrameRefusalReason;Lkotlinx/serialization/json/JsonElement;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/transport/FrameRefusal;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6-Au_5XH8 ()Ljava/lang/String;
+	public final fun copy-Uz4vPl4 (Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/FrameRefusalReason;Lkotlinx/serialization/json/JsonElement;Ljava/lang/String;Ljava/lang/String;)Lsemiont/transport/FrameRefusal;
+	public static synthetic fun copy-Uz4vPl4$default (Lsemiont/transport/FrameRefusal;Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/FrameRefusalReason;Lkotlinx/serialization/json/JsonElement;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/transport/FrameRefusal;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getChannel ()Ljava/lang/String;
+	public fun getCorrelationId ()Ljava/lang/String;
 	public final fun getMember ()Ljava/lang/String;
 	public final fun getPayload ()Lkotlinx/serialization/json/JsonElement;
 	public final fun getReason ()Lsemiont/transport/FrameRefusalReason;

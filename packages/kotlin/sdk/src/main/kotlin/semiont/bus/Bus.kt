@@ -169,7 +169,7 @@ private fun <P> heard(payload: KSerializer<P>, stamps: Set<String>, carried: Car
     } catch (_: IllegalArgumentException) {
         UNDECODED
     }
-    return FrameRefusal(frame.channel, inPayload(fault.member), fault.reason, frame.payload, frame.scope)
+    return FrameRefusal(frame.channel, inPayload(fault.member), fault.reason, frame.payload, null, frame.scope)
 }
 
 /**

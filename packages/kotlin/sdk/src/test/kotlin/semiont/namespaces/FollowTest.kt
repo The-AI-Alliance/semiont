@@ -30,6 +30,7 @@ import semiont.JobCompleted
 import semiont.JobCreated
 import semiont.JobEvent
 import semiont.JobProgressed
+import semiont.JobRefused
 import semiont.Recording
 import semiont.Running
 import semiont.SemiontClient
@@ -45,6 +46,8 @@ import semiont.transport.Carried
 import semiont.transport.ConnectionState
 import semiont.transport.Events
 import semiont.transport.Frame
+import semiont.transport.FrameRefusal
+import semiont.transport.FrameRefusalReason
 import semiont.transport.FrameSink
 import semiont.transport.PendingReply
 import semiont.transport.ReplyRouter
@@ -181,6 +184,7 @@ private fun <C : JobCompleteCommand> kind(event: JobEvent<C>): String = when (ev
     is JobCreated -> "created ${event.data.jobId.value}"
     is JobProgressed -> "progress ${event.data.percentage.toInt()}"
     is JobAttemptFailed -> "failed"
+    is JobRefused -> "refused ${event.data.channel} ${event.data.member} ${event.data.reason.wire}"
     is JobCompleted -> "complete"
 }
 
@@ -354,6 +358,43 @@ class FollowTest {
         assertFalse(read.words.isCompleted)
         queue.reply("job:created", json("""{"response":{"jobId":"job-1"}}"""), created.correlationId)
         assertEquals(listOf("created job-1", "progress 10", "complete"), soon(read.words))
+        client.close()
+    }
+
+    @Test
+    fun aRefusedFrameOfTheLifecycleIsReportedOnceTheJobHasItsIdInTheOrderItCameAndTheFollowerGoesOn() = runBlocking {
+        val (client, queue) = world()
+        val read = following(client.highlighting())
+        queue.until("job:create")
+        val created = queue.asked("job:create").single()
+        // Before the job has its id: held, as the job's own frames are.
+        client.bus.deliver(FrameRefusal("job:fail", "payload.error", FrameRefusalReason.Lacks, json("""{"jobId":"job-1"}"""), null, null))
+        client.say("job:report-progress", "job-1", "mark", *progress(10))
+        delay(100)
+        assertFalse(read.words.isCompleted)
+        queue.reply("job:created", json("""{"response":{"jobId":"job-1"}}"""), created.correlationId)
+        // A payload that names no job, which its channel's reader refuses.
+        client.bus.emit("job:report-progress", json("""{"resourceId":"res-1","jobType":"mark","percentage":20,"progress":{"percentage":20}}"""), null, null)
+        client.say("job:complete", "job-1")
+        assertEquals(
+            listOf("created job-1", "refused job:fail payload.error lacks", "progress 10", "refused job:report-progress payload.jobId lacks", "complete"),
+            soon(read.words),
+        )
+        client.close()
+    }
+
+    @Test
+    fun aRefusedFrameIsNoWordOfTheJobItsSilenceGoesOnBeingCounted() = runBlocking {
+        val (client, queue) = world("job-1", timing = ClientTiming(jobSilenceMs = SILENCE, jobStatusPollMs = POLL))
+        queue.statuses(status("complete"))
+        val read = following(client.highlighting())
+        queue.until("job:create")
+        delay(SILENCE * 3 / 4)
+        client.bus.deliver(FrameRefusal("job:complete", "payload.jobId", FrameRefusalReason.Lacks, json("""{"resourceId":"res-1","jobType":"mark"}"""), null, null))
+        assertEquals(listOf("created job-1", "refused job:complete payload.jobId lacks", "complete"), soon(read.words))
+        // Asked once the job has been silent since its creation, not since the refusal.
+        val silent = queue.asked("job:status-requested").single().atMs - queue.asked("job:create").single().atMs
+        assertTrue(silent >= SILENCE - SLACK && silent < SILENCE * 3 / 2, "asked ${silent}ms after the job's creation")
         client.close()
     }
 
@@ -582,6 +623,23 @@ class FollowTest {
         assertEquals(listOf("created job-1", "progress 10", "failed", "complete"), soon(read.words))
         delay(STALL * 3 / 2)
         assertEquals(emptyList<Asked>(), queue.asked("job:cancel-requested"))
+        client.close()
+    }
+
+    @Test
+    fun aRefusedFrameStartsNoGenerationsStallDeadlineAgain() = runBlocking {
+        val (client, queue) = world("job-1", timing = QUICK)
+        queue.statuses(*Array(200) { status("running") })
+        val stalled = awaiting(client.generation(STALL))
+        queue.until("job:create")
+        val created = queue.asked("job:create").single().atMs
+        delay(STALL * 2 / 3)
+        client.bus.deliver(FrameRefusal("job:report-progress", "payload.jobId", FrameRefusalReason.Lacks, json("""{"resourceId":"res-1","jobType":"yield"}"""), null, null))
+        val ended = assertInstanceOf(JobError::class.java, failedWith(stalled))
+        assertEquals("job.stalled", ended.code)
+        queue.until("job:cancel-requested")
+        val cancelled = queue.asked("job:cancel-requested").single().atMs - created
+        assertTrue(cancelled >= STALL - SLACK && cancelled < STALL * 4 / 3, "cancelled ${cancelled}ms after the job's creation")
         client.close()
     }
 

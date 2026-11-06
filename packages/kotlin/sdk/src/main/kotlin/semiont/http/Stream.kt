@@ -584,7 +584,7 @@ internal fun lineOf(data: String): Line {
         null, JsonNull -> null
         else -> (held as? JsonPrimitive)?.takeIf { it.isString }?.let { ResourceId.parse(it.content) } ?: return Line.Unaddressed(fault)
     }
-    return Line.Refused(FrameRefusal(channel, fault.member, fault.reason, stated["payload"], scope))
+    return Line.Refused(FrameRefusal(channel, fault.member, fault.reason, stated["payload"], null, scope))
 }
 
 /** The trace a frame's payload says it was sent under, when it says so. */

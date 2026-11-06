@@ -261,6 +261,9 @@ public data class TraceContext(public val traceparent: String, public val traces
 public sealed interface Carried {
     /** The channel it was delivered on. */
     public val channel: String
+
+    /** What pairs it with the request awaiting it, when it carries one BusFrame allows. */
+    public val correlationId: String?
 }
 
 /** The resource whose scope it was delivered on. */
@@ -275,7 +278,7 @@ public data class Frame @JvmExposeBoxed constructor(
     override val channel: String,
     public val payload: JsonObject,
     /** What pairs a reply with its request. */
-    public val correlationId: String? = null,
+    override val correlationId: String? = null,
     /** The resource whose scope the frame was delivered on. */
     @get:JvmExposeBoxed
     public val scope: ResourceId? = null,
@@ -330,12 +333,15 @@ public enum class FrameRefusalReason(
  * joined by dots (`payload.resourceId` is within its payload, and `payload`
  * is the payload itself); `reason` is why. `payload` is its payload as it
  * came, the gateway's stamps and all, and null when it carried none.
+ * `correlationId` is the frame's, when it carries one BusFrame allows: a
+ * request awaiting the reply it names fails with the refusal at once.
  */
 public data class FrameRefusal @JvmExposeBoxed constructor(
     override val channel: String,
     public val member: String,
     public val reason: FrameRefusalReason,
     public val payload: JsonElement?,
+    override val correlationId: String?,
     /** The resource whose scope it was delivered on. */
     @get:JvmExposeBoxed
     public val scope: ResourceId?,
