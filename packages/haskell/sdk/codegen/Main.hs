@@ -27,7 +27,7 @@ import WorkerFacts (workerFacts)
 import Semiont.Internal.Schema (Schemas, checkSchema, normalize)
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeFile)
 import System.Environment (getArgs)
-import System.FilePath ((</>), takeBaseName, takeDirectory, takeExtension)
+import System.FilePath ((</>), normalise, takeBaseName, takeDirectory, takeExtension)
 
 data Declaration = Declaration { declarationExport :: Text, declarationCode :: Text, declarationOwner :: Text }
 data Generation = Generation
@@ -623,12 +623,12 @@ main = do
   let manifest = T.replace "@VERSION@" version $ T.replace "@MODEL_MODULES@" (T.intercalate "\n" (map ("    " <>) moduleNames)) template
       generated = ("LICENSE", license) : ("semiont.cabal", manifest) : [storedFile,oauthFile,assertionFile,storePolicy,storeNames,principalFile,busLogFile] ++ busFiles ++ models ++ facts ++ transportFiles ++ httpFiles ++ workerFiles
       modelsDirectory = output </> "generated/Semiont/Internal/Generated/Models"
-      expected = Set.fromList (map (output </>) (map fst generated))
+      expected = Set.fromList (map (normalise . (output </>)) (map fst generated))
   existsModels <- doesDirectoryExist modelsDirectory
   when existsModels $ do
     previous <- listDirectory modelsDirectory
     forM_ [modelsDirectory </> file | file <- previous, takeExtension file == ".hs"] $ \path ->
-      unless (Set.member path expected) $ do
+      unless (Set.member (normalise path) expected) $ do
         when checkOnly (ioError (userError ("stale generated module: " ++ path)))
         text <- readUTF8 path
         unless ("-- Generated from protocol/specs/src." `T.isPrefixOf` text) (ioError (userError ("unexpected file in generated modules: " ++ path)))

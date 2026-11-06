@@ -36,7 +36,7 @@ def canonical_units(declaration):
     # Hidden units acquire a package qualifier in GHC's pretty printer; an
     # exposed unit's identical type has only its module qualifier. Dependency
     # versions are held separately by the hashed Cabal freeze file.
-    return re.sub(r"\b[a-z][a-z0-9_.+-]*(?::[a-z][a-z0-9_.+-]*)*:(?=[A-Z])", "", declaration)
+    return re.sub(r"\b[A-Za-z][A-Za-z0-9_.+-]*(?::[A-Za-z][A-Za-z0-9_.+-]*)*:(?=[A-Z])", "", declaration)
 
 
 def declarations(module):
