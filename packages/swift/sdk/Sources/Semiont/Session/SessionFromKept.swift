@@ -12,7 +12,7 @@ actor SessionGate {
   func refresh(_ refused: String?) async throws -> String? {
     for await ready in installed {
       try Task.checkCancellation()
-      if ready { return try await session?.refreshOf(refused) }
+      if ready { return try await session?.refresh(refused) }
     }
     throw CancellationError()
   }

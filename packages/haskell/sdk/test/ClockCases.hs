@@ -209,8 +209,8 @@ clientClockCases root fixtures = clockCasesFor root ["invalidationWindow"] $ \ti
         Just value -> case fromJSON value of Error message -> ioError (userError message); Success parsed -> pure parsed
       unexpected :: IO value
       unexpected = ioError (userError "unexpected content read in invalidation clock case")
-      contents = Content.ContentTransport (\_ _ _ -> unexpected) (\_ -> unexpected) (\_ _ -> unexpected)
-        (\_ -> unexpected) (\_ -> unexpected) (\_ -> unexpected) (pure ())
+      contents = Content.ContentTransport (\_ _ _ _ -> unexpected) (\_ _ -> unexpected) (\_ _ _ -> unexpected)
+        (\_ _ -> unexpected) (\_ _ -> unexpected) (\_ _ -> unexpected) (pure ())
       options = Bus.BusOptions (Time.now time) (Time.waitUntil time)
         (atomically $ do modifyTVar' ids (+1); Text.pack . show <$> readTVar ids)
       send frame = do
@@ -226,7 +226,7 @@ clientClockCases root fixtures = clockCasesFor root ["invalidationWindow"] $ \ti
   atomically (putTMVar inputCell input)
   Transport.setState input Transport.Connecting
   Transport.setState input Transport.Open
-  client <- Client.newClient carrier contents Nothing options Timing.protocolSettings
+  client <- Client.newClient carrier contents Nothing options Timing.protocolSettings Nothing
   observer <- async (Cache.watch (Browse.events (Client.browse client) identity) (Stream.mapM_ (const (pure ()))))
   stored <- fixture "StoredEventResponse"
   let payload=case toJSON stored { storedEventResponseResourceId=Just identity } of Object fields -> BusFramePayload fields; _ -> error "stored event is not an object"

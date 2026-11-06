@@ -94,15 +94,19 @@ const artifact = (job, action) => job.split(/^      - name:/m).flatMap((step) =>
 const producers = [...jobs].flatMap(([name, job]) => artifact(job, 'upload').filter((item) => item.path === driverDirectory).map((item) => ({ job: name, ...item })));
 if (producers.length !== 1) throw new Error(`Haskell driver needs one artifact producer, found ${producers.length}`);
 const [producer] = producers;
-for (const [role, name] of [['wire', 'sdk-conformance'], ['worker', 'worker-conformance']]) {
-  if (!implementations[role]) throw new Error(`Haskell has no registered ${role} driver`);
+for (const [role, name] of [['wire', 'sdk-conformance'], ['live', 'sdk-conformance'], ['worker', 'worker-conformance']]) {
+  const command = role === 'live' ? implementations.live?.command : implementations[role];
+  if (!Array.isArray(command) || command.length === 0) throw new Error(`Haskell has no registered ${role} driver`);
+  const executable = posix.normalize(posix.join('protocol/conformance', command[0]));
   const job = jobs.get(name);
   if (!job) throw new Error(`no CI job consumes Haskell's ${role} driver: ${name}`);
   const needs = /^    needs: \[([^\]]+)\]$/m.exec(job)?.[1].split(',').map((part) => part.trim());
   if (!needs?.includes(producer.job)) throw new Error(`${name} does not await ${producer.job}`);
   const fetched = artifact(job, 'download').some((item) => item.name === producer.name && item.path === producer.path);
   if (!fetched) throw new Error(`${name} does not download ${producer.name} to ${producer.path}`);
-  if (!job.includes(`chmod +x ${wireFile}*`)) throw new Error(`${name} does not restore the Haskell driver's executable modes`);
+  const executableGlobs = [...job.matchAll(/run: chmod \+x ([^\n]+)/g)].flatMap((match) => match[1].trim().split(/\s+/));
+  const executableMode = executableGlobs.some((glob) => new RegExp('^' + glob.split('*').map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$').test(executable));
+  if (!executableMode) throw new Error(`${name} does not restore ${role} driver executable modes: ${executable}`);
 }
 const runner = (name) => /^    runs-on: (\S+)$/m.exec(jobs.get(name))?.[1];
 if (!runner('sdk-conformance') || runner('worker-conformance') !== runner('sdk-conformance')) throw new Error('Haskell wire and worker drivers need the same native runtime host');

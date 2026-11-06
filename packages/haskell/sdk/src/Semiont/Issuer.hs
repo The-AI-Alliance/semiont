@@ -4,6 +4,6 @@ module Semiont.Issuer
   , BeginAuthorizationOptions(..), PendingAuthorization(..), pendingAuthorizationKey
   , browserClientId, scriptClientId, signInScope
   , discoverIssuer, codeChallenge, beginAuthorization, completeAuthorization
-  , refreshAtIssuer, refreshStoredSession, revokeAtIssuer, signInWithDeviceGrant
+  , refreshAtIssuer, refreshSession, revokeAtIssuer, signInWithDeviceGrant
   ) where
 import Semiont.Internal.Issuer

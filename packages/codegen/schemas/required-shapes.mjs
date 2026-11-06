@@ -7,8 +7,10 @@
 //   packages/codegen/schemas/generate-required-go.mjs     → packages/go/sdk/internal/required/schemas_gen.json
 //   packages/codegen/schemas/generate-required-lists-go.mjs → packages/go/sdk/api/required_lists_gen.go, how
 //                                                           each Go type writes a required list held as nil
-//   packages/codegen/schemas/generate-required.mjs        → packages/rust/sdk/src/required-schemas.json and
-//                                                           packages/kotlin/sdk/src/codegen/required-schemas.json
+//   packages/codegen/schemas/generate-required.mjs        → packages/rust/sdk/src/required-schemas.json,
+//                                                           packages/kotlin/sdk/src/codegen/required-schemas.json,
+//                                                           packages/swift/sdk/Sources/SemiontCodegen/required-schemas.json and
+//                                                           packages/csharp/sdk/generators/Semiont.Generator/required-schemas.json
 //   packages/codegen/schemas/generate-required-python.mjs → packages/python/sdk/src/semiont/_required_table.py
 //
 // Each SDK walks a payload by this table before it decodes it, so every SDK

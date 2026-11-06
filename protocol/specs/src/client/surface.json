@@ -784,8 +784,8 @@
     {
       "unit": "mark",
       "docs": "The composing and delegating of annotations on one resource: the annotation being composed, the delegated job's motivation, its progress and what that progress is of, why the last job ended without completing, and the job's id. A request and a submission reach it as the signals the mark namespace publishes, which name its resource; a delegation, the cancelling of the annotation being composed and the dismissing of a job's progress are asked of the unit itself, so none reaches a unit of another resource.",
-      "made": { "csharp": "MarkStateUnit", "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit", "go": "MarkStateUnit", "kotlin": "MarkStateUnit", "swift": "MarkStateUnit" },
-      "madeBy": { "typescript": "createMarkStateUnit", "go": "NewMarkStateUnit" },
+      "made": {"csharp": "MarkStateUnit", "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit", "go": "MarkStateUnit", "kotlin": "MarkStateUnit", "swift": "MarkStateUnit", "haskell": "MarkStateUnit"},
+      "madeBy": {"typescript": "createMarkStateUnit", "go": "NewMarkStateUnit", "haskell": "newMarkStateUnit"},
       "members": [
         { "member": "pendingAnnotation" },
         { "member": "delegatingMotivation" },
@@ -801,8 +801,8 @@
     {
       "unit": "yield",
       "docs": "A generation: whether a run is under way, its progress, what the finished run produced, why the last run ended without a result, and the job's id. It is moved by its own methods.",
-      "made": { "csharp": "YieldStateUnit", "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit", "go": "YieldStateUnit", "kotlin": "YieldStateUnit", "swift": "YieldStateUnit" },
-      "madeBy": { "typescript": "createYieldStateUnit", "go": "NewYieldStateUnit" },
+      "made": {"csharp": "YieldStateUnit", "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit", "go": "YieldStateUnit", "kotlin": "YieldStateUnit", "swift": "YieldStateUnit", "haskell": "YieldStateUnit"},
+      "madeBy": {"typescript": "createYieldStateUnit", "go": "NewYieldStateUnit", "haskell": "newYieldStateUnit"},
       "members": [
         { "member": "isGenerating" },
         { "member": "progress" },
@@ -816,8 +816,8 @@
     {
       "unit": "gather",
       "docs": "The context gathered around one resource: for the annotation last asked about and for the resource last asked about, the context, whether it is loading and why it failed. Each gather is asked of the unit itself, so none reaches a unit of another resource.",
-      "made": { "csharp": "GatherStateUnit", "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit", "go": "GatherStateUnit", "kotlin": "GatherStateUnit", "swift": "GatherStateUnit" },
-      "madeBy": { "typescript": "createGatherStateUnit", "go": "NewGatherStateUnit" },
+      "made": {"csharp": "GatherStateUnit", "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit", "go": "GatherStateUnit", "kotlin": "GatherStateUnit", "swift": "GatherStateUnit", "haskell": "GatherStateUnit"},
+      "madeBy": {"typescript": "createGatherStateUnit", "go": "NewGatherStateUnit", "haskell": "newGatherStateUnit"},
       "members": [
         { "member": "context" },
         { "member": "loading" },
@@ -833,15 +833,15 @@
     {
       "unit": "match",
       "docs": "Matching, run for whoever asks on the client's own bus: a search asked for by a signal is run and answered under the asker's correlation id. It holds no state: what it found is what it said.",
-      "made": { "csharp": "MatchStateUnit", "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit", "go": "MatchStateUnit", "kotlin": "MatchStateUnit", "swift": "MatchStateUnit" },
-      "madeBy": { "typescript": "createMatchStateUnit", "go": "NewMatchStateUnit" },
+      "made": {"csharp": "MatchStateUnit", "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit", "go": "MatchStateUnit", "kotlin": "MatchStateUnit", "swift": "MatchStateUnit", "haskell": "MatchStateUnit"},
+      "madeBy": {"typescript": "createMatchStateUnit", "go": "NewMatchStateUnit", "haskell": "newMatchStateUnit"},
       "members": []
     },
     {
       "unit": "beckon",
       "docs": "Attention on one resource: the annotation this participant hovers, a sparkle for one the moment it is hovered, and a focus, naming the unit's resource, for one clicked here or by another participant.",
-      "made": { "csharp": "BeckonStateUnit", "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit", "kotlin": "BeckonStateUnit", "swift": "BeckonStateUnit" },
-      "madeBy": { "typescript": "createBeckonStateUnit", "go": "NewBeckonStateUnit" },
+      "made": {"csharp": "BeckonStateUnit", "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit", "kotlin": "BeckonStateUnit", "swift": "BeckonStateUnit", "haskell": "BeckonStateUnit"},
+      "madeBy": {"typescript": "createBeckonStateUnit", "go": "NewBeckonStateUnit", "haskell": "newBeckonStateUnit"},
       "members": [
         { "member": "hoveredAnnotationId" },
         { "member": "focus" }
@@ -850,8 +850,8 @@
     {
       "unit": "hoverDwell",
       "docs": "A pointer's rest: an annotation is said to be hovered once the pointer has rested on it for a delay, and none at once when it leaves.",
-      "made": { "csharp": "HoverDwell", "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell", "go": "HoverDwell", "kotlin": "HoverDwell", "swift": "HoverDwell" },
-      "madeBy": { "typescript": "createHoverDwell", "go": "NewHoverDwell" },
+      "made": {"csharp": "HoverDwell", "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell", "go": "HoverDwell", "kotlin": "HoverDwell", "swift": "HoverDwell", "haskell": "HoverDwell"},
+      "madeBy": {"typescript": "createHoverDwell", "go": "NewHoverDwell", "haskell": "newHoverDwell"},
       "members": [
         { "member": "enter" },
         { "member": "leave" }
@@ -860,8 +860,8 @@
     {
       "unit": "search",
       "docs": "A search that follows a query as it is typed: the query as last set, and the results of the query it last settled on, once that query has stayed the same for a debounce.",
-      "made": { "csharp": "SearchPipeline", "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline", "go": "SearchPipeline", "kotlin": "SearchPipeline", "swift": "SearchPipeline" },
-      "madeBy": { "typescript": "createSearchPipeline", "go": "NewSearchPipeline" },
+      "made": {"csharp": "SearchPipeline", "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline", "go": "SearchPipeline", "kotlin": "SearchPipeline", "swift": "SearchPipeline", "haskell": "SearchPipeline"},
+      "madeBy": {"typescript": "createSearchPipeline", "go": "NewSearchPipeline", "haskell": "newSearchPipeline"},
       "members": [
         { "member": "query" },
         { "member": "state" },
@@ -871,8 +871,8 @@
     {
       "unit": "sessionSignals",
       "docs": "What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it.",
-      "made": { "csharp": "SessionSignals", "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals", "kotlin": "SessionSignals", "swift": "SessionSignals" },
-      "madeBy": { "typescript": "createSessionSignals", "go": "NewSessionSignals" },
+      "made": {"csharp": "SessionSignals", "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals", "kotlin": "SessionSignals", "swift": "SessionSignals", "haskell": "SessionSignals"},
+      "madeBy": {"typescript": "createSessionSignals", "go": "NewSessionSignals", "haskell": "newSessionSignals"},
       "members": [
         { "member": "sessionEnded" },
         { "member": "permissionDenied" },
@@ -888,26 +888,58 @@
     {
       "unit": "cache",
       "docs": "Values the knowledge base answers with, kept by key and held as state: each key's state (pending, ready with its value, or failed), fetched when first observed and again when invalidated, and set, removed or invalidated by its methods. What it does is held by the cache's own tables (protocol/specs/src/client/refresh.json and the cache's rules in each SDK), not by the behaviour table.",
-      "made": { "csharp": "Cache", "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache", "kotlin": "Cache", "swift": "Cache" },
-      "madeBy": { "typescript": "createCache", "go": "NewCache" },
+      "made": {"csharp": "Cache", "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache", "kotlin": "Cache", "swift": "Cache", "haskell": "Cache"},
+      "madeBy": {"typescript": "createCache", "go": "NewCache", "haskell": "newCache"},
       "members": [
-        { "member": "observe" },
-        { "member": "fetch" },
-        { "member": "get" },
-        { "member": "known" },
-        { "member": "keys" },
-        { "member": "invalidate" },
-        { "member": "invalidateAll" },
-        { "member": "remove" },
-        { "member": "set" },
-        { "member": "persistencePending" }
+        {
+          "member": "observe"
+        },
+        {
+          "member": "fetch"
+        },
+        {
+          "member": "get"
+        },
+        {
+          "member": "known"
+        },
+        {
+          "member": "keys"
+        },
+        {
+          "member": "invalidate"
+        },
+        {
+          "member": "invalidateAll"
+        },
+        {
+          "member": "remove"
+        },
+        {
+          "member": "set"
+        },
+        {
+          "member": "persistencePending"
+        },
+        {
+          "member": "query",
+          "absent": {
+            "csharp": "This SDK returns its live observation directly from observe; Haskell also constructs a composable Query value, whose reader is scoped by watch.",
+            "typescript": "This SDK returns its live observation directly from observe; Haskell also constructs a composable Query value, whose reader is scoped by watch.",
+            "rust": "This SDK returns its live observation directly from observe; Haskell also constructs a composable Query value, whose reader is scoped by watch.",
+            "python": "This SDK returns its live observation directly from observe; Haskell also constructs a composable Query value, whose reader is scoped by watch.",
+            "go": "This SDK returns its live observation directly from observe; Haskell also constructs a composable Query value, whose reader is scoped by watch.",
+            "kotlin": "This SDK returns its live observation directly from observe; Haskell also constructs a composable Query value, whose reader is scoped by watch.",
+            "swift": "This SDK returns its live observation directly from observe; Haskell also constructs a composable Query value, whose reader is scoped by watch."
+          }
+        }
       ]
     },
     {
       "unit": "session",
       "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. What it does is held by the session's own table (protocol/specs/src/session/cases.json), not by the behaviour table.",
-      "made": { "csharp": "SemiontSession", "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession", "swift": "SemiontSession" },
-      "madeBy": { "go": "StartSession", "kotlin": "sessionFromKept", "swift": "sessionFromKept" },
+      "made": {"csharp": "SemiontSession", "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession", "swift": "SemiontSession", "haskell": "Session"},
+      "madeBy": {"go": "StartSession", "kotlin": "sessionFromKept", "swift": "sessionFromKept", "haskell": "newSession"},
       "members": [
         { "member": "id" },
         { "member": "kb" },
@@ -923,11 +955,12 @@
           "member": "renewer",
           "absent": {
             "csharp": "The transport takes a callback bound to the kept session when the transport is constructed.",
-            "swift": "The transport uses a closure that calls the session's renewal through a weak session reference.",
-            "typescript": "A TypeScript transport is handed a closure that calls the session's `refresh`, and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
-            "python": "A Python transport is handed a closure that calls the session's `refresh` (`refresher`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
-            "go": "A Go transport is handed a TokenRefresher that asks the session's `Refresh` (SessionFromKept's `refreshedBy`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
-            "kotlin": "A Kotlin transport is handed a refresher that asks the session to renew the token a request was refused with (sessionFromKept's), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead."
+            "swift": "The transport uses a closure that calls the session's `refresh` with the token refused through a weak session reference.",
+            "typescript": "A TypeScript transport is handed a closure that calls the session's `refresh` with the token refused, and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
+            "python": "A Python transport is handed a closure that calls the session's `refresh` with the token refused (`refresher`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
+            "go": "A Go transport is handed a TokenRefresher that asks the session's `Refresh` with the token refused (SessionFromKept's `refreshedBy`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
+            "kotlin": "A Kotlin transport is handed a refresher that asks the session to renew the token a request was refused with (sessionFromKept's), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
+            "haskell": "The HTTP transport calls the session refresh closure with the refused token; it needs no separate weak renewal handle."
           }
         }
       ]
@@ -938,7 +971,13 @@
     "made": {
       "haskell": "Bus",
       "csharp": "Bus",
-      "swift": "Bus", "typescript": "Bus", "rust": "Bus", "python": "Bus", "go": "Wire", "kotlin": "Bus" },
+      "swift": "Bus",
+      "typescript": "Bus",
+      "rust": "Bus",
+      "python": "Bus",
+      "go": "Wire",
+      "kotlin": "Bus"
+    },
     "members": [
       { "member": "emit" },
       { "member": "frames" },
@@ -991,7 +1030,7 @@
   },
   "storage": {
     "docs": "Where a client keeps what must outlive it: text under a key, in a store the application supplies (a file, a browser's storage, a platform's store), so nothing above it knows where it runs. A client's sessions, its registry of knowledge bases and its kept caches keep what they keep there. More than one context can write one store, two windows or two processes: what is written from what was read goes through `update`, which a store makes one step, so one writer's change is never lost under another's; and `subscribe` hears what another context writes, and is null where no other context writes.",
-    "made": { "haskell": "SessionStorage", "csharp": "ISessionStorage", "typescript": "SessionStorage", "rust": "SessionStorage", "python": "SessionStorage", "go": "SessionStorage", "kotlin": "SessionStorage", "swift": "SessionStorage" },
+    "made": {"haskell": "SessionStorage", "csharp": "ISessionStorage", "typescript": "SessionStorage", "rust": "SessionStorage", "python": "SessionStorage", "go": "SessionStorage", "kotlin": "SessionStorage", "swift": "SessionStorage"},
     "members": [
       { "member": "get" },
       { "member": "set" },
@@ -1005,6 +1044,7 @@
       "module": "annotations",
       "docs": "The readers of an annotation, its builders, and the reconciling of a quote: what a program that reads or makes annotations is given, so that none parses or builds one by hand. Held by protocol/specs/src/annotations's tables.",
       "where": {
+        "haskell": ["packages/haskell/sdk/src/Semiont/Annotations.hs"],
         "csharp": ["packages/csharp/sdk/src/Semiont/Annotations"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Annotations/Readers.swift",
@@ -1183,6 +1223,7 @@
         },
         {
           "member": "SpanRefusal",
+          "named": {"haskell": "SpanRefusalCode"},
           "kind": "type",
           "absent": {
             "csharp": "C# reports the shared refusal code on SpanRefusedError.",
@@ -1207,6 +1248,7 @@
           "member": "OfSpan",
           "kind": "type",
           "absent": {
+            "haskell": "The Haskell builder takes its typed inputs as arguments, without an input record.",
             "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
             "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
             "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument.",
@@ -1217,16 +1259,14 @@
           "member": "OfResource",
           "kind": "type",
           "absent": {
+            "haskell": "The Haskell builder takes its typed inputs as arguments, without an input record.",
             "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
             "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
             "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument.",
             "kotlin": "Go's alone: Go's builder takes what it builds from as one struct, where Kotlin's takes each as an argument."
           }
         }
-      ],
-      "notYetReached": {
-        "haskell": "P3: implement the Haskell annotation readers, builders, reconciliation and PDF location."
-      }
+      ]
     },
     {
       "module": "jobFilter",
@@ -1309,8 +1349,8 @@
     {
       "module": "retry",
       "docs": "Doing work again by a backoff, until it succeeds, it fails as nothing can mend, or the attempts run out.",
-      "notYetReached": {"csharp": "C# is still to implement the retry module."},
       "where": {
+        "csharp": ["packages/csharp/sdk/src/Semiont/Http"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Transport/Retry.swift"
         ],
@@ -1329,9 +1369,7 @@
         "kotlin": [
           "packages/kotlin/sdk/src/main/kotlin/semiont/retry"
         ],
-        "haskell": [
-          "packages/haskell/sdk/src/Semiont/Retry.hs"
-        ]
+        "haskell": ["packages/haskell/sdk/src/Semiont/Retry.hs"]
       },
       "members": [
         {
@@ -1343,10 +1381,8 @@
     {
       "module": "hostName",
       "docs": "Whether a host is one a knowledge base's HTTP endpoint may name. Held by protocol/specs/src/session/gateway-url-cases.json.",
-      "notYetReached": {
-        "csharp": "C# is still to implement the hostName module."
-      },
       "where": {
+        "csharp": ["packages/csharp/sdk/src/Semiont/Session"],
         "typescript": [
           "packages/typescript/sdk/src/session/storage.ts"
         ],
@@ -1443,6 +1479,7 @@
       "module": "storagePersister",
       "docs": "Where a client keeps its queries' values: a session storage, under one key, kept within a size.",
       "where": {
+        "haskell": ["packages/haskell/sdk/src/Semiont/StoragePersister.hs"],
         "csharp": ["packages/csharp/sdk/src/Semiont"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/CachePersistence.swift"
@@ -1472,16 +1509,13 @@
             "csharp": "CachePersistence"
           }
         }
-      ],
-      "notYetReached": {
-        "haskell": "P4: implement Haskell storage-backed session and registry persistence."
-      }
+      ]
     },
     {
       "module": "bus",
       "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps.",
-      "notYetReached": {"csharp": "C# is still to implement the bus module."},
       "where": {
+        "csharp": ["packages/csharp/sdk/src/Semiont"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Bus/Bus.swift"
         ],
@@ -1506,9 +1540,7 @@
           "packages/kotlin/sdk/src/main/kotlin/semiont/bus",
           "packages/kotlin/sdk/src/main/kotlin/semiont/transport"
         ],
-        "haskell": [
-          "packages/haskell/sdk/src/Semiont/Bus.hs"
-        ]
+        "haskell": ["packages/haskell/sdk/src/Semiont/Bus.hs"]
       },
       "members": [
         {
@@ -1570,7 +1602,8 @@
         "kotlin": [
           "packages/kotlin/sdk/src/main/kotlin/semiont/registry",
           "packages/kotlin/sdk/src/main/kotlin/semiont/http"
-        ]
+        ],
+        "haskell": ["packages/haskell/sdk/src/Semiont/Registry.hs"]
       },
       "whole": [
         "go"
@@ -1637,7 +1670,8 @@
           "member": "HttpSessionFactory",
           "kind": "type",
           "named": {
-            "typescript": "createHttpSessionFactory"
+            "typescript": "createHttpSessionFactory",
+            "haskell": "newHttpSessionFactory"
           }
         },
         {
@@ -1754,10 +1788,7 @@
             "typescript": "TypeScript's is a method of `SemiontBrowser`."
           }
         }
-      ],
-      "notYetReached": {
-        "haskell": "P5: implement the Haskell knowledge-base registry and serial session transitions."
-      }
+      ]
     },
     {
       "module": "redirectSignIn",
@@ -1790,7 +1821,8 @@
           "packages/kotlin/sdk/src/main/kotlin/semiont/registry",
           "packages/kotlin/sdk/src/main/kotlin/semiont/http",
           "packages/kotlin/sdk/src/main/kotlin/semiont/errors"
-        ]
+        ],
+        "haskell": ["packages/haskell/sdk/src/Semiont/Issuer.hs", "packages/haskell/sdk/src/Semiont/Registry/Identity.hs", "packages/haskell/sdk/src/Semiont/Registry/Stored.hs"]
       },
       "members": [
         {
@@ -1835,10 +1867,7 @@
             "rust": "IdentityUnverifiable"
           }
         }
-      ],
-      "notYetReached": {
-        "haskell": "P4: implement the Haskell redirect sign-in grant and its pending state."
-      }
+      ]
     },
     {
       "module": "serviceToken",
@@ -1898,9 +1927,7 @@
           "packages/kotlin/sdk/src/main/kotlin/semiont/discovery",
           "packages/kotlin/sdk/src/main/kotlin/semiont/http"
         ],
-        "haskell": [
-          "packages/haskell/sdk/src/Semiont/Discovery.hs"
-        ]
+        "haskell": ["packages/haskell/sdk/src/Semiont/Discovery.hs", "packages/haskell/sdk/src/Semiont/Http/Discovery.hs"]
       },
       "whole": [
         "go",
@@ -1918,9 +1945,7 @@
         {
           "member": "DiscoveryAbsentReason",
           "kind": "type",
-          "named": {
-            "haskell": "DiscoveryAbsentCode"
-          }
+          "named": {"haskell": "DiscoveryAbsentCode"}
         },
         {
           "member": "DiscoveryRead",
@@ -1974,10 +1999,7 @@
         },
         {
           "member": "httpDiscovery",
-          "kind": "function",
-          "notYetReached": {
-            "haskell": "P4: implement the HTTP discovery adapter over the Haskell HTTP exchange owner."
-          }
+          "kind": "function"
         },
         {
           "member": "DiscoveryDiff",
@@ -2021,7 +2043,8 @@
         ],
         "csharp": [
           "packages/csharp/sdk/src/Semiont/Testing"
-        ]
+        ],
+        "haskell": ["packages/haskell/sdk/src/Semiont/Testing.hs"]
       },
       "members": [
         {
@@ -2118,7 +2141,8 @@
             "typescript": "TypeScript's testing module has no factory of scripted sessions.",
             "rust": "Rust's scripted sessions are given what a renewal gives as it is: a token, none, or the SignInError it fails with, which Rust makes with the issuer's status.",
             "python": "Python's scripted sessions are given what a renewal gives as it is: a token, None, or the SignInError it raises, which Python makes with the issuer's status.",
-            "kotlin": "Kotlin's scripted sessions are given a token (queueRenewals) or the SignInError a renewal fails with (failRenewal), which Kotlin makes with the issuer's status."
+            "kotlin": "Kotlin's scripted sessions are given a token (queueRenewals) or the SignInError a renewal fails with (failRenewal), which Kotlin makes with the issuer's status.",
+            "haskell": "The scripted factory queues Either SignInError (Maybe Text): the renewal result itself, with no separate wrapper."
           }
         },
         {
@@ -2128,10 +2152,7 @@
             "typescript": "TypeScript's testing module has no storage several contexts share."
           }
         }
-      ],
-      "notYetReached": {
-        "haskell": "P7: implement the Haskell consumer testing toolkit over the real client."
-      }
+      ]
     },
     {
       "module": "refusals",
@@ -2266,56 +2287,11 @@
           "BeginAuthorizationAsync": ["TimeProvider"],
           "CompleteAuthorizationAsync": ["TimeProvider"],
           "DescribeConnectionAsync": ["TimeProvider"],
-          "LivenessSpec": ["TimeProvider"]
+          "LivenessSpec": ["TimeProvider"],
+          "RetryWithBackoffAsync": ["TimeProvider"]
         },
-      "haskell": {
-        "newClient": [
-          "BusOptions"
-        ],
-        "fromHttp": [
-          "HttpOptions"
-        ],
-        "newHttpTransport": [
-          "HttpOptions"
-        ],
-        "HttpOptions": [
-          "RetryOptions"
-        ],
-        "newCache": [
-          "CacheOptions"
-        ],
-        "newClaims": [
-          "WorkerOptions"
-        ],
-        "WorkerOptions": [
-          "BusOptions"
-        ],
-        "newBus": [
-          "BusOptions"
-        ],
-        "newJob": [
-          "BusOptions"
-        ],
-        "subscribeDiscovery": [
-          "DiscoveryOptions"
-        ],
-        "retryWithBackoff": [
-          "RetryOptions"
-        ],
-        "newSession": [
-          "RetryOptions"
-        ],
-        "fromIssuedSession": ["HttpOptions"],
-        "signInDevice": ["HttpOptions"],
-        "IssuerOptions": ["RetryOptions"],
-        "newServiceTokenSecret": ["IssuerOptions"],
-        "newServiceTokenKey": ["IssuerOptions"],
-        "signInAgent": ["HttpOptions"],
-        "pollUntilComplete": [
-          "JobNamespace"
-        ]
-      }
-    },
+        "haskell": {"newClient": ["BusOptions"], "fromHttp": ["HttpOptions"], "newHttpTransport": ["HttpOptions"], "HttpOptions": ["RetryOptions"], "newCache": ["CacheOptions"], "newClaims": ["WorkerOptions"], "WorkerOptions": ["BusOptions"], "newBus": ["BusOptions"], "newJob": ["BusOptions"], "subscribeDiscovery": ["DiscoveryOptions"], "retryWithBackoff": ["RetryOptions"], "newSession": ["RetryOptions"], "fromIssuedSession": ["HttpOptions"], "signInDevice": ["HttpOptions"], "IssuerOptions": ["RetryOptions"], "newServiceTokenSecret": ["IssuerOptions"], "newServiceTokenKey": ["IssuerOptions"], "signInAgent": ["HttpOptions"], "fromKeptSession": ["HttpOptions"], "pollUntilComplete": ["JobNamespace"], "httpDiscovery": ["RetryOptions"], "newSignInStore": ["SignInStoreOptions"], "SignInStoreOptions": ["RetryOptions"], "newHttpSessionFactory": ["HttpOptions"], "SemiontBrowserConfig": ["HttpOptions"], "describeConnection": ["HttpOptions"], "newHoverDwell": ["RetryOptions"], "newSearchPipeline": ["RetryOptions"], "newMarkStateUnit": ["RetryOptions"], "newFaultyTransport": ["RetryOptions"], "newScriptedSessions": ["RetryOptions"], "createTestSession": ["TestSessionOptions"], "TestSessionOptions": ["RetryOptions"], "assertLivenessAxioms": ["LivenessSpec"], "LivenessSpec": ["RetryOptions"]}
+      },
       "notYetReached": {
         "kotlin": {
           "SemiontClient": "Its public constructor takes neither: its internal one takes both, and is to be the public one.",
@@ -2442,32 +2418,11 @@
           "ScriptedSessions": ["Random"],
           "BeginAuthorizationAsync": ["Random"],
           "CompleteAuthorizationAsync": ["Random"],
-          "DescribeConnectionAsync": ["Random"]
+          "DescribeConnectionAsync": ["Random"],
+          "RetryWithBackoffAsync": ["Random"]
         },
-      "haskell": {
-        "newHttpTransport": [
-          "HttpOptions"
-        ],
-        "HttpOptions": [
-          "RetryOptions"
-        ],
-        "fromHttp": [
-          "HttpOptions"
-        ],
-        "retryWithBackoff": [
-          "RetryOptions"
-        ],
-        "newSession": [
-          "RetryOptions"
-        ],
-        "fromIssuedSession": ["HttpOptions"],
-        "signInDevice": ["HttpOptions"],
-        "IssuerOptions": ["RetryOptions"],
-        "newServiceTokenSecret": ["IssuerOptions"],
-        "newServiceTokenKey": ["IssuerOptions"],
-        "signInAgent": ["HttpOptions"]
-      }
-    },
+        "haskell": {"newHttpTransport": ["HttpOptions"], "HttpOptions": ["RetryOptions"], "fromHttp": ["HttpOptions"], "retryWithBackoff": ["RetryOptions"], "newSession": ["RetryOptions"], "fromIssuedSession": ["HttpOptions"], "signInDevice": ["HttpOptions"], "IssuerOptions": ["RetryOptions"], "newServiceTokenSecret": ["IssuerOptions"], "newServiceTokenKey": ["IssuerOptions"], "signInAgent": ["HttpOptions"], "fromKeptSession": ["HttpOptions"], "newHttpSessionFactory": ["HttpOptions"], "SemiontBrowserConfig": ["HttpOptions"], "describeConnection": ["HttpOptions"]}
+      },
       "notYetReached": {
         "rust": {
           "HttpTransportConfig": "The stream's reconnect draws its jitter from a v4 UUID.",

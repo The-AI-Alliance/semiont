@@ -1,7 +1,8 @@
 {-# LANGUAGE GADTs, OverloadedStrings, ScopedTypeVariables, RankNTypes #-}
 module Main (main) where
 
-import Control.Concurrent (threadDelay, yield)
+import Control.Concurrent (yield)
+import DriverProtocol
 import Control.Concurrent.Async
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
@@ -31,7 +32,6 @@ import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID.Types as UUID
-import GHC.Clock (getMonotonicTimeNSec)
 import Network.HTTP.Client (defaultManagerSettings, noProxy)
 import qualified OpenTelemetry.Trace.Core as TraceCore
 import qualified OpenTelemetry.Trace as Trace
@@ -40,7 +40,6 @@ import qualified Semiont.Bus as Bus
 import Semiont.Channels
 import qualified Semiont.Content as Content
 import qualified Semiont.ErrorCodes as Code
-import Semiont.Errors
 import qualified Semiont.Gateway as Gateway
 import qualified Semiont.Http as Http
 import qualified Semiont.Retry as Retry
@@ -53,9 +52,6 @@ import System.IO
 import System.Environment (lookupEnv, getArgs)
 import System.Random (randomRIO)
 import qualified Streaming.Prelude as Stream
-
-data Misuse = Misuse String deriving Show
-instance Exception Misuse
 
 data ActiveJob = ActiveJob Worker.SomeHeldJob Context.Context
 
@@ -79,28 +75,8 @@ data Driver = Driver
 say :: Driver -> Value -> IO ()
 say driver value = withMVar (output driver) $ \() -> Lazy.hPut stdout (encode value <> "\n") >> hFlush stdout
 
-need :: FromJSON value => Object -> Key -> IO value
-need fields key = case KM.lookup key fields of
-  Nothing -> throwIO (Misuse ("Missing argument " ++ show key))
-  Just value -> decode value
-
-decode :: FromJSON value => Value -> IO value
-decode value = case fromJSON value of Error reason -> throwIO (Misuse reason); Success result -> pure result
-
-optional :: FromJSON value => Object -> Key -> IO (Maybe value)
-optional fields key = traverse decode (KM.lookup key fields)
-
 opened :: Driver -> IO Http.HttpTransport
 opened driver = readTVarIO (connection driver) >>= maybe (throwIO (Misuse "No transport is open")) pure
-
-failure :: SomeException -> Maybe Value
-failure exception
-  | Just problem <- fromException exception :: Maybe TransportError = Just $ object
-      (["code" .= Code.transportCode (transportErrorCode problem), "detail" .= transportErrorMessage problem]
-        ++ maybe [] (\status -> ["status" .= status]) (httpStatus problem))
-  | Just problem <- fromException exception :: Maybe BusRequestError = Just $ object
-      ["code" .= Code.busRequestCode (busRequestErrorCode problem), "detail" .= busRequestErrorMessage problem]
-  | otherwise = Nothing
 
 reportState :: Driver -> Transport.ConnectionState -> IO ()
 reportState driver state = withMVar (output driver) $ \() -> do
@@ -123,16 +99,6 @@ reporter driver action = mask $ \restore -> do
   atomically (modifyTVar' (reporters driver) (worker :))
   result <- restore (race (takeMVar ready) (wait worker)) `onException` cancel worker
   case result of Left () -> pure (); Right () -> throwIO (Misuse "Reporter ended before registering")
-
-now :: IO Integer
-now = toInteger <$> getMonotonicTimeNSec
-
-waitUntil :: Integer -> IO ()
-waitUntil due = do
-  current <- now
-  when (current < due) $ do
-    threadDelay (fromInteger (min (toInteger (maxBound :: Int)) ((due - current + 999) `div` 1000)))
-    waitUntil due
 
 open :: Driver -> Object -> IO Value
 open driver args = do
@@ -192,7 +158,7 @@ upload driver identifier progress args = do
   metadata <- decode (Object (KM.mapWithKey formValue fields))
   let notice value = when progress $ say driver $ object ["progress" .= object
         ["upload" .= identifier, "bytesUploaded" .= Content.bytesUploaded value, "totalBytes" .= Content.totalBytes value]]
-  created <- Content.putBinary (Http.content http) metadata (Content.bytesBody bytes) notice
+  created <- Content.putBinary (Http.content http) Nothing metadata (Content.bytesBody bytes) notice
   pure (object ["resourceId" .= created])
 
 perform :: Driver -> Integer -> Text -> Object -> Maybe (IO Value)
@@ -239,12 +205,12 @@ perform driver identifier operation args = case operation of
   "get" -> Just $ do
     contents <- Http.content <$> opened driver
     resource <- need args "resource"
-    binary <- Content.getBinary contents resource
+    binary <- Content.getBinary contents Nothing resource
     pure (binaryValue (Content.contentType binary) (Content.contentBytes binary))
   "get-stream" -> Just $ do
     contents <- Http.content <$> opened driver
     resource <- need args "resource"
-    Content.getBinaryStream contents resource $ \media chunks -> binaryValue media . Bytes.concat <$> Stream.toList_ chunks
+    Content.getBinaryStream contents Nothing resource $ \media chunks -> binaryValue media . Bytes.concat <$> Stream.toList_ chunks
   "graph" -> Just $ contentRead Content.getResourceGraph
   "annotations" -> Just $ contentRead Content.getAnnotations
   "anchored-text" -> Just $ contentRead Content.getAnchoredText
@@ -264,11 +230,11 @@ perform driver identifier operation args = case operation of
   _ -> Nothing
   where
     binaryValue media bytes = object ["contentType" .= media, "bytes" .= decodeUtf8 (Base64.encode bytes)]
-    contentRead :: ToJSON answer => (Content.ContentTransport -> ResourceId -> IO answer) -> IO Value
+    contentRead :: ToJSON answer => (Content.ContentTransport -> Maybe Text -> ResourceId -> IO answer) -> IO Value
     contentRead readContent = do
       contents <- Http.content <$> opened driver
       resource <- need args "resource"
-      toJSON <$> readContent contents resource
+      toJSON <$> readContent contents Nothing resource
     gatewayRead :: ToJSON answer => (Gateway.GatewayOperations -> IO answer) -> IO Value
     gatewayRead readGateway = opened driver >>= fmap toJSON . readGateway . Http.gateway
 
@@ -369,14 +335,9 @@ workerPerform driver identifier operation args = case operation of
 answer :: Driver -> Integer -> IO Value -> IO ()
 answer driver identifier action = do
   outcome <- try action
-  case outcome of
-    Right value -> say driver (object ["id" .= identifier, "ok" .= value])
-    Left problem
-      | Just issue <- (fromException problem :: Maybe Worker.WorkerError) -> say driver (object ["id" .= identifier, "misuse" .= show issue])
-      | Just (Misuse reason) <- fromException problem -> say driver (object ["id" .= identifier, "misuse" .= reason])
-      | Just AsyncCancelled <- fromException problem -> say driver (object ["id" .= identifier, "abandoned" .= True])
-      | Just value <- failure problem -> say driver (object ["id" .= identifier, "error" .= value])
-      | otherwise -> atomically (void (tryPutTMVar (fatal driver) problem))
+  case answerValue identifier outcome of
+    Right value -> say driver value
+    Left problem -> atomically (void (tryPutTMVar (fatal driver) problem))
 
 dispatch :: Driver -> Object -> IO ()
 dispatch driver args = do

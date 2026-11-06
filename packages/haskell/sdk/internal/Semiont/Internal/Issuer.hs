@@ -7,7 +7,7 @@ module Semiont.Internal.Issuer
   , Answer(..), requestJson, requiredText, configuration, number
   , browserClientId, scriptClientId, signInScope
   , discoverIssuer, codeChallenge, beginAuthorization, completeAuthorization
-  , refreshAtIssuer, refreshStoredSession, revokeAtIssuer, signInWithDeviceGrant
+  , refreshAtIssuer, refreshSession, revokeAtIssuer, signInWithDeviceGrant
   ) where
 
 import Control.Concurrent.Async (race)
@@ -24,6 +24,8 @@ import qualified Data.ByteString.Base64.URL as Base64
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Maybe (fromMaybe)
 import Data.Scientific (Scientific)
+import qualified Semiont.SignIn as SignIn
+import qualified Semiont.Tokens as Tokens
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8, decodeUtf8, decodeUtf8')
@@ -39,7 +41,6 @@ import Semiont.Internal.Generated.OAuth
 import Semiont.Internal.Generated.Stored (pendingAuthorizationKey)
 import qualified Semiont.Retry as Retry
 import qualified Semiont.SessionStorage as Storage
-import qualified Semiont.Registry.Stored as Stored
 import qualified Semiont.Timing.Settings as Timing
 import Semiont.Types
 
@@ -190,22 +191,12 @@ refreshAtIssuer options endpoint identity refresh = do
 -- | Only a missing stored grant gives Nothing. Outages exhaust the refresh
 -- budget as typed errors; an atomic comparison prevents resurrecting sign-out
 -- or overwriting a grant another context has already rotated.
-refreshStoredSession :: IssuerOptions -> Storage.SessionStorage -> Text -> IO (Maybe Text)
-refreshStoredSession options storage identity = do
-  saved <- Stored.storedSession storage identity
-  case saved of
-    Nothing -> pure Nothing
-    Just original -> do
-      issued <- Retry.retryWithBackoff (issuerTime options) (Timing.refreshRetry (issuerTiming options))
-        (\failure -> Retry.retryable Retry.Refresh (signInStatus failure) Nothing False) (const Nothing)
-        (refreshAtIssuer options (storedSessionTokenEndpoint original) (storedSessionClientId original) (storedSessionRefresh original))
-      Storage.update storage (Stored.sessionKey identity) $ \raw ->
-        case raw >>= either (const Nothing) Just . eitherDecodeStrict' . encodeUtf8 of
-          Nothing -> (raw,Nothing)
-          Just current | storedSessionAccess current/=storedSessionAccess original || storedSessionRefresh current/=storedSessionRefresh original ->
-            (raw,Just (storedSessionAccess current))
-          Just current -> (Just (decodeUtf8 (Lazy.toStrict (encode current
-            { storedSessionAccess=issuedTokensAccess issued,storedSessionRefresh=issuedTokensRefresh issued }))),Just (issuedTokensAccess issued))
+refreshSession :: IssuerOptions -> SignIn.KeptSignIn -> Maybe Text -> IO Scientific -> IO (Maybe Text)
+refreshSession options kept holding wallNow =
+  SignIn.renewKept kept holding (\access -> Tokens.isTokenExpired access <$> wallNow) $ \original ->
+    Retry.retryWithBackoff (issuerTime options) (Timing.refreshRetry (issuerTiming options))
+      (\failure -> Retry.retryable Retry.Refresh (signInStatus failure) Nothing False) (const Nothing)
+      (refreshAtIssuer options (storedSessionTokenEndpoint original) (storedSessionClientId original) (storedSessionRefresh original))
 
 revokeAtIssuer :: IssuerOptions -> Text -> Text -> Text -> IO ()
 revokeAtIssuer options endpoint identity refresh = do

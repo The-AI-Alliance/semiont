@@ -85,10 +85,13 @@ pub(crate) fn why_unanswered(error: &reqwest::Error) -> String {
 
 /// How a transport renews its token when the gateway refuses the one it has:
 /// renew it at its source, and say what it is now. `None` when it could not
-/// be renewed. Whoever implements this also feeds the transport's token, so
-/// the token has one source.
+/// be renewed. It is told `refused`, the token the refused request carried,
+/// `None` when it carried none: a refresher that holds another token by then,
+/// because a renewal already answered an earlier refusal of that one, says the
+/// token it holds and renews nothing. Whoever implements this also feeds the
+/// transport's token, so the token has one source.
 pub trait TokenRefresher: Send + Sync + 'static {
-    fn refresh(&self) -> BoxFuture<'_, Option<String>>;
+    fn refresh<'a>(&'a self, refused: Option<&'a str>) -> BoxFuture<'a, Option<String>>;
 }
 
 /// The timing a transport keeps, from protocol/specs/src/client/timing.json unless a
@@ -262,7 +265,7 @@ impl Shared {
     async fn renewal(&self, refused: Option<&str>) -> Option<String> {
         let refresher = self.refresher.as_ref()?;
         refresher
-            .refresh()
+            .refresh(refused)
             .await
             .filter(|renewed| Some(renewed.as_str()) != refused)
     }

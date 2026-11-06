@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings, RankNTypes, ScopedTypeVariables #-}
 module Semiont.Internal.Cache
   ( Cache, Query, CacheState(..), CacheOptions(..), CachePersister(..)
-  , newCache, query, current, watch, fresh, observe, fetch, get, known, keys
+  , newCache, query, current, watch, fresh, invalidateQuery, observe, fetch, get, known, keys
   , invalidate, invalidateAll, remove, set, persistencePending, dispose
-  , isReady, readyValue, invalidateSTM, setSTM, removeSTM, updateSTM, encodeKey, liftQuery2
+  , isReady, readyValue, invalidateSTM, setSTM, removeSTM, updateSTM, encodeKey, canonical, liftQuery2
   ) where
 
 import Control.Concurrent (myThreadId)
@@ -45,8 +45,8 @@ data CacheOptions key value = CacheOptions
   , cachePersister :: Maybe (CachePersister key value)
   , cacheScope :: key -> IO (IO ())
   }
-data Task value = Task Integer (TMVar (Either SomeException value))
-data Entry key value = Entry (TVar key) (State.StateValue (CacheState value)) (TVar (Maybe (Task value))) (TVar Integer) (TVar Bool) (TVar (Maybe Integer)) (TVar [value -> value])
+data Task value = Task Integer Integer (TMVar (Either SomeException value))
+data Entry key value = Entry (TVar key) (State.StateValue (CacheState value)) (TVar (Maybe (Task value))) (TVar Integer) (TVar Bool) (TVar (Maybe Integer)) (TVar [value -> value]) (TVar Integer) (TVar Integer)
 data Cache key value = Cache
   { entries :: TVar (Map.Map Text (Entry key value))
   , configuration :: CacheOptions key value
@@ -62,13 +62,13 @@ data Cache key value = Cache
   }
 data Query value = Query (STM (CacheState value))
   (forall result. (Stream (Of (CacheState value)) IO () -> IO result) -> IO result)
-  (IO value)
+  (IO value) (IO ())
 
 instance Functor Query where
-  fmap transform (Query projection consume readFresh) = Query
+  fmap transform (Query projection consume readFresh invalidateKey) = Query
     (fmap transform <$> projection)
     (\reader -> consume (reader . Stream.map (fmap transform)))
-    (transform <$> readFresh)
+    (transform <$> readFresh) invalidateKey
 
 -- Both scoped watches register before their producers run. Their initial
 -- notices, rather than later snapshots, seed the combined observation.
@@ -105,6 +105,7 @@ liftQuery2 combine values left right = Query
             tracedWithAsync (pump Right False rightRest) $ \_ -> consume combined
       _ -> consume (pure ()))
   (do a <- fresh left; b <- fresh right; pure (values a b))
+  (invalidateQuery left >> invalidateQuery right)
 
 closed :: BusRequestError
 closed = BusRequestError Code.BusRequestClosed "cache is disposed" Nothing
@@ -117,7 +118,7 @@ canonical (Number value) = encode (Number (normalize value))
 canonical value = encode value
 
 newEntry :: key -> CacheState value -> Bool -> STM (Entry key value)
-newEntry key value restored = Entry <$> newTVar key <*> State.newStateValue value <*> newTVar Nothing <*> newTVar 0 <*> newTVar restored <*> newTVar Nothing <*> newTVar []
+newEntry key value restored = Entry <$> newTVar key <*> State.newStateValue value <*> newTVar Nothing <*> newTVar 0 <*> newTVar restored <*> newTVar Nothing <*> newTVar [] <*> newTVar 0 <*> newTVar 0
 
 newCache :: (ToJSON key, Eq value) => (key -> IO value) -> CacheOptions key value -> IO (Cache key value)
 newCache reader options = do
@@ -134,27 +135,29 @@ entry cache key = do
   case Map.lookup (encodeKey cache key) values of
     Just value -> pure value
     Nothing -> do
-      value@(Entry _ state _ _ _ _ _) <- newEntry key Pending False
+      value@(Entry _ state _ _ _ _ _ _ _) <- newEntry key Pending False
       over <- readTVar (disposed cache)
       if over then State.complete state else writeTVar (entries cache) (Map.insert (encodeKey cache key) value values)
       pure value
 
 selectEntry :: Cache key value -> key -> STM (Entry key value)
 selectEntry cache key = do
-  target@(Entry heldKey _ _ _ _ _ _) <- entry cache key
+  target@(Entry heldKey _ _ _ _ _ _ _ _) <- entry cache key
   over <- readTVar (disposed cache)
   unless over (writeTVar heldKey key)
   pure target
 
 query :: Cache key value -> key -> Query value
-query cache key = Query projection (observe cache key) (fetch cache key)
-  where projection = entry cache key >>= \(Entry _ state _ _ _ _ _) -> State.current state
+query cache key = Query projection (observe cache key) (fetch cache key) (invalidate cache key)
+  where projection = entry cache key >>= \(Entry _ state _ _ _ _ _ _ _) -> State.current state
 current :: Query value -> STM (CacheState value)
-current (Query projection _ _) = projection
+current (Query projection _ _ _) = projection
 watch :: Query value -> (Stream (Of (CacheState value)) IO () -> IO result) -> IO result
-watch (Query _ consume _) = consume
+watch (Query _ consume _ _) = consume
 fresh :: Query value -> IO value
-fresh (Query _ _ readFresh) = readFresh
+fresh (Query _ _ readFresh _) = readFresh
+invalidateQuery :: Query value -> IO ()
+invalidateQuery (Query _ _ _ change) = change
 isReady :: CacheState value -> Bool
 isReady (Ready _) = True
 isReady _ = False
@@ -172,7 +175,7 @@ publish cache state next = do
 
 -- Reservation, publication and persistence dirtiness share the same STM boundary.
 reserve :: Cache key value -> Entry key value -> Bool -> STM (Maybe (Task value, Bool))
-reserve cache (Entry _ state active version restored _ patches) force = do
+reserve cache (Entry _ state active version restored _ patches writeVersion busy) force = do
   over <- readTVar (disposed cache)
   running <- readTVar active
   prior <- State.current state
@@ -187,7 +190,9 @@ reserve cache (Entry _ state active version restored _ patches) force = do
           writeTVar version next
           writeTVar patches []
           result <- newEmptyTMVar
-          let task = Task next result
+          fence <- readTVar writeVersion
+          modifyTVar' busy (+1)
+          let task = Task next fence result
           writeTVar active (Just task)
           case prior of Failed _ -> publish cache state Pending; _ -> pure ()
           pure (Just (task,True))
@@ -202,28 +207,33 @@ startOwned cache work = do
       unless over (throwIO failure)
 
 launchFetch :: Cache key value -> Entry key value -> (Task value, Bool) -> IO ()
-launchFetch cache (Entry keyCell state active version _ _ patches) (Task epoch result,owned) = when owned $
-  startOwned cache $ do
+launchFetch cache (Entry keyCell state active version _ _ patches writeVersion busy) (Task epoch fence result,owned) = when owned $
+  startOwned cache $ mask $ \restore -> do
     key <- readTVarIO keyCell
-    outcome <- try (fetchValue cache key)
+    outcome <- try (restore (fetchValue cache key))
     saving <- atomically $ do
+      modifyTVar' busy (subtract 1)
       currentVersion <- readTVar version
+      currentWrite <- readTVar writeVersion
       over <- readTVar (disposed cache)
       transforms <- readTVar patches
       let final = if over || currentVersion /= epoch then outcome else fmap (\value -> foldl (flip ($)) value transforms) outcome
       void (tryPutTMVar result final)
-      if over || currentVersion /= epoch then pure Nothing else do
+      -- Invalidations detach the active request but leave its answer valid.
+      -- Explicit writes/removals fence every earlier request. Only the most
+      -- recent request owns the active slot and its deferred event patches.
+      when (currentVersion==epoch) $ do
         writeTVar active Nothing
         writeTVar patches []
-        case final of
-          Left (_ :: SomeException) -> pure Nothing
-          Right value -> do
-            publish cache state (Ready value)
-            markDirty cache
+      if over || currentWrite /= fence then pure Nothing else case final of
+        Left (_ :: SomeException) -> pure Nothing
+        Right value -> do
+          publish cache state (Ready value)
+          markDirty cache
     mapM_ (saveLater cache) saving
 
 awaitTask :: Cache key value -> Task value -> IO value
-awaitTask cache (Task _ result) = do
+awaitTask cache (Task _ _ result) = do
   outcome <- atomically $ do
     over <- readTVar (disposed cache)
     if over then pure (Left (toException closed)) else readTMVar result
@@ -242,17 +252,17 @@ fetch cache key = mask $ \restore -> do
 -- Exactly one SWR driver owns a task's bounded retry, including when fresh()
 -- started that task and a subscriber joined it.
 reserveBackground :: Cache key value -> Entry key value -> Bool -> STM (Maybe (Task value, Bool, Bool))
-reserveBackground cache target@(Entry _ _ _ _ _ driver _) force = do
+reserveBackground cache target@(Entry _ _ _ _ _ driver _ _ _) force = do
   planned <- reserve cache target force
   case planned of
     Nothing -> pure Nothing
-    Just (task@(Task epoch _),owned) -> do
+    Just (task@(Task epoch _ _),owned) -> do
       prior <- readTVar driver
       writeTVar driver (Just epoch)
       pure (Just (task,owned,prior /= Just epoch))
 
 launchBackground :: Cache key value -> Entry key value -> Maybe (Task value, Bool, Bool) -> IO ()
-launchBackground cache target@(Entry _ state _ version _ driver _) planned = forM_ planned $ \(first@(Task epoch _),owned,drive) -> do
+launchBackground cache target@(Entry _ state _ version _ driver _ _ _) planned = forM_ planned $ \(first@(Task epoch _ _),owned,drive) -> do
   launchFetch cache target (first,owned)
   when drive $ startOwned cache $ do
     initial <- try (awaitTask cache first)
@@ -264,9 +274,9 @@ launchBackground cache target@(Entry _ state _ version _ driver _) planned = for
           currentVersion <- readTVar version
           if over || currentVersion /= epoch then pure Nothing else do
             retryPlan <- reserve cache target True
-            forM_ retryPlan $ \(Task next _,_) -> writeTVar driver (Just next)
+            forM_ retryPlan $ \(Task next _ _,_) -> writeTVar driver (Just next)
             pure retryPlan
-        forM_ retried $ \plan@(task@(Task next _),_) -> do
+        forM_ retried $ \plan@(task@(Task next _ _),_) -> do
           launchFetch cache target plan
           outcome <- try (awaitTask cache task)
           case outcome of
@@ -283,7 +293,7 @@ observe cache key consume = mask $ \restore -> do
   over <- readTVarIO (disposed cache)
   if over then restore (consume (pure ())) else
     bracket (cacheScope (configuration cache) key) id $ \_ -> do
-      (target@(Entry _ state _ _ _ _ _),planned) <- atomically $ do
+      (target@(Entry _ state _ _ _ _ _ _ _),planned) <- atomically $ do
         target <- selectEntry cache key
         planned <- reserveBackground cache target False
         pure (target,planned)
@@ -296,9 +306,9 @@ get cache key = do
   values <- readTVar (entries cache)
   case Map.lookup (encodeKey cache key) values of
     Nothing -> pure Nothing
-    Just (Entry _ state _ _ _ _ _) -> readyValue <$> State.current state
+    Just (Entry _ state _ _ _ _ _ _ _) -> readyValue <$> State.current state
 knownEntry :: Entry key value -> STM Bool
-knownEntry (Entry _ state active _ _ _ _) = do
+knownEntry (Entry _ state active _ _ _ _ _ _) = do
   value <- State.current state
   running <- readTVar active
   pure (case value of Pending -> maybe False (const True) running; _ -> True)
@@ -307,7 +317,7 @@ known cache key = readTVar (entries cache) >>= maybe (pure False) knownEntry . M
 keys :: Cache key value -> STM [key]
 keys cache = do
   values <- Map.elems <$> readTVar (entries cache)
-  found <- traverse (\value@(Entry keyCell _ _ _ _ _ _) -> do kept <- knownEntry value; key <- readTVar keyCell; pure [key | kept]) values
+  found <- traverse (\value@(Entry keyCell _ _ _ _ _ _ _ _) -> do kept <- knownEntry value; key <- readTVar keyCell; pure [key | kept]) values
   pure (concat found)
 
 invalidate :: Cache key value -> key -> IO ()
@@ -319,7 +329,7 @@ invalidateSTM :: Cache key value -> key -> STM (IO ())
 invalidateSTM cache key = do
   over <- readTVar (disposed cache)
   if over then pure (pure ()) else do
-    target@(Entry _ _ active version _ driver patches) <- selectEntry cache key
+    target@(Entry _ _ active version _ driver patches _ _) <- selectEntry cache key
     modifyTVar' version (+1)
     writeTVar active Nothing
     writeTVar patches []
@@ -333,8 +343,9 @@ replaceSTM :: Cache key value -> key -> CacheState value -> STM (IO ())
 replaceSTM cache key value = do
   over <- readTVar (disposed cache)
   if over then pure (pure ()) else do
-    Entry _ state active version restored driver patches <- selectEntry cache key
+    Entry _ state active version restored driver patches writeVersion _ <- selectEntry cache key
     modifyTVar' version (+1)
+    modifyTVar' writeVersion (+1)
     writeTVar active Nothing
     writeTVar restored False
     writeTVar patches []
@@ -348,7 +359,7 @@ updateSTM :: Cache key value -> key -> (value -> value) -> STM (IO ())
 updateSTM cache key transform = do
   over <- readTVar (disposed cache)
   if over then pure (pure ()) else do
-    Entry _ state active _ _ _ patches <- selectEntry cache key
+    Entry _ state active _ _ _ patches _ _ <- selectEntry cache key
     value <- State.current state
     case value of
       Ready prior -> replaceSTM cache key (Ready (transform prior))
@@ -370,7 +381,7 @@ remove cache key value = mask $ \_ -> atomically (removeSTM cache key value) >>=
 snapshot :: Cache key value -> STM [(key,value)]
 snapshot cache = do
   values <- Map.elems <$> readTVar (entries cache)
-  concat <$> traverse (\(Entry keyCell state _ _ _ _ _) -> do key <- readTVar keyCell; value <- State.current state; pure [(key,item) | Just item <- [readyValue value]]) values
+  concat <$> traverse (\(Entry keyCell state _ _ _ _ _ _ _) -> do key <- readTVar keyCell; value <- State.current state; pure [(key,item) | Just item <- [readyValue value]]) values
 
 markDirty :: Cache key value -> STM (Maybe Integer)
 markDirty cache = case cachePersister (configuration cache) of
@@ -408,7 +419,7 @@ persistencePending :: Cache key value -> STM Bool
 persistencePending cache = do
   unsaved <- readTVar (dirty cache)
   values <- Map.elems <$> readTVar (entries cache)
-  running <- or <$> traverse (\(Entry _ _ active _ _ _ _) -> maybe False (const True) <$> readTVar active) values
+  running <- or <$> traverse (\(Entry _ _ _ _ _ _ _ _ busy) -> (>0) <$> readTVar busy) values
   pure (unsaved || running)
 
 dispose :: Cache key value -> IO ()
@@ -418,7 +429,7 @@ dispose cache = mask $ \restore -> do
     Nothing -> do
       atomically $ do
         writeTVar (disposed cache) True
-        readTVar (entries cache) >>= mapM_ (\(Entry _ state active version _ _ patches) -> do
+        readTVar (entries cache) >>= mapM_ (\(Entry _ state active version _ _ patches _ _) -> do
           writeTVar active Nothing
           writeTVar patches []
           modifyTVar' version (+1)

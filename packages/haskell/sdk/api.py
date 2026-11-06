@@ -64,8 +64,14 @@ def declarations(module):
             _, _, name, roles = declaration.split(" ", 3)
             types.setdefault(name.rsplit(".", 1)[-1], {})["roles"] = roles
         elif declaration.startswith("type "):
-            name, kind = declaration[5:].split(" :: ", 1)
-            types.setdefault(name.rsplit(".", 1)[-1], {})["kind"] = kind
+            kind = re.fullmatch(r"type ([\w.]+) :: (.+)", declaration)
+            synonym = re.fullmatch(r"type ([\w.]+)(?: [a-z]\w*)* = .+", declaration)
+            if kind:
+                types.setdefault(kind[1].rsplit(".", 1)[-1], {})["kind"] = kind[2]
+            elif synonym:
+                types.setdefault(synonym[1].rsplit(".", 1)[-1], {})["definition"] = declaration
+            else:
+                raise ValueError(f"unreadable compiler type in {module}: {declaration}")
         elif declaration.startswith(("data ", "newtype ")):
             name = declaration.split(" ", 2)[1].rsplit(".", 1)[-1]
             types.setdefault(name, {})["definition"] = declaration

@@ -1,0 +1,240 @@
+{
+  "OpenResource": {
+    "title": "OpenResource",
+    "type": "object",
+    "properties": {
+      "id": {
+        "$ref": "ResourceId.json"
+      },
+      "name": {
+        "type": "string"
+      },
+      "openedAt": {
+        "type": "number"
+      },
+      "order": {
+        "type": "number"
+      },
+      "mediaType": {
+        "type": "string"
+      },
+      "storageUri": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "openedAt"
+    ]
+  },
+  "ConnectionIdentity": {
+    "title": "ConnectionIdentity",
+    "type": "object",
+    "properties": {
+      "did": {
+        "$ref": "UserId.json"
+      },
+      "description": {
+        "$ref": "KbDescription.json"
+      }
+    },
+    "required": [
+      "did",
+      "description"
+    ]
+  },
+  "SignInOutcome": {
+    "title": "SignInOutcome",
+    "type": "object",
+    "properties": {
+      "kb": {
+        "$ref": "KnowledgeBase.json"
+      },
+      "expected": {
+        "$ref": "Expected.json"
+      }
+    },
+    "required": [
+      "kb"
+    ]
+  },
+  "KbReadKind": {
+    "type": "string",
+    "enum": [
+      "recorded",
+      "conflict",
+      "no-verdict"
+    ]
+  },
+  "KbReadVerdict": {
+    "title": "KbReadVerdict",
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "recorded"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "conflict"
+            ]
+          },
+          "observedDid": {
+            "type": "string"
+          },
+          "observedName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "observedDid",
+          "observedName"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "no-verdict"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      }
+    ]
+  },
+  "TabVerdict": {
+    "type": "string",
+    "enum": [
+      "gone",
+      "ready",
+      "unknown"
+    ]
+  },
+  "TabCheck": {
+    "title": "TabCheck",
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "gone"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "ready"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "mediaType": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "unknown"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      }
+    ]
+  },
+  "Expected": {
+    "title": "Expected",
+    "type": "object",
+    "properties": {
+      "did": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "did"
+    ]
+  },
+  "SignedIn": {
+    "title": "SignedIn",
+    "type": "object",
+    "properties": {
+      "endpoint": {
+        "$ref": "KbEndpoint.json"
+      },
+      "description": {
+        "$ref": "KbDescription.json"
+      },
+      "session": {
+        "$ref": "StoredSession.json"
+      },
+      "kbId": {
+        "type": "string"
+      },
+      "expectedDid": {
+        "type": "string"
+      },
+      "expectedName": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "endpoint",
+      "description",
+      "session"
+    ]
+  },
+  "KbSessionStatus": {
+    "title": "KbSessionStatus",
+    "type": "string",
+    "enum": [
+      "authenticated",
+      "expired",
+      "signed-out"
+    ]
+  }
+}

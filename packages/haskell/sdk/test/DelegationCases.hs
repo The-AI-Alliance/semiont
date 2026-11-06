@@ -76,15 +76,15 @@ newRig samples clock = do
         pure Nothing
       unexpected :: IO value
       unexpected = ioError (userError "unexpected content call in follower test")
-      content = Content.ContentTransport (\_ _ _ -> unexpected) (\_ -> unexpected) (\_ _ -> unexpected)
-        (\_ -> unexpected) (\_ -> unexpected) (\_ -> unexpected) (pure ())
+      content = Content.ContentTransport (\_ _ _ _ -> unexpected) (\_ _ -> unexpected) (\_ _ _ -> unexpected)
+        (\_ _ -> unexpected) (\_ _ -> unexpected) (\_ _ -> unexpected) (pure ())
       options = Bus.BusOptions (Time.now clock) (Time.waitUntil clock)
         (atomically $ do modifyTVar' ids (+1); Text.pack . show <$> readTVar ids)
   (carrier,source) <- Transport.newTransport (Transport.TransportOptions "local://follower" (Set.fromList Channel.channelNames) send (pure ()))
   atomically (putTMVar sourceCell source)
   Transport.setState source Transport.Connecting
   Transport.setState source Transport.Open
-  owned <- Client.newClient carrier content Nothing options Timing.protocolSettings
+  owned <- Client.newClient carrier content Nothing options Timing.protocolSettings Nothing
   pure (Rig owned source clock calls createHeld statusHeld current identity resource samples count)
 withRig :: Map.Map Text Value -> (Rig -> IO result) -> IO result
 withRig samples action = Time.newTime >>= \clock -> bracket (newRig samples clock) (Client.dispose . client) action

@@ -3,6 +3,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Semiont.Errors;
 using Semiont.SignIn;
 using Semiont.Types;
 using Xunit;
@@ -143,6 +144,34 @@ public sealed class ServiceTokenTests
         agent.Dispose();
         Assert.True(await observer.MoveNextAsync());
         Assert.False(await observer.MoveNextAsync());
+    }
+
+    // An agent whose first grant failed holds no token. A refusal of a request
+    // that carried none renews it, as every SDK's agent does.
+    [Fact]
+    public async Task AnAgentHoldingNoTokenRenewsWhenARefusalNamesNone()
+    {
+        var clock = new TestClock();
+        var sequence = 0;
+        using var handler = new Handler((_, _) =>
+        {
+            if (++sequence == 1) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+            var now = clock.GetUtcNow().ToUnixTimeSeconds();
+            return Task.FromResult(Reply(new { access_token = TokenTests.Jwt(new { iat = now, exp = now + 3600, sequence }), expires_in = 3600 }));
+        });
+        using var client = new HttpClient(handler);
+        using var service = new ServiceToken("https://issuer.example", "worker", "secret", client, clock);
+        var endpoint = JsonSerializer.Deserialize<HttpEndpoint>("""{"kind":"http","host":"kb.example","port":443,"protocol":"https"}""")
+            ?? throw new InvalidOperationException("Missing endpoint");
+        using var agent = new AgentToken(endpoint, service, client, clock);
+        await Assert.ThrowsAsync<SignInError>(() => agent.SignInAsync());
+        Assert.Null(agent.Token);
+
+        var renewed = await agent.RefreshAsync(null);
+
+        Assert.NotNull(renewed);
+        Assert.Equal(renewed, agent.Token);
+        Assert.Equal(2, handler.Grants);
     }
 
     private static string Text(JsonElement row, string key) => row.GetProperty(key).GetString() ?? throw new InvalidOperationException(key);

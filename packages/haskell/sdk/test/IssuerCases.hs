@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
-module IssuerCases (issuerCases, serviceTokenCases, deviceClockCases) where
+module IssuerCases (issuerCases, serviceTokenCases, deviceClockCases, peer, httpPeer, route, form) where
 
 import Control.Concurrent.Async (async, cancel, wait, poll, replicateConcurrently)
 import Control.Concurrent.STM
@@ -59,6 +59,15 @@ values _ = error "issuer answers are not a list"
 -- the complete declared body before replying, and closes every connection.
 peer :: Time.ControlledTime -> (Bytes.ByteString -> IO (Int,Value)) -> IO Issuer.IssuerOptions
 peer time answer = do
+  pool <- httpPeer $ \request -> do
+    (status,body) <- answer request
+    let content=Lazy.toStrict (encode body)
+    pure ("HTTP/1.1 "<>Char8.pack (show status)<>" reply\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: "
+      <>Char8.pack (show (Bytes.length content))<>"\r\n\r\n"<>content)
+  pure (Issuer.IssuerOptions pool (Retry.RetryOptions (Time.now time) (Time.waitUntil time) (pure 0)) Timing.protocolSettings)
+
+httpPeer :: (Bytes.ByteString -> IO Bytes.ByteString) -> IO Http.HttpClient
+httpPeer answer = do
   let connect _ _ _ = do
         accumulated <- newIORef Bytes.empty
         sent <- newIORef False
@@ -74,14 +83,10 @@ peer time answer = do
                   fromRead=maybe (error "invalid HTTP content length") Prelude.id
               when (not already && not (Bytes.null rest) && Bytes.length (Bytes.drop 4 rest)>=lengthValue) $ do
                 writeIORef sent True
-                (status,body) <- answer request
-                let content=Lazy.toStrict (encode body)
-                    response="HTTP/1.1 "<>Char8.pack (show status)<>" reply\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: "
-                      <>Char8.pack (show (Bytes.length content))<>"\r\n\r\n"<>content
+                response <- answer request
                 atomically (writeTQueue output response)
         makeConnection readBytes writeBytes (atomically (writeTVar closed True))
-  pool <- Http.newHttpClient noProxy defaultManagerSettings { managerRawConnection=pure connect }
-  pure (Issuer.IssuerOptions pool (Retry.RetryOptions (Time.now time) (Time.waitUntil time) (pure 0)) Timing.protocolSettings)
+  Http.newHttpClient noProxy defaultManagerSettings { managerRawConnection=pure connect }
 
 -- The generated endpoint's tag and protocol are explicit nominal constructors.
 endpoint :: HttpEndpoint
@@ -162,7 +167,7 @@ issuerCases fixtures = do
   release <- newEmptyTMVarIO
   atomically (writeTVar hold (Just release))
   -- The peer's request is blocked until the external storage change commits.
-  pendingGrant <- async $ do atomically (putTMVar entered ()); Issuer.refreshStoredSession options storage "kb"
+  pendingGrant <- async $ do atomically (putTMVar entered ()); Issuer.refreshSession options (Stored.keptIn storage "kb") (Just "before") (pure 1800000000)
   atomically (readTMVar entered)
   Time.settle
   Stored.clearStoredSession storage "kb"
@@ -170,17 +175,17 @@ issuerCases fixtures = do
   require "rotated grant resurrected signed-out storage" . (==Nothing) =<< wait pendingGrant
   atomically (writeTVar hold Nothing)
   Stored.storeSession storage "kb" stored
-  renewed <- Issuer.refreshStoredSession options storage "kb"
+  renewed <- Issuer.refreshSession options (Stored.keptIn storage "kb") (Just "before") (pure 1800000000)
   require "stored grant returned no access token" (renewed==Just "next")
   persisted <- Stored.storedSession storage "kb"
   require "stored grant did not atomically keep its rotation" (fmap storedSessionAccess persisted==Just "next")
   atomically (writeTVar status 400)
-  refused <- try (Issuer.refreshStoredSession options storage "kb")
+  refused <- try (Issuer.refreshSession options (Stored.keptIn storage "kb") (Just "before") (pure 1800000000))
   require "issuer refusal lost its terminal status" (case refused of Left failure -> signInStatus failure==Just 400; Right _ -> False)
   Issuer.revokeAtIssuer options "http://issuer.test/revoke" "client" "original"
   atomically (writeTVar status 200 >> writeTVar tokenBody (object ["access_token" .= String "fresh"]))
   let targetKb=KbTarget (KbEndpointBranch1 endpoint) "http-factory" "HTTP factory" KM.empty
-      sessionOptions=Session.SessionOptions "http-factory" targetKb storage Nothing Nothing Nothing
+      sessionOptions=Session.SessionOptions "http-factory" targetKb (Stored.keptIn storage (kbTargetId targetKb)) Nothing Nothing Nothing
         (const (ioError (userError "factory unexpectedly ended sign-in")))
         (const (ioError (userError "factory reported a startup failure"))) (pure 1800000000)
       http=Http.HttpOptions "http://unused.test:1" (Issuer.issuerHttpClient options)
@@ -188,7 +193,7 @@ issuerCases fixtures = do
         (const (ioError (userError "factory did not replace the original renewer")))
         (Issuer.issuerTime options) Timing.protocolSettings (pure (UUID.fromWords 0 0 0 1)) Set.empty
         (pure Map.empty) (\_ _ -> pure ())
-  bracket (Session.fromIssuedSession http sessionOptions stored) Session.closeOpenedSession $ \opened -> do
+  bracket (Session.fromIssuedSession http Nothing sessionOptions stored) Session.closeOpenedSession $ \opened -> do
     let session=Session.openedSession opened
     require "issued-session factory did not renew its expired grant" . (==Just "fresh")
       =<< atomically (State.current (Session.token session))
@@ -208,7 +213,7 @@ issuerCases fixtures = do
       agentOptions=sessionOptions { Session.sessionKb=agentKb, Session.sessionOnError=const (pure ()) }
   atomically (writeTVar identities [503,200])
   bracket (Service.newServiceTokenSecret options "http://issuer.test" "account" "test-only-secret") Service.dispose $ \service -> do
-    opening <- async (Session.signInAgent http agentOptions (Budget.RetryBudget 2 10 20) service)
+    opening <- async (Session.signInAgent http Nothing agentOptions (Budget.RetryBudget 2 10 20) service)
     Time.settle
     Time.advance time 4000000
     waitingForRetry <- poll opening
@@ -241,7 +246,7 @@ issuerCases fixtures = do
         Session.sessionOnAuthFailed = \reason -> atomically (modifyTVar' ended (<>[Session.sessionEndReason reason])),
         Session.sessionOnError = \failure -> atomically (modifyTVar' errors (<>[sessionErrorCode failure])) }
   bracket (Service.newServiceTokenSecret options "http://issuer.test" "account" "test-only-secret") Service.dispose $ \service ->
-    bracket (async (try (Session.signInAgent http refusedOptions (Budget.RetryBudget 2 10 20) service)
+    bracket (async (try (Session.signInAgent http Nothing refusedOptions (Budget.RetryBudget 2 10 20) service)
       :: IO (Either TransportError Session.OpenedSession))) cancel $ \attempt -> do
       Time.settle
       result <- poll attempt

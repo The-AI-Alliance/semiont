@@ -485,9 +485,14 @@ main = do
   pendingProperties <- maybe (ioError (userError "pending-authorization properties missing")) pure (KM.lookup "properties" pending)
     >>= either (ioError . userError) pure . fieldsOf
   issuer <- maybe (ioError (userError "pending authorization's issuer missing")) pure (KM.lookup "issuer" pendingProperties)
+  signIn <- readJSON (root </> "protocol/specs/src/sign-in-store/SignIn.json")
   sessionAdapters <- readJSON (output </> "codegen/session-adapters.json") >>= either (ioError . userError) pure . fieldsOf
+  annotationAdapters <- readJSON (output </> "codegen/annotation-adapters.json") >>= either (ioError . userError) pure . fieldsOf
+  registryAdapters <- readJSON (output </> "codegen/registry-adapters.json") >>= either (ioError . userError) pure . fieldsOf
+  let adapterNames=concatMap KM.keys [sessionAdapters,annotationAdapters,registryAdapters]
+  unless (length adapterNames==length (nub adapterNames)) (ioError (userError "duplicate SDK-owned adapter name"))
   let storedSchemas =
-        [(Key.toText name,value) | (name,value) <- KM.toList sessionAdapters] ++ [ ("StoredSession",stored)
+        [(Key.toText name,value) | (name,value) <- KM.toList (sessionAdapters <> annotationAdapters <> registryAdapters)] ++ [ ("SignIn",signIn), ("StoredSession",stored)
         , ("IssuerEndpoints",issuer)
         , ("PendingAuthorization",Object (KM.insert "properties" (Object (KM.insert "issuer"
             (Object (KM.singleton "$ref" (String "IssuerEndpoints.json"))) pendingProperties)) pending))
@@ -534,7 +539,53 @@ main = do
   lifetime <- case KM.lookup "lifetimeSeconds" assertion of
     Just (Number value) | value > 0 && fromInteger (floor value) == value -> pure (floor value :: Integer)
     _ -> ioError (userError "client assertion lifetime missing or not a positive whole second")
-  let assertionFile = ("generated/Semiont/Internal/Generated/ClientAssertion.hs",T.unlines
+  principals <- readJSON (root </> "protocol/specs/src/principals/cases.json") >>= either (ioError . userError) pure . fieldsOf
+  principalValues <- forM ["person","agent"] $ \name -> do
+    value <- maybe (ioError (userError "principal template missing")) pure (textAt (Key.fromText name) principals)
+    unless (T.count "{domain}" value==1 && T.count "{subject}" value==1)
+      (ioError (userError "principal template placeholders changed"))
+    pure (name,value)
+  busLog <- readJSON (root </> "protocol/specs/src/bus/log-cases.json") >>= either (ioError . userError) pure . fieldsOf
+  withheldNames <- case KM.lookup "names" busLog of
+    Just (Array values) -> forM (toList values) $ \value -> case value of String name->pure name; _->ioError (userError "bus-log name is not text")
+    _ -> ioError (userError "bus-log authority has no names")
+  let principalFile = ("generated/Semiont/Internal/Generated/Principals.hs",T.unlines
+        (["-- Generated from principals/cases.json; do not edit.","{-# LANGUAGE OverloadedStrings #-}"
+         ,"module Semiont.Internal.Generated.Principals where","import Data.Text (Text)"]
+         ++ concat [[name<>" :: Text",name<>" = "<>literal value] | (name,value)<-principalValues]))
+      busLogFile = ("generated/Semiont/Internal/Generated/BusLog.hs",T.unlines
+        ["-- Generated from bus/log-cases.json; do not edit.","{-# LANGUAGE OverloadedStrings #-}"
+        ,"module Semiont.Internal.Generated.BusLog (withheldNames) where","import Data.Text (Text)"
+        ,"withheldNames :: [Text]","withheldNames = ["<>T.intercalate "," (map literal withheldNames)<>"]"])
+  ownerOnly <- readJSON (root </> "protocol/specs/src/sign-in-store/owner-only.json") >>= either (ioError . userError) pure . fieldsOf
+  ownerValues <- forM ["directoryMode","fileMode","accessList"] $ \name -> do
+    fields <- maybe (ioError (userError "owner-only policy member missing")) pure (KM.lookup (Key.fromText name) ownerOnly)
+      >>= either (ioError . userError) pure . fieldsOf
+    value <- maybe (ioError (userError "owner-only policy value missing")) pure (textAt "value" fields)
+    pure (name,value)
+  directoryMode <- maybe (ioError (userError "owner directory mode missing")) pure (lookup "directoryMode" ownerValues)
+  fileMode <- maybe (ioError (userError "owner file mode missing")) pure (lookup "fileMode" ownerValues)
+  accessList <- maybe (ioError (userError "owner access list missing")) pure (lookup "accessList" ownerValues)
+  forM_ [directoryMode,fileMode] $ \mode -> unless (T.length mode==4 && "0" `T.isPrefixOf` mode && T.all (`elem` ("01234567"::String)) mode)
+    (ioError (userError "owner-only mode is not a four-digit octal mode"))
+  unless (T.count "{owner}" accessList==1 && T.all (<'\128') accessList) (ioError (userError "native owner policy needs one ASCII owner placeholder"))
+  storeContract <- readUTF8 (root </> "protocol/specs/src/sign-in-store/README.md")
+  forM_ ["<stateDir>/tokens.json","<stateDir>/tokens.lock","on one byte of the lock file","OffsetHigh: 0x40000000"] $ \fact ->
+    unless (fact `T.isInfixOf` storeContract) (ioError (userError "native sign-in file/lock policy changed: update its native binding"))
+  let storePolicy = ("generated/Semiont/Internal/Generated/semiont_store_policy.h",T.unlines
+        ["/* Generated from sign-in-store/owner-only.json; lock range gated against its README. */"
+        ,"#define SEMIONT_DIRECTORY_MODE "<>directoryMode
+        ,"#define SEMIONT_FILE_MODE "<>fileMode
+        ,"#define SEMIONT_ACCESS_LIST "<>literal accessList
+        ,"#define SEMIONT_LOCK_HIGH 0x40000000"
+        ,"#define SEMIONT_LOCK_BYTES 1"])
+      storeNames = ("generated/Semiont/Internal/Generated/SignInStore.hs",T.unlines
+        ["-- File names gated against sign-in-store/README.md; do not edit."
+        ,"module Semiont.Internal.Generated.SignInStore where"
+        ,"signInFileName, signInLockName :: FilePath"
+        ,"signInFileName = "<>literal "tokens.json"
+        ,"signInLockName = "<>literal "tokens.lock"])
+      assertionFile = ("generated/Semiont/Internal/Generated/ClientAssertion.hs",T.unlines
         (["-- Generated from session/client-assertion-cases.json; do not edit.","{-# LANGUAGE OverloadedStrings #-}"
          ,"module Semiont.Internal.Generated.ClientAssertion where","import Data.Text (Text)"]
          ++ concat [[name<>" :: Text",name<>" = "<>literal value] | (name,value) <- assertionStrings]
@@ -545,12 +596,18 @@ main = do
           ++ concat [[name<>" :: Text",name<>" = "<>literal value] | (name,value) <- clients++[("signInScope",scope)]]))
       storedFile = ("generated/Semiont/Internal/Generated/Stored.hs", T.unlines
         (["-- Generated from session/stored.json and session/cases.json; do not edit."
-         ,"{-# LANGUAGE OverloadedStrings #-}","module Semiont.Internal.Generated.Stored where","import Data.Text (Text)"]
+         ,"{-# LANGUAGE OverloadedStrings #-}","module Semiont.Internal.Generated.Stored where","import Data.Text (Text)","import Data.Aeson (FromJSON(..), ToJSON(..), Value(String), withText)"]
          ++ concat [[name<>" :: Text",name<>" = "<>literal value] | (name,value) <- storedKeys++storedPrefixes]
          ++ ["data SessionEndReason = "<>T.intercalate " | " (map identifier endReasons)<>" deriving (Eq, Ord, Show, Enum, Bounded)"
             ,"sessionEndReason :: SessionEndReason -> Text"]
-         ++ ["sessionEndReason "<>identifier reason<>" = "<>literal reason | reason <- endReasons]))
+         ++ ["sessionEndReason "<>identifier reason<>" = "<>literal reason | reason <- endReasons]
+         ++ ["instance ToJSON SessionEndReason where toJSON = String . sessionEndReason"
+            ,"instance FromJSON SessionEndReason where"
+            ,"  parseJSON = withText \"SessionEndReason\" $ \\value -> case value of"]
+         ++ ["    "<>literal reason<>" -> pure "<>identifier reason | reason<-endReasons]
+         ++ ["    _ -> fail \"unknown session end reason\""]))
   (httpSchemas, httpFiles) <- httpFacts root (Object spec) schemas
+  unless (length storedSchemas==length (nub (map fst storedSchemas))) (ioError (userError "duplicate stored SDK schema"))
   forM_ ("ResourceUploadMetadata" : "TraceCarrier" : map fst (storedSchemas ++ optionSchemas ++ httpSchemas)) $ \name ->
     when (Map.member name schemas) (ioError (userError ("adapter schema name is owned by OpenAPI: " ++ T.unpack name)))
   facts <- generateFacts root
@@ -564,7 +621,7 @@ main = do
   version <- maybe (ioError (userError "root package.json has no version")) pure (textAt "version" package)
   license <- readUTF8 (root </> "LICENSE")
   let manifest = T.replace "@VERSION@" version $ T.replace "@MODEL_MODULES@" (T.intercalate "\n" (map ("    " <>) moduleNames)) template
-      generated = ("LICENSE", license) : ("semiont.cabal", manifest) : [storedFile,oauthFile,assertionFile] ++ busFiles ++ models ++ facts ++ transportFiles ++ httpFiles ++ workerFiles
+      generated = ("LICENSE", license) : ("semiont.cabal", manifest) : [storedFile,oauthFile,assertionFile,storePolicy,storeNames,principalFile,busLogFile] ++ busFiles ++ models ++ facts ++ transportFiles ++ httpFiles ++ workerFiles
       modelsDirectory = output </> "generated/Semiont/Internal/Generated/Models"
       expected = Set.fromList (map (output </>) (map fst generated))
   existsModels <- doesDirectoryExist modelsDirectory

@@ -32,12 +32,24 @@ import Semiont.Internal.Generated.Schemas (schemas)
 import Semiont.Internal.Schema (normalize, validate, validateNamed)
 import System.Directory (doesDirectoryExist, listDirectory)
 import System.Environment (getArgs)
-import System.IO (hSetBuffering, stdout, BufferMode(LineBuffering))
+import System.IO (hSetBuffering, stdout, BufferMode(LineBuffering), utf8)
+import GHC.IO.Encoding (setFileSystemEncoding)
 import System.FilePath ((</>), takeBaseName)
 import Runtime (runtimeCases)
 import Discovery (discoveryCases)
 import BusCases (busCases)
 import HttpCases (httpCases)
+import HttpDiscoveryCases (httpDiscoveryCases)
+import AnnotationCases (annotationCases)
+import IdentityCases (identityCases)
+import BusLogCases (busLogCases)
+import PersistenceCases (persistenceCases)
+import StateUnitCases (stateUnitCases)
+import FlowCases (flowCases)
+import ActorCases (actorCases)
+import TestingCases (testingCases)
+import RegistryCases (registryCases)
+import RegistryRuntimeCases (registryRuntimeCases)
 import LifetimeCases (lifetimeCases)
 import CacheCases (cacheCases)
 import WorkerCases (workerCases)
@@ -49,6 +61,7 @@ import ResourceCases (resourceCases)
 import FrameCases (frameCases)
 import RefreshCases (refreshCases)
 import TextCases (textCases)
+import SignInStoreCases (signInStoreCases, storeWriter)
 import ClientAssertionCases (clientAssertionCases)
 import IssuerCases (issuerCases, serviceTokenCases, deviceClockCases)
 import SessionCases (sessionCases, sessionClockCases)
@@ -331,9 +344,22 @@ retryCases root = do
 
 main :: IO ()
 main = do
+  setFileSystemEncoding utf8
   hSetBuffering stdout LineBuffering
   args <- getArgs
-  root <- case args of [value] -> pure value; _ -> ioError (userError "expected repository root")
+  case args of
+    ["--store-writer",filename,key] -> storeWriter filename (T.pack key)
+    [root] -> runCases root
+    _ -> ioError (userError "expected repository root or a native store peer")
+
+runCases :: FilePath -> IO ()
+runCases root = do
+  busLogCases root
+  identityCases root
+  annotationCases root
+  stateUnitCases root
+  flowCases root
+  actorCases root
   runtimeCases
   lifetimeCases
   cacheCases
@@ -360,6 +386,7 @@ main = do
   frameCases root
   textCases root
   tokenStorageCases root
+  signInStoreCases root
   clientAssertionCases root
   identifierCases root
   putStrLn "PASS shared identifier acceptance/refusal cases"
@@ -375,6 +402,7 @@ main = do
   document <- either (ioError . userError) pure (sample 0 (Object (KM.singleton "$ref" (String "DiscoveryDocument.json"))))
     >>= either (ioError . userError) pure . parseEither parseJSON
   discoveryCases kb document
+  httpDiscoveryCases document
   discoveryClockCases root kb
   command <- either (ioError . userError) pure (sample 0 (Object (KM.singleton "$ref" (String "FrameAddEntityTypeCommand.json"))))
     >>= either (ioError . userError) pure . parseEither parseJSON
@@ -390,6 +418,10 @@ main = do
     pure (Just wire, code)
   busCases command browse event (failureRows ++ [(Nothing, fallback), (Just "__unknown_test_code", fallback)])
   fixtures <- traverse (either (ioError . userError) pure . sample 0) schemas
+  registryRuntimeCases fixtures
+  testingCases fixtures
+  registryCases root fixtures
+  persistenceCases fixtures
   issuerCases fixtures
   serviceTokenCases root
   deviceClockCases root

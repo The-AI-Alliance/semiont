@@ -86,3 +86,13 @@ extractors :: Map.Map Text Extractor
 extractors = Map.fromList ${list([...extractors].map(([trigger, expression]) => `(${quote(trigger)}, ${expression})`))}
 `;
 writeOrCheck(ROOT, resolve(ROOT, 'packages/haskell/sdk/generated/Semiont/Internal/Generated/CacheRefresh.hs'), text, process.argv.includes('--check'));
+writeOrCheck(ROOT,resolve(ROOT,'packages/haskell/sdk/conformance/LiveQueries.hs'),`-- Generated from client/refresh.json; do not edit.
+{-# LANGUAGE OverloadedStrings #-}
+module LiveQueries (LiveQuery(..)) where
+import Data.Aeson (FromJSON(..), withText)
+data LiveQuery = ${queries.map(value=>identifier(value.name)).join(' | ')} deriving (Eq, Show)
+instance FromJSON LiveQuery where
+  parseJSON = withText "LiveQuery" $ \\value -> case value of
+${queries.map(({name})=>`    ${quote(name)} -> pure ${identifier(name)}`).join('\n')}
+    _ -> fail "unknown live query"
+`,process.argv.includes('--check'));

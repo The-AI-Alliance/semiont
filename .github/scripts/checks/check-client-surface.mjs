@@ -1934,6 +1934,29 @@ function held(sdk, where, surface) {
   }
 }
 
+/** Top-level GHC function arguments/result, with constraints removed. */
+function haskellFunction(signature) {
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < signature.length; i++) {
+    if ('([{'.includes(signature[i])) depth++;
+    else if (')]}'.includes(signature[i])) depth--;
+    else if (depth === 0 && signature.slice(i, i + 4) === ' => ') {
+      start = i + 4;
+      i += 3;
+    } else if (depth === 0 && signature.slice(i, i + 4) === ' -> ') {
+      parts.push(signature.slice(start, i));
+      start = i + 4;
+      i += 3;
+    }
+  }
+  parts.push(signature.slice(start));
+  return { takes: parts.slice(0, -1), returns: parts.at(-1) };
+}
+
+const haskellTypeHead = (type) => type?.replace(/^\((.*)\)$/, '$1').split(' ')[0];
+
 /** Read compiler exports reachable through the Haskell client's namespace getters. */
 function haskellSurface() {
   const inventory = JSON.parse(read('packages/haskell/sdk/public-api.json'));
@@ -1954,7 +1977,7 @@ function haskellSurface() {
       if (getters.get(namespace) !== type) fail(`Haskell exports ${type} without handing it out as client.${namespace}`);
       const members = result.get(namespace) ?? new Map();
       for (const [method, returns] of Object.entries(exported.values)) {
-        const receiver = returns.split(' -> ')[0];
+        const receiver = haskellFunction(returns).takes[0] ?? '';
         if (!receiver.endsWith(`.${type}`)) continue;
         if (members.has(method) && members.get(method).returns !== returns) fail(`Haskell has conflicting declarations of ${namespace}.${method} in ${moduleName}`);
         // Unit actions are signals; request methods return their typed replies.
@@ -2503,6 +2526,7 @@ for (const [sdk, readWorker] of Object.entries(WORKERS)) {
  * member, and its reader of how a unit is made from outside it (`makeable`).
  */
 const UNITS = {
+  haskell: { read: haskellUnit, sources: 'packages/haskell/sdk/src', declared: haskellUnits, dispose: 'dispose', makeable: haskellMakeable },
   typescript: { read: typescriptUnit, sources: TS_SDK, declared: typescriptUnits, dispose: 'dispose', makeable: typescriptMakeable },
   rust: { read: rustUnit, sources: RUST_SDK, declared: rustUnits, dispose: 'dispose', makeable: rustMakeable },
   python: { read: pythonUnit, sources: PYTHON_SDK, declared: pythonUnits, dispose: 'dispose', makeable: pythonMakeable },
@@ -2580,6 +2604,47 @@ function sources(directory, extension) {
 /** An `export interface`'s header, its `extends` list captured; an `export class`'s, its `implements` list captured. */
 const interfaceHeader = (name) => new RegExp(`\\bexport interface ${name}(?:<[^>{]*>)?\\s*(?:extends\\s+([^{]+?))?\\s*\\{`, 'g');
 const classHeader = (name) => new RegExp(`\\bexport class ${name}(?:<[^>{]*>)?\\s*(?:extends\\s+[^{]+?\\s+)?(?:implements\\s+([^{]+?))?\\s*\\{`, 'g');
+
+// Native state units live in Semiont.State.*, with Cache and Session at the
+// root. Read their exported GHC types, including reexports from private
+// implementation modules, rather than approximating Haskell declarations.
+function haskellUnits() {
+  const inventory = JSON.parse(read('packages/haskell/sdk/public-api.json'));
+  return Object.entries(inventory.modules).flatMap(([module, exported]) => {
+    if (!module.startsWith('Semiont.State.') && !['Semiont.Cache', 'Semiont.Session'].includes(module)) return [];
+    const receiver = exported.values.dispose === undefined ? undefined : haskellFunction(exported.values.dispose).takes[0];
+    const found = Object.entries(exported.types).filter(([, type]) => {
+      const declared = /^(?:data|newtype) (\S+)/.exec(type.definition ?? '');
+      return declared && haskellTypeHead(receiver) === declared[1];
+    });
+    const file = `packages/haskell/sdk/src/${module.replaceAll('.', '/')}.hs`;
+    if (found.length !== 1 || !exported.values.dispose.endsWith(' -> IO ()')) {
+      fail(`${file}: a native state unit must export dispose taking its own type and returning IO ()`);
+      return [];
+    }
+    return [{ name: found[0][0], file, module, receiver, exported }];
+  });
+}
+
+function haskellUnit(made) {
+  const found = haskellUnits().filter(({ name }) => name === made);
+  if (found.length === 0) return undefined;
+  if (found.length !== 1) fail(`Haskell declares ${made} in multiple state-unit modules`);
+  const unit = found[0];
+  return { ...unit, where: `${made} in ${unit.module}`, isUnit: true,
+    members: new Set(Object.entries(unit.exported.values)
+      .filter(([name, signature]) => /^[a-z]/.test(name)
+        && haskellTypeHead(haskellFunction(signature).takes[0]) === haskellTypeHead(unit.receiver)).map(([name]) => name)) };
+}
+
+function haskellMakeable(made, declared, maker) {
+  if (maker === undefined) return 'Haskell makes an owned state unit through an IO function; name it in madeBy';
+  const signature = declared.exported.values[maker];
+  if (signature === undefined) return `which ${declared.module} does not export`;
+  const result = haskellFunction(signature).returns;
+  return result.startsWith('IO ') && haskellTypeHead(result.slice(3)) === haskellTypeHead(declared.receiver)
+    ? undefined : `whose GHC signature does not return IO of ${made}`;
+}
 
 function typescriptUnit(made, directory) {
   const found = sources(directory, '.ts').flatMap((file) => {
@@ -3041,9 +3106,9 @@ function haskellReceiver(made, where) {
   if (!module?.types[made]) return undefined;
   const declared = /^(?:data|newtype) (\S+)/.exec(module.types[made].definition ?? '');
   if (!declared) return undefined;
-  const receiver = `${declared[1]} -> `;
   return { where, members: new Set(Object.entries(module.values)
-    .filter(([, signature]) => signature.startsWith(receiver)).map(([name]) => name)) };
+    .filter(([name, signature]) => /^[a-z]/.test(name)
+      && haskellTypeHead(haskellFunction(signature).takes[0]) === declared[1]).map(([name]) => name)) };
 }
 
 const WIRES = {
@@ -3490,25 +3555,7 @@ const CLOCK_MAKERS = {
       for (const [moduleName, exported] of Object.entries(inventory.modules)) {
         const signature = exported.values[maker];
         if (signature === undefined) continue;
-        // GHC prints Haskell application without angle brackets. Only arrows
-        // outside parentheses/brackets separate this function's parameters.
-        const parts = [];
-        let depth = 0;
-        let start = 0;
-        for (let i = 0; i < signature.length; i++) {
-          if ('([{'.includes(signature[i])) depth++;
-          else if (')]}'.includes(signature[i])) depth--;
-          else if (depth === 0 && signature.slice(i, i + 4) === ' => ') {
-            start = i + 4;
-            i += 3;
-          } else if (depth === 0 && signature.slice(i, i + 4) === ' -> ') {
-            parts.push(signature.slice(start, i));
-            start = i + 4;
-            i += 3;
-          }
-        }
-        parts.push(signature.slice(start));
-        ways.push({ where: `${moduleName}.${maker} from GHC`, takes: parts.slice(0, -1).map((type) => ({ type })) });
+        ways.push({ where: `${moduleName}.${maker} from GHC`, takes: haskellFunction(signature).takes.map((type) => ({ type })) });
       }
       return ways.length ? ways : undefined;
     };

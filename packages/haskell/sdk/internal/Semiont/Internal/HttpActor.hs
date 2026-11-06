@@ -32,6 +32,7 @@ import qualified Semiont.Internal.Required as Required
 import qualified Semiont.Internal.StateValue as State
 import qualified Semiont.Internal.Transport as Transport
 import qualified Semiont.Internal.Telemetry as Telemetry
+import qualified Semiont.Internal.BusLog as BusLog
 import qualified Semiont.Retry as Retry
 import qualified Semiont.Timing.Settings as Settings
 import Semiont.Transport.Facts (ConnectionState(..))
@@ -204,6 +205,7 @@ runActor http = do
                   pure True
               when claimed $ do
                 saved <- Telemetry.withReceived frame (do
+                  BusLog.frame (logger http) "RECV" frame
                   context <- getContext
                   atomically $ do
                     closed <- (== Closed) <$> State.current (Transport.state (transport http))

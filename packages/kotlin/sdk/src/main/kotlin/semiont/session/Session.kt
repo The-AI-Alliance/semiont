@@ -147,22 +147,20 @@ public class SemiontSession internal constructor(
     }
 
     /**
-     * The gateway refused the session's token: renew it, and ask the gateway
-     * who the new one is. Returns the token the session then holds, or null:
-     * it holds no token, and if the issuer refused to renew a kept sign-in it is over. One refusal
-     * is answered at a time, so refusals that arrive together cost one renewal
+     * The gateway refused `refused`, the token a request carried (null when it
+     * carried none): renew it, and ask the gateway who the new one is. This is
+     * what the session's transport calls when it is refused a token; a caller
+     * that wants the token renewed passes the token the session holds. Returns
+     * the token the session then holds, or null: it holds no token, and if the
+     * issuer refused to renew a kept sign-in it is over. One refusal is
+     * answered at a time, so refusals that arrive together cost one renewal
      * and one ask, and who the gateway says the renewed token is, is who is
-     * signed in. A gateway that cannot be asked refuses nothing: the renewed
-     * token is given.
+     * signed in. A token the session no longer holds was answered already,
+     * however late the refusal arrives: the token it holds is given, and
+     * nothing is renewed or asked. A gateway that cannot be asked refuses
+     * nothing: the renewed token is given.
      */
-    public suspend fun refresh(): String? = refreshOf(tokens.value)
-
-    /**
-     * `refresh`, of a refusal of `refused`: the token the refused request
-     * carried. A token the session has already moved past is not renewed
-     * again; the one it holds now is given.
-     */
-    internal suspend fun refreshOf(refused: String?): String? =
+    public suspend fun refresh(refused: String?): String? =
         answering.withLock {
             // The first of refusals that arrive together renews and asks; the rest find the token is no longer theirs.
             if (tokens.value != refused) return@withLock tokens.value
@@ -176,8 +174,8 @@ public class SemiontSession internal constructor(
                 if (!closing && tokens.value == renewed) users.set(user)
             } catch (refusal: SemiontError) {
                 // Only a token the session still holds ends it: one replaced meanwhile is no longer the session's to be refused.
-                val refused = refusal is TransportError && refusal.reason == TransportErrorCode.Unauthorized
-                if (refused && !closing && tokens.value == renewed) {
+                val renewedRefused = refusal is TransportError && refusal.reason == TransportErrorCode.Unauthorized
+                if (renewedRefused && !closing && tokens.value == renewed) {
                     signedOut(SessionEndReason.REFUSED, SessionError(SessionErrorCode.CredentialRefused, JUST_ISSUED_AND_REFUSED, kb.id))
                 }
             }
@@ -185,7 +183,7 @@ public class SemiontSession internal constructor(
         }
 
     /** `refresh`, for Java. */
-    public fun refreshFuture(): CompletableFuture<String?> = client.links.future { refresh() }
+    public fun refreshFuture(refused: String?): CompletableFuture<String?> = client.links.future { refresh(refused) }
 
     /** Ask the renewal: one that could not be made and one that was refused both leave the session without a token. */
     private suspend fun tryRefresh(): Pair<String?, SignInError?> {
@@ -228,7 +226,7 @@ public class SemiontSession internal constructor(
                 when {
                     tokens.value != null -> unanswered.value = false
                     !unanswered.value -> {}
-                    users.value == null -> refreshOf(null)
+                    users.value == null -> refresh(null)
                     else -> renewed()
                 }
                 step = minOf(2 * step, Timings.MAX_RECONNECT_MS)

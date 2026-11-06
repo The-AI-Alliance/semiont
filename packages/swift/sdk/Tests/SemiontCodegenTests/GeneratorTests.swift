@@ -31,6 +31,9 @@ import Testing
   }
 }
 
+private let requiredTable = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+  .appendingPathComponent("../../Sources/SemiontCodegen/required-schemas.json").standardizedFileURL
+
 @Test func everySpecSchemaAndTableGeneratesTogether() throws {
   let specs = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
     .appendingPathComponent("../../../../../protocol/specs/src").standardizedFileURL
@@ -39,7 +42,8 @@ import Testing
     loadJSON(specs.appendingPathComponent("identifiers/kinds.json")).object["kinds"])
   let names = try Set(kinds.array.map { try #require($0.object["schema"]).text })
   let generator = ModelGenerator(definitions: definitions, identifiers: names)
-  let tables = try TableGenerator(specs: specs, models: generator).generate()
+  let tables = try TableGenerator(specs: specs, required: requiredTable, models: generator)
+    .generate()
   let models = try generator.generate()
   #expect(!tables.isEmpty)
   #expect(!models.isEmpty)
@@ -74,7 +78,8 @@ func operationFailureSchemaDriftRefusesGeneration(change: String) throws {
     definitions["CommandError"] = .object(failure)
   }
   let generator = TableGenerator(
-    specs: specs, models: ModelGenerator(definitions: definitions, identifiers: []))
+    specs: specs, required: requiredTable,
+    models: ModelGenerator(definitions: definitions, identifiers: []))
   let expected =
     switch change {
     case "no-schema": "failure channel has no schema"

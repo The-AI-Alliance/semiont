@@ -119,9 +119,8 @@ public static class RedirectSignIn
         KbDescription description;
         try
         {
-            var operation = BusOperations.BrowseKbRequested;
             using var client = new SemiontClient(new HttpTransport(Gateway.Origin(target), access,
-                [operation.Result.Name, operation.Failure.Name], httpClient: httpClient));
+                BusRegistry.ReplyChannelsFor(BusOperations.BrowseKbRequested.Request.Name), httpClient: httpClient));
             description = await client.Browse.KbAsync(cancellation).ConfigureAwait(false);
         }
         catch (Exception error) when (error is SemiontError or JsonException)

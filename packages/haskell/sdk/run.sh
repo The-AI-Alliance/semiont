@@ -7,9 +7,12 @@ cabal check
 cabal run semiont-codegen -- --check "$root"
 cabal build all --enable-tests --enable-coverage -j1
 mkdir -p conformance/bin
-cp "$(cabal list-bin semiont-haskell-wire-driver)" conformance/bin/semiont-haskell-wire-driver.native
-cp conformance/launch.sh conformance/bin/semiont-haskell-wire-driver
-chmod +x conformance/bin/semiont-haskell-wire-driver
+for role in wire live; do
+  name="semiont-haskell-$role-driver"
+  cp "$(cabal list-bin "$name")" "conformance/bin/$name.native"
+  cp conformance/launch.sh "conformance/bin/$name"
+  chmod +x "conformance/bin/$name"
+done
 python3 api.py --compiler-check
 cabal test schema-cases --enable-coverage -j1 --test-show-details=direct --test-options="$root"
 python3 test/refusals.py

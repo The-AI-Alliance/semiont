@@ -1,12 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 module HttpCases (httpCases) where
 
+import TestProcess (python)
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (async, cancel, wait)
 import Control.Concurrent.STM
 import Control.Exception (bracket, finally, try)
-import Control.Monad (unless, void)
-import Data.Aeson (Value(..), eitherDecode, encode, fromJSON, toJSON, Result(..), object, (.=))
+import Control.Monad (unless, void, forM_)
+import Data.Aeson (Value(..), eitherDecodeStrict', eitherDecode, encode, fromJSON, toJSON, Result(..), object, (.=))
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString as Bytes
@@ -23,7 +24,11 @@ import qualified Data.Text as Text
 import qualified Data.UUID.Types as UUID
 import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Client
+import Network.URI (parseURI, uriAuthority, uriPort, uriRegName)
+import Text.Read (readMaybe)
 import qualified Semiont.Auth as Auth
+import qualified Semiont.Identity as Principal
+import qualified Semiont.Registry.Identity as Identity
 import qualified Semiont.Bus as Bus
 import Semiont.Channels (globalChannels, channelName, Channel(FrameEntityTypeAddOk))
 import qualified Semiont.Http.Routes as Routes
@@ -42,19 +47,44 @@ import qualified Semiont.StateValue as State
 import qualified Semiont.System as System
 import qualified Semiont.Transport as Transport
 import Semiont.Types
-import System.Directory (removeFile)
+import System.Directory (removeFile, getTemporaryDirectory)
+import System.Environment (lookupEnv, setEnv, unsetEnv)
+import GHC.IO.Handle (hDuplicate, hDuplicateTo)
 import System.FilePath ((</>))
-import System.IO (hClose, hGetLine, hPutStrLn, hFlush, openBinaryTempFile)
+import System.IO (stderr, hIsClosed, hClose, hGetLine, hPutStrLn, hFlush, openBinaryTempFile)
 import System.Process
 import System.Timeout (timeout)
 import qualified Streaming.Prelude as Stream
+
+withBusLogs :: IO () -> IO ()
+withBusLogs work = do
+  temporary <- getTemporaryDirectory
+  bracket (openBinaryTempFile temporary "semiont-http-bus-log")
+    (\(filename,handle) -> do closed <- hIsClosed handle; unless closed (hClose handle); removeFile filename) $ \(filename,handle) -> do
+      bracket (lookupEnv "SEMIONT_BUS_LOG")
+        (maybe (unsetEnv "SEMIONT_BUS_LOG") (setEnv "SEMIONT_BUS_LOG")) $ \_ -> do
+          setEnv "SEMIONT_BUS_LOG" "1"
+          bracket (hDuplicate stderr) (\original -> hDuplicateTo original stderr >> hClose original) $ \_ -> do
+            hDuplicateTo handle stderr
+            work
+            hFlush stderr
+      hClose handle
+      bytes <- Bytes.readFile filename
+      let linesSeen=filter (Bytes.isPrefixOf "[bus ") (Bytes.split 10 bytes)
+      forM_ ["EMIT","RECV","GET","PUT"] $ \op ->
+        require "HTTP transport omitted a bus-log choke point" (any (Bytes.isPrefixOf ("[bus "<>op<>"] ")) linesSeen)
+      forM_ linesSeen $ \line -> do
+        let (_,payload)=Bytes.breakSubstring " {" line
+        require "HTTP bus-log line has no complete JSON payload" (case eitherDecodeStrict' (Bytes.drop 1 payload) :: Either String Value of Right (Object _)->True; _->False)
+      require "HTTP bus log did not exercise credential withholding" ("[withheld]" `Bytes.isInfixOf` bytes)
+      require "HTTP bus log printed a credential" (not ("credential-not-for-bus-log" `Bytes.isInfixOf` bytes) && not ("proof-credential-not-for-log" `Bytes.isInfixOf` bytes))
 
 require :: String -> Bool -> IO ()
 require label good = unless good (ioError (userError label))
 
 httpCases :: FilePath -> Map.Map Text Value -> IO ()
 httpCases root fixtures = do
-  result <- timeout 20000000 (withPeer root fixtures exercise)
+  result <- timeout 20000000 (withBusLogs (withPeer root fixtures exercise))
   require "real HTTP integration liveness deadline expired" (result == Just ())
   putStrLn "PASS real HTTP/SSE, typed client, content scopes, upload renewal and ownership"
   where
@@ -77,7 +107,7 @@ httpCases root fixtures = do
         { managerModifyRequest = \asked -> modifyIORef' hookRequests (+ 1) >> pure asked }
       http <- Http.newHttpTransport (options pool)
       let busOptions = Bus.BusOptions (Retry.retryNow time) (Retry.retryWaitUntil time) (UUID.toText <$> fresh)
-      client <- Client.newClient (Http.transport http) (Http.content http) (Just (Http.gateway http)) busOptions Settings.protocolSettings
+      client <- Client.newClient (Http.transport http) (Http.content http) (Just (Http.gateway http)) busOptions Settings.protocolSettings Nothing
       let contents = Client.content client
           fromFixture name = case Map.lookup name fixtures of
             Nothing -> error ("test fixture missing: " ++ Text.unpack name)
@@ -85,6 +115,29 @@ httpCases root fixtures = do
       resource <- either (ioError . userError) pure (mkResourceId "download")
       (do
         atomically (State.current (Client.state client) >>= check . (== Transport.Open))
+        target <- case parseURI (Text.unpack origin) >>= uriAuthority of
+          Just address -> case readMaybe (drop 1 (uriPort address)) of
+            Just port -> pure (HttpEndpoint (Text.pack (uriRegName address)) HttpEndpointKindHttp port HttpEndpointProtocolHttp mempty)
+            Nothing -> ioError (userError "HTTP peer named no port")
+          Nothing -> ioError (userError "HTTP peer named no origin")
+        proven <- Identity.describeConnection (options pool) target "proof-credential-not-for-log"
+        let expectedDescription=fromFixture "KbDescription"
+        expectedDid <- either (ioError . userError) pure (Principal.kbDid (kbDescriptionDomain expectedDescription))
+        require "connection proof invented a knowledge-base identity" (connectionIdentityDescription proven==expectedDescription && connectionIdentityDid proven==expectedDid)
+        require "connection proof changed the caller's credential source" . (==Just "initial") =<< readTVarIO supplied
+        require "connection proof used the caller's inherited refresher" . null =<< readIORef renewals
+        proofRequests <- readState origin
+        require "connection proof did not send the supplied issued credential"
+          (any (\value -> case field "body" value of
+            Just (Object body) -> KM.lookup "channel" body==Just (String "browse:kb-requested")
+              &&field "token" value==Just (String "Bearer proof-credential-not-for-log")
+            _->False) (values "requests" proofRequests))
+        postControl origin "/test/config" (object ["refusedOperations" .= [String "browse:kb-requested"]])
+        notReported <- try (Identity.describeConnection (options pool) target "proof-credential-not-for-log") :: IO (Either Identity.IdentityUnverifiableError ConnectionIdentity)
+        require "a KB which refused to describe itself was reported as unreachable" (case notReported of Left failure->Identity.identityUnverifiableReason failure==Code.KbIdentityNotReported; _->False)
+        postControl origin "/test/config" (object ["refusedOperations" .= ([]::[Text]),"emitStatuses" .= ([403]::[Int])])
+        unreachable <- try (Identity.describeConnection (options pool) target "proof-credential-not-for-log") :: IO (Either Identity.IdentityUnverifiableError ConnectionIdentity)
+        require "an unreachable KB was reported as having refused its identity" (case unreachable of Left failure->Identity.identityUnverifiableReason failure==Code.KbIdentityUnreachable; _->False)
         void $ Frame.addEntityType (Client.frame client) "Entity"
         void $ Frame.addEntityTypes (Client.frame client) ["One", "Two"]
         void $ Frame.addTagSchema (Client.frame client) (fromFixture "TagSchema")
@@ -131,31 +184,44 @@ httpCases root fixtures = do
           Just statusNamespace -> do
             System.healthCheck statusNamespace >>= require "typed health changed" . (== fromFixture "HealthResponse")
             System.status statusNamespace >>= require "typed status changed" . (== fromFixture "StatusResponse")
-        Content.getResourceGraph contents resource >>= require "typed resource graph changed" . (== fromFixture "GetResourceResponse")
-        Content.getAnnotations contents resource >>= require "typed annotation response changed" . (== fromFixture "GetAnnotationsResponse")
-        Content.getAnchoredText contents resource >>= require "anchored text sum changed" . (== fromFixture "AnchoredTextAnswer")
+        Content.getResourceGraph contents Nothing resource >>= require "typed resource graph changed" . (== fromFixture "GetResourceResponse")
+        Content.getAnnotations contents Nothing resource >>= require "typed annotation response changed" . (== fromFixture "GetAnnotationsResponse")
+        Content.getAnchoredText contents Nothing resource >>= require "anchored text sum changed" . (== fromFixture "AnchoredTextAnswer")
+        beforeOverrideRenewals <- readIORef renewals
+        Content.getResourceGraph contents (Just "content-override") resource >>= require "explicit graph response changed" . (== fromFixture "GetResourceResponse")
+        Content.getAnnotations contents (Just "content-override") resource >>= require "explicit annotations response changed" . (== fromFixture "GetAnnotationsResponse")
+        Content.getAnchoredText contents (Just "content-override") resource >>= require "explicit anchored text response changed" . (== fromFixture "AnchoredTextAnswer")
+        explicitBinary <- Content.getBinary contents (Just "content-override") resource
+        require "explicit download changed bytes" (Content.contentBytes explicitBinary==encodeUtf8 "hello λ")
+        Content.getBinaryStream contents (Just "content-override") resource (\_ chunks->Stream.effects chunks)
+        overrideState <- readState origin
+        let explicitReads=[value|value<-values "requests" overrideState,field "token" value==Just (String "Bearer content-override")]
+        require "not every content reader sent its explicit credential" (length explicitReads==5)
+        refusedOverride <- try (Content.getBinary contents (Just "refused-content-override") resource) :: IO (Either TransportError Content.BinaryContent)
+        require "explicit content credential refusal was not final" (case refusedOverride of Left problem->transportErrorCode problem==Code.TransportUnauthorized; Right _->False)
+        readIORef renewals >>= require "an explicit content credential renewed the held token" . (==beforeOverrideRenewals)
         contextKey <- Context.newKey "HTTP consumer context"
         beforeContext <- getContext
         bracket (attachContext (Context.insert contextKey ("consumer" :: Text) beforeContext)) detachContext $ \_ ->
-          Content.getBinaryStream contents resource $ \_ chunks -> do
+          Content.getBinaryStream contents Nothing resource $ \_ chunks -> do
             actualContext <- getContext
             require "HTTP callback lost the caller's trace context" (Context.lookup contextKey actualContext == Just "consumer")
             Stream.effects chunks
         afterContext <- getContext
         require "HTTP callback leaked its context to the caller" (Context.lookup contextKey afterContext == Context.lookup contextKey beforeContext)
-        binary <- Content.getBinary contents resource
+        binary <- Content.getBinary contents Nothing resource
         require "download did not preserve bytes/media type" (Content.contentBytes binary == encodeUtf8 "hello λ" && Content.contentType binary == "text/plain; charset=utf-8")
-        escaped <- Content.getBinaryStream contents resource (\_ chunks -> pure chunks)
+        escaped <- Content.getBinaryStream contents Nothing resource (\_ chunks -> pure chunks)
         outside <- try (Stream.effects escaped) :: IO (Either TransportError ())
         require "escaped content reader was usable" (either (const True) (const False) outside)
         atomically (writeTVar supplied (Just "renew-upload"))
         opens <- newIORef (0 :: Int)
         progress <- newIORef []
         let metadata = (fromFixture "ResourceUploadMetadata")
-              { resourceUploadMetadataName = "upload λ\".txt", resourceUploadMetadataFormat = "text/plain", resourceUploadMetadataStorageUri = "local" }
+              { resourceUploadMetadataName = "upload λ\".txt", resourceUploadMetadataFormat = "text/plain", resourceUploadMetadataStorageUri = "local", resourceUploadMetadataCloneToken = Just "credential-not-for-bus-log" }
             bytes = encodeUtf8 "complete upload λ"
             source = (Content.bytesBody bytes) { Content.openBody = \consume -> modifyIORef' opens (+ 1) >> Content.openBody (Content.bytesBody bytes) consume }
-        uploaded <- Content.putBinary contents metadata source (\value -> modifyIORef' progress (++ [value]))
+        uploaded <- Content.putBinary contents Nothing metadata source (\value -> modifyIORef' progress (++ [value]))
         require "upload response changed" (uploaded == createResourceResponseResourceId (fromFixture "CreateResourceResponse"))
         readIORef opens >>= require "renewal did not reopen the complete upload" . (== 2)
         readIORef renewals >>= require "renewal did not receive the refused token exactly once" . (== ["renew-upload"])
@@ -164,8 +230,6 @@ httpCases root fixtures = do
         require "upload progress lost its total" (last notices == Content.UploadProgress (fromIntegral (Bytes.length bytes)) (fromIntegral (Bytes.length bytes)))
         state <- readState origin
         let uploads = values "uploads" state
-            field key (Object fields) = KM.lookup key fields
-            field _ _ = Nothing
         case uploads of
           [first, second] -> require "upload attempts changed the idempotency key" (field "key" first == field "key" second)
           _ -> ioError (userError "upload did not have exactly two attempts")
@@ -173,7 +237,7 @@ httpCases root fixtures = do
         postControl origin "/test/config" (object ["uploadStatuses" .= ([503]::[Int])])
         retryProgress <- newIORef []
         began <- readTVarIO clock
-        retriedUpload <- async (Content.putBinary contents metadata source (\value -> modifyIORef' retryProgress (++[value])))
+        retriedUpload <- async (Content.putBinary contents Nothing metadata source (\value -> modifyIORef' retryProgress (++[value])))
         let retryAt=began+Timing.requestRetryPauseMs*1000000
         waitForDeadline waits retryAt
         atomically (writeTVar clock retryAt)
@@ -188,15 +252,25 @@ httpCases root fixtures = do
           _ -> ioError (userError "keyed upload did not have exactly one retry")
         retriedNotices <- readIORef retryProgress
         require "upload progress decreased across retry" (and (zipWith (<=) (map Content.bytesUploaded retriedNotices) (drop 1 (map Content.bytesUploaded retriedNotices))))
+        beforeExplicitUpload <- readIORef renewals
+        Content.putBinary contents (Just "content-override") metadata source (const (pure ())) >>= require "explicit upload returned another resource" . (==uploaded)
+        postControl origin "/test/config" (object ["uploadStatuses" .= ([401]::[Int])])
+        failedExplicitUpload <- try (Content.putBinary contents (Just "refused-content-override") metadata source (const (pure ()))) :: IO (Either TransportError ResourceId)
+        require "explicit upload credential refusal was not final" (case failedExplicitUpload of Left problem->transportErrorCode problem==Code.TransportUnauthorized; Right _->False)
+        readIORef renewals >>= require "explicit upload refusal renewed the held token" . (==beforeExplicitUpload)
+        afterExplicitUpload <- readState origin
+        let explicitUploads=drop 4 (values "uploads" afterExplicitUpload)
+        require "explicit upload inherited or retried a credential" (map (field "token") explicitUploads==[Just (String "Bearer content-override"),Just (String "Bearer refused-content-override")])
+        Content.getBinary contents Nothing resource >>= require "explicit refusal quarantined the held credential" . (\value->Content.contentBytes value==encodeUtf8 "hello λ")
         let invalidSource = (Content.bytesBody bytes) { Content.bodyLength = Just (-1) }
-        invalidUpload <- try (Content.putBinary contents metadata invalidSource (const (pure ()))) :: IO (Either TransportError ResourceId)
+        invalidUpload <- try (Content.putBinary contents Nothing metadata invalidSource (const (pure ()))) :: IO (Either TransportError ResourceId)
         require "negative upload size was accepted" (either ((== Code.TransportBadRequest) . transportErrorCode) (const False) invalidUpload)
         malformed <- either (ioError . userError) pure (mkResourceId "malformed")
-        malformedAnswer <- try (Content.getResourceGraph contents malformed) :: IO (Either TransportError GetResourceResponse)
+        malformedAnswer <- try (Content.getResourceGraph contents Nothing malformed) :: IO (Either TransportError GetResourceResponse)
         require "malformed HTTP JSON was accepted" (either ((== Code.TransportError) . transportErrorCode) (const False) malformedAnswer)
         refused <- either (ioError . userError) pure (mkResourceId "refused")
         Transport.errors (Client.transport client) $ \failures -> do
-          answer <- try (Content.getBinary contents refused) :: IO (Either TransportError Content.BinaryContent)
+          answer <- try (Content.getBinary contents Nothing refused) :: IO (Either TransportError Content.BinaryContent)
           case answer of
             Right _ -> ioError (userError "HTTP refusal became content")
             Left problem -> do
@@ -205,7 +279,7 @@ httpCases root fixtures = do
               require "HTTP refusal was not observed before throw" (noticed == [problem])
         readIORef hookRequests >>= require "caller HTTP hooks were not used" . (> 10)
         Content.dispose contents
-        closedContent <- try (Content.getBinary contents resource) :: IO (Either BusRequestError Content.BinaryContent)
+        closedContent <- try (Content.getBinary contents Nothing resource) :: IO (Either BusRequestError Content.BinaryContent)
         require "disposed content still performed I/O" (either ((== Code.BusRequestClosed) . busRequestErrorCode) (const False) closedContent)
         Gateway.healthCheck (Http.gateway http) >>= require "disposing content closed the caller's HTTP pool" . (== fromFixture "HealthResponse")
         ) `finally` Client.dispose client
@@ -216,12 +290,15 @@ httpCases root fixtures = do
       pure ()
 
 httpFaults :: Text -> Http.HttpTransport -> Client.Client -> ResourceId -> TVar Integer -> TVar (Set.Set Integer) -> IO ()
-httpFaults origin http client resource clock waits =
+httpFaults origin http client resource clock waits = do
+  baseline <- awaitState origin (\value -> length (values "subscriptions" value)-count "disconnected" value==1)
+  let beforeSubscriptions=length (values "subscriptions" baseline)
+      beforeDisconnected=count "disconnected" baseline
   bracket (Transport.subscribeToResource (Http.transport http) resource) id $ \_ -> do
     began <- readTVarIO clock
     waitForDeadline waits (began + Timing.reconnectDebounceMs * 1000000)
     atomically (writeTVar clock (began + Timing.reconnectDebounceMs * 1000000))
-    _ <- awaitState origin ((>= 2) . length . values "subscriptions")
+    _ <- awaitState origin ((>= beforeSubscriptions+1) . length . values "subscriptions")
     connection <- atomically (State.current (Client.state client))
     require "subscription handoff changed an open connection's state" (connection == Transport.Open)
     let channel = channelName FrameEntityTypeAddOk
@@ -236,11 +313,11 @@ httpFaults origin http client resource clock waits =
       seen <- Stream.toList_ (Stream.take 2 frames)
       require "overlapping streams duplicated a reply" (map (busFrameCorrelationId . Transport.wireFrame) seen == [Just "first", Just "second"])
     state <- readState origin
-    require "old stream was aborted before its drain window" (count "disconnected" state == 0)
+    require "old stream was aborted before its drain window" (count "disconnected" state == beforeDisconnected)
     let retiredAt = began + (Timing.reconnectDebounceMs + Timing.lingerMs) * 1000000
     waitForDeadline waits retiredAt
     atomically (writeTVar clock retiredAt)
-    _ <- awaitState origin ((>= 1) . count "disconnected")
+    _ <- awaitState origin ((>= beforeDisconnected+1) . count "disconnected")
 
     Transport.errors (Http.transport http) $ \failures -> Transport.frames (Http.transport http) channel $ \frames -> do
       postControl origin "/test/publish" (object
@@ -271,7 +348,7 @@ httpFaults origin http client resource clock waits =
     atomically (writeTVar waits Set.empty)
     headerResource <- either (ioError . userError) pure (mkResourceId "headers")
     headerStart <- readTVarIO clock
-    stalled <- async (try (Content.getBinary (Http.content http) headerResource) :: IO (Either TransportError Content.BinaryContent))
+    stalled <- async (try (Content.getBinary (Http.content http) Nothing headerResource) :: IO (Either TransportError Content.BinaryContent))
     let headerDeadline = headerStart + Timing.httpRequestTimeoutMs * 1000000
     waitForDeadline waits headerDeadline
     atomically (writeTVar clock headerDeadline)
@@ -283,7 +360,7 @@ httpFaults origin http client resource clock waits =
 
     bodyResource <- either (ioError . userError) pure (mkResourceId "body")
     entered <- newEmptyTMVarIO
-    reader <- async (Content.getBinaryStream (Http.content http) bodyResource $ \_ chunks -> do
+    reader <- async (Content.getBinaryStream (Http.content http) Nothing bodyResource $ \_ chunks -> do
       first <- Stream.next chunks
       case first of
         Left () -> ioError (userError "body stream ended before its first byte")
@@ -295,16 +372,13 @@ httpFaults origin http client resource clock waits =
     cancel reader
     _ <- awaitState origin ((== 1) . count "bodyClosed")
     pure ()
-  where
-    field key (Object fields) = KM.lookup key fields
-    field _ _ = Nothing
 
 credentialCases :: Text -> Http.HttpOptions -> TVar (Maybe Text) -> IORef [Text] -> TVar Integer -> TVar (Set.Set Integer) -> IO ()
 credentialCases origin options supplied renewals clock waits = do
   atomically (writeTVar supplied (Just "refused") >> writeTVar waits Set.empty)
   writeIORef renewals []
   postControl origin "/test/config" (object ["gateSubscribe" .= True, "subscribeFailures" .= ([401, 401] :: [Int])])
-  bracket (Client.fromHttp options) Client.dispose $ \client -> do
+  bracket (Client.fromHttp options Nothing) Client.dispose $ \client -> do
     began <- readTVarIO clock
     Transport.errors (Client.transport client) $ \errors -> do
       postControl origin "/test/config" (object ["gateSubscribe" .= False])
@@ -333,7 +407,7 @@ recoveryCases origin options clock waits = do
   atomically (writeTVar waits Set.empty)
   let seconds = (Timing.degradedThresholdMs * 2 + 999) `div` 1000
   postControl origin "/test/config" (object ["gateSubscribe" .= True, "subscribeFailures" .= ([503] :: [Int]), "subscribeRetryAfter" .= show seconds])
-  bracket (Client.fromHttp options) Client.dispose $ \client -> do
+  bracket (Client.fromHttp options Nothing) Client.dispose $ \client -> do
     began <- readTVarIO clock
     Transport.errors (Client.transport client) $ \errors -> do
       postControl origin "/test/config" (object ["gateSubscribe" .= False])
@@ -357,6 +431,10 @@ postControl origin suffix value = do
   manager <- newManager (managerSetProxy noProxy defaultManagerSettings)
   base <- parseRequest (Text.unpack origin ++ suffix)
   void (httpLbs base { method = "POST", requestHeaders = [("Content-Type", "application/json")], requestBody = RequestBodyLBS (encode value) } manager)
+
+field :: Key.Key -> Value -> Maybe Value
+field key (Object fields)=KM.lookup key fields
+field _ _=Nothing
 
 values :: Key.Key -> Value -> [Value]
 values key (Object fields) = case KM.lookup key fields of Just (Array items) -> toList items; _ -> error "peer state has no list"
@@ -386,7 +464,7 @@ withPeer root fixtures action = bracket
     pure file)
   removeFile $ \file -> bracket
     (do
-      process <- createProcess (proc "python3" [root </> "packages/haskell/sdk/test/http-peer.py", root, file]) { std_in = CreatePipe, std_out = CreatePipe }
+      process <- createProcess (proc python [root </> "packages/haskell/sdk/test/http-peer.py", root, file]) { std_in = CreatePipe, std_out = CreatePipe }
       case process of
         (Just input, Just output, _, peer) -> pure (input, output, peer)
         _ -> ioError (userError "HTTP peer pipes were not created"))

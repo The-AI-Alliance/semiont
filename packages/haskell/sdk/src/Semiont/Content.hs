@@ -22,11 +22,11 @@ bytesBody bytes = ReplayableBody (Just (fromIntegral (Bytes.length bytes))) $ \c
   consume (atomicModifyIORef' remaining (\value -> (Bytes.empty, value)))
 
 data ContentTransport = ContentTransport
-  { putBinary :: ResourceUploadMetadata -> ReplayableBody -> (UploadProgress -> IO ()) -> IO ResourceId
-  , getBinary :: ResourceId -> IO BinaryContent
-  , getBinaryStream :: forall result. ResourceId -> (Text -> Stream (Of ByteString) IO () -> IO result) -> IO result
-  , getResourceGraph :: ResourceId -> IO GetResourceResponse
-  , getAnnotations :: ResourceId -> IO GetAnnotationsResponse
-  , getAnchoredText :: ResourceId -> IO AnchoredTextAnswer
+  { putBinary :: Maybe Text -> ResourceUploadMetadata -> ReplayableBody -> (UploadProgress -> IO ()) -> IO ResourceId
+  , getBinary :: Maybe Text -> ResourceId -> IO BinaryContent
+  , getBinaryStream :: forall result. Maybe Text -> ResourceId -> (Text -> Stream (Of ByteString) IO () -> IO result) -> IO result
+  , getResourceGraph :: Maybe Text -> ResourceId -> IO GetResourceResponse
+  , getAnnotations :: Maybe Text -> ResourceId -> IO GetAnnotationsResponse
+  , getAnchoredText :: Maybe Text -> ResourceId -> IO AnchoredTextAnswer
   , dispose :: IO ()
   }

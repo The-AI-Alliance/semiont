@@ -174,7 +174,8 @@ orphanCases = bracket harness (\(Harness cache _ _) -> Cache.dispose cache) $ \h
   ready 20 events
   atomically (putTMVar oldAnswer (Right 10))
   wait old >>= require "an orphaned caller must still get its own result" . (==10)
-  require "B9 an obsolete response overwrote the current generation" . (==Just 20) =<< atomically (Cache.get cache 1)
+  require "B9 the answer that arrived last did not land" . (==Just 10) =<< atomically (Cache.get cache 1)
+  ready 10 events
   noEmission events
   oldAfterSet <- async (Cache.fetch cache 1)
   (_,setAnswer) <- atomically (readTQueue requests)
@@ -352,6 +353,7 @@ cacheCases = do
     routingKeyCases
     atomicMutationCases
     deferredPatchCases
+    invalidationArrivalCases
     projectedQueryCases
   require "cache contract exceeded its liveness guard" (result == Just ())
   putStrLn "PASS cache B1-B18/B20: lazy reads, deduplication, retry emissions, generation fences, scoped observers, persistence and joined disposal"
@@ -444,3 +446,32 @@ projectedQueryCases = bracket harness (\(Harness cache _ _) -> Cache.dispose cac
   atomically (isEmptyTQueue notices) >>= require "joined query emitted an equal value"
   Cache.dispose cache
   wait reader
+
+
+invalidationArrivalCases :: IO ()
+invalidationArrivalCases = bracket harness (\(Harness cache _ _) -> Cache.dispose cache) $ \(Harness cache requests _) -> do
+  (reader,events) <- subscriber cache 1
+  let acquire = atomically $ do
+        (key,answer) <- readTQueue requests
+        unless (key==1) (throwSTM (userError "B9 fetched the wrong key"))
+        pure answer
+  pending events
+  first <- acquire
+  Cache.invalidateQuery (Cache.query cache 1)
+  second <- acquire
+  atomically (putTMVar second (Right 20))
+  ready 20 events
+  atomically (Cache.persistencePending cache) >>= require "a detached fetch disappeared from persistence quiescence"
+  atomically (putTMVar first (Right 10))
+  ready 10 events
+  idle cache
+  atomically (Cache.get cache 1) >>= require "B9 discarded the answer that arrived last" . (==Just 10)
+  Cache.invalidateQuery (Cache.query cache 1)
+  superseded <- acquire
+  Cache.set cache 1 30
+  ready 30 events
+  atomically (putTMVar superseded (Right 5))
+  idle cache
+  noEmission events
+  atomically (Cache.get cache 1) >>= require "B9 weakened an explicit write fence" . (==Just 30)
+  cancel reader

@@ -1,4 +1,4 @@
-module Semiont.Client (Client, newClient, fromHttp, baseUrl, transport, content, wire, bus, frame, bind, beckon, browse, gather, match, mark, yield, job, auth, system, state, dispose) where
+module Semiont.Client (Client, CachePersistence(..), newClient, fromHttp, baseUrl, transport, content, wire, bus, frame, bind, beckon, browse, gather, match, mark, yield, job, auth, system, state, dispose) where
 
 import Control.Exception (onException, finally, bracketOnError)
 import Control.Monad (unless)
@@ -10,6 +10,8 @@ import qualified Semiont.Internal.Mark as Mark
 import qualified Semiont.Internal.Yield as Yield
 import qualified Semiont.Internal.Delegation as Delegation
 import qualified Semiont.Internal.Refresh as Refresh
+import Semiont.Internal.Persistence (CachePersistence(..))
+import qualified Semiont.Internal.Coupled as Coupled
 import Data.Text (Text)
 import qualified Data.UUID.Types as UUID
 import qualified Semiont.Http as Http
@@ -46,32 +48,47 @@ data Client = Client
   , clientJob :: JobNamespace
   , clientAuth :: Maybe AuthNamespace
   , clientSystem :: Maybe SystemNamespace
+  , clientCoupled :: Maybe Coupled.Coupled
   , clientDisconnect :: IO ()
   }
 
-newClient :: Transport.Transport -> Content.ContentTransport -> Maybe GatewayOperations -> Bus.BusOptions -> Timing.Settings -> IO Client
-newClient carrier contents gateway options timing =
+newClient :: Transport.Transport -> Content.ContentTransport -> Maybe GatewayOperations -> Bus.BusOptions -> Timing.Settings -> Maybe CachePersistence -> IO Client
+newClient carrier contents gateway options timing persistence = do
+  ownedPersistence <- preparePersistence persistence
+  construct carrier contents gateway options timing ownedPersistence
+    `onException` mapM_ (Coupled.dispose . snd) ownedPersistence
+
+preparePersistence :: Maybe CachePersistence -> IO (Maybe (CachePersistence,Coupled.Coupled))
+preparePersistence = traverse (\config -> (,) config <$> Coupled.newCoupled (cacheStorage config) (cachePrefix config))
+
+construct :: Transport.Transport -> Content.ContentTransport -> Maybe GatewayOperations -> Bus.BusOptions -> Timing.Settings -> Maybe (CachePersistence,Coupled.Coupled) -> IO Client
+construct carrier contents gateway options timing ownedPersistence =
   bracketOnError Local.newEventBus Local.closeEventBus $ \local ->
   bracketOnError (Transport.bridgeInto carrier local) id $ \disconnect -> do
     let typed = Bus.newBus options carrier
     bracketOnError (Delegation.newFollower typed local options timing) Delegation.dispose $ \follower ->
-      bracketOnError (Browse.newBrowse typed local carrier contents options timing) Browse.dispose $ \browseQueries ->
+      bracketOnError (Browse.newBrowse typed local carrier contents options timing (fmap (\(config,owner) -> config { cacheStorage=Coupled.storage owner }) ownedPersistence)) Browse.dispose $ \browseQueries ->
         bracketOnError (Gather.newGather typed carrier options timing) Gather.dispose $ \gatherQueries ->
         bracketOnError (Match.newMatch typed local options timing) Match.dispose $ \matchQueries -> do
           let controls = Browse.controls browseQueries ++ Gather.controls gatherQueries ++ Match.controls matchQueries
           unless (sort (map fst controls) == [minBound..maxBound]) (ioError (userError "the client does not own every refresh-table query exactly once"))
-          refresher <- Refresh.newRefresher local carrier options timing controls
-          pure (Client carrier contents typed local (newFrame typed timing) (newBind typed local timing) (newBeckon typed local)
-            browseQueries gatherQueries matchQueries (Mark.newMark typed local timing follower)
-              (Yield.newYield typed local contents timing follower) follower refresher (newJob typed local carrier options timing) (newAuth <$> gateway) (newSystem <$> gateway) disconnect)
+          bracketOnError (Refresh.newRefresher local carrier options timing controls) Refresh.dispose $ \refresher -> do
+            mapM_ (\owner -> Coupled.start owner (not <$> ((||) <$> Browse.persistencePending browseQueries <*> Refresh.pending refresher))) (snd <$> ownedPersistence)
+            pure (Client carrier contents typed local (newFrame typed timing) (newBind typed local timing) (newBeckon typed local)
+              browseQueries gatherQueries matchQueries (Mark.newMark typed local timing follower)
+              (Yield.newYield typed local contents timing follower) follower refresher (newJob typed local carrier options timing) (newAuth <$> gateway) (newSystem <$> gateway) (snd <$> ownedPersistence) disconnect)
 
-fromHttp :: Http.HttpOptions -> IO Client
-fromHttp options = do
-  http <- Http.newHttpTransport options
+fromHttp :: Http.HttpOptions -> Maybe CachePersistence -> IO Client
+fromHttp options persistence = do
+  ownedPersistence <- preparePersistence persistence
+  let actual=case snd <$> ownedPersistence of
+        Nothing -> options
+        Just owner -> options { Http.httpLoadPositions=Coupled.loadPositions owner, Http.httpSavePosition=Coupled.savePosition owner }
+  http <- Http.newHttpTransport actual `onException` mapM_ (Coupled.dispose . snd) ownedPersistence
   let time = Http.httpTime options
       busOptions = Bus.BusOptions (Retry.retryNow time) (Retry.retryWaitUntil time) (UUID.toText <$> Http.httpNewId options)
-  newClient (Http.transport http) (Http.content http) (Just (Http.gateway http)) busOptions (Http.httpTiming options)
-    `onException` Http.dispose http
+  construct (Http.transport http) (Http.content http) (Just (Http.gateway http)) busOptions (Http.httpTiming options) ownedPersistence
+    `onException` (Http.dispose http `finally` mapM_ (Coupled.dispose . snd) ownedPersistence)
 
 baseUrl :: Client -> Text
 baseUrl = Transport.baseUrl . transport
@@ -113,7 +130,7 @@ state :: Client -> StateValue Transport.ConnectionState
 state = Transport.state . transport
 dispose :: Client -> IO ()
 dispose client =
-  Delegation.dispose (clientFollower client) `finally` Refresh.dispose (clientRefresh client) `finally` (Browse.dispose (browse client)
+  mapM_ Coupled.dispose (clientCoupled client) `finally` Delegation.dispose (clientFollower client) `finally` Refresh.dispose (clientRefresh client) `finally` (Browse.dispose (browse client)
     `finally` Gather.dispose (gather client) `finally` Match.dispose (match client)
     `finally` Transport.dispose (transport client)) `finally` (Content.dispose (content client)
     `finally` (clientDisconnect client `finally` Local.closeEventBus (bus client)))

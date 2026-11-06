@@ -5,7 +5,7 @@ import Control.Concurrent.STM
 import Control.Exception (bracket_, throwIO)
 import Control.Monad (unless, when)
 import Control.Monad.IO.Class (liftIO)
-import Data.Aeson (Value(..), encode, toJSON)
+import Data.Aeson (Value(..), encode, toJSON, object, (.=))
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString as Bytes
@@ -26,6 +26,7 @@ import Semiont.Http.Routes
 import Semiont.Internal.Http
 import qualified Semiont.Internal.Lifetime as Lifetime
 import qualified Semiont.Internal.Telemetry as Telemetry
+import qualified Semiont.Internal.BusLog as BusLog
 import OpenTelemetry.Attributes (toAttribute)
 import qualified OpenTelemetry.Trace.Core as Trace
 import qualified Semiont.Timing.Settings as Settings
@@ -37,20 +38,23 @@ newContent http = do
   life <- Lifetime.newLifetime "HTTP transport is closed"
   let owned :: IO result -> IO result
       owned = Lifetime.run life
-      stream :: Bool -> ResourceId -> (Text.Text -> Stream.Stream (Stream.Of Bytes.ByteString) IO () -> IO result) -> IO result
-      stream streaming resource consume = owned $ report http $ Telemetry.withSpan Trace.Client "content.get"
-        (("resource.id", toAttribute (resourceIdValue resource)) : [("content.stream", toAttribute True) | streaming]) $ exchange http GetResourceRepresentation (Just resource) (pure (RequestBodyBS Bytes.empty)) Nothing Nothing [] $ \response -> do
-        media <- maybe (throwIO (TransportError Code.TransportError "Content response has no media type" Nothing Nothing)) pure
-          (lookup "Content-Type" (responseHeaders response))
-        active <- newTVarIO True
-        let chunks = do
-              bytes <- liftIO $ do
-                available <- atomically ((&&) <$> readTVar active <*> (not <$> Lifetime.isClosed life))
-                unless available (throwIO (TransportError Code.TransportError "Content reader is outside its response scope" Nothing Nothing))
-                brRead (responseBody response)
-              unless (Bytes.null bytes) (Stream.yield bytes >> chunks)
-        bracket_ (pure ()) (atomically (writeTVar active False)) (consume (decodeUtf8With lenientDecode media) chunks)
-      upload metadata source progress = owned $ report http $ do
+      stream :: Bool -> Maybe Text.Text -> ResourceId -> (Text.Text -> Stream.Stream (Stream.Of Bytes.ByteString) IO () -> IO result) -> IO result
+      stream streaming override resource consume = owned $ report http $ Telemetry.withSpan Trace.Client "content.get"
+        (("resource.id", toAttribute (resourceIdValue resource)) : [("content.stream", toAttribute True) | streaming]) $ do
+        BusLog.content (logger http) "GET" (object ["resourceId" .= resource])
+        exchange http GetResourceRepresentation (Just resource) (pure (RequestBodyBS Bytes.empty)) Nothing override [] $ \response -> do
+          media <- maybe (throwIO (TransportError Code.TransportError "Content response has no media type" Nothing Nothing)) pure
+            (lookup "Content-Type" (responseHeaders response))
+          active <- newTVarIO True
+          let chunks = do
+                bytes <- liftIO $ do
+                  available <- atomically ((&&) <$> readTVar active <*> (not <$> Lifetime.isClosed life))
+                  unless available (throwIO (TransportError Code.TransportError "Content reader is outside its response scope" Nothing Nothing))
+                  brRead (responseBody response)
+                unless (Bytes.null bytes) (Stream.yield bytes >> chunks)
+          bracket_ (pure ()) (atomically (writeTVar active False)) (consume (decodeUtf8With lenientDecode media) chunks)
+      upload override metadata source progress = owned $ report http $ do
+        BusLog.content (logger http) "PUT" (toJSON metadata)
         high <- newIORef (0 :: Integer)
         Telemetry.withUpload (resourceUploadMetadataFormat metadata) (maybe (readIORef high) (pure . toInteger) (Content.bodyLength source)) $ do
           _ <- checked metadata
@@ -105,15 +109,17 @@ newContent http = do
           media <- case routeRequestMediaType uploadRoute of
             Just value | value == "multipart/form-data" -> pure value
             _ -> throwIO (TransportError Code.TransportBadRequest "Upload route no longer accepts multipart" Nothing Nothing)
-          exchange http uploadRoute Nothing (pure body) (Just key) Nothing [("Content-Type", media <> "; boundary=" <> marker)] $ \response -> do
+          exchange http uploadRoute Nothing (pure body) (Just key) override [("Content-Type", media <> "; boundary=" <> marker)] $ \response -> do
             bytes <- deadline http (Settings.httpRequestTimeoutMs (httpTiming (options http))) (Bytes.concat <$> brConsume (responseBody response))
             createResourceResponseResourceId <$> readAnswer uploadRoute bytes
+  let readNote :: ResourceId -> IO result -> IO result
+      readNote resource action=BusLog.content (logger http) "GET" (object ["resourceId" .= resource]) >> action
   pure Content.ContentTransport
     { Content.putBinary = upload
     , Content.getBinaryStream = stream True
-    , Content.getBinary = \resource -> stream False resource (\media chunks -> deadline http (Settings.httpRequestTimeoutMs (httpTiming (options http))) (Content.BinaryContent media . Bytes.concat <$> Stream.toList_ chunks))
-    , Content.getResourceGraph = \resource -> owned (Telemetry.withSpan Trace.Client "content.get_graph" [("resource.id", toAttribute (resourceIdValue resource))] (json http GetResourceJsonLd (Just resource) Nothing ()))
-    , Content.getAnnotations = \resource -> owned (Telemetry.withSpan Trace.Client "content.get_annotations" [("resource.id", toAttribute (resourceIdValue resource))] (json http GetResourceAnnotations (Just resource) Nothing ()))
-    , Content.getAnchoredText = \resource -> owned (Telemetry.withSpan Trace.Client "content.get_anchored_text" [("resource.id", toAttribute (resourceIdValue resource))] (json http GetResourceAnchoredText (Just resource) Nothing ()))
+    , Content.getBinary = \override resource -> stream False override resource (\media chunks -> deadline http (Settings.httpRequestTimeoutMs (httpTiming (options http))) (Content.BinaryContent media . Bytes.concat <$> Stream.toList_ chunks))
+    , Content.getResourceGraph = \override resource -> owned (readNote resource (Telemetry.withSpan Trace.Client "content.get_graph" [("resource.id", toAttribute (resourceIdValue resource))] (json http GetResourceJsonLd (Just resource) override ())))
+    , Content.getAnnotations = \override resource -> owned (readNote resource (Telemetry.withSpan Trace.Client "content.get_annotations" [("resource.id", toAttribute (resourceIdValue resource))] (json http GetResourceAnnotations (Just resource) override ())))
+    , Content.getAnchoredText = \override resource -> owned (readNote resource (Telemetry.withSpan Trace.Client "content.get_anchored_text" [("resource.id", toAttribute (resourceIdValue resource))] (json http GetResourceAnchoredText (Just resource) override ())))
     , Content.dispose = Lifetime.close life
     }

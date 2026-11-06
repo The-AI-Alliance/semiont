@@ -72,7 +72,7 @@ withAnswers fixtures answerOverride action = do
   inputCell <- newEmptyTMVarIO
   let clock = Bus.BusOptions (pure 0) (\_ -> atomically retry) (atomically $ do modifyTVar' ids (+1); T.pack . show <$> readTVar ids)
       recordContent name identity = atomically (writeTQueue calls (Called ("content:"<>name) (Object (KM.singleton "resourceId" (toJSON identity)))))
-      contents = Content.ContentTransport (\metadata source progress -> do
+      contents = Content.ContentTransport (\_ metadata source progress -> do
           captured <- newEmptyTMVarIO
           Content.openBody source $ \popper -> do
             let readAll = do chunk <- popper; if Bytes.null chunk then pure Bytes.empty else (chunk<>) <$> readAll
@@ -82,11 +82,11 @@ withAnswers fixtures answerOverride action = do
           atomically (writeTQueue calls (Called "content:putBinary" sent))
           progress (Content.UploadProgress (fromIntegral (Bytes.length bytes)) (fromIntegral (Bytes.length bytes)))
           createResourceResponseResourceId <$> fixture fixtures "CreateResourceResponse")
-        (\identity -> recordContent "getBinary" identity >> pure (Content.BinaryContent "text/plain" "surface"))
-        (\identity consume -> recordContent "getBinaryStream" identity >> consume "text/plain" (Stream.yield "surface"))
-        (\identity -> recordContent "getResourceGraph" identity >> fixture fixtures "GetResourceResponse")
-        (\identity -> recordContent "getAnnotations" identity >> fixture fixtures "GetAnnotationsResponse")
-        (\identity -> recordContent "getAnchoredText" identity >> fixture fixtures "AnchoredTextAnswer") (pure ())
+        (\_ identity -> recordContent "getBinary" identity >> pure (Content.BinaryContent "text/plain" "surface"))
+        (\_ identity consume -> recordContent "getBinaryStream" identity >> consume "text/plain" (Stream.yield "surface"))
+        (\_ identity -> recordContent "getResourceGraph" identity >> fixture fixtures "GetResourceResponse")
+        (\_ identity -> recordContent "getAnnotations" identity >> fixture fixtures "GetAnnotationsResponse")
+        (\_ identity -> recordContent "getAnchoredText" identity >> fixture fixtures "AnchoredTextAnswer") (pure ())
       gatewayCall :: FromJSON result => Text -> Value -> Text -> IO result
       gatewayCall name input schema = atomically (writeTQueue calls (Called ("gateway:" <> name) input)) >> fixture fixtures schema
       gateway = Gateway.GatewayOperations
@@ -122,7 +122,7 @@ withAnswers fixtures answerOverride action = do
       atomically (putTMVar inputCell input)
       Transport.setState input Transport.Connecting
       Transport.setState input Transport.Open
-      bracket (Client.newClient carrier contents (Just gateway) clock Timing.protocolSettings) Client.dispose $ \client ->
+      bracket (Client.newClient carrier contents (Just gateway) clock Timing.protocolSettings Nothing) Client.dispose $ \client ->
         action (Rig client input clock calls)
 
 surfaceCases :: FilePath -> Map.Map Text Value -> IO ()

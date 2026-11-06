@@ -67,15 +67,14 @@ public sealed class AgentToken : IDisposable
         lock (gate)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
-            if (token is null || token != refused) return Task.FromResult(token);
+            if (token != refused) return Task.FromResult(token);
             if (renewing is { IsCompleted: false }) return renewing;
-            var access = token;
-            renewing = Task.Run(() => RenewAsync(access, retry, lifetime.Token));
+            renewing = Task.Run(() => RenewAsync(refused, retry, lifetime.Token));
             return renewing;
         }
     }
 
-    private async Task<string?> RenewAsync(string refused, bool retry, CancellationToken cancellation)
+    private async Task<string?> RenewAsync(string? refused, bool retry, CancellationToken cancellation)
     {
         var access = await service.TokenAsync(refused, retry, cancellation).ConfigureAwait(false);
         lock (gate)

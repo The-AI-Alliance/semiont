@@ -9,7 +9,7 @@ category: Network
 author: The AI Alliance
 maintainer: Semiont contributors
 build-type: Simple
-extra-source-files: test/fixtures/*.pem, codegen/session-adapters.json, semiont.cabal.in, README.md, run.sh, api.py, public-api.inputs.json, public-api.json, test/refusals.py, test/refusals/*.hs, test/http-peer.py, conformance/README.md, conformance/launch.sh
+extra-source-files: codegen/registry-adapters.json, codegen/annotation-adapters.json, test/store-owner-policy.py, test/store-owner-policy.ps1, test/store-lock-peer.py, generated/Semiont/Internal/Generated/semiont_store_policy.h, test/fixtures/*.pem, codegen/session-adapters.json, semiont.cabal.in, README.md, run.sh, api.py, public-api.inputs.json, public-api.json, test/refusals.py, test/refusals/*.hs, test/http-peer.py, conformance/README.md, conformance/launch.sh
 
 common settings
   default-language: GHC2021
@@ -26,7 +26,8 @@ common settings
     stm >=2.5 && <2.6,
     streaming >=0.2 && <0.3,
     text >=2.1 && <2.2,
-    vector >=0.13 && <0.14
+    vector >=0.13 && <0.14,
+    QuickCheck >=2.18 && <2.19
 
 common context-propagation
   build-depends: hs-opentelemetry-api >=1.0 && <1.1, http-client >=0.7 && <0.8, http-types >=0.12 && <0.13, case-insensitive >=1.2 && <1.3, network-uri >=2.6 && <2.7, uuid-types >=1.0 && <1.1, unordered-containers >=0.2 && <0.3
@@ -37,12 +38,18 @@ common crypto
 library
   default-language: GHC2021
   build-depends: base >=4.20 && <4.21, semiont:internal
-  reexported-modules: Semiont.Types, Semiont.Types.Presence, Semiont.Channels, Semiont.Running, Semiont.ErrorCodes, Semiont.Timing, Semiont.Timing.Settings, Semiont.Retry, Semiont.Discovery, Semiont.Discovery.Reasons, Semiont.Transport, Semiont.Transport.Facts, Semiont.StateValue, Semiont.Errors, Semiont.EventBus, Semiont.Bus, Semiont.Http, Semiont.Content, Semiont.Gateway, Semiont.Frame, Semiont.Auth, Semiont.System, Semiont.Client, Semiont.JobFilter, Semiont.Claims, Semiont.HostName, Semiont.Worker, Semiont.Worker.Types, Semiont.Bind, Semiont.Beckon, Semiont.Job, Semiont.Cache, Semiont.Resources, Semiont.MediaTypes, Semiont.Browse, Semiont.Gather, Semiont.Match, Semiont.Delegation, Semiont.Mark, Semiont.Yield, Semiont.Tokens, Semiont.SessionStorage, Semiont.Session, Semiont.Issuer, Semiont.Registry.Stored, Semiont.ClientAssertion, Semiont.ServiceToken
+  reexported-modules: Semiont.Types, Semiont.Types.Presence, Semiont.Channels, Semiont.Running, Semiont.ErrorCodes, Semiont.Timing, Semiont.Timing.Settings, Semiont.Retry, Semiont.Discovery, Semiont.Discovery.Reasons, Semiont.Transport, Semiont.Transport.Facts, Semiont.StateValue, Semiont.Errors, Semiont.EventBus, Semiont.Bus, Semiont.Http, Semiont.Http.Discovery, Semiont.Content, Semiont.Gateway, Semiont.Frame, Semiont.Auth, Semiont.System, Semiont.Client, Semiont.JobFilter, Semiont.Claims, Semiont.HostName, Semiont.Worker, Semiont.Worker.Types, Semiont.Bind, Semiont.Beckon, Semiont.Job, Semiont.Cache, Semiont.Resources, Semiont.MediaTypes, Semiont.Browse, Semiont.Gather, Semiont.Match, Semiont.Delegation, Semiont.Mark, Semiont.Yield, Semiont.Tokens, Semiont.SessionStorage, Semiont.Session, Semiont.Issuer, Semiont.Registry.Stored, Semiont.ClientAssertion, Semiont.ServiceToken, Semiont.SignIn, Semiont.SignInStore, Semiont.Annotations, Semiont.Identity, Semiont.StoragePersister, Semiont.State.SessionSignals, Semiont.Registry.Identity, Semiont.Registry.Factory, Semiont.Registry.Resources, Semiont.Registry, Semiont.State.HoverDwell, Semiont.State.Search, Semiont.State.Beckon, Semiont.State.Match, Semiont.State.Gather, Semiont.State.Mark, Semiont.State.Yield, Semiont.Testing, Semiont.Testing.Client, Semiont.Testing.Transport, Semiont.Testing.Storage, Semiont.Testing.Sessions, Semiont.Testing.Liveness
 
 library internal
   import: settings, context-propagation, crypto
+  build-depends: directory >=1.3 && <1.4, filepath >=1.5 && <1.6, time >=1.12 && <1.13
   visibility: private
   hs-source-dirs: src, internal, generated
+  c-sources: internal/Semiont/Internal/NativeStore.c
+  include-dirs: generated/Semiont/Internal/Generated
+  cc-options: -Wall -Wextra -Werror
+  if os(windows)
+    extra-libraries: advapi32
   exposed-modules:
     Semiont.Types
     Semiont.Types.Presence
@@ -82,7 +89,48 @@ library internal
     Semiont.Internal.Delivery
     Semiont.Internal.StateValue
     Semiont.Internal.Transport
+    Semiont.Registry
+    Semiont.Registry.Resources
+    Semiont.Registry.Factory
+    Semiont.Internal.Generated.SessionFactoryOptions
+    Semiont.Internal.Generated.RegistryPolicy
+    Semiont.Registry.Identity
+    Semiont.State.SessionSignals
+    Semiont.State.Beckon
+    Semiont.State.Match
+    Semiont.State.Gather
+    Semiont.State.Mark
+    Semiont.State.Yield
+    Semiont.Testing
+    Semiont.Testing.Client
+    Semiont.Testing.Transport
+    Semiont.Testing.Storage
+    Semiont.Testing.Sessions
+    Semiont.Testing.Liveness
+    Semiont.Internal.Generated.Testing
+    Semiont.Internal.Generated.PendingAnnotation
+    Semiont.Internal.Generated.MarkMotivation
+    Semiont.State.HoverDwell
+    Semiont.State.Search
+    Semiont.Internal.Generated.SearchState
+    Semiont.Internal.StateTasks
+    Semiont.Internal.Generated.SessionNotices
+    Semiont.StoragePersister
+    Semiont.Internal.Coupled
+    Semiont.Internal.Persistence
+    Semiont.Internal.Generated.CachePersistence
+    Semiont.Internal.Generated.Stored
+    Semiont.Identity
+    Semiont.Internal.Generated.Principals
+    Semiont.Internal.Generated.BusLog
+    Semiont.Internal.BusLog
+    Semiont.Internal.Generated.UnicodeCase
+    Semiont.Annotations
+    Semiont.Internal.Annotations.Id
+    Semiont.Internal.Annotations.Pdf
+    Semiont.Internal.Annotations.Spans
     Semiont.Http
+    Semiont.Http.Discovery
     Semiont.Content
     Semiont.Gateway
     Semiont.Frame
@@ -112,6 +160,8 @@ library internal
     Semiont.Issuer
     Semiont.ClientAssertion
     Semiont.ServiceToken
+    Semiont.SignIn
+    Semiont.SignInStore
     Semiont.Registry.Stored
     Semiont.Internal.Http
     Semiont.Internal.HttpActor
@@ -130,8 +180,11 @@ library internal
     Semiont.Internal.Local
     Semiont.Internal.RetryPolicy
     Semiont.Internal.Generated.OperationFailure
-    Semiont.Internal.Generated.Stored
     Semiont.Internal.Generated.OAuth
+    Semiont.Internal.Generated.SignInStore
+    Semiont.Internal.NativeStore
+    Semiont.Internal.SignIn
+    Semiont.Internal.Stored
     Semiont.Internal.Generated.ClientAssertion
     Semiont.Internal.Generated.ServiceProof
     Semiont.Internal.Issuer
@@ -153,13 +206,22 @@ test-suite schema-cases
   type: exitcode-stdio-1.0
   main-is: Main.hs
   hs-source-dirs: test
-  other-modules: Semiont.Internal.Generated.RoundTrip, Semiont.Internal.Generated.ChannelRoundTrip, Semiont.Internal.Generated.ErrorRoundTrip, Semiont.Internal.Generated.TimingValues, Semiont.Internal.Generated.DiscoveryReasonRoundTrip, Runtime, Discovery, BusCases, SchemaCases, HttpCases, LifetimeCases, WorkerCases, GatewayCases, HeldCases, SurfaceCases, CacheCases, ControlledTime, ClockCases, ResourceCases, FrameCases, RefreshCases, TextCases, DelegationCases, TokenStorageCases, SessionCases, IssuerCases, ClientAssertionCases
+  other-modules: Semiont.Internal.Generated.RoundTrip, Semiont.Internal.Generated.ChannelRoundTrip, Semiont.Internal.Generated.ErrorRoundTrip, Semiont.Internal.Generated.TimingValues, Semiont.Internal.Generated.DiscoveryReasonRoundTrip, Runtime, Discovery, BusCases, SchemaCases, HttpCases, HttpDiscoveryCases, AnnotationCases, IdentityCases, BusLogCases, PersistenceCases, StateUnitCases, FlowCases, ActorCases, TestingCases, RegistryCases, RegistryRuntimeCases, LifetimeCases, WorkerCases, GatewayCases, HeldCases, SurfaceCases, CacheCases, ControlledTime, ClockCases, ResourceCases, FrameCases, RefreshCases, TextCases, DelegationCases, TokenStorageCases, SessionCases, IssuerCases, ClientAssertionCases, SignInStoreCases, TestProcess
   ghc-options: -threaded
-  build-depends: semiont:internal, process >=1.6 && <1.7, directory >=1.3 && <1.4, filepath >=1.5 && <1.6
+  build-depends: semiont:internal, process >=1.6 && <1.7, directory >=1.3 && <1.4, filepath >=1.5 && <1.6, time >=1.12 && <1.13
 
 executable semiont-haskell-wire-driver
   import: settings, context-propagation
   main-is: Main.hs
+  other-modules: DriverProtocol
   hs-source-dirs: conformance
   ghc-options: -threaded
   build-depends: semiont, http-client >=0.7 && <0.8, uuid >=1.3 && <1.4, uuid-types >=1.0 && <1.1, random >=1.3 && <1.4, time >=1.12 && <1.13, hs-opentelemetry-sdk >=1.0 && <1.1
+
+executable semiont-haskell-live-driver
+  import: settings, context-propagation
+  main-is: LiveMain.hs
+  other-modules: DriverProtocol, LiveQueries
+  hs-source-dirs: conformance
+  ghc-options: -threaded
+  build-depends: semiont, http-client >=0.7 && <0.8, uuid >=1.3 && <1.4, uuid-types >=1.0 && <1.1, random >=1.3 && <1.4, time >=1.12 && <1.13

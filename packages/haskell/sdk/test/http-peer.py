@@ -24,7 +24,7 @@ for path, item in spec["paths"].items():
 operations = {row["request"]: row for row in registry["operations"]}
 channels = {row["channel"]: row for row in registry["channels"]}
 state = {"requests": [], "subscriptions": [], "uploads": [], "disconnected": 0, "bodyClosed": 0, "headersClosed": 0}
-controls = {"uploadStatuses": [], "emitStatuses": [], "subscribeFailures": [], "subscribeRetryAfter": "0"}
+controls = {"uploadStatuses": [], "emitStatuses": [], "subscribeFailures": [], "subscribeRetryAfter": "0", "refusedOperations": []}
 subscribe_ready = threading.Event()
 subscribe_ready.set()
 gate = threading.Lock()
@@ -149,9 +149,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
             operation = operations.get(body["channel"])
             if operation:
-                channel = channels[operation["result"]]
+                result = operation["failure"] if body["channel"] in controls["refusedOperations"] else operation["result"]
+                channel = channels[result]
                 payload = {} if channel["shape"] in ("empty", "void") else fixtures[channel["schema"]]
-                frame = {"channel": operation["result"], "correlationId": body["correlationId"], "payload": payload}
+                frame = {"channel": result, "correlationId": body["correlationId"], "payload": payload}
                 with gate:
                     for subscription, received in listeners:
                         if subscription["clientId"] == body["clientId"]:
@@ -179,6 +180,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
         content_prefix = routes["getResourceRepresentation"][1].split("{id}")[0]
         if self.path.startswith(content_prefix):
+            if record["token"] == "Bearer refused-content-override":
+                self.reply({"error": "explicit content credential refused"}, 401)
+                return
             suffix = self.path.rsplit("/", 1)[-1]
             schemas = {"jsonld": "GetResourceResponse", "annotations": "GetAnnotationsResponse", "anchored-text": "AnchoredTextAnswer"}
             if suffix in schemas:

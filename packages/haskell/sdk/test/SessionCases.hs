@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
-module SessionCases (sessionCases, sessionClockCases) where
+module SessionCases (jwt, sessionCases, sessionClockCases) where
 
 import Control.Concurrent.Async (async, wait, replicateConcurrently)
 import Control.Concurrent.STM
@@ -24,6 +24,7 @@ import qualified Semiont.ErrorCodes as Code
 import Semiont.Errors
 import qualified Semiont.Retry as Retry
 import qualified Semiont.Session as Session
+import qualified Semiont.SignIn as SignIn
 import qualified Semiont.SessionStorage as Storage
 import qualified Semiont.Registry.Stored as Stored
 import qualified Semiont.StateValue as State
@@ -57,11 +58,11 @@ timeOptions time = Retry.RetryOptions (Time.now time) (Time.waitUntil time) (pur
 withClient :: Time.ControlledTime -> (Client.Client -> IO result) -> IO result
 withClient time action = do
   let unused = ioError (userError "the session used a client operation its case never called")
-      contents = Content.ContentTransport (\_ _ _ -> unused) (const unused) (\_ _ -> unused)
-        (const unused) (const unused) (const unused) (pure ())
+      contents = Content.ContentTransport (\_ _ _ _ -> unused) (\_ _ -> unused) (\_ _ _ -> unused)
+        (\_ _ -> unused) (\_ _ -> unused) (\_ _ -> unused) (pure ())
       options = Bus.BusOptions (Time.now time) (Time.waitUntil time) (pure "session-case")
   (transport,_) <- Transport.newTransport (Transport.TransportOptions "http://localhost:4000" Set.empty (const unused) (pure ()))
-  bracket (Client.newClient transport contents Nothing options Timing.protocolSettings) Client.dispose action
+  bracket (Client.newClient transport contents Nothing options Timing.protocolSettings Nothing) Client.dispose action
 
 stored :: Text -> StoredSession
 stored access = StoredSession access "session-cases" "refresh-credential" Nothing "https://issuer.test/token" KM.empty
@@ -110,7 +111,7 @@ sessionCases root fixtures = do
               "refuses" -> throwIO (SignInError Code.SignInExchange "refused" (Just 400))
               "unreachable" -> throwIO (SignInError Code.SignInExchange "no answer" Nothing)
               _ -> ioError (userError "unknown issuer script answer")
-          options = Session.SessionOptions "case" target storage Nothing (Just (const renew)) (Just (\_ -> validate))
+          options = Session.SessionOptions "case" target (Stored.keptIn storage (kbTargetId target)) Nothing (Just (const renew)) (Just (\_ -> validate))
             (\reason -> atomically (modifyTVar' told (<>[Session.sessionEndReason reason])))
             (\failure -> atomically (modifyTVar' failures (<>[Code.sessionCode (sessionErrorCode failure)])))
             (pure 1800000000)
@@ -131,7 +132,13 @@ sessionCases root fixtures = do
         Session.ready session
         whenSignedIn (if section=="refusal" then "signed-in" else "") $ do
           atomically (writeTVar beginning False)
-          given <- Session.refresh session
+          held <- atomically (State.current (Session.token session))
+          refused <- readValue (member "refused" row) :: IO Text
+          let previous=case refused of
+                "held" -> held
+                "replaced" -> Just (jwt 3600 (-1))
+                _ -> error "unknown refused-token selector"
+          given <- Session.refresh session previous
           expected <- readValue (member "given" row)
           require "refusal returned the wrong credential presence" (maybe False (const True) given==expected)
         Time.settle
@@ -169,11 +176,11 @@ concurrentCases target person = do
     calls <- newTVarIO (0::Integer)
     gate <- newEmptyTMVarIO
     let renew = atomically (modifyTVar' calls (+1)) >> atomically (readTMVar gate) >> pure (Just (jwt 3600 1))
-        options = Session.SessionOptions "concurrent" target storage Nothing (Just (const renew)) (Just (\_ _ -> pure (Just person)))
+        options = Session.SessionOptions "concurrent" target (Stored.keptIn storage (kbTargetId target)) Nothing (Just (const renew)) (Just (\_ _ -> pure (Just person)))
           (const (pure ())) (const (pure ())) (pure 1800000000)
     bracket (Session.newSession owned options (timeOptions time) Timing.protocolSettings) Session.dispose $ \session -> do
       Session.ready session
-      pending <- async (replicateConcurrently 20 (Session.refresh session))
+      pending <- async (replicateConcurrently 20 (Session.refresh session Nothing))
       Time.settle
       require "concurrent refusals rotated the grant more than once" . (==1) =<< readTVarIO calls
       atomically (putTMVar gate ())
@@ -198,12 +205,12 @@ externalCases target person = do
     gate <- newEmptyTMVarIO
     started <- newEmptyTMVarIO
     let issue = atomically (putTMVar started ()) >> atomically (readTMVar gate) >> pure (Just (jwt 3600 1))
-        options = Session.SessionOptions "external" target storage Nothing (Just (const issue)) (Just (\_ _ -> pure (Just person)))
+        options = Session.SessionOptions "external" target (Stored.keptIn storage (kbTargetId target)) Nothing (Just (const issue)) (Just (\_ _ -> pure (Just person)))
           (const (ioError (userError "external sign-out notified expiry")))
           (const (ioError (userError "a replaced renewal reported a failure"))) (pure 1800000000)
     session <- Session.newSession owned options (timeOptions time) Timing.protocolSettings
     Session.ready session
-    pending <- async (Session.refresh session)
+    pending <- async (Session.refresh session Nothing)
     atomically (readTMVar started)
     Stored.clearStoredSession storage (kbTargetId target)
     observe <- atomically (readTMVar listener)
@@ -219,25 +226,35 @@ externalCases target person = do
     -- callers which did not themselves cancel their refusal request.
     Stored.storeSession memory (kbTargetId target) (stored (jwt 3600 0))
     waiting <- newEmptyTMVarIO
-    let held = options { Session.sessionStorage=memory,
+    let held = options { Session.sessionKept=Stored.keptIn memory (kbTargetId target),
           Session.sessionRefresh=Just (\_ -> atomically (putTMVar waiting ()) >> atomically retry) }
     blocked <- Session.newSession owned held (timeOptions time) Timing.protocolSettings
     Session.ready blocked
-    refusal <- async (try (Session.refresh blocked) :: IO (Either BusRequestError (Maybe Text)))
+    refusal <- async (try (Session.refresh blocked Nothing) :: IO (Either BusRequestError (Maybe Text)))
     atomically (readTMVar waiting)
     Session.dispose blocked
     outcome <- wait refusal
     require "disposed renewal caller remained usable" (case outcome of Left failure -> busRequestErrorCode failure==Code.BusRequestClosed; _ -> False)
     Stored.storeSession memory (kbTargetId target) (stored (jwt (-300) 0))
-    let broken = options { Session.sessionStorage=memory,
+    let broken = options { Session.sessionKept=Stored.keptIn memory (kbTargetId target),
           Session.sessionRefresh=Just (\_ -> throwIO (SignInError Code.SignInExchange "no answer" Nothing)),
           Session.sessionOnError=const (ioError (userError "host error handler failed")) }
     failed <- Session.newSession owned broken (timeOptions time) Timing.protocolSettings
     badReady <- try (Session.ready failed) :: IO (Either IOException ())
     require "a failed host callback made startup look successful" (case badReady of Left _ -> True; _ -> False)
-    afterFailure <- try (Session.refresh failed) :: IO (Either BusRequestError (Maybe Text))
+    afterFailure <- try (Session.refresh failed Nothing) :: IO (Either BusRequestError (Maybe Text))
     require "a stopped session worker left later renewal callers waiting" (case afterFailure of Left failure -> busRequestErrorCode failure==Code.BusRequestClosed; _ -> False)
     Session.dispose failed
+    grant <- SignIn.newMemorySignIn
+    SignIn.keep grant (stored (jwt 3600 0))
+    let forgotten=options { Session.sessionKept=grant, Session.sessionRefresh=Just (const (pure Nothing)) }
+    missing <- Session.newSession owned forgotten (timeOptions time) Timing.protocolSettings
+    Session.ready missing
+    SignIn.forget grant
+    answer <- Session.refresh missing Nothing
+    require "forgotten grant remained usable" (answer==Nothing)
+    require "forgotten grant retained its old person" . (==Nothing) =<< atomically (State.current (Session.user missing))
+    Session.dispose missing
 
 sessionClockCases :: FilePath -> Map.Map Text Value -> IO ()
 sessionClockCases root fixtures = clockCasesFor root ["renewal"] $ \time row -> do
@@ -256,12 +273,12 @@ sessionClockCases root fixtures = clockCasesFor root ["renewal"] $ \time row -> 
         pure (Just ("e30."<>decodeUtf8 (Base64.encodeUnpadded (Lazy.toStrict
           (encode (object ["iat" .= issued, "exp" .= (issued+lifetime), "n" .= count]))))<>"."))
       unused = ioError (userError "renewal clock unexpectedly used the client")
-      contents = Content.ContentTransport (\_ _ _ -> unused) (const unused) (\_ _ -> unused)
-        (const unused) (const unused) (const unused) (pure ())
+      contents = Content.ContentTransport (\_ _ _ _ -> unused) (\_ _ -> unused) (\_ _ _ -> unused)
+        (\_ _ -> unused) (\_ _ -> unused) (\_ _ -> unused) (pure ())
       busOptions = Bus.BusOptions (Time.now time) (Time.waitUntil time) (pure "session-clock")
   (transport,_) <- Transport.newTransport (Transport.TransportOptions "http://localhost:4000" Set.empty (const unused) (pure ()))
-  owned <- Client.newClient transport contents Nothing busOptions Timing.protocolSettings
-  let options = Session.SessionOptions "clock" target storage Nothing (Just (const issue)) (Just (\_ _ -> pure (Just person)))
+  owned <- Client.newClient transport contents Nothing busOptions Timing.protocolSettings Nothing
+  let options = Session.SessionOptions "clock" target (Stored.keptIn storage (kbTargetId target)) Nothing (Just (const issue)) (Just (\_ _ -> pure (Just person)))
         (const (pure ())) (const (pure ())) now
   session <- Session.newSession owned options (timeOptions time) Timing.protocolSettings
   Session.ready session

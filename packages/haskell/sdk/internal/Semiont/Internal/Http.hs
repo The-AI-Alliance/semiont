@@ -2,7 +2,7 @@
 module Semiont.Internal.Http
   ( Http, HttpClient(..), newHttpClient, HttpOptions(..), newHttp, transport, spawn
   , json, exchange, currentToken, renew, quarantine, jsonBody, deadline, pause, raceOwned, request, refusal, checked, readAnswer
-  , options, lifetime, input, positions, clientId, openScoped, HttpFailure(..), report
+  , options, lifetime, input, positions, clientId, logger, openScoped, HttpFailure(..), report
   ) where
 
 import Control.Concurrent (myThreadId, throwTo)
@@ -32,6 +32,7 @@ import qualified Semiont.ErrorCodes as Code
 import Semiont.Errors
 import qualified Semiont.Internal.Lifetime as Lifetime
 import qualified Semiont.Internal.Telemetry as Telemetry
+import qualified Semiont.Internal.BusLog as BusLog
 import qualified Semiont.Internal.Transport as Transport
 import Semiont.Internal.Generated.Schemas (schemas)
 import Semiont.Internal.Schema (validateNamed)
@@ -74,6 +75,7 @@ data Http = Http
   , renewing :: MVar ()
   , clientId :: Text
   , positions :: TVar (Map.Map ResourceId Text)
+  , logger :: BusLog.Logger
   }
 
 data HttpFailure = HttpFailure { failure :: TransportError, expired :: Bool } deriving (Show)
@@ -94,7 +96,8 @@ newHttp configuration receives actor = do
   (wire, source) <- Transport.newTransport (Transport.TransportOptions address receives send (Lifetime.close life))
   identity <- UUID.toText <$> httpNewId configuration
   saved <- httpLoadPositions configuration
-  http <- Http configuration wire source life base <$> newTVarIO Nothing <*> newTVarIO Set.empty <*> newMVar () <*> pure identity <*> newTVarIO saved
+  logging <- BusLog.environmentLogger
+  http <- Http configuration wire source life base <$> newTVarIO Nothing <*> newTVarIO Set.empty <*> newMVar () <*> pure identity <*> newTVarIO saved <*> pure logging
   putMVar holder http
   void (spawn http (actor http))
   pure http
@@ -299,6 +302,7 @@ readAnswer route bytes = do
 
 emit :: Http -> BusFrame -> IO (Maybe Integer)
 emit http frame = Telemetry.sending frame $ do
+  BusLog.frame (logger http) "EMIT" frame
   key <- UUID.toText <$> httpNewId (options http)
   let body = BusEmitRequest (busFrameChannel frame) (Just (clientId http)) (busFrameCorrelationId frame)
         (BusEmitRequestPayload (busFramePayloadAdditionalProperties (busFramePayload frame))) (busFrameScope frame) mempty

@@ -2,22 +2,28 @@
   "inputs": {
     "../probes/cabal-install.version": "b463085da944d689b5b77f988eb6c9839a2517ffdbf94f682682ecd97b0fdc77",
     "../probes/cabal.project": "1ad97a35fa8220dbed9cad2ae21691e06cd3500cd87bc3595a1498d9de6fc38e",
-    "api.py": "258ff7bdae6154f9c3e06048f83114a309c6767093ae74a505f2c1f817acae6e",
+    "api.py": "da1ffd2bafd36eaf0f2299e0b3c440526cb7d7f30df79256dc25eb86b8b4e399",
     "cabal.project": "c8486579d3e37d9a46065093f0f02d8a7278b782a92826451ca9bfc7732e8ba3",
     "cabal.project.freeze": "03bf4afef9abef0686589361407a3296f47d1690d0723f55d2730c5861b1bd14",
     "codegen/Facts.hs": "5e41344fe0e680146801034aa0d37754dcbcb6f84c09b4d0f20debc26e9baaaf",
     "codegen/HttpFacts.hs": "39cf5b1a671802b772c00fe4153f41d17f2712f556e4bca58bbb609a189a82e7",
-    "codegen/Main.hs": "cb54868f6c5b387f48f8c1d37f856b7dbb5a335fad70755701f78b1d8539406f",
+    "codegen/Main.hs": "191338578721398d8914ae48a676784abc68a6561c3c736d43fe0024d4c66b6e",
     "codegen/TransportFacts.hs": "9d801421300ae21ac723a2655dbbdf21eef3824ee62877b1e9f7d14ac113bca7",
     "codegen/WorkerFacts.hs": "33c32e430b31882a2a1000b58fe9b12e70fb300d9af188441847ecf6df7ff476",
     "codegen/WorkerTypes.hs": "7d63b6493f9978dfc5657c222b580519a7251082dfe939158e597efd65a323d2",
+    "codegen/annotation-adapters.json": "e6dfcda059e21f97a16133dfcf6ac1369219c4709f59bded35fe3fac11f537e6",
+    "codegen/registry-adapters.json": "515d47ae02cf5b145ad1083216de57da865932f0dd61b077538fd8f4469fadac",
     "codegen/session-adapters.json": "0742e2e564f46829ba537ffa67b453ff764c8cd2c5d2cbc64b5adb2e0fc9f514",
+    "generated/Semiont/Internal/Generated/BusLog.hs": "a1d1029598d4a63f37e2d17aaef3bf052ba3ed0622dd996f8ebef69c76110d95",
+    "generated/Semiont/Internal/Generated/CachePersistence.hs": "db6dc251225ef2c3b9f99d97681b29817cc1fb7527dec5f2f505e4750616c61e",
     "generated/Semiont/Internal/Generated/CacheRefresh.hs": "c57278f960b27f988d12e1d95365c527322392c9450464f815e54d0dc2ecdaf5",
     "generated/Semiont/Internal/Generated/ClientAssertion.hs": "d1a7e0eff2572699e7f97a1e796ff2d5d7e1bdc1cda1839b38b6671f99adae8a",
+    "generated/Semiont/Internal/Generated/MarkMotivation.hs": "eb9b81db52689fc0dfe431bc7d238262fc06bf6878b02cef59c0eb27967f26e0",
     "generated/Semiont/Internal/Generated/Models/Agent.hs": "9f16d6b0adbdad7edec31fcade8037bd4a591b1dee50a64dfe26e48317445abc",
     "generated/Semiont/Internal/Generated/Models/AgentOrganization.hs": "2735d00995d286d640c26b8bb699fd373f25718140ae51501756cb93657ee554",
     "generated/Semiont/Internal/Generated/Models/AgentPerson.hs": "b15baf27004b89b455f9c1784264e28726a0d750fe791a89a50d7f37b98984f2",
     "generated/Semiont/Internal/Generated/Models/AgentSoftware.hs": "ed73b81457f288f950ace11ff6087475b7b60d3ef1e998909adaf7ea54a8ba2d",
+    "generated/Semiont/Internal/Generated/Models/AnchorMethod.hs": "5a0485d51cf77fc68f8af4bbe107cafc0232d2b0d5440a0fd27c57bbd90e24b2",
     "generated/Semiont/Internal/Generated/Models/AnchoredText.hs": "ffa74fa952c494f0d87ce225389005c25a4815b69e1e498fa9c82bec695f1e92",
     "generated/Semiont/Internal/Generated/Models/AnchoredTextAbsent.hs": "6a42cf27cb4957e67c5ad1d80a592af6a3fcaa3c65bf07984003230d3f9063fb",
     "generated/Semiont/Internal/Generated/Models/AnchoredTextAnswer.hs": "4611c5cbd2da89d638b3723b3f3ce93ffebef4a760f2d6c10097e8141dfa527f",
@@ -104,6 +110,7 @@
     "generated/Semiont/Internal/Generated/Models/CloneResourceWithTokenResponseBusEnvelope.hs": "ff0c8b0dbe5c5f4534b2fab93c4faa6e3d0df378153eee49015c15c97aeb223b",
     "generated/Semiont/Internal/Generated/Models/CommandError.hs": "1595e98c10e244a282cdf469e189bed7cb151345c7e65c7b4d79acf785587fad",
     "generated/Semiont/Internal/Generated/Models/CommentingJobParams.hs": "2f08fe345d77f23edc804c4fed715b90d9f0ee4e8c0a2924f4d0767077d6e93d",
+    "generated/Semiont/Internal/Generated/Models/ConnectionIdentity.hs": "7d3b9e9a875c2239f6a60d53af6f15644d8040ec94c73beaa3c374a7cb065000",
     "generated/Semiont/Internal/Generated/Models/ContentFormat.hs": "9ef8a43c3c6f97364b1501c2a1873267b5aa14f9ea483cb9f71d2f47d80afa75",
     "generated/Semiont/Internal/Generated/Models/ContextualSummaryResponse.hs": "13c644b9ef07ee3ac45efd13cb24ec5970d3ab08afcea5894b0206e3b00431f8",
     "generated/Semiont/Internal/Generated/Models/ContextualSummaryResponseBusEnvelope.hs": "cd18201d7925aae0af9b04505248caa07e77d6e404c5ddfc0d082062ac0e52c8",
@@ -132,6 +139,7 @@
     "generated/Semiont/Internal/Generated/Models/EphemeralEventId.hs": "a1907a36453d62b44dbec38301acd5c9f181af177d0de05092f03e2d8566e248",
     "generated/Semiont/Internal/Generated/Models/ErrorResponse.hs": "66bff0e89716c476aae3fc9fe0516eac094147ae01cc8706c7f869d7db3e992a",
     "generated/Semiont/Internal/Generated/Models/EventMetadata.hs": "83d3876d201660a43a3cba37898afb749ff6f87ae700315479b67a97bf6ff5a3",
+    "generated/Semiont/Internal/Generated/Models/Expected.hs": "a510ddd2e86bd2c788bd1b1dcd5f57bb61f445a18cf6ed0dd5997578968b4b19",
     "generated/Semiont/Internal/Generated/Models/ExtractedText.hs": "afccc38f05ec871fc2aba5c313c2b0c2c33b772618f20bf3dc01224ad88c9c81",
     "generated/Semiont/Internal/Generated/Models/ExtractionDeclined.hs": "de6db645d29c2cb6bf78da75fd3cb949ff1311d83cd60f5e4e4baf754c39513d",
     "generated/Semiont/Internal/Generated/Models/ExtractionOutcome.hs": "ad53522370c8cf03d30e53def82392c276e642e9548194c6e444b15ef14cbd04",
@@ -235,6 +243,9 @@
     "generated/Semiont/Internal/Generated/Models/KbEndpoint.hs": "7519e268c3f5c831ea3190ede5301533c80776cbe8e8ad50ba328a3d414e7ea7",
     "generated/Semiont/Internal/Generated/Models/KbIdentity.hs": "46a4d6c617178061e1bbb4a77df8ed11a59c928f2e57ce30fb83f0369d777ab6",
     "generated/Semiont/Internal/Generated/Models/KbRead.hs": "a29c83b2436e3c9372abe5febffd6feaf6ef003b74e65209c93ca87d620f8c51",
+    "generated/Semiont/Internal/Generated/Models/KbReadKind.hs": "d5e6e136f1368a7e36578da48909450bab5ca7455e9cf8e7cf1a5527627c6027",
+    "generated/Semiont/Internal/Generated/Models/KbReadVerdict.hs": "7b08328803d482d235855586fa9caa38259ae3a889ffea5beabc4a52d5ccac96",
+    "generated/Semiont/Internal/Generated/Models/KbSessionStatus.hs": "721b9960de4cc191db8c454143c3d978eea66562c480158e3a21ca24ee09134b",
     "generated/Semiont/Internal/Generated/Models/KbTarget.hs": "25fee77800cb635f7ff1ef1af4deda72e738a08a8f77cf0ccd7261351fa5b30b",
     "generated/Semiont/Internal/Generated/Models/KnowledgeBase.hs": "6da5148cc9cbada8ebb3549870e01393cb3286d76d9ab2fc8e681469d3d9dc86",
     "generated/Semiont/Internal/Generated/Models/KnowledgeGraph.hs": "0e5a42b892fbd337d871c75a6dbd01a2213e9848bb03ac12669d9732928783ba",
@@ -267,6 +278,7 @@
     "generated/Semiont/Internal/Generated/Models/MarkUnarchiveCommand.hs": "5b751cddead609f41a71a6564fa41742a8264d29156017b941f45350ab48b510",
     "generated/Semiont/Internal/Generated/Models/MarkUpdateBodyCommand.hs": "104c67f5a73b7d7ccb8b60a8e3c796abc00e8288279bff8bd18637a212ee209d",
     "generated/Semiont/Internal/Generated/Models/MarkUpdateEntityTypesCommand.hs": "d604a24f9f4ee52512a75bd42d356c34df3993c047585bec452d36c0204de2ca",
+    "generated/Semiont/Internal/Generated/Models/MatchQuality.hs": "99203264039503f738bc3941a1ad9d988e5735cb98b3ab29917d78ac2d73bdfe",
     "generated/Semiont/Internal/Generated/Models/MatchResourcesRequest.hs": "d503e1959aac339c6b769e037abd339a1dc985a926e717a841dd31e46cc34b11",
     "generated/Semiont/Internal/Generated/Models/MatchResourcesResponse.hs": "78b1df28ef7ed4b369cddbd245e4217fe4990c4f45cac5c8f5fcc471af8b71a3",
     "generated/Semiont/Internal/Generated/Models/MatchResourcesResult.hs": "68a2a4e6c07b7d2dcae7ac1ea3e67f96371a4da598285f4b88169dd9621b3878",
@@ -283,6 +295,8 @@
     "generated/Semiont/Internal/Generated/Models/NeptuneGraphConfig.hs": "77e6dc444f325db8a433fd73607e356188b954a079bd7d9b0f416a3ca2e4d531",
     "generated/Semiont/Internal/Generated/Models/NewKnowledgeBase.hs": "2e4c8ba5bae74a53a3f1bb806f8f718786297558eedbf86d1b85afeb782a04a9",
     "generated/Semiont/Internal/Generated/Models/OllamaEmbeddingConfig.hs": "41d52225eddcb6960b98692d5077d0cc7897a117e83089b5699706712b8adc73",
+    "generated/Semiont/Internal/Generated/Models/OpenResource.hs": "624167dbd25815e9dec3f47f8f58fef732ef95cbc869bd5a047e8137a449696f",
+    "generated/Semiont/Internal/Generated/Models/PdfCoordinate.hs": "214ee2d5144e3c40f85f5dc9955dfb7888a7d605201cf1eb3aa4d20587c750f8",
     "generated/Semiont/Internal/Generated/Models/PdfTextItem.hs": "d0de72d9190632f402304959f540a8e03cc957ffe7d06e66992b158012a0d2fe",
     "generated/Semiont/Internal/Generated/Models/PendingAuthorization.hs": "1cdc7d99238de43c13bcb78b0a3a67b99d25d860c586edb086ed1fbbfb95b100",
     "generated/Semiont/Internal/Generated/Models/PersistedEventId.hs": "6f09bc30fd373e842361d144e6d5f3995d983cdb4a5c33bc5f51873078c0155a",
@@ -292,6 +306,8 @@
     "generated/Semiont/Internal/Generated/Models/ProfilesProjection.hs": "b68bc9d31076180bd832202fb470638661962d2fedd3c96e1a0f568401696b12",
     "generated/Semiont/Internal/Generated/Models/ProtectedResourceMetadata.hs": "431692c865a0c4a71ed5b4fe2d98352d50c3a0850b47c4ff5a50c9de5ea048e2",
     "generated/Semiont/Internal/Generated/Models/QdrantVectorsConfig.hs": "fb2c40bf2a1195b50fd919eda5895f9a7280b5a67fe6b6dbdbecfda7764b900a",
+    "generated/Semiont/Internal/Generated/Models/QuotedText.hs": "9fe78dc3f0f4a3d02d06a25ecb36f08485c612d0ad0469bb1addee97e92ab575",
+    "generated/Semiont/Internal/Generated/Models/ReconciledSpan.hs": "bd2118614b4ab2d97bbe4a23f816c6844a8af6836559e909548202070975a8a3",
     "generated/Semiont/Internal/Generated/Models/ReplyEventId.hs": "c385f70332d71aa467c8485d6791a42cdc81b680894f164c4daeaf76a7d82154",
     "generated/Semiont/Internal/Generated/Models/Representation.hs": "319d6f9ae1192e3d274652c8fca6052242ac833ba71c157b1821eea26455b893",
     "generated/Semiont/Internal/Generated/Models/RepresentationAddedPayload.hs": "0c5ab447dd1021e6a1459d7f1d4529c202c4377f9ec5c3e8bcd819960294b7e3",
@@ -318,6 +334,9 @@
     "generated/Semiont/Internal/Generated/Models/SettingsHoverDelayChangedEvent.hs": "a725eb0b04696ac71e401289945e93ba038decc2194ecb7c2603d85501d4579a",
     "generated/Semiont/Internal/Generated/Models/SettingsLocaleChangedEvent.hs": "14e5a1ded4e062320987ba29865994028fae21e103db87cacf878c2ccd26d6c9",
     "generated/Semiont/Internal/Generated/Models/SettingsThemeChangedEvent.hs": "27441d5db09b50a55fb30b086dfd5149b5accab04b5c0257e3cc8cb6aed9f089",
+    "generated/Semiont/Internal/Generated/Models/SignIn.hs": "b7df7d8c389d7d30458a47cea7d77b77f692fc27b7e386da11a7033d4a86a297",
+    "generated/Semiont/Internal/Generated/Models/SignInOutcome.hs": "f37602e5a6698e2be4061bb43ef73d4a6279aa3ceed04f017ccdda647e00cc3c",
+    "generated/Semiont/Internal/Generated/Models/SignedIn.hs": "5dfe2831b54eb2c5a60467682d0a2c82f0cf918c990236024bb48fccc32d479b",
     "generated/Semiont/Internal/Generated/Models/SmeltRebuildAnchorsCommand.hs": "956a98374c9453cab17f39612c1f736bd863b730c1ba4062da33a4e32efa2e2d",
     "generated/Semiont/Internal/Generated/Models/SmeltSettled.hs": "8cfac05dfb62a1690eabc6292be52d3b88aacaa6edf0ce748bc3fa3a6e1e1ed5",
     "generated/Semiont/Internal/Generated/Models/SmelterConfig.hs": "5192609df0b474a0841ede6080b2d11f80c391e9ae9799098a2e8c00963ebcb5",
@@ -328,6 +347,8 @@
     "generated/Semiont/Internal/Generated/Models/StoredSession.hs": "a3fd992f87b2b1bad065e82310e6be0bb5a83162c54732f335e187c4d42bfe84",
     "generated/Semiont/Internal/Generated/Models/SupportedMediaType.hs": "d187a5beb3e2ac5a72e601b3f6fa2896ab9fcff2fa636575149cf941e0fdc7e0",
     "generated/Semiont/Internal/Generated/Models/SvgSelector.hs": "e060d6fa49295a649e25d68e1474afdd51056b86841eedaf754f7339590c96b6",
+    "generated/Semiont/Internal/Generated/Models/TabCheck.hs": "8c74c9633d798c81fd6b2e86ffe42c610715535994da55f06b566b9ef6f4ca00",
+    "generated/Semiont/Internal/Generated/Models/TabVerdict.hs": "3177c935209f1c372903472eed8c5588a8997da0896b1ada101eeea8682e3341",
     "generated/Semiont/Internal/Generated/Models/TagCategory.hs": "dc0ff881159822cc8733944f0c82f0ed4c21136690d8ca5042b274a077f27203",
     "generated/Semiont/Internal/Generated/Models/TagSchema.hs": "6653dafccbe6a9e549f38985028f9bea3e169f523e15dfaf164af39d78aa94c8",
     "generated/Semiont/Internal/Generated/Models/TagSchemaAddedPayload.hs": "b1936f00505704835454297def191796b1b2ef9f21294661fa875dbe7fd89837",
@@ -335,6 +356,7 @@
     "generated/Semiont/Internal/Generated/Models/TaggingJobParams.hs": "9acdca0b1db9824b9e7f8ad347f1de268325cedd22b364ecf835b897aa955eac",
     "generated/Semiont/Internal/Generated/Models/TextPositionSelector.hs": "d27e284b1d608de721bf5f2aa60413cf6a37fa3a6ce9b4b9daf2a942b586b793",
     "generated/Semiont/Internal/Generated/Models/TextQuoteSelector.hs": "b6f5ef3ec0b45af354f49dec976f2533dc0d6a78ca5aa74ae554670e4e4a6913",
+    "generated/Semiont/Internal/Generated/Models/TextSpan.hs": "ed9cdd820d98244a7b11b7fd74af893aad4893514e4dedc10e3bd2af432700ad",
     "generated/Semiont/Internal/Generated/Models/TextualBody.hs": "35fe0d97f569b04a254792e9ea7809866401f7a5517986ec62d501ff9eb51c35",
     "generated/Semiont/Internal/Generated/Models/TraceCarrier.hs": "7862691a7592427e9d6f2c0cb40f235ba6a12b3e9e408ca73e8fc4d42fb21702",
     "generated/Semiont/Internal/Generated/Models/UnitCursor.hs": "9789f08789954b161dbc79cd6de9a15c635b47e39c8d6c0ee0c322e8fffd135f",
@@ -372,58 +394,80 @@
     "generated/Semiont/Internal/Generated/OAuth.hs": "470e316d931c6990808b20f1078f892a4ad39439afc5818cbb0851c19b51e078",
     "generated/Semiont/Internal/Generated/OperationFailure.hs": "667ed172bb0ae6f83da47ce0759a7d3607a000853b2ebc7ccf555dc1fe280451",
     "generated/Semiont/Internal/Generated/OperationReports.hs": "e929919a316eeeb73eb72e15b07a2b94665e9cda8b7c294b0fc2ea9765a32182",
+    "generated/Semiont/Internal/Generated/PendingAnnotation.hs": "19b94a10151d0981ccf0fcb17bcdddb130dca06aa99f3be65b678f9ba54e6ad0",
+    "generated/Semiont/Internal/Generated/Principals.hs": "7e13aa6dd0ca810075e948751309ba9d8f2490b9f2b34e09e62381a948ece73d",
+    "generated/Semiont/Internal/Generated/RegistryPolicy.hs": "a76341799e4350750055822384f589267b68df7c1d485cf5d6b2d4be9b93edd2",
     "generated/Semiont/Internal/Generated/Required.hs": "e1bb0ac87f5cc0e713b104a0d327f21a6cc7fad05aedaec2c52a50ccf7e8f493",
-    "generated/Semiont/Internal/Generated/Schemas.hs": "180d280e7111747afbb9ded4ae514855cc226bdbced100b6242d41a538e381e1",
+    "generated/Semiont/Internal/Generated/Schemas.hs": "d53a86b2f175e1ca02f1065c6af7e44d07a4f0ba5fa0aec17f32667ebe6812b1",
+    "generated/Semiont/Internal/Generated/SearchState.hs": "6ec2e65007078ad8466751045740c577dc9bc66c0a6d14d34b855765fb942d1c",
     "generated/Semiont/Internal/Generated/ServiceProof.hs": "f4228dd47925df4e4f270c6303238ac66d4832ec34250680e29b6f3a8f21095a",
-    "generated/Semiont/Internal/Generated/Stored.hs": "45141dbb5c2dbf1d65bb04064fb26ca36432e77d03c9f26908cc72a2f90cc6d8",
+    "generated/Semiont/Internal/Generated/SessionFactoryOptions.hs": "da60c94e6636dc1a5dde9650741d812c974c2f0a3d91d866c9535ae30cc16c37",
+    "generated/Semiont/Internal/Generated/SessionNotices.hs": "f2a88633fe164a348977ec706f535ee91d0752afe73ad1f718d2debafd89a024",
+    "generated/Semiont/Internal/Generated/SignInStore.hs": "71685067e32f2e1e4553edbc8a90abcf6cb64916fed5ad873eff40751ab714f8",
+    "generated/Semiont/Internal/Generated/Stored.hs": "617bcf6a04b5e83230639739c6e06fc0eae7a2cce0090ecc8cade03ea9fbc905",
+    "generated/Semiont/Internal/Generated/Testing.hs": "2afce3fb875fbbf3520bf4059deb8b2f3e3c733c3b17925a0e0b81d230373127",
     "generated/Semiont/Internal/Generated/Text.hs": "32dab0c856be79fcb287d2bed8cfcdcd35ae6d9ab2a25fe81ff81d96e9215b40",
+    "generated/Semiont/Internal/Generated/UnicodeCase.hs": "8b6d60841e0fb1bfde1a73466ddb9aba232c7f2f6ade6c537c13a9a38aab0618",
     "generated/Semiont/Internal/Generated/WorkerChannels.hs": "c48c5494a2ce12d6840296216b086f1cdbd49adad82a8cd9f95d8b6b6f43626b",
+    "generated/Semiont/Internal/Generated/semiont_store_policy.h": "8ac449a473ba97839efe4658f3910a495937cf0f65aa6cc96f4080d1857a86a0",
     "generated/Semiont/Worker/Types.hs": "a4a8399744a282e795370f24908cf35084ddd55b34ed220d47848ced46ddd76f",
+    "internal/Semiont/Internal/Annotations/Id.hs": "79f905957330bf6092438eae68f838f1de46d327caf498b1356180f6d0643556",
+    "internal/Semiont/Internal/Annotations/Pdf.hs": "a941045f3e95f816175d93c8ec6e9f7fd678b3188f5a119ce2041192f469b883",
+    "internal/Semiont/Internal/Annotations/Spans.hs": "d86841d8cdcbc37b924adb99aa4c30d3dff3a3d2650cb58b38025ff44a947776",
     "internal/Semiont/Internal/Broadcast.hs": "81a79b90958a3dc3dc12bc14989e7ce337eb5ec6c34c3be0ebf5c375d80089d0",
-    "internal/Semiont/Internal/Browse.hs": "26a9dd9af138700b0dde9cc1d70ab5e993714f65350e70e8961a1bde45ee72e9",
+    "internal/Semiont/Internal/Browse.hs": "155591b2cc26947ae193e43e473b13fab60da9ed64dcd66071dc0f7eb9292064",
     "internal/Semiont/Internal/Bus.hs": "17cde2d66323bd8e33b0b94c786a2972a57a2f9fc38c7816556ec0ce8dbf8cd9",
-    "internal/Semiont/Internal/Cache.hs": "82015d0c6356a985100d4042f67af47d7b9e0478dbec4037fad2197f3ef8be88",
+    "internal/Semiont/Internal/BusLog.hs": "a3c294fa18c035cbc564e82866054a2c7af67b1f4b182c4ec7812f1716e85e11",
+    "internal/Semiont/Internal/Cache.hs": "49face8ef120545a0a7d8a17528c52c6791b047f06eb41e28ace4564957270b5",
     "internal/Semiont/Internal/Codec.hs": "fbc8af29dc06bc97706d979907ec37e53ae83273b7efb65283a33e81211c56fa",
+    "internal/Semiont/Internal/Coupled.hs": "42b1308095da946c0b43dce472b08e98f52a92b09bee4e190910d2ea0f3e85d2",
     "internal/Semiont/Internal/DelegatedVerbs.hs": "bfa83f016969f2e2446856fbd879005047f2723e1e7fe4a670af5ab4ebb8c485",
     "internal/Semiont/Internal/Delegation.hs": "b854e46611a2e32d8163f493fbfc7769c69d1a3b42204f55259331b3947f5e5c",
     "internal/Semiont/Internal/Delivery.hs": "f655164136a030ef7e3931f7a842669f82b7b34e98b4482a7fcf9d7a555bdede",
     "internal/Semiont/Internal/Gather.hs": "6f888e991e891b5e9ef37d78bd4abbb78beeffeaa49ee762c87c08d35d9caacf",
-    "internal/Semiont/Internal/Http.hs": "d8a2a6442cd4b99804e1e86c865903ea5b6666c6381b020ed261a75b4fc404be",
-    "internal/Semiont/Internal/HttpActor.hs": "1c2c8cbc74df421c7a5efbcaee61feaa9110116f10762c24a405b6253c522b6b",
-    "internal/Semiont/Internal/HttpContent.hs": "b7dfd11abd5abd54837a5549918c8662adb2228b3ed74db6309122613329928e",
-    "internal/Semiont/Internal/Issuer.hs": "94adcaab067fb3eed3b7dda5dfade6a56d594b06a00119ea058ac32cee7621c7",
+    "internal/Semiont/Internal/Http.hs": "04c244dedd7db1385998258d800661b671a576f3c563f4a29c3539a000dbe91c",
+    "internal/Semiont/Internal/HttpActor.hs": "f37811a87f6e570382dd53abe8adb0291f721a246a72045096c08c71db074107",
+    "internal/Semiont/Internal/HttpContent.hs": "43dab2a9b8f825fe8ab0f034b5cae42566b5e0afccf40643f63ae66102c87773",
+    "internal/Semiont/Internal/Issuer.hs": "ee7519fb503a22063aa5c85df91b6e05f0a47926c7a9cc70ec476ddbc064bd72",
     "internal/Semiont/Internal/Lifetime.hs": "691b1d2ea7466a7e4de0987faf4a95e2096b8ea3ef126e781b36a23c40e5f0c7",
     "internal/Semiont/Internal/Local.hs": "8dadcd2c0efc43296f06c9b83f8a7d21960fb763186728d18acb08a52daf8bd4",
     "internal/Semiont/Internal/Mark.hs": "8535a118b58f136c523bb03f85c9282002e92d6021855954ab46f3183cc5e3f1",
     "internal/Semiont/Internal/Match.hs": "1c1385ac588836147d645827239f1468aff680367b1369d2838e660e5627ad16",
+    "internal/Semiont/Internal/NativeStore.c": "c675198f023015298527bb1c0aacf5970a913ce86d47f5655ea4fc00154e11aa",
+    "internal/Semiont/Internal/NativeStore.hs": "e3f596a2836f96f857335cb7c75b86eb5d04be6db7d9e6d01d18750f57647c1b",
+    "internal/Semiont/Internal/Persistence.hs": "3eb92f41ef3777c583fdc7f67a3438c80a9f230d3d6befbbe398965681edd3fe",
     "internal/Semiont/Internal/Queries.hs": "39d879455fe4ff1f578e988c69d9c1ee8e757e17eb097f3ee57bca846935d12a",
     "internal/Semiont/Internal/Refresh.hs": "aee1b10f5629db198092b975885c3fa3a04a0fa16091a51751759355aaf4140f",
     "internal/Semiont/Internal/Required.hs": "718cffa5c6aa37838f35ef75cc3ec0cbd3dfe6a229cacd8f3db9648c89499bfc",
     "internal/Semiont/Internal/RetryPolicy.hs": "f0a4b8f1277a4804ea6e14214ff39ed67a242740704516bc4f417c04290f6e06",
     "internal/Semiont/Internal/Running.hs": "07479987021cf84e1a1803ba8bffff076514e3669c82f5fd90f14bddc1770482",
     "internal/Semiont/Internal/Schema.hs": "dfb70b5f5dd931ea51d8b77b1999202106ad6e74f34f01c4514afdab7e2fc87d",
+    "internal/Semiont/Internal/SignIn.hs": "a010fdbdf09b90b239b1a09c83b466fcfa69475ed8a9734f16bdb465ebf777d2",
     "internal/Semiont/Internal/Sse.hs": "b942c6c4d3436036b89b25b7ab47d9259b725c707245bc70a1dcfdbaa1c2093e",
+    "internal/Semiont/Internal/StateTasks.hs": "56976f3a42f38dc418b4a08a7ceb3dc8ca7298f03afc80145f9a4ee7a5cc97e4",
     "internal/Semiont/Internal/StateValue.hs": "39c7d8e97a6b4f0912f6a5b518997842f87ac4009afdff9e0b7756731205154c",
+    "internal/Semiont/Internal/Stored.hs": "5bda790f0f08331a1073242a21e452b8a8887a1aa96694110771d901206d381a",
     "internal/Semiont/Internal/StreamFrame.hs": "799092cfe37a2cf9b353365cac4da8aaf5c433b29fedcad77d10aff0c9825eca",
     "internal/Semiont/Internal/Telemetry.hs": "3e4116285bbb9ed281c0d0c8608f8267213bd68674bafb4acbd1f08a226fa7c0",
     "internal/Semiont/Internal/Text.hs": "ca42e9918d0d77f0e6a1dc063e6a3aab41a556f044cf49cf2135a56601e0de6f",
     "internal/Semiont/Internal/Transport.hs": "b5df0e7b83287c269880d6adb5f2fcdfa912f1d714c0ac5d3d367ff64640483a",
     "internal/Semiont/Internal/Utf8.hs": "d06e96469c355ed9546f4a5d10d6f0070a7098374e9573bde91e99d0e7eb3374",
-    "internal/Semiont/Internal/Yield.hs": "20aff3e11c2005fe5ce325779b38f39445847ac52a73f4acc774f5262c47def9",
+    "internal/Semiont/Internal/Yield.hs": "60b3761d09694f46fd82d6ad07adbdd7ae65f247768d722dd3ce1642f955a0ea",
     "public-api.inputs.json": "150c411495a0d0dc5cb417a4c7063103bc2fcce758c1ec5e88b955f223d6ebfe",
-    "semiont.cabal": "a0f4124d1f1954de15506f24f90714996aca214b4ad78cdf19a96ae1fb02155c",
-    "semiont.cabal.in": "bb81dbed2ae4fdec2351fed1c926dcadbd28dec50da6669e1f11b6267d2d701e",
+    "semiont.cabal": "fa1128fbba923fe0e4538bfa045575a430ebcf40fbd376f507ff2813d0c68107",
+    "semiont.cabal.in": "f2b2836bf0d3f73732a246bd97a22bd137850c72014bbc5b0d5a825d3b4c50b7",
+    "src/Semiont/Annotations.hs": "46055e3f3081f92d6e79d8ac1d75c67a3639a7604a5f76e71b04d418c6c508e8",
     "src/Semiont/Auth.hs": "17e1e25fdd2bb6e80e54abd3a015374d1806f4e900afb4e931e54db2dfa5e5d2",
     "src/Semiont/Beckon.hs": "c6e90eab2db81fbb73f990c15eb6e818051b2790ffdaf4f7a2ff29fdccc5ecff",
     "src/Semiont/Bind.hs": "0bd322e0f235169f891401a23bd9977590af90cb8fcaf772e08eb88cd89ffad9",
     "src/Semiont/Browse.hs": "f86638978cb24a75ae2cda965e776949abaac80caed2313189220f3d5b733219",
     "src/Semiont/Bus.hs": "af8559a5de1495941c6be6b86ace7cb4b579b649e2524b55537cf2905a86ac52",
-    "src/Semiont/Cache.hs": "acbc93586b2dac0bf1979fddf3e5871031d98adb441db6f81aeefd40d9ca07d6",
+    "src/Semiont/Cache.hs": "fef85d467bcb472cc4808a477f603e32b34670be0a2297a0fc38331b40b0a6e7",
     "src/Semiont/Channels.hs": "d0c10dfaf1912f28d83a58085371de785f5811a97d44e0d41c0b18b1b4b9d706",
     "src/Semiont/Claims.hs": "c56dd2175b12fd1fc44126e4298f93dcb2ba4b20894e33710434e5d74db3b95d",
-    "src/Semiont/Client.hs": "6ebcf756d89f152af1994d760d8fd4c2a909e6507d90c42f0aa2349a838e767b",
+    "src/Semiont/Client.hs": "b91afa22d029035c1bf593a8954ea170dfad306a2a7cc9077dd682e2ff39be52",
     "src/Semiont/ClientAssertion.hs": "6bb7956401234676e18e7b7e6dc1ba66788b6424b1a6b3c2fec1d293fd0c798e",
-    "src/Semiont/Content.hs": "95514c7d127c98be19baab81d6ff1604e46c3f24747964dcd2281595aa7f1ab4",
+    "src/Semiont/Content.hs": "a38b9586134b71c1dde1e1c841286763efb460be88f85e202bb231462ac53f40",
     "src/Semiont/Delegation.hs": "d473434ff8ffd51587108e9c2fe4dc13b66f856da2b47e4daf4fe3c9a1ed0304",
     "src/Semiont/Discovery.hs": "ebfc710854ff3d7c057fe1cc412768752f80da27b2d8213295cb8a1f1518265a",
     "src/Semiont/Discovery/Reasons.hs": "9e1d9a770326b331ee43e8e2e3df33c4d25c5f77203c0341b4238f4d9e0f50e3",
@@ -435,33 +479,158 @@
     "src/Semiont/Gather.hs": "07582a6070af4efa6a31a87ea335f733dbaa31e94b62f53a0aafb7db4d3f2f8d",
     "src/Semiont/HostName.hs": "2eb5a6a767564649e59677a5d578e429df7be46d5636bf01ff9a8820ebb2ef77",
     "src/Semiont/Http.hs": "70edf9da1c3777a46d67e911087144fe546dbf9109a25021cdcf2f7dbc4fb088",
+    "src/Semiont/Http/Discovery.hs": "bf121c900b4cd3393a5f3c14897c1c94ffded93b06a5f87f2e630108e3ff4d54",
     "src/Semiont/Http/Routes.hs": "8a51105331395ac51c90d731a42460acaca0277748f788e8911552fc8d91bae4",
-    "src/Semiont/Issuer.hs": "b21691aa4918923d36672de7e686b2c5739453c04f3be98d814b290feeea6893",
+    "src/Semiont/Identity.hs": "965ec92a14917014890391fc734cc5691aa704c693053a514a997c35dbef0ab5",
+    "src/Semiont/Issuer.hs": "ccdd3bd48f85c8cb5cfc74b78ed69d3530f53a09bdb2363ac2f71861964b15df",
     "src/Semiont/Job.hs": "0b667310b04ac97b5b4a87e3357875fd686427732c56caf3635eca7610a3300f",
     "src/Semiont/JobFilter.hs": "8c8309e1f86d20d211b1ec3020d27bda851e2b08f763e785a4d8e8fe2717dc13",
     "src/Semiont/Mark.hs": "70d9216485f87f94e2e1fc34b4348becdab09c2dd46346e659b4de59fe4c31bc",
     "src/Semiont/Match.hs": "dddadac21df25c1ea1a75db6b733e97cda02e567cb6cbc5d2a704957e91c744e",
     "src/Semiont/MediaTypes.hs": "d201b27d66cd470692b5b32db39527ca39f140c17b34e04e8b2eede8bfb0684c",
-    "src/Semiont/Registry/Stored.hs": "61f091c2e20704a3d5249dc2a5528756b5ffbbe7e4bae5ffd200db50ba1f1dd7",
+    "src/Semiont/Registry.hs": "c38d0562d3e2ea1aba883c4dd6c4590e8b9187f8b19c15e18533e734f514ec53",
+    "src/Semiont/Registry/Factory.hs": "8caf8996fadfd25b5ceb57c65161204efa1e39d7e75b91ffb6943213c282a8d7",
+    "src/Semiont/Registry/Identity.hs": "7bf6dfbe8e54df956f6d6e9c9fde08ac2eebfb104e2132e8494bbada762ac947",
+    "src/Semiont/Registry/Resources.hs": "acf1eeb2906514030ba763b6b24d6ffa713262002877f083ca0960fcb7f871c9",
+    "src/Semiont/Registry/Stored.hs": "07886557567edb0c1885f68d88b65cfad36c3c023e6339869d41444257a50fba",
     "src/Semiont/Resources.hs": "3b92dad6f449a940d117b54a02a348e4471cb76f7b46618beb227c548621914d",
     "src/Semiont/Retry.hs": "c13b609b5f6e29bfea5156e592e4a652462be405b75ef6ad7fd64953022b9bf6",
     "src/Semiont/Running.hs": "168b8478bf820fa7eae3c74c4699b7af7e0baeb929c4b380e966f91e0dd76fe7",
     "src/Semiont/ServiceToken.hs": "3f5a376aecd32d93dc1c9bf40335dae77354430185e34d67960b77ce16bf9c6d",
-    "src/Semiont/Session.hs": "5828ea0ea0e01f3b417982873f83e83f4bc35897f9f1600b97076a21292d6800",
+    "src/Semiont/Session.hs": "cb77bf4daa769f53199275d23fa4768d67b15302b4af971857082adf6bda7a9d",
     "src/Semiont/SessionStorage.hs": "8e16e46bbd53819746ebe0b08cb658c90b9335f7bbaebc420b6769a511e1b92d",
+    "src/Semiont/SignIn.hs": "d8ab95a32e8f9b6bef851a44cc0704b1416a9471205b35bcdf505e6bb12c68b1",
+    "src/Semiont/SignInStore.hs": "d431c45d8c4a0cee69b0848f6cc9162fcfa47bf8776c2d4f43beecbd7c9c9d6a",
+    "src/Semiont/State/Beckon.hs": "521a53d92042fb5825a24c31b1a6596b0305876d479659c329f2b905d4714c6b",
+    "src/Semiont/State/Gather.hs": "1523a36b8dd851df5fe00827df9b13734c41616eb88972df4fe74e3c9fa61a98",
+    "src/Semiont/State/HoverDwell.hs": "d68254dc49670e94b195752c48cd05b657c7b9e95a3e63e37d256d7a19587696",
+    "src/Semiont/State/Mark.hs": "802b941e5e7a66069014c7fe56e8f22894067a3dc1bff36201957789c06ca7ab",
+    "src/Semiont/State/Match.hs": "9ef6327cd598b17e4b3647ea997febf34c75235436d877dba83a2f4444e927c5",
+    "src/Semiont/State/Search.hs": "cc69a036177d1fbde416065793ea1beed6e9f62c35a722c8c998f3c731d8942c",
+    "src/Semiont/State/SessionSignals.hs": "83e7c22b0d1d4850ef669e04c3bbad2b77b8a7f42f190a79f749faca0db573c0",
+    "src/Semiont/State/Yield.hs": "7c88c785805af8452185790ab6a5ae1a3b111c879fb94beed9d6d3627217e625",
     "src/Semiont/StateValue.hs": "6b95705ae944d67fec37611298a8732fa2caa60078b600dc6016f1ba8c5ca4f9",
+    "src/Semiont/StoragePersister.hs": "bf33618e5b7f102665a9286f04dd0afdc7d51cde0996a4fe20f5266d2828443a",
     "src/Semiont/System.hs": "8ca43e36fe0d07b6d49ec4b09dbb4560365caf36f3d9ce1edafb4d53610c4bd7",
+    "src/Semiont/Testing.hs": "1e834b9509a26a211c5d636b36aed1e93e0b2a74990d8b05b8dd4e63b1e0c611",
+    "src/Semiont/Testing/Client.hs": "bb7ce4539f7fbd776d7f9090ded8d7b5629aae948530719a5cad3ea109658679",
+    "src/Semiont/Testing/Liveness.hs": "1aced62ef12528bd12199dc934b5d7a4b96558ee3720bb62c81429b978bbe4a1",
+    "src/Semiont/Testing/Sessions.hs": "95e389143cf58a1f7df2bd4aadcb69b636cedcb84c171cd0a5731b3c4cc248a6",
+    "src/Semiont/Testing/Storage.hs": "5a56250c6f334152b3753072c1f60195c6d77208c4382b37f85299567fa74dac",
+    "src/Semiont/Testing/Transport.hs": "e71dc9f60b581ff4dbee5694fc7102f355dddd848cb3d32e6ba9d8fad9a7850e",
     "src/Semiont/Timing.hs": "66fd016a466a3f241d02be2472af12b8d49f7da6a31327a04dbdc6e1db77d30f",
     "src/Semiont/Timing/Settings.hs": "1660c012ca9722ece120115851180de94af5806ba56aa19588563bc1d4a52cd4",
     "src/Semiont/Tokens.hs": "e42c9d624164fca56fa94858e323747e9599ae6e5b1f7bd7d08e93e85814c8be",
     "src/Semiont/Transport.hs": "b5a0cd3a7d487e79143711a6d0d8b6c325e1d7934707098f58be0a47d323710b",
     "src/Semiont/Transport/Facts.hs": "49b39361ecc6c4128f5e60257f95446856993e774b20abb35f953e1f58159b36",
-    "src/Semiont/Types.hs": "ad1f7edc6183f4589b8aa3108a9d2e7ca4504e2349a06ea622dd9af501e4c4db",
+    "src/Semiont/Types.hs": "57a0b17c2e5b2b067881650119653db9f4d91ed06fc5ff9712d6a88c8626b9f2",
     "src/Semiont/Types/Presence.hs": "fbdb22094e0b0a8d0671ffc220e5f9462f457333e854859d0cd31b69ac1eeda8",
     "src/Semiont/Worker.hs": "70f13819273f62ec0f708b0a8eeee4bd6a6d029efea36141eece6af3da99c0d5",
     "src/Semiont/Yield.hs": "ab71fd034777619508f23eea3b45642ac6e087ebf1c286a6c3e7fd8516fcba92"
   },
   "modules": {
+    "Semiont.Annotations": {
+      "types": {
+        "AnchorMethod": {
+          "definition": "data Semiont.Internal.Generated.Models.AnchorMethod.AnchorMethod = ...",
+          "kind": "*"
+        },
+        "MatchQuality": {
+          "definition": "data Semiont.Internal.Generated.Models.MatchQuality.MatchQuality = ...",
+          "kind": "*"
+        },
+        "QuotedText": {
+          "definition": "data Semiont.Internal.Generated.Models.QuotedText.QuotedText = ...",
+          "kind": "*"
+        },
+        "ReconciledSpan": {
+          "definition": "data Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan = ...",
+          "kind": "*"
+        },
+        "SpanRefusalCode": {
+          "definition": "data Semiont.ErrorCodes.SpanRefusalCode = ...",
+          "kind": "*"
+        },
+        "SpanRefusedError": {
+          "definition": "data Semiont.Annotations.SpanRefusedError = ...",
+          "kind": "*"
+        },
+        "Spanned": {
+          "definition": "data Semiont.Annotations.Spanned = ...",
+          "kind": "*"
+        },
+        "TextSpan": {
+          "definition": "data Semiont.Internal.Generated.Models.TextSpan.TextSpan = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "AnchorMethodContextU2d_recovered": "Semiont.Internal.Generated.Models.AnchorMethod.AnchorMethod",
+        "AnchorMethodFirstU2d_ofU2d_many": "Semiont.Internal.Generated.Models.AnchorMethod.AnchorMethod",
+        "AnchorMethodFuzzyU2d_match": "Semiont.Internal.Generated.Models.AnchorMethod.AnchorMethod",
+        "AnchorMethodUniqueU2d_match": "Semiont.Internal.Generated.Models.AnchorMethod.AnchorMethod",
+        "MatchQualityCaseU2d_insensitive": "Semiont.Internal.Generated.Models.MatchQuality.MatchQuality",
+        "MatchQualityFuzzy": "Semiont.Internal.Generated.Models.MatchQuality.MatchQuality",
+        "MatchQualityNormalized": "Semiont.Internal.Generated.Models.MatchQuality.MatchQuality",
+        "PdfContent": "Semiont.Internal.Generated.Models.AnchoredText.AnchoredText -> Semiont.Annotations.Spanned",
+        "QuotedText": "Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.QuotedText.QuotedText",
+        "ReconciledSpan": "Semiont.Internal.Generated.Models.AnchorMethod.AnchorMethod -> Data.Scientific.Scientific -> Data.Text.Internal.Text -> Maybe Semiont.Internal.Generated.Models.MatchQuality.MatchQuality -> Maybe Data.Text.Internal.Text -> Data.Scientific.Scientific -> Maybe Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan",
+        "SpanRefusalExactMismatch": "Semiont.ErrorCodes.SpanRefusalCode",
+        "SpanRefusalExactNotCovered": "Semiont.ErrorCodes.SpanRefusalCode",
+        "SpanRefusalItemOutOfRange": "Semiont.ErrorCodes.SpanRefusalCode",
+        "SpanRefusalNothingLocated": "Semiont.ErrorCodes.SpanRefusalCode",
+        "SpanRefusalPrefixMismatch": "Semiont.ErrorCodes.SpanRefusalCode",
+        "SpanRefusalSpanOutOfRange": "Semiont.ErrorCodes.SpanRefusalCode",
+        "SpanRefusalSuffixMismatch": "Semiont.ErrorCodes.SpanRefusalCode",
+        "SpanRefusedError": "Semiont.ErrorCodes.SpanRefusalCode -> Data.Text.Internal.Text -> Semiont.Annotations.SpanRefusedError",
+        "TextContent": "Data.Text.Internal.Text -> Semiont.Annotations.Spanned",
+        "TextSpan": "Data.Scientific.Scientific -> Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Data.Scientific.Scientific -> Maybe Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.TextSpan.TextSpan",
+        "annotationExactText": "Semiont.Internal.Generated.Models.Annotation.Annotation -> Data.Text.Internal.Text",
+        "annotationOfResource": "IO Data.Time.Clock.Internal.UTCTime.UTCTime -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Semiont.Internal.Generated.Models.Motivation.Motivation -> Maybe Semiont.Internal.Generated.Models.Agent.Agent -> Maybe Semiont.Internal.Generated.Models.AnnotationBodies.AnnotationBodies -> IO Semiont.Internal.Generated.Models.Annotation.Annotation",
+        "annotationOfSpan": "IO Data.Time.Clock.Internal.UTCTime.UTCTime -> Semiont.Annotations.Spanned -> Semiont.Internal.Generated.Models.TextSpan.TextSpan -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Semiont.Internal.Generated.Models.Motivation.Motivation -> Semiont.Internal.Generated.Models.Agent.Agent -> Maybe Semiont.Internal.Generated.Models.AnnotationBodies.AnnotationBodies -> IO Semiont.Internal.Generated.Models.Annotation.Annotation",
+        "bodySource": "Maybe Semiont.Internal.Generated.Models.AnnotationBodies.AnnotationBodies -> Maybe Semiont.Internal.Generated.Models.ResourceId.ResourceId",
+        "commentText": "Semiont.Internal.Generated.Models.Annotation.Annotation -> Maybe Data.Text.Internal.Text",
+        "entityTypes": "Semiont.Internal.Generated.Models.Annotation.Annotation -> [Data.Text.Internal.Text]",
+        "exactText": "Maybe Semiont.Internal.Generated.Models.AnnotationSelector.AnnotationSelector -> Data.Text.Internal.Text",
+        "fragmentSelector": "Semiont.Internal.Generated.Models.AnnotationSelector.AnnotationSelector -> Maybe Semiont.Internal.Generated.Models.FragmentSelector.FragmentSelector",
+        "isAssessment": "Semiont.Internal.Generated.Models.Annotation.Annotation -> Bool",
+        "isBodyResolved": "Maybe Semiont.Internal.Generated.Models.AnnotationBodies.AnnotationBodies -> Bool",
+        "isComment": "Semiont.Internal.Generated.Models.Annotation.Annotation -> Bool",
+        "isHighlight": "Semiont.Internal.Generated.Models.Annotation.Annotation -> Bool",
+        "isReference": "Semiont.Internal.Generated.Models.Annotation.Annotation -> Bool",
+        "isResolvedReference": "Semiont.Internal.Generated.Models.Annotation.Annotation -> Bool",
+        "isStubReference": "Semiont.Internal.Generated.Models.Annotation.Annotation -> Bool",
+        "isTag": "Semiont.Internal.Generated.Models.Annotation.Annotation -> Bool",
+        "quotedTextAdditionalProperties": "Semiont.Internal.Generated.Models.QuotedText.QuotedText -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "quotedTextExact": "Semiont.Internal.Generated.Models.QuotedText.QuotedText -> Data.Text.Internal.Text",
+        "quotedTextPrefix": "Semiont.Internal.Generated.Models.QuotedText.QuotedText -> Maybe Data.Text.Internal.Text",
+        "quotedTextSuffix": "Semiont.Internal.Generated.Models.QuotedText.QuotedText -> Maybe Data.Text.Internal.Text",
+        "reconcile": "Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.QuotedText.QuotedText -> Maybe Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan",
+        "reconciledSpanAdditionalProperties": "Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "reconciledSpanAnchorMethod": "Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan -> Semiont.Internal.Generated.Models.AnchorMethod.AnchorMethod",
+        "reconciledSpanEnd": "Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan -> Data.Scientific.Scientific",
+        "reconciledSpanExact": "Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan -> Data.Text.Internal.Text",
+        "reconciledSpanMatchQuality": "Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan -> Maybe Semiont.Internal.Generated.Models.MatchQuality.MatchQuality",
+        "reconciledSpanPrefix": "Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan -> Maybe Data.Text.Internal.Text",
+        "reconciledSpanStart": "Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan -> Data.Scientific.Scientific",
+        "reconciledSpanSuffix": "Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan -> Maybe Data.Text.Internal.Text",
+        "spanRefusedCode": "Semiont.Annotations.SpanRefusedError -> Semiont.ErrorCodes.SpanRefusalCode",
+        "spanRefusedMessage": "Semiont.Annotations.SpanRefusedError -> Data.Text.Internal.Text",
+        "svgSelector": "Semiont.Internal.Generated.Models.AnnotationSelector.AnnotationSelector -> Maybe Semiont.Internal.Generated.Models.SvgSelector.SvgSelector",
+        "tagCategory": "Semiont.Internal.Generated.Models.Annotation.Annotation -> Maybe Data.Text.Internal.Text",
+        "tagSchemaId": "Semiont.Internal.Generated.Models.Annotation.Annotation -> Maybe Data.Text.Internal.Text",
+        "targetSelector": "Semiont.Internal.Generated.Models.Annotation.AnnotationTargetInline -> Maybe Semiont.Internal.Generated.Models.AnnotationSelector.AnnotationSelector",
+        "targetSource": "Semiont.Internal.Generated.Models.Annotation.AnnotationTargetInline -> Semiont.Internal.Generated.Models.ResourceId.ResourceId",
+        "textPositionSelector": "Semiont.Internal.Generated.Models.AnnotationSelector.AnnotationSelector -> Maybe Semiont.Internal.Generated.Models.TextPositionSelector.TextPositionSelector",
+        "textQuoteSelector": "Semiont.Internal.Generated.Models.AnnotationSelector.AnnotationSelector -> Maybe Semiont.Internal.Generated.Models.TextQuoteSelector.TextQuoteSelector",
+        "textSpanAdditionalProperties": "Semiont.Internal.Generated.Models.TextSpan.TextSpan -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "textSpanEnd": "Semiont.Internal.Generated.Models.TextSpan.TextSpan -> Data.Scientific.Scientific",
+        "textSpanExact": "Semiont.Internal.Generated.Models.TextSpan.TextSpan -> Data.Text.Internal.Text",
+        "textSpanPrefix": "Semiont.Internal.Generated.Models.TextSpan.TextSpan -> Maybe Data.Text.Internal.Text",
+        "textSpanStart": "Semiont.Internal.Generated.Models.TextSpan.TextSpan -> Data.Scientific.Scientific",
+        "textSpanSuffix": "Semiont.Internal.Generated.Models.TextSpan.TextSpan -> Maybe Data.Text.Internal.Text"
+      }
+    },
     "Semiont.Auth": {
       "types": {
         "AuthNamespace": {
@@ -638,6 +807,7 @@
         "get": "Semiont.Internal.Cache.Cache key value -> key -> GHC.Internal.Conc.Sync.STM (Maybe value)",
         "invalidate": "Semiont.Internal.Cache.Cache key value -> key -> IO ()",
         "invalidateAll": "Semiont.Internal.Cache.Cache key value -> IO ()",
+        "invalidateQuery": "Semiont.Internal.Cache.Query value -> IO ()",
         "isReady": "Semiont.Internal.Cache.CacheState value -> Bool",
         "keys": "Semiont.Internal.Cache.Cache key value -> GHC.Internal.Conc.Sync.STM [key]",
         "known": "Semiont.Internal.Cache.Cache key value -> key -> GHC.Internal.Conc.Sync.STM Bool",
@@ -937,27 +1107,35 @@
     },
     "Semiont.Client": {
       "types": {
+        "CachePersistence": {
+          "definition": "data Semiont.Internal.Persistence.CachePersistence = ...",
+          "kind": "*"
+        },
         "Client": {
           "definition": "data Semiont.Client.Client = ...",
           "kind": "*"
         }
       },
       "values": {
+        "CachePersistence": "Semiont.SessionStorage.SessionStorage -> Data.Text.Internal.Text -> IO Data.Scientific.Scientific -> Semiont.Internal.Persistence.CachePersistence",
         "auth": "Semiont.Client.Client -> Maybe Semiont.Auth.AuthNamespace",
         "baseUrl": "Semiont.Client.Client -> Data.Text.Internal.Text",
         "beckon": "Semiont.Client.Client -> Semiont.Beckon.BeckonNamespace",
         "bind": "Semiont.Client.Client -> Semiont.Bind.BindNamespace",
         "browse": "Semiont.Client.Client -> Semiont.Internal.Browse.BrowseNamespace",
         "bus": "Semiont.Client.Client -> Semiont.Internal.Transport.EventBus",
+        "cachePrefix": "Semiont.Internal.Persistence.CachePersistence -> Data.Text.Internal.Text",
+        "cacheStorage": "Semiont.Internal.Persistence.CachePersistence -> Semiont.SessionStorage.SessionStorage",
+        "cacheWallNow": "Semiont.Internal.Persistence.CachePersistence -> IO Data.Scientific.Scientific",
         "content": "Semiont.Client.Client -> Semiont.Content.ContentTransport",
         "dispose": "Semiont.Client.Client -> IO ()",
         "frame": "Semiont.Client.Client -> Semiont.Frame.FrameNamespace",
-        "fromHttp": "Semiont.Internal.Http.HttpOptions -> IO Semiont.Client.Client",
+        "fromHttp": "Semiont.Internal.Http.HttpOptions -> Maybe Semiont.Internal.Persistence.CachePersistence -> IO Semiont.Client.Client",
         "gather": "Semiont.Client.Client -> Semiont.Internal.Gather.GatherNamespace",
         "job": "Semiont.Client.Client -> Semiont.Job.JobNamespace",
         "mark": "Semiont.Client.Client -> Semiont.Internal.Mark.MarkNamespace",
         "match": "Semiont.Client.Client -> Semiont.Internal.Match.MatchNamespace",
-        "newClient": "Semiont.Internal.Transport.Transport -> Semiont.Content.ContentTransport -> Maybe Semiont.Gateway.GatewayOperations -> Semiont.Internal.Bus.BusOptions -> Semiont.Timing.Settings.Settings -> IO Semiont.Client.Client",
+        "newClient": "Semiont.Internal.Transport.Transport -> Semiont.Content.ContentTransport -> Maybe Semiont.Gateway.GatewayOperations -> Semiont.Internal.Bus.BusOptions -> Semiont.Timing.Settings.Settings -> Maybe Semiont.Internal.Persistence.CachePersistence -> IO Semiont.Client.Client",
         "state": "Semiont.Client.Client -> Semiont.Internal.StateValue.StateValue Semiont.Transport.Facts.ConnectionState",
         "system": "Semiont.Client.Client -> Maybe Semiont.System.SystemNamespace",
         "transport": "Semiont.Client.Client -> Semiont.Internal.Transport.Transport",
@@ -997,7 +1175,7 @@
       },
       "values": {
         "BinaryContent": "Data.Text.Internal.Text -> Data.ByteString.Internal.Type.ByteString -> Semiont.Content.BinaryContent",
-        "ContentTransport": "(Semiont.Internal.Generated.Models.ResourceUploadMetadata.ResourceUploadMetadata -> Semiont.Content.ReplayableBody -> (Semiont.Content.UploadProgress -> IO ()) -> IO Semiont.Internal.Generated.Models.ResourceId.ResourceId) -> (Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Content.BinaryContent) -> (forall result. Semiont.Internal.Generated.Models.ResourceId.ResourceId -> (Data.Text.Internal.Text -> Streaming.Internal.Stream (Data.Functor.Of.Of Data.ByteString.Internal.Type.ByteString) IO () -> IO result) -> IO result) -> (Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Internal.Generated.Models.GetResourceResponse.GetResourceResponse) -> (Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Internal.Generated.Models.GetAnnotationsResponse.GetAnnotationsResponse) -> (Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Internal.Generated.Models.AnchoredTextAnswer.AnchoredTextAnswer) -> IO () -> Semiont.Content.ContentTransport",
+        "ContentTransport": "(Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.ResourceUploadMetadata.ResourceUploadMetadata -> Semiont.Content.ReplayableBody -> (Semiont.Content.UploadProgress -> IO ()) -> IO Semiont.Internal.Generated.Models.ResourceId.ResourceId) -> (Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Content.BinaryContent) -> (forall result. Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> (Data.Text.Internal.Text -> Streaming.Internal.Stream (Data.Functor.Of.Of Data.ByteString.Internal.Type.ByteString) IO () -> IO result) -> IO result) -> (Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Internal.Generated.Models.GetResourceResponse.GetResourceResponse) -> (Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Internal.Generated.Models.GetAnnotationsResponse.GetAnnotationsResponse) -> (Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Internal.Generated.Models.AnchoredTextAnswer.AnchoredTextAnswer) -> IO () -> Semiont.Content.ContentTransport",
         "ReplayableBody": "Maybe GHC.Internal.Int.Int64 -> Network.HTTP.Client.Types.GivesPopper () -> Semiont.Content.ReplayableBody",
         "UploadProgress": "Integer -> Integer -> Semiont.Content.UploadProgress",
         "bodyLength": "Semiont.Content.ReplayableBody -> Maybe GHC.Internal.Int.Int64",
@@ -1006,13 +1184,13 @@
         "contentBytes": "Semiont.Content.BinaryContent -> Data.ByteString.Internal.Type.ByteString",
         "contentType": "Semiont.Content.BinaryContent -> Data.Text.Internal.Text",
         "dispose": "Semiont.Content.ContentTransport -> IO ()",
-        "getAnchoredText": "Semiont.Content.ContentTransport -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Internal.Generated.Models.AnchoredTextAnswer.AnchoredTextAnswer",
-        "getAnnotations": "Semiont.Content.ContentTransport -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Internal.Generated.Models.GetAnnotationsResponse.GetAnnotationsResponse",
-        "getBinary": "Semiont.Content.ContentTransport -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Content.BinaryContent",
-        "getBinaryStream": "Semiont.Content.ContentTransport -> forall result. Semiont.Internal.Generated.Models.ResourceId.ResourceId -> (Data.Text.Internal.Text -> Streaming.Internal.Stream (Data.Functor.Of.Of Data.ByteString.Internal.Type.ByteString) IO () -> IO result) -> IO result",
-        "getResourceGraph": "Semiont.Content.ContentTransport -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Internal.Generated.Models.GetResourceResponse.GetResourceResponse",
+        "getAnchoredText": "Semiont.Content.ContentTransport -> Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Internal.Generated.Models.AnchoredTextAnswer.AnchoredTextAnswer",
+        "getAnnotations": "Semiont.Content.ContentTransport -> Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Internal.Generated.Models.GetAnnotationsResponse.GetAnnotationsResponse",
+        "getBinary": "Semiont.Content.ContentTransport -> Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Content.BinaryContent",
+        "getBinaryStream": "Semiont.Content.ContentTransport -> forall result. Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> (Data.Text.Internal.Text -> Streaming.Internal.Stream (Data.Functor.Of.Of Data.ByteString.Internal.Type.ByteString) IO () -> IO result) -> IO result",
+        "getResourceGraph": "Semiont.Content.ContentTransport -> Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Internal.Generated.Models.GetResourceResponse.GetResourceResponse",
         "openBody": "Semiont.Content.ReplayableBody -> Network.HTTP.Client.Types.GivesPopper ()",
-        "putBinary": "Semiont.Content.ContentTransport -> Semiont.Internal.Generated.Models.ResourceUploadMetadata.ResourceUploadMetadata -> Semiont.Content.ReplayableBody -> (Semiont.Content.UploadProgress -> IO ()) -> IO Semiont.Internal.Generated.Models.ResourceId.ResourceId",
+        "putBinary": "Semiont.Content.ContentTransport -> Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.ResourceUploadMetadata.ResourceUploadMetadata -> Semiont.Content.ReplayableBody -> (Semiont.Content.UploadProgress -> IO ()) -> IO Semiont.Internal.Generated.Models.ResourceId.ResourceId",
         "totalBytes": "Semiont.Content.UploadProgress -> Integer"
       }
     },
@@ -1356,6 +1534,22 @@
         "transport": "Semiont.Http.HttpTransport -> Semiont.Internal.Transport.Transport"
       }
     },
+    "Semiont.Http.Discovery": {
+      "types": {},
+      "values": {
+        "httpDiscovery": "Semiont.Internal.Http.HttpClient -> Semiont.Retry.RetryOptions -> Semiont.Timing.Settings.Settings -> Data.Text.Internal.Text -> IO Semiont.Discovery.DiscoveryTransport"
+      }
+    },
+    "Semiont.Identity": {
+      "types": {},
+      "values": {
+        "agentDid": "Data.Text.Internal.Text -> Data.Text.Internal.Text -> Either String Semiont.Internal.Generated.Models.UserId.UserId",
+        "encodeUriComponent": "Data.Text.Internal.Text -> Data.Text.Internal.Text",
+        "kbDid": "Data.Text.Internal.Text -> Either String Semiont.Internal.Generated.Models.UserId.UserId",
+        "kbResource": "Data.Text.Internal.Text -> Data.Text.Internal.Text",
+        "personDid": "Data.Text.Internal.Text -> Data.Text.Internal.Text -> Either String Semiont.Internal.Generated.Models.UserId.UserId"
+      }
+    },
     "Semiont.Issuer": {
       "types": {
         "BeginAuthorizationOptions": {
@@ -1429,7 +1623,7 @@
         "pendingAuthorizationTarget": "Semiont.Internal.Generated.Models.PendingAuthorization.PendingAuthorization -> Semiont.Internal.Generated.Models.HttpEndpoint.HttpEndpoint",
         "pendingAuthorizationVerifier": "Semiont.Internal.Generated.Models.PendingAuthorization.PendingAuthorization -> Data.Text.Internal.Text",
         "refreshAtIssuer": "Semiont.Internal.Issuer.IssuerOptions -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> IO Semiont.Internal.Generated.Models.IssuedTokens.IssuedTokens",
-        "refreshStoredSession": "Semiont.Internal.Issuer.IssuerOptions -> Semiont.SessionStorage.SessionStorage -> Data.Text.Internal.Text -> IO (Maybe Data.Text.Internal.Text)",
+        "refreshSession": "Semiont.Internal.Issuer.IssuerOptions -> Semiont.Internal.SignIn.KeptSignIn -> Maybe Data.Text.Internal.Text -> IO Data.Scientific.Scientific -> IO (Maybe Data.Text.Internal.Text)",
         "revokeAtIssuer": "Semiont.Internal.Issuer.IssuerOptions -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> IO ()",
         "scriptClientId": "Data.Text.Internal.Text",
         "signInScope": "Data.Text.Internal.Text",
@@ -1521,6 +1715,252 @@
         "yieldsGeometry": "Data.Text.Internal.Text -> Bool"
       }
     },
+    "Semiont.Registry": {
+      "types": {
+        "Expected": {
+          "definition": "data Semiont.Internal.Generated.Models.Expected.Expected = ...",
+          "kind": "*"
+        },
+        "KbReadKind": {
+          "definition": "data Semiont.Internal.Generated.Models.KbReadKind.KbReadKind = ...",
+          "kind": "*"
+        },
+        "KbReadVerdict": {
+          "definition": "data Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdict = ...",
+          "kind": "*"
+        },
+        "KbSessionStatus": {
+          "definition": "data Semiont.Internal.Generated.Models.KbSessionStatus.KbSessionStatus = ...",
+          "kind": "*"
+        },
+        "OpenResource": {
+          "definition": "data Semiont.Internal.Generated.Models.OpenResource.OpenResource = ...",
+          "kind": "*"
+        },
+        "SemiontBrowser": {
+          "definition": "data Semiont.Registry.SemiontBrowser = ...",
+          "kind": "*"
+        },
+        "SemiontBrowserConfig": {
+          "definition": "data Semiont.Registry.SemiontBrowserConfig = ...",
+          "kind": "*"
+        },
+        "SessionFactory": {
+          "definition": "data Semiont.Registry.Factory.SessionFactory = ...",
+          "kind": "*"
+        },
+        "SessionFactoryOptions": {
+          "definition": "data Semiont.Internal.Generated.SessionFactoryOptions.SessionFactoryOptions = ...",
+          "kind": "*"
+        },
+        "SignInOutcome": {
+          "definition": "data Semiont.Internal.Generated.Models.SignInOutcome.SignInOutcome = ...",
+          "kind": "*"
+        },
+        "SignedIn": {
+          "definition": "data Semiont.Internal.Generated.Models.SignedIn.SignedIn = ...",
+          "kind": "*"
+        },
+        "StoredSession": {
+          "definition": "data Semiont.Internal.Generated.Models.StoredSession.StoredSession = ...",
+          "kind": "*"
+        },
+        "TabCheck": {
+          "definition": "data Semiont.Internal.Generated.Models.TabCheck.TabCheck = ...",
+          "kind": "*"
+        },
+        "TabVerdict": {
+          "definition": "data Semiont.Internal.Generated.Models.TabVerdict.TabVerdict = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "Expected": "Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.Expected.Expected",
+        "KbReadKindConflict": "Semiont.Internal.Generated.Models.KbReadKind.KbReadKind",
+        "KbReadKindNoU2d_verdict": "Semiont.Internal.Generated.Models.KbReadKind.KbReadKind",
+        "KbReadKindRecorded": "Semiont.Internal.Generated.Models.KbReadKind.KbReadKind",
+        "KbReadVerdictBranch1": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch1Value -> Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdict",
+        "KbReadVerdictBranch2": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch2Value -> Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdict",
+        "KbReadVerdictBranch3": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch3Value -> Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdict",
+        "KbSessionStatusAuthenticated": "Semiont.Internal.Generated.Models.KbSessionStatus.KbSessionStatus",
+        "KbSessionStatusExpired": "Semiont.Internal.Generated.Models.KbSessionStatus.KbSessionStatus",
+        "KbSessionStatusSignedU2d_out": "Semiont.Internal.Generated.Models.KbSessionStatus.KbSessionStatus",
+        "OpenResource": "Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Maybe Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Scientific.Scientific -> Maybe Data.Scientific.Scientific -> Maybe Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.OpenResource.OpenResource",
+        "SemiontBrowserConfig": "Semiont.SessionStorage.SessionStorage -> Semiont.Registry.Factory.SessionFactory -> Semiont.Internal.Http.HttpOptions -> IO Data.Scientific.Scientific -> Semiont.Registry.SemiontBrowserConfig",
+        "SessionFactory": "(Semiont.Internal.Generated.SessionFactoryOptions.SessionFactoryOptions -> IO Semiont.Session.OpenedSession) -> (Semiont.Internal.Generated.Models.StoredSession.StoredSession -> IO ()) -> Semiont.Registry.Factory.SessionFactory",
+        "SessionFactoryOptions": "Semiont.Internal.Generated.Models.KnowledgeBase.KnowledgeBase -> Semiont.SessionStorage.SessionStorage -> Semiont.State.SessionSignals.SessionSignals -> (Semiont.Errors.SessionError -> IO ()) -> Semiont.Internal.Generated.SessionFactoryOptions.SessionFactoryOptions",
+        "SignInOutcome": "Maybe Semiont.Internal.Generated.Models.Expected.Expected -> Semiont.Internal.Generated.Models.KnowledgeBase.KnowledgeBase -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.SignInOutcome.SignInOutcome",
+        "SignedIn": "Semiont.Internal.Generated.Models.KbDescription.KbDescription -> Semiont.Internal.Generated.Models.KbEndpoint.KbEndpoint -> Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.StoredSession.StoredSession -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.SignedIn.SignedIn",
+        "StoredSession": "Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.StoredSession.StoredSession",
+        "TabCheckBranch1": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch1Value -> Semiont.Internal.Generated.Models.TabCheck.TabCheck",
+        "TabCheckBranch2": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch2Value -> Semiont.Internal.Generated.Models.TabCheck.TabCheck",
+        "TabCheckBranch3": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch3Value -> Semiont.Internal.Generated.Models.TabCheck.TabCheck",
+        "TabVerdictGone": "Semiont.Internal.Generated.Models.TabVerdict.TabVerdict",
+        "TabVerdictReady": "Semiont.Internal.Generated.Models.TabVerdict.TabVerdict",
+        "TabVerdictUnknown": "Semiont.Internal.Generated.Models.TabVerdict.TabVerdict",
+        "activeKbId": "Semiont.Registry.SemiontBrowser -> Semiont.Internal.StateValue.StateValue (Maybe Data.Text.Internal.Text)",
+        "activeKey": "Data.Text.Internal.Text",
+        "activeSession": "Semiont.Registry.SemiontBrowser -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Session.Session)",
+        "activeSignals": "Semiont.Registry.SemiontBrowser -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.State.SessionSignals.SessionSignals)",
+        "addKb": "Semiont.Registry.SemiontBrowser -> Semiont.Internal.Generated.Models.NewKnowledgeBase.NewKnowledgeBase -> Semiont.Internal.Generated.Models.StoredSession.StoredSession -> IO Semiont.Internal.Generated.Models.KnowledgeBase.KnowledgeBase",
+        "addOpenResource": "Semiont.Registry.SemiontBrowser -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> IO ()",
+        "applyTabChecks": "[Semiont.Internal.Generated.Models.OpenResource.OpenResource] -> Data.Map.Internal.Map Semiont.Internal.Generated.Models.ResourceId.ResourceId Semiont.Internal.Generated.Models.TabCheck.TabCheck -> [Semiont.Internal.Generated.Models.OpenResource.OpenResource]",
+        "beginSignIn": "Semiont.Registry.SemiontBrowser -> Semiont.Internal.Generated.Models.BeginAuthorizationOptions.BeginAuthorizationOptions -> IO Data.Text.Internal.Text",
+        "bus": "Semiont.Registry.SemiontBrowser -> Semiont.Internal.Transport.EventBus",
+        "clearStoredSession": "Semiont.SessionStorage.SessionStorage -> Data.Text.Internal.Text -> IO ()",
+        "completeSignIn": "Semiont.Registry.SemiontBrowser -> Data.Text.Internal.Text -> IO Semiont.Internal.Generated.Models.SignInOutcome.SignInOutcome",
+        "dispose": "Semiont.Registry.SemiontBrowser -> IO ()",
+        "errors": "Semiont.Registry.SemiontBrowser -> (Streaming.Internal.Stream (Data.Functor.Of.Of Semiont.Errors.SessionError) IO () -> IO result) -> IO result",
+        "expectedAdditionalProperties": "Semiont.Internal.Generated.Models.Expected.Expected -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "expectedDid": "Semiont.Internal.Generated.Models.Expected.Expected -> Data.Text.Internal.Text",
+        "expectedName": "Semiont.Internal.Generated.Models.Expected.Expected -> Maybe Data.Text.Internal.Text",
+        "identityToken": "Semiont.Registry.SemiontBrowser -> Semiont.Internal.StateValue.StateValue (Maybe Data.Text.Internal.Text)",
+        "kbOfSessionKey": "Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text",
+        "kbSessionStatus": "Semiont.Registry.SemiontBrowser -> Data.Text.Internal.Text -> IO Semiont.Internal.Generated.Models.KbSessionStatus.KbSessionStatus",
+        "kbs": "Semiont.Registry.SemiontBrowser -> Semiont.Internal.StateValue.StateValue [Semiont.Internal.Generated.Models.KnowledgeBase.KnowledgeBase]",
+        "keptIn": "Semiont.SessionStorage.SessionStorage -> Data.Text.Internal.Text -> Semiont.Internal.SignIn.KeptSignIn",
+        "knowledgeBasesKey": "Data.Text.Internal.Text",
+        "lastViewedResource": "Semiont.Registry.SemiontBrowser -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Internal.Generated.Models.ResourceId.ResourceId)",
+        "lastViewedResourceByKbKey": "Data.Text.Internal.Text",
+        "loadKnowledgeBases": "Semiont.SessionStorage.SessionStorage -> IO [Semiont.Internal.Generated.Models.KnowledgeBase.KnowledgeBase]",
+        "newHttpSessionFactory": "Semiont.Internal.Http.HttpOptions -> IO Data.Scientific.Scientific -> Semiont.Registry.Factory.SessionFactory",
+        "newSemiontBrowser": "Semiont.Registry.SemiontBrowserConfig -> IO Semiont.Registry.SemiontBrowser",
+        "openResourceAdditionalProperties": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "openResourceId": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Semiont.Internal.Generated.Models.ResourceId.ResourceId",
+        "openResourceMediaType": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Maybe Data.Text.Internal.Text",
+        "openResourceName": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Data.Text.Internal.Text",
+        "openResourceOpenedAt": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Data.Scientific.Scientific",
+        "openResourceOrder": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Maybe Data.Scientific.Scientific",
+        "openResourceStorageUri": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Maybe Data.Text.Internal.Text",
+        "openResources": "Semiont.Registry.SemiontBrowser -> Semiont.Internal.StateValue.StateValue [Semiont.Internal.Generated.Models.OpenResource.OpenResource]",
+        "openResourcesByKbKey": "Data.Text.Internal.Text",
+        "openSession": "Semiont.Registry.Factory.SessionFactory -> Semiont.Internal.Generated.SessionFactoryOptions.SessionFactoryOptions -> IO Semiont.Session.OpenedSession",
+        "readActiveKb": "Semiont.Registry.SemiontBrowser -> IO Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdict",
+        "registryFactory": "Semiont.Registry.SemiontBrowserConfig -> Semiont.Registry.Factory.SessionFactory",
+        "registryHttp": "Semiont.Registry.SemiontBrowserConfig -> Semiont.Internal.Http.HttpOptions",
+        "registryStorage": "Semiont.Registry.SemiontBrowserConfig -> Semiont.SessionStorage.SessionStorage",
+        "registryWallNow": "Semiont.Registry.SemiontBrowserConfig -> IO Data.Scientific.Scientific",
+        "removeKb": "Semiont.Registry.SemiontBrowser -> Data.Text.Internal.Text -> IO ()",
+        "removeOpenResource": "Semiont.Registry.SemiontBrowser -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO ()",
+        "reorderOpenResources": "Semiont.Registry.SemiontBrowser -> Int -> Int -> IO ()",
+        "revokeSession": "Semiont.Registry.Factory.SessionFactory -> Semiont.Internal.Generated.Models.StoredSession.StoredSession -> IO ()",
+        "saveKnowledgeBases": "Semiont.SessionStorage.SessionStorage -> [Semiont.Internal.Generated.Models.KnowledgeBase.KnowledgeBase] -> IO ()",
+        "sessionActivating": "Semiont.Registry.SemiontBrowser -> Semiont.Internal.StateValue.StateValue Bool",
+        "sessionFactoryOptionsKb": "Semiont.Internal.Generated.SessionFactoryOptions.SessionFactoryOptions -> Semiont.Internal.Generated.Models.KnowledgeBase.KnowledgeBase",
+        "sessionFactoryOptionsOnError": "Semiont.Internal.Generated.SessionFactoryOptions.SessionFactoryOptions -> Semiont.Errors.SessionError -> IO ()",
+        "sessionFactoryOptionsSignals": "Semiont.Internal.Generated.SessionFactoryOptions.SessionFactoryOptions -> Semiont.State.SessionSignals.SessionSignals",
+        "sessionFactoryOptionsStorage": "Semiont.Internal.Generated.SessionFactoryOptions.SessionFactoryOptions -> Semiont.SessionStorage.SessionStorage",
+        "sessionKey": "Data.Text.Internal.Text -> Data.Text.Internal.Text",
+        "setActiveKb": "Semiont.Registry.SemiontBrowser -> Maybe Data.Text.Internal.Text -> IO ()",
+        "setIdentityToken": "Semiont.Registry.SemiontBrowser -> Maybe Data.Text.Internal.Text -> GHC.Internal.Conc.Sync.STM ()",
+        "setLastViewedResource": "Semiont.Registry.SemiontBrowser -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO ()",
+        "signIn": "Semiont.Registry.SemiontBrowser -> Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.StoredSession.StoredSession -> IO ()",
+        "signInOutcomeAdditionalProperties": "Semiont.Internal.Generated.Models.SignInOutcome.SignInOutcome -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "signInOutcomeExpected": "Semiont.Internal.Generated.Models.SignInOutcome.SignInOutcome -> Maybe Semiont.Internal.Generated.Models.Expected.Expected",
+        "signInOutcomeKb": "Semiont.Internal.Generated.Models.SignInOutcome.SignInOutcome -> Semiont.Internal.Generated.Models.KnowledgeBase.KnowledgeBase",
+        "signOut": "Semiont.Registry.SemiontBrowser -> Data.Text.Internal.Text -> IO ()",
+        "signedIn": "Semiont.Registry.SemiontBrowser -> Semiont.Internal.Generated.Models.SignedIn.SignedIn -> IO Semiont.Internal.Generated.Models.SignInOutcome.SignInOutcome",
+        "signedInAdditionalProperties": "Semiont.Internal.Generated.Models.SignedIn.SignedIn -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "signedInDescription": "Semiont.Internal.Generated.Models.SignedIn.SignedIn -> Semiont.Internal.Generated.Models.KbDescription.KbDescription",
+        "signedInEndpoint": "Semiont.Internal.Generated.Models.SignedIn.SignedIn -> Semiont.Internal.Generated.Models.KbEndpoint.KbEndpoint",
+        "signedInExpectedDid": "Semiont.Internal.Generated.Models.SignedIn.SignedIn -> Maybe Data.Text.Internal.Text",
+        "signedInExpectedName": "Semiont.Internal.Generated.Models.SignedIn.SignedIn -> Maybe Data.Text.Internal.Text",
+        "signedInKbId": "Semiont.Internal.Generated.Models.SignedIn.SignedIn -> Maybe Data.Text.Internal.Text",
+        "signedInSession": "Semiont.Internal.Generated.Models.SignedIn.SignedIn -> Semiont.Internal.Generated.Models.StoredSession.StoredSession",
+        "sortOpenResources": "[Semiont.Internal.Generated.Models.OpenResource.OpenResource] -> [Semiont.Internal.Generated.Models.OpenResource.OpenResource]",
+        "storage": "Semiont.Registry.SemiontBrowser -> Semiont.SessionStorage.SessionStorage",
+        "storeSession": "Semiont.SessionStorage.SessionStorage -> Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.StoredSession.StoredSession -> IO ()",
+        "storedSession": "Semiont.SessionStorage.SessionStorage -> Data.Text.Internal.Text -> IO (Maybe Semiont.Internal.Generated.Models.StoredSession.StoredSession)",
+        "storedSessionAccess": "Semiont.Internal.Generated.Models.StoredSession.StoredSession -> Data.Text.Internal.Text",
+        "storedSessionAdditionalProperties": "Semiont.Internal.Generated.Models.StoredSession.StoredSession -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "storedSessionClientId": "Semiont.Internal.Generated.Models.StoredSession.StoredSession -> Data.Text.Internal.Text",
+        "storedSessionRefresh": "Semiont.Internal.Generated.Models.StoredSession.StoredSession -> Data.Text.Internal.Text",
+        "storedSessionRevocationEndpoint": "Semiont.Internal.Generated.Models.StoredSession.StoredSession -> Maybe Data.Text.Internal.Text",
+        "storedSessionTokenEndpoint": "Semiont.Internal.Generated.Models.StoredSession.StoredSession -> Data.Text.Internal.Text",
+        "updateKb": "Semiont.Registry.SemiontBrowser -> Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Maybe Semiont.Internal.Generated.Models.KbRead.KbRead -> IO ()",
+        "updateOpenResourceName": "Semiont.Registry.SemiontBrowser -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Data.Text.Internal.Text -> IO ()"
+      }
+    },
+    "Semiont.Registry.Factory": {
+      "types": {
+        "SessionFactory": {
+          "definition": "data Semiont.Registry.Factory.SessionFactory = ...",
+          "kind": "*"
+        },
+        "SessionFactoryOptions": {
+          "definition": "data Semiont.Internal.Generated.SessionFactoryOptions.SessionFactoryOptions = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "SessionFactory": "(Semiont.Internal.Generated.SessionFactoryOptions.SessionFactoryOptions -> IO Semiont.Session.OpenedSession) -> (Semiont.Internal.Generated.Models.StoredSession.StoredSession -> IO ()) -> Semiont.Registry.Factory.SessionFactory",
+        "SessionFactoryOptions": "Semiont.Internal.Generated.Models.KnowledgeBase.KnowledgeBase -> Semiont.SessionStorage.SessionStorage -> Semiont.State.SessionSignals.SessionSignals -> (Semiont.Errors.SessionError -> IO ()) -> Semiont.Internal.Generated.SessionFactoryOptions.SessionFactoryOptions",
+        "newHttpSessionFactory": "Semiont.Internal.Http.HttpOptions -> IO Data.Scientific.Scientific -> Semiont.Registry.Factory.SessionFactory",
+        "openSession": "Semiont.Registry.Factory.SessionFactory -> Semiont.Internal.Generated.SessionFactoryOptions.SessionFactoryOptions -> IO Semiont.Session.OpenedSession",
+        "revokeSession": "Semiont.Registry.Factory.SessionFactory -> Semiont.Internal.Generated.Models.StoredSession.StoredSession -> IO ()",
+        "sessionFactoryOptionsKb": "Semiont.Internal.Generated.SessionFactoryOptions.SessionFactoryOptions -> Semiont.Internal.Generated.Models.KnowledgeBase.KnowledgeBase",
+        "sessionFactoryOptionsOnError": "Semiont.Internal.Generated.SessionFactoryOptions.SessionFactoryOptions -> Semiont.Errors.SessionError -> IO ()",
+        "sessionFactoryOptionsSignals": "Semiont.Internal.Generated.SessionFactoryOptions.SessionFactoryOptions -> Semiont.State.SessionSignals.SessionSignals",
+        "sessionFactoryOptionsStorage": "Semiont.Internal.Generated.SessionFactoryOptions.SessionFactoryOptions -> Semiont.SessionStorage.SessionStorage"
+      }
+    },
+    "Semiont.Registry.Identity": {
+      "types": {
+        "ConnectionIdentity": {
+          "definition": "data Semiont.Internal.Generated.Models.ConnectionIdentity.ConnectionIdentity = ...",
+          "kind": "*"
+        },
+        "IdentityUnverifiableError": {
+          "definition": "data Semiont.Registry.Identity.IdentityUnverifiableError = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "ConnectionIdentity": "Semiont.Internal.Generated.Models.KbDescription.KbDescription -> Semiont.Internal.Generated.Models.UserId.UserId -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.ConnectionIdentity.ConnectionIdentity",
+        "IdentityUnverifiableError": "Semiont.ErrorCodes.KbIdentityCode -> Data.Text.Internal.Text -> Semiont.Registry.Identity.IdentityUnverifiableError",
+        "connectionIdentityAdditionalProperties": "Semiont.Internal.Generated.Models.ConnectionIdentity.ConnectionIdentity -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "connectionIdentityDescription": "Semiont.Internal.Generated.Models.ConnectionIdentity.ConnectionIdentity -> Semiont.Internal.Generated.Models.KbDescription.KbDescription",
+        "connectionIdentityDid": "Semiont.Internal.Generated.Models.ConnectionIdentity.ConnectionIdentity -> Semiont.Internal.Generated.Models.UserId.UserId",
+        "describeConnection": "Semiont.Internal.Http.HttpOptions -> Semiont.Internal.Generated.Models.HttpEndpoint.HttpEndpoint -> Data.Text.Internal.Text -> IO Semiont.Internal.Generated.Models.ConnectionIdentity.ConnectionIdentity",
+        "identityUnverifiableDetail": "Semiont.Registry.Identity.IdentityUnverifiableError -> Data.Text.Internal.Text",
+        "identityUnverifiableReason": "Semiont.Registry.Identity.IdentityUnverifiableError -> Semiont.ErrorCodes.KbIdentityCode",
+        "samePlace": "Semiont.Internal.Generated.Models.KbEndpoint.KbEndpoint -> Semiont.Internal.Generated.Models.KbEndpoint.KbEndpoint -> Bool"
+      }
+    },
+    "Semiont.Registry.Resources": {
+      "types": {
+        "OpenResource": {
+          "definition": "data Semiont.Internal.Generated.Models.OpenResource.OpenResource = ...",
+          "kind": "*"
+        },
+        "TabCheck": {
+          "definition": "data Semiont.Internal.Generated.Models.TabCheck.TabCheck = ...",
+          "kind": "*"
+        },
+        "TabVerdict": {
+          "definition": "data Semiont.Internal.Generated.Models.TabVerdict.TabVerdict = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "OpenResource": "Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Maybe Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Scientific.Scientific -> Maybe Data.Scientific.Scientific -> Maybe Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.OpenResource.OpenResource",
+        "TabCheckBranch1": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch1Value -> Semiont.Internal.Generated.Models.TabCheck.TabCheck",
+        "TabCheckBranch2": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch2Value -> Semiont.Internal.Generated.Models.TabCheck.TabCheck",
+        "TabCheckBranch3": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch3Value -> Semiont.Internal.Generated.Models.TabCheck.TabCheck",
+        "TabVerdictGone": "Semiont.Internal.Generated.Models.TabVerdict.TabVerdict",
+        "TabVerdictReady": "Semiont.Internal.Generated.Models.TabVerdict.TabVerdict",
+        "TabVerdictUnknown": "Semiont.Internal.Generated.Models.TabVerdict.TabVerdict",
+        "applyTabChecks": "[Semiont.Internal.Generated.Models.OpenResource.OpenResource] -> Data.Map.Internal.Map Semiont.Internal.Generated.Models.ResourceId.ResourceId Semiont.Internal.Generated.Models.TabCheck.TabCheck -> [Semiont.Internal.Generated.Models.OpenResource.OpenResource]",
+        "openResourceAdditionalProperties": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "openResourceId": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Semiont.Internal.Generated.Models.ResourceId.ResourceId",
+        "openResourceMediaType": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Maybe Data.Text.Internal.Text",
+        "openResourceName": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Data.Text.Internal.Text",
+        "openResourceOpenedAt": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Data.Scientific.Scientific",
+        "openResourceOrder": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Maybe Data.Scientific.Scientific",
+        "openResourceStorageUri": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Maybe Data.Text.Internal.Text",
+        "sortOpenResources": "[Semiont.Internal.Generated.Models.OpenResource.OpenResource] -> [Semiont.Internal.Generated.Models.OpenResource.OpenResource]"
+      }
+    },
     "Semiont.Registry.Stored": {
       "types": {
         "StoredSession": {
@@ -1532,9 +1972,13 @@
         "StoredSession": "Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.StoredSession.StoredSession",
         "activeKey": "Data.Text.Internal.Text",
         "clearStoredSession": "Semiont.SessionStorage.SessionStorage -> Data.Text.Internal.Text -> IO ()",
+        "kbOfSessionKey": "Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text",
+        "keptIn": "Semiont.SessionStorage.SessionStorage -> Data.Text.Internal.Text -> Semiont.Internal.SignIn.KeptSignIn",
         "knowledgeBasesKey": "Data.Text.Internal.Text",
         "lastViewedResourceByKbKey": "Data.Text.Internal.Text",
+        "loadKnowledgeBases": "Semiont.SessionStorage.SessionStorage -> IO [Semiont.Internal.Generated.Models.KnowledgeBase.KnowledgeBase]",
         "openResourcesByKbKey": "Data.Text.Internal.Text",
+        "saveKnowledgeBases": "Semiont.SessionStorage.SessionStorage -> [Semiont.Internal.Generated.Models.KnowledgeBase.KnowledgeBase] -> IO ()",
         "sessionKey": "Data.Text.Internal.Text -> Data.Text.Internal.Text",
         "storeSession": "Semiont.SessionStorage.SessionStorage -> Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.StoredSession.StoredSession -> IO ()",
         "storedSession": "Semiont.SessionStorage.SessionStorage -> Data.Text.Internal.Text -> IO (Maybe Semiont.Internal.Generated.Models.StoredSession.StoredSession)",
@@ -1645,33 +2089,33 @@
         "Expired": "Semiont.Internal.Generated.Stored.SessionEndReason",
         "OpenedSession": "Semiont.Session.Session -> IO () -> Semiont.Session.OpenedSession",
         "Refused": "Semiont.Internal.Generated.Stored.SessionEndReason",
-        "SessionOptions": "Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.KbTarget.KbTarget -> Semiont.SessionStorage.SessionStorage -> Maybe Data.Text.Internal.Text -> Maybe (Maybe Data.Text.Internal.Text -> IO (Maybe Data.Text.Internal.Text)) -> Maybe (Semiont.Client.Client -> Data.Text.Internal.Text -> IO (Maybe Semiont.Internal.Generated.Models.UserResponse.UserResponse)) -> (Semiont.Internal.Generated.Stored.SessionEndReason -> IO ()) -> (Semiont.Errors.SessionError -> IO ()) -> IO Data.Scientific.Scientific -> Semiont.Session.SessionOptions",
+        "SessionOptions": "Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.KbTarget.KbTarget -> Semiont.Internal.SignIn.KeptSignIn -> Maybe Data.Text.Internal.Text -> Maybe (Maybe Data.Text.Internal.Text -> IO (Maybe Data.Text.Internal.Text)) -> Maybe (Semiont.Client.Client -> Data.Text.Internal.Text -> IO (Maybe Semiont.Internal.Generated.Models.UserResponse.UserResponse)) -> (Semiont.Internal.Generated.Stored.SessionEndReason -> IO ()) -> (Semiont.Errors.SessionError -> IO ()) -> IO Data.Scientific.Scientific -> Semiont.Session.SessionOptions",
         "client": "Semiont.Session.Session -> Semiont.Client.Client",
         "closeOpenedSession": "Semiont.Session.OpenedSession -> IO ()",
         "dispose": "Semiont.Session.Session -> IO ()",
         "errors": "Semiont.Session.Session -> (Streaming.Internal.Stream (Data.Functor.Of.Of Semiont.Errors.TransportError) IO () -> IO result) -> IO result",
         "expiresAt": "Semiont.Session.Session -> GHC.Internal.Conc.Sync.STM (Maybe Data.Scientific.Scientific)",
-        "fromHttp": "Semiont.Internal.Http.HttpOptions -> Semiont.Session.SessionOptions -> IO Semiont.Session.OpenedSession",
-        "fromIssuedSession": "Semiont.Internal.Http.HttpOptions -> Semiont.Session.SessionOptions -> Semiont.Internal.Generated.Models.StoredSession.StoredSession -> IO Semiont.Session.OpenedSession",
+        "fromHttp": "Semiont.Internal.Http.HttpOptions -> Maybe Semiont.Internal.Persistence.CachePersistence -> Semiont.Session.SessionOptions -> IO Semiont.Session.OpenedSession",
+        "fromIssuedSession": "Semiont.Internal.Http.HttpOptions -> Maybe Semiont.Internal.Persistence.CachePersistence -> Semiont.Session.SessionOptions -> Semiont.Internal.Generated.Models.StoredSession.StoredSession -> IO Semiont.Session.OpenedSession",
+        "fromKeptSession": "Semiont.Internal.Http.HttpOptions -> Maybe Semiont.Internal.Persistence.CachePersistence -> Semiont.Session.SessionOptions -> IO Semiont.Session.OpenedSession",
         "id": "Semiont.Session.Session -> Data.Text.Internal.Text",
         "kb": "Semiont.Session.Session -> Semiont.Internal.Generated.Models.KbTarget.KbTarget",
         "newSession": "Semiont.Client.Client -> Semiont.Session.SessionOptions -> Semiont.Retry.RetryOptions -> Semiont.Timing.Settings.Settings -> IO Semiont.Session.Session",
         "openedSession": "Semiont.Session.OpenedSession -> Semiont.Session.Session",
         "ready": "Semiont.Session.Session -> IO ()",
-        "refresh": "Semiont.Session.Session -> IO (Maybe Data.Text.Internal.Text)",
-        "renewer": "Semiont.Session.Session -> Data.Text.Internal.Text -> IO (Maybe Data.Text.Internal.Text)",
+        "refresh": "Semiont.Session.Session -> Maybe Data.Text.Internal.Text -> IO (Maybe Data.Text.Internal.Text)",
         "sessionEndReason": "Semiont.Internal.Generated.Stored.SessionEndReason -> Data.Text.Internal.Text",
         "sessionId": "Semiont.Session.SessionOptions -> Data.Text.Internal.Text",
         "sessionInitialToken": "Semiont.Session.SessionOptions -> Maybe Data.Text.Internal.Text",
         "sessionKb": "Semiont.Session.SessionOptions -> Semiont.Internal.Generated.Models.KbTarget.KbTarget",
+        "sessionKept": "Semiont.Session.SessionOptions -> Semiont.Internal.SignIn.KeptSignIn",
         "sessionOnAuthFailed": "Semiont.Session.SessionOptions -> Semiont.Internal.Generated.Stored.SessionEndReason -> IO ()",
         "sessionOnError": "Semiont.Session.SessionOptions -> Semiont.Errors.SessionError -> IO ()",
         "sessionRefresh": "Semiont.Session.SessionOptions -> Maybe (Maybe Data.Text.Internal.Text -> IO (Maybe Data.Text.Internal.Text))",
-        "sessionStorage": "Semiont.Session.SessionOptions -> Semiont.SessionStorage.SessionStorage",
         "sessionValidate": "Semiont.Session.SessionOptions -> Maybe (Semiont.Client.Client -> Data.Text.Internal.Text -> IO (Maybe Semiont.Internal.Generated.Models.UserResponse.UserResponse))",
         "sessionWallNow": "Semiont.Session.SessionOptions -> IO Data.Scientific.Scientific",
-        "signInAgent": "Semiont.Internal.Http.HttpOptions -> Semiont.Session.SessionOptions -> Semiont.Timing.RetryBudget -> Semiont.ServiceToken.ServiceToken -> IO Semiont.Session.OpenedSession",
-        "signInDevice": "Semiont.Internal.Http.HttpOptions -> Semiont.Session.SessionOptions -> (Semiont.Internal.Generated.Models.DeviceCode.DeviceCode -> IO ()) -> IO Semiont.Session.OpenedSession",
+        "signInAgent": "Semiont.Internal.Http.HttpOptions -> Maybe Semiont.Internal.Persistence.CachePersistence -> Semiont.Session.SessionOptions -> Semiont.Timing.RetryBudget -> Semiont.ServiceToken.ServiceToken -> IO Semiont.Session.OpenedSession",
+        "signInDevice": "Semiont.Internal.Http.HttpOptions -> Maybe Semiont.Internal.Persistence.CachePersistence -> Semiont.Session.SessionOptions -> (Semiont.Internal.Generated.Models.DeviceCode.DeviceCode -> IO ()) -> IO Semiont.Session.OpenedSession",
         "streamState": "Semiont.Session.Session -> Semiont.Internal.StateValue.StateValue Semiont.Transport.Facts.ConnectionState",
         "token": "Semiont.Session.Session -> Semiont.Internal.StateValue.StateValue (Maybe Data.Text.Internal.Text)",
         "user": "Semiont.Session.Session -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Internal.Generated.Models.UserResponse.UserResponse)"
@@ -1694,6 +2138,226 @@
         "update": "Semiont.SessionStorage.SessionStorage -> forall result. Data.Text.Internal.Text -> (Maybe Data.Text.Internal.Text -> (Maybe Data.Text.Internal.Text, result)) -> IO result"
       }
     },
+    "Semiont.SignIn": {
+      "types": {
+        "KeptSignIn": {
+          "definition": "data Semiont.Internal.SignIn.KeptSignIn = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "KeptSignIn": "IO (Maybe Semiont.Internal.Generated.Models.StoredSession.StoredSession) -> (Semiont.Internal.Generated.Models.StoredSession.StoredSession -> IO ()) -> (Semiont.Internal.Generated.Models.StoredSession.StoredSession -> Semiont.Internal.Generated.Models.IssuedTokens.IssuedTokens -> IO (Maybe Data.Text.Internal.Text)) -> IO () -> ((Maybe Semiont.Internal.Generated.Models.StoredSession.StoredSession -> IO ()) -> IO (Maybe (IO ()))) -> Semiont.Internal.SignIn.KeptSignIn",
+        "forget": "Semiont.Internal.SignIn.KeptSignIn -> IO ()",
+        "held": "Semiont.Internal.SignIn.KeptSignIn -> IO (Maybe Semiont.Internal.Generated.Models.StoredSession.StoredSession)",
+        "keep": "Semiont.Internal.SignIn.KeptSignIn -> Semiont.Internal.Generated.Models.StoredSession.StoredSession -> IO ()",
+        "newMemorySignIn": "IO Semiont.Internal.SignIn.KeptSignIn",
+        "renewKept": "Semiont.Internal.SignIn.KeptSignIn -> Maybe Data.Text.Internal.Text -> (Data.Text.Internal.Text -> IO Bool) -> (Semiont.Internal.Generated.Models.StoredSession.StoredSession -> IO Semiont.Internal.Generated.Models.IssuedTokens.IssuedTokens) -> IO (Maybe Data.Text.Internal.Text)",
+        "renewed": "Semiont.Internal.SignIn.KeptSignIn -> Semiont.Internal.Generated.Models.StoredSession.StoredSession -> Semiont.Internal.Generated.Models.IssuedTokens.IssuedTokens -> IO (Maybe Data.Text.Internal.Text)",
+        "subscribe": "Semiont.Internal.SignIn.KeptSignIn -> (Maybe Semiont.Internal.Generated.Models.StoredSession.StoredSession -> IO ()) -> IO (Maybe (IO ()))"
+      }
+    },
+    "Semiont.SignInStore": {
+      "types": {
+        "SignInStore": {
+          "definition": "data Semiont.SignInStore.SignInStore = ...",
+          "kind": "*"
+        },
+        "SignInStoreOptions": {
+          "definition": "data Semiont.SignInStore.SignInStoreOptions = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "SignInStoreOptions": "Semiont.Retry.RetryOptions -> Integer -> IO Data.Time.Clock.Internal.UTCTime.UTCTime -> Semiont.SignInStore.SignInStoreOptions",
+        "entry": "Semiont.SignInStore.SignInStore -> Data.Text.Internal.Text -> Semiont.Internal.SignIn.KeptSignIn",
+        "newSignInStore": "Semiont.SignInStore.SignInStoreOptions -> FilePath -> IO Semiont.SignInStore.SignInStore",
+        "path": "Semiont.SignInStore.SignInStore -> FilePath",
+        "signIn": "Semiont.SignInStore.SignInStore -> Data.Text.Internal.Text -> IO (Maybe Semiont.Internal.Generated.Models.SignIn.SignIn)",
+        "signInFileName": "FilePath",
+        "signInStoreLockRetryMs": "Semiont.SignInStore.SignInStoreOptions -> Integer",
+        "signInStoreTime": "Semiont.SignInStore.SignInStoreOptions -> Semiont.Retry.RetryOptions",
+        "signInStoreWallNow": "Semiont.SignInStore.SignInStoreOptions -> IO Data.Time.Clock.Internal.UTCTime.UTCTime",
+        "signIns": "Semiont.SignInStore.SignInStore -> IO (Data.Map.Internal.Map Data.Text.Internal.Text Semiont.Internal.Generated.Models.SignIn.SignIn)",
+        "stateDirectory": "Data.Text.Internal.Text -> Maybe FilePath -> Maybe FilePath -> Maybe FilePath -> Maybe FilePath",
+        "thisSystem": "Data.Text.Internal.Text"
+      }
+    },
+    "Semiont.State.Beckon": {
+      "types": {
+        "BeckonStateUnit": {
+          "definition": "data Semiont.State.Beckon.BeckonStateUnit = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "dispose": "Semiont.State.Beckon.BeckonStateUnit -> IO ()",
+        "focus": "Semiont.State.Beckon.BeckonStateUnit -> Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> IO ()",
+        "hoveredAnnotationId": "Semiont.State.Beckon.BeckonStateUnit -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Internal.Generated.Models.AnnotationId.AnnotationId)",
+        "newBeckonStateUnit": "Semiont.Client.Client -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.State.Beckon.BeckonStateUnit"
+      }
+    },
+    "Semiont.State.Gather": {
+      "types": {
+        "GatherStateUnit": {
+          "definition": "data Semiont.State.Gather.GatherStateUnit = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "annotationId": "Semiont.State.Gather.GatherStateUnit -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Internal.Generated.Models.AnnotationId.AnnotationId)",
+        "context": "Semiont.State.Gather.GatherStateUnit -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Internal.Generated.Models.GatheredContext.GatheredContext)",
+        "dispose": "Semiont.State.Gather.GatherStateUnit -> IO ()",
+        "error": "Semiont.State.Gather.GatherStateUnit -> Semiont.Internal.StateValue.StateValue (Maybe GHC.Internal.Exception.Type.SomeException)",
+        "gatherAnnotation": "Semiont.State.Gather.GatherStateUnit -> Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> Maybe Semiont.Internal.Generated.Models.GatherAnnotationOptions.GatherAnnotationOptions -> IO ()",
+        "gatherResource": "Semiont.State.Gather.GatherStateUnit -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Maybe Semiont.Internal.Generated.Models.GatherResourceOptions.GatherResourceOptions -> IO ()",
+        "loading": "Semiont.State.Gather.GatherStateUnit -> Semiont.Internal.StateValue.StateValue Bool",
+        "newGatherStateUnit": "Semiont.Client.Client -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.State.Gather.GatherStateUnit",
+        "resourceContext": "Semiont.State.Gather.GatherStateUnit -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Internal.Generated.Models.GatheredContext.GatheredContext)",
+        "resourceError": "Semiont.State.Gather.GatherStateUnit -> Semiont.Internal.StateValue.StateValue (Maybe GHC.Internal.Exception.Type.SomeException)",
+        "resourceLoading": "Semiont.State.Gather.GatherStateUnit -> Semiont.Internal.StateValue.StateValue Bool"
+      }
+    },
+    "Semiont.State.HoverDwell": {
+      "types": {
+        "HoverDwell": {
+          "definition": "data Semiont.State.HoverDwell.HoverDwell = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "dispose": "Semiont.State.HoverDwell.HoverDwell -> IO ()",
+        "enter": "Semiont.State.HoverDwell.HoverDwell -> Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> IO ()",
+        "leave": "Semiont.State.HoverDwell.HoverDwell -> IO ()",
+        "newHoverDwell": "Semiont.Retry.RetryOptions -> Integer -> (Maybe Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> IO ()) -> IO Semiont.State.HoverDwell.HoverDwell"
+      }
+    },
+    "Semiont.State.Mark": {
+      "types": {
+        "MarkStateUnit": {
+          "definition": "data Semiont.State.Mark.MarkStateUnit = ...",
+          "kind": "*"
+        },
+        "PendingAnnotation": {
+          "definition": "data Semiont.Internal.Generated.PendingAnnotation.PendingAnnotation = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "PendingAnnotation": "Semiont.Internal.Generated.Models.AnnotationSelector.AnnotationSelector -> Semiont.Internal.Generated.Models.Motivation.Motivation -> Semiont.Internal.Generated.PendingAnnotation.PendingAnnotation",
+        "cancelPending": "Semiont.State.Mark.MarkStateUnit -> GHC.Internal.Conc.Sync.STM ()",
+        "delegatingMotivation": "Semiont.State.Mark.MarkStateUnit -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Internal.Generated.Models.Motivation.Motivation)",
+        "dismissProgress": "Semiont.State.Mark.MarkStateUnit -> GHC.Internal.Conc.Sync.STM ()",
+        "dispose": "Semiont.State.Mark.MarkStateUnit -> IO ()",
+        "failure": "Semiont.State.Mark.MarkStateUnit -> Semiont.Internal.StateValue.StateValue (Maybe GHC.Internal.Exception.Type.SomeException)",
+        "jobId": "Semiont.State.Mark.MarkStateUnit -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Internal.Generated.Models.JobId.JobId)",
+        "newMarkStateUnit": "Semiont.Client.Client -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Semiont.Retry.RetryOptions -> Semiont.Timing.Settings.Settings -> IO Semiont.State.Mark.MarkStateUnit",
+        "pendingAnnotation": "Semiont.State.Mark.MarkStateUnit -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Internal.Generated.PendingAnnotation.PendingAnnotation)",
+        "pendingAnnotationMotivation": "Semiont.Internal.Generated.PendingAnnotation.PendingAnnotation -> Semiont.Internal.Generated.Models.Motivation.Motivation",
+        "pendingAnnotationSelector": "Semiont.Internal.Generated.PendingAnnotation.PendingAnnotation -> Semiont.Internal.Generated.Models.AnnotationSelector.AnnotationSelector",
+        "progress": "Semiont.State.Mark.MarkStateUnit -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Internal.Generated.Models.JobProgress.JobProgress)",
+        "progressMotivation": "Semiont.State.Mark.MarkStateUnit -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Internal.Generated.Models.Motivation.Motivation)",
+        "requestDelegate": "Semiont.State.Mark.MarkStateUnit -> Semiont.Internal.Generated.Models.MarkJobParams.MarkJobParams -> IO ()"
+      }
+    },
+    "Semiont.State.Match": {
+      "types": {
+        "MatchStateUnit": {
+          "definition": "newtype Semiont.State.Match.MatchStateUnit = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "dispose": "Semiont.State.Match.MatchStateUnit -> IO ()",
+        "newMatchStateUnit": "Semiont.Client.Client -> IO Semiont.State.Match.MatchStateUnit"
+      }
+    },
+    "Semiont.State.Search": {
+      "types": {
+        "SearchPipeline": {
+          "definition": "data Semiont.State.Search.SearchPipeline value = ...",
+          "kind": "* -> *"
+        },
+        "SearchState": {
+          "definition": "data Semiont.Internal.Generated.SearchState.SearchState value = ...",
+          "kind": "* -> *"
+        }
+      },
+      "values": {
+        "SearchState": "[value] -> Bool -> Semiont.Internal.Generated.SearchState.SearchState value",
+        "dispose": "Semiont.State.Search.SearchPipeline value -> IO ()",
+        "newSearchPipeline": "Semiont.Retry.RetryOptions -> Integer -> Data.Text.Internal.Text -> (Data.Text.Internal.Text -> (Maybe [value] -> IO ()) -> IO ()) -> IO (Semiont.State.Search.SearchPipeline value)",
+        "query": "Semiont.State.Search.SearchPipeline value -> Semiont.Internal.StateValue.StateValue Data.Text.Internal.Text",
+        "searchStateIsSearching": "Semiont.Internal.Generated.SearchState.SearchState value -> Bool",
+        "searchStateResults": "Semiont.Internal.Generated.SearchState.SearchState value -> [value]",
+        "setQuery": "Semiont.State.Search.SearchPipeline value -> Data.Text.Internal.Text -> IO ()",
+        "state": "Semiont.State.Search.SearchPipeline value -> Semiont.Internal.StateValue.StateValue (Semiont.Internal.Generated.SearchState.SearchState value)"
+      }
+    },
+    "Semiont.State.SessionSignals": {
+      "types": {
+        "KbIdentityConflict": {
+          "definition": "data Semiont.Internal.Generated.SessionNotices.KbIdentityConflict = ...",
+          "kind": "*"
+        },
+        "PermissionDenied": {
+          "definition": "data Semiont.Internal.Generated.SessionNotices.PermissionDenied = ...",
+          "kind": "*"
+        },
+        "SessionEndReason": {
+          "definition": "data Semiont.Internal.Generated.Stored.SessionEndReason = ...",
+          "kind": "*"
+        },
+        "SessionEnded": {
+          "definition": "data Semiont.Internal.Generated.SessionNotices.SessionEnded = ...",
+          "kind": "*"
+        },
+        "SessionSignals": {
+          "definition": "data Semiont.State.SessionSignals.SessionSignals = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "Expired": "Semiont.Internal.Generated.Stored.SessionEndReason",
+        "KbIdentityConflict": "Data.Text.Internal.Text -> Data.Text.Internal.Text -> Semiont.Internal.Generated.SessionNotices.KbIdentityConflict",
+        "PermissionDenied": "Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.SessionNotices.PermissionDenied",
+        "Refused": "Semiont.Internal.Generated.Stored.SessionEndReason",
+        "SessionEnded": "Semiont.Internal.Generated.Stored.SessionEndReason -> Semiont.Internal.Generated.SessionNotices.SessionEnded",
+        "acknowledgeKbIdentityConflict": "Semiont.State.SessionSignals.SessionSignals -> GHC.Internal.Conc.Sync.STM ()",
+        "acknowledgePermissionDenied": "Semiont.State.SessionSignals.SessionSignals -> GHC.Internal.Conc.Sync.STM ()",
+        "acknowledgeSessionEnded": "Semiont.State.SessionSignals.SessionSignals -> GHC.Internal.Conc.Sync.STM ()",
+        "dispose": "Semiont.State.SessionSignals.SessionSignals -> IO ()",
+        "kbIdentityConflict": "Semiont.State.SessionSignals.SessionSignals -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Internal.Generated.SessionNotices.KbIdentityConflict)",
+        "kbIdentityConflictExpectedDid": "Semiont.Internal.Generated.SessionNotices.KbIdentityConflict -> Data.Text.Internal.Text",
+        "kbIdentityConflictObservedDid": "Semiont.Internal.Generated.SessionNotices.KbIdentityConflict -> Data.Text.Internal.Text",
+        "newSessionSignals": "IO Semiont.State.SessionSignals.SessionSignals",
+        "notifyKbIdentityConflict": "Semiont.State.SessionSignals.SessionSignals -> Semiont.Internal.Generated.SessionNotices.KbIdentityConflict -> GHC.Internal.Conc.Sync.STM ()",
+        "notifyPermissionDenied": "Semiont.State.SessionSignals.SessionSignals -> Maybe Data.Text.Internal.Text -> GHC.Internal.Conc.Sync.STM ()",
+        "notifySessionEnded": "Semiont.State.SessionSignals.SessionSignals -> Semiont.Internal.Generated.Stored.SessionEndReason -> GHC.Internal.Conc.Sync.STM ()",
+        "permissionDenied": "Semiont.State.SessionSignals.SessionSignals -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Internal.Generated.SessionNotices.PermissionDenied)",
+        "permissionDeniedDetail": "Semiont.Internal.Generated.SessionNotices.PermissionDenied -> Maybe Data.Text.Internal.Text",
+        "sessionEnded": "Semiont.State.SessionSignals.SessionSignals -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Internal.Generated.SessionNotices.SessionEnded)",
+        "sessionEndedReason": "Semiont.Internal.Generated.SessionNotices.SessionEnded -> Semiont.Internal.Generated.Stored.SessionEndReason"
+      }
+    },
+    "Semiont.State.Yield": {
+      "types": {
+        "YieldStateUnit": {
+          "definition": "data Semiont.State.Yield.YieldStateUnit = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "dismissProgress": "Semiont.State.Yield.YieldStateUnit -> GHC.Internal.Conc.Sync.STM ()",
+        "dispose": "Semiont.State.Yield.YieldStateUnit -> IO ()",
+        "failure": "Semiont.State.Yield.YieldStateUnit -> Semiont.Internal.StateValue.StateValue (Maybe GHC.Internal.Exception.Type.SomeException)",
+        "generate": "Semiont.State.Yield.YieldStateUnit -> Semiont.Internal.Generated.Models.GenerationJobParams.GenerationJobParams -> Maybe Data.Scientific.Scientific -> IO ()",
+        "isGenerating": "Semiont.State.Yield.YieldStateUnit -> Semiont.Internal.StateValue.StateValue Bool",
+        "jobId": "Semiont.State.Yield.YieldStateUnit -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Internal.Generated.Models.JobId.JobId)",
+        "newYieldStateUnit": "Semiont.Client.Client -> Data.Text.Internal.Text -> IO Semiont.State.Yield.YieldStateUnit",
+        "outcome": "Semiont.State.Yield.YieldStateUnit -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Internal.Generated.Models.YieldJobDone.YieldJobDone)",
+        "progress": "Semiont.State.Yield.YieldStateUnit -> Semiont.Internal.StateValue.StateValue (Maybe Semiont.Internal.Generated.Models.JobProgress.JobProgress)"
+      }
+    },
     "Semiont.StateValue": {
       "types": {
         "StateValue": {
@@ -1704,6 +2368,23 @@
       "values": {
         "current": "Semiont.Internal.StateValue.StateValue value -> GHC.Internal.Conc.Sync.STM value",
         "watch": "Semiont.Internal.StateValue.StateValue value -> (Streaming.Internal.Stream (Data.Functor.Of.Of value) IO () -> IO result) -> IO result"
+      }
+    },
+    "Semiont.StoragePersister": {
+      "types": {
+        "StoragePersister": {
+          "definition": "data Semiont.StoragePersister.StoragePersister = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "StoragePersister": "Semiont.SessionStorage.SessionStorage -> Data.Text.Internal.Text -> Integer -> Integer -> IO Data.Scientific.Scientific -> Semiont.StoragePersister.StoragePersister",
+        "newStoragePersister": "(Data.Aeson.Types.ToJSON.ToJSON key, Data.Aeson.Types.ToJSON.ToJSON value, Data.Aeson.Types.FromJSON.FromJSON value) => Semiont.StoragePersister.StoragePersister -> (Data.Aeson.Types.Internal.Value -> value -> Data.Aeson.Types.Internal.Parser key) -> IO (Semiont.Internal.Cache.CachePersister key value)",
+        "persisterMaxBytes": "Semiont.StoragePersister.StoragePersister -> Integer",
+        "persisterStorage": "Semiont.StoragePersister.StoragePersister -> Semiont.SessionStorage.SessionStorage",
+        "persisterStorageKey": "Semiont.StoragePersister.StoragePersister -> Data.Text.Internal.Text",
+        "persisterVersion": "Semiont.StoragePersister.StoragePersister -> Integer",
+        "persisterWallNow": "Semiont.StoragePersister.StoragePersister -> IO Data.Scientific.Scientific"
       }
     },
     "Semiont.System": {
@@ -1717,6 +2398,236 @@
         "healthCheck": "Semiont.System.SystemNamespace -> IO Semiont.Internal.Generated.Models.HealthResponse.HealthResponse",
         "newSystem": "Semiont.Gateway.GatewayOperations -> Semiont.System.SystemNamespace",
         "status": "Semiont.System.SystemNamespace -> IO Semiont.Internal.Generated.Models.StatusResponse.StatusResponse"
+      }
+    },
+    "Semiont.Testing": {
+      "types": {
+        "DeliveryOp": {
+          "definition": "data Semiont.Internal.Generated.Testing.DeliveryOp = ...",
+          "kind": "*"
+        },
+        "DeliverySubject": {
+          "definition": "data Semiont.Testing.Liveness.DeliverySubject = ...",
+          "kind": "*"
+        },
+        "FaultAction": {
+          "definition": "data Semiont.Internal.Generated.Testing.FaultAction = ...",
+          "kind": "*"
+        },
+        "FaultyTransport": {
+          "definition": "data Semiont.Internal.Generated.Testing.FaultyTransport = ...",
+          "kind": "*"
+        },
+        "LivenessScenario": {
+          "definition": "data Semiont.Internal.Generated.Testing.LivenessScenario = ...",
+          "kind": "*"
+        },
+        "LivenessSpec": {
+          "definition": "data Semiont.Internal.Generated.Testing.LivenessSpec = ...",
+          "kind": "*"
+        },
+        "Respond": {
+          "definition": "type Semiont.Internal.Generated.Testing.Respond = Data.Text.Internal.Text -> Data.Aeson.Types.Internal.Object -> IO (Maybe Data.Aeson.Types.Internal.Value)",
+          "kind": "*"
+        },
+        "ScriptedSessions": {
+          "definition": "data Semiont.Testing.Sessions.ScriptedSessions = ...",
+          "kind": "*"
+        },
+        "SharedStorage": {
+          "definition": "data Semiont.Testing.Storage.SharedStorage = ...",
+          "kind": "*"
+        },
+        "TestSession": {
+          "definition": "data Semiont.Testing.Client.TestSession = ...",
+          "kind": "*"
+        },
+        "TestSessionOptions": {
+          "definition": "data Semiont.Testing.Client.TestSessionOptions = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "Delay": "Integer -> Semiont.Internal.Generated.Testing.FaultAction",
+        "Deliver": "Semiont.Internal.Generated.Testing.FaultAction",
+        "DeliverySubject": "(Data.Text.Internal.Text -> IO ()) -> IO () -> IO [Data.Text.Internal.Text] -> Semiont.Testing.Liveness.DeliverySubject",
+        "DropReply": "Semiont.Internal.Generated.Testing.FaultAction",
+        "DuplicateReply": "Semiont.Internal.Generated.Testing.FaultAction",
+        "LivenessScenario": "[IO ()] -> [IO ()] -> Semiont.Internal.Generated.Testing.LivenessScenario",
+        "LivenessSpec": "(Semiont.Internal.Generated.Testing.FaultyTransport -> (Semiont.Internal.Generated.Testing.LivenessScenario -> IO ()) -> IO ()) -> Integer -> Integer -> Int -> Test.QuickCheck.Gen.Gen [Semiont.Internal.Generated.Testing.FaultAction] -> Semiont.Internal.Generated.Testing.Respond -> Semiont.Retry.RetryOptions -> Semiont.Internal.Generated.Testing.LivenessSpec",
+        "RejectEmit": "Semiont.Internal.Generated.Testing.FaultAction",
+        "TestSession": "Semiont.Session.Session -> IO () -> Semiont.Testing.Client.TestSession",
+        "TestSessionOptions": "Semiont.Client.Client -> Semiont.Session.SessionOptions -> Semiont.Retry.RetryOptions -> Semiont.Timing.Settings.Settings -> Semiont.Testing.Client.TestSessionOptions",
+        "Transition": "Semiont.Internal.Generated.Testing.DeliveryOp",
+        "Write": "Semiont.Internal.Generated.Testing.DeliveryOp",
+        "assertExactlyOnceDelivery": "Test.QuickCheck.Test.Args -> Test.QuickCheck.Gen.Gen [Semiont.Internal.Generated.Testing.DeliveryOp] -> ((Semiont.Testing.Liveness.DeliverySubject -> IO ()) -> IO ()) -> IO ()",
+        "assertLivenessAxioms": "Test.QuickCheck.Test.Args -> Semiont.Internal.Generated.Testing.LivenessSpec -> IO ()",
+        "closeTestSession": "Semiont.Testing.Client.TestSession -> IO ()",
+        "createTestSession": "Semiont.Testing.Client.TestSessionOptions -> IO Semiont.Testing.Client.TestSession",
+        "delivered": "Semiont.Testing.Liveness.DeliverySubject -> IO [Data.Text.Internal.Text]",
+        "deliveryOps": "Int -> Test.QuickCheck.Gen.Gen [Semiont.Internal.Generated.Testing.DeliveryOp]",
+        "faultActions": "Test.QuickCheck.Gen.Gen Semiont.Internal.Generated.Testing.FaultAction",
+        "faultSchedules": "Test.QuickCheck.Gen.Gen [Semiont.Internal.Generated.Testing.FaultAction]",
+        "livenessClock": "Semiont.Internal.Generated.Testing.LivenessSpec -> Semiont.Retry.RetryOptions",
+        "livenessScenarioOutputs": "Semiont.Internal.Generated.Testing.LivenessScenario -> [IO ()]",
+        "livenessScenarioSettlements": "Semiont.Internal.Generated.Testing.LivenessScenario -> [IO ()]",
+        "livenessSpecCases": "Semiont.Internal.Generated.Testing.LivenessSpec -> Int",
+        "livenessSpecMakeResponse": "Semiont.Internal.Generated.Testing.LivenessSpec -> Semiont.Internal.Generated.Testing.Respond",
+        "livenessSpecRetryBudget": "Semiont.Internal.Generated.Testing.LivenessSpec -> Integer",
+        "livenessSpecSchedules": "Semiont.Internal.Generated.Testing.LivenessSpec -> Test.QuickCheck.Gen.Gen [Semiont.Internal.Generated.Testing.FaultAction]",
+        "livenessSpecSetup": "Semiont.Internal.Generated.Testing.LivenessSpec -> Semiont.Internal.Generated.Testing.FaultyTransport -> (Semiont.Internal.Generated.Testing.LivenessScenario -> IO ()) -> IO ()",
+        "livenessSpecTimeoutMs": "Semiont.Internal.Generated.Testing.LivenessSpec -> Integer",
+        "newFaultyTransport": "Semiont.Retry.RetryOptions -> [Semiont.Internal.Generated.Testing.FaultAction] -> Semiont.Internal.Generated.Testing.Respond -> Data.Set.Internal.Set Data.Text.Internal.Text -> IO Semiont.Internal.Generated.Testing.FaultyTransport",
+        "newScriptedSessions": "Semiont.Retry.RetryOptions -> Semiont.Internal.Bus.BusOptions -> Semiont.Timing.Settings.Settings -> IO Data.Scientific.Scientific -> (Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Aeson.Types.Internal.Object -> IO (Maybe Data.Aeson.Types.Internal.Value)) -> (Data.Text.Internal.Text -> IO (Semiont.Content.ContentTransport, Maybe Semiont.Gateway.GatewayOperations)) -> IO Semiont.Testing.Sessions.ScriptedSessions",
+        "newSharedStorage": "IO Semiont.Testing.Storage.SharedStorage",
+        "testSessionOptionsClient": "Semiont.Testing.Client.TestSessionOptions -> Semiont.Client.Client",
+        "testSessionOptionsClock": "Semiont.Testing.Client.TestSessionOptions -> Semiont.Retry.RetryOptions",
+        "testSessionOptionsSession": "Semiont.Testing.Client.TestSessionOptions -> Semiont.Session.SessionOptions",
+        "testSessionOptionsTiming": "Semiont.Testing.Client.TestSessionOptions -> Semiont.Timing.Settings.Settings",
+        "testSessionSession": "Semiont.Testing.Client.TestSession -> Semiont.Session.Session",
+        "transition": "Semiont.Testing.Liveness.DeliverySubject -> IO ()",
+        "write": "Semiont.Testing.Liveness.DeliverySubject -> Data.Text.Internal.Text -> IO ()"
+      }
+    },
+    "Semiont.Testing.Client": {
+      "types": {
+        "TestSession": {
+          "definition": "data Semiont.Testing.Client.TestSession = ...",
+          "kind": "*"
+        },
+        "TestSessionOptions": {
+          "definition": "data Semiont.Testing.Client.TestSessionOptions = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "TestSession": "Semiont.Session.Session -> IO () -> Semiont.Testing.Client.TestSession",
+        "TestSessionOptions": "Semiont.Client.Client -> Semiont.Session.SessionOptions -> Semiont.Retry.RetryOptions -> Semiont.Timing.Settings.Settings -> Semiont.Testing.Client.TestSessionOptions",
+        "closeTestSession": "Semiont.Testing.Client.TestSession -> IO ()",
+        "createTestSession": "Semiont.Testing.Client.TestSessionOptions -> IO Semiont.Testing.Client.TestSession",
+        "testSessionOptionsClient": "Semiont.Testing.Client.TestSessionOptions -> Semiont.Client.Client",
+        "testSessionOptionsClock": "Semiont.Testing.Client.TestSessionOptions -> Semiont.Retry.RetryOptions",
+        "testSessionOptionsSession": "Semiont.Testing.Client.TestSessionOptions -> Semiont.Session.SessionOptions",
+        "testSessionOptionsTiming": "Semiont.Testing.Client.TestSessionOptions -> Semiont.Timing.Settings.Settings",
+        "testSessionSession": "Semiont.Testing.Client.TestSession -> Semiont.Session.Session"
+      }
+    },
+    "Semiont.Testing.Liveness": {
+      "types": {
+        "DeliveryOp": {
+          "definition": "data Semiont.Internal.Generated.Testing.DeliveryOp = ...",
+          "kind": "*"
+        },
+        "DeliverySubject": {
+          "definition": "data Semiont.Testing.Liveness.DeliverySubject = ...",
+          "kind": "*"
+        },
+        "LivenessScenario": {
+          "definition": "data Semiont.Internal.Generated.Testing.LivenessScenario = ...",
+          "kind": "*"
+        },
+        "LivenessSpec": {
+          "definition": "data Semiont.Internal.Generated.Testing.LivenessSpec = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "DeliverySubject": "(Data.Text.Internal.Text -> IO ()) -> IO () -> IO [Data.Text.Internal.Text] -> Semiont.Testing.Liveness.DeliverySubject",
+        "LivenessScenario": "[IO ()] -> [IO ()] -> Semiont.Internal.Generated.Testing.LivenessScenario",
+        "LivenessSpec": "(Semiont.Internal.Generated.Testing.FaultyTransport -> (Semiont.Internal.Generated.Testing.LivenessScenario -> IO ()) -> IO ()) -> Integer -> Integer -> Int -> Test.QuickCheck.Gen.Gen [Semiont.Internal.Generated.Testing.FaultAction] -> Semiont.Internal.Generated.Testing.Respond -> Semiont.Retry.RetryOptions -> Semiont.Internal.Generated.Testing.LivenessSpec",
+        "Transition": "Semiont.Internal.Generated.Testing.DeliveryOp",
+        "Write": "Semiont.Internal.Generated.Testing.DeliveryOp",
+        "assertExactlyOnceDelivery": "Test.QuickCheck.Test.Args -> Test.QuickCheck.Gen.Gen [Semiont.Internal.Generated.Testing.DeliveryOp] -> ((Semiont.Testing.Liveness.DeliverySubject -> IO ()) -> IO ()) -> IO ()",
+        "assertLivenessAxioms": "Test.QuickCheck.Test.Args -> Semiont.Internal.Generated.Testing.LivenessSpec -> IO ()",
+        "delivered": "Semiont.Testing.Liveness.DeliverySubject -> IO [Data.Text.Internal.Text]",
+        "deliveryOps": "Int -> Test.QuickCheck.Gen.Gen [Semiont.Internal.Generated.Testing.DeliveryOp]",
+        "faultActions": "Test.QuickCheck.Gen.Gen Semiont.Internal.Generated.Testing.FaultAction",
+        "faultSchedules": "Test.QuickCheck.Gen.Gen [Semiont.Internal.Generated.Testing.FaultAction]",
+        "livenessClock": "Semiont.Internal.Generated.Testing.LivenessSpec -> Semiont.Retry.RetryOptions",
+        "livenessScenarioOutputs": "Semiont.Internal.Generated.Testing.LivenessScenario -> [IO ()]",
+        "livenessScenarioSettlements": "Semiont.Internal.Generated.Testing.LivenessScenario -> [IO ()]",
+        "livenessSpecCases": "Semiont.Internal.Generated.Testing.LivenessSpec -> Int",
+        "livenessSpecMakeResponse": "Semiont.Internal.Generated.Testing.LivenessSpec -> Semiont.Internal.Generated.Testing.Respond",
+        "livenessSpecRetryBudget": "Semiont.Internal.Generated.Testing.LivenessSpec -> Integer",
+        "livenessSpecSchedules": "Semiont.Internal.Generated.Testing.LivenessSpec -> Test.QuickCheck.Gen.Gen [Semiont.Internal.Generated.Testing.FaultAction]",
+        "livenessSpecSetup": "Semiont.Internal.Generated.Testing.LivenessSpec -> Semiont.Internal.Generated.Testing.FaultyTransport -> (Semiont.Internal.Generated.Testing.LivenessScenario -> IO ()) -> IO ()",
+        "livenessSpecTimeoutMs": "Semiont.Internal.Generated.Testing.LivenessSpec -> Integer",
+        "transition": "Semiont.Testing.Liveness.DeliverySubject -> IO ()",
+        "write": "Semiont.Testing.Liveness.DeliverySubject -> Data.Text.Internal.Text -> IO ()"
+      }
+    },
+    "Semiont.Testing.Sessions": {
+      "types": {
+        "ScriptedSessions": {
+          "definition": "data Semiont.Testing.Sessions.ScriptedSessions = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "answersAfter": "Semiont.Testing.Sessions.ScriptedSessions -> Integer -> IO ()",
+        "factory": "Semiont.Testing.Sessions.ScriptedSessions -> Semiont.Registry.Factory.SessionFactory",
+        "newScriptedSessions": "Semiont.Retry.RetryOptions -> Semiont.Internal.Bus.BusOptions -> Semiont.Timing.Settings.Settings -> IO Data.Scientific.Scientific -> (Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Aeson.Types.Internal.Object -> IO (Maybe Data.Aeson.Types.Internal.Value)) -> (Data.Text.Internal.Text -> IO (Semiont.Content.ContentTransport, Maybe Semiont.Gateway.GatewayOperations)) -> IO Semiont.Testing.Sessions.ScriptedSessions",
+        "queueRenewals": "Semiont.Testing.Sessions.ScriptedSessions -> [Either Semiont.Errors.SignInError (Maybe Data.Text.Internal.Text)] -> IO ()",
+        "refuseToBuild": "Semiont.Testing.Sessions.ScriptedSessions -> Maybe Data.Text.Internal.Text -> IO ()",
+        "refuseWhen": "Semiont.Testing.Sessions.ScriptedSessions -> (Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Aeson.Types.Internal.Object -> IO (Maybe Data.Aeson.Types.Internal.Object)) -> IO ()",
+        "renewed": "Semiont.Testing.Sessions.ScriptedSessions -> IO Integer",
+        "revoked": "Semiont.Testing.Sessions.ScriptedSessions -> IO [Semiont.Internal.Generated.Models.StoredSession.StoredSession]",
+        "saysWho": "Semiont.Testing.Sessions.ScriptedSessions -> Maybe Semiont.Internal.Generated.Models.UserResponse.UserResponse -> IO ()",
+        "transports": "Semiont.Testing.Sessions.ScriptedSessions -> Data.Text.Internal.Text -> IO [Semiont.Internal.Generated.Testing.FaultyTransport]"
+      }
+    },
+    "Semiont.Testing.Storage": {
+      "types": {
+        "SharedStorage": {
+          "definition": "data Semiont.Testing.Storage.SharedStorage = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "context": "Semiont.Testing.Storage.SharedStorage -> IO Semiont.Testing.Storage.SharedStorage",
+        "newSharedStorage": "IO Semiont.Testing.Storage.SharedStorage",
+        "storage": "Semiont.Testing.Storage.SharedStorage -> Semiont.SessionStorage.SessionStorage"
+      }
+    },
+    "Semiont.Testing.Transport": {
+      "types": {
+        "FaultAction": {
+          "definition": "data Semiont.Internal.Generated.Testing.FaultAction = ...",
+          "kind": "*"
+        },
+        "FaultyTransport": {
+          "definition": "data Semiont.Internal.Generated.Testing.FaultyTransport = ...",
+          "kind": "*"
+        },
+        "RequestLogEntry": {
+          "definition": "data Semiont.Internal.Generated.Testing.RequestLogEntry = ...",
+          "kind": "*"
+        },
+        "Respond": {
+          "definition": "type Semiont.Internal.Generated.Testing.Respond = Data.Text.Internal.Text -> Data.Aeson.Types.Internal.Object -> IO (Maybe Data.Aeson.Types.Internal.Value)",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "Delay": "Integer -> Semiont.Internal.Generated.Testing.FaultAction",
+        "Deliver": "Semiont.Internal.Generated.Testing.FaultAction",
+        "DropReply": "Semiont.Internal.Generated.Testing.FaultAction",
+        "DuplicateReply": "Semiont.Internal.Generated.Testing.FaultAction",
+        "RejectEmit": "Semiont.Internal.Generated.Testing.FaultAction",
+        "RequestLogEntry": "Data.Text.Internal.Text -> Semiont.Internal.Generated.Testing.FaultAction -> Maybe Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Aeson.Types.Internal.Object -> Semiont.Internal.Generated.Testing.RequestLogEntry",
+        "carrier": "Semiont.Internal.Generated.Testing.FaultyTransport -> Semiont.Internal.Transport.Transport",
+        "deliver": "Semiont.Internal.Generated.Testing.FaultyTransport -> Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Data.Aeson.Types.Internal.Object -> IO ()",
+        "newFaultyTransport": "Semiont.Retry.RetryOptions -> [Semiont.Internal.Generated.Testing.FaultAction] -> Semiont.Internal.Generated.Testing.Respond -> Data.Set.Internal.Set Data.Text.Internal.Text -> IO Semiont.Internal.Generated.Testing.FaultyTransport",
+        "queueReply": "Semiont.Internal.Generated.Testing.FaultyTransport -> Data.Text.Internal.Text -> [Maybe Data.Aeson.Types.Internal.Value] -> IO ()",
+        "refuseUnscriptedOperation": "Semiont.Internal.Generated.Testing.Respond",
+        "refuseWhen": "Semiont.Internal.Generated.Testing.FaultyTransport -> (Data.Text.Internal.Text -> Data.Aeson.Types.Internal.Object -> IO (Maybe Data.Aeson.Types.Internal.Object)) -> IO ()",
+        "requestLog": "Semiont.Internal.Generated.Testing.FaultyTransport -> IO [Semiont.Internal.Generated.Testing.RequestLogEntry]",
+        "requestLogEntryAction": "Semiont.Internal.Generated.Testing.RequestLogEntry -> Semiont.Internal.Generated.Testing.FaultAction",
+        "requestLogEntryChannel": "Semiont.Internal.Generated.Testing.RequestLogEntry -> Data.Text.Internal.Text",
+        "requestLogEntryCorrelationId": "Semiont.Internal.Generated.Testing.RequestLogEntry -> Maybe Data.Text.Internal.Text",
+        "requestLogEntryPayload": "Semiont.Internal.Generated.Testing.RequestLogEntry -> Data.Aeson.Types.Internal.Object",
+        "requestLogEntryRetryKey": "Semiont.Internal.Generated.Testing.RequestLogEntry -> Data.Text.Internal.Text",
+        "retryKeyOf": "Data.Text.Internal.Text -> Data.Aeson.Types.Internal.Object -> Data.Text.Internal.Text"
       }
     },
     "Semiont.Timing": {
@@ -1944,6 +2855,10 @@
         },
         "AgentSoftwareU40_type": {
           "definition": "data Semiont.Internal.Generated.Models.AgentSoftware.AgentSoftwareU40_type = ...",
+          "kind": "*"
+        },
+        "AnchorMethod": {
+          "definition": "data Semiont.Internal.Generated.Models.AnchorMethod.AnchorMethod = ...",
           "kind": "*"
         },
         "AnchoredText": {
@@ -2482,6 +3397,10 @@
           "definition": "data Semiont.Internal.Generated.Models.CommentingJobParams.CommentingJobParamsTone = ...",
           "kind": "*"
         },
+        "ConnectionIdentity": {
+          "definition": "data Semiont.Internal.Generated.Models.ConnectionIdentity.ConnectionIdentity = ...",
+          "kind": "*"
+        },
         "ContentFormat": {
           "definition": "newtype Semiont.Internal.Generated.Models.ContentFormat.ContentFormat = ...",
           "kind": "*"
@@ -2640,6 +3559,10 @@
         },
         "EventMetadata": {
           "definition": "data Semiont.Internal.Generated.Models.EventMetadata.EventMetadata = ...",
+          "kind": "*"
+        },
+        "Expected": {
+          "definition": "data Semiont.Internal.Generated.Models.Expected.Expected = ...",
           "kind": "*"
         },
         "ExtractedText": {
@@ -3338,6 +4261,42 @@
           "definition": "data Semiont.Internal.Generated.Models.KbRead.KbRead = ...",
           "kind": "*"
         },
+        "KbReadKind": {
+          "definition": "data Semiont.Internal.Generated.Models.KbReadKind.KbReadKind = ...",
+          "kind": "*"
+        },
+        "KbReadVerdict": {
+          "definition": "data Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdict = ...",
+          "kind": "*"
+        },
+        "KbReadVerdictBranch1Value": {
+          "definition": "data Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch1Value = ...",
+          "kind": "*"
+        },
+        "KbReadVerdictBranch1ValueKind": {
+          "definition": "data Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch1ValueKind = ...",
+          "kind": "*"
+        },
+        "KbReadVerdictBranch2Value": {
+          "definition": "data Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch2Value = ...",
+          "kind": "*"
+        },
+        "KbReadVerdictBranch2ValueKind": {
+          "definition": "data Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch2ValueKind = ...",
+          "kind": "*"
+        },
+        "KbReadVerdictBranch3Value": {
+          "definition": "data Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch3Value = ...",
+          "kind": "*"
+        },
+        "KbReadVerdictBranch3ValueKind": {
+          "definition": "data Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch3ValueKind = ...",
+          "kind": "*"
+        },
+        "KbSessionStatus": {
+          "definition": "data Semiont.Internal.Generated.Models.KbSessionStatus.KbSessionStatus = ...",
+          "kind": "*"
+        },
         "KbTarget": {
           "definition": "data Semiont.Internal.Generated.Models.KbTarget.KbTarget = ...",
           "kind": "*"
@@ -3542,6 +4501,10 @@
           "definition": "data Semiont.Internal.Generated.Models.MarkUpdateEntityTypesCommand.MarkUpdateEntityTypesCommand = ...",
           "kind": "*"
         },
+        "MatchQuality": {
+          "definition": "data Semiont.Internal.Generated.Models.MatchQuality.MatchQuality = ...",
+          "kind": "*"
+        },
         "MatchResourcesRequest": {
           "definition": "data Semiont.Internal.Generated.Models.MatchResourcesRequest.MatchResourcesRequest = ...",
           "kind": "*"
@@ -3630,6 +4593,14 @@
           "definition": "data Semiont.Internal.Generated.Models.OllamaEmbeddingConfig.OllamaEmbeddingConfigType = ...",
           "kind": "*"
         },
+        "OpenResource": {
+          "definition": "data Semiont.Internal.Generated.Models.OpenResource.OpenResource = ...",
+          "kind": "*"
+        },
+        "PdfCoordinate": {
+          "definition": "data Semiont.Internal.Generated.Models.PdfCoordinate.PdfCoordinate = ...",
+          "kind": "*"
+        },
         "PdfTextItem": {
           "definition": "data Semiont.Internal.Generated.Models.PdfTextItem.PdfTextItem = ...",
           "kind": "*"
@@ -3676,6 +4647,14 @@
         },
         "QdrantVectorsConfigType": {
           "definition": "data Semiont.Internal.Generated.Models.QdrantVectorsConfig.QdrantVectorsConfigType = ...",
+          "kind": "*"
+        },
+        "QuotedText": {
+          "definition": "data Semiont.Internal.Generated.Models.QuotedText.QuotedText = ...",
+          "kind": "*"
+        },
+        "ReconciledSpan": {
+          "definition": "data Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan = ...",
           "kind": "*"
         },
         "ReplyEventId": {
@@ -3922,6 +4901,18 @@
           "definition": "data Semiont.Internal.Generated.Models.SettingsThemeChangedEvent.SettingsThemeChangedEventTheme = ...",
           "kind": "*"
         },
+        "SignIn": {
+          "definition": "data Semiont.Internal.Generated.Models.SignIn.SignIn = ...",
+          "kind": "*"
+        },
+        "SignInOutcome": {
+          "definition": "data Semiont.Internal.Generated.Models.SignInOutcome.SignInOutcome = ...",
+          "kind": "*"
+        },
+        "SignedIn": {
+          "definition": "data Semiont.Internal.Generated.Models.SignedIn.SignedIn = ...",
+          "kind": "*"
+        },
         "SmeltRebuildAnchorsCommand": {
           "definition": "data Semiont.Internal.Generated.Models.SmeltRebuildAnchorsCommand.SmeltRebuildAnchorsCommand = ...",
           "kind": "*"
@@ -3998,6 +4989,38 @@
           "definition": "data Semiont.Internal.Generated.Models.SvgSelector.SvgSelectorType = ...",
           "kind": "*"
         },
+        "TabCheck": {
+          "definition": "data Semiont.Internal.Generated.Models.TabCheck.TabCheck = ...",
+          "kind": "*"
+        },
+        "TabCheckBranch1Value": {
+          "definition": "data Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch1Value = ...",
+          "kind": "*"
+        },
+        "TabCheckBranch1ValueKind": {
+          "definition": "data Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch1ValueKind = ...",
+          "kind": "*"
+        },
+        "TabCheckBranch2Value": {
+          "definition": "data Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch2Value = ...",
+          "kind": "*"
+        },
+        "TabCheckBranch2ValueKind": {
+          "definition": "data Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch2ValueKind = ...",
+          "kind": "*"
+        },
+        "TabCheckBranch3Value": {
+          "definition": "data Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch3Value = ...",
+          "kind": "*"
+        },
+        "TabCheckBranch3ValueKind": {
+          "definition": "data Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch3ValueKind = ...",
+          "kind": "*"
+        },
+        "TabVerdict": {
+          "definition": "data Semiont.Internal.Generated.Models.TabVerdict.TabVerdict = ...",
+          "kind": "*"
+        },
         "TagCategory": {
           "definition": "data Semiont.Internal.Generated.Models.TagCategory.TagCategory = ...",
           "kind": "*"
@@ -4036,6 +5059,10 @@
         },
         "TextQuoteSelectorType": {
           "definition": "data Semiont.Internal.Generated.Models.TextQuoteSelector.TextQuoteSelectorType = ...",
+          "kind": "*"
+        },
+        "TextSpan": {
+          "definition": "data Semiont.Internal.Generated.Models.TextSpan.TextSpan = ...",
           "kind": "*"
         },
         "TextualBody": {
@@ -4262,6 +5289,10 @@
         "AgentSoftware": "Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.AgentSoftware.AgentSoftwareU40_type -> Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Maybe Semiont.Internal.Generated.Models.AgentSoftware.AgentSoftwareParameters -> Maybe Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.AgentSoftware.AgentSoftware",
         "AgentSoftwareParameters": "Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.AgentSoftware.AgentSoftwareParameters",
         "AgentSoftwareU40_typeSoftware": "Semiont.Internal.Generated.Models.AgentSoftware.AgentSoftwareU40_type",
+        "AnchorMethodContextU2d_recovered": "Semiont.Internal.Generated.Models.AnchorMethod.AnchorMethod",
+        "AnchorMethodFirstU2d_ofU2d_many": "Semiont.Internal.Generated.Models.AnchorMethod.AnchorMethod",
+        "AnchorMethodFuzzyU2d_match": "Semiont.Internal.Generated.Models.AnchorMethod.AnchorMethod",
+        "AnchorMethodUniqueU2d_match": "Semiont.Internal.Generated.Models.AnchorMethod.AnchorMethod",
         "AnchoredText": "[Semiont.Internal.Generated.Models.PdfTextItem.PdfTextItem] -> Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.AnchoredText.AnchoredText",
         "AnchoredTextAbsent": "Semiont.Internal.Generated.Models.AnchoredTextAbsent.AnchoredTextAbsentKind -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.AnchoredTextAbsent.AnchoredTextAbsent",
         "AnchoredTextAbsentKindNoU2d_map": "Semiont.Internal.Generated.Models.AnchoredTextAbsent.AnchoredTextAbsentKind",
@@ -4459,6 +5490,7 @@
         "CommentingJobParamsToneExplanatory": "Semiont.Internal.Generated.Models.CommentingJobParams.CommentingJobParamsTone",
         "CommentingJobParamsToneScholarly": "Semiont.Internal.Generated.Models.CommentingJobParams.CommentingJobParamsTone",
         "CommentingJobParamsToneTechnical": "Semiont.Internal.Generated.Models.CommentingJobParams.CommentingJobParamsTone",
+        "ConnectionIdentity": "Semiont.Internal.Generated.Models.KbDescription.KbDescription -> Semiont.Internal.Generated.Models.UserId.UserId -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.ConnectionIdentity.ConnectionIdentity",
         "ContentFormat": "Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.ContentFormat.ContentFormat",
         "ContextualSummaryResponse": "Semiont.Internal.Generated.Models.ContextualSummaryResponse.ContextualSummaryResponseContext -> Semiont.Internal.Generated.Models.ContextualSummaryResponse.ContextualSummaryResponseRelevantFields -> Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.ContextualSummaryResponse.ContextualSummaryResponse",
         "ContextualSummaryResponseBusEnvelope": "Semiont.Internal.Generated.Models.ContextualSummaryResponse.ContextualSummaryResponse -> Semiont.Internal.Generated.Models.ContextualSummaryResponseBusEnvelope.ContextualSummaryResponseBusEnvelope",
@@ -4511,6 +5543,7 @@
         "EphemeralEventId": "Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.EphemeralEventId.EphemeralEventId",
         "ErrorResponse": "Maybe Data.Text.Internal.Text -> Maybe Data.Aeson.Types.Internal.Value -> Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.ErrorResponse.ErrorResponse",
         "EventMetadata": "Integer -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.EventMetadata.EventMetadata",
+        "Expected": "Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.Expected.Expected",
         "ExtractedText": "[Semiont.Internal.Generated.Models.PdfTextItem.PdfTextItem] -> Semiont.Internal.Generated.Models.ExtractedText.ExtractedTextKind -> Semiont.Internal.Generated.Models.ExtractedText.ExtractedTextMethod -> Maybe Semiont.Internal.Generated.Models.ExtractedText.ExtractedTextOcrConfidence -> Maybe Semiont.Internal.Generated.Models.ExtractedText.ExtractedTextPdfClass -> Data.Text.Internal.Text -> Maybe [Integer] -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.ExtractedText.ExtractedText",
         "ExtractedTextKindExtracted": "Semiont.Internal.Generated.Models.ExtractedText.ExtractedTextKind",
         "ExtractedTextMethodForm": "Semiont.Internal.Generated.Models.ExtractedText.ExtractedTextMethod",
@@ -4747,6 +5780,21 @@
         "KbEndpointBranch2": "Semiont.Internal.Generated.Models.LocalEndpoint.LocalEndpoint -> Semiont.Internal.Generated.Models.KbEndpoint.KbEndpoint",
         "KbIdentity": "Data.Text.Internal.Text -> Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.KbIdentity.KbIdentity",
         "KbRead": "Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.KbRead.KbRead",
+        "KbReadKindConflict": "Semiont.Internal.Generated.Models.KbReadKind.KbReadKind",
+        "KbReadKindNoU2d_verdict": "Semiont.Internal.Generated.Models.KbReadKind.KbReadKind",
+        "KbReadKindRecorded": "Semiont.Internal.Generated.Models.KbReadKind.KbReadKind",
+        "KbReadVerdictBranch1": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch1Value -> Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdict",
+        "KbReadVerdictBranch1Value": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch1ValueKind -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch1Value",
+        "KbReadVerdictBranch1ValueKindRecorded": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch1ValueKind",
+        "KbReadVerdictBranch2": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch2Value -> Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdict",
+        "KbReadVerdictBranch2Value": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch2ValueKind -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch2Value",
+        "KbReadVerdictBranch2ValueKindConflict": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch2ValueKind",
+        "KbReadVerdictBranch3": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch3Value -> Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdict",
+        "KbReadVerdictBranch3Value": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch3ValueKind -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch3Value",
+        "KbReadVerdictBranch3ValueKindNoU2d_verdict": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch3ValueKind",
+        "KbSessionStatusAuthenticated": "Semiont.Internal.Generated.Models.KbSessionStatus.KbSessionStatus",
+        "KbSessionStatusExpired": "Semiont.Internal.Generated.Models.KbSessionStatus.KbSessionStatus",
+        "KbSessionStatusSignedU2d_out": "Semiont.Internal.Generated.Models.KbSessionStatus.KbSessionStatus",
         "KbTarget": "Semiont.Internal.Generated.Models.KbEndpoint.KbEndpoint -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.KbTarget.KbTarget",
         "KnowledgeBase": "Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.KbEndpoint.KbEndpoint -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> Maybe Semiont.Internal.Generated.Models.KbRead.KbRead -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.KnowledgeBase.KnowledgeBase",
         "KnowledgeGraph": "[Semiont.Internal.Generated.Models.KnowledgeGraph.KnowledgeGraphEdgesItem] -> [Semiont.Internal.Generated.Models.KnowledgeGraph.KnowledgeGraphNodesItem] -> Maybe Bool -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.KnowledgeGraph.KnowledgeGraph",
@@ -4815,6 +5863,9 @@
         "MarkUpdateBodyCommandOperationsItemBranch2": "Semiont.Internal.Generated.Models.BodyOperationRemove.BodyOperationRemove -> Semiont.Internal.Generated.Models.MarkUpdateBodyCommand.MarkUpdateBodyCommandOperationsItem",
         "MarkUpdateBodyCommandOperationsItemBranch3": "Semiont.Internal.Generated.Models.BodyOperationReplace.BodyOperationReplace -> Semiont.Internal.Generated.Models.MarkUpdateBodyCommand.MarkUpdateBodyCommandOperationsItem",
         "MarkUpdateEntityTypesCommand": "Maybe Semiont.Internal.Generated.Models.UserId.UserId -> [Data.Text.Internal.Text] -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> [Data.Text.Internal.Text] -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.MarkUpdateEntityTypesCommand.MarkUpdateEntityTypesCommand",
+        "MatchQualityCaseU2d_insensitive": "Semiont.Internal.Generated.Models.MatchQuality.MatchQuality",
+        "MatchQualityFuzzy": "Semiont.Internal.Generated.Models.MatchQuality.MatchQuality",
+        "MatchQualityNormalized": "Semiont.Internal.Generated.Models.MatchQuality.MatchQuality",
         "MatchResourcesRequest": "Maybe Bool -> Maybe Data.Text.Internal.Text -> Maybe Integer -> Maybe Integer -> Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.MatchResourcesRequest.MatchResourcesRequest",
         "MatchResourcesResponse": "Integer -> Semiont.Internal.Generated.Models.MatchResourcesResponse.MatchResourcesResponseMatchKind -> Integer -> [Semiont.Internal.Generated.Models.ResourceDescriptor.ResourceDescriptor] -> Integer -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.MatchResourcesResponse.MatchResourcesResponse",
         "MatchResourcesResponseMatchKindLexical": "Semiont.Internal.Generated.Models.MatchResourcesResponse.MatchResourcesResponseMatchKind",
@@ -4842,6 +5893,8 @@
         "NewKnowledgeBase": "Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.KbEndpoint.KbEndpoint -> Data.Text.Internal.Text -> Maybe Semiont.Internal.Generated.Models.KbRead.KbRead -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.NewKnowledgeBase.NewKnowledgeBase",
         "OllamaEmbeddingConfig": "Data.Text.Internal.Text -> Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.OllamaEmbeddingConfig.OllamaEmbeddingConfigType -> Semiont.Internal.Generated.Models.OllamaEmbeddingConfig.OllamaEmbeddingConfig",
         "OllamaEmbeddingConfigTypeOllama": "Semiont.Internal.Generated.Models.OllamaEmbeddingConfig.OllamaEmbeddingConfigType",
+        "OpenResource": "Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Maybe Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Scientific.Scientific -> Maybe Data.Scientific.Scientific -> Maybe Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.OpenResource.OpenResource",
+        "PdfCoordinate": "Data.Scientific.Scientific -> Data.Scientific.Scientific -> Data.Scientific.Scientific -> Data.Scientific.Scientific -> Data.Scientific.Scientific -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.PdfCoordinate.PdfCoordinate",
         "PdfTextItem": "Integer -> Data.Scientific.Scientific -> Data.Scientific.Scientific -> Integer -> Data.Scientific.Scientific -> Data.Scientific.Scientific -> Data.Scientific.Scientific -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.PdfTextItem.PdfTextItem",
         "PendingAuthorization": "Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.IssuerEndpoints.IssuerEndpoints -> Maybe Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.HttpEndpoint.HttpEndpoint -> Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.PendingAuthorization.PendingAuthorization",
         "PersistedEventId": "Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.PersistedEventId.PersistedEventId",
@@ -4854,6 +5907,8 @@
         "ProtectedResourceMetadataBearerU5f_methodsU5f_supportedItemHeader": "Semiont.Internal.Generated.Models.ProtectedResourceMetadata.ProtectedResourceMetadataBearerU5f_methodsU5f_supportedItem",
         "QdrantVectorsConfig": "Data.Text.Internal.Text -> Integer -> Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.QdrantVectorsConfig.QdrantVectorsConfigType -> Semiont.Internal.Generated.Models.QdrantVectorsConfig.QdrantVectorsConfig",
         "QdrantVectorsConfigTypeQdrant": "Semiont.Internal.Generated.Models.QdrantVectorsConfig.QdrantVectorsConfigType",
+        "QuotedText": "Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.QuotedText.QuotedText",
+        "ReconciledSpan": "Semiont.Internal.Generated.Models.AnchorMethod.AnchorMethod -> Data.Scientific.Scientific -> Data.Text.Internal.Text -> Maybe Semiont.Internal.Generated.Models.MatchQuality.MatchQuality -> Maybe Data.Text.Internal.Text -> Data.Scientific.Scientific -> Maybe Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan",
         "ReplyEventId": "Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.ReplyEventId.ReplyEventId",
         "Representation": "Maybe Data.Text.Internal.Text -> Maybe Semiont.Internal.Generated.Models.Representation.RepresentationU40_type -> Maybe Integer -> Maybe Data.Text.Internal.Text -> Maybe Semiont.Internal.Generated.Models.Representation.RepresentationConformsTo -> Maybe Data.Text.Internal.Text -> Maybe Data.Scientific.Scientific -> Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Maybe Integer -> Maybe Data.Text.Internal.Text -> Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Maybe Semiont.Internal.Generated.Models.Representation.RepresentationRel -> Maybe Data.Text.Internal.Text -> Maybe [Data.Text.Internal.Text] -> Maybe Integer -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.Representation.Representation",
         "RepresentationAddedPayload": "Semiont.Internal.Generated.Models.Representation.Representation -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.RepresentationAddedPayload.RepresentationAddedPayload",
@@ -4954,6 +6009,9 @@
         "SettingsThemeChangedEventThemeDark": "Semiont.Internal.Generated.Models.SettingsThemeChangedEvent.SettingsThemeChangedEventTheme",
         "SettingsThemeChangedEventThemeLight": "Semiont.Internal.Generated.Models.SettingsThemeChangedEvent.SettingsThemeChangedEventTheme",
         "SettingsThemeChangedEventThemeSystem": "Semiont.Internal.Generated.Models.SettingsThemeChangedEvent.SettingsThemeChangedEventTheme",
+        "SignIn": "Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.SignIn.SignIn",
+        "SignInOutcome": "Maybe Semiont.Internal.Generated.Models.Expected.Expected -> Semiont.Internal.Generated.Models.KnowledgeBase.KnowledgeBase -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.SignInOutcome.SignInOutcome",
+        "SignedIn": "Semiont.Internal.Generated.Models.KbDescription.KbDescription -> Semiont.Internal.Generated.Models.KbEndpoint.KbEndpoint -> Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.StoredSession.StoredSession -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.SignedIn.SignedIn",
         "SmeltRebuildAnchorsCommand": "Maybe Semiont.Internal.Generated.Models.UserId.UserId -> Maybe Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.SmeltRebuildAnchorsCommand.SmeltRebuildAnchorsCommand",
         "SmeltSettled": "Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.SmeltSettled.SmeltSettledOutcome -> Maybe Semiont.Internal.Generated.Models.SmeltSettled.SmeltSettledReason -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.SmeltSettled.SmeltSettled",
         "SmeltSettledOutcomeIndexed": "Semiont.Internal.Generated.Models.SmeltSettled.SmeltSettledOutcome",
@@ -5041,6 +6099,18 @@
         "SupportedMediaTypeVideoU2f_xU2d_msvideo": "Semiont.Internal.Generated.Models.SupportedMediaType.SupportedMediaType",
         "SvgSelector": "Semiont.Internal.Generated.Models.SvgSelector.SvgSelectorType -> Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.SvgSelector.SvgSelector",
         "SvgSelectorTypeSvgSelector": "Semiont.Internal.Generated.Models.SvgSelector.SvgSelectorType",
+        "TabCheckBranch1": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch1Value -> Semiont.Internal.Generated.Models.TabCheck.TabCheck",
+        "TabCheckBranch1Value": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch1ValueKind -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch1Value",
+        "TabCheckBranch1ValueKindGone": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch1ValueKind",
+        "TabCheckBranch2": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch2Value -> Semiont.Internal.Generated.Models.TabCheck.TabCheck",
+        "TabCheckBranch2Value": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch2ValueKind -> Maybe Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch2Value",
+        "TabCheckBranch2ValueKindReady": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch2ValueKind",
+        "TabCheckBranch3": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch3Value -> Semiont.Internal.Generated.Models.TabCheck.TabCheck",
+        "TabCheckBranch3Value": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch3ValueKind -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch3Value",
+        "TabCheckBranch3ValueKindUnknown": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch3ValueKind",
+        "TabVerdictGone": "Semiont.Internal.Generated.Models.TabVerdict.TabVerdict",
+        "TabVerdictReady": "Semiont.Internal.Generated.Models.TabVerdict.TabVerdict",
+        "TabVerdictUnknown": "Semiont.Internal.Generated.Models.TabVerdict.TabVerdict",
         "TagCategory": "Data.Text.Internal.Text -> [Data.Text.Internal.Text] -> Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.TagCategory.TagCategory",
         "TagSchema": "Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> [Semiont.Internal.Generated.Models.TagCategory.TagCategory] -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.TagSchema.TagSchema",
         "TagSchemaAddedPayload": "Semiont.Internal.Generated.Models.TagSchema.TagSchema -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.TagSchemaAddedPayload.TagSchemaAddedPayload",
@@ -5051,6 +6121,7 @@
         "TextPositionSelectorTypeTextPositionSelector": "Semiont.Internal.Generated.Models.TextPositionSelector.TextPositionSelectorType",
         "TextQuoteSelector": "Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.TextQuoteSelector.TextQuoteSelectorType -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.TextQuoteSelector.TextQuoteSelector",
         "TextQuoteSelectorTypeTextQuoteSelector": "Semiont.Internal.Generated.Models.TextQuoteSelector.TextQuoteSelectorType",
+        "TextSpan": "Data.Scientific.Scientific -> Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Data.Scientific.Scientific -> Maybe Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.TextSpan.TextSpan",
         "TextualBody": "Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Maybe Semiont.Internal.Generated.Models.BodyPurpose.BodyPurpose -> Semiont.Internal.Generated.Models.TextualBody.TextualBodyType -> Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.TextualBody.TextualBody",
         "TextualBodyTypeTextualBody": "Semiont.Internal.Generated.Models.TextualBody.TextualBodyType",
         "TraceCarrier": "Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.TraceCarrier.TraceCarrier",
@@ -5410,6 +6481,9 @@
         "commentingJobParamsMotivation": "Semiont.Internal.Generated.Models.CommentingJobParams.CommentingJobParams -> Semiont.Internal.Generated.Models.CommentingJobParams.CommentingJobParamsMotivation",
         "commentingJobParamsSourceLanguage": "Semiont.Internal.Generated.Models.CommentingJobParams.CommentingJobParams -> Maybe Data.Text.Internal.Text",
         "commentingJobParamsTone": "Semiont.Internal.Generated.Models.CommentingJobParams.CommentingJobParams -> Maybe Semiont.Internal.Generated.Models.CommentingJobParams.CommentingJobParamsTone",
+        "connectionIdentityAdditionalProperties": "Semiont.Internal.Generated.Models.ConnectionIdentity.ConnectionIdentity -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "connectionIdentityDescription": "Semiont.Internal.Generated.Models.ConnectionIdentity.ConnectionIdentity -> Semiont.Internal.Generated.Models.KbDescription.KbDescription",
+        "connectionIdentityDid": "Semiont.Internal.Generated.Models.ConnectionIdentity.ConnectionIdentity -> Semiont.Internal.Generated.Models.UserId.UserId",
         "contentFormatValue": "Semiont.Internal.Generated.Models.ContentFormat.ContentFormat -> Data.Text.Internal.Text",
         "contextualSummaryResponseAdditionalProperties": "Semiont.Internal.Generated.Models.ContextualSummaryResponse.ContextualSummaryResponse -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
         "contextualSummaryResponseBusEnvelopeResponse": "Semiont.Internal.Generated.Models.ContextualSummaryResponseBusEnvelope.ContextualSummaryResponseBusEnvelope -> Semiont.Internal.Generated.Models.ContextualSummaryResponse.ContextualSummaryResponse",
@@ -5505,6 +6579,9 @@
         "errorResponseHint": "Semiont.Internal.Generated.Models.ErrorResponse.ErrorResponse -> Maybe Data.Text.Internal.Text",
         "eventMetadataAdditionalProperties": "Semiont.Internal.Generated.Models.EventMetadata.EventMetadata -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
         "eventMetadataSequenceNumber": "Semiont.Internal.Generated.Models.EventMetadata.EventMetadata -> Integer",
+        "expectedAdditionalProperties": "Semiont.Internal.Generated.Models.Expected.Expected -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "expectedDid": "Semiont.Internal.Generated.Models.Expected.Expected -> Data.Text.Internal.Text",
+        "expectedName": "Semiont.Internal.Generated.Models.Expected.Expected -> Maybe Data.Text.Internal.Text",
         "extractedTextAdditionalProperties": "Semiont.Internal.Generated.Models.ExtractedText.ExtractedText -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
         "extractedTextItems": "Semiont.Internal.Generated.Models.ExtractedText.ExtractedText -> [Semiont.Internal.Generated.Models.PdfTextItem.PdfTextItem]",
         "extractedTextKind": "Semiont.Internal.Generated.Models.ExtractedText.ExtractedText -> Semiont.Internal.Generated.Models.ExtractedText.ExtractedTextKind",
@@ -5989,6 +7066,14 @@
         "kbReadAdditionalProperties": "Semiont.Internal.Generated.Models.KbRead.KbRead -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
         "kbReadAt": "Semiont.Internal.Generated.Models.KbRead.KbRead -> Data.Text.Internal.Text",
         "kbReadGitBranch": "Semiont.Internal.Generated.Models.KbRead.KbRead -> Maybe Data.Text.Internal.Text",
+        "kbReadVerdictBranch1ValueAdditionalProperties": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch1Value -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "kbReadVerdictBranch1ValueKind": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch1Value -> Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch1ValueKind",
+        "kbReadVerdictBranch2ValueAdditionalProperties": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch2Value -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "kbReadVerdictBranch2ValueKind": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch2Value -> Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch2ValueKind",
+        "kbReadVerdictBranch2ValueObservedDid": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch2Value -> Data.Text.Internal.Text",
+        "kbReadVerdictBranch2ValueObservedName": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch2Value -> Data.Text.Internal.Text",
+        "kbReadVerdictBranch3ValueAdditionalProperties": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch3Value -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "kbReadVerdictBranch3ValueKind": "Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch3Value -> Semiont.Internal.Generated.Models.KbReadVerdict.KbReadVerdictBranch3ValueKind",
         "kbTargetAdditionalProperties": "Semiont.Internal.Generated.Models.KbTarget.KbTarget -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
         "kbTargetEndpoint": "Semiont.Internal.Generated.Models.KbTarget.KbTarget -> Semiont.Internal.Generated.Models.KbEndpoint.KbEndpoint",
         "kbTargetId": "Semiont.Internal.Generated.Models.KbTarget.KbTarget -> Data.Text.Internal.Text",
@@ -6192,6 +7277,19 @@
         "ollamaEmbeddingConfigBaseUrl": "Semiont.Internal.Generated.Models.OllamaEmbeddingConfig.OllamaEmbeddingConfig -> Data.Text.Internal.Text",
         "ollamaEmbeddingConfigModel": "Semiont.Internal.Generated.Models.OllamaEmbeddingConfig.OllamaEmbeddingConfig -> Data.Text.Internal.Text",
         "ollamaEmbeddingConfigType": "Semiont.Internal.Generated.Models.OllamaEmbeddingConfig.OllamaEmbeddingConfig -> Semiont.Internal.Generated.Models.OllamaEmbeddingConfig.OllamaEmbeddingConfigType",
+        "openResourceAdditionalProperties": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "openResourceId": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Semiont.Internal.Generated.Models.ResourceId.ResourceId",
+        "openResourceMediaType": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Maybe Data.Text.Internal.Text",
+        "openResourceName": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Data.Text.Internal.Text",
+        "openResourceOpenedAt": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Data.Scientific.Scientific",
+        "openResourceOrder": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Maybe Data.Scientific.Scientific",
+        "openResourceStorageUri": "Semiont.Internal.Generated.Models.OpenResource.OpenResource -> Maybe Data.Text.Internal.Text",
+        "pdfCoordinateAdditionalProperties": "Semiont.Internal.Generated.Models.PdfCoordinate.PdfCoordinate -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "pdfCoordinateHeight": "Semiont.Internal.Generated.Models.PdfCoordinate.PdfCoordinate -> Data.Scientific.Scientific",
+        "pdfCoordinatePage": "Semiont.Internal.Generated.Models.PdfCoordinate.PdfCoordinate -> Data.Scientific.Scientific",
+        "pdfCoordinateWidth": "Semiont.Internal.Generated.Models.PdfCoordinate.PdfCoordinate -> Data.Scientific.Scientific",
+        "pdfCoordinateX": "Semiont.Internal.Generated.Models.PdfCoordinate.PdfCoordinate -> Data.Scientific.Scientific",
+        "pdfCoordinateY": "Semiont.Internal.Generated.Models.PdfCoordinate.PdfCoordinate -> Data.Scientific.Scientific",
         "pdfTextItemAdditionalProperties": "Semiont.Internal.Generated.Models.PdfTextItem.PdfTextItem -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
         "pdfTextItemEnd": "Semiont.Internal.Generated.Models.PdfTextItem.PdfTextItem -> Integer",
         "pdfTextItemHeight": "Semiont.Internal.Generated.Models.PdfTextItem.PdfTextItem -> Data.Scientific.Scientific",
@@ -6227,6 +7325,18 @@
         "qdrantVectorsConfigPort": "Semiont.Internal.Generated.Models.QdrantVectorsConfig.QdrantVectorsConfig -> Integer",
         "qdrantVectorsConfigTokenEnv": "Semiont.Internal.Generated.Models.QdrantVectorsConfig.QdrantVectorsConfig -> Data.Text.Internal.Text",
         "qdrantVectorsConfigType": "Semiont.Internal.Generated.Models.QdrantVectorsConfig.QdrantVectorsConfig -> Semiont.Internal.Generated.Models.QdrantVectorsConfig.QdrantVectorsConfigType",
+        "quotedTextAdditionalProperties": "Semiont.Internal.Generated.Models.QuotedText.QuotedText -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "quotedTextExact": "Semiont.Internal.Generated.Models.QuotedText.QuotedText -> Data.Text.Internal.Text",
+        "quotedTextPrefix": "Semiont.Internal.Generated.Models.QuotedText.QuotedText -> Maybe Data.Text.Internal.Text",
+        "quotedTextSuffix": "Semiont.Internal.Generated.Models.QuotedText.QuotedText -> Maybe Data.Text.Internal.Text",
+        "reconciledSpanAdditionalProperties": "Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "reconciledSpanAnchorMethod": "Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan -> Semiont.Internal.Generated.Models.AnchorMethod.AnchorMethod",
+        "reconciledSpanEnd": "Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan -> Data.Scientific.Scientific",
+        "reconciledSpanExact": "Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan -> Data.Text.Internal.Text",
+        "reconciledSpanMatchQuality": "Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan -> Maybe Semiont.Internal.Generated.Models.MatchQuality.MatchQuality",
+        "reconciledSpanPrefix": "Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan -> Maybe Data.Text.Internal.Text",
+        "reconciledSpanStart": "Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan -> Data.Scientific.Scientific",
+        "reconciledSpanSuffix": "Semiont.Internal.Generated.Models.ReconciledSpan.ReconciledSpan -> Maybe Data.Text.Internal.Text",
         "replyEventIdValue": "Semiont.Internal.Generated.Models.ReplyEventId.ReplyEventId -> Data.Text.Internal.Text",
         "representationAddedPayloadAdditionalProperties": "Semiont.Internal.Generated.Models.RepresentationAddedPayload.RepresentationAddedPayload -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
         "representationAddedPayloadRepresentation": "Semiont.Internal.Generated.Models.RepresentationAddedPayload.RepresentationAddedPayload -> Semiont.Internal.Generated.Models.Representation.Representation",
@@ -6421,6 +7531,25 @@
         "settingsLocaleChangedEventLocale": "Semiont.Internal.Generated.Models.SettingsLocaleChangedEvent.SettingsLocaleChangedEvent -> Data.Text.Internal.Text",
         "settingsThemeChangedEventAdditionalProperties": "Semiont.Internal.Generated.Models.SettingsThemeChangedEvent.SettingsThemeChangedEvent -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
         "settingsThemeChangedEventTheme": "Semiont.Internal.Generated.Models.SettingsThemeChangedEvent.SettingsThemeChangedEvent -> Semiont.Internal.Generated.Models.SettingsThemeChangedEvent.SettingsThemeChangedEventTheme",
+        "signInAdditionalProperties": "Semiont.Internal.Generated.Models.SignIn.SignIn -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "signInEmail": "Semiont.Internal.Generated.Models.SignIn.SignIn -> Maybe Data.Text.Internal.Text",
+        "signInExpiresAt": "Semiont.Internal.Generated.Models.SignIn.SignIn -> Maybe Data.Text.Internal.Text",
+        "signInIssuer": "Semiont.Internal.Generated.Models.SignIn.SignIn -> Data.Text.Internal.Text",
+        "signInObtainedAt": "Semiont.Internal.Generated.Models.SignIn.SignIn -> Data.Text.Internal.Text",
+        "signInOutcomeAdditionalProperties": "Semiont.Internal.Generated.Models.SignInOutcome.SignInOutcome -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "signInOutcomeExpected": "Semiont.Internal.Generated.Models.SignInOutcome.SignInOutcome -> Maybe Semiont.Internal.Generated.Models.Expected.Expected",
+        "signInOutcomeKb": "Semiont.Internal.Generated.Models.SignInOutcome.SignInOutcome -> Semiont.Internal.Generated.Models.KnowledgeBase.KnowledgeBase",
+        "signInRefreshToken": "Semiont.Internal.Generated.Models.SignIn.SignIn -> Maybe Data.Text.Internal.Text",
+        "signInRevocationEndpoint": "Semiont.Internal.Generated.Models.SignIn.SignIn -> Maybe Data.Text.Internal.Text",
+        "signInToken": "Semiont.Internal.Generated.Models.SignIn.SignIn -> Data.Text.Internal.Text",
+        "signInTokenEndpoint": "Semiont.Internal.Generated.Models.SignIn.SignIn -> Data.Text.Internal.Text",
+        "signedInAdditionalProperties": "Semiont.Internal.Generated.Models.SignedIn.SignedIn -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "signedInDescription": "Semiont.Internal.Generated.Models.SignedIn.SignedIn -> Semiont.Internal.Generated.Models.KbDescription.KbDescription",
+        "signedInEndpoint": "Semiont.Internal.Generated.Models.SignedIn.SignedIn -> Semiont.Internal.Generated.Models.KbEndpoint.KbEndpoint",
+        "signedInExpectedDid": "Semiont.Internal.Generated.Models.SignedIn.SignedIn -> Maybe Data.Text.Internal.Text",
+        "signedInExpectedName": "Semiont.Internal.Generated.Models.SignedIn.SignedIn -> Maybe Data.Text.Internal.Text",
+        "signedInKbId": "Semiont.Internal.Generated.Models.SignedIn.SignedIn -> Maybe Data.Text.Internal.Text",
+        "signedInSession": "Semiont.Internal.Generated.Models.SignedIn.SignedIn -> Semiont.Internal.Generated.Models.StoredSession.StoredSession",
         "smeltRebuildAnchorsCommandAdditionalProperties": "Semiont.Internal.Generated.Models.SmeltRebuildAnchorsCommand.SmeltRebuildAnchorsCommand -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
         "smeltRebuildAnchorsCommandResourceId": "Semiont.Internal.Generated.Models.SmeltRebuildAnchorsCommand.SmeltRebuildAnchorsCommand -> Maybe Semiont.Internal.Generated.Models.ResourceId.ResourceId",
         "smeltRebuildAnchorsCommandU5f_userId": "Semiont.Internal.Generated.Models.SmeltRebuildAnchorsCommand.SmeltRebuildAnchorsCommand -> Maybe Semiont.Internal.Generated.Models.UserId.UserId",
@@ -6480,6 +7609,14 @@
         "svgSelectorAdditionalProperties": "Semiont.Internal.Generated.Models.SvgSelector.SvgSelector -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
         "svgSelectorType": "Semiont.Internal.Generated.Models.SvgSelector.SvgSelector -> Semiont.Internal.Generated.Models.SvgSelector.SvgSelectorType",
         "svgSelectorValue": "Semiont.Internal.Generated.Models.SvgSelector.SvgSelector -> Data.Text.Internal.Text",
+        "tabCheckBranch1ValueAdditionalProperties": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch1Value -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "tabCheckBranch1ValueKind": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch1Value -> Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch1ValueKind",
+        "tabCheckBranch2ValueAdditionalProperties": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch2Value -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "tabCheckBranch2ValueKind": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch2Value -> Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch2ValueKind",
+        "tabCheckBranch2ValueMediaType": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch2Value -> Maybe Data.Text.Internal.Text",
+        "tabCheckBranch2ValueName": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch2Value -> Data.Text.Internal.Text",
+        "tabCheckBranch3ValueAdditionalProperties": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch3Value -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "tabCheckBranch3ValueKind": "Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch3Value -> Semiont.Internal.Generated.Models.TabCheck.TabCheckBranch3ValueKind",
         "tagCategoryAdditionalProperties": "Semiont.Internal.Generated.Models.TagCategory.TagCategory -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
         "tagCategoryDescription": "Semiont.Internal.Generated.Models.TagCategory.TagCategory -> Data.Text.Internal.Text",
         "tagCategoryExamples": "Semiont.Internal.Generated.Models.TagCategory.TagCategory -> [Data.Text.Internal.Text]",
@@ -6507,6 +7644,12 @@
         "textQuoteSelectorPrefix": "Semiont.Internal.Generated.Models.TextQuoteSelector.TextQuoteSelector -> Maybe Data.Text.Internal.Text",
         "textQuoteSelectorSuffix": "Semiont.Internal.Generated.Models.TextQuoteSelector.TextQuoteSelector -> Maybe Data.Text.Internal.Text",
         "textQuoteSelectorType": "Semiont.Internal.Generated.Models.TextQuoteSelector.TextQuoteSelector -> Semiont.Internal.Generated.Models.TextQuoteSelector.TextQuoteSelectorType",
+        "textSpanAdditionalProperties": "Semiont.Internal.Generated.Models.TextSpan.TextSpan -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "textSpanEnd": "Semiont.Internal.Generated.Models.TextSpan.TextSpan -> Data.Scientific.Scientific",
+        "textSpanExact": "Semiont.Internal.Generated.Models.TextSpan.TextSpan -> Data.Text.Internal.Text",
+        "textSpanPrefix": "Semiont.Internal.Generated.Models.TextSpan.TextSpan -> Maybe Data.Text.Internal.Text",
+        "textSpanStart": "Semiont.Internal.Generated.Models.TextSpan.TextSpan -> Data.Scientific.Scientific",
+        "textSpanSuffix": "Semiont.Internal.Generated.Models.TextSpan.TextSpan -> Maybe Data.Text.Internal.Text",
         "textualBodyAdditionalProperties": "Semiont.Internal.Generated.Models.TextualBody.TextualBody -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
         "textualBodyFormat": "Semiont.Internal.Generated.Models.TextualBody.TextualBody -> Maybe Data.Text.Internal.Text",
         "textualBodyLanguage": "Semiont.Internal.Generated.Models.TextualBody.TextualBody -> Maybe Data.Text.Internal.Text",

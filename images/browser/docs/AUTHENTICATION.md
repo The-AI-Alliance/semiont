@@ -206,7 +206,7 @@ stream and routes failures to that session's `SessionSignals`:
 declare const signals: SessionSignals; // the session's signals
 
 session.errors$.subscribe((err) => {
-  if (err.code === 'unauthorized') void session.refresh();
+  if (err.code === 'unauthorized') void session.refresh(session.token$.getValue());
   else if (err.code === 'forbidden') signals.notifyPermissionDenied(err.message);
 });
 ```

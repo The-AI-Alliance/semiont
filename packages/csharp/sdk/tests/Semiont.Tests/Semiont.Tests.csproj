@@ -8,6 +8,7 @@
     <Content Include="../../../../../protocol/specs/src/**/*.json" Link="specs/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../../../../protocol/conformance/**/*.json" Link="corpus/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../../generators/Semiont.Generator/Semiont.Generator.csproj" />
+    <Content Include="../../generators/Semiont.Generator/required-schemas.json" Link="generators/required-schemas.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../README.md" Link="SDK-README.md" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Examples/*.cs" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../refusals/*.cs" Link="refusals/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />

@@ -10,9 +10,6 @@ namespace Semiont.Annotations;
 
 internal static class AnnotationIdentity
 {
-    private static readonly Comparer<string> CodePointOrder = Comparer<string>.Create((left, right) =>
-        Encoding.UTF8.GetBytes(left ?? "").AsSpan().SequenceCompareTo(Encoding.UTF8.GetBytes(right ?? "")));
-
     internal static AnnotationId Derive(ResourceId resourceId, Motivation motivation, string anchor, JsonElement? body)
     {
         var values = new Dictionary<string, JsonElement>
@@ -35,7 +32,7 @@ internal static class AnnotationIdentity
             case JsonValueKind.Object:
                 result.Append('{');
                 var first = true;
-                foreach (var property in value.EnumerateObject().OrderBy(property => property.Name, CodePointOrder))
+                foreach (var property in value.EnumerateObject().OrderBy(property => property.Name, CodePoints.Order))
                 {
                     if (!first) result.Append(',');
                     first = false;

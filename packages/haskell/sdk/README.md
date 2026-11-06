@@ -2,16 +2,16 @@
 
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=haskell-sdk)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
-The Haskell SDK is being built toward the same client and protocol contract
-as the other Semiont SDKs. It currently provides protocol types, checked
-identifiers, a typed bus and common carrier runtime, read-only state,
-scoped operation consumption, retry support, and launcher discovery.
-HTTP/SSE and content adapters and the client facade are available, including
-the Frame, Bind, Beckon, Browse, Gather, Match, Mark, Yield, Job, Auth and System namespaces.
-All client namespaces, live queries, typed delegation, uploads, claims, held jobs
-and durable worker commits are available, together with OAuth redirect/device
-sign-in and sessions with token renewal. Native kept sign-ins, persisted client
-queries, registry and state units are still being implemented.
+The Haskell SDK implements Semiont's client and protocol contracts with `IO`,
+STM observations and scoped streams. It provides all eleven client namespaces,
+live queries and durable caches, typed delegation, uploads, claims, held jobs and
+durable worker commits. Device, redirect, kept-grant and service-account sign-in
+share real sessions with token renewal and late-refusal handling.
+
+The SDK also provides the knowledge-base registry, all ten state units, launcher
+and HTTP discovery, annotation readers/builders, principal identity helpers and
+consumer testing tools. The shared live, wire and worker conformance suites run
+against its public API. It builds from source until the package is published.
 
 [Install](#install) · [Signing in](#signing-in) · [Connect](#connect) ·
 [Delegation](#delegation) · [Live queries](#live-queries) ·
@@ -44,7 +44,7 @@ OAuth registration table.
 
 `Semiont.Session.signInDevice` opens a client/session from a device grant.
 `fromIssuedSession` persists an already issued grant and installs its rotating
-refresh callback. `SessionOptions` carries the knowledge base, storage, wall
+refresh callback. `SessionOptions` carries the knowledge base, typed kept grant, wall
 clock and host callbacks; provide `sessionValidate` to confirm a person with
 the supplied client and token. A service can omit that callback. `ready` waits for startup;
 `token`, `user` and `streamState` are read-only observations. Refusals that arrive
@@ -62,15 +62,16 @@ import Semiont.Types (DeviceCode)
 withDeviceSession :: Http.HttpOptions -> Session.SessionOptions
   -> (DeviceCode -> IO ()) -> (Session.Session -> IO result) -> IO result
 withDeviceSession http options showCode use =
-  bracket (Session.signInDevice http options showCode)
+  bracket (Session.signInDevice http Nothing options showCode)
     Session.closeOpenedSession (use . Session.openedSession)
 ```
 
 `Semiont.SessionStorage.newMemoryStorage` keeps one context's text values;
 applications can implement `SessionStorage` for their own storage.
+`Registry.Stored.keptIn storage kbId` is that knowledge base’s typed
+`KeptSignIn`; `SignIn.newMemorySignIn` is one independent in-memory grant.
 Its `update` transforms and returns a result atomically, so redirect completion
-and refresh rotation cannot overwrite another writer. Native launcher kept
-sign-ins remain in progress. The shared
+and refresh rotation cannot overwrite another writer. The shared
 [sign-in guide](../../../docs/builder/SIGN-IN.md) describes the flows.
 
 `Semiont.ServiceToken` performs a lazy client-credentials grant with a secret
@@ -100,7 +101,7 @@ withAccount options authority clientId pem wallNow use = do
     Service.dispose use
 ```
 
-`Session.signInAgent http options budget service` opens a session for that
+`Session.signInAgent http Nothing options budget service` opens a session for that
 account and keeps the DID the gateway actually returned. Supply its startup
 `RetryBudget` explicitly: unreachable peers and boot-transient responses retry,
 and a refused freshly issued credential ends the attempt. The service token
@@ -108,6 +109,34 @@ remains owned by its caller. Session renewal callbacks receive the token held;
 `Auth.me auth (Just token)` validates an explicit credential in one attempt,
 without renewing or quarantining the inherited token. `Auth.me auth Nothing`
 uses the client's own token and retry policy.
+
+`Semiont.SignInStore` reads the launcher's `tokens.json`, preserving unknown
+members and refusing to overwrite a corrupt document. `stateDirectory` runs the
+shared platform rules on directory values supplied by the application; the SDK
+reads no environment. `signInFileName` is the file name below that directory.
+The store keeps its directory to its owner and takes the shared native lock
+for each atomic read/change/write. Its options take your clock, positive lock
+retry interval and wall-clock reading. All three grant backends preserve a
+concurrent renewal or sign-out; token comparison is shared.
+
+```haskell
+module KeptSignIn where
+import Control.Exception (bracket)
+import qualified Semiont.Http as Http
+import qualified Semiont.Session as Session
+import qualified Semiont.SignInStore as Store
+import Semiont.Types (kbTargetId)
+
+withKeptSession :: Http.HttpOptions -> Session.SessionOptions
+  -> Store.SignInStoreOptions -> FilePath
+  -> (Session.Session -> IO result) -> IO result
+withKeptSession http options storeOptions filename use = do
+  store <- Store.newSignInStore storeOptions filename
+  let actual = options { Session.sessionKept =
+        Store.entry store (kbTargetId (Session.sessionKb options)) }
+  bracket (Session.fromKeptSession http Nothing actual)
+    Session.closeOpenedSession (use . Session.openedSession)
+```
 
 ## Connect
 
@@ -136,7 +165,7 @@ import Semiont.Client (Client, fromHttp, dispose)
 import Semiont.Http (HttpOptions)
 
 withConnection :: HttpOptions -> (Client -> IO result) -> IO result
-withConnection options = bracket (fromHttp options) dispose
+withConnection options = bracket (fromHttp options Nothing) dispose
 ```
 
 `Client.newClient` also accepts independently supplied bus/content adapters and
@@ -154,9 +183,9 @@ refuses further reads.
 
 ## Eight verbs
 
-The Haskell client will implement the same namespaces and methods as the
-[client surface](../../../protocol/specs/src/client/surface.json). Typed
-channel and operation descriptors already exist in `Semiont.Channels`;
+The Haskell client implements the
+[client surface](../../../protocol/specs/src/client/surface.json), with typed
+channel and operation descriptors in `Semiont.Channels`.
 All 66 methods of Frame, Bind, Beckon, Browse, Gather, Match, Mark, Yield, Job,
 Auth and System are available. See the
 [builder guide](../../../docs/builder/README.md) for the shared model.
@@ -266,14 +295,100 @@ the media registry, MIME charset and byte-order mark rules; PDF text is read
 through `Browse.resourceAnchoredText`, and binary content through
 `Browse.resourceRepresentation` or its scoped stream.
 
-The storage adapter, persisted client sessions and gateway live conformance
-driver remain in development. Query behavior follows the
+Persisted query documents and replay bookmarks share the application storage.
+Query behavior follows the
 [cache contract](../../../protocol/contract/CACHE-SEMANTICS.md).
 
 ## State units
 
-In development. The coordinated flow and page state APIs described in
-[State units](../../../docs/builder/STATE-UNITS.md) are still to be implemented.
+`Semiont.State.Mark`, `Yield`, `Gather`, `Match` and `Beckon` coordinate the
+client signals and expose read-only state. `HoverDwell` waits for a pointer to
+rest; `Search` debounces typed queries and joins the search it replaces.
+`SessionSignals` holds host notices beside a session. The cache and session
+are state units too. Each has an idempotent `dispose` that joins its work and
+ends its observations without disposing the borrowed client. See
+[State units](../../../docs/builder/STATE-UNITS.md).
+
+Mark and hover take the caller's `RetryOptions`; search takes it with an
+explicit debounce and initial query. Mark uses the supplied `Timing.Settings`
+for silence notices. No state unit reads an ambient timer. Job creation is
+queued in invocation order within a unit; once a creation is answered, the next
+can start while the earlier job remains followed.
+
+
+```haskell
+{-# LANGUAGE OverloadedStrings #-}
+module ResourceSearch where
+import Control.Exception (bracket)
+import qualified Semiont.Cache as Cache
+import qualified Semiont.Client as Client
+import qualified Semiont.Match as Match
+import Semiont.Retry (RetryOptions)
+import qualified Semiont.State.Search as Search
+import qualified Semiont.Timing.Settings as Timing
+import Semiont.Types (ResourceDescriptor, matchResourcesResponseResources)
+import qualified Streaming.Prelude as Stream
+
+withResourceSearch :: Client.Client -> RetryOptions
+  -> (Search.SearchPipeline ResourceDescriptor -> IO result) -> IO result
+withResourceSearch client clock = bracket
+  (Search.newSearchPipeline clock
+    (Timing.searchDebounceMs Timing.protocolSettings) "" source)
+  Search.dispose
+  where
+    source text publish = Cache.watch
+      (Match.resources (Client.match client) text Nothing)
+      (Stream.mapM_ (publish . fmap matchResourcesResponseResources . Cache.readyValue))
+```
+
+Use `Search.setQuery` as input changes and observe `Search.state`. This example
+also needs `streaming` in its `build-depends`.
+
+Cache persistence is opt-in: pass `Just (Client.CachePersistence storage
+"kb-id" wallMilliseconds)` to the client or session factory in place of
+`Nothing`. Give each principal a separate storage namespace, or include the
+principal and KB in the prefix. Close the old client before switching profiles;
+persisted values are available before gateway revalidation. Resource details,
+annotation lists and details, entity types and tag
+schemas rehydrate immediately. The first observation revalidates each restored
+key. Cache documents are versioned and bounded by the shared UTF-8 byte cap;
+unchanged entries retain their write times for eviction. Replay bookmarks advance
+only after a cache-document write and after every persisted view and refresh
+window has settled. Disposal freezes bookmark advancement before final cache
+saves, so a reload may replay extra events and cannot skip an unfinished update.
+
+## Building annotations
+
+`Semiont.Annotations` reads the generated annotation types without narrowing
+single bodies, body lists, resource targets, or selector lists. Its builders
+produce the same deterministic annotation IDs as the other SDKs. Reconciliation
+and every span offset count Unicode code points, including characters outside
+the basic multilingual plane. PDF spans use the anchored text's page rectangles.
+
+```haskell
+{-# LANGUAGE OverloadedStrings #-}
+module BuiltAnnotation where
+import Data.Time (UTCTime)
+import Semiont.Types
+import qualified Semiont.Annotations as Annotations
+
+highlight :: IO UTCTime -> ResourceId -> Agent -> IO (Maybe Annotation)
+highlight wall resource generator =
+  case Annotations.reconcile "Ada Lovelace wrote the first algorithm."
+    (QuotedText "Ada Lovelace" Nothing Nothing mempty) of
+    Nothing -> pure Nothing
+    Just found -> do
+      let spanValue = TextSpan (reconciledSpanEnd found) (reconciledSpanExact found)
+            (reconciledSpanPrefix found) (reconciledSpanStart found)
+            (reconciledSpanSuffix found) mempty
+      Just <$> Annotations.annotationOfSpan wall
+        (Annotations.TextContent "Ada Lovelace wrote the first algorithm.")
+        spanValue resource MotivationHighlighting generator Nothing
+```
+
+Set the existing cross-SDK `SEMIONT_BUS_LOG` switch to a nonempty value to
+write HTTP transport frames and content operations to stderr. Payload credentials
+are recursively replaced with `[withheld]`; the logger does not print headers.
 
 ## Running a worker
 
@@ -382,9 +497,43 @@ duplicate address claims. `subscribeDiscovery` polls with the monotonic time,
 interruptible absolute wait, and interval supplied through `DiscoveryOptions`.
 Stopping consumption leaves no polling task running.
 
-Registry, knowledge-base selection, session persistence, and the SDK's HTTP
-discovery adapter are still being implemented. Reading a discovery document
-does not sign in to any of its knowledge bases.
+`Semiont.Http.Discovery.httpDiscovery` reads discovery over HTTP with the
+caller's pool and controlled clock. Reading a discovery document does not
+sign in to any of its knowledge bases.
+
+`Semiont.Registry.newSemiontBrowser` manages registered knowledge bases,
+selection, sign-in, per-KB tabs and the last viewed resource. Give it a
+`SemiontBrowserConfig` with storage, a `SessionFactory`, HTTP options and an
+epoch-seconds wall reader. `newHttpSessionFactory` opens real HTTP sessions
+and opts their queries into per-KB durable storage. The browser closes the
+previous client before opening the next, joins stale activations, and raises
+identity-conflict notices when the address answers as a different KB. A
+redirect sign-in proves the responding identity before adopting its grant.
+Use `beginSignIn` and `completeSignIn`; navigation remains the host's job.
+Removing an entry also removes its owned cache documents and replay bookmark.
+The supplied storage belongs to one principal's profile, including its tokens,
+tabs and caches. Close the browser and switch storage when changing profiles.
+
+
+```haskell
+module KnowledgeBases where
+import Control.Exception (bracket)
+import Data.Scientific (Scientific)
+import qualified Semiont.Http as Http
+import qualified Semiont.Registry as Registry
+import qualified Semiont.SessionStorage as Storage
+
+withKnowledgeBases :: Storage.SessionStorage -> Http.HttpOptions -> IO Scientific
+  -> (Registry.SemiontBrowser -> IO result) -> IO result
+withKnowledgeBases storage http wall = bracket
+  (Registry.newSemiontBrowser (Registry.SemiontBrowserConfig storage
+    (Registry.newHttpSessionFactory http wall) http wall))
+  Registry.dispose
+```
+
+`wall` returns epoch seconds. This example also needs `scientific` in its
+`build-depends`. Observe `Registry.kbs`, `activeKbId`, `activeSession` and
+`activeSignals`, and call `setActiveKb` to select an entry.
 
 ## IDs and protocol types
 
@@ -420,6 +569,12 @@ jitter. Cancellation is preserved, each retry respects the server's stated
 wait, and the last failure is raised when the budget is exhausted.
 
 ## The bus and transport
+
+Every `ContentTransport` read and upload takes `Maybe Text` immediately after
+the transport. `Nothing` uses its held credential and normal renewal policy.
+`Just accessToken` makes one explicit-credential attempt; refusal never renews
+or quarantines the held credential. Scoped streams and replayable uploads keep
+the same ownership rules in either mode.
 
 `Semiont.Transport.newTransport` gives a carrier its input handle and the
 transport its consumers use. The carrier supplies sending and teardown, feeds
@@ -479,6 +634,26 @@ table. Outgoing HTTP requests carry the host's injected headers; incoming frames
 are processed under its extracted context. Caller context also crosses request
 work, operation producers and callback tasks using the standard propagation API.
 
+
+## Testing applications
+
+`Semiont.Testing.Transport` scripts answers and faults around the real native
+carrier. Queue typed JSON responses by operation; requests left unscripted fail
+by name. A dropped reply still consumes the peer's answer. `SharedStorage`
+gives several contexts atomic access to the same values and notifies only other
+contexts. `createTestSession` builds a real session over a supplied real client.
+`ScriptedSessions` supplies a registry factory and records its transports,
+renewals and revocations; script its users, answers and renewal results explicitly.
+
+`Semiont.Testing.Liveness` supplies QuickCheck generators and executable L1/L2/L3
+checks. Give `assertLivenessAxioms` QuickCheck arguments and a `LivenessSpec`
+with the composition, timeout, retry budget, case count, fault generator,
+responder and controlled clock. Outputs must reach a value or a failure;
+awaited paths must settle within the bound, and retries must stay within budget.
+`assertExactlyOnceDelivery` drives a supplied `DeliverySubject` through generated
+writes and transitions and checks each written ID was delivered once.
+Use the caller's clock for those waits; real sockets can use an actual host clock.
+
 ## Building and verifying
 
 From the repository root, build and test in Apple `container`:
@@ -511,8 +686,8 @@ types, channel descriptors, error codes, timing, the module list, and the
 package version. Refresh `public-api.json` after library source changes;
 GHC supplies the reachable types, constructors, and signatures through the
 public Cabal modules, including re-exports. The census checks source
-freshness; the Haskell job compares actual compiled exports. Integration
-with every shared client-surface section is still open.
+freshness; the Haskell job compares actual compiled exports. All shared
+client-surface sections include Haskell.
 
 ### What the checks cover
 
@@ -523,7 +698,10 @@ every shared job-filter, job-retry, and gateway URL case, and checks resolved
 JSON payloads from the wire, live-query, and worker corpora.
 The wire driver additionally executes the transport scenarios against the real
 gateway on both signal planes. The worker driver runs every worker case against
-the real gateway on both planes as well. The live-query driver remains outstanding.
+the real gateway on both planes as well. The live-query driver executes all
+parity cases and table-derived refresh cases. The three layers currently total
+232 cases across both planes.
+All 76 shared state-unit cases execute, with separate cache and session suites.
 All 15 shared clock subjects run in-process at the protocol timings, including
 HTTP waits, scope handoffs, cache saves, discovery, session renewal, device
 polling, delegation, invalidation windows and held-job stalls. Every shared

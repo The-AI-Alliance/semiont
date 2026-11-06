@@ -17,8 +17,11 @@ Sign-in happens at the knowledge base's identity provider, never at the gateway,
 
 See the SDK guides for [TypeScript](../../packages/typescript/sdk/README.md#connect), [Python](../../packages/python/sdk/README.md#signing-in), [Go](../../packages/go/sdk/README.md#signing-in), [Kotlin](../../packages/kotlin/sdk/README.md#signing-in), [Rust](../../packages/rust/http-transport/README.md), [.NET](../../packages/csharp/sdk/README.md#signing-in), and [Swift](../../packages/swift/sdk/README.md#connect).
 
-[Haskell sign-in](../../packages/haskell/sdk/README.md#signing-in) is still being
-implemented and is not included in the availability table above.
+[Haskell sign-in](../../packages/haskell/sdk/README.md#signing-in) uses
+`Session.signInDevice`, `SignInStore.entry` with `Session.fromKeptSession`,
+`ServiceToken` with `Session.signInAgent`, and `Registry.beginSignIn` /
+`Registry.completeSignIn`. `Session.fromIssuedSession` accepts an issued grant.
+Each HTTP flow uses the caller's `HttpClient`, clock and retry settings.
 
 ## What every way has in common
 
@@ -112,3 +115,9 @@ In .NET, pass an existing access token to `SemiontClient`. For a credential
 with a refresh token, store the grant in an `ISignInKept` and open a
 `KeptSession`. A host with its own renewal logic can pass a `refresher` to
 `HttpTransport` and construct the client over that transport.
+
+In every SDK a transport's refresher is told the token the gateway refused,
+or that the request carried none. A refresher that holds another token by
+then, because it already renewed for an earlier refusal of that one, gives
+the token it holds and renews nothing. The sessions and agents of every SDK
+answer this way.

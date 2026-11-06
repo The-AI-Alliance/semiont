@@ -1500,11 +1500,11 @@ jobs:
       - name: Fetch the Haskell wire driver
         uses: actions/download-artifact@v8
         with:
-          name: haskell-wire-driver
+          name: haskell-conformance-drivers
           path: packages/haskell/sdk/conformance/bin
 
       - name: Make the Haskell driver executable
-        run: chmod +x packages/haskell/sdk/conformance/bin/semiont-haskell-wire-driver*
+        run: chmod +x packages/haskell/sdk/conformance/bin/semiont-haskell-*-driver*
 
       - name: Install the Haskell driver's native libraries
         run: |
@@ -1650,11 +1650,11 @@ jobs:
       - name: Fetch the Haskell conformance driver
         uses: actions/download-artifact@v8
         with:
-          name: haskell-wire-driver
+          name: haskell-conformance-drivers
           path: packages/haskell/sdk/conformance/bin
 
       - name: Make the Haskell driver executable
-        run: chmod +x packages/haskell/sdk/conformance/bin/semiont-haskell-wire-driver*
+        run: chmod +x packages/haskell/sdk/conformance/bin/semiont-haskell-*-driver*
 
       - name: Install the Haskell driver's native libraries
         run: |
@@ -2392,10 +2392,10 @@ jobs:
             ${{ runner.os }}-${{ runner.arch }}-haskell-
       - name: Compile and test the SDK and design probes
         run: bash packages/haskell/run-container.sh docker
-      - name: Upload the Haskell wire driver
+      - name: Upload the Haskell conformance drivers
         uses: actions/upload-artifact@v7
         with:
-          name: haskell-wire-driver
+          name: haskell-conformance-drivers
           path: packages/haskell/sdk/conformance/bin
           retention-days: 1
           if-no-files-found: error
@@ -2415,6 +2415,66 @@ jobs:
           disable_search: true
           flags: haskell-probes
           name: haskell-probes
+
+  test-sdk-haskell-native:
+    name: Haskell SDK (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true'
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+      - name: Set up Python for native interoperability peers
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Read the pinned Haskell toolchain
+        id: versions
+        shell: bash
+        run: |
+          python - <<'PYTHON'
+          import os
+          import re
+          from pathlib import Path
+          project = Path('packages/haskell/probes/cabal.project').read_text()
+          compiler = re.search(r'^with-compiler: ghc-([0-9]+\.[0-9]+\.[0-9]+)$', project, re.MULTILINE)
+          if compiler is None:
+              raise SystemExit('No pinned GHC compiler')
+          cabal = Path('packages/haskell/probes/cabal-install.version').read_text().strip()
+          if re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+', cabal) is None:
+              raise SystemExit('No pinned Cabal version')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'ghc={compiler[1]}\ncabal={cabal}\n')
+          PYTHON
+      - name: Set up the pinned Haskell compiler
+        id: haskell
+        uses: haskell-actions/setup@0f8e8c99d88aeb3fbfd523f1ef2c6f762d10d64d # v2
+        with:
+          ghc-version: ${{ steps.versions.outputs.ghc }}
+          cabal-version: ${{ steps.versions.outputs.cabal }}
+      - name: Cache native Cabal packages
+        uses: actions/cache@v6.1.0
+        with:
+          path: ${{ steps.haskell.outputs.cabal-store }}
+          key: ${{ runner.os }}-${{ runner.arch }}-haskell-native-${{ hashFiles('packages/haskell/**/cabal.project*', 'packages/haskell/probes/cabal-install.version') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-haskell-native-
+      - name: Build and run native SDK and interoperability cases
+        working-directory: packages/haskell/sdk
+        shell: bash
+        run: |
+          cabal update
+          cabal check
+          cabal run semiont-codegen -- --check "$GITHUB_WORKSPACE"
+          cabal build all --enable-tests -j2
+          cabal test schema-cases --test-show-details=direct --test-option="$GITHUB_WORKSPACE"
+          python api.py --compiler-check
+          python test/refusals.py
 
   # The C# SDK and its compiler/analyzer gates, on Linux and Windows.
   test-sdk-csharp:
@@ -3556,10 +3616,14 @@ jobs:
 
       # Authority: the component schemas (protocol/specs/src/components/schemas) →
       # what each requires of a value, the copy Rust's build reads
-      # (packages/rust/sdk/src/required-schemas.json) and the copy Kotlin's
-      # generator reads (packages/kotlin/sdk/src/codegen/required-schemas.json).
+      # (packages/rust/sdk/src/required-schemas.json), the copy Kotlin's
+      # generator reads (packages/kotlin/sdk/src/codegen/required-schemas.json),
+      # the copy Swift's build plugin reads
+      # (packages/swift/sdk/Sources/SemiontCodegen/required-schemas.json) and the
+      # copy C#'s source generator reads
+      # (packages/csharp/sdk/generators/Semiont.Generator/required-schemas.json).
       # The rules they are written by are packages/codegen/schemas/required-shapes.mjs's,
-      # which neither build runs, so the copies are committed, and are what can go stale.
+      # which no build runs, so the copies are committed, and are what can go stale.
       - name: Component schemas vs the table of what each requires
         run: npm run generate:required:check
 
@@ -4087,6 +4151,7 @@ jobs:
       - test-sdk-kotlin
       - test-sdk-csharp
       - test-sdk-haskell
+      - test-sdk-haskell-native
       - complete-sdk-haskell
       - test-sdk-csharp-windows
       - test-sdk-swift

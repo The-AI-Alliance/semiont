@@ -324,6 +324,12 @@ that can renew its token does the same:
   per outage, and opens with the token it is given; until it has one it is
   `unauthenticated`.
   *Held by `sdk/wire/stream-credential-renewed`, `sdk/wire/stream-credential-limit-renewed`.*
+- **What renews the token is told which token was refused**, or that the
+  request carried none. One that holds another token by then, because a
+  renewal already answered an earlier refusal of the token refused, gives
+  the token it holds and renews nothing: a refusal that arrives after the
+  renewal costs no second one.
+  *Held by `protocol/specs/src/session/cases.json`, its refusal rows, and by `packages/typescript/http-transport/src/transport/__tests__/http-transport.hooks.test.ts`, `packages/python/sdk/tests/test_refused_token.py`, `packages/go/sdk/stream_test.go`, `packages/rust/http-transport/tests/upload.rs`.*
 
 A refused credential is renewed, never retried: no retry rule is asked
 about it, and it never waits out a `Retry-After`. A client that cannot renew

@@ -174,9 +174,17 @@ async fn named(
     Ok(user.did)
 }
 
+/// A token the agent no longer holds was renewed already: the one it holds is
+/// given, and the issuer is not asked.
 impl TokenRefresher for AgentToken {
-    fn refresh(&self) -> BoxFuture<'_, Option<String>> {
-        Box::pin(async move { self.renew().await.ok() })
+    fn refresh<'a>(&'a self, refused: Option<&'a str>) -> BoxFuture<'a, Option<String>> {
+        Box::pin(async move {
+            let held = self.token.borrow().clone();
+            if held.as_deref() != refused {
+                return held;
+            }
+            self.renew().await.ok()
+        })
     }
 }
 
