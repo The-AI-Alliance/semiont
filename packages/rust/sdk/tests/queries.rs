@@ -75,6 +75,8 @@ fn answers(
                     resource,
                     &format!("as of ask {n}"),
                 ),
+                "resource": null,
+                "resolvedResource": null,
             }),
             "browse:entity-types-requested" => json!({ "entityTypes": [format!("Type{n}")] }),
             "browse:tag-schemas-requested" => json!({ "tagSchemas": [] }),
