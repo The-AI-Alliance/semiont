@@ -25,6 +25,15 @@
 // else this file does not know how to state fails the generators, so the
 // table cannot fall behind the schemas unseen.
 //
+// One thing a schema states the table leaves out, though a decoding to a
+// closed type refuses it: the list CommandError's `code` is one of.
+// protocol/specs/src/errors/codes.json says what a reader makes of a failure
+// whose code that list does not name (`busRequest.unrecognizedFailure`): a
+// rejection that keeps the failure's words. So the table holds the code to
+// being a text, and a failure the table passes is read by its `code` and its
+// `message` as texts, never decoded to a type whose code is closed. A writer
+// is still held to the list.
+//
 // A KIND is one of object, array, string, integer, number, boolean, null. An
 // integer is a number with no fractional part, as JSON Schema has it: 1.5 is
 // no integer and 1.0 is one, so a value that states 1.0 where an integer is
@@ -109,6 +118,7 @@
 
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { readErrorCodes } from './error-codes-table.mjs';
 import { translated } from './openapi-schema.mjs';
 
 const KINDS = ['object', 'array', 'string', 'integer', 'number', 'boolean', 'null'];
@@ -282,6 +292,13 @@ export function readRequiredShapes(root, refuse) {
   }
   // Read as JSON Schema, translated where every generator translates the spec's components.
   const schemaOf = new Map([...fileOf].map(([name, file]) => [name, translated(JSON.parse(readFileSync(file, 'utf8')))]));
+
+  // A failure whose code CommandError's list does not name is read as the
+  // unrecognized failure codes.json names, so the table holds the code to no list.
+  const { unrecognized } = readErrorCodes(resolve(specs, 'errors/codes.json'), fileOf.get('CommandError'), refuse);
+  const failureCode = schemaOf.get('CommandError').properties.code;
+  if (!Array.isArray(failureCode?.enum)) refuse(`CommandError's code is one of no list, and codes.json reads a code the list does not name as ${unrecognized.code}`);
+  delete failureCode.enum;
 
   /** The component a reference in `file` names. */
   function referred(file, ref) {
