@@ -930,6 +930,8 @@ mod tests {
 
     /// A transport's shared parts, as `HttpTransport::new` makes them.
     fn shared() -> Arc<Shared> {
+        // Already installed by another test of this process: one is enough.
+        let _ = rustls::crypto::ring::default_provider().install_default();
         Arc::new(Shared::new(HttpTransportConfig {
             base_url: "http://gateway.test".to_owned(),
             token: watch::channel(None).1,
