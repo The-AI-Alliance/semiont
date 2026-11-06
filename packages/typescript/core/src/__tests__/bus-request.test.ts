@@ -5,8 +5,8 @@
  *   - success: result event with matching `correlationId` resolves with `response`
  *   - rejection: failure event resolves into a `BusRequestError` with code
  *     `bus.rejected` and structured `details`
- *   - timeout: an rxjs `TimeoutError` from the operator is wrapped in a
- *     `BusRequestError` with code `bus.timeout` and structured `details`
+ *   - timeout: the request's deadline falls due, as a `BusRequestError` with
+ *     code `bus.timeout` and structured `details`
  *   - refusal: a result that lacks a member its schema requires rejects as a
  *     `SemiontError` coded `error`
  *
@@ -751,6 +751,33 @@ describe('Bus.request abandoned by its caller', () => {
     const reason = new Error('the caller moved on');
     caller.abort(reason);
     await expect(promise).rejects.toBe(reason);
+    expect(released).toEqual(tracked);
+    expect(tracked).toHaveLength(1);
+  });
+
+  it('gives up an emit still in flight: the abandonment aborts the signal the emit was handed', async () => {
+    const { bus, tracked, released } = tracking();
+    let handed: AbortSignal | undefined;
+    bus.emit = vi.fn((
+      _channel: keyof EventMap,
+      _payload: EventMap[keyof EventMap],
+      _envelope?: { correlationId?: string },
+      signal?: AbortSignal,
+    ) => {
+      handed = signal;
+      return new Promise<number>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new Error('the emit was given up')), { once: true });
+      });
+    }) as BusPrimitive['emit'];
+    const caller = new AbortController();
+    const promise = new Bus(bus).request(EMIT, {}, 5_000, caller.signal);
+    await Promise.resolve();
+    expect(handed?.aborted).toBe(false);
+
+    const reason = new Error('the caller moved on');
+    caller.abort(reason);
+    await expect(promise).rejects.toBe(reason);
+    expect(handed?.aborted).toBe(true);
     expect(released).toEqual(tracked);
     expect(tracked).toHaveLength(1);
   });
