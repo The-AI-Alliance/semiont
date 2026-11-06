@@ -28,7 +28,7 @@ import type {
   ResourceId,
   components,
 } from '@semiont/core';
-import type { SessionStorage } from './session/session-storage';
+import type { CachePersistence } from './cache-persister';
 import { resourceId as makeResourceId } from '@semiont/core';
 import { FaultyTransport, type FaultyTransportConfig } from '@semiont/core/testing';
 import { SemiontClient } from './client';
@@ -140,7 +140,7 @@ export interface TestClientOptions {
   /** Replace the in-memory content transport (e.g. to pre-seed bytes). */
   content?: IContentTransport;
   /** B17 persistence, for rehydration tests. Omitted = in-memory caches. */
-  cachePersistence?: { storage: SessionStorage; keyPrefix: string };
+  cachePersistence?: CachePersistence;
 }
 
 /**

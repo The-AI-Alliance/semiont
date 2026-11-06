@@ -18,6 +18,48 @@
 import { MAX_STORED_BYTES_COUNT, isObject, isResourceId, isString, type ResourceId } from '@semiont/core';
 import type { CachePersister } from './cache';
 import type { SessionStorage } from './session/session-storage';
+import { getStoredSession } from './session/storage';
+
+/**
+ * B17 — where a client keeps its persisted queries' values: a store, under
+ * the keys of one knowledge base and one person
+ * (protocol/specs/src/session/stored.json, `cacheKeyPrefix`).
+ */
+export interface CachePersistence {
+  readonly storage: SessionStorage;
+  readonly kbId: string;
+  /** The person's key, as `personKey` makes it of the did the gateway answered. */
+  readonly personKey: string;
+}
+
+/**
+ * A store that writes for one person only while a knowledge base's stored
+ * sign-in names them. Once it does not (another context signed out, or
+ * signed in afresh), it writes nothing more for its life: what was about to
+ * be written, a debounced save or a stream's place, belongs to a sign-in
+ * that is gone. A renewal keeps the person, so writes go on through it.
+ */
+export function whileSignedIn(storage: SessionStorage, kbId: string, personKey: string): SessionStorage {
+  let signedOut = false;
+  const signedIn = (): boolean => {
+    const stored = getStoredSession(storage, kbId);
+    if (stored === null || stored.personKey !== personKey) signedOut = true;
+    return !signedOut;
+  };
+  return {
+    get: (k) => storage.get(k),
+    set: (k, v) => {
+      if (signedIn()) storage.set(k, v);
+    },
+    delete: (k) => {
+      if (signedIn()) storage.delete(k);
+    },
+    update: (k, change) => {
+      if (signedIn()) storage.update(k, change);
+    },
+    subscribe: (handler) => storage.subscribe(handler),
+  };
+}
 
 /**
  * B17 — couple the resumption bookmarks to the cache flush.
@@ -131,7 +173,7 @@ function parseDocument(raw: string | null, version: number): StoredDocument | nu
 export function sessionStoragePersister<K, V>(opts: {
   /** The environment's storage adapter — the seam, and the test seam. */
   storage: SessionStorage;
-  /** Full storage key; callers scope it per KB (`semiont.cache.<kbId>.<name>`). */
+  /** Full storage key; callers scope it per KB and person (`cacheKey(kbId, personKey, query)`). */
   storageKey: string;
   /** Schema version; mismatch discards on load. Bump when the value shape changes. */
   version: number;

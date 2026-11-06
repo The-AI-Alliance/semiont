@@ -177,6 +177,12 @@ export interface ActorStateUnit extends StateUnit, Omit<BusPrimitive, 'subscribe
   addChannels(channels: readonly (keyof EventMap)[], scope?: ResourceId): void;
   /** With `scope`: remove channels from that scope's entry (empty entry drops the scope). Without: global channels. */
   removeChannels(channels: string[], scope?: ResourceId): void;
+  /**
+   * B17 — places kept for scopes, read after the unit was made: each fills a
+   * scope that has no watermark, so a place this stream has seen is never
+   * moved back. Sent from the next connect on.
+   */
+  restoreLastEventIds(places: ReadonlyMap<ResourceId, string>): void;
   start(): void;
   stop(): void;
 }
@@ -1019,6 +1025,12 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         }
       }
       if (changed) scheduleLazyReconnect();
+    },
+
+    restoreLastEventIds: (places: ReadonlyMap<ResourceId, string>) => {
+      for (const [scope, place] of places) {
+        if (!scopeWatermarks.has(scope)) scopeWatermarks.set(scope, place);
+      }
     },
 
     trackReply: (correlationId: string) => {

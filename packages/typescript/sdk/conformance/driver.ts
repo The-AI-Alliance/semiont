@@ -18,6 +18,7 @@ import {
   InMemorySessionStorage,
   JobFailedError,
   SemiontClient,
+  personKey,
   type CacheObservable,
   type CacheState,
 } from '@semiont/sdk';
@@ -65,6 +66,8 @@ function failure(error: unknown): { code?: string; status?: number; failureClass
 
 /** What a cache persists to, kept across `close` and the next `open`: a reload, to the client. */
 const storage = new InMemorySessionStorage();
+/** The person a persisting client keeps its caches for: one fixed did, the same in every SDK's driver. */
+const DRIVER_PERSON = personKey('did:web:conformance.example:users:driver');
 /** The client, kept once closed: what a closed client does is part of what the suite asks. */
 let client: SemiontClient | undefined;
 let closed = false;
@@ -152,7 +155,7 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
       ...(invalidationWindowMs === undefined ? {} : { invalidationWindowMs }),
       ...(jobSilenceMs === undefined ? {} : { jobSilenceMs }),
       ...(jobStatusPollMs === undefined ? {} : { jobStatusPollMs }),
-      ...(args['persist'] === true ? { cachePersistence: { storage, keyPrefix: 'conformance' } } : {}),
+      ...(args['persist'] === true ? { cachePersistence: { storage, kbId: 'conformance', personKey: DRIVER_PERSON } } : {}),
     });
     closed = false;
     observers.clear();

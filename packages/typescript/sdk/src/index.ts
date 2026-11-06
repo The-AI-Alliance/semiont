@@ -68,6 +68,8 @@ export {
 // the REAL B14/B15 semantics instead of mock subjects — mock-only coverage is
 // how a two-state consumer of a three-outcome cache shipped twice.
 export { createCache, isReady, readyValue, type CacheState, type Cache } from './cache';
+// Where a client keeps its persisted queries: `SemiontClient`'s `cachePersistence` option.
+export type { CachePersistence } from './cache-persister';
 
 // `Bus` / `BusPrimitive` live in @semiont/core (next to the bus protocol
 // they're coupled to); a client hands its out as `client.wire`.
@@ -253,6 +255,9 @@ export {
   // a single number. Sidecars outside this package schedule from both.
   parseJwtExpiry,
   refreshDelayMs,
+  // The key a person's kept caches are held under: what a client built by
+  // hand (the conformance driver) keeps them for.
+  personKey,
   type StoredSession,
 } from './session/storage';
 // The sign-ins `semiont login` keeps, over the files a caller gives.

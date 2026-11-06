@@ -518,6 +518,15 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     this.bridges.push(bus);
   }
 
+  /**
+   * B17 — the places kept for the stream's scopes, read once persistence
+   * attaches after the transport was made: each fills a scope this
+   * transport holds no place for, and is sent from the next connect on.
+   */
+  restoreLastEventIds(places: ReadonlyMap<ResourceId, string>): void {
+    this.actor.restoreLastEventIds(places);
+  }
+
   subscribeToResource(resourceId: ResourceId): () => void {
     const count = this.scopeRefCounts.get(resourceId) ?? 0;
     this.scopeRefCounts.set(resourceId, count + 1);

@@ -3,8 +3,8 @@
  * session layer.
  *
  * Contains:
- *  - Storage key shape (constants, `sessionKey(kbId)`, `lastEventIdKey(kbId)`,
- *    `cacheKey(keyPrefix, name)`)
+ *  - Storage key shape (constants, `sessionKey(kbId)`, `personKey(did)`,
+ *    `lastEventIdKey(kbId, personKey)`, `cacheKey(kbId, personKey, query)`)
  *  - JWT expiry parsing and "is expired" check
  *  - URL/protocol helpers for KB instances
  *  - Loaders/savers that take a `SessionStorage` and operate over it
@@ -16,8 +16,9 @@
 
 import { MIN_REFRESH_DELAY_MS, REFRESH_BEFORE_EXP_MS, isObject, isString, uuidV4 } from '@semiont/core';
 
-import type { HttpEndpoint, KbRead, KnowledgeBase } from '@semiont/core';
+import type { HttpEndpoint, KbRead, KnowledgeBase, PersistedQuery } from '@semiont/core';
 import type { SessionStorage } from './session-storage';
+import { sha256 } from './sha256';
 
 // ---------- Storage keys ----------
 
@@ -123,6 +124,13 @@ export interface StoredSession {
   clientId: string;
   tokenEndpoint: string;
   revocationEndpoint?: string;
+  /**
+   * Who the gateway said the sign-in's person is, as {@link personKey} makes
+   * it: what their kept caches and stream position are keyed by. Absent until
+   * the gateway names the person; a renewal keeps it, a new sign-in starts
+   * without it.
+   */
+  personKey?: string;
 }
 
 export function sessionKey(kbId: string): string {
@@ -134,14 +142,30 @@ export function kbOfSessionKey(key: string): string | null {
   return key.startsWith(SESSION_PREFIX) ? key.slice(SESSION_PREFIX.length) : null;
 }
 
-/** The key a knowledge base's stream's places are kept under. */
-export function lastEventIdKey(kbId: string): string {
-  return `${LAST_EVENT_ID_PREFIX}${kbId}`;
+/** Unpadded base64url (RFC 4648 §5). */
+export function base64url(bytes: Uint8Array): string {
+  let binary = '';
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-/** The key the query `name` is kept under, by a persistence whose key prefix is `keyPrefix`. */
-export function cacheKey(keyPrefix: string, name: string): string {
-  return `${CACHE_PREFIX}${keyPrefix}.${name}`;
+/**
+ * The key a person's kept caches and stream position are held under: the
+ * unpadded base64url SHA-256 of the UTF-8 of the did the gateway answers for
+ * their token, so the did itself is never written into a key.
+ */
+export function personKey(did: string): string {
+  return base64url(sha256(new TextEncoder().encode(did)));
+}
+
+/** The key a knowledge base's stream's places are kept under, for one person. */
+export function lastEventIdKey(kbId: string, personKey: string): string {
+  return `${LAST_EVENT_ID_PREFIX}${kbId}.${personKey}`;
+}
+
+/** The key a persisted query's values are kept under, in a knowledge base, for one person. */
+export function cacheKey(kbId: string, personKey: string, query: PersistedQuery): string {
+  return `${CACHE_PREFIX}${kbId}.${personKey}.${query}`;
 }
 
 // ---------- Per-KB session storage ----------
@@ -166,6 +190,7 @@ export function storedSessionIn(raw: string | null): StoredSession | null {
         clientId: parsed['clientId'],
         tokenEndpoint: parsed['tokenEndpoint'],
         ...(isString(parsed['revocationEndpoint']) ? { revocationEndpoint: parsed['revocationEndpoint'] } : {}),
+        ...(isString(parsed['personKey']) ? { personKey: parsed['personKey'] } : {}),
       };
     }
   } catch {
@@ -180,6 +205,30 @@ export function setStoredSession(storage: SessionStorage, kbId: string, session:
 
 export function clearStoredSession(storage: SessionStorage, kbId: string): void {
   storage.delete(sessionKey(kbId));
+}
+
+/**
+ * Name the person a knowledge base's stored sign-in is for, as one step: only
+ * while it still holds `access`, the token the gateway was asked about, and
+ * names no one. True when the stored sign-in names `personKey` once it is
+ * done; false when it holds another token, names another person, or is gone.
+ */
+export function recordPersonKey(storage: SessionStorage, kbId: string, access: string, personKey: string): boolean {
+  let recorded = false;
+  storage.update(sessionKey(kbId), (raw) => {
+    const stored = storedSessionIn(raw);
+    if (stored === null || stored.access !== access) {
+      recorded = false;
+      return raw;
+    }
+    if (stored.personKey !== undefined) {
+      recorded = stored.personKey === personKey;
+      return raw;
+    }
+    recorded = true;
+    return JSON.stringify({ ...stored, personKey });
+  });
+  return recorded;
 }
 
 // ---------- JWT helpers ----------

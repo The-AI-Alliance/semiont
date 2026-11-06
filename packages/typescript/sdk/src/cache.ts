@@ -62,13 +62,13 @@ import {
 } from 'rxjs';
 
 /**
- * B17 — optional persistence seam for a cache instance. `load` runs once at
- * construction (settled values only — B15 failure markers live outside the
- * store and are never serialized); `save` receives every store mutation,
- * debounced by the cache.
+ * B17 — optional persistence seam for a cache instance. `load` runs once,
+ * when the cache is given the persister (settled values only — B15 failure
+ * markers live outside the store and are never serialized); `save` receives
+ * every store mutation after it, debounced by the cache.
  */
 export interface CachePersister<K, V> {
-  /** Called once at cache construction. Returns initial entries, or null for none. */
+  /** Called once, when the cache is given the persister. Returns the entries kept, or null for none. */
   load(): Map<K, V> | null;
   /** Called on store mutations, debounced by the cache; flushed on dispose. */
   save(entries: Map<K, V>): void;
@@ -162,9 +162,31 @@ export function createCache<K, V>(
     saveDebounceMs?: number;
   },
 ): Cache<K, V> {
-  const persister = options?.persister;
-  const initialEntries = persister?.load() ?? new Map<K, V>();
-  const store$ = new BehaviorSubject<Map<K, V>>(initialEntries);
+  const made = createPersistableCache(fetchFn, options?.saveDebounceMs);
+  if (options?.persister) made.attach(options.persister);
+  return made.cache;
+}
+
+/**
+ * A cache, and the act that gives it a persister once it is made: what a
+ * namespace builds a cache with whose persistence may begin after it does.
+ */
+export interface PersistableCache<K, V> {
+  readonly cache: Cache<K, V>;
+  /**
+   * B17 — keep the cache's values with `persister` from now on: each entry
+   * it loads fills a key the cache does not know, as restored-from-disk
+   * (B18), and every later change is saved. Once; inert after disposal (B16).
+   */
+  attach(persister: CachePersister<K, V>): void;
+}
+
+export function createPersistableCache<K, V>(
+  fetchFn: (key: K) => Promise<V>,
+  /** Debounce window for persister.save. Default `SAVE_DEBOUNCE_MS`. */
+  saveDebounceMs: number = SAVE_DEBOUNCE_MS,
+): PersistableCache<K, V> {
+  const store$ = new BehaviorSubject<Map<K, V>>(new Map());
 
   /**
    * B18 — keys restored from the persister that have NOT been revalidated
@@ -175,7 +197,7 @@ export function createCache<K, V>(
    * `observe()` sees a populated store and issues no request, and no replay
    * helps (the B17-Q gate may be holding the bookmark, so none is persisted).
    */
-  const rehydrated = new Set<K>(initialEntries.keys());
+  const rehydrated = new Set<K>();
   /** In-flight fetch promise per key — dedups concurrent fetches (B3). */
   const inflight = new Map<K, Promise<V>>();
   const obsCache = new Map<K, Observable<CacheState<V>>>();
@@ -214,37 +236,28 @@ export function createCache<K, V>(
   const toError = (e: unknown): Error => (e instanceof Error ? e : new Error(String(e)));
 
   /**
-   * B17 — debounced persistence. The initial emission (the loaded map) is
-   * skipped: only mutations schedule a save. `dispose()` flushes a pending
-   * save synchronously (the KB-switch teardown must not lose the last
-   * write), then everything goes inert with the rest of B16.
+   * B17 — debounced persistence, from when a persister is attached. The
+   * store as it is then (the loaded map merged in) is skipped: only
+   * mutations schedule a save. `dispose()` flushes a pending save
+   * synchronously (the KB-switch teardown must not lose the last write),
+   * then everything goes inert with the rest of B16.
    */
-  const saveDebounceMs = options?.saveDebounceMs ?? SAVE_DEBOUNCE_MS;
-  let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  let attached = false;
+  let pendingSave: { timer: ReturnType<typeof setTimeout>; save(): void } | null = null;
   /**
    * Persistence is best-effort: a throwing save (localStorage quota, a
    * broken adapter) must never break the cache — and above all must never
    * break dispose(), which sits on the KB-switch teardown path.
    */
-  const trySave = (entries: Map<K, V>): void => {
+  const trySave = (persister: CachePersister<K, V>, entries: Map<K, V>): void => {
     try {
-      persister?.save(entries);
+      persister.save(entries);
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn('[cache PERSIST] save failed; persistence skipped (best-effort):',
         e instanceof Error ? e.message : e);
     }
   };
-  if (persister) {
-    store$.pipe(skip(1)).subscribe((entries) => {
-      if (disposed) return;
-      if (saveTimer !== null) clearTimeout(saveTimer);
-      saveTimer = setTimeout(() => {
-        saveTimer = null;
-        trySave(entries);
-      }, saveDebounceMs);
-    });
-  }
 
   /**
    * Run (or join) a fetch for `key`. Resolves with the value and updates the
@@ -335,7 +348,34 @@ export function createCache<K, V>(
 
   const knownKeys = (): K[] => [...new Set([...store$.value.keys(), ...failures$.value.keys(), ...inflight.keys()])];
 
-  return {
+  const attach = (persister: CachePersister<K, V>): void => {
+    if (attached) throw new Error('A cache keeps its values with one persister');
+    attached = true;
+    if (disposed) return; // B16
+    const loaded = persister.load();
+    if (loaded !== null) {
+      // A key the cache knows holds what this life asked for, newer than any kept value.
+      const known = new Set(knownKeys());
+      const next = new Map(store$.value);
+      for (const [key, value] of loaded) {
+        if (known.has(key)) continue;
+        next.set(key, value);
+        rehydrated.add(key);
+      }
+      store$.next(next);
+    }
+    store$.pipe(skip(1)).subscribe((entries) => {
+      if (disposed) return;
+      if (pendingSave !== null) clearTimeout(pendingSave.timer);
+      const save = (): void => {
+        pendingSave = null;
+        trySave(persister, entries);
+      };
+      pendingSave = { timer: setTimeout(save, saveDebounceMs), save };
+    });
+  };
+
+  const cache: Cache<K, V> = {
     observe(key: K): Observable<CacheState<V>> {
       // B4: return a stable Observable per key.
       let obs = obsCache.get(key);
@@ -468,7 +508,7 @@ export function createCache<K, V>(
       // B17-Q: in-flight fetches mean content may still be older than the
       // event that triggered them; a pending debounced save means content
       // newer than the persisted document. Either way the bookmark must wait.
-      return inflight.size > 0 || saveTimer !== null;
+      return inflight.size > 0 || pendingSave !== null;
     },
 
     dispose(): void {
@@ -476,10 +516,9 @@ export function createCache<K, V>(
       disposed = true;
       // B17: flush a pending save before the store completes — the disposal
       // act itself, not a post-disposal act.
-      if (saveTimer !== null) {
-        clearTimeout(saveTimer);
-        saveTimer = null;
-        trySave(store$.value);
+      if (pendingSave !== null) {
+        clearTimeout(pendingSave.timer);
+        pendingSave.save();
       }
       rehydrated.clear(); // B18
       store$.complete();
@@ -491,4 +530,6 @@ export function createCache<K, V>(
       inflight.clear();
     },
   };
+
+  return { cache, attach };
 }

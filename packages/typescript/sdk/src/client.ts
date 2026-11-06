@@ -14,7 +14,7 @@
 
 import type { BaseUrl, AccessToken, CacheQuery } from '@semiont/core';
 import { Bus, EventBus, accessToken, baseUrl } from '@semiont/core';
-import type { SessionStorage } from './session/session-storage';
+import type { CachePersistence } from './cache-persister';
 import { BehaviorSubject } from 'rxjs';
 import { BrowseNamespace, type BROWSE_QUERIES } from './namespaces/browse';
 import { MarkNamespace } from './namespaces/mark';
@@ -141,10 +141,11 @@ export class SemiontClient {
     gateway?: IGatewayOperations,
     options?: {
       /**
-       * B17 — cache persistence through the environment's SessionStorage
-       * adapter (keyPrefix = KB id). Omitted = in-memory-only caches.
+       * B17 — keep the persisted queries' values, for one knowledge base and
+       * one person, from construction on. Omitted = in-memory-only caches,
+       * until `browse.attachPersistence`.
        */
-      cachePersistence?: { storage: SessionStorage; keyPrefix: string };
+      cachePersistence?: CachePersistence;
       /**
        * `Bus.request` timeout for the browse caches — threads through to
        * `BrowseNamespace`'s deterministic-time knob, there so the liveness

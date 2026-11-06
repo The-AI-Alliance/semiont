@@ -45,6 +45,9 @@ export function readCacheRefresh(tablePath, registryPath, apiPath, refuse) {
     if (asks !== undefined && !requests.has(asks)) refuse(`the query ${name} asks ${JSON.stringify(asks)}, which is not an operation of the registry`);
     if (read !== undefined && !reads.has(read)) refuse(`the query ${name} reads ${JSON.stringify(read)}, which is no GET of the gateway's API`);
     if (per !== undefined && !PER.includes(per)) refuse(`the query ${name} is kept per ${JSON.stringify(per)}: one of ${PER.join(', ')}, or absent`);
+    if (query.persisted !== undefined && query.persisted !== true) refuse(`the query ${name} is persisted ${JSON.stringify(query.persisted)}: true, or absent`);
+    const unknown = Object.keys(query).filter((key) => !['name', 'per', 'asks', 'reads', 'persisted', 'docs'].includes(key));
+    if (unknown.length > 0) refuse(`the query ${name} states ${unknown.join(', ')}, which a query does not have`);
   }
 
   const ACTS = ['refetches', 'writes', 'removes'];

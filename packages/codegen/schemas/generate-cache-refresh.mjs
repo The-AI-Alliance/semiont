@@ -56,6 +56,10 @@ writeFileSync(
 export const CACHE_QUERIES = ${list(queries.map((query) => query.name))} as const;
 export type CacheQuery = (typeof CACHE_QUERIES)[number];
 
+/** The live queries whose answers a client keeps across its lives, for the person signed in. */
+export const PERSISTED_QUERIES = ${list(queries.filter((query) => query.persisted === true).map((query) => query.name))} as const;
+export type PersistedQuery = (typeof PERSISTED_QUERIES)[number];
+
 /** Which of a split channel's two kinds of event a row is for. */
 export type CacheRefreshWhen = ${WHEN.map((when) => `'${when}'`).join(' | ')};
 

@@ -19,11 +19,10 @@ import type {
 } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
 import { Bus, BusRequestError, LIMITS_OPERATIONS } from '@semiont/core';
-import type { CacheQuery, CacheRefresh } from '@semiont/core';
+import { PERSISTED_QUERIES, type CacheQuery, type CacheRefresh, type PersistedQuery } from '@semiont/core';
 import { CacheRefresher, ScopedSources, type QueryActs, type RefreshSubject } from '../cache-refresh';
-import { createCache, type CacheState, type Cache, type CachePersister } from '../cache';
-import { sessionStoragePersister } from '../cache-persister';
-import type { SessionStorage } from '../session/session-storage';
+import { createCache, createPersistableCache, type CacheState, type Cache, type PersistableCache } from '../cache';
+import { sessionStoragePersister, type CachePersistence } from '../cache-persister';
 import { cacheKey } from '../session/storage';
 
 /**
@@ -145,11 +144,18 @@ export class BrowseNamespace implements IBrowseNamespace {
   };
 
   /**
-   * B17-Q — the persisted caches, registered at construction, for the
-   * quiescence check gating the resumption-bookmark flush. Empty when
+   * B17-Q — the persisted caches, registered when persistence attaches, for
+   * the quiescence check gating the resumption-bookmark flush. Empty while
    * persistence is off (settled is then vacuously true).
    */
   private readonly persistedCaches: Array<{ persistencePending(): boolean }> = [];
+
+  /**
+   * B17 — what keeps each persisted query's values, by its name in
+   * protocol/specs/src/client/refresh.json: given where, it starts keeping
+   * them and hands back the cache.
+   */
+  private readonly keepers: Record<PersistedQuery, (persistence: CachePersistence, query: PersistedQuery) => { persistencePending(): boolean }>;
 
   private readonly wire: Bus;
 
@@ -166,46 +172,26 @@ export class BrowseNamespace implements IBrowseNamespace {
        */
       invalidationWindowMs?: number;
       /**
-       * B17 — opt into cache persistence through the environment's
-       * SessionStorage adapter. keyPrefix is the KB id (cache data is
-       * KB-specific). Omitted = in-memory only.
+       * B17 — keep the persisted queries' values from construction on, for
+       * the person signed in. Omitted = in-memory only until
+       * `attachPersistence`.
        */
-      cachePersistence?: { storage: SessionStorage; keyPrefix: string };
+      cachePersistence?: CachePersistence;
     },
   ) {
     this.wire = new Bus(transport);
     this.busTimeoutMs = options?.busTimeoutMs;
     this.scoped = new ScopedSources(this.transport);
 
-    // The opt-in table: the small, first-paint caches persist (a resource,
-    // its annotations, one annotation, the vocabulary); resource lists, event
-    // histories, referenced-by and the engines stay in-memory.
-    const persistence = options?.cachePersistence;
-    const persisted = <K, V>(name: string): { persister: CachePersister<K, V> } | undefined =>
-      persistence
-        ? {
-            persister: sessionStoragePersister<K, V>({
-              storage: persistence.storage,
-              storageKey: cacheKey(persistence.keyPrefix, name),
-              version: CACHE_PERSISTENCE_VERSION,
-            }),
-          }
-        : undefined;
-    // B17-Q: every persisted cache registers for the quiescence check that
-    // gates the resumption-bookmark flush (`persistenceSettled`).
-    const track = <C extends { persistencePending(): boolean }>(cache: C): C => {
-      if (persistence) this.persistedCaches.push(cache);
-      return cache;
-    };
-
-    this.resourceCache = track(createCache<ResourceId, ResourceDescriptor>(async (id) => {
+    const resource = createPersistableCache<ResourceId, ResourceDescriptor>(async (id) => {
       const result = await this.wire.request(
         'browse:resource-requested',
         { resourceId: id },
         this.busTimeoutMs,
       );
       return result.resource as ResourceDescriptor;
-    }, persisted<ResourceId, ResourceDescriptor>('resource')));
+    });
+    this.resourceCache = resource.cache;
 
     this.resourceListCache = createCache<string, ResourceList>(async (key) => {
       const filters = this.resourceListFilters.get(key) ?? {};
@@ -224,12 +210,12 @@ export class BrowseNamespace implements IBrowseNamespace {
       return { ...result, resources: result.resources as ResourceDescriptor[] };
     });
 
-    this.annotationListCache = track(createCache<ResourceId, GetAnnotationsResponse>(
+    const annotations = createPersistableCache<ResourceId, GetAnnotationsResponse>(
       (resourceId) => this.content.getAnnotations(resourceId),
-      persisted<ResourceId, GetAnnotationsResponse>('annotations'),
-    ));
+    );
+    this.annotationListCache = annotations.cache;
 
-    this.annotationDetailCache = track(createCache<AnnotationId, Annotation>(async (annotationId) => {
+    const annotation = createPersistableCache<AnnotationId, Annotation>(async (annotationId) => {
       const resourceId = this.annotationResources.get(annotationId);
       if (!resourceId) {
         throw new Error(`Cannot fetch annotation ${annotationId}: no resourceId known`);
@@ -240,25 +226,45 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.busTimeoutMs,
       );
       return result.annotation as Annotation;
-    }, persisted<AnnotationId, Annotation>('annotation-detail')));
+    });
+    this.annotationDetailCache = annotation.cache;
 
-    this.entityTypesCache = track(createCache<string, string[]>(async () => {
+    const entityTypes = createPersistableCache<string, string[]>(async () => {
       const result = await this.wire.request(
         'browse:entity-types-requested',
         {},
         this.busTimeoutMs,
       );
       return result.entityTypes;
-    }, persisted<string, string[]>('entity-types')));
+    });
+    this.entityTypesCache = entityTypes.cache;
 
-    this.tagSchemasCache = track(createCache<string, TagSchema[]>(async () => {
+    const tagSchemas = createPersistableCache<string, TagSchema[]>(async () => {
       const result = await this.wire.request(
         'browse:tag-schemas-requested',
         {},
         this.busTimeoutMs,
       );
       return result.tagSchemas;
-    }, persisted<string, TagSchema[]>('tag-schemas')));
+    });
+    this.tagSchemasCache = tagSchemas.cache;
+
+    const keeping = <K, V>(made: PersistableCache<K, V>) => (persistence: CachePersistence, query: PersistedQuery): Cache<K, V> => {
+      made.attach(sessionStoragePersister<K, V>({
+        storage: persistence.storage,
+        storageKey: cacheKey(persistence.kbId, persistence.personKey, query),
+        version: CACHE_PERSISTENCE_VERSION,
+      }));
+      return made.cache;
+    };
+    this.keepers = {
+      resource: keeping(resource),
+      annotations: keeping(annotations),
+      annotation: keeping(annotation),
+      entityTypes: keeping(entityTypes),
+      tagSchemas: keeping(tagSchemas),
+    };
+    if (options?.cachePersistence) this.attachPersistence(options.cachePersistence);
 
     this.enginesCache = createCache<string, EngineEntry[]>(async () => {
       const result = await this.wire.request(
@@ -530,6 +536,17 @@ export class BrowseNamespace implements IBrowseNamespace {
    */
   persistenceSettled(): boolean {
     return this.persistedCaches.every((cache) => !cache.persistencePending());
+  }
+
+  /**
+   * B17 — keep the persisted queries' values from now on, for the person
+   * signed in: each query's kept values fill the keys its cache does not
+   * know, as restored (B18), and every later change is saved. The session
+   * factory attaches once the gateway names the person, which may be after
+   * the client was made. Once per namespace: a second call throws.
+   */
+  attachPersistence(persistence: CachePersistence): void {
+    for (const query of PERSISTED_QUERIES) this.persistedCaches.push(this.keepers[query](persistence, query));
   }
 
   invalidateResourceEvents(resourceId: ResourceId): void {

@@ -18,10 +18,10 @@ import { BehaviorSubject } from 'rxjs';
 import { HttpTransport, HttpContentTransport, currentUserOf } from '@semiont/http-transport';
 import { baseUrl, type AccessToken } from '@semiont/core';
 import { SemiontClient } from '../client';
-import { coupledLastEventId } from '../cache-persister';
+import { coupledLastEventId, whileSignedIn } from '../cache-persister';
 import { SemiontSession, type UserInfo } from './semiont-session';
 import { SemiontSessionError } from './errors';
-import { kbGatewayUrl, lastEventIdKey } from './storage';
+import { getStoredSession, kbGatewayUrl, lastEventIdKey, personKey, recordPersonKey } from './storage';
 import { refreshStoredSession } from './oauth';
 import type { SessionFactory, SessionFactoryOptions } from './session-factory';
 
@@ -39,6 +39,7 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
       );
     }
     const endpoint = kb.endpoint;
+    const gateway = baseUrl(kbGatewayUrl(endpoint));
 
     /**
      * Renew `holding`, the KB's access token the session holds, at the
@@ -61,13 +62,21 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
     };
 
     /**
-     * Ask the gateway who `token` is: one request, with no client behind it.
-     * The session asks at startup, to populate `user$`, and decides for
-     * itself what a refusal means. A client built for the asking would open
-     * a bus stream each time it is built, with the token being asked about.
+     * B17: what the session keeps for one person, the stream's places and
+     * the caches, through a store that writes only while the stored sign-in
+     * names that person. The places are COUPLED to the cache flush (stashed
+     * in memory, written only alongside cache-document writes), so the kept
+     * bookmark can lag the caches but never lead them, and a reload resumes
+     * by replay instead of gapping.
      */
-    const performValidate = (token: AccessToken): Promise<UserInfo> =>
-      currentUserOf(baseUrl(kbGatewayUrl(endpoint)), token, fetch);
+    const keeping = (person: string) => {
+      const coupled = coupledLastEventId(whileSignedIn(storage, kb.id, person), lastEventIdKey(kb.id, person));
+      return { ...coupled, persistence: { storage: coupled.storage, kbId: kb.id, personKey: person } };
+    };
+    // Kept from the start when the stored sign-in names its person; until
+    // the gateway names them otherwise, nothing is kept.
+    const named = getStoredSession(storage, kb.id)?.personKey;
+    let kept = named === undefined ? null : keeping(named);
 
     // Build transport stack: factory owns token$ and threads it through
     // transport (which reads it on every request) and session (which
@@ -76,31 +85,51 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
     // before any 401 could fire.
     const token$ = new BehaviorSubject<AccessToken | null>(null);
     let session!: SemiontSession;
-    // B17: resume from the last persisted SSE id across reloads, so
-    // rehydrated caches reconcile by replay instead of gapping. The id is
-    // COUPLED to the cache flush (stashed in memory, written only alongside
-    // cache-document writes) so the persisted bookmark can lag the caches
-    // but never lead them.
-    const coupled = coupledLastEventId(storage, lastEventIdKey(kb.id));
     const transport = new HttpTransport({
-      baseUrl: baseUrl(kbGatewayUrl(endpoint)),
+      baseUrl: gateway,
       token$,
       tokenRefresher: (refused) => session.refresh(refused),
-      loadLastEventIds: coupled.loadLastEventIds,
-      saveLastEventId: coupled.saveLastEventId,
+      ...(kept === null ? {} : { loadLastEventIds: kept.loadLastEventIds }),
+      saveLastEventId: (scope, id) => {
+        if (kept !== null) kept.saveLastEventId(scope, id);
+      },
       ...(fetch ? { fetch } : {}),
     });
     const content = new HttpContentTransport(transport);
-    // B17: the session's client persists its browse caches through the
-    // environment's storage adapter, scoped by KB.
-    const client = new SemiontClient(transport, content, transport, {
-      cachePersistence: { storage: coupled.storage, keyPrefix: kb.id },
-    });
+    const client = new SemiontClient(transport, content, transport, kept === null ? {} : { cachePersistence: kept.persistence });
     // B17-Q (C1): the bookmark flush waits for persisted-cache quiescence —
     // a bystander document write must not carry an id whose event some other
     // cache is still absorbing (mid-refetch or mid-debounce). Wired after
     // construction because the gate reads the client's own caches.
-    coupled.setFlushGate(() => client.browse.persistenceSettled());
+    const settled = (): boolean => client.browse.persistenceSettled();
+    if (kept !== null) kept.setFlushGate(settled);
+
+    /**
+     * Ask the gateway who `token` is: one request, with no client behind it.
+     * The session asks at startup, to populate `user$`, and decides for
+     * itself what a refusal means. A client built for the asking would open
+     * a bus stream each time it is built, with the token being asked about.
+     *
+     * The answer names the person, recorded on the stored sign-in only while
+     * it still holds `token` (a renewal or another context's sign-in in
+     * between records nothing). Recorded for a session keeping nothing yet,
+     * it starts keeping before the answer is handed back, so before the
+     * session is `ready`: the kept caches fill what this life has not asked
+     * for, and the kept places what the stream has not seen.
+     */
+    const performValidate = async (token: AccessToken): Promise<UserInfo> => {
+      const user = await currentUserOf(gateway, token, fetch);
+      const person = personKey(user.did);
+      if (recordPersonKey(storage, kb.id, token, person) && kept === null) {
+        kept = keeping(person);
+        kept.setFlushGate(settled);
+        client.browse.attachPersistence(kept.persistence);
+        const places = kept.loadLastEventIds();
+        if (places !== null) transport.restoreLastEventIds(places);
+      }
+      return user;
+    };
+
     session = new SemiontSession({
       kb,
       storage,

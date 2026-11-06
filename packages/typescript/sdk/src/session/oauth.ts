@@ -32,7 +32,7 @@ import type { HttpEndpoint } from '@semiont/core';
 import { fetchOf } from '../fetch-of';
 import type { SessionStorage } from './session-storage';
 import { sha256 } from './sha256';
-import { getStoredSession, isJwtExpired, kbGatewayUrl, sessionKey, storedSessionIn } from './storage';
+import { base64url, getStoredSession, isJwtExpired, kbGatewayUrl, sessionKey, storedSessionIn } from './storage';
 
 // All of `crypto` this module may use: what a browser gives every page.
 // `crypto.subtle` and `crypto.randomUUID` exist only in a secure context, and
@@ -109,12 +109,6 @@ export async function discoverIssuer(target: HttpEndpoint, fetch?: typeof global
 }
 
 // ---------- PKCE ----------
-
-function base64url(bytes: Uint8Array): string {
-  let binary = '';
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
 
 function randomUrlSafe(bytes: number): string {
   const buffer = new Uint8Array(bytes);

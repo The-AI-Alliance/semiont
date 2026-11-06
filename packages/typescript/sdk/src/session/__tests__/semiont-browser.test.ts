@@ -37,9 +37,13 @@ vi.mock('../../client', async () => {
     // failure — which is how a `not-found` verdict reaches the tab policy at
     // all.
     // The identity check and sign-in read what the KB says of itself.
+    // The session factory attaches persistence once the gateway names the
+    // person, and gates its stream places on the caches being quiet.
     browse = {
       resource: (id: string) => ({ fresh: () => mockResourceFresh(id) }),
       kb: () => mockKb(),
+      attachPersistence: () => {},
+      persistenceSettled: () => true,
     };
   }
   return {

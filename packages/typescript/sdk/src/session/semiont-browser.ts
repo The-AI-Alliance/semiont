@@ -27,6 +27,7 @@ import {
   BusRequestError,
   EventBus,
   FrameRefusal,
+  PERSISTED_QUERIES,
   getPrimaryRepresentation,
   kbDid,
   resourceId,
@@ -35,10 +36,12 @@ import {
 } from '@semiont/core';
 import {
   ACTIVE_KEY,
+  cacheKey,
   clearStoredSession,
   generateKbId,
   getStoredSession,
   isJwtExpired,
+  lastEventIdKey,
   loadKnowledgeBases,
   OPEN_RESOURCES_BY_KB_KEY,
   LAST_VIEWED_RESOURCE_BY_KB_KEY,
@@ -639,7 +642,9 @@ export class SemiontBrowser {
   /**
    * Sign out of a KB: forget the stored tokens and, best-effort, revoke the
    * refresh token at the issuer that issued it. If the KB is active,
-   * dispose its session + signals and emit null for both.
+   * dispose its session + signals and emit null for both. Then delete what
+   * was kept for the person the sign-in named, their caches and the
+   * stream's places, after the session's closing writes.
    */
   async signOut(id: string): Promise<void> {
     if (this.disposed) return;
@@ -660,6 +665,11 @@ export class SemiontBrowser {
       this.activeSession$.next(null);
       this.activeSignals$.next(null);
       this.endSession(prevSession, prevSignals);
+    }
+
+    if (stored?.personKey !== undefined) {
+      for (const query of PERSISTED_QUERIES) this.storage.delete(cacheKey(id, stored.personKey, query));
+      this.storage.delete(lastEventIdKey(id, stored.personKey));
     }
   }
 
