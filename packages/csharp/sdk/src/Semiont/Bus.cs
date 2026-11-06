@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Semiont.Errors;
 using Semiont.Http;
 using Semiont.Identifiers;
@@ -33,8 +34,22 @@ public sealed class BusOperation<TRequest, TResult, TFailure>
     public BusChannel<TFailure> Failure { get; }
 }
 
-public sealed record ReceivedBusFrame(BusFrame Frame, ActivityContext Trace)
+/// <summary>What a transport delivers on a channel, one after another: a frame (<see cref="ReceivedBusFrame"/>), or, in
+/// the place of a frame BusFrame does not allow that names its channel's readers, the frame's refusal
+/// (<see cref="FrameRefusal"/>).</summary>
+public closed record Carried
 {
+    /// <summary>The channel it was delivered on.</summary>
+    public abstract string Channel { get; }
+
+    /// <summary>What pairs it with the request awaiting it, when it carries one BusFrame allows.</summary>
+    public abstract string? CorrelationId { get; }
+}
+
+public sealed record ReceivedBusFrame(BusFrame Frame, ActivityContext Trace) : Carried
+{
+    public override string Channel => Frame.Channel;
+    public override string? CorrelationId => Frame.CorrelationId;
     internal string? EventId { get; init; }
     internal long Sequence { get; init; }
 
@@ -43,10 +58,38 @@ public sealed record ReceivedBusFrame(BusFrame Frame, ActivityContext Trace)
         Identifiers.UserId.TryParse(value.GetString(), out var user) ? user : null;
 }
 
-public closed record Heard<T>(ReceivedBusFrame Received) where T : class
+/// <summary>Why a frame is refused at a member, as every SDK spells it.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<FrameRefusalReason>))]
+public enum FrameRefusalReason
 {
-    public sealed record Delivered(ReceivedBusFrame Received, T Payload) : Heard<T>(Received);
-    public sealed record Refused(ReceivedBusFrame Received, JsonException Error) : Heard<T>(Received);
+    /// <summary>It does not carry the member, or the member holds null where it may not.</summary>
+    [JsonStringEnumMemberName("lacks")] Lacks,
+
+    /// <summary>The member is not what its schema allows (of another kind, another value, form or size), or is one a
+    /// closed object does not name.</summary>
+    [JsonStringEnumMemberName("malformed")] Malformed,
+}
+
+/// <summary>A frame refused, in its place: BusFrame does not allow it, or its payload is not its channel's.
+/// <paramref name="Member"/> is the way from the frame to the member its first fault is at, the names of the members it
+/// is within and its own joined by dots (<c>payload.resourceId</c> is within its payload, and <c>payload</c> is the
+/// payload itself); <paramref name="Reason"/> is why. <paramref name="Payload"/> is its payload as it came, the gateway's
+/// stamps and all, and null when it carried none. <paramref name="CorrelationId"/> is the frame's, when it carries one
+/// BusFrame allows: a request awaiting the reply it names fails with the refusal at once.</summary>
+public sealed record FrameRefusal(string Channel, string Member, FrameRefusalReason Reason, JsonElement? Payload,
+    string? CorrelationId, ResourceId? Scope) : Carried
+{
+    public override string Channel { get; } = Channel;
+    public override string? CorrelationId { get; } = CorrelationId;
+}
+
+/// <summary>What a typed read gives for each frame: the frame, its payload decoded (<see cref="Delivered"/>), or, in its
+/// place, the refusal of a frame BusFrame does not allow or whose payload is not its channel's
+/// (<see cref="Refused"/>).</summary>
+public closed record Heard<T> where T : class
+{
+    public sealed record Delivered(ReceivedBusFrame Received, T Payload) : Heard<T>;
+    public sealed record Refused(FrameRefusal Refusal) : Heard<T>;
 }
 
 public sealed class Bus
@@ -81,18 +124,41 @@ public sealed class Bus
         }
     }
 
-    internal static async IAsyncEnumerable<Heard<T>> DecodeFrames<T>(IAsyncEnumerable<ReceivedBusFrame> frames,
+    internal static async IAsyncEnumerable<Heard<T>> DecodeFrames<T>(IAsyncEnumerable<Carried> frames,
         ResourceId? resource, [EnumeratorCancellation] CancellationToken cancellation) where T : class
     {
-        await foreach (var received in frames.WithCancellation(cancellation).ConfigureAwait(false))
+        await foreach (var carried in frames.WithCancellation(cancellation).ConfigureAwait(false))
         {
-            if (resource is not null && received.Frame.Scope != resource) continue;
-            Heard<T> heard;
-            try { heard = new Heard<T>.Delivered(received, Decode<T>(received.Frame.Payload)); }
-            catch (JsonException error) { heard = new Heard<T>.Refused(received, error); }
-            yield return heard;
+            // A stream carries every scope it holds on the one channel, and another reader may hold another resource's.
+            if (resource is not null && ScopeOf(carried) != resource) continue;
+            yield return HeardOf<T>(carried);
         }
     }
+
+    /// <summary>What a typed read gives for <paramref name="carried"/>: a frame, its payload decoded, or the refusal of
+    /// one whose payload is not its channel's; and a frame the transport refused, its refusal as it came.</summary>
+    internal static Heard<T> HeardOf<T>(Carried carried) where T : class => carried switch
+    {
+        FrameRefusal refusal => new Heard<T>.Refused(refusal),
+        ReceivedBusFrame received => Decoded<T>(received),
+    };
+
+    private static Heard<T> Decoded<T>(ReceivedBusFrame received) where T : class
+    {
+        try { return new Heard<T>.Delivered(received, Decode<T>(received.Frame.Payload)); }
+        catch (JsonException)
+        {
+            return new Heard<T>.Refused(new FrameRefusal(received.Channel, "payload", FrameRefusalReason.Malformed,
+                received.Frame.Payload, received.CorrelationId, received.Frame.Scope));
+        }
+    }
+
+    /// <summary>The resource whose scope <paramref name="carried"/> was delivered on.</summary>
+    internal static ResourceId? ScopeOf(Carried carried) => carried switch
+    {
+        ReceivedBusFrame received => received.Frame.Scope,
+        FrameRefusal refusal => refusal.Scope,
+    };
 
     internal static T Decode<T>(JsonElement payload) where T : class
     {

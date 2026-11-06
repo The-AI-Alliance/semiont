@@ -1,3 +1,4 @@
+using Semiont;
 using Semiont.Errors;
 using OpenTelemetry;
 using OpenTelemetry.Trace;
@@ -169,9 +170,21 @@ internal sealed class WireDriver : IDisposable
 
     private static async Task ReportFramesAsync(HttpTransport transport, string channel)
     {
-        await foreach (var frame in transport.Frames(channel))
+        await foreach (var carried in transport.Frames(channel))
         {
-            Say(new { frame });
+            switch (carried)
+            {
+                case ReceivedBusFrame received:
+                    Say(new { frame = received.Frame });
+                    break;
+                // The suite's backend sends only frames BusFrame allows, and its lines have none for a refusal: a frame
+                // the transport refused is its bug, which ends the driver.
+                case FrameRefusal refusal:
+                    Console.Error.WriteLine("the transport refused a frame on " + channel + ": " +
+                        JsonSerializer.SerializeToElement(refusal.Reason).GetString() + ", at its `" + refusal.Member + "`");
+                    Environment.Exit(1);
+                    break;
+            }
         }
     }
 

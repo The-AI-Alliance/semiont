@@ -91,18 +91,12 @@ public sealed partial class HttpTransport : IDisposable
 
     public bool IsSubscribed(string channel) => channels.Contains(channel, StringComparer.Ordinal);
 
-    public IAsyncEnumerable<BusFrame> Frames(string channel, CancellationToken cancellation = default) => Frames([channel], cancellation);
+    public IAsyncEnumerable<Carried> Frames(string channel, CancellationToken cancellation = default) => Frames([channel], cancellation);
 
-    public IAsyncEnumerable<BusFrame> Frames(IEnumerable<string> channels, CancellationToken cancellation = default) =>
-        RawFrames(ReceivedFrames(channels, null, cancellation), cancellation);
+    public IAsyncEnumerable<Carried> Frames(IEnumerable<string> channels, CancellationToken cancellation = default) =>
+        ReceivedFrames(channels, null, cancellation);
 
-    private static async IAsyncEnumerable<BusFrame> RawFrames(IAsyncEnumerable<ReceivedBusFrame> frames,
-        [EnumeratorCancellation] CancellationToken cancellation)
-    {
-        await foreach (var frame in frames.WithCancellation(cancellation).ConfigureAwait(false)) yield return frame.Frame;
-    }
-
-    internal IAsyncEnumerable<ReceivedBusFrame> ReceivedFrames(IEnumerable<string> channels, ResourceId? resource, CancellationToken cancellation)
+    internal IAsyncEnumerable<Carried> ReceivedFrames(IEnumerable<string> channels, ResourceId? resource, CancellationToken cancellation)
     {
         var selected = channels.ToHashSet(StringComparer.Ordinal);
         foreach (var channel in selected)
@@ -120,7 +114,7 @@ public sealed partial class HttpTransport : IDisposable
         return new Hold(() => { lock (gate) buses.Remove(bus); });
     }
 
-    private async IAsyncEnumerable<ReceivedBusFrame> ObserveFrames(HashSet<string> selected, ResourceId? resource, [EnumeratorCancellation] CancellationToken cancellation)
+    private async IAsyncEnumerable<Carried> ObserveFrames(HashSet<string> selected, ResourceId? resource, [EnumeratorCancellation] CancellationToken cancellation)
     {
         var view = new FrameView(selected);
         await using var events = view.Stream.Observe(cancellation).GetAsyncEnumerator();
@@ -145,12 +139,7 @@ public sealed partial class HttpTransport : IDisposable
         }
     }
 
-    public async IAsyncEnumerable<JsonElement> Stream(string channel, [EnumeratorCancellation] CancellationToken cancellation = default)
-    {
-        await foreach (var frame in Frames(channel, cancellation).ConfigureAwait(false)) yield return frame.Payload;
-    }
-
-    public IDisposable On(string channel, Action<JsonElement> handler)
+    public IDisposable On(string channel, Action<Carried> handler)
     {
         var cancellation = new CancellationTokenSource();
         var frames = Frames(channel, cancellation.Token);
@@ -161,9 +150,9 @@ public sealed partial class HttpTransport : IDisposable
         {
             try
             {
-                await foreach (var frame in frames.ConfigureAwait(false))
+                await foreach (var carried in frames.ConfigureAwait(false))
                 {
-                    try { handler(frame.Payload); }
+                    try { handler(carried); }
                     catch (Exception error) { failures.Publish(new TransportError(ProtocolFacts.Error(0), error.Message, inner: error)); }
                 }
             }

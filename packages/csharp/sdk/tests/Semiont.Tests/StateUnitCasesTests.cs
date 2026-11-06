@@ -206,7 +206,7 @@ public sealed partial class TransportTests
                 case "heard":
                     await SettleAsync();
                     var seen = new List<BusFrame>();
-                    while (listening.Reader.TryRead(out var received)) seen.Add(received.Frame);
+                    while (listening.Reader.TryRead(out var heard)) seen.Add(Assert.IsType<ReceivedBusFrame>(heard).Frame);
                     var wanted = action.Value.EnumerateArray().ToArray();
                     Assert.True(seen.Count == wanted.Length, "Heard " + JsonSerializer.Serialize(seen));
                     foreach (var (expected, actual) in wanted.Zip(seen))

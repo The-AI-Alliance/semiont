@@ -180,8 +180,9 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
         }
     }
 
-    private static Lifecycle? Read(ReceivedBusFrame received)
+    private static Lifecycle? Read(Carried carried)
     {
+        if (carried is not ReceivedBusFrame received) return null;
         var frame = received.Frame;
         try
         {

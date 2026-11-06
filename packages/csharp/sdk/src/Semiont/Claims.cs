@@ -159,18 +159,25 @@ public sealed class Claims
         try
         {
             var frames = transport.ReceivedFrames([BusChannels.JobQueued.Name, BusChannels.JobCancelRequested.Name], null, stop);
-            await foreach (var received in frames.ConfigureAwait(false))
+            await foreach (var carried in frames.ConfigureAwait(false))
             {
-                var frame = received.Frame;
-                if (frame.Channel == BusChannels.JobQueued.Name)
+                if (carried.Channel == BusChannels.JobQueued.Name)
                 {
                     lock (gate) lastQueued = clock.GetUtcNow();
-                    if (filters.Any(filter => WorkerRules.JobMatchesFilter(filter, frame.Payload))) Wake();
+                    var wakes = carried switch
+                    {
+                        ReceivedBusFrame announced => filters.Any(filter => WorkerRules.JobMatchesFilter(filter, announced.Frame.Payload)),
+                        // No filter can be compared with what cannot be read: a refused announcement counts as one that matches.
+                        FrameRefusal => true,
+                    };
+                    if (wakes) Wake();
                 }
                 else
                 {
+                    // A refused frame names no job to cancel.
+                    if (carried is not ReceivedBusFrame received) continue;
                     JobCancelRequest requested;
-                    try { requested = Bus.Decode<JobCancelRequest>(frame.Payload); }
+                    try { requested = Bus.Decode<JobCancelRequest>(received.Frame.Payload); }
                     catch (JsonException) { continue; }
                     lock (gate)
                     {

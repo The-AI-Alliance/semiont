@@ -20,7 +20,9 @@ internal sealed class LiveQueries : IDisposable
     private const string Reopened = "reopened";
     private readonly EventBus.Subscription events;
     private readonly Dictionary<string, Query> queries;
-    private readonly Dictionary<string, Func<JsonElement, Subject>> subjects;
+    // What each channel's frame is of; null for a frame refused, or one whose payload is not its channel's, which could
+    // be of anything held.
+    private readonly Dictionary<string, Func<Carried, Subject?>> subjects;
     private readonly ILookup<string, JsonElement> refresh;
     private readonly IDisposable[] caches;
     private readonly LiveCacheStorage? persistence;
@@ -126,7 +128,7 @@ internal sealed class LiveQueries : IDisposable
         }
 
         void Add<T>(BusChannel<T> channel, Func<T, Subject> read) where T : class =>
-            subjects.Add(channel.Name, payload => read(Bus.Decode<T>(payload)));
+            subjects.Add(channel.Name, carried => Bus.HeardOf<T>(carried) is Heard<T>.Delivered delivered ? read(delivered.Payload) : null);
     }
 
     private static async Task<IReadOnlyList<EngineWithLimits>> LoadEnginesAsync(Bus wire, CancellationToken cancellation)
@@ -220,24 +222,22 @@ internal sealed class LiveQueries : IDisposable
 
     private async Task ReadEventsAsync()
     {
-        await foreach (var received in events.Reader.ReadAllAsync().ConfigureAwait(false))
+        await foreach (var carried in events.Reader.ReadAllAsync().ConfigureAwait(false))
         {
-            if (persistence is null) ApplyFrame(received.Frame);
-            else persistence.Apply(received, () => ApplyFrame(received.Frame));
+            if (persistence is null) Apply(carried);
+            else persistence.Apply(carried, () => Apply(carried));
         }
     }
 
-    private void ApplyFrame(BusFrame frame)
+    private void Apply(Carried carried)
     {
-        if (!subjects.TryGetValue(frame.Channel, out var name)) return;
-        Subject subject;
-        try { subject = name(frame.Payload); }
-        catch (JsonException)
+        if (!subjects.TryGetValue(carried.Channel, out var read)) return;
+        if (read(carried) is not { } subject)
         {
             foreach (var query in queries.Values) query.Refetch(new Subject(), true);
             return;
         }
-        Refresh(frame.Channel, subject);
+        Refresh(carried.Channel, subject);
     }
 
     private async Task ReadReopensAsync(HttpTransport transport)
