@@ -254,6 +254,7 @@ extension HttpTransport: ContentTransport {
     let idempotencyKey = UUID().uuidString
     var credential = token
     var renewed = false
+    var resend = OneResend(method: "POST", keyed: true)
     while true {
       try Task.checkCancellation()
       if lifetime.ended { throw CancellationError() }
@@ -267,16 +268,27 @@ extension HttpTransport: ContentTransport {
       wire.body = .stream(
         UploadBytes(data: form.data, report: report), length: .known(Int64(form.data.count)))
       do {
-        let response = try await http.execute(wire, deadline: .distantFuture)
+        let response: HTTPClientResponse
+        do {
+          response = try await http.execute(wire, deadline: .distantFuture)
+        } catch {
+          if Task.isCancelled || lifetime.ended { throw CancellationError() }
+          if try await resend.afterNoAnswer() { continue }
+          throw TransportError(.unavailable, "POST /resources got no answer: \(error)")
+        }
         if !(200..<300).contains(Int(response.status.code)) {
           let failure = await Self.refusal(
             response, path: "/resources", deadlineMs: timing.httpRequestMs)
-          if failure.reason == .unauthorized, !renewed {
-            renewed = true
-            if let newToken = try await renew(refused: credential) {
-              credential = newToken
-              continue
+          if failure.reason == .unauthorized {
+            if !renewed {
+              renewed = true
+              if let newToken = try await renew(refused: credential) {
+                credential = newToken
+                continue
+              }
             }
+          } else if try await resend.after(failure) {
+            continue
           }
           throw failure
         }

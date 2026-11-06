@@ -1,0 +1,17 @@
+{
+  "about": "an upload whose connection closed with no answer is sent once more, whole, with the key it was first sent with, and resolves with the id the gateway answers; nothing is reported",
+  "source": "protocol/contract/TRANSPORT-CONTRACT.md § Failures; protocol/specs/src/retry/cases.json transport; protocol/specs/src/client/timing.json requestRetryPauseMs; protocol/specs/src/paths/resources.json",
+  "steps": [
+    {"driver": "open", "with": {"channels": ["beckon:focus"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:focus"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+    {"backend": "unanswered", "with": {"wire": "POST /resources", "times": 1}},
+
+    {"driver": "put", "with": {"name": "Sent once more", "format": "text/plain", "storageUri": "file://uploads/sent-once-more.txt", "bytes": "c2VudCBvbmNlIG1vcmUsIHJlY29yZGVkIG9uY2U="}, "as": "sent"},
+    {"wire": "POST /resources", "at": "arrival", "headers": {"Idempotency-Key": {"$fresh": "key"}}},
+    {"wire": "POST /resources", "status": 202, "headers": {"Idempotency-Key": {"$var": "key"}}, "answer": {"resourceId": {"$var": "uploaded"}}},
+    {"settles": "sent", "returns": {"resourceId": {"$var": "uploaded"}}},
+    {"backend": "uploaded", "with": {"resource": {"$var": "uploaded"}, "bytes": "c2VudCBvbmNlIG1vcmUsIHJlY29yZGVkIG9uY2U=", "fields": {"name": "Sent once more", "format": "text/plain", "storageUri": "file://uploads/sent-once-more.txt"}}},
+    {"quiet": 300}
+  ]
+}

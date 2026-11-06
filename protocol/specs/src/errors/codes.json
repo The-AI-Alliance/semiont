@@ -72,6 +72,11 @@
         "docs": "The request is malformed."
       },
       {
+        "code": "unprocessable",
+        "status": 422,
+        "docs": "The request is well formed and cannot be carried out as it stands: an `Idempotency-Key` used for two different requests. Sent again, it is refused again."
+      },
+      {
         "code": "rate-limited",
         "status": 429,
         "docs": "A limit refused it; the refusal's `Retry-After` says when to return."

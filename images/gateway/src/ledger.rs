@@ -8,7 +8,8 @@
 //!
 //!  - `claim` writes the table before the request is published, atomically
 //!    across replicas, so an id claimed anywhere is a conflict here; once it
-//!    returns, a read of the table finds the claim.
+//!    returns, a read of the table finds the claim. A claim whose request
+//!    could not be published is deleted (`let_go`), and every replica forgets it.
 //!  - The projection can lag behind a reply. A frame whose id this replica
 //!    does not hold is not refused on that evidence: the replica reads the
 //!    table — once per id, however many subscribers missed — and decides
@@ -23,7 +24,7 @@
 //! (`ledger_replies`) for `replyRetentionSeconds`; recovery answers from any
 //! replica, and only to the claim's owner.
 
-use crate::signal::{Meta, SharedTable, SignalPlane, Subscription};
+use crate::signal::{Meta, SharedTable, SignalPlane, Subscription, now_ms};
 use crate::{limits, metrics};
 use futures::FutureExt;
 use futures::future::{BoxFuture, Shared};
@@ -33,7 +34,7 @@ use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 const CLAIMS: &str = "ledger_claims";
 const REPLIES: &str = "ledger_replies";
@@ -42,13 +43,6 @@ const ANSWERED: &str = "ledger_answered";
 /// Claims one replica's projection holds at once; past this the oldest is
 /// evicted. Correct clients cannot reach it: each is capped far below.
 const CLAIM_MAX_GLOBAL: usize = 4096;
-
-fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
-}
 
 fn bus(fields: Value) -> Value {
     let mut fields = fields;
@@ -217,8 +211,12 @@ impl Ledger {
         let adopt = weak.clone();
         let claims_watch = claims
             .watch(Arc::new(move |cid, value| {
-                if let (Some(ledger), Some(value)) = (adopt.upgrade(), value) {
-                    ledger.adopt(&cid, &value);
+                let Some(ledger) = adopt.upgrade() else {
+                    return;
+                };
+                match value {
+                    Some(value) => ledger.adopt(&cid, &value),
+                    None => Self::forget(&mut locked(&ledger.state), &cid),
                 }
             }))
             .await?;
@@ -395,6 +393,14 @@ impl Ledger {
             Self::record(&mut state, cid, &stored);
         }
         Ok(ClaimOutcome::Ok)
+    }
+
+    /// Let go of a claim whose request could not be published, so another
+    /// attempt at that request may claim its id again.
+    pub async fn let_go(&self, cid: &str) -> Result<(), String> {
+        self.claims.delete(cid.to_owned()).await?;
+        Self::forget(&mut locked(&self.state), cid);
+        Ok(())
     }
 
     /// One correlated frame, as the composition's standing tap saw it.

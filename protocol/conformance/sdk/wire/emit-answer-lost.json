@@ -1,0 +1,20 @@
+{
+  "about": "a request's emit the gateway accepted, whose answer never reached the client, is sent again inside emitRetry with the key and the envelope it was first sent with; the gateway answers the repeat as it answered the first, and the request resolves with the response of its reply",
+  "source": "protocol/contract/TRANSPORT-HTTP.md § Emitting; protocol/specs/src/paths/bus_emit.json; protocol/specs/src/client/timing.json emitRetry",
+  "steps": [
+    {"let": {"response": {"resource": {"@context": "https://schema.org/", "@id": "r", "name": "r", "representations": []}, "lastSequence": 1}}},
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},
+    {"driver": "open", "with": {"channels": ["browse:resource-failed", "browse:resource-result"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50, "emitRetry": {"attempts": 2, "initialDelayMs": 10, "maxDelayMs": 10}}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["browse:resource-failed", "browse:resource-result"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+    {"backend": "answer-lost", "with": {"wire": "POST /bus/emit", "times": 1}},
+
+    {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 10000}, "as": "asked"},
+    {"wire": "POST /bus/emit", "status": 202, "headers": {"Idempotency-Key": {"$fresh": "key"}}, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$var": "cid"}, "clientId": {"$var": "clientId"}}, "answer": {"$var": "accepted"}, "as": "lost"},
+    {"closed": "lost"},
+    {"wire": "POST /bus/emit", "status": 202, "headers": {"Idempotency-Key": {"$var": "key"}}, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$var": "cid"}, "clientId": {"$var": "clientId"}}, "answer": {"$var": "accepted"}},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "cid"}, "payload": {"response": {"$var": "response"}}}},
+    {"settles": "asked", "returns": {"response": {"$var": "response"}}},
+    {"quiet": 300}
+  ]
+}

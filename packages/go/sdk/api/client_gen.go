@@ -7146,13 +7146,13 @@ type Unauthorized = ErrorResponse
 
 // EmitOnBusParams defines parameters for EmitOnBus.
 type EmitOnBusParams struct {
-	// IdempotencyKey The client's own name for this emit: a new one for each emit, and the same on every attempt at it, whether its credential was renewed or not.
+	// IdempotencyKey The client's own name for this emit: a new one for each emit, and the same on every attempt at it, whether its credential was renewed or not. The gateway answers a repeat by it (above).
 	IdempotencyKey string `json:"Idempotency-Key"`
 }
 
 // UploadResourceParams defines parameters for UploadResource.
 type UploadResourceParams struct {
-	// IdempotencyKey The client's own name for this upload: a new one for each upload, and the same on every attempt at it, whether its credential was renewed or not.
+	// IdempotencyKey The uploader's own name for this upload: a new one for each upload, and the same on every attempt at it, whether its credential was renewed or not. The Archivist answers a repeat by it (above).
 	IdempotencyKey string `json:"Idempotency-Key"`
 }
 
@@ -15555,6 +15555,7 @@ type EmitOnBusResponse struct {
 	JSON401      *Unauthorized
 	JSON409      *ErrorResponse
 	JSON413      *PayloadTooLarge
+	JSON422      *ErrorResponse
 	JSON429      *TooManyRequests
 	JSON500      *InternalError
 	JSON503      *ErrorResponse
@@ -15609,6 +15610,7 @@ type UploadResourceResponse struct {
 	JSON202      *CreateResourceResponse
 	JSON400      *ErrorResponse
 	JSON401      *Unauthorized
+	JSON422      *ErrorResponse
 	JSON429      *TooManyRequests
 	JSON500      *ErrorResponse
 	JSON503      *ServiceUnavailable
@@ -16290,6 +16292,13 @@ func ParseEmitOnBusResponse(rsp *http.Response) (*EmitOnBusResponse, error) {
 		}
 		response.JSON413 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
 		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -16411,6 +16420,13 @@ func ParseUploadResourceResponse(rsp *http.Response) (*UploadResourceResponse, e
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
 		var dest TooManyRequests

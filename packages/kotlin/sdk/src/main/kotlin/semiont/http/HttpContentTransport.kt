@@ -151,7 +151,7 @@ public class HttpContentTransport(private val transport: HttpTransport) : Conten
         val progress = Channel<UploadProgress>(Channel.UNLIMITED)
         var said = -1L
         val report = { sent: Long ->
-            // Never less than it last said: a body sent again after a renewal counts from where it was.
+            // Never less than it last said: a body sent again, after a renewal or a failed attempt, counts from where it was.
             synchronized(progress) {
                 if (sent > said) {
                     said = sent

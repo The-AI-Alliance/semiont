@@ -12,8 +12,11 @@
  * first send with its retry inside it, over a stand-in for its connector
  * (images/gateway/src/archivist.rs).
  *
- * Plane-independent, and slow: the one case waits three waits out side by
- * side, the longest `connectSeconds` and `readSeconds` together.
+ * Plane-independent, and slow: the one case waits four waits out side by
+ * side, the longest `connectSeconds` and `readSeconds` together. The fourth is
+ * an upload the Archivist recorded and never answered: its resend, under its
+ * key, is answered with the resource it made
+ * (protocol/specs/src/paths/resources.json, A key).
  */
 import { randomUUID } from 'node:crypto';
 import { request } from 'node:http';
@@ -62,6 +65,7 @@ function slowUpload(origin: string, token: string, storageUri: string): Promise<
         method: 'POST',
         headers: {
           authorization: `Bearer ${token}`,
+          'idempotency-key': randomUUID(),
           'content-type': `multipart/form-data; boundary=${boundary}`,
           'content-length': String(head.length + pieces * piece.length + tail.length),
         },
@@ -88,7 +92,7 @@ function slowUpload(origin: string, token: string, storageUri: string): Promise<
 }
 
 eachPlane('an Archivist that stops answering', (world) => {
-  it('is waited for connectSeconds and readSeconds for a read\'s answer to begin, and readSeconds for each next part and for an upload\'s answer from its last byte', async () => {
+  it('is waited for connectSeconds and readSeconds for a read\'s answer to begin, and readSeconds for each next part and for an upload\'s answer from its last byte; an upload it recorded and never answered is answered on its resend under its key', async () => {
     const token = await world().person('waiting');
     const stored = (id: string) => {
       world().archivist.resources.set(id, { storageUri: `file://${id}`, mediaType: 'text/plain' });
@@ -132,6 +136,32 @@ eachPlane('an Archivist that stops answering', (world) => {
       expect(world().archivist.uploads.some((u) => u.fields['storageUri'] === storageUri)).toBe(false);
     };
 
-    await Promise.all([neverAnswered(), answeredInPart(), uploadNeverAnswered()]);
+    const recordedNeverAnswered = async () => {
+      const key = randomUUID();
+      const storageUri = `file://uploads/${randomUUID()}`;
+      const form = () => {
+        const body = new FormData();
+        for (const [k, v] of Object.entries({ name: 'Recorded', format: 'text/plain', storageUri })) body.set(k, v);
+        body.set('file', new Blob([new Uint8Array(BYTES)], { type: 'text/plain' }), 'recorded.txt');
+        return body;
+      };
+      const made = () => world().archivist.uploads.filter((u) => u.fields['storageUri'] === storageUri);
+      world().archivist.mode.recordsUnanswered.add(storageUri);
+
+      const started = Date.now();
+      const lost = await world().upload(token, form(), key);
+      waitedOut('an upload recorded and never answered', Date.now() - started, READ_MS);
+      expect(lost.status, lost.text).toBe(503);
+      expect(nonConformance('post', '/resources', lost)).toEqual([]);
+      expect(made()).toHaveLength(1);
+
+      const resent = await world().upload(token, form(), key);
+      expect(resent.status, resent.text).toBe(202);
+      expect(nonConformance('post', '/resources', resent)).toEqual([]);
+      expect(resent.json).toEqual({ resourceId: made()[0]!.resourceId });
+      expect(made()).toHaveLength(1);
+    };
+
+    await Promise.all([neverAnswered(), answeredInPart(), uploadNeverAnswered(), recordedNeverAnswered()]);
   }, ANSWER_BEGINS_MS * 2 + SENDING_MS + 30_000);
 }, {}, ['in-process']);

@@ -37,8 +37,8 @@ public sealed partial class HttpTransport
 
     internal async Task<HttpResponseMessage> ExchangeAsync(HttpMethod method, string path, Func<HttpContent>? content = null, bool authenticated = true, bool upload = false, CancellationToken cancellation = default, bool retry = true)
     {
-        var repeatable = retry && ProtocolFacts.RetryTransport(503, method.Method);
         var key = upload ? Guid.NewGuid().ToString() : null;
+        var repeatable = retry && ProtocolFacts.RetryTransport(503, method.Method, keyed: key is not null);
         var renewed = false;
         for (var attempt = 0; ; attempt++)
         {
@@ -78,7 +78,7 @@ public sealed partial class HttpTransport
                     continue;
                 }
             }
-            if (retry && attempt == 0 && ProtocolFacts.RetryTransport((int)response.StatusCode, method.Method) && failure.Code != ProtocolFacts.Error(401))
+            if (retry && attempt == 0 && ProtocolFacts.RetryTransport((int)response.StatusCode, method.Method, keyed: key is not null) && failure.Code != ProtocolFacts.Error(401))
             {
                 var delay = Math.Max(RetryAfter(response), ProtocolFacts.Timing("requestRetryPauseMs").GetInt32());
                 response.Dispose();

@@ -249,7 +249,7 @@
           }
         },
         {
-          "description": "The request a `wire` step named has ended with no answer: the client closed it.",
+          "description": "The request a `wire` step named has ended with no answer reaching the client: the client closed it, or the proxy kept the gateway's answer from it (`answer-lost`).",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -380,6 +380,7 @@
                 "uploaded",
                 "refuse",
                 "unanswered",
+                "answer-lost",
                 "hold",
                 "release",
                 "rechunk",

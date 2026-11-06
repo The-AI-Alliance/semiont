@@ -12,22 +12,15 @@
 
 use crate::limits;
 use crate::principal::Principal;
-use crate::signal::{SharedTable, SignalPlane, Subscription};
+use crate::signal::{SharedTable, SignalPlane, Subscription, now_ms};
 use semiont_observability::logging;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use tokio::sync::mpsc;
 
 const TABLE: &str = "streams_held";
-
-fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
-}
 
 fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|p| p.into_inner())

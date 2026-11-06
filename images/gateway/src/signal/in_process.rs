@@ -247,6 +247,21 @@ impl SharedTable for MemoryTable {
         async { Ok(()) }.boxed()
     }
 
+    fn replace(
+        &self,
+        key: String,
+        expected: String,
+        value: String,
+    ) -> BoxFuture<'_, Result<bool, String>> {
+        let replaced = self.write(&key, &value, |state| {
+            state
+                .entries
+                .get(&key)
+                .is_some_and(|(held, _)| *held == expected)
+        });
+        async move { Ok(replaced) }.boxed()
+    }
+
     fn delete(&self, key: String) -> BoxFuture<'_, Result<(), String>> {
         let watchers: Vec<TableWatcher> = {
             let mut state = locked(&self.state);

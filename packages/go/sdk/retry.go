@@ -36,6 +36,8 @@ type RetryFacts struct {
 	Status *int
 	// Method is the request's method; nil when the context states none.
 	Method *string
+	// Keyed is whether the request carries an Idempotency-Key.
+	Keyed bool
 }
 
 // RetryRule is which failures one context tries again.
@@ -72,12 +74,13 @@ var RetryRuleBoot = RetryRule{Name: "boot", retryable: func(facts RetryFacts) bo
 var idempotentMethods = map[string]bool{"GET": true, "HEAD": true, "PUT": true, "DELETE": true, "OPTIONS": true, "TRACE": true}
 
 // RetryRuleTransport is an HTTP client's request. A retryable status applies
-// only to a method that cannot cause a second effect, because a POST answered
-// 502 may already have been processed. A 401 is not retried: a refused
-// credential is renewed before any rule is asked, and the same token gets the
-// same answer.
+// only when a repeat cannot cause a second effect: the method cannot, or the
+// request carries an Idempotency-Key, whose repeat the server answers as it
+// answered the first. A POST with no key answered 502 may already have been
+// processed. A 401 is not retried: a refused credential is renewed before any
+// rule is asked, and the same token gets the same answer.
 var RetryRuleTransport = RetryRule{Name: "transport", retryable: func(facts RetryFacts) bool {
-	repeatable := facts.Method != nil && idempotentMethods[strings.ToUpper(*facts.Method)]
+	repeatable := facts.Keyed || (facts.Method != nil && idempotentMethods[strings.ToUpper(*facts.Method)])
 	return repeatable && statusIn(facts, 408, 413, 429, 500, 502, 503, 504)
 }}
 

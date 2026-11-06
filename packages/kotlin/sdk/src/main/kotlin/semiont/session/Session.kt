@@ -53,7 +53,7 @@ private fun notRenewed(failure: SignInError?): String = if (failure == null) "To
 
 /** Whether a renewal failed because the issuer refused it: an answer the `refresh` rule does not try again. No answer, and one it tries again until the budget is spent, is no refusal. */
 private fun refused(failure: SignInError): Boolean =
-    failure.reason == SignInErrorCode.Exchange && failure.status != null && !REFRESH.retryable(RetryFacts(status = failure.status, method = "POST"))
+    failure.reason == SignInErrorCode.Exchange && failure.status != null && !REFRESH.retryable(RetryFacts(status = failure.status, method = "POST", keyed = false))
 
 private fun now(): Double = System.currentTimeMillis() / 1000.0
 

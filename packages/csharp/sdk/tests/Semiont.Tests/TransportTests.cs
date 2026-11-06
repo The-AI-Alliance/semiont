@@ -605,17 +605,11 @@ public sealed partial class TransportTests
         {
             if (request.Method == HttpMethod.Post)
             {
-                Assert.False(string.IsNullOrEmpty(Assert.Single(request.Headers.GetValues("Idempotency-Key"))));
-                var form = Assert.IsAssignableFrom<MultipartContent>(request.Content);
-                var fields = new Dictionary<string, string>();
-                foreach (var part in form)
-                {
-                    var field = part.Headers.ContentDisposition?.Name?.Trim('"') ?? throw new InvalidOperationException("Unnamed part");
-                    if (field == "file") Assert.Equal(payload, await part.ReadAsByteArrayAsync(cancellation));
-                    else fields.Add(field, await part.ReadAsStringAsync(cancellation));
-                }
-                Assert.Equal("A name", fields["name"]);
-                Assert.Equal("[\"Person\"]", fields["entityTypes"]);
+                var sent = await ReadUploadAsync(request, cancellation);
+                Assert.False(string.IsNullOrEmpty(sent.Key));
+                Assert.Equal(payload, sent.File);
+                Assert.Equal("A name", sent.Fields["name"]);
+                Assert.Equal("[\"Person\"]", sent.Fields["entityTypes"]);
                 return new HttpResponseMessage(HttpStatusCode.Accepted) { Content = new StringContent("{\"resourceId\":\"r-uploaded\"}") };
             }
             Assert.False(request.Headers.Contains("Idempotency-Key"));
@@ -641,6 +635,120 @@ public sealed partial class TransportTests
         content.Dispose();
         Assert.False(streamed.Stream.CanRead);
         Assert.Equal(ConnectionState.Open, transport.State);
+    }
+
+    [Fact]
+    public async Task AnUploadAnsweredUnavailableIsSentOnceMoreWithItsKeyBytesAndFields()
+    {
+        var clock = new TestClock();
+        var upload = SampleUpload();
+        var attempts = new List<(string Key, byte[] File, Dictionary<string, string> Fields)>();
+        using var server = new Handler();
+        server.Other = async (request, cancellation) =>
+        {
+            attempts.Add(await ReadUploadAsync(request, cancellation));
+            return attempts.Count == 1
+                ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("{}") }
+                : new HttpResponseMessage(HttpStatusCode.Accepted) { Content = new StringContent("{\"resourceId\":\"r-uploaded\"}") };
+        };
+        using var client = new HttpClient(server);
+        using var transport = new HttpTransport("http://unit.test", "token", [], httpClient: client, timeProvider: clock);
+        using var content = new HttpContentTransport(transport);
+        var uploading = content.PutBinaryAsync(upload);
+        await clock.WaitForAsync(RequestRetryPause);
+        Assert.Single(attempts);
+        clock.Advance(RequestRetryPause);
+        Assert.Equal("r-uploaded", (await uploading.WaitAsync(TimeSpan.FromSeconds(10))).Value);
+        Assert.Equal(2, attempts.Count);
+        Assert.Equal(attempts[0].Key, attempts[1].Key);
+        Assert.All(attempts, attempt => Assert.Equal(upload.File, attempt.File));
+        Assert.Equal(attempts[0].Fields, attempts[1].Fields);
+    }
+
+    [Fact]
+    public async Task AnUploadThatGotNoAnswerIsSentOnceMoreWithItsKey()
+    {
+        var clock = new TestClock();
+        var keys = new List<string>();
+        using var server = new Handler();
+        server.Other = async (request, cancellation) =>
+        {
+            keys.Add((await ReadUploadAsync(request, cancellation)).Key);
+            if (keys.Count == 1) throw new HttpRequestException("The connection closed before any response.");
+            return new HttpResponseMessage(HttpStatusCode.Accepted) { Content = new StringContent("{\"resourceId\":\"r-uploaded\"}") };
+        };
+        using var client = new HttpClient(server);
+        using var transport = new HttpTransport("http://unit.test", "token", [], httpClient: client, timeProvider: clock);
+        using var content = new HttpContentTransport(transport);
+        var uploading = content.PutBinaryAsync(SampleUpload());
+        await clock.WaitForAsync(RequestRetryPause);
+        Assert.Single(keys);
+        clock.Advance(RequestRetryPause);
+        Assert.Equal("r-uploaded", (await uploading.WaitAsync(TimeSpan.FromSeconds(10))).Value);
+        Assert.Equal(2, keys.Count);
+        Assert.Equal(keys[0], keys[1]);
+    }
+
+    [Theory]
+    [InlineData(400)]
+    [InlineData(422)]
+    public async Task AnUploadRefusedAsItStandsIsNotSentAgain(int status)
+    {
+        var calls = 0;
+        using var server = new Handler();
+        server.Other = (_, _) =>
+        {
+            calls++;
+            return Task.FromResult(new HttpResponseMessage((HttpStatusCode)status) { Content = new StringContent("{\"error\":\"refused\"}") });
+        };
+        using var client = new HttpClient(server);
+        using var transport = new HttpTransport("http://unit.test", "token", [], httpClient: client, timeProvider: new TestClock());
+        using var content = new HttpContentTransport(transport);
+        var error = await Assert.ThrowsAsync<TransportError>(() => content.PutBinaryAsync(SampleUpload()).WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Equal(status, error.Status);
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public async Task ACancelledUploadIsNotSentAgain()
+    {
+        var clock = new TestClock();
+        var calls = 0;
+        using var server = new Handler();
+        server.Other = (_, _) =>
+        {
+            calls++;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("{}") });
+        };
+        using var client = new HttpClient(server);
+        using var transport = new HttpTransport("http://unit.test", "token", [], httpClient: client, timeProvider: clock);
+        using var content = new HttpContentTransport(transport);
+        using var cancellation = new CancellationTokenSource();
+        var uploading = content.PutBinaryAsync(SampleUpload(), cancellation: cancellation.Token);
+        await clock.WaitForAsync(RequestRetryPause);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => uploading.WaitAsync(TimeSpan.FromSeconds(10)));
+        clock.Advance(RequestRetryPause);
+        Assert.Equal(1, calls);
+    }
+
+    private static TimeSpan RequestRetryPause => TimeSpan.FromMilliseconds(ProtocolFacts.Timing("requestRetryPauseMs").GetInt32());
+
+    private static ResourceUpload SampleUpload() =>
+        new() { Name = "A name", Format = "image/png", StorageUri = "file:///upload", File = [0, 1, 127, 128, 255], EntityTypes = "[\"Person\"]" };
+
+    private static async Task<(string Key, byte[] File, Dictionary<string, string> Fields)> ReadUploadAsync(HttpRequestMessage request, CancellationToken cancellation)
+    {
+        var form = Assert.IsAssignableFrom<MultipartContent>(request.Content);
+        byte[]? file = null;
+        var fields = new Dictionary<string, string>();
+        foreach (var part in form)
+        {
+            var field = part.Headers.ContentDisposition?.Name?.Trim('"') ?? throw new InvalidOperationException("Unnamed part");
+            if (field == "file") file = await part.ReadAsByteArrayAsync(cancellation);
+            else fields.Add(field, await part.ReadAsStringAsync(cancellation));
+        }
+        return (Assert.Single(request.Headers.GetValues("Idempotency-Key")), file ?? throw new InvalidOperationException("No file part"), fields);
     }
 
     [Fact]

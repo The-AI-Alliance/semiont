@@ -335,12 +335,14 @@ export class ArchivistWorld {
 
   /**
    * Upload content as `principal` and have it recorded: `POST /resources`, as
-   * the gateway sends a person's upload on. Answers the reply.
+   * the gateway sends a person's upload on, under `key`, its `Idempotency-Key`:
+   * a new one for each upload, unless a case sends an upload again. Answers the reply.
    */
   async upload(
     principal: string,
     fields: { name: string; storageUri: string; format?: string; content: string | Buffer } & Record<string, string | Buffer | undefined>,
     roles: string[] = [],
+    key: string = randomUUID(),
   ): Promise<Reply> {
     const { content, ...rest } = fields;
     const form = new FormData();
@@ -350,7 +352,7 @@ export class ArchivistWorld {
     form.set('file', new Blob([typeof content === 'string' ? content : new Uint8Array(content)]), 'upload');
     return this.http('POST', '/resources', {
       body: form,
-      headers: { 'Semiont-Principal': principal, ...(roles.length > 0 ? { 'Semiont-Roles': roles.join(',') } : {}) },
+      headers: { 'Semiont-Principal': principal, 'Idempotency-Key': key, ...(roles.length > 0 ? { 'Semiont-Roles': roles.join(',') } : {}) },
       route: '/resources',
     });
   }

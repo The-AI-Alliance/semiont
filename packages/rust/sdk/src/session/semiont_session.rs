@@ -99,6 +99,7 @@ fn refused(failure: &(dyn std::error::Error + Send + Sync + 'static)) -> bool {
                 && !REFRESH.retryable(&RetryFacts {
                     status: failure.status,
                     method: Some("POST"),
+                    keyed: false,
                 })
         })
 }

@@ -983,7 +983,9 @@ func Store(ctx context.Context, content semiont.ContentTransport, gateway semion
 ```
 
 - **An upload** is ranged over for its progress and waited for the resource
-  it created, each once.
+  it created, each once. It carries an `Idempotency-Key`, so one that got no
+  answer, or a status that promises recovery, is sent once more, with the
+  same key and bytes.
 - **What is read is what was stored**, byte for byte, with its media type.
 - **A resource's description and its anchored text are read here too**, by
   `GetResourceGraph` and `GetAnchoredText`, which are what

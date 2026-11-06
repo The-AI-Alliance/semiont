@@ -20,7 +20,7 @@ const EVERY_BYTE = Buffer.from(Array.from({ length: 1024 }, (_, i) => i % 256));
 /** The requests an upload and a description once cost the gateway on the bus. */
 const REQUESTS = ['yield:create', 'yield:clone-create', 'browse:resource-requested'];
 
-function upload(fields: Record<string, string>, file?: { bytes: Buffer; type: string }): FormData {
+function form(fields: Record<string, string>, file?: { bytes: Buffer; type: string }): FormData {
   const form = new FormData();
   for (const [k, v] of Object.entries(fields)) form.set(k, v);
   if (file) form.set('file', new Blob([new Uint8Array(file.bytes)], { type: file.type }), 'upload.bin');
@@ -53,7 +53,7 @@ eachPlane('content', (world) => {
       jobId: 'job-1',
       isDraft: 'true',
     };
-    const reply = await call(world().origin, 'POST', '/resources', { token, body: upload(fields, { bytes: EVERY_BYTE, type: 'image/png' }) });
+    const reply = await world().upload(token, form(fields, { bytes: EVERY_BYTE, type: 'image/png' }));
     expect(reply.status, reply.text).toBe(202);
     expect(nonConformance('post', '/resources', reply)).toEqual([]);
 
@@ -76,10 +76,10 @@ eachPlane('content', (world) => {
   it('a worker\'s upload carries its roles to the record, and its token, carrying no name, publishes no profile', async () => {
     const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: ['principal:profile'] });
     const worker = await world().agent('uploading-model', [SERVICE_ROLE, WORKER_ROLE]);
-    const reply = await call(world().origin, 'POST', '/resources', {
-      token: worker.token,
-      body: upload({ name: 'Generated', format: 'text/markdown', storageUri: `file://uploads/${randomUUID()}.md`, jobId: 'job-2' }, { bytes: Buffer.from('# generated'), type: 'text/markdown' }),
-    });
+    const reply = await world().upload(
+      worker.token,
+      form({ name: 'Generated', format: 'text/markdown', storageUri: `file://uploads/${randomUUID()}.md`, jobId: 'job-2' }, { bytes: Buffer.from('# generated'), type: 'text/markdown' }),
+    );
     expect(reply.status, reply.text).toBe(202);
     const recorded = world().archivist.uploads.at(-1)!;
     expect(recorded.principal).toBe(worker.did);
@@ -92,12 +92,12 @@ eachPlane('content', (world) => {
     const token = await world().person('uploader');
     const bytes = { bytes: Buffer.from('x'), type: 'text/plain' };
     const cases: Array<[string, FormData, RegExp]> = [
-      ['no name', upload({ format: 'text/plain', storageUri: 'file://a' }, bytes), /name/],
-      ['no file', upload({ name: 'n', format: 'text/plain', storageUri: 'file://a' }), /file/],
-      ['an unsupported media type', upload({ name: 'n', format: 'application/x-conformance', storageUri: 'file://a' }, bytes), /application\/x-conformance/],
+      ['no name', form({ format: 'text/plain', storageUri: 'file://a' }, bytes), /name/],
+      ['no file', form({ name: 'n', format: 'text/plain', storageUri: 'file://a' }), /file/],
+      ['an unsupported media type', form({ name: 'n', format: 'application/x-conformance', storageUri: 'file://a' }, bytes), /application\/x-conformance/],
     ];
     for (const [why, body, names] of cases) {
-      const reply = await call(world().origin, 'POST', '/resources', { token, body });
+      const reply = await world().upload(token, body);
       expect(reply.status, why).toBe(400);
       expect(nonConformance('post', '/resources', reply), why).toEqual([]);
       expect((reply.json as { error: string }).error, why).toMatch(names);
@@ -107,10 +107,10 @@ eachPlane('content', (world) => {
   it('an upload the record refuses is a 500 carrying its reason, and one the Archivist cannot take is a 503 — and neither names its uploader', async () => {
     const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: ['principal:profile'] });
     const token = await world().person('refused-uploader', { name: 'Rhea Refused' });
-    const body = () => upload({ name: 'n', format: 'text/plain', storageUri: `file://uploads/${randomUUID()}` }, { bytes: Buffer.from('x'), type: 'text/plain' });
+    const body = () => form({ name: 'n', format: 'text/plain', storageUri: `file://uploads/${randomUUID()}` }, { bytes: Buffer.from('x'), type: 'text/plain' });
     world().archivist.mode.refuseUploads = 'a worker-role emitter must cite the job it fulfils';
     try {
-      const refused = await call(world().origin, 'POST', '/resources', { token, body: body() });
+      const refused = await world().upload(token, body());
       expect(refused.status).toBe(500);
       expect(nonConformance('post', '/resources', refused)).toEqual([]);
       expect((refused.json as { error: string }).error).toMatch(/must cite the job/);
@@ -120,7 +120,7 @@ eachPlane('content', (world) => {
 
     world().archivist.mode.refusesGateway = true;
     try {
-      const unavailable = await call(world().origin, 'POST', '/resources', { token, body: body() });
+      const unavailable = await world().upload(token, body());
       expect(unavailable.status).toBe(503);
       expect(nonConformance('post', '/resources', unavailable)).toEqual([]);
     } finally {
@@ -279,10 +279,7 @@ eachPlane('content', (world) => {
     const recorded = world().archivist.uploads.length;
     world().archivist.mode.hangsUp = 1;
     try {
-      const reply = await call(world().origin, 'POST', '/resources', {
-        token,
-        body: upload({ name: 'n', format: 'text/plain', storageUri: `file://uploads/${randomUUID()}` }, { bytes: Buffer.from('x'), type: 'text/plain' }),
-      });
+      const reply = await world().upload(token, form({ name: 'n', format: 'text/plain', storageUri: `file://uploads/${randomUUID()}` }, { bytes: Buffer.from('x'), type: 'text/plain' }));
       expect(reply.status).toBe(503);
       expect(nonConformance('post', '/resources', reply)).toEqual([]);
     } finally {
@@ -437,14 +434,8 @@ eachPlane('content', (world) => {
 
   it('the gateway makes no bus request of its own: an upload and a description ask the Archivist over HTTP', async () => {
     const token = await world().person('uploader');
-    await call(world().origin, 'POST', '/resources', {
-      token,
-      body: upload({ name: 'n', format: 'text/plain', storageUri: `file://uploads/${randomUUID()}` }, { bytes: Buffer.from('x'), type: 'text/plain' }),
-    });
-    await call(world().origin, 'POST', '/resources', {
-      token,
-      body: upload({ name: 'n', format: 'text/plain', storageUri: `file://uploads/${randomUUID()}`, cloneToken: 't' }, { bytes: Buffer.from('x'), type: 'text/plain' }),
-    });
+    await world().upload(token, form({ name: 'n', format: 'text/plain', storageUri: `file://uploads/${randomUUID()}` }, { bytes: Buffer.from('x'), type: 'text/plain' }));
+    await world().upload(token, form({ name: 'n', format: 'text/plain', storageUri: `file://uploads/${randomUUID()}`, cloneToken: 't' }, { bytes: Buffer.from('x'), type: 'text/plain' }));
     await call(world().origin, 'GET', `/resources/res-${randomUUID()}/jsonld`, { token });
     await new Promise((r) => setTimeout(r, 300));
     expect(requests.frames().map((f) => f.channel)).toEqual([]);

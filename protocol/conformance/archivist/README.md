@@ -45,9 +45,15 @@ what its schema says; and a case fails otherwise, whatever it was about.
   filed; the descriptor `browse:resource` answers, with the sequence number of
   the resource's last event; the content and the description over HTTP, and
   who is admitted to them, to the event log and to the anchored text; every
-  upload refused; new
+  upload refused, one without an `Idempotency-Key` among them; new
   content, archive and unarchive, entity types; and the order facts are
   published in, to a resource's scope and to none.
+- **An upload sent again** (`idempotency.test.ts`): one carrying an
+  `Idempotency-Key` its principal has used makes nothing new. With the same
+  fields and bytes it is answered with the resource the key made, sent again,
+  sent twice at once, carrying a clone token already spent, and after a
+  restart; with other bytes or other fields it is refused 422, and nothing is
+  stored or recorded. Another principal's key of the same text is another key.
 - **Annotations** (`annotations.test.ts`): an annotation assembled, a batch
   committed once however often it is sent, bodies changed, an annotation
   removed, what each reads back as, a resource's annotations over HTTP, the

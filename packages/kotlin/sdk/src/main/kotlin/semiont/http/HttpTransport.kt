@@ -165,7 +165,7 @@ public class HttpTransport @JvmOverloads constructor(
                 throw exchange.failed(failure)
             }
             // A limit, a gateway that says it will recover, or no answer at all: made again inside the budget.
-            val again = failure.status == null || BOOT.retryable(RetryFacts(failure.status, "POST"))
+            val again = failure.status == null || BOOT.retryable(RetryFacts(failure.status, "POST", keyed = true))
             if (!again || made >= timing.emitRetry.attempts || closing) throw exchange.failed(failure)
             delay(maxOf(equalJitter(capMs), failure.retryAfterMs ?: 0))
             capMs = minOf(capMs * 2, timing.emitRetry.maxDelayMs)

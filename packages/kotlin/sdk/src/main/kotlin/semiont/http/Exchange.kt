@@ -116,8 +116,9 @@ internal fun said(body: ByteArray?): String? =
  * A transport's requests of its gateway that are neither its stream nor an
  * emit. A request carries the token the transport has now. One whose
  * credential is refused is made again at once, once its refresher has given
- * a token other than the one refused. Otherwise it is made a second time when
- * that is worth it and safe (the `transport` retry rule). A request whose
+ * a token other than the one refused. Otherwise it is made a second time, its
+ * headers the same and its body made afresh, when that is worth it and safe
+ * (the `transport` retry rule). A request whose
  * answer has not begun by its deadline fails as one that got no answer, and is
  * not made again. Every failure is reported on the transport's error stream as
  * it is raised to its caller.
@@ -167,7 +168,8 @@ internal class Exchange(
         body: (() -> HttpRequest.BodyPublisher)? = null,
         atLength: Boolean = false,
     ): Arriving {
-        val repeatable = TRANSPORT.retryable(RetryFacts(503, method))
+        val keyed = headers.keys.any { it.equals("Idempotency-Key", ignoreCase = true) }
+        val repeatable = TRANSPORT.retryable(RetryFacts(503, method, keyed))
         var sent = if (authenticated) token.value else null
         var retried = false
         var renewed = false
@@ -209,7 +211,7 @@ internal class Exchange(
                 }
                 throw failed(refused)
             }
-            if (!retried && !closing() && TRANSPORT.retryable(RetryFacts(status, method))) {
+            if (!retried && !closing() && TRANSPORT.retryable(RetryFacts(status, method, keyed))) {
                 retried = true
                 delay(maxOf(Timings.REQUEST_RETRY_PAUSE_MS, stated ?: 0))
                 continue
