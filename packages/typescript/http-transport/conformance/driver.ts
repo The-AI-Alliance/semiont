@@ -167,8 +167,12 @@ const operations: Record<string, (args: Arguments, id: number) => Promise<unknow
     opened()
       .frames(channel as keyof EventMap)
       .subscribe((frame) => {
-        // The driver's lines have none for a frame its transport refused.
-        if (frame.payload instanceof FrameRefusal) return;
+        // The suite's backend sends only frames BusFrame allows, and the driver's lines have none for a
+        // refusal: a frame the transport refused is its bug, which ends the driver, uncaught.
+        if (frame.payload instanceof FrameRefusal) {
+          const { reason, member } = frame.payload;
+          throw new Error(`the transport refused a frame on ${channel}: ${reason}, at its \`${member}\``);
+        }
         say({
           frame: {
             channel,

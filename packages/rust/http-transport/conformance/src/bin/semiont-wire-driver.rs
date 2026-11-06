@@ -196,7 +196,17 @@ impl Wire {
                         }
                         say(json!({ "frame": line }));
                     }
-                    Ok(Err(refusal)) => eprintln!("listening to {channel}: {refusal:?}"),
+                    // The suite's backend sends only frames BusFrame allows, and the driver's
+                    // lines have none for a refusal: a frame the transport refused is its bug,
+                    // which ends the driver.
+                    Ok(Err(refusal)) => {
+                        eprintln!(
+                            "the transport refused a frame on {channel}: {}, at its `{}`",
+                            refusal.reason.as_str(),
+                            refusal.member
+                        );
+                        std::process::exit(1);
+                    }
                     Err(lagged) => eprintln!("listening to {channel}: {lagged}"),
                 }
             }

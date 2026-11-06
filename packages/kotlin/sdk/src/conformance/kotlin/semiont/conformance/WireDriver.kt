@@ -31,6 +31,7 @@ import semiont.transport.FrameRefusal
 import semiont.transport.PutBinaryRequest
 import semiont.transport.ResourceHold
 import java.util.Base64
+import kotlin.system.exitProcess
 
 /**
  * The Kotlin SDK's wire driver: the program the SDK conformance suite talks
@@ -159,8 +160,12 @@ private class WireDriver(private val abandon: (Long) -> Boolean) : Driver {
             frames.collect { carried ->
                 val frame = when (carried) {
                     is Frame -> carried
-                    // The suite's lines name no refused frame, and its backend sends none.
-                    is FrameRefusal -> return@collect
+                    // The suite's backend sends only frames BusFrame allows, and its lines have none for a
+                    // refusal: a frame the transport refused is its bug, which ends the driver.
+                    is FrameRefusal -> {
+                        System.err.println("the transport refused a frame on $channel: ${carried.reason.wire}, at its `${carried.member}`")
+                        exitProcess(1)
+                    }
                 }
                 val line = mutableMapOf<String, JsonElement>("channel" to JsonPrimitive(channel), "payload" to frame.payload)
                 frame.correlationId?.let { line["correlationId"] = JsonPrimitive(it) }
