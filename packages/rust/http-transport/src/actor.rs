@@ -1095,8 +1095,9 @@ mod tests {
                 scope: None,
                 correlation_id: case["correlationId"].as_str().map(str::to_owned),
             };
-            // As the transport delivers it.
-            let told = FrameRefusal {
+            // As the transport delivers it to the readers a frame names,
+            // whose scope is none or a resource's id.
+            let delivered = || FrameRefusal {
                 scope: frame["scope"]
                     .as_str()
                     .map(|scope| scope.parse().expect("a scope told is an id")),
@@ -1114,7 +1115,7 @@ mod tests {
                             "{why}: {carried:?}"
                         );
                     } else {
-                        assert_eq!(carried, [Ok(Err(told.clone()))], "{why}");
+                        assert_eq!(carried, [Ok(Err(delivered()))], "{why}");
                     }
                     assert_eq!(
                         heard,
@@ -1153,7 +1154,7 @@ mod tests {
             match (case["request"].as_str(), pending) {
                 (Some("fails"), Some(mut pending)) => assert_eq!(
                     pending.frame().now_or_never(),
-                    Some(Some(Err(told))),
+                    Some(Some(Err(delivered()))),
                     "{why}: the request was not told of the refusal"
                 ),
                 (Some("waits"), Some(mut pending)) => assert_eq!(
