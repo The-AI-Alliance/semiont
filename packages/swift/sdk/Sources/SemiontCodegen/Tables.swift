@@ -484,19 +484,15 @@ package struct TableGenerator {
         throw GenerationRefused(description: "failure channel has no schema")
       }
       let fields = try models.merged(failureSchema)["properties"]?.object ?? [:]
-      let messages = ["message", "error"].filter { fields[$0] != nil }
-      guard messages.count == 1, let message = messages.first else {
-        throw GenerationRefused(description: "failure needs one message field")
-      }
       let required = Set(
         try models.merged(failureSchema)["required"]?.array.map { try $0.text } ?? [])
-      guard required.contains(message), let shape = fields[message],
+      guard required.contains("message"), let shape = fields["message"],
         try models.nonnull(shape.object).0["type"] == .string("string")
       else {
         throw GenerationRefused(description: "failure message must be a required string")
       }
       out +=
-        "  \(literal(names[0])): WireOperation(result: \(literal(names[1])), resultStamps: Channels.\(escaped(memberName(names[1]))).stamps, failure: \(literal(names[2])), request: { try projectWire(\(request.type).self, $0, stamps: Channels.\(escaped(memberName(names[0]))).stamps) }, response: { try projectWire(\(response.type).self, $0, stamps: Channels.\(escaped(memberName(names[1]))).stamps) }, decodeFailure: { try projectFailure(\(failure.type).self, $0, stamps: Channels.\(escaped(memberName(names[2]))).stamps, messageField: \(literal(message))) }),\n"
+        "  \(literal(names[0])): WireOperation(result: \(literal(names[1])), resultStamps: Channels.\(escaped(memberName(names[1]))).stamps, failure: \(literal(names[2])), request: { try projectWire(\(request.type).self, $0, stamps: Channels.\(escaped(memberName(names[0]))).stamps) }, response: { try projectWire(\(response.type).self, $0, stamps: Channels.\(escaped(memberName(names[1]))).stamps) }, decodeFailure: { try projectFailure(\(failure.type).self, $0, stamps: Channels.\(escaped(memberName(names[2]))).stamps) }),\n"
     }
     guard scoped.isDisjoint(with: everyone.union(replies)) else {
       throw GenerationRefused(description: "channel delivered both scoped and everywhere")

@@ -42,7 +42,7 @@ private struct OperationRefused: Error, Equatable {}
   #expect(error.reason == .busPeerUnavailable)
   #expect(error.description == "still starting")
   #expect(throws: TransportError.self) {
-    try projectFailure(BusEmptyPayload.self, [:], stamps: [], messageField: "message")
+    try projectFailure(BusEmptyPayload.self, [:], stamps: [])
   }
 }
 
@@ -171,7 +171,7 @@ private actor OperationGate {
     Set(fields.keys)
       == Set(["depth", "maxResources", "includeContent", "includeSummary", "excludeEntityTypes"]))
 }
-@Test func operationFailuresReadTheirDeclaredMessageField() throws {
+@Test func aSearchFailureIsReadByItsMessage() throws {
   let descriptor = try #require(wireOperations[Operations.matchSearchRequested.request.name])
   let error = try descriptor.decodeFailure(
     wirePayload(

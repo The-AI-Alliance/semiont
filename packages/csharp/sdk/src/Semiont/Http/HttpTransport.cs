@@ -295,8 +295,7 @@ public sealed partial class HttpTransport : IDisposable
             if (frame.Frame.Channel == replies.Failure)
             {
                 string? code = frame.Frame.Payload.TryGetProperty("code", out var field) && field.ValueKind == JsonValueKind.String ? field.GetString() : null;
-                var detail = FailureText(frame.Frame.Payload, "message") ?? FailureText(frame.Frame.Payload, "error");
-                throw new BusRequestError(ProtocolFacts.Failure(code), detail ?? frame.Frame.Payload.ToString());
+                throw new BusRequestError(ProtocolFacts.Failure(code), FailureText(frame.Frame.Payload, "message") ?? frame.Frame.Payload.ToString());
             }
             return frame;
         }

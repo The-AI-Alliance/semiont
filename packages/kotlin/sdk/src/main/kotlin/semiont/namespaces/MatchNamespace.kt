@@ -2,12 +2,10 @@
 
 package semiont.namespaces
 
-import kotlinx.serialization.json.JsonPrimitive
 import semiont.Running
 import semiont.bus.Operations
 import semiont.cache.Cached
 import semiont.cache.Keyed
-import semiont.errors.BusRequestError
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
 import semiont.types.GatheredContext
@@ -34,15 +32,7 @@ public class MatchNamespace internal constructor(private val links: Links, priva
         useSemanticScoring: Boolean = SEMANTIC_SCORING,
     ): Running<MatchSearchResult> {
         val request = MatchSearchRequest(resourceId = resourceId, referenceId = referenceId, context = context, limit = limit, useSemanticScoring = useSemanticScoring)
-        return Running(links.scope) { searched(request) }
-    }
-
-    private suspend fun searched(request: MatchSearchRequest): MatchSearchResult = try {
-        links.request(Operations.MATCH_SEARCH_REQUESTED, request)
-    } catch (failure: BusRequestError) {
-        // A search's failure says what went wrong under `error`, where every other operation's says it under `message`.
-        val said = (failure.failure?.get("error") as? JsonPrimitive)?.takeIf { it.isString }?.content ?: throw failure
-        throw BusRequestError(failure.reason, said, failure.failure)
+        return Running(links.scope) { links.request(Operations.MATCH_SEARCH_REQUESTED, request) }
     }
 
     /** Signal: a search is wanted. The client's own state runs it, and answers under `correlationId`. */

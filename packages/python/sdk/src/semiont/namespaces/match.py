@@ -3,7 +3,6 @@
 from typing import Final, final
 
 from semiont.cached import Cached, Keyed, itself
-from semiont.errors import BusRequestError
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.namespaces.links import Links
 from semiont.namespaces.live import Live, ResourceFilters, ResourceSearch
@@ -40,17 +39,7 @@ class MatchNamespace:
         request = MatchSearchRequest(
             resource_id=resource_id, reference_id=reference_id, context=context, limit=limit, use_semantic_scoring=use_semantic_scoring
         )
-        return Running(lambda _: self._links.run(self._searched(request)))
-
-    async def _searched(self, request: MatchSearchRequest) -> MatchSearchResult:
-        try:
-            return await self._links.request(MATCH_SEARCH_REQUESTED, request)
-        except BusRequestError as failure:
-            # A search's failure says what went wrong under `error`, where every other operation's says it under `message`.
-            said = None if failure.failure is None else failure.failure.get("error")
-            if isinstance(said, str):
-                raise BusRequestError(failure.code, said, failure=failure.failure) from failure
-            raise
+        return Running(lambda _: self._links.run(self._links.request(MATCH_SEARCH_REQUESTED, request)))
 
     def request_search(self, request: MatchSearchRequest, correlation_id: str) -> None:
         """Signal: a search is wanted. The client's own state runs it, and answers under `correlation_id`."""

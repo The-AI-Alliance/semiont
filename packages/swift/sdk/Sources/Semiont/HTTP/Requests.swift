@@ -18,10 +18,10 @@ func projectWire<Value: Codable>(
   return try JSONDecoder().decode([String: JSONValue].self, from: JSONEncoder().encode(decoded))
 }
 func projectFailure<Value: Codable>(
-  _ type: Value.Type, _ payload: [String: JSONValue], stamps: Set<String>, messageField: String
+  _ type: Value.Type, _ payload: [String: JSONValue], stamps: Set<String>
 ) throws -> BusRequestError {
   let value = try projectWire(type, payload, stamps: stamps)
-  guard case .string(let message) = value[messageField] else {
+  guard case .string(let message) = value["message"] else {
     throw TransportError(.error, "An operation's failure has no message")
   }
   let code: BusRequestErrorCode
