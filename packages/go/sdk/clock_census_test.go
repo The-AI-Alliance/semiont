@@ -5,9 +5,8 @@ package semiont_test
 // caller whose call started the goroutine that waits; a deadline is one of
 // those waits, never the HTTP client's own; and every jitter is drawn from the
 // *rand.Rand the caller gave, or from the system's source where it gave none.
-// The census reads the SDK's source, its test doubles in semionttest aside
-// (their seeded generators make the same fault schedules every run, and back
-// no wait), and refuses:
+// The census reads the SDK's source, its test doubles in semionttest among
+// it, and refuses:
 //   - an http.Client built with a Timeout, which keeps a deadline of the HTTP
 //     client's own;
 //   - an import of math/rand, whose global source no caller's reaches;
@@ -15,6 +14,9 @@ package semiont_test
 //     source or a generator of the SDK's own, unless it is in the branch of
 //     an `if source == nil` whose source is a *rand.Rand its function is
 //     given. That branch is the one place the system's source is drawn from.
+//     In semionttest alone, a generator built as rand.New(rand.NewPCG(a, b))
+//     with a and b written as numbers is no escape: it makes a test double's
+//     fault schedule, the same every run, and backs no wait of the SDK.
 
 import (
 	"fmt"
@@ -34,8 +36,9 @@ var randTypes = []string{"ChaCha8", "PCG", "Rand", "Source", "Zipf"}
 
 // clockEscapes is each line of file that waits or draws outside what the
 // SDK's caller controls, and how many draws of the system's source it makes
-// where the caller gave no source.
-func clockEscapes(fset *token.FileSet, file *ast.File) (escapes []string, defaults int) {
+// where the caller gave no source. seeded is whether file may build a
+// generator from seeds it writes as numbers: whether it is a test double's.
+func clockEscapes(fset *token.FileSet, file *ast.File, seeded bool) (escapes []string, defaults int) {
 	escape := func(at token.Pos, what string) {
 		escapes = append(escapes, fmt.Sprintf("%d: %s", fset.Position(at).Line, what))
 	}
@@ -68,6 +71,9 @@ func clockEscapes(fset *token.FileSet, file *ast.File) (escapes []string, defaul
 			enclosing = enclosing[:len(enclosing)-1]
 			return true
 		}
+		if seeded && isSeededGenerator(node, randName) {
+			return false
+		}
 		enclosing = append(enclosing, node)
 		switch node := node.(type) {
 		case *ast.SelectorExpr:
@@ -98,6 +104,30 @@ func clockEscapes(fset *token.FileSet, file *ast.File) (escapes []string, defaul
 func isIdent(expression ast.Expr, name string) bool {
 	ident, ok := expression.(*ast.Ident)
 	return ok && ident.Name == name
+}
+
+// isSeededGenerator reports whether node is rand.New(rand.NewPCG(a, b)), a
+// and b written as numbers, rand being randName.
+func isSeededGenerator(node ast.Node, randName string) bool {
+	made, ok := node.(*ast.CallExpr)
+	if !ok || randName == "" || !isRandFunction(made.Fun, randName, "New") || len(made.Args) != 1 {
+		return false
+	}
+	source, ok := made.Args[0].(*ast.CallExpr)
+	if !ok || !isRandFunction(source.Fun, randName, "NewPCG") {
+		return false
+	}
+	for _, seed := range source.Args {
+		if number, ok := seed.(*ast.BasicLit); !ok || number.Kind != token.INT {
+			return false
+		}
+	}
+	return true
+}
+
+func isRandFunction(expression ast.Expr, randName, name string) bool {
+	function, ok := expression.(*ast.SelectorExpr)
+	return ok && isIdent(function.X, randName) && function.Sel.Name == name
 }
 
 // givenNoSource reports whether the last of enclosing, the nodes that enclose
@@ -189,6 +219,7 @@ func escapes(source *random.Rand, count *int) {
 	var _ *random.Rand
 	_ = web.Client{}
 	_ = &web.Client{Timeout: 5}
+	_ = random.New(random.NewPCG(uint64(*count), 2))
 }
 `
 	fset := token.NewFileSet()
@@ -196,18 +227,35 @@ func escapes(source *random.Rand, count *int) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	escapes, defaults := clockEscapes(fset, file)
-	want := []string{
-		"4: an import of math/rand",
-		"18: math/rand/v2's Int64N",
-		"19: math/rand/v2's New",
-		"19: math/rand/v2's NewPCG",
-		"21: math/rand/v2's Float64",
-		"24: math/rand/v2's N",
-		"28: an http.Client built with a Timeout",
-	}
-	if !slices.Equal(escapes, want) || defaults != 1 {
-		t.Fatalf("the census read %q and %d draws where no source was given; want %q and 1", escapes, defaults, want)
+	for _, read := range []struct {
+		seeded bool
+		want   []string
+	}{
+		{seeded: false, want: []string{
+			"4: an import of math/rand",
+			"18: math/rand/v2's Int64N",
+			"19: math/rand/v2's New",
+			"19: math/rand/v2's NewPCG",
+			"21: math/rand/v2's Float64",
+			"24: math/rand/v2's N",
+			"28: an http.Client built with a Timeout",
+			"29: math/rand/v2's New",
+			"29: math/rand/v2's NewPCG",
+		}},
+		{seeded: true, want: []string{
+			"4: an import of math/rand",
+			"18: math/rand/v2's Int64N",
+			"21: math/rand/v2's Float64",
+			"24: math/rand/v2's N",
+			"28: an http.Client built with a Timeout",
+			"29: math/rand/v2's New",
+			"29: math/rand/v2's NewPCG",
+		}},
+	} {
+		escapes, defaults := clockEscapes(fset, file, read.seeded)
+		if !slices.Equal(escapes, read.want) || defaults != 1 {
+			t.Errorf("read as a test double's (%t), the census read %q and %d draws where no source was given; want %q and 1", read.seeded, escapes, defaults, read.want)
+		}
 	}
 }
 
@@ -220,9 +268,8 @@ func TestNothingInTheSDKWaitsOrDrawsOutsideWhatItsCallerControls(t *testing.T) {
 			return err
 		}
 		if entry.IsDir() {
-			// conformance is a module of its own; semionttest is the test
-			// doubles.
-			if path == "conformance" || path == "semionttest" {
+			// conformance is a module of its own.
+			if path == "conformance" {
 				return filepath.SkipDir
 			}
 			return nil
@@ -234,7 +281,7 @@ func TestNothingInTheSDKWaitsOrDrawsOutsideWhatItsCallerControls(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		escapes, drawn := clockEscapes(fset, file)
+		escapes, drawn := clockEscapes(fset, file, filepath.Dir(path) == "semionttest")
 		for _, escape := range escapes {
 			found = append(found, path+":"+escape)
 		}
