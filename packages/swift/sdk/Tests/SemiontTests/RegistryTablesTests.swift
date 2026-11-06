@@ -98,20 +98,20 @@ import Testing
     ("the registry's", keptIn(storage, kbId: "kb-a")), ("one in memory", MemorySignIn(signedIn)),
   ]
   for (which, kept) in keepers {
-    #expect(try await kept.recordPersonKey(jo, holding: second) == false, "\(which): moved on")
+    #expect(try await kept.recordPersonKey(holding: second, jo) == false, "\(which): moved on")
     #expect(try await kept.held()?.personKey == nil, "\(which)")
-    #expect(try await kept.recordPersonKey(jo, holding: first), "\(which): recorded")
+    #expect(try await kept.recordPersonKey(holding: first, jo), "\(which): recorded")
     #expect(try await kept.held()?.personKey == jo, "\(which)")
     #expect(try await kept.held()?.access == first, "\(which): the tokens stay")
-    #expect(try await kept.recordPersonKey(jo, holding: first), "\(which): already recorded")
-    #expect(try await kept.recordPersonKey(ann, holding: first) == false, "\(which): another")
+    #expect(try await kept.recordPersonKey(holding: first, jo), "\(which): already recorded")
+    #expect(try await kept.recordPersonKey(holding: first, ann) == false, "\(which): another")
     #expect(try await kept.held()?.personKey == jo, "\(which): never overwritten")
     let held = try #require(try await kept.held())
     #expect(try await kept.renewed(read: held, access: second, refresh: "renewed") == second)
     #expect(try await kept.held()?.personKey == jo, "\(which): a renewal keeps the person")
-    #expect(try await kept.recordPersonKey(jo, holding: second), "\(which): after the renewal")
+    #expect(try await kept.recordPersonKey(holding: second, jo), "\(which): after the renewal")
     try await kept.forget()
-    #expect(try await kept.recordPersonKey(jo, holding: second) == false, "\(which): nothing kept")
+    #expect(try await kept.recordPersonKey(holding: second, jo) == false, "\(which): nothing kept")
   }
 }
 

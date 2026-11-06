@@ -16,13 +16,30 @@ actor SessionGate {
     }
     throw CancellationError()
   }
+  func report(_ error: any Error) { session?.report(error) }
 }
+/// A session with the knowledge base `kb`, over the sign-in `kept` holds. Given a `storage`, its
+/// client keeps its persisted queries' answers there for the person the gateway says the token
+/// is, once `kept` records them (``SignInKept/recordPersonKey(holding:_:)``), and from the start
+/// when it names them already.
 public func sessionFromKept(
   kb: KbTarget, kept: any SignInKept, httpClient: HTTPClient,
   onAuthFailed: (@Sendable (SessionEndReason) -> Void)? = nil,
-  onError: (@Sendable (any Error) -> Void)? = nil, persistence: CachePersistence? = nil,
+  onError: (@Sendable (any Error) -> Void)? = nil, storage: (any SessionStorage)? = nil,
   clock: any Clock<Duration> = ContinuousClock(),
   random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator()
+) async throws -> OpenedSession {
+  try await openSession(
+    kb: kb, kept: kept, httpClient: httpClient, onAuthFailed: onAuthFailed, onError: onError,
+    storage: storage, followsSignIn: false, clock: clock, random: random)
+}
+/// `sessionFromKept`, whose caches, when `followsSignIn`, keep while the sign-in kept beside them
+/// in `storage` names their person.
+func openSession(
+  kb: KbTarget, kept: any SignInKept, httpClient: HTTPClient,
+  onAuthFailed: (@Sendable (SessionEndReason) -> Void)?, onError: (@Sendable (any Error) -> Void)?,
+  storage: (any SessionStorage)?, followsSignIn: Bool, clock: any Clock<Duration>,
+  random: any RandomNumberGenerator & Sendable
 ) async throws -> OpenedSession {
   try Task.checkCancellation()
   guard case .httpEndpoint(let endpoint) = kb.endpoint else {
@@ -39,6 +56,10 @@ public func sessionFromKept(
       isTokenExpired($0.access, now: Date().timeIntervalSince1970) ? nil : $0.access
     }, clock: clock, random: draws, refresher: { try await gate.refresh($0) })
   let failures = transport.failures()
+  let persistence = storage.map {
+    CachePersistence(
+      storage: $0, kbId: kb.id, person: found?.personKey, followsSignIn: followsSignIn)
+  }
   let client: SemiontClient
   do {
     client = try await SemiontClient(
@@ -53,7 +74,19 @@ public func sessionFromKept(
     renew: {
       try await renewKept(kept, holding: $0, httpClient: httpClient, clock: clock, random: draws)
     },
-    validate: { try await whoAmI(baseUrl: base, token: $0, httpClient: httpClient, clock: clock) },
+    validate: { token in
+      let user = try await whoAmI(
+        baseUrl: base, token: token, httpClient: httpClient, clock: clock)
+      guard persistence != nil else { return user }
+      // Recorded on the sign-in that holds the token asked about, or not at all.
+      let person = personKey(user.did)
+      do {
+        if try await kept.recordPersonKey(holding: token, person) { await client.attach(person) }
+      } catch {
+        await gate.report(error)
+      }
+      return user
+    },
     publish: { await transport.setToken($0) }, random: draws, onAuthFailed: onAuthFailed,
     onError: onError)
   let id = UUID()

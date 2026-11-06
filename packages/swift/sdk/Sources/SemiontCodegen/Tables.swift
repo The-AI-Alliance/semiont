@@ -534,9 +534,22 @@ package struct TableGenerator {
         throw GenerationRefused(description: "unknown refresh condition")
       }
     }
+    let persisted = try queries.filter { query in
+      guard let value = query["persisted"] else { return false }
+      guard value == .bool(true) else {
+        throw GenerationRefused(description: "a cache query is persisted true, or not at all")
+      }
+      return true
+    }
     out +=
       try models.enumeration(
         "CacheQuery", queryNames.map(JSONValue.string), ["type": .string("string")]
+      ).replacingOccurrences(of: "public ", with: "internal ") + "\n"
+    out += "/// The live queries whose answers a client keeps across its lives, for the person\n"
+    out += "/// signed in.\n"
+    out +=
+      try models.enumeration(
+        "KeptQuery", persisted.map { try required($0, "name") }, ["type": .string("string")]
       ).replacingOccurrences(of: "public ", with: "internal ") + "\n"
     out += "internal protocol CacheQueryHandlers {\n"
     for query in queries {

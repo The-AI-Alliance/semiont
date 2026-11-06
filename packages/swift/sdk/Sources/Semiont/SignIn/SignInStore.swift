@@ -119,6 +119,8 @@ private struct StoreEntry: SignInKept {
       }
     }.value
   }
+  /// The sign-in store keeps no person: it cannot record one.
+  func recordPersonKey(holding access: String, _ personKey: String) -> Bool { false }
   func forget() async throws {
     try await Task.detached {
       try store.change { document in ((), document.removeValue(forKey: key) != nil) }

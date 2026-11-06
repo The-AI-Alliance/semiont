@@ -512,9 +512,10 @@ private func overGateway(
   func given(_ value: JSONValue, _ id: ResourceId) throws -> String {
     switch try value.text {
     case "kept":
-      guard case .string(let name)? = try keptValue(seeded[keptResources], key: .string(id.value))?
-        .object["name"]
-      else { throw SpecFailure.shape("startupStorage keeps no \(id.value)") }
+      let kept = try keptValue(seeded[keptResources], key: .string(id.value))
+      guard case .string(let name)? = try kept?.object["name"] else {
+        throw SpecFailure.shape("startupStorage keeps no \(id.value)")
+      }
       return name
     case "fresh": return "fresh"
     case let other: throw SpecFailure.shape("a client gives \(other)")

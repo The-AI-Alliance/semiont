@@ -40,20 +40,14 @@ private var browserClientId: String {
   return client.id
 }
 
-private func base64URL(_ bytes: some Sequence<UInt8>) -> String {
-  Data(bytes).base64EncodedString()
-    .replacingOccurrences(of: "+", with: "-")
-    .replacingOccurrences(of: "/", with: "_")
-    .replacingOccurrences(of: "=", with: "")
-}
-
 private func randomURLSafe(_ count: Int) -> String {
   var secret = SystemRandomNumberGenerator()
-  return base64URL((0..<count).map { _ in UInt8.random(in: .min ... .max, using: &secret) })
+  let bytes = (0..<count).map { _ in UInt8.random(in: .min ... .max, using: &secret) }
+  return base64URL(Data(bytes))
 }
 
 public func codeChallenge(_ verifier: String) -> String {
-  base64URL(SHA256.hash(data: Data(verifier.utf8)))
+  base64URL(Data(SHA256.hash(data: Data(verifier.utf8))))
 }
 
 public func beginAuthorization(

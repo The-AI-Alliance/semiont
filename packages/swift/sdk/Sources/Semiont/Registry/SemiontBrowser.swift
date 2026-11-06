@@ -304,10 +304,11 @@ public actor SemiontBrowser {
     try clearStoredSession(storage, kbId: id)
     knowledgeBases.set(knowledgeBases.value)
     if activeKbId.value == id { activate() }
-    if let old {
-      let factory = factory
-      _ = spawn(abandonOnClose: true) { await factory.revoke(old) }
-    }
+    guard let old else { return }
+    let factory = factory
+    _ = spawn(abandonOnClose: true) { await factory.revoke(old) }
+    // After the client has closed: whatever its closing wrote of the person goes too.
+    if let person = old.personKey { try forgetKept(storage, kbId: id, personKey: person) }
   }
 
   public func signedIn(_ signed: SignedIn) async throws -> SignInOutcome {

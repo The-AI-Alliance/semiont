@@ -63,6 +63,7 @@ public final class Cached<Value: Sendable>: AsyncSequence, Sendable {
   func snapshot() async -> Value? { await entry.snapshot() }
   func isKnown() async -> Bool { await entry.isKnown }
   func replace(_ state: CacheState<Value>) async { await entry.replace(state) }
+  func keepingStarted() async { await entry.keepingStarted() }
 }
 
 private actor CacheEntry<Value: Sendable> {
@@ -103,6 +104,20 @@ private actor CacheEntry<Value: Sendable> {
   }
 
   nonisolated var ended: Bool { lifetime.ended }
+
+  /// Its client started keeping: it takes the kept value when it holds none and asks for none, and
+  /// otherwise writes what it holds over what was kept, as had its client kept from the start (B17).
+  func keepingStarted() {
+    switch state {
+    case .pending:
+      guard current == nil, validation == nil, let value = kept?.load() else { return }
+      state = .ready(value)
+      rehydrated = true
+      for listener in listeners.values { listener.stream.yield(state) }
+    case .ready(let value): if !rehydrated { kept?.store(value) }
+    case .failed: kept?.store(nil)
+    }
+  }
 
   var isKnown: Bool {
     guard !lifetime.ended else { return false }

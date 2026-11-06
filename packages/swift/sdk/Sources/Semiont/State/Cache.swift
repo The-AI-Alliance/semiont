@@ -42,18 +42,19 @@ public final class Cache<Key: Hashable & Sendable, Value: Sendable>: StateUnit {
       clock: clock, fetch: fetch)
   }
 
+  /// A cache whose values `persister` keeps: it starts with every value kept, each asked for again
+  /// when first observed (B17, B18), and it closes `persister` when it is disposed.
   public convenience init(
-    persistence: CachePersistence, clock: any Clock<Duration> = ContinuousClock(),
+    persister: StoragePersister<Key>, clock: any Clock<Duration> = ContinuousClock(),
     fetch: @escaping @Sendable (Key) async throws -> Value
   ) where Key: Codable, Value: Codable {
     let life = Lifetime()
-    let book = StoragePersister<Key>(persistence, clock: clock)
-    life.onEnd { book.close() }
+    life.onEnd { persister.close() }
     self.init(
-      lifetime: life, ownsLifetime: true, kept: { KeptValue(book: book, key: $0) },
+      lifetime: life, ownsLifetime: true, kept: { KeptValue(book: persister, key: $0) },
       invalidationWindowMs: Timings.invalidationWindowMs, clock: clock,
-      persistencePending: { book.pending }, fetch: fetch)
-    for key in book.keys { _ = observe(key) }
+      persistencePending: { persister.pending }, fetch: fetch)
+    for key in persister.keys { _ = observe(key) }
   }
 
   public func observe(_ key: Key) -> Cached<Value> {

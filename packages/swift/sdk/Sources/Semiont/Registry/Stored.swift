@@ -1,3 +1,4 @@
+import Crypto
 import Foundation
 import Synchronization
 
@@ -8,8 +9,30 @@ public let lastViewedResourceByKbKey = "semiont.lastViewedResourceByKb"
 public let pendingAuthorizationKey = "semiont.pendingAuthorization"
 private let sessionPrefix = "semiont.session."
 let cacheKeyPrefix = "semiont.cache."
+let lastEventIdKeyPrefix = "semiont.lastEventId."
 
 public func sessionKey(_ kbId: String) -> String { sessionPrefix + kbId }
+
+/// The key a person's caches and stream places are kept under: the unpadded base64url SHA-256 of
+/// the UTF-8 of their did, never the did itself.
+public func personKey(_ did: UserId) -> String {
+  base64URL(Data(SHA256.hash(data: Data(did.value.utf8))))
+}
+
+func lastEventIdKey(_ kbId: String, _ personKey: String) -> String {
+  "\(lastEventIdKeyPrefix)\(kbId).\(personKey)"
+}
+
+func cacheKey(_ kbId: String, _ personKey: String, _ query: KeptQuery) -> String {
+  "\(cacheKeyPrefix)\(kbId).\(personKey).\(query.rawValue)"
+}
+
+/// Deletes what every client kept of the person `personKey` on the knowledge base `kbId`: each
+/// persisted query's document and the stream's places.
+func forgetKept(_ storage: any SessionStorage, kbId: String, personKey: String) throws {
+  for query in KeptQuery.allCases { try storage.delete(cacheKey(kbId, personKey, query)) }
+  try storage.delete(lastEventIdKey(kbId, personKey))
+}
 
 public func kbOfSessionKey(_ key: String) -> String? {
   guard key.hasPrefix(sessionPrefix) else { return nil }
@@ -75,14 +98,32 @@ private struct RegistryKept: SignInKept {
         answer.withLock { $0 = current.access }
         return text
       }
-      let next = HeldSignIn(
-        access: access, clientId: current.clientId, refresh: refresh,
-        revocationEndpoint: current.revocationEndpoint, tokenEndpoint: current.tokenEndpoint)
+      var next = current
+      next.access = access
+      next.refresh = refresh
       let written = try storedText(next)
       answer.withLock { $0 = access }
       return written
     }
     return answer.withLock { $0 }
+  }
+
+  func recordPersonKey(holding access: String, _ personKey: String) async throws -> Bool {
+    let recorded = Mutex(false)
+    try storage.update(sessionKey(kbId)) { text in
+      guard var current = decodedStorage(HeldSignIn.self, text), current.access == access else {
+        return text
+      }
+      guard current.personKey == nil else {
+        recorded.withLock { $0 = current.personKey == personKey }
+        return text
+      }
+      current.personKey = personKey
+      let written = try storedText(current)
+      recorded.withLock { $0 = true }
+      return written
+    }
+    return recorded.withLock { $0 }
   }
 }
 
