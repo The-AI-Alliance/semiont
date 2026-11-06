@@ -722,14 +722,15 @@ fn payload_in(data: &str) -> Option<Value> {
 
 /// The readers `value` names: those of its `channel`, when that is a text of
 /// at least one character, in its `scope`, when it carries none or one that
-/// is a resource's id. Any other names no reader.
+/// is a resource's id. Any other names no reader. A null scope is none, as
+/// BusFrame's walk reads a null optional member.
 fn readers_of(value: &Value) -> Option<(String, Option<ResourceId>)> {
     let channel = value.get("channel")?.as_str()?;
     if channel.is_empty() {
         return None;
     }
     let scope = match value.get("scope") {
-        None => None,
+        None | Some(Value::Null) => None,
         Some(Value::String(scope)) => Some(scope.parse().ok()?),
         Some(_) => return None,
     };
