@@ -498,7 +498,7 @@ public sealed partial class TransportTests
         };
         using var client = new HttpClient(server);
         using var transport = new HttpTransport("http://unit.test", "first", ["beckon:focus"],
-            new Timing { EmitRetry = new RetryPolicy { Attempts = 2, InitialDelayMs = 1, MaxDelayMs = 1 } },
+            new Timing { EmitRetry = new RetryPolicy(2, 1, 1) },
             refresher: async (refused, cancellation) =>
             {
                 if (refused == "first") return "second";
