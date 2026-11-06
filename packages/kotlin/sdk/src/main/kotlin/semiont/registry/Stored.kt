@@ -3,7 +3,9 @@ package semiont.registry
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonIgnoreUnknownKeys
+import semiont.cache.PERSISTED_QUERIES
 import semiont.http.codeChallenge
+import semiont.storage.SessionStorage
 
 // What a registry of knowledge bases keeps in a SessionStorage, as protocol/specs/src/session/stored.json states it.
 // StoredTest fails when this differs from the table.
@@ -48,6 +50,16 @@ internal fun lastEventIdKey(kbId: String, personKey: String): String = "semiont.
 
 /** The key the query `query` of knowledge base `kbId` is kept under, for the person whose key is `personKey`. */
 internal fun cacheKey(kbId: String, personKey: String, query: String): String = "semiont.cache.$kbId.$personKey.$query"
+
+/**
+ * Delete what a client kept of knowledge base `kbId` for the person whose key
+ * is `personKey`: every persisted query's key and the stream's places. What
+ * forgetting a saved sign-in that named them deletes.
+ */
+internal fun forgetKept(storage: SessionStorage, kbId: String, personKey: String) {
+    PERSISTED_QUERIES.forEach { storage.delete(cacheKey(kbId, personKey, it.wire)) }
+    storage.delete(lastEventIdKey(kbId, personKey))
+}
 
 /**
  * What is kept of a sign-in: the tokens an issuer issued, the client they

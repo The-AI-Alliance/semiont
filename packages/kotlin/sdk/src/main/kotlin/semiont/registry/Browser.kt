@@ -24,7 +24,6 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import semiont.bus.EventBus
-import semiont.cache.PERSISTED_QUERIES
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
 import semiont.errors.SemiontError
@@ -293,12 +292,22 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     /** `addKb`, for Java. */
     public fun addKbFuture(kb: NewKnowledgeBase, session: StoredSession): CompletableFuture<KnowledgeBase> = scope.futureOf { addKb(kb, session) }
 
-    /** Forget a knowledge base: its entry, its tokens, what was open in it and where the person was. If it was active, the first of the others becomes active. */
+    /**
+     * Forget a knowledge base: its entry, its tokens, what was open in it and
+     * where the person was. If it is active, its session is closed. Then, as
+     * forgetting a saved sign-in does, what a client kept there for the person
+     * the sign-in named is deleted: after the session closed, so nothing it
+     * wrote as it closed is left. If it was active, the first of the others
+     * becomes active.
+     */
     public suspend fun removeKb(kbId: String) {
-        clearStoredSession(storage, kbId)
-        forgetKeptOf(kbId)
-        val rest = synchronized(lock) { kbsHeld.value.filter { it.id != kbId }.also(::putKbs) }
-        if (activeKbIdHeld.value == kbId) setActive(rest.firstOrNull()?.id)
+        val wasActive = activeKbIdHeld.value == kbId
+        val rest = forgetSignIn(storage, kbId) {
+            forgetOpenOf(kbId)
+            if (wasActive) takeSession()?.close()
+            synchronized(lock) { kbsHeld.value.filter { it.id != kbId }.also(::putKbs) }
+        }
+        if (wasActive) setActive(rest.firstOrNull()?.id)
     }
 
     /** `removeKb`, for Java. */
@@ -374,22 +383,19 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     /**
      * Sign out of a knowledge base: its tokens are forgotten, and the issuer is
      * told so its refresh token is good for nothing. If it is active, its
-     * session is closed. Then what a client kept there for the person the
-     * sign-in named, its queries and its stream's places, is deleted: after the
-     * session closed, so nothing it wrote as it closed is left.
+     * session is closed. Then, as forgetting a saved sign-in does, what a
+     * client kept there for the person the sign-in named, its queries and its
+     * stream's places, is deleted: after the session closed, so nothing it
+     * wrote as it closed is left.
      */
     public suspend fun signOut(kbId: String) {
         if (closing) return
-        val stored = storedSession(storage, kbId)
-        clearStoredSession(storage, kbId)
-        // The sign-out is the local act: an issuer that cannot be reached does not keep anyone in a session they asked to end.
-        if (stored != null) scope.launch { factory.revoke(stored) }
-        // Said again, so whoever shows each knowledge base's status reads it anew.
-        synchronized(lock) { kbsHeld.raise(kbsHeld.value) }
-        if (activeKbIdHeld.value == kbId) takeSession()?.close()
-        stored?.personKey?.let { person ->
-            PERSISTED_QUERIES.forEach { storage.delete(cacheKey(kbId, person, it.wire)) }
-            storage.delete(lastEventIdKey(kbId, person))
+        forgetSignIn(storage, kbId) { stored ->
+            // The sign-out is the local act: an issuer that cannot be reached does not keep anyone in a session they asked to end.
+            if (stored != null) scope.launch { factory.revoke(stored) }
+            // Said again, so whoever shows each knowledge base's status reads it anew.
+            synchronized(lock) { kbsHeld.raise(kbsHeld.value) }
+            if (activeKbIdHeld.value == kbId) takeSession()?.close()
         }
     }
 
@@ -658,7 +664,7 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     }
 
     /** Forget what was open in a knowledge base, and where the person was. */
-    private fun forgetKeptOf(kbId: String): Unit = synchronized(lock) {
+    private fun forgetOpenOf(kbId: String): Unit = synchronized(lock) {
         var committed = openByKb
         storage.update(OPEN_RESOURCES_BY_KB_KEY) { stored ->
             (storedAs(OPEN_BY_KB, stored) - kbId).also { committed = it }.let { wireJson.encodeToString(OPEN_BY_KB, it) }

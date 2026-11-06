@@ -20,6 +20,7 @@ import semiont.registry.SessionFactoryOptions
 import semiont.registry.SignInOutcome
 import semiont.registry.SignedIn
 import semiont.registry.StoredSession
+import semiont.registry.isKeptIn
 import semiont.registry.keptIn
 import semiont.registry.lastEventIdKey
 import semiont.registry.personKey
@@ -71,10 +72,11 @@ private fun asking(baseUrl: String, http: HttpClient): suspend (String) -> UserR
 
 /**
  * `beneath`, written only while the sign-in of knowledge base `kbId` kept
- * there names the person whose key is `personKey`. Once it does not (signed
- * out, or another sign-in in its place, here or in another context), nothing
- * is written for the rest of its life: what was owed is dropped. A renewal
- * keeps the person, and changes nothing.
+ * there names the person whose key is `personKey`. Once it does not (the
+ * saved sign-in forgotten, however it was, or another sign-in in its place,
+ * here or in another context), nothing is written for the rest of its life:
+ * what was owed is dropped, so nothing forgetting deleted is put back. A
+ * renewal keeps the person, and changes nothing.
  */
 private class WhileSignedIn(private val beneath: SessionStorage, private val kbId: String, private val personKey: String) : SessionStorage {
     @Volatile
@@ -105,12 +107,12 @@ private class WhileSignedIn(private val beneath: SessionStorage, private val kbI
 /**
  * What a session's client keeps in `storage` of knowledge base `kbId` for the
  * person whose key is `personKey`: the stream's places, which ride the
- * caches' writes, and the caches. Where the knowledge base's sign-in is kept
- * in `storage` too (`signInBeside`), each write is made only while that
- * sign-in names the person.
+ * caches' writes, and the caches. Where `kept` is the knowledge base's
+ * sign-in as `keptIn` keeps it in `storage` too, each write is made only while
+ * that sign-in names the person.
  */
-private class KeptFor(storage: SessionStorage, kbId: String, personKey: String, signInBeside: Boolean) {
-    val places = CoupledBookmarks(if (signInBeside) WhileSignedIn(storage, kbId, personKey) else storage, lastEventIdKey(kbId, personKey))
+private class KeptFor(storage: SessionStorage, kbId: String, personKey: String, kept: SignInKept) {
+    val places = CoupledBookmarks(if (isKeptIn(kept, storage, kbId)) WhileSignedIn(storage, kbId, personKey) else storage, lastEventIdKey(kbId, personKey))
     val persistence = CachePersistence(places.storage, kbId, personKey)
 }
 
@@ -133,8 +135,7 @@ private fun gatewayOf(kb: KbTarget): String {
  * start when the kept sign-in names them already, and otherwise once the
  * gateway has named them and that is recorded on the sign-in the gateway was
  * asked about. A session that never asks who its token is keeps nothing.
- * `signInBeside` says the sign-in is kept in `storage` too. The gateway and
- * the issuer are asked with `http`.
+ * The gateway and the issuer are asked with `http`.
  */
 internal suspend fun sessionStarted(
     kb: KbTarget,
@@ -142,7 +143,6 @@ internal suspend fun sessionStarted(
     validate: Boolean,
     channels: List<String>,
     storage: SessionStorage?,
-    signInBeside: Boolean,
     onAuthFailed: ((SessionEndReason) -> Unit)?,
     onError: ((SessionError) -> Unit)?,
     http: HttpClient,
@@ -151,7 +151,7 @@ internal suspend fun sessionStarted(
     val token = MutableStateFlow<String?>(null)
     val renewing = Renewing(kept, token, http)
     val keeping = storage?.takeIf { validate }
-    val atStart = keeping?.let { into -> kept.held()?.personKey?.let { person -> KeptFor(into, kb.id, person, signInBeside) } }
+    val atStart = keeping?.let { into -> kept.held()?.personKey?.let { person -> KeptFor(into, kb.id, person, kept) } }
     // The transport's refresher is made before the session that answers it: it waits for that session,
     // and closing the transport ends the wait (SDK-FOLLOW-UPS item 16).
     val made = CompletableDeferred<SemiontSession>()
@@ -178,7 +178,7 @@ internal suspend fun sessionStarted(
         val user = ask(asked)
         val person = personKey(user.did.value)
         if (keeping != null && kept.recordPersonKey(asked, person) && attached.compareAndSet(false, true)) {
-            val late = KeptFor(keeping, kb.id, person, signInBeside)
+            val late = KeptFor(keeping, kb.id, person, kept)
             late.places.flushGate = { client.persistenceSettled }
             client.attach(late.persistence)
             transport.keepPlaces(late.places)
@@ -215,7 +215,10 @@ internal suspend fun sessionStarted(
  * stream's place in each scope with it: the next session over the same
  * storage for them shows what was kept at once, and is sent what was recorded
  * since. Where `kept` has no place to record a person (the sign-in store of
- * `semiont login`), nothing is kept.
+ * `semiont login`), nothing is kept. Where `kept` is the knowledge base's
+ * sign-in as `keptIn` keeps it in this `storage`, each write is made only
+ * while that sign-in names the person: forgetting it deletes what was kept
+ * for them, and the client puts none of it back.
  * The gateway and the issuer are asked with `http`. Throws `SessionError`
  * (`session.construct-failed`), before anything is asked, for a knowledge
  * base that is not reached over HTTP or whose host is no host's name.
@@ -230,7 +233,7 @@ public suspend fun sessionFromKept(
     onError: ((SessionError) -> Unit)? = null,
     http: HttpClient = ownHttp,
 ): OpenedSession {
-    val opened = sessionStarted(kb, kept, validate, channels, storage, false, onAuthFailed, onError, http)
+    val opened = sessionStarted(kb, kept, validate, channels, storage, onAuthFailed, onError, http)
     try {
         opened.session.ready()
     } catch (failure: Throwable) {
@@ -275,7 +278,6 @@ public class HttpSessionFactory @JvmOverloads constructor(private val http: Http
             true,
             BRIDGED_CHANNELS,
             options.storage,
-            true,
             options.signals::notifySessionEnded,
             options.onError,
             http,

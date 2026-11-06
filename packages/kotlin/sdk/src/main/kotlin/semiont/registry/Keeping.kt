@@ -23,8 +23,26 @@ public fun storedSession(storage: SessionStorage, kbId: String): StoredSession? 
 /** Store a knowledge base's session, in place of what was stored. */
 public fun storeSession(storage: SessionStorage, kbId: String, session: StoredSession): Unit = storage.set(sessionKey(kbId), writtenOf(session))
 
-/** Forget a knowledge base's session. */
-public fun clearStoredSession(storage: SessionStorage, kbId: String): Unit = storage.delete(sessionKey(kbId))
+/**
+ * Forget a knowledge base's stored session: it is deleted, and, as forgetting
+ * a saved sign-in does, so is what a client kept there for the person it
+ * named.
+ */
+public fun clearStoredSession(storage: SessionStorage, kbId: String): Unit = forgetSignIn(storage, kbId) {}
+
+/**
+ * Forget the sign-in stored for knowledge base `kbId`: it is cleared, `between`
+ * is done with what was stored (null when nothing was), and then what was kept
+ * there for the person it named is deleted. What `between` closes has closed
+ * before anything is deleted. Gives what `between` gave.
+ */
+internal fun <T> forgetSignIn(storage: SessionStorage, kbId: String, between: (StoredSession?) -> T): T {
+    val stored = storedSession(storage, kbId)
+    storage.delete(sessionKey(kbId))
+    val done = between(stored)
+    stored?.personKey?.let { forgetKept(storage, kbId, it) }
+    return done
+}
 
 /**
  * The registered knowledge bases. Each entry is read on its own, and one that
@@ -56,7 +74,7 @@ private fun heldOf(stored: StoredSession) = HeldSignIn(stored.access, stored.ref
 private fun storedOf(held: HeldSignIn) = StoredSession(held.access, held.refresh, held.clientId, held.tokenEndpoint, held.revocationEndpoint, held.personKey)
 
 /** A knowledge base's sign-in, kept where a registry keeps it. */
-private class KeptIn(private val storage: SessionStorage, private val kbId: String) : SignInKept {
+private class KeptIn(val storage: SessionStorage, val kbId: String) : SignInKept {
     override suspend fun held(): HeldSignIn? = storedSession(storage, kbId)?.let(::heldOf)
 
     override suspend fun keep(signIn: HeldSignIn): Unit = storeSession(storage, kbId, storedOf(signIn))
@@ -113,5 +131,10 @@ private class KeptIn(private val storage: SessionStorage, private val kbId: Stri
  * A knowledge base's sign-in as a session keeps it, in a registry's storage,
  * under `sessionKey(kbId)`. A renewal is written as one step against what is
  * stored then, so one made meanwhile by another session or context stands.
+ * Forgetting it, as forgetting any saved sign-in, deletes what was kept in
+ * `storage` of the knowledge base for the person it named.
  */
 public fun keptIn(storage: SessionStorage, kbId: String): SignInKept = KeptIn(storage, kbId)
+
+/** Whether `kept` is knowledge base `kbId`'s sign-in as `keptIn` keeps it in `storage`, this very storage. */
+internal fun isKeptIn(kept: SignInKept, storage: SessionStorage, kbId: String): Boolean = kept is KeptIn && kept.storage === storage && kept.kbId == kbId
