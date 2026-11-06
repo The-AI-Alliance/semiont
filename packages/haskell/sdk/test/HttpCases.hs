@@ -5,7 +5,7 @@ import TestProcess (python)
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (async, cancel, wait)
 import Control.Concurrent.STM
-import Control.Exception (bracket, finally, try)
+import Control.Exception (bracket, finally, onException, try)
 import Control.Monad (unless, void, forM_)
 import Data.Aeson (Value(..), eitherDecodeStrict', eitherDecode, encode, fromJSON, toJSON, Result(..), object, (.=))
 import qualified Data.Aeson.Key as Key
@@ -62,12 +62,18 @@ withBusLogs work = do
   bracket (openBinaryTempFile temporary "semiont-http-bus-log")
     (\(filename,handle) -> do closed <- hIsClosed handle; unless closed (hClose handle); removeFile filename) $ \(filename,handle) -> do
       bracket (lookupEnv "SEMIONT_BUS_LOG")
-        (maybe (unsetEnv "SEMIONT_BUS_LOG") (setEnv "SEMIONT_BUS_LOG")) $ \_ -> do
+        (maybe (unsetEnv "SEMIONT_BUS_LOG") (setEnv "SEMIONT_BUS_LOG")) (\_ -> do
           setEnv "SEMIONT_BUS_LOG" "1"
           bracket (hDuplicate stderr) (\original -> hDuplicateTo original stderr >> hClose original) $ \_ -> do
             hDuplicateTo handle stderr
             work
-            hFlush stderr
+            hFlush stderr)
+        -- The peer's stderr is this file too, so a failure shows what the peer and the client said beside the bus log.
+        `onException` (do
+          hClose handle
+          said <- filter (not . Bytes.isPrefixOf "[bus ") . Bytes.split 10 <$> Bytes.readFile filename
+          hPutStrLn stderr "The HTTP peer's and client's stderr, without its bus-log lines:"
+          Bytes.hPut stderr (Bytes.intercalate "\n" (drop (length said - 200) said) <> "\n"))
       hClose handle
       bytes <- Bytes.readFile filename
       let linesSeen=filter (Bytes.isPrefixOf "[bus ") (Bytes.split 10 bytes)
@@ -84,11 +90,16 @@ require label good = unless good (ioError (userError label))
 
 httpCases :: FilePath -> Map.Map Text Value -> IO ()
 httpCases root fixtures = do
-  result <- timeout 20000000 (withBusLogs (withPeer root fixtures exercise))
-  require "real HTTP integration liveness deadline expired" (result == Just ())
+  reached <- newIORef "the client's opening"
+  result <- timeout 60000000 $ withBusLogs $ withPeer root fixtures reached $ \peer -> do
+    exercised <- timeout 20000000 (exercise peer)
+    unless (exercised == Just ()) $ readIORef reached >>= \step ->
+      ioError (userError ("real HTTP integration liveness deadline expired at " ++ step))
+  require "real HTTP peer start or stop deadline expired" (result == Just ())
   putStrLn "PASS real HTTP/SSE, typed client, content scopes, upload renewal and ownership"
   where
-    exercise origin = do
+    exercise peer = do
+      let origin = peerOrigin peer
       clock <- newTVarIO (0 :: Integer)
       waits <- newTVarIO Set.empty
       ids <- newTVarIO (0 :: Integer)
@@ -115,6 +126,7 @@ httpCases root fixtures = do
       resource <- either (ioError . userError) pure (mkResourceId "download")
       (do
         atomically (State.current (Client.state client) >>= check . (== Transport.Open))
+        reach peer "the connection proof"
         target <- case parseURI (Text.unpack origin) >>= uriAuthority of
           Just address -> case readMaybe (drop 1 (uriPort address)) of
             Just port -> pure (HttpEndpoint (Text.pack (uriRegName address)) HttpEndpointKindHttp port HttpEndpointProtocolHttp mempty)
@@ -126,21 +138,22 @@ httpCases root fixtures = do
         require "connection proof invented a knowledge-base identity" (connectionIdentityDescription proven==expectedDescription && connectionIdentityDid proven==expectedDid)
         require "connection proof changed the caller's credential source" . (==Just "initial") =<< readTVarIO supplied
         require "connection proof used the caller's inherited refresher" . null =<< readIORef renewals
-        proofRequests <- readState origin
+        proofRequests <- readState peer
         require "connection proof did not send the supplied issued credential"
           (any (\value -> case field "body" value of
             Just (Object body) -> KM.lookup "channel" body==Just (String "browse:kb-requested")
               &&field "token" value==Just (String "Bearer proof-credential-not-for-log")
             _->False) (values "requests" proofRequests))
-        postControl origin "/test/config" (object ["refusedOperations" .= [String "browse:kb-requested"]])
+        postControl peer "/test/config" (object ["refusedOperations" .= [String "browse:kb-requested"]])
         notReported <- try (Identity.describeConnection (options pool) target "proof-credential-not-for-log") :: IO (Either Identity.IdentityUnverifiableError ConnectionIdentity)
         require "a KB which refused to describe itself was reported as unreachable" (case notReported of Left failure->Identity.identityUnverifiableReason failure==Code.KbIdentityNotReported; _->False)
-        postControl origin "/test/config" (object ["refusedOperations" .= ([]::[Text]),"emitStatuses" .= ([403]::[Int])])
+        postControl peer "/test/config" (object ["refusedOperations" .= ([]::[Text]),"emitStatuses" .= ([403]::[Int])])
         unreachable <- try (Identity.describeConnection (options pool) target "proof-credential-not-for-log") :: IO (Either Identity.IdentityUnverifiableError ConnectionIdentity)
         require "an unreachable KB was reported as having refused its identity" (case unreachable of Left failure->Identity.identityUnverifiableReason failure==Code.KbIdentityUnreachable; _->False)
         void $ Frame.addEntityType (Client.frame client) "Entity"
         void $ Frame.addEntityTypes (Client.frame client) ["One", "Two"]
         void $ Frame.addTagSchema (Client.frame client) (fromFixture "TagSchema")
+        reach peer "trace propagation"
         propagationKey <- Context.newKey "HTTP propagator caller"
         injectedContexts <- newIORef ([] :: [Maybe Text])
         extractions <- newIORef (0 :: Int)
@@ -163,7 +176,7 @@ httpCases root fixtures = do
         restoredContext <- getContext
         require "transport propagation changed the caller's context"
           (Context.lookup propagationKey restoredContext == Context.lookup propagationKey callerContext)
-        propagated <- readState origin
+        propagated <- readState peer
         let traces = [trace | Object record <- values "requests" propagated,
               Just (Object body) <- [KM.lookup "body" record], Just (Object payload) <- [KM.lookup "payload" body],
               Just trace <- [KM.lookup (Key.fromText traceField) payload]]
@@ -172,7 +185,8 @@ httpCases root fixtures = do
         require "transport did not use the host's HTTP propagation headers"
           (any (\fields -> all (\(key,value) -> KM.lookup (Key.fromText key) fields == Just (String value)) carrierPairs
             && KM.lookup "other-host-field" fields == Just (String "not a trace field")) headers)
-        httpFaults origin http client resource clock waits
+        httpFaults peer http client resource clock waits
+        reach peer "the typed namespaces and content reads"
         case Client.auth client of
           Nothing -> ioError (userError "HTTP client has no auth namespace")
           Just auth -> do
@@ -194,7 +208,7 @@ httpCases root fixtures = do
         explicitBinary <- Content.getBinary contents (Just "content-override") resource
         require "explicit download changed bytes" (Content.contentBytes explicitBinary==encodeUtf8 "hello λ")
         Content.getBinaryStream contents (Just "content-override") resource (\_ chunks->Stream.effects chunks)
-        overrideState <- readState origin
+        overrideState <- readState peer
         let explicitReads=[value|value<-values "requests" overrideState,field "token" value==Just (String "Bearer content-override")]
         require "not every content reader sent its explicit credential" (length explicitReads==5)
         refusedOverride <- try (Content.getBinary contents (Just "refused-content-override") resource) :: IO (Either TransportError Content.BinaryContent)
@@ -214,6 +228,7 @@ httpCases root fixtures = do
         escaped <- Content.getBinaryStream contents Nothing resource (\_ chunks -> pure chunks)
         outside <- try (Stream.effects escaped) :: IO (Either TransportError ())
         require "escaped content reader was usable" (either (const True) (const False) outside)
+        reach peer "uploads"
         atomically (writeTVar supplied (Just "renew-upload"))
         opens <- newIORef (0 :: Int)
         progress <- newIORef []
@@ -228,13 +243,13 @@ httpCases root fixtures = do
         notices <- readIORef progress
         require "upload progress decreased across replay" (and (zipWith (<=) (map Content.bytesUploaded notices) (drop 1 (map Content.bytesUploaded notices))))
         require "upload progress lost its total" (last notices == Content.UploadProgress (fromIntegral (Bytes.length bytes)) (fromIntegral (Bytes.length bytes)))
-        state <- readState origin
+        state <- readState peer
         let uploads = values "uploads" state
         case uploads of
           [first, second] -> require "upload attempts changed the idempotency key" (field "key" first == field "key" second)
           _ -> ioError (userError "upload did not have exactly two attempts")
         require "replayed upload lost bytes" (all (\value -> case field "parts" value of Just (Object fields) -> KM.lookup "file" fields == Just (String "complete upload λ"); _ -> False) uploads)
-        postControl origin "/test/config" (object ["uploadStatuses" .= ([503]::[Int])])
+        postControl peer "/test/config" (object ["uploadStatuses" .= ([503]::[Int])])
         retryProgress <- newIORef []
         began <- readTVarIO clock
         retriedUpload <- async (Content.putBinary contents Nothing metadata source (\value -> modifyIORef' retryProgress (++[value])))
@@ -243,7 +258,7 @@ httpCases root fixtures = do
         atomically (writeTVar clock retryAt)
         wait retriedUpload >>= require "retried upload returned another resource" . (==uploaded)
         readIORef opens >>= require "a retry did not reopen the upload's byte source" . (==4)
-        afterRetry <- readState origin
+        afterRetry <- readState peer
         let repeats=drop 2 (values "uploads" afterRetry)
         case repeats of
           [first,second] -> do
@@ -254,11 +269,11 @@ httpCases root fixtures = do
         require "upload progress decreased across retry" (and (zipWith (<=) (map Content.bytesUploaded retriedNotices) (drop 1 (map Content.bytesUploaded retriedNotices))))
         beforeExplicitUpload <- readIORef renewals
         Content.putBinary contents (Just "content-override") metadata source (const (pure ())) >>= require "explicit upload returned another resource" . (==uploaded)
-        postControl origin "/test/config" (object ["uploadStatuses" .= ([401]::[Int])])
+        postControl peer "/test/config" (object ["uploadStatuses" .= ([401]::[Int])])
         failedExplicitUpload <- try (Content.putBinary contents (Just "refused-content-override") metadata source (const (pure ()))) :: IO (Either TransportError ResourceId)
         require "explicit upload credential refusal was not final" (case failedExplicitUpload of Left problem->transportErrorCode problem==Code.TransportUnauthorized; Right _->False)
         readIORef renewals >>= require "explicit upload refusal renewed the held token" . (==beforeExplicitUpload)
-        afterExplicitUpload <- readState origin
+        afterExplicitUpload <- readState peer
         let explicitUploads=drop 4 (values "uploads" afterExplicitUpload)
         require "explicit upload inherited or retried a credential" (map (field "token") explicitUploads==[Just (String "Bearer content-override"),Just (String "Bearer refused-content-override")])
         Content.getBinary contents Nothing resource >>= require "explicit refusal quarantined the held credential" . (\value->Content.contentBytes value==encodeUtf8 "hello λ")
@@ -283,44 +298,48 @@ httpCases root fixtures = do
         require "disposed content still performed I/O" (either ((== Code.BusRequestClosed) . busRequestErrorCode) (const False) closedContent)
         Gateway.healthCheck (Http.gateway http) >>= require "disposing content closed the caller's HTTP pool" . (== fromFixture "HealthResponse")
         ) `finally` Client.dispose client
+      reach peer "the client's disposal"
       Client.dispose client
-      _ <- awaitState origin (\value -> length (values "subscriptions" value) == count "disconnected" value)
-      credentialCases origin (options pool) supplied renewals clock waits
-      recoveryCases origin (options pool) clock waits
+      _ <- awaitState peer (\value -> length (values "subscriptions" value) == count "disconnected" value)
+      credentialCases peer (options pool) supplied renewals clock waits
+      recoveryCases peer (options pool) clock waits
       pure ()
 
-httpFaults :: Text -> Http.HttpTransport -> Client.Client -> ResourceId -> TVar Integer -> TVar (Set.Set Integer) -> IO ()
-httpFaults origin http client resource clock waits = do
-  baseline <- awaitState origin (\value -> length (values "subscriptions" value)-count "disconnected" value==1)
+httpFaults :: Peer -> Http.HttpTransport -> Client.Client -> ResourceId -> TVar Integer -> TVar (Set.Set Integer) -> IO ()
+httpFaults peer http client resource clock waits = do
+  reach peer "the stream's opening"
+  baseline <- awaitState peer (\value -> length (values "subscriptions" value)-count "disconnected" value==1)
   let beforeSubscriptions=length (values "subscriptions" baseline)
       beforeDisconnected=count "disconnected" baseline
   bracket (Transport.subscribeToResource (Http.transport http) resource) id $ \_ -> do
     began <- readTVarIO clock
     waitForDeadline waits (began + Timing.reconnectDebounceMs * 1000000)
     atomically (writeTVar clock (began + Timing.reconnectDebounceMs * 1000000))
-    _ <- awaitState origin ((>= beforeSubscriptions+1) . length . values "subscriptions")
+    _ <- awaitState peer ((>= beforeSubscriptions+1) . length . values "subscriptions")
     connection <- atomically (State.current (Client.state client))
     require "subscription handoff changed an open connection's state" (connection == Transport.Open)
     let channel = channelName FrameEntityTypeAddOk
-        publish correlation = postControl origin "/test/publish" (object
+        publish correlation = postControl peer "/test/publish" (object
           [ "id" .= ("e-" <> channel <> ":" <> correlation)
           , "frame" .= BusFrame channel (Just correlation) (BusFramePayload mempty) Nothing
           ])
+    reach peer "overlapping streams"
     Transport.frames (Http.transport http) channel $ \frames -> do
       publish "first"
       publish "first"
       publish "second"
       seen <- Stream.toList_ (Stream.take 2 frames)
       require "overlapping streams duplicated a reply" (map Transport.carriedCorrelationId seen == [Just "first", Just "second"])
-    state <- readState origin
+    state <- readState peer
     require "old stream was aborted before its drain window" (count "disconnected" state == beforeDisconnected)
     let retiredAt = began + (Timing.reconnectDebounceMs + Timing.lingerMs) * 1000000
     waitForDeadline waits retiredAt
     atomically (writeTVar clock retiredAt)
-    _ <- awaitState origin ((>= beforeDisconnected+1) . count "disconnected")
+    _ <- awaitState peer ((>= beforeDisconnected+1) . count "disconnected")
 
+    reach peer "a refused frame"
     Transport.errors (Http.transport http) $ \failures -> Transport.frames (Http.transport http) channel $ \frames -> do
-      postControl origin "/test/publish" (object
+      postControl peer "/test/publish" (object
         [ "id" .= ("e-frame-refusal" :: Text), "frame" .= object ["payload" .= object []] ])
       publish "after-refusal"
       refused <- Stream.head_ failures
@@ -329,7 +348,8 @@ httpFaults origin http client resource clock waits = do
       continued <- Stream.head_ frames
       require "a malformed frame ended the stream" (fmap Transport.carriedCorrelationId continued == Just (Just "after-refusal"))
 
-    postControl origin "/test/config" (object ["emitStatuses" .= ([429, 503] :: [Int])])
+    reach peer "emit retries"
+    postControl peer "/test/config" (object ["emitStatuses" .= ([429, 503] :: [Int])])
     atomically (writeTVar waits Set.empty)
     retryAt <- readTVarIO clock
     retrying <- async (Frame.addEntityType (Client.frame client) "Retried")
@@ -340,25 +360,27 @@ httpFaults origin http client resource clock waits = do
     waitForDeadline waits secondWait
     atomically (writeTVar clock secondWait)
     void (wait retrying)
-    attempted <- readState origin
+    attempted <- readState peer
     let asks = filter (\value -> field "path" value == Just (String (Routes.routePath Routes.EmitOnBus))) (values "requests" attempted)
         lastThree = drop (length asks - 3) asks
     require "emit retries changed their idempotency key" (length lastThree == 3 && Set.size (Set.fromList (map (field "key") lastThree)) == 1)
 
     atomically (writeTVar waits Set.empty)
+    reach peer "a request unanswered at its deadline"
     headerResource <- either (ioError . userError) pure (mkResourceId "headers")
     headerStart <- readTVarIO clock
     stalled <- async (try (Content.getBinary (Http.content http) Nothing headerResource) :: IO (Either TransportError Content.BinaryContent))
     let headerDeadline = headerStart + Timing.httpRequestTimeoutMs * 1000000
     waitForDeadline waits headerDeadline
     let headerPath = Text.replace "{id}" (resourceIdValue headerResource) (Routes.routePath Routes.GetResourceRepresentation)
-    _ <- awaitState origin (any (\value -> field "path" value == Just (String headerPath)) . values "requests")
+    _ <- awaitState peer (any (\value -> field "path" value == Just (String headerPath)) . values "requests")
     atomically (writeTVar clock headerDeadline)
     result <- wait stalled
     require "unanswered request was not classified unavailable" (either ((== Code.TransportUnavailable) . transportErrorCode) (const False) result)
-    afterHeaders <- awaitState origin ((== 1) . count "headersClosed")
+    afterHeaders <- awaitState peer ((== 1) . count "headersClosed")
     require "a request unanswered at its deadline was retried" (length (filter (\value -> field "path" value == Just (String headerPath)) (values "requests" afterHeaders)) == 1)
 
+    reach peer "an abandoned response body"
     bodyResource <- either (ioError . userError) pure (mkResourceId "body")
     entered <- newEmptyTMVarIO
     reader <- async (Content.getBinaryStream (Http.content http) Nothing bodyResource $ \_ chunks -> do
@@ -371,22 +393,23 @@ httpFaults origin http client resource clock waits = do
     stillOpen <- atomically (State.current (Client.state client))
     require "idle SSE stream inherited an HTTP response timeout" (stillOpen == Transport.Open)
     cancel reader
-    _ <- awaitState origin ((== 1) . count "bodyClosed")
+    _ <- awaitState peer ((== 1) . count "bodyClosed")
     pure ()
 
-credentialCases :: Text -> Http.HttpOptions -> TVar (Maybe Text) -> IORef [Text] -> TVar Integer -> TVar (Set.Set Integer) -> IO ()
-credentialCases origin options supplied renewals clock waits = do
+credentialCases :: Peer -> Http.HttpOptions -> TVar (Maybe Text) -> IORef [Text] -> TVar Integer -> TVar (Set.Set Integer) -> IO ()
+credentialCases peer options supplied renewals clock waits = do
+  reach peer "a refused stream credential"
   atomically (writeTVar supplied (Just "refused") >> writeTVar waits Set.empty)
   writeIORef renewals []
-  postControl origin "/test/config" (object ["gateSubscribe" .= True, "subscribeFailures" .= ([401, 401] :: [Int])])
+  postControl peer "/test/config" (object ["gateSubscribe" .= True, "subscribeFailures" .= ([401, 401] :: [Int])])
   bracket (Client.fromHttp options Nothing) Client.dispose $ \client -> do
     began <- readTVarIO clock
     Transport.errors (Client.transport client) $ \errors -> do
-      postControl origin "/test/config" (object ["gateSubscribe" .= False])
+      postControl peer "/test/config" (object ["gateSubscribe" .= False])
       failures <- Stream.toList_ (Stream.take 2 errors)
       require "stream credential refusal lost status or peer words" (all (\problem -> httpStatus problem == Just 401 && Text.isInfixOf "stream credential refused" (transportErrorMessage problem)) failures)
       atomically (State.current (Client.state client) >>= check . (== Transport.Unauthenticated))
-      first <- readState origin
+      first <- readState peer
       let attempts state = length (filter (\value -> case value of
             Object fields -> KM.lookup "path" fields == Just (String (Routes.routePath Routes.SubscribeToBus))
             _ -> False) (values "requests" state))
@@ -395,23 +418,24 @@ credentialCases origin options supplied renewals clock waits = do
       waitForDeadline waits firstPoll
       atomically (writeTVar clock firstPoll)
       waitForDeadline waits secondPoll
-      second <- readState origin
+      second <- readState peer
       require "a twice-refused stream credential was sent again" (attempts first == attempts second)
       readIORef renewals >>= require "stream renewed more than once in one outage" . (== ["refused"])
       atomically (writeTVar supplied (Just "fresh") >> writeTVar clock secondPoll)
       atomically (State.current (Client.state client) >>= check . (== Transport.Open))
       void $ Frame.addEntityType (Client.frame client) "Recovered"
-      require "client base URL changed" (Client.baseUrl client == origin)
+      require "client base URL changed" (Client.baseUrl client == peerOrigin peer)
 
-recoveryCases :: Text -> Http.HttpOptions -> TVar Integer -> TVar (Set.Set Integer) -> IO ()
-recoveryCases origin options clock waits = do
+recoveryCases :: Peer -> Http.HttpOptions -> TVar Integer -> TVar (Set.Set Integer) -> IO ()
+recoveryCases peer options clock waits = do
+  reach peer "a refused connect's recovery"
   atomically (writeTVar waits Set.empty)
   let seconds = (Timing.degradedThresholdMs * 2 + 999) `div` 1000
-  postControl origin "/test/config" (object ["gateSubscribe" .= True, "subscribeFailures" .= ([503] :: [Int]), "subscribeRetryAfter" .= show seconds])
+  postControl peer "/test/config" (object ["gateSubscribe" .= True, "subscribeFailures" .= ([503] :: [Int]), "subscribeRetryAfter" .= show seconds])
   bracket (Client.fromHttp options Nothing) Client.dispose $ \client -> do
     began <- readTVarIO clock
     Transport.errors (Client.transport client) $ \errors -> do
-      postControl origin "/test/config" (object ["gateSubscribe" .= False])
+      postControl peer "/test/config" (object ["gateSubscribe" .= False])
       failures <- Stream.toList_ (Stream.take 1 errors)
       require "refused connect was not reported" (map httpStatus failures == [Just 503])
       atomically (State.current (Client.state client) >>= check . (== Transport.Reconnecting))
@@ -427,11 +451,10 @@ recoveryCases origin options clock waits = do
 waitForDeadline :: TVar (Set.Set Integer) -> Integer -> IO ()
 waitForDeadline waits due = atomically (readTVar waits >>= check . Set.member due)
 
-postControl :: Text -> String -> Value -> IO ()
-postControl origin suffix value = do
-  manager <- newManager (managerSetProxy noProxy defaultManagerSettings)
-  base <- parseRequest (Text.unpack origin ++ suffix)
-  void (httpLbs base { method = "POST", requestHeaders = [("Content-Type", "application/json")], requestBody = RequestBodyLBS (encode value) } manager)
+postControl :: Peer -> String -> Value -> IO ()
+postControl peer suffix value = do
+  base <- parseRequest (Text.unpack (peerOrigin peer) ++ suffix)
+  void (httpLbs base { method = "POST", requestHeaders = [("Content-Type", "application/json")], requestBody = RequestBodyLBS (encode value) } (peerControl peer))
 
 field :: Key.Key -> Value -> Maybe Value
 field key (Object fields)=KM.lookup key fields
@@ -444,20 +467,25 @@ count :: Key.Key -> Value -> Int
 count key (Object fields) = case KM.lookup key fields of Just (Number value) -> round value; _ -> error "peer state has no counter"
 count _ _ = error "peer state is not an object"
 
-readState :: Text -> IO Value
-readState origin = do
-  manager <- newManager (managerSetProxy noProxy defaultManagerSettings)
-  asked <- parseRequest (Text.unpack origin ++ "/test/state")
-  response <- httpLbs asked manager
+readState :: Peer -> IO Value
+readState peer = do
+  asked <- parseRequest (Text.unpack (peerOrigin peer) ++ "/test/state")
+  response <- httpLbs asked (peerControl peer)
   either (ioError . userError) pure (eitherDecode (responseBody response))
 
-awaitState :: Text -> (Value -> Bool) -> IO Value
-awaitState origin accepts = do
-  value <- readState origin
-  if accepts value then pure value else threadDelay 1000 >> awaitState origin accepts
+awaitState :: Peer -> (Value -> Bool) -> IO Value
+awaitState peer accepts = do
+  value <- readState peer
+  if accepts value then pure value else threadDelay 1000 >> awaitState peer accepts
 
-withPeer :: FilePath -> Map.Map Text Value -> (Text -> IO result) -> IO result
-withPeer root fixtures action = bracket
+-- The test peer: its origin, one manager for the test's own control calls, and the step the exercise has reached.
+data Peer = Peer { peerOrigin :: Text, peerControl :: Manager, peerReached :: IORef String }
+
+reach :: Peer -> String -> IO ()
+reach peer = writeIORef (peerReached peer)
+
+withPeer :: FilePath -> Map.Map Text Value -> IORef String -> (Peer -> IO result) -> IO result
+withPeer root fixtures reached action = bracket
   (do
     temporary <- getTemporaryDirectory
     (file, handle) <- openBinaryTempFile temporary "semiont-http-fixtures.json"
@@ -471,4 +499,7 @@ withPeer root fixtures action = bracket
         (Just input, Just output, _, peer) -> pure (input, output, peer)
         _ -> ioError (userError "HTTP peer pipes were not created"))
     (\(input, output, peer) -> hPutStrLn input "stop" >> hFlush input >> void (waitForProcess peer) >> hClose input >> hClose output)
-    (\(_, output, _) -> hGetLine output >>= action . ("http://127.0.0.1:" <>) . Text.pack)
+    (\(_, output, _) -> do
+      port <- hGetLine output
+      control <- newManager (managerSetProxy noProxy defaultManagerSettings)
+      action (Peer ("http://127.0.0.1:" <> Text.pack port) control reached))
