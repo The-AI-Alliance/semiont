@@ -13,6 +13,7 @@ from typing import Final, final
 import pytest
 from aio import pass_time, run, turns
 from pydantic import JsonValue
+from semiont.timing import GENERATION_STALL_ASSUMED_TOKENS_COUNT
 from semiont.types import GenerationJobParams, SupportedMediaType
 from semiont_inference.interface import ElementSchema, InferenceLimits, InferenceResponse, ProviderStatusError, StructuredResponse
 from semiont_inference.mock import MockInferenceClient
@@ -62,10 +63,10 @@ def asked_of(client: MockInferenceClient) -> list[tuple[str, int, float, Element
     ("asked", "length", "temperature"),
     [
         ({"maxTokens": 300, "temperature": 0.2}, 300, 0.2),
-        # A job that states neither is given 500 tokens and a temperature of 0.7.
-        ({}, 500, 0.7),
+        # A job that states neither is given the length the spec assumes of one and a temperature of 0.7.
+        ({}, GENERATION_STALL_ASSUMED_TOKENS_COUNT, 0.7),
         # Nought is a length and a temperature a job can state, and neither is taken for none stated.
-        ({"temperature": 0}, 500, 0),
+        ({"temperature": 0}, GENERATION_STALL_ASSUMED_TOKENS_COUNT, 0),
         ({"maxTokens": 0}, 0, 0.7),
     ],
 )

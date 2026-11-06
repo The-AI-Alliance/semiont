@@ -4,6 +4,9 @@
  * grant, refresh, and revocation — against a fetch stub, with the issuer's
  * answers scripted per case. Nothing here names a vendor.
  */
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import util from 'node:util';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HTTP_REQUEST_TIMEOUT_MS, REFRESH_RETRY, SignInError } from '@semiont/core';
@@ -33,6 +36,17 @@ const DISCOVERY = {
   revocation_endpoint: `${ISSUER}/revoke`,
 };
 const REDIRECT = 'http://localhost:3000/en/auth/callback';
+
+interface ObjectShape {
+  properties: Record<string, unknown>;
+  required: string[];
+}
+
+/** What protocol/specs/src/session/stored.json states is kept of a sign-in begun. */
+const PENDING: ObjectShape & { properties: { issuer: ObjectShape } } = (JSON.parse(readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), '../../../../../../protocol/specs/src/session/stored.json'),
+  'utf-8',
+)) as { pendingAuthorization: ObjectShape & { properties: { issuer: ObjectShape } } }).pendingAuthorization;
 
 function reply(json: unknown, status = 200): Response {
   return {
@@ -222,6 +236,20 @@ describe('the authorization-code grant', () => {
     expect(url.searchParams.get('code_challenge')).toBe(codeChallenge(record.verifier));
     expect(record).toMatchObject({ target: TARGET, redirectUri: REDIRECT, expectedDid: 'did:web:kb.example', expectedName: 'KB' });
     expect(record.issuer.token).toBe(`${ISSUER}/token`);
+  });
+
+  it("keeps a sign-in begun with the members stored.json's pendingAuthorization names, and none it was not given", async () => {
+    const believed = new InMemorySessionStorage();
+    await beginAuthorization({
+      target: TARGET, redirectUri: REDIRECT, kbId: 'kb-1', expectedDid: 'did:web:kb.example', expectedName: 'KB',
+    }, believed);
+    const record = JSON.parse(believed.get(PENDING_AUTHORIZATION_KEY)!) as { issuer: Record<string, unknown> };
+    expect(Object.keys(record).sort()).toEqual(Object.keys(PENDING.properties).sort());
+    expect(Object.keys(record.issuer).sort()).toEqual(Object.keys(PENDING.properties.issuer.properties).sort());
+
+    const bare = new InMemorySessionStorage();
+    await beginAuthorization({ target: TARGET, redirectUri: REDIRECT }, bare);
+    expect(Object.keys(JSON.parse(bare.get(PENDING_AUTHORIZATION_KEY)!) as object).sort()).toEqual([...PENDING.required].sort());
   });
 
   async function begun() {

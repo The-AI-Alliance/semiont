@@ -37,9 +37,10 @@ private val KEYS = mapOf(
 /**
  * What a registry keeps in its storage, as protocol/specs/src/session/stored.json
  * states it: every key Kotlin writes by hand, the key of a knowledge base's
- * session, and the members of a stored session. A key or a member the table
- * gains fails here until Kotlin has it. And the registry's readers and
- * writers of what it keeps.
+ * session, the keys of what a session keeps of its stream and its queries, and
+ * the members of a stored session. A key or a member the table gains fails
+ * here until Kotlin has it. And the registry's readers and writers of what it
+ * keeps. AuthorizationTest holds what is kept of a sign-in begun.
  */
 class StoredTest {
     @Test
@@ -54,6 +55,18 @@ class StoredTest {
         assertEquals("${prefix}$KB_A", sessionKey(KB_A))
         assertEquals(KB_A, kbOfSessionKey(sessionKey(KB_A)))
         assertNull(kbOfSessionKey(ACTIVE_KEY))
+    }
+
+    @Test
+    fun whereAKnowledgeBasesStreamWasIsKeptUnderTheTablesPrefixAndItsId() {
+        val prefix = table.getValue("lastEventIdKeyPrefix").jsonObject.getValue("prefix").jsonPrimitive.content
+        assertEquals("${prefix}$KB_A", lastEventIdKey(KB_A))
+    }
+
+    @Test
+    fun aKeptQueryIsKeptUnderTheTablesPrefixItsPersistencesKeyPrefixAndItsName() {
+        val prefix = table.getValue("cacheKeyPrefix").jsonObject.getValue("prefix").jsonPrimitive.content
+        assertEquals("${prefix}$KB_A.resource", cacheKey(KB_A, "resource"))
     }
 
     @Test

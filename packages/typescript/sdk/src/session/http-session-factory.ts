@@ -21,7 +21,7 @@ import { SemiontClient } from '../client';
 import { coupledLastEventId } from '../cache-persister';
 import { SemiontSession, type UserInfo } from './semiont-session';
 import { SemiontSessionError } from './errors';
-import { kbGatewayUrl } from './storage';
+import { kbGatewayUrl, lastEventIdKey } from './storage';
 import { refreshStoredSession } from './oauth';
 import type { SessionFactory, SessionFactoryOptions } from './session-factory';
 
@@ -80,7 +80,7 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
     // COUPLED to the cache flush (stashed in memory, written only alongside
     // cache-document writes) so the persisted bookmark can lag the caches
     // but never lead them.
-    const coupled = coupledLastEventId(storage, `semiont.lastEventId.${kb.id}`);
+    const coupled = coupledLastEventId(storage, lastEventIdKey(kb.id));
     const transport = new HttpTransport({
       baseUrl: baseUrl(kbGatewayUrl(endpoint)),
       token$,

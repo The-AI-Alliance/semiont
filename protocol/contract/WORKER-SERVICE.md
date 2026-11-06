@@ -890,7 +890,8 @@ focused on a resource or on an annotation.
   *Held by `worker-service/yield`.*
 - **Y2.** A generation to a text format is one request, which asks for no
   array of objects. Its temperature is the job's, or `0.7`, and its length
-  the job's `maxTokens`, or `500`. The prompt is made of the job's `title`,
+  the job's `maxTokens`, or `generationStallAssumedTokensCount` in
+  [`timing.json`](../specs/src/client/timing.json). The prompt is made of the job's `title`,
   `task`, `prompt`, `entityTypes`, languages, `structure` and `cite`, and of
   its context. On an Ollama engine the request is [D1](#the-request)'s with no
   `format`: the length is `num_predict`, and `num_ctx` is as

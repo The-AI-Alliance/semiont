@@ -16,6 +16,7 @@ import pytest
 from aio import run
 from pydantic import BaseModel, Field, JsonValue
 from semiont.identifiers import ResourceId
+from semiont.timing import GENERATION_STALL_ASSUMED_TOKENS_COUNT
 from semiont.types import GenerationJobParams
 from spec import SPEC
 from standing_in import AskedToGenerate, Handed, compiler_stood_in, generation_stood_in, landing_stood_in, report
@@ -244,7 +245,7 @@ def test_a_source_cut_off_where_it_still_compiles_is_a_pdf_said_to_be_truncated(
     assert handed.told.said() == [GENERATING, CREATING, complete(True)]
 
 
-@pytest.mark.parametrize(("stated", "ceiling"), [({}, "500"), ({"maxTokens": 1200}, "1200")])
+@pytest.mark.parametrize(("stated", "ceiling"), [({}, str(GENERATION_STALL_ASSUMED_TOKENS_COUNT)), ({"maxTokens": 1200}, "1200")])
 def test_a_source_cut_off_where_it_does_not_compile_fails_at_once_naming_the_length_asked_for(
     monkeypatch: pytest.MonkeyPatch, stated: dict[str, JsonValue], ceiling: str
 ) -> None:

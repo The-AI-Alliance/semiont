@@ -21,6 +21,7 @@ import semiont.registry.SignInOutcome
 import semiont.registry.SignedIn
 import semiont.registry.StoredSession
 import semiont.registry.keptIn
+import semiont.registry.lastEventIdKey
 import semiont.session.OpenedSession
 import semiont.session.SemiontSession
 import semiont.session.SessionEndReason
@@ -98,7 +99,7 @@ internal suspend fun sessionStarted(
     val renewing = Renewing(kept, token, http)
     // The stream's place rides the caches' writes, and only when every cache is at rest: a place kept ahead of a
     // cache still taking in the event it names would have the next session skip that event.
-    val places = storage?.let { CoupledBookmarks(it, "semiont.lastEventId.${kb.id}") }
+    val places = storage?.let { CoupledBookmarks(it, lastEventIdKey(kb.id)) }
     // The transport's refresher is made before the session that answers it: it waits for that session,
     // and closing the transport ends the wait (SDK-FOLLOW-UPS item 16).
     val made = CompletableDeferred<SemiontSession>()

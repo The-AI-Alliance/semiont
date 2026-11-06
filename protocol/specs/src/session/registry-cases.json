@@ -1,0 +1,62 @@
+{
+  "$comment": "AUTHORITY for when a registry of knowledge bases takes two endpoints for one place: the rule its sign-in looks up the entries at an address by, before the did the knowledge base reports decides which of them is signed in. Every SDK runs every case against its registry's own rule, and fails on a difference. A gateway is one place with another when the two have one origin, as protocol/specs/src/session/gateway-url-cases.json makes it: the same protocol, the same host once each is put in lowercase, and the same port. An entry at another origin is another place, though only the protocol differs: the session would talk to the entry's address, which the sign-in's read never proved. A knowledge base the host process has loaded is the place its id names. A gateway and a loaded knowledge base are never one place. READING A CASE. `one` and `other` are each a KbEndpoint (components/schemas/KbEndpoint.json), and `samePlace` whether a registry takes them for one place.",
+  "runBy": {
+    "csharp": ["packages/csharp/sdk/tests/Semiont.Tests/RegistryTests.cs"],
+    "swift": ["packages/swift/sdk/Tests/SemiontTests/RegistryTablesTests.swift"],
+    "typescript": ["packages/typescript/sdk/src/session/__tests__/registry-cases.test.ts"],
+    "rust": ["packages/rust/sdk/src/session/browser.rs"],
+    "python": ["packages/python/sdk/tests/test_registry_cases.py"],
+    "go": ["packages/go/sdk/registry/same_place_test.go"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/registry/RegistryCasesTest.kt"]
+  },
+  "cases": [
+    {
+      "why": "the same protocol, host and port is one place",
+      "one": { "kind": "http", "host": "kb.example.org", "port": 443, "protocol": "https" },
+      "other": { "kind": "http", "host": "kb.example.org", "port": 443, "protocol": "https" },
+      "samePlace": true
+    },
+    {
+      "why": "another protocol is another place, though the host and the port are the same",
+      "one": { "kind": "http", "host": "kb.example.org", "port": 4000, "protocol": "http" },
+      "other": { "kind": "http", "host": "kb.example.org", "port": 4000, "protocol": "https" },
+      "samePlace": false
+    },
+    {
+      "why": "another host is another place",
+      "one": { "kind": "http", "host": "kb.example.org", "port": 443, "protocol": "https" },
+      "other": { "kind": "http", "host": "kb.example.net", "port": 443, "protocol": "https" },
+      "samePlace": false
+    },
+    {
+      "why": "another port is another place",
+      "one": { "kind": "http", "host": "localhost", "port": 4000, "protocol": "http" },
+      "other": { "kind": "http", "host": "localhost", "port": 4001, "protocol": "http" },
+      "samePlace": false
+    },
+    {
+      "why": "a host written in other letter case is the same host: the origin puts it in lowercase",
+      "one": { "kind": "http", "host": "KB.Example.org", "port": 443, "protocol": "https" },
+      "other": { "kind": "http", "host": "kb.example.org", "port": 443, "protocol": "https" },
+      "samePlace": true
+    },
+    {
+      "why": "a loaded knowledge base is the place its id names",
+      "one": { "kind": "local", "kbId": "kb-a" },
+      "other": { "kind": "local", "kbId": "kb-a" },
+      "samePlace": true
+    },
+    {
+      "why": "another loaded knowledge base is another place",
+      "one": { "kind": "local", "kbId": "kb-a" },
+      "other": { "kind": "local", "kbId": "kb-b" },
+      "samePlace": false
+    },
+    {
+      "why": "a gateway and a loaded knowledge base are never one place",
+      "one": { "kind": "http", "host": "localhost", "port": 4000, "protocol": "http" },
+      "other": { "kind": "local", "kbId": "localhost" },
+      "samePlace": false
+    }
+  ]
+}

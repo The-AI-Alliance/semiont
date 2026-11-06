@@ -19,7 +19,7 @@ from gateway_server import Asked, GatewayServer, Recording
 from issuer import CONFIGURATION, ME, METADATA, REFUSED, REVOKE, TOKEN, issuer_of, says, trusting
 from kb import recorded
 from pydantic import JsonValue, TypeAdapter
-from spec import JsonObject
+from spec import SPEC, JsonObject, read, strings
 from tokens import expired, token
 
 from semiont.cache import Ready
@@ -511,6 +511,50 @@ def test_beginning_a_sign_in_remembers_it_and_builds_the_url_around_what_it_reme
             assert len(record.verifier) >= 43
             assert len(record.state) >= 32
             assert record.verifier != record.state
+
+    run(scenario())
+
+
+def _members_of(schema: JsonValue, what: str) -> tuple[set[str], set[str]]:
+    """The members `schema` names, and those of them it requires."""
+    assert isinstance(schema, dict), f"{what} is not a schema"
+    properties = schema["properties"]
+    assert isinstance(properties, dict), f"{what} names no members"
+    return set(properties), set(strings(schema["required"], f"what {what} requires"))
+
+
+def test_a_sign_in_begun_is_kept_as_the_stored_table_states_it() -> None:
+    """What is kept of a sign-in begun is `pendingAuthorization` of protocol/specs/src/session/stored.json."""
+    pending = read(SPEC / "session/stored.json")["pendingAuthorization"]
+    members, required = _members_of(pending, "pendingAuthorization")
+    assert isinstance(pending, dict)
+    properties = pending["properties"]
+    assert isinstance(properties, dict)
+    issuer_members, issuer_required = _members_of(properties["issuer"], "its issuer")
+
+    def written(storage: SessionStorage) -> JsonObject:
+        kept = storage.get(PENDING_AUTHORIZATION_KEY)
+        assert kept is not None
+        record = _JSON.validate_json(kept)
+        assert isinstance(record, dict)
+        issuer = record["issuer"]
+        assert isinstance(issuer, dict)
+        assert issuer_required <= set(issuer) <= issuer_members
+        return record
+
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            believed = MemoryStorage()
+            options = BeginAuthorizationOptions(
+                target=endpoint_of(gateway), redirect_uri=REDIRECT, kb_id="kb-a", expected_did=DID_A, expected_name="KB A"
+            )
+            await soon(begin_authorization(options, believed))
+            assert set(written(believed)) == members
+            # What the person named nothing of is not written.
+            bare = MemoryStorage()
+            await soon(begin_authorization(BeginAuthorizationOptions(target=endpoint_of(gateway), redirect_uri=REDIRECT), bare))
+            assert set(written(bare)) == required
 
     run(scenario())
 

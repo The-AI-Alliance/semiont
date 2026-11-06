@@ -64,7 +64,7 @@ public final class StoragePersister<Key: Codable & Hashable & Sendable>: CacheWo
   private let state: Mutex<State>
 
   public init(_ config: CachePersistence) {
-    let storageKey = "semiont.cache.\(config.keyPrefix).swift"
+    let storageKey = "\(cacheKeyPrefix)\(config.keyPrefix).swift"
     let saved = Self.decode(try? config.storage.get(storageKey))
     self.config = config
     self.storageKey = storageKey

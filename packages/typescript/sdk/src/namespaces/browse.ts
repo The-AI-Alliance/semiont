@@ -24,6 +24,7 @@ import { CacheRefresher, ScopedSources, type QueryActs, type RefreshSubject } fr
 import { createCache, type CacheState, type Cache, type CachePersister } from '../cache';
 import { sessionStoragePersister } from '../cache-persister';
 import type { SessionStorage } from '../session/session-storage';
+import { cacheKey } from '../session/storage';
 
 /**
  * B17 — serialized-shape version shared by every persisted browse cache.
@@ -185,7 +186,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         ? {
             persister: sessionStoragePersister<K, V>({
               storage: persistence.storage,
-              storageKey: `semiont.cache.${persistence.keyPrefix}.${name}`,
+              storageKey: cacheKey(persistence.keyPrefix, name),
               version: CACHE_PERSISTENCE_VERSION,
             }),
           }

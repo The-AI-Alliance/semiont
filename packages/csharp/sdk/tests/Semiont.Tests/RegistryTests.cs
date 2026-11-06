@@ -36,6 +36,8 @@ public sealed partial class TransportTests
         Assert.Equal(Text(table.RootElement.GetProperty("sessionKeyPrefix"), "prefix") + "kb-1", key);
         Assert.Equal("kb-1", RegistryStorage.KbOfSessionKey(key));
         Assert.Null(RegistryStorage.KbOfSessionKey("unrelated"));
+        Assert.StartsWith(Text(table.RootElement.GetProperty("cacheKeyPrefix"), "prefix"),
+            RegistryStorage.CacheKey("kb-1", UserId.Parse("did:web:example.org:users:alice")), StringComparison.Ordinal);
         var store = new MemoryStorage();
         var session = RegistryTokens() with { RevocationEndpoint = "https://issuer.test/revoke" };
         RegistryStorage.StoreSession(store, "kb-1", session);
@@ -51,6 +53,67 @@ public sealed partial class TransportTests
             incomplete.Remove(Assert.IsType<string>(required.GetString()));
             store.Set(key, incomplete.ToJsonString());
             Assert.Null(RegistryStorage.StoredSession(store, "kb-1"));
+        }
+    }
+
+    [Fact]
+    public async Task ASignInBegunIsKeptAsTheStoredTableStatesIt()
+    {
+        using var table = ReadSpec("session/stored.json");
+        var schema = table.RootElement.GetProperty("pendingAuthorization");
+        var issuerSchema = schema.GetProperty("properties").GetProperty("issuer");
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        server.Other = (request, _) => Task.FromResult(request.RequestUri?.AbsolutePath switch
+        {
+            "/.well-known/oauth-protected-resource" => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new ProtectedResourceMetadata
+                {
+                    Resource = "https://kb.test",
+                    AuthorizationServers = ["https://issuer.test"],
+                    BearerMethodsSupported = [ProtectedResourceMetadataBearerMethodsSupportedItem.Header],
+                }),
+            },
+            "/.well-known/openid-configuration" => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new { issuer = "https://issuer.test", authorization_endpoint = "https://issuer.test/authorize", token_endpoint = "https://issuer.test/token" }),
+            },
+            _ => throw new InvalidOperationException("Unexpected issuer request."),
+        });
+        var endpoint = Assert.IsType<KbEndpoint.HttpEndpointCase>(RegistryKb("prior", "prior.test").Endpoint).Value;
+        async Task<JsonElement> Kept(BeginAuthorizationOptions options)
+        {
+            var store = new MemoryStorage();
+            await RedirectSignIn.BeginAuthorizationAsync(options, store, http);
+            return JsonSerializer.Deserialize<JsonElement>(Assert.IsType<string>(store.Get(RedirectSignIn.PendingAuthorizationKey)));
+        }
+        static string[] Members(JsonElement value) => value.EnumerateObject().Select(member => member.Name).Order().ToArray();
+        static string[] RequiredOf(JsonElement schema) =>
+            schema.GetProperty("required").EnumerateArray().Select(name => Assert.IsType<string>(name.GetString())).Order().ToArray();
+
+        var full = await Kept(new BeginAuthorizationOptions(endpoint, "https://app.test/callback", "kb-a", "did:web:kb-a.test", "A"));
+        Assert.Equal(Members(schema.GetProperty("properties")), Members(full));
+        var issuer = Members(full.GetProperty("issuer")).ToHashSet();
+        Assert.Subset(issuer, RequiredOf(issuerSchema).ToHashSet());
+        Assert.Subset(Members(issuerSchema.GetProperty("properties")).ToHashSet(), issuer);
+        var bare = await Kept(new BeginAuthorizationOptions(endpoint, "https://app.test/callback"));
+        Assert.Equal(RequiredOf(schema), Members(bare));
+    }
+
+    [Fact]
+    public void OnePlaceFollowsItsTable()
+    {
+        using var table = ReadSpec("session/registry-cases.json");
+        var cases = table.RootElement.GetProperty("cases").EnumerateArray().ToArray();
+        Assert.NotEmpty(cases);
+        foreach (var row in cases)
+        {
+            var one = Required<KbEndpoint>(row.GetProperty("one"));
+            var other = Required<KbEndpoint>(row.GetProperty("other"));
+            var same = row.GetProperty("samePlace").GetBoolean();
+            Assert.True(SemiontBrowser.SamePlace(one, other) == same, Text(row, "why"));
+            Assert.True(SemiontBrowser.SamePlace(other, one) == same, Text(row, "why") + ", the other way round");
         }
     }
 
