@@ -20,12 +20,13 @@ package semiont
 
 import (
 	"context"
-	"crypto/rand"
+	cryptorand "crypto/rand"
 	"crypto/rsa"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"strings"
@@ -80,7 +81,7 @@ func (c KeyCredential) GrantForm(tokenEndpoint string) (url.Values, error) {
 	jti := make([]byte, 16)
 	// crypto/rand's Read never returns an error: it fills the buffer or ends
 	// the program.
-	_, _ = rand.Read(jti)
+	_, _ = cryptorand.Read(jti)
 	assertion, err := clientAssertion(c.PrivateKey, c.ClientID, tokenEndpoint, time.Now().Unix(), hex.EncodeToString(jti))
 	if err != nil {
 		return nil, err
@@ -212,6 +213,9 @@ type AgentConfig struct {
 	// HTTP is the client the gateway is asked over.
 	HTTP   *http.Client
 	Timing Timing
+	// Random is what the jitter of a renewal tried again is drawn from, as
+	// EqualJitter draws it.
+	Random *rand.Rand
 }
 
 // AgentToken is the token of an agent at a gateway, kept signed in until it is
@@ -293,7 +297,7 @@ func (a *AgentToken) renew(ctx context.Context) (string, error) {
 // left as it is and the next is due an interval later, by the schedule's
 // floor.
 func (a *AgentToken) renewWithinBudget() {
-	_, _ = RetryWithBackoff(a.alive, a.config.Timing.RefreshRetry, a.renew, transientRenewal,
+	_, _ = RetryWithBackoff(a.alive, a.config.Timing.RefreshRetry, a.config.Random, a.renew, transientRenewal,
 		func(error) (time.Duration, bool) { return 0, false })
 }
 

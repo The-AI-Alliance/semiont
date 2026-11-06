@@ -21,10 +21,13 @@ function invoke(channel: string, ...args: unknown[]): Promise<unknown> {
   return Promise.resolve(handler(null, ...args));
 }
 
-/** The issuer's token endpoint, as the refresh grant meets it: one path renews (rotating
- *  the refresh token), one refuses the way Keycloak refuses a dead refresh token. */
+/** The issuer, as the refresh grant and a revocation meet it: one path renews (rotating
+ *  the refresh token), one revokes, and every other refuses the way Keycloak refuses a
+ *  dead refresh token. */
 let issuer: Server;
 let issuerUrl = '';
+/** The path of every request the issuer has been sent. */
+const asked: (string | undefined)[] = [];
 
 function storeSession(kbId: string, tokenEndpoint: string): void {
   setStoredSession(new FileSessionStorage(sessionPath(kbId)), kbId, {
@@ -35,10 +38,21 @@ function storeSession(kbId: string, tokenEndpoint: string): void {
   });
 }
 
+/** An access token an hour from its expiry. Only its expiry is read. */
+function unexpiredAccess(): string {
+  const part = (value: object): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  return `${part({ alg: 'none', typ: 'JWT' })}.${part({ exp: Math.floor(Date.now() / 1000) + 3600 })}.signature`;
+}
+
 beforeAll(async () => {
   process.env['XDG_CONFIG_HOME'] = mkdtempSync(join(tmpdir(), 'chat-auth-'));
   registerAuthHandlers();
   issuer = createServer((request, response) => {
+    asked.push(request.url);
+    if (request.url === '/revokes') {
+      response.writeHead(200).end();
+      return;
+    }
     if (request.url === '/renews') {
       response
         .writeHead(200, { 'content-type': 'application/json' })
@@ -70,6 +84,18 @@ describe('auth:resume — what a stored session is found to be', () => {
     expect(readFileSync(sessionPath('renews:4000'), 'utf8')).toContain('rotated-refresh');
   });
 
+  it('kept and unexpired, this process holding none: the kept access token, and the issuer not asked', async () => {
+    const kept = unexpiredAccess();
+    setStoredSession(new FileSessionStorage(sessionPath('current:4000')), 'current:4000', {
+      access: kept,
+      refresh: 'stored-refresh',
+      clientId: 'semiont-browser',
+      tokenEndpoint: `${issuerUrl}/current`,
+    });
+    expect(await invoke('auth:resume', 'current:4000')).toEqual({ value: { kind: 'resumed', access: kept } });
+    expect(asked).not.toContain('/current');
+  });
+
   it('refused by the issuer: the person signs in again, told the issuer’s own answer', async () => {
     storeSession('refused:4000', `${issuerUrl}/refuses`);
     expect(await invoke('auth:resume', 'refused:4000')).toEqual({
@@ -97,7 +123,43 @@ describe('auth:resume — what a stored session is found to be', () => {
   });
 });
 
+describe('auth:refresh — a renewal the renderer asks for, naming the token it holds', () => {
+  it('of a token older than the one kept: the kept token, and the issuer not asked', async () => {
+    const kept = unexpiredAccess();
+    setStoredSession(new FileSessionStorage(sessionPath('older:4000')), 'older:4000', {
+      access: kept,
+      refresh: 'stored-refresh',
+      clientId: 'semiont-browser',
+      tokenEndpoint: `${issuerUrl}/older`,
+    });
+    // This process holds the kept token: the resume gave it out.
+    expect(await invoke('auth:resume', 'older:4000')).toEqual({ value: { kind: 'resumed', access: kept } });
+
+    expect(await invoke('auth:refresh', 'older:4000', 'older-access')).toBe(kept);
+    expect(asked).not.toContain('/older');
+  });
+
+  it('naming something that is no token, nor that it holds none, is refused', async () => {
+    await expect(Promise.resolve().then(() => invoke('auth:refresh', 'none:4000', 42))).rejects.toThrow(
+      'auth: a held access token is a string, or null for none',
+    );
+  });
+});
+
 describe('auth:sign-out', () => {
+  it('revokes the kept refresh token at the issuer the session names, and forgets the session', async () => {
+    setStoredSession(new FileSessionStorage(sessionPath('revoked:4000')), 'revoked:4000', {
+      access: 'stored-access',
+      refresh: 'stored-refresh',
+      clientId: 'semiont-browser',
+      tokenEndpoint: `${issuerUrl}/renews`,
+      revocationEndpoint: `${issuerUrl}/revokes`,
+    });
+    await invoke('auth:sign-out', 'revoked:4000');
+    expect(asked).toContain('/revokes');
+    expect(existsSync(sessionPath('revoked:4000'))).toBe(false);
+  });
+
   it('forgets a session it cannot read, as asked', async () => {
     const path = sessionPath('unreadable-out:4000');
     mkdirSync(dirname(path), { recursive: true });

@@ -56,7 +56,7 @@ console.error(`Signed in as ${me?.email}`);
 
 Every verb is on `session.client`: `session.client.mark.delegate(...)`, `session.client.gather.annotation(...)` and so on.
 
-A script that gets its token some other way, such as a service account's client-credentials grant, opens the session with `SemiontSession.fromHttp({ kb, storage, baseUrl, token, refresh })`, which gives an `OpenedSession` too, and supplies `refresh` itself.
+A script that gets its token some other way, such as a service account's client-credentials grant, opens the session with `SemiontSession.fromHttp({ kb, storage, baseUrl, token, refresh })`, which gives an `OpenedSession` too, and supplies `refresh` itself. The session gives `refresh` the token it holds, the one refused or the one due, and takes the token it returns.
 
 ## Keeping tokens across restarts
 

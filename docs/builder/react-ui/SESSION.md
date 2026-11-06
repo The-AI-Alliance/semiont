@@ -41,7 +41,9 @@ Per-KB lifetime object, and a state unit. Holds:
   session, then the client.
 - `token$`, `user$` — observable auth state.
 - `errors$` — the transport's errors, republished.
-- `refresh()` — token refresh entrypoint.
+- `refresh(refused)` — renews the token the gateway refused (null when the
+  request carried none). A token the session has already replaced is answered
+  with the one it holds, and nothing is renewed.
 
 Modal state sits beside the session in its `SessionSignals`
 (`browser.activeSignals$`): `sessionEnded$`, `permissionDenied$` and

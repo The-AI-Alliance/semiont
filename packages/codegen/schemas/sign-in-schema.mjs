@@ -5,7 +5,8 @@
 //
 // One place for the checks, shared by every generator that reads such a schema
 // (generate-sign-in-go.mjs for the launcher, generate-sign-in-python.mjs and
-// generate-stored-python.mjs for the Python SDK), so no generated shape comes
+// generate-stored-python.mjs for the Python SDK, generate-sign-in.mjs for the
+// TypeScript SDK), so no generated shape comes
 // from a schema the others would refuse.
 //
 // The schema is flat: every property is a string, some of them a date-time.

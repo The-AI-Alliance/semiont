@@ -113,7 +113,7 @@ func newFactory() *factory {
 			}), nil
 		}
 		return nil, fmt.Errorf("%s is not answered here", operation)
-	})
+	}, nil)
 	sessions.RefuseWhen(func(kbID string, operation bus.Channel, payload json.RawMessage) json.RawMessage {
 		held.mu.Lock()
 		defer held.mu.Unlock()

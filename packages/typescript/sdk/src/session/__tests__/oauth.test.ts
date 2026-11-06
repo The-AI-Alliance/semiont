@@ -372,7 +372,7 @@ describe('refresh and revocation', () => {
       });
 
       // The issuer renewed it, and there is no session left to hold the token.
-      expect(await refreshStoredSession(storage, KB)).toBeNull();
+      expect(await refreshStoredSession(storage, KB, 'acc-1')).toBeNull();
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(stored(storage)).toBeNull();
@@ -392,7 +392,7 @@ describe('refresh and revocation', () => {
         return reply({ access_token: 'acc-2', refresh_token: 'ref-2' });
       });
 
-      expect(await refreshStoredSession(storage, KB)).toBe('acc-elsewhere');
+      expect(await refreshStoredSession(storage, KB, 'acc-1')).toBe('acc-elsewhere');
       expect(storage.get(`semiont.session.${KB}`)).toBe(renewedElsewhere);
     });
 
@@ -402,7 +402,7 @@ describe('refresh and revocation', () => {
         .mockImplementationOnce(async () => reply({ access_token: 'acc-2', refresh_token: 'ref-2' }));
       const storage = seeded();
 
-      expect(await refreshStoredSession(storage, KB)).toBe('acc-2');
+      expect(await refreshStoredSession(storage, KB, 'acc-1')).toBe('acc-2');
       expect(stored(storage)?.access, 'the rotation is persisted').toBe('acc-2');
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
@@ -431,7 +431,7 @@ describe('refresh and revocation', () => {
         .mockImplementationOnce(async () => { throw new TypeError('fetch failed'); })
         .mockImplementationOnce(async () => reply({ access_token: 'acc-2' }));
 
-      expect(await refreshStoredSession(seeded(), KB)).toBe('acc-2');
+      expect(await refreshStoredSession(seeded(), KB, 'acc-1')).toBe('acc-2');
     });
 
     it('does NOT retry a refused grant — null on the first answer', async () => {
@@ -439,14 +439,14 @@ describe('refresh and revocation', () => {
       // only delays a re-login the user has to do anyway.
       fetchMock.mockImplementation(async () => reply({ error: 'invalid_grant' }, 400));
 
-      await expect(refreshStoredSession(seeded(), KB)).rejects.toThrow();
+      await expect(refreshStoredSession(seeded(), KB, 'acc-1')).rejects.toThrow();
       expect(fetchMock, 'a refusal is final on the first answer').toHaveBeenCalledTimes(1);
     });
 
     it('does not retry an unclassified fault either — terminal by default', async () => {
       fetchMock.mockImplementation(async () => reply(undefined, 404));
 
-      await expect(refreshStoredSession(seeded(), KB)).rejects.toThrow();
+      await expect(refreshStoredSession(seeded(), KB, 'acc-1')).rejects.toThrow();
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
@@ -457,7 +457,7 @@ describe('refresh and revocation', () => {
       fetchMock.mockImplementation(async () => reply(undefined, 503));
       const storage = seeded();
 
-      await expect(refreshStoredSession(storage, KB)).rejects.toThrow();
+      await expect(refreshStoredSession(storage, KB, 'acc-1')).rejects.toThrow();
       expect(fetchMock.mock.calls.length, 'bounded').toBeLessThanOrEqual(4);
       expect(fetchMock.mock.calls.length, 'and it did retry').toBeGreaterThan(1);
       expect(stored(storage), 'the stored session is left for the caller to clear').not.toBeNull();
@@ -470,7 +470,7 @@ describe('refresh and revocation', () => {
       vi.useFakeTimers();
       fetchMock.mockImplementation(answer);
 
-      const failed = refreshStoredSession(seeded(), KB).catch((e: unknown) => e);
+      const failed = refreshStoredSession(seeded(), KB, 'acc-1').catch((e: unknown) => e);
       await vi.advanceTimersByTimeAsync(60_000);
       const failure = await failed;
 
@@ -498,7 +498,7 @@ describe('refresh and revocation', () => {
     it('throws the issuer\'s own words on a refusal', async () => {
       fetchMock.mockImplementation(async () => reply({ error: 'invalid_grant', error_description: 'revoked' }, 400));
 
-      await expect(refreshStoredSession(seeded(), KB)).rejects.toThrow(/invalid_grant: revoked/);
+      await expect(refreshStoredSession(seeded(), KB, 'acc-1')).rejects.toThrow(/invalid_grant: revoked/);
     });
 
     it('names the exhausted budget as well as the last cause', async () => {
@@ -507,7 +507,7 @@ describe('refresh and revocation', () => {
       // whether they look at the network or at the issuer.
       fetchMock.mockImplementation(async () => reply(undefined, 503));
 
-      await expect(refreshStoredSession(seeded(), KB)).rejects.toThrow(/4 attempts.*HTTP 503/s);
+      await expect(refreshStoredSession(seeded(), KB, 'acc-1')).rejects.toThrow(/4 attempts.*HTTP 503/s);
     });
 
     it('a storage that will not keep a renewal it took retries to make fails as itself, not as the issuer', async () => {
@@ -521,7 +521,7 @@ describe('refresh and revocation', () => {
         throw full;
       });
 
-      const failed = refreshStoredSession(storage, KB).catch((e: unknown) => e);
+      const failed = refreshStoredSession(storage, KB, 'acc-1').catch((e: unknown) => e);
       await vi.advanceTimersByTimeAsync(60_000);
 
       expect(await failed).toBe(full);
@@ -532,7 +532,7 @@ describe('refresh and revocation', () => {
     it('still answers null — not a throw — when there is simply nothing stored', async () => {
       // An absence is not a failure. The caller distinguishes "never signed in"
       // from "could not renew", and this is the only case that is the former.
-      expect(await refreshStoredSession(new InMemorySessionStorage(), KB)).toBeNull();
+      expect(await refreshStoredSession(new InMemorySessionStorage(), KB, null)).toBeNull();
     });
   });
 
@@ -676,7 +676,7 @@ describe('a request to the issuer has a deadline', () => {
     // What a request rejects with when its deadline passes.
     fetchMock.mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'));
 
-    const renewed = expect(refreshStoredSession(storage, 'kb-1')).rejects.toThrow(
+    const renewed = expect(refreshStoredSession(storage, 'kb-1', 'a1')).rejects.toThrow(
       `The session could not be renewed after ${REFRESH_RETRY.attempts} attempts: The issuer did not answer: TimeoutError`,
     );
     await vi.advanceTimersByTimeAsync(60_000);
