@@ -58,6 +58,7 @@ generate unit@(YieldStateUnit tasks client locale _ _ _ _ _) params deadline = d
               Just (YieldJobResultBranch1 done) -> State.update (outcome unit) (Just done)
               _ -> pure ()
             Delegation.Failed _ -> pure ()
+            Delegation.Refused _ -> pure ()
         work = Yield.delegate (Client.yield client) selected deadline >>= \run -> Running.withReports run (void . Stream.mapM_ (liftIO . report))
         failed problem cancelled = atomically $ do
           State.update (failure unit) (Just problem)

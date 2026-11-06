@@ -50,7 +50,7 @@ from semiont.testing import (
     StubGateway,
 )
 from semiont.timing import MARK_COMMIT_TIMEOUT_MS
-from semiont.transport import Frame, TraceContext
+from semiont.transport import Frame, FrameRefusal, TraceContext
 from semiont.types import (
     Annotation,
     DurabilityEvidence,
@@ -189,6 +189,12 @@ class World:
     def relay(self, channel: str, payload: JsonObject) -> None:
         """A broadcast the gateway relays to this worker."""
         self.transport.deliver(Frame(channel=channel, payload=payload))
+
+    def relay_refused(self, channel: str) -> None:
+        """A broadcast the gateway relays to this worker that its transport refuses: its payload is no object."""
+        self.transport.deliver(
+            FrameRefusal(channel=channel, member="payload", reason="malformed", payload="job-8", scope=None, correlation_id=None)
+        )
 
     def sent(self, channel: str) -> list[JsonObject]:
         return [dict(frame.payload) for frame in self.transport.emitted if frame.channel == channel]
@@ -406,6 +412,40 @@ def test_a_matching_announcement_claims_and_one_that_matches_no_filter_does_not(
             await finish(await reading)
             await turns()
             assert len(w.sent("job:claim")) == 3, "and the settle asks"
+        await w.over()
+
+    run(scenario())
+
+
+def test_an_announcement_its_transport_refused_wakes_the_worker_as_a_matching_one_would_since_no_filter_can_be_compared_with_it() -> None:
+    async def scenario() -> None:
+        # Each claim is answered a tenth of a second after it is sent, so that one is in flight when an announcement comes.
+        w = World(wire=[Delay(100)])
+        async with w.client.job.claim(TAGGING) as claims:
+            reading = asyncio.ensure_future(held(claims))
+            await turns()
+            assert len(w.sent("job:claim")) == 1, "the first claim, in flight"
+
+            w.relay_refused("job:queued")
+            await turns()
+            assert len(w.sent("job:claim")) == 1, "a claim is in flight: one more is owed"
+            await pass_time(0.15, step=0.05)
+            assert len(w.sent("job:claim")) == 2, "exactly one more"
+            await pass_time(0.15, step=0.05)
+            assert len(w.sent("job:claim")) == 2
+
+            w.offered.append(running("job-1", params={"motivation": "tagging"}))
+            w.relay_refused("job:queued")
+            await turns()
+            assert len(w.sent("job:claim")) == 3, "holding nothing: a claim"
+            await pass_time(0.15, step=0.05)
+            job = await soon(reading)
+
+            w.relay_refused("job:queued")
+            await turns()
+            assert len(w.sent("job:claim")) == 3, "holding a job: nothing"
+            await finish(job)
+            await pass_time(0.15, step=0.05)
         await w.over()
 
     run(scenario())
@@ -1044,6 +1084,22 @@ def test_vitals_say_what_the_worker_holds_and_has_done_and_a_silent_held_job_is_
             done = claims.vitals()
             assert (done.active_job, done.jobs_completed) == (None, 1)
             assert done.last_finished_at is not None
+        await w.over()
+
+    run(scenario())
+
+
+def test_vitals_stamp_an_announcement_its_transport_refused_which_was_received_all_the_same() -> None:
+    async def scenario() -> None:
+        w = World()
+        w.offered.append(running("job-1"))
+        async with w.client.job.claim(EVERYTHING) as claims:
+            job = await held(claims)
+            assert claims.vitals().last_queued_event_at is None
+            w.relay_refused("job:queued")
+            await turns()
+            assert claims.vitals().last_queued_event_at is not None
+            await finish(job)
         await w.over()
 
     run(scenario())

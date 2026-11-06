@@ -14,7 +14,7 @@ from semiont._reading import Reading
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError
 from semiont.identifiers import JobId
-from semiont.namespaces.follow import Delegation, JobAttemptFailed, JobCompleted, JobCreated, JobProgressed
+from semiont.namespaces.follow import Delegation, JobAttemptFailed, JobCompleted, JobCreated, JobProgressed, JobRefused
 from semiont.state._jobs import cancelled
 from semiont.state._tasks import Tasks
 from semiont.state_unit import StateUnit
@@ -105,8 +105,8 @@ class YieldStateUnit(StateUnit):
                     case JobCompleted(data=complete):
                         if isinstance(complete.result, YieldJobDone):
                             self._outcome.set(complete.result)
-                    case JobAttemptFailed():
-                        # An attempt that failed and will be tried again: the run is not over.
+                    case JobAttemptFailed() | JobRefused():
+                        # An attempt that failed and will be tried again, or a frame refused: the run is not over.
                         pass
         except SemiontError as failure:
             # Why it ended is said before the end itself. A cancelled run's progress stays.

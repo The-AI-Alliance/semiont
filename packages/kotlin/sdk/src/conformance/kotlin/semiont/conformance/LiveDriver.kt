@@ -28,6 +28,7 @@ import semiont.JobCompleted
 import semiont.JobCreated
 import semiont.JobEvent
 import semiont.JobProgressed
+import semiont.JobRefused
 import semiont.SemiontClient
 import semiont.cache.CacheState
 import semiont.cache.Cached
@@ -102,6 +103,11 @@ private fun event(event: JobEvent<JobCompleteCommand>): JsonObject = Say.of(
         is JobCreated -> wire.encodeToJsonElement(JobCreatedResultResponse.serializer(), event.data)
         is JobProgressed -> wire.encodeToJsonElement(JobProgress.serializer(), event.data)
         is JobAttemptFailed -> wire.encodeToJsonElement(JobFailCommand.serializer(), event.data)
+        is JobRefused -> Say.of(
+            "channel" to JsonPrimitive(event.data.channel),
+            "member" to JsonPrimitive(event.data.member),
+            "reason" to JsonPrimitive(event.data.reason.wire),
+        )
         is JobCompleted -> wire.encodeToJsonElement(JobCompleteCommand.serializer(), event.data)
     },
 )

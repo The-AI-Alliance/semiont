@@ -39,7 +39,8 @@ impl MatchStateUnit {
 
 async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
     while let Some(frame) = heard.next().await {
-        let Ok(frame) = frame else { continue };
+        // A request missed is not known, and one refused asks nothing.
+        let Ok(Ok(frame)) = frame else { continue };
         let Some(request) = said::<MatchSearchRequested>(&frame) else {
             continue;
         };

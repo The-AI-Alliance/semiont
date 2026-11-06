@@ -334,7 +334,7 @@ fn deliveries(transport: &HttpTransport) -> Arc<Mutex<Vec<String>>> {
     let mut frames = transport.frames(CHANNEL).expect("frames");
     let record = delivered.clone();
     tokio::spawn(async move {
-        while let Some(Ok(frame)) = frames.next().await {
+        while let Some(Ok(Ok(frame))) = frames.next().await {
             let id = frame.payload["annotationId"].as_str().unwrap_or_default();
             record.lock().unwrap().push(id.to_owned());
         }

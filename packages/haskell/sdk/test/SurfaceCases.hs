@@ -172,7 +172,8 @@ runCase fixtures namespace member via row = do
         listener <- async $ Local.events (Client.bus client) channel $ \events -> putMVar ready () >> Stream.head_ events
         takeMVar ready
         invoke rigValue namespace member args
-        frame <- wait listener >>= maybe (ioError (userError "local signal disappeared")) pure
+        carried <- wait listener >>= maybe (ioError (userError "local signal disappeared")) pure
+        frame <- case carried of Transport.Arrived value -> pure value; Transport.FrameRejected _ -> ioError (userError "local signal was refused")
         correlation <- optional "correlationId" row
         require "local correlation escaped its envelope" (busFrameCorrelationId (Transport.wireFrame frame) == correlation)
         require "local signal differs from surface table" (Object (busFramePayloadAdditionalProperties (busFramePayload (Transport.wireFrame frame))) == expected)

@@ -24,7 +24,8 @@
 //! wake-up is a PRE-FILTER: an announcement carries the job description less
 //! its input, so the worker asks its own claim's question of it,
 //! `job_matches_filter`, the comparison the dispatcher makes, and does not
-//! spend a round trip to be declined.
+//! spend a round trip to be declined. An announcement the transport refused
+//! cannot be compared, so it counts as one that matches.
 //!
 //! A HELD JOB owns its lifecycle. It says its own start, progress and
 //! checkpoints, and it settles once: `complete`, `fail` and `cancel` each
@@ -208,7 +209,8 @@ pub struct ActiveJob {
 
 /// What a worker can say of itself at any moment (WORKER-CONTRACT V1).
 ///
-/// `last_queued_event_at` is any `job:queued` received, matching or not. On
+/// `last_queued_event_at` is any `job:queued` received, matching or not, one
+/// the transport refused among them. On
 /// an idle stack with an empty queue it stands still by design, so a still
 /// stamp alone is not a fault of the stream. `last_activity_at` (a claim, a
 /// progress report, a checkpoint, a settle) is the liveness of the work: a
@@ -1209,7 +1211,7 @@ async fn run(inner: Arc<Inner>, out: mpsc::Sender<Handed>, mut stop: watch::Rece
                 want = again;
             }
             announced = queued.next() => match announced {
-                Some(Ok(announced)) => {
+                Some(Ok(Ok(announced))) => {
                     // Every announcement received is stamped, before any filtering.
                     locked(&inner.state).last_queued_event_at = Some(SystemTime::now());
                     let announced = Value::Object(announced.payload);
@@ -1218,18 +1220,27 @@ async fn run(inner: Arc<Inner>, out: mpsc::Sender<Handed>, mut stop: watch::Rece
                         .iter()
                         .any(|filter| job_matches_filter(filter, &announced));
                 }
+                // An announcement refused was received all the same, and no
+                // filter can be compared with what cannot be read: it wakes
+                // the worker as one that matches would.
+                Some(Ok(Err(_))) => {
+                    locked(&inner.state).last_queued_event_at = Some(SystemTime::now());
+                    want = true;
+                }
                 // The stream fell behind, and what it missed may have been a
                 // wake-up: the queue is asked.
                 Some(Err(_)) => want = true,
                 None => break,
             },
             request = cancels.next() => match request {
-                Some(Ok(request)) => {
+                Some(Ok(Ok(request))) => {
                     if let Some(job_id) = request.payload.get("jobId").and_then(Value::as_str) {
                         inner.signal_cancellation(job_id);
                     }
                 }
-                Some(Err(_)) => {}
+                // A cancellation missed is not known, and one refused names no
+                // job to trust.
+                Some(Ok(Err(_)) | Err(_)) => {}
                 None => break,
             },
             changed = state.changed() => {

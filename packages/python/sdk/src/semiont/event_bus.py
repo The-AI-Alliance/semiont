@@ -8,6 +8,9 @@ A frame is published to everyone or into one resource's scope, and a reader
 sees one or the other: a reader of a channel does not see a frame published
 into a scope, and a scope's reader sees only its own.
 
+A frame its transport refused is delivered as its `FrameRefusal`, where the
+frame would have been.
+
 A reader of one channel is given its frames in the order they were published.
 Two readers give no order between them, so one that needs what was said on
 several channels in the order it was said reads them as one (`frames_among`).
@@ -27,7 +30,7 @@ from semiont.channel import Channel, ScopedChannel
 from semiont.events import Broadcast, Events
 from semiont.identifiers import ResourceId
 from semiont.model import WireModel
-from semiont.transport import Frame, FrameSink
+from semiont.transport import Frame, FrameRefusal, FrameSink
 
 __all__ = ["EventBus"]
 
@@ -37,9 +40,9 @@ class EventBus(FrameSink):
     """See the module's documentation."""
 
     def __init__(self) -> None:
-        self._views: Final[dict[tuple[str, ResourceId | None], Broadcast[Frame]]] = {}
+        self._views: Final[dict[tuple[str, ResourceId | None], Broadcast[Frame | FrameRefusal]]] = {}
         """The readers of each channel: of what is published to everyone, and of each scope."""
-        self._among: list[tuple[frozenset[str], Broadcast[Frame]]] = []
+        self._among: list[tuple[frozenset[str], Broadcast[Frame | FrameRefusal]]] = []
         """The readers of several channels at once, each with the channels it reads."""
         self._destroyed = False
 
@@ -49,8 +52,8 @@ class EventBus(FrameSink):
         return self._destroyed
 
     @override
-    def deliver(self, frame: Frame) -> None:
-        """Publish a frame as it is: to everyone, or into the scope it names. A destroyed bus has no reader to give it to."""
+    def deliver(self, frame: Frame | FrameRefusal) -> None:
+        """Publish a frame, or its refusal, as it is: to everyone, or into the scope it names. A destroyed bus has no reader for it."""
         if frame.scope is None:
             for channels, readers in self._among:
                 if frame.channel in channels:
@@ -76,11 +79,11 @@ class EventBus(FrameSink):
         """Publish one frame of `channel`: to everyone, or into `scope`."""
         self.emit(channel.name, channel.encode(payload), scope=scope, correlation_id=correlation_id)
 
-    def frames_on(self, channel: str, *, scope: ResourceId | None = None) -> Events[Frame]:
+    def frames_on(self, channel: str, *, scope: ResourceId | None = None) -> Events[Frame | FrameRefusal]:
         """The frames published on the channel named `channel` from now on: to everyone, or into `scope`. Of a destroyed bus, none."""
         view = self._views.get((channel, scope))
         if view is None:
-            view = Broadcast[Frame]()
+            view = Broadcast[Frame | FrameRefusal]()
             if self._destroyed:
                 view.close()
             else:
@@ -91,9 +94,9 @@ class EventBus(FrameSink):
         """The frames published on `channel` from now on, each with its payload decoded: to everyone, or into `scope`."""
         return Typed(channel, self.frames_on(channel.name, scope=scope))
 
-    def frames_among(self, channels: Collection[str]) -> Events[Frame]:
+    def frames_among(self, channels: Collection[str]) -> Events[Frame | FrameRefusal]:
         """The frames published to everyone on any of `channels` from now on, in the order they were published."""
-        readers = Broadcast[Frame]()
+        readers = Broadcast[Frame | FrameRefusal]()
         if self._destroyed:
             readers.close()
         else:

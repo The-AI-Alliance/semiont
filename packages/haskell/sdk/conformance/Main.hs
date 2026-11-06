@@ -174,7 +174,9 @@ perform driver identifier operation args = case operation of
     transport <- Http.transport <$> opened driver
     channel <- need args "channel"
     reporter driver $ \ready -> Transport.frames transport channel $ \frames -> ready >> Stream.mapM_ (\frame ->
-      say driver (object ["frame" .= Transport.wireFrame frame])) frames
+      case frame of
+        Transport.Arrived value -> say driver (object ["frame" .= Transport.wireFrame value])
+        Transport.FrameRejected _ -> throwIO (Misuse "wire corpus carried a refused frame")) frames
     pure Null
   "subscribe-resource" -> Just $ do
     transport <- Http.transport <$> opened driver

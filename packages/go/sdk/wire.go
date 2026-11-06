@@ -35,8 +35,10 @@ func (w *Wire) EmitOn(ctx context.Context, channel bus.Channel, payload map[stri
 }
 
 // FramesOn is the frames delivered on any of channels from now on, in the
-// order they were delivered, until the loop stops or ctx is done.
-func (w *Wire) FramesOn(ctx context.Context, channels ...bus.Channel) (iter.Seq[Frame], error) {
+// order they were delivered, until the loop stops or ctx is done. A frame
+// the transport refused is given as the channel and scope it names, with
+// its *FrameRefusal as the error.
+func (w *Wire) FramesOn(ctx context.Context, channels ...bus.Channel) (iter.Seq2[Frame, error], error) {
 	return w.transport.Frames(ctx, channels...)
 }
 
@@ -61,7 +63,8 @@ func (w *Wire) RequestOf(ctx context.Context, request bus.Channel, payload map[s
 }
 
 // result is a request, as far as the frame that answers it on its result
-// channel. A failure answered is a *BusRequestError carrying it. asking, when
+// channel. A failure answered is a *BusRequestError carrying it, and a reply
+// its transport refused is a *TransportError saying so, at once. asking, when
 // it is not nil, is called as the request is sent.
 func (w *Wire) result(ctx context.Context, request bus.Channel, payload map[string]any, within time.Duration, asking func()) (Frame, error) {
 	operation, ok := bus.Operations[request]
@@ -128,6 +131,9 @@ func (w *Wire) result(ctx context.Context, request bus.Channel, payload map[stri
 			return Frame{}, &BusRequestError{Code: BusRequestErrorCodeClosed, Message: fmt.Sprintf("Bus closed before a reply on %s", operation.Result)}
 		}
 		reply = frame
+	case refusal := <-pending.Refused():
+		// As a reply whose payload is not its channel's fails it.
+		return Frame{}, transportErrorWithoutResponse(refusal.Error(), TransportErrorCodeError)
 	case <-waiting.Done():
 		return Frame{}, ended()
 	}
@@ -159,20 +165,34 @@ type Delivered[P any] struct {
 	Trace TraceContext
 }
 
-// delivered is frame with its payload decoded as P. A payload with a fault
-// as P's, or that Go's decoding refuses, is a *TransportError naming the
-// fault; what a gateway stamps on a payload is the bus's, and P does not
-// read it unless P declares it.
-func delivered[P any](frame Frame) (Delivered[P], error) {
-	notTheChannels := func(fault required.Fault) error {
-		return transportErrorWithoutResponse(fmt.Sprintf("a payload on %s is not that channel's: %s", frame.Channel, fault), TransportErrorCodeError)
+// delivered is frame with its payload decoded as P; or, for a payload with a
+// fault as P's, the refusal its channel's reader gives in its place, as every
+// SDK's does: its fault named by its way from the frame.
+func delivered[P any](frame Frame) (Delivered[P], *FrameRefusal) {
+	read, fault, faulty := payloadAs[P](frame)
+	if faulty {
+		return Delivered[P]{}, refusedPayload(frame, fault)
 	}
+	return read, nil
+}
+
+// refusedPayload is the refusal of frame, whose payload has fault, named from
+// the payload.
+func refusedPayload(frame Frame, fault required.Fault) *FrameRefusal {
+	return &FrameRefusal{Channel: frame.Channel, Member: fault.Within("payload").Member, Reason: fault.Reason, Payload: frame.Payload, Envelope: frame.Envelope}
+}
+
+// payloadAs is frame with its payload decoded as P; or, true, the payload's
+// first fault as P's, named from the payload, which is the payload itself
+// for one Go's decoding refuses. What a gateway stamps on a payload is the
+// bus's, and P does not read it unless P declares it.
+func payloadAs[P any](frame Frame) (Delivered[P], required.Fault, bool) {
 	if fault, faulty := required.FaultOfFramePayload(frame.Payload, reflect.TypeFor[P]()); faulty {
-		return Delivered[P]{}, notTheChannels(fault)
+		return Delivered[P]{}, fault, true
 	}
 	var payload P
 	if json.Unmarshal(frame.Payload, &payload) != nil {
-		return Delivered[P]{}, notTheChannels(required.Undecoded)
+		return Delivered[P]{}, required.Undecoded, true
 	}
 	var stamped struct {
 		UserID *string `json:"_userId"`
@@ -183,19 +203,33 @@ func delivered[P any](frame Frame) (Delivered[P], error) {
 			userID = parsed
 		}
 	}
-	return Delivered[P]{Payload: payload, Envelope: frame.Envelope, UserID: userID, Trace: frame.Trace}, nil
+	return Delivered[P]{Payload: payload, Envelope: frame.Envelope, UserID: userID, Trace: frame.Trace}, required.Fault{}, false
 }
 
-// typed is frames, each with its payload decoded as P. One that is not P's
-// is given as its error, and the frames after it follow.
-func typed[P any](frames iter.Seq[Frame]) iter.Seq2[Delivered[P], error] {
+// typed is frames, each with its payload decoded as P. One whose payload is
+// not P's is given as its *FrameRefusal, as is the refusal of one its
+// transport refused, and the frames after it follow.
+func typed[P any](frames iter.Seq2[Frame, error]) iter.Seq2[Delivered[P], error] {
 	return func(yield func(Delivered[P], error) bool) {
-		for frame := range frames {
-			if !yield(delivered[P](frame)) {
+		for frame, refused := range frames {
+			if !yield(heardAs[P](frame, refused)) {
 				return
 			}
 		}
 	}
+}
+
+// heardAs is a frame read as P's, or the *FrameRefusal given in its place:
+// the one its transport delivered, or its payload's as P's.
+func heardAs[P any](frame Frame, refused error) (Delivered[P], error) {
+	if refused != nil {
+		return Delivered[P]{}, refused
+	}
+	read, refusal := delivered[P](frame)
+	if refusal != nil {
+		return Delivered[P]{}, refusal
+	}
+	return read, nil
 }
 
 // payloadOf is payload as the JSON object the untyped wire carries, its
@@ -225,7 +259,9 @@ func Emit[P any](ctx context.Context, w *Wire, c bus.Emittable[P], payload P, en
 }
 
 // Frames is the frames delivered on c from now on, each with its payload
-// decoded, until the loop stops or ctx is done. A channel the transport can
+// decoded, until the loop stops or ctx is done. A frame refused, by its
+// transport or as one whose payload is not c's, is given as its
+// *FrameRefusal, and the frames after it follow. A channel the transport can
 // never deliver is refused, as unsubscribed. A channel a resource's scope
 // carries is read for a resource (FramesOf), and does not compile here, where
 // nothing would be delivered to it.
@@ -238,7 +274,8 @@ func Frames[P any](ctx context.Context, w *Wire, c bus.Global[P]) (iter.Seq2[Del
 }
 
 // FramesOf is the frames delivered on c for resource from now on, each with
-// its payload decoded, until the loop stops or ctx is done. c reaches only a
+// its payload decoded or refused as Frames gives it, until the loop stops or
+// ctx is done. c reaches only a
 // client that holds the resource's scope, so the read holds it while it is
 // read, and is given that resource's frames and no other's.
 func FramesOf[P, E any](ctx context.Context, w *Wire, c bus.Scoped[P, E], resource api.ResourceId) (iter.Seq2[Delivered[P], error], error) {
@@ -249,12 +286,12 @@ func FramesOf[P, E any](ctx context.Context, w *Wire, c bus.Scoped[P, E], resour
 	return func(yield func(Delivered[P], error) bool) {
 		release := w.transport.SubscribeToResource(resource)
 		defer release()
-		for frame := range frames {
+		for frame, refused := range frames {
 			// A stream carries every scope it holds on the one channel, and another reader may hold another resource's.
 			if frame.Scope != resource {
 				continue
 			}
-			if !yield(delivered[P](frame)) {
+			if !yield(heardAs[P](frame, refused)) {
 				return
 			}
 		}
@@ -280,9 +317,9 @@ func requestAsking[Q, R, F any](ctx context.Context, w *Wire, op bus.Operation[Q
 	if err != nil {
 		return none, err
 	}
-	answer, err := delivered[R](reply)
-	if err != nil {
-		return none, err
+	answer, fault, faulty := payloadAs[R](reply)
+	if faulty {
+		return none, transportErrorWithoutResponse(fmt.Sprintf("a payload on %s is not that channel's: %s", reply.Channel, fault), TransportErrorCodeError)
 	}
 	return answer.Payload, nil
 }

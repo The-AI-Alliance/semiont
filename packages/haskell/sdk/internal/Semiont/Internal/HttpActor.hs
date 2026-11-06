@@ -192,9 +192,9 @@ runActor http = do
         let (next, messages) = SSE.feed parser bytes
         forM_ messages $ \message -> case message of
           SSE.Message event | SSE.eventType event == busEventName -> case StreamFrame.readFrame (SSE.eventData event) of
-            StreamFrame.Rejected Nothing issue -> Transport.reportError (input http)
+            StreamFrame.Rejected issue -> Transport.reportError (input http)
               (TransportError Code.TransportError ("the stream carried what is not a frame: " <> Required.faultSaid issue) Nothing Nothing)
-            StreamFrame.Rejected (Just _) _ -> pure ()
+            StreamFrame.Refused refused -> Transport.receiveRefusal (input http) refused
             StreamFrame.Accepted frame -> do
               let identity = SSE.assignedId event >>= \value -> if Text.null value then Nothing else Just value
               claimed <- atomically $ do

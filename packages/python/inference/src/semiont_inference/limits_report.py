@@ -21,10 +21,11 @@ from collections.abc import Sequence
 from typing import Final
 
 from semiont import telemetry
-from semiont.bus import Bus, Delivered, FrameRefusal
+from semiont.bus import Bus, Delivered
 from semiont.channel import Operation
 from semiont.errors import SemiontError
 from semiont.model import stated
+from semiont.transport import FrameRefusal
 from semiont.types import (
     CommandError,
     Engine,

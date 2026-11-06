@@ -76,6 +76,7 @@ async def traffic() -> tuple[Frame, str | None]:
             },
         )
         frame = await soon(anext(frames))
+        assert isinstance(frame, Frame), frame
         await transport.emit("beckon:sparkle", {"annotationId": "a-2"})
         await transport.emit("beckon:sparkle", {"annotationId": "a-3"}, scope=RESOURCE)
         await transport.content.put_binary(PutBinaryRequest(name="n", file=b"12345", format="image/png", storage_uri="file://n"))

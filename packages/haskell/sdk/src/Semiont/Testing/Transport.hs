@@ -105,7 +105,9 @@ newFaultyTransport clock schedule respond channels=do
   pure (FaultyTransport over
     (\name values->atomically (modifyTVar' replies (Map.insertWith (flip (++)) name values)))
     (atomically . writeTVar refusal) (readTVarIO entries)
-    (\name correlation payload->Transport.receive input (BusFrame name correlation (BusFramePayload payload) Nothing)))
+    (\carried -> case carried of
+      Transport.Arrived frame -> Transport.receive input (Transport.wireFrame frame)
+      Transport.FrameRejected refusalValue -> Transport.receiveRefusal input refusalValue))
 
 successPayload :: Text -> Object -> Maybe Value -> IO Object
 successPayload name asked response=do

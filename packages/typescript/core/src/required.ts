@@ -98,7 +98,8 @@ function resolved(shape: Shape): Shape {
   return shape.ref === undefined ? shape : resolved(REQUIRED_SCHEMAS[shape.ref]);
 }
 
-const within = (way: string, name: string): string => (way === '' ? name : `${way}.${name}`);
+/** The way to `name` within the member at `way`: their names joined by a dot; `name` alone within the value itself. */
+export const within = (way: string, name: string): string => (way === '' ? name : `${way}.${name}`);
 
 /** Whether `count` is at least `least` and at most `most`, where each is stated. */
 const counted = (least: number | undefined, count: number, most: number | undefined): boolean =>
@@ -231,18 +232,8 @@ export function faultOfShape(shape: Shape, value: unknown): Fault | undefined {
   return faultAt(shape, value, '');
 }
 
-/** What every SDK says of `fault`. */
+/** What every SDK says of `fault`, as it refuses what has it: `it has no \`member\``, `its \`member\` is malformed`, or `it is malformed`. */
 export function said(fault: Fault): string {
   if (fault.reason === 'lacks') return `it has no \`${fault.member}\``;
   return fault.member === '' ? 'it is malformed' : `its \`${fault.member}\` is malformed`;
-}
-
-/**
- * What every SDK says of the first fault `value` has as a `schema`, as it
- * refuses it: `it has no \`member\``, `its \`member\` is malformed`, or `it is
- * malformed`; nothing, when it has none.
- */
-export function faultSaid(schema: SchemaName, value: unknown): string | undefined {
-  const fault = faultOf(schema, value);
-  return fault === undefined ? undefined : said(fault);
 }

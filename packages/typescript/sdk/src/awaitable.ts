@@ -22,7 +22,7 @@
 
 import { Observable, EmptyError, firstValueFrom, lastValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import type { ResourceId, components } from '@semiont/core';
+import type { FrameRefusal, ResourceId, components } from '@semiont/core';
 import type { CacheState } from './cache';
 
 /**
@@ -233,11 +233,18 @@ export type YieldJobCompletion = components['schemas']['YieldJobCompleteCommand'
  * fresh attempt follows, and the stream stays open. Render it as a setback,
  * not an ending. A failure that is final is not an event: it errors the
  * stream.
+ *
+ * `refused` is a frame of a job's progress, completion or failure that was
+ * refused, by its transport or as its channel's: its channel, and the member
+ * and reason of its fault. It names no job, so it may be this job's or
+ * another's, and it is no word of the job: the stream goes on, and its
+ * silence goes on being counted. It comes only after `created`.
  */
 export type JobEvent<C extends JobCompletion = JobCompletion> =
   | { kind: 'created'; data: components['schemas']['JobCreatedResult']['response'] }
   | { kind: 'progress'; data: components['schemas']['JobProgress'] }
   | { kind: 'failed'; data: components['schemas']['JobFailCommand'] }
+  | { kind: 'refused'; data: Pick<FrameRefusal, 'channel' | 'member' | 'reason'> }
   | { kind: 'complete'; data: C };
 
 /** The completion a delegated job's last event carries. */

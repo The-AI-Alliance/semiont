@@ -16,7 +16,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { Observable } from 'rxjs';
-import type { EventMap, BusPrimitive } from '../index';
+import type { EventMap, BusPrimitive, FrameRefusal } from '../index';
 
 /**
  * Equality, not assignability: `Observable<Record<string, unknown>>` satisfies
@@ -29,7 +29,7 @@ type Equals<A, B> =
 /** Payloads are INFERRED from the channel argument — no type argument given. */
 function inferenceProbe(bus: BusPrimitive) {
   const added = bus.stream('mark:added');
-  const exact: Equals<typeof added, Observable<EventMap['mark:added']>> = true;
+  const exact: Equals<typeof added, Observable<EventMap['mark:added'] | FrameRefusal>> = true;
 
   // Guards against a signature that types every channel the same way:
   // `Observable<StoredEvent>` would satisfy the assertion above on its own.

@@ -206,9 +206,12 @@ actorCases root=do
       time <- Time.newTime
       bracket (makeRig time (member "transport" row)) (\(Rig client _ _ _ _)->Client.dispose client) $ \(Rig client input sent queued tasks) -> do
         notes <- newTVarIO []
+        settled <- newTVarIO False
         let channels=map text (maybe [] array (optional "listen" row))
-        detach <- Local.tapLocal (Client.bus client) $ \frame _ -> when (busFrameChannel (Local.wireFrame frame) `elem` channels)
-          (modifyTVar' notes (++[Local.wireFrame frame]))
+        detach <- Local.tapLocal (Client.bus client) $ \carried _ -> case carried of
+          Local.Arrived frame -> when (busFrameChannel (Local.wireFrame frame) `elem` channels)
+            (modifyTVar' notes (++[Local.wireFrame frame]))
+          Local.FrameRejected _ -> throwSTM (userError "valid actor signal was refused")
         units <- traverse (makeUnit client time (text (member "unit" row))) (objectFields (member "made" row))
         let lookupUnit name=maybe (ioError (userError "unknown named actor")) pure (KM.lookup (Key.fromText name) units)
             closeUnits=foldr finally detach [end|Unit _ _ _ end<-KM.elems units]
@@ -223,54 +226,63 @@ actorCases root=do
             frameOf name step=do
               correlation<-resolveCorrelation (optional "correlationId" step)
               pure (BusFrame name correlation (BusFramePayload (objectFields (member "payload" step))) Nothing)
-            run=forM_ (array (member "steps" row)) $ \step -> case step of
-              String "settle"->Time.settle
-              Object fields | Just passed<-KM.lookup "pass" fields->Time.advance time (round (duration passed*1000000))
-              Object fields | Just (String name)<-KM.lookup "invoke" fields->do
-                Unit _ _ invoke _<-lookupUnit (text (member "of" step)); invoke name (member "args" step)
-              Object fields | Just (String channel)<-KM.lookup "say" fields->frameOf channel step >>= Local.local (Client.bus client) . (`Local.Frame` Nothing)
-              Object fields | Just (String channel)<-KM.lookup "deliver" fields->frameOf channel step >>= Transport.receive input
-              Object fields | Just (String channel)<-KM.lookup "answer" fields->do
-                nth<-decode (member "nth" step); original<-requested channel nth
-                payload<-decode (member "payload" step)
-                Transport.receive input (BusFrame (text (member "reply" step)) (busFrameCorrelationId original) payload Nothing)
-              Object fields | Just (String channel)<-KM.lookup "queueReply" fields->atomically (modifyTVar' queued (Map.insertWith (flip (++)) channel [member "response" step]))
-              Object fields | Just (String name)<-KM.lookup "dispose" fields->lookupUnit name >>= \(Unit _ _ _ end)->end
-              Object fields | Just expected<-KM.lookup "expect" fields->forM_ (KM.toList (objectFields expected)) $ \(name,properties)->do
-                Unit values _ _ _<-lookupUnit (Key.toText name)
-                forM_ (KM.toList (objectFields properties)) $ \(key,value)->do
-                  getter<-maybe (ioError (userError ("unknown actor observation " ++ show key))) pure (Map.lookup (Key.toText key) values)
-                  actual<-atomically getter
-                  let agrees=if Key.toText key `elem` ["error","resourceError","failure"] then subset value actual else matches value actual
-                  require ("actor observation mismatch " ++ show (member "case" row) ++ " " ++ show key ++ ": " ++ show actual ++ " /= " ++ show value) agrees
-              Object fields | Just ended<-KM.lookup "ended" fields->forM_ (KM.toList (objectFields ended)) $ \(name,properties)->do
-                Unit _ endings _ _<-lookupUnit (Key.toText name)
-                forM_ (array properties) $ \propertyName->do
-                  end<-maybe (ioError (userError "unknown ended actor observation")) pure (Map.lookup (text propertyName) endings)
-                  require "actor observation did not end" =<< end
-              Object fields | Just (String channel)<-KM.lookup "sent" fields->do
-                frames<-filter ((==channel) . busFrameChannel) <$> readTVarIO sent
-                forM_ (optional "count" step) $ \count->require "actor sent count mismatch" (toJSON (length frames)==count)
-                forM_ (optional "payloads" step) $ \payloads->require ("actor sent payload mismatch " ++ show (member "case" row) ++ ": " ++ show frames) (matches payloads (toJSON (map (Object . busFramePayloadAdditionalProperties . busFramePayload) frames)))
-              Object fields | Just (Bool True)<-KM.lookup "nothingSent" fields->require "actor unexpectedly sent a request" . null =<< readTVarIO sent
-              Object fields | Just (Bool False)<-KM.lookup "busDestroyed" fields->do
-                probe<-newTVarIO False
-                detachProbe<-Local.tapLocal (Client.bus client) (\_ _->writeTVar probe True)
-                Local.local (Client.bus client) (Local.Frame (BusFrame "state-unit:test-probe" Nothing (BusFramePayload mempty) Nothing) Nothing)
-                require "actor destroyed its client's bus" =<< readTVarIO probe
-                detachProbe
-              Object fields | Just expected<-KM.lookup "heard" fields->do
-                Time.settle
-                frames<-atomically (do values<-readTVar notes; writeTVar notes []; pure values)
-                let expectedFrame entry = do
-                      correlation <- resolveCorrelation (optional "correlationId" entry)
-                      pure (Object (KM.fromList
-                        ([("channel",member "channel" entry),("payload",member "payload" entry)]
-                        ++maybe [] (\value->[("correlationId",String value)]) correlation)))
-                expectedFrames <- traverse expectedFrame (array expected)
-                let actual=toJSON [Object (KM.fromList ([("channel",String (busFrameChannel frame)),("payload",Object (busFramePayloadAdditionalProperties (busFramePayload frame)))]++maybe [] (\value->[("correlationId",String value)]) (busFrameCorrelationId frame)))|frame<-frames]
-                require ("actor heard mismatch " ++ show (member "case" row) ++ ": " ++ show actual ++ " /= " ++ show expectedFrames) (matches (toJSON expectedFrames) actual)
-              _->ioError (userError ("unimplemented actor case step " ++ show step))
+            run=forM_ (array (member "steps" row)) $ \step -> do
+              case step of
+                Object fields | any (`KM.member` fields) ["invoke","say","deliver","answer","queueReply","dispose"] -> atomically (writeTVar settled False)
+                _ -> pure ()
+              case step of
+                String "settle"->Time.settle >> atomically (writeTVar settled True)
+                Object fields | Just passed<-KM.lookup "pass" fields->Time.advance time (round (duration passed*1000000)) >> atomically (writeTVar settled True)
+                Object fields | Just (String name)<-KM.lookup "invoke" fields->do
+                  Unit _ _ invoke _<-lookupUnit (text (member "of" step)); invoke name (member "args" step)
+                Object fields | Just (String channel)<-KM.lookup "say" fields->frameOf channel step >>= Local.local (Client.bus client) . (`Local.Frame` Nothing)
+                Object fields | Just (String channel)<-KM.lookup "deliver" fields->frameOf channel step >>= Transport.receive input
+                Object fields | Just (String channel)<-KM.lookup "answer" fields->do
+                  nth<-decode (member "nth" step); original<-requested channel nth
+                  payload<-decode (member "payload" step)
+                  Transport.receive input (BusFrame (text (member "reply" step)) (busFrameCorrelationId original) payload Nothing)
+                Object fields | Just (String channel)<-KM.lookup "queueReply" fields->atomically (modifyTVar' queued (Map.insertWith (flip (++)) channel [member "response" step]))
+                Object fields | Just (String name)<-KM.lookup "dispose" fields->lookupUnit name >>= \(Unit _ _ _ end)->end
+                Object fields | Just expected<-KM.lookup "expect" fields->forM_ (KM.toList (objectFields expected)) $ \(name,properties)->do
+                  Unit values _ _ _<-lookupUnit (Key.toText name)
+                  forM_ (KM.toList (objectFields properties)) $ \(key,value)->do
+                    getter<-maybe (ioError (userError ("unknown actor observation " ++ show key))) pure (Map.lookup (Key.toText key) values)
+                    actual<-atomically $ do
+                      observed<-getter
+                      afterSettle<-readTVar settled
+                      let agrees=if Key.toText key `elem` ["error","resourceError","failure"] then subset value observed else matches value observed
+                      when afterSettle (check agrees)
+                      pure observed
+                    let agrees=if Key.toText key `elem` ["error","resourceError","failure"] then subset value actual else matches value actual
+                    require ("actor observation mismatch " ++ show (member "case" row) ++ " " ++ show key ++ ": " ++ show actual ++ " /= " ++ show value) agrees
+                Object fields | Just ended<-KM.lookup "ended" fields->forM_ (KM.toList (objectFields ended)) $ \(name,properties)->do
+                  Unit _ endings _ _<-lookupUnit (Key.toText name)
+                  forM_ (array properties) $ \propertyName->do
+                    end<-maybe (ioError (userError "unknown ended actor observation")) pure (Map.lookup (text propertyName) endings)
+                    require "actor observation did not end" =<< end
+                Object fields | Just (String channel)<-KM.lookup "sent" fields->do
+                  frames<-filter ((==channel) . busFrameChannel) <$> readTVarIO sent
+                  forM_ (optional "count" step) $ \count->require "actor sent count mismatch" (toJSON (length frames)==count)
+                  forM_ (optional "payloads" step) $ \payloads->require ("actor sent payload mismatch " ++ show (member "case" row) ++ ": " ++ show frames) (matches payloads (toJSON (map (Object . busFramePayloadAdditionalProperties . busFramePayload) frames)))
+                Object fields | Just (Bool True)<-KM.lookup "nothingSent" fields->require "actor unexpectedly sent a request" . null =<< readTVarIO sent
+                Object fields | Just (Bool False)<-KM.lookup "busDestroyed" fields->do
+                  probe<-newTVarIO False
+                  detachProbe<-Local.tapLocal (Client.bus client) (\_ _->writeTVar probe True)
+                  Local.local (Client.bus client) (Local.Frame (BusFrame "state-unit:test-probe" Nothing (BusFramePayload mempty) Nothing) Nothing)
+                  require "actor destroyed its client's bus" =<< readTVarIO probe
+                  detachProbe
+                Object fields | Just expected<-KM.lookup "heard" fields->do
+                  Time.settle
+                  frames<-atomically (do values<-readTVar notes; writeTVar notes []; pure values)
+                  let expectedFrame entry = do
+                        correlation <- resolveCorrelation (optional "correlationId" entry)
+                        pure (Object (KM.fromList
+                          ([("channel",member "channel" entry),("payload",member "payload" entry)]
+                          ++maybe [] (\value->[("correlationId",String value)]) correlation)))
+                  expectedFrames <- traverse expectedFrame (array expected)
+                  let actual=toJSON [Object (KM.fromList ([("channel",String (busFrameChannel frame)),("payload",Object (busFramePayloadAdditionalProperties (busFramePayload frame)))]++maybe [] (\value->[("correlationId",String value)]) (busFrameCorrelationId frame)))|frame<-frames]
+                  require ("actor heard mismatch " ++ show (member "case" row) ++ ": " ++ show actual ++ " /= " ++ show expectedFrames) (matches (toJSON expectedFrames) actual)
+                _->ioError (userError ("unimplemented actor case step " ++ show step))
         run `finally` (closeUnits `finally` Tasks.dispose tasks)
     require ("actor case did not settle: " ++ show (member "case" row)) (result==Just ())
   putStrLn "PASS every shared mark, yield, gather, match and beckon state-unit case"

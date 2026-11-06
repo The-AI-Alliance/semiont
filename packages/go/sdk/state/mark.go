@@ -162,16 +162,16 @@ func (u *MarkStateUnit) DismissProgress() {
 }
 
 // heard acts on a signal of the client's own bus. A frame that is not its
-// channel's is nobody's to act on.
-func (u *MarkStateUnit) heard(frame semiont.Frame) {
+// channel's, or was refused, is nobody's to act on.
+func (u *MarkStateUnit) heard(frame semiont.Frame, refused error) {
 	switch frame.Channel {
 	case bus.MarkRequested.Channel():
-		request, err := semiont.Decoded(bus.MarkRequested, frame)
+		request, err := semiont.Decoded(bus.MarkRequested, frame, refused)
 		if err == nil && request.Payload.Source == u.resourceID {
 			u.pending.Set(&PendingAnnotation{Selector: request.Payload.Selector, Motivation: request.Payload.Motivation})
 		}
 	case bus.MarkSubmit.Channel():
-		submission, err := semiont.Decoded(bus.MarkSubmit, frame)
+		submission, err := semiont.Decoded(bus.MarkSubmit, frame, refused)
 		if err == nil && submission.Payload.Source == u.resourceID {
 			go u.create(submission.Payload)
 		}

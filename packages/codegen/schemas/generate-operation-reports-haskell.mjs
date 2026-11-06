@@ -14,6 +14,11 @@ const quoted=node=>ts.isLiteralTypeNode(node)&&ts.isStringLiteral(node.literal)?
 const type=node=>{
  if(ts.isTypeReferenceNode(node)&&ts.isIdentifier(node.typeName)&&node.typeName.text==='C'&&!node.typeArguments)return 'completion';
  if(node.kind===ts.SyntaxKind.NumberKeyword)return 'Integer';
+ if(ts.isTypeReferenceNode(node)&&ts.isIdentifier(node.typeName)&&node.typeName.text==='Pick'){
+  const args=node.typeArguments;
+  if(args?.length!==2||args[0].getText(source)!=='FrameRefusal'||!ts.isUnionTypeNode(args[1])||args[1].types.map(quoted).join(',')!=='channel,member,reason')fail('unread frame refusal report fields');
+  return 'FrameRefusal';
+ }
  if(ts.isTypeReferenceNode(node)&&ts.isIdentifier(node.typeName)&&node.typeName.text==='ResourceId'&&!node.typeArguments)return 'ResourceId';
  const indexes=[];
  while(ts.isIndexedAccessTypeNode(node)){indexes.unshift(quoted(node.indexType));node=node.objectType;}
@@ -42,7 +47,7 @@ const sum=(name,tag,prefix)=>{
  const native=name==='UploadProgress'?'UploadEvent':name;
  return `data ${native}${generic?' completion':''} = ${rows.map(row=>row.constructor+' '+row.fields.map(field=>field.type).join(' ')).join(' | ')} deriving (Eq, Show)
 instance ${generic?'ToJSON completion => ':''}ToJSON (${native}${generic?' completion':''}) where
-${rows.map(row=>`  toJSON (${row.constructor} ${row.fields.map((_,index)=>`value${index}`).join(' ')}) = object [${[`${JSON.stringify(tag)} .= (${JSON.stringify(row.label)} :: Text)`,...row.fields.map((field,index)=>`${JSON.stringify(field.key)} .= value${index}`)].join(', ')}]`).join('\n')}
+${rows.map(row=>`  toJSON (${row.constructor} ${row.fields.map((_,index)=>`value${index}`).join(' ')}) = object [${[`${JSON.stringify(tag)} .= (${JSON.stringify(row.label)} :: Text)`,...row.fields.map((field,index)=>field.type==='FrameRefusal'?`${JSON.stringify(field.key)} .= object ["channel" .= refusedChannel value${index}, "member" .= member (fault value${index}), "reason" .= (case reason (fault value${index}) of Lacks -> ("lacks" :: Text); Malformed -> "malformed")]`:`${JSON.stringify(field.key)} .= value${index}`)].join(', ')}]`).join('\n')}
 `;
 };
 const generated=`-- Generated from sdk/src/awaitable.ts report unions. Do not edit.
@@ -51,6 +56,8 @@ module Semiont.Internal.Generated.OperationReports (JobEvent(..), UploadEvent(..
 import Data.Aeson (ToJSON(..), object, (.=))
 import Data.Text (Text)
 import Semiont.Types
+import Semiont.Internal.Transport (FrameRefusal(..))
+import Semiont.Internal.Required (Fault(..), FaultReason(..))
 ${sum('JobEvent','kind','')}
 ${sum('UploadProgress','phase','Upload')}`;
 writeOrCheck(ROOT,resolve(ROOT,'packages/haskell/sdk/generated/Semiont/Internal/Generated/OperationReports.hs'),generated,process.argv.includes('--check'));

@@ -65,18 +65,19 @@ func (l *life) close() bool {
 	return true
 }
 
-// listen hands heard each frame of frames, in order, on a goroutine of its
-// own, until the unit is closed. heard is called with mu held, and not once
+// listen hands heard each frame of frames, and each refusal given in a
+// frame's place, in order, on a goroutine of its own, until the unit is
+// closed. heard is called with mu held, and not once
 // the unit is closed.
-func (l *life) listen(frames iter.Seq[semiont.Frame], heard func(semiont.Frame)) {
+func (l *life) listen(frames iter.Seq2[semiont.Frame, error], heard func(semiont.Frame, error)) {
 	go func() {
-		for frame := range frames {
+		for frame, refused := range frames {
 			l.mu.Lock()
 			if l.closed {
 				l.mu.Unlock()
 				return
 			}
-			heard(frame)
+			heard(frame, refused)
 			l.mu.Unlock()
 		}
 	}()

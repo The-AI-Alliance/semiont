@@ -16,8 +16,6 @@ import kotlinx.serialization.json.JsonElementKt;
 import kotlinx.serialization.json.JsonObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import semiont.bus.Delivered;
-import semiont.bus.Heard;
 import semiont.bus.Typed;
 import semiont.errors.SemiontError;
 import semiont.channels.Channels;
@@ -34,8 +32,11 @@ import semiont.testing.InMemoryContent;
 import semiont.testing.RequestLogEntry;
 import semiont.testing.StubGateway;
 import semiont.testing.TestClient;
+import semiont.transport.Carried;
+import semiont.transport.Delivered;
 import semiont.transport.Events;
 import semiont.transport.Frame;
+import semiont.transport.Heard;
 import semiont.types.AnnotationTarget;
 import semiont.types.BeckonSparkleEvent;
 import semiont.types.BindInitiateCommand;
@@ -147,10 +148,10 @@ final class NamespacesTest {
 
     /** The frame `signal` says on the client's own bus. */
     private Frame said(String channel, Runnable signal) throws Exception {
-        try (Events<Frame> frames = client.getBus().framesAmong(List.of(channel))) {
-            CompletableFuture<Frame> said = first(frames.asPublisher());
+        try (Events<Carried> frames = client.getBus().framesAmong(List.of(channel))) {
+            CompletableFuture<Carried> said = first(frames.asPublisher());
             signal.run();
-            return said.get(10, SECONDS);
+            return assertInstanceOf(Frame.class, said.get(10, SECONDS));
         }
     }
 

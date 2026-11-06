@@ -311,7 +311,7 @@ httpFaults origin http client resource clock waits = do
       publish "first"
       publish "second"
       seen <- Stream.toList_ (Stream.take 2 frames)
-      require "overlapping streams duplicated a reply" (map (busFrameCorrelationId . Transport.wireFrame) seen == [Just "first", Just "second"])
+      require "overlapping streams duplicated a reply" (map Transport.carriedCorrelationId seen == [Just "first", Just "second"])
     state <- readState origin
     require "old stream was aborted before its drain window" (count "disconnected" state == beforeDisconnected)
     let retiredAt = began + (Timing.reconnectDebounceMs + Timing.lingerMs) * 1000000
@@ -327,7 +327,7 @@ httpFaults origin http client resource clock waits = do
       require "an unnamed malformed frame did not reach the failure report" (refused == Just
         (TransportError Code.TransportError "the stream carried what is not a frame: it has no `channel`" Nothing Nothing))
       continued <- Stream.head_ frames
-      require "a malformed frame ended the stream" (fmap (busFrameCorrelationId . Transport.wireFrame) continued == Just (Just "after-refusal"))
+      require "a malformed frame ended the stream" (fmap Transport.carriedCorrelationId continued == Just (Just "after-refusal"))
 
     postControl origin "/test/config" (object ["emitStatuses" .= ([429, 503] :: [Int])])
     atomically (writeTVar waits Set.empty)
@@ -351,11 +351,12 @@ httpFaults origin http client resource clock waits = do
     stalled <- async (try (Content.getBinary (Http.content http) Nothing headerResource) :: IO (Either TransportError Content.BinaryContent))
     let headerDeadline = headerStart + Timing.httpRequestTimeoutMs * 1000000
     waitForDeadline waits headerDeadline
+    let headerPath = Text.replace "{id}" (resourceIdValue headerResource) (Routes.routePath Routes.GetResourceRepresentation)
+    _ <- awaitState origin (any (\value -> field "path" value == Just (String headerPath)) . values "requests")
     atomically (writeTVar clock headerDeadline)
     result <- wait stalled
     require "unanswered request was not classified unavailable" (either ((== Code.TransportUnavailable) . transportErrorCode) (const False) result)
     afterHeaders <- awaitState origin ((== 1) . count "headersClosed")
-    let headerPath = Text.replace "{id}" (resourceIdValue headerResource) (Routes.routePath Routes.GetResourceRepresentation)
     require "a request unanswered at its deadline was retried" (length (filter (\value -> field "path" value == Just (String headerPath)) (values "requests" afterHeaders)) == 1)
 
     bodyResource <- either (ioError . userError) pure (mkResourceId "body")
@@ -458,7 +459,8 @@ awaitState origin accepts = do
 withPeer :: FilePath -> Map.Map Text Value -> (Text -> IO result) -> IO result
 withPeer root fixtures action = bracket
   (do
-    (file, handle) <- openBinaryTempFile "/tmp" "semiont-http-fixtures.json"
+    temporary <- getTemporaryDirectory
+    (file, handle) <- openBinaryTempFile temporary "semiont-http-fixtures.json"
     Lazy.hPut handle (encode fixtures)
     hClose handle
     pure file)

@@ -21,14 +21,16 @@
 use crate::errors::{BusRequestError, BusRequestErrorCode, TransportError};
 use crate::event_bus::EventBus;
 use crate::locked;
-use crate::types::ResourceId;
+use crate::required::{Fault, fault_of, schema};
 use crate::types::{
     AnchoredTextAnswer, CreateResourceResponse, GetAnnotationsResponse, GetResourceResponse,
     HealthResponse, MediaTokenResponse, ProtectedResourceMetadata, StatusResponse, UserResponse,
 };
 use crate::types::{AnnotationId, JobId};
+use crate::types::{BusFrame, ResourceId, Schema};
 use bytes::Bytes;
 use futures_core::Stream;
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::fmt;
@@ -115,6 +117,114 @@ pub struct Frame {
     pub trace: Option<TraceCarrier>,
 }
 
+/// Why a value is refused at a member, as every SDK finds a value's first
+/// fault (packages/codegen/schemas/required-shapes.mjs).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FrameRefusalReason {
+    /// The value does not carry the member, or the member holds null where it
+    /// may not.
+    Lacks,
+    /// The member is not what its schema allows (of another kind, another
+    /// value, form or size), or is one a closed object does not name.
+    Malformed,
+}
+
+impl FrameRefusalReason {
+    const EVERY: [FrameRefusalReason; 2] =
+        [FrameRefusalReason::Lacks, FrameRefusalReason::Malformed];
+
+    /// The reason as every SDK spells it.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            FrameRefusalReason::Lacks => "lacks",
+            FrameRefusalReason::Malformed => "malformed",
+        }
+    }
+}
+
+impl Serialize for FrameRefusalReason {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for FrameRefusalReason {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let spelled = String::deserialize(deserializer)?;
+        FrameRefusalReason::EVERY
+            .into_iter()
+            .find(|reason| reason.as_str() == spelled)
+            .ok_or_else(|| de::Error::custom(format!("no refusal's reason is spelled {spelled:?}")))
+    }
+}
+
+/// What a transport delivers in place of a frame BusFrame does not allow,
+/// to the readers it names: those of its channel, in its scope. It names the
+/// frame's first fault by its way from the frame (`member`: `payload`,
+/// `correlationId`, or a member BusFrame does not name), and carries the
+/// frame's payload as it came, when it carried one, and its correlation id,
+/// when it carried one BusFrame allows. A typed read gives one, too, for a
+/// frame whose payload is not its channel's.
+///
+/// Said as "a frame on" the channel " is not that channel's: " and the fault.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FrameRefusal {
+    pub channel: String,
+    pub member: String,
+    pub reason: FrameRefusalReason,
+    pub payload: Option<Value>,
+    pub scope: Option<ResourceId>,
+    pub correlation_id: Option<String>,
+}
+
+impl fmt::Display for FrameRefusal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let fault = Fault {
+            member: self.member.clone(),
+            reason: self.reason,
+        };
+        write!(
+            f,
+            "a frame on {} is not that channel's: {fault}",
+            self.channel
+        )
+    }
+}
+
+impl FrameRefusal {
+    /// The refusal of `frame`, which names its readers on `channel` in
+    /// `scope`, for its first fault as BusFrame; `None` when the table of
+    /// what BusFrame requires finds none.
+    pub fn of(frame: &Value, channel: String, scope: Option<ResourceId>) -> Option<FrameRefusal> {
+        let fault = fault_of(schema(BusFrame::NAME), frame)?;
+        Some(FrameRefusal {
+            channel,
+            member: fault.member,
+            reason: fault.reason,
+            payload: frame.get("payload").cloned(),
+            scope,
+            correlation_id: correlation_in(frame),
+        })
+    }
+}
+
+/// The correlation id `frame` carries, when it carries one BusFrame allows,
+/// whatever else is wrong with it.
+fn correlation_in(frame: &Value) -> Option<String> {
+    let id = frame.get("correlationId")?;
+    let Some((_, allowed)) = schema(BusFrame::NAME)
+        .members
+        .iter()
+        .find(|(name, _)| *name == "correlationId")
+    else {
+        panic!("BusFrame names no correlationId");
+    };
+    match fault_of(allowed, id) {
+        None => id.as_str().map(str::to_owned),
+        Some(_) => None,
+    }
+}
+
 /// A reader of an event stream fell behind and missed this many items. On a
 /// channel that carries events of the record this is a gap: an unknown set
 /// of events was missed, and what was built from them is read again.
@@ -161,30 +271,24 @@ impl<T: Clone + Send + 'static> Stream for Events<T> {
     }
 }
 
-/// The frames delivered on one channel.
-pub type Frames = Events<Frame>;
+/// The frames delivered on one channel, and in place of each frame refused
+/// that names its readers there, its refusal.
+pub type Frames = Events<Result<Frame, FrameRefusal>>;
 /// The failures a transport met: what a server refused, what the gateway
-/// never answered, and each line its stream carried that names no channel.
+/// never answered, and each line its stream carried that names no reader.
 /// Each is reported here as it is returned to its caller.
 pub type Failures = Events<TransportError>;
 
-/// A handler's subscription (`Transport::on`): it runs until this is dropped.
-pub struct Subscription {
-    task: tokio::task::JoinHandle<()>,
-}
-
-impl Drop for Subscription {
-    fn drop(&mut self) {
-        self.task.abort();
-    }
-}
+/// The sender of one channel's broadcast: its frames, and the refusals
+/// delivered in their place.
+pub(crate) type Broadcast = broadcast::Sender<Result<Frame, FrameRefusal>>;
 
 /// The frames of every channel anybody listens to, a broadcast per channel:
 /// a reader of one channel falls behind only on that channel's traffic. What
 /// a transport delivers goes through one of these.
 pub struct FrameHub {
     /// `None` once closed.
-    channels: Mutex<Option<HashMap<String, broadcast::Sender<Frame>>>>,
+    channels: Mutex<Option<HashMap<String, Broadcast>>>,
 }
 
 impl Default for FrameHub {
@@ -214,20 +318,25 @@ impl FrameHub {
         }
     }
 
-    /// Deliver `frame` to its channel's readers; how many there were.
-    pub fn deliver(&self, frame: Frame) -> usize {
+    /// Deliver a frame, or the refusal of one, to its channel's readers; how
+    /// many there were.
+    pub fn deliver(&self, carried: Result<Frame, FrameRefusal>) -> usize {
+        let channel = match &carried {
+            Ok(frame) => &frame.channel,
+            Err(refusal) => &refusal.channel,
+        };
         let mut channels = locked(&self.channels);
         let Some(channels) = channels.as_mut() else {
             return 0;
         };
-        let Some(sender) = channels.get(&frame.channel) else {
+        let Some(sender) = channels.get(channel) else {
             return 0;
         };
         if sender.receiver_count() == 0 {
-            channels.remove(&frame.channel);
+            channels.remove(channel);
             return 0;
         }
-        sender.send(frame).unwrap_or(0)
+        sender.send(carried).unwrap_or(0)
     }
 
     /// End every stream taken from this hub, and every one taken later.
@@ -240,7 +349,7 @@ impl FrameHub {
 
 struct Awaited {
     channels: Vec<String>,
-    reply: oneshot::Sender<Frame>,
+    reply: oneshot::Sender<Result<Frame, FrameRefusal>>,
 }
 
 /// The replies a transport's requests still await. A reply is routed here by
@@ -280,9 +389,15 @@ impl ReplyRouter {
         }
     }
 
-    /// Hand `frame` to the request that awaits it, if one does.
-    pub fn route(&self, frame: &Frame) {
-        let Some(correlation_id) = &frame.correlation_id else {
+    /// Hand a frame, or the refusal of one, to the request that awaits it,
+    /// if one does: the one its correlation id names, on a channel of its
+    /// reply's.
+    pub fn route(&self, carried: Result<&Frame, &FrameRefusal>) {
+        let (correlation_id, channel) = match carried {
+            Ok(frame) => (&frame.correlation_id, &frame.channel),
+            Err(refusal) => (&refusal.correlation_id, &refusal.channel),
+        };
+        let Some(correlation_id) = correlation_id else {
             return;
         };
         let mut awaited = locked(&self.awaited);
@@ -291,10 +406,12 @@ impl ReplyRouter {
         };
         if awaited
             .get(correlation_id)
-            .is_some_and(|a| a.channels.contains(&frame.channel))
+            .is_some_and(|a| a.channels.contains(channel))
             && let Some(request) = awaited.remove(correlation_id)
         {
-            let _ = request.reply.send(frame.clone());
+            let _ = request
+                .reply
+                .send(carried.cloned().map_err(FrameRefusal::clone));
         }
     }
 
@@ -319,12 +436,13 @@ impl ReplyRouter {
 pub struct PendingReply {
     router: Arc<ReplyRouter>,
     correlation_id: String,
-    receiver: oneshot::Receiver<Frame>,
+    receiver: oneshot::Receiver<Result<Frame, FrameRefusal>>,
 }
 
 impl PendingReply {
-    /// The reply; `None` when the transport closed before one came.
-    pub async fn frame(&mut self) -> Option<Frame> {
+    /// The reply, or the refusal of the frame that carried it; `None` when
+    /// the transport closed before either came.
+    pub async fn frame(&mut self) -> Option<Result<Frame, FrameRefusal>> {
         (&mut self.receiver).await.ok()
     }
 }
@@ -379,7 +497,8 @@ pub trait Transport: Send + Sync + 'static {
         envelope: Envelope,
     ) -> BoxFuture<'a, Result<Option<u64>, TransportError>>;
 
-    /// The frames delivered on `channel` from now on. Refused, as
+    /// The frames delivered on `channel` from now on, and the refusal of each
+    /// frame refused that names its readers there. Refused, as
     /// `bus.unsubscribed`, for a channel this transport can never deliver.
     fn frames(&self, channel: &str) -> Result<Frames, BusRequestError>;
 
@@ -395,7 +514,7 @@ pub trait Transport: Send + Sync + 'static {
     fn state(&self) -> watch::Receiver<ConnectionState>;
 
     /// The failures the transport meets, from now on, and each line its
-    /// stream carried that names no channel. A listener taken as soon as the
+    /// stream carried that names no reader. A listener taken as soon as the
     /// transport is made hears every one, from its first request.
     fn failures(&self) -> Failures;
 
@@ -404,64 +523,14 @@ pub trait Transport: Send + Sync + 'static {
     /// unawaited.
     fn track_reply(&self, correlation_id: &str, reply_channels: &[&str]) -> PendingReply;
 
-    /// Publish into `bus` every frame this transport delivers. The bus is
+    /// Publish into `bus` every frame this transport delivers, and the
+    /// refusal of every frame it refuses that names its readers. The bus is
     /// its client's: a transport never constructs or replaces one.
     fn bridge_into(&self, bus: Arc<EventBus>);
 
     /// Stop: the state becomes `Closed`, every stream ends, and every request
     /// still pending fails as closed. Closing twice is closing once.
     fn close(&self) -> BoxFuture<'_, ()>;
-
-    /// The payloads delivered on `channel` from now on.
-    fn stream(&self, channel: &str) -> Result<Payloads, BusRequestError> {
-        Ok(Payloads {
-            frames: self.frames(channel)?,
-        })
-    }
-
-    /// Run `handler` on each payload delivered on `channel`, until the
-    /// returned subscription is dropped. A handler that falls behind is not
-    /// told what it missed; a reader that must know reads `frames`.
-    fn on(
-        &self,
-        channel: &str,
-        mut handler: Box<dyn FnMut(Map<String, Value>) + Send>,
-    ) -> Result<Subscription, BusRequestError> {
-        let mut frames = self.frames(channel)?;
-        Ok(Subscription {
-            task: tokio::spawn(async move {
-                while let Some(item) = frames.next().await {
-                    if let Ok(frame) = item {
-                        handler(frame.payload);
-                    }
-                }
-            }),
-        })
-    }
-}
-
-/// The payloads delivered on one channel: `Frames`, without the envelopes.
-pub struct Payloads {
-    frames: Frames,
-}
-
-impl Payloads {
-    pub async fn next(&mut self) -> Option<Result<Map<String, Value>, Lagged>> {
-        self.frames
-            .next()
-            .await
-            .map(|item| item.map(|frame| frame.payload))
-    }
-}
-
-impl Stream for Payloads {
-    type Item = Result<Map<String, Value>, Lagged>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.frames)
-            .poll_next(cx)
-            .map(|item| item.map(|item| item.map(|frame| frame.payload)))
-    }
 }
 
 /// The refusal a transport gives for a channel it can never deliver.
@@ -699,10 +768,10 @@ mod tests {
         let mut quiet = hub.frames("quiet");
         let _busy = hub.frames("busy");
         for _ in 0..(STREAM_BACKLOG * 3) {
-            hub.deliver(frame("busy", None));
+            hub.deliver(Ok(frame("busy", None)));
         }
-        hub.deliver(frame("quiet", None));
-        assert_eq!(quiet.next().await, Some(Ok(frame("quiet", None))));
+        hub.deliver(Ok(frame("quiet", None)));
+        assert_eq!(quiet.next().await, Some(Ok(Ok(frame("quiet", None)))));
     }
 
     #[tokio::test]
@@ -710,7 +779,7 @@ mod tests {
         let hub = FrameHub::new();
         let mut frames = hub.frames("busy");
         for _ in 0..(STREAM_BACKLOG + 5) {
-            hub.deliver(frame("busy", None));
+            hub.deliver(Ok(frame("busy", None)));
         }
         assert_eq!(frames.next().await, Some(Err(Lagged(5))));
         assert!(matches!(frames.next().await, Some(Ok(_))));
@@ -733,13 +802,43 @@ mod tests {
         assert_eq!(router.awaited(), ["cid-1", "cid-2"]);
 
         // The same id on a channel that is not its reply's settles nothing.
-        router.route(&frame("progress", Some("cid-1")));
-        router.route(&frame("result", Some("cid-1")));
-        assert_eq!(mine.frame().await, Some(frame("result", Some("cid-1"))));
+        router.route(Ok(&frame("progress", Some("cid-1"))));
+        router.route(Ok(&frame("result", Some("cid-1"))));
+        assert_eq!(mine.frame().await, Some(Ok(frame("result", Some("cid-1")))));
         assert_eq!(router.awaited(), ["cid-2"]);
 
         router.close();
         assert_eq!(theirs.frame().await, None);
+    }
+
+    fn refusal(channel: &str, correlation_id: Option<&str>) -> FrameRefusal {
+        FrameRefusal {
+            channel: channel.to_owned(),
+            member: "addedByALaterGateway".to_owned(),
+            reason: FrameRefusalReason::Malformed,
+            payload: Some(serde_json::json!({ "response": {} })),
+            scope: None,
+            correlation_id: correlation_id.map(str::to_owned),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_refused_reply_reaches_the_request_its_correlation_id_names_and_one_naming_none_reaches_none()
+     {
+        let router = ReplyRouter::new();
+        let mut mine = router.track("cid-1", &["result", "failure"]);
+        let _theirs = router.track("cid-2", &["result", "failure"]);
+
+        router.route(Err(&refusal("result", None)));
+        router.route(Err(&refusal("progress", Some("cid-1"))));
+        assert_eq!(router.awaited(), ["cid-1", "cid-2"]);
+
+        router.route(Err(&refusal("result", Some("cid-1"))));
+        assert_eq!(
+            mine.frame().await,
+            Some(Err(refusal("result", Some("cid-1"))))
+        );
+        assert_eq!(router.awaited(), ["cid-2"]);
     }
 
     #[tokio::test]

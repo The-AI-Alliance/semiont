@@ -134,7 +134,7 @@ const readKeys = [...bus.matchAll(/KM\.lookup "(\w+)" fields/g)].map((match) => 
 const commandError = JSON.parse(read('protocol/specs/src/components/schemas/CommandError.json'));
 same('Haskell direct failure fields', new Set(['code']), new Set(readKeys));
 if (commandError.properties.code?.type !== 'string') throw new Error('failure reader needs the new code type');
-if (!bus.includes('KM.delete "code" fields') || !bus.includes('case decoded failure diagnostic of') || !bus.includes('OperationFailure.message operation (deliveredPayload delivered)')) {
+if (!bus.includes('KM.delete "code" fields') || !bus.includes('case decoded failure (Transport.Arrived diagnostic) of') || !bus.includes('OperationFailure.message operation (deliveredPayload delivered)')) {
   throw new Error('failure fields besides the forward-compatible code must use the operation’s own typed decoder and diagnostic');
 }
 const diagnosticOperations = new Map(Object.entries(inventory.modules['Semiont.Channels'].values)

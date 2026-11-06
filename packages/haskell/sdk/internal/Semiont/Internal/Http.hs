@@ -78,6 +78,9 @@ data Http = Http
   , logger :: BusLog.Logger
   }
 
+data EmitCredentialRefused = EmitCredentialRefused HttpFailure Text deriving (Show)
+instance Exception EmitCredentialRefused
+
 data HttpFailure = HttpFailure { failure :: TransportError, expired :: Bool } deriving (Show)
 instance Exception HttpFailure
 
@@ -229,9 +232,12 @@ exchange http route resource body key override headers consume = do
             alreadyRenewed <- readTVarIO renewed
             if override==Nothing && transportErrorCode problemError == Code.TransportUnauthorized && not alreadyRenewed then case sent of
               Just refused -> do
-                atomically (writeTVar renewed True)
-                replacement <- renew http refused
-                if replacement /= Nothing then attempt retries else throwIO problem
+                case route of
+                  EmitOnBus -> throwIO (EmitCredentialRefused problem refused)
+                  _ -> do
+                    atomically (writeTVar renewed True)
+                    replacement <- renew http refused
+                    if replacement /= Nothing then attempt retries else throwIO problem
               Nothing -> throwIO problem
             else if override==Nothing && (case route of EmitOnBus -> False; _ -> True) && retries == (0 :: Int) && not (expired problem)
                 && transportErrorCode problemError /= Code.TransportUnauthorized
@@ -240,8 +246,13 @@ exchange http route resource body key override headers consume = do
               pause http (max (Settings.requestRetryPauseMs (httpTiming (options http))) (maybe 0 id (retryAfterMs problemError)))
               attempt 1
             else throwIO problem
+      emitBudget = Retry.retryWithBackoff (httpTime (options http)) (Settings.emitRetry (httpTiming (options http)))
+        accepts (retryAfterMs . failure) (attempt 0)
   case route of
-    EmitOnBus -> Retry.retryWithBackoff (httpTime (options http)) (Settings.emitRetry (httpTiming (options http))) accepts (retryAfterMs . failure) (attempt 0)
+    EmitOnBus -> emitBudget `catch` \(EmitCredentialRefused problem refused) -> do
+      atomically (writeTVar renewed True)
+      replacement <- renew http refused
+      if replacement == Nothing then throwIO problem else emitBudget
     _ -> attempt 0
   where
     accepts problem = let problemError = failure problem in

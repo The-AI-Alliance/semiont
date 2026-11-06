@@ -115,8 +115,9 @@ newRefresher local wire options settings controls = mask $ \restore -> do
         pure result
   begin `onException` (detach `finally` Lifetime.close life)
 
-receive :: Refresher -> Transport.Frame -> Parent -> STM ()
-receive runtime delivered parent = do
+receive :: Refresher -> Transport.Carried -> Parent -> STM ()
+receive _ (Transport.FrameRejected _) _ = pure ()
+receive runtime (Transport.Arrived delivered) parent = do
   stopped <- readTVar (closed runtime)
   unless stopped $ do
     let frame = Transport.wireFrame delivered

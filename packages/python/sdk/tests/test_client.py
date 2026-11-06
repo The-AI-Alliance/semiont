@@ -31,6 +31,7 @@ from semiont.transport import (
     ConnectionState,
     Content,
     Frame,
+    FrameRefusal,
     FrameSink,
     PendingReply,
     ResourceHold,
@@ -74,7 +75,7 @@ class Down(Transport):
         raise TransportError.without_response("the wire is down")
 
     @override
-    def frames(self, channel: str) -> Events[Frame]:
+    def frames(self, channel: str) -> Events[Frame | FrameRefusal]:
         return self._beneath.frames(channel)
 
     @override
@@ -159,7 +160,9 @@ def test_a_signal_never_reaches_the_wire_and_a_report_does_without_being_awaited
         client, transport = world()
         clicked = client.bus.frames_on("browse:click")
         client.browse.click(AnnotationId("ann-1"))
-        assert dict((await soon(anext(clicked))).payload) == {"annotationId": "ann-1"}
+        click = await soon(anext(clicked))
+        assert isinstance(click, Frame), click
+        assert dict(click.payload) == {"annotationId": "ann-1"}
         assert transport.emitted == []
 
         client.browse.resource_viewed(RESOURCE)

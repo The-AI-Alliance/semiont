@@ -22,7 +22,7 @@ from semiont.http import HttpTransport, Timing
 from semiont.identifiers import AnnotationId, InvalidIdentifier, ResourceId
 from semiont.model import WireModel
 from semiont.namespaces.browse import EngineWithLimits
-from semiont.namespaces.follow import Delegation
+from semiont.namespaces.follow import Delegation, JobRefused
 from semiont.refresh import CACHE_QUERIES, CacheQuery
 from semiont.storage import MemoryStorage
 from semiont.transport import ConnectionState
@@ -296,7 +296,13 @@ class Live:
         """
         try:
             async for event in job:
-                value: dict[str, JsonValue] = {"kind": event.kind, "data": event.data.model_dump(mode="json", exclude_unset=True)}
+                data: JsonValue
+                match event:
+                    case JobRefused(data=refused):
+                        data = {"channel": refused.channel, "member": refused.member, "reason": refused.reason}
+                    case _:
+                        data = event.data.model_dump(mode="json", exclude_unset=True)
+                value: dict[str, JsonValue] = {"kind": event.kind, "data": data}
                 say({"emission": {"observer": name, "state": {"status": "ready", "value": value}}})
         except SemiontError as error:
             say({"emission": {"observer": name, "state": {"status": "failed", "error": failure(error)}}})

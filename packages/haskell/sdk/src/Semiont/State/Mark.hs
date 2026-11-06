@@ -95,6 +95,7 @@ follow unit@(MarkStateUnit _ client resource clock timing _ _ _ _ _ _) params mo
           Delegation.Created value -> writeTVar created (Just (jobCreatedResultResponseJobId value)) >> State.update (jobId unit) (Just (jobCreatedResultResponseJobId value))
           Delegation.Progress value -> State.update (progress unit) (Just value)
           Delegation.Failed _ -> pure ()
+          Delegation.Refused _ -> pure ()
           Delegation.Complete _ -> pure ()
       quiet=atomically $ do
         current <- State.current (progress unit)

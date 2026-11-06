@@ -212,13 +212,18 @@ format and runs them with this runner, adding four steps of its own.
   "source": "where the protocol or the spec states it",
   "planes": ["in-process"],
   "telemetry": true,
+  "needs": "bus/frame-cases.json",
   "steps": [ ... ]
 }
 ```
 
 `planes` is given only when the case holds on one signal plane; absent, it
-runs on both. `telemetry` runs the client exporting to a receiver, and once
-the driver has exited holds what it exported to
+runs on both. `needs` names the case table of
+[`protocol/specs/src/`](../../specs/src/) whose behaviour the case needs, by
+its path there: the case is not run for an SDK that table names under
+`notYetReached`, and is run for it once the table no longer does.
+`telemetry` runs the client exporting to a receiver, and once the driver has
+exited holds what it exported to
 [`protocol/specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json):
 every row arrived, of its kind, with every attribute not marked `only`, and
 whatever arrived under a row's name carries only that row's attributes. What
@@ -319,6 +324,7 @@ no other.
 | `hold` | `wire` | the proxy keeps such requests waiting |
 | `release` | | held requests go through |
 | `rechunk` | `bytes` | streams reach the client this many bytes at a time |
+| `carry` | `frame` | the proxy writes a `bus-event` whose data is `frame` onto the stream the client opened last, between two of the gateway's events and with no `id`, and records it among the events that stream carried: a frame the gateway never sends, such as one BusFrame refuses or one whose payload is not its channel's. No wire case carries one, since a wire driver has no line for a refusal |
 | `cut` | | every connection the client has ends |
 | `down`, `up` | | the gateway is unreachable; it is back |
 

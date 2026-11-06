@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"sync"
@@ -313,7 +314,13 @@ func (w *wire) listen(args protocol.Arguments) (any, error) {
 	w.reporters.Add(1)
 	go func() {
 		defer w.reporters.Done()
-		for frame := range frames {
+		for frame, refused := range frames {
+			// The suite's backend sends only frames BusFrame allows, and its protocol has no line for
+			// a refusal: a frame the transport refused is its bug, which ends the driver.
+			if refused != nil {
+				refusal := refused.(*semiont.FrameRefusal)
+				panic(fmt.Sprintf("the transport refused a frame on %s: %s, at its `%s`", channel, refusal.Reason, refusal.Member))
+			}
 			line := map[string]any{"channel": channel, "payload": frame.Payload}
 			if frame.CorrelationID != "" {
 				line["correlationId"] = frame.CorrelationID

@@ -215,6 +215,8 @@ the final report carries its completion. A final failure or cancellation raises
 progress restarts that interval, and a retryable failure parks polling until the
 next attempt speaks. Early frames wait behind creation, and a completion of
 another verb is refused. Following a job acquires no resource subscription.
+A malformed lifecycle frame produces a `Refused` report with its channel, fault
+path and reason. It neither completes the job nor resets silence or stall time.
 
 Yield's silence guard derives from the requested token budget and the protocol
 floor, or accepts an explicit per-call deadline. Each progress or retryable
@@ -578,7 +580,7 @@ the same ownership rules in either mode.
 
 `Semiont.Transport.newTransport` gives a carrier its input handle and the
 transport its consumers use. The carrier supplies sending and teardown, feeds
-received frames through `receive`, and publishes valid connection transitions
+received frames through `receive`, frame refusals through `receiveRefusal`, and publishes valid connection transitions
 through `setState`. Its subscription snapshot contains the current resource
 holds and pending correlations. `Semiont.StateValue` exposes state observations
 without a public setter.
@@ -606,7 +608,8 @@ addEntityType wire command =
 `Bus.frames` requires `InScope resourceId` for a resource channel and holds that
 scope until its reader leaves. It yields `Heard delivered` or `Refused refusal`
 in order, and continues after a refusal. Deliveries retain their emitter,
-envelope, and trace. A refusal keeps the raw frame and a `Fault`: its `member`
+envelope, and trace. A refusal keeps the channel, optional raw payload, scope,
+readable correlation ID, and a `Fault`: its `member`
 path and `Lacks` or `Malformed` reason. Successful HTTP answers and stream
 frames are checked against the same generated rules that the other SDKs use;
 a diagnostic never includes the rejected value. The trace field is lifted out
@@ -624,6 +627,14 @@ positions through the supplied callbacks. Credential renewal receives the
 refused token; a credential refused again is quarantined until the host supplies
 a usable one. Ordinary reads retry once when eligible, and an unanswered request
 at its own deadline fails without another attempt.
+
+Raw transport and local-bus readers receive `Carried`: `Arrived frame` or
+`FrameRejected refusal`. `stream` and `on` expose the corresponding
+`Either FrameRefusal Object`. Malformed envelopes with a usable channel and
+scope reach those readers and any request identified by their correlation ID.
+An invalid scope or unusable channel reaches the transport error report. A
+typed reader names payload faults from the frame, such as `payload.resourceId`.
+A renewed emit credential starts a fresh retry budget and backoff.
 
 ## Telemetry
 

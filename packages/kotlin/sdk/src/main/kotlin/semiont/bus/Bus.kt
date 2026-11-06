@@ -24,12 +24,17 @@ import semiont.errors.TransportErrorCode
 import semiont.identifiers.ResourceId
 import semiont.identifiers.UserId
 import semiont.telemetry.futureOf
+import semiont.transport.Carried
 import semiont.transport.ConnectionState
+import semiont.transport.Delivered
 import semiont.transport.Events
 import semiont.transport.Frame
+import semiont.transport.FrameRefusal
+import semiont.transport.Heard
 import semiont.transport.ResourceHold
 import semiont.transport.TraceContext
 import semiont.transport.Transport
+import semiont.transport.scope
 import semiont.types.wireJson
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -87,7 +92,7 @@ private fun notTheChannels(channel: String, fault: Fault): String = "a payload o
  * Throws `BusRequestError` when it is answered with a failure, when no reply
  * comes in time, when the transport is closed, and when its stream does not
  * carry the operation's replies; and `TransportError` when the emit itself is
- * refused.
+ * refused, and at once when its reply is.
  */
 public suspend fun request(transport: Transport, operation: Operation<*, *, *>, payload: JsonObject, timeoutMs: Long = Timings.BUS_REQUEST_TIMEOUT_MS): JsonObject =
     resultOf(transport, operation, payload, timeoutMs).payload
@@ -128,65 +133,14 @@ internal suspend fun resultOf(transport: Transport, operation: Operation<*, *, *
     transport.trackReply(correlationId, listOf(result, failure)).use { pending ->
         transport.emit(asked, payload, correlationId = correlationId)
         val came = withTimeoutOrNull(left()) { listOf(pending.frame()) } ?: throw timedOut()
-        val reply = came.single() ?: throw BusRequestError(BusRequestErrorCode.Closed, "Bus closed before a reply on $result")
-        if (reply.channel == result) return reply
-        throw BusRequestError.answered(reply.payload)
+        when (val reply = came.single() ?: throw BusRequestError(BusRequestErrorCode.Closed, "Bus closed before a reply on $result")) {
+            is FrameRefusal -> throw TransportError(TransportErrorCode.Error, "a frame on ${reply.channel} is not that channel's: ${Fault(reply.member, reply.reason)}")
+            is Frame -> {
+                if (reply.channel == result) return reply
+                throw BusRequestError.answered(reply.payload)
+            }
+        }
     }
-}
-
-/**
- * What a typed read gives for each frame: the frame, its payload decoded
- * (`Delivered`), or, in its place, the refusal of one whose payload is not its
- * channel's (`FrameRefusal`). Java tells them apart by `status`.
- */
-public sealed interface Heard<out P> {
-    /** Which it is, as every SDK spells it: `delivered` or `refused`. */
-    public val status: String
-}
-
-/** A frame of one channel, its payload decoded, with what came beside it. */
-public data class Delivered<P>(
-    public val payload: P,
-    /** What pairs a reply with its request. */
-    public val correlationId: String?,
-    /** The resource whose scope it was delivered on. */
-    @get:JvmExposeBoxed
-    public val scope: ResourceId?,
-    /** Who emitted it, as the gateway stamped it. */
-    @get:JvmExposeBoxed
-    public val userId: UserId?,
-    /** The trace it was sent under. */
-    public val trace: TraceContext?,
-) : Heard<P> {
-    override val status: String get() = "delivered"
-}
-
-/** Why a payload is refused at a member, as every SDK spells it. */
-public enum class FrameRefusalReason(
-    /** The reason as every SDK spells it. */
-    public val wire: String,
-) {
-    /** The payload does not carry the member, or the member holds null where it may not. */
-    Lacks("lacks"),
-
-    /** The member is not what its schema allows (of another kind, another value, form or size), or is one a closed object does not name. */
-    Malformed("malformed"),
-}
-
-/**
- * A frame a typed read refused, in its place: its payload has a fault as its
- * channel's. `member` is the way to the member the fault is at, the names of
- * the members it is within and its own joined by dots, and empty for the
- * payload itself; `reason` is why. `payload` is the payload as it came, the
- * gateway's stamps and all.
- */
-public data class FrameRefusal(
-    public val channel: String,
-    public val member: String,
-    public val reason: FrameRefusalReason,
-    public val payload: JsonObject,
-) : Heard<Nothing> {
-    override val status: String get() = "refused"
 }
 
 private fun <P> delivered(frame: Frame, payload: P): Delivered<P> =
@@ -198,42 +152,56 @@ private fun <P> delivered(frame: Frame, payload: P): Delivered<P> =
         trace = frame.trace,
     )
 
+/** The way from a frame to the member of its payload whose way from the payload is `member`. */
+private fun inPayload(member: String): String = if (member.isEmpty()) "payload" else "payload.$member"
+
+/**
+ * What a typed read of `channel` gives for `carried`: a frame, its payload
+ * decoded, or the refusal of one whose payload is not the channel's; and a
+ * frame the transport refused, its refusal as it came.
+ */
+internal fun <P> heard(channel: Channel<P>, carried: Carried): Heard<P> = heard(channel.payload, channel.stamps, carried)
+
+private fun <P> heard(payload: KSerializer<P>, stamps: Set<String>, carried: Carried): Heard<P> {
+    val frame = when (carried) {
+        is Frame -> carried
+        is FrameRefusal -> return carried
+    }
+    val declared = declared(stamps, frame.payload)
+    val fault = faultOf(payload.descriptor, declared) ?: try {
+        return delivered(frame, wireJson.decodeFromJsonElement(payload, declared))
+    } catch (_: IllegalArgumentException) {
+        UNDECODED
+    }
+    return FrameRefusal(frame.channel, inPayload(fault.member), fault.reason, frame.payload, frame.correlationId, frame.scope)
+}
+
 /**
  * One channel's frames from now on, each with its payload decoded: read by
- * one collector, once. A frame whose payload is not the channel's is told the
- * reader in its place, as a `FrameRefusal`, and the frames after it follow.
- * Read for a resource, it gives that resource's frames and no other's, and
- * holds that resource's scope until it is closed or its reading ends. Java
- * reads it as a `java.util.concurrent.Flow.Publisher`.
+ * one collector, once. A frame refused, by the transport or because its
+ * payload is not the channel's, is told the reader in its place, as a
+ * `FrameRefusal`, and the frames after it follow. Read for a resource, it
+ * gives that resource's frames and no other's, and holds that resource's
+ * scope until it is closed or its reading ends. Java reads it as a
+ * `java.util.concurrent.Flow.Publisher`.
  */
 public class Typed<P> internal constructor(
-    private val channel: String,
     private val payload: KSerializer<P>,
     private val stamps: Set<String>,
-    private val frames: Events<Frame>,
+    private val frames: Events<Carried>,
     private val resource: ResourceId?,
     private val hold: ResourceHold?,
 ) : Flow<Heard<P>>, AutoCloseable {
     override suspend fun collect(collector: FlowCollector<Heard<P>>) {
         try {
-            frames.collect { frame ->
+            frames.collect { carried ->
                 // A stream carries every scope it holds on the one channel, and another reader may hold another resource's.
-                if (resource != null && frame.scope != resource) return@collect
-                collector.emit(heard(frame))
+                if (resource != null && carried.scope != resource) return@collect
+                collector.emit(heard(payload, stamps, carried))
             }
         } finally {
             close()
         }
-    }
-
-    private fun heard(frame: Frame): Heard<P> {
-        val declared = declared(stamps, frame.payload)
-        val fault = faultOf(payload.descriptor, declared) ?: try {
-            return delivered(frame, wireJson.decodeFromJsonElement(payload, declared))
-        } catch (_: IllegalArgumentException) {
-            UNDECODED
-        }
-        return FrameRefusal(channel, fault.member, fault.reason, frame.payload)
     }
 
     /** The same frames, for Java. */
@@ -273,13 +241,13 @@ public class Bus(private val transport: Transport) {
 
     /** The frames delivered on `channel` from now on. Throws `BusRequestError` (`bus.unsubscribed`) for a channel this transport can never deliver. */
     public fun <P> frames(channel: Channel<P>): Typed<P> =
-        Typed(channel.name, channel.payload, channel.stamps, transport.frames(channel.name), null, null)
+        Typed(channel.payload, channel.stamps, transport.frames(channel.name), null, null)
 
     /** The frames delivered on `channel` for `resource` from now on: the read holds that resource's scope until it is closed or its reading ends. */
     @JvmExposeBoxed
     public fun <P> frames(channel: ScopedChannel<P>, resource: ResourceId): Typed<P> {
         val frames = transport.frames(channel.name)
-        return Typed(channel.name, channel.payload, channel.stamps, frames, resource, transport.subscribeToResource(resource))
+        return Typed(channel.payload, channel.stamps, frames, resource, transport.subscribeToResource(resource))
     }
 
     /**

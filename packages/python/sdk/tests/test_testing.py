@@ -45,7 +45,7 @@ from semiont.testing import (
     create_test_session,
     retry_key_of,
 )
-from semiont.transport import Content, ContentTransport, Frame, FrameSink, GatewayOperations, PutBinaryRequest, Transport
+from semiont.transport import Content, ContentTransport, Frame, FrameRefusal, FrameSink, GatewayOperations, PutBinaryRequest, Transport
 from semiont.types import (
     AnchoredTextAbsent,
     GatheredContext,
@@ -74,7 +74,7 @@ class Carried(FrameSink):
         self.channels: list[str] = []
 
     @override
-    def deliver(self, frame: Frame) -> None:
+    def deliver(self, frame: Frame | FrameRefusal) -> None:
         self.channels.append(frame.channel)
 
 

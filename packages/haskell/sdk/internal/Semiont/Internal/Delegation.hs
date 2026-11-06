@@ -41,7 +41,7 @@ data Verb completion = Verb
   , learned :: JobStatusResponse -> ResourceId -> Maybe completion
   }
 data Follower = Follower Bus.Bus Local.EventBus Bus.BusOptions Timing.Settings Lifetime.Lifetime
-data FrameEvent = Advanced JobReportProgressCommand | Finished JobCompleteCommand | FailedAttempt JobFailCommand
+data FrameEvent = Advanced JobReportProgressCommand | Finished JobCompleteCommand | FailedAttempt JobFailCommand | Unreadable Bus.FrameRefusal
 type Parent = Maybe Context.Context
 data Event = CreatedAnswer (Either SomeException JobCreatedResult)
   | Frame Parent FrameEvent
@@ -65,24 +65,25 @@ dispose (Follower _ _ _ _ lifetime) = Lifetime.close lifetime
 withParent :: Parent -> IO value -> IO value
 withParent parent = bracket (attachContext (fromMaybe Context.empty parent)) detachContext . const
 
-frameIdentity :: FrameEvent -> JobId
-frameIdentity (Advanced value) = jobReportProgressCommandJobId value
-frameIdentity (FailedAttempt value) = jobFailCommandJobId value
-frameIdentity (Finished value) = case value of
+frameIdentity :: FrameEvent -> Maybe JobId
+frameIdentity (Advanced value) = Just (jobReportProgressCommandJobId value)
+frameIdentity (FailedAttempt value) = Just (jobFailCommandJobId value)
+frameIdentity (Unreadable _) = Nothing
+frameIdentity (Finished value) = Just $ case value of
   JobCompleteCommandBranch1 completed -> markJobCompleteCommandJobId completed
   JobCompleteCommandBranch2 completed -> yieldJobCompleteCommandJobId completed
 
-receive :: TQueue Event -> Local.Frame -> Parent -> STM ()
+receive :: TQueue Event -> Local.Carried -> Parent -> STM ()
 receive events frame parent
   | name==channelName JobReportProgress = offer JobReportProgress Advanced
   | name==channelName Channel.JobComplete = offer Channel.JobComplete Finished
   | name==channelName JobFail = offer JobFail FailedAttempt
   | otherwise = pure ()
   where
-    name=busFrameChannel (Local.wireFrame frame)
+    name=Local.carriedChannel frame
     offer channel make = case Typed.decoded channel frame of
       Bus.Heard value -> writeTQueue events (Frame parent (make (Bus.deliveredPayload value)))
-      Bus.Refused _ -> pure ()
+      Bus.Refused refusal -> writeTQueue events (Frame parent (Unreadable refusal))
 
 follow :: Follower -> JobCreateCommand -> Verb completion -> ResourceId -> Maybe Scientific
   -> IO (Running.Running (JobEvent completion) completion)
@@ -153,8 +154,9 @@ follow (Follower wire local clock timing lifetime) command verb resource stallMs
           Nothing -> throwIO (TransportError Code.TransportError "job completion is not the delegated verb's" Nothing Nothing)
           Just value -> report (Complete value) >> pure (Just value)
         consume identity parent frame
-          | frameIdentity frame/=identity = pure Nothing
+          | maybe False (/=identity) (frameIdentity frame) = pure Nothing
           | otherwise = case frame of
+              Unreadable refusal -> report (Refused refusal) >> pure Nothing
               Advanced value -> do
                 mapM_ (report . Progress) (jobReportProgressCommandProgress value)
                 silence parent identity

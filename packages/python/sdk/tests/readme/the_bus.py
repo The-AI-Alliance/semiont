@@ -1,9 +1,10 @@
-from semiont.bus import Bus, Delivered, FrameRefusal
+from semiont.bus import Bus, Delivered
 from semiont.channels import MARK_ADDED
 from semiont.errors import BusRequestError
 from semiont.http import HttpTransport
 from semiont.identifiers import ResourceId
 from semiont.operations import BROWSE_RESOURCE_REQUESTED
+from semiont.transport import FrameRefusal
 from semiont.types import BrowseResourceRequest
 from semiont.watched import Variable
 
@@ -25,4 +26,4 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
                     case Delivered():
                         print(heard.scope, heard.payload.type)
                     case FrameRefusal():
-                        print(f"a payload on {heard.channel} whose `{heard.member}` {heard.reason}")
+                        print(f"a frame on {heard.channel} refused at its `{heard.member}`: {heard.reason}")

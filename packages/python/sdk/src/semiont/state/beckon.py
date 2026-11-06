@@ -19,7 +19,7 @@ from semiont.events import Events
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.state._tasks import Tasks
 from semiont.state_unit import StateUnit
-from semiont.transport import Frame, Transport
+from semiont.transport import Frame, FrameRefusal, Transport
 from semiont.types import BeckonFocusEvent, BeckonSparkleEvent
 from semiont.watched import Variable, Watched
 
@@ -49,9 +49,12 @@ class BeckonStateUnit(StateUnit):
         if not self._disposed:
             self._client.bus.publish(BECKON_FOCUS, BeckonFocusEvent(resource_id=self._resource_id, annotation_id=annotation_id))
 
-    async def _listen(self, heard: Events[Frame]) -> None:
+    async def _listen(self, heard: Events[Frame | FrameRefusal]) -> None:
         async with heard:
             async for frame in heard:
+                if isinstance(frame, FrameRefusal):
+                    # A frame refused is nobody's to act on.
+                    continue
                 try:
                     self._heard(frame)
                 except ValidationError:

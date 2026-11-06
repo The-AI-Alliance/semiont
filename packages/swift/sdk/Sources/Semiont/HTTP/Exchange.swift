@@ -274,6 +274,8 @@ extension HttpTransport {
           renewed = true
           if let replacement = try await renew(refused: credential) {
             credential = replacement
+            attempts = 1
+            cap = timing.emitInitialDelayMs
             continue
           }
         }

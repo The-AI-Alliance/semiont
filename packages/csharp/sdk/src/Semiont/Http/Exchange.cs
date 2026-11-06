@@ -71,7 +71,7 @@ public sealed partial class HttpTransport
             if (failure.Code == ProtocolFacts.Error(401) && !renewed && sent is not null)
             {
                 renewed = true;
-                if (await RenewAsync(sent, cancellation).ConfigureAwait(false))
+                if (await RenewAsync(sent, cancellation).ConfigureAwait(false) is not null)
                 {
                     response.Dispose();
                     attempt--;

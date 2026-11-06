@@ -138,6 +138,7 @@ impl Gateway {
             .expect("the frame is delivered")
             .expect("the stream is still there")
             .expect("nothing was missed")
+            .expect("it is no refusal")
     }
 }
 

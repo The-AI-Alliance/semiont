@@ -180,7 +180,7 @@ requests command = do
       seen <- Stream.toList_ (Stream.take 2 observations)
       require "typed request returned the wrong result" (answer == EmptyBusPayload)
       require "a duplicate bridge duplicated a raw frame, or the continuation overtook it"
-        (map (busFrameCorrelationId . Transport.wireFrame) seen == [Just "request-1", Nothing])
+        (map Transport.carriedCorrelationId seen == [Just "request-1", Nothing])
       (_, _, pending, _) <- atomically (Transport.subscriptions input)
       require "settled request remained tracked" (null pending)
     releaseOne >> releaseOne >> releaseTwo

@@ -19,7 +19,7 @@ use semiont::claims::{
 use semiont::client::SemiontClient;
 use semiont::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
 use semiont::testing::{FaultAction, FaultyTransport, TestClientOptions, create_test_client};
-use semiont::transport::{ConnectionState, Frame, TraceCarrier};
+use semiont::transport::{ConnectionState, Frame, FrameRefusal, FrameRefusalReason, TraceCarrier};
 use semiont::types::DurabilityEvidence::{
     Acknowledged, ProbeConfirmed, ProbeRefused, ProbeUnreachable,
 };
@@ -590,6 +590,80 @@ async fn an_announcement_during_a_claim_in_flight_earns_exactly_one_more() {
     // Two announcements land while it is in flight: one bit, not a counter.
     w.relay("job:queued", queued("highlighting"));
     w.relay("job:queued", queued("commenting"));
+    turn().await;
+    assert_eq!(w.claimed().len(), 1);
+
+    tokio::time::sleep(Duration::from_millis(60)).await;
+    assert_eq!(w.claimed().len(), 2, "exactly one more");
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(
+        w.claimed().len(),
+        2,
+        "then nothing until the next idle moment"
+    );
+}
+
+/// What the worker's transport delivers in place of an announcement it
+/// could not read: one whose payload is no object.
+fn refused_announcement() -> FrameRefusal {
+    FrameRefusal {
+        channel: "job:queued".to_owned(),
+        member: "payload".to_owned(),
+        reason: FrameRefusalReason::Malformed,
+        payload: Some(json!("job-8")),
+        scope: None,
+        correlation_id: None,
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_refused_announcement_is_stamped_as_heard_and_wakes_an_idle_worker_as_a_matching_one_would()
+ {
+    let w = world();
+    let claims = Arc::new(w.claims(vec![mark("tagging")]));
+    let reading = tokio::spawn({
+        let claims = claims.clone();
+        async move { held(&claims).await }
+    });
+    turn().await;
+    assert_eq!(
+        w.claimed().len(),
+        1,
+        "the first claim, answered with nothing pending"
+    );
+    assert_eq!(claims.vitals().last_queued_event_at, None);
+
+    // No filter can be compared with what cannot be read.
+    w.offer(running(
+        "job-1",
+        "mark",
+        json!({}),
+        json!({ "motivation": "tagging" }),
+    ));
+    w.transport.deliver_refusal(refused_announcement());
+    let job = reading.await.expect("read");
+    assert_eq!(w.claimed().len(), 2, "it claims");
+    assert!(
+        claims.vitals().last_queued_event_at.is_some(),
+        "it was received, and is stamped as heard"
+    );
+
+    w.transport.deliver_refusal(refused_announcement());
+    turn().await;
+    assert_eq!(w.claimed().len(), 2, "no claim while holding a job");
+    finish(job).await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_refused_announcement_during_a_claim_in_flight_earns_exactly_one_more() {
+    let w = world_meeting(vec![FaultAction::Delay(Duration::from_millis(50))]);
+    let claims = w.claims(everything());
+    tokio::spawn(async move { claims.next().await });
+    turn().await;
+    assert_eq!(w.claimed().len(), 1);
+
+    w.transport.deliver_refusal(refused_announcement());
+    w.transport.deliver_refusal(refused_announcement());
     turn().await;
     assert_eq!(w.claimed().len(), 1);
 

@@ -4,7 +4,7 @@ module Semiont.Internal.Generated.Testing where
 import Data.Aeson (Object, Value)
 import Data.Text (Text)
 import Semiont.Retry (RetryOptions)
-import Semiont.Transport (Transport)
+import Semiont.Transport (Transport, Carried)
 import Test.QuickCheck (Gen, oneof, chooseInteger, chooseInt, vectorOf)
 data FaultAction = Deliver | DropReply | Delay Integer | DuplicateReply | RejectEmit deriving (Eq, Show)
 faultKind :: FaultAction -> Text
@@ -37,7 +37,7 @@ data FaultyTransport = FaultyTransport
   , queueReply :: Text -> [Maybe Value] -> IO ()
   , refuseWhen :: (Text -> Object -> IO (Maybe Object)) -> IO ()
   , requestLog :: IO [RequestLogEntry]
-  , deliver :: Text -> Maybe Text -> Object -> IO ()
+  , deliver :: Carried -> IO ()
   }
 data LivenessScenario = LivenessScenario
   { livenessScenarioOutputs :: [IO ()]

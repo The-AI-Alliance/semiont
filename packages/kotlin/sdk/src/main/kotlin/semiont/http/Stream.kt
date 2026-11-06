@@ -20,8 +20,10 @@ import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonPrimitive
 import semiont.Timings
 import semiont.channels.RESOURCE_SCOPED_CHANNELS
 import semiont.channels.TRACE_FIELD
@@ -32,10 +34,15 @@ import semiont.identifiers.ResourceId
 import semiont.retry.equalJitter
 import semiont.retry.retryAfterMs
 import semiont.transport.Broadcast
+import semiont.transport.Carried
 import semiont.transport.ConnectionState
+import semiont.transport.Events
 import semiont.transport.Frame
+import semiont.transport.FrameRefusal
+import semiont.transport.FrameSink
 import semiont.transport.ReplyRouter
 import semiont.transport.TraceContext
+import semiont.transport.scope
 import semiont.types.BusFrame
 import semiont.types.BusSubscribeRequest
 import semiont.types.BusSubscribeRequestScopedItem
@@ -46,29 +53,29 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 
-/** The frames of every channel anybody listens to, a broadcast per channel, and the buses every frame is bridged into. */
+/** The frames, and frames' refusals, of every channel anybody listens to, a broadcast per channel, and the buses each is bridged into. */
 internal class FrameHub {
-    private val channels = mutableMapOf<String, Broadcast<Frame>>()
-    private val bridged = mutableListOf<semiont.transport.FrameSink>()
+    private val channels = mutableMapOf<String, Broadcast<Carried>>()
+    private val bridged = mutableListOf<FrameSink>()
     private var closed = false
 
     @Synchronized
-    fun bridge(bus: semiont.transport.FrameSink) {
+    fun bridge(bus: FrameSink) {
         if (!closed) bridged += bus
     }
 
     @Synchronized
-    fun frames(channel: String): semiont.transport.Events<Frame> {
+    fun frames(channel: String): Events<Carried> {
         val broadcast = channels.getOrPut(channel) { Broadcast() }
         if (closed) broadcast.close()
         return broadcast.listen()
     }
 
-    fun deliver(frame: Frame) {
-        val (buses, broadcast) = synchronized(this) { bridged.toList() to channels[frame.channel] }
+    fun deliver(carried: Carried) {
+        val (buses, broadcast) = synchronized(this) { bridged.toList() to channels[carried.channel] }
         // A client's bus keeps its scopes for what the client's own parts say to each other.
-        for (bus in buses) bus.deliver(if (frame.scope == null) frame else frame.copy(scope = null))
-        broadcast?.deliver(frame)
+        for (bus in buses) bus.deliver(unscoped(carried))
+        broadcast?.deliver(carried)
     }
 
     @Synchronized
@@ -77,6 +84,12 @@ internal class FrameHub {
         channels.values.forEach { it.close() }
         bridged.clear()
     }
+}
+
+/** `carried`, on no scope. */
+private fun unscoped(carried: Carried): Carried = if (carried.scope == null) carried else when (carried) {
+    is Frame -> carried.copy(scope = null)
+    is FrameRefusal -> carried.copy(scope = null)
 }
 
 /** The ids of the frames delivered last. */
@@ -355,13 +368,15 @@ internal class Stream(
     private fun framed(conn: Int, id: String?, data: String) {
         if (conn !in connections) return
         if (id != null && !seen.remember(id)) return
-        val read = when (val carried = carried(data)) {
-            is Carried.Read -> carried.frame
-            is Carried.Refused -> {
-                // What names no channel names no reader: it is told to the failure report.
-                if (carried.channel == null) {
-                    failures.deliver(TransportError(TransportErrorCode.Error, "the stream carried what is not a frame: ${carried.fault}"))
-                }
+        val read = when (val line = lineOf(data)) {
+            is Line.Allowed -> line.frame
+            is Line.Refused -> {
+                router.route(line.refusal)
+                hub.deliver(line.refusal)
+                return
+            }
+            is Line.Unaddressed -> {
+                failures.deliver(TransportError(TransportErrorCode.Error, "the stream carried what is not a frame: ${line.fault}"))
                 return
             }
         }
@@ -536,36 +551,53 @@ internal class Stream(
     }
 }
 
-/** What the stream carried, read as a frame: a frame, or the first fault that keeps it from being one. */
-internal sealed interface Carried {
+/** What a `bus-event` line carried, read as a frame. */
+internal sealed interface Line {
     /** A frame BusFrame allows. */
-    data class Read(val frame: BusFrame) : Carried
+    data class Allowed(val frame: BusFrame) : Line
 
-    /**
-     * What BusFrame does not allow: its first fault, and the channel it names when BusFrame allows its `channel`.
-     * One that names no channel names no reader.
-     */
-    data class Refused(val fault: Fault, val channel: String?) : Carried
+    /** A frame BusFrame does not allow that names its readers, whose refusal is told to them in its place. */
+    data class Refused(val refusal: FrameRefusal) : Line
+
+    /** What names no reader, told to the failure report by its first fault. */
+    data class Unaddressed(val fault: Fault) : Line
 }
 
-/** `data` read as a frame, held to BusFrame by the table: a frame carries what BusFrame names, and nothing more. */
-internal fun carried(data: String): Carried {
+/**
+ * `data` read as a frame, held to BusFrame by the table: a frame carries what
+ * BusFrame names, and nothing more. A frame BusFrame does not allow names its
+ * readers when its `channel` is a text of at least one character and it
+ * carries no `scope` or one that is a resource's id, whatever its first fault.
+ */
+internal fun lineOf(data: String): Line {
     val element = try {
         wireJson.parseToJsonElement(data)
     } catch (_: IllegalArgumentException) {
-        return Carried.Refused(UNDECODED, null)
+        return Line.Unaddressed(UNDECODED)
     }
     val fault = faultOf(BusFrame.serializer().descriptor, element) ?: try {
-        return Carried.Read(wireJson.decodeFromJsonElement(BusFrame.serializer(), element))
+        return Line.Allowed(wireJson.decodeFromJsonElement(BusFrame.serializer(), element))
     } catch (_: IllegalArgumentException) {
         UNDECODED
     }
-    return Carried.Refused(fault, channelOf(element))
+    val stated = element as? JsonObject ?: return Line.Unaddressed(fault)
+    val channel = (stated["channel"] as? JsonPrimitive)?.takeIf { it.isString && it.content.isNotEmpty() }?.content ?: return Line.Unaddressed(fault)
+    // A null where a member may be absent is its absence, as BusFrame reads it.
+    val scope = when (val held = stated["scope"]) {
+        null, JsonNull -> null
+        else -> (held as? JsonPrimitive)?.takeIf { it.isString }?.let { ResourceId.parse(it.content) } ?: return Line.Unaddressed(fault)
+    }
+    return Line.Refused(FrameRefusal(channel, fault.member, fault.reason, stated["payload"], correlationIdOf(channel, stated["correlationId"]), scope))
 }
 
-/** The channel `element` names: its `channel`, when that is a text of at least one character. */
-private fun channelOf(element: JsonElement): String? =
-    ((element as? JsonObject)?.get("channel") as? JsonPrimitive)?.takeIf { it.isString && it.content.isNotEmpty() }?.content
+/** The correlation id a frame on `channel` carries as `held`, when BusFrame allows it, whatever the frame's other faults. */
+private fun correlationIdOf(channel: String, held: JsonElement?): String? {
+    // A null where a member may be absent is its absence, as BusFrame reads it.
+    if (held == null || held == JsonNull) return null
+    val alone = JsonObject(mapOf("channel" to JsonPrimitive(channel), "payload" to JsonObject(emptyMap()), "correlationId" to held))
+    if (faultOf(BusFrame.serializer().descriptor, alone) != null) return null
+    return held.jsonPrimitive.content
+}
 
 /** The trace a frame's payload says it was sent under, when it says so. */
 private fun sentUnder(carried: kotlinx.serialization.json.JsonElement?): TraceContext? {

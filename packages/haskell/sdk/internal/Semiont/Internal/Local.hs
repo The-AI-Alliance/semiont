@@ -34,4 +34,4 @@ events :: Local.EventBus -> Channel scope payload -> ScopeArg scope
   -> (Stream (Of (Heard payload)) IO () -> IO result) -> IO result
 events bus channel scope consume = Local.events bus (channelName channel) $ \frames ->
   consume (Stream.map (decoded channel) (Stream.filter matches frames))
-  where matches frame = maybe True (\resource -> busFrameScope (Local.wireFrame frame) == Just resource) (scopeOf scope)
+  where matches frame = maybe True (\resource -> Local.carriedScope frame == Just resource) (scopeOf scope)

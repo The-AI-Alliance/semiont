@@ -41,6 +41,7 @@ import semiont.errors.SemiontError
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
 import semiont.namespaces.CONTEXT_WINDOW
+import semiont.frame
 import semiont.sameJson
 import semiont.session.KbIdentityConflict
 import semiont.session.SessionEndReason
@@ -350,7 +351,7 @@ private fun play(case: JsonObject) = runTest {
     val heard = mutableListOf<Frame>()
     if (listening.isNotEmpty()) {
         val frames = client.bus.framesAmong(listening)
-        backgroundScope.launch(clock) { frames.collect { heard += it } }
+        backgroundScope.launch(clock) { frames.collect { heard += it.frame() } }
     }
     val steps = Steps(transport, client, searches, units, heard)
     try {

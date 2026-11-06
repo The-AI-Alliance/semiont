@@ -27,9 +27,9 @@ import semiont.retry.BOOT
 import semiont.retry.equalJitter
 import semiont.retry.retryAfterMs
 import semiont.transport.Broadcast
+import semiont.transport.Carried
 import semiont.transport.ConnectionState
 import semiont.transport.Events
-import semiont.transport.Frame
 import semiont.transport.FrameSink
 import semiont.transport.GatewayOperations
 import semiont.transport.PendingReply
@@ -118,7 +118,7 @@ public class HttpTransport @JvmOverloads constructor(
         return Telemetry.emitting(channel, scope) { sent(channel, payload, scope, correlationId) }
     }
 
-    /** One emit, made again inside the retry budget, its credential renewed once, every attempt under the one key that names it. */
+    /** One emit, made again inside the retry budget, its credential renewed once with a fresh budget after it, every attempt under the one key that names it. */
     private suspend fun sent(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): Long? {
         val body = wireJson.encodeToString(
             BusEmitRequest.serializer(),
@@ -159,6 +159,8 @@ public class HttpTransport @JvmOverloads constructor(
                     val another = exchange.renewal(sent)
                     if (another != null) {
                         sent = another
+                        made = 1
+                        capMs = timing.emitRetry.initialDelayMs
                         continue
                     }
                 }
@@ -186,7 +188,7 @@ public class HttpTransport @JvmOverloads constructor(
     override fun emitFuture(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): CompletableFuture<Long?> =
         this.scope.futureOf { emit(channel, payload, scope, correlationId) }
 
-    override fun frames(channel: String): Events<Frame> {
+    override fun frames(channel: String): Events<Carried> {
         if (channel !in channels && channel !in RESOURCE_SCOPED_CHANNELS) throw unsubscribed(channel)
         return hub.frames(channel)
     }

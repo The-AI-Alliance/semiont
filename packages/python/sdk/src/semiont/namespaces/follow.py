@@ -12,6 +12,12 @@ the job's id is known are held, and the job's are then handled in the order
 they came. The reply itself is the follower's first event: it names the job,
 to `job.cancel` and to `job.status`.
 
+A frame of the lifecycle refused, by the transport or as its channel's,
+names no job: it is reported as `JobRefused`, held as the job's frames are
+until the job has its id, and is no word of the job. It starts neither the
+silence nor a stall deadline again, so a follower whose job's end was refused
+learns the end from the job's status.
+
 A failure the queue will retry is reported and followed past: the job is not
 over. A failure it will not retry ends the follower with `job.failed`. A
 follower given a stall deadline that hears nothing for that long asks for the
@@ -36,15 +42,15 @@ from typing import Final, Literal, final
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont._required import UNDECODED, fault_of
-from semiont.bus import decoded
+from semiont.bus import Heard, heard
 from semiont.channels import JOB_COMPLETE, JOB_FAIL, JOB_REPORT_PROGRESS
 from semiont.errors import BusRequestError, JobError, SemiontError, TransportError
 from semiont.identifiers import JobId, ResourceId
-from semiont.model import written
+from semiont.model import WireModel, written
 from semiont.namespaces.links import Links
 from semiont.operations import JOB_CANCEL_REQUESTED, JOB_CREATE, JOB_STATUS_REQUESTED
 from semiont.running import Running
-from semiont.transport import Frame
+from semiont.transport import Frame, FrameRefusal
 from semiont.types import (
     JobCancelRequest,
     JobCompleteCommand,
@@ -59,7 +65,17 @@ from semiont.types import (
     JobType,
 )
 
-__all__ = ["Delegation", "JobAttemptFailed", "JobCompleted", "JobCreated", "JobEvent", "JobProgressed", "follow"]
+__all__ = [
+    "Delegation",
+    "JobAttemptFailed",
+    "JobCompleted",
+    "JobCreated",
+    "JobEvent",
+    "JobProgressed",
+    "JobRefused",
+    "RefusedFrame",
+    "follow",
+]
 
 
 @final
@@ -91,6 +107,30 @@ class JobAttemptFailed:
 
 @final
 @dataclass(frozen=True, slots=True)
+class RefusedFrame:
+    """A refused frame as a follower reports one: its channel, and the member and reason of its fault."""
+
+    channel: str
+    member: str
+    reason: Literal["lacks", "malformed"]
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class JobRefused:
+    """A frame of some job's progress, completion or failure, refused by its transport or as its channel's.
+
+    It names no job, so it may be this job's or another's, and it is no word
+    of the job: the follower goes on following, and goes on counting its
+    silence. It comes only after `JobCreated`.
+    """
+
+    data: RefusedFrame
+    kind: Literal["refused"] = field(default="refused", init=False)
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class JobCompleted[C: JobCompleteCommand]:
     """The job completed, with the completion its verb's jobs give. A follower's last value."""
 
@@ -98,7 +138,7 @@ class JobCompleted[C: JobCompleteCommand]:
     kind: Literal["complete"] = field(default="complete", init=False)
 
 
-type JobEvent[C: JobCompleteCommand] = JobCreated | JobProgressed | JobAttemptFailed | JobCompleted[C]
+type JobEvent[C: JobCompleteCommand] = JobCreated | JobProgressed | JobAttemptFailed | JobRefused | JobCompleted[C]
 """What a followed job reports, and how it ends, `C` being the completion its
 verb's jobs give. As JSON it is `{"kind": "progress", "data": …}`, the same
 event in every SDK."""
@@ -131,7 +171,7 @@ class Delegation[C: JobCompleteCommand]:
         match last:
             case JobCompleted(data=completion):
                 return completion
-            case JobCreated() | JobProgressed() | JobAttemptFailed():
+            case JobCreated() | JobProgressed() | JobAttemptFailed() | JobRefused():
                 raise RuntimeError(f"a delegated job ended on a {last.kind} event, not on its completion")
 
     def __await__(self) -> Generator[object, None, C]:
@@ -146,18 +186,21 @@ type _Heard = JobReportProgressCommand | JobCompleteCommand | JobFailCommand
 _LIFECYCLE: Final = (JOB_REPORT_PROGRESS, JOB_COMPLETE, JOB_FAIL)
 
 
-def _heard(frame: Frame) -> _Heard | None:
-    """A frame of some job's lifecycle, read as its channel's. One that is not its channel's is nobody's to act on."""
-    try:
-        if frame.channel == JOB_REPORT_PROGRESS.name:
-            return decoded(JOB_REPORT_PROGRESS, frame.payload)
-        if frame.channel == JOB_COMPLETE.name:
-            return decoded(JOB_COMPLETE, frame.payload)
-        if frame.channel == JOB_FAIL.name:
-            return decoded(JOB_FAIL, frame.payload)
-    except ValidationError:
-        return None
-    return None
+def _said[P: WireModel](read: Heard[P]) -> P | FrameRefusal:
+    return read if isinstance(read, FrameRefusal) else read.payload
+
+
+def _heard(carried: Frame | FrameRefusal) -> _Heard | FrameRefusal:
+    """A frame of some job's lifecycle, read as its channel's; or its refusal."""
+    match carried.channel:
+        case JOB_REPORT_PROGRESS.name:
+            return _said(heard(JOB_REPORT_PROGRESS, carried))
+        case JOB_COMPLETE.name:
+            return _said(heard(JOB_COMPLETE, carried))
+        case JOB_FAIL.name:
+            return _said(heard(JOB_FAIL, carried))
+        case other:
+            raise AssertionError(f"a follower reads the lifecycle of a job, and {other} is not one of its channels")
 
 
 def _learned[C: JobCompleteCommand](completion: type[C], delegated: JobType, status: JobStatusResponse, resource_id: ResourceId) -> C:
@@ -220,10 +263,10 @@ async def _followed[C: JobCompleteCommand](
     # One reader of the three channels, so the job's frames are heard in the order they were published.
     frames = links.own.frames_among([channel.name for channel in _LIFECYCLE])
     creating: asyncio.Task[JobCreatedResult] | None = asyncio.ensure_future(links.request(JOB_CREATE, create))
-    hearing: asyncio.Task[Frame | None] = asyncio.ensure_future(anext(frames, None))
+    hearing: asyncio.Task[Frame | FrameRefusal | None] = asyncio.ensure_future(anext(frames, None))
     asking: asyncio.Task[JobStatusResponse] | None = None
     job_id: JobId | None = None
-    held: list[_Heard] = []
+    held: list[_Heard | FrameRefusal] = []
     ask_at: float | None = None
     stall_at = None if stall is None else loop.time() + stall
     try:
@@ -248,7 +291,7 @@ async def _followed[C: JobCompleteCommand](
             due = min((at for at in (ask_at, stall_at) if at is not None), default=None)
             done, _ = await asyncio.wait(waiting, timeout=None if due is None else max(due - now, 0), return_when=asyncio.FIRST_COMPLETED)
             now = loop.time()
-            heard: list[_Heard] = []
+            to_act_on: list[_Heard | FrameRefusal] = []
 
             if creating is not None and creating in done:
                 created = creating.result()
@@ -257,16 +300,14 @@ async def _followed[C: JobCompleteCommand](
                 # Ahead of the frames held for it: the job's id is the first thing its follower gives.
                 report(JobCreated(created.response))
                 ask_at = now + silence
-                heard, held = held, []
+                to_act_on, held = held, []
 
             if hearing in done:
                 frame = hearing.result()
                 if frame is None:
                     raise BusRequestError("bus.closed", "The client closed while it was following a job")
                 hearing = asyncio.ensure_future(anext(frames, None))
-                said = _heard(frame)
-                if said is not None:
-                    (held if job_id is None else heard).append(said)
+                (held if job_id is None else to_act_on).append(_heard(frame))
 
             if asking is not None and asking in done:
                 answered, asking = asking, None
@@ -294,7 +335,10 @@ async def _followed[C: JobCompleteCommand](
                 if asking is None and job_id is not None:
                     asking = asyncio.ensure_future(_status(links, job_id))
 
-            for said in heard:
+            for said in to_act_on:
+                if isinstance(said, FrameRefusal):
+                    report(JobRefused(RefusedFrame(channel=said.channel, member=said.member, reason=said.reason)))
+                    continue
                 if said.job_id != job_id:
                     continue
                 match said:

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
+import semiont.frame
 import semiont.http.HttpTransport
 import semiont.http.StreamGateway
 import semiont.http.Timing
@@ -144,7 +145,7 @@ class BookmarksTest {
                         gateway.send("p-42", """{"channel":"mark:added","payload":{"n":1},"scope":"res-1"}""")
                         gateway.send("e-9", """{"channel":"mark:added","payload":{"n":2},"scope":"res-2"}""")
                         val read = withTimeout(5_000) { heard.firstOf(2) }
-                        assertEquals(listOf(JsonPrimitive(1), JsonPrimitive(2)), read.map { it.payload.getValue("n") })
+                        assertEquals(listOf(JsonPrimitive(1), JsonPrimitive(2)), read.map { it.frame().payload.getValue("n") })
                         assertEquals("""{"res-1": "p-41"}""", storage.get(KEY))
                         places.storage.set(CACHE, "{}")
                         assertEquals(mapOf(RESOURCE to "p-42"), places.load())

@@ -198,10 +198,10 @@ begin claims = modifyMVar_ (workers claims) $ \existing -> mask $ \restore -> do
             Nothing -> atomically (void (tryPutTMVar (fatal claims) problem)))
     queuedWorker <- spawn $ Transport.stream (transport claims) (channelName JobQueued) $ \events -> do
       putMVar readyQueued ()
-      Stream.mapM_ (announced claims) events
+      Stream.mapM_ (either (const (refusedAnnouncement claims)) (announced claims)) events
     cancelWorker <- spawn $ Transport.stream (transport claims) (channelName JobCancelRequested) $ \events -> do
       putMVar readyCancel ()
-      Stream.mapM_ (cancellation claims) events
+      Stream.mapM_ (either (const (pure ())) (cancellation claims)) events
     stateWorker <- spawn $ State.watch (Transport.state (transport claims)) $ \states -> do
       putMVar readyState ()
       let loop wasOpen source = do
@@ -220,12 +220,21 @@ begin claims = modifyMVar_ (workers claims) $ \existing -> mask $ \restore -> do
     actor <- spawn (claimLoop claims)
     pure (actor : monitors)
 
+refusedAnnouncement :: Claims -> IO ()
+refusedAnnouncement claims = do
+  timestamp <- workerTimestamp (options claims)
+  atomically $ do
+    modifyTVar' (runtime claims) (\current -> current { lastQueued = Just timestamp })
+    wakeIdle claims
+
 announced :: Claims -> KM.KeyMap Value -> IO ()
 announced claims payload = do
   timestamp <- workerTimestamp (options claims)
   atomically $ do
     modifyTVar' (runtime claims) (\current -> current { lastQueued = Just timestamp })
-    when (any (\filterValue -> jobMatchesFilter filterValue (Object payload)) (workerAccepts (options claims))) (wakeIdle claims)
+    case decodePayload JobQueued (Object payload) of
+      Left _ -> wakeIdle claims
+      Right _ -> when (any (\filterValue -> jobMatchesFilter filterValue (Object payload)) (workerAccepts (options claims))) (wakeIdle claims)
 
 cancellation :: Claims -> KM.KeyMap Value -> IO ()
 cancellation claims payload = atomically $ do

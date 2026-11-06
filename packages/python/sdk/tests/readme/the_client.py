@@ -1,7 +1,7 @@
 from semiont.client import SemiontClient
 from semiont.http import HttpTransport
 from semiont.identifiers import AnnotationId, ResourceId
-from semiont.namespaces.follow import JobAttemptFailed, JobCompleted, JobCreated, JobProgressed
+from semiont.namespaces.follow import JobAttemptFailed, JobCompleted, JobCreated, JobProgressed, JobRefused
 from semiont.transport import Transport
 from semiont.types import HighlightingJobParams
 from semiont.watched import Variable
@@ -20,6 +20,8 @@ async def annotate(client: SemiontClient[Transport], resource: ResourceId, annot
                 print(progress.percentage)
             case JobAttemptFailed(data=setback):
                 print("trying again after:", setback.error)
+            case JobRefused(data=refused):
+                print("a frame refused on", refused.channel)  # some job's, maybe this one's
             case JobCompleted(data=done):
                 print(done.result)
 

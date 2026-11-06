@@ -64,7 +64,9 @@ listen tasks@(Tasks _ _ finalizers _) bus channels consume = do
   queue <- newTQueueIO
   detach <- Local.tapLocal bus $ \frame context -> do
     over <- closed tasks
-    unless (over || busFrameChannel (Local.wireFrame frame) `notElem` channels) (writeTQueue queue (frame,context))
+    case frame of
+      Local.Arrived delivered -> unless (over || busFrameChannel (Local.wireFrame delivered) `notElem` channels) (writeTQueue queue (delivered,context))
+      Local.FrameRejected _ -> pure ()
   let work = forever $ do
         (frame, context) <- atomically (readTQueue queue)
         case context of

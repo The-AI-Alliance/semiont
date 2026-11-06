@@ -192,7 +192,14 @@ async fn serve(
     tokio::spawn(async move {
         while let Some(delivered) = frames.next().await {
             let frame = match delivered {
-                Ok(frame) => frame,
+                Ok(Ok(frame)) => frame,
+                Ok(Err(refusal)) => {
+                    logging::error(
+                        "A frame refused",
+                        json!({ "component": "dispatcher", "channel": refusal.channel, "member": refusal.member, "reason": refusal.reason.as_str() }),
+                    );
+                    continue;
+                }
                 Err(lagged) => {
                     logging::error(
                         "Frames missed",

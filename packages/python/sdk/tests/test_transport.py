@@ -25,6 +25,7 @@ from semiont.transport import (
     CONNECTION_STATES,
     ConnectionState,
     Frame,
+    FrameRefusal,
     ReplyRouter,
     ResourceHold,
 )
@@ -75,7 +76,7 @@ async def asked(transport: FaultyTransport) -> str:
 
 
 def test_a_reply_reaches_the_request_that_awaits_it_and_no_other() -> None:
-    async def scenario() -> tuple[Frame | None, list[str], list[str]]:
+    async def scenario() -> tuple[Frame | FrameRefusal | None, list[str], list[str]]:
         router = ReplyRouter()
         with router.track("b", [RESULT, FAILURE]) as second, router.track("a", [RESULT, FAILURE]) as first:
             named = router.awaited()
@@ -96,7 +97,7 @@ def test_a_reply_reaches_the_request_that_awaits_it_and_no_other() -> None:
 
 
 def test_a_closed_router_tells_every_request_no_reply_will_come() -> None:
-    async def scenario() -> tuple[Frame | None, Frame | None, list[str]]:
+    async def scenario() -> tuple[Frame | FrameRefusal | None, Frame | FrameRefusal | None, list[str]]:
         router = ReplyRouter()
         pending = router.track("a", [RESULT])
         router.close()

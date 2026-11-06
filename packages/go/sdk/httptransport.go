@@ -153,11 +153,12 @@ func (t *HTTPTransport) Emit(ctx context.Context, channel bus.Channel, payload m
 }
 
 // Frames is the frames delivered on any of channels from now on, in the order
-// the stream delivered them: one listener, taken when Frames is called, and
-// let go when the loop over the sequence stops, ctx is done or the transport
-// closes. A channel this transport can never deliver is refused, as
-// unsubscribed.
-func (t *HTTPTransport) Frames(ctx context.Context, channels ...bus.Channel) (iter.Seq[Frame], error) {
+// the stream delivered them, and the refusal of each frame refused that
+// names its readers in its place: one listener, taken when Frames is called,
+// and let go when the loop over the sequence stops, ctx is done or the
+// transport closes. A channel this transport can never deliver is refused,
+// as unsubscribed.
+func (t *HTTPTransport) Frames(ctx context.Context, channels ...bus.Channel) (iter.Seq2[Frame, error], error) {
 	if len(channels) == 0 {
 		return nil, fmt.Errorf("Frames names no channel to listen to")
 	}
@@ -170,7 +171,8 @@ func (t *HTTPTransport) Frames(ctx context.Context, channels ...bus.Channel) (it
 }
 
 // BridgeInto delivers into sink every frame the stream delivers from now on,
-// each published to everyone there whichever scope it came on.
+// and every refusal it delivers in a frame's place, each published to
+// everyone there whichever scope it came on.
 func (t *HTTPTransport) BridgeInto(sink FrameSink) { t.shared.hub.Bridge(sink) }
 
 // IsSubscribed reports whether the stream delivers channel globally: whether
