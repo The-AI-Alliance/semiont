@@ -65,7 +65,17 @@ from semiont.types import (
     JobType,
 )
 
-__all__ = ["Delegation", "JobAttemptFailed", "JobCompleted", "JobCreated", "JobEvent", "JobProgressed", "JobRefused", "follow"]
+__all__ = [
+    "Delegation",
+    "JobAttemptFailed",
+    "JobCompleted",
+    "JobCreated",
+    "JobEvent",
+    "JobProgressed",
+    "JobRefused",
+    "RefusedFrame",
+    "follow",
+]
 
 
 @final
@@ -97,16 +107,25 @@ class JobAttemptFailed:
 
 @final
 @dataclass(frozen=True, slots=True)
+class RefusedFrame:
+    """A refused frame as a follower reports one: its channel, and the member and reason of its fault."""
+
+    channel: str
+    member: str
+    reason: Literal["lacks", "malformed"]
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class JobRefused:
     """A frame of some job's progress, completion or failure, refused by its transport or as its channel's.
 
     It names no job, so it may be this job's or another's, and it is no word
     of the job: the follower goes on following, and goes on counting its
-    silence. It comes only after `JobCreated`. As JSON its `data` is the
-    refusal's `channel`, `member` and `reason`.
+    silence. It comes only after `JobCreated`.
     """
 
-    data: FrameRefusal
+    data: RefusedFrame
     kind: Literal["refused"] = field(default="refused", init=False)
 
 
@@ -318,7 +337,7 @@ async def _followed[C: JobCompleteCommand](
 
             for said in to_act_on:
                 if isinstance(said, FrameRefusal):
-                    report(JobRefused(said))
+                    report(JobRefused(RefusedFrame(channel=said.channel, member=said.member, reason=said.reason)))
                     continue
                 if said.job_id != job_id:
                     continue

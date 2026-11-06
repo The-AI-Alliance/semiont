@@ -299,7 +299,6 @@ class Live:
                 data: JsonValue
                 match event:
                     case JobRefused(data=refused):
-                        # A refusal as every SDK gives it: its channel, and the member and reason of its fault.
                         data = {"channel": refused.channel, "member": refused.member, "reason": refused.reason}
                     case _:
                         data = event.data.model_dump(mode="json", exclude_unset=True)
