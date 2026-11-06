@@ -18,6 +18,7 @@ public actor SemiontSession: StateUnit {
   private nonisolated let onError: (@Sendable (any Error) -> Void)?
   private let onAuthFailed: (@Sendable (SessionEndReason) -> Void)?
   private let reconnectMs: Int
+  private let random: RandomSource
   private let timer: @Sendable (Duration) -> @Sendable () async throws -> Void
   private var starting: Task<Void, any Error>?
   private var renewal: Task<String?, any Error>?
@@ -31,8 +32,7 @@ public actor SemiontSession: StateUnit {
     renew: @escaping @Sendable (String?) async throws -> String?,
     validate: @escaping @Sendable (String) async throws -> UserResponse,
     publish: @escaping @Sendable (String?) async -> Void = { _ in },
-    reconnectMs: Int = Timings.reconnectMs,
-    clock: some Clock<Duration> = ContinuousClock(),
+    reconnectMs: Int = Timings.reconnectMs, random: RandomSource,
     onAuthFailed: (@Sendable (SessionEndReason) -> Void)? = nil,
     onError: (@Sendable (any Error) -> Void)? = nil
   ) {
@@ -44,10 +44,12 @@ public actor SemiontSession: StateUnit {
     self.validate = validate
     self.publish = publish
     self.reconnectMs = reconnectMs
+    self.random = random
+    let clock = client.clock
     timer = { delay in
       // Measure the delay from scheduling, even if the task starts later.
-      let deadline = clock.now.advanced(by: delay)
-      return { try await clock.sleep(until: deadline, tolerance: nil) }
+      let scheduled = stopwatch(clock)
+      return { try await clock.sleep(for: delay - scheduled()) }
     }
     self.retryCap = reconnectMs
     self.onAuthFailed = onAuthFailed
@@ -249,7 +251,7 @@ public actor SemiontSession: StateUnit {
     guard !lifetime.ended else { return }
     let delay: Int
     if unanswered {
-      delay = equalJitter(retryCap)
+      delay = equalJitter(retryCap, from: random)
       retryCap = min(retryCap * 2, Timings.maxReconnectMs)
     } else if let credential = token.value,
       let due = refreshDelay(credential, now: Date().timeIntervalSince1970),

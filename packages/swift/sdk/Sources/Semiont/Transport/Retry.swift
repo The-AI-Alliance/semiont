@@ -3,9 +3,12 @@ public func retryWithBackoff<Value: Sendable>(
   attempts: Int, initialDelayMs: Int, maxDelayMs: Int,
   retryable: @Sendable (any Error) -> Bool,
   retryAfterMs: @Sendable (any Error) -> Int? = { _ in nil },
+  clock: any Clock<Duration> = ContinuousClock(),
+  random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator(),
   operation: @Sendable (Int) async throws -> Value
 ) async throws -> Value {
   precondition(attempts > 0 && initialDelayMs >= 0 && maxDelayMs >= initialDelayMs)
+  let draws = RandomSource(random)
   var delay = initialDelayMs
   for attempt in 1...attempts {
     try Task.checkCancellation()
@@ -14,7 +17,8 @@ public func retryWithBackoff<Value: Sendable>(
     } catch {
       if Task.isCancelled || error is CancellationError { throw CancellationError() }
       guard attempt < attempts, retryable(error) else { throw error }
-      try await sleepMilliseconds(max(equalJitter(delay), retryAfterMs(error) ?? 0))
+      try await sleepMilliseconds(
+        max(equalJitter(delay, from: draws), retryAfterMs(error) ?? 0), on: clock)
       delay = delay > maxDelayMs / 2 ? maxDelayMs : delay * 2
     }
   }

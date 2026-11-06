@@ -5,10 +5,18 @@ import Synchronization
 public struct SemiontBrowserConfig: Sendable {
   public let storage: any SessionStorage
   public let sessionFactory: any SessionFactory
+  let clock: any Clock<Duration>
+  let random: RandomSource
 
-  public init(storage: any SessionStorage, sessionFactory: any SessionFactory) {
+  public init(
+    storage: any SessionStorage, sessionFactory: any SessionFactory,
+    clock: any Clock<Duration> = ContinuousClock(),
+    random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator()
+  ) {
     self.storage = storage
     self.sessionFactory = sessionFactory
+    self.clock = clock
+    self.random = RandomSource(random)
   }
 }
 
@@ -82,6 +90,8 @@ public actor SemiontBrowser {
   public nonisolated let bus = EventBus()
 
   private nonisolated let failures = Broadcast<any Error>()
+  nonisolated let clock: any Clock<Duration>
+  nonisolated let random: RandomSource
   private let factory: any SessionFactory
   private var tasks: [UUID: Task<Void, Never>] = [:]
   private var abandonable: Set<UUID> = []
@@ -93,6 +103,8 @@ public actor SemiontBrowser {
 
   init(_ config: SemiontBrowserConfig) throws {
     storage = config.storage
+    clock = config.clock
+    random = config.random
     factory = config.sessionFactory
     let stored = try loadKnowledgeBases(config.storage)
     knowledgeBases = Watched(stored)
@@ -607,16 +619,18 @@ public func newSemiontBrowser(_ config: SemiontBrowserConfig) async throws -> Se
 public func beginSignIn(
   _ browser: SemiontBrowser, options: BeginAuthorizationOptions, httpClient: HTTPClient
 ) async throws -> String {
-  try await beginAuthorization(options, storage: browser.storage, httpClient: httpClient)
+  try await beginAuthorization(
+    options, storage: browser.storage, httpClient: httpClient, clock: browser.clock)
 }
 
 public func completeSignIn(
   _ browser: SemiontBrowser, callback: String, httpClient: HTTPClient
 ) async throws -> SignInOutcome {
   let (pending, session) = try await completeAuthorization(
-    callback, storage: browser.storage, httpClient: httpClient)
+    callback, storage: browser.storage, httpClient: httpClient, clock: browser.clock)
   let identity = try await describeConnection(
-    pending.target, access: session.access, httpClient: httpClient)
+    pending.target, access: session.access, httpClient: httpClient, clock: browser.clock,
+    random: browser.random)
   return try await browser.signedIn(
     SignedIn(
       endpoint: .httpEndpoint(pending.target), description: identity.description, session: session,

@@ -241,6 +241,15 @@ transport, and `ScriptedSessions` with `SharedStorage` for registry tests.
 repeatable fault schedules. `assertExactlyOnceDelivery` checks event order
 and count across interleaved writes and connection transitions.
 
+Every maker that waits takes a `clock:` (any `Clock` whose duration is
+`Duration`, `ContinuousClock()` when none is given), and every maker that backs
+off takes a `random:` generator (`SystemRandomNumberGenerator()` when none is
+given). What a maker makes keeps its clock and generator: a client's namespaces,
+caches and state units, a session's renewals, a registry's sign-ins. Hand the
+SDK a `TestClock` and call `advance(by:)` to end its reconnect backoff,
+deadlines, debounces, renewals and polls when a test says, and hand it a
+generator whose draws are fixed to make each jitter the same on every run.
+
 ## Transports, the bus, and telemetry
 
 `SemiontClient.fromHttp(baseUrl:httpClient:token:)` constructs the HTTP client

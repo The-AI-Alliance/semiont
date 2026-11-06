@@ -9,6 +9,8 @@ public actor HttpTransport: Transport, GatewayOperations {
   nonisolated let failureEvents = Broadcast<TransportError>()
   let http: HTTPClient
   let timing: TransportTiming
+  nonisolated let clock: any Clock<Duration>
+  nonisolated let random: RandomSource
   let channels: [String]
   let clientID = UUID().uuidString
   var token: String?
@@ -48,7 +50,8 @@ public actor HttpTransport: Transport, GatewayOperations {
 
   public init(
     baseUrl: String, httpClient: HTTPClient, token: String?, channels: [String]? = nil,
-    timing: TransportTiming = TransportTiming(),
+    timing: TransportTiming = TransportTiming(), clock: any Clock<Duration> = ContinuousClock(),
+    random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator(),
     refresher: (@Sendable (String?) async throws -> String?)? = nil
   ) {
     self.baseUrl = baseUrl.hasSuffix("/") ? String(baseUrl.dropLast()) : baseUrl
@@ -56,6 +59,8 @@ public actor HttpTransport: Transport, GatewayOperations {
     self.token = token
     self.channels = channels ?? bridgedChannels
     self.timing = timing
+    self.clock = clock
+    self.random = RandomSource(random)
     self.refresher = refresher
     self.seen = SeenEventIDs(capacity: timing.seenEventIdsCount)
     let state = self.state
@@ -119,9 +124,10 @@ public actor HttpTransport: Transport, GatewayOperations {
   ) -> UUID {
     let id = UUID()
     let lifetime = self.lifetime
+    let clock = self.clock
     let task = Task { [weak self] in
       defer { lifetime.forget(id) }
-      do { try await sleepMilliseconds(milliseconds) } catch { return }
+      do { try await sleepMilliseconds(milliseconds, on: clock) } catch { return }
       guard !lifetime.ended, let self else { return }
       await action(self)
     }
@@ -203,6 +209,7 @@ public actor HttpTransport: Transport, GatewayOperations {
     let base = baseUrl
     let deadline = timing.streamOpenMs
     let bodyDeadline = timing.httpRequestMs
+    let clock = self.clock
     let life = lifetime
     let task = Task { [weak self] in
       defer { life.forget(id) }
@@ -213,12 +220,12 @@ public actor HttpTransport: Transport, GatewayOperations {
         request.headers.add(name: "Content-Type", value: "application/json")
         request.headers.add(name: "Accept", value: "text/event-stream")
         request.body = .bytes(try JSONEncoder().encode(body))
-        let response = try await within(deadline) { [request] in
+        let response = try await within(.milliseconds(deadline), on: clock) { [request] in
           try await http.execute(request, deadline: .distantFuture)
         }
         if !(200..<300).contains(Int(response.status.code)) {
           let failure = await Self.refusal(
-            response, path: "/bus/subscribe", deadlineMs: bodyDeadline)
+            response, path: "/bus/subscribe", deadlineMs: bodyDeadline, clock: clock)
           await self?.connectionRefused(id, error: failure)
           return
         }
@@ -338,7 +345,7 @@ public actor HttpTransport: Transport, GatewayOperations {
     for _ in 0..<min(failuresInARow, 20) { cap = min(cap * 2, Timings.maxReconnectMs) }
     failuresInARow += 1
     cancel(retry)
-    retry = spawn(after: max(equalJitter(cap), floor)) { owner in
+    retry = spawn(after: max(equalJitter(cap, from: random), floor)) { owner in
       await owner.retryConnect(keepingPrevious: keepPrevious)
     }
   }

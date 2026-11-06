@@ -19,15 +19,18 @@ public final class SemiontClient: Sendable {
   public let system: SystemNamespace?
   public var state: Watched<ConnectionState> { transport.state }
   public var baseUrl: String { transport.baseUrl }
+  let clock: any Clock<Duration>
   private let lifetime = Lifetime()
   private let disposed = Mutex(false)
   private let book: StoragePersister<KeptQuery>?
   public init(
     transport: any Transport, gateway: (any GatewayOperations)? = nil,
     content: (any ContentTransport)? = nil, followTiming: FollowTiming = FollowTiming(),
-    persistence: CachePersistence? = nil, invalidationWindowMs: Int? = nil
+    persistence: CachePersistence? = nil, invalidationWindowMs: Int? = nil,
+    clock: any Clock<Duration> = ContinuousClock()
   ) async throws {
-    let book = persistence.map(StoragePersister<KeptQuery>.init)
+    self.clock = clock
+    let book = persistence.map { StoragePersister<KeptQuery>($0, clock: clock) }
     self.book = book
     if let http = transport as? HttpTransport, let book {
       await http.restoreBookmarks(book.bookmarks)
@@ -45,15 +48,18 @@ public final class SemiontClient: Sendable {
     let content = content ?? (transport as? any ContentTransport)
     let live = LiveQueries(
       wire: wire, transport: transport, content: content, lifetime: lifetime, book: book,
-      invalidationWindowMs: invalidationWindowMs ?? Timings.invalidationWindowMs)
+      invalidationWindowMs: invalidationWindowMs ?? Timings.invalidationWindowMs, clock: clock)
     browse = BrowseNamespace(
       wire: wire, bus: bus, lifetime: lifetime, content: content, live: live)
     gather = GatherNamespace(wire: wire, lifetime: lifetime, live: live)
     match = MatchNamespace(wire: wire, bus: bus, lifetime: lifetime, live: live)
     yield = YieldNamespace(
-      wire: wire, bus: bus, lifetime: lifetime, timing: followTiming, content: content)
-    mark = MarkNamespace(wire: wire, bus: bus, lifetime: lifetime, timing: followTiming)
-    job = JobNamespace(wire: wire, bus: bus, transport: transport, lifetime: lifetime)
+      wire: wire, bus: bus, lifetime: lifetime, timing: followTiming, clock: clock,
+      content: content)
+    mark = MarkNamespace(
+      wire: wire, bus: bus, lifetime: lifetime, timing: followTiming, clock: clock)
+    job = JobNamespace(
+      wire: wire, bus: bus, transport: transport, lifetime: lifetime, clock: clock)
     frame = FrameNamespace(wire: wire)
     bind = BindNamespace(wire: wire, bus: bus)
     beckon = BeckonNamespace(wire: wire, bus: bus)
@@ -96,15 +102,17 @@ public final class SemiontClient: Sendable {
   }
   public static func fromHttp(
     baseUrl: String, httpClient: HTTPClient, token: String? = nil,
-    persistence: CachePersistence? = nil
+    persistence: CachePersistence? = nil, clock: any Clock<Duration> = ContinuousClock(),
+    random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator()
   )
     async throws -> SemiontClient
   {
     try Task.checkCancellation()
-    let transport = HttpTransport(baseUrl: baseUrl, httpClient: httpClient, token: token)
+    let transport = HttpTransport(
+      baseUrl: baseUrl, httpClient: httpClient, token: token, clock: clock, random: random)
     do {
       return try await SemiontClient(
-        transport: transport, gateway: transport, persistence: persistence)
+        transport: transport, gateway: transport, persistence: persistence, clock: clock)
     } catch {
       transport.dispose()
       throw error

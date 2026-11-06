@@ -35,10 +35,10 @@ struct LiveQueries: Sendable {
 
   init(
     wire: Bus, transport: any Transport, content: (any ContentTransport)?, lifetime: Lifetime,
-    book: StoragePersister<KeptQuery>?, invalidationWindowMs: Int
+    book: StoragePersister<KeptQuery>?, invalidationWindowMs: Int, clock: any Clock<Duration>
   ) {
     listedResources = Cache(
-      lifetime: lifetime, invalidationWindowMs: invalidationWindowMs
+      lifetime: lifetime, invalidationWindowMs: invalidationWindowMs, clock: clock
     ) { filters in
       try await wire.request(
         Operations.browseResourcesRequested,
@@ -48,7 +48,7 @@ struct LiveQueries: Sendable {
       ).response
     }
     matchedResources = Cache(
-      lifetime: lifetime, invalidationWindowMs: invalidationWindowMs
+      lifetime: lifetime, invalidationWindowMs: invalidationWindowMs, clock: clock
     ) { search in
       let filters = search.filters
       return try await wire.request(
@@ -58,19 +58,19 @@ struct LiveQueries: Sendable {
           offset: filters.offset, search: search.text)
       ).response
     }
-    engines = Cached(lifetime: lifetime, invalidationWindowMs: invalidationWindowMs) {
+    engines = Cached(lifetime: lifetime, invalidationWindowMs: invalidationWindowMs, clock: clock) {
       try await browseEngines(wire)
     }
     entityTypes = Cached(
       lifetime: lifetime, kept: book.map { KeptValue(book: $0, key: .entityTypes) },
-      invalidationWindowMs: invalidationWindowMs
+      invalidationWindowMs: invalidationWindowMs, clock: clock
     ) {
       try await wire.request(Operations.browseEntityTypesRequested, BrowseEntityTypesRequest())
         .response.entityTypes
     }
     tagSchemas = Cached(
       lifetime: lifetime, kept: book.map { KeptValue(book: $0, key: .tagSchemas) },
-      invalidationWindowMs: invalidationWindowMs
+      invalidationWindowMs: invalidationWindowMs, clock: clock
     ) {
       try await wire.request(Operations.browseTagSchemasRequested, BrowseTagSchemasRequest())
         .response.tagSchemas
@@ -78,7 +78,7 @@ struct LiveQueries: Sendable {
     resources = Cache(
       lifetime: lifetime, hold: { await transport.subscribeToResource($0) },
       kept: { key in book.map { KeptValue(book: $0, key: .resource(key)) } },
-      invalidationWindowMs: invalidationWindowMs,
+      invalidationWindowMs: invalidationWindowMs, clock: clock,
       fetch: { resource in
         try await wire.request(
           Operations.browseResourceRequested, BrowseResourceRequest(resourceId: resource)
@@ -86,7 +86,7 @@ struct LiveQueries: Sendable {
       })
     events = Cache(
       lifetime: lifetime, hold: { await transport.subscribeToResource($0) },
-      invalidationWindowMs: invalidationWindowMs,
+      invalidationWindowMs: invalidationWindowMs, clock: clock,
       fetch: { resource in
         try await wire.request(
           Operations.browseEventsRequested, BrowseEventsRequest(resourceId: resource)
@@ -94,7 +94,7 @@ struct LiveQueries: Sendable {
       })
     referencedBy = Cache(
       lifetime: lifetime, hold: { await transport.subscribeToResource($0) },
-      invalidationWindowMs: invalidationWindowMs,
+      invalidationWindowMs: invalidationWindowMs, clock: clock,
       fetch: { resource in
         try await wire.request(
           Operations.gatherReferencedByRequested, GatherReferencedByRequest(resourceId: resource)
@@ -103,7 +103,7 @@ struct LiveQueries: Sendable {
     annotations = Cache(
       lifetime: lifetime, hold: { await transport.subscribeToResource($0) },
       kept: { key in book.map { KeptValue(book: $0, key: .annotations(key)) } },
-      invalidationWindowMs: invalidationWindowMs,
+      invalidationWindowMs: invalidationWindowMs, clock: clock,
       fetch: { resource in
         guard let content else {
           throw TransportError(.error, "No content transport is configured")
@@ -115,7 +115,7 @@ struct LiveQueries: Sendable {
       kept: { key in
         book.map { KeptValue(book: $0, key: .annotation(key.resource, key.annotation)) }
       },
-      invalidationWindowMs: invalidationWindowMs,
+      invalidationWindowMs: invalidationWindowMs, clock: clock,
       fetch: { key in
         try await wire.request(
           Operations.browseAnnotationRequested,

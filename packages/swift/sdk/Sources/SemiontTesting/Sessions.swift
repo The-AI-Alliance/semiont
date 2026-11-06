@@ -5,6 +5,7 @@ public struct TestSessionOptions: Sendable {
   public let kb: KbTarget
   public let kept: any SignInKept
   public let transport: ScriptedTransport
+  let random: RandomSource
   public let validate: @Sendable (String) async throws -> UserResponse
   public let renew: @Sendable (String?) async throws -> String?
   public let onAuthFailed: (@Sendable (SessionEndReason) -> Void)?
@@ -13,6 +14,7 @@ public struct TestSessionOptions: Sendable {
   public init(
     kb: KbTarget, kept: any SignInKept = MemorySignIn(),
     transport: ScriptedTransport = ScriptedTransport(),
+    random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator(),
     validate: @escaping @Sendable (String) async throws -> UserResponse = { _ in
       UserResponse(
         did: try personDid("localhost", "test"), domain: "localhost", email: nil, image: nil,
@@ -25,6 +27,7 @@ public struct TestSessionOptions: Sendable {
     self.kb = kb
     self.kept = kept
     self.transport = transport
+    self.random = RandomSource(random)
     self.validate = validate
     self.renew = renew
     self.onAuthFailed = onAuthFailed
@@ -39,10 +42,12 @@ public struct TestSession: Sendable {
 }
 
 public func createTestSession(_ options: TestSessionOptions) async throws -> TestSession {
-  let client = try await SemiontClient(transport: options.transport)
+  let client = try await SemiontClient(
+    transport: options.transport, clock: options.transport.clock)
   let session = SemiontSession(
     kb: options.kb, client: client, kept: options.kept, renew: options.renew,
-    validate: options.validate, onAuthFailed: options.onAuthFailed, onError: options.onError)
+    validate: options.validate, random: options.random, onAuthFailed: options.onAuthFailed,
+    onError: options.onError)
   await session.start()
   return TestSession(
     opened: OpenedSession(session: session), transport: options.transport, kept: options.kept)
@@ -60,12 +65,22 @@ public actor ScriptedSessions: SessionFactory {
     @Sendable (String, String, [String: JSONValue]) async throws -> [String: JSONValue]
 
   private let answer: Answer
+  private let clock: any Clock<Duration>
+  private let random: RandomSource
   private var renewals: [Renewal] = []
   private var transports: [String: [ScriptedTransport]] = [:]
   public private(set) var revoked: [HeldSignIn] = []
   public private(set) var renewed = 0
 
-  public init(answer: @escaping Answer) { self.answer = answer }
+  public init(
+    clock: any Clock<Duration> = ContinuousClock(),
+    random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator(),
+    answer: @escaping Answer
+  ) {
+    self.clock = clock
+    self.random = RandomSource(random)
+    self.answer = answer
+  }
 
   public func queueRenewals(_ outcomes: [Renewal]) { renewals.append(contentsOf: outcomes) }
 
@@ -74,7 +89,7 @@ public actor ScriptedSessions: SessionFactory {
   public func session(_ options: SessionFactoryOptions) async throws -> OpenedSession {
     let kb = options.kb
     let answer = answer
-    let transport = ScriptedTransport { operation, payload in
+    let transport = ScriptedTransport(clock: clock) { operation, payload in
       try await answer(kb.id, operation, payload)
     }
     transports[kb.id, default: []].append(transport)
@@ -82,7 +97,7 @@ public actor ScriptedSessions: SessionFactory {
     let opened = try await createTestSession(
       TestSessionOptions(
         kb: KbTarget(endpoint: kb.endpoint, id: kb.id, label: kb.label), kept: kept,
-        transport: transport,
+        transport: transport, random: random,
         renew: { [weak self] holding in
           guard let self, let read = try await kept.held() else { return nil }
           if read.access != holding,

@@ -14,7 +14,8 @@ struct IssuerAnswer: Sendable {
   }
 }
 func issuerRequest(
-  _ url: String, http: HTTPClient, form: [(String, String)]? = nil, bearer: String? = nil
+  _ url: String, http: HTTPClient, clock: any Clock<Duration>, form: [(String, String)]? = nil,
+  bearer: String? = nil
 ) async throws -> (HTTPClientResponse, Data) {
   var request = HTTPClientRequest(url: url)
   request.headers.add(name: "Accept", value: "application/json")
@@ -28,18 +29,18 @@ func issuerRequest(
           separator: "&"
         ).utf8))
   }
-  return try await within(Timings.httpRequestTimeoutMs) { [request] in
+  return try await within(.milliseconds(Timings.httpRequestTimeoutMs), on: clock) { [request] in
     let response = try await http.execute(request, deadline: .distantFuture)
     var data = Data()
     for try await chunk in response.body { data.append(contentsOf: chunk.readableBytesView) }
     return (response, data)
   }
 }
-func issuerAnswer(_ url: String, http: HTTPClient, form: [(String, String)]? = nil) async throws
-  -> IssuerAnswer
-{
+func issuerAnswer(
+  _ url: String, http: HTTPClient, clock: any Clock<Duration>, form: [(String, String)]? = nil
+) async throws -> IssuerAnswer {
   do {
-    let (response, data) = try await issuerRequest(url, http: http, form: form)
+    let (response, data) = try await issuerRequest(url, http: http, clock: clock, form: form)
     return IssuerAnswer(
       status: Int(response.status.code),
       body: (try? JSONDecoder().decode([String: JSONValue].self, from: data)))
@@ -52,9 +53,11 @@ struct IssuedTokens: Sendable {
   let access: String
   let refresh: String
 }
-func refreshAtIssuer(_ held: HeldSignIn, http: HTTPClient) async throws -> IssuedTokens {
+func refreshAtIssuer(_ held: HeldSignIn, http: HTTPClient, clock: any Clock<Duration>)
+  async throws -> IssuedTokens
+{
   let answer = try await issuerAnswer(
-    held.tokenEndpoint, http: http,
+    held.tokenEndpoint, http: http, clock: clock,
     form: [
       ("grant_type", "refresh_token"), ("refresh_token", held.refresh),
       ("client_id", held.clientId),
@@ -66,9 +69,10 @@ func refreshAtIssuer(_ held: HeldSignIn, http: HTTPClient) async throws -> Issue
   }
   return IssuedTokens(access: access, refresh: answer.text("refresh_token") ?? held.refresh)
 }
-func retryRenewal<Value: Sendable>(_ grant: @escaping @Sendable () async throws -> Value)
-  async throws -> Value
-{
+func retryRenewal<Value: Sendable>(
+  clock: any Clock<Duration>, random: any RandomNumberGenerator & Sendable,
+  _ grant: @escaping @Sendable () async throws -> Value
+) async throws -> Value {
   let budget = Timings.refreshRetry
   return try await retryWithBackoff(
     attempts: budget.attempts, initialDelayMs: budget.initialDelayMs,
@@ -77,6 +81,7 @@ func retryRenewal<Value: Sendable>(_ grant: @escaping @Sendable () async throws 
       RetryContext.refresh.retryable(
         status: ($0 as? SignInError)?.status, method: "POST", keyed: false)
     },
+    clock: clock, random: random,
     operation: { attempt in
       do {
         return try await grant()
@@ -98,11 +103,15 @@ func renewKept(
   let tokens = try await grant(held)
   return try await kept.renewed(read: held, access: tokens.access, refresh: tokens.refresh)
 }
-public func renewKept(_ kept: any SignInKept, holding: String?, httpClient: HTTPClient) async throws
-  -> String?
-{
+public func renewKept(
+  _ kept: any SignInKept, holding: String?, httpClient: HTTPClient,
+  clock: any Clock<Duration> = ContinuousClock(),
+  random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator()
+) async throws -> String? {
   try await renewKept(kept, holding: holding) { held in
-    try await retryRenewal { try await refreshAtIssuer(held, http: httpClient) }
+    try await retryRenewal(clock: clock, random: random) {
+      try await refreshAtIssuer(held, http: httpClient, clock: clock)
+    }
   }
 }
 struct IssuerEndpoints: Codable, Sendable {
@@ -112,21 +121,25 @@ struct IssuerEndpoints: Codable, Sendable {
   let device: String?
   let revocation: String?
 }
-func oidcConfiguration(_ issuer: String, http: HTTPClient) async throws -> IssuerAnswer {
+func oidcConfiguration(_ issuer: String, http: HTTPClient, clock: any Clock<Duration>)
+  async throws -> IssuerAnswer
+{
   do {
     return try await issuerAnswer(
       issuer.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        + "/.well-known/openid-configuration", http: http)
+        + "/.well-known/openid-configuration", http: http, clock: clock)
   } catch {
     if Task.isCancelled { throw CancellationError() }
     throw SignInError(.discovery, "OIDC discovery did not answer")
   }
 }
-func discoverIssuer(_ gateway: String, http: HTTPClient) async throws -> IssuerEndpoints {
+func discoverIssuer(_ gateway: String, http: HTTPClient, clock: any Clock<Duration>)
+  async throws -> IssuerEndpoints
+{
   let metadata: ProtectedResourceMetadata
   do {
     let (response, data) = try await issuerRequest(
-      gateway + "/.well-known/oauth-protected-resource", http: http)
+      gateway + "/.well-known/oauth-protected-resource", http: http, clock: clock)
     if response.status.code == 404 {
       throw SignInError(.noIssuer, "The knowledge base trusts no external issuer")
     }
@@ -142,7 +155,7 @@ func discoverIssuer(_ gateway: String, http: HTTPClient) async throws -> IssuerE
   guard let issuer = metadata.authorization_servers.first else {
     throw SignInError(.noIssuer, "The knowledge base trusts no external issuer")
   }
-  let document = try await oidcConfiguration(issuer, http: http)
+  let document = try await oidcConfiguration(issuer, http: http, clock: clock)
   guard (200..<300).contains(document.status), document.text("issuer") == issuer,
     let authorization = document.text("authorization_endpoint"),
     let token = document.text("token_endpoint")
@@ -162,17 +175,19 @@ public struct DeviceCode: Sendable {
   public let expiresIn: Double
 }
 public func signInDevice(
-  kb: KbTarget, kept: any SignInKept, httpClient: HTTPClient, onCode: @Sendable (DeviceCode) -> Void
+  kb: KbTarget, kept: any SignInKept, httpClient: HTTPClient,
+  clock: any Clock<Duration> = ContinuousClock(), onCode: @Sendable (DeviceCode) -> Void
 ) async throws {
   guard case .httpEndpoint(let endpoint) = kb.endpoint else {
     throw SignInError(.discovery, "The device grant needs an HTTP endpoint")
   }
-  let issuer = try await discoverIssuer(gatewayUrl(endpoint), http: httpClient)
+  let issuer = try await discoverIssuer(gatewayUrl(endpoint), http: httpClient, clock: clock)
   guard let device = issuer.device else {
     throw SignInError(.discovery, "The issuer has no device authorization endpoint")
   }
   let answer = try await issuerAnswer(
-    device, http: httpClient, form: [("client_id", scriptClientID), ("scope", signInScope.value)])
+    device, http: httpClient, clock: clock,
+    form: [("client_id", scriptClientID), ("scope", signInScope.value)])
   guard answer.status == 200, let deviceCode = answer.text("device_code"),
     let userCode = answer.text("user_code"), let uri = answer.text("verification_uri"),
     let expires = answer.seconds("expires_in"), expires < Double(Int.max / 1000)
@@ -186,18 +201,18 @@ public func signInDevice(
   var interval = max(
     answer.seconds("interval") ?? Double(Timings.devicePollMs) / 1000,
     Double(Timings.devicePollFloorMs) / 1000)
-  let deadline = ContinuousClock.now.advanced(by: .milliseconds(Int(expires * 1000)))
+  let expiry = Duration.milliseconds(Int(expires * 1000))
+  let elapsed = stopwatch(clock)
   while true {
     guard interval < Double(Int.max / 1000) else {
       throw SignInError(.expired, "The device code expired")
     }
-    let next = ContinuousClock.now.advanced(by: .milliseconds(Int(interval * 1000)))
-    try await ContinuousClock().sleep(until: min(next, deadline))
-    guard ContinuousClock.now < deadline else {
+    try await clock.sleep(for: min(.milliseconds(Int(interval * 1000)), expiry - elapsed()))
+    guard elapsed() < expiry else {
       throw SignInError(.expired, "The device code expired")
     }
     let polled = try await issuerAnswer(
-      issuer.token, http: httpClient,
+      issuer.token, http: httpClient, clock: clock,
       form: [
         ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"), ("device_code", deviceCode),
         ("client_id", scriptClientID),
@@ -223,11 +238,13 @@ public func signInDevice(
     }
   }
 }
-public func signOut(_ kept: any SignInKept, httpClient: HTTPClient) async throws {
+public func signOut(
+  _ kept: any SignInKept, httpClient: HTTPClient, clock: any Clock<Duration> = ContinuousClock()
+) async throws {
   guard let held = try await kept.held() else { return }
   if let endpoint = held.revocationEndpoint {
     _ = try? await issuerAnswer(
-      endpoint, http: httpClient,
+      endpoint, http: httpClient, clock: clock,
       form: [
         ("token", held.refresh), ("token_type_hint", "refresh_token"), ("client_id", held.clientId),
       ])
@@ -235,14 +252,15 @@ public func signOut(_ kept: any SignInKept, httpClient: HTTPClient) async throws
   try await kept.forget()
 }
 /// One request, with no transport or automatic credential renewal.
-public func whoAmI(baseUrl: String, token: String, httpClient: HTTPClient) async throws
-  -> UserResponse
-{
+public func whoAmI(
+  baseUrl: String, token: String, httpClient: HTTPClient,
+  clock: any Clock<Duration> = ContinuousClock()
+) async throws -> UserResponse {
   let response: HTTPClientResponse
   let data: Data
   do {
     (response, data) = try await issuerRequest(
-      baseUrl + "/api/users/me", http: httpClient, bearer: token)
+      baseUrl + "/api/users/me", http: httpClient, clock: clock, bearer: token)
   } catch {
     if Task.isCancelled { throw CancellationError() }
     throw TransportError(.unavailable, "The gateway did not answer who the token is")

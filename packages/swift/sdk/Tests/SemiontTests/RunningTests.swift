@@ -77,14 +77,14 @@ private struct OperationRefused: Error, Equatable {}
   let stopped = Watched(false)
   let running = Running<Int>(lifetime: life) { report in
     report(1)
-    do { try await sleepMilliseconds(60000) } catch {
+    do { try await Task.sleep(for: .milliseconds(60000)) } catch {
       stopped.set(true)
       throw error
     }
     return 2
   }
   for try await _ in running { break }
-  try await within(testDeadlineMs) { for await value in stopped where value { return } }
+  try await withinTestDeadline { for await value in stopped where value { return } }
 }
 private actor OperationGate {
   let started = Watched(false)
@@ -119,12 +119,12 @@ private actor OperationGate {
     waiter.cancel()
   }
   do {
-    try await within(testDeadlineMs) {
+    try await withinTestDeadline {
       for await value in gate.started where value { return }
       throw CancellationError()
     }
     life.end()
-    let result = try await within(testDeadlineMs) {
+    let result = try await withinTestDeadline {
       for await value in outcome {
         if let value { return value }
       }
@@ -146,22 +146,22 @@ private actor OperationGate {
   let stopped = Watched(false)
   let running = Running<Int>(lifetime: life) { _ in
     began.set(true)
-    do { try await sleepMilliseconds(60000) } catch {
+    do { try await Task.sleep(for: .milliseconds(60000)) } catch {
       stopped.set(true)
       throw error
     }
     return 1
   }
   let waiter = Task { try await running.completed() }
-  try await within(testDeadlineMs) { for await value in began where value { return } }
+  try await withinTestDeadline { for await value in began where value { return } }
   var second = running.makeAsyncIterator()
   await #expect(throws: MultipleConsumers.self) { try await second.next() }
   waiter.cancel()
   do {
-    _ = try await within(testDeadlineMs) { try await waiter.value }
+    _ = try await withinTestDeadline { try await waiter.value }
     Issue.record("Cancelled await completed")
   } catch is CancellationError {}
-  try await within(testDeadlineMs) { for await value in stopped where value { return } }
+  try await withinTestDeadline { for await value in stopped where value { return } }
 }
 @Test func gatherOptionsNormalizationHasACensusGate() throws {
   let fields = try required(
@@ -186,10 +186,10 @@ private actor OperationGate {
     started.set(true)
     return 1
   }
-  try await sleepMilliseconds(20)
+  try await Task.sleep(for: .milliseconds(20))
   #expect(!started.value)
   var iterator = running.makeAsyncIterator()
-  try await sleepMilliseconds(20)
+  try await Task.sleep(for: .milliseconds(20))
   #expect(!started.value)
   #expect(try await iterator.next() == 1)
   #expect(try await iterator.next() == nil)

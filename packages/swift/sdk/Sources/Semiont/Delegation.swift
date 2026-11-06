@@ -30,15 +30,7 @@ public struct JobError: Error, Sendable, CustomStringConvertible {
 public struct FollowTiming: Sendable {
   public let silenceMs: Int
   public let statusPollMs: Int
-  let clock: any Clock<Duration>
   public init(silenceMs: Int? = nil, statusPollMs: Int? = nil) {
-    self.init(silenceMs: silenceMs, statusPollMs: statusPollMs, clock: ContinuousClock())
-  }
-
-  package init(
-    silenceMs: Int? = nil, statusPollMs: Int? = nil, clock: any Clock<Duration>
-  ) {
-    self.clock = clock
     self.silenceMs = silenceMs ?? Timings.jobSilenceMs
     self.statusPollMs = statusPollMs ?? Timings.jobStatusPollMs
   }

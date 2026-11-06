@@ -87,7 +87,7 @@ private final class StateCase {
     let wire = try StateCaseWire(required(row, "transport").object, clock: clock)
     self.wire = wire
     let client = try await SemiontClient(
-      transport: wire.transport, followTiming: FollowTiming(clock: clock))
+      transport: wire.transport, clock: clock)
     self.client = client
     let channels = try row["listen"]?.array.map { try $0.text } ?? []
     let heard = heard
@@ -157,7 +157,7 @@ private final class StateCase {
       let expected = row["payloads"]
       let count = try row["count"].map(stateCaseInteger) ?? expected?.array.count ?? 0
       let transport = wire.transport
-      let requests = try await within(testDeadlineMs) {
+      let requests = try await withinTestDeadline {
         func sentRequests() -> [Call] {
           transport.calls.filter { $0.via == "request" && $0.name == channel }
         }
@@ -178,7 +178,7 @@ private final class StateCase {
     } else if let expected = row["heard"] {
       let frames = try expected.array
       let heard = heard
-      try await within(testDeadlineMs) {
+      try await withinTestDeadline {
         for await count in heard.count where count >= frames.count { return }
         throw CancellationError()
       }
@@ -260,13 +260,16 @@ func stateCaseInteger(_ value: JSONValue) throws -> Int {
 func stateCaseDuration(_ value: JSONValue) throws -> Duration {
   if case .number = value { return .milliseconds(try stateCaseInteger(value)) }
   let expression = try value.object
-  let name = try required(expression, "timing").text
+  // A retry budget's member follows its budget and a `.`.
+  let name = try required(expression, "timing").text.split(separator: ".").map(String.init)
   let table = try Spec.read("client/timing.json").object
   let timings = try required(table, "timing").array.map { try $0.object }
-  guard let row = try timings.first(where: { try required($0, "name").text == name }) else {
-    throw SpecFailure.shape("Unknown timing \(name)")
+  guard let row = try timings.first(where: { try required($0, "name").text == name[0] }) else {
+    throw SpecFailure.shape("Unknown timing \(name[0])")
   }
-  let base = try stateCaseInteger(required(row, "value"))
+  var stated = try required(row, "value")
+  for member in name.dropFirst() { stated = try required(stated.object, member) }
+  let base = try stateCaseInteger(stated)
   let factor = try expression["times"].map { try decoded(Double.self, $0) } ?? 1
   let extra = try expression["plusMs"].map(stateCaseInteger) ?? 0
   return .milliseconds(Double(base) * factor + Double(extra))
