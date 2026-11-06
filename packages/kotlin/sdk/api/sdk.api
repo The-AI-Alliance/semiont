@@ -1714,8 +1714,8 @@ public final class semiont/session/SemiontSession : semiont/StateUnit {
 	public final fun getUser ()Lsemiont/transport/Watched;
 	public final fun ready (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun readyFuture ()Ljava/util/concurrent/CompletableFuture;
-	public final fun refresh (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public final fun refreshFuture ()Ljava/util/concurrent/CompletableFuture;
+	public final fun refresh (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun refreshFuture (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 }
 
 public final class semiont/session/SessionEndReason : java/lang/Enum {

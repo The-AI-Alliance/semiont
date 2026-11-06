@@ -107,7 +107,7 @@ internal suspend fun sessionStarted(
         token,
         channels,
         refresher = object : TokenRefresher {
-            override suspend fun refresh(refused: String?): String? = made.await().refreshOf(refused)
+            override suspend fun refresh(refused: String?): String? = made.await().refresh(refused)
         },
         bookmarks = places,
         http = http,

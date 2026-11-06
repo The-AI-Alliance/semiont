@@ -589,7 +589,11 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
             if (failure is TransportError) {
                 when (failure.reason) {
                     // Refusals that arrive together are answered by one renewal: the session holds them while it renews.
-                    TransportErrorCode.Unauthorized -> spawn { session.refresh() }
+                    // A failure does not say which token was refused: the one the session holds as it is read is.
+                    TransportErrorCode.Unauthorized -> {
+                        val refused = session.token.value
+                        spawn { session.refresh(refused) }
+                    }
                     TransportErrorCode.Forbidden -> signals.notifyPermissionDenied(failure.message)
                     else -> Unit
                 }
