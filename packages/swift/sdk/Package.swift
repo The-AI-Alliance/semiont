@@ -44,7 +44,9 @@ let package = Package(
     .target(
       name: "SemiontTesting", dependencies: ["Semiont"],
       swiftSettings: [.treatAllWarnings(as: .error)]),
-    .target(name: "SemiontCodegen", swiftSettings: [.treatAllWarnings(as: .error)]),
+    .target(
+      name: "SemiontCodegen", exclude: ["required-schemas.json"],
+      swiftSettings: [.treatAllWarnings(as: .error)]),
     .testTarget(
       name: "SemiontTests",
       dependencies: [

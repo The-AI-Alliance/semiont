@@ -10,7 +10,9 @@ struct GenerateSemiontPlugin: BuildToolPlugin {
     else {
       throw PluginFailure.missingSpec
     }
-    var inputs: [URL] = []
+    let required = context.package.directoryURL.appendingPathComponent(
+      "Sources/SemiontCodegen/required-schemas.json")
+    var inputs: [URL] = [required]
     for case let file as URL in files where file.pathExtension == "json" { inputs.append(file) }
     let mode: String
     switch target.name {
@@ -23,7 +25,7 @@ struct GenerateSemiontPlugin: BuildToolPlugin {
       .buildCommand(
         displayName: "Generate Semiont models from protocol/specs/src",
         executable: try context.tool(named: "GenerateSemiont").url,
-        arguments: [specs.path, output.path, mode],
+        arguments: [specs.path, required.path, output.path, mode],
         environment: [
           "LLVM_PROFILE_FILE": context.pluginWorkDirectoryURL.appendingPathComponent(
             "generator-%m-%p.profraw"

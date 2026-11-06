@@ -118,7 +118,7 @@ The session factory owns the load-bearing "same `BehaviorSubject` instance flows
 
 ### Manual construction (advanced)
 
-When you need direct control of `token$`, an alternate transport, or to inject a `tokenRefresher` callback at the transport level, construct each piece by hand:
+When you need direct control of `token$`, an alternate transport, or to inject a `tokenRefresher` callback at the transport level (it is told the token the gateway refused), construct each piece by hand:
 
 ```typescript
 import { SemiontClient, HttpTransport, HttpContentTransport } from '@semiont/sdk';

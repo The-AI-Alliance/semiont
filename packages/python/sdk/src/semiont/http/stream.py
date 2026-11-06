@@ -611,7 +611,7 @@ class Stream:
                 self._transition("unauthenticated", now)
             if self._refresher is not None and not self._refresher_asked:
                 self._refresher_asked = True
-                tasks.create_task(self._ask_refresher(self._refresher, connection.keep_previous))
+                tasks.create_task(self._ask_refresher(self._refresher, connection.token, connection.keep_previous))
             else:
                 self._awaiting_credential = True
                 self._schedule_retry(self._timing.reconnect_ms, connection.keep_previous, now)
@@ -645,9 +645,9 @@ class Stream:
             return
         self._schedule_retry(max(self._backoff_ms(), stated_wait_ms), False, now)
 
-    async def _ask_refresher(self, refresher: TokenRefresher, keep_previous: bool) -> None:
+    async def _ask_refresher(self, refresher: TokenRefresher, refused: str, keep_previous: bool) -> None:
         with suppress(SemiontError):
-            await refresher()
+            await refresher(refused)
         self._reports.put_nowait(_Renewed(keep_previous))
 
     def _token_changed(self, tasks: asyncio.TaskGroup, now: float) -> None:

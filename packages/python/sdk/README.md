@@ -918,7 +918,10 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
   `unauthorized`. A stream refused so asks its `refresher` for another token,
   once per outage, and with none waits, with no request, for a different one.
   A request or an emit refused so asks it once and is sent again at once with
-  the token it gives; given no other, or refused again, it fails.
+  the token it gives; given no other, or refused again, it fails. The
+  `refresher` is told the token refused: a session or an agent that holds
+  another by then, renewed for an earlier refusal, gives it and renews
+  nothing.
 
 The protocol it keeps to is [the transport contract][transport-contract] and
 [the HTTP transport][transport-http], and the [conformance suite][conformance]

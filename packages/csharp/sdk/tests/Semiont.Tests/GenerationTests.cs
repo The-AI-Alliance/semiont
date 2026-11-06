@@ -83,7 +83,7 @@ public sealed class GenerationTests
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             generators: [new ProtocolGenerator().AsSourceGenerator()],
-            additionalTexts: [new SpecFile("/specs/src/components/schemas/Unsupported.json", schema)]);
+            additionalTexts: [new SpecFile("/specs/src/components/schemas/Unsupported.json", schema), RequiredTable()]);
         driver = driver.RunGenerators(compilation);
         Assert.Contains(driver.GetRunResult().Diagnostics, diagnostic => diagnostic.Id == "SEMGEN001");
     }
@@ -91,14 +91,34 @@ public sealed class GenerationTests
     [Fact]
     public void EverySchemaGeneratesInProcessWithoutDiagnostics()
     {
-        var files = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "specs"), "*", SearchOption.AllDirectories).Where(path => path.EndsWith(".json", StringComparison.Ordinal) || path.EndsWith("README.md", StringComparison.Ordinal))
-            .Select(path => new SpecFile("/specs/src/" + Path.GetRelativePath(Path.Combine(AppContext.BaseDirectory, "specs"), path).Replace('\\', '/'), File.ReadAllText(path))).ToArray();
-        var compilation = CSharpCompilation.Create("Example", options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-        GeneratorDriver driver = CSharpGeneratorDriver.Create(generators: [new ProtocolGenerator().AsSourceGenerator()], additionalTexts: files);
-        var result = driver.RunGenerators(compilation).GetRunResult();
+        var result = Generated([.. SpecFiles(), RequiredTable()]);
         Assert.Empty(result.Diagnostics);
         Assert.True(result.GeneratedTrees.Length > 300);
         Assert.All(result.GeneratedTrees, tree => Assert.DoesNotContain(tree.GetDiagnostics(), diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+    }
+
+    [Fact]
+    public void GenerationWithoutTheTableOfWhatEachSchemaRequiresFails()
+    {
+        var result = Generated(SpecFiles());
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == "SEMGEN001"
+            && diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture).Contains("required-schemas.json", StringComparison.Ordinal));
+        Assert.Empty(result.GeneratedTrees);
+    }
+
+    private static SpecFile[] SpecFiles() =>
+        Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "specs"), "*", SearchOption.AllDirectories).Where(path => path.EndsWith(".json", StringComparison.Ordinal) || path.EndsWith("README.md", StringComparison.Ordinal))
+            .Select(path => new SpecFile("/specs/src/" + Path.GetRelativePath(Path.Combine(AppContext.BaseDirectory, "specs"), path).Replace('\\', '/'), File.ReadAllText(path))).ToArray();
+
+    // The table of what each component schema requires, at the path the SDK's project gives the generator.
+    private static SpecFile RequiredTable() => new("/generators/Semiont.Generator/required-schemas.json",
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "generators/required-schemas.json")));
+
+    private static GeneratorDriverRunResult Generated(SpecFile[] files)
+    {
+        var compilation = CSharpCompilation.Create("Example", options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(generators: [new ProtocolGenerator().AsSourceGenerator()], additionalTexts: files);
+        return driver.RunGenerators(compilation).GetRunResult();
     }
 
     [Fact]

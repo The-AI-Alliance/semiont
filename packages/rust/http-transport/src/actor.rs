@@ -480,7 +480,7 @@ impl Actor {
             // Sending this token again gets the same answer, so it is not
             // sent again: the client waits for a different one, and asks its
             // refresher for one once per outage.
-            self.refused_token = Some(connection.token);
+            self.refused_token = Some(connection.token.clone());
             self.retry_attempt = 0;
             if self.live.is_none() {
                 self.transition(ConnectionState::Unauthenticated);
@@ -491,8 +491,9 @@ impl Actor {
                     let refresher = refresher.clone();
                     let events = self.events.clone();
                     let keep_previous = connection.keep_previous;
+                    let refused = connection.token;
                     tokio::spawn(async move {
-                        let token = refresher.refresh().await;
+                        let token = refresher.refresh(Some(&refused)).await;
                         let _ = events
                             .send(Event::Renewed {
                                 token,

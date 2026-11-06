@@ -8,10 +8,22 @@ public struct Delivered<Payload: Sendable>: Sendable {
     return UserId.parse(value)
   }
 }
+/// A frame whose payload is not its channel's, in its place: the channel, the payload's first
+/// fault (`member`, the way to the member it is at, empty for the payload itself, and `reason`),
+/// and the payload as it came.
 public struct FrameRefusal: Sendable {
   public let channel: String
-  public let lacks: String?
+  public let member: String
+  public let reason: FrameRefusalReason
   public let payload: [String: JSONValue]
+}
+/// Why a payload is refused: `lacks`, it does not carry a member its schema requires, or the
+/// member holds null where it may not; `malformed`, a member is not what its schema allows (of
+/// another kind, a value it does not list, a form or a size it does not allow), or is one a
+/// closed object does not name.
+public enum FrameRefusalReason: String, Sendable {
+  case lacks
+  case malformed
 }
 public enum Heard<Payload: Sendable>: Sendable {
   case delivered(Delivered<Payload>)
@@ -75,11 +87,11 @@ public final class Typed<Payload: Codable & Sendable>: AsyncSequence, Sendable {
             let decoded = try decodePayload(Payload.self, from: frame.payload, stamps: owner.stamps)
             return .delivered(Delivered(frame: frame, payload: decoded))
           } catch {
+            let fault = refusedFault(
+              of: declared(frame.payload, stamps: owner.stamps), on: owner.channel)
             return .refused(
               FrameRefusal(
-                channel: owner.channel,
-                lacks: requiredPayloadMembers[owner.channel]?.lacking(
-                  in: .object(declared(frame.payload, stamps: owner.stamps))),
+                channel: owner.channel, member: fault.member, reason: fault.reason,
                 payload: frame.payload))
           }
         }
@@ -97,41 +109,4 @@ public final class Typed<Payload: Codable & Sendable>: AsyncSequence, Sendable {
     hold?.dispose()
   }
   deinit { dispose() }
-}
-/// Generated schema structure used only to describe a malformed payload's missing member.
-indirect enum RequiredMembers: Sendable {
-  case opaque
-  case reference(String)
-  case object(required: [String: Bool], members: [String: RequiredMembers])
-  case list(RequiredMembers)
-  case map(RequiredMembers)
-  func lacking(in value: JSONValue, path: [String] = []) -> String? {
-    switch (self, value) {
-    case (.reference(let name), _):
-      guard let shape = requiredModelMembers[name] else {
-        preconditionFailure("Missing generated schema: \(name)")
-      }
-      return shape.lacking(in: value, path: path)
-    case (.object(let required, let members), .object(let values)):
-      for key in required.keys.sorted() {
-        if values[key] == nil || (values[key] == .null && required[key] == false) {
-          return (path + [key]).joined(separator: ".")
-        }
-      }
-      for key in members.keys.sorted() {
-        if let value = values[key], let lacks = members[key]?.lacking(in: value, path: path + [key])
-        {
-          return lacks
-        }
-      }
-    case (.list(let item), .array(let values)):
-      for value in values { if let lacks = item.lacking(in: value, path: path) { return lacks } }
-    case (.map(let item), .object(let values)):
-      for key in values.keys.sorted() {
-        if let value = values[key], let lacks = item.lacking(in: value, path: path) { return lacks }
-      }
-    default: break
-    }
-    return nil
-  }
 }

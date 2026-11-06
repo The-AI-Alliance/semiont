@@ -365,7 +365,9 @@ sent.
   `refusal-rate`. The refused token is remembered and never sent again; the
   client is `unauthenticated` and checks, every `reconnectMs` and with no
   request, whether it has been given a different one. A client with a way
-  to renew its token tries it once per outage before it waits. The same
+  to renew its token tries it once per outage before it waits, and tells it
+  the token refused
+  ([TRANSPORT-CONTRACT.md § A refused credential](./TRANSPORT-CONTRACT.md#a-refused-credential)). The same
   rule keeps a client with no token from sending a request at all.
   *Held by `sdk/wire/unauthenticated`, `sdk/wire/stream-credential-renewed`, `sdk/wire/stream-credential-limit-renewed`, `packages/typescript/http-transport/src/transport/__tests__/actor-state-unit.test.ts`.*
 

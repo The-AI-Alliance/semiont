@@ -18,12 +18,14 @@ public sealed record Timing
     public int HeldJobStallMs { get; init; } = ProtocolFacts.Timing("heldJobStallMs").GetInt32();
     public int HeldJobStallCheckMs { get; init; } = ProtocolFacts.Timing("heldJobStallCheckMs").GetInt32();
     public int MarkCommitTimeoutMs { get; init; } = ProtocolFacts.Timing("markCommitTimeoutMs").GetInt32();
-    public RetryPolicy EmitRetry { get; init; } = new();
+    public RetryPolicy EmitRetry { get; init; } = RetryPolicy.FromTiming("emitRetry");
 }
 
-public sealed record RetryPolicy
+public sealed record RetryPolicy(int Attempts, int InitialDelayMs, int MaxDelayMs)
 {
-    public int Attempts { get; init; } = ProtocolFacts.Timing("emitRetry").GetProperty("attempts").GetInt32();
-    public int InitialDelayMs { get; init; } = ProtocolFacts.Timing("emitRetry").GetProperty("initialDelayMs").GetInt32();
-    public int MaxDelayMs { get; init; } = ProtocolFacts.Timing("emitRetry").GetProperty("maxDelayMs").GetInt32();
+    internal static RetryPolicy FromTiming(string entry)
+    {
+        var budget = ProtocolFacts.Timing(entry);
+        return new(budget.GetProperty("attempts").GetInt32(), budget.GetProperty("initialDelayMs").GetInt32(), budget.GetProperty("maxDelayMs").GetInt32());
+    }
 }

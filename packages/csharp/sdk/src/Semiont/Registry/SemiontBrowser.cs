@@ -9,6 +9,7 @@ using Semiont.Storage;
 using Semiont.State;
 using Semiont.Types;
 using static Semiont.Registry.RegistryStorage;
+using static Semiont.Resources.ResourceReaders;
 
 namespace Semiont.Registry;
 
@@ -369,7 +370,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
                 try
                 {
                     var descriptor = await current.Opened.Client.Browse.Resource(resource).FreshAsync(token).ConfigureAwait(false);
-                    checks[resource] = new TabCheck(TabVerdict.Ready, descriptor.Name, MediaTypes.Primary(descriptor));
+                    checks[resource] = new TabCheck(TabVerdict.Ready, descriptor.Name, PrimaryMediaType(descriptor));
                 }
                 catch (BusRequestError error) when (error.Code == ProtocolFacts.BusError("not-found"))
                 { checks[resource] = new TabCheck(TabVerdict.Gone); }

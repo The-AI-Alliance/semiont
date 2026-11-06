@@ -66,7 +66,7 @@ flowchart TD
 
    session.errors$.subscribe((err) => {
      if (err.code === 'unauthorized') {
-       void session.refresh();
+       void session.refresh(session.token$.getValue());
      } else if (err.code === 'forbidden') {
        signals.notifyPermissionDenied(err.message);
      }

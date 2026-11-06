@@ -50,7 +50,7 @@ struct Renewals {
 }
 
 impl TokenRefresher for Renewals {
-    fn refresh(&self) -> BoxFuture<'_, Option<String>> {
+    fn refresh<'a>(&'a self, _: Option<&'a str>) -> BoxFuture<'a, Option<String>> {
         Box::pin(async move {
             let renewed = locked(&self.tokens).pop_front()?;
             self.token.send_replace(Some(renewed.clone()));

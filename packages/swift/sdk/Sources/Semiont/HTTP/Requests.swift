@@ -2,6 +2,7 @@ import Foundation
 
 struct WireOperation: Sendable {
   let result: String
+  let resultStamps: Set<String>
   let failure: String
   let request: @Sendable ([String: JSONValue]) throws -> [String: JSONValue]
   let response: @Sendable ([String: JSONValue]) throws -> [String: JSONValue]
@@ -105,10 +106,9 @@ extension HttpTransport {
       answer.payload = try descriptor.response(frame.payload)
       return answer
     } catch {
-      let lacks = requiredPayloadMembers[descriptor.result]?.lacking(in: .object(frame.payload))
-      let detail = lacks.map { ": it has no `\($0)`" } ?? ""
-      throw TransportError(
-        .error, "A payload on \(descriptor.result) is not that channel's\(detail)")
+      let fault = refusedFault(
+        of: declared(frame.payload, stamps: descriptor.resultStamps), on: descriptor.result)
+      throw TransportError(.error, notTheChannels(descriptor.result, fault))
     }
   }
   func fail(_ correlation: String, error: any Error) {

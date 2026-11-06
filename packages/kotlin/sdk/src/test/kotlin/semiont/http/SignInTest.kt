@@ -365,6 +365,9 @@ class SignInTest {
             assertEquals(second, agent.refresh(first))
             assertEquals(second, agent.token.value)
             assertEquals(2, realm.of("/token").size)
+            // A refusal of the token it has replaced was answered by that grant: the one it holds is given, and the issuer is not asked.
+            assertEquals(second, agent.refresh(first))
+            assertEquals(2, realm.of("/token").size)
             assertEquals(listOf("Bearer $first"), realm.of("/api/users/me").map { it.authorization })
         }
     }

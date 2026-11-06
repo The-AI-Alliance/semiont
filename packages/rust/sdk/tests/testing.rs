@@ -408,13 +408,18 @@ async fn scripted_sessions_renew_as_told_in_order_and_refuse_a_renewal_nobody_sc
     session.ready().await;
     sessions.queue_renewals([Ok(Some("renewed".to_owned()))]);
 
-    assert_eq!(session.refresh().await.as_deref(), Some("renewed"));
+    let held = session.token().borrow().clone();
+    assert_eq!(
+        session.refresh(held.as_deref()).await.as_deref(),
+        Some("renewed")
+    );
     assert_eq!(sessions.renewed(), 1);
     assert!(asked.signals.session_ended().borrow().is_none());
 
     // A renewal nobody scripted is a renewal that failed, and says so: the
     // session holds no token, as when its issuer cannot be reached.
-    assert_eq!(session.refresh().await, None);
+    let held = session.token().borrow().clone();
+    assert_eq!(session.refresh(held.as_deref()).await, None);
     assert_eq!(sessions.renewed(), 2);
     let said = asked.errors();
     assert!(

@@ -74,8 +74,9 @@ class HttpTransport(Transport, GatewayOperations):
 
     `token` is the token every request carries: the present one, and each one
     after it. With none the transport sends nothing and waits for one.
-    `refresher` is asked for another when the gateway refuses the one it has;
-    with none, a refused token is waited out until `token` changes.
+    `refresher` is asked for another when the gateway refuses the one it has,
+    and is told the token refused; with none, a refused token is waited out
+    until `token` changes.
     `channels` are the global channels its stream names: every channel a
     client hears, unless a process that awaits only some operations names
     their reply channels and no others. With `bookmarks`, each scope's stream

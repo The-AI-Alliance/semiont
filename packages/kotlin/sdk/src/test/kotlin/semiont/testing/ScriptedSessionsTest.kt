@@ -19,7 +19,7 @@ class ScriptedSessionsTest {
         val kb = KnowledgeBase(id = "kb-a", label = "KB A", endpoint = LocalEndpoint(kbId = "kb-a"), did = "did:web:kb.example")
         val opened = sessions.session(SessionFactoryOptions(kb, MemoryStorage(), signals) {})
         assertEquals(0, sessions.renewed)
-        assertEquals("renewed-1", opened.session.refresh())
+        assertEquals("renewed-1", opened.session.refresh(opened.session.token.value))
         assertEquals(1, sessions.renewed)
         opened.close()
         signals.close()

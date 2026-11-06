@@ -923,10 +923,10 @@
           "member": "renewer",
           "absent": {
             "csharp": "The transport takes a callback bound to the kept session when the transport is constructed.",
-            "swift": "The transport uses a closure that calls the session's renewal through a weak session reference.",
-            "typescript": "A TypeScript transport is handed a closure that calls the session's `refresh`, and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
-            "python": "A Python transport is handed a closure that calls the session's `refresh` (`refresher`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
-            "go": "A Go transport is handed a TokenRefresher that asks the session's `Refresh` (SessionFromKept's `refreshedBy`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
+            "swift": "The transport uses a closure that calls the session's `refresh` with the token refused through a weak session reference.",
+            "typescript": "A TypeScript transport is handed a closure that calls the session's `refresh` with the token refused, and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
+            "python": "A Python transport is handed a closure that calls the session's `refresh` with the token refused (`refresher`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
+            "go": "A Go transport is handed a TokenRefresher that asks the session's `Refresh` with the token refused (SessionFromKept's `refreshedBy`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
             "kotlin": "A Kotlin transport is handed a refresher that asks the session to renew the token a request was refused with (sessionFromKept's), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead."
           }
         }
@@ -1297,8 +1297,8 @@
     {
       "module": "retry",
       "docs": "Doing work again by a backoff, until it succeeds, it fails as nothing can mend, or the attempts run out.",
-      "notYetReached": {"csharp": "C# is still to implement the retry module."},
       "where": {
+        "csharp": ["packages/csharp/sdk/src/Semiont/Http"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Transport/Retry.swift"
         ],
@@ -1328,10 +1328,8 @@
     {
       "module": "hostName",
       "docs": "Whether a host is one a knowledge base's HTTP endpoint may name. Held by protocol/specs/src/session/gateway-url-cases.json.",
-      "notYetReached": {
-        "csharp": "C# is still to implement the hostName module."
-      },
       "where": {
+        "csharp": ["packages/csharp/sdk/src/Semiont/Session"],
         "typescript": [
           "packages/typescript/sdk/src/session/storage.ts"
         ],
@@ -1459,8 +1457,8 @@
     {
       "module": "bus",
       "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps; and what a transport delivers in place of a frame it refuses, and why it refuses it.",
-      "notYetReached": {"csharp": "C# is still to implement the bus module."},
       "where": {
+        "csharp": ["packages/csharp/sdk/src/Semiont"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Bus/Bus.swift",
           "packages/swift/sdk/Sources/Semiont/Bus/Typed.swift"
@@ -1509,7 +1507,10 @@
         },
         {
           "member": "FrameRefusal",
-          "kind": "type"
+          "kind": "type",
+          "notYetReached": {
+            "csharp": "C#'s transport does not yet refuse a frame; its frame catch-up hands out the refusal."
+          }
         },
         {
           "member": "FrameRefusalReason",
@@ -1519,7 +1520,7 @@
             "python": "Python's refusal states its reason as a Literal of the two spellings, `lacks` and `malformed`."
           },
           "notYetReached": {
-            "swift": "Swift's FrameRefusal is still to name its member and its reason."
+            "csharp": "C# names a fault's reason only inside its reader; its frame catch-up hands it out with the refusal."
           }
         },
         {
@@ -1531,6 +1532,9 @@
             "python": "Python's transport delivers a frame or its refusal as the union `Frame | FrameRefusal`.",
             "go": "Go's transport delivers a frame or, as its error, its refusal (`iter.Seq2[Frame, error]`).",
             "swift": "Swift's transport does not yet deliver a frame's refusal; its catch-up says how."
+          },
+          "notYetReached": {
+            "csharp": "C#'s transport does not yet deliver a frame's refusal; its frame catch-up says how."
           }
         }
       ]
@@ -2282,7 +2286,8 @@
           "BeginAuthorizationAsync": ["TimeProvider"],
           "CompleteAuthorizationAsync": ["TimeProvider"],
           "DescribeConnectionAsync": ["TimeProvider"],
-          "LivenessSpec": ["TimeProvider"]
+          "LivenessSpec": ["TimeProvider"],
+          "RetryWithBackoffAsync": ["TimeProvider"]
         }
       },
       "notYetReached": {
@@ -2411,7 +2416,8 @@
           "ScriptedSessions": ["Random"],
           "BeginAuthorizationAsync": ["Random"],
           "CompleteAuthorizationAsync": ["Random"],
-          "DescribeConnectionAsync": ["Random"]
+          "DescribeConnectionAsync": ["Random"],
+          "RetryWithBackoffAsync": ["Random"]
         }
       },
       "notYetReached": {
