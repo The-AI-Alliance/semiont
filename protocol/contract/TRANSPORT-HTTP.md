@@ -414,6 +414,19 @@ client delivers a frame only if its id is not among the last
 - A passing frame (`e-<publishId>`) is delivered once.
   *Held by `sdk/wire/passing-across-handoff`.*
 
+### Requests
+
+`httpRequestTimeoutMs` is the deadline of each request its entry in
+[`timing.json`](../specs/src/client/timing.json) names. The stream's open
+(§ Reconnect discipline) and an emit (§ Emitting) have deadlines of their
+own.
+
+- A request the gateway never answers fails at `httpRequestTimeoutMs`, as
+  one that got no answer, and is not made again. A read whose connection
+  failed, or closed before any response came, is not that: it is sent once
+  more ([TRANSPORT-CONTRACT.md § Failures](./TRANSPORT-CONTRACT.md#failures)).
+  *Held by `protocol/specs/src/client/clock-cases.json`.*
+
 ### Emitting
 
 - An emit carries the client's `clientId`, and its `scope` and
@@ -430,6 +443,12 @@ client delivers a frame only if its id is not among the last
   than a refusal's `Retry-After`; any other refusal is final
   ([`protocol/specs/src/retry/cases.json`](../specs/src/retry/cases.json)).
   *Held by `sdk/wire/emit-rate-limited`, `sdk/wire/emit-budget-spent`, `sdk/wire/emit-refused`, `sdk/wire/unreachable`.*
+- An attempt whose answer was lost, its connection closed before the answer
+  reached the client, is made again inside `emitRetry` with the emit's key
+  and the body it was first sent with. The gateway answers it as it answered
+  the first, status and body, so a request whose emit was accepted resolves
+  with its reply however many attempts its emit took.
+  *Held by `sdk/wire/emit-answer-lost`.*
 - An attempt whose credential is refused (a 401, or a 429 `refusal-rate`)
   is neither of those: the token is renewed once and the emit sent again
   with it, outside `emitRetry`

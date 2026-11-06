@@ -245,8 +245,12 @@ func form(request PutBinaryRequest) (body []byte, contentType string, err error)
 
 // progressReader hands body to the connection a chunk at a time, reporting
 // each to progress. reported is how much of this upload has been reported
-// sent: a sending that repeats an earlier one, after a renewed token, reports
-// nothing until it has passed that.
+// sent: a sending that repeats an earlier one, after a renewed token or as the
+// upload's one resend, reports nothing until it has passed that.
+//
+// It is not a body net/http can rewind, so net/http never sends an upload
+// again by itself, as it would a keyed request it could rewind on a reused
+// connection the server closed: the one resend is exchange's.
 type progressReader struct {
 	body     []byte
 	sent     int64
@@ -270,9 +274,12 @@ func (p *progressReader) Read(buffer []byte) (int, error) {
 	return n, nil
 }
 
-// PutBinary uploads a resource. Its context abandons it: the connection is
-// closed, nothing is reported on the error stream, and it is not sent again.
-// Every attempt carries the upload's one Idempotency-Key.
+// PutBinary uploads a resource. Every attempt carries the upload's one
+// Idempotency-Key, so an attempt answered with a status RetryRuleTransport
+// retries, or not answered at all, is sent once more, with the same key, bytes
+// and fields, after Timing.RequestRetryPause or the answer's Retry-After when
+// that is longer. Its context abandons it: the connection is closed, nothing
+// is reported on the error stream, and it is not sent again.
 func (c *HTTPContentTransport) PutBinary(ctx context.Context, putting PutBinaryRequest) *Upload {
 	return NewUpload(func(report func(UploadProgress)) (api.CreateResourceResponse, error) {
 		busLog(ctx, busPut, "content", map[string]any{"name": putting.Name, "format": putting.Format, "storageUri": putting.StorageURI, "sizeBytes": len(putting.Bytes)}, Envelope{})

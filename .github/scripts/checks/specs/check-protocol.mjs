@@ -26,7 +26,9 @@
 //     gateway's call of the Archivist (`connectSeconds` and `readSeconds`)
 //     inside a client's `httpRequestTimeoutMs` (below);
 //   - a limit that is not a positive integer, or a principal's limit that is
-//     not a baseline with coefficients by role (below).
+//     not a baseline with coefficients by role (below);
+//   - an emit's key forgotten before a client's attempts at that emit can
+//     have ended (`idempotencySeconds` against protocol/specs/src/client/timing.json).
 //
 // It reads the SOURCE files and resolves `$ref`s itself, so it needs no bundle
 // and cannot pass on a stale one.
@@ -276,6 +278,29 @@ for (const ROOT_FILE of ROOT_FILES) {
         }
       }
     }
+  }
+}
+
+// ── An emit's key outlives every attempt at it ─────────────────────────────
+// The gateway answers a repeated emit by its key for `idempotencySeconds`. A
+// client's attempts at one emit span at most two `emitRetry` budgets, the one
+// before a renewed credential and the one after, with its own renewal between;
+// a key forgotten sooner lets a late attempt be carried out twice.
+{
+  const timing = Object.fromEntries(load(resolve(REPO, 'protocol/specs/src/client/timing.json')).timing.map((t) => [t.name, t.value]));
+  const budgetMs = ({ attempts, initialDelayMs, maxDelayMs }, attemptMs) => {
+    let delays = 0;
+    for (let attempt = 1; attempt < attempts; attempt++) delays += Math.min(initialDelayMs * 2 ** (attempt - 1), maxDelayMs);
+    return attempts * attemptMs + delays;
+  };
+  const longestMs = 2 * budgetMs(timing.emitRetry, timing.emitTimeoutMs) + budgetMs(timing.refreshRetry, timing.httpRequestTimeoutMs);
+  const gateway = ROOT_FILES[0];
+  const emit = deref(load(gateway).paths['/bus/emit'], gateway).node.post;
+  const held = emit['x-semiont-limits']?.idempotencySeconds;
+  current = gateway.slice(REPO.length + 1);
+  if (!positive(held)) fail('POST /bus/emit', 'states no x-semiont-limits.idempotencySeconds');
+  else if (held * 1000 <= longestMs) {
+    fail('POST /bus/emit', `holds a key for ${held} s, and a client's attempts at one emit may span ${longestMs / 1000} s (two emitRetry budgets and a refreshRetry, protocol/specs/src/client/timing.json)`);
   }
 }
 

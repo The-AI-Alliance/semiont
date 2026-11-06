@@ -187,9 +187,9 @@ open http asked = let HttpClient manager = httpClient (options http) in
     (TransportError Code.TransportUnavailable "HTTP request got no answer" Nothing Nothing) False))
 
 -- The callback stays inside the response scope, including through a renewal.
-exchange :: Http -> HttpRoute requestBodyType answer -> Maybe ResourceId -> IO RequestBody -> Maybe Text -> Bool
+exchange :: Http -> HttpRoute requestBodyType answer -> Maybe ResourceId -> IO RequestBody -> Maybe Text
   -> RequestHeaders -> (Response BodyReader -> IO value) -> IO value
-exchange http route resource body key upload headers consume = do
+exchange http route resource body key headers consume = do
   requiredHeaders <- case (routeRequiredHeaders route, key) of
     ([], Nothing) -> pure []
     ([(name, named)], Just value) -> case validateNamed schemas named (String value) of
@@ -230,10 +230,10 @@ exchange http route resource body key upload headers consume = do
                 replacement <- renew http refused
                 if replacement /= Nothing then attempt retries else throwIO problem
               Nothing -> throwIO problem
-            else if not upload && retries == (0 :: Int) && not (expired problem)
+            else if (case route of EmitOnBus -> False; _ -> True) && retries == (0 :: Int) && not (expired problem)
                 && transportErrorCode problemError /= Code.TransportUnauthorized
-                && (Retry.retryable Retry.Transport (httpStatus problemError) (Just (decodeUtf8With lenientDecode (routeMethod route)))
-                  || (httpStatus problemError == Nothing && repeatableMethod (decodeUtf8With lenientDecode (routeMethod route)))) then do
+                && (Retry.retryable Retry.Transport (httpStatus problemError) (Just (decodeUtf8With lenientDecode (routeMethod route))) (key /= Nothing)
+                  || (httpStatus problemError == Nothing && (key /= Nothing || repeatableMethod (decodeUtf8With lenientDecode (routeMethod route))))) then do
               pause http (max (Settings.requestRetryPauseMs (httpTiming (options http))) (maybe 0 id (retryAfterMs problemError)))
               attempt 1
             else throwIO problem
@@ -242,7 +242,7 @@ exchange http route resource body key upload headers consume = do
     _ -> attempt 0
   where
     accepts problem = let problemError = failure problem in
-      ((httpStatus problemError == Nothing && transportErrorCode problemError == Code.TransportUnavailable) || Retry.retryable Retry.Boot (httpStatus problemError) Nothing)
+      ((httpStatus problemError == Nothing && transportErrorCode problemError == Code.TransportUnavailable) || Retry.retryable Retry.Boot (httpStatus problemError) Nothing False)
         && transportErrorCode problemError /= Code.TransportUnauthorized
 
 openScoped :: Http -> Integer -> Request -> (Response BodyReader -> IO value) -> IO value
@@ -281,7 +281,7 @@ jsonBody route payload = case routeRequestMediaType route of
   _ -> throwIO (TransportError Code.TransportBadRequest "HTTP route requires a non-JSON body" Nothing Nothing)
 
 json :: (ToJSON requestBodyType, FromJSON answer) => Http -> HttpRoute requestBodyType answer -> Maybe ResourceId -> requestBodyType -> IO answer
-json http route resource payload = report http $ exchange http route resource (jsonBody route payload) Nothing False [] $ \response -> do
+json http route resource payload = report http $ exchange http route resource (jsonBody route payload) Nothing [] $ \response -> do
   bytes <- Bytes.concat <$> brConsume (responseBody response)
   readAnswer route bytes
 
@@ -302,7 +302,7 @@ emit http frame = Telemetry.sending frame $ do
   key <- UUID.toText <$> httpNewId (options http)
   let body = BusEmitRequest (busFrameChannel frame) (Just (clientId http)) (busFrameCorrelationId frame)
         (BusEmitRequestPayload (busFramePayloadAdditionalProperties (busFramePayload frame))) (busFrameScope frame) mempty
-      sending = exchange http EmitOnBus Nothing (jsonBody EmitOnBus body) (Just key) True [] $ \response -> do
+      sending = exchange http EmitOnBus Nothing (jsonBody EmitOnBus body) (Just key) [] $ \response -> do
         let count = do
               bytes <- deadline http (Settings.emitTimeoutMs (httpTiming (options http))) (Bytes.concat <$> brConsume (responseBody response))
               pure $ either (const Nothing) busEmitAcceptedSubscribers (eitherDecodeStrict' bytes)

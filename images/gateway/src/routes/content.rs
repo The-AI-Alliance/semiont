@@ -4,11 +4,14 @@
 //! is a resource's anchored text, passed through unread.
 
 use crate::app::App;
-use crate::http::{ApiError, Authenticated, MediaOrBearer, ResourcePath, json_response};
+use crate::http::{
+    ApiError, Authenticated, MediaOrBearer, ResourcePath, idempotency_key, json_response,
+};
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::Response;
+use futures::StreamExt;
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
 use semiont::bus_log::bus_log;
@@ -23,14 +26,19 @@ fn caller_trace(headers: &HeaderMap) -> opentelemetry::Context {
 }
 
 /// `POST /resources`: the multipart body goes to the Archivist untouched,
-/// naming the uploader; 202 with the id it recorded. A recorded upload is a
-/// write, so the principal making it is named on the record.
+/// naming the uploader, with the upload's key, which the Archivist answers a
+/// repeat by; 202 with the id it recorded. A recorded upload is a write, so
+/// the principal making it is named on the record.
 pub async fn upload(
     State(app): State<Arc<App>>,
     Authenticated(principal): Authenticated,
     headers: HeaderMap,
     body: Body,
 ) -> Result<Response, ApiError> {
+    let key = match idempotency_key(&headers, &crate::limits::limits().upload_key_length) {
+        Ok(key) => key,
+        Err(refusal) => return Err(once_sent(body, refusal).await),
+    };
     let content_type = headers
         .get(header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
@@ -43,10 +51,12 @@ pub async fn upload(
         Vec::new(),
         caller_trace(&headers),
         app.archivist
-            .record_upload(body, &content_type, &principal.did, &roles),
+            .record_upload(body, &content_type, &principal.did, &roles, key),
     )
     .await?;
-    if let Err(unavailable) = crate::routes::bus::publish_profile(&app, &principal).await {
+    if let Err(unavailable) =
+        crate::routes::bus::publish_profile(app.bus.plane.as_ref(), &principal).await
+    {
         logging::warn(
             "[bus PROFILE-DROPPED] the signal plane could not carry an uploader's name",
             json!({ "component": "bus", "did": principal.did, "error": unavailable.to_string() }),
@@ -56,6 +66,15 @@ pub async fn upload(
         StatusCode::ACCEPTED,
         &CreateResourceResponse { resource_id },
     ))
+}
+
+/// `refusal`, answered once the whole upload has arrived. A client still
+/// sending its file when the answer closes the connection is reset, and
+/// reads no answer. Nothing of the body is kept.
+async fn once_sent(body: Body, refusal: ApiError) -> ApiError {
+    let mut data = body.into_data_stream();
+    while let Some(Ok(_)) = data.next().await {}
+    refusal
 }
 
 async fn bytes_of(

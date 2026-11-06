@@ -122,13 +122,14 @@ parseSpanRefusalCode value = case value of
 instance ToJSON SpanRefusalCode where toJSON = String . spanRefusalCode
 instance FromJSON SpanRefusalCode where parseJSON = withText "SpanRefusalCode" (\value -> maybe (fail "unknown error code") pure (parseSpanRefusalCode value))
 
-data TransportCode = TransportUnauthorized | TransportForbidden | TransportNotFound | TransportConflict | TransportBadRequest | TransportRateLimited | TransportUnavailable | TransportError deriving (Eq, Ord, Show, Enum, Bounded)
+data TransportCode = TransportUnauthorized | TransportForbidden | TransportNotFound | TransportConflict | TransportBadRequest | TransportUnprocessable | TransportRateLimited | TransportUnavailable | TransportError deriving (Eq, Ord, Show, Enum, Bounded)
 transportCode :: TransportCode -> Text
 transportCode TransportUnauthorized = "unauthorized"
 transportCode TransportForbidden = "forbidden"
 transportCode TransportNotFound = "not-found"
 transportCode TransportConflict = "conflict"
 transportCode TransportBadRequest = "bad-request"
+transportCode TransportUnprocessable = "unprocessable"
 transportCode TransportRateLimited = "rate-limited"
 transportCode TransportUnavailable = "unavailable"
 transportCode TransportError = "error"
@@ -139,6 +140,7 @@ parseTransportCode value = case value of
   "not-found" -> Just TransportNotFound
   "conflict" -> Just TransportConflict
   "bad-request" -> Just TransportBadRequest
+  "unprocessable" -> Just TransportUnprocessable
   "rate-limited" -> Just TransportRateLimited
   "unavailable" -> Just TransportUnavailable
   "error" -> Just TransportError
@@ -152,6 +154,7 @@ transportCodeFromStatus status
   | status == 404 = TransportNotFound
   | status == 409 = TransportConflict
   | status == 400 = TransportBadRequest
+  | status == 422 = TransportUnprocessable
   | status == 429 = TransportRateLimited
   | status >= 500 = TransportUnavailable
   | otherwise = TransportError

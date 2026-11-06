@@ -44,6 +44,12 @@ fn rules() {
                 .as_u64()
                 .map(|status| u16::try_from(status).expect("a status")),
             method: row["method"].as_str(),
+            // A row that omits `keyed` states a request with no key.
+            keyed: match row.get("keyed") {
+                None => false,
+                Some(Value::Bool(keyed)) => *keyed,
+                Some(other) => panic!("{name}: keyed is not a boolean: {other}"),
+            },
         };
         assert_eq!(
             rule.retryable(&facts),

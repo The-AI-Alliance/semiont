@@ -18,6 +18,7 @@ from typing import Final
 
 import pytest
 from pydantic import JsonValue
+from semiont.timing import GENERATION_STALL_ASSUMED_TOKENS_COUNT
 from semiont.types import GenerationJobParams, SupportedMediaType
 from spec import ROOT
 
@@ -328,7 +329,7 @@ def test_a_resource_s_summary_its_references_and_the_content_gathered_with_it_ar
         "---\n"
         "\n"
         "Requirements:\n"
-        "- Aim for approximately 500 tokens of content\n"
+        f"- Aim for approximately {GENERATION_STALL_ASSUMED_TOKENS_COUNT} tokens of content\n"
         "- Be factual and informative\n"
         "- Structure the content as a conversational chat transcript — "
         "a sequence of alternating, speaker-labeled turns (no section headings)\n"
@@ -361,7 +362,7 @@ def test_a_pdf_is_asked_for_as_typst_and_a_source_that_did_not_compile_is_handed
         "- Resource: Main Notes [res-main]\n"
         "\n"
         "Requirements:\n"
-        "- Aim for approximately 500 tokens of content\n"
+        f"- Aim for approximately {GENERATION_STALL_ASSUMED_TOKENS_COUNT} tokens of content\n"
         "- Be factual and informative\n"
         "- Organize the output as: three stanzas\n"
         "- Write the response as Typst markup (the Typst typesetting language — not markdown, not LaTeX)\n"
@@ -427,7 +428,7 @@ def test_what_a_job_leaves_unsaid_or_says_as_nothing_adds_nothing_to_its_prompt(
         "- Resource: Main Notes [res-main]\n"
         "\n"
         "Requirements:\n"
-        "- Aim for approximately 500 tokens of content\n"
+        f"- Aim for approximately {GENERATION_STALL_ASSUMED_TOKENS_COUNT} tokens of content\n"
         "- Be factual and informative\n"
         "- Use markdown formatting\n"
         "- Write the response as markdown"
@@ -502,7 +503,7 @@ def test_no_passage_found_similar_says_nothing_of_passages() -> None:
         "- Resource: Main Notes [res-main]\n"
         "\n"
         "Requirements:\n"
-        "- Aim for approximately 500 tokens of content\n"
+        f"- Aim for approximately {GENERATION_STALL_ASSUMED_TOKENS_COUNT} tokens of content\n"
         "- Be factual and informative\n"
         "- Use markdown formatting\n"
         "- Write the response as markdown"

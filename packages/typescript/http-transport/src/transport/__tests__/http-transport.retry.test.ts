@@ -135,7 +135,7 @@ describe('HttpTransport retry — what the caller receives', () => {
     transport.dispose();
   });
 
-  test('without a refresher, a POST that got a 503 is not made again — the rule repeats no POST', async () => {
+  test('without a refresher, a POST that got a 503 is not made again — the rule repeats no POST that carries no key', async () => {
     fetchMock.mockImplementation(async () => failWith(503));
     const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
 

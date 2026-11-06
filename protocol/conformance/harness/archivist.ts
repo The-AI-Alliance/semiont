@@ -1,8 +1,8 @@
 /**
  * A stand-in Archivist: the knowledge base's record and bytes, over the HTTP
  * surface the Archivist serves (`protocol/specs/src/archivist/openapi.json`) — the
- * recording upload, byte reads by resource, the linked-data description, a
- * resource's annotations, its anchored text, and the sequence-ranged event
+ * recording upload, which answers a repeat by its `Idempotency-Key`, byte
+ * reads by resource, the linked-data description, a resource's annotations, its anchored text, and the sequence-ranged event
  * read that backs replay. It checks the caller's
  * token as the real one does (an issuer token carrying the service role) and
  * records every call, so a case can see what the gateway sent it.
@@ -43,12 +43,13 @@ export interface ArchivistCall {
 /** One answer to a read of a resource's anchored text: a member of the spec's `AnchoredTextAnswer`. */
 export type AnchoredTextAnswered = Record<string, unknown>;
 
-/** An upload the stand-in stored and recorded: the multipart fields, the file, and who the gateway named. */
+/** An upload the stand-in stored and recorded: the multipart fields, the file, who the gateway named, and the key it forwarded. */
 export interface RecordedUpload {
   fields: Record<string, string>;
   file: Buffer;
-  principal: string | undefined;
+  principal: string;
   roles: string | undefined;
+  key: string;
   resourceId: string;
 }
 
@@ -106,6 +107,12 @@ export interface FakeArchivist {
      * met by a close.
      */
     hangsUp: number;
+    /**
+     * An upload of a `storageUri` in this set is stored and recorded, once,
+     * and then never answered: a resource made whose id the gateway was never
+     * told. Its repeat is answered.
+     */
+    readonly recordsUnanswered: Set<string>;
     /** A read of a resource id, or an upload of a `storageUri`, in this set is read whole and never answered. */
     readonly unanswered: Set<string>;
     /** A read of the bytes of a resource id in this set is answered its head and the first half of its bytes, and then nothing. */
@@ -144,10 +151,10 @@ function requestProblems(operation: Operation, req: IncomingMessage, url: URL): 
       if (p['required'] === true) problems.push(`${where} carries no ${p['in']} parameter ${name}`);
       continue;
     }
-    if (p['in'] === 'query' && isRecord(p['schema'])) {
+    if ((p['in'] === 'query' || p['in'] === 'header') && isRecord(p['schema'])) {
       const validate = archivistSpec().validator(p['schema'] as never);
       const typed = p['schema']['type'] === 'integer' ? Number(value) : value;
-      if (!validate(typed)) problems.push(`${where}: query ${name}=${String(value)} (${errorsOf(validate)})`);
+      if (!validate(typed)) problems.push(`${where}: ${p['in']} ${name}=${String(value)} (${errorsOf(validate)})`);
     }
   }
   const security = operation.op['security'];
@@ -167,6 +174,12 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
   const annotations: FakeArchivist['annotations'] = new Map();
   const anchoredTexts: FakeArchivist['anchoredTexts'] = new Map();
   const uploads: RecordedUpload[] = [];
+  /**
+   * Each upload recorded, by its principal and its key: what a repeat is
+   * answered from. Recording is one synchronous step, so a repeat never meets
+   * an upload half recorded; it finds the first recorded, or nothing.
+   */
+  const keyed = new Map<string, RecordedUpload>();
   const mode: FakeArchivist['mode'] = {
     refusesGateway: false,
     replayDelayMs: 0,
@@ -175,6 +188,7 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
     refuseUploads: undefined,
     anchoredTextFails: false,
     hangsUp: 0,
+    recordsUnanswered: new Set(),
     unanswered: new Set(),
     answeredInPart: new Set(),
   };
@@ -266,23 +280,31 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
           else file = Buffer.from(await value.arrayBuffer());
         }
         if (mode.unanswered.has(fields['storageUri'] ?? '')) return;
+        const principal = req.headers['semiont-principal'];
+        if (typeof principal !== 'string') return json(400, { error: 'Missing Semiont-Principal' });
+        const key = req.headers['idempotency-key'];
+        if (typeof key !== 'string') return json(400, { error: 'Missing Idempotency-Key' });
         const missing = uploadRequired.filter((k) => (k === 'file' ? !file : !fields[k]));
         if (missing.length > 0) return json(400, { error: `Missing required fields: ${missing.join(', ')}` });
         const base = fields['format']!.split(';')[0]!.trim().toLowerCase();
         if (!supported.has(base)) return json(400, { error: `Unsupported media type: ${base}` });
+        // A key is its principal's: another principal's key of the same text is another key.
+        const keyedAs = JSON.stringify([principal, key]);
+        const first = keyed.get(keyedAs);
+        if (first) {
+          const sameFields = Object.keys(first.fields).length === Object.keys(fields).length && Object.entries(first.fields).every(([k, v]) => fields[k] === v);
+          if (sameFields && first.file.equals(file!)) return json(200, { resourceId: first.resourceId });
+          return json(422, { error: 'This Idempotency-Key names a resource recorded from other fields or other bytes', code: 'unprocessable' });
+        }
         if (mode.refuseUploads) return json(500, { error: mode.refuseUploads });
         const resourceId = `res-${randomUUID()}`;
         content.set(fields['storageUri']!, file!);
         resources.set(resourceId, { storageUri: fields['storageUri']!, mediaType: fields['format']! });
-        const principal = req.headers['semiont-principal'];
         const roles = req.headers['semiont-roles'];
-        uploads.push({
-          fields,
-          file: file!,
-          principal: typeof principal === 'string' ? principal : undefined,
-          roles: typeof roles === 'string' ? roles : undefined,
-          resourceId,
-        });
+        const recorded: RecordedUpload = { fields, file: file!, principal, roles: typeof roles === 'string' ? roles : undefined, key, resourceId };
+        uploads.push(recorded);
+        keyed.set(keyedAs, recorded);
+        if (mode.recordsUnanswered.delete(fields['storageUri']!)) return;
         return json(200, { resourceId });
       }
 

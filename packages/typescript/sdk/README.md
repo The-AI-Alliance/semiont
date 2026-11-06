@@ -31,7 +31,9 @@ explains the domain and the ideas the API falls out of.
 npm install @semiont/sdk
 ```
 
-It runs in a browser and in Node. A client speaks to a running knowledge base.
+It runs in a browser and in Node. In a browser it needs Chrome 116, Firefox 124 or Safari 17.4,
+or later: its transport joins abort signals with `AbortSignal.any`, which each of those was the
+first version to have. A client speaks to a running knowledge base.
 The [Quick Start](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/QUICK-START.md) sets one up on
 your own machine.
 

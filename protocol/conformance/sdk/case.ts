@@ -309,8 +309,8 @@ class Run {
     } else if ('closed' in step) {
       const record = this.named.get(step.closed);
       if (!record) throw new Error(`no request was named ${step.closed}`);
-      await this.proxy.until(`the client to close ${step.closed}`, () => (record.closed ? true : undefined), WAIT_MS);
-      if (record.status !== undefined) throw new Error(`${step.closed} was answered ${record.status} before it closed; the client was to close it unanswered`);
+      await this.proxy.until(`${step.closed} to close`, () => (record.closed ? true : undefined), WAIT_MS);
+      if (record.status !== undefined && !record.answerLost) throw new Error(`${step.closed} was answered ${record.status} before it closed; it was to close with no answer reaching the client`);
     } else if ('progress' in step) {
       const started = this.pending.get(step.progress);
       if (!started) throw new Error(`no operation was started as ${step.progress}`);
@@ -615,7 +615,7 @@ class Run {
       const reply = await call(this.world.origin, 'POST', '/bus/emit', {
         token: this.participant.token,
         json: { ...body, clientId: this.participant.clientId },
-        headers: this.traceAnswered(body['correlationId']),
+        headers: { ...this.traceAnswered(body['correlationId']), 'idempotency-key': randomUUID() },
       });
       if (reply.status !== 202) throw new Error(`the gateway refused the backend's emit: ${reply.status} ${reply.text}`);
     };
@@ -723,6 +723,10 @@ class Run {
       case 'unanswered':
         allowed('wire', 'times');
         this.proxy.leaveUnanswered(this.matcher(text('wire')), number('times'));
+        return;
+      case 'answer-lost':
+        allowed('wire', 'times');
+        this.proxy.loseAnswer(this.matcher(text('wire')), number('times'));
         return;
       case 'hold':
         allowed('wire');
@@ -895,7 +899,8 @@ class Run {
     const wire = this.proxy.requests.map((record, index) => {
       const operation = declared(record.method, record.path);
       const name = operation ? operationName(operation.method, operation.template) : `${record.method} ${record.path}`;
-      return `    ${index < this.wireCursor ? ' ' : '?'} ${name} → ${record.status ?? 'unanswered'} ${JSON.stringify(record.json)}`;
+      const answered = record.status === undefined ? 'unanswered' : `${record.status}${record.answerLost ? ', kept from the client' : ''}`;
+      return `    ${index < this.wireCursor ? ' ' : '?'} ${name} → ${answered} ${JSON.stringify(record.json)}`;
     });
     const frames = [...this.driver.frames].map(([channel, delivered]) => `    ${channel}: ${JSON.stringify(delivered)}`);
     const observers = [...this.driver.emissions].map(([observer, states]) => `    ${observer}: ${JSON.stringify(states)}`);

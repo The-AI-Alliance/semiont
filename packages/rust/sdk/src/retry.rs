@@ -29,6 +29,8 @@ pub struct RetryPolicy {
 pub struct RetryFacts<'a> {
     pub status: Option<u16>,
     pub method: Option<&'a str>,
+    /// Whether the request carries an `Idempotency-Key`.
+    pub keyed: bool,
 }
 
 /// Which failures one context tries again.
@@ -61,21 +63,24 @@ pub const JOB: RetryRule = RetryRule {
     retryable: |facts| matches!(facts.status, Some(status) if status == 408 || status == 429 || status >= 500),
 };
 
-/// An HTTP client's request. A retryable status applies only to a method that
-/// cannot cause a second effect, because a POST answered `502` may already
-/// have been processed. A `401` is not retried: a refused credential is renewed
-/// before any rule is asked, and the same token gets the same answer.
+/// An HTTP client's request. A retryable status applies only when a repeat
+/// cannot cause a second effect: its method cannot, or it carries an
+/// `Idempotency-Key`, whose repeat the server answers as it answered the
+/// first. An unkeyed POST answered `502` may already have been processed. A
+/// `401` is not retried: a refused credential is renewed before any
+/// rule is asked, and the same token gets the same answer.
 pub const TRANSPORT: RetryRule = RetryRule {
     name: "transport",
     retryable: |facts| {
         let Some(status) = facts.status else {
             return false;
         };
-        let repeatable = facts.method.is_some_and(|method| {
-            IDEMPOTENT_METHODS
-                .iter()
-                .any(|m| m.eq_ignore_ascii_case(method))
-        });
+        let repeatable = facts.keyed
+            || facts.method.is_some_and(|method| {
+                IDEMPOTENT_METHODS
+                    .iter()
+                    .any(|m| m.eq_ignore_ascii_case(method))
+            });
         repeatable && matches!(status, 408 | 413 | 429 | 500 | 502 | 503 | 504)
     },
 };

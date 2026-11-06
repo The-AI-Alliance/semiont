@@ -46,10 +46,12 @@ class RetryPolicy:
 @final
 @dataclass(frozen=True, slots=True, kw_only=True)
 class RetryFacts:
-    """What is known of a failure when someone asks whether to try again. What is not stated is `None`."""
+    """What is known of a failure when someone asks whether to try again. A status or method not stated is `None`."""
 
     status: int | None = None
     method: str | None = None
+    keyed: bool = False
+    """Whether the request carries an `Idempotency-Key`. Not stated is no key, as the table reads a row that omits it."""
 
 
 @final
@@ -77,15 +79,17 @@ _IDEMPOTENT_METHODS: Final = frozenset({"GET", "HEAD", "PUT", "DELETE", "OPTIONS
 def _transport(facts: RetryFacts) -> bool:
     if facts.status is None:
         return False
-    repeatable = facts.method is not None and facts.method.upper() in _IDEMPOTENT_METHODS
+    repeatable = facts.keyed or (facts.method is not None and facts.method.upper() in _IDEMPOTENT_METHODS)
     return repeatable and facts.status in (408, 413, 429, 500, 502, 503, 504)
 
 
 TRANSPORT: Final = RetryRule("transport", _transport)
-"""An HTTP client's request. A retryable status applies only to a method that
-cannot cause a second effect, because a POST answered `502` may already have
-been processed. A `401` is not retried: a refused credential is renewed before
-any rule is asked, and the same token gets the same answer."""
+"""An HTTP client's request. A retryable status applies only when a repeat
+cannot cause a second effect: its method cannot, or it carries an
+`Idempotency-Key`, whose repeat the server answers as it answered the first.
+An unkeyed POST answered `502` may already have been processed. A `401` is not
+retried: a refused credential is renewed before any rule is asked, and the
+same token gets the same answer."""
 
 
 def _refresh(facts: RetryFacts) -> bool:

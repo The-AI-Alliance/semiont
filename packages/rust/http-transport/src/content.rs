@@ -8,7 +8,10 @@
 //! It uses the bus transport's token, its retry rule and its error stream,
 //! so a request here is refused, renewed and reported as any other. An
 //! upload carries one `Idempotency-Key`, the same on every sending of it, as
-//! an emit does. Each request is logged (`[bus PUT]`, `[bus GET]`) and made
+//! an emit does, and so is sent once more, as a read is, when the gateway
+//! answered it with a status that promises recovery or did not answer at
+//! all. Every sending is the same key, fields and bytes. Each request is
+//! logged (`[bus PUT]`, `[bus GET]`) and made
 //! in a client span (`content.put`, `content.get`, `content.get_graph`,
 //! `content.get_annotations`, `content.get_anchored_text`).
 
@@ -130,8 +133,8 @@ impl Form {
 
     /// The body as it is sent: a piece at a time, each reported to `progress`
     /// as it is handed to the connection. `reported` is how much of this
-    /// upload has been reported sent: a sending that repeats an earlier one,
-    /// after a renewed token, reports nothing until it has passed that.
+    /// upload has been reported sent: a sending that repeats an earlier one
+    /// reports nothing until it has passed that.
     fn body(
         &self,
         progress: mpsc::UnboundedSender<UploadProgress>,

@@ -272,8 +272,9 @@ impl Shared {
     /// refused, on any method; it is never retried. Any other request is
     /// made a second time when that is worth it and safe
     /// (`retry::TRANSPORT`): a status that promises recovery, or no answer
-    /// at all, on a method that cannot cause a second effect. A failure is
-    /// reported on the error stream as it is returned.
+    /// at all, on a method that cannot cause a second effect or a request
+    /// that carries an `Idempotency-Key`. A failure is reported on the error
+    /// stream as it is returned.
     ///
     /// An attempt whose answer has not begun by the transport's deadline
     /// (`Timing::http_request`) fails as one that got no answer, and is not
@@ -306,10 +307,6 @@ impl Shared {
         build: impl Fn(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
     ) -> Result<reqwest::Response, TransportError> {
         let url = format!("{}{path}", self.base_url);
-        let repeatable = retry::TRANSPORT.retryable(&RetryFacts {
-            status: Some(503),
-            method: Some(method.as_str()),
-        });
         let mut token = self.current_token();
         let mut retried = false;
         let mut renewed = false;
@@ -328,17 +325,33 @@ impl Shared {
                     request = request.header("tracestate", tracestate);
                 }
             }
+            let request = request.build();
+            let keyed = request
+                .as_ref()
+                .is_ok_and(|request| request.headers().contains_key(IDEMPOTENCY_KEY));
+            let sending = async {
+                match request {
+                    Ok(request) => self.http.execute(request).await,
+                    Err(error) => Err(error),
+                }
+            };
             let sent = match deadline {
-                Some(deadline) => match tokio::time::timeout(deadline, request.send()).await {
+                Some(deadline) => match tokio::time::timeout(deadline, sending).await {
                     Ok(sent) => sent,
                     Err(_) => return Err(self.failed(unanswered(&method, path, deadline))),
                 },
-                None => request.send().await,
+                None => sending.await,
             };
             let response = match sent {
                 Ok(response) => response,
                 Err(error) => {
-                    if !retried && repeatable {
+                    if !retried
+                        && retry::TRANSPORT.retryable(&RetryFacts {
+                            status: Some(503),
+                            method: Some(method.as_str()),
+                            keyed,
+                        })
+                    {
                         retried = true;
                         tokio::time::sleep(timing::REQUEST_RETRY_PAUSE).await;
                         continue;
@@ -382,6 +395,7 @@ impl Shared {
                 && retry::TRANSPORT.retryable(&RetryFacts {
                     status: Some(status),
                     method: Some(method.as_str()),
+                    keyed,
                 })
             {
                 retried = true;
@@ -532,6 +546,7 @@ impl Shared {
                             Some(status) => retry::BOOT.retryable(&RetryFacts {
                                 status: Some(status),
                                 method: Some("POST"),
+                                keyed: true,
                             }),
                             None => true,
                         }

@@ -21,11 +21,14 @@ var notKept = map[string]string{
 	"job": "a job's retry budget is its worker's, and the Go SDK runs no worker service of its own",
 }
 
+// retryRow is one of the table's rules rows. A row that omits `keyed` states a
+// request with no key, so Keyed is false for it.
 type retryRow struct {
 	Why     string  `json:"why"`
 	Rule    string  `json:"rule"`
 	Status  *int    `json:"status"`
 	Method  *string `json:"method"`
+	Keyed   bool    `json:"keyed"`
 	Retries bool    `json:"retries"`
 }
 
@@ -102,7 +105,7 @@ func TestARuleAnswersAsTheTableDoes(t *testing.T) {
 		if !isKept {
 			continue
 		}
-		facts := semiont.RetryFacts{Status: row.Status, Method: row.Method}
+		facts := semiont.RetryFacts{Status: row.Status, Method: row.Method, Keyed: row.Keyed}
 		if got := rule.Retryable(facts); got != row.Retries {
 			t.Errorf("%s: %s retries %v; the table says %v", row.Rule, row.Why, got, row.Retries)
 		}

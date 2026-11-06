@@ -71,8 +71,8 @@ internal static class ProtocolFacts
 
     internal static bool RetryEmit(int status) => RetryStatus("boot", status);
 
-    internal static bool RetryTransport(int? status, string? method) =>
-        status is not null && method?.ToUpperInvariant() is ("GET" or "HEAD" or "PUT" or "DELETE" or "OPTIONS" or "TRACE") &&
+    internal static bool RetryTransport(int? status, string? method, bool keyed) =>
+        status is not null && (keyed || method?.ToUpperInvariant() is ("GET" or "HEAD" or "PUT" or "DELETE" or "OPTIONS" or "TRACE")) &&
         RetryStatus("transport", status);
 
     internal static string SignInError(string name) => Errors.RootElement.GetProperty("signIn").GetProperty("codes").EnumerateArray()

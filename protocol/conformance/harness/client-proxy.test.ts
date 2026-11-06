@@ -3,7 +3,8 @@
  * gateway: it carries a stream and an emit through unchanged, records what
  * the client sent and what each stream carried, ends or refuses the client's
  * connections from outside, keeps a request waiting, answers one itself,
- * leaves one unanswered, and passes a stream on a byte at a time.
+ * leaves one unanswered, keeps the gateway's answer to one from the client,
+ * and passes a stream on a byte at a time.
  */
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, expect, it } from 'vitest';
@@ -125,5 +126,19 @@ eachPlane('the client proxy', (world) => {
     expect(dropped.answered).toBeUndefined();
 
     expect((await call(proxy.origin, 'GET', '/api/health')).status).toBe(200);
+  });
+
+  it('loseAnswer passes a request on, records the gateway\'s answer, closes the client\'s connection with none of it written, and passes the next one on', async () => {
+    proxy.loseAnswer((r) => r.path === '/api/health', 1);
+
+    await expect(call(proxy.origin, 'GET', '/api/health')).rejects.toThrow();
+    const lost = await proxy.next('the request whose answer was lost', (r) => r.path === '/api/health');
+    await proxy.until('its connection to close', () => (lost.closed ? true : undefined));
+    expect(lost).toMatchObject({ status: 200, answerLost: true, answer: { status: expect.any(String), version: expect.any(String) } });
+    expect(lost.answered).toBeDefined();
+
+    const next = await call(proxy.origin, 'GET', '/api/health');
+    expect(next.status).toBe(200);
+    expect(proxy.requests.at(-1)).toMatchObject({ status: 200, answerLost: false });
   });
 }, {}, ['in-process']);

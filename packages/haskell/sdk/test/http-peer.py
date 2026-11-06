@@ -24,7 +24,7 @@ for path, item in spec["paths"].items():
 operations = {row["request"]: row for row in registry["operations"]}
 channels = {row["channel"]: row for row in registry["channels"]}
 state = {"requests": [], "subscriptions": [], "uploads": [], "disconnected": 0, "bodyClosed": 0, "headersClosed": 0}
-controls = {"emitStatuses": [], "subscribeFailures": [], "subscribeRetryAfter": "0"}
+controls = {"uploadStatuses": [], "emitStatuses": [], "subscribeFailures": [], "subscribeRetryAfter": "0"}
 subscribe_ready = threading.Event()
 subscribe_ready.set()
 gate = threading.Lock()
@@ -164,7 +164,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             parts = {part.get_param("name", header="Content-Disposition"): part.get_payload(decode=True).decode() for part in message.get_payload()}
             with gate:
                 state["uploads"].append({"parts": parts, "key": record["key"], "token": record["token"]})
-            if record["token"] == "Bearer renew-upload":
+                statuses = controls["uploadStatuses"]
+                refusal = statuses.pop(0) if statuses else None
+            if refusal:
+                self.reply({"error": "retry this keyed upload"}, refusal, headers=[("Retry-After", "0")])
+            elif record["token"] == "Bearer renew-upload":
                 self.reply({"error": "upload credential refused"}, 401)
             else:
                 self.reply(fixtures["CreateResourceResponse"], 202)

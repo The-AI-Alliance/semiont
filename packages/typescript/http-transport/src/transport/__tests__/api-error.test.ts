@@ -20,6 +20,7 @@ describe('APIError', () => {
       [403, 'forbidden'],
       [404, 'not-found'],
       [409, 'conflict'],
+      [422, 'unprocessable'],
       [500, 'unavailable'],
       [502, 'unavailable'],
       [503, 'unavailable'],

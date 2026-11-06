@@ -53,7 +53,7 @@ eachPlane(
       const reply = await call(world().origin, 'POST', '/bus/emit', {
         token: await world().person('tracer'),
         json: { channel: 'beckon:focus', payload: { annotationId: marker, resourceId: 'res-1' } },
-        headers: { traceparent: t.header },
+        headers: { traceparent: t.header, 'idempotency-key': randomUUID() },
       });
       expect(reply.status).toBe(202);
       const span = await eventually('the bus.dispatch span', 10_000, () =>
@@ -105,7 +105,7 @@ eachPlane(
       for (const [k, v] of Object.entries({ name: 'traced', format: 'text/plain', storageUri: `file://uploads/${randomUUID()}.txt` })) upload.set(k, v);
       upload.set('file', new Blob(['traced bytes'], { type: 'text/plain' }), 'traced.txt');
       const put = traceparent();
-      const uploaded = await call(world().origin, 'POST', '/resources', { token, body: upload, headers: { traceparent: put.header } });
+      const uploaded = await call(world().origin, 'POST', '/resources', { token, body: upload, headers: { traceparent: put.header, 'idempotency-key': randomUUID() } });
       expect(uploaded.status, uploaded.text).toBe(202);
       expect((await eventually(spanName('content.put.server'), 10_000, () => otlp().spans.find((s) => s.name === spanName('content.put.server') && s.traceId === put.traceId))).kind).toBe(SERVER);
       expect((await eventually(spanName('archivist.resources.record'), 10_000, () => otlp().spans.find((s) => s.name === spanName('archivist.resources.record') && s.traceId === put.traceId))).kind).toBe(CLIENT);

@@ -323,6 +323,38 @@ impl SharedTable for NatsTable {
         .boxed()
     }
 
+    fn replace(
+        &self,
+        key: String,
+        expected: String,
+        value: String,
+    ) -> BoxFuture<'_, Result<bool, String>> {
+        async move {
+            let key = b64url(&key);
+            let Some(entry) = self
+                .store
+                .entry(key.clone())
+                .await
+                .map_err(|e| logging::chain(&e))?
+            else {
+                return Ok(false);
+            };
+            if entry.operation != kv::Operation::Put || entry.value != expected.as_bytes() {
+                return Ok(false);
+            }
+            match self
+                .store
+                .update(key, Bytes::from(value), entry.revision)
+                .await
+            {
+                Ok(_) => Ok(true),
+                Err(error) if error.kind() == kv::UpdateErrorKind::WrongLastRevision => Ok(false),
+                Err(error) => Err(logging::chain(&error)),
+            }
+        }
+        .boxed()
+    }
+
     fn delete(&self, key: String) -> BoxFuture<'_, Result<(), String>> {
         async move {
             self.store

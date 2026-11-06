@@ -308,15 +308,16 @@ retryCases root = do
   require "retry rule vocabulary differs from its authority"
     (Set.fromList names == Set.fromList (map Retry.ruleName rules))
   forM_ rows $ \row -> do
-    require "retry table gained an unhandled fact" (all (`elem` ["why", "rule", "status", "method", "retries"]) (KM.keys (object row)))
+    require "retry table gained an unhandled fact" (all (`elem` ["why", "rule", "status", "method", "keyed", "retries"]) (KM.keys (object row)))
     name <- decode (at "rule" row)
     rule <- case filter ((== name) . Retry.ruleName) rules of
       [one] -> pure one
       _ -> ioError (userError "unknown retry rule")
     status <- decode (at "status" row)
     method <- decode (at "method" row)
+    keyed <- decode (at "keyed" row)
     expected <- decode (at "retries" row)
-    require ("retry decision differs from spec: " ++ show (at "why" row)) (Retry.retryable rule status method == expected)
+    require ("retry decision differs from spec: " ++ show (at "why" row)) (Retry.retryable rule status method (keyed == Just True) == expected)
   forM_ (array (at "retryAfter" table)) $ \row -> do
     header <- decode (at "header" row)
     expected <- decode (at "ms" row)

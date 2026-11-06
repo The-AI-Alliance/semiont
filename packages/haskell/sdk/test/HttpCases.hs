@@ -170,6 +170,24 @@ httpCases root fixtures = do
           [first, second] -> require "upload attempts changed the idempotency key" (field "key" first == field "key" second)
           _ -> ioError (userError "upload did not have exactly two attempts")
         require "replayed upload lost bytes" (all (\value -> case field "parts" value of Just (Object fields) -> KM.lookup "file" fields == Just (String "complete upload λ"); _ -> False) uploads)
+        postControl origin "/test/config" (object ["uploadStatuses" .= ([503]::[Int])])
+        retryProgress <- newIORef []
+        began <- readTVarIO clock
+        retriedUpload <- async (Content.putBinary contents metadata source (\value -> modifyIORef' retryProgress (++[value])))
+        let retryAt=began+Timing.requestRetryPauseMs*1000000
+        waitForDeadline waits retryAt
+        atomically (writeTVar clock retryAt)
+        wait retriedUpload >>= require "retried upload returned another resource" . (==uploaded)
+        readIORef opens >>= require "a retry did not reopen the upload's byte source" . (==4)
+        afterRetry <- readState origin
+        let repeats=drop 2 (values "uploads" afterRetry)
+        case repeats of
+          [first,second] -> do
+            require "an upload retry changed its idempotency key" (field "key" first==field "key" second)
+            require "another upload reused an earlier upload's key" (field "key" first `notElem` map (field "key") uploads)
+          _ -> ioError (userError "keyed upload did not have exactly one retry")
+        retriedNotices <- readIORef retryProgress
+        require "upload progress decreased across retry" (and (zipWith (<=) (map Content.bytesUploaded retriedNotices) (drop 1 (map Content.bytesUploaded retriedNotices))))
         let invalidSource = (Content.bytesBody bytes) { Content.bodyLength = Just (-1) }
         invalidUpload <- try (Content.putBinary contents metadata invalidSource (const (pure ()))) :: IO (Either TransportError ResourceId)
         require "negative upload size was accepted" (either ((== Code.TransportBadRequest) . transportErrorCode) (const False) invalidUpload)
