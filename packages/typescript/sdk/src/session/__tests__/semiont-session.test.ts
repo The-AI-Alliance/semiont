@@ -229,6 +229,42 @@ describe('SemiontSession — refresh', () => {
     session.dispose();
   });
 
+  it('gives the refresh callback the token it holds, when the gateway refuses that token', async () => {
+    const held = freshJwt();
+    seedStoredSession(storage, KB.id, held, 'refresh-tok');
+    refresh.mockResolvedValue(freshJwt());
+
+    const session = newSession();
+    await session.ready;
+    await session.refresh(held);
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledWith(held);
+
+    session.dispose();
+  });
+
+  it('gives the refresh callback the token it holds, when that token is due', async () => {
+    vi.useFakeTimers();
+    try {
+      // No `iat`: half the remaining 300 s is due in about 150 s.
+      const held = freshJwt(300);
+      seedStoredSession(storage, KB.id, held, 'refresh-tok');
+      refresh.mockImplementation(async () => freshJwt(300));
+
+      const session = newSession();
+      await session.ready;
+      await vi.advanceTimersByTimeAsync(151_000);
+
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(refresh).toHaveBeenCalledWith(held);
+
+      session.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   // ── A refresh margin equal to the token lifetime ────────────────────
   // The unit tests above drive `refresh()` DIRECTLY, so to them a schedule
   // that fires at `delay = 0` is indistinguishable from one that fires
