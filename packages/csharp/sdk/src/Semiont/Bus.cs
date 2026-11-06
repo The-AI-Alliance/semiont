@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -117,11 +118,7 @@ public sealed class Bus
     {
         var response = await transport.RequestFrameAsync(operation.Request.Name, JsonSerializer.SerializeToElement(payload),
             timeoutMs, cancellation).ConfigureAwait(false);
-        try { return Decode<TResult>(response.Frame.Payload); }
-        catch (JsonException error)
-        {
-            throw new TransportError(ProtocolFacts.Error(0), "Invalid reply on " + response.Frame.Channel, inner: error);
-        }
+        return Decoded<TResult>(response.Frame.Channel, response.Frame.Payload);
     }
 
     internal static async IAsyncEnumerable<Heard<T>> DecodeFrames<T>(IAsyncEnumerable<Carried> frames,
@@ -140,18 +137,11 @@ public sealed class Bus
     internal static Heard<T> HeardOf<T>(Carried carried) where T : class => carried switch
     {
         FrameRefusal refusal => new Heard<T>.Refused(refusal),
-        ReceivedBusFrame received => Decoded<T>(received),
+        ReceivedBusFrame received => TryDecode<T>(received.Frame.Payload, out var payload, out var fault)
+            ? new Heard<T>.Delivered(received, payload)
+            : new Heard<T>.Refused(new FrameRefusal(received.Channel, InPayload(fault.Member), fault.Reason,
+                received.Frame.Payload, received.CorrelationId, received.Frame.Scope)),
     };
-
-    private static Heard<T> Decoded<T>(ReceivedBusFrame received) where T : class
-    {
-        try { return new Heard<T>.Delivered(received, Decode<T>(received.Frame.Payload)); }
-        catch (JsonException)
-        {
-            return new Heard<T>.Refused(new FrameRefusal(received.Channel, "payload", FrameRefusalReason.Malformed,
-                received.Frame.Payload, received.CorrelationId, received.Frame.Scope));
-        }
-    }
 
     /// <summary>The resource whose scope <paramref name="carried"/> was delivered on.</summary>
     internal static ResourceId? ScopeOf(Carried carried) => carried switch
@@ -160,15 +150,49 @@ public sealed class Bus
         FrameRefusal refusal => refusal.Scope,
     };
 
-    internal static T Decode<T>(JsonElement payload) where T : class
+    /// <summary>A payload on <paramref name="channel"/>, as <typeparamref name="T"/>. Throws
+    /// <see cref="TransportError"/> (<c>error</c>) for a payload that is not that channel's, saying its first fault in
+    /// every SDK's words.</summary>
+    internal static T Decoded<T>(string channel, JsonElement payload) where T : class =>
+        TryDecode<T>(payload, out var decoded, out var fault)
+            ? decoded
+            : throw new TransportError(ProtocolFacts.Error(0), "a payload on " + channel + " is not that channel's: " + fault);
+
+    /// <summary>A payload as <typeparamref name="T"/>, held to the table before it is decoded; or its first fault.
+    /// What the gateway stamps on a payload (a member whose name begins <c>_</c>) is the bus's, not the payload's: one
+    /// <typeparamref name="T"/> does not declare is left out before the payload is read.</summary>
+    private static bool TryDecode<T>(JsonElement payload, [NotNullWhen(true)] out T? decoded,
+        [NotNullWhen(false)] out Fault? fault) where T : class
     {
+        decoded = null;
+        var declared = Declared(typeof(T).Name, payload);
+        fault = Required.FaultOf(typeof(T).Name, declared);
+        if (fault is not null) return false;
+        try { decoded = declared.Deserialize<T>() ?? throw new JsonException("A bus payload is null."); }
+        catch (JsonException)
+        {
+            fault = Fault.Undecoded;
+            return false;
+        }
+        return true;
+    }
+
+    /// <summary><paramref name="payload"/> without what the gateway stamped on it that <paramref name="schema"/> does
+    /// not declare.</summary>
+    private static JsonElement Declared(string schema, JsonElement payload)
+    {
+        if (payload.ValueKind != JsonValueKind.Object) return payload;
         JsonObject? copy = null;
         foreach (var property in payload.EnumerateObject())
         {
-            if (!property.Name.StartsWith('_') || WireJson.Declares(typeof(T).Name, property.Name)) continue;
-            copy ??= JsonNode.Parse(payload.GetRawText())?.AsObject() ?? throw new JsonException("Missing bus payload");
+            if (!property.Name.StartsWith('_') || WireJson.Declares(schema, property.Name)) continue;
+            copy ??= JsonNode.Parse(payload.GetRawText())?.AsObject() ?? throw new JsonException("A bus payload is null.");
             copy.Remove(property.Name);
         }
-        return (copy is null ? payload.Deserialize<T>() : copy.Deserialize<T>()) ?? throw new JsonException("Null bus payload");
+        return copy is null ? payload : JsonSerializer.SerializeToElement(copy);
     }
+
+    /// <summary>The way from a frame to the member of its payload whose way from the payload is
+    /// <paramref name="member"/>.</summary>
+    private static string InPayload(string member) => member.Length == 0 ? "payload" : "payload." + member;
 }

@@ -172,13 +172,9 @@ public sealed class Claims
                     };
                     if (wakes) Wake();
                 }
-                else
+                // A refused frame, or one whose payload is not its channel's, names no job to cancel.
+                else if (Bus.HeardOf<JobCancelRequest>(carried) is Heard<JobCancelRequest>.Delivered { Received: var received, Payload: var requested })
                 {
-                    // A refused frame names no job to cancel.
-                    if (carried is not ReceivedBusFrame received) continue;
-                    JobCancelRequest requested;
-                    try { requested = Bus.Decode<JobCancelRequest>(received.Frame.Payload); }
-                    catch (JsonException) { continue; }
                     lock (gate)
                     {
                         if (held is { } job && requested.JobId == job.JobId && received.Sequence > claimedAtSequence)
@@ -236,7 +232,7 @@ public sealed class Claims
             var reply = await transport.RequestFrameAsync(BusOperations.JobClaim.Request.Name, command, timing.JobClaimTimeoutMs, default)
                 .ConfigureAwait(false);
             replySequence = reply.Sequence;
-            var record = Bus.Decode<JobClaimedResult>(reply.Frame.Payload).Response;
+            var record = Bus.Decoded<JobClaimedResult>(reply.Frame.Channel, reply.Frame.Payload).Response;
             acquired = record.Metadata.Type switch
             {
                 JobType.Mark => new HeldMarkJob(this, wire, record, reply.Trace),

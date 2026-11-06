@@ -26,7 +26,7 @@ Every namespace method returns exactly one of these. Which one is the method's r
 | `claims` | A worker's claims: each job it comes to hold, one at a time, from the first claim on. A held job starts, reports and settles itself. | `ClaimsObservable` | `Claims` | `Claims` | `*Claims` | `Claims` | `Claims` |
 | `signal` | Fire-and-forget. Nothing is returned and nothing is awaited. | a method returning `void` | a plain `fn` | a plain `def` returning `None` | a method with no result | a plain `fun` returning `Unit` | a method returning `void` |
 | `count` | A drive at the other participants: how many the gateway reached, or no count when it kept none. | `Promise<number \| undefined>` | `async fn … -> Result<Option<u64>, SemiontError>` | `async def … -> int \| None` | `(subscribers int, counted bool, err error)` | `suspend fun … : Long?` | `Task<int?>` |
-| `events` | The events of one channel of the client's own bus, from now on, each told its reader in its place when its payload is not the channel's. | a property named `<method>$`, an `Observable` of each event's payload or its `FrameRefusal` | `Typed<C, BusFrames>`, each `Result<Delivered<C>, StreamError>` | `Typed[P]`, each a `Heard[P]`: `Delivered[P] \| FrameRefusal` | `iter.Seq2[Delivered[P], error]`, given a context | `Typed<P>`, a `Flow` of `Heard<P>`: `Delivered<P>` or `FrameRefusal` | `IAsyncEnumerable<Heard<P>>` |
+| `events` | The events of one channel of the client's own bus, from now on, each told its reader in its place when its payload is not the channel's. | a property named `<method>$`, an `Observable` of each event's payload or its `FrameRefusal` | `Typed<C, BusFrames>`, each `Result<Delivered<C>, StreamError>` | `Typed[P]`, each a `Heard[P]`: `Delivered[P] \| FrameRefusal` | `iter.Seq2[Delivered[P], error]`, given a context | `Typed<P>`, a `Flow` of `Heard<P>`: `Delivered<P>` or `FrameRefusal` | `IAsyncEnumerable<Heard<P>>`, each a `Heard<P>.Delivered` or a `Heard<P>.Refused` holding its `FrameRefusal` |
 
 Three rules hold in every SDK:
 
@@ -419,7 +419,9 @@ The Kotlin README shows [a delegation followed in both languages](../../packages
 
 Await a `Running<T>` or a `Delegation<C>` for its completion, or enumerate
 it once with `await foreach`. Delegation events use `JobEvent<C>`, whose
-cases carry the job ID, progress, retryable failure, and typed completion.
+cases carry the job ID, progress, retryable failure, and typed completion,
+and, for a lifecycle frame the follower's reading refused, `Refused`, naming
+its channel, member and reason: it names no job and is no word of the job.
 `Upload` starts immediately. It can report progress to one enumerator
 and still be awaited for the created resource.
 

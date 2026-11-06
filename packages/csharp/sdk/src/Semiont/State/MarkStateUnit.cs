@@ -124,14 +124,20 @@ public sealed class MarkStateUnit : IStateUnit
         try
         {
             await using var reader = run.GetAsyncEnumerator(token);
+            // The silence is counted from the follower's last word of the job, and said once until the next.
+            var heardAt = clock.GetTimestamp();
+            var said = false;
             while (true)
             {
                 var next = reader.MoveNextAsync().AsTask();
-                using (var waiting = CancellationTokenSource.CreateLinkedTokenSource(token))
+                if (!said)
                 {
-                    var quiet = Task.Delay(Silence, clock, waiting.Token);
+                    using var waiting = CancellationTokenSource.CreateLinkedTokenSource(token);
+                    var left = Silence - clock.GetElapsedTime(heardAt);
+                    var quiet = Task.Delay(left > TimeSpan.Zero ? left : TimeSpan.Zero, clock, waiting.Token);
                     if (await Task.WhenAny(next, quiet).ConfigureAwait(false) == quiet && !token.IsCancellationRequested && !next.IsCompleted)
                     {
+                        said = true;
                         lock (work.Gate)
                         {
                             if (work.Active && revision == selected)
@@ -154,6 +160,10 @@ public sealed class MarkStateUnit : IStateUnit
                         case JobEvent<MarkJobCompleteCommand>.Progress(var progress): Progress.Set(progress); break;
                     }
                 }
+                // A refused frame is no word of the job: the silence goes on being counted through it.
+                if (reader.Current is JobEvent<MarkJobCompleteCommand>.Refused) continue;
+                heardAt = clock.GetTimestamp();
+                said = false;
             }
         }
         catch (SemiontError failure)

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Semiont.Errors;
 using Semiont.Identifiers;
 using Semiont.Http;
@@ -52,26 +51,36 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
 
                 // One subscription queues all lifecycle channels in arrival order, including
                 // frames that arrived before the create reply named the job.
-                if (events.Reader.TryRead(out var frame) && Read(frame) is { } update && update.Id == job)
+                if (events.Reader.TryRead(out var carried))
                 {
-                    StopPoll();
-                    var now = Now();
-                    stallAt = now + stallMs;
-                    switch (update)
+                    var heard = Read(carried);
+                    if (heard is Heard<Lifecycle>.Refused(var refusal))
                     {
-                        case Lifecycle.Progress(var progress):
-                            if (progress.Progress is { } detail) report?.Invoke(new JobEvent<T>.Progress(detail));
-                            askAt = now + timing.JobSilenceMs;
-                            break;
-                        case Lifecycle.Failed(var failure):
-                            if (failure.WillRetry != true) throw Failed(job, failure.Error, failure.FailureClass);
-                            report?.Invoke(new JobEvent<T>.Failed(failure));
-                            askAt = null;
-                            break;
-                        case Lifecycle.Complete(var value):
-                            return complete(value);
+                        // A refused frame names no job: it may be this job's or another's, and it is no word of the job.
+                        report?.Invoke(new JobEvent<T>.Refused(refusal.Channel, refusal.Member, refusal.Reason));
+                        continue;
                     }
-                    continue;
+                    if (heard is Heard<Lifecycle>.Delivered(_, var update) && update.Id == job)
+                    {
+                        StopPoll();
+                        var now = Now();
+                        stallAt = now + stallMs;
+                        switch (update)
+                        {
+                            case Lifecycle.Progress(var progress):
+                                if (progress.Progress is { } detail) report?.Invoke(new JobEvent<T>.Progress(detail));
+                                askAt = now + timing.JobSilenceMs;
+                                break;
+                            case Lifecycle.Failed(var failure):
+                                if (failure.WillRetry != true) throw Failed(job, failure.Error, failure.FailureClass);
+                                report?.Invoke(new JobEvent<T>.Failed(failure));
+                                askAt = null;
+                                break;
+                            case Lifecycle.Complete(var value):
+                                return complete(value);
+                        }
+                        continue;
+                    }
                 }
 
                 var elapsed = Now();
@@ -180,18 +189,21 @@ internal sealed class JobFollower(Bus wire, EventBus bus, JobNamespace jobs, Tim
         }
     }
 
-    private static Lifecycle? Read(Carried carried)
+    /// <summary>What a frame of a job's lifecycle says of its job, read as its channel types it; or, in its place, the
+    /// refusal of a frame refused.</summary>
+    private static Heard<Lifecycle> Read(Carried carried)
     {
-        if (carried is not ReceivedBusFrame received) return null;
-        var frame = received.Frame;
-        try
-        {
-            if (frame.Channel == BusChannels.JobReportProgress.Name) return new Lifecycle.Progress(Bus.Decode<JobReportProgressCommand>(frame.Payload));
-            if (frame.Channel == BusChannels.JobFail.Name) return new Lifecycle.Failed(Bus.Decode<JobFailCommand>(frame.Payload));
-            return new Lifecycle.Complete(Bus.Decode<JobCompleteCommand>(frame.Payload));
-        }
-        catch (JsonException) { return null; }
+        if (carried.Channel == BusChannels.JobReportProgress.Name) return Said<JobReportProgressCommand>(carried, progress => new Lifecycle.Progress(progress));
+        if (carried.Channel == BusChannels.JobFail.Name) return Said<JobFailCommand>(carried, failure => new Lifecycle.Failed(failure));
+        return Said<JobCompleteCommand>(carried, completion => new Lifecycle.Complete(completion));
     }
+
+    private static Heard<Lifecycle> Said<TPayload>(Carried carried, Func<TPayload, Lifecycle> said) where TPayload : class =>
+        Bus.HeardOf<TPayload>(carried) switch
+        {
+            Heard<TPayload>.Delivered delivered => new Heard<Lifecycle>.Delivered(delivered.Received, said(delivered.Payload)),
+            Heard<TPayload>.Refused refused => new Heard<Lifecycle>.Refused(refused.Refusal),
+        };
 
     private static JobError Failed(JobId job, string message, FailureClass? classification) =>
         new(ProtocolFacts.JobError("failed"), message, job, classification);
