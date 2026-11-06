@@ -820,8 +820,6 @@ public sealed partial class TransportTests
         second.Dispose();
         await clock.WaitForAsync(TimeSpan.FromMilliseconds(50));
         clock.Advance(TimeSpan.FromMilliseconds(50));
-        await clock.WaitForAsync(TimeSpan.FromMilliseconds(100));
-        clock.Advance(TimeSpan.FromMilliseconds(100));
         var removed = await server.Subscriptions.Reader.ReadAsync();
         Assert.Equal(0, removed.GetProperty("scoped").GetArrayLength());
     }
