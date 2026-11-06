@@ -206,6 +206,7 @@ impl Live {
                 timing: wire,
 
                 bookmarks: None,
+                random: None,
             },
             ClientOptions {
                 timing,

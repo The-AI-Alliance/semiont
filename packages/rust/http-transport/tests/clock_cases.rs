@@ -35,6 +35,7 @@ use bytes::Bytes;
 use futures::FutureExt;
 use futures::future::LocalBoxFuture;
 use futures::stream::Stream;
+use rand_core::{Rng, TryRng};
 use semiont::cache::{Cache, CachePersister};
 use semiont::claims::ClaimOptions;
 use semiont::discovery::{DiscoveryRead, DiscoveryState, DiscoveryTransport, subscribe_discovery};
@@ -427,6 +428,30 @@ async fn gateway_answer(State(gateway): State<Arc<Gateway>>, request: Request) -
     }
 }
 
+/// A random source whose every draw is the lowest it can give.
+struct LowestDraw;
+
+impl TryRng for LowestDraw {
+    type Error = Infallible;
+
+    fn try_next_u32(&mut self) -> Result<u32, Infallible> {
+        Ok(0)
+    }
+
+    fn try_next_u64(&mut self) -> Result<u64, Infallible> {
+        Ok(0)
+    }
+
+    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Infallible> {
+        dst.fill(0);
+        Ok(())
+    }
+}
+
+fn lowest() -> Arc<Mutex<dyn Rng + Send>> {
+    Arc::new(Mutex::new(LowestDraw))
+}
+
 /// A gateway that answers as `stream` and `unanswered` say, and a transport
 /// to it, open and holding a token, so its stream is set going.
 async fn over_a_gateway(
@@ -451,6 +476,7 @@ async fn over_a_gateway(
         http: http(),
         timing: Timing::default(),
         bookmarks: None,
+        random: Some(lowest()),
     }));
     (transport, network)
 }
@@ -800,6 +826,7 @@ fn renewal(given: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
             validate: Some(Arc::new(|_token| Box::pin(async { Ok(alice()) }))),
             on_auth_failed: None,
             on_error: None,
+            random: Some(lowest()),
         });
         Subject {
             counted: Box::new(move || renewals.load(Ordering::SeqCst)),

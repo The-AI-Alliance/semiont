@@ -51,6 +51,7 @@ use crate::storage::{SessionStorage, StorageSubscription};
 use crate::timing::{MAX_RECONNECT, RECONNECT};
 use crate::transport::{BoxFuture, ConnectionState, Failures};
 use crate::types::{KbTarget, UserResponse};
+use rand_core::Rng;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::SystemTime;
@@ -123,6 +124,9 @@ pub struct SemiontSessionConfig {
     pub validate: Option<Validate>,
     pub on_auth_failed: Option<OnAuthFailed>,
     pub on_error: Option<OnSessionError>,
+    /// What the renewal retry's jitter is drawn from; the system's source
+    /// when none is given.
+    pub random: Option<Arc<Mutex<dyn Rng + Send>>>,
 }
 
 struct Shared {
@@ -139,6 +143,7 @@ struct Shared {
     validate: Option<Validate>,
     on_auth_failed: Option<OnAuthFailed>,
     on_error: Option<OnSessionError>,
+    random: Option<Arc<Mutex<dyn Rng + Send>>>,
     tasks: Tasks,
     storage_changes: Mutex<Option<StorageSubscription>>,
     closed: AtomicBool,
@@ -167,6 +172,7 @@ impl SemiontSession {
             validate: config.validate,
             on_auth_failed: config.on_auth_failed,
             on_error: config.on_error,
+            random: config.random,
             tasks: Tasks::new(),
             storage_changes: Mutex::new(None),
             closed: AtomicBool::new(false),
@@ -418,7 +424,7 @@ impl Shared {
             }
             let mut step = RECONNECT;
             while self.unanswered.now() {
-                tokio::time::sleep(equal_jitter(step)).await;
+                tokio::time::sleep(equal_jitter(step, self.random.as_deref())).await;
                 if self.token.now().is_some() {
                     self.unanswered.set(false);
                 } else if self.unanswered.now() {

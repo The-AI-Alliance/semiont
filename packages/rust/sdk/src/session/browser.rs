@@ -1249,26 +1249,29 @@ mod tests {
             let said: Arc<Mutex<HashMap<String, Says>>> = Arc::default();
             let answered: Arc<Mutex<Vec<(String, String)>>> = Arc::default();
             let (answering, refusing, recording) = (said.clone(), said.clone(), answered.clone());
-            let sessions = ScriptedSessions::answering(move |kb_id, operation, payload| {
-                locked(&recording).push((kb_id.to_owned(), operation.to_owned()));
-                match operation {
-                    "browse:kb-requested" => locked(&answering)
-                        .get(kb_id)
-                        .map(|says| Some(says.description.clone()))
-                        .ok_or_else(|| "the knowledge base does not answer".to_owned()),
-                    "browse:resource-requested" => {
-                        let id = asked_about(payload);
-                        Ok(Some(json!({
-                            "resource": {
-                                "@context": "https://schema.org", "@id": id,
-                                "name": format!("name-{id}"), "representations": [],
-                            },
-                            "lastSequence": 1,
-                        })))
+            let sessions = ScriptedSessions::answering(
+                move |kb_id, operation, payload| {
+                    locked(&recording).push((kb_id.to_owned(), operation.to_owned()));
+                    match operation {
+                        "browse:kb-requested" => locked(&answering)
+                            .get(kb_id)
+                            .map(|says| Some(says.description.clone()))
+                            .ok_or_else(|| "the knowledge base does not answer".to_owned()),
+                        "browse:resource-requested" => {
+                            let id = asked_about(payload);
+                            Ok(Some(json!({
+                                "resource": {
+                                    "@context": "https://schema.org", "@id": id,
+                                    "name": format!("name-{id}"), "representations": [],
+                                },
+                                "lastSequence": 1,
+                            })))
+                        }
+                        other => Err(format!("{other} is not answered here")),
                     }
-                    other => Err(format!("{other} is not answered here")),
-                }
-            });
+                },
+                None,
+            );
             sessions.refuse_when(move |kb_id, operation, payload| {
                 let gone = locked(&refusing)
                     .get(kb_id)

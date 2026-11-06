@@ -89,6 +89,7 @@ impl Gateway {
             http: reqwest::Client::new(),
             timing: Timing::default(),
             bookmarks: None,
+            random: None,
         });
         let mut states = transport.state();
         tokio::time::timeout(
