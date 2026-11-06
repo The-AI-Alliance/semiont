@@ -168,7 +168,6 @@ public sealed class IssuerTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => answer(request, cancellationToken);
     }
-    private sealed class ZeroRandom : Random { public override double NextDouble() => 0; }
     private sealed class UnansweredContent : HttpContent
     {
         protected override async Task<Stream> CreateContentReadStreamAsync(CancellationToken cancellationToken)
