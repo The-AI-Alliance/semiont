@@ -18,6 +18,21 @@ export function storageKey(kbId: string): string {
   return `${PREFIX}${kbId}`;
 }
 
+let minted = 0;
+
+/**
+ * A JWT-shaped string whose `exp` is `expSecondsFromNow` away. The session
+ * reads a token's expiry from it, so a stub issuer answers with one of these.
+ * Each is another token, as an issuer's are: two minted in one second differ
+ * by their `jti`, so a renewed token is never the one it replaced.
+ */
+export function freshJwt(expSecondsFromNow = 3600): string {
+  minted += 1;
+  const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }));
+  const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + expSecondsFromNow, jti: `minted-${minted}` }));
+  return `${header}.${payload}.sig`;
+}
+
 /** A stored session as the Browser's sign-in would persist it. */
 export function testSession(access: string, refresh: string): StoredSession {
   return {

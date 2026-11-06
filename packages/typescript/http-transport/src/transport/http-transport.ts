@@ -44,7 +44,13 @@ import type { BusEnvelope, BusFrame } from '@semiont/core';
 
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
 
-export type TokenRefresher = () => Promise<string | null>;
+/**
+ * Renews a token the gateway refused. `refused` is the token the refused
+ * request carried, null when it carried none: a refresher that holds another
+ * token by now answers with that one and renews nothing. It answers with the
+ * token to send in place of `refused`, or null when there is none to give.
+ */
+export type TokenRefresher = (refused: string | null) => Promise<string | null>;
 
 export interface HttpTransportConfig {
   baseUrl: BaseUrl;
@@ -347,7 +353,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
                   const said = await refusalText(response, timeout);
                   if (!refusesCredential(response.status, refusalBody(said))) return undefined;
                   const sent = request.headers.get('Authorization');
-                  const renewed = await this.renewal(sent === null ? undefined : sent.replace(/^Bearer /, ''));
+                  const renewed = await this.renewal(sent === null ? null : sent.replace(/^Bearer /, ''));
                   if (renewed === null) return undefined;
                   try {
                     request.headers.set('Authorization', `Bearer ${renewed}`);
@@ -651,10 +657,9 @@ export class HttpTransport implements ITransport, IGatewayOperations {
    * a refresher. The `ky` hook renews through it, and so does
    * `HttpContentTransport`'s `XMLHttpRequest` upload, which `ky` does not send.
    */
-  async renewal(refused: string | undefined): Promise<string | null> {
+  async renewal(refused: string | null): Promise<string | null> {
     if (!this.config.tokenRefresher) return null;
-    const renewed = await renewedToken(this.config.tokenRefresher);
-    return renewed !== null && renewed !== refused ? renewed : null;
+    return renewedToken(this.config.tokenRefresher, refused);
   }
 }
 

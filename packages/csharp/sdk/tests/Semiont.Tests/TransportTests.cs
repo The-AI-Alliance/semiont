@@ -944,11 +944,13 @@ public sealed partial class TransportTests
         Assert.NotNull(await content.GetAnchoredTextAsync(ResourceId.Parse("r1")));
     }
 
-    [Fact]
-    public void RetryBudgetShapeIsHeldToItsOwner()
+    [Theory]
+    [InlineData("emitRetry")]
+    [InlineData("refreshRetry")]
+    public void RetryBudgetShapeIsHeldToItsOwner(string entry)
     {
         var actual = typeof(RetryPolicy).GetProperties().Select(property => char.ToLowerInvariant(property.Name[0]) + property.Name[1..]).Order();
-        Assert.Equal(ProtocolFacts.Timing("emitRetry").EnumerateObject().Select(property => property.Name).Order(), actual);
+        Assert.Equal(ProtocolFacts.Timing(entry).EnumerateObject().Select(property => property.Name).Order(), actual);
     }
 
     private static async Task OpenAsync(HttpTransport transport)

@@ -405,24 +405,24 @@ class SemiontSession[T: Transport](StateUnit):
             finally:
                 self._ready.set()
 
-    async def refresh(self) -> str | None:
-        """The gateway refused the session's token: renew it, and ask the gateway who the new one is.
+    async def refresh(self, refused: str | None) -> str | None:
+        """The gateway refused `refused`: renew it, and ask the gateway who the new one is.
 
+        `refused` is the token a request carried, `None` when it carried none.
         Returns the token the session then holds, or nothing: it holds no
         token, and if the issuer refused to renew a kept sign-in it is over. A
         transport asks this when the gateway refuses it.
 
         One refusal is answered at a time, so however many requests were
         refused at once, they cost one renewal and one ask, and who the gateway
-        says the renewed token is, is who is signed in. A gateway that cannot
-        be asked refuses nothing: the renewed token is given.
+        says the renewed token is, is who is signed in. A refusal of a token
+        the session no longer holds was answered already, however late it
+        arrives: the token it holds is given, and nothing is renewed or asked.
+        A gateway that cannot be asked refuses nothing: the renewed token is
+        given.
         """
-        refused_with = self._token.value
         async with self._answering:
-            # Refusals that arrive together are answered together: the first
-            # renews and asks, and the rest find that the session's token is no
-            # longer the one they were refused with.
-            if self._token.value != refused_with:
+            if self._token.value != refused:
                 return self._token.value
             renewed = await self._renew()
             if renewed is None or self._validate is None:
@@ -438,8 +438,8 @@ class SemiontSession[T: Transport](StateUnit):
                 # token the session still holds ends it: one replaced while the
                 # gateway was being asked is no longer the session's to be
                 # refused.
-                refused = isinstance(refusal, TransportError) and refusal.code == "unauthorized"
-                if refused and not self._closing.is_set() and self._token.value == renewed:
+                renewed_refused = isinstance(refusal, TransportError) and refusal.code == "unauthorized"
+                if renewed_refused and not self._closing.is_set() and self._token.value == renewed:
                     await self._signed_out(
                         "refused", SessionError("session.credential-refused", _JUST_ISSUED_AND_REFUSED, kb_id=self.kb.id)
                     )
@@ -499,7 +499,7 @@ class SemiontSession[T: Transport](StateUnit):
                 if self._token.value is not None:
                     self._unanswered.clear()
                 elif self._unanswered.is_set():
-                    await (self.refresh() if self._user.value is None else self._renew())
+                    await (self.refresh(None) if self._user.value is None else self._renew())
                 step = min(2 * step, MAX_RECONNECT_MS)
 
     async def _unrenewed(self, failure: SignInError | None) -> None:

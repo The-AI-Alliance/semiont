@@ -601,7 +601,8 @@ private let callsByName:
     return
   }
   #expect(bad.channel == "beckon:focus")
-  #expect(bad.lacks == "resourceId")
+  #expect(bad.member == "resourceId")
+  #expect(bad.reason == .lacks)
   #expect(bad.payload["_userId"] != nil)
   guard case .delivered(let good) = try await iterator.next() else {
     Issue.record("Valid frame refused")
@@ -707,31 +708,33 @@ private let callsByName:
 @Test func payloadDiagnosticsFollowTheSchemaAndPreferMissingParents() async throws {
   let probe = ProbeTransport()
   let user = try await encoded(probe.getCurrentUser()).object
-  let userShape = try #require(requiredModelMembers["UserResponse"])
   let schema = try Spec.read("components/schemas/UserResponse.json").object
-  #expect(userShape.lacking(in: .object(user)) == nil)
+  #expect(faultOf("UserResponse", .object(user)) == nil)
   for value in try required(schema, "required").array {
     let name = try value.text
+    let lacking = Fault(member: name, reason: .lacks)
     var missing = user
     missing.removeValue(forKey: name)
-    #expect(userShape.lacking(in: .object(missing)) == name)
+    #expect(faultOf("UserResponse", .object(missing)) == lacking)
     missing[name] = .null
     let property = try #require(required(schema, "properties").object[name]).object
     #expect(
-      userShape.lacking(in: .object(missing)) == (property["nullable"] == .bool(true) ? nil : name))
+      faultOf("UserResponse", .object(missing))
+        == (property["nullable"] == .bool(true) ? nil : lacking))
   }
   var status = try await encoded(probe.getStatus()).object
   status["features"] = .object([:])
   status.removeValue(forKey: "version")
-  let statusShape = try #require(requiredModelMembers["StatusResponse"])
-  #expect(statusShape.lacking(in: .object(status)) == "version")
+  #expect(faultOf("StatusResponse", .object(status)) == Fault(member: "version", reason: .lacks))
   status["version"] = .string("test")
-  #expect(statusShape.lacking(in: .object(status)) == "features.collaboration")
+  #expect(
+    faultOf("StatusResponse", .object(status))
+      == Fault(member: "features.semanticContent", reason: .lacks))
   let registry = try Spec.read("bus/registry.json").object
   let channels = try required(registry, "channels").array.map {
     try required($0.object, "channel").text
   }
-  #expect(Set(requiredPayloadMembers.keys) == Set(channels))
+  #expect(Set(requiredPayloadShapes.keys) == Set(channels))
 }
 @Test func cancellingScopedConstructionReleasesItsHold() async throws {
   let probe = ProbeTransport()
@@ -812,8 +815,8 @@ private struct ReadFailure: Error {}
   var annotation = try required(row, "annotation").object
   annotation.removeValue(forKey: "id")
   let array = JSONValue.object(["annotations": .array([.object(annotation)]), "total": .number(1)])
-  let listShape = try #require(requiredModelMembers["GetAnnotationsResponse"])
-  #expect(listShape.lacking(in: array) == "annotations.id")
+  #expect(
+    faultOf("GetAnnotationsResponse", array) == Fault(member: "annotations.id", reason: .lacks))
   let cursor = UnitCursor(emitted: 2, errors: 0, found: 3, next: 20, size: 100)
   let failed = try JobFailCommand(
     error: "failure", jobId: JobId("job-1"), jobType: .mark, resourceId: ResourceId("res-1"),
@@ -822,8 +825,9 @@ private struct ReadFailure: Error {}
   var incomplete = try wirePayload(cursor)
   incomplete.removeValue(forKey: "size")
   payload["unitCursors"] = .object(["some-unit": .object(incomplete)])
-  let mapShape = try #require(requiredModelMembers["JobFailCommand"])
-  #expect(mapShape.lacking(in: .object(payload)) == "unitCursors.size")
+  #expect(
+    faultOf("JobFailCommand", .object(payload))
+      == Fault(member: "unitCursors.size", reason: .lacks))
 }
 
 @Test func localScopedReadersFilterResourcesAndFinishWithTheBus() async throws {

@@ -103,7 +103,7 @@ class SessionTest {
         whenRefused.session().use { session ->
             session.start()
             session.ready()
-            assertEquals(renewed, session.refresh())
+            assertEquals(renewed, session.refresh(session.token.value))
             assertEquals(Triple(emptyList<SessionEndReason>(), emptyList<Any>(), true), Triple(whenRefused.told, whenRefused.errors, whenRefused.isKept()))
         }
     }
@@ -164,7 +164,7 @@ class SessionTest {
                 assertEquals(emptyList<SessionEndReason>(), world.told)
                 assertEquals(listOf("session.auth-failed" to "Token refresh failed: ${failure.message}"), world.said())
                 // The issuer answers again: a request refused for want of a token renews it.
-                assertEquals(renewed, session.refresh())
+                assertEquals(renewed, session.refresh(session.token.value))
                 assertEquals(renewed, session.token.value)
                 assertEquals(2, world.renewed)
             }
@@ -184,7 +184,7 @@ class SessionTest {
             session.start()
             runCurrent()
             // The stream's refusal arrives before the start has its answer.
-            val refreshing = async { session.refresh() }
+            val refreshing = async { session.refresh(session.token.value) }
             runCurrent()
             gateway.release.complete(Unit)
             session.ready()
@@ -207,7 +207,7 @@ class SessionTest {
         world.session(asking = { gateway.validate(it) }).use { session ->
             session.start()
             runCurrent()
-            val refreshing = async { session.refresh() }
+            val refreshing = async { session.refresh(session.token.value) }
             runCurrent()
             gateway.release.complete(Unit)
             session.ready()
@@ -239,12 +239,12 @@ class SessionTest {
             session.start()
             session.ready()
             // Three requests refused at once: each asks the session to refresh.
-            val given = List(3) { async { session.refresh() } }.awaitAll()
+            val given = List(3) { async { session.refresh(session.token.value) } }.awaitAll()
             assertEquals(listOf(renewed, renewed, renewed), given)
             assertEquals(1, renewals)
             assertEquals(listOf(access, renewed), world.validated)
             // A refusal after that is a new one.
-            session.refresh()
+            session.refresh(session.token.value)
             assertEquals(2, renewals)
         }
     }
@@ -260,7 +260,7 @@ class SessionTest {
         world.session(asking = { gateway.validate(it) }).use { session ->
             session.start()
             session.ready()
-            val refreshing = async { session.refresh() }
+            val refreshing = async { session.refresh(session.token.value) }
             runCurrent()
             // The token is replaced while the gateway is being asked.
             world.token.value = other
@@ -279,7 +279,7 @@ class SessionTest {
         world.session().use { session ->
             session.start()
             session.ready()
-            assertEquals(renewed, session.refresh())
+            assertEquals(renewed, session.refresh(session.token.value))
             assertEquals(renewed, session.token.value)
             assertEquals(emptyList<SessionEndReason>(), world.told)
         }
@@ -316,14 +316,14 @@ class SessionTest {
         world.session().use { session ->
             session.start()
             session.ready()
-            assertNull(session.refresh())
+            assertNull(session.refresh(session.token.value))
             assertNull(session.token.value)
             // The dead credential is not kept to be used again.
             assertFalse(world.isKept())
             assertEquals(listOf(SessionEndReason.EXPIRED), world.told)
             assertEquals(listOf("session.refresh-exhausted" to "Token refresh failed"), world.said())
             // What follows finds nothing kept, and is quiet.
-            assertNull(session.refresh())
+            assertNull(session.refresh(session.token.value))
             assertEquals(1 to 1, world.told.size to world.errors.size)
         }
     }
@@ -334,7 +334,7 @@ class SessionTest {
         world.session().use { session ->
             session.start()
             session.ready()
-            assertNull(session.refresh())
+            assertNull(session.refresh(session.token.value))
             assertFalse(world.isKept())
             assertEquals(listOf(SessionEndReason.EXPIRED), world.told)
             assertEquals(listOf("session.refresh-exhausted" to "Token refresh failed: ${refusedByTheIssuer().message}"), world.said())
@@ -350,13 +350,13 @@ class SessionTest {
             world.session().use { session ->
                 session.start()
                 session.ready()
-                assertNull(session.refresh())
+                assertNull(session.refresh(session.token.value))
                 // No usable token, what is kept stays, and the session is not over.
                 assertNull(session.token.value)
                 assertTrue(world.isKept())
                 assertEquals(emptyList<SessionEndReason>(), world.told)
                 assertEquals(listOf("session.refresh-exhausted" to "Token refresh failed: ${failure.message}"), world.said())
-                assertEquals(renewed, session.refresh())
+                assertEquals(renewed, session.refresh(session.token.value))
                 assertEquals(renewed, session.token.value)
             }
         }
@@ -371,7 +371,7 @@ class SessionTest {
         world.session().use { session ->
             session.start()
             session.ready()
-            assertNull(session.refresh())
+            assertNull(session.refresh(session.token.value))
             // Past every wait at its longest: the renewal made ends them.
             advanceTimeBy(waits.sum() + 30_000)
             runCurrent()
@@ -394,7 +394,7 @@ class SessionTest {
         world.session().use { session ->
             session.start()
             session.ready()
-            assertNull(session.refresh())
+            assertNull(session.refresh(session.token.value))
             advanceTimeBy(Timings.RECONNECT_MS * 6 / 5)
             runCurrent()
             assertEquals(2, world.renewed)
@@ -412,7 +412,7 @@ class SessionTest {
         world.session().use { session ->
             session.start()
             session.ready()
-            assertNull(session.refresh())
+            assertNull(session.refresh(session.token.value))
             assertEquals(1, world.renewed)
             assertEquals(emptyList<SessionEndReason>() to emptyList<Any>(), world.told to world.errors)
         }
@@ -425,7 +425,7 @@ class SessionTest {
         world.session(renew = null).use { session ->
             session.start()
             session.ready()
-            assertNull(session.refresh())
+            assertNull(session.refresh(session.token.value))
             assertEquals(access, session.token.value)
             assertTrue(world.isKept())
         }
@@ -447,7 +447,7 @@ class SessionTest {
         // Nothing it had scheduled runs, and nothing it is told does anything.
         advanceTimeBy(600_000)
         assertEquals(0, world.renewed)
-        assertNull(session.refresh())
+        assertNull(session.refresh(session.token.value))
         assertEquals(0, world.renewed)
         session.ready()
         val again = assertThrows(IllegalStateException::class.java) { kotlinx.coroutines.runBlocking { session.start() } }

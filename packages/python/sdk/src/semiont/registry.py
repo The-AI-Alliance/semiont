@@ -997,7 +997,8 @@ class SemiontBrowser:
                 match failure.code:
                     case "unauthorized":
                         # Refusals that arrive together are answered by one renewal: the session holds them while it renews.
-                        self._spawn(session.refresh())
+                        # A failure does not say which token was refused: the one the session holds as it is read is.
+                        self._spawn(session.refresh(session.token.value))
                     case "forbidden":
                         signals.notify_permission_denied(failure.message)
                     case _:

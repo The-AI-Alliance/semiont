@@ -84,7 +84,7 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
     const transport = new HttpTransport({
       baseUrl: baseUrl(kbGatewayUrl(endpoint)),
       token$,
-      tokenRefresher: () => session.refresh().then((t) => t ?? null),
+      tokenRefresher: (refused) => session.refresh(refused),
       loadLastEventIds: coupled.loadLastEventIds,
       saveLastEventId: coupled.saveLastEventId,
       ...(fetch ? { fetch } : {}),

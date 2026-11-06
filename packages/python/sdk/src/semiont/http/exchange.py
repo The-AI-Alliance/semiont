@@ -38,10 +38,13 @@ from semiont.watched import Watched
 
 __all__ = ["Exchange", "TokenRefresher", "refusal"]
 
-type TokenRefresher = Callable[[], Awaitable[str | None]]
+type TokenRefresher = Callable[[str | None], Awaitable[str | None]]
 """How a transport renews its token when the gateway refuses the one it has:
 renew it at its source, and say what it is now. Nothing when it could not be
-renewed. Whoever gives a transport one also feeds the transport's token, so
+renewed. It is told the token refused, `None` when the refused request carried
+none: a refresher that holds another token by then, because a renewal already
+answered an earlier refusal of that one, says the token it holds and renews
+nothing. Whoever gives a transport one also feeds the transport's token, so
 the two never hold different ones. It is asked once per outage when the stream's
 credential is refused, and once per request or emit whose credential is
 refused."""
@@ -146,7 +149,7 @@ class Exchange:
         if self._refresher is None:
             return None
         try:
-            renewed = await self._refresher()
+            renewed = await self._refresher(refused)
         except SemiontError:
             return None
         return None if renewed == refused else renewed

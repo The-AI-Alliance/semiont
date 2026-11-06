@@ -16,7 +16,9 @@ public sealed class GatewayTests
         foreach (var row in table.RootElement.GetProperty("cases").EnumerateArray())
         {
             var endpoint = row.GetProperty("endpoint").Deserialize<HttpEndpoint>() ?? throw new InvalidOperationException("No endpoint");
-            if (row.GetProperty("origin").ValueKind == JsonValueKind.Null) Assert.Throws<SignInError>(() => Gateway.Origin(endpoint));
+            var refused = row.GetProperty("origin").ValueKind == JsonValueKind.Null;
+            Assert.Equal(!refused, Gateway.IsValidHostname(endpoint.Host));
+            if (refused) Assert.Throws<SignInError>(() => Gateway.Origin(endpoint));
             else Assert.Equal(row.GetProperty("origin").GetString(), Gateway.Origin(endpoint));
         }
     }

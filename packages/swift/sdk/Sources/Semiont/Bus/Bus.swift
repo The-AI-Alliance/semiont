@@ -59,12 +59,16 @@ public struct Bus: Sendable {
         Result.self, from: JSONEncoder().encode(declared(response, stamps: operation.result.stamps))
       )
     } catch {
-      let lacks = requiredPayloadMembers[operation.result.name]?.lacking(in: .object(response))
-      let detail = lacks.map { ": it has no `\($0)`" } ?? ""
-      throw TransportError(
-        .error, "A payload on \(operation.result.name) is not that channel's\(detail)")
+      let fault = refusedFault(
+        of: declared(response, stamps: operation.result.stamps), on: operation.result.name)
+      throw TransportError(.error, notTheChannels(operation.result.name, fault))
     }
   }
+}
+
+/// What every SDK says of a payload on `channel` that has `fault`.
+func notTheChannels(_ channel: String, _ fault: Fault) -> String {
+  "a payload on \(channel) is not that channel's: \(fault.said)"
 }
 
 /// Reply subscriptions for the given requests, in request order with duplicates removed.
