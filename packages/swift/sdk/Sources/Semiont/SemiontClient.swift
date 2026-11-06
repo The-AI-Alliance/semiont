@@ -73,11 +73,13 @@ public final class SemiontClient: Sendable {
         life.forget(id)
       }
       do {
-        for try await frame in source {
+        for try await carried in source {
           if Task.isCancelled { break }
-          bus.receive(frame)
-          await live.receive(frame)
-          if let id = frame.eventId, let scope = frame.scope { book?.heard(id, in: scope) }
+          bus.receive(carried)
+          await live.receive(carried)
+          if case .frame(let frame) = carried, let id = frame.eventId, let scope = frame.scope {
+            book?.heard(id, in: scope)
+          }
         }
       } catch {
         // The transport's failures are its public error channel; bridge teardown is silent.

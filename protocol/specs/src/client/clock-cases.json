@@ -3,11 +3,11 @@
   "runBy": {
     "python": ["packages/python/sdk/tests/test_clock_cases.py"],
     "rust": ["packages/rust/http-transport/tests/clock_cases.rs"],
-    "go": ["packages/go/sdk/clock_cases_test.go"],
-    "swift": ["packages/swift/sdk/Tests/SemiontTests/ClockCasesTests.swift"]
+    "swift": ["packages/swift/sdk/Tests/SemiontTests/ClockCasesTests.swift"],
+    "typescript": ["packages/typescript/sdk/src/__tests__/clock-cases.test.ts"],
+    "go": ["packages/go/sdk/clock_cases_test.go"]
   },
   "notYetReached": {
-    "typescript": "The seven AbortSignal.timeout deadlines become timers the SDK sets, and a runner under vitest's fake timers with Math.random giving its lowest.",
     "kotlin": "The context, clock and random source become public on every maker that waits, the System.nanoTime readings and the JDK's request timeouts go, and a runner under runTest.",
     "csharp": "The stream's reconnect draws equal jitter from the transport's Random, the redirect sign-in and the session factory hand on the caller's clock and Random, and a runner on a FakeTimeProvider."
   },

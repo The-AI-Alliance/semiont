@@ -53,7 +53,8 @@ once (§ Identity). Every SDK's transport gives it
 as its own kind of item: Rust as `Err(FrameRefusal)`, Go as a
 `*FrameRefusal` error beside the frame's channel and scope, Python as a
 `FrameRefusal` in the frame's place, Kotlin as a `FrameRefusal`, which is,
-as `Frame` is, `Carried`, and TypeScript as a `FrameRefusal` in the
+as `Frame` is, `Carried`, Swift as `Carried.refused`, where a frame is
+`Carried.frame`, and TypeScript as a `FrameRefusal` in the
 payload's place on the frame's scope. Every other refused frame names no
 reader, whatever its first fault: one that is no JSON object, that carries
 no `channel` or one that is not a text of at least one character, or that
@@ -61,7 +62,7 @@ carries a `scope` that is not a resource's id. It is told to the error
 stream: as `error`, with no status, saying "the stream carried what is not
 a frame: " and then its first fault, in the words a request's refusal says
 it in.
-*Held by `protocol/specs/src/bus/frame-cases.json`, `packages/python/sdk/tests/test_http_transport.py`, `packages/rust/http-transport/tests/stream.rs`, `packages/go/sdk/stream_test.go`, `packages/kotlin/sdk/src/test/kotlin/semiont/http/StreamTest.kt`, `packages/typescript/http-transport/src/transport/__tests__/actor-state-unit.test.ts`.*
+*Held by `protocol/specs/src/bus/frame-cases.json`, `packages/python/sdk/tests/test_http_transport.py`, `packages/rust/http-transport/tests/stream.rs`, `packages/go/sdk/stream_test.go`, `packages/kotlin/sdk/src/test/kotlin/semiont/http/StreamTest.kt`, `packages/swift/sdk/Tests/SemiontTests/FrameCasesTests.swift`, `packages/typescript/http-transport/src/transport/__tests__/actor-state-unit.test.ts`.*
 
 The **registry** ([`protocol/specs/src/bus/registry.json`](../specs/src/bus/registry.json))
 is the authority for channels. It classifies each on independent axes:
@@ -498,9 +499,9 @@ this emit, never provenance.
   stream's error, whose words say "a frame on `<channel>` is not that
   channel's: " and then "it has no `<member>`", "its `<member>` is
   malformed", or "it is malformed", the words a request's refusal says a
-  fault in. TypeScript, Python and Kotlin give it as a value the reader
-  tells apart from a frame by its `status`, `refused` where a frame's is
-  `delivered`. A transport's bridge
+  fault in. TypeScript, Python, Kotlin and Swift give it as a value the
+  reader tells apart from a frame by its `status` (in Swift, its case),
+  `refused` where a frame's is `delivered`. A transport's bridge
   publishes the refusal on the client's own bus in the frame's place; in
   TypeScript, where a reader of payloads tells it apart with `instanceof`,
   in the payload's. A request names a fault of its reply's payload by its
@@ -511,7 +512,7 @@ this emit, never provenance.
   channel's: under `error`, saying "a frame on `<channel>` is not that
   channel's: " and then the fault. Only a reply whose correlation id cannot
   be read, which carries none, leaves its request to wait out its timeout.
-  *Held by `protocol/specs/src/bus/frame-cases.json`, `packages/typescript/core/src/__tests__/bus.test.ts`, `packages/typescript/http-transport/src/transport/__tests__/http-transport.http-paths.test.ts`, `packages/python/sdk/tests/test_bus.py`, `packages/kotlin/sdk/src/test/kotlin/semiont/bus/BusTest.kt`, `packages/rust/sdk/tests/typed.rs`, `packages/go/sdk/internal/required/required_test.go`.*
+  *Held by `protocol/specs/src/bus/frame-cases.json`, `packages/typescript/core/src/__tests__/bus.test.ts`, `packages/typescript/http-transport/src/transport/__tests__/http-transport.http-paths.test.ts`, `packages/python/sdk/tests/test_bus.py`, `packages/kotlin/sdk/src/test/kotlin/semiont/bus/BusTest.kt`, `packages/swift/sdk/Tests/SemiontTests/ClientTests.swift`, `packages/rust/sdk/tests/typed.rs`, `packages/go/sdk/internal/required/required_test.go`.*
 
 ## Content and the gateway's own operations
 

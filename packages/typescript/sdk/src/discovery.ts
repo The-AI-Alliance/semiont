@@ -21,7 +21,7 @@
  */
 
 import { Observable } from 'rxjs';
-import { DISCOVERY_URL_PATH, HTTP_REQUEST_TIMEOUT_MS, isArray, isNumber, isObject, isString } from '@semiont/core';
+import { DISCOVERY_URL_PATH, HTTP_REQUEST_TIMEOUT_MS, isArray, isNumber, isObject, isString, withinDeadline } from '@semiont/core';
 import type { DiscoveredKB } from '@semiont/core';
 import { fetchOf } from './fetch-of';
 
@@ -161,14 +161,14 @@ export function textDiscovery(read: () => Promise<string | null>): DiscoveryTran
 export function httpDiscovery(url: string = DISCOVERY_URL_PATH, fetch?: typeof globalThis.fetch): DiscoveryTransport {
   let etag: string | null = null;
   return {
-    async read(): Promise<DiscoveryReadResult> {
+    // With a deadline: a read that is never answered would hold the poll
+    // that awaits it, and every poll after it, for good.
+    read: () => withinDeadline(HTTP_REQUEST_TIMEOUT_MS, async (signal): Promise<DiscoveryReadResult> => {
       let response: Response;
       try {
-        // With a deadline: a read that is never answered would hold the
-        // poll that awaits it, and every poll after it, for good.
         response = await fetchOf(fetch)(url, {
           ...(etag !== null ? { headers: { 'If-None-Match': etag } } : {}),
-          signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
+          signal,
         });
       } catch (e) {
         return absent('unreadable', message(e));
@@ -184,7 +184,7 @@ export function httpDiscovery(url: string = DISCOVERY_URL_PATH, fetch?: typeof g
       // one for an invalid body would 304 us into believing it forever.
       if (state.kind === 'managed') etag = response.headers.get('ETag');
       return state;
-    },
+    }),
   };
 }
 
