@@ -1746,7 +1746,7 @@ async fn a_session_renews_at_the_issuer_its_stored_session_names() {
     let session = opened.session();
     world.answers([granted(&second, Some("r2"))]);
 
-    assert_eq!(session.refresh().await, Some(second.clone()));
+    assert_eq!(session.refresh(Some(&first)).await, Some(second.clone()));
 
     assert_eq!(world.token_forms()[0]["refresh_token"], "r1");
     assert_eq!(world.token_forms()[0]["client_id"], "semiont-browser");
@@ -1756,7 +1756,7 @@ async fn a_session_renews_at_the_issuer_its_stored_session_names() {
     );
 
     // A refused renewal ends it: no token, and nothing stored.
-    assert_eq!(session.refresh().await, None);
+    assert_eq!(session.refresh(Some(&second)).await, None);
     assert_eq!(*session.token().borrow(), None);
     assert_eq!(stored_session(storage.as_ref(), "a-script"), None);
     opened.close().await;
@@ -1929,7 +1929,12 @@ async fn renewals_asked_for_together_are_one_request_of_the_issuer() {
     let renewed = jwt(3600, 2);
     world.answers([granted(&renewed, Some("r2"))]);
 
-    let (one, two, three) = tokio::join!(session.refresh(), session.refresh(), session.refresh());
+    let refused = session.token().borrow().clone();
+    let (one, two, three) = tokio::join!(
+        session.refresh(refused.as_deref()),
+        session.refresh(refused.as_deref()),
+        session.refresh(refused.as_deref())
+    );
 
     assert_eq!(
         [one, two, three],
@@ -2403,7 +2408,8 @@ async fn an_agent_signs_in_as_its_account_and_carries_the_did_its_gateway_names(
 }
 
 // A refused token is renewed by a new grant, though the one held is not yet
-// due. A grant the issuer refuses leaves the agent the token it had.
+// due. A refusal of a token already replaced is answered with the one held.
+// A grant the issuer refuses leaves the agent the token it had.
 #[tokio::test]
 async fn a_refusal_of_the_agents_token_is_answered_by_a_new_grant() {
     let world = World::start().await;
@@ -2414,12 +2420,17 @@ async fn a_refusal_of_the_agents_token_is_answered_by_a_new_grant() {
         .await
         .expect("signed in");
 
-    assert_eq!(agent.refresh().await, Some(second.clone()));
+    assert_eq!(agent.refresh(Some(&first)).await, Some(second.clone()));
     assert_eq!(agent.token().borrow().as_deref(), Some(second.as_str()));
     assert_eq!(world.token_forms().len(), 2);
 
+    // A refusal of the token it has replaced was answered by that renewal:
+    // the one it holds is given, and the issuer is not asked.
+    assert_eq!(agent.refresh(Some(&first)).await, Some(second.clone()));
+    assert_eq!(world.token_forms().len(), 2);
+
     // The issuer has no grant left to give, and refuses.
-    assert_eq!(agent.refresh().await, None);
+    assert_eq!(agent.refresh(Some(&second)).await, None);
     assert_eq!(world.token_forms().len(), 3);
     assert_eq!(agent.token().borrow().as_deref(), Some(second.as_str()));
 }
@@ -3521,7 +3532,11 @@ async fn a_session_over_a_stored_sign_in_renews_at_the_issuer_the_sign_in_names(
     .expect("a sign-in is stored");
     let session = opened.session();
 
-    assert_eq!(session.refresh().await, Some(renewed.clone()));
+    let held = session.token().borrow().clone();
+    assert_eq!(
+        session.refresh(held.as_deref()).await,
+        Some(renewed.clone())
+    );
     assert_eq!(
         stored_session(storage.as_ref(), "a-script"),
         Some(world.stored(&renewed, "r2"))

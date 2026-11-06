@@ -11,6 +11,7 @@ import {
 import { APIError, gatewayWords, refusalBody, retryableUnlessRefused } from './api-error';
 import { MALFORMED } from './declared-body';
 import { fetchOf } from './fetch-of';
+import type { TokenRefresher } from './http-transport';
 
 export type { ConnectionState };
 
@@ -43,12 +44,13 @@ export interface ActorStateUnitOptions {
    * Consulted ONCE per outage when a connect's credential is refused (a 401,
    * or a 429 `refusal-rate`), before parking `unauthenticated`; a successful
    * open re-arms it. Consulted once per emit whose credential is refused,
-   * which is sent again with the token it gives. The refresher's owner
+   * which is sent again with the token it gives. Each time it is told the
+   * token refused. The refresher's owner
    * rotates the token SOURCE (sessions push the new token into `token$`);
    * the actor then reconnects through the getter, so the token stays
    * single-sourced. A throwing refresher is treated as `null`.
    */
-  tokenRefresher?: () => Promise<string | null>;
+  tokenRefresher?: TokenRefresher;
   /**
    * Remove-side reconnect hysteresis. Scope
    * additions need liveness quickly (100 ms debounce), but a removal only
@@ -108,16 +110,20 @@ function namesAChannel(value: unknown): boolean {
 }
 
 /**
- * The token `tokenRefresher` gives in place of a refused one, or none. A
- * refresher that throws has given none: the request fails on the refusal it
- * already has, and why the renewal failed is its owner's to report.
+ * The token `tokenRefresher` gives in place of `refused`, the token the
+ * gateway refused, when it gives another; none otherwise, since the token
+ * refused would be refused again. A refresher that throws has given none: the
+ * request fails on the refusal it already has, and why the renewal failed is
+ * its owner's to report.
  */
-export async function renewedToken(tokenRefresher: () => Promise<string | null>): Promise<string | null> {
+export async function renewedToken(tokenRefresher: TokenRefresher, refused: string | null): Promise<string | null> {
+  let renewed: string | null;
   try {
-    return await tokenRefresher();
+    renewed = await tokenRefresher(refused);
   } catch {
     return null;
   }
+  return renewed && renewed !== refused ? renewed : null;
 }
 
 /**
@@ -709,8 +715,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           // token) the flat waiting tick stands.
           if (tokenRefresher && !refreshBurned) {
             refreshBurned = true;
-            const refreshed = await renewedToken(tokenRefresher);
-            if (running && refreshed && refreshed !== refusedToken) {
+            const refreshed = await renewedToken(tokenRefresher, token);
+            if (running && refreshed !== null) {
               scheduleRetry(0, keepPrevious);
               return;
             }
@@ -936,8 +942,9 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // and is not sent a third time. Without a refresher the refusal is final.
       const res = await send(token).catch(async (error: unknown) => {
         if (!(error instanceof APIError && error.code === 'unauthorized') || !tokenRefresher) throw error;
-        const renewed = await renewedToken(tokenRefresher);
-        if (!renewed || renewed === token) throw error;
+        // The actor holds no token as the empty one; a refresher is told none as null.
+        const renewed = await renewedToken(tokenRefresher, token === '' ? null : token);
+        if (renewed === null) throw error;
         return send(renewed);
       });
       // No count is reported as no count, never as a zero: an absent

@@ -13,19 +13,7 @@ import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HttpTransport } from '@semiont/http-transport';
 
 import { SemiontSession } from '../semiont-session';
-import { TestStorage, storageKey, testSession, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
-
-/**
- * A JWT-shaped string with an unexpired `exp` claim. The session's
- * private `validate()` runs `isJwtExpired(stored.access)` and clears
- * storage if the token can't be parsed — so mock auth responses must
- * return real-looking JWTs.
- */
-function freshJwt(expSecondsFromNow = 3600): string {
-  const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }));
-  const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + expSecondsFromNow }));
-  return `${header}.${payload}.sig`;
-}
+import { TestStorage, freshJwt, storageKey, testSession, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
 
 const KB = {
   id: 'kb-factory',
@@ -108,7 +96,7 @@ describe('SemiontSession.fromHttp', () => {
 
       // Drive a refresh. With no stored token there's nothing to refresh,
       // but the configured callback is what we want to assert wired.
-      const result = await session.refresh();
+      const result = await session.refresh(session.token$.getValue());
       expect(result).toBeNull();
       expect(refresh).toHaveBeenCalled();
     } finally {
@@ -162,7 +150,7 @@ describe('SemiontSession.fromIssuedSession', () => {
     const { session } = opened;
 
     try {
-      expect(await session.refresh()).toBe(newAccess);
+      expect(await session.refresh(session.token$.getValue())).toBe(newAccess);
       expect(session.token$.getValue()).toBe(newAccess);
       // The live transport's event stream also fetches; only the issuer call matters here.
       const tokenCall = fetchMock.mock.calls.find(([url]) => url === TEST_TOKEN_ENDPOINT) as unknown as [string, { body: URLSearchParams }] | undefined;
@@ -194,7 +182,7 @@ describe('SemiontSession.fromIssuedSession', () => {
     try {
       // A stream refused and a request refused at the same moment each ask.
       // An issuer that rotates refresh tokens refuses the second grant.
-      const renewed = await Promise.all([session.refresh(), session.refresh()]);
+      const renewed = await Promise.all([session.refresh(session.token$.getValue()), session.refresh(session.token$.getValue())]);
       expect(renewed).toEqual([newAccess, newAccess]);
       expect(fetchMock.mock.calls.filter(([url]) => url === TEST_TOKEN_ENDPOINT)).toHaveLength(1);
     } finally {
@@ -215,7 +203,7 @@ describe('SemiontSession.fromIssuedSession', () => {
     const { session } = opened;
 
     try {
-      expect(await session.refresh()).toBeNull();
+      expect(await session.refresh(session.token$.getValue())).toBeNull();
     } finally {
       opened.dispose();
     }
@@ -299,7 +287,7 @@ describe('SemiontSession.signInDevice', () => {
 
     try {
       await opened.session.client.auth!.me();
-      await opened.session.refresh();
+      await opened.session.refresh(opened.session.token$.getValue());
       const asked = given.mock.calls.map(([input]) => (input instanceof Request ? input.url : String(input)));
       expect(asked.filter((url) => !url.endsWith('/bus/subscribe'))).toEqual([
         `${ISSUER}/.well-known/openid-configuration`,

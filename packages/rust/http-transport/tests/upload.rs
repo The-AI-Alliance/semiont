@@ -64,10 +64,13 @@ async fn upload(
         .into_response()
 }
 
-struct Renews;
+/// Renews to `second`, and keeps the token each ask said was refused.
+#[derive(Default)]
+struct Renews(Mutex<Vec<Option<String>>>);
 
 impl TokenRefresher for Renews {
-    fn refresh(&self) -> BoxFuture<'_, Option<String>> {
+    fn refresh<'a>(&'a self, refused: Option<&'a str>) -> BoxFuture<'a, Option<String>> {
+        self.0.lock().unwrap().push(refused.map(str::to_owned));
         Box::pin(async { Some("second".to_owned()) })
     }
 }
@@ -83,7 +86,8 @@ async fn an_upload_sent_again_with_a_renewed_token_never_reports_less_than_it_la
         .with_state(arrived.clone());
     let serving = tokio::spawn(async move { axum::serve(listener, router).await });
 
-    let transport = transport(origin, Some(Arc::new(Renews)));
+    let renews = Arc::new(Renews::default());
+    let transport = transport(origin, Some(renews.clone()));
     let bytes: Bytes = (0..300 * 1024).map(|i| (i % 251) as u8).collect();
     let content = HttpContentTransport::new(&transport);
     let mut sending = content.put_binary(PutBinaryRequest::new(
@@ -116,6 +120,11 @@ async fn an_upload_sent_again_with_a_renewed_token_never_reports_less_than_it_la
             .map(|(credential, _, _)| credential.as_str())
             .collect::<Vec<_>>(),
         ["Bearer first", "Bearer second", "Bearer first"]
+    );
+    assert_eq!(
+        *renews.0.lock().unwrap(),
+        [arrived[0].0.strip_prefix("Bearer ").map(str::to_owned)],
+        "the refresher is told the token the refused upload carried"
     );
     assert!(!arrived[0].1.is_empty(), "an upload carries a key");
     assert_eq!(

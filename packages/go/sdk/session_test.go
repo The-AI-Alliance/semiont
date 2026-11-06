@@ -30,6 +30,7 @@ const kb = "kb-alpha"
 type sessionRow struct {
 	Why      string   `json:"why"`
 	Stored   string   `json:"stored"`
+	Refused  string   `json:"refused"`
 	Gateway  []string `json:"gateway"`
 	Issuer   []string `json:"issuer"`
 	Asks     int      `json:"asks"`
@@ -334,7 +335,16 @@ func TestARefusedSessionRenewsAndAsksAsTheTableStates(t *testing.T) {
 			if got := ends(session, w); got != "signed-in" {
 				t.Fatalf("the session started %s, not signed in", got)
 			}
-			given, ok := session.Refresh(context.Background(), w.token.Value())
+			var refused string
+			switch row.Refused {
+			case "held":
+				refused = w.token.Value()
+			case "replaced":
+				refused = tokenFor(time.Hour, -1)
+			default:
+				t.Fatalf("%s: the gateway refused a token the table calls %q", row.Why, row.Refused)
+			}
+			given, ok := session.Refresh(context.Background(), refused)
 			if row.Given == nil || ok != *row.Given {
 				t.Errorf("%s: refresh gave a token: %v, want %v", row.Why, ok, row.Given != nil && *row.Given)
 			}

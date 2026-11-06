@@ -100,8 +100,20 @@ private func status(_ session: SemiontSession) -> String {
       await session.start()
       try await session.ready()
       if part == "refusal" {
-        let given = try await session.refresh()
+        let refused: String?
+        switch try required(row, "refused").text {
+        case "held": refused = session.token.value
+        case "replaced":
+          refused = try jwt(
+            .object([
+              "iss": .string("issuer"), "name": .string("replaced"),
+              "exp": .number(Date().timeIntervalSince1970 + 3600),
+            ]))
+        case let said: throw SpecFailure.shape("a refused token the table calls \(said)")
+        }
+        let given = try await session.refresh(refused)
         #expect((given != nil) == (row["given"] == .bool(true)))
+        if let given { #expect(given == session.token.value) }
       }
       let counts = await script.counts()
       #expect(
@@ -171,14 +183,14 @@ private func status(_ session: SemiontSession) -> String {
   defer { session.dispose() }
   await session.start()
   try await session.ready()
-  let first = Task { try await session.refreshOf(token) }
+  let first = Task { try await session.refresh(token) }
   try await sleepMilliseconds(10)
   first.cancel()
-  let second = try await session.refreshOf(token)
+  let second = try await session.refresh(token)
   #expect(second == "new-token")
   #expect(calls.withLock { $0 } == 1)
   await #expect(throws: CancellationError.self) { try await first.value }
-  #expect(try await session.refreshOf(token) == "new-token")
+  #expect(try await session.refresh(token) == "new-token")
   #expect(calls.withLock { $0 } == 1)
 }
 @Test func aRefresherWaitsForItsSessionAndCancelsWhenConstructionEnds() async throws {
@@ -209,7 +221,7 @@ private func status(_ session: SemiontSession) -> String {
     })
   await session.start()
   try await session.ready()
-  let renewing = Task { try await session.refresh() }
+  let renewing = Task { try await session.refresh(session.token.value) }
   try await within(testDeadlineMs) { for await value in entered where value { return } }
   session.dispose()
   session.dispose()
@@ -288,7 +300,7 @@ private struct UnwritableSignIn: SignInKept {
   }
   await session.start()
   try await within(testDeadlineMs) { for await value in asked where value { return } }
-  #expect(try await session.refreshOf(old) == "new-token")
+  #expect(try await session.refresh(old) == "new-token")
   release.set(true)
   try await session.ready()
   #expect(session.user.value?.name == "new-token")

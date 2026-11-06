@@ -921,7 +921,10 @@ func Read(ctx context.Context, origin, token string, resource api.ResourceId) er
   changes, the next request carries the new one. A stream refused for its
   token asks its `Refresher` for another, once per outage, and with none
   waits, with no request, for a different one. A request or an emit refused
-  so asks it once and is sent again at once with the token it gives.
+  so asks it once and is sent again at once with the token it gives. The
+  `Refresher` is told the token refused: a session or an agent that holds
+  another by then, renewed for an earlier refusal, gives it and renews
+  nothing.
 
 The protocol it keeps to is [the transport contract][transport-contract] and
 [the HTTP transport][transport-http], and the [conformance suite][conformance]

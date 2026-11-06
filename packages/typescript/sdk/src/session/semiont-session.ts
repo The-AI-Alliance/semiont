@@ -383,9 +383,12 @@ export class SemiontSession implements StateUnit {
   }
 
   /**
-   * The gateway refused the session's token: renew it, and ask the gateway
-   * who the new one is. This is what the session's transport calls when it
-   * is refused the token.
+   * The gateway refused `refused`, the token a request carried (null when it
+   * carried none): renew it, and ask the gateway who the new one is. This is
+   * what the session's transport calls when it is refused a token. A token
+   * the session no longer holds was answered already, renewed or ended: what
+   * the session holds is given, and nothing is renewed or asked, however late
+   * the refusal arrives.
    *
    * The rule is startup's (protocol/specs/src/session/cases.json, `refusal`): a token
    * the issuer has just issued and the gateway refuses is final, and the
@@ -400,7 +403,11 @@ export class SemiontSession implements StateUnit {
    * one ask, however many requests were refused at once. Who the gateway
    * says the renewed token is, is who is signed in.
    */
-  refresh(): Promise<AccessToken | null> {
+  async refresh(refused: string | null): Promise<AccessToken | null> {
+    // A refusal that arrives while another is answered waits for that answer.
+    if (this.refusal) await this.refusal;
+    const held = this.#heldToken$.getValue();
+    if (held !== refused) return this.disposed ? null : held;
     this.refusal ??= this.renewForRefusal().finally(() => {
       this.refusal = null;
     });
@@ -501,7 +508,7 @@ export class SemiontSession implements StateUnit {
         this.unansweredWaitMs = RECONNECT_MS;
         return;
       }
-      void (this.#heldUser$.getValue() === null ? this.refresh() : this.renew());
+      void (this.#heldUser$.getValue() === null ? this.refresh(null) : this.renew());
     }, equalJitter(step));
   }
 
