@@ -5,7 +5,8 @@ package semiont_test
 // Each case runs in a testing/synctest bubble, whose clock moves only when
 // every goroutine in it is blocked; over a network faked in the bubble
 // (httptest.NewTestServer's in-memory network, or a FaultyTransport); at this
-// SDK's timings, which are the table's. A pass sleeps the bubble's clock
+// SDK's timings, which are the table's; and with a random source whose every
+// draw is the lowest it can give. A pass sleeps the bubble's clock
 // through each instant a timer falls due on the way, and lets what falls due
 // run there, so a wait ends at the instant it was set to end, or the case
 // fails. What the table may say is held by
@@ -20,6 +21,7 @@ import (
 	"io"
 	"maps"
 	"math"
+	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -133,6 +135,15 @@ func clockDuration(stated json.RawMessage) (time.Duration, error) {
 }
 
 // ── What a case drives ──────────────────────────────────────────────────
+
+// lowestDraws is a source whose every draw is the lowest it can give, so the
+// equal jitter of a step is half the step.
+type lowestDraws struct{}
+
+func (lowestDraws) Uint64() uint64 { return 0 }
+
+// lowest is the random source every subject that backs off is given.
+var lowest = rand.New(lowestDraws{})
 
 // clockSubject is what a case drives: what it counts, and its action, when it
 // has one.
@@ -303,6 +314,7 @@ func (g *fakeGateway) transport(t *testing.T) *semiont.HTTPTransport {
 		Channels: bus.BridgedChannels,
 		HTTP:     g.client,
 		Timing:   semiont.DefaultTiming(),
+		Random:   lowest,
 	})
 	t.Cleanup(transport.Close)
 	return transport
@@ -469,7 +481,7 @@ func deviceGrant(t *testing.T, given clockGiven) clockSubject {
 	issuer := &fakeIssuer{t: t, interval: given.IntervalSeconds, answers: given.Answers}
 	client := httptest.NewTestServer(t, issuer).Client()
 	background(t, func(ctx context.Context) {
-		_, err := semiont.SignInWithDevice(ctx, semiont.Issuer{HTTP: client, Timing: semiont.DefaultTiming()}, gatewayOrigin, &semiont.MemorySignIn{}, func(semiont.DeviceCode) {})
+		_, err := semiont.SignInWithDevice(ctx, semiont.Issuer{HTTP: client, Timing: semiont.DefaultTiming(), Random: lowest}, gatewayOrigin, &semiont.MemorySignIn{}, func(semiont.DeviceCode) {})
 		if ctx.Err() == nil {
 			t.Errorf("the sign-in ended before the case did: %v", err)
 		}
@@ -498,6 +510,7 @@ func renewalSubject(t *testing.T, given clockGiven) clockSubject {
 		},
 		Validate: func(context.Context, string) (api.UserResponse, error) { return alice(), nil },
 		Timing:   semiont.DefaultTiming(),
+		Random:   lowest,
 	})
 	if err != nil {
 		t.Fatal(err)

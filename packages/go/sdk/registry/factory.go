@@ -6,6 +6,7 @@ package registry
 
 import (
 	"context"
+	"math/rand/v2"
 	"net/http"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
@@ -49,6 +50,9 @@ type HttpSessionFactory struct {
 	// HTTP is what every request of a gateway and an issuer is made with.
 	HTTP   *http.Client
 	Timing semiont.Timing
+	// Random is what the jitter of every backoff of its sessions is drawn
+	// from, as semiont.EqualJitter draws it.
+	Random *rand.Rand
 }
 
 var _ SessionFactory = HttpSessionFactory{}
@@ -59,6 +63,7 @@ func (f HttpSessionFactory) Session(ctx context.Context, options SessionFactoryO
 		Kept:          KeptIn(options.Storage, options.Kb.Id),
 		HTTP:          f.HTTP,
 		Timing:        f.Timing,
+		Random:        f.Random,
 		AskWhoTokenIs: true,
 		Channels:      bus.BridgedChannels,
 		Storage:       options.Storage,
@@ -72,5 +77,5 @@ func (f HttpSessionFactory) Revoke(ctx context.Context, stored StoredSession) {
 		return
 	}
 	// Best effort, as the interface says: the sign-out stands either way.
-	_ = semiont.Issuer{HTTP: f.HTTP, Timing: f.Timing}.Revoke(ctx, stored.RevocationEndpoint, stored.ClientID, stored.Refresh)
+	_ = semiont.Issuer{HTTP: f.HTTP, Timing: f.Timing, Random: f.Random}.Revoke(ctx, stored.RevocationEndpoint, stored.ClientID, stored.Refresh)
 }
