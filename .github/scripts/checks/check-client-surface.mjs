@@ -54,8 +54,8 @@
  *
  * WHICH SDKS. Each section below holds the SDKs it has a reader for, and
  * those alone: its roster is its readers' keys. An `absent`, `made`,
- * `named` or `notYetReached` that names an SDK outside a section's roster
- * fails there.
+ * `named`, `fieldsNamed` or `notYetReached` that names an SDK outside a
+ * section's roster fails there.
  *
  * NOT YET REACHED. An SDK that is to have something and does not yet says
  * so in `notYetReached`, with what is to be built for it: on a member, or on
@@ -211,6 +211,47 @@
  * outside the SDK (`outside`), or which of the SDK's public makers take it
  * (`takes`). A maker it lists is held to take it, and an `outside` SDK to
  * take it nowhere; the section's own reader says how.
+ *
+ * THE REGISTRY'S RECORDS. protocol/specs/src/client/registry.json states
+ * what a registry of knowledge bases hands its caller, and is handed, in
+ * memory. Each of its types is a record, whose members are its properties;
+ * an enum, whose values are its spellings; or a union, told apart by one
+ * member whose value in each branch is one of an enum's, each branch with
+ * members of its own. Each type is a `type` member of one row of the table's
+ * `modules`, and each SDK's declaration of it is read from that row's `where`,
+ * under the row's `named` for the SDK when it gives one. Each SDK is held to
+ * it both ways:
+ *
+ * - a type no row of `modules` lists, or more than one lists;
+ * - a type an SDK declares nowhere in its `where`, or more than once;
+ * - a member a record has in the table that an SDK's lacks, and a field an
+ *   SDK's has that is no member of it;
+ * - a value an enum has in the table that an SDK's lacks, and one an SDK's
+ *   has that the table's does not;
+ * - a union an SDK holds otherwise than its language does, or whose
+ *   branches are not the table's.
+ *
+ * A member is spelled as its language spells a field: TypeScript, Kotlin and
+ * Swift as the table does, Rust and Python in snake_case, Go and C# with its
+ * first letter a capital, unless the member's row gives the SDK's own
+ * spelling (`fieldsNamed`); one the SDK does not use is stale, and fails. A
+ * field is public: Rust's `pub`, Go's exported, Python's with no leading
+ * underscore, and Kotlin's, Swift's and C#'s public properties, a C# record's
+ * positional ones among them. A method is no field. A member's type is not
+ * compared, nor the order of members or of values.
+ *
+ * An enum's values are compared where its language spells them: TypeScript's
+ * union of string literals, Python's `type X = Literal[…]`, Go's string
+ * constants of the type, the argument each Kotlin entry is made with (its
+ * `wire`), and each Swift case's raw value, the case's name when it states
+ * none. Rust's and C#'s enums spell no value, so each variant is a value in
+ * PascalCase (`no-verdict` is `NoVerdict`). A union is TypeScript's union of
+ * object types, one for each branch, with the branch's members, the tag's
+ * type the string literal of its value; Rust's enum, a variant for each value
+ * carrying the branch's other members; and in every other SDK one record,
+ * whose fields are the tag and every branch's other members. Haskell is not
+ * read: packages/haskell/sdk/codegen/Main.hs generates its types from the
+ * table. A declaration this cannot read is a failure, never one passed over.
  *
  * Which files a directory holds, and whether a schema exists, is what git says
  * the repository holds (`repository-files.mjs`).
@@ -944,7 +985,7 @@ function kotlinDeclarations(body, where, cannot) {
 /** A Kotlin parameter list's parameters: each one's name and the type it states, its annotations, its visibility and its `val` or `var` left out. */
 const kotlinParameters = (list) =>
   splitOutside(list, ',').flatMap((parameter) =>
-    parameters(parameter.replace(/^(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:private|internal|protected|public|override|open|vararg)\s+)*(?:(?:val|var)\s+)?/, '')),
+    parameters(parameter.replace(/^(?:@(?:\w+:)?\w+(?:\([^)]*\))?\s+)*(?:(?:private|internal|protected|public|override|open|vararg)\s+)*(?:(?:val|var)\s+)?/, '')),
   );
 
 /** The `.kt` files under `directory` with their code, its tests and its test doubles (`testing`) left out. */
@@ -1040,7 +1081,7 @@ function kotlinMembers(type, types, cannot) {
       else if (supertype === 'Flow' || supertype === 'StateFlow' || supertype === 'SharedFlow') flows.push(declared.name);
     }
     for (const parameter of splitOutside(declared.parameterList, ',')) {
-      const property = /^(?:@\w+(?:\([^)]*\))?\s+)*public\s+(?:override\s+)?(?:val|var)\s+`?(\w+)`?\s*:\s*(.+)$/s.exec(squeezed(parameter));
+      const property = /^(?:@(?:\w+:)?\w+(?:\([^)]*\))?\s+)*public\s+(?:override\s+)?(?:val|var)\s+`?(\w+)`?\s*:\s*(.+)$/s.exec(squeezed(parameter));
       if (property) members.set(property[1], { name: property[1], keyword: 'val', isSuspend: false, takes: [], returns: squeezed(splitOutside(property[2], '=')[0]) });
     }
     for (const member of kotlinDeclarations(declared.body, `${declared.file}: ${declared.keyword} ${declared.name}`, cannot)) {
@@ -3257,6 +3298,8 @@ else {
  * constants, and is no member of it.
  *
  * `named` gives an SDK's own name for a member, where the rule does not.
+ * `fieldsNamed`, on a type of protocol/specs/src/client/registry.json, gives
+ * an SDK's own spelling of a field of it; the registry's records read it.
  * `absent` says why an SDK has none, and is stale once it has one.
  * `notYetReached`, on a member or on the whole module, names an SDK that is
  * to have it and does not yet, and is stale once it has it. A module whose
@@ -3265,6 +3308,8 @@ else {
  */
 /** The SDKs whose module is a package, given by its directory. */
 const BY_DIRECTORY = ['go', 'kotlin', 'csharp'];
+/** The paths of an SDK's `where` that do not exist: for an SDK whose module is a package, a directory no file is in. */
+const missingPaths = (sdk, where) => where.filter((path) => (BY_DIRECTORY.includes(sdk) ? !REPOSITORY.some((file) => dirname(file) === path) : !REPOSITORY.includes(path)));
 const MODULE_KINDS = ['function', 'reader', 'type', 'constant'];
 const capitalized = (name) => name[0].toUpperCase() + name.slice(1);
 const snakeCase = (name) => name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
@@ -3383,7 +3428,7 @@ for (const module of moduleRows ?? []) {
     if (members.has(member.member)) fail(`${name} is listed twice`);
     members.set(member.member, member);
     if (!MODULE_KINDS.includes(member.kind)) fail(`${name} has the kind "${member.kind}", which is none of ${MODULE_KINDS.join(', ')}`);
-    const others = Object.keys(member).filter((key) => !['member', 'kind', 'named', 'absent', 'notYetReached'].includes(key));
+    const others = Object.keys(member).filter((key) => !['member', 'kind', 'named', 'fieldsNamed', 'absent', 'notYetReached'].includes(key));
     if (others.length > 0) fail(`${name} states ${others.join(', ')}, which a member does not`);
     for (const [said, entries] of [['named', member.named ?? {}], ['absent', member.absent ?? {}], ['notYetReached', member.notYetReached ?? {}]]) {
       for (const [sdk, value] of Object.entries(entries)) {
@@ -3402,7 +3447,7 @@ for (const module of moduleRows ?? []) {
       fail(`${row} does not say where ${sdk} keeps the module (\`where\`)`);
       continue;
     }
-    const missing = where.filter((path) => (BY_DIRECTORY.includes(sdk) ? !REPOSITORY.some((file) => dirname(file) === path) : !REPOSITORY.includes(path)));
+    const missing = missingPaths(sdk, where);
     if (waiting !== undefined) {
       if (missing.length === 0) {
         const present = new Set(EXPORTS[sdk](where));
@@ -3436,6 +3481,597 @@ for (const module of moduleRows ?? []) {
         if (!expected.has(name)) fail(`${its} has ${name}, which ${row} does not list: add a member for it there before any SDK has it, with an \`absent\` for each SDK that is not to`);
       }
     }
+  }
+}
+
+// ── The registry's records ──────────────────────────────────────────────
+
+/**
+ * What protocol/specs/src/client/registry.json states, held in every SDK
+ * this reads as the opening comment's THE REGISTRY'S RECORDS says. Each
+ * SDK's reader is given a name and the SDK's `where` of the module that
+ * lists it, and answers every declaration of the name there, each with where
+ * it is and what it holds: a record's public fields (`record`), an enum's
+ * values as its language spells them (`values`), an enum's variants, each
+ * with the fields it carries (`variants`), or the branches of a union of
+ * object types, each its members, with the string literal each one's type is
+ * (`union`). Of one it cannot read it says so, and answers `unreadable`.
+ */
+const RECORDS = 'protocol/specs/src/client/registry.json';
+const recordTypes = JSON.parse(read(RECORDS)).types;
+/** How a message names what the table states, and what a declaration holds. */
+const FORMS = { record: 'a record', enum: 'an enum', union: 'a union' };
+const HELD = { record: 'a record', values: 'an enum of values', variants: 'an enum', union: 'a union of object types' };
+const pascalCase = (value) => value.split(/[-_]/).map(capitalized).join('');
+
+/** Say what a reader cannot read of `where`, and answer what it answers of it. */
+function unreadableRecord(where, what) {
+  fail(`${where} ${what}: this lint cannot read it, and a declaration it cannot read is a failure`);
+  return { where, held: 'unreadable' };
+}
+
+/** The text of a string literal quoted with `'` or `"`; `undefined` when `text` is none. */
+const stringLiteral = (text) => /^(['"])((?:(?!\1)[^\\]|\\.)*)\1$/.exec(text)?.[2];
+
+/** The members of a TypeScript object type's body, each its name, `?` left off, and the string literal its type is, if it is one; `undefined`, having said so, when one cannot be read. */
+function typescriptObjectMembers(body, where) {
+  const members = [];
+  for (const part of splitOutside(body, ';').flatMap((text) => splitOutside(text, ','))) {
+    const member = /^(?:readonly\s+)?(\w+)\??\s*:\s*(.+)$/s.exec(part);
+    // A line that begins another member is a `;` that is missing.
+    if (!member || /\n\s*(?:readonly\s+)?\w+\??\s*:/.test(outsideBrackets(member[2]))) {
+      unreadableRecord(where, `has a member that is no property: ${squeezed(part)}`);
+      return undefined;
+    }
+    members.push({ name: member[1], literal: stringLiteral(squeezed(member[2])) });
+  }
+  return members;
+}
+
+/** TypeScript's declarations of `name` in `files`: an interface, or a type alias of an object type, of a union of them, or of a union of string literals. */
+function typescriptRecords(name, files) {
+  return files.flatMap((file) => {
+    const code = withoutComments(read(file), `'"\``);
+    return [...code.matchAll(new RegExp(`^export (?:declare )?(interface|type|class|enum) ${name}\\b`, 'gm'))].map((header) => {
+      const where = `${header[1]} ${name} in ${file}`;
+      const after = code.slice(header.index + header[0].length);
+      if (header[1] === 'interface') {
+        const open = /^\s*(?:<[^>{]*>)?\s*\{/.exec(after);
+        if (!open) return unreadableRecord(where, 'extends another type');
+        const members = typescriptObjectMembers(braced(after, open[0].length - 1), where);
+        return members === undefined ? { where, held: 'unreadable' } : { where, held: 'record', fields: members.map((member) => member.name) };
+      }
+      const alias = header[1] === 'type' ? /^\s*(?:<[^>{]*>)?\s*=/.exec(after) : null;
+      if (!alias) return unreadableRecord(where, 'is neither an interface nor a type alias');
+      const [stated] = splitOutside(after.slice(alias[0].length), ';');
+      const parts = splitOutside(stated, '|');
+      const values = parts.map((part) => stringLiteral(squeezed(part)));
+      if (!values.includes(undefined)) return { where, held: 'values', values };
+      if (!parts.every((part) => part.startsWith('{') && closing(part, 0) === part.length)) {
+        return unreadableRecord(where, `is neither a union of string literals nor one of object types: ${squeezed(stated)}`);
+      }
+      const branches = parts.map((part) => typescriptObjectMembers(part.slice(1, -1), where));
+      if (branches.includes(undefined)) return { where, held: 'unreadable' };
+      return parts.length === 1 ? { where, held: 'record', fields: branches[0].map((member) => member.name) } : { where, held: 'union', branches };
+    });
+  });
+}
+
+/** `item` with the attributes before it (`#[…]`) left off. */
+const withoutRustAttributes = (item) => item.replace(/^(?:#\[[^\]]*\]\s*)+/, '');
+
+/** Rust's declarations of `name` in `files`: a `pub struct` of named fields, or a `pub enum` of variants, each a unit or one of named fields. */
+function rustRecords(name, files) {
+  return files.flatMap((file) => {
+    const code = withoutComments(read(file), '"');
+    return [...code.matchAll(new RegExp(`^[ \\t]*pub (struct|enum|type|trait|union) ${name}\\b`, 'gm'))].map((header) => {
+      const where = `${header[1]} ${name} in ${file}`;
+      const from = header.index + header[0].length;
+      const open = code.slice(from).search(/[{(;]/) + from;
+      if (!['struct', 'enum'].includes(header[1]) || code[open] !== '{') return unreadableRecord(where, 'is neither a struct of named fields nor an enum');
+      const items = splitOutside(braced(code, open), ',').map(withoutRustAttributes);
+      if (header[1] === 'struct') {
+        const fields = [];
+        for (const item of items) {
+          const field = /^(pub\s+)?(?:pub\s*\([^)]*\)\s*)?(\w+)\s*:/.exec(item);
+          if (!field) return unreadableRecord(where, `has a field that is no named one: ${squeezed(item)}`);
+          if (field[1]) fields.push(field[2]);
+        }
+        return { where, held: 'record', fields };
+      }
+      const variants = [];
+      for (const item of items) {
+        const variant = /^(\w+)\s*(?:\{([\s\S]*)\})?$/.exec(item);
+        if (!variant) return unreadableRecord(where, `has a variant that is neither a unit nor one of named fields: ${squeezed(item)}`);
+        const fields = [];
+        for (const field of variant[2] === undefined ? [] : splitOutside(variant[2], ',').map(withoutRustAttributes)) {
+          const named = /^(\w+)\s*:/.exec(field);
+          if (!named) return unreadableRecord(where, `has a field of ${variant[1]} that is no named one: ${squeezed(field)}`);
+          fields.push(named[1]);
+        }
+        variants.push({ name: variant[1], fields, unit: variant[2] === undefined });
+      }
+      return { where, held: 'variants', variants };
+    });
+  });
+}
+
+/** Python's declarations of `name` in `files`: a class, its attributes its fields, or `type <name> = Literal[…]` of strings. */
+function pythonRecords(name, files) {
+  return files.flatMap((file) => {
+    const code = withoutPythonComments(read(file));
+    return [...code.matchAll(new RegExp(`^(?:class|type) ${name}\\b|^${name}\\s*(?::[^=\\n]*)?=`, 'gm'))].map((header) => {
+      const rest = code.slice(header.index);
+      if (rest.startsWith('class ')) {
+        const where = `class ${name} in ${file}`;
+        const opened = new RegExp(`^class ${name}(?:\\[[^\\]]*\\])?(?:\\([^)]*\\))?:\\n`).exec(rest);
+        if (!opened) return unreadableRecord(where, 'opens no body on the lines after it');
+        // The class's body: every line after its header, up to the next that begins at the margin.
+        const body = rest.slice(opened[0].length);
+        const end = body.search(/^\S/m);
+        const fields = [...(end === -1 ? body : body.slice(0, end)).matchAll(/^ {4}(\w+)\s*[:=]/gm)].map((attribute) => attribute[1]).filter((field) => !field.startsWith('_'));
+        return { where, held: 'record', fields };
+      }
+      if (!rest.startsWith('type ')) return unreadableRecord(`${name} in ${file}`, 'is assigned, and is no class and no `type` statement');
+      const where = `type ${name} in ${file}`;
+      const literal = new RegExp(`^type ${name}\\s*=\\s*Literal\\[`).exec(rest);
+      if (!literal) return unreadableRecord(where, 'is no Literal of strings');
+      const open = literal[0].length - 1;
+      const values = splitOutside(rest.slice(open + 1, closing(rest, open) - 1), ',').map(stringLiteral);
+      if (values.includes(undefined)) return unreadableRecord(where, 'is a Literal of something other than strings');
+      return { where, held: 'values', values };
+    });
+  });
+}
+
+/** The `.go` files directly in each of `directories`, their tests left out. */
+const goPackageFiles = (directories) => directories.flatMap((directory) => filesIn(directory, '.go').filter((file) => !file.endsWith('_test.go')).map((file) => `${directory}/${file}`));
+
+/**
+ * The values of Go's string type `name`: the string each constant of the type
+ * among `files`, its package's, is. `goCode` empties strings, so each value is
+ * read from its constant's own line of the source.
+ */
+function goValues(name, where, files) {
+  const values = [];
+  for (const file of files) {
+    const source = read(file);
+    const code = goCode(source);
+    // Each `const` alone, and each block of them in order: in a block, one stated with no type and no value repeats the one before it.
+    const groups = [
+      ...[...code.matchAll(/^const (\w+)([^\n]*)/gm)].map((single) => [[single[1], single[2]]]),
+      ...[...code.matchAll(/^const \(\n([\s\S]*?)^\)/gm)].map((block) => [...block[1].matchAll(/^[ \t]*(\w+)([^\n]*)/gm)].map((entry) => [entry[1], entry[2]])),
+    ];
+    for (const group of groups) {
+      let type;
+      for (const [constant, rest] of group) {
+        const stated = /^[ \t]+(\w+)[ \t]*(?:=|$)/.exec(rest)?.[1];
+        const valued = rest.includes('=');
+        if (stated !== undefined || valued) type = stated;
+        if (type === name) {
+          if (stated !== name || !valued) return unreadableRecord(where, `has the constant ${constant} in ${file}, which states no type and no value of its own`);
+          const line = new RegExp(`^[ \\t]*(?:const[ \\t]+)?${constant}[ \\t]+${name}[ \\t]*=[ \\t]*"((?:[^"\\\\\\n]|\\\\.)*)"[ \\t]*(?://[^\\n]*)?$`, 'gm');
+          const spelled = [...source.matchAll(line)];
+          if (spelled.length !== 1) return unreadableRecord(where, `has the constant ${constant} in ${file}, whose value is no one string`);
+          values.push(spelled[0][1]);
+        } else if (new RegExp(`\\b${name}\\b`).test(rest)) {
+          return unreadableRecord(where, `has the constant ${constant} in ${file}, which is made a ${name} without stating it is one: ${squeezed(constant + rest)}`);
+        }
+      }
+    }
+  }
+  return { where, held: 'values', values };
+}
+
+/** Go's declarations of `name` in the packages of `directories`: a struct, its exported fields its fields, or a string type with constants of it. */
+function goRecords(name, directories) {
+  const files = goPackageFiles(directories);
+  return files.flatMap((file) => {
+    const code = goCode(read(file));
+    return [...code.matchAll(new RegExp(`^type ${name}\\b(?:\\[[^\\]\\n]*\\])?[ \\t]*([^\\n]*)`, 'gm'))].map((header) => {
+      const where = `type ${name} in ${file}`;
+      if (header[1] === 'string') return goValues(name, where, files.filter((other) => dirname(other) === dirname(file)));
+      if (!/^struct\s*\{/.test(header[1])) return unreadableRecord(where, `is neither a struct nor a string: ${header[1]}`);
+      const open = header.index + header[0].indexOf('{');
+      const fields = [];
+      for (const line of code.slice(open + 1, goClosing(code, open) - 1).split('\n').map(squeezed).filter((text) => text !== '')) {
+        const field = /^([A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*)\s+\S/.exec(line);
+        if (!field) return unreadableRecord(where, `has a line that is no field, a struct it embeds among them: ${line}`);
+        fields.push(...field[1].split(',').map((named) => named.trim()).filter((named) => /^\p{Lu}/u.test(named)));
+      }
+      return { where, held: 'record', fields };
+    });
+  });
+}
+
+/**
+ * The values of Kotlin's enum class `name` in `file`: the string each entry
+ * is made with. `kotlinCode` empties strings, so they are read from the
+ * source, its comments left out.
+ */
+function kotlinValues(name, where, file) {
+  const source = withoutComments(read(file), '"');
+  const headers = [...source.matchAll(new RegExp(`\\benum\\s+class\\s+${name}\\b`, 'g'))];
+  if (headers.length !== 1) return unreadableRecord(where, `is declared ${headers.length} times in its file`);
+  let at = headers[0].index + headers[0][0].length;
+  while (/\s/.test(source[at])) at++;
+  if (source[at] === '(') at = closing(source, at);
+  const body = braced(source, source.indexOf('{', at));
+  const values = [];
+  for (const entry of splitOutside(body.slice(0, kotlinUntil(body, 0, ';')), ',')) {
+    const made = /^\w+\s*\(\s*"((?:[^"\\$]|\\.)*)"\s*\)$/.exec(squeezed(entry));
+    if (!made) return unreadableRecord(where, `has an entry that is made with no one string: ${squeezed(entry)}`);
+    values.push(made[1]);
+  }
+  return { where, held: 'values', values };
+}
+
+/** Kotlin's declarations of `name` in the packages of `directories`: a class, its public properties its fields, or an enum class. */
+function kotlinRecords(name, directories) {
+  const files = directories.flatMap((directory) => filesIn(directory, '.kt').map((file) => `${directory}/${file}`)).map((file) => ({ file, code: kotlinCode(read(file)) }));
+  const types = kotlinTypes(files);
+  return types.filter((type) => type.name === name).map((type) => {
+    const where = `${type.keyword} ${name} in ${type.file}`;
+    if (type.keyword === 'class' && type.modifiers.includes('enum')) return kotlinValues(name, where, type.file);
+    if (type.keyword !== 'class' || type.modifiers.includes('sealed') || type.modifiers.includes('abstract')) return unreadableRecord(where, 'is no class whose properties are its fields');
+    let unread = false;
+    const members = kotlinMembers(type, types, (what) => {
+      unread = true;
+      fail(`${type.file}: ${what}`);
+    });
+    if (unread) return { where, held: 'unreadable' };
+    return { where, held: 'record', fields: [...members].filter(([, member]) => member.keyword === 'val' || member.keyword === 'var').map(([field]) => field) };
+  });
+}
+
+/**
+ * The values of Swift's enum `declaration`: each case's raw value, the case's
+ * name when it states none. `swiftCode` blanks each string where it stands,
+ * so a value is read from the source where the code has its blank.
+ */
+function swiftValues(declaration, where) {
+  if (!/^\s*:\s*String\b/.test(declaration.header)) return unreadableRecord(where, 'states no String raw value');
+  const { code, source } = declaration;
+  const headers = [...code.matchAll(new RegExp(`\\benum\\s+${declaration.name}\\b`, 'g'))];
+  if (headers.length !== 1) return unreadableRecord(where, `is declared ${headers.length} times in its file`);
+  const open = code.indexOf('{', headers[0].index);
+  const close = swiftBlock(code, open).end - 1;
+  const values = [];
+  let depth = 0;
+  for (let i = open + 1; i < close; i++) {
+    if ('({['.includes(code[i])) depth++;
+    else if (')}]'.includes(code[i])) depth--;
+    if (depth !== 0 || !/^case\b/.test(code.slice(i, i + 5)) || /\w/.test(code[i - 1])) continue;
+    // Each of the case's items, to a `,`, a `;` or the line's end.
+    let at = i + 'case'.length;
+    for (;;) {
+      while (/\s/.test(code[at])) at++;
+      let to = at;
+      while (to < close && !',;\n'.includes(code[to])) to++;
+      const item = /^`?(\w+)`?\s*(=)?\s*$/.exec(code.slice(at, to));
+      if (!item) return unreadableRecord(where, `has a case that is neither a name nor a name with a raw value: ${squeezed(source.slice(at, to))}`);
+      if (item[2]) {
+        const from = at + code.slice(at, to).indexOf('=') + 1;
+        const literal = /^\s*"((?:[^"\\\n]|\\.)*)"/.exec(source.slice(from, to));
+        if (!literal || code.slice(from + literal[0].length, to).trim() !== '') return unreadableRecord(where, `has a case whose raw value is no one string: ${squeezed(source.slice(at, to))}`);
+        values.push(literal[1]);
+      } else {
+        values.push(item[1]);
+      }
+      if (code[to] !== ',') {
+        i = to;
+        break;
+      }
+      at = to + 1;
+    }
+  }
+  return { where, held: 'values', values };
+}
+
+/** Swift's public declarations of `name` in `files`: a struct or a class, its public stored and computed properties its fields, or an enum of String raw values. */
+function swiftRecords(name, files) {
+  const declared = files.flatMap((file) => {
+    const source = read(file);
+    const code = swiftCode(source);
+    return swiftDeclarations(code).map((declaration) => ({ ...declaration, file, source, code }));
+  });
+  const isPublic = (access) => access === 'public' || access === 'open';
+  const extensions = declared.filter((declaration) => declaration.kind === 'extension' && declaration.name === name);
+  return declared
+    .filter((declaration) => ['struct', 'class', 'actor', 'enum', 'protocol', 'typealias'].includes(declaration.kind) && declaration.name === name && isPublic(declaration.access))
+    .map((declaration) => {
+      const where = `${declaration.kind} ${name} in ${declaration.file}`;
+      if (declaration.kind === 'enum') return swiftValues(declaration, where);
+      if (declaration.kind !== 'struct' && declaration.kind !== 'class') return unreadableRecord(where, 'is neither a struct nor a class');
+      const fields = [declaration, ...extensions].flatMap((block) =>
+        swiftDeclarations(block.body)
+          .filter((member) => (member.kind === 'let' || member.kind === 'var') && (isPublic(member.access) || (!member.access && block.kind === 'extension' && isPublic(block.access))))
+          .map((member) => member.name),
+      );
+      return { where, held: 'record', fields };
+    });
+}
+
+/** C#'s declarations of `name` in the namespaces of `directories`: a record, class or struct, its public instance properties and fields its fields, or an enum. */
+function csharpRecords(name, directories) {
+  const files = directories.flatMap((directory) => filesIn(directory, '.cs').map((file) => `${directory}/${file}`)).map((file) => ({ file, code: csharpCode(read(file)) }));
+  const types = csharpTypes(files);
+  return types.filter((type) => type.name === name).map((type) => {
+    const where = `${type.keyword} ${name} in ${type.file}`;
+    if (type.keyword === 'enum') {
+      const variants = [];
+      for (const entry of splitOutside(type.body, ',')) {
+        const variant = /^(?:\[[^\]]*\]\s*)*(\w+)(?:\s*=\s*\d+)?$/.exec(squeezed(entry));
+        if (!variant) return unreadableRecord(where, `has a member that is no plain name: ${squeezed(entry)}`);
+        variants.push({ name: variant[1], fields: [], unit: true });
+      }
+      return { where, held: 'variants', variants };
+    }
+    if (!['record', 'record class', 'record struct', 'class', 'struct'].includes(type.keyword)) return unreadableRecord(where, 'is no record, class or struct');
+    let unread = false;
+    const members = csharpMembers(type, types, (what) => {
+      unread = true;
+      fail(`${type.file}: ${what}`);
+    });
+    if (unread) return { where, held: 'unreadable' };
+    // A member's own spelling is its name; the map's keys are the table's.
+    return { where, held: 'record', fields: [...members.values()].filter((member) => member.keyword === 'property' || member.keyword === 'field').map((member) => member.name) };
+  });
+}
+
+/** Each SDK whose records this reads: its reader, what it holds an enum and a union as, and how it spells a field. */
+const RECORD_READERS = {
+  typescript: { read: typescriptRecords, enumAs: 'values', unionAs: 'union', spell: (member) => member },
+  rust: { read: rustRecords, enumAs: 'variants', unionAs: 'variants', spell: snakeCase },
+  python: { read: pythonRecords, enumAs: 'values', unionAs: 'record', spell: snakeCase },
+  go: { read: goRecords, enumAs: 'values', unionAs: 'record', spell: capitalized },
+  kotlin: { read: kotlinRecords, enumAs: 'values', unionAs: 'record', spell: (member) => member },
+  swift: { read: swiftRecords, enumAs: 'values', unionAs: 'record', spell: (member) => member },
+  csharp: { read: csharpRecords, enumAs: 'variants', unionAs: 'record', spell: capitalized },
+};
+const RECORD_SDKS = Object.keys(RECORD_READERS);
+
+/**
+ * What registry.json states of `type`, by the rule its `$comment` reads it
+ * by: a record's members (`record`); an enum's values (`enum`); or a union's
+ * tag, the enum its values are, and each branch's value and members, its
+ * members those of every branch (`union`). `undefined`, having failed, when
+ * it is none of them.
+ */
+function recordShape(type, schema) {
+  const at = `${RECORDS}: types.${type}`;
+  const isObject = (stated) => stated?.type === 'object' && stated.properties !== null && typeof stated.properties === 'object' && !Array.isArray(stated.properties);
+  const isEnum = (stated) => stated?.type === 'string' && Array.isArray(stated.enum) && stated.enum.length > 0 && stated.enum.every((value) => typeof value === 'string' && value !== '');
+  if (isObject(schema)) return { form: 'record', members: Object.keys(schema.properties) };
+  if (isEnum(schema)) {
+    if (new Set(schema.enum).size !== schema.enum.length) {
+      fail(`${at} states a value twice: ${schema.enum.join(', ')}`);
+      return undefined;
+    }
+    return { form: 'enum', values: schema.enum, members: [] };
+  }
+  const tag = schema.discriminator?.propertyName;
+  if (!Array.isArray(schema.oneOf) || schema.oneOf.length === 0 || typeof tag !== 'string' || tag === '') {
+    fail(`${at} is none of a record (\`type: object\` with \`properties\`), an enum (\`type: string\` with \`enum\`) and a union (\`oneOf\` with a \`discriminator\`)`);
+    return undefined;
+  }
+  const branches = [];
+  const enums = new Set();
+  for (const [index, branch] of schema.oneOf.entries()) {
+    const told = isObject(branch) ? branch.properties[tag] : undefined;
+    const ref = Array.isArray(told?.allOf) && told.allOf.length === 1 && typeof told.allOf[0]?.$ref === 'string' ? /^#\/types\/(\w+)$/.exec(told.allOf[0].$ref) : null;
+    if (ref === null || !Array.isArray(told.enum) || told.enum.length !== 1) {
+      fail(`${at}: branch ${index} is no object whose ${tag} is one value of an enum of the table, \`{ "allOf": [{ "$ref": "#/types/<Enum>" }], "enum": ["<value>"] }\``);
+      return undefined;
+    }
+    enums.add(ref[1]);
+    branches.push({ value: told.enum[0], members: Object.keys(branch.properties) });
+  }
+  if (enums.size !== 1) {
+    fail(`${at}: its branches' ${tag} are values of ${[...enums].join(' and ')}, and one enum tells them apart`);
+    return undefined;
+  }
+  const [enumName] = enums;
+  if (!isEnum(recordTypes[enumName])) {
+    fail(`${at}: its ${tag} is a value of ${enumName}, which is no enum of the table`);
+    return undefined;
+  }
+  const values = recordTypes[enumName].enum;
+  const told = branches.map((branch) => branch.value);
+  if (new Set(told).size !== told.length || told.length !== values.length || !values.every((value) => told.includes(value))) {
+    fail(`${at}: its branches' ${tag} are ${told.join(', ')}, and ${enumName}'s values are ${values.join(', ')}: it has a branch for each value, once`);
+    return undefined;
+  }
+  return { form: 'union', tag, enumName, branches, members: [...new Set(branches.flatMap((branch) => branch.members))] };
+}
+
+/**
+ * Hold `had`, the fields `its` declares, to `members`, each spelled as `sdk`
+ * spells a field or as the member's row gives it (`fieldsNamed`): a member it
+ * lacks, and a field that is no member, both fail. Each `fieldsNamed` it
+ * reads is put in `consulted`.
+ */
+function heldFields(sdk, its, type, members, had, member, row, consulted) {
+  const declared = new Set(had);
+  const expected = new Set();
+  for (const stated of members) {
+    const ruled = RECORD_READERS[sdk].spell(stated);
+    const named = member.fieldsNamed?.[sdk]?.[stated];
+    if (named !== undefined) consulted.add(stated);
+    const spelled = named === undefined ? ruled : named;
+    expected.add(spelled);
+    if (declared.has(spelled)) continue;
+    if (named !== undefined && declared.has(ruled)) {
+      expected.add(ruled);
+      fail(`${its} has ${ruled}, which is ${LANGUAGES[sdk]}'s spelling of ${type}'s ${stated} by the rule, and ${row} gives it as ${named} (\`fieldsNamed\`): the entry is stale, so take it out`);
+      continue;
+    }
+    fail(`${its} has no ${spelled}, which is ${type}'s ${stated} in ${RECORDS}: add it, or give ${LANGUAGES[sdk]}'s own spelling of it in the \`fieldsNamed\` of ${row}`);
+  }
+  for (const field of declared) {
+    if (!expected.has(field)) fail(`${its} has ${field}, which is no member of ${type} in ${RECORDS}: take it out, or add the member there before any SDK has it`);
+  }
+}
+
+/** Hold `had`, the values or the variants `its` states, to `values`, each as `spell` spells it. */
+function heldValues(its, type, values, had, spell, noun) {
+  const declared = new Set(had);
+  if (declared.size !== had.length) fail(`${its} states a ${noun} more than once: ${had.join(', ')}`);
+  const spelled = new Set(values.map(spell));
+  for (const value of values) {
+    if (!declared.has(spell(value))) fail(`${its} has no ${noun} ${spell(value)}, for ${type}'s ${value} in ${RECORDS}: add it`);
+  }
+  for (const value of declared) {
+    if (!spelled.has(value)) fail(`${its} has the ${noun} ${value}, which is no value of ${type} in ${RECORDS}: take it out, or add the value there before any SDK has it`);
+  }
+}
+
+/** Hold TypeScript's union `declared` to the branches of `shape`: each branch told apart by its tag's string literal, with the branch's members, its tag among them. */
+function heldBranches(its, declared, type, shape, fields) {
+  const { tag } = shape;
+  const shown = (branch) => `{ ${branch.map((member) => member.name).join('; ')} }`;
+  if (declared.branches.every((branch) => !branch.some((member) => member.name === tag))) {
+    fail(`${its} has ${tag} in none of its branches, and ${type} in ${RECORDS} is told apart by ${tag}: ${declared.branches.map(shown).join(' | ')}`);
+    return;
+  }
+  const seen = new Set();
+  for (const branch of declared.branches) {
+    const told = branch.find((member) => member.name === tag);
+    if (told === undefined) {
+      fail(`${its} has a branch with no ${tag}, which tells ${type}'s branches apart in ${RECORDS}: ${shown(branch)}`);
+      continue;
+    }
+    if (told.literal === undefined) {
+      fail(`${its} has a branch whose ${tag} is no string literal: ${shown(branch)}`);
+      continue;
+    }
+    const stated = shape.branches.find((candidate) => candidate.value === told.literal);
+    if (stated === undefined) {
+      fail(`${its} has a branch whose ${tag} is '${told.literal}', which is no value of ${shape.enumName} in ${RECORDS}`);
+      continue;
+    }
+    if (seen.has(told.literal)) {
+      fail(`${its} has two branches whose ${tag} is '${told.literal}'`);
+      continue;
+    }
+    seen.add(told.literal);
+    fields(`${its}, its '${told.literal}' branch`, stated.members, branch.map((member) => member.name));
+  }
+  for (const stated of shape.branches) {
+    if (!seen.has(stated.value)) fail(`${its} has no branch whose ${tag} is '${stated.value}', which ${type} has in ${RECORDS}`);
+  }
+}
+
+/** Hold `declared`, what `its` names, to what registry.json states of `type` (`shape`), as `member`, of `row`, spells it. */
+function heldRecord(sdk, its, declared, type, shape, member, row) {
+  const reader = RECORD_READERS[sdk];
+  const consulted = new Set();
+  const fields = (of, members, had) => heldFields(sdk, of, type, members, had, member, row, consulted);
+  const as = { record: 'record', enum: reader.enumAs, union: reader.unionAs }[shape.form];
+  if (declared.held !== as) {
+    fail(`${its} is ${HELD[declared.held]}, and ${type} in ${RECORDS} is ${FORMS[shape.form]}, which ${LANGUAGES[sdk]} holds as ${HELD[as]}`);
+    return;
+  }
+  if (shape.form === 'enum' && as === 'values') {
+    heldValues(its, type, shape.values, declared.values, (value) => value, 'value');
+  } else if (shape.form === 'enum') {
+    for (const variant of declared.variants) {
+      if (!variant.unit) fail(`${its} has the variant ${variant.name}, which carries fields, and ${type} in ${RECORDS} is an enum, whose variants carry none`);
+    }
+    heldValues(its, type, shape.values, declared.variants.map((variant) => variant.name), pascalCase, 'variant');
+  } else if (as === 'record') {
+    // A record holds a record's members, and a union's: its tag, with every branch's other members.
+    fields(its, shape.members, declared.fields);
+  } else if (as === 'variants') {
+    heldValues(its, type, shape.branches.map((branch) => branch.value), declared.variants.map((variant) => variant.name), pascalCase, 'variant');
+    for (const branch of shape.branches) {
+      const variant = declared.variants.find((candidate) => candidate.name === pascalCase(branch.value));
+      if (variant) fields(`${its}, its variant ${variant.name}`, branch.members.filter((stated) => stated !== shape.tag), variant.fields);
+    }
+  } else {
+    heldBranches(its, declared, type, shape, fields);
+  }
+  for (const stated of Object.keys(member.fieldsNamed?.[sdk] ?? {})) {
+    if (!consulted.has(stated)) fail(`${row} gives ${sdk}'s spelling of ${stated} (\`fieldsNamed\`), and ${its} holds ${stated} as no field: the entry is stale, so take it out`);
+  }
+}
+
+/** type → what registry.json states of it */
+const recordShapes = new Map();
+for (const [type, schema] of Object.entries(recordTypes)) {
+  const shape = recordShape(type, schema);
+  if (shape !== undefined) recordShapes.set(type, shape);
+}
+
+for (const module of moduleRows ?? []) {
+  for (const member of module.members ?? []) {
+    if (member.fieldsNamed === undefined) continue;
+    const row = `the \`${module.module}\` row of \`modules\` in ${TABLE}, member ${member.member}`;
+    if (!Object.hasOwn(recordTypes, member.member)) {
+      fail(`${row} states \`fieldsNamed\`, and ${RECORDS} states no type ${member.member}: only a field of a type of that table is spelled there`);
+      continue;
+    }
+    const shape = recordShapes.get(member.member);
+    if (shape === undefined) continue;
+    if (member.fieldsNamed === null || typeof member.fieldsNamed !== 'object' || Array.isArray(member.fieldsNamed)) {
+      fail(`${row}: \`fieldsNamed\` is not, for each SDK, its spelling of each field it names`);
+      continue;
+    }
+    for (const [sdk, names] of Object.entries(member.fieldsNamed)) {
+      if (!RECORD_SDKS.includes(sdk)) {
+        fail(`${row}: \`fieldsNamed\` names "${sdk}", which is no SDK whose records this lint reads`);
+        continue;
+      }
+      if (member.absent?.[sdk] !== undefined || yetToReach(member, sdk)) {
+        fail(`${row}: \`fieldsNamed\` names ${sdk}, which the member says has no ${member.member}: the entry is stale, so take it out`);
+        continue;
+      }
+      if (names === null || typeof names !== 'object' || Array.isArray(names) || Object.keys(names).length === 0) {
+        fail(`${row}: \`fieldsNamed\` spells no field of ${sdk}'s`);
+        continue;
+      }
+      for (const [field, spelled] of Object.entries(names)) {
+        if (!shape.members.includes(field)) fail(`${row}: \`fieldsNamed\` spells ${sdk}'s ${field}, which is no member of ${member.member} in ${RECORDS}`);
+        if (typeof spelled !== 'string' || spelled === '') fail(`${row}: \`fieldsNamed\` says nothing for ${sdk}'s ${field}`);
+        else if (spelled === RECORD_READERS[sdk].spell(field)) fail(`${row}: \`fieldsNamed\` spells ${sdk}'s ${field} ${spelled}, as the rule spells it already: take it out`);
+      }
+    }
+  }
+}
+
+for (const [type, shape] of recordShapes) {
+  const listed = (moduleRows ?? []).flatMap((module) => (module.members ?? []).filter((member) => member.member === type).map((member) => ({ module, member })));
+  if (listed.length !== 1) {
+    fail(
+      listed.length === 0
+        ? `${RECORDS} states ${type}, and no row of \`modules\` in ${TABLE} lists it: list it as a \`type\` member of the module whose files declare it`
+        : `${RECORDS} states ${type}, and ${listed.length} rows of \`modules\` in ${TABLE} list it (${listed.map(({ module }) => module.module).join(', ')}): list it in one`,
+    );
+    continue;
+  }
+  const [{ module, member }] = listed;
+  const row = `the \`${module.module}\` row of \`modules\` in ${TABLE}, member ${type}`;
+  if (member.kind !== 'type') {
+    fail(`${row} is a ${member.kind}, and ${RECORDS} states ${type} as a type: make the member one`);
+    continue;
+  }
+  for (const sdk of RECORD_SDKS) {
+    if (member.absent?.[sdk] !== undefined || yetToReach(member, sdk) || yetToReach(module, sdk)) continue;
+    const where = module.where?.[sdk];
+    // The modules section fails on a `where` that is not said, or does not exist.
+    if (!Array.isArray(where) || where.length === 0 || missingPaths(sdk, where).length > 0) continue;
+    const spelled = member.named?.[sdk] === undefined ? type : member.named[sdk];
+    const found = RECORD_READERS[sdk].read(spelled, where);
+    if (found.length === 0) {
+      fail(`${LANGUAGES[sdk]} declares no ${spelled} in ${where.join(', ')}, which ${row} lists: declare it there, or say in the member's \`absent\` why ${sdk} has none`);
+      continue;
+    }
+    if (found.length > 1) {
+      fail(`${LANGUAGES[sdk]} declares ${spelled} ${found.length} times (${found.map((declared) => declared.where).join('; ')}), and ${row} is held to one`);
+      continue;
+    }
+    const [declared] = found;
+    if (declared.held !== 'unreadable') heldRecord(sdk, `${LANGUAGES[sdk]}'s ${declared.where}`, declared, type, shape, member, row);
   }
 }
 
@@ -3921,5 +4557,5 @@ const stillToReach = (value) =>
       ? Object.entries(value).reduce((total, [key, item]) => total + (key === 'notYetReached' ? Object.keys(item).length : stillToReach(item)), 0)
       : 0;
 console.log(
-  `✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, ${heldBy(NAMESPACE_SDKS)}; ${membersCount} members of what a worker is handed, ${heldBy(WORKER_SDKS)}; ${unitMembers} members of ${units.size} state units, ${heldBy(UNIT_SDKS)}; ${wireMembers.size} members of the bus over the wire, ${heldBy(WIRE_SDKS)}; ${storageMembers.size} members of the storage, ${heldBy(STORAGE_SDKS)}; ${[...modules.values()].reduce((total, module) => total + (module.members?.length ?? 0), 0)} members of ${modules.size} modules, ${heldBy(MODULE_SDKS)}; and ${clockMakers} makers of ${clockSources.size} sources a caller controls, ${heldBy(CLOCK_SDKS)}; ${stillToReach(table)} rows name an SDK that is still to reach them`,
+  `✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, ${heldBy(NAMESPACE_SDKS)}; ${membersCount} members of what a worker is handed, ${heldBy(WORKER_SDKS)}; ${unitMembers} members of ${units.size} state units, ${heldBy(UNIT_SDKS)}; ${wireMembers.size} members of the bus over the wire, ${heldBy(WIRE_SDKS)}; ${storageMembers.size} members of the storage, ${heldBy(STORAGE_SDKS)}; ${[...modules.values()].reduce((total, module) => total + (module.members?.length ?? 0), 0)} members of ${modules.size} modules, ${heldBy(MODULE_SDKS)}; ${Object.keys(recordTypes).length} records, enums and unions a registry hands its caller, ${heldBy(RECORD_SDKS)}; and ${clockMakers} makers of ${clockSources.size} sources a caller controls, ${heldBy(CLOCK_SDKS)}; ${stillToReach(table)} rows name an SDK that is still to reach them`,
 );

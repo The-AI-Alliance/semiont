@@ -15,7 +15,7 @@ import Semiont.Internal.Codec
 import Semiont.Types.Presence (Presence)
 import Semiont.Internal.Generated.Models.KbDescription
 import Semiont.Internal.Generated.Models.UserId
-data ConnectionIdentity = ConnectionIdentity { connectionIdentityDescription :: KbDescription, connectionIdentityDid :: UserId, connectionIdentityAdditionalProperties :: KM.KeyMap (Value) } deriving (Eq, Show)
+data ConnectionIdentity = ConnectionIdentity { connectionIdentityDescription :: KbDescription, connectionIdentityDid :: UserId } deriving (Eq, Show)
 instance FromJSON ConnectionIdentity where
-  parseJSON = checked "ConnectionIdentity" $ withObject "ConnectionIdentity" (\fields -> ConnectionIdentity <$> fields .: "description" <*> fields .: "did" <*> traverse parseJSON (withoutFields ["description", "did"] fields))
-instance ToJSON ConnectionIdentity where toJSON value = Object (KM.fromList (concat [[("description", toJSON (connectionIdentityDescription value))], [("did", toJSON (connectionIdentityDid value))]]) <> fmap toJSON (withoutFields ["description", "did"] (connectionIdentityAdditionalProperties value)))
+  parseJSON = checked "ConnectionIdentity" $ withObject "ConnectionIdentity" (\fields -> ConnectionIdentity <$> fields .: "description" <*> fields .: "did")
+instance ToJSON ConnectionIdentity where toJSON value = Object (KM.fromList (concat [[("description", toJSON (connectionIdentityDescription value))], [("did", toJSON (connectionIdentityDid value))]]))

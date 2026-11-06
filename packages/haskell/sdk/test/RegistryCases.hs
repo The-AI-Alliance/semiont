@@ -63,8 +63,8 @@ registryCases root fixtures = do
       one=tab resource "old" 1 1
       two=tab other "unknown" 2 2
       three=tab third "gone" 3 3
-      ready=TabCheckBranch2 (TabCheckBranch2Value TabCheckBranch2ValueKindReady Nothing "new" mempty)
-      gone=TabCheckBranch1 (TabCheckBranch1Value TabCheckBranch1ValueKindGone mempty)
+      ready=TabCheckBranch2 (TabCheckBranch2Value Nothing "new" TabVerdictReady)
+      gone=TabCheckBranch1 (TabCheckBranch1Value TabVerdictGone)
       checks=Map.fromList [(resource,ready),(third,gone)]
   require "resource checks lost unknown/unseen tabs, or failed to refresh an affirmed one"
     (Resources.applyTabChecks [one,two,three] checks==[one {openResourceName="new"},two])

@@ -1665,6 +1665,9 @@
           "kind": "type",
           "absent": {
             "typescript": "TypeScript's `completeSignIn` lands a sign-in itself, and names no type for what the registry is handed."
+          },
+          "fieldsNamed": {
+            "go": { "kbId": "KbID" }
           }
         },
         {
@@ -1722,7 +1725,7 @@
           "member": "TabVerdict",
           "kind": "type",
           "absent": {
-            "typescript": "TypeScript's check is a union told apart by its `kind`.",
+            "typescript": "TypeScript's check is a union told apart by its `verdict`.",
             "rust": "Rust's check is an enum, whose variants are its verdicts."
           }
         },

@@ -13,7 +13,7 @@ import Data.Scientific (Scientific)
 import Data.Text (Text)
 import Semiont.Internal.Codec
 import Semiont.Types.Presence (Presence)
-data Expected = Expected { expectedDid :: Text, expectedName :: Maybe (Text), expectedAdditionalProperties :: KM.KeyMap (Value) } deriving (Eq, Show)
+data Expected = Expected { expectedDid :: Text, expectedName :: Maybe (Text) } deriving (Eq, Show)
 instance FromJSON Expected where
-  parseJSON = checked "Expected" $ withObject "Expected" (\fields -> Expected <$> fields .: "did" <*> optional fields "name" <*> traverse parseJSON (withoutFields ["did", "name"] fields))
-instance ToJSON Expected where toJSON value = Object (KM.fromList (concat [[("did", toJSON (expectedDid value))], optionalPair "name" (expectedName value)]) <> fmap toJSON (withoutFields ["did", "name"] (expectedAdditionalProperties value)))
+  parseJSON = checked "Expected" $ withObject "Expected" (\fields -> Expected <$> fields .: "did" <*> optional fields "name")
+instance ToJSON Expected where toJSON value = Object (KM.fromList (concat [[("did", toJSON (expectedDid value))], optionalPair "name" (expectedName value)]))

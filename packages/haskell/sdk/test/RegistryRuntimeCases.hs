@@ -150,7 +150,7 @@ cases fixtures=do
     Time.settle
     let description=KbDescription "another.example.test" Nothing "Another" mempty
         newGrant=grant {storedSessionAccess="another-issued-access",storedSessionRefresh="another-refresh"}
-        signed=SignedIn description (knowledgeBaseEndpoint a) Nothing Nothing Nothing newGrant mempty
+        signed=SignedIn description (knowledgeBaseEndpoint a) Nothing Nothing Nothing newGrant
     outcome <- Browser.signedIn browser signed
     Time.settle
     require "sign-in adopted an entry which the answering DID did not prove" (knowledgeBaseId (signInOutcomeKb outcome)/=aId)

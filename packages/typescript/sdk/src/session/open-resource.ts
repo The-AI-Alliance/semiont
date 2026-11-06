@@ -49,9 +49,9 @@ export interface OpenResource {
  * worse than the phantoms this exists to remove.
  */
 export type TabCheck =
-  | { kind: 'gone' }
-  | { kind: 'ready'; name: string; mediaType?: string }
-  | { kind: 'unknown' };
+  | { verdict: 'gone' }
+  | { verdict: 'ready'; name: string; mediaType?: string }
+  | { verdict: 'unknown' };
 
 /**
  * Apply per-tab verdicts to a list: drop the affirmed-absent, refresh what
@@ -69,8 +69,8 @@ export function applyTabChecks(
   const kept: OpenResource[] = [];
   for (const tab of list) {
     const check = checks.get(tab.id);
-    if (check?.kind === 'gone') continue;
-    if (check?.kind === 'ready') {
+    if (check?.verdict === 'gone') continue;
+    if (check?.verdict === 'ready') {
       // The pass that proves a tab real also refreshes what it displays,
       // so a renamed resource stops showing its name from whenever the tab
       // was opened. Free — the descriptor is already in hand.

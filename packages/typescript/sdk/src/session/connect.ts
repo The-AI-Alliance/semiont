@@ -6,7 +6,7 @@
 
 import { BehaviorSubject } from 'rxjs';
 import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
-import { accessToken, baseUrl, BusRequestError, kbDid, replyChannelsFor, type AccessToken, type IdentityUnverifiableReason, type KbDescription } from '@semiont/core';
+import { accessToken, baseUrl, BusRequestError, kbDid, isUserId, replyChannelsFor, type AccessToken, type IdentityUnverifiableReason, type KbDescription, type UserId } from '@semiont/core';
 import { SemiontClient } from '../client';
 import type { HttpEndpoint } from '@semiont/core';
 import { kbGatewayUrl } from './storage';
@@ -27,7 +27,7 @@ export class IdentityUnverifiableError extends Error {
 }
 
 export interface ConnectionIdentity {
-  did: string;
+  did: UserId;
   description: KbDescription;
 }
 
@@ -54,7 +54,10 @@ export async function describeConnection(target: HttpEndpoint, access: string, f
       const reason: IdentityUnverifiableReason = e instanceof BusRequestError && e.code === 'bus.rejected' ? 'not-reported' : 'unreachable';
       throw new IdentityUnverifiableError(reason, e instanceof Error ? e.message : String(e));
     }
-    return { did: kbDid(description.domain), description };
+    const did = kbDid(description.domain);
+    // A domain no did can hold says nothing of who this is.
+    if (!isUserId(did)) throw new IdentityUnverifiableError('not-reported', `${JSON.stringify(did)} is not a did`);
+    return { did, description };
   } finally {
     client.dispose();
     token$.complete();

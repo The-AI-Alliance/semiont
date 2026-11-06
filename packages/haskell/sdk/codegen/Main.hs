@@ -2,7 +2,7 @@
 
 module Main (main) where
 
-import Control.Monad (forM, forM_, unless, when)
+import Control.Monad (foldM, forM, forM_, unless, when)
 import Control.Applicative ((<|>))
 import Control.Monad.State.Strict (StateT, execStateT, gets, modify', lift)
 import Data.Aeson (Object, Value(..), eitherDecodeStrict')
@@ -65,6 +65,25 @@ textAt key fields = case KM.lookup key fields of Just (String value) -> Just val
 
 referenceName :: Text -> Text
 referenceName = T.pack . takeBaseName . T.unpack
+
+-- A reference into a table (`#/types/Expected`, `../session/stored.json#/storedSession`) names the schema it
+-- points at by that schema's title, as a reference to a component names its file.
+pointedReferences :: [(Text, Object)] -> Value -> Either String Value
+pointedReferences tables = rewrite
+  where
+    rewrite (Object fields) = Object <$> KM.traverseWithKey pointed fields
+    rewrite (Array values) = Array <$> traverse rewrite values
+    rewrite value = Right value
+    pointed "$ref" (String reference)
+      | (table, pointer) <- T.breakOn "#" reference, not (T.null pointer) = do
+          start <- maybe (Left ("reference into a table not read: " ++ T.unpack reference)) Right (lookup table tables)
+          target <- foldM (into reference) (Object start) (drop 1 (T.splitOn "/" (T.drop 1 pointer)))
+          fields <- fieldsOf target
+          title <- maybe (Left ("reference to a schema with no title: " ++ T.unpack reference)) Right (textAt "title" fields)
+          Right (String (title <> ".json"))
+    pointed _ value = rewrite value
+    into reference (Object fields) key = maybe (Left ("reference to nothing: " ++ T.unpack reference)) Right (KM.lookup (Key.fromText key) fields)
+    into reference _ _ = Left ("reference through a value that is no object: " ++ T.unpack reference)
 
 inline :: Text -> Value -> Generate Text
 inline proposed schema = do
@@ -489,11 +508,15 @@ main = do
   signIn <- readJSON (root </> "protocol/specs/src/sign-in-store/SignIn.json")
   sessionAdapters <- readJSON (output </> "codegen/session-adapters.json") >>= either (ioError . userError) pure . fieldsOf
   annotationAdapters <- readJSON (output </> "codegen/annotation-adapters.json") >>= either (ioError . userError) pure . fieldsOf
-  registryAdapters <- readJSON (output </> "codegen/registry-adapters.json") >>= either (ioError . userError) pure . fieldsOf
-  let adapterNames=concatMap KM.keys [sessionAdapters,annotationAdapters,registryAdapters]
-  unless (length adapterNames==length (nub adapterNames)) (ioError (userError "duplicate SDK-owned adapter name"))
+  registryTable <- readJSON (root </> "protocol/specs/src/client/registry.json") >>= either (ioError . userError) pure . fieldsOf
+  registryTypes <- maybe (ioError (userError "registry records missing")) pure (KM.lookup "types" registryTable)
+    >>= either (ioError . userError) pure . fieldsOf
+  registryRecords <- either (ioError . userError) pure
+    (traverse (pointedReferences [("",registryTable),("../session/stored.json",storedTable)]) registryTypes)
+  let adapterNames=concatMap KM.keys [sessionAdapters,annotationAdapters,registryRecords]
+  unless (length adapterNames==length (nub adapterNames)) (ioError (userError "an SDK-owned adapter and a registry record share a name"))
   let storedSchemas =
-        [(Key.toText name,value) | (name,value) <- KM.toList (sessionAdapters <> annotationAdapters <> registryAdapters)] ++ [ ("SignIn",signIn), ("StoredSession",stored), ("OpenResource",openResource)
+        [(Key.toText name,value) | (name,value) <- KM.toList (sessionAdapters <> annotationAdapters <> registryRecords)] ++ [ ("SignIn",signIn), ("StoredSession",stored), ("OpenResource",openResource)
         , ("IssuerEndpoints",issuer)
         , ("PendingAuthorization",Object (KM.insert "properties" (Object (KM.insert "issuer"
             (Object (KM.singleton "$ref" (String "IssuerEndpoints.json"))) pendingProperties)) pending))

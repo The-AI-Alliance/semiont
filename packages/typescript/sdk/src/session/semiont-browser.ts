@@ -725,7 +725,7 @@ export class SemiontBrowser {
 
     // Logged, not surfaced — and aggregated, because an activation while
     // the archivist is down would otherwise emit one line per tab.
-    const inconclusive = [...checks.values()].filter((c) => c.kind === 'unknown').length;
+    const inconclusive = [...checks.values()].filter((c) => c.verdict === 'unknown').length;
     if (inconclusive > 0) {
       // eslint-disable-next-line no-console
       console.debug(
@@ -830,13 +830,13 @@ export class SemiontBrowser {
       const descriptor = await session.client.browse.resource(id).fresh();
       const name = descriptor.name;
       const mediaType = getPrimaryRepresentation(descriptor)?.mediaType;
-      return { kind: 'ready', name, ...(mediaType ? { mediaType } : {}) };
+      return { verdict: 'ready', name, ...(mediaType ? { mediaType } : {}) };
     } catch (error) {
       if (error instanceof BusRequestError && error.code === 'bus.not-found') {
-        return { kind: 'gone' };
+        return { verdict: 'gone' };
       }
       // Anything else: the tab stays. A transport fault is not a verdict.
-      return { kind: 'unknown' };
+      return { verdict: 'unknown' };
     }
   }
 

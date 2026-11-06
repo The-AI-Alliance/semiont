@@ -9,7 +9,7 @@ category: Network
 author: The AI Alliance
 maintainer: Semiont contributors
 build-type: Simple
-extra-source-files: codegen/registry-adapters.json, codegen/annotation-adapters.json, test/store-owner-policy.py, test/store-owner-policy.ps1, test/store-lock-peer.py, generated/Semiont/Internal/Generated/semiont_store_policy.h, test/fixtures/*.pem, codegen/session-adapters.json, semiont.cabal.in, README.md, run.sh, api.py, public-api.inputs.json, public-api.json, test/refusals.py, test/refusals/*.hs, test/http-peer.py, conformance/README.md, conformance/launch.sh
+extra-source-files: codegen/annotation-adapters.json, test/store-owner-policy.py, test/store-owner-policy.ps1, test/store-lock-peer.py, generated/Semiont/Internal/Generated/semiont_store_policy.h, test/fixtures/*.pem, codegen/session-adapters.json, semiont.cabal.in, README.md, run.sh, api.py, public-api.inputs.json, public-api.json, test/refusals.py, test/refusals/*.hs, test/http-peer.py, conformance/README.md, conformance/launch.sh
 
 common settings
   default-language: GHC2021
@@ -274,8 +274,8 @@ library internal
     Semiont.Internal.Generated.Models.LinkingJobParams
     Semiont.Internal.Generated.Models.LimitRefusal
     Semiont.Internal.Generated.Models.KbSessionStatus
-    Semiont.Internal.Generated.Models.KbReadVerdict
     Semiont.Internal.Generated.Models.KbReadKind
+    Semiont.Internal.Generated.Models.KbReadVerdict
     Semiont.Internal.Generated.Models.KbRead
     Semiont.Internal.Generated.Models.KbIdentity
     Semiont.Internal.Generated.Models.KbDescription

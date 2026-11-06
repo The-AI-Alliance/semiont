@@ -319,15 +319,15 @@ signedIn owner completed=Lifetime.run (lifetime owner) $ do
         Just key -> find ((==key) . knowledgeBaseId) entries
         Nothing -> case atAddress of [one]->Just one; _->Nothing
       expected=case signedInExpectedDid completed of
-        Just did -> Just (Expected did (signedInExpectedName completed) mempty)
-        Nothing -> (\entry -> Expected (knowledgeBaseDid entry) (Just (knowledgeBaseLabel entry)) mempty) <$> belief
+        Just did -> Just (Expected did (signedInExpectedName completed))
+        Nothing -> (\entry -> Expected (knowledgeBaseDid entry) (Just (knowledgeBaseLabel entry))) <$> belief
   landed <- case find ((==actual) . knowledgeBaseDid) atAddress of
     Nothing -> addKb owner (NewKnowledgeBase actual (signedInEndpoint completed) (kbDescriptionName (signedInDescription completed)) (Just reading) mempty) (signedInSession completed)
     Just existing -> do
       updateKb owner (knowledgeBaseId existing) (Just (kbDescriptionName (signedInDescription completed))) (Just reading)
       signIn owner (knowledgeBaseId existing) (signedInSession completed)
       pure existing {knowledgeBaseLabel=kbDescriptionName (signedInDescription completed),knowledgeBaseLastRead=Just reading}
-  pure (SignInOutcome expected landed mempty)
+  pure (SignInOutcome expected landed)
 
 signOut :: SemiontBrowser -> Text -> IO ()
 signOut owner key=Lifetime.run (lifetime owner) $ do
@@ -403,7 +403,7 @@ setLastViewedResource owner resource=Lifetime.run (lifetime owner) $ do
     atomically (writeTVar (viewedByKb owner) values >> project owner)
 
 noVerdict :: KbReadVerdict
-noVerdict=KbReadVerdictBranch3 (KbReadVerdictBranch3Value KbReadVerdictBranch3ValueKindNoU2d_verdict mempty)
+noVerdict=KbReadVerdictBranch3 (KbReadVerdictBranch3Value KbReadKindNoU2d_verdict)
 readKb :: SemiontBrowser -> Session.Session -> Text -> IO KbReadVerdict
 readKb owner session key=do
   entries <- atomically (State.current (registered owner))
@@ -417,10 +417,10 @@ readKb owner session key=do
       case readBack of
         Nothing -> pure noVerdict
         Just (description,did) ->
-          if did/=knowledgeBaseDid entry then pure (KbReadVerdictBranch2 (KbReadVerdictBranch2Value KbReadVerdictBranch2ValueKindConflict did (kbDescriptionName description) mempty)) else do
+          if did/=knowledgeBaseDid entry then pure (KbReadVerdictBranch2 (KbReadVerdictBranch2Value KbReadKindConflict did (kbDescriptionName description))) else do
             reading <- readNow owner description
             updateKb owner key (Just (kbDescriptionName description)) (Just reading)
-            pure (KbReadVerdictBranch1 (KbReadVerdictBranch1Value KbReadVerdictBranch1ValueKindRecorded mempty))
+            pure (KbReadVerdictBranch1 (KbReadVerdictBranch1Value KbReadKindRecorded))
 
 readActiveKb :: SemiontBrowser -> IO KbReadVerdict
 readActiveKb owner=Lifetime.run (lifetime owner) $ do
@@ -449,10 +449,10 @@ validateOpened owner version session=do
       let waiting=fromMaybe [] (document raw >>= KM.lookup (Key.fromText (Session.id session)) >>= readValue)
           checkTab tab = (do
             value <- Cache.fresh (Browse.resource (Client.browse (Session.client session)) (openResourceId tab))
-            pure (openResourceId tab,TabCheckBranch2 (TabCheckBranch2Value TabCheckBranch2ValueKindReady (Resources.getPrimaryMediaType value) (resourceDescriptorName value) mempty)))
+            pure (openResourceId tab,TabCheckBranch2 (TabCheckBranch2Value (Resources.getPrimaryMediaType value) (resourceDescriptorName value) TabVerdictReady)))
             `catchSync` \problem -> pure (openResourceId tab,case fromException problem of
-              Just failure | busRequestErrorCode failure==Code.BusRequestNotFound -> TabCheckBranch1 (TabCheckBranch1Value TabCheckBranch1ValueKindGone mempty)
-              _ -> TabCheckBranch3 (TabCheckBranch3Value TabCheckBranch3ValueKindUnknown mempty))
+              Just failure | busRequestErrorCode failure==Code.BusRequestNotFound -> TabCheckBranch1 (TabCheckBranch1Value TabVerdictGone)
+              _ -> TabCheckBranch3 (TabCheckBranch3Value TabVerdictUnknown))
       lanes <- newQSem (fromInteger Timing.checksAtOnceCount)
       checks <- Map.fromList <$> mapConcurrently (\tab -> bracket_ (waitQSem lanes) (signalQSem lanes) (checkTab tab)) waiting
       latest <- readTVarIO (revision owner)
@@ -480,7 +480,7 @@ completeSignIn owner callback=Lifetime.run (lifetime owner) $ do
   let endpoints=pendingAuthorizationIssuer pending
       grant=StoredSession (issuedTokensAccess tokens) Issuer.browserClientId (issuedTokensRefresh tokens) (issuerEndpointsRevocation endpoints) (issuerEndpointsToken endpoints) mempty
       completed=SignedIn (connectionIdentityDescription identityProof) (KbEndpointBranch1 (pendingAuthorizationTarget pending))
-        (pendingAuthorizationExpectedDid pending) (pendingAuthorizationExpectedName pending) (pendingAuthorizationKbId pending) grant mempty
+        (pendingAuthorizationExpectedDid pending) (pendingAuthorizationExpectedName pending) (pendingAuthorizationKbId pending) grant
   signedIn owner completed
 
 dispose :: SemiontBrowser -> IO ()

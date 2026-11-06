@@ -15,7 +15,7 @@ import Semiont.Internal.Codec
 import Semiont.Types.Presence (Presence)
 import Semiont.Internal.Generated.Models.Expected
 import Semiont.Internal.Generated.Models.KnowledgeBase
-data SignInOutcome = SignInOutcome { signInOutcomeExpected :: Maybe (Expected), signInOutcomeKb :: KnowledgeBase, signInOutcomeAdditionalProperties :: KM.KeyMap (Value) } deriving (Eq, Show)
+data SignInOutcome = SignInOutcome { signInOutcomeExpected :: Maybe (Expected), signInOutcomeKb :: KnowledgeBase } deriving (Eq, Show)
 instance FromJSON SignInOutcome where
-  parseJSON = checked "SignInOutcome" $ withObject "SignInOutcome" (\fields -> SignInOutcome <$> optional fields "expected" <*> fields .: "kb" <*> traverse parseJSON (withoutFields ["expected", "kb"] fields))
-instance ToJSON SignInOutcome where toJSON value = Object (KM.fromList (concat [optionalPair "expected" (signInOutcomeExpected value), [("kb", toJSON (signInOutcomeKb value))]]) <> fmap toJSON (withoutFields ["expected", "kb"] (signInOutcomeAdditionalProperties value)))
+  parseJSON = checked "SignInOutcome" $ withObject "SignInOutcome" (\fields -> SignInOutcome <$> optional fields "expected" <*> fields .: "kb")
+instance ToJSON SignInOutcome where toJSON value = Object (KM.fromList (concat [optionalPair "expected" (signInOutcomeExpected value), [("kb", toJSON (signInOutcomeKb value))]]))
