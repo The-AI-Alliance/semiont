@@ -282,6 +282,27 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     expect(errors[0]).toBeInstanceOf(APIError);
   });
 
+  test('an upload answered with what is no JSON is refused as malformed, as every SDK refuses it, and routed to transport.errors$', async () => {
+    const { content, transport } = makeTransportAndContent();
+    const errors: unknown[] = [];
+    transport.errors$.subscribe((e) => errors.push(e));
+
+    const promise = content.putBinary(
+      { name: 'a', file: Buffer.from('xx'), format: 'text/plain', storageUri: 'file://a' },
+      { onProgress: vi.fn() },
+    );
+    const xhr = FakeXHR.instances[0]!;
+    xhr.status = 200;
+    xhr.statusText = 'OK';
+    xhr.responseText = '<html>a proxy page</html>';
+    xhr.onload?.();
+
+    const refusal = await promise.then(() => undefined, (thrown: unknown) => thrown);
+    expect(refusal).toBeInstanceOf(APIError);
+    expect(refusal).toMatchObject({ code: 'error', status: 200, message: 'POST /resources answered what is not its declared body: it is malformed' });
+    expect(errors).toEqual([refusal]);
+  });
+
   test('a refused credential is renewed once and the upload sent again: nothing is reported, and progress never goes back', async () => {
     const refresher = vi.fn(async () => 'renewed-token');
     const { content, transport } = makeTransportAndContent(refresher);

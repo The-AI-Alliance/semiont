@@ -21,6 +21,10 @@
 //     come back, not left to guess;
 //   - a stream whose event names, frame or id formats no schema names;
 //   - a declared header with no schema;
+//   - a wait that does not end inside the wait around it: the Archivist's hold
+//     on a read of anchored text inside its callers' `readSeconds`, and the
+//     gateway's call of the Archivist (`connectSeconds` and `readSeconds`)
+//     inside a client's `httpRequestTimeoutMs` (below);
 //   - a limit that is not a positive integer, or a principal's limit that is
 //     not a baseline with coefficients by role (below).
 //
@@ -151,6 +155,44 @@ function checkStream(where, schema, file) {
       for (const format of formats) {
         if (typeof format.pattern !== 'string') fail(label, 'an `id` format has no `pattern`');
       }
+    }
+  }
+}
+
+// ── Waits that nest ───────────────────────────────────────────────────────
+// A wait ends inside the wait around it, so whoever waits inside is answered,
+// and answers, before whoever waits outside stops waiting: the longest the
+// Archivist holds a read of anchored text (`settleWaitSeconds`) is shorter
+// than the `readSeconds` its caller gives an answer to begin; and a call the
+// gateway makes of the Archivist for a client, `connectSeconds` and then
+// `readSeconds`, is shorter than that client's deadline on its request
+// (`httpRequestTimeoutMs`, protocol/specs/src/client/timing.json). Each
+// number is read from where it is stated.
+{
+  const ARCHIVIST = resolve(REPO, 'protocol/specs/src/archivist/openapi.json');
+  const TIMING = resolve(REPO, 'protocol/specs/src/client/timing.json');
+  const timingFile = TIMING.slice(REPO.length + 1);
+  current = ARCHIVIST.slice(REPO.length + 1);
+  const archivist = load(ARCHIVIST);
+  const { node: anchoredText } = deref(archivist.paths?.['/resources/{id}/anchored-text'], ARCHIVIST);
+  const waits = [
+    ['GET /resources/{id}/anchored-text x-semiont-limits.settleWaitSeconds', anchoredText?.get?.['x-semiont-limits']?.settleWaitSeconds],
+    ['x-semiont-limits.connectSeconds', archivist['x-semiont-limits']?.connectSeconds],
+    ['x-semiont-limits.readSeconds', archivist['x-semiont-limits']?.readSeconds],
+    [`${timingFile} httpRequestTimeoutMs`, load(TIMING).timing?.find((t) => t.name === 'httpRequestTimeoutMs')?.value],
+  ];
+  const unstated = waits.filter(([, value]) => !positive(value));
+  for (const [name, value] of unstated) fail('waits that nest', `${name} is ${JSON.stringify(value)}, not a positive integer to order`);
+  if (unstated.length === 0) {
+    const [hold, connect, read, requestMs] = waits.map(([, value]) => value);
+    if (hold >= read) {
+      fail('waits that nest', `settleWaitSeconds (${hold}) is not shorter than readSeconds (${read}): a caller stops waiting before the Archivist answers a read it holds`);
+    }
+    if ((connect + read) * 1000 >= requestMs) {
+      fail(
+        'waits that nest',
+        `connectSeconds (${connect}) and readSeconds (${read}) together are not shorter than ${timingFile} httpRequestTimeoutMs (${requestMs}): a client stops waiting before the gateway answers a read the Archivist does not`,
+      );
     }
   }
 }

@@ -164,12 +164,12 @@ func hear(frame Frame) (heard, bool) {
 	var ok bool
 	switch frame.Channel {
 	case bus.JobReportProgress.Channel():
-		if said.progress, ok = required.ReadAs[api.JobReportProgressCommand](frame.Payload); !ok {
+		if said.progress, ok = required.ReadFramePayloadAs[api.JobReportProgressCommand](frame.Payload); !ok {
 			return heard{}, false
 		}
 		said.jobID, said.jobType = said.progress.JobId, said.progress.JobType
 	case bus.JobFail.Channel():
-		if said.fail, ok = required.ReadAs[api.JobFailCommand](frame.Payload); !ok {
+		if said.fail, ok = required.ReadFramePayloadAs[api.JobFailCommand](frame.Payload); !ok {
 			return heard{}, false
 		}
 		said.jobID, said.jobType = said.fail.JobId, said.fail.JobType
@@ -184,9 +184,9 @@ func hear(frame Frame) (heard, bool) {
 		}
 		switch named.JobType {
 		case api.JobTypeMark:
-			_, ok = required.ReadAs[api.MarkJobCompleteCommand](frame.Payload)
+			_, ok = required.ReadFramePayloadAs[api.MarkJobCompleteCommand](frame.Payload)
 		case api.JobTypeYield:
-			_, ok = required.ReadAs[api.YieldJobCompleteCommand](frame.Payload)
+			_, ok = required.ReadFramePayloadAs[api.YieldJobCompleteCommand](frame.Payload)
 		}
 		if !ok || (named.Result != nil && string(named.Result) != "null" && !isVerbsResult(named.JobType, named.Result)) {
 			return heard{}, false

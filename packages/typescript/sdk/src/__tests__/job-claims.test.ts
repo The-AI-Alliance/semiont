@@ -390,18 +390,18 @@ describe('job.claim — a worker claims when it becomes idle, and at no other ti
   });
 
   // WORKER-CONTRACT C9. A worker must not run what it cannot read, and must
-  // not stop claiming because of it. A reply that lacks a member its schema
-  // requires is refused by the request it answers, naming the member; one
-  // whose members are all there but name a job type no verb has is refused
-  // by the worker.
+  // not stop claiming because of it. A reply with a fault as its schema's
+  // (a member it lacks, or a job type no verb has) is refused by the request
+  // it answers, naming the member.
   const whole = runningJob('j1');
   const lacking = (way: string) => `a payload on job:claimed is not that channel's: it has no \`${way}\``;
+  const malformed = (way: string) => `a payload on job:claimed is not that channel's: its \`${way}\` is malformed`;
   it.each([
     ['nothing', undefined, lacking('response')],
     ['no metadata', { ...whole, metadata: undefined }, lacking('response.metadata')],
     ['no job id', { ...whole, metadata: { ...whole.metadata, id: undefined } }, lacking('response.metadata.id')],
     ['no job type', { ...whole, metadata: { ...whole.metadata, type: undefined } }, lacking('response.metadata.type')],
-    ['a job type that is no verb', { ...whole, metadata: { ...whole.metadata, type: 'weave' } }, "a payload on job:claimed is not that channel's: it names no job type"],
+    ['a job type that is no verb', { ...whole, metadata: { ...whole.metadata, type: 'weave' } }, malformed('response.metadata.type')],
     ['no parameters', { ...whole, params: undefined }, lacking('response.params')],
   ])('a reply that names no job (%s) is refused here, never held, and the next announcement claims', async (_what, response, message) => {
     const r = reading(h);

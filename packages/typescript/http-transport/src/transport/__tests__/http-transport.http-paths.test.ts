@@ -629,7 +629,7 @@ describe('HttpTransport — HTTP wire shape', () => {
       actorHarness.pushEvent('job:fail', failed);
 
       expect(wire, "the transport's own frames are the wire's").toEqual([lacking, failed]);
-      expect(bridged).toStrictEqual([new FrameRefusal('job:fail', 'jobId', lacking), failed]);
+      expect(bridged).toStrictEqual([new FrameRefusal('job:fail', 'jobId', 'lacks', lacking), failed]);
       expect(warned).not.toHaveBeenCalled();
 
       warned.mockRestore();
@@ -637,10 +637,10 @@ describe('HttpTransport — HTTP wire shape', () => {
     });
   });
 
-  describe('An answer that lacks a member its schema requires', () => {
-    // Refused as Rust's, Python's and Go's transports refuse it as they read
-    // it: an `error` that states the answer's status, says the answer is not
-    // its declared body and names the member, and is on `errors$` as well.
+  describe('An answer with a fault as its schema\'s', () => {
+    // Refused as every SDK's transport refuses it before it reads it: an
+    // `error` that states the answer's status, says the answer is not its
+    // declared body and names its first fault, and is on `errors$` as well.
     async function refusedAs(answering: () => Promise<unknown>, said: string): Promise<void> {
       const reported: unknown[] = [];
       const listening = transport.errors$.subscribe((failure) => reported.push(failure));
@@ -673,6 +673,33 @@ describe('HttpTransport — HTTP wire shape', () => {
         () => content.getResourceGraph(testResourceId),
         `GET /resources/${testResourceId}/jsonld answered what is not its declared body: it has no \`resource.representations\``,
       );
+    });
+
+    test('is refused: an answer whose member is of a kind its schema does not allow', async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        status: 200,
+        statusText: 'OK',
+        json: vi.fn().mockResolvedValue({ did: 'did:web:example.org:users:alice', domain: 'example.org', email: null, name: null, image: 7 }),
+      } as never);
+      await refusedAs(() => transport.getCurrentUser(), 'GET /api/users/me answered what is not its declared body: its `image` is malformed');
+    });
+
+    test('is refused: an answer that is no object', async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        status: 200,
+        statusText: 'OK',
+        json: vi.fn().mockResolvedValue('alice'),
+      } as never);
+      await refusedAs(() => transport.getCurrentUser(), 'GET /api/users/me answered what is not its declared body: it is malformed');
+    });
+
+    test('is refused: an answer that is no JSON', async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        status: 200,
+        statusText: 'OK',
+        json: vi.fn().mockRejectedValue(new SyntaxError('Unexpected token < in JSON at position 0')),
+      } as never);
+      await refusedAs(() => transport.getCurrentUser(), 'GET /api/users/me answered what is not its declared body: it is malformed');
     });
   });
 

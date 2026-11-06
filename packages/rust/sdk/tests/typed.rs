@@ -75,6 +75,7 @@ async fn a_typed_stream_decodes_each_payload_and_leaves_the_gateways_stamps_out_
         "_userId": "did:web:example.org:users:alice"
     }));
     deliver(json!({ "annotationId": 7, "resourceId": "res-1" }));
+    deliver(json!({ "annotationId": "ann-1" }));
 
     let delivered = focus.next().await.expect("a frame").expect("it decodes");
     assert_eq!(delivered.payload.annotation_id.as_deref(), Some("ann-1"));
@@ -83,11 +84,19 @@ async fn a_typed_stream_decodes_each_payload_and_leaves_the_gateways_stamps_out_
         Some("did:web:example.org:users:alice")
     );
     assert_eq!(delivered.scope.as_deref(), Some("res-1"));
-    // A payload that is not the channel's is said to be so, not skipped.
-    assert!(matches!(
-        focus.next().await,
-        Some(Err(StreamError::Undecodable(_)))
-    ));
+    // A payload that is not the channel's is said to be so, by its first
+    // fault, not skipped.
+    for said in [
+        "a payload on beckon:focus is not that channel's: its `annotationId` is malformed",
+        "a payload on beckon:focus is not that channel's: it has no `resourceId`",
+    ] {
+        match focus.next().await {
+            Some(Err(StreamError::Undecodable(why))) => assert_eq!(why, said),
+            Some(Err(other)) => panic!("refused as {other}, not saying {said}"),
+            Some(Ok(_)) => panic!("delivered, and it is refused saying {said}"),
+            None => panic!("the stream ended before a refusal saying {said}"),
+        }
+    }
 }
 
 #[tokio::test]

@@ -331,7 +331,11 @@ class Transport(Protocol):
         ...
 
     def failures(self) -> Events[SemiontError]:
-        """The failures the transport meets from now on: everything a server refused, and every request never answered."""
+        """The failures the transport meets from now on.
+
+        Everything a server refused, every request never answered, and every
+        line its stream carried that names no channel.
+        """
         ...
 
     def bridge_into(self, bus: FrameSink) -> None:

@@ -276,8 +276,8 @@ the browser and is never asked for their text: a second reading would be a
 second answer to what a rectangle quotes, kept in step with the first
 forever. Server-side: resolve the view → take the primary representation's
 checksum → a media type with no derived text is answered `no-map` at once →
-read the store → on a miss wait up to 15 seconds for the Smelter to settle
-that content → re-read. The answer is the map, a stored decline, or a named
+read the store → on a miss wait up to the Archivist's `settleWaitSeconds` for
+the Smelter to settle that content → re-read. The answer is the map, a stored decline, or a named
 absence: `not-yet`, `no-map` or `unknown`.
 
 What the viewer does with each:

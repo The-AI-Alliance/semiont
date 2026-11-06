@@ -71,7 +71,7 @@ function createEventTracker() {
       // `yield:clone` is a local-bus UI signal emitted by `client.yield.clone()`.
       eventBus.on('yield:clone').subscribe((payload) => {
         // Nothing bridges into this test's bus: a refusal on it is the test's own fault.
-        if (payload instanceof FrameRefusal) throw new Error(`refused: ${payload.channel} lacks ${payload.lacks}`);
+        if (payload instanceof FrameRefusal) throw new Error(`refused: ${payload.channel} ${payload.reason} ${payload.member}`);
         events.push({ event: 'yield:clone', payload });
       });
       // `mark:archive` / `mark:unarchive` are gateway-routed via `actor.emit`;

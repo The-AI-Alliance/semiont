@@ -45,7 +45,7 @@ if command == "--version":
 elif command == "init":
     inits = root / "inits.jsonl"
     count = len(inits.read_text().splitlines()) if inits.exists() else 0
-    log("inits.jsonl", {"cwd": os.getcwd(), "domain": sys.argv[sys.argv.index("--domain") + 1]})
+    log("inits.jsonl", {"cwd": os.getcwd(), "domain": sys.argv[sys.argv.index("--domain") + 1], "flags": sys.argv[2:]})
     stack = Path.cwd() / ".semiont/stack"
     stack.mkdir(parents=True)
     port = 4000 + 10 * count
@@ -136,8 +136,10 @@ class SmokeStackTest(unittest.TestCase):
             "  *) exit 7 ;;\n"
             "esac",
             "nc": "exit 1",
-            # The smoke waits between readings of a queue; the test does not.
-            "sleep": "exit 0",
+            # The smoke waits ten seconds between readings of a queue; the test does not. Every
+            # other sleep is the real one: the runtime probe's watchdog kills a probe that a
+            # sleep returning at once outran.
+            "sleep": '[ "$*" = 10 ] && exit 0\nexec /bin/sleep "$@"',
             runtime: f'printf "%s\\n" "$*" >> "{log}"\n'
             # The suite's run: after `sh -c <script>`, the shell's $0 and arguments, one per field.
             'if [ "$1" = run ]; then\n'
@@ -427,11 +429,35 @@ class SmokeStackTest(unittest.TestCase):
             [["sh", "smoke-test-runtime", "test:slow", "specs/20-x.spec.ts"]],
         )
 
+    def test_e2e_binds_its_knowledge_base_to_the_model_named_and_up_to_inits(self) -> None:
+        self.assertEqual(self.smoke("up", "0.7.1").returncode, 0)
+        for args in ((), ("--script", "test:slow", "--model", "gemma4:26b")):
+            with self.subTest(args=args):
+                result = self.smoke("e2e", *args)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        up, default, named = self.lines("inits.jsonl")
+        self.assertEqual(up["flags"], ["--yes", "--domain", "example.github.io:stack-smoke"])
+        self.assertEqual(default["flags"], ["--yes", "--domain", default["domain"]])
+        self.assertEqual(named["flags"], ["--yes", "--domain", named["domain"], "--model", "gemma4:26b"])
+        self.assertEqual(
+            self.suites(),
+            [["sh", "smoke-test-runtime", "test:ci"], ["sh", "smoke-test-runtime", "test:slow"]],
+        )
+
+    def test_run_gives_its_e2e_the_model(self) -> None:
+        result = self.smoke("run", "local", "--e2e", "--model", "gemma4:26b")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        up, e2e = self.lines("inits.jsonl")
+        self.assertNotIn("--model", up["flags"])
+        self.assertEqual(e2e["flags"][-2:], ["--model", "gemma4:26b"])
+
     def test_an_option_it_does_not_know_starts_nothing(self) -> None:
         for args in (
             ("e2e", "--scirpt", "test:slow"),
             ("e2e", "--script"),
             ("e2e", "--script", ""),
+            ("e2e", "--model"),
+            ("e2e", "--model", ""),
             ("e2e", "specs/20-x.spec.ts"),
             ("run", "local", "--script", "test:slow"),
             ("run", "local", "--e2e", "test:slow"),

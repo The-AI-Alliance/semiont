@@ -209,22 +209,28 @@ if args and args[0]=='exec' and 'python3' in args:
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("Unknown image", result.stdout)
 
-    def test_e2e_and_smoke_give_the_suite_the_script_and_arguments_named(self):
+    def test_e2e_and_smoke_give_the_suite_the_script_model_and_arguments_named(self):
         for arguments, command in (
             (("e2e",), ["e2e"]),
             (("e2e", "E2E_SCRIPT=test:slow"), ["e2e", "--script", "'test:slow'"]),
+            (
+                ("e2e", "E2E_SCRIPT=test:slow", "E2E_MODEL=gemma4:26b"),
+                ["e2e", "--script", "'test:slow'", "--model", "'gemma4:26b'"],
+            ),
             (
                 ("e2e", "E2E_ARGS=specs/20-x.spec.ts --repeat-each=5"),
                 ["e2e", "--", "specs/20-x.spec.ts", "--repeat-each=5"],
             ),
             (
-                ("smoke", "E2E_SCRIPT=test:model", "E2E_ARGS=--grep chat"),
+                ("smoke", "E2E_SCRIPT=test:model", "E2E_MODEL=gemma4:26b", "E2E_ARGS=--grep chat"),
                 [
                     "run",
                     "'local'",
                     "--e2e",
                     "--script",
                     "'test:model'",
+                    "--model",
+                    "'gemma4:26b'",
                     "--",
                     "--grep",
                     "chat",

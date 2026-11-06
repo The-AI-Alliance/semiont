@@ -47,8 +47,9 @@ type Transport interface {
 	// client).
 	BridgeInto(sink FrameSink)
 	// Failures is the failures the transport meets from now on, each as it is
-	// returned to its caller. A listener taken as soon as the transport is
-	// made hears every one, from its first request.
+	// returned to its caller, and each line its stream carried that names no
+	// channel. A listener taken as soon as the transport is made hears every
+	// one, from its first request.
 	Failures() iter.Seq[*TransportError]
 	// Close stops the transport: the state becomes closed, every sequence
 	// ends, and every request still pending fails as closed. Closing twice is

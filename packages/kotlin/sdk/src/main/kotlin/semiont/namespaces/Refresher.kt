@@ -13,6 +13,7 @@ import semiont.cache.CacheRefreshReach
 import semiont.cache.CacheRefreshTrigger
 import semiont.cache.CacheRefreshWhen
 import semiont.channels.Channels
+import semiont.errors.TransportError
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
 import semiont.transport.ConnectionState
@@ -69,7 +70,7 @@ private class Windows(private val links: Links, private val lastingMs: Long) {
 
 private fun annotationNamed(payload: JsonObject): AnnotationId? = (payload["annotationId"] as? JsonPrimitive)?.takeIf { it.isString }?.let { AnnotationId.parse(it.content) }
 
-/** What an event names. Each arm states it for its trigger. Throws `IllegalArgumentException` for a payload that is not its channel's. */
+/** What an event names. Each arm states it for its trigger. Throws `TransportError` for a payload that is not its channel's. */
 private fun named(trigger: CacheRefreshTrigger, payload: JsonObject): Subject = when (trigger) {
     // No event: the stream's reopening names nothing.
     CacheRefreshTrigger.Reopened -> Subject()
@@ -119,7 +120,7 @@ internal class Refresher(private val links: Links, private val live: Live) {
         val trigger = EVENTS.getValue(frame.channel)
         val subject = try {
             named(trigger, frame.payload)
-        } catch (_: IllegalArgumentException) {
+        } catch (_: TransportError) {
             // An event that cannot be read: something changed and nothing says what. Everything held is asked for again, as after a gap.
             CacheQuery.entries.forEach { refetch(it, Subject(), CacheRefreshReach.Held) }
             return

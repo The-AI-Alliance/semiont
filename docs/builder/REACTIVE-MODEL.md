@@ -293,7 +293,7 @@ The channel-by-name path. Reach for it when:
 - You need RxJS operator composition on a channel stream (`.pipe(filter(...), map(...), shareReplay())`).
 - A new operation isn't yet wrapped by a namespace method, and you're prototyping.
 
-It's typed against `EventMap` from `@semiont/core`, so the channel name and payload type stay aligned. A frame the wire delivered whose payload lacks a member its channel's schema requires is not dropped: its reader is given, in its place, a `FrameRefusal` naming the channel, the way to the member it lacks (`lacks`) and the payload as it came. On `client.bus` the refusal stands where the payload would, and a reader tells it apart with `instanceof FrameRefusal`; `client.wire.frames` gives each frame as a `Delivered` or a `FrameRefusal`, told apart by `status`. Every SDK's typed read tells its reader the same way and goes on to the frames after it.
+It's typed against `EventMap` from `@semiont/core`, so the channel name and payload type stay aligned. A frame the wire delivered whose payload has a fault as its channel's is not dropped: its reader is given, in its place, a `FrameRefusal` naming the channel, the payload's first fault and the payload as it came. The fault is `member`, the way to the member it is at (empty for the payload itself), and `reason`: `'lacks'` for a member the payload does not carry or holds null where it may not, `'malformed'` for one its schema does not allow (of another kind, a value it does not list, a form or a size it does not allow) or one a closed object does not name. On `client.bus` the refusal stands where the payload would, and a reader tells it apart with `instanceof FrameRefusal`; `client.wire.frames` gives each frame as a `Delivered` or a `FrameRefusal`, told apart by `status`. Every SDK's typed read tells its reader the same way and goes on to the frames after it.
 
 **A channel of a resource's scope is read on the wire, for its resource.** `mark:added` and the other events of the record (`RESOURCE_SCOPED_CHANNELS`) reach only a connection that holds their resource's scope. `client.wire.frames(channel, resourceId)` holds that scope for as long as it is read, and gives that resource's frames and no other's. Read with no resource, such a channel does not compile, and is refused when called; so is any other channel read for a resource.
 
@@ -302,7 +302,7 @@ const added = client.wire
   .frames('mark:added', rId)
   .subscribe((heard) => {
     if (heard.status === 'delivered') log(heard.payload.payload.annotation);
-    else log(`a frame on ${heard.channel} with no ${heard.lacks}`);
+    else log(`a frame on ${heard.channel}: ${heard.reason} ${heard.member}`);
   });
 // later: added.unsubscribe();
 ```

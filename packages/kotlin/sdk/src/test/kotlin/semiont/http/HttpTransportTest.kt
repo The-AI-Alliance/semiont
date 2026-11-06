@@ -5,8 +5,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import semiont.errors.SemiontError
@@ -134,6 +137,25 @@ class HttpTransportTest {
                         while (realm.of("/bus/subscribe").isEmpty()) delay(5)
                     }
                 }
+            }
+        }
+    }
+
+    @Test
+    fun anAnswerWithAFaultIsRefusedNamingItsFirstFault() {
+        val user = mapOf("did" to JsonPrimitive("did:web:example.org:users:alice"), "email" to JsonNull, "name" to JsonNull)
+        Realm().use { realm ->
+            realm.script("/api/users/me", Said(200, JsonObject(user + ("image" to JsonNull))))
+            realm.script("/api/users/me", Said(200, JsonObject(user + ("domain" to JsonPrimitive("example.org")) + ("image" to JsonPrimitive(7)))))
+            HttpTransport(realm.origin, MutableStateFlow("token"), emptyList()).use { transport ->
+                val said = List(2) { assertThrows(TransportError::class.java) { runBlocking { transport.getCurrentUser() } }.message }
+                assertEquals(
+                    listOf(
+                        "GET /api/users/me answered what is not its declared body: it has no `domain`",
+                        "GET /api/users/me answered what is not its declared body: its `image` is malformed",
+                    ),
+                    said,
+                )
             }
         }
     }

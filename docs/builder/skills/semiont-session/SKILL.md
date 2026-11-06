@@ -14,7 +14,7 @@ A watcher listens to the bus and reacts. A daemon that claims queued jobs and re
 
 - **Keeps the token fresh.** An access token is short-lived (five minutes from the Keycloak a launcher stack runs). The session renews it before it expires, half its lifetime ahead and never more than five minutes, and writes the new token where the transport reads it. A request the gateway refuses is answered with one renewal as well. Your calls never see the change.
 - **Stores the tokens.** The access and refresh tokens are kept through a `SessionStorage` you supply. `InMemorySessionStorage` ships in `@semiont/sdk`.
-- **Reads the bus through its client.** `session.client.bus.on(channel)` is an `Observable` of one channel's payloads: subscribe to listen, unsubscribe to stop. Channels are typed: each value is that channel's payload, or, in place of one that is not, a `FrameRefusal` naming the channel, the way to the member it lacks (`lacks`) and the payload as it came. A channel of one resource's events reaches the script only while it holds that resource's scope (below).
+- **Reads the bus through its client.** `session.client.bus.on(channel)` is an `Observable` of one channel's payloads: subscribe to listen, unsubscribe to stop. Channels are typed: each value is that channel's payload, or, in place of one that is not, a `FrameRefusal` naming the channel, the payload's first fault (`member`, the way to it, and `reason`, `'lacks'` or `'malformed'`) and the payload as it came. A channel of one resource's events reaches the script only while it holds that resource's scope (below).
 - **Reports its own state.** `session.token$`, `session.user$`, `session.streamState$` (the event stream's connection: `connecting`, `open`, `reconnecting`, `degraded`, `unauthenticated`, `closed`) and `session.errors$` (each transport error, just before it is thrown to its caller).
 
 A script that already holds an access token and finishes before it expires can use `SemiontClient.fromHttp({ baseUrl, token })` with no session at all.
@@ -119,7 +119,7 @@ const created = session.client.bus.on('yield:created').subscribe((event) => {
 
 const progress = session.client.bus.on('job:report-progress').subscribe((event) => {
   if (event instanceof FrameRefusal) {
-    console.warn(`a frame on ${event.channel} with no ${event.lacks}`);
+    console.warn(`a frame on ${event.channel}: ${event.reason} ${event.member}`);
     return;
   }
   console.log(`job ${event.jobId}: ${event.percentage}%`);

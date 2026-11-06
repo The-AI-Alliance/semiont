@@ -13,6 +13,7 @@ make stack-up     # a new knowledge base's stack from :local images, checked, le
 make e2e          # the default tier, on a knowledge base and user of its own beside it
 make e2e          # again: each run makes its own, and removes it when it passes
 make e2e E2E_SCRIPT=test:slow                                 # another of the suite's npm scripts
+make e2e E2E_SCRIPT=test:slow E2E_MODEL=gemma4:26b            # on a knowledge base bound to another model
 make e2e E2E_ARGS='specs/01-sign-in.spec.ts --repeat-each=5'  # Playwright's arguments
 make stack-down   # stop the stack and each knowledge base a failed e2e left; check every port is released
 make smoke        # all three in one run
@@ -30,7 +31,10 @@ selects the engine. Every `semiont` command it runs is shown as it runs.
 `@model`, in the Playwright image this suite's version pins, with a user made by
 `semiont useradd` for the run. `E2E_SCRIPT` names another of the suite's npm scripts
 (`test`, `test:slow`, `test:model`), and `E2E_ARGS` gives Playwright arguments, split at
-spaces: a spec file, `--grep`, `--repeat-each`. `make smoke` passes both on to its `e2e`.
+spaces: a spec file, `--grep`, `--repeat-each`. The run's knowledge base is bound to the
+model `semiont init` picks, `gemma3:270m`, unless `E2E_MODEL` names another, which
+`semiont init --model` binds; `@slow` and `@model` ask more than `gemma3:270m` can answer.
+`make smoke` passes all three on to its `e2e`.
 After the suite, `make e2e` reads the knowledge base's job queue from `semiont status` until
 nothing is pending or running; a job still pending or running two minutes later fails the
 run, though every test passed. A run that passes removes its knowledge base. One that fails

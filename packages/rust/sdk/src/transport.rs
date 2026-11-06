@@ -163,8 +163,9 @@ impl<T: Clone + Send + 'static> Stream for Events<T> {
 
 /// The frames delivered on one channel.
 pub type Frames = Events<Frame>;
-/// The failures a transport met: what a server refused, and what the gateway
-/// never answered. Each is reported here as it is returned to its caller.
+/// The failures a transport met: what a server refused, what the gateway
+/// never answered, and each line its stream carried that names no channel.
+/// Each is reported here as it is returned to its caller.
 pub type Failures = Events<TransportError>;
 
 /// A handler's subscription (`Transport::on`): it runs until this is dropped.
@@ -393,8 +394,9 @@ pub trait Transport: Send + Sync + 'static {
     /// The connection's state: the current value, and each change after it.
     fn state(&self) -> watch::Receiver<ConnectionState>;
 
-    /// The failures the transport meets, from now on. A listener taken as
-    /// soon as the transport is made hears every one, from its first request.
+    /// The failures the transport meets, from now on, and each line its
+    /// stream carried that names no channel. A listener taken as soon as the
+    /// transport is made hears every one, from its first request.
     fn failures(&self) -> Failures;
 
     /// Await the reply to `correlation_id` on one of `reply_channels`. A

@@ -358,6 +358,66 @@ func TestNothingTheTransportStartedOutlivesClose(t *testing.T) {
 	until(t, "every goroutine the transport started to end", func() bool { return runtime.NumGoroutine() <= before })
 }
 
+// A line that names no channel names no reader: it is told to the failure
+// report, and the stream goes on to the frames after it.
+func TestALineThatNamesNoChannelIsToldToTheFailureReportAndTheStreamGoesOn(t *testing.T) {
+	gateway := newRecordingGateway(t)
+	transport := gateway.transport(nil)
+	defer transport.Close()
+	told := make(chan *TransportError, 3)
+	go func() {
+		for failure := range transport.Failures() {
+			told <- failure
+		}
+	}()
+	heard, err := transport.Frames(context.Background(), bus.MarkAdded.Channel())
+	if err != nil {
+		t.Fatal(err)
+	}
+	payloads := make(chan string, 1)
+	go func() {
+		for frame := range heard {
+			payloads <- string(frame.Payload)
+		}
+	}()
+	defer transport.SubscribeToResource(mustResource(t, "res-1"))()
+	until(t, "the stream to open", func() bool { return transport.State().Value() == ConnectionStateOpen })
+	subscribes := func() int {
+		gateway.mu.Lock()
+		defer gateway.mu.Unlock()
+		return len(gateway.subscriptions)
+	}
+	opened := subscribes()
+
+	gateway.sendData("e-1", `{"channel": "mark:added", "payload": {`)
+	gateway.send("e-2", map[string]any{"payload": map[string]any{"n": 1}, "scope": "res-1"})
+	gateway.send("e-3", map[string]any{"channel": 7, "payload": map[string]any{"n": 1}, "scope": "res-1"})
+	gateway.send("e-4", map[string]any{"channel": "mark:added", "payload": map[string]any{"annotationId": "after"}, "scope": "res-1"})
+
+	select {
+	case got := <-payloads:
+		if got != `{"annotationId":"after"}` {
+			t.Fatalf("heard %s", got)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the frame after is not heard")
+	}
+	for _, said := range []string{"it is malformed", "it has no `channel`", "its `channel` is malformed"} {
+		select {
+		case failure := <-told:
+			_, stated := failure.Status()
+			if want := "the stream carried what is not a frame: " + said; failure.Code != TransportErrorCodeError || stated || failure.Message != want {
+				t.Errorf("told %q (%v) %q, want %q", failure.Code, stated, failure.Message, want)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("%q is not told", said)
+		}
+	}
+	if subscribes() != opened {
+		t.Errorf("the stream was opened again: it is to go on")
+	}
+}
+
 // mustResource is a test's resource id, made through the kind's rule.
 func mustResource(t *testing.T, text string) api.ResourceId {
 	t.Helper()

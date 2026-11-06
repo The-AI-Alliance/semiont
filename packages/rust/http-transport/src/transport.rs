@@ -22,11 +22,11 @@ use semiont::transport::{
     BoxFuture, ConnectionState, Envelope, Events, Failures, FrameHub, Frames, GatewayOperations,
     PendingReply, ReplyRouter, ResourceHold, STREAM_BACKLOG, TraceCarrier, Transport, unsubscribed,
 };
-use semiont::types::ResourceId;
 use semiont::types::{
     BusEmitAccepted, BusEmitRequest, ErrorResponse, HealthResponse, LimitRefusal, LimitRefusalCode,
     MediaTokenRequest, MediaTokenResponse, ProtectedResourceMetadata, StatusResponse, UserResponse,
 };
+use semiont::types::{ResourceId, Schema};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
@@ -55,6 +55,22 @@ fn unanswered(method: &reqwest::Method, path: &str, deadline: Duration) -> Trans
         ),
         TransportErrorCode::Unavailable,
     )
+}
+
+/// What every SDK says of a declared body or a frame that is no JSON, or
+/// that serde refuses with no fault the table states (`semiont::fault_said`
+/// says the rest).
+pub(crate) const MALFORMED: &str = "it is malformed";
+
+/// The body of an answer read as `T`, the generated type of its declared
+/// schema, or what every SDK says of the first fault that keeps it from
+/// being one.
+pub(crate) fn declared<T: DeserializeOwned + Schema>(body: &[u8]) -> Result<T, String> {
+    let value: Value = serde_json::from_slice(body).map_err(|_| MALFORMED.to_owned())?;
+    if let Some(said) = semiont::fault_said::<T>(&value) {
+        return Err(said);
+    }
+    serde_json::from_value(value).map_err(|_| MALFORMED.to_owned())
 }
 
 /// How the sentence about a request that got no answer ends: within what,
@@ -381,7 +397,7 @@ impl Shared {
 
     /// The same, read as the JSON the operation answers. The answer, once
     /// begun, is read within the same deadline.
-    pub async fn answer<T: DeserializeOwned>(
+    pub async fn answer<T: DeserializeOwned + Schema>(
         &self,
         method: reqwest::Method,
         path: &str,
@@ -400,7 +416,7 @@ impl Shared {
 
     /// `answer` with no deadline, for an upload: how long one takes is how
     /// large the resource is.
-    pub async fn answer_at_length<T: DeserializeOwned>(
+    pub async fn answer_at_length<T: DeserializeOwned + Schema>(
         &self,
         method: reqwest::Method,
         path: &str,
@@ -411,7 +427,7 @@ impl Shared {
             .await
     }
 
-    async fn answered<T: DeserializeOwned>(
+    async fn answered<T: DeserializeOwned + Schema>(
         &self,
         method: reqwest::Method,
         path: &str,
@@ -424,16 +440,22 @@ impl Shared {
             .await?;
         let status = response.status().as_u16();
         let read = match deadline {
-            Some(deadline) => tokio::time::timeout(deadline, response.json::<T>())
+            Some(deadline) => tokio::time::timeout(deadline, response.bytes())
                 .await
                 .map_err(|_| self.failed(unanswered(&method, path, deadline)))?,
-            None => response.json::<T>().await,
+            None => response.bytes().await,
         };
-        read.map_err(|error| {
+        let body = read.map_err(|error| {
+            self.failed(TransportError::without_response(
+                format!("{method} {path} got no answer{}", why_unanswered(&error)),
+                TransportErrorCode::Unavailable,
+            ))
+        })?;
+        declared(&body).map_err(|said| {
             self.failed(TransportError {
                 code: TransportErrorCode::Error,
                 status: Some(status),
-                message: format!("{method} {path} answered what is not its declared body: {error}"),
+                message: format!("{method} {path} answered what is not its declared body: {said}"),
                 retry_after: None,
             })
         })

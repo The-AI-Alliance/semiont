@@ -45,6 +45,7 @@ pub mod job_filter;
 pub mod media_types;
 pub mod namespaces;
 pub mod refresh;
+mod required;
 pub mod resources;
 pub mod resume;
 pub mod retry;
@@ -62,6 +63,8 @@ mod text_offsets;
 pub mod timing;
 pub mod transport;
 pub mod types;
+
+pub use required::fault_said;
 
 use std::sync::{Mutex, MutexGuard};
 

@@ -3,8 +3,9 @@
 #
 #   images/tests/stack/smoke-stack.sh up local          # boot and check a stack of :local images; leave it up
 #   images/tests/stack/smoke-stack.sh e2e               # run images/e2e's default tier beside it
-#   images/tests/stack/smoke-stack.sh e2e --script test:slow -- specs/01-sign-in.spec.ts
-#                                                       # another npm script; Playwright's arguments after --
+#   images/tests/stack/smoke-stack.sh e2e --script test:slow --model gemma4:26b -- specs/01-sign-in.spec.ts
+#                                                       # another npm script, a knowledge base bound to another
+#                                                       # model, Playwright's arguments after --
 #   images/tests/stack/smoke-stack.sh down              # stop it, and check every port is released
 #   images/tests/stack/smoke-stack.sh run 0.6.5 --e2e   # all three in one run, as Stack Smoke does
 #
@@ -32,7 +33,9 @@
 #
 # E2E asks what a model does, which UP does not. Each run makes a knowledge
 # base of its own beside UP's, as `init` makes one, with a domain no other run
-# has, on the images UP's documents name: its start joins the shared
+# has, bound to init's model or the one --model names (init's is the smallest
+# that serves a first knowledge base; @slow asks more of a model than it has),
+# on the images UP's documents name: its start joins the shared
 # containers UP's left running and gives it a gateway port of its own. It makes
 # a user in that knowledge base's realm with `useradd`, then runs images/e2e's
 # default tier less its @model tests (`npm run test:ci`, which typechecks the
@@ -78,9 +81,9 @@ SELF="${BASH_SOURCE[0]}"
 usage() {
   {
     echo "usage: $SELF up <images-tag>          e.g. $SELF up local"
-    echo "       $SELF e2e [--script <npm-script>] [-- <playwright-argument>...]"
+    echo "       $SELF e2e [--script <npm-script>] [--model <model>] [-- <playwright-argument>...]"
     echo "       $SELF down"
-    echo "       $SELF run <images-tag> [--e2e [--script <npm-script>] [-- <playwright-argument>...]]"
+    echo "       $SELF run <images-tag> [--e2e [--script <npm-script>] [--model <model>] [-- <playwright-argument>...]]"
   } >&2
   exit 2
 }
@@ -109,8 +112,10 @@ case "$COMMAND" in
   down) [ $# -eq 0 ] || usage ;;
   *) usage ;;
 esac
-# The suite's npm script, and Playwright's arguments.
+# The suite's npm script, the model e2e's knowledge base is bound to when init's is not the one, and
+# Playwright's arguments.
 SUITE_SCRIPT=test:ci
+E2E_KB_MODEL=
 SUITE_ARGUMENTS=()
 set -- ${E2E_OPTIONS[@]+"${E2E_OPTIONS[@]}"}
 while [ $# -gt 0 ]; do
@@ -118,6 +123,10 @@ while [ $# -gt 0 ]; do
     --script)
       [ $# -ge 2 ] && [ -n "$2" ] || usage
       SUITE_SCRIPT="$2"
+      shift 2 ;;
+    --model)
+      [ $# -ge 2 ] && [ -n "$2" ] || usage
+      E2E_KB_MODEL="$2"
       shift 2 ;;
     --)
       shift
@@ -208,21 +217,24 @@ bad()   { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
 head_() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 summary() { printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"; [ "$FAIL" -eq 0 ]; }
 
-# init_kb <directory> <domain> <images-tag>: a knowledge base as a new user
-# makes one, its documents naming the tag's images. The images are the
-# documents' to name: init names :latest, and the run names the set it was
-# given, as a person choosing a release would.
+# init_kb <directory> <domain> <images-tag> [<model>]: a knowledge base as a new
+# user makes one, its documents naming the tag's images, bound to the model
+# named or to init's. The images are the documents' to name: init names
+# :latest, and the run names the set it was given, as a person choosing a
+# release would.
 init_kb() {
   local dir="$1" domain="$2" tag="$3" doc
+  # The domain is the one setting with no safe default, so it is the one flag a new user's init needs.
+  local flags=(--domain "$domain")
+  [ $# -lt 4 ] || flags+=(--model "$4")
   head_ "A new knowledge base: semiont init in $dir"
   echo "  launcher: $SEMIONT ($(semiont --version))"
   mkdir -p "$dir" && cd "$dir" || return 1
   git init -q && git config user.email smoke@example.com && git config user.name smoke
-  # The domain is the one setting with no safe default, so it is the one flag.
-  if semiont init --yes --domain "$domain" >/dev/null; then
-    ok "semiont init --domain $domain made it, with a config the plan deriver accepts"
+  if semiont init --yes "${flags[@]}" >/dev/null; then
+    ok "semiont init ${flags[*]} made it, with a config the plan deriver accepts"
   else
-    bad "semiont init --domain $domain refused"; return 1
+    bad "semiont init ${flags[*]} refused"; return 1
   fi
   for doc in "$dir"/.semiont/stack/*.yaml; do
     sed "s#\(ghcr.io/the-ai-alliance/semiont-[a-z]*\):latest#\1:$tag#" "$doc" > "$doc.next" && mv "$doc.next" "$doc"
@@ -419,7 +431,7 @@ finish_e2e() {
   fi
 }
 trap finish_e2e EXIT
-init_kb "$E2E_KB" "example.github.io:e2e-$RUN" "$IMAGES" || exit 1
+init_kb "$E2E_KB" "example.github.io:e2e-$RUN" "$IMAGES" ${E2E_KB_MODEL:+"$E2E_KB_MODEL"} || exit 1
 start_kb "$IMAGES" || exit 1
 # A port of its own beside up's.
 GATEWAY=$(gateway_of "$E2E_KB")
