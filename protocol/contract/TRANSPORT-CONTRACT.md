@@ -37,11 +37,27 @@ table a payload is held to (§ Identity), and refuses one with a fault: one
 that is no JSON, lacks its `channel` or its `payload`, holds a member of a
 kind `BusFrame` does not allow, or carries a member `BusFrame` does not
 name. A refused frame is not delivered, and the stream goes on to the
-frames after it. One that names no channel (it is no JSON object, carries
-no `channel`, or carries one that is not a text of at least one
-character) names no reader, and is told to the error stream: as `error`,
-with no status, saying "the stream carried what is not a frame: " and
-then its first fault, in the words a request's refusal says it in.
+frames after it. Its first fault is named by its way from the frame: a
+member of the frame (`correlationId`, `payload`, or one `BusFrame` does not
+name), or, for a fault a typed read finds in its payload, `payload.` and
+the way within it (§ Identity). One whose `channel` is a text of at least
+one character, and that carries no `scope` (a null one is none) or one
+that is a resource's id, names its readers, and they are told of it as
+they are of a payload that is not its channel's: its frame refusal is
+given in its place, on the transport's frames and on every typed read of
+its channel in its scope, naming its channel, the way to its fault and why,
+with its payload as it came and its scope. Every SDK's transport gives it
+as its own kind of item: Rust as `Err(FrameRefusal)`, Go as a
+`*FrameRefusal` error beside the frame's channel and scope, Python as a
+`FrameRefusal` in the frame's place, Kotlin as a `FrameRefusal`, which is,
+as `Frame` is, `Carried`, and TypeScript as a `FrameRefusal` in the
+payload's place on the frame's scope. Every other refused frame names no
+reader, whatever its first fault: one that is no JSON object, that carries
+no `channel` or one that is not a text of at least one character, or that
+carries a `scope` that is not a resource's id. It is told to the error
+stream: as `error`, with no status, saying "the stream carried what is not
+a frame: " and then its first fault, in the words a request's refusal says
+it in.
 *Held by `protocol/specs/src/bus/frame-cases.json`, `packages/python/sdk/tests/test_http_transport.py`, `packages/rust/http-transport/tests/stream.rs`, `packages/go/sdk/stream_test.go`, `packages/kotlin/sdk/src/test/kotlin/semiont/http/StreamTest.kt`, `packages/typescript/http-transport/src/transport/__tests__/actor-state-unit.test.ts`.*
 
 The **registry** ([`protocol/specs/src/bus/registry.json`](../specs/src/bus/registry.json))
@@ -275,7 +291,7 @@ from which every SDK generates its constants.
 Everything a server refused, and every request the gateway never answered,
 is reported on the error stream as it is thrown to its caller, under a code
 from [`protocol/specs/src/errors/codes.json`](../specs/src/errors/codes.json).
-So is every line the stream carried that names no channel (§ The transport).
+So is every line the stream carried that names no reader (§ The transport).
 
 - **A listener taken as soon as the client is made hears every failure**,
   from the transport's first request on, even when that request was refused
@@ -458,16 +474,23 @@ this emit, never provenance.
   whose decoding reads an integer only from a number written without a
   fraction, `1.0` where an integer is required. A typed read tells its reader, in
   place of the frame, and goes on to the frames after it; nothing is
-  dropped and nothing is logged instead. Rust and Go give the refusal as
-  the stream's error, saying the payload is not its channel's and then
-  "it has no `<member>`", "its `<member>` is malformed", or "it is
-  malformed", the words a request's refusal says it in. TypeScript, Python
-  and Kotlin give a `FrameRefusal`, a value the reader tells apart from a
-  frame by its `status`, `refused` where a frame's is `delivered`. It names
-  the channel, the `member` and the `reason`, and holds the payload as it
-  came. A TypeScript transport's bridge publishes the refusal on the
-  client's own bus in place of the payload, where a reader of payloads
-  tells it apart with `instanceof`.
+  dropped and nothing is logged instead. It names the fault by its way from
+  the frame, `payload.` and the way within the payload (`payload` for the
+  payload itself), as it names the fault of a frame its transport refused
+  (§ The transport), which it passes on in the same place. Rust and Go give
+  either as the stream's error, saying "a frame on `<channel>` is not that
+  channel's: " and then "it has no `<member>`", "its `<member>` is
+  malformed", or "it is malformed", the words a request's refusal says a
+  fault in. TypeScript, Python and Kotlin give a `FrameRefusal`, a value the
+  reader tells apart from a frame by its `status`, `refused` where a
+  frame's is `delivered`. It names the channel, the `member` and the
+  `reason`, and holds the payload as it came. A transport's bridge
+  publishes the refusal on the client's own bus in the frame's place; in
+  TypeScript, where a reader of payloads tells it apart with `instanceof`,
+  in the payload's. A request names a fault of its reply's payload by its
+  way within the payload, saying "a payload on `<channel>` is not that
+  channel's: " and then the fault. A request is not told of a reply its
+  transport refused: the refusal carries no correlation id.
   *Held by `packages/typescript/core/src/__tests__/bus.test.ts`, `packages/typescript/http-transport/src/transport/__tests__/http-transport.http-paths.test.ts`, `packages/python/sdk/tests/test_bus.py`, `packages/kotlin/sdk/src/test/kotlin/semiont/bus/BusTest.kt`, `packages/rust/sdk/tests/typed.rs`, `packages/go/sdk/internal/required/required_test.go`.*
 
 ## Content and the gateway's own operations

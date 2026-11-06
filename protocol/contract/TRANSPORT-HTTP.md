@@ -65,7 +65,10 @@ Client                                             Gateway
 The stream carries two messages (BusStreamMessage): `bus-event`, whose
 `data:` line is a JSON BusFrame `{channel, correlationId?, payload,
 scope?}` and whose `id:` is one of the three formats below; and `ping`,
-the heartbeat, with an empty `data:` and no id.
+the heartbeat, with an empty `data:` and no id. A client holds each frame
+to BusFrame, and tells of one it refuses the readers its channel and scope
+name, or, when they name none, its error stream
+([TRANSPORT-CONTRACT.md § The transport](./TRANSPORT-CONTRACT.md#the-transport)).
 
 No other transport is used for bus traffic. Regular HTTP is for
 credentials, health, and a resource's content: an upload
