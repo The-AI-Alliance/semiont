@@ -116,7 +116,6 @@ export function delegated<C extends JobCompletion>(
     const progress$ = frames.of('job:report-progress');
     const complete$ = frames.of('job:complete');
     const fail$ = frames.of('job:fail');
-    const refused$ = frames.refused();
 
     // Only a failure the queue will not try again is an end. `takeUntil(fail$)`
     // would silence progress on a retryable failure too, so a run that
@@ -175,7 +174,7 @@ export function delegated<C extends JobCompletion>(
 
     // A refusal is no word of the job: neither the silence nor the stall
     // deadline starts again.
-    const refusedSub = refused$.subscribe(({ channel, member, reason }) => {
+    const refusedSub = frames.refused$.subscribe(({ channel, member, reason }) => {
       if (done) return;
       subscriber.next({ kind: 'refused', data: { channel, member, reason } });
     });

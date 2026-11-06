@@ -1,4 +1,4 @@
-import { Observable, merge } from 'rxjs';
+import { Observable, Subject, share } from 'rxjs';
 import { Bus, FrameRefusal, JOB_SILENCE_MS, JOB_STATUS_POLL_MS, SemiontError } from '@semiont/core';
 import type { EventBus, EventMap, ITransport, JobErrorCode, components } from '@semiont/core';
 
@@ -108,8 +108,7 @@ export class JobStatusPoll {
   }
 }
 
-const JOB_FRAME_CHANNELS = ['job:report-progress', 'job:complete', 'job:fail'] as const;
-type JobFrameChannel = (typeof JOB_FRAME_CHANNELS)[number];
+type JobFrameChannel = 'job:report-progress' | 'job:complete' | 'job:fail';
 
 /**
  * One job's frames, picked out of every job's, and the frames refused on
@@ -123,28 +122,35 @@ type JobFrameChannel = (typeof JOB_FRAME_CHANNELS)[number];
 export class JobFrames {
   private jobId: string | null = null;
   private held: Array<() => void> = [];
+  private readonly refusals = new Subject<FrameRefusal>();
+  private readonly channels: { readonly [K in JobFrameChannel]: Observable<EventMap[K]> };
 
-  constructor(private readonly bus: EventBus) {}
+  /** The frames refused, by their transport or as their channel's, on the job's channels while they are read: each names no job, so any may be this job's. */
+  readonly refused$: Observable<FrameRefusal> = this.refusals.asObservable();
+
+  constructor(private readonly bus: EventBus) {
+    this.channels = {
+      'job:report-progress': this.read('job:report-progress'),
+      'job:complete': this.read('job:complete'),
+      'job:fail': this.read('job:fail'),
+    };
+  }
 
   /** The job's frames on `channel`. */
   of<K extends JobFrameChannel>(channel: K): Observable<EventMap[K]> {
-    return new Observable<EventMap[K]>((subscriber) =>
-      this.bus.on(channel).subscribe((frame) => {
-        if (frame instanceof FrameRefusal) return;
-        this.inTurn(() => {
-          if (frame.jobId === this.jobId) subscriber.next(frame);
-        });
-      }),
-    );
+    return this.channels[channel];
   }
 
-  /** The frames refused, by their transport or as their channel's, on the job's channels: each names no job, so any may be this job's. */
-  refused(): Observable<FrameRefusal> {
-    return new Observable<FrameRefusal>((subscriber) =>
-      merge(...JOB_FRAME_CHANNELS.map((channel) => this.bus.on(channel))).subscribe((frame) => {
-        if (frame instanceof FrameRefusal) this.inTurn(() => subscriber.next(frame));
-      }),
-    );
+  /** `channel` read once, however many read it: each frame of the job is given, and each frame refused on it is told to `refused$`. */
+  private read<K extends JobFrameChannel>(channel: K): Observable<EventMap[K]> {
+    return new Observable<EventMap[K]>((subscriber) =>
+      this.bus.on(channel).subscribe((frame) =>
+        this.inTurn(() => {
+          if (frame instanceof FrameRefusal) this.refusals.next(frame);
+          else if (frame.jobId === this.jobId) subscriber.next(frame);
+        }),
+      ),
+    ).pipe(share());
   }
 
   private inTurn(deliver: () => void): void {
