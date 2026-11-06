@@ -244,6 +244,10 @@ transport, and `ScriptedSessions` with `SharedStorage` for registry tests.
 `assertLivenessAxioms` checks outputs, settlements, and retry budgets over
 repeatable fault schedules. `assertExactlyOnceDelivery` checks event order
 and count across interleaved writes and connection transitions.
+`ScriptedTransport` keeps no deadline: a dropped reply never comes, and the
+client's bus fails the request at its own. A `LivenessSpec`'s `timeout` is the
+time its composition gives a bus request, so its `setup` builds the client with
+that many milliseconds as its `busRequestTimeoutMs`.
 
 Every maker that waits takes a `clock:` (any `Clock` whose duration is
 `Duration`, `ContinuousClock()` when none is given), and every maker that backs
@@ -271,7 +275,12 @@ history, resource lists, engines with limits, entity types and tag schemas.
 Match offers live resource search results, and Gather offers live incoming
 references.
 
-`client.wire` sends typed generated `Channels` and `Operations`. `frames` on a
+`client.wire` sends typed generated `Channels` and `Operations`. A request
+waits for its reply for `busRequestTimeoutMs` (`SemiontClient(busRequestTimeoutMs:)`,
+the timing table's value when none is given), or for the `timeoutMs:` its caller
+gives, on the client's clock and over any transport, and then fails as
+`busTimeout`. A worker's claim waits its `claimTimeoutMs`, and a held job's
+commit its `commitTimeoutMs`, the same way. `frames` on a
 `ScopedChannel` requires a resource and holds that resource only while the read
 is alive. Breaking, cancellation, completion or disposal releases the hold.
 A `Typed` sequence gives `Heard.delivered` with its original `ReceivedFrame`,
@@ -288,7 +297,9 @@ wire frames are bridged into it. Every listener starts when asked for and keeps
 every subsequent event. `dispose()` cancels the bridge, disposes the transport
 once and finishes listeners. Custom transports can supply read-only state via
 `Watched(initial, updates:)`, events via `Events`, and scoped release via
-`ResourceHold` without a concurrency escape.
+`ResourceHold` without a concurrency escape. A transport's
+`request(operation:payload:)` keeps no deadline: the bus that asks keeps it, and
+gives a request up by cancelling its task, which the transport ends.
 
 The HTTP transport uses the caller's AsyncHTTPClient `HTTPClient` for every request. Its default proxy setting is `nil`; it does not read proxy environment variables. Callers configure trust and proxies on that client and shut it down after disposing the transport. The SDK reads only `SEMIONT_BUS_LOG`.
 

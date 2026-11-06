@@ -2320,6 +2320,7 @@
         "swift": {
           "SemiontClient": ["Clock"],
           "HttpTransport": ["Clock"],
+          "Bus": ["Clock"],
           "Cache": ["Clock"],
           "HoverDwell": ["Clock"],
           "SearchPipeline": ["Clock"],

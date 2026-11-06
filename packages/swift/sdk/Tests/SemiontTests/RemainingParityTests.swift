@@ -172,7 +172,7 @@ private func registryResource(_ id: ResourceId) throws -> ResourceDescriptor {
     ],
     respond: { _, _ in result },
     setup: { transport in
-      let client = try await SemiontClient(transport: transport)
+      let client = try await SemiontClient(transport: transport, busRequestTimeoutMs: 500)
       let request = Task { try await client.browse.kb() }
       return LivenessScenario(
         outputs: [{ _ = await request.result }], settlements: [{ _ = await request.result }],

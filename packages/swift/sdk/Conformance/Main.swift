@@ -275,9 +275,10 @@ private actor Driver {
         correlationId: args.optionalText("correlationId"))
       return count.map { .object(["subscribers": .number(Double($0))]) } ?? .object([:])
     case "request":
-      let response = try await current().request(
-        operation: args.text("operation"), payload: args.object("payload"),
-        timeoutMs: args.integer("timeoutMs"))
+      let response = try await resultOf(
+        args.text("operation"), args.object("payload"), over: current(),
+        timeoutMs: args.integer("timeoutMs"), clock: ContinuousClock()
+      ).payload
       return .object(response["response"].map { ["response": $0] } ?? [:])
     case "health": return try await encoded(current().healthCheck())
     case "status": return try await encoded(current().getStatus())

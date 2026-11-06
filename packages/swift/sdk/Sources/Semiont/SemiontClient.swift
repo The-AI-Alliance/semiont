@@ -27,7 +27,7 @@ public final class SemiontClient: Sendable {
     transport: any Transport, gateway: (any GatewayOperations)? = nil,
     content: (any ContentTransport)? = nil, followTiming: FollowTiming = FollowTiming(),
     persistence: CachePersistence? = nil, invalidationWindowMs: Int? = nil,
-    clock: any Clock<Duration> = ContinuousClock()
+    busRequestTimeoutMs: Int? = nil, clock: any Clock<Duration> = ContinuousClock()
   ) async throws {
     self.clock = clock
     let book = persistence.map { StoragePersister<KeptQuery>($0, clock: clock) }
@@ -43,7 +43,7 @@ public final class SemiontClient: Sendable {
     self.transport = transport
     let bus = EventBus()
     self.bus = bus
-    let wire = Bus(transport)
+    let wire = Bus(transport, busRequestTimeoutMs: busRequestTimeoutMs, clock: clock)
     self.wire = wire
     let content = content ?? (transport as? any ContentTransport)
     let live = LiveQueries(

@@ -229,10 +229,12 @@ public actor Claims: AsyncSequence {
     let transport = transport
     let command = command
     let timing = timing
+    let clock = clock
     claimTask = Task { [weak self] in
       do {
-        let frame = try await workerRequest(
-          transport, Operations.jobClaim, command, timeoutMs: timing.claimTimeoutMs, parent: [:])
+        let frame = try await resultOf(
+          Operations.jobClaim.request.name, wirePayload(command), over: transport,
+          timeoutMs: timing.claimTimeoutMs, clock: clock, parent: [:])
         let answer = try JSONDecoder().decode(
           JobClaimedResult.self, from: JSONEncoder().encode(frame.payload))
         await self?.take(answer.response, trace: frame.trace)
@@ -248,10 +250,12 @@ public actor Claims: AsyncSequence {
     switch record.metadata.type {
     case .mark:
       job = HeldWork<MarkJobResult>(
-        record: record, trace: trace, transport: transport, owner: self, timing: timing)
+        record: record, trace: trace, transport: transport, owner: self, timing: timing,
+        clock: clock)
     case .yield:
       job = HeldWork<YieldJobResult>(
-        record: record, trace: trace, transport: transport, owner: self, timing: timing)
+        record: record, trace: trace, transport: transport, owner: self, timing: timing,
+        clock: clock)
     }
     if stopped {
       try? await job.fail(
@@ -349,18 +353,4 @@ public actor Claims: AsyncSequence {
     refusals.finish()
     stalled.finish()
   }
-}
-
-func workerRequest<Request: Codable, Result, Failure>(
-  _ transport: any Transport, _ operation: Operation<Request, Result, Failure>, _ request: Request,
-  timeoutMs: Int, parent: [String: String]? = nil
-) async throws -> ReceivedFrame {
-  let payload = try wirePayload(request)
-  if let http = transport as? HttpTransport {
-    return try await http.requestFrame(
-      operation: operation.request.name, payload: payload, timeoutMs: timeoutMs, parent: parent)
-  }
-  let answer = try await transport.request(
-    operation: operation.request.name, payload: payload, timeoutMs: timeoutMs)
-  return ReceivedFrame(channel: operation.result.name, payload: answer)
 }

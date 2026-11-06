@@ -9,8 +9,10 @@ public protocol Transport: Sendable {
   func emit(
     channel: String, payload: [String: JSONValue], scope: ResourceId?, correlationId: String?
   ) async throws -> Int?
-  func request(operation: String, payload: [String: JSONValue], timeoutMs: Int?) async throws
-    -> [String: JSONValue]
+  /// The reply to the request of `operation`: its result's payload, or its failure as the error.
+  /// It keeps no deadline: the bus that asks keeps the request's, and gives the request up by
+  /// cancelling its task, which ends it.
+  func request(operation: String, payload: [String: JSONValue]) async throws -> [String: JSONValue]
   func failures() -> Events<TransportError>
   func dispose()
 }
