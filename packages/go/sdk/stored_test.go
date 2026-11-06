@@ -8,10 +8,12 @@ package semiont
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"maps"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -32,17 +34,23 @@ type sessionTable struct {
 	PendingAuthorization objectShape `json:"pendingAuthorization"`
 }
 
-func readSessionTable(t *testing.T) sessionTable {
+// readSpec is what the spec's file at way, under protocol/specs/src, holds.
+func readSpec[T any](t *testing.T, way ...string) T {
 	t.Helper()
-	text, err := os.ReadFile(filepath.Join("..", "..", "..", "protocol", "specs", "src", "session", "stored.json"))
+	text, err := os.ReadFile(filepath.Join(append([]string{"..", "..", "..", "protocol", "specs", "src"}, way...)...))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var table sessionTable
-	if err := json.Unmarshal(text, &table); err != nil {
+	var read T
+	if err := json.Unmarshal(text, &read); err != nil {
 		t.Fatal(err)
 	}
-	return table
+	return read
+}
+
+func readSessionTable(t *testing.T) sessionTable {
+	t.Helper()
+	return readSpec[sessionTable](t, "session", "stored.json")
 }
 
 func TestTheKeysOfAStreamsPlacesAndOfTheKeptQueriesAreTheTables(t *testing.T) {
@@ -101,5 +109,88 @@ func TestASignInBegunIsKeptAsTheTableStatesIt(t *testing.T) {
 	stored, _ = bare.Get(PendingAuthorizationKey)
 	if got, want := membersOf(t, []byte(stored)), slices.Sorted(slices.Values(table.PendingAuthorization.Required)); !slices.Equal(got, want) {
 		t.Errorf("a sign-in begun with nothing believed is kept with %v; the table requires %v", got, want)
+	}
+}
+
+// without is text, an object, without the member way names: one of its own,
+// or one of a member's.
+func without(t *testing.T, text string, way []string) string {
+	t.Helper()
+	var record map[string]any
+	if err := json.Unmarshal([]byte(text), &record); err != nil {
+		t.Fatal(err)
+	}
+	within := record
+	for _, name := range way[:len(way)-1] {
+		inner, ok := within[name].(map[string]any)
+		if !ok {
+			t.Fatalf("the kept sign-in has no object %q", name)
+		}
+		within = inner
+	}
+	if _, ok := within[way[len(way)-1]]; !ok {
+		t.Fatalf("the kept sign-in has no %s", strings.Join(way, "."))
+	}
+	delete(within, way[len(way)-1])
+	written, err := json.Marshal(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(written)
+}
+
+// A sign-in pending that lacks a member the table requires, of its own, of
+// its issuer's or of its target's (an HttpEndpoint), is no sign-in: it is
+// taken, and completing it is refused as no-pending, as every SDK refuses it.
+// One that lacks a member the table does not require completes.
+func TestAPendingSignInIsReadAsTheTableRequiresIt(t *testing.T) {
+	pending := readSessionTable(t).PendingAuthorization
+	var issuer objectShape
+	if err := json.Unmarshal(pending.Properties["issuer"], &issuer); err != nil {
+		t.Fatal(err)
+	}
+	target := readSpec[objectShape](t, "components", "schemas", "HttpEndpoint.json")
+	s := newStack(t)
+	granting(s, "an-access-token", "a-refresh-token")
+	begun := NewMemoryStorage()
+	if _, err := BeginAuthorization(context.Background(), issuerOf(), BeginAuthorizationOptions{
+		Target: gatewayEndpoint(t, s), RedirectURI: redirectURI, KbID: "kb-a", ExpectedDid: "did:web:example.org:kb-a", ExpectedName: "KB A",
+	}, begun); err != nil {
+		t.Fatal(err)
+	}
+	whole, _ := begun.Get(PendingAuthorizationKey)
+	var record struct {
+		State string `json:"state"`
+	}
+	if err := json.Unmarshal([]byte(whole), &record); err != nil {
+		t.Fatal(err)
+	}
+	callback := redirectURI + "?state=" + record.State + "&code=the-code"
+
+	for _, within := range []struct {
+		way   []string
+		shape objectShape
+	}{{nil, pending}, {[]string{"issuer"}, issuer}, {[]string{"target"}, target}} {
+		for name := range within.shape.Properties {
+			way := append(slices.Clone(within.way), name)
+			required := slices.Contains(within.shape.Required, name)
+			t.Run(strings.Join(way, "."), func(t *testing.T) {
+				storage := NewMemoryStorage()
+				if err := storage.Set(PendingAuthorizationKey, without(t, whole, way)); err != nil {
+					t.Fatal(err)
+				}
+				_, _, err := CompleteAuthorization(context.Background(), issuerOf(), callback, storage)
+				if _, still := storage.Get(PendingAuthorizationKey); still {
+					t.Error("the sign-in is still pending")
+				}
+				var refused *SignInError
+				if required && (!errors.As(err, &refused) || refused.Code != SignInErrorCodeNoPending) {
+					t.Errorf("a sign-in pending without the %s the table requires: %v; want no-pending", strings.Join(way, "."), err)
+				}
+				if !required && err != nil {
+					t.Errorf("a sign-in pending without the %s the table does not require: %v", strings.Join(way, "."), err)
+				}
+			})
+		}
 	}
 }
