@@ -67,7 +67,7 @@ pub struct HttpSession {
 struct Renews(watch::Receiver<Option<SessionRenewer>>);
 
 impl TokenRefresher for Renews {
-    fn refresh(&self) -> BoxFuture<'_, Option<String>> {
+    fn refresh<'a>(&'a self, refused: Option<&'a str>) -> BoxFuture<'a, Option<String>> {
         let mut session = self.0.clone();
         Box::pin(async move {
             let renewer = match session.wait_for(Option::is_some).await {
@@ -75,7 +75,7 @@ impl TokenRefresher for Renews {
                 // The sender dropped with nothing sent: no session was made.
                 Err(_) => None,
             }?;
-            renewer.refresh().await
+            renewer.refresh(refused).await
         })
     }
 }
@@ -573,7 +573,7 @@ mod tests {
         let (set, unset) = watch::channel(None);
         let renews = Renews(unset);
 
-        let mut renewal = renews.refresh();
+        let mut renewal = renews.refresh(None);
         assert_eq!(
             (&mut renewal).now_or_never(),
             None,
@@ -589,6 +589,6 @@ mod tests {
         let (set, unset) = watch::channel(None);
         let renews = Renews(unset);
         drop(set);
-        assert_eq!(renews.refresh().await, None);
+        assert_eq!(renews.refresh(None).await, None);
     }
 }

@@ -262,13 +262,15 @@ impl SemiontSession {
         token_expiry(&self.shared.token.now()?)
     }
 
-    /// The gateway refused the session's token: renew it, and ask the
-    /// gateway who the new one is. The token the session then holds, or
-    /// none: it holds no token, and if the issuer refused to renew a stored
-    /// credential it is over. See `SessionRenewer`, through which a transport
-    /// asks.
-    pub async fn refresh(&self) -> Option<String> {
-        self.shared.refused().await
+    /// The gateway refused `refused`, the token a request carried (`None`
+    /// when it carried none): renew it, and ask the gateway who the new one
+    /// is. The token the session then holds, or none: it holds no token, and
+    /// if the issuer refused to renew a stored credential it is over. A token
+    /// the session no longer holds was answered already, however late the
+    /// refusal arrives: the token it holds is given, and nothing is renewed
+    /// or asked. See `SessionRenewer`, through which a transport asks.
+    pub async fn refresh(&self, refused: Option<&str>) -> Option<String> {
+        self.shared.refused(refused).await
     }
 
     /// A handle that renews this session's token, for the transport under
@@ -324,9 +326,9 @@ pub struct SessionRenewer {
 
 impl SessionRenewer {
     /// As `SemiontSession::refresh`.
-    pub async fn refresh(&self) -> Option<String> {
+    pub async fn refresh(&self, refused: Option<&str>) -> Option<String> {
         match self.shared.upgrade() {
-            Some(shared) => shared.refused().await,
+            Some(shared) => shared.refused(refused).await,
             None => None,
         }
     }
@@ -420,7 +422,7 @@ impl Shared {
                     self.unanswered.set(false);
                 } else if self.unanswered.now() {
                     if self.user.now().is_none() {
-                        self.refused().await;
+                        self.refused(None).await;
                     } else {
                         self.renew().await;
                     }
@@ -462,15 +464,14 @@ impl Shared {
     /// which has nobody to ask about, only renews.
     ///
     /// One refusal is answered at a time, so however many requests were
-    /// refused at once, they cost one renewal and one ask.
-    async fn refused(&self) -> Option<String> {
-        // Refusals that arrive together are answered together: the first
-        // renews and asks, and the rest find that the session's token is no
-        // longer the one they were refused with.
-        let refused_with = self.token.now();
+    /// refused at once, they cost one renewal and one ask. A refusal of a
+    /// token the session no longer holds was answered already: the token it
+    /// holds is given.
+    async fn refused(&self, refused: Option<&str>) -> Option<String> {
         let _answering = self.answering.lock().await;
-        if self.token.now() != refused_with {
-            return self.token.now();
+        let held = self.token.now();
+        if held.as_deref() != refused {
+            return held;
         }
         let renewed = self.renew().await?;
         let Some(validate) = &self.validate else {
