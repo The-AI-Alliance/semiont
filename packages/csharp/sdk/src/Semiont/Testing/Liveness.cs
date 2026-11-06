@@ -8,7 +8,7 @@ public sealed record LivenessScenario(IReadOnlyList<Task> Outputs, IReadOnlyList
 }
 
 public sealed record LivenessSpec(Func<FaultyTransport, LivenessScenario> Setup, TimeSpan Timeout, int RetryBudget,
-    IReadOnlyList<IReadOnlyList<FaultAction>> Schedules, Respond? Respond = null);
+    IReadOnlyList<IReadOnlyList<FaultAction>> Schedules, Respond? Respond = null, TimeProvider? TimeProvider = null);
 
 public enum DeliveryOp { Write, Transition }
 
@@ -40,14 +40,15 @@ public static class Liveness
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(spec.Timeout, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfNegative(spec.RetryBudget);
+        var clock = spec.TimeProvider ?? TimeProvider.System;
         foreach (var schedule in spec.Schedules)
         {
             cancellation.ThrowIfCancellationRequested();
             var delays = schedule.OfType<FaultAction.Delay>().Sum(action => action.Duration.Ticks);
             var bound = TimeSpan.FromTicks(checked((spec.Timeout.Ticks * (1L + spec.RetryBudget) + delays) * 4));
-            using var transport = new FaultyTransport(schedule, spec.Respond);
+            using var transport = new FaultyTransport(schedule, spec.Respond, clock);
             using var scenario = spec.Setup(transport);
-            await Task.Delay(bound, cancellation).ConfigureAwait(false);
+            await Task.Delay(bound, clock, cancellation).ConfigureAwait(false);
             var under = $"under [{string.Join(", ", schedule)}] within {bound.TotalMilliseconds}ms";
             var outputs = scenario.Outputs.Select(Observe).ToArray();
             var settlements = scenario.Settlements.Select(Observe).ToArray();

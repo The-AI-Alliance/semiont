@@ -59,7 +59,8 @@ public sealed class RetryTests
             clock.Advance(cap / 2);
             cap = cap * 2 < TimeSpan.FromMilliseconds(policy.MaxDelayMs) ? cap * 2 : TimeSpan.FromMilliseconds(policy.MaxDelayMs);
         }
-        Assert.Same(failures[^1], await Assert.ThrowsAsync<TransportError>(() => retrying));
+        var thrown = await Assert.ThrowsAsync<TransportError>(() => retrying);
+        Assert.Same(failures[^1], thrown);
         Assert.Equal(policy.Attempts, failures.Count);
     }
 

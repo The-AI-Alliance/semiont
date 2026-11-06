@@ -2374,14 +2374,6 @@
           "LivenessSpec": ["TimeProvider"],
           "RetryWithBackoffAsync": ["TimeProvider"]
         }
-      },
-      "notYetReached": {
-        "csharp": {
-          "BeginAuthorizationAsync": "Takes no TimeProvider: the Issuer it builds keeps the system clock.",
-          "CompleteAuthorizationAsync": "Takes no TimeProvider: the Issuer it builds keeps the system clock.",
-          "DescribeConnectionAsync": "Takes no TimeProvider: the HttpTransport it builds keeps the system clock.",
-          "LivenessSpec": "The liveness check waits with a Task.Delay that has no TimeProvider, over a FaultyTransport made without one."
-        }
       }
     },
     {
@@ -2470,15 +2462,6 @@
           "refresh_stored_session": "Its renewal retry draws its jitter from a v4 UUID.",
           "AgentToken::sign_in": "The agent's renewal retry draws its jitter from a v4 UUID.",
           "equal_jitter": "It draws from a v4 UUID."
-        },
-        "csharp": {
-          "HttpSessionFactory": "Takes no Random: its sessions draw from Random.Shared.",
-          "SemiontBrowserConfig": "Takes no Random: the sign-in its browser completes builds a transport that draws from Random.Shared.",
-          "TestSessionOptions": "Takes no Random: the test session draws from Random.Shared.",
-          "ScriptedSessions": "Takes no Random: its sessions draw from Random.Shared.",
-          "BeginAuthorizationAsync": "Takes no Random: the Issuer it builds draws from Random.Shared.",
-          "CompleteAuthorizationAsync": "Takes no Random: the Issuer it builds draws from Random.Shared.",
-          "DescribeConnectionAsync": "Takes no Random: the HttpTransport it builds draws from Random.Shared."
         }
       }
     }

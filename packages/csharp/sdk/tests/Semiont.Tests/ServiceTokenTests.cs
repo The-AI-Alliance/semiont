@@ -117,7 +117,7 @@ public sealed class ServiceTokenTests
         using var service = new ServiceToken("https://issuer.example", "worker", "secret", client, clock);
         var endpoint = JsonSerializer.Deserialize<HttpEndpoint>("""{"kind":"http","host":"kb.example","port":443,"protocol":"https"}""")
             ?? throw new InvalidOperationException("Missing endpoint");
-        using var agent = new AgentToken(endpoint, service, client, clock);
+        using var agent = new AgentToken(endpoint, service, client);
         await agent.SignInAsync();
         Assert.NotNull(agent.Did);
         Assert.Equal(1, handler.Identities);
@@ -163,7 +163,7 @@ public sealed class ServiceTokenTests
         using var service = new ServiceToken("https://issuer.example", "worker", "secret", client, clock);
         var endpoint = JsonSerializer.Deserialize<HttpEndpoint>("""{"kind":"http","host":"kb.example","port":443,"protocol":"https"}""")
             ?? throw new InvalidOperationException("Missing endpoint");
-        using var agent = new AgentToken(endpoint, service, client, clock);
+        using var agent = new AgentToken(endpoint, service, client);
         await Assert.ThrowsAsync<SignInError>(() => agent.SignInAsync());
         Assert.Null(agent.Token);
 
