@@ -10,6 +10,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -151,7 +152,7 @@ class FrameCasesTest {
                         val refusal = assertInstanceOf(FrameRefusal::class.java, heard.single())
                         assertEquals(Triple(READ.name, fault.member, fault.reason), Triple(refusal.channel, refusal.member, refusal.reason))
                         assertEquals(frame["payload"], refusal.payload)
-                        assertEquals(frame["scope"]?.jsonPrimitive?.content, refusal.scope?.value)
+                        assertEquals(frame["scope"]?.jsonPrimitive?.contentOrNull, refusal.scope?.value)
                         // A payload that is not its channel's is its typed reader's to refuse: the transport delivers its frame.
                         if (fault.member.startsWith("payload.")) {
                             assertEquals(frame["payload"], carried.single().frame().payload)
