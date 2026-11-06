@@ -96,27 +96,32 @@ func (m *MemoryStorage) Subscribe(func(key, value string, has bool)) (func(), bo
 	return nil, false
 }
 
-// CachePersistence is where a client keeps what its queries hold, so the next
-// client of the same knowledge base shows it at once. The small queries are
-// kept: a resource's description, its annotations, one annotation, the entity
-// types, the tag schemas. Each is a document in Storage, under
-// semiont.cache.<KeyPrefix>.<query>.
+// CachePersistence is where a client keeps what its queries hold for one
+// person, so the next client of the same knowledge base, for the same person,
+// shows it at once. The queries PersistedCacheQueries names are kept, each a
+// document in Storage under CacheKey(KbID, PersonKey, query).
 type CachePersistence struct {
-	Storage   SessionStorage
-	KeyPrefix string
+	Storage SessionStorage
+	KbID    string
+	// PersonKey is the person's key (PersonKey).
+	PersonKey string
 }
 
-// cacheStorageKey is the key the query name is kept under, by a persistence
-// whose key prefix is keyPrefix, as protocol/specs/src/session/stored.json
-// states it.
-func cacheStorageKey(keyPrefix, name string) string {
-	return "semiont.cache." + keyPrefix + "." + name
+// PersonKey is the key what a client keeps of a person is kept under, made of
+// the did the gateway answers for the person's token: never the did itself.
+// The keys are protocol/specs/src/session/stored.json's.
+func PersonKey(did string) string { return sha256URLSafe(did) }
+
+// CacheKey is the key what a client keeps of query, for the person whose key
+// is personKey, is kept under in a knowledge base's storage.
+func CacheKey(kbID, personKey string, query CacheQuery) string {
+	return "semiont.cache." + kbID + "." + personKey + "." + string(query)
 }
 
-// lastEventIDKey is the key a knowledge base's stream's places are kept
-// under, as protocol/specs/src/session/stored.json states it.
-func lastEventIDKey(kbID string) string {
-	return "semiont.lastEventId." + kbID
+// LastEventIDKey is the key where a knowledge base's stream was, for the
+// person whose key is personKey, is kept under.
+func LastEventIDKey(kbID, personKey string) string {
+	return "semiont.lastEventId." + kbID + "." + personKey
 }
 
 // keptVersion is the version of what the kept caches hold. A document of

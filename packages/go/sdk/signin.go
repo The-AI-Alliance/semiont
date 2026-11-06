@@ -15,6 +15,7 @@ package semiont
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"sync"
@@ -102,6 +103,12 @@ func ResumeSession(ctx context.Context, config ResumeConfig) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
+	return StartSession(ctx, resumed(config, baseURL))
+}
+
+// resumed is what a session resumed over config is, with the gateway at
+// baseURL.
+func resumed(config ResumeConfig, baseURL string) SessionConfig {
 	issuer := Issuer{HTTP: config.HTTP, Timing: config.Timing, Random: config.Random}
 	renewals := &renewing{}
 	session := SessionConfig{
@@ -122,7 +129,7 @@ func ResumeSession(ctx context.Context, config ResumeConfig) (*Session, error) {
 	if config.AskWhoTokenIs {
 		session.Validate = asking(baseURL, config.HTTP, config.Timing, config.Random)
 	}
-	return StartSession(ctx, session)
+	return session
 }
 
 // gatewayOf is the origin of the gateway kb's HTTP endpoint names; a
@@ -166,10 +173,15 @@ type SessionFromKeptConfig struct {
 	// Channels is the global channels the transport's stream names
 	// (bus.BridgedChannels for every channel a client hears).
 	Channels []bus.Channel
-	// Storage keeps what the client's small queries hold, under Kb's Id, and
-	// the stream's place in each scope with it: the next session over the
-	// same storage shows what was kept at once, and is sent what was recorded
-	// since. Nil keeps nothing.
+	// Storage keeps what the client's small queries hold, and the stream's
+	// place in each scope with it, for the person the gateway names, under
+	// Kb's Id and their key (PersonKey): the next session over the same
+	// storage, for the same person, shows what was kept at once, and is sent
+	// what was recorded since. The person is the one the kept sign-in names
+	// as the session is made; when it names nobody, nothing is kept until the
+	// gateway names them and the sign-in records it
+	// (SignInKept.RecordPersonKey). Nil, or a session that does not ask who
+	// its token is, keeps nothing.
 	Storage SessionStorage
 	// OnAuthFailed and OnError are the session's (SessionConfig).
 	OnAuthFailed func(SessionEndReason)
@@ -188,31 +200,33 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 	if err != nil {
 		return nil, nil, err
 	}
+	var held HeldSignIn
+	var has bool
+	keepsForAPerson := config.Storage != nil && config.AskWhoTokenIs
+	if keepsForAPerson {
+		if held, has, err = config.Kept.Held(ctx); err != nil {
+			return nil, nil, err
+		}
+	}
 	token := NewVariable("")
 	renewer := newRefresherToCome()
-	var places *CoupledBookmarks
-	var persistence *CachePersistence
-	transportConfig := HTTPTransportConfig{
+	transport := NewHTTPTransport(HTTPTransportConfig{
 		BaseURL: baseURL, Token: token, Refresher: renewer,
 		Channels: config.Channels, HTTP: config.HTTP, Timing: config.Timing, Random: config.Random,
-	}
-	if config.Storage != nil {
-		// The stream's place rides the caches' writes, and only when every
-		// cache is at rest: a place kept ahead of a cache still taking in the
-		// event it names would have the next session skip that event.
-		places = NewCoupledBookmarks(config.Storage, lastEventIDKey(config.Kb.Id))
-		persistence = &CachePersistence{Storage: places.Storage(), KeyPrefix: config.Kb.Id}
-		transportConfig.Bookmarks = places
-	}
-	transport := NewHTTPTransport(transportConfig)
-	client := NewClient(ClientConfig{Transport: transport, Content: NewHTTPContentTransport(transport), Gateway: transport, Timing: config.Timing, Persistence: persistence})
-	if places != nil {
-		places.SetFlushGate(client.PersistenceSettled)
-	}
-	session, err = ResumeSession(ctx, ResumeConfig{
+	})
+	client := NewClient(ClientConfig{Transport: transport, Content: NewHTTPContentTransport(transport), Gateway: transport, Timing: config.Timing})
+	sessionConfig := resumed(ResumeConfig{
 		Kb: config.Kb, Client: client, Kept: config.Kept, Token: token, HTTP: config.HTTP, Timing: config.Timing, Random: config.Random,
 		AskWhoTokenIs: config.AskWhoTokenIs, OnAuthFailed: config.OnAuthFailed, OnError: config.OnError,
-	})
+	}, baseURL)
+	if keepsForAPerson {
+		keeps := &keptFor{storage: config.Storage, kbID: config.Kb.Id, kept: config.Kept, client: client, transport: transport}
+		if has && held.PersonKey != nil {
+			keeps.attach(*held.PersonKey)
+		}
+		sessionConfig.Validate = keeps.recording(sessionConfig.Validate)
+	}
+	session, err = StartSession(ctx, sessionConfig)
 	if err != nil {
 		// No session is to come: closing the transport ends the wait of a
 		// refusal that arrived first.
@@ -231,6 +245,64 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 		return nil, nil, err
 	}
 	return session, end, nil
+}
+
+// keptFor is what a session's client keeps in a storage for the person the
+// session's gateway names: nothing until it is attached for them.
+type keptFor struct {
+	storage   SessionStorage
+	kbID      string
+	kept      SignInKept
+	client    *Client
+	transport *HTTPTransport
+
+	mu       sync.Mutex
+	attached bool
+}
+
+// attach has the client keep its caches, and the transport its stream's
+// places, for the person whose key is personKey: each begins with what was
+// kept for them, and keeps what it holds from now on. The places ride the
+// caches' writes, and only when every cache is at rest: a place kept ahead of
+// a cache still taking in the event it names would have the next session
+// skip that event.
+func (k *keptFor) attach(personKey string) {
+	places := NewCoupledBookmarks(k.storage, LastEventIDKey(k.kbID, personKey))
+	places.SetFlushGate(k.client.PersistenceSettled)
+	k.transport.keepPlaces(places)
+	k.client.live.attach(&CachePersistence{Storage: places.Storage(), KbID: k.kbID, PersonKey: personKey})
+	k.attached = true
+}
+
+// recording is validate, and, once the gateway has said who a token is, the
+// person recorded on the sign-in it was asked about, and what was kept for
+// them attached, before validate's caller hears the answer.
+func (k *keptFor) recording(validate func(ctx context.Context, token string) (api.UserResponse, error)) func(ctx context.Context, token string) (api.UserResponse, error) {
+	return func(ctx context.Context, token string) (api.UserResponse, error) {
+		user, err := validate(ctx, token)
+		if err == nil {
+			k.named(ctx, token, user)
+		}
+		return user, err
+	}
+}
+
+// named records user, who the gateway said token is, on the sign-in, while it
+// still holds token and names nobody else, and attaches what is kept for them
+// once it names them. A sign-in that has moved on, or names another person,
+// attaches nothing.
+func (k *keptFor) named(ctx context.Context, token string, user api.UserResponse) {
+	personKey := PersonKey(user.Did.String())
+	recorded, err := k.kept.RecordPersonKey(ctx, token, personKey)
+	if err != nil {
+		slog.Warn("semiont: who the gateway named was not recorded on the sign-in", "error", err)
+		return
+	}
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if recorded && !k.attached {
+		k.attach(personKey)
+	}
 }
 
 // refresherToCome is a TokenRefresher that asks one made after it. A

@@ -48,6 +48,10 @@ type HeldSignIn struct {
 	TokenEndpoint string
 	// RevocationEndpoint is "" when the issuer has none.
 	RevocationEndpoint string
+	// PersonKey is who the gateway said the sign-in's person is, as the key
+	// what is kept of them is kept under (PersonKey): nil until it has said.
+	// A renewal keeps it; a new sign-in has none.
+	PersonKey *string
 }
 
 // SignInKept is where one knowledge base's sign-in is kept.
@@ -63,6 +67,14 @@ type SignInKept interface {
 	// kept: a sign-in that was signed out, or ended, while it was being renewed
 	// is gone, and is not written back.
 	Renewed(ctx context.Context, read HeldSignIn, access, refresh string) (string, bool, error)
+	// RecordPersonKey records personKey, the key of the person the gateway
+	// said access is, on the sign-in kept now, as one step: only while it
+	// holds access and names no person. It reports whether the sign-in kept
+	// names personKey afterwards: false when it holds another token, or none,
+	// or names another person, and for a store that keeps no person. It is
+	// how a session keys what its client keeps by the person, on whatever
+	// keeps its sign-in.
+	RecordPersonKey(ctx context.Context, access, personKey string) (bool, error)
 	// Forget keeps the sign-in no more.
 	Forget(ctx context.Context) error
 }
@@ -101,6 +113,20 @@ func (m *MemorySignIn) Renewed(_ context.Context, read HeldSignIn, access, refre
 	}
 	m.signIn.Access, m.signIn.Refresh = access, refresh
 	return access, true, nil
+}
+
+// RecordPersonKey records personKey on the sign-in held, as SignInKept says:
+// only while it holds access and names no person.
+func (m *MemorySignIn) RecordPersonKey(_ context.Context, access, personKey string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.has || m.signIn.Access != access {
+		return false, nil
+	}
+	if m.signIn.PersonKey == nil {
+		m.signIn.PersonKey = &personKey
+	}
+	return *m.signIn.PersonKey == personKey, nil
 }
 
 func (m *MemorySignIn) Forget(context.Context) error {

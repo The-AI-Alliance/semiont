@@ -18,10 +18,10 @@
     ],
     "csharp": [
       "packages/csharp/sdk/tests/Semiont.Tests/PersistedCasesTests.cs"
+    ],
+    "go": [
+      "packages/go/sdk/registry/persisted_cases_test.go"
     ]
-  },
-  "notYetReached": {
-    "go": "packages/go/sdk/registry/persisted_cases_test.go is to run it: its key builders, its stored sign-in's personKey and its registry's sign-out are each to be built first, and a test of them does not compile until they are"
   },
   "people": {
     "jo": {

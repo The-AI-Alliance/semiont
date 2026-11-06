@@ -50,6 +50,11 @@ type StoredSession struct {
 	TokenEndpoint string `json:"tokenEndpoint"`
 	// RevocationEndpoint is "" when the issuer has none.
 	RevocationEndpoint string `json:"revocationEndpoint,omitempty"`
+	// PersonKey is who the gateway said the sign-in's person is, as the key
+	// what is kept of them is kept under (semiont.PersonKey): nil until it
+	// has said. A renewal keeps it; a new sign-in has none; a sign-out deletes
+	// what is kept under it.
+	PersonKey *string `json:"personKey,omitempty"`
 }
 
 // readStoredSession is a stored value as a session; false for one that is
@@ -68,11 +73,11 @@ func (s StoredSession) written() string {
 }
 
 func (s StoredSession) held() semiont.HeldSignIn {
-	return semiont.HeldSignIn{Access: s.Access, Refresh: s.Refresh, ClientID: s.ClientID, TokenEndpoint: s.TokenEndpoint, RevocationEndpoint: s.RevocationEndpoint}
+	return semiont.HeldSignIn{Access: s.Access, Refresh: s.Refresh, ClientID: s.ClientID, TokenEndpoint: s.TokenEndpoint, RevocationEndpoint: s.RevocationEndpoint, PersonKey: s.PersonKey}
 }
 
 func storedOf(held semiont.HeldSignIn) StoredSession {
-	return StoredSession{Access: held.Access, Refresh: held.Refresh, ClientID: held.ClientID, TokenEndpoint: held.TokenEndpoint, RevocationEndpoint: held.RevocationEndpoint}
+	return StoredSession{Access: held.Access, Refresh: held.Refresh, ClientID: held.ClientID, TokenEndpoint: held.TokenEndpoint, RevocationEndpoint: held.RevocationEndpoint, PersonKey: held.PersonKey}
 }
 
 // StoredSessionOf is the session stored for a knowledge base; false when
@@ -194,8 +199,39 @@ func (k keptIn) Renewed(_ context.Context, read semiont.HeldSignIn, access, refr
 	return current, kept, err
 }
 
+// RecordPersonKey records personKey on the stored session, as
+// semiont.SignInKept says, in one update of the storage: only while it holds
+// access and names no person.
+func (k keptIn) RecordPersonKey(_ context.Context, access, personKey string) (bool, error) {
+	var names bool
+	err := k.storage.Update(SessionKey(k.kbID), func(stored string, has bool) (string, bool) {
+		session, ok := readStoredSession(stored)
+		if !has || !ok || session.Access != access {
+			return stored, has
+		}
+		if session.PersonKey != nil {
+			names = *session.PersonKey == personKey
+			return stored, true
+		}
+		session.PersonKey, names = &personKey, true
+		return session.written(), true
+	})
+	return names, err
+}
+
 func (k keptIn) Forget(context.Context) error {
 	return ClearStoredSession(k.storage, k.kbID)
+}
+
+// keptOf is every key what a session's client keeps of a person is kept under
+// in a knowledge base's storage: each persisted query's, and the stream's
+// places'.
+func keptOf(kbID, personKey string) []string {
+	keys := []string{semiont.LastEventIDKey(kbID, personKey)}
+	for _, query := range semiont.PersistedCacheQueries {
+		keys = append(keys, semiont.CacheKey(kbID, personKey, query))
+	}
+	return keys
 }
 
 // KbSessionStatus is what the credential stored for a knowledge base says,

@@ -37,9 +37,9 @@ type Bookmarks interface {
 //
 // What is kept under the key and is not places reads as nothing kept.
 //
-//	places := semiont.NewCoupledBookmarks(storage, "semiont.lastEventId."+kb.Id)
+//	places := semiont.NewCoupledBookmarks(storage, semiont.LastEventIDKey(kb.Id, personKey))
 //	transport := semiont.NewHTTPTransport(semiont.HTTPTransportConfig{..., Bookmarks: places})
-//	client := semiont.NewClient(semiont.ClientConfig{..., Persistence: &semiont.CachePersistence{Storage: places.Storage(), KeyPrefix: kb.Id}})
+//	client := semiont.NewClient(semiont.ClientConfig{..., Persistence: &semiont.CachePersistence{Storage: places.Storage(), KbID: kb.Id, PersonKey: personKey}})
 //	places.SetFlushGate(client.PersistenceSettled)
 type CoupledBookmarks struct {
 	storage SessionStorage

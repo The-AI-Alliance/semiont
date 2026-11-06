@@ -62,7 +62,7 @@ func TestTheBackoffWaitsBetweenHalfItsCapAndItsCap(t *testing.T) {
 	timing := DefaultTiming()
 	timing.Reconnect = 100 * time.Millisecond
 	timing.MaxReconnect = time.Second
-	s := newStream(&transportShared{timing: timing}, NewVariable(ConnectionStateInitial))
+	s := newStream(&transportShared{timing: timing}, NewVariable(ConnectionStateInitial), nil)
 	for attempt, limit := range []time.Duration{100, 200, 400, 800, 1000, 1000} {
 		limit *= time.Millisecond
 		wait := s.backoff()

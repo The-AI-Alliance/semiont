@@ -115,14 +115,31 @@ var _ StateUnit = (*Cache[string, string])(nil)
 // persister, it begins with what that kept, and saves to it saveWait after
 // its values last changed; persister is nil for a cache that keeps nothing.
 func NewCache[K comparable, V any](fetch func(ctx context.Context, key K) (V, error), run func(work func(ctx context.Context)), persister CachePersister[K, V], saveWait time.Duration) *Cache[K, V] {
-	c := &Cache[K, V]{fetch: fetch, run: run, persister: persister, saveWait: saveWait, keys: map[K]*cacheKey[V]{}, kept: map[K]bool{}}
+	c := &Cache[K, V]{fetch: fetch, run: run, saveWait: saveWait, keys: map[K]*cacheKey[V]{}, kept: map[K]bool{}}
 	if persister != nil {
-		for key, value := range persister.Load() {
-			c.keys[key] = &cacheKey[V]{state: Ready[V]{Value: value}, changed: make(chan struct{})}
-			c.kept[key] = true
-		}
+		c.attach(persister)
 	}
 	return c
+}
+
+// attach has a cache that keeps nothing keep its values in persister from
+// now on. What persister kept is shown for each key the cache holds nothing
+// of, and is asked for again the first time it is observed; a key the cache
+// holds stands. Nothing is saved until a value changes.
+func (c *Cache[K, V]) attach(persister CachePersister[K, V]) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return
+	}
+	c.persister = persister
+	for key, value := range persister.Load() {
+		if _, held := c.keys[key]; held {
+			continue
+		}
+		c.keys[key] = &cacheKey[V]{state: Ready[V]{Value: value}, changed: make(chan struct{})}
+		c.kept[key] = true
+	}
 }
 
 // held is the key's, made pending when the cache has none. Called with mu
@@ -163,6 +180,7 @@ func (c *Cache[K, V]) oweASave() {
 	if c.saving != nil {
 		c.saving.Stop()
 	}
+	persister := c.persister
 	c.saving = time.AfterFunc(c.saveWait, func() {
 		c.mu.Lock()
 		if c.closed {
@@ -172,7 +190,7 @@ func (c *Cache[K, V]) oweASave() {
 		c.saving = nil
 		values := c.values()
 		c.mu.Unlock()
-		if err := c.persister.Save(values); err != nil {
+		if err := persister.Save(values); err != nil {
 			unsaved(err)
 		}
 	})
@@ -450,6 +468,7 @@ func (c *Cache[K, V]) Close() {
 		c.saving = nil
 		owed = c.values()
 	}
+	persister := c.persister
 	c.closed = true
 	for _, k := range c.keys {
 		close(k.changed)
@@ -458,7 +477,7 @@ func (c *Cache[K, V]) Close() {
 	clear(c.kept)
 	c.mu.Unlock()
 	if owed != nil {
-		if err := c.persister.Save(owed); err != nil {
+		if err := persister.Save(owed); err != nil {
 			unsaved(err)
 		}
 	}

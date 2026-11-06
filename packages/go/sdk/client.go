@@ -22,9 +22,9 @@ type ClientConfig struct {
 	// Timing is the waits the client keeps: DefaultTiming(), unless a caller
 	// that must not wait them out says otherwise.
 	Timing Timing
-	// Persistence is where the client keeps what its queries hold, so the
-	// next client of the same knowledge base shows it at once; nil for a
-	// client that keeps nothing.
+	// Persistence is where the client keeps what its queries hold for one
+	// person, so the next client of the same knowledge base, for the same
+	// person, shows it at once; nil for a client that keeps nothing.
 	Persistence *CachePersistence
 }
 
@@ -88,7 +88,10 @@ func NewClient(config ClientConfig) *Client {
 	life, end := context.WithCancel(context.Background())
 	l := &links{transport: config.Transport, wire: wire, own: own, timing: config.Timing, life: life, end: end}
 	config.Transport.BridgeInto(own)
-	queries := newLive(l, config.Content, config.Persistence)
+	queries := newLive(l, config.Content)
+	if config.Persistence != nil {
+		queries.attach(config.Persistence)
+	}
 	keeping := newRefresher(l, queries)
 	keeping.start()
 	return &Client{

@@ -1011,3 +1011,34 @@ func TestASessionClosedWhileItStartsIsReadyAndSaysNothing(t *testing.T) {
 		t.Errorf("a closed session is not ready: %v", err)
 	}
 }
+
+// A sign-in kept in memory records the person the gateway named as one step,
+// only while it holds the token that was asked about and names nobody; a
+// renewal keeps the person.
+func TestASignInKeptInMemoryRecordsThePersonOfTheTokenAskedAbout(t *testing.T) {
+	ctx := context.Background()
+	jo, ann := semiont.PersonKey("did:web:example.org:users:jo"), semiont.PersonKey("did:web:example.org:users:ann")
+	kept := &semiont.MemorySignIn{}
+	if recorded, err := kept.RecordPersonKey(ctx, "a1", jo); err != nil || recorded {
+		t.Fatalf("a person recorded on nothing kept: %v, %v", recorded, err)
+	}
+	read := semiont.HeldSignIn{Access: "a1", Refresh: "r1", ClientID: semiont.ScriptClientID, TokenEndpoint: "https://issuer.test/token"}
+	if err := kept.Keep(ctx, read); err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range []struct {
+		access, person string
+		recorded       bool
+	}{{"another token", jo, false}, {"a1", jo, true}, {"a1", jo, true}, {"a1", ann, false}} {
+		if recorded, err := kept.RecordPersonKey(ctx, record.access, record.person); err != nil || recorded != record.recorded {
+			t.Fatalf("recording %s on the sign-in of %s: %v, %v; want %v", record.person, record.access, recorded, err, record.recorded)
+		}
+	}
+	named, _, _ := kept.Held(ctx)
+	if _, ok, err := kept.Renewed(ctx, named, "a2", "r2"); err != nil || !ok {
+		t.Fatalf("the renewal: %v, %v", ok, err)
+	}
+	if held, _, _ := kept.Held(ctx); held.Access != "a2" || held.PersonKey == nil || *held.PersonKey != jo {
+		t.Fatalf("held after a renewal: %+v", held)
+	}
+}

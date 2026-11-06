@@ -19,9 +19,11 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
-const (
-	keptPlacesKey = "semiont.lastEventId.kb-a"
-	keptCacheKey  = "semiont.cache.kb-a.resource"
+var (
+	keptPerson         = PersonKey("did:web:example.org:users:alice")
+	keptPlacesKey      = LastEventIDKey("kb-a", keptPerson)
+	keptCacheKey       = CacheKey("kb-a", keptPerson, CacheQueryResource)
+	keptAnnotationsKey = CacheKey("kb-a", keptPerson, CacheQueryAnnotations)
 )
 
 func placesOf(t *testing.T, kept map[string]string) map[api.ResourceId]string {
@@ -113,7 +115,7 @@ func TestAPlaceIsWrittenAfterTheCachesOwnWriteSoOneThatFailsLeavesNoPlaceAheadOf
 	if _, ok := storage.Get(keptPlacesKey); ok {
 		t.Fatal("a place was written though the cache's write failed")
 	}
-	if err := caches.Set("semiont.cache.kb-a.annotations", "{}"); err != nil {
+	if err := caches.Set(keptAnnotationsKey, "{}"); err != nil {
 		t.Fatal(err)
 	}
 	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-7"}); !maps.Equal(got, want) {
@@ -136,7 +138,7 @@ func TestAPlaceWaitsForTheCachesToBeAtRest(t *testing.T) {
 	}
 
 	atRest = true
-	caches.Set("semiont.cache.kb-a.annotations", "{}")
+	caches.Set(keptAnnotationsKey, "{}")
 	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-7"}); !maps.Equal(got, want) {
 		t.Fatalf("places kept %v, want %v", got, want)
 	}
@@ -326,4 +328,44 @@ func TestAStreamWithNoBookmarksBeginsEveryScopeAtThePresent(t *testing.T) {
 	if begins, _ := gateway.asked(1); !maps.Equal(begins, map[string]string{"res-1": ""}) {
 		t.Fatalf("the scope begins at %v", begins)
 	}
+}
+
+// Places kept elsewhere, given to a stream that has begun, are taken up only
+// for the scopes it holds no place in; and the stream keeps its places there
+// from then on.
+func TestPlacesGivenToAStreamAreTakenUpOnlyForTheScopesItHoldsNoPlaceIn(t *testing.T) {
+	resource, other := mustResource(t, "res-1"), mustResource(t, "res-2")
+	storage := NewMemoryStorage()
+	storage.Set(keptPlacesKey, `{"res-1":"p-41"}`)
+	elsewhere := NewMemoryStorage()
+	elsewhere.Set(keptPlacesKey, `{"res-1":"p-kept","res-2":"p-3"}`)
+
+	gateway := newRecordingGateway(t)
+	transport := gateway.transport(NewCoupledBookmarks(storage, keptPlacesKey))
+	defer transport.Close()
+	transport.keepPlaces(NewCoupledBookmarks(elsewhere, keptPlacesKey))
+	defer transport.SubscribeToResource(resource)()
+	defer transport.SubscribeToResource(other)()
+	until(t, "a subscription of both scopes", func() bool { _, ok := gateway.asked(2); return ok })
+	if begins, _ := gateway.asked(2); !maps.Equal(begins, map[string]string{"res-1": "p-41", "res-2": "p-3"}) {
+		t.Fatalf("the scopes begin at %v", begins)
+	}
+
+	// A stream made with no bookmarks takes up the places it is given all the same.
+	bare := newRecordingGateway(t)
+	unkept := bare.transport(nil)
+	defer unkept.Close()
+	kept := NewCoupledBookmarks(elsewhere, keptPlacesKey)
+	unkept.keepPlaces(kept)
+	defer unkept.SubscribeToResource(other)()
+	until(t, "a subscription of the scope", func() bool { _, ok := bare.asked(1); return ok })
+	if begins, _ := bare.asked(1); !maps.Equal(begins, map[string]string{"res-2": "p-3"}) {
+		t.Fatalf("the scope begins at %v", begins)
+	}
+	bare.send("p-4", map[string]any{"channel": "mark:added", "payload": map[string]any{"n": 1}, "scope": "res-2"})
+	until(t, "the place reached is kept", func() bool {
+		kept.mu.Lock()
+		defer kept.mu.Unlock()
+		return kept.pending[other] == "p-4"
+	})
 }

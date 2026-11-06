@@ -291,6 +291,30 @@ func TestASignInIsKeptAsItsTokenNamesIt(t *testing.T) {
 	}
 }
 
+// The store keeps no person: one the gateway names is not recorded, and so a
+// session over the store keeps nothing for them.
+func TestTheStoreRecordsNoPerson(t *testing.T) {
+	store := storeIn(t)
+	held := heldFor(1)
+	entry := store.Entry("local")
+	if err := entry.Keep(context.Background(), held); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(store.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recorded, err := entry.RecordPersonKey(context.Background(), held.Access, PersonKey("did:web:example.org:users:a")); err != nil || recorded {
+		t.Fatalf("the store recorded a person: %v, %v", recorded, err)
+	}
+	if after, err := os.ReadFile(store.path); err != nil || string(after) != string(before) {
+		t.Fatalf("recording a person changed the store (%v)", err)
+	}
+	if back, _, _ := entry.Held(context.Background()); back.PersonKey != nil {
+		t.Fatalf("the sign-in held back names %s", *back.PersonKey)
+	}
+}
+
 // A token that names no issuer is no sign-in: a gateway would admit none.
 func TestATokenThatNamesNoIssuerIsNotKept(t *testing.T) {
 	store := storeIn(t)

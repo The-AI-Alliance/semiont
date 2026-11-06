@@ -14,12 +14,12 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
-const keptKey = "semiont.cache.kb.resource"
+var keptKey = CacheKey("kb", PersonKey("did:web:example.org:users:alice"), CacheQueryResource)
 
 // keeping is what keeps a client's resource descriptions in storage, in a
 // document of maxBytes at most.
 func keeping(storage SessionStorage, maxBytes int) CachePersister[api.ResourceId, api.ResourceDescriptor] {
-	return keptBy[api.ResourceId, api.ResourceDescriptor](&CachePersistence{Storage: storage, KeyPrefix: "kb"}, "resource", maxBytes)
+	return NewStoragePersister[api.ResourceId, api.ResourceDescriptor](storage, keptKey, maxBytes)
 }
 
 func descriptorText(id, name string) string {

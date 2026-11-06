@@ -439,7 +439,10 @@ func (b *SemiontBrowser) SignedIn(signedIn SignedIn) (SignInOutcome, error) {
 
 // SignOut signs out of a knowledge base: its tokens are forgotten, and the
 // issuer is told so its refresh token is good for nothing. If it is active,
-// its session is closed.
+// its session is closed. Then what its sessions kept for the person its
+// sign-in named, each persisted query's values and the stream's places, is
+// deleted, whether or not anything was kept; a sign-in that named nobody
+// deletes nothing.
 func (b *SemiontBrowser) SignOut(id string) error {
 	if b.closed.Load() {
 		return nil
@@ -461,7 +464,18 @@ func (b *SemiontBrowser) SignOut(id string) error {
 			taken.close()
 		}
 	}
-	return nil
+	if !ok || stored.PersonKey == nil {
+		return nil
+	}
+	// Deleted once the session's client has closed, so nothing its closing
+	// writes is left.
+	var failed []error
+	for _, key := range keptOf(id, *stored.PersonKey) {
+		if err := b.storage.Delete(key); err != nil {
+			failed = append(failed, err)
+		}
+	}
+	return errors.Join(failed...)
 }
 
 // ── What is open ────────────────────────────────────────────────────────

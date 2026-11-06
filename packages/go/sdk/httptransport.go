@@ -66,7 +66,6 @@ type transportShared struct {
 	http      *http.Client
 	token     *Variable[string]
 	refresher TokenRefresher
-	bookmarks Bookmarks
 	// clientID is this client's address for correlated replies: one per
 	// transport, not per connection, so both streams of a handoff present the
 	// same one.
@@ -102,7 +101,6 @@ func NewHTTPTransport(config HTTPTransportConfig) *HTTPTransport {
 		http:      config.HTTP,
 		token:     config.Token,
 		refresher: config.Refresher,
-		bookmarks: config.Bookmarks,
 		clientID:  uuid.NewString(),
 		global:    slices.Clone(config.Channels),
 		timing:    config.Timing,
@@ -112,7 +110,7 @@ func NewHTTPTransport(config HTTPTransportConfig) *HTTPTransport {
 		failures:  newFailureStream(),
 	}
 	state := NewVariable(ConnectionStateInitial)
-	s := newStream(shared, state)
+	s := newStream(shared, state, config.Bookmarks)
 	stopped := make(chan struct{})
 	go s.run(stopped)
 	return &HTTPTransport{
@@ -129,6 +127,12 @@ func (t *HTTPTransport) BaseURL() string { return t.shared.baseURL }
 
 // ClientID is the address this client's correlated replies are routed to.
 func (t *HTTPTransport) ClientID() string { return t.shared.clientID }
+
+// keepPlaces has the stream keep its place in each scope in bookmarks from
+// now on, and begin each scope it holds no place in where bookmarks say.
+func (t *HTTPTransport) keepPlaces(bookmarks Bookmarks) {
+	t.send(command{kind: commandKeepPlaces, bookmarks: bookmarks})
+}
 
 // send gives the stream a command; nothing, once the stream has stopped.
 func (t *HTTPTransport) send(c command) {

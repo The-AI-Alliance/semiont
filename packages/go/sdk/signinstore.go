@@ -277,6 +277,13 @@ func (e *signInEntry) Renewed(_ context.Context, read HeldSignIn, access, refres
 	return current, kept, nil
 }
 
+// RecordPersonKey records nothing: the store keeps no person
+// (protocol/specs/src/sign-in-store/SignIn.json), so a session over it keeps
+// nothing for one.
+func (e *signInEntry) RecordPersonKey(context.Context, string, string) (bool, error) {
+	return false, nil
+}
+
 // Forget signs the stack out of the store.
 func (e *signInEntry) Forget(context.Context) error {
 	return e.store.change(func(document map[string]json.RawMessage) (bool, error) {

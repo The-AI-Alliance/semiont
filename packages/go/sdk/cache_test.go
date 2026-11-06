@@ -849,6 +849,34 @@ func TestB17DisposingMakesASaveThatWasOwedAtOnceAndNoneIsMadeAfter(t *testing.T)
 	}
 }
 
+// A cache that kept nothing, attached to what another life kept, shows what
+// was kept of each key it holds nothing of, asked for anew when it is first
+// observed, and leaves every key it holds as it is; it saves from then on.
+func TestB17ACacheAttachedOnceItHasBegunTakesUpWhatWasKeptOnlyForTheKeysItHoldsNothingOf(t *testing.T) {
+	c, service, _ := cacheWorld(t, nil, time.Hour)
+	held := ready(t, c, service, 7)
+	persister := &keptBack{kept: map[string]int{cacheKeyOne: 1, "kept": 2}}
+	c.attach(persister)
+
+	held.nothingMore(t)
+	if value, _ := c.Get(cacheKeyOne); value != 7 {
+		t.Fatalf("the key the cache held is %d, want 7", value)
+	}
+	o := watching(t, c, "kept")
+	isState(t, o.now(t), Ready[int]{Value: 2})
+	service.askedJust(t, cacheKeyOne, "kept")
+	service.answer(t, 1, 3)
+	isState(t, o.now(t), Ready[int]{Value: 3})
+
+	if saves := persister.saved(); len(saves) != 0 || !c.PersistencePending() {
+		t.Fatalf("saved %v, owing %v, after a new value", saves, c.PersistencePending())
+	}
+	c.Close()
+	if saves := persister.saved(); len(saves) != 1 || !reflect.DeepEqual(saves[0], map[string]int{cacheKeyOne: 7, "kept": 3}) {
+		t.Fatalf("closing saved %v", saves)
+	}
+}
+
 func TestACacheThatKeepsNothingOwesNothing(t *testing.T) {
 	c, _, _ := cacheWorld(t, nil, 0)
 	watching(t, c, cacheKeyOne).now(t)

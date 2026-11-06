@@ -5,10 +5,11 @@
 //
 //   packages/go/sdk/refresh_gen.go
 //
-// Beside the table it writes the two interfaces the client's refresher
-// implements: what each trigger's event names, and what each act does to each
-// query. A trigger or a query the table gains is a method the refresher lacks,
-// so Go does not compile until it is answered.
+// Beside the table it writes the queries a client keeps in its storage, and
+// the two interfaces the client's refresher implements: what each trigger's
+// event names, and what each act does to each query. A trigger or a query the
+// table gains is a method the refresher lacks, so Go does not compile until it
+// is answered.
 //
 // The reading of the table, and the account it is held to, are
 // cache-refresh-table.mjs's, shared with the TypeScript and Python generators.
@@ -114,6 +115,10 @@ ${queryConsts.join('\n')}
 
 // CacheQueries is every live query, in the table's order.
 var CacheQueries = ${list(queries.map((query) => query.name))}
+
+// PersistedCacheQueries is every live query a client keeps in its storage,
+// in the table's order: each under its name (CacheKey).
+var PersistedCacheQueries = ${list(queries.filter((query) => query.persisted === true).map((query) => query.name))}
 
 // CacheRefreshTrigger is what refreshes a client's cache: a channel of the
 // bus, or the stream open again after a drop.

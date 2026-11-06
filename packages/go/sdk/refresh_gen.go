@@ -53,6 +53,10 @@ const (
 // CacheQueries is every live query, in the table's order.
 var CacheQueries = []CacheQuery{CacheQueryResource, CacheQueryAnnotations, CacheQueryAnnotation, CacheQueryEvents, CacheQueryReferencedBy, CacheQueryResources, CacheQueryMatchedResources, CacheQueryEntityTypes, CacheQueryTagSchemas, CacheQueryEngines}
 
+// PersistedCacheQueries is every live query a client keeps in its storage,
+// in the table's order: each under its name (CacheKey).
+var PersistedCacheQueries = []CacheQuery{CacheQueryResource, CacheQueryAnnotations, CacheQueryAnnotation, CacheQueryEntityTypes, CacheQueryTagSchemas}
+
 // CacheRefreshTrigger is what refreshes a client's cache: a channel of the
 // bus, or the stream open again after a drop.
 type CacheRefreshTrigger string

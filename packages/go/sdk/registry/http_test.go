@@ -27,14 +27,20 @@ import (
 // stage is a stand-in gateway and the issuer it trusts. The gateway says who
 // a token is, holds streams, and answers on every stream a request to
 // describe itself, as it describes itself or refusing, and a request for a
-// resource; an emit carrying a token it refuses on the bus is refused. The
-// issuer grants what it is told to.
+// resource, naming it fresh; an emit carrying a token it refuses on the bus
+// is refused. The issuer grants what it is told to.
 type stage struct {
 	gateway, issuer *httptest.Server
 
 	mu sync.Mutex
 	// describes is what the knowledge base says of itself; nil refuses.
 	describes json.RawMessage
+	// who is what the gateway says every token is; nil gives no answer, the
+	// connection closed.
+	who json.RawMessage
+	// answerWho, when it is not nil, holds each answer of who a token is
+	// until it is closed.
+	answerWho chan struct{}
 	// grants is the tokens the token endpoint grants next, one each.
 	grants [][2]string
 	// tokenForms and revokeForms are every form those endpoints were sent.
@@ -50,7 +56,11 @@ type stage struct {
 
 func newStage(t *testing.T) *stage {
 	t.Helper()
-	s := &stage{describes: description("KB A", "example.org:kb-a", "main"), refusedOnTheBus: map[string]bool{}}
+	s := &stage{
+		describes:       description("KB A", "example.org:kb-a", "main"),
+		who:             json.RawMessage(`{"did":"did:web:example.org:users:alice","email":"alice@example.org","domain":"example.org","name":"Alice","image":null}`),
+		refusedOnTheBus: map[string]bool{},
+	}
 	s.issuer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
@@ -92,8 +102,26 @@ func newStage(t *testing.T) *stage {
 		case "/api/users/me":
 			s.mu.Lock()
 			s.askedWho = append(s.askedWho, token)
+			who, held := s.who, s.answerWho
 			s.mu.Unlock()
-			answerJSON(w, http.StatusOK, map[string]any{"did": "did:web:example.org:users:alice", "email": "alice@example.org", "domain": "example.org", "name": "Alice", "image": nil})
+			if held != nil {
+				select {
+				case <-held:
+				case <-r.Context().Done():
+					return
+				}
+			}
+			if who == nil {
+				conn, _, err := w.(http.Hijacker).Hijack()
+				if err != nil {
+					panic(err)
+				}
+				_ = conn.Close()
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(who)
 		case "/bus/subscribe":
 			s.stream(w, r)
 		case "/bus/emit":
@@ -157,8 +185,8 @@ func (s *stage) emitted(w http.ResponseWriter, r *http.Request, token string) {
 	case emitted.Channel == string(kbRequested):
 		s.send("", fmt.Sprintf(`{"channel":"browse:kb-result","correlationId":%q,"payload":{"response":%s}}`, *emitted.CorrelationId, describes))
 	case emitted.Channel == string(resourceRequested):
-		s.send("", fmt.Sprintf(`{"channel":"browse:resource-result","correlationId":%q,"payload":{"response":{"resource":{"@context":"https://schema.org","@id":%q,"name":%q,"representations":[]},"lastSequence":1}}}`,
-			*emitted.CorrelationId, emitted.Payload["resourceId"], emitted.Payload["resourceId"]))
+		s.send("", fmt.Sprintf(`{"channel":"browse:resource-result","correlationId":%q,"payload":{"response":{"resource":{"@context":"https://schema.org","@id":%q,"name":"fresh","representations":[]},"lastSequence":1}}}`,
+			*emitted.CorrelationId, emitted.Payload["resourceId"]))
 	}
 	answerJSON(w, http.StatusAccepted, map[string]any{"subscribers": 1})
 }
@@ -176,6 +204,24 @@ func (s *stage) send(id, data string) {
 	for _, stream := range streams {
 		stream <- event
 	}
+}
+
+// resumedFrom is the place the first stream that named scope resumed it from,
+// nil for none; named is false while no stream has named it.
+func (s *stage) resumedFrom(scope string) (from *string, named bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, subscription := range s.subscriptions {
+		if subscription.Scoped == nil {
+			continue
+		}
+		for _, scoped := range *subscription.Scoped {
+			if scoped.Scope.String() == scope {
+				return scoped.LastEventId, true
+			}
+		}
+	}
+	return nil, false
 }
 
 func (s *stage) grant(access, refresh string) {
@@ -206,6 +252,16 @@ func (s *stage) registered(t *testing.T, kbID string) api.KnowledgeBase {
 
 func (s *stage) stored(access, refresh string) registry.StoredSession {
 	return registry.StoredSession{Access: access, Refresh: refresh, ClientID: semiont.BrowserClientID, TokenEndpoint: s.issuer.URL + "/token", RevocationEndpoint: s.issuer.URL + "/revoke"}
+}
+
+// alicesKey is the key of the person the stage's gateway says every token is,
+// unless it is told otherwise.
+var alicesKey = semiont.PersonKey("did:web:example.org:users:alice")
+
+// naming is stored, naming the person whose key is personKey.
+func naming(stored registry.StoredSession, personKey string) registry.StoredSession {
+	stored.PersonKey = &personKey
+	return stored
 }
 
 func (s *stage) issuerOf() semiont.Issuer {
@@ -288,7 +344,8 @@ func TestARegistryBringsUpASessionThatSaysWhoItIsAndRenewsAnExpiredToken(t *test
 	if user := session.User().Value(); user == nil || user.Did.String() != "did:web:example.org:users:alice" {
 		t.Errorf("the session says it is %+v", user)
 	}
-	if stored, _ := registry.StoredSessionOf(storage, "kb-a"); stored != s.stored(renewed, "r2") {
+	// The person the gateway named is recorded on the renewed sign-in.
+	if stored, _ := registry.StoredSessionOf(storage, "kb-a"); !reflect.DeepEqual(stored, naming(s.stored(renewed, "r2"), alicesKey)) {
 		t.Errorf("stored: %+v", stored)
 	}
 }
@@ -413,11 +470,12 @@ func TestARegistrysSignInRegistersTheKnowledgeBaseUnderWhatItSaysItIs(t *testing
 	if !same(t, kept, outcome.Kb) {
 		t.Errorf("the registered knowledge base is %+v, and the outcome's is %+v", kept, outcome.Kb)
 	}
-	if stored, _ := registry.StoredSessionOf(storage, outcome.Kb.Id); stored != s.stored(access, "a-refresh-token") {
-		t.Errorf("stored: %+v", stored)
-	}
 	if liveOver(t, browser).Kb().Id != outcome.Kb.Id {
 		t.Error("the session is not the knowledge base signed in to")
+	}
+	// The session, once up, has recorded the person the gateway named.
+	if stored, _ := registry.StoredSessionOf(storage, outcome.Kb.Id); !reflect.DeepEqual(stored, naming(s.stored(access, "a-refresh-token"), alicesKey)) {
+		t.Errorf("stored: %+v", stored)
 	}
 }
 
@@ -484,7 +542,10 @@ func TestARegistrysSessionResumesItsStreamFromThePlaceItsStorageKept(t *testing.
 	storage := semiont.NewMemoryStorage()
 	must(t, registry.SaveKnowledgeBases(storage, []api.KnowledgeBase{s.registered(t, "kb-a")}))
 	must(t, registry.StoreSession(storage, "kb-a", s.stored(jwt(time.Hour), "r1")))
-	must(t, storage.Set("semiont.lastEventId.kb-a", `{"res-1":"p-5"}`))
+	// The sign-in names nobody yet: the place is restored once the gateway
+	// names the person it was kept for.
+	places := semiont.LastEventIDKey("kb-a", alicesKey)
+	must(t, storage.Set(places, `{"res-1":"p-5"}`))
 	browser := s.browser(t, storage)
 	session := liveOver(t, browser)
 
@@ -495,24 +556,9 @@ func TestARegistrysSessionResumesItsStreamFromThePlaceItsStorageKept(t *testing.
 		for range session.Client().Browse.Resource(id("res-1")).States(ctx) {
 		}
 	}()
-	resumedFrom := func() string {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		for _, subscription := range s.subscriptions {
-			if subscription.Scoped == nil {
-				continue
-			}
-			for _, scoped := range *subscription.Scoped {
-				if scoped.Scope.String() == "res-1" && scoped.LastEventId != nil {
-					return *scoped.LastEventId
-				}
-			}
-		}
-		return ""
-	}
-	until(t, "the stream names the scope", func() bool { return resumedFrom() != "" })
-	if from := resumedFrom(); from != "p-5" {
-		t.Errorf("the stream resumes the scope from %q", from)
+	until(t, "the stream names the scope", func() bool { _, named := s.resumedFrom("res-1"); return named })
+	if from, _ := s.resumedFrom("res-1"); from == nil || *from != "p-5" {
+		t.Errorf("the stream resumes the scope from %v", from)
 	}
 
 	// A recorded event of the scope moves the place, and the place is kept
@@ -520,8 +566,8 @@ func TestARegistrysSessionResumesItsStreamFromThePlaceItsStorageKept(t *testing.
 	// an archived resource is asked for again, and its description written.
 	s.send("p-9", `{"channel":"mark:archived","scope":"res-1","payload":{"id":"0e2f8c0a-4a34-4a8e-9b47-0d6d5a3f8a11","type":"mark:archived","timestamp":"2026-10-27T12:00:00.000Z","userId":"did:web:example.org:users:alice","resourceId":"res-1","version":1,"metadata":{"sequenceNumber":9},"payload":{}}}`)
 	until(t, "the place is kept", func() bool {
-		kept, _ := storage.Get("semiont.lastEventId.kb-a")
-		var places map[string]string
-		return json.Unmarshal([]byte(kept), &places) == nil && reflect.DeepEqual(places, map[string]string{"res-1": "p-9"})
+		kept, _ := storage.Get(places)
+		var held map[string]string
+		return json.Unmarshal([]byte(kept), &held) == nil && reflect.DeepEqual(held, map[string]string{"res-1": "p-9"})
 	})
 }
