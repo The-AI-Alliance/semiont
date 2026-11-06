@@ -100,18 +100,25 @@ describe('agentToken', () => {
     expect(runtimes).not.toHaveBeenCalled();
   });
 
-  it('every request of the sign-in carries the request deadline', async () => {
-    // A gateway or an issuer that accepts a connection and never answers
-    // would otherwise hold a process's start, and every renewal after it,
-    // for as long as the process lives.
-    const deadline = vi.spyOn(AbortSignal, 'timeout');
-    const wire = stubFetch(named);
+  it('the gateway\'s answer has the request deadline: one never answered has failed at it, and not before', async () => {
+    // A gateway that accepts a connection and never answers would otherwise
+    // hold a process's start for as long as the process lives. The issuer's
+    // two requests are `ServiceToken`'s, which its own suite holds to the
+    // same deadline. The double never answers and, as fetch does, rejects
+    // with its signal's reason when that signal is aborted.
+    const wire = stubFetch(({ init }) => new Promise<Response>((_answer, fail) => {
+      init?.signal?.addEventListener('abort', () => fail(init.signal?.reason), { once: true });
+    }));
+    const failed: unknown[] = [];
 
-    await agentToken({ baseUrl: GATEWAY, service: service() });
+    void agentToken({ baseUrl: GATEWAY, service: service(), onRetry: ({ error }) => failed.push(error) }).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(HTTP_REQUEST_TIMEOUT_MS - 1);
+    expect(failed).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
 
-    expect(wire.asked).toHaveLength(3);
-    for (const { url, init } of wire.asked) expect(init?.signal, url).toBeInstanceOf(AbortSignal);
-    expect(deadline.mock.calls).toEqual([[HTTP_REQUEST_TIMEOUT_MS], [HTTP_REQUEST_TIMEOUT_MS], [HTTP_REQUEST_TIMEOUT_MS]]);
+    expect(failed).toHaveLength(1);
+    expect(failed[0]).toMatchObject({ code: 'unavailable', message: `${GATEWAY}/api/users/me got no answer: TimeoutError` });
+    expect(wire.gateway()).toHaveLength(1);
   });
 
   it('a refusal is the gateway\'s answer: it carries the status, says what the gateway said, and is not asked again', async () => {

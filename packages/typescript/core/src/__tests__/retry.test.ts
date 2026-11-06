@@ -174,12 +174,12 @@ describe('isRetryableRequestError', () => {
     expect(isRetryableRequestError(withStatus(500))).toBe(false);
   });
 
-  it("accepts AbortSignal.timeout's TimeoutError — a deadline IS 'try again'", () => {
-    // Measured, not assumed: `AbortSignal.timeout()` rejects with a DOMException
-    // named 'TimeoutError', NOT a TypeError — so `isTransientFetchError` cannot
-    // see it, and without this case a bounded `/bus/emit` is unretryable on
-    // timeout.
-    const timeout = new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+  it("accepts a deadline's TimeoutError — a deadline IS 'try again'", () => {
+    // Measured, not assumed: a request whose deadline passes (`withinDeadline`)
+    // rejects with a DOMException named 'TimeoutError', NOT a TypeError — so
+    // `isTransientFetchError` cannot see it, and without this case a bounded
+    // `/bus/emit` is unretryable on timeout.
+    const timeout = new DOMException('The deadline of 30000ms passed', 'TimeoutError');
     expect(isTransientFetchError(timeout)).toBe(false);
     expect(isRetryableRequestError(timeout)).toBe(true);
   });
