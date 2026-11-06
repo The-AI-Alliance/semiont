@@ -435,7 +435,7 @@ pub struct PendingReply {
 impl PendingReply {
     /// The reply, or the refusal of the frame that carried it; `None` when
     /// the transport closed before either came.
-    pub async fn reply(&mut self) -> Option<Result<Frame, FrameRefusal>> {
+    pub async fn frame(&mut self) -> Option<Result<Frame, FrameRefusal>> {
         (&mut self.receiver).await.ok()
     }
 }
@@ -797,11 +797,11 @@ mod tests {
         // The same id on a channel that is not its reply's settles nothing.
         router.route(Ok(&frame("progress", Some("cid-1"))));
         router.route(Ok(&frame("result", Some("cid-1"))));
-        assert_eq!(mine.reply().await, Some(Ok(frame("result", Some("cid-1")))));
+        assert_eq!(mine.frame().await, Some(Ok(frame("result", Some("cid-1")))));
         assert_eq!(router.awaited(), ["cid-2"]);
 
         router.close();
-        assert_eq!(theirs.reply().await, None);
+        assert_eq!(theirs.frame().await, None);
     }
 
     fn refusal(channel: &str, correlation_id: Option<&str>) -> FrameRefusal {
@@ -828,7 +828,7 @@ mod tests {
 
         router.route(Err(&refusal("result", Some("cid-1"))));
         assert_eq!(
-            mine.reply().await,
+            mine.frame().await,
             Some(Err(refusal("result", Some("cid-1"))))
         );
         assert_eq!(router.awaited(), ["cid-2"]);

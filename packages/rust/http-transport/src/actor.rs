@@ -1156,12 +1156,12 @@ mod tests {
 
             match (case["request"].as_str(), pending) {
                 (Some("fails"), Some(mut pending)) => assert_eq!(
-                    pending.reply().now_or_never(),
+                    pending.frame().now_or_never(),
                     Some(Some(Err(told))),
                     "{why}: the request was not told of the refusal"
                 ),
                 (Some("waits"), Some(mut pending)) => assert_eq!(
-                    pending.reply().now_or_never(),
+                    pending.frame().now_or_never(),
                     None,
                     "{why}: the request was told"
                 ),

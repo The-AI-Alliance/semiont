@@ -236,7 +236,7 @@ impl Bus {
 
         let reply = tokio::select! {
             biased;
-            reply = pending.reply() => reply,
+            reply = pending.frame() => reply,
             () = tokio::time::sleep_until(deadline) => return Err(timed_out().into()),
         };
         let reply = match reply {
