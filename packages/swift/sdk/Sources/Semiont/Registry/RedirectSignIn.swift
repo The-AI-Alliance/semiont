@@ -48,8 +48,8 @@ private func base64URL(_ bytes: some Sequence<UInt8>) -> String {
 }
 
 private func randomURLSafe(_ count: Int) -> String {
-  var random = SystemRandomNumberGenerator()
-  return base64URL((0..<count).map { _ in UInt8.random(in: .min ... .max, using: &random) })
+  var secret = SystemRandomNumberGenerator()
+  return base64URL((0..<count).map { _ in UInt8.random(in: .min ... .max, using: &secret) })
 }
 
 public func codeChallenge(_ verifier: String) -> String {
@@ -57,10 +57,11 @@ public func codeChallenge(_ verifier: String) -> String {
 }
 
 public func beginAuthorization(
-  _ options: BeginAuthorizationOptions, storage: any SessionStorage, httpClient: HTTPClient
+  _ options: BeginAuthorizationOptions, storage: any SessionStorage, httpClient: HTTPClient,
+  clock: any Clock<Duration> = ContinuousClock()
 ) async throws -> String {
   let base = try gatewayUrl(options.target)
-  let issuer = try await discoverIssuer(base, http: httpClient)
+  let issuer = try await discoverIssuer(base, http: httpClient, clock: clock)
   guard var url = URLComponents(string: issuer.authorization), url.scheme != nil,
     URLComponents(string: options.redirectUri)?.scheme != nil
   else { throw SignInError(.discovery, "Sign-in needs valid authorization and redirect addresses") }
@@ -89,7 +90,8 @@ public func beginAuthorization(
 }
 
 public func completeAuthorization(
-  _ callback: String, storage: any SessionStorage, httpClient: HTTPClient
+  _ callback: String, storage: any SessionStorage, httpClient: HTTPClient,
+  clock: any Clock<Duration> = ContinuousClock()
 ) async throws -> (pending: PendingAuthorization, session: HeldSignIn) {
   let taken = Mutex<String?>(nil)
   try storage.update(pendingAuthorizationKey) { text in
@@ -115,7 +117,7 @@ public func completeAuthorization(
     throw SignInError(.exchange, "The sign-in response carries no authorization code")
   }
   let answer = try await issuerAnswer(
-    record.issuer.token, http: httpClient,
+    record.issuer.token, http: httpClient, clock: clock,
     form: [
       ("grant_type", "authorization_code"), ("code", code), ("redirect_uri", record.redirectUri),
       ("client_id", browserClientId), ("code_verifier", record.verifier),
@@ -145,7 +147,8 @@ public struct IdentityUnverifiableError: Error, Sendable, CustomStringConvertibl
 
 public func describeConnection(
   _ target: HttpEndpoint, access: String, httpClient: HTTPClient,
-  timing: TransportTiming = TransportTiming()
+  timing: TransportTiming = TransportTiming(), clock: any Clock<Duration> = ContinuousClock(),
+  random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator()
 ) async throws -> ConnectionIdentity {
   let description: KbDescription
   do {
@@ -153,7 +156,8 @@ public func describeConnection(
     let operation = Operations.browseKbRequested
     let transport = HttpTransport(
       baseUrl: base, httpClient: httpClient, token: access,
-      channels: [operation.result.name, operation.failure.name], timing: timing)
+      channels: [operation.result.name, operation.failure.name], timing: timing, clock: clock,
+      random: random)
     defer { transport.dispose() }
     description = try await Bus(transport).request(operation, BrowseKbRequest()).response
   } catch let refusal as BusRequestError where refusal.reason == .busRejected {

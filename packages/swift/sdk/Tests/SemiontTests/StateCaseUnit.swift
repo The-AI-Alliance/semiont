@@ -11,7 +11,7 @@ struct StateReading: Sendable {
   init<Value>(_ watched: Watched<Value>, encode: @escaping @Sendable (Value) throws -> JSONValue) {
     value = { try encode(watched.value) }
     ended = {
-      try await within(testDeadlineMs) {
+      try await withinTestDeadline {
         var iterator = watched.makeAsyncIterator()
         _ = await iterator.next()
         if case .some = await iterator.next() { return false }
@@ -77,7 +77,7 @@ struct StateCaseUnit {
     }
     switch kind {
     case "mark":
-      let mark = MarkStateUnit(client: client, resourceId: try resourceId(), clock: clock)
+      let mark = MarkStateUnit(client: client, resourceId: try resourceId())
       unit = mark
       reading = [
         "pendingAnnotation": StateReading(mark.pendingAnnotation),

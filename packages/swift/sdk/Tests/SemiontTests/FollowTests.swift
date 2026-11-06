@@ -19,7 +19,7 @@ private actor ReplyGate<Value: Sendable> {
     continuation = nil
   }
 }
-private func markParams() throws -> MarkJobParams {
+func markParams() throws -> MarkJobParams {
   let table = try Spec.read("client/surface.json").object
   let namespace = try #require(
     required(table, "namespaces").array.first { try $0.object["namespace"] == .string("mark") })
@@ -30,7 +30,7 @@ private func markParams() throws -> MarkJobParams {
   let row = try #require(required(method.object, "cases").array.first).object
   return try decoded(MarkJobParams.self, required(required(row, "args").object, "params"))
 }
-private func progress(_ job: String = "job-1", percentage: Double) throws
+func progress(_ job: String = "job-1", percentage: Double) throws
   -> JobReportProgressCommand
 {
   JobReportProgressCommand(
@@ -75,9 +75,9 @@ private func eventName<Value>(_ event: JobEvent<Value>) -> String {
     for try await event in delegation { events.append(event) }
     return events
   }
-  try await within(testDeadlineMs) { for await ready in gate.started where ready { return } }
+  try await withinTestDeadline { for await ready in gate.started where ready { return } }
   await gate.release(reply)
-  let events = try await within(testDeadlineMs) { try await collecting.value }
+  let events = try await withinTestDeadline { try await collecting.value }
   #expect(events.map(eventName) == ["created", "progress", "complete"])
   guard case .progress(let value) = events[1] else {
     Issue.record("No progress")
@@ -127,7 +127,7 @@ private func eventName<Value>(_ event: JobEvent<Value>) -> String {
       return try jobCreatedFixture()
     }
     do {
-      _ = try await within(testDeadlineMs) {
+      _ = try await withinTestDeadline {
         try await client.mark.delegate(resourceId: ResourceId("res-1"), params: markParams())
           .completed()
       }
@@ -156,7 +156,7 @@ private func eventName<Value>(_ event: JobEvent<Value>) -> String {
     }
     #expect(now == 1)
     defer { inFlight.withLock { $0 -= 1 } }
-    try await sleepMilliseconds(20)
+    try await Task.sleep(for: .milliseconds(20))
     let count = polls.withLock {
       $0 += 1
       return $0
@@ -164,7 +164,7 @@ private func eventName<Value>(_ event: JobEvent<Value>) -> String {
     if count == 1 { throw TransportError(.unavailable, "offline") }
     return try wirePayload(JobStatusResult(response: statusFixture()))
   }
-  let complete = try await within(testDeadlineMs) {
+  let complete = try await withinTestDeadline {
     try await client.mark.delegate(resourceId: ResourceId("res-1"), params: markParams())
       .completed()
   }
@@ -193,22 +193,22 @@ private func eventName<Value>(_ event: JobEvent<Value>) -> String {
     }
     throw SpecFailure.shape("Missing completion")
   }
-  try await within(testDeadlineMs) { for await ready in gate.started where ready { return } }
+  try await withinTestDeadline { for await ready in gate.started where ready { return } }
   try report(
     Channels.jobFail,
     JobFailCommand(
       error: "retry", jobId: JobId("job-1"), jobType: .mark,
       resourceId: ResourceId("res-1"), willRetry: true), on: client.bus)
-  try await within(testDeadlineMs) { for await value in observed where value == 1 { return } }
+  try await withinTestDeadline { for await value in observed where value == 1 { return } }
   await gate.release(stale)
-  try await sleepMilliseconds(20)
+  try await Task.sleep(for: .milliseconds(20))
   try report(
     Channels.jobComplete,
     JobCompleteCommand.markJobCompleteCommand(
       MarkJobCompleteCommand(jobId: JobId("job-1"), resourceId: ResourceId("res-1"))),
     on: client.bus)
   #expect(
-    try await within(testDeadlineMs) { try await collecting.value }.jobId.value == "job-1")
+    try await withinTestDeadline { try await collecting.value }.jobId.value == "job-1")
 }
 @Test func statusReportsCancellationAndFailureAndRejectsTheWrongVerb() async throws {
   for state in [JobStatusResponseStatus.cancelled, .failed, .complete] {
@@ -224,7 +224,7 @@ private func eventName<Value>(_ event: JobEvent<Value>) -> String {
             kind: state == .complete ? .yield : .mark, status: state, error: "failed")))
     }
     do {
-      _ = try await within(testDeadlineMs) {
+      _ = try await withinTestDeadline {
         try await client.mark.delegate(resourceId: ResourceId("res-1"), params: markParams())
           .completed()
       }
@@ -253,7 +253,7 @@ private func eventName<Value>(_ event: JobEvent<Value>) -> String {
   let params = try GenerationJobParams(
     context: contextFixture(), storageUri: "file://notes.md", title: "Notes")
   do {
-    _ = try await within(testDeadlineMs) {
+    _ = try await withinTestDeadline {
       try await client.yield.delegate(params: params, stallDeadlineMs: 100).completed()
     }
     Issue.record("A silent job completed")
@@ -261,7 +261,7 @@ private func eventName<Value>(_ event: JobEvent<Value>) -> String {
     #expect(error.reason == .jobStalled)
     #expect(error.jobId?.value == "job-1")
   }
-  try await within(testDeadlineMs) { for await ready in cancelled where ready { return } }
+  try await withinTestDeadline { for await ready in cancelled where ready { return } }
 }
 @Test func progressRestartsAGenerationStallDeadline() async throws {
   let probe = ProbeTransport()
@@ -277,11 +277,11 @@ private func eventName<Value>(_ event: JobEvent<Value>) -> String {
     context: contextFixture(), storageUri: "file://notes.md", title: "Notes")
   let following = try client.yield.delegate(params: params, stallDeadlineMs: 2_000)
   let collector = Task { try await following.completed() }
-  try await within(testDeadlineMs) { for await ready in began where ready { return } }
+  try await withinTestDeadline { for await ready in began where ready { return } }
   // Progress for 2.5 s, longer than the deadline, so the job lives only by its restarting. Each
   // gap leaves the deadline 1.75 s to spare, more than a busy runner pauses a test's tasks.
   for _ in 0..<10 {
-    try await sleepMilliseconds(250)
+    try await Task.sleep(for: .milliseconds(250))
     try report(
       Channels.jobReportProgress,
       JobReportProgressCommand(
@@ -294,7 +294,7 @@ private func eventName<Value>(_ event: JobEvent<Value>) -> String {
       YieldJobCompleteCommand(jobId: JobId("job-1"), resourceId: ResourceId("res-1"))),
     on: client.bus)
   #expect(
-    try await within(testDeadlineMs) { try await collector.value }.jobId.value == "job-1")
+    try await withinTestDeadline { try await collector.value }.jobId.value == "job-1")
 }
 @Test func cancellingAFollowerStopsFollowingWithoutCancellingItsJob() async throws {
   let probe = ProbeTransport()
@@ -307,10 +307,10 @@ private func eventName<Value>(_ event: JobEvent<Value>) -> String {
   }
   let following = try client.mark.delegate(resourceId: ResourceId("res-1"), params: markParams())
   let waiter = Task { try await following.completed() }
-  try await within(testDeadlineMs) { for await ready in created where ready { return } }
+  try await withinTestDeadline { for await ready in created where ready { return } }
   waiter.cancel()
   do {
-    _ = try await within(testDeadlineMs) { try await waiter.value }
+    _ = try await withinTestDeadline { try await waiter.value }
     Issue.record("Cancelled follower completed")
   } catch is CancellationError {}
   #expect(probe.calls.map(\.name) == [Operations.jobCreate.request.name])
@@ -337,7 +337,7 @@ private struct UnexpectedStatusFailure: Error {}
       throw UnexpectedStatusFailure()
     }
     do {
-      _ = try await within(testDeadlineMs) {
+      _ = try await withinTestDeadline {
         try await client.mark.delegate(resourceId: ResourceId("res-1"), params: markParams())
           .completed()
       }
@@ -376,11 +376,11 @@ func jobPollingDeadlineBoundsRequestsAndIntervals(unanswered: Bool) async throws
   let requestEnded = Watched(false)
   probe.handle { _, _ in
     defer { requestEnded.set(true) }
-    if unanswered { try await sleepMilliseconds(60000) }
+    if unanswered { try await Task.sleep(for: .milliseconds(60000)) }
     return try wirePayload(JobStatusResult(response: statusFixture(status: .pending)))
   }
   do {
-    _ = try await within(testDeadlineMs) {
+    _ = try await withinTestDeadline {
       try await client.job.pollUntilComplete(JobId("job-1"), intervalMs: 60000, timeoutMs: 2000)
     }
     Issue.record("Unanswered polling succeeded")
@@ -468,7 +468,7 @@ func jobPollingDeadlineBoundsRequestsAndIntervals(unanswered: Bool) async throws
     return try wirePayload(JobStatusResult(response: statusFixture("another-job")))
   }
   do {
-    _ = try await within(testDeadlineMs) {
+    _ = try await withinTestDeadline {
       try await client.mark.delegate(resourceId: ResourceId("res-1"), params: markParams())
         .completed()
     }

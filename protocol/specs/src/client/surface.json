@@ -1951,7 +1951,8 @@
           "packages/swift/sdk/Sources/SemiontTesting/Liveness.swift",
           "packages/swift/sdk/Sources/SemiontTesting/ScriptedTransport.swift",
           "packages/swift/sdk/Sources/SemiontTesting/Sessions.swift",
-          "packages/swift/sdk/Sources/SemiontTesting/SharedStorage.swift"
+          "packages/swift/sdk/Sources/SemiontTesting/SharedStorage.swift",
+          "packages/swift/sdk/Sources/SemiontTesting/TestClock.swift"
         ],
         "typescript": [
           "packages/typescript/core/src/liveness-axioms.ts",
@@ -2178,7 +2179,7 @@
           "renewKept": ["Clock"],
           "ServiceToken": ["Clock"],
           "AgentToken": ["Clock"],
-          "FollowTiming": ["Clock"],
+          "StoragePersister": ["Clock"],
           "sessionFromKept": ["Clock"],
           "HttpSessionFactory": ["Clock"],
           "SemiontBrowserConfig": ["Clock"],
@@ -2248,32 +2249,6 @@
           "sessionFromKeptFuture": "It runs on a scope of Dispatchers.Default, and the session it opens renews by the system clock.",
           "createTestSessionFuture": "It runs on a scope of Dispatchers.Default."
         },
-        "swift": {
-          "SemiontClient": "Takes no clock: what it makes waits on the continuous clock.",
-          "HttpTransport": "Takes no clock: its stream, retries and deadlines wait through sleepMilliseconds and within, on the continuous clock.",
-          "Cache": "Takes no clock: its save debounce and invalidation window waits on the continuous clock.",
-          "HoverDwell": "Its public initializer passes ContinuousClock() to a package one that takes a clock.",
-          "SearchPipeline": "Its public initializer passes ContinuousClock() to a package one that takes a clock.",
-          "subscribeDiscovery": "Its interval waits on the continuous clock.",
-          "httpDiscovery": "Its deadline waits on the continuous clock.",
-          "retryWithBackoff": "Its pauses wait through sleepMilliseconds, on the continuous clock.",
-          "signInDevice": "The device grant reads ContinuousClock.",
-          "renewKept": "The issuer's deadline waits on the continuous clock.",
-          "ServiceToken": "Its hold reads ContinuousClock, and its renewal waits on it.",
-          "AgentToken": "It keeps the clock of its ServiceToken, which takes none yet.",
-          "FollowTiming": "Its public initializer passes ContinuousClock() to a package one that takes a clock.",
-          "sessionFromKept": "The session it makes renews on the continuous clock.",
-          "HttpSessionFactory": "Its sessions keep the continuous clock.",
-          "SemiontBrowserConfig": "Takes no clock: the sign-in its browser completes waits on the continuous clock.",
-          "SemiontClient.fromHttp": "Takes no clock: the transport it builds waits on the continuous clock.",
-          "signOut": "The revocation's deadline waits on the continuous clock.",
-          "whoAmI": "Its deadline waits on the continuous clock.",
-          "beginAuthorization": "The issuer's deadline waits on the continuous clock.",
-          "completeAuthorization": "The issuer's deadline waits on the continuous clock.",
-          "describeConnection": "The transport it builds waits on the continuous clock.",
-          "ScriptedSessions": "Its sessions keep the continuous clock.",
-          "LivenessSpec": "The liveness check waits on the continuous clock."
-        },
         "csharp": {
           "BeginAuthorizationAsync": "Takes no TimeProvider: the Issuer it builds keeps the system clock.",
           "CompleteAuthorizationAsync": "Takes no TimeProvider: the Issuer it builds keeps the system clock.",
@@ -2324,6 +2299,8 @@
         "swift": {
           "HttpTransport": ["RandomNumberGenerator"],
           "retryWithBackoff": ["RandomNumberGenerator"],
+          "renewKept": ["RandomNumberGenerator"],
+          "AgentToken": ["RandomNumberGenerator"],
           "sessionFromKept": ["RandomNumberGenerator"],
           "HttpSessionFactory": ["RandomNumberGenerator"],
           "SemiontBrowserConfig": ["RandomNumberGenerator"],
@@ -2379,17 +2356,6 @@
           "retryWithBackoffFuture": "retryWithBackoff draws its jitter from Random.Default.",
           "sessionFromKeptFuture": "The session it opens draws its renewal retry from Random.Default.",
           "describeConnectionFuture": "The transport it builds draws its emit retry from Random.Default."
-        },
-        "swift": {
-          "HttpTransport": "The stream's reconnect and the emit retry draw Int.random(in:) from the system generator.",
-          "retryWithBackoff": "Its jitter draws Int.random(in:) from the system generator.",
-          "sessionFromKept": "The session it makes draws its renewal retry from the system generator.",
-          "HttpSessionFactory": "Its sessions draw their renewal retry from the system generator.",
-          "SemiontBrowserConfig": "The sign-in its browser completes builds a transport that draws from the system generator.",
-          "SemiontClient.fromHttp": "The transport it builds draws from the system generator.",
-          "describeConnection": "The transport it builds draws its emit retry from the system generator.",
-          "ScriptedSessions": "Its sessions draw their renewal retry from the system generator.",
-          "TestSessionOptions": "The test session draws from the system generator."
         },
         "csharp": {
           "HttpSessionFactory": "Takes no Random: its sessions draw from Random.Shared.",

@@ -71,20 +71,24 @@ func clientProof(_ credential: Credential, endpoint: String) throws -> [(String,
 public actor ServiceToken {
   private let credential: Credential
   private let http: HTTPClient
+  nonisolated let clock: any Clock<Duration>
   private var endpoint: String?
-  private var held: (String, ContinuousClock.Instant)?
+  private var held: (token: String, age: @Sendable () -> Duration, until: Duration)?
   private var asking: Task<String, any Error>?
   private let lifetime = Lifetime()
-  public init(credential: Credential, httpClient: HTTPClient) {
+  public init(
+    credential: Credential, httpClient: HTTPClient, clock: any Clock<Duration> = ContinuousClock()
+  ) {
     self.credential = credential
     http = httpClient
+    self.clock = clock
   }
   public func authorization() async throws -> String {
     "Bearer " + (try await token(renewed: false))
   }
   func token(renewed: Bool) async throws -> String {
     if let asking { return try await sharedValue(asking, lifetime: lifetime) }
-    if !renewed, let (token, until) = held, ContinuousClock.now < until { return token }
+    if !renewed, let held, held.age() < held.until { return held.token }
     let task = Task { [self] in
       defer { asking = nil }
       return try await grant()
@@ -97,7 +101,7 @@ public actor ServiceToken {
     if let endpoint {
       tokenEndpoint = endpoint
     } else {
-      let document = try await oidcConfiguration(credential.issuer, http: http)
+      let document = try await oidcConfiguration(credential.issuer, http: http, clock: clock)
       guard (200..<300).contains(document.status), let found = document.text("token_endpoint")
       else {
         throw SignInError(
@@ -107,7 +111,8 @@ public actor ServiceToken {
       tokenEndpoint = found
     }
     let answer = try await issuerAnswer(
-      tokenEndpoint, http: http, form: clientProof(credential, endpoint: tokenEndpoint))
+      tokenEndpoint, http: http, clock: clock,
+      form: clientProof(credential, endpoint: tokenEndpoint))
     guard (200..<300).contains(answer.status), let token = answer.text("access_token") else {
       throw SignInError(
         .exchange,
@@ -120,7 +125,7 @@ public actor ServiceToken {
     {
       let delay = lifetime.map { min($0, due) } ?? due
       if delay < Double(Int.max / 1000) {
-        held = (token, ContinuousClock.now.advanced(by: .milliseconds(Int(delay * 1000))))
+        held = (token, stopwatch(clock), .milliseconds(Int(delay * 1000)))
       } else {
         held = nil
       }
@@ -135,15 +140,20 @@ public actor AgentToken {
   public nonisolated let token = Watched<String?>(nil)
   private let service: ServiceToken
   private let http: HTTPClient
+  private nonisolated let random: RandomSource
   private nonisolated let lifetime = Lifetime()
   private var signedInAs: UserId?
   private var signing = false
   private var renewal: Task<String, any Error>?
   private var scheduled: UUID?
-  public init(gateway: String, service: ServiceToken, httpClient: HTTPClient) {
+  public init(
+    gateway: String, service: ServiceToken, httpClient: HTTPClient,
+    random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator()
+  ) {
     self.gateway = gateway.hasSuffix("/") ? String(gateway.dropLast()) : gateway
     self.service = service
     self.http = httpClient
+    self.random = RandomSource(random)
     let token = token
     lifetime.onEnd { token.finish(with: token.value) }
   }
@@ -160,7 +170,8 @@ public actor AgentToken {
     let task = Task { [self] in
       defer { lifetime.forget(id) }
       let current = try await service.token(renewed: false)
-      let named = try await whoAmI(baseUrl: gateway, token: current, httpClient: http)
+      let named = try await whoAmI(
+        baseUrl: gateway, token: current, httpClient: http, clock: service.clock)
       try Task.checkCancellation()
       guard !lifetime.ended else { throw CancellationError() }
       signedInAs = named.did
@@ -209,10 +220,11 @@ public actor AgentToken {
     else { return }
     let id = UUID()
     let life = lifetime
+    let clock = service.clock
     let task = Task { [weak self] in
       defer { life.forget(id) }
       do {
-        try await sleepMilliseconds(Int(due * 1000))
+        try await sleepMilliseconds(Int(due * 1000), on: clock)
         guard !life.ended else { return }
         await self?.due()
       } catch {}
@@ -222,8 +234,9 @@ public actor AgentToken {
   }
   private func due() async {
     scheduled = nil
-    do { _ = try await retryRenewal { try await self.renew() } } catch is CancellationError {} catch
-    { schedule() }
+    do {
+      _ = try await retryRenewal(clock: service.clock, random: random) { try await self.renew() }
+    } catch is CancellationError {} catch { schedule() }
   }
   public nonisolated func dispose() { lifetime.end() }
   deinit { lifetime.end() }

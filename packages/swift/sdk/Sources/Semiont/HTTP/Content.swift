@@ -254,7 +254,7 @@ extension HttpTransport: ContentTransport {
     let idempotencyKey = UUID().uuidString
     var credential = token
     var renewed = false
-    var resend = OneResend(method: "POST", keyed: true)
+    var resend = OneResend(method: "POST", keyed: true, clock: clock)
     while true {
       try Task.checkCancellation()
       if lifetime.ended { throw CancellationError() }
@@ -278,7 +278,7 @@ extension HttpTransport: ContentTransport {
         }
         if !(200..<300).contains(Int(response.status.code)) {
           let failure = await Self.refusal(
-            response, path: "/resources", deadlineMs: timing.httpRequestMs)
+            response, path: "/resources", deadlineMs: timing.httpRequestMs, clock: clock)
           if failure.reason == .unauthorized {
             if !renewed {
               renewed = true
@@ -333,7 +333,7 @@ extension HttpTransport: ContentTransport {
       do {
         let stream = try ContentStream(response: exchange.response, lifetime: owner.lifetime)
         defer { stream.dispose() }
-        return try await within(until: exchange.deadline) {
+        return try await within(exchange.remaining(), on: owner.clock) {
           var data = Data()
           for try await chunk in stream { data.append(chunk) }
           return Content(contentType: stream.contentType, bytes: data)

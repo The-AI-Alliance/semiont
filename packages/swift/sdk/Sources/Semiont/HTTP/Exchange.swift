@@ -2,46 +2,17 @@ import AsyncHTTPClient
 import Foundation
 import OpenTelemetryApi
 
-struct RequestDeadline: Error {}
-func within<Value: Sendable>(
-  _ milliseconds: Int, operation: @escaping @Sendable () async throws -> Value
-) async throws -> Value {
-  try await withThrowingTaskGroup(of: Value.self) { group in
-    group.addTask { try await operation() }
-    group.addTask {
-      try await sleepMilliseconds(milliseconds)
-      throw RequestDeadline()
-    }
-    defer { group.cancelAll() }
-    guard let value = try await group.next() else { throw CancellationError() }
-    return value
-  }
-}
-
-func within<Value: Sendable>(
-  until deadline: ContinuousClock.Instant, operation: @escaping @Sendable () async throws -> Value
-) async throws -> Value {
-  try await withThrowingTaskGroup(of: Value.self) { group in
-    group.addTask { try await operation() }
-    group.addTask {
-      try await ContinuousClock().sleep(until: deadline)
-      throw RequestDeadline()
-    }
-    defer { group.cancelAll() }
-    guard let value = try await group.next() else { throw CancellationError() }
-    return value
-  }
-}
-
 /// The one further sending the transport rule allows an HTTP request that is neither the stream
 /// nor an emit, and the wait before it.
 struct OneResend {
   let method: String
   let keyed: Bool
+  let clock: any Clock<Duration>
   private var spent: Bool
-  init(method: String, keyed: Bool) {
+  init(method: String, keyed: Bool, clock: any Clock<Duration>) {
     self.method = method
     self.keyed = keyed
+    self.clock = clock
     spent = false
   }
   mutating func after(_ refusal: TransportError) async throws -> Bool {
@@ -56,7 +27,7 @@ struct OneResend {
     guard !spent, RetryContext.transport.retryable(status: status, method: method, keyed: keyed)
     else { return false }
     spent = true
-    try await sleepMilliseconds(pauseMs)
+    try await sleepMilliseconds(pauseMs, on: clock)
     return true
   }
 }
@@ -77,12 +48,13 @@ extension HttpTransport {
   }
   struct Exchange: Sendable {
     let response: HTTPClientResponse
-    let deadline: ContinuousClock.Instant
+    /// What is left of the request's deadline, which the read of its body keeps.
+    let remaining: @Sendable () -> Duration
   }
-  static func refusal(_ response: HTTPClientResponse, path: String, deadlineMs: Int) async
-    -> TransportError
-  {
-    let data = try? await within(deadlineMs) {
+  static func refusal(
+    _ response: HTTPClientResponse, path: String, deadlineMs: Int, clock: any Clock<Duration>
+  ) async -> TransportError {
+    let data = try? await within(.milliseconds(deadlineMs), on: clock) {
       var data = Data()
       for try await chunk in response.body { data.append(contentsOf: chunk.readableBytesView) }
       return data
@@ -103,11 +75,12 @@ extension HttpTransport {
   ) async throws -> Exchange {
     var credential = authenticated ? token : nil
     var renewed = false
-    var resend = OneResend(method: method, keyed: false)
+    var resend = OneResend(method: method, keyed: false, clock: clock)
     while true {
       try Task.checkCancellation()
       if lifetime.ended { throw CancellationError() }
-      let deadline = ContinuousClock.now.advanced(by: .milliseconds(timing.httpRequestMs))
+      let deadline = Duration.milliseconds(timing.httpRequestMs)
+      let elapsed = stopwatch(clock)
       var request = HTTPClientRequest(url: baseUrl + path)
       request.method = .RAW(value: method)
       let propagation =
@@ -120,13 +93,14 @@ extension HttpTransport {
       if let body { request.body = .bytes(body) }
       do {
         let http = self.http
-        let response = try await within(timing.httpRequestMs) { [request] in
+        let response = try await within(deadline, on: clock) { [request] in
           try await http.execute(request, deadline: .distantFuture)
         }
         if (200..<300).contains(Int(response.status.code)) {
-          return Exchange(response: response, deadline: deadline)
+          return Exchange(response: response, remaining: { deadline - elapsed() })
         }
-        let error = await Self.refusal(response, path: path, deadlineMs: timing.httpRequestMs)
+        let error = await Self.refusal(
+          response, path: path, deadlineMs: timing.httpRequestMs, clock: clock)
         if error.reason == .unauthorized {
           if authenticated, !renewed {
             renewed = true
@@ -176,7 +150,7 @@ extension HttpTransport {
         for try await chunk in response.body { data.append(contentsOf: chunk.readableBytesView) }
         return data
       }
-      let data = try await within(until: exchange.deadline, operation: read)
+      let data = try await within(exchange.remaining(), on: clock, operation: read)
       return try JSONDecoder().decode(type, from: data)
     } catch {
       if Task.isCancelled || lifetime.ended { throw CancellationError() }
@@ -278,11 +252,13 @@ extension HttpTransport {
       let failure: TransportError
       do {
         let http = self.http
-        let accepted = try await within(Timings.emitTimeoutMs) { [request] in
+        let clock = self.clock
+        let accepted = try await within(.milliseconds(Timings.emitTimeoutMs), on: clock) {
+          [request] in
           let response = try await http.execute(request, deadline: .distantFuture)
           if !(200..<300).contains(Int(response.status.code)) {
             throw await Self.refusal(
-              response, path: "/bus/emit", deadlineMs: self.timing.httpRequestMs)
+              response, path: "/bus/emit", deadlineMs: self.timing.httpRequestMs, clock: clock)
           }
           var data = Data()
           for try await chunk in response.body { data.append(contentsOf: chunk.readableBytesView) }
@@ -311,7 +287,8 @@ extension HttpTransport {
         failureEvents.yield(failure)
         throw failure
       }
-      try await sleepMilliseconds(max(equalJitter(cap), failure.retryAfterMs ?? 0))
+      try await sleepMilliseconds(
+        max(equalJitter(cap, from: random), failure.retryAfterMs ?? 0), on: clock)
       cap = min(cap * 2, timing.emitMaxDelayMs)
       attempts += 1
     }

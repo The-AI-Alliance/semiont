@@ -3,6 +3,7 @@ public struct MarkNamespace: Sendable {
   let bus: EventBus
   let lifetime: Lifetime
   let timing: FollowTiming
+  let clock: any Clock<Duration>
   public func annotation(_ request: CreateAnnotationRequest) async throws -> MarkCreateOkResponse {
     try await wire.request(
       Operations.markCreateRequest,
@@ -31,10 +32,11 @@ public struct MarkNamespace: Sendable {
   public func delegate(resourceId: ResourceId, params: MarkJobParams) -> Delegation<
     MarkJobCompleteCommand
   > {
-    follow(
+    let clock = clock
+    return follow(
       create: .markJobCreateCommand(MarkJobCreateCommand(params: params, resourceId: resourceId)),
       resource: resourceId, wire: wire, bus: bus, lifetime: lifetime, timing: timing,
-      clock: timing.clock, completion: MarkJobCompleteCommand.self)
+      clock: clock, completion: MarkJobCompleteCommand.self)
   }
   public func request(source: ResourceId, selector: AnnotationSelector, motivation: Motivation)
     throws

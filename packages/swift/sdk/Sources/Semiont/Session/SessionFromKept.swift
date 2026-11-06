@@ -20,7 +20,9 @@ actor SessionGate {
 public func sessionFromKept(
   kb: KbTarget, kept: any SignInKept, httpClient: HTTPClient,
   onAuthFailed: (@Sendable (SessionEndReason) -> Void)? = nil,
-  onError: (@Sendable (any Error) -> Void)? = nil, persistence: CachePersistence? = nil
+  onError: (@Sendable (any Error) -> Void)? = nil, persistence: CachePersistence? = nil,
+  clock: any Clock<Duration> = ContinuousClock(),
+  random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator()
 ) async throws -> OpenedSession {
   try Task.checkCancellation()
   guard case .httpEndpoint(let endpoint) = kb.endpoint else {
@@ -30,16 +32,17 @@ public func sessionFromKept(
   let found = try await kept.held()
   try Task.checkCancellation()
   let gate = SessionGate()
+  let draws = RandomSource(random)
   let transport = HttpTransport(
     baseUrl: base, httpClient: httpClient,
     token: found.flatMap {
       isTokenExpired($0.access, now: Date().timeIntervalSince1970) ? nil : $0.access
-    }, refresher: { try await gate.refresh($0) })
+    }, clock: clock, random: draws, refresher: { try await gate.refresh($0) })
   let failures = transport.failures()
   let client: SemiontClient
   do {
     client = try await SemiontClient(
-      transport: transport, gateway: transport, persistence: persistence)
+      transport: transport, gateway: transport, persistence: persistence, clock: clock)
   } catch {
     failures.dispose()
     transport.dispose()
@@ -47,9 +50,12 @@ public func sessionFromKept(
   }
   let session = SemiontSession(
     kb: kb, client: client, kept: kept,
-    renew: { try await renewKept(kept, holding: $0, httpClient: httpClient) },
-    validate: { try await whoAmI(baseUrl: base, token: $0, httpClient: httpClient) },
-    publish: { await transport.setToken($0) }, onAuthFailed: onAuthFailed, onError: onError)
+    renew: {
+      try await renewKept(kept, holding: $0, httpClient: httpClient, clock: clock, random: draws)
+    },
+    validate: { try await whoAmI(baseUrl: base, token: $0, httpClient: httpClient, clock: clock) },
+    publish: { await transport.setToken($0) }, random: draws, onAuthFailed: onAuthFailed,
+    onError: onError)
   let id = UUID()
   let life = session.lifetime
   let forwarding = Task { [weak session] in

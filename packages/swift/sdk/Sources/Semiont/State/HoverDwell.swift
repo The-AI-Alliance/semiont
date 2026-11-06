@@ -16,14 +16,8 @@ public final class HoverDwell: StateUnit {
   private let say: @Sendable (AnnotationId?) -> Void
 
   /// The callback receives each change in order and must not call the dwell back.
-  public convenience init(
-    delay: Duration? = nil, say: @escaping @Sendable (AnnotationId?) -> Void
-  ) {
-    self.init(delay: delay, clock: ContinuousClock(), say: say)
-  }
-
-  package init(
-    delay: Duration? = nil, clock: any Clock<Duration>,
+  public init(
+    delay: Duration? = nil, clock: any Clock<Duration> = ContinuousClock(),
     say: @escaping @Sendable (AnnotationId?) -> Void
   ) {
     self.delay = delay ?? .milliseconds(Timings.hoverDelayMs)

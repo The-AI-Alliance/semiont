@@ -101,11 +101,13 @@ public func textDiscovery(_ read: @escaping @Sendable () async throws -> String)
 private actor HTTPDiscovery: DiscoveryTransport {
   let url: String
   let http: HTTPClient
+  let clock: any Clock<Duration>
   var tag: String?
 
-  init(url: String, http: HTTPClient) {
+  init(url: String, http: HTTPClient, clock: any Clock<Duration>) {
     self.url = url
     self.http = http
+    self.clock = clock
   }
 
   func read() async -> DiscoveryRead {
@@ -113,7 +115,9 @@ private actor HTTPDiscovery: DiscoveryTransport {
     if let tag { request.headers.add(name: "If-None-Match", value: tag) }
     do {
       let http = http
-      let (state, etag) = try await within(Timings.httpRequestTimeoutMs) { [request] in
+      let (state, etag) = try await within(
+        .milliseconds(Timings.httpRequestTimeoutMs), on: clock
+      ) { [request] in
         let response = try await http.execute(request, deadline: .distantFuture)
         if response.status.code == 304 {
           return (DiscoveryRead.unchanged(Unchanged()), nil as String?)
@@ -141,8 +145,10 @@ private actor HTTPDiscovery: DiscoveryTransport {
   }
 }
 
-public func httpDiscovery(_ url: String, httpClient: HTTPClient) -> any DiscoveryTransport {
-  HTTPDiscovery(url: url, http: httpClient)
+public func httpDiscovery(
+  _ url: String, httpClient: HTTPClient, clock: any Clock<Duration> = ContinuousClock()
+) -> any DiscoveryTransport {
+  HTTPDiscovery(url: url, http: httpClient, clock: clock)
 }
 
 public struct DiscoveryDiff: Sendable {
@@ -195,18 +201,20 @@ private func discoveryDiff(from previous: DiscoveryState?, to next: DiscoverySta
 private actor DiscoveryWatcher {
   let transport: any DiscoveryTransport
   let interval: Duration
+  let clock: any Clock<Duration>
   var last: DiscoveryState?
   var readOnce = false
 
-  init(transport: any DiscoveryTransport, interval: Duration) {
+  init(transport: any DiscoveryTransport, interval: Duration, clock: any Clock<Duration>) {
     self.transport = transport
     self.interval = interval
+    self.clock = clock
   }
 
   func next() async -> DiscoveryDiff? {
     while !Task.isCancelled {
       if readOnce {
-        do { try await Task.sleep(for: interval) } catch { return nil }
+        do { try await clock.sleep(for: interval) } catch { return nil }
       }
       readOnce = true
       if case .state(let state) = await transport.read(), !Task.isCancelled,
@@ -221,8 +229,9 @@ private actor DiscoveryWatcher {
 }
 
 public func subscribeDiscovery(
-  _ transport: any DiscoveryTransport, interval: Duration = discoveryInterval
+  _ transport: any DiscoveryTransport, interval: Duration = discoveryInterval,
+  clock: any Clock<Duration> = ContinuousClock()
 ) -> AsyncStream<DiscoveryDiff> {
-  let watcher = DiscoveryWatcher(transport: transport, interval: interval)
+  let watcher = DiscoveryWatcher(transport: transport, interval: interval, clock: clock)
   return AsyncStream(unfolding: { await watcher.next() })
 }

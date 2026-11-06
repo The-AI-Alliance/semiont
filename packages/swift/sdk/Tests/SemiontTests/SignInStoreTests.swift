@@ -158,10 +158,10 @@ import Testing
       }
       completed.withLock { $0 = true }
     }
-    try await sleepMilliseconds(30)
+    try await Task.sleep(for: .milliseconds(30))
     #expect(!completed.withLock { $0 })
     try input.fileHandleForWriting.write(contentsOf: Data("release\n".utf8))
-    try await within(testDeadlineMs) { try await writing.value }
+    try await withinTestDeadline { try await writing.value }
     #expect(completed.withLock { $0 })
   }
 #endif

@@ -23,15 +23,17 @@ public struct LivenessSpec: Sendable {
   public let timeout: Duration
   public let retryBudget: Int
   public let schedules: [[FaultAction]]
+  let clock: any Clock<Duration>
 
   public init(
     timeout: Duration, retryBudget: Int, schedules: [[FaultAction]],
-    respond: @escaping Respond,
+    clock: any Clock<Duration> = ContinuousClock(), respond: @escaping Respond,
     setup: @escaping @Sendable (ScriptedTransport) async throws -> LivenessScenario
   ) {
     self.timeout = timeout
     self.retryBudget = retryBudget
     self.schedules = schedules
+    self.clock = clock
     self.respond = respond
     self.setup = setup
   }
@@ -68,7 +70,7 @@ public func assertLivenessAxioms(_ spec: LivenessSpec) async throws {
 
   for schedule in spec.schedules {
     let transport = ScriptedTransport(
-      schedule: schedule, timeout: spec.timeout, respond: spec.respond)
+      schedule: schedule, timeout: spec.timeout, clock: spec.clock, respond: spec.respond)
     defer { transport.dispose() }
     let scenario = try await spec.setup(transport)
     defer { scenario.dispose() }
@@ -96,10 +98,11 @@ public func assertLivenessAxioms(_ spec: LivenessSpec) async throws {
           observation.yield(.settlement(index))
         })
     }
+    let clock = spec.clock
     tasks.append(
       Task {
         do {
-          try await Task.sleep(for: bound)
+          try await clock.sleep(for: bound)
           observation.yield(.deadline)
         } catch {}
       })

@@ -60,11 +60,6 @@ func retryAfterMs(_ header: String?) -> Int? {
   else { return nil }
   return seconds * 1000
 }
-func equalJitter(_ cap: Int) -> Int { Int.random(in: (max(0, cap) / 2)...max(0, cap)) }
-func sleepMilliseconds(_ milliseconds: Int) async throws {
-  try Task.checkCancellation()
-  if milliseconds > 0 { try await Task.sleep(nanoseconds: UInt64(milliseconds) * 1_000_000) }
-}
 
 public struct TransportTiming: Sendable {
   public var busRequestTimeoutMs: Int
