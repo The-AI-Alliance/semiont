@@ -15,6 +15,7 @@
 import net from 'node:net';
 import util from 'node:util';
 import { describe, it, expect, afterEach } from 'vitest';
+import { withinDeadline } from '../deadline';
 import { isRetryableRequestError } from '../retry';
 import { ServiceToken } from '../service-account';
 import { UnansweredError, whyUnanswered } from '../unanswered';
@@ -191,7 +192,8 @@ describe('why a request got no answer', () => {
   });
 
   it('is the name of a deadline that passed', async () => {
-    const refusal: unknown = await fetch(await silent(), { signal: AbortSignal.timeout(20) }).catch((e: unknown) => e);
+    const asked = await silent();
+    const refusal: unknown = await withinDeadline(20, (signal) => fetch(asked, { signal })).catch((e: unknown) => e);
 
     expect(whyUnanswered(refusal)).toBe('TimeoutError');
   });
