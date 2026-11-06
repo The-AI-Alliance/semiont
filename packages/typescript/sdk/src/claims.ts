@@ -669,14 +669,14 @@ class ClaimLoop implements Holder {
     // All three are read as they come, and not as their channels type them, as
     // every SDK's worker reads them: the comparison of an announcement with a
     // filter knows no field by name, so a job this SDK cannot type still wakes
-    // a worker whose claim it matches. A frame the transport refused is none of
-    // the three: it announces, cancels and answers nothing.
+    // a worker whose claim it matches. An announcement the transport refused
+    // may have been of any job, so the worker asks the queue (C11); a refused
+    // cancellation or reply cancels and answers nothing.
     this.subscriptions.push(
       this.bus.frames('job:queued').subscribe(({ payload: announced }) => {
-        if (announced instanceof FrameRefusal) return;
         // Every announcement received is stamped, before any filtering.
         this.lastQueuedEventAt = Date.now();
-        if (this.accepts.some((filter) => jobMatchesFilter(filter, announced))) this.pull();
+        if (announced instanceof FrameRefusal || this.accepts.some((filter) => jobMatchesFilter(filter, announced))) this.pull();
       }),
       // A cancellation is the held job's only when it names it.
       this.bus.frames('job:cancel-requested').subscribe(({ payload: request }) => {

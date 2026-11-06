@@ -87,14 +87,15 @@ type Received = components['schemas']['BusFrame'] & { readonly trace?: TraceCarr
 /** The channel and scope a frame names, which name its readers. */
 type Readers = Pick<components['schemas']['BusFrame'], 'channel' | 'scope'>;
 
-/** A frame the stream refused that names its readers: its first fault as BusFrame, and its payload as it came. */
-type Refused = Readers & { readonly fault: Fault; readonly payload: unknown };
+/** A frame the stream refused that names its readers: its first fault as BusFrame, its payload as it came, and its correlation id when BusFrame allows it. */
+type Refused = Readers & Pick<components['schemas']['BusFrame'], 'correlationId'> & { readonly fault: Fault; readonly payload: unknown };
 
 /**
  * `data` held to BusFrame: the frame it is; or, for one BusFrame refuses,
  * its refusal when it names its readers, and when it names none, what every
  * SDK says of its first fault. Its channel and scope name its readers when a
- * frame of them alone is one BusFrame allows.
+ * frame of them alone is one BusFrame allows, and its refusal carries its
+ * correlation id when a frame of them and it is one too.
  */
 function carried(data: string): Received | Refused | string {
   let value: unknown;
@@ -111,7 +112,9 @@ function carried(data: string): Received | Refused | string {
   // A null scope is none, as BusFrame's walk reads a null optional member.
   const readers = { channel: value['channel'], ...(scope === undefined || scope === null ? {} : { scope }) };
   if (faultOf('BusFrame', { ...readers, payload: {} }) !== undefined) return said(fault);
-  return { ...(readers as Readers), fault, payload: value['payload'] };
+  const correlationId = value['correlationId'];
+  const carries = typeof correlationId === 'string' && faultOf('BusFrame', { ...readers, payload: {}, correlationId }) === undefined;
+  return { ...(readers as Readers), ...(carries ? { correlationId } : {}), fault, payload: value['payload'] };
 }
 
 /** `frame` as a reader of `channel` is given it: the frame, or in place of one the stream refused, its refusal. */
@@ -119,7 +122,7 @@ function framed<K extends keyof EventMap>(channel: K, frame: Received | Refused)
   if ('fault' in frame) {
     return {
       ...(frame.scope !== undefined ? { scope: frame.scope } : {}),
-      payload: new FrameRefusal(channel, frame.fault.member, frame.fault.reason, frame.payload),
+      payload: new FrameRefusal(channel, frame.fault.member, frame.fault.reason, frame.payload, frame.correlationId),
     };
   }
   return {

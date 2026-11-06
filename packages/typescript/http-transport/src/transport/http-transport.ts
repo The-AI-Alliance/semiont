@@ -440,7 +440,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         {
           emit: (channel, payload, envelope) => {
             // A payload that is not its channel's is published as its refusal.
-            const declared = asDeclared(channel, payload);
+            const declared = asDeclared(channel, payload, envelope?.correlationId);
             for (const bus of this.bridges) bus.emit(channel, declared, envelope);
           },
         },

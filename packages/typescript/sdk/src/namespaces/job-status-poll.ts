@@ -1,4 +1,4 @@
-import { Observable } from 'rxjs';
+import { Observable, merge } from 'rxjs';
 import { Bus, FrameRefusal, JOB_SILENCE_MS, JOB_STATUS_POLL_MS, SemiontError } from '@semiont/core';
 import type { EventBus, EventMap, ITransport, JobErrorCode, components } from '@semiont/core';
 
@@ -108,15 +108,17 @@ export class JobStatusPoll {
   }
 }
 
-type JobFrameChannel = 'job:report-progress' | 'job:complete' | 'job:fail';
+const JOB_FRAME_CHANNELS = ['job:report-progress', 'job:complete', 'job:fail'] as const;
+type JobFrameChannel = (typeof JOB_FRAME_CHANNELS)[number];
 
 /**
- * One job's frames, picked out of every job's. A follower subscribes before
- * it creates its job, and learns the job's id only when the reply to
- * `job:create` settles, which is a few turns after the reply's frame was
- * handled: a frame of the job read from the stream alongside that reply is
- * handled first. Frames that arrive before the id is known are therefore
- * held, and those of the job delivered, in the order they came, once it is.
+ * One job's frames, picked out of every job's, and the frames refused on
+ * their channels. A follower subscribes before it creates its job, and learns
+ * the job's id only when the reply to `job:create` settles, which is a few
+ * turns after the reply's frame was handled: a frame of the job read from the
+ * stream alongside that reply is handled first. Frames that arrive before the
+ * id is known are therefore held, and those of the job, and the refusals,
+ * delivered in the order they came, once it is.
  */
 export class JobFrames {
   private jobId: string | null = null;
@@ -124,18 +126,30 @@ export class JobFrames {
 
   constructor(private readonly bus: EventBus) {}
 
+  /** The job's frames on `channel`. */
   of<K extends JobFrameChannel>(channel: K): Observable<EventMap[K]> {
     return new Observable<EventMap[K]>((subscriber) =>
       this.bus.on(channel).subscribe((frame) => {
-        // A frame refused, by its transport or as its channel's, names no job it can be told to.
         if (frame instanceof FrameRefusal) return;
-        const deliver = (): void => {
+        this.inTurn(() => {
           if (frame.jobId === this.jobId) subscriber.next(frame);
-        };
-        if (this.jobId === null) this.held.push(deliver);
-        else deliver();
+        });
       }),
     );
+  }
+
+  /** The frames refused, by their transport or as their channel's, on the job's channels: each names no job, so any may be this job's. */
+  refused(): Observable<FrameRefusal> {
+    return new Observable<FrameRefusal>((subscriber) =>
+      merge(...JOB_FRAME_CHANNELS.map((channel) => this.bus.on(channel))).subscribe((frame) => {
+        if (frame instanceof FrameRefusal) this.inTurn(() => subscriber.next(frame));
+      }),
+    );
+  }
+
+  private inTurn(deliver: () => void): void {
+    if (this.jobId === null) this.held.push(deliver);
+    else deliver();
   }
 
   /** The job has its id: what was held is delivered, and frames pass as they come. */

@@ -152,12 +152,15 @@ export class FrameRefusal {
   readonly reason: Fault['reason'];
   /** The payload as it came, the gateway's stamps and all; absent when the frame carried none. */
   readonly payload: unknown;
+  /** The frame's correlation id, when it carried one BusFrame allows: what a request awaiting its reply is told of it by. */
+  readonly correlationId?: string;
 
-  constructor(channel: keyof EventMap, member: string, reason: Fault['reason'], payload: unknown) {
+  constructor(channel: keyof EventMap, member: string, reason: Fault['reason'], payload: unknown, correlationId: string | undefined) {
     this.channel = channel;
     this.member = member;
     this.reason = reason;
     this.payload = payload;
+    if (correlationId !== undefined) this.correlationId = correlationId;
   }
 }
 
@@ -181,6 +184,9 @@ function payloadShape(channel: keyof EventMap): Shape {
 /** What is said of a payload on `channel` that has `fault`, in every SDK's words. */
 const notTheChannels = (channel: string, fault: Fault): string => `a payload on ${channel} is not that channel's: ${said(fault)}`;
 
+/** What is said of a frame refused, in every SDK's words. */
+const notTheFrames = (refusal: FrameRefusal): string => `a frame on ${refusal.channel} is not that channel's: ${said(refusal)}`;
+
 /**
  * `payload` as `channel` types it, or the first fault it has as that
  * channel's, named from the payload. A stamp the gateway put on it that the
@@ -201,25 +207,25 @@ function readAs<K extends keyof EventMap>(channel: K, payload: unknown): { reado
  * `payload` as `channel` types it (`readAs`): the rule every SDK's typed read
  * keeps. A payload with a fault as its channel's is not its channel's: its
  * frame's refusal is given in its place, naming the fault by its way from the
- * frame, as every SDK's typed read gives one. A refusal, which a transport
- * delivers in place of a frame it refused, a bus it bridged into carries and
- * a relay passes on, is one already.
+ * frame and carrying the frame's `correlationId`, as every SDK's typed read
+ * gives one. A refusal, which a transport delivers in place of a frame it
+ * refused, a bus it bridged into carries and a relay passes on, is one already.
  */
-export function asDeclared<K extends keyof EventMap>(channel: K, payload: EventMap[K] | FrameRefusal): EventMap[K] | FrameRefusal {
+export function asDeclared<K extends keyof EventMap>(channel: K, payload: EventMap[K] | FrameRefusal, correlationId: string | undefined): EventMap[K] | FrameRefusal {
   if (payload instanceof FrameRefusal) return payload;
   const read = readAs(channel, payload);
-  if ('fault' in read) return new FrameRefusal(channel, within('payload', read.fault.member), read.fault.reason, payload);
+  if ('fault' in read) return new FrameRefusal(channel, within('payload', read.fault.member), read.fault.reason, payload, correlationId);
   return read.payload;
 }
 
-/** Whether its transport delivered `frame`, rather than refused it. A refused frame carries no correlationId, so no request is told of one. */
+/** Whether its transport delivered `frame`, rather than refused it. */
 function isDelivered<T>(frame: BusFrame<T | FrameRefusal>): frame is BusFrame<T> {
   return !(frame.payload instanceof FrameRefusal);
 }
 
 /** `frame` as a frame of `channel`, or its refusal when its transport refused it or its payload is not that channel's. */
 function heard<K extends keyof EventMap>(channel: K, frame: BusFrame<EventMap[K] | FrameRefusal>): Heard<EventMap[K]> {
-  const declared = asDeclared(channel, frame.payload);
+  const declared = asDeclared(channel, frame.payload, frame.correlationId);
   if (declared instanceof FrameRefusal) return declared;
   const stamped = (frame.payload as Record<string, unknown>)[EMITTED_BY];
   return {
@@ -321,7 +327,9 @@ export class Bus {
    * `correlationId` and whose payload is `{ response: T }` (data) or `{}`
    * (void); the request matches on the envelope and reads `payload.response`.
    * A result that lacks a member its schema requires (`CHANNEL_PAYLOADS`)
-   * rejects, as a `SemiontError` coded `error` naming the member.
+   * rejects, as a `SemiontError` coded `error` naming the member. So does a
+   * reply its transport refused that carries the request's `correlationId`,
+   * at once, naming the frame's fault.
    *
    * `signal` lets the caller ABANDON the request. Abandoned, it rejects with
    * the signal's reason, as an abortable API does, and that is all it does:
@@ -359,8 +367,18 @@ export class Bus {
     // Matched on the ENVELOPE. The payload is read only for what it means —
     // the response, or the failure's message and code — never for routing. A
     // result with a fault as its schema's is refused, as every other SDK
-    // refuses it.
+    // refuses it, and so is a reply its transport refused, which carries the
+    // correlation id in its refusal.
+    const refused$ = merge(bus.frames(resultChannel as keyof EventMap), bus.frames(failureChannel as keyof EventMap)).pipe(
+      map(({ payload }) => payload),
+      filter((payload): payload is FrameRefusal => payload instanceof FrameRefusal && payload.correlationId === correlationId),
+      map((refusal) => ({
+        ok: false as const,
+        error: new SemiontError(notTheFrames(refusal), 'error', { channel: refusal.channel, correlationId }),
+      })),
+    );
     const settled$ = merge(
+      refused$,
       bus.frames(resultChannel as keyof EventMap).pipe(
         filter(isDelivered),
         filter((frame) => frame.correlationId === correlationId),

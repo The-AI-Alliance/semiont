@@ -446,10 +446,10 @@ describe('MarkNamespace', () => {
       complete: () => { completed = true; },
     });
     // Before the reply to job:create is handled.
-    bus.emit('job:fail', new FrameRefusal('job:fail', 'payload.error', 'lacks', { jobId: JID }));
+    bus.emit('job:fail', new FrameRefusal('job:fail', 'payload.error', 'lacks', { jobId: JID }, undefined));
     await new Promise((r) => setTimeout(r, 0));
 
-    bus.emit('job:report-progress', new FrameRefusal('job:report-progress', 'payload.jobId', 'lacks', { percentage: 10 }));
+    bus.emit('job:report-progress', new FrameRefusal('job:report-progress', 'payload.jobId', 'lacks', { percentage: 10 }, undefined));
     expect(completed).toBe(false);
     bus.emit('job:complete', { jobId: JID, resourceId: RID, jobType: 'mark' });
 
@@ -472,7 +472,7 @@ describe('MarkNamespace', () => {
 
     await vi.advanceTimersByTimeAsync(100);
     await vi.advanceTimersByTimeAsync(JOB_SILENCE_MS - 1_000);
-    bus.emit('job:complete', new FrameRefusal('job:complete', 'payload.jobId', 'lacks', { resourceId: RID, jobType: 'mark' }));
+    bus.emit('job:complete', new FrameRefusal('job:complete', 'payload.jobId', 'lacks', { resourceId: RID, jobType: 'mark' }, undefined));
     await vi.advanceTimersByTimeAsync(1_000);
 
     expect(mock.emitSpy).toHaveBeenCalledWith('job:status-requested', { jobId: JID }, expect.objectContaining({ correlationId: expect.any(String) }));

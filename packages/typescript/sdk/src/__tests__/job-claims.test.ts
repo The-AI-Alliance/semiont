@@ -129,7 +129,7 @@ function fakeBus(initialState: ConnectionState = 'open') {
       eventBus.emit(channel, payload, { correlationId }),
     /** A frame on `channel` its transport refused, its payload no object, in its place. */
     pushRefused: (channel: keyof EventMap) =>
-      eventBus.emit(channel, new FrameRefusal(channel, 'payload', 'malformed', 'j')),
+      eventBus.emit(channel, new FrameRefusal(channel, 'payload', 'malformed', 'j', undefined)),
     /** Every `job:claim` emitted so far, in order. */
     claims,
     claimAt: (i: number): EventMap['job:claim'] => {

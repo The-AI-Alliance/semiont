@@ -313,7 +313,7 @@ export class FaultyTransport implements ITransport {
         // application bus and strand the awaiting request.
         const { payload, ...envelope } = frame;
         // A payload that is not its channel's is published as its refusal, as a wire transport's bridge does.
-        bus.emit(channel as keyof EventMap, asDeclared(channel as keyof EventMap, payload), envelope);
+        bus.emit(channel as keyof EventMap, asDeclared(channel as keyof EventMap, payload, envelope.correlationId), envelope);
       });
     }
   }

@@ -28,7 +28,9 @@ export interface DelegatedVerb<C extends JobCompletion> {
  * It sends `job:create` with the description given, gives the queue's answer
  * as the `created` event, then gives the job's `job:report-progress` /
  * `job:complete` / `job:fail` frames as `JobEvent`s, the status poll standing
- * in for a frame the stream did not carry.
+ * in for a frame the stream did not carry. A frame refused on one of the
+ * three channels names no job: it is given as a `refused` event, and the
+ * follow goes on.
  *
  * The three frames reach the client on the always-on global bridge: the
  * worker emits them to every client. Nothing here joins the resource's scope
@@ -46,7 +48,8 @@ export interface DelegatedVerb<C extends JobCompletion> {
  * names (`error`), as every SDK's follower does.
  *
  * `stallMs`, when given, is the ONE stall guard: armed at subscribe, armed
- * again on every event, cleared by any ending. It lives in this producer so
+ * again on every frame of the job, cleared by any ending. A refusal is no
+ * frame of the job, and arms nothing. It lives in this producer so
  * `await`, `.run()` and a state unit's drive all share it. Firing asks for
  * the job to be cancelled: a pending job is cancelled outright; a running one
  * is left to its worker. A job whose creation was never answered has no id,
@@ -113,6 +116,7 @@ export function delegated<C extends JobCompletion>(
     const progress$ = frames.of('job:report-progress');
     const complete$ = frames.of('job:complete');
     const fail$ = frames.of('job:fail');
+    const refused$ = frames.refused();
 
     // Only a failure the queue will not try again is an end. `takeUntil(fail$)`
     // would silence progress on a retryable failure too, so a run that
@@ -169,6 +173,13 @@ export function delegated<C extends JobCompletion>(
       subscriber.error(new JobFailedError(e.error, e.jobId, e.failureClass));
     });
 
+    // A refusal is no word of the job: neither the silence nor the stall
+    // deadline starts again.
+    const refusedSub = refused$.subscribe(({ channel, member, reason }) => {
+      if (done) return;
+      subscriber.next({ kind: 'refused', data: { channel, member, reason } });
+    });
+
     armStall();
 
     wire.request('job:create', job)
@@ -198,6 +209,7 @@ export function delegated<C extends JobCompletion>(
       progressSub.unsubscribe();
       completeSub.unsubscribe();
       failSub.unsubscribe();
+      refusedSub.unsubscribe();
     };
   });
 }

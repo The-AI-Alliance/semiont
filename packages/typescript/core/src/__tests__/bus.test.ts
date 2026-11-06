@@ -131,7 +131,7 @@ describe('Bus.frames: a payload that is not its channel\'s', () => {
       const [refused, next] = seen;
       expect(seen).toHaveLength(2);
       expect(refused).toBeInstanceOf(FrameRefusal);
-      expect(refused).toStrictEqual(new FrameRefusal('job:fail', 'payload.jobId', 'lacks', lacking));
+      expect(refused).toStrictEqual(new FrameRefusal('job:fail', 'payload.jobId', 'lacks', lacking, undefined));
       expect(refused?.status).toBe('refused');
       expect(next !== undefined && delivered(next).payload).toEqual(failed);
       // The reader is told, and nothing is said in its place.
@@ -152,7 +152,7 @@ describe('Bus.frames: a payload that is not its channel\'s', () => {
       void transport.emit('job:fail', lacking);
       void transport.emit('job:fail', failed);
 
-      expect(seen).toStrictEqual([new FrameRefusal('job:fail', 'payload.jobId', 'lacks', lacking), failed]);
+      expect(seen).toStrictEqual([new FrameRefusal('job:fail', 'payload.jobId', 'lacks', lacking, undefined), failed]);
       expect(warned).not.toHaveBeenCalled();
       bridged.destroy();
     } finally {
@@ -171,7 +171,7 @@ describe('Bus.frames: a payload that is not its channel\'s', () => {
     void transport.emit('job:fail', numbered);
     void transport.emit('job:fail', twice);
 
-    expect(seen).toStrictEqual([new FrameRefusal('job:fail', 'payload.error', 'malformed', numbered), new FrameRefusal('job:fail', 'payload.jobId', 'lacks', twice)]);
+    expect(seen).toStrictEqual([new FrameRefusal('job:fail', 'payload.error', 'malformed', numbered, undefined), new FrameRefusal('job:fail', 'payload.jobId', 'lacks', twice, undefined)]);
   });
 });
 
@@ -231,8 +231,8 @@ describe('asDeclared', () => {
   it('holds a payload to its shape without the stamps its type does not declare, which a closed object does not name', () => {
     const gap = { scope: resourceId('res-1'), lastSeenId: 'e-1', reason: 'scope-mismatch' as const };
     const stamped = { ...gap, _userId: 'did:web:example.org:users:a', _roles: ['admin'] };
-    expect(asDeclared('bus:resume-gap', stamped)).toStrictEqual(gap);
+    expect(asDeclared('bus:resume-gap', stamped, undefined)).toStrictEqual(gap);
     const more = { ...gap, more: 1 };
-    expect(asDeclared('bus:resume-gap', more)).toStrictEqual(new FrameRefusal('bus:resume-gap', 'payload.more', 'malformed', more));
+    expect(asDeclared('bus:resume-gap', more, 'c-1')).toStrictEqual(new FrameRefusal('bus:resume-gap', 'payload.more', 'malformed', more, 'c-1'));
   });
 });

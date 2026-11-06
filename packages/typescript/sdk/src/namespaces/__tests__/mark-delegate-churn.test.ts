@@ -188,7 +188,7 @@ describe('job:complete delivered twice', () => {
     bus.emit('job:complete', completePayload);
     bus.emit('job:complete', completePayload);
     // One whose payload is not the channel's is told in its place.
-    bus.emit('job:complete', new FrameRefusal('job:complete', 'payload.jobId', 'lacks', { resourceId: 'res-1', jobType: 'mark' }));
+    bus.emit('job:complete', new FrameRefusal('job:complete', 'payload.jobId', 'lacks', { resourceId: 'res-1', jobType: 'mark' }, undefined));
 
     // Documents the contract: the SDK does NOT dedupe the raw stream.
     expect(seen).toEqual(['job-1', 'job-1', 'refused: no payload.jobId']);
