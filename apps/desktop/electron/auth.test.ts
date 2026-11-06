@@ -123,6 +123,29 @@ describe('auth:resume — what a stored session is found to be', () => {
   });
 });
 
+describe('auth:refresh — a renewal the renderer asks for, naming the token it holds', () => {
+  it('of a token older than the one kept: the kept token, and the issuer not asked', async () => {
+    const kept = unexpiredAccess();
+    setStoredSession(new FileSessionStorage(sessionPath('older:4000')), 'older:4000', {
+      access: kept,
+      refresh: 'stored-refresh',
+      clientId: 'semiont-browser',
+      tokenEndpoint: `${issuerUrl}/older`,
+    });
+    // This process holds the kept token: the resume gave it out.
+    expect(await invoke('auth:resume', 'older:4000')).toEqual({ value: { kind: 'resumed', access: kept } });
+
+    expect(await invoke('auth:refresh', 'older:4000', 'older-access')).toBe(kept);
+    expect(asked).not.toContain('/older');
+  });
+
+  it('naming something that is no token, nor that it holds none, is refused', async () => {
+    await expect(Promise.resolve().then(() => invoke('auth:refresh', 'none:4000', 42))).rejects.toThrow(
+      'auth: a held access token is a string, or null for none',
+    );
+  });
+});
+
 describe('auth:sign-out', () => {
   it('revokes the kept refresh token at the issuer the session names, and forgets the session', async () => {
     setStoredSession(new FileSessionStorage(sessionPath('revoked:4000')), 'revoked:4000', {
