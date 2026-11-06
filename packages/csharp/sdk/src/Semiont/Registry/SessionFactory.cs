@@ -9,7 +9,8 @@ using Semiont.Types;
 
 namespace Semiont.Registry;
 
-public sealed record SemiontBrowserConfig(ISessionStorage Storage, SessionFactory SessionFactory, TimeProvider? TimeProvider = null);
+public sealed record SemiontBrowserConfig(ISessionStorage Storage, SessionFactory SessionFactory, TimeProvider? TimeProvider = null,
+    Random? Random = null);
 public sealed record SessionFactoryOptions(KnowledgeBase Kb, ISessionStorage Storage, SessionSignals Signals, Action<SessionError> OnError);
 
 public interface SessionFactory
@@ -45,7 +46,7 @@ public sealed class OpenedSession : IAsyncDisposable
 /// Opens an active knowledge base with the same kept session used for other HTTP clients. Its client keeps what it holds
 /// for the person the knowledge base's sign-in names, from when the sign-in names them.
 /// </summary>
-public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvider? timeProvider = null) : SessionFactory
+public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvider? timeProvider = null, Random? random = null) : SessionFactory
 {
     public async Task<OpenedSession> OpenAsync(SessionFactoryOptions options, CancellationToken cancellation = default)
     {
@@ -54,7 +55,7 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
         var signIn = RegistryStorage.KeptIn(options.Storage, options.Kb.Id);
         var persistence = CachePersistence.ForSignIn(options.Storage, options.Kb.Id);
         if (RegistryStorage.StoredSession(options.Storage, options.Kb.Id) is { PersonKey: { } named }) persistence.Attach(named);
-        var kept = new KeptSession(endpoint, signIn, httpClient, timeProvider, random: null, answered: async (token, user, recording) =>
+        var kept = new KeptSession(endpoint, signIn, httpClient, timeProvider, random, answered: async (token, user, recording) =>
         {
             var person = RegistryStorage.PersonKey(user.Did);
             if (await signIn.RecordPersonKeyAsync(token, person, recording).ConfigureAwait(false)) persistence.Attach(person);
@@ -65,7 +66,7 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
             await kept.ReadyAsync(cancellation).ConfigureAwait(false);
             var http = new HttpTransport(Gateway.Origin(endpoint), kept.State.Token,
                 BusRegistry.FullClientChannels, refresher: kept.RefreshAsync,
-                httpClient: httpClient, timeProvider: timeProvider);
+                httpClient: httpClient, timeProvider: timeProvider, random: random);
             transport = http;
             var client = new SemiontClient(http, persistence);
             var session = new SemiontSession(new KbTarget { Id = options.Kb.Id, Endpoint = options.Kb.Endpoint, Label = options.Kb.Label },
@@ -108,7 +109,7 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
 
     public async Task RevokeAsync(StoredSession stored, CancellationToken cancellation = default)
     {
-        using var issuer = new Issuer(httpClient, timeProvider);
+        using var issuer = new Issuer(httpClient, timeProvider, random);
         await issuer.SignOutAsync(new MemorySignIn(stored), cancellation).ConfigureAwait(false);
     }
 }

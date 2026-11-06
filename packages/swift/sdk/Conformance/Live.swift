@@ -182,6 +182,12 @@ actor LiveDriver {
           case .failed(let value):
             kind = "failed"
             data = try encoded(value)
+          case .refused(let value):
+            kind = "refused"
+            data = .object([
+              "channel": .string(value.channel), "member": .string(value.member),
+              "reason": .string(value.reason.rawValue),
+            ])
           case .complete(let value):
             kind = "complete"
             data = try encoded(value)

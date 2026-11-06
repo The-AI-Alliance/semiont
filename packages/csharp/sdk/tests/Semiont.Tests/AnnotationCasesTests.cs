@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Semiont.Annotations;
@@ -67,6 +68,7 @@ public sealed partial class TransportTests
     public void AnnotationBuildersRunTheSharedCases(string section)
     {
         using var table = ReadSpec("annotations/builder-cases.json");
+        var clock = new TestClock();
         foreach (var row in table.RootElement.GetProperty(section).EnumerateArray())
         {
             var resource = row.GetProperty("resourceId").Deserialize<ResourceId>();
@@ -75,7 +77,7 @@ public sealed partial class TransportTests
             var body = row.TryGetProperty("body", out var bodies) ? Required<AnnotationBodies>(bodies) : null;
             if (section == "resources")
             {
-                ExpectAnnotation(AnnotationOfResource(new OfResource(resource, motivation, generator, body)), row);
+                ExpectAnnotation(AnnotationOfResource(new OfResource(resource, motivation, generator, body), clock), row, clock);
                 continue;
             }
 
@@ -95,14 +97,15 @@ public sealed partial class TransportTests
             var input = new OfSpan(resource, motivation, generator ?? throw new InvalidOperationException("Missing generator"), span, source, body);
             if (row.TryGetProperty("refused", out var code))
             {
-                var error = Assert.Throws<SpanRefusedError>(() => AnnotationOfSpan(input));
+                var error = Assert.Throws<SpanRefusedError>(() => AnnotationOfSpan(input, clock));
                 Assert.Equal(code.GetString(), error.Code);
             }
-            else ExpectAnnotation(AnnotationOfSpan(input), row);
+            else ExpectAnnotation(AnnotationOfSpan(input, clock), row, clock);
         }
 
-        static void ExpectAnnotation(Annotation annotation, JsonElement row)
+        static void ExpectAnnotation(Annotation annotation, JsonElement row, TimeProvider clock)
         {
+            Assert.Equal(clock.GetUtcNow(), DateTimeOffset.Parse(annotation.Created, CultureInfo.InvariantCulture));
             var actual = JsonSerializer.SerializeToNode(annotation)?.AsObject() ?? throw new InvalidOperationException("No annotation");
             Assert.True(actual.Remove("created"));
             Assert.True(JsonElement.DeepEquals(row.GetProperty("annotation"), JsonSerializer.SerializeToElement(actual)),

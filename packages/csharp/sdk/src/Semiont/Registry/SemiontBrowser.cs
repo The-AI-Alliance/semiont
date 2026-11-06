@@ -30,6 +30,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
     private static readonly KbReadVerdict Unavailable = new(KbReadKind.NoVerdict);
     private readonly SessionFactory factory;
     private readonly TimeProvider clock;
+    private readonly Random random;
     private readonly object gate = new();
     private readonly CancellationTokenSource lifetime = new();
     private readonly Broadcast<BrowserState> states = new(replayLatest: true);
@@ -51,6 +52,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
         Storage = config.Storage;
         factory = config.SessionFactory;
         clock = config.TimeProvider ?? TimeProvider.System;
+        random = config.Random ?? Random.Shared;
         IReadOnlyList<KnowledgeBase> kbs = [];
         Storage.Update(KnowledgeBasesKey, stored =>
         {
@@ -74,6 +76,8 @@ public sealed class SemiontBrowser : IAsyncDisposable
     }
 
     public ISessionStorage Storage { get; }
+    internal TimeProvider Clock => clock;
+    internal Random Random => random;
     public EventBus Bus { get; } = new();
     public BrowserState State => Volatile.Read(ref state);
     public IAsyncEnumerable<BrowserState> States(CancellationToken cancellation = default) => states.Observe(cancellation);
@@ -646,15 +650,15 @@ public static class BrowserSignIn
 {
     public static Task<string> BeginSignInAsync(SemiontBrowser browser, BeginAuthorizationOptions options,
         HttpClient? httpClient = null, CancellationToken cancellation = default) =>
-        RedirectSignIn.BeginAuthorizationAsync(options, browser.Storage, httpClient, cancellation);
+        RedirectSignIn.BeginAuthorizationAsync(options, browser.Storage, httpClient, browser.Clock, browser.Random, cancellation);
 
     public static async Task<SignInOutcome> CompleteSignInAsync(SemiontBrowser browser, string callbackUrl,
         HttpClient? httpClient = null, CancellationToken cancellation = default)
     {
-        var (pending, session) = await RedirectSignIn.CompleteAuthorizationAsync(callbackUrl, browser.Storage, httpClient, cancellation)
-            .ConfigureAwait(false);
-        var identity = await RedirectSignIn.DescribeConnectionAsync(pending.Target, session.Access, httpClient, cancellation)
-            .ConfigureAwait(false);
+        var (pending, session) = await RedirectSignIn.CompleteAuthorizationAsync(callbackUrl, browser.Storage, httpClient,
+            browser.Clock, browser.Random, cancellation).ConfigureAwait(false);
+        var identity = await RedirectSignIn.DescribeConnectionAsync(pending.Target, session.Access, httpClient,
+            browser.Clock, browser.Random, cancellation).ConfigureAwait(false);
         return await browser.SignedInAsync(new SignedIn(new KbEndpoint.HttpEndpointCase(pending.Target), identity.Description, session,
             pending.KbId, pending.ExpectedDid, pending.ExpectedName), cancellation).ConfigureAwait(false);
     }

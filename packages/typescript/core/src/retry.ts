@@ -141,13 +141,14 @@ export function retryAfterMs(header: string | null): number | undefined {
  * defect the `RETRY_RULES` catalog exists to remove. The reasoning for those
  * statuses, and for excluding `500`, lives once, in the rule.
  *
- * The timeout case is the one that is easy to get wrong. `AbortSignal.timeout()`
- * rejects with a **DOMException named `TimeoutError`**, not a `TypeError` —
- * measured, not assumed — so `isTransientFetchError` cannot see it, and without
- * this case a request that bounds itself is unretryable precisely when the
- * bound fires. Matched by `name` rather than `instanceof DOMException` because
- * the constructor is not guaranteed present in every runtime this package
- * builds for, while the name is part of the DOM spec.
+ * The timeout case is the one that is easy to get wrong. A request whose
+ * deadline passes (`withinDeadline`) rejects with a **DOMException named
+ * `TimeoutError`**, not a `TypeError` — measured, not assumed — so
+ * `isTransientFetchError` cannot see it, and without this case a request that
+ * bounds itself is unretryable precisely when the bound fires. Matched by
+ * `name` rather than `instanceof DOMException` because the constructor is not
+ * guaranteed present in every runtime this package builds for, while the name
+ * is part of the DOM spec.
  *
  * Auth and validation failures stay excluded, preserving `isTransientFetchError`'s
  * reasoning verbatim: a 401 means the gateway is UP and rejected us, and retrying

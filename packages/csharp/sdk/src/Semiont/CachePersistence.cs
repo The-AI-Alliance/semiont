@@ -203,9 +203,20 @@ internal sealed class LiveCacheStorage(CachePersistence persistence, TimeProvide
     {
         try
         {
-            await foreach (var _ in saves.Reader.ReadAllAsync(cancellation).ConfigureAwait(false))
+            var change = saves.Reader.WaitToReadAsync(cancellation).AsTask();
+            while (await change.ConfigureAwait(false))
             {
-                await Task.Delay(Debounce, clock, cancellation).ConfigureAwait(false);
+                saves.Reader.TryRead(out _);
+                change = saves.Reader.WaitToReadAsync(cancellation).AsTask();
+                // The wait starts again at each change, so a burst of changes is one save.
+                using var quiet = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+                var settled = Task.Delay(Debounce, clock, quiet.Token);
+                if (await Task.WhenAny(settled, change).ConfigureAwait(false) == change)
+                {
+                    quiet.Cancel();
+                    continue;
+                }
+                await settled.ConfigureAwait(false);
                 lock (gate)
                 {
                     if (closed) return;

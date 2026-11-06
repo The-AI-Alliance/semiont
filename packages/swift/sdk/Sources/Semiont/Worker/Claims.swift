@@ -165,7 +165,7 @@ public actor Claims: AsyncSequence {
           ])
           defer { frames.dispose() }
           await self?.listenToState()
-          for try await frame in frames { await self?.hear(frame) }
+          for try await carried in frames { await self?.hear(carried) }
         } catch {
           if !Task.isCancelled { await self?.refuse(error) }
         }
@@ -199,12 +199,22 @@ public actor Claims: AsyncSequence {
     if state == .closed { abandon() }
   }
 
-  private func hear(_ frame: ReceivedFrame) async {
+  private func hear(_ carried: Carried) async {
     guard !stopped else { return }
-    if frame.channel == Channels.jobQueued.name {
+    if carried.channel == Channels.jobQueued.name {
       currentVitals.lastQueuedEventAt = Date()
-      if filters.contains(where: { jobMatchesFilter($0, job: .object(frame.payload)) }) { pull() }
-    } else if case .string(let id) = frame.payload["jobId"], let held, held.jobId.value == id {
+      let wakes =
+        switch carried {
+        case .frame(let frame):
+          filters.contains(where: { jobMatchesFilter($0, job: .object(frame.payload)) })
+        // No filter can be compared with what cannot be read: a refused announcement counts as one
+        // that matches.
+        case .refused: true
+        }
+      if wakes { pull() }
+    } else if case .frame(let frame) = carried, case .string(let id) = frame.payload["jobId"],
+      let held, held.jobId.value == id
+    {
       await held.signalCancellation()
     }
   }

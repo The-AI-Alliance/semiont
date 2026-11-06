@@ -1155,6 +1155,29 @@
     },
     {
       "unit": "mark",
+      "case": "counts a delegated job's silence past a frame on its channels that is refused, and says it once, when it falls due",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "listen": ["mark:delegate-timeout"],
+      "steps": [
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
+        {"pass": {"timing": "delegateSilenceMs", "times": 0.5}},
+        {"deliver": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark"}},
+        "settle",
+        {"heard": []},
+        {"expect": {"unit": {"delegatingMotivation": "highlighting", "progress": null}}},
+        {"pass": {"timing": "delegateSilenceMs", "times": 0.5, "plusMs": -1}},
+        {"heard": []},
+        {"pass": 1},
+        {"heard": [{"channel": "mark:delegate-timeout", "payload": {"resourceId": "res-1", "motivation": "highlighting"}}]},
+        {"deliver": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark"}},
+        {"pass": {"timing": "delegateSilenceMs", "times": 2}},
+        {"heard": []},
+        {"expect": {"unit": {"delegatingMotivation": "highlighting"}}}
+      ]
+    },
+    {
+      "unit": "mark",
       "case": "units of two resources on one client each answer for their own, and what is asked of one moves no other",
       "transport": {"answers": "refuses", "replies": {"mark:create-request": [{"annotationId": "ann-new"}], "job:create": [{"jobId": "job-a"}]}},
       "made": {"first": {"resourceId": "res-a"}, "second": {"resourceId": "res-b"}},

@@ -642,45 +642,41 @@ describe('the device grant', () => {
 });
 
 describe('a request to the issuer has a deadline', () => {
-  /** The signal each request to the issuer was made under, by URL. */
-  function signals(): Array<[string, unknown]> {
-    return fetchMock.mock.calls.map(([url, init]) => [url as string, (init as { signal?: unknown } | undefined)?.signal]);
-  }
+  const asks: Array<[string, string, () => Promise<unknown>]> = [
+    ['discovery', `${ISSUER}/.well-known/openid-configuration`, () => discoverIssuer(TARGET)],
+    ['a grant', `${ISSUER}/token`, () => refreshAtIssuer(`${ISSUER}/token`, BROWSER_CLIENT_ID, 'ref')],
+    ['a revocation', `${ISSUER}/revoke`, () => revokeAtIssuer(`${ISSUER}/revoke`, BROWSER_CLIENT_ID, 'ref')],
+    ['a device authorization', `${ISSUER}/device`, () => signInWithDeviceGrant({ target: TARGET, onCode: () => {} })],
+  ];
 
-  it('discovery, a grant, a revocation and the device grant each carry the one every SDK keeps', async () => {
-    const deadline = vi.spyOn(AbortSignal, 'timeout');
-    fetchMock.mockImplementation(async (url: string) => {
-      if (url.endsWith('/.well-known/openid-configuration')) return reply(DISCOVERY);
-      if (url === `${ISSUER}/device`) {
-        return reply({ device_code: 'dev', user_code: 'ABCD-EFGH', verification_uri: `${ISSUER}/device/verify`, expires_in: 600, interval: 1 });
-      }
-      if (url === `${ISSUER}/token`) return reply({ access_token: 'acc', refresh_token: 'ref', token_type: 'Bearer' });
-      if (url === `${ISSUER}/revoke`) return reply({});
-      return reply(undefined, 404);
-    });
+  it.each(asks)('%s has the one every SDK keeps: one never answered has failed at it, and not before', async (_what, unanswered, ask) => {
+    // The double never answers and, as fetch does, rejects with its
+    // signal's reason when that signal is aborted.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+        if (url === unanswered) {
+          return new Promise<Response>((_answer, fail) => {
+            init?.signal?.addEventListener('abort', () => fail(init.signal?.reason), { once: true });
+          });
+        }
+        if (url.endsWith('/.well-known/openid-configuration')) return reply(DISCOVERY);
+        return reply(undefined, 404);
+      });
+      let outcome: unknown = 'unsettled';
+      void ask().then(
+        (answer) => { outcome = answer; },
+        (error: unknown) => { outcome = error; },
+      );
 
-    await discoverIssuer(TARGET);
-    await refreshAtIssuer(`${ISSUER}/token`, BROWSER_CLIENT_ID, 'ref');
-    await revokeAtIssuer(`${ISSUER}/revoke`, BROWSER_CLIENT_ID, 'ref');
-    vi.useFakeTimers();
-    const signedIn = signInWithDeviceGrant({ target: TARGET, onCode: () => {} });
-    await vi.advanceTimersByTimeAsync(1500);
-    await signedIn;
-    vi.useRealTimers();
-
-    const made = signals();
-    expect(made.map(([url]) => url)).toEqual([
-      `${ISSUER}/.well-known/openid-configuration`,
-      `${ISSUER}/token`,
-      `${ISSUER}/revoke`,
-      `${ISSUER}/.well-known/openid-configuration`,
-      `${ISSUER}/device`,
-      `${ISSUER}/token`,
-    ]);
-    // One deadline per request, each the shared one, and each the signal
-    // its request was made under.
-    expect(deadline.mock.calls).toEqual(made.map(() => [HTTP_REQUEST_TIMEOUT_MS]));
-    expect(made.map(([, signal]) => signal)).toEqual(deadline.mock.results.map((result) => result.value));
+      await vi.advanceTimersByTimeAsync(HTTP_REQUEST_TIMEOUT_MS - 1);
+      expect(outcome).toBe('unsettled');
+      await vi.advanceTimersByTimeAsync(1);
+      expect(outcome).toBeInstanceOf(SignInError);
+      expect(outcome).toHaveProperty('message', expect.stringMatching(/: TimeoutError$/));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('a renewal the issuer never answers is tried again inside the budget, and then says how hard it tried', async () => {

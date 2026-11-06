@@ -626,8 +626,9 @@ private func invalidationWindow(_ given: [String: JSONValue], _ clock: TestClock
         type: Channels.markAdded.name, userId: try UserId("did:web:example.org:users:alice"),
         version: 1)
       probe.deliver(
-        ReceivedFrame(
-          channel: Channels.markAdded.name, payload: try wirePayload(event), scope: resource))
+        .frame(
+          ReceivedFrame(
+            channel: Channels.markAdded.name, payload: try wirePayload(event), scope: resource)))
     },
     close: {
       observing.cancel()
@@ -682,10 +683,10 @@ private func jobFollower(_ given: [String: JSONValue], _ clock: TestClock) async
     counted: { requested(probe, asked) }, activity: { probe.calls.count }, pending: { nil },
     act: {
       probe.deliver(
-        ReceivedFrame(
-          channel: Channels.jobReportProgress.name,
-          payload: try wirePayload(progress(percentage: 10))
-        ))
+        .frame(
+          ReceivedFrame(
+            channel: Channels.jobReportProgress.name,
+            payload: try wirePayload(progress(percentage: 10)))))
     },
     close: {
       following.cancel()

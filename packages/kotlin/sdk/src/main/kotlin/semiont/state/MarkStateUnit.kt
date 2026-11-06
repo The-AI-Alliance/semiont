@@ -41,6 +41,8 @@ import semiont.types.MarkSubmitEvent
 import semiont.types.Motivation
 import semiont.types.ResourceErrorEvent
 import semiont.types.TaggingJobParams
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeMark
 
 /** An annotation being composed: where it is, and why it is made. Its selector is what `client.mark.submit` takes. */
 public data class PendingAnnotation(
@@ -87,7 +89,9 @@ private sealed interface Heard {
  * answer to its creation to the job's end. A job that says nothing for
  * `Timings.DELEGATE_SILENCE_MS` has gone quiet, which is not over: the unit
  * says so once (`mark:delegate-timeout`) and keeps following it, so a
- * completion that comes later still ends it.
+ * completion that comes later still ends it. A frame on the job's channels
+ * that its follower refuses is not the job saying something: the silence goes
+ * on being counted past it.
  */
 public class MarkStateUnit @JvmExposeBoxed constructor(private val client: SemiontClient, private val resourceId: ResourceId) : StateUnit {
     private val pending = Variable<PendingAnnotation?>(null)
@@ -198,19 +202,24 @@ public class MarkStateUnit @JvmExposeBoxed constructor(private val client: Semio
         }
         // This job's id. At the job's end it is let go only while it is still the one held: a job delegated later replaces it.
         var created: JobId? = null
-        // Whether the next silence is still to be said. It is said once, and again only after the job has said something.
-        var listening = true
+        val clock = client.links.clock
+        val silence = Timings.DELEGATE_SILENCE_MS.milliseconds
+        // When the silence is to be said, by the client's clock, counted from the last thing the job said. It is said
+        // once, and again only after the job has said something: none while it is not to be said again.
+        var quietAt: TimeMark? = clock.markNow() + silence
         var ended: Heard.Ended? = null
         while (ended == null) {
-            val next = if (listening) withTimeoutOrNull(Timings.DELEGATE_SILENCE_MS) { heard.receive() } else heard.receive()
+            val due = quietAt
+            val next = if (due != null) withTimeoutOrNull(-due.elapsedNow()) { heard.receive() } else heard.receive()
             when (next) {
                 null -> {
-                    listening = false
+                    quietAt = null
                     goneQuiet(motivation)
                 }
                 is Heard.Ended -> ended = next
                 is Heard.Event -> {
-                    listening = true
+                    // A frame refused names no job: it is no word of this one, and the silence goes on being counted.
+                    if (next.event !is JobRefused) quietAt = clock.markNow() + silence
                     when (val event = next.event) {
                         is JobCreated -> {
                             job.set(event.data.jobId)

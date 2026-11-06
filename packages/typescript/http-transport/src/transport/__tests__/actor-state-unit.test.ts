@@ -1,7 +1,7 @@
 import util from 'node:util';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
-import { EMIT_RETRY, HTTP_REQUEST_TIMEOUT_MS, RECONNECT_MS, STREAM_OPEN_TIMEOUT_MS, annotationId, resourceId, type SemiontError } from '@semiont/core';
+import { EMIT_RETRY, EMIT_TIMEOUT_MS, HTTP_REQUEST_TIMEOUT_MS, RECONNECT_MS, STREAM_OPEN_TIMEOUT_MS, annotationId, resourceId, type SemiontError } from '@semiont/core';
 import { createActorStateUnit, type ActorStateUnit } from '../actor-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 // The SSE/fetch harness lives in helpers/mock-conn.ts (shared with the
@@ -172,22 +172,22 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('emit retries a timeout, then rejects (does not hang) when the budget runs out', async () => {
-    // When the deadline fires, `AbortSignal.timeout` rejects the fetch with a
-    // TimeoutError; the caller must receive that rejection — a job failure the
-    // queue classifies transient — rather than an unsettled promise. (The
-    // deadline itself is a native timer vitest's fake clock does not drive, so
-    // this pins the propagation the deadline produces, and the pin above pins
-    // that the deadline is wired.)
+  it('emit retries an attempt whose deadline passes, then rejects (does not hang) when the budget runs out', async () => {
+    // A gateway that takes the POST and says nothing. When an attempt's
+    // deadline passes, its fetch rejects with a TimeoutError; the caller must
+    // receive that rejection — a job failure the queue classifies transient —
+    // rather than an unsettled promise. The double never answers and, as
+    // fetch does, rejects with its signal's reason when that signal is
+    // aborted.
     //
     // Per-request retry decides WHEN that rejection arrives: a deadline
     // is the definition of "try again", so the emit spends its budget first.
     // The no-hang guarantee is what this pins — it is the budget, not the
-    // first failure, that bounds the wait. `mockRejectedValue`
-    // (not `…Once`) so every attempt times out; fake timers drive the retry
-    // sleeps, which are ordinary `setTimeout`s even though the deadline is not.
+    // first failure, that bounds the wait.
     vi.useFakeTimers();
-    mockFetch.mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'));
+    mockFetch.mockImplementation((_url: string, opts: { signal: AbortSignal }) => new Promise((_resolve, reject) => {
+      opts.signal.addEventListener('abort', () => reject(opts.signal.reason), { once: true });
+    }));
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
@@ -196,7 +196,9 @@ describe('createActorStateUnit', () => {
 
     const rejects = expect(stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') }))
       .rejects.toThrow('/bus/emit got no answer: TimeoutError');
-    await vi.advanceTimersByTimeAsync(60_000);
+    await vi.advanceTimersByTimeAsync(EMIT_TIMEOUT_MS - 1);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(EMIT_RETRY.attempts * (EMIT_TIMEOUT_MS + EMIT_RETRY.maxDelayMs));
     await rejects;
     expect(mockFetch).toHaveBeenCalledTimes(EMIT_RETRY.attempts);
 

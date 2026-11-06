@@ -28,7 +28,7 @@ public final class ScriptedTransport: Transport {
 
   public let baseUrl: String
   public let state = Watched<ConnectionState>(.open)
-  private let events = Broadcast<ReceivedFrame>()
+  private let events = Broadcast<Carried>()
   private let errors = Broadcast<TransportError>()
   private let wire = Mutex(State())
   private let schedule: [FaultAction]
@@ -57,17 +57,18 @@ public final class ScriptedTransport: Transport {
     wire.withLock { if !$0.closed { $0.queued[operation, default: []].append(reply) } }
   }
 
-  public func deliver(_ frame: ReceivedFrame) { events.yield(frame) }
+  /// Deliver a frame, or a frame's refusal in its place, as the transport's stream would.
+  public func deliver(_ carried: Carried) { events.yield(carried) }
 
-  public func frames(_ channels: [String]) async throws -> Events<ReceivedFrame> {
+  public func frames(_ channels: [String]) async throws -> Events<Carried> {
     let source = events.listen()
     guard !channels.isEmpty else { return source }
     let selected = Set(channels)
-    let (stream, continuation) = AsyncThrowingStream<ReceivedFrame, any Error>.makeStream()
+    let (stream, continuation) = AsyncThrowingStream<Carried, any Error>.makeStream()
     let task = Task {
       do {
-        for try await frame in source where selected.contains(frame.channel) {
-          continuation.yield(frame)
+        for try await carried in source where selected.contains(carried.channel) {
+          continuation.yield(carried)
         }
         continuation.finish()
       } catch {
@@ -122,8 +123,8 @@ public final class ScriptedTransport: Transport {
         try Task.checkCancellation()
         if let channel = replyChannelsFor([operation]).first {
           let frame = ReceivedFrame(channel: channel, correlationId: id.uuidString, payload: answer)
-          events.yield(frame)
-          if action == .duplicateReply { events.yield(frame) }
+          events.yield(.frame(frame))
+          if action == .duplicateReply { events.yield(.frame(frame)) }
         }
         return answer
       }

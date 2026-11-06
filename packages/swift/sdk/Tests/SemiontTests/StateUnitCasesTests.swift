@@ -50,17 +50,17 @@ import Testing
 }
 
 private final class StateCaseHeard: Sendable {
-  private let frames = Mutex<[ReceivedFrame]>([])
+  private let frames = Mutex<[Carried]>([])
   let count = Watched(0)
 
-  func append(_ frame: ReceivedFrame) {
+  func append(_ carried: Carried) {
     frames.withLock {
-      $0.append(frame)
+      $0.append(carried)
       count.set($0.count)
     }
   }
 
-  func take() -> [ReceivedFrame] {
+  func take() -> [Carried] {
     frames.withLock { frames in
       let taken = frames
       frames.removeAll()
@@ -94,7 +94,7 @@ private final class StateCase {
     let frames = client.bus.listen(channels)
     listening = Task {
       do {
-        for try await frame in frames { heard.append(frame) }
+        for try await carried in frames { heard.append(carried) }
       } catch {}
     }
     units = try required(row, "made").object.mapValues {
@@ -123,9 +123,10 @@ private final class StateCase {
       clock.advance(by: try stateCaseDuration(duration))
       try await settle()
     } else if let channel = row["say"] ?? row["deliver"] {
-      let frame = ReceivedFrame(
-        channel: try channel.text, correlationId: try row["correlationId"]?.text,
-        payload: try required(row, "payload").object)
+      let frame = Carried.frame(
+        ReceivedFrame(
+          channel: try channel.text, correlationId: try row["correlationId"]?.text,
+          payload: try required(row, "payload").object))
       if row["say"] != nil {
         client.bus.receive(frame)
       } else {
@@ -215,7 +216,11 @@ private final class StateCase {
   private func checkHeard(_ expected: [JSONValue]) throws {
     let actual = heard.take()
     #expect(actual.count == expected.count, "\(name) — heard \(actual.map(\.channel))")
-    for (frame, value) in zip(actual, expected) {
+    for (carried, value) in zip(actual, expected) {
+      guard case .frame(let frame) = carried else {
+        Issue.record("\(name) — heard a refused frame on \(carried.channel)")
+        continue
+      }
       let fields = try value.object
       #expect(frame.channel == (try required(fields, "channel").text), "\(name) — channel heard")
       check(.object(frame.payload), try required(fields, "payload"), frame.channel)
