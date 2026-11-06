@@ -21,7 +21,7 @@
 use crate::errors::{BusRequestError, BusRequestErrorCode, TransportError};
 use crate::event_bus::EventBus;
 use crate::locked;
-use crate::required::{fault_of, schema};
+use crate::required::{Fault, fault_of, schema};
 use crate::types::{
     AnchoredTextAnswer, CreateResourceResponse, GetAnnotationsResponse, GetResourceResponse,
     HealthResponse, MediaTokenResponse, ProtectedResourceMetadata, StatusResponse, UserResponse,
@@ -30,6 +30,7 @@ use crate::types::{AnnotationId, JobId};
 use crate::types::{BusFrame, ResourceId, Schema};
 use bytes::Bytes;
 use futures_core::Stream;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::fmt;
@@ -118,7 +119,8 @@ pub struct Frame {
 
 /// Why a value is refused at a member, as every SDK finds a value's first
 /// fault (packages/codegen/schemas/required-shapes.mjs).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum FrameRefusalReason {
     /// The value does not carry the member, or the member holds null where it
     /// may not.
@@ -142,14 +144,33 @@ impl FrameRefusalReason {
 /// to the readers it names: those of its channel, in its scope. It names the
 /// frame's first fault by its way from the frame (`member`: `payload`,
 /// `correlationId`, or a member BusFrame does not name), and carries the
-/// frame's payload as it came, when it carried one.
-#[derive(Debug, Clone, PartialEq)]
+/// frame's payload as it came, when it carried one, and its correlation id,
+/// when it carried one BusFrame allows. A typed read gives one, too, for a
+/// frame whose payload is not its channel's.
+///
+/// Said as "a frame on" the channel " is not that channel's: " and the fault.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FrameRefusal {
     pub channel: String,
     pub member: String,
     pub reason: FrameRefusalReason,
     pub payload: Option<Value>,
     pub scope: Option<ResourceId>,
+    pub correlation_id: Option<String>,
+}
+
+impl fmt::Display for FrameRefusal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let fault = Fault {
+            member: self.member.clone(),
+            reason: self.reason,
+        };
+        write!(
+            f,
+            "a frame on {} is not that channel's: {fault}",
+            self.channel
+        )
+    }
 }
 
 impl FrameRefusal {
@@ -164,6 +185,7 @@ impl FrameRefusal {
             reason: fault.reason,
             payload: frame.get("payload").cloned(),
             scope,
+            correlation_id: None,
         })
     }
 }
@@ -292,7 +314,7 @@ impl FrameHub {
 
 struct Awaited {
     channels: Vec<String>,
-    reply: oneshot::Sender<Frame>,
+    reply: oneshot::Sender<Result<Frame, FrameRefusal>>,
 }
 
 /// The replies a transport's requests still await. A reply is routed here by
@@ -332,9 +354,15 @@ impl ReplyRouter {
         }
     }
 
-    /// Hand `frame` to the request that awaits it, if one does.
-    pub fn route(&self, frame: &Frame) {
-        let Some(correlation_id) = &frame.correlation_id else {
+    /// Hand a frame, or the refusal of one, to the request that awaits it,
+    /// if one does: the one its correlation id names, on a channel of its
+    /// reply's.
+    pub fn route(&self, carried: Result<&Frame, &FrameRefusal>) {
+        let (correlation_id, channel) = match carried {
+            Ok(frame) => (&frame.correlation_id, &frame.channel),
+            Err(refusal) => (&refusal.correlation_id, &refusal.channel),
+        };
+        let Some(correlation_id) = correlation_id else {
             return;
         };
         let mut awaited = locked(&self.awaited);
@@ -343,10 +371,12 @@ impl ReplyRouter {
         };
         if awaited
             .get(correlation_id)
-            .is_some_and(|a| a.channels.contains(&frame.channel))
+            .is_some_and(|a| a.channels.contains(channel))
             && let Some(request) = awaited.remove(correlation_id)
         {
-            let _ = request.reply.send(frame.clone());
+            let _ = request
+                .reply
+                .send(carried.cloned().map_err(FrameRefusal::clone));
         }
     }
 
@@ -371,12 +401,13 @@ impl ReplyRouter {
 pub struct PendingReply {
     router: Arc<ReplyRouter>,
     correlation_id: String,
-    receiver: oneshot::Receiver<Frame>,
+    receiver: oneshot::Receiver<Result<Frame, FrameRefusal>>,
 }
 
 impl PendingReply {
-    /// The reply; `None` when the transport closed before one came.
-    pub async fn frame(&mut self) -> Option<Frame> {
+    /// The reply, or the refusal of the frame that carried it; `None` when
+    /// the transport closed before either came.
+    pub async fn reply(&mut self) -> Option<Result<Frame, FrameRefusal>> {
         (&mut self.receiver).await.ok()
     }
 }
@@ -736,13 +767,43 @@ mod tests {
         assert_eq!(router.awaited(), ["cid-1", "cid-2"]);
 
         // The same id on a channel that is not its reply's settles nothing.
-        router.route(&frame("progress", Some("cid-1")));
-        router.route(&frame("result", Some("cid-1")));
-        assert_eq!(mine.frame().await, Some(frame("result", Some("cid-1"))));
+        router.route(Ok(&frame("progress", Some("cid-1"))));
+        router.route(Ok(&frame("result", Some("cid-1"))));
+        assert_eq!(mine.reply().await, Some(Ok(frame("result", Some("cid-1")))));
         assert_eq!(router.awaited(), ["cid-2"]);
 
         router.close();
-        assert_eq!(theirs.frame().await, None);
+        assert_eq!(theirs.reply().await, None);
+    }
+
+    fn refusal(channel: &str, correlation_id: Option<&str>) -> FrameRefusal {
+        FrameRefusal {
+            channel: channel.to_owned(),
+            member: "addedByALaterGateway".to_owned(),
+            reason: FrameRefusalReason::Malformed,
+            payload: Some(serde_json::json!({ "response": {} })),
+            scope: None,
+            correlation_id: correlation_id.map(str::to_owned),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_refused_reply_reaches_the_request_its_correlation_id_names_and_one_naming_none_reaches_none()
+     {
+        let router = ReplyRouter::new();
+        let mut mine = router.track("cid-1", &["result", "failure"]);
+        let _theirs = router.track("cid-2", &["result", "failure"]);
+
+        router.route(Err(&refusal("result", None)));
+        router.route(Err(&refusal("progress", Some("cid-1"))));
+        assert_eq!(router.awaited(), ["cid-1", "cid-2"]);
+
+        router.route(Err(&refusal("result", Some("cid-1"))));
+        assert_eq!(
+            mine.reply().await,
+            Some(Err(refusal("result", Some("cid-1"))))
+        );
+        assert_eq!(router.awaited(), ["cid-2"]);
     }
 
     #[tokio::test]

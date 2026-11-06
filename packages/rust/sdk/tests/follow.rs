@@ -8,7 +8,7 @@ use semiont::namespaces::{Delegation, JobEvent, stall_deadline};
 use semiont::testing::as_id;
 use semiont::testing::{FaultAction, FaultyTransport, TestClientOptions, create_test_client};
 use semiont::timing::{JOB_SILENCE, JOB_STATUS_POLL};
-use semiont::transport::{ConnectionState, Envelope};
+use semiont::transport::{ConnectionState, Envelope, FrameRefusal, FrameRefusalReason};
 use semiont::types::{
     HighlightingJobParams, JobDeclinedReason, LinkingJobParams, MarkJobCompleteCommand,
     MarkJobDone, MarkJobResult, TaggingJobParams, YieldJobCompleteCommand, YieldJobResult,
@@ -118,6 +118,11 @@ fn kinds<C>(seen: &[Result<JobEvent<C>, SemiontError>]) -> Vec<String> {
             Ok(JobEvent::Created(created)) => format!("created {}", created.job_id),
             Ok(JobEvent::Progress(progress)) => format!("progress {}", progress.percentage),
             Ok(JobEvent::Failed(_)) => "failed".to_owned(),
+            Ok(JobEvent::Refused {
+                channel,
+                member,
+                reason,
+            }) => format!("refused {channel} {member} {}", reason.as_str()),
             Ok(JobEvent::Complete(_)) => "complete".to_owned(),
             Err(error) => format!("error {}", error.code()),
         })
@@ -419,6 +424,128 @@ async fn frames_that_arrive_before_the_jobs_id_is_known_are_kept() {
 
     let seen = ended(following).await;
     assert_eq!(kinds(&seen), ["created job-1", "progress 40", "complete"]);
+}
+
+/// What the client's own bus is given in place of a frame on `channel` its
+/// reading refused for lacking `member`: it names no job.
+fn refused(client: &SemiontClient, channel: &str, member: &str, payload: Value) {
+    client.bus().emit_refusal(FrameRefusal {
+        channel: channel.to_owned(),
+        member: member.to_owned(),
+        reason: FrameRefusalReason::Lacks,
+        payload: Some(payload),
+        scope: None,
+        correlation_id: None,
+    });
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_refused_frame_of_the_lifecycle_is_reported_once_the_job_is_named_in_the_order_it_came() {
+    // The reply that names the job is a second behind what comes of it.
+    let transport = FaultyTransport::new(vec![FaultAction::Delay(Duration::from_secs(1))]);
+    transport.queue_reply("job:create", [Some(json!({ "jobId": "job-1" }))]);
+    let client = client_over(&transport);
+    let following = collected(highlighting(&client));
+    settle().await;
+
+    refused(
+        &client,
+        "job:fail",
+        "payload.error",
+        json!({ "jobId": "job-1" }),
+    );
+    settle().await;
+    say(&client, "job:report-progress", "job-1", progress(40.0));
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    refused(
+        &client,
+        "job:report-progress",
+        "payload.jobId",
+        json!({ "percentage": 10 }),
+    );
+    say(&client, "job:complete", "job-1", json!({}));
+    // Once the follower has ended, nothing more is reported.
+    refused(
+        &client,
+        "job:complete",
+        "payload.jobId",
+        json!({ "jobType": "mark" }),
+    );
+
+    let seen = ended(following).await;
+    assert_eq!(
+        kinds(&seen),
+        [
+            "created job-1",
+            "refused job:fail payload.error lacks",
+            "progress 40",
+            "refused job:report-progress payload.jobId lacks",
+            "complete"
+        ]
+    );
+    assert_eq!(
+        serde_json::to_value(seen[1].as_ref().expect("no failure")).expect("an event is JSON"),
+        json!({
+            "kind": "refused",
+            "data": { "channel": "job:fail", "member": "payload.error", "reason": "lacks" }
+        })
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_refused_frame_does_not_start_the_silence_again() {
+    let (client, transport) = world();
+    let _following = collected(highlighting(&client));
+    settle().await;
+
+    tokio::time::sleep(JOB_SILENCE - Duration::from_secs(1)).await;
+    refused(
+        &client,
+        "job:complete",
+        "payload.jobId",
+        json!({ "resourceId": "res-1", "jobType": "mark" }),
+    );
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    assert_eq!(
+        asked(&transport, "job:status-requested"),
+        1,
+        "the job's end was refused, so its status is asked for"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_refused_frame_does_not_start_a_stall_deadline_again() {
+    let (client, _transport) = world();
+    let started = Instant::now();
+    let following = collected(
+        client
+            .yield_
+            .delegate(generation(None), Some(Duration::from_secs(5))),
+    );
+    settle().await;
+
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    refused(
+        &client,
+        "job:report-progress",
+        "payload.jobId",
+        json!({ "resourceId": "res-1", "jobType": "yield", "percentage": 5.0 }),
+    );
+
+    let seen = ended(following).await;
+    assert_eq!(
+        kinds(&seen),
+        [
+            "created job-1",
+            "refused job:report-progress payload.jobId lacks",
+            "error job.stalled"
+        ]
+    );
+    let took = started.elapsed();
+    assert!(
+        took >= Duration::from_secs(5) && took < Duration::from_secs(6),
+        "five seconds after it was delegated, not {took:?}"
+    );
 }
 
 #[tokio::test(start_paused = true)]

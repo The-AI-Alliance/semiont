@@ -236,15 +236,25 @@ impl Bus {
 
         let reply = tokio::select! {
             biased;
-            reply = pending.frame() => reply,
+            reply = pending.reply() => reply,
             () = tokio::time::sleep_until(deadline) => return Err(timed_out().into()),
         };
-        let Some(reply) = reply else {
-            return Err(BusRequestError::new(
-                BusRequestErrorCode::Closed,
-                format!("Bus closed before a reply on {}", operation.result),
-            )
-            .into());
+        let reply = match reply {
+            Some(Ok(reply)) => reply,
+            Some(Err(refusal)) => {
+                return Err(TransportError::without_response(
+                    refusal.to_string(),
+                    TransportErrorCode::Error,
+                )
+                .into());
+            }
+            None => {
+                return Err(BusRequestError::new(
+                    BusRequestErrorCode::Closed,
+                    format!("Bus closed before a reply on {}", operation.result),
+                )
+                .into());
+            }
         };
         if reply.channel == operation.result {
             return Ok(reply);
@@ -282,17 +292,16 @@ pub enum StreamError {
     /// The reader fell behind and missed this many frames.
     Lagged(u64),
     /// A frame arrived that is not the channel's: one the transport refused,
-    /// or one whose payload is not the channel's. Said as "a frame on" the
-    /// channel " is not that channel's: " and its first fault, named by its
-    /// way from the frame.
-    Undecodable(String),
+    /// or one whose payload is not the channel's, its first fault named
+    /// within `payload`.
+    Refused(Box<FrameRefusal>),
 }
 
 impl fmt::Display for StreamError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             StreamError::Lagged(missed) => Lagged(*missed).fmt(f),
-            StreamError::Undecodable(why) => f.write_str(why),
+            StreamError::Refused(refusal) => refusal.fmt(f),
         }
     }
 }
@@ -315,16 +324,23 @@ pub(crate) fn decoded<C: Channel>(mut payload: Map<String, Value>) -> Result<C::
     Err(fault)
 }
 
-/// A frame of the channel `C`, its payload decoded; or, refused, its
-/// payload's fault.
-fn delivered<C: Channel>(frame: Frame) -> Result<Delivered<C>, Fault> {
+/// A frame of the channel `C`, its payload decoded; or, refused, what
+/// `refused` makes of its payload's fault and the frame as it came.
+fn delivered<C: Channel, E>(
+    frame: Frame,
+    refused: impl FnOnce(Fault, Frame) -> E,
+) -> Result<Delivered<C>, E> {
+    let payload = match decoded::<C>(frame.payload.clone()) {
+        Ok(payload) => payload,
+        Err(fault) => return Err(refused(fault, frame)),
+    };
     let user_id = frame
         .payload
         .get("_userId")
         .and_then(Value::as_str)
         .map(str::to_owned);
     Ok(Delivered {
-        payload: decoded::<C>(frame.payload)?,
+        payload,
         correlation_id: frame.correlation_id,
         scope: frame.scope,
         user_id,
@@ -332,13 +348,19 @@ fn delivered<C: Channel>(frame: Frame) -> Result<Delivered<C>, Fault> {
     })
 }
 
-/// What a typed read of the channel `C` says of a frame it refuses for
-/// `fault`, named by its way from the frame.
-fn not_the_channels<C: Channel>(fault: Fault) -> StreamError {
-    StreamError::Undecodable(format!(
-        "a frame on {} is not that channel's: {fault}",
-        C::NAME
-    ))
+/// The refusal a typed read gives of `frame`, whose payload is not its
+/// channel's for `fault`: the fault named within `payload`, and the payload
+/// as it came.
+fn not_the_channels(fault: Fault, frame: Frame) -> FrameRefusal {
+    let Fault { member, reason } = fault.within("payload");
+    FrameRefusal {
+        channel: frame.channel,
+        member,
+        reason,
+        payload: Some(Value::Object(frame.payload)),
+        scope: frame.scope,
+        correlation_id: None,
+    }
 }
 
 /// The frames of the channel `C`, each with its payload decoded, out of the
@@ -375,12 +397,10 @@ impl<C: Channel, F: Stream<Item = Result<Result<Frame, FrameRefusal>, Lagged>> +
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut self.frames).poll_next(cx).map(|item| {
             item.map(|item| match item {
-                Ok(Ok(frame)) => delivered::<C>(frame)
-                    .map_err(|fault| not_the_channels::<C>(fault.within("payload"))),
-                Ok(Err(refusal)) => Err(not_the_channels::<C>(Fault {
-                    member: refusal.member,
-                    reason: refusal.reason,
-                })),
+                Ok(Ok(frame)) => delivered::<C, _>(frame, |fault, frame| {
+                    StreamError::Refused(Box::new(not_the_channels(fault, frame)))
+                }),
+                Ok(Err(refusal)) => Err(StreamError::Refused(Box::new(refusal))),
                 Err(Lagged(missed)) => Err(StreamError::Lagged(missed)),
             })
         })
@@ -497,7 +517,7 @@ impl Bus {
         let result = self
             .result_of(&Operation::of::<R>(), payload_of(payload)?, within)
             .await?;
-        delivered::<R::Result>(result).map_err(|fault| {
+        delivered::<R::Result, _>(result, |fault, _| {
             TransportError::without_response(
                 format!(
                     "a payload on {} is not that channel's: {fault}",

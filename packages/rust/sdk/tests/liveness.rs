@@ -71,7 +71,7 @@ fn a_wait_with_no_deadline_breaks_l2() {
                     scope: None,
                 };
                 let _ = transport.emit(read().request, asking(), envelope).await;
-                pending.frame().await;
+                pending.reply().await;
             })],
         },
         Some(vec![FaultAction::DropReply]),

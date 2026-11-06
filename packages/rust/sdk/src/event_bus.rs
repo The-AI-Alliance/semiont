@@ -455,6 +455,7 @@ mod tests {
             reason: FrameRefusalReason::Malformed,
             payload: Some(Value::Object(focus(1))),
             scope,
+            correlation_id: None,
         };
 
         assert_eq!(bus.emit_refusal(refusal(None)), 2);

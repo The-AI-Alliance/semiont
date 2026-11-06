@@ -7,10 +7,10 @@ use semiont::channels::{
     MarkAdded, MarkArchived, MarkEntityTagAdded, MarkEntityTagRemoved, Recorded, Request,
     YieldCreate,
 };
-use semiont::errors::SemiontError;
-use semiont::testing::FaultyTransport;
+use semiont::errors::{SemiontError, TransportErrorCode};
 use semiont::testing::as_id;
-use semiont::transport::{Envelope, Frame, Transport};
+use semiont::testing::{FaultAction, FaultyTransport};
+use semiont::transport::{Envelope, Frame, FrameRefusal, FrameRefusalReason, Transport};
 use semiont::types::{
     Annotation, AnnotationBodies, AnnotationTargetValue, BeckonFocusEvent,
     BrowseEntityTypesRequest, GetAnnotationsResponse, ResourceId,
@@ -18,6 +18,7 @@ use semiont::types::{
 use serde_json::{Map, Value, json};
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::time::Instant;
 
 fn object(value: Value) -> Map<String, Value> {
     value.as_object().cloned().expect("an object")
@@ -65,22 +66,27 @@ async fn a_typed_emit_sends_the_channels_name_and_its_payload_as_an_object() {
 async fn a_typed_stream_decodes_each_payload_and_leaves_the_gateways_stamps_out_of_it() {
     let (bus, transport) = bus();
     let mut focus = bus.frames::<BeckonFocus>().expect("a stream");
-    let deliver = |payload: Value| {
+    let deliver = |payload: &Value, correlation_id: Option<&str>| {
         transport.deliver(Frame {
             channel: BeckonFocus::NAME.to_owned(),
-            payload: object(payload),
-            correlation_id: None,
+            payload: object(payload.clone()),
+            correlation_id: correlation_id.map(str::to_owned),
             scope: Some(as_id("res-1")),
             trace: None,
         })
     };
-    deliver(json!({
-        "annotationId": "ann-1",
-        "resourceId": "res-1",
-        "_userId": "did:web:example.org:users:alice"
-    }));
-    deliver(json!({ "annotationId": 7, "resourceId": "res-1" }));
-    deliver(json!({ "annotationId": "ann-1" }));
+    let malformed = json!({ "annotationId": 7, "resourceId": "res-1" });
+    let lacking = json!({ "annotationId": "ann-1", "_userId": "did:web:example.org:users:alice" });
+    deliver(
+        &json!({
+            "annotationId": "ann-1",
+            "resourceId": "res-1",
+            "_userId": "did:web:example.org:users:alice"
+        }),
+        None,
+    );
+    deliver(&malformed, Some("c-1"));
+    deliver(&lacking, None);
 
     let delivered = focus.next().await.expect("a frame").expect("it decodes");
     assert_eq!(delivered.payload.annotation_id.as_deref(), Some("ann-1"));
@@ -89,18 +95,97 @@ async fn a_typed_stream_decodes_each_payload_and_leaves_the_gateways_stamps_out_
         Some("did:web:example.org:users:alice")
     );
     assert_eq!(delivered.scope.as_deref(), Some("res-1"));
-    // A payload that is not the channel's is said to be so, by its first
-    // fault, not skipped.
-    for said in [
-        "a frame on beckon:focus is not that channel's: its `payload.annotationId` is malformed",
-        "a frame on beckon:focus is not that channel's: it has no `payload.resourceId`",
+    // A payload that is not the channel's is refused, not skipped: by its
+    // first fault, named within the payload, with the payload as it came,
+    // stamps and all, and the frame's scope and correlation id.
+    for (member, reason, payload, correlation_id, said) in [
+        (
+            "payload.annotationId",
+            FrameRefusalReason::Malformed,
+            malformed,
+            Some("c-1"),
+            "a frame on beckon:focus is not that channel's: its `payload.annotationId` is malformed",
+        ),
+        (
+            "payload.resourceId",
+            FrameRefusalReason::Lacks,
+            lacking,
+            None,
+            "a frame on beckon:focus is not that channel's: it has no `payload.resourceId`",
+        ),
     ] {
         match focus.next().await {
-            Some(Err(StreamError::Undecodable(why))) => assert_eq!(why, said),
+            Some(Err(StreamError::Refused(refusal))) => {
+                assert_eq!(refusal.to_string(), said);
+                assert_eq!(
+                    *refusal,
+                    FrameRefusal {
+                        channel: BeckonFocus::NAME.to_owned(),
+                        member: member.to_owned(),
+                        reason,
+                        payload: Some(payload),
+                        scope: Some(as_id("res-1")),
+                        correlation_id: correlation_id.map(str::to_owned),
+                    }
+                );
+            }
             Some(Err(other)) => panic!("refused as {other}, not saying {said}"),
             Some(Ok(_)) => panic!("delivered, and it is refused saying {said}"),
             None => panic!("the stream ended before a refusal saying {said}"),
         }
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_request_whose_reply_is_refused_fails_at_once_saying_so() {
+    // The gateway's reply is lost on the wire; the refusal of a frame that
+    // names the request is what comes.
+    let transport = FaultyTransport::new(vec![FaultAction::DropReply]);
+    transport.queue_reply(
+        BrowseEntityTypesRequested::NAME,
+        [Some(json!({ "entityTypes": [] }))],
+    );
+    let bus = Bus::new(Arc::new(transport.clone()));
+    let asking = tokio::spawn(async move {
+        bus.request::<BrowseEntityTypesRequested>(
+            &BrowseEntityTypesRequest {},
+            Duration::from_secs(60),
+        )
+        .await
+    });
+    tokio::time::sleep(Duration::from_millis(1)).await;
+    let [awaited]: [String; 1] = transport
+        .pending_replies()
+        .try_into()
+        .expect("one request awaits its reply");
+
+    let refused = Instant::now();
+    transport.deliver_refusal(FrameRefusal {
+        channel: BrowseEntityTypesResult::NAME.to_owned(),
+        member: "addedByALaterGateway".to_owned(),
+        reason: FrameRefusalReason::Malformed,
+        payload: Some(json!({ "response": { "entityTypes": [] } })),
+        scope: None,
+        correlation_id: Some(awaited),
+    });
+    let error = asking
+        .await
+        .expect("the request ran")
+        .expect_err("the request fails");
+    assert_eq!(
+        refused.elapsed(),
+        Duration::ZERO,
+        "at once, not at its timeout"
+    );
+    match error {
+        SemiontError::Transport(error) => assert_eq!(
+            (error.code, error.message.as_str()),
+            (
+                TransportErrorCode::Error,
+                "a frame on browse:entity-types-result is not that channel's: its `addedByALaterGateway` is malformed"
+            )
+        ),
+        other => panic!("a transport error was expected, not {other:?}"),
     }
 }
 

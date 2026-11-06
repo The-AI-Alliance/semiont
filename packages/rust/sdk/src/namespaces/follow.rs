@@ -38,7 +38,7 @@ use crate::errors::{
     TransportErrorCode,
 };
 use crate::running::{Reporter, Running};
-use crate::transport::BoxFuture;
+use crate::transport::{BoxFuture, FrameRefusalReason};
 use crate::types::{
     FailureClass, JobCancelRequest, JobCompleteCommand, JobCreateCommand, JobCreatedResult,
     JobCreatedResultResponse, JobFailCommand, JobId, JobProgress, JobReportProgressCommand,
@@ -64,6 +64,16 @@ pub enum JobEvent<C> {
     Progress(JobProgress),
     /// An attempt failed and the queue will try again. The job is not over.
     Failed(JobFailCommand),
+    /// A frame of a job's progress, completion or failure that the
+    /// follower's reading refused: its transport refused it, or its payload
+    /// is not its channel's. It names no job, so it may be this job's or
+    /// another's, and it is no word of the job: the follower goes on, and
+    /// its silence goes on being counted. It comes only after `Created`.
+    Refused {
+        channel: String,
+        member: String,
+        reason: FrameRefusalReason,
+    },
     /// The job completed. A follower's last event.
     Complete(C),
 }
@@ -210,7 +220,7 @@ fn heard<T>(item: Option<Result<T, StreamError>>, of: impl FnOnce(T) -> Heard) -
     match item {
         Some(Ok(frame)) => Step::Heard(of(frame)),
         Some(Err(StreamError::Lagged(_))) => Step::Missed,
-        Some(Err(StreamError::Undecodable(_))) => Step::Unreadable,
+        Some(Err(StreamError::Refused(_))) => Step::Unreadable,
         None => Step::Ended,
     }
 }

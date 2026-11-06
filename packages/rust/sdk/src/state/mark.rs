@@ -261,9 +261,10 @@ async fn delegate(shared: Arc<Shared>, params: MarkJobParams, motivation: Motiva
                 created = Some(job.job_id);
             }
             Some(Ok(JobEvent::Progress(progress))) => shared.progress.set(Some(progress)),
-            // An attempt that will be tried again, or the completion, which
-            // the stream's end follows.
-            Some(Ok(JobEvent::Failed(_) | JobEvent::Complete(_))) => {}
+            // An attempt that will be tried again, a frame refused, which
+            // names no job, or the completion, which the stream's end
+            // follows.
+            Some(Ok(JobEvent::Failed(_) | JobEvent::Refused { .. } | JobEvent::Complete(_))) => {}
             Some(Err(error)) => {
                 // Why it ended is said before the end itself. A cancelled
                 // job's commits stand, and its display stays to say so.

@@ -416,7 +416,7 @@ impl Actor {
             scope,
         };
 
-        self.shared.router.route(&frame);
+        self.shared.router.route(Ok(&frame));
         if self.bridged(&frame.channel) {
             for bus in locked(&self.shared.bridges).iter() {
                 bus.emit(
@@ -701,6 +701,7 @@ fn carried(data: &str) -> Line {
                     reason: FrameRefusalReason::Malformed,
                     payload: payload_in(data),
                     scope,
+                    correlation_id: None,
                 }),
             },
         },
@@ -876,11 +877,11 @@ pub(crate) async fn run(
 mod tests {
     use super::*;
     use crate::transport::{HttpTransportConfig, Timing};
-    use futures::FutureExt;
+    use futures::{FutureExt, Stream};
     use semiont::bus::StreamError;
-    use semiont::channels::BeckonFocus;
+    use semiont::channels::{BeckonFocus, BrowseResourceRequested, Channel, Request};
     use semiont::event_bus::EventBus;
-    use semiont::transport::Events;
+    use semiont::transport::{Events, Lagged};
     use serde_json::json;
 
     #[test]
@@ -922,9 +923,21 @@ mod tests {
         }
     }
 
-    /// The channel every case of the table told to its readers is on, read
-    /// here by type.
+    /// The channel every case of the table told to its readers is on, but a
+    /// request's, read here by type.
     const READ: &str = "beckon:focus";
+    /// The correlation id a request's case names its request's by.
+    const AWAITED: &str = "c-1";
+
+    /// What `stream` has been given so far. Each line is carried before it
+    /// is read, and carrying one delivers what it carries before it returns.
+    fn given<S: Stream + Unpin>(stream: &mut S) -> Vec<S::Item> {
+        let mut given = Vec::new();
+        while let Some(Some(item)) = stream.next().now_or_never() {
+            given.push(item);
+        }
+        given
+    }
 
     /// A transport's shared parts, as `HttpTransport::new` makes them.
     fn shared() -> Arc<Shared> {
@@ -963,9 +976,10 @@ mod tests {
     /// Each line of protocol/specs/src/bus/frame-cases.json, the table every
     /// SDK's stream reader runs, carried on the stream with a frame of
     /// `beckon:focus` after it: what the transport delivers, what a typed
-    /// read of `beckon:focus` on the client's own bus is given and what the
-    /// failure report is told are each held to the case, and the frame after
-    /// it is delivered, so the stream is seen to go on.
+    /// read of the case's channel on the client's own bus is given, what the
+    /// failure report is told and what becomes of a request awaiting the
+    /// case's reply are each held to the case, and the frame after it is
+    /// delivered, so the stream is seen to go on.
     #[tokio::test]
     async fn each_line_of_the_table_is_delivered_or_refused_as_it_states() {
         let table: Value = serde_json::from_str(include_str!(
@@ -975,39 +989,33 @@ mod tests {
         let cases = table["cases"].as_array().expect("the table has cases");
         assert!(!cases.is_empty(), "the table was not read");
         let after = json!({ "channel": READ, "payload": { "resourceId": "after" } });
+        let is_after = |item: &Result<Result<Frame, FrameRefusal>, Lagged>| matches!(item, Ok(Ok(frame)) if frame.payload.get("resourceId") == Some(&json!("after")));
+        type Reply = <BrowseResourceRequested as Request>::Result;
+        type Failure = <BrowseResourceRequested as Request>::Failure;
         for case in cases {
             let why = case["why"].as_str().expect("a case says why");
             let frame = &case["frame"];
-            let refused = case["refused"] == true;
             let shared = shared();
             let own = Arc::new(EventBus::new());
             locked(&shared.bridges).push(own.clone());
-            let on = match refused {
-                true => READ,
-                false => frame["channel"]
-                    .as_str()
-                    .expect("a frame delivered names its channel"),
-            };
-            let mut delivered = shared.hub.frames(on);
-            let mut typed = own.stream::<BeckonFocus>();
             let mut failures = Events::new(
                 locked(&shared.failures)
                     .as_mut()
                     .expect("the error stream is open")
                     .listen(),
             );
-            let mut actor = reading(shared.clone());
-            actor.frame(
-                0,
-                None,
-                &match case["data"].as_str() {
-                    Some(data) => data.to_owned(),
-                    None => frame.to_string(),
-                },
-            );
-            actor.frame(0, None, &after.to_string());
+            let line = match case["data"].as_str() {
+                Some(data) => data.to_owned(),
+                None => frame.to_string(),
+            };
 
-            if !refused {
+            if case["refused"] != true {
+                let on = frame["channel"]
+                    .as_str()
+                    .expect("a frame delivered names its channel");
+                let mut delivered = shared.hub.frames(on);
+                let mut actor = reading(shared.clone());
+                actor.frame(0, None, &line);
                 let Some(Ok(Ok(read))) = delivered.next().await else {
                     panic!("{why}: not delivered");
                 };
@@ -1046,27 +1054,69 @@ mod tests {
                 FrameRefusalReason::Malformed if member.is_empty() => MALFORMED.to_owned(),
                 FrameRefusalReason::Malformed => format!("its `{member}` is malformed"),
             };
-            let mut carried = Vec::new();
-            loop {
-                match delivered.next().await.expect("the stream goes on") {
-                    Ok(Ok(frame)) if frame.payload.get("resourceId") == Some(&json!("after")) => {
-                        break;
-                    }
-                    item => carried.push(item),
-                }
-            }
-            let mut heard = Vec::new();
-            loop {
-                match typed.next().await.expect("the stream goes on") {
-                    Ok(focus) if &*focus.payload.resource_id == "after" => break,
-                    Ok(focus) => panic!("{why}: a typed read gave {:?}", focus.payload),
-                    Err(StreamError::Undecodable(refusal)) => heard.push(refusal),
-                    Err(lagged) => panic!("{why}: {lagged}"),
-                }
-            }
+            // A refusal told to its readers is told to its channel's; one
+            // told to nobody is looked for on `beckon:focus`.
+            let on = match case["told"].as_str() {
+                Some("readers") => frame["channel"]
+                    .as_str()
+                    .expect("a refusal told to its readers names its channel"),
+                _ => READ,
+            };
+            let mut delivered = shared.hub.frames(on);
+            let mut went_on = shared.hub.frames(READ);
+            let mut focus = own.stream::<BeckonFocus>();
+            let mut replies = own.stream::<Reply>();
+            let pending = case
+                .get("request")
+                .map(|_| shared.router.track(AWAITED, &[Reply::NAME, Failure::NAME]));
+            let mut actor = reading(shared.clone());
+            actor.frame(0, None, &line);
+            actor.frame(0, None, &after.to_string());
+
+            assert!(
+                given(&mut went_on).last().is_some_and(is_after),
+                "{why}: the stream did not go on past it"
+            );
+            let carried: Vec<_> = given(&mut delivered)
+                .into_iter()
+                .filter(|item| !is_after(item))
+                .collect();
+            let heard: Vec<StreamError> = match on {
+                READ => given(&mut focus)
+                    .into_iter()
+                    .filter_map(|read| match read {
+                        Ok(focus) if &*focus.payload.resource_id == "after" => None,
+                        Ok(focus) => panic!("{why}: a typed read gave {:?}", focus.payload),
+                        Err(refused) => Some(refused),
+                    })
+                    .collect(),
+                _ => given(&mut replies)
+                    .into_iter()
+                    .map(|read| match read {
+                        Ok(_) => panic!("{why}: a typed read of {on} gave a reply"),
+                        Err(refused) => refused,
+                    })
+                    .collect(),
+            };
+            // As the client's own bus is given it, which knows no scope.
+            let refusal = FrameRefusal {
+                channel: on.to_owned(),
+                member: member.to_owned(),
+                reason,
+                payload: frame.get("payload").cloned(),
+                scope: None,
+                correlation_id: case["correlationId"].as_str().map(str::to_owned),
+            };
+            // As the transport delivers it.
+            let told = FrameRefusal {
+                scope: frame["scope"]
+                    .as_str()
+                    .map(|scope| scope.parse().expect("a scope told is an id")),
+                ..refusal.clone()
+            };
+
             match case["told"].as_str() {
                 Some("readers") => {
-                    assert_eq!(frame["channel"], READ, "{why}: its channel is {READ}");
                     // A fault within the payload is its channel's to find:
                     // BusFrame takes any object for a payload, and the
                     // stream delivers the frame.
@@ -1076,23 +1126,16 @@ mod tests {
                             "{why}: {carried:?}"
                         );
                     } else {
-                        assert_eq!(
-                            carried,
-                            [Ok(Err(FrameRefusal {
-                                channel: READ.to_owned(),
-                                member: member.to_owned(),
-                                reason,
-                                payload: frame.get("payload").cloned(),
-                                scope: frame["scope"]
-                                    .as_str()
-                                    .map(|scope| scope.parse().expect("a scope told is an id")),
-                            }))],
-                            "{why}"
-                        );
+                        assert_eq!(carried, [Ok(Err(told.clone()))], "{why}");
                     }
                     assert_eq!(
                         heard,
-                        [format!("a frame on {READ} is not that channel's: {said}")],
+                        [StreamError::Refused(Box::new(refusal.clone()))],
+                        "{why}"
+                    );
+                    assert_eq!(
+                        refusal.to_string(),
+                        format!("a frame on {on} is not that channel's: {said}"),
                         "{why}"
                     );
                     assert!(
@@ -1103,11 +1146,11 @@ mod tests {
                 Some("failure-report") => {
                     assert!(carried.is_empty(), "{why}: delivered {carried:?}");
                     assert!(heard.is_empty(), "{why}: a typed read heard {heard:?}");
-                    let Some(Some(Ok(told))) = failures.next().now_or_never() else {
+                    let Some(Some(Ok(report))) = failures.next().now_or_never() else {
                         panic!("{why}: the failure report was not told");
                     };
                     assert_eq!(
-                        (told.code, told.status, told.message),
+                        (report.code, report.status, report.message),
                         (
                             TransportErrorCode::Error,
                             None,
@@ -1117,6 +1160,21 @@ mod tests {
                     );
                 }
                 told => panic!("{why}: told to whom the table does not give: {told:?}"),
+            }
+
+            match (case["request"].as_str(), pending) {
+                (Some("fails"), Some(mut pending)) => assert_eq!(
+                    pending.reply().now_or_never(),
+                    Some(Some(Err(told))),
+                    "{why}: the request was not told of the refusal"
+                ),
+                (Some("waits"), Some(mut pending)) => assert_eq!(
+                    pending.reply().now_or_never(),
+                    None,
+                    "{why}: the request was told"
+                ),
+                (None, None) => {}
+                (request, _) => panic!("{why}: a request the table does not give: {request:?}"),
             }
         }
     }
