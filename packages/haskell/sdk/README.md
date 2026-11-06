@@ -667,10 +667,12 @@ Cabal pins are shared with [the design probes](../probes/README.md); exact
 project dependencies are frozen. Ordinary builds use checked-in generated
 files and require no npm or schema generation.
 
-The runner also builds `conformance/bin/semiont-haskell-wire-driver`. The shared
-[wire suite](../../../protocol/conformance/sdk/README.md) drives that executable
+The runner builds `conformance/bin/semiont-haskell-wire-driver` and
+`conformance/bin/semiont-haskell-live-driver`. The shared
+[SDK conformance suite](../../../protocol/conformance/sdk/README.md) drives them
 through the public SDK against the real gateway on both signal planes, including
-OTLP export. CI transfers the tested driver to the SDK Conformance job.
+OTLP export. Worker conformance uses the wire driver. CI transfers both tested
+drivers to the corresponding conformance jobs.
 
 Inside the development container, from this package directory:
 

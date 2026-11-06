@@ -16,7 +16,7 @@ common settings
   ghc-options: -Wall -Wincomplete-patterns -Wincomplete-record-updates
   build-depends:
     base >=4.20 && <4.21,
-    aeson >=2.2 && <2.3,
+    aeson >=2.3 && <2.4,
     async >=2.2 && <2.3,
     bytestring >=0.12 && <0.13,
     base64-bytestring >=1.2 && <1.3,
@@ -27,7 +27,7 @@ common settings
     streaming >=0.2 && <0.3,
     text >=2.1 && <2.2,
     vector >=0.13 && <0.14,
-    QuickCheck >=2.18 && <2.19
+    QuickCheck >=2.19 && <2.20
 
 common context-propagation
   build-depends: hs-opentelemetry-api >=1.0 && <1.1, http-client >=0.7 && <0.8, http-types >=0.12 && <0.13, case-insensitive >=1.2 && <1.3, network-uri >=2.6 && <2.7, uuid-types >=1.0 && <1.1, unordered-containers >=0.2 && <0.3

@@ -13,7 +13,7 @@ The libraries Semiont is built from. The services are in [images/](../images/REA
 | [C#](./csharp/README.md) | The .NET SDK, under construction | Not published |
 | [Kotlin](./kotlin/README.md) | The SDK, for Kotlin and Java programs | Not published |
 | [Swift](./swift/README.md) | The SDK for Apple apps and Linux services | Not published |
-| [Haskell](./haskell/README.md) | The typed IO SDK, under construction | Not published |
+| [Haskell](./haskell/README.md) | Typed IO, STM and scoped streams | Not published |
 
 Each language's README lists its packages, with what each is and its coverage, and says how the language's packages are built and measured.
 

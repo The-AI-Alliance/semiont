@@ -2453,7 +2453,7 @@ jobs:
           PYTHON
       - name: Set up the pinned Haskell compiler
         id: haskell
-        uses: haskell-actions/setup@0f8e8c99d88aeb3fbfd523f1ef2c6f762d10d64d # v2
+        uses: haskell-actions/setup@0f8e8c99d88aeb3fbfd523f1ef2c6f762d10d64d # v2.12.1
         with:
           ghc-version: ${{ steps.versions.outputs.ghc }}
           cabal-version: ${{ steps.versions.outputs.cabal }}

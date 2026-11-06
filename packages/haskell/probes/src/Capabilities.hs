@@ -8,7 +8,7 @@ import qualified Control.Monad.Class.MonadTimer as SimTimer
 import Control.Monad.IOSim (runSimOrThrow)
 import Control.Exception (bracket)
 import Control.Monad (unless, void)
-import Crypto.Hash (Digest, SHA256(..), hash)
+import Crypto.Hash (Digest, SHA256, hash)
 import Crypto.PubKey.RSA (generate)
 import qualified Crypto.PubKey.RSA.PKCS15 as RSA
 import Crypto.Random (getRandomBytes)
@@ -44,12 +44,13 @@ cryptoProbe = do
   secret <- getRandomBytes 32 :: IO Bytes.ByteString
   require "wrong CSPRNG byte count" (Bytes.length secret == 32)
   (public, private) <- generate 256 65537
-  signed <- RSA.signSafer (Just SHA256) private "probe"
+  let messageDigest = hash ("probe" :: Bytes.ByteString) :: Digest SHA256
+  signed <- RSA.signSaferDigest private messageDigest
   case signed of
     Left reason -> ioError (userError (show reason))
     Right signature -> do
-      require "RSA signature did not verify" (RSA.verify (Just SHA256) public "probe" signature)
-      require "changed RSA message verified" (not (RSA.verify (Just SHA256) public "changed" signature))
+      require "RSA signature did not verify" (RSA.verifyDigest public messageDigest signature)
+      require "changed RSA message verified" (not (RSA.verifyDigest public (hash ("changed" :: Bytes.ByteString) :: Digest SHA256) signature))
   require "text offsets count bytes or graphemes" (Text.length "a\x1f600\&e\x0301" == 4)
 
 telemetryProbe :: IO ()

@@ -14,6 +14,7 @@ extra-source-files:
   cabal.project
   cabal.project.freeze
   cabal-install.version
+  cabal-install.sha256
   Dockerfile
   run.sh
   run.py
@@ -29,15 +30,15 @@ executable semiont-probes
   ghc-options: -Wall -Wincomplete-patterns -Wincomplete-record-updates -threaded
   build-depends:
     base >=4.20 && <4.21,
-    aeson >=2.2 && <2.3,
+    aeson >=2.3 && <2.4,
     async >=2.2 && <2.3,
     bytestring >=0.12 && <0.13,
-    crypton >=1.0 && <1.1,
+    crypton >=2.2 && <2.3,
     hs-opentelemetry-api >=1.0 && <1.1,
     io-classes >=1.11 && <1.12,
     io-sim >=1.11 && <1.12,
     http-client >=0.7 && <0.8,
-    http-client-tls >=0.3 && <0.4,
+    http-client-tls >=0.4 && <0.5,
     stm >=2.5 && <2.6,
     streaming >=0.2 && <0.3,
     text >=2.1 && <2.2,

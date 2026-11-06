@@ -15,17 +15,24 @@ bash packages/haskell/run-container.sh
 ```
 
 The script uses Apple `container` by default; CI passes `docker`. The image
-copies the compiler and Cabal from the versioned official Haskell image into
-Debian Bookworm, which supplies the Python standard-library peers and native
-build dependencies. No host toolchain installation is needed. The official
-Haskell image's Bullseye package sources failed to supply Python during the
-initial probe; they are not used to install the peers.
+copies the compiler from the versioned official Haskell image into Debian
+Trixie, which supplies the Python standard-library peers and native build
+dependencies. GHC 9.10's configured gold linker is a separate `binutils-gold`
+package on Trixie. No host toolchain installation is needed.
 
 The GHC pin is owned by `cabal.project`; `toolchain.sh` reads it for the image
-build and checks the running compiler. `cabal-install.version` pins the image's
-paired Cabal, which the runner also checks. This is not a claim that the paired
-Cabal is GHCup's current recommended version. `cabal.project.freeze` holds the
+build and checks the running compiler. `cabal-install.version` pins Cabal
+independently of that image. The build downloads its official release and
+verifies the architecture's digest from `cabal-install.sha256`; those two Linux
+digests come from the release's `SHA256SUMS`. Update the version and digests
+together. The runner checks the installed version, and native CI uses the same
+version pin. `cabal.project.freeze` holds the
 resolved dependency versions and flags against the dated package index.
+
+Dependabot groups Haskell build-image updates into one weekly PR, with one
+open version-update PR at a time. Cabal packages require a manual lockfile
+refresh; update both the SDK and probes, regenerate the SDK's compiler API
+inventory, and run their container suites together.
 
 The runner checks Cabal metadata, builds with warnings as errors, compiles a
 valid consumer, checks seven invalid consumers against specific diagnostics,
