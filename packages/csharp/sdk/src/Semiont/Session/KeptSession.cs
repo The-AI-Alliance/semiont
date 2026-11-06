@@ -62,7 +62,7 @@ public sealed class KeptSession : IDisposable
     }
 
     public SessionState State => Volatile.Read(ref state);
-    public string? EndReason { get; private set; }
+    public SessionEndReason? EndReason { get; private set; }
     public IAsyncEnumerable<SessionState> States(CancellationToken cancellation = default) => states.Observe(cancellation);
     public IAsyncEnumerable<SessionError> Errors(CancellationToken cancellation = default) => errors.Observe(cancellation);
     public Task ReadyAsync(CancellationToken cancellation = default) => ready.WaitAsync(cancellation);
@@ -100,7 +100,7 @@ public sealed class KeptSession : IDisposable
 
     private void Report(string name, Exception? cause = null) => errors.Publish(new SessionError(ProtocolFacts.SessionError(name), cause?.Message ?? name, cause));
 
-    private async Task EndAsync(string reason, string code)
+    private async Task EndAsync(SessionEndReason reason, string code)
     {
         unanswered = false;
         ended = true;
@@ -148,7 +148,7 @@ public sealed class KeptSession : IDisposable
                 Set(null, null);
                 await ForgetStoredAsync().ConfigureAwait(false);
             }
-            else await EndAsync("expired", "refresh-exhausted").ConfigureAwait(false);
+            else await EndAsync(SessionEndReason.Expired, "refresh-exhausted").ConfigureAwait(false);
             return null;
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -184,7 +184,7 @@ public sealed class KeptSession : IDisposable
                 }
                 catch (TransportError error) when (error.Code == ProtocolFacts.Error(401))
                 {
-                    if (issued) { await EndAsync("refused", "credential-refused").ConfigureAwait(false); return; }
+                    if (issued) { await EndAsync(SessionEndReason.Refused, "credential-refused").ConfigureAwait(false); return; }
                     token = await RenewCoreAsync().ConfigureAwait(false);
                     if (token is null) return;
                     issued = true;
@@ -211,7 +211,7 @@ public sealed class KeptSession : IDisposable
             if (token is null) return null;
             try { Set(token, await validate(token, lifetime.Token).ConfigureAwait(false)); }
             catch (TransportError error) when (error.Code == ProtocolFacts.Error(401))
-            { await EndAsync("refused", "credential-refused").ConfigureAwait(false); }
+            { await EndAsync(SessionEndReason.Refused, "credential-refused").ConfigureAwait(false); }
             catch (SemiontError)
             {
                 // An unanswered identity request refuses nothing; keep the renewed token and last confirmed user.
@@ -254,7 +254,7 @@ public sealed class KeptSession : IDisposable
                     if (renewed is not null && retrying && State.User is null)
                     {
                         try { Set(renewed, await validate(renewed, lifetime.Token).ConfigureAwait(false)); }
-                        catch (TransportError error) when (error.Code == ProtocolFacts.Error(401)) { await EndAsync("refused", "credential-refused").ConfigureAwait(false); }
+                        catch (TransportError error) when (error.Code == ProtocolFacts.Error(401)) { await EndAsync(SessionEndReason.Refused, "credential-refused").ConfigureAwait(false); }
                         catch (SemiontError error) { Report("auth-failed", error); }
                     }
                 }

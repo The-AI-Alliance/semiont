@@ -396,7 +396,7 @@ public actor SemiontBrowser {
     activation = idOfTask
   }
 
-  private func sessionFailed(_ error: any Error) {
+  private func sessionFailed(_ error: SessionError) {
     guard !closed else { return }
     record(error)
   }

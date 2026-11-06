@@ -10,8 +10,7 @@ import Control.Concurrent.STM
 import Control.Monad (unless)
 import Data.Text (Text)
 import qualified Semiont.Internal.StateValue as State
-import Semiont.Internal.Generated.SessionNotices
-import Semiont.Internal.Generated.Stored (SessionEndReason(..))
+import Semiont.Types (SessionEnded(..), PermissionDenied(..), KbIdentityConflict(..), SessionEndReason(..))
 
 data SessionSignals = SessionSignals
   (State.StateValue (Maybe SessionEnded))

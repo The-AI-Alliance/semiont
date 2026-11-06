@@ -212,16 +212,25 @@
  * (`takes`). A maker it lists is held to take it, and an `outside` SDK to
  * take it nowhere; the section's own reader says how.
  *
- * THE REGISTRY'S RECORDS. protocol/specs/src/client/registry.json states
- * what a registry of knowledge bases hands its caller, and is handed, in
- * memory. Each of its types is a record, whose members are its properties;
- * an enum, whose values are its spellings; or a union, told apart by one
- * member whose value in each branch is one of an enum's, each branch with
- * members of its own. Each type is a `type` member of one row of the table's
- * `modules`, and each SDK's declaration of it is read from that row's `where`,
- * under the row's `named` for the SDK when it gives one. Each SDK is held to
- * it both ways:
+ * THE REGISTRY'S RECORDS. Two tables state types an SDK hands its caller, or
+ * is handed, in memory: protocol/specs/src/client/registry.json's `types`,
+ * what a registry of knowledge bases does, and
+ * protocol/specs/src/client/state-units.json's `notices`, what a session's
+ * signals tell a host. Each of their types is a record, whose members are its
+ * properties, a member that refers to another schema being a name like any
+ * other; an enum, whose values are its spellings; or a union, told apart by
+ * one member whose value in each branch is one of an enum's, each branch with
+ * members of its own. A `type` member of a row of the table's `modules` that
+ * no table states may state its members' names itself (`fields`), and is
+ * held as a record: a type whose members' types are each SDK's own, as
+ * SessionFactoryOptions' are. Each type is a `type` member of one row of
+ * `modules`, and each SDK's declaration of it is read from that row's
+ * `where`, under the row's `named` for the SDK when it gives one. Each SDK is
+ * held to it both ways:
  *
+ * - a type two tables state, or a table and a member's `fields`;
+ * - a `fields` that is not its members' names, each once, or is on a member
+ *   that is no `type`;
  * - a type no row of `modules` lists, or more than one lists;
  * - a type an SDK declares nowhere in its `where`, or more than once;
  * - a member a record has in the table that an SDK's lacks, and a field an
@@ -251,7 +260,8 @@
  * carrying the branch's other members; and in every other SDK one record,
  * whose fields are the tag and every branch's other members. Haskell is not
  * read: packages/haskell/sdk/codegen/Main.hs generates its types from the
- * table. A declaration this cannot read is a failure, never one passed over.
+ * tables, its notices and its factory's options among them. A declaration
+ * this cannot read is a failure, never one passed over.
  *
  * Which files a directory holds, and whether a schema exists, is what git says
  * the repository holds (`repository-files.mjs`).
@@ -3298,8 +3308,10 @@ else {
  * constants, and is no member of it.
  *
  * `named` gives an SDK's own name for a member, where the rule does not.
- * `fieldsNamed`, on a type of protocol/specs/src/client/registry.json, gives
- * an SDK's own spelling of a field of it; the registry's records read it.
+ * `fields`, on a `type` no table of the registry's records states, names its
+ * members; `fieldsNamed`, on a type a table states or one with `fields`,
+ * gives an SDK's own spelling of a field of it. The registry's records read
+ * both.
  * `absent` says why an SDK has none, and is stale once it has one.
  * `notYetReached`, on a member or on the whole module, names an SDK that is
  * to have it and does not yet, and is stale once it has it. A module whose
@@ -3428,7 +3440,7 @@ for (const module of moduleRows ?? []) {
     if (members.has(member.member)) fail(`${name} is listed twice`);
     members.set(member.member, member);
     if (!MODULE_KINDS.includes(member.kind)) fail(`${name} has the kind "${member.kind}", which is none of ${MODULE_KINDS.join(', ')}`);
-    const others = Object.keys(member).filter((key) => !['member', 'kind', 'named', 'fieldsNamed', 'absent', 'notYetReached'].includes(key));
+    const others = Object.keys(member).filter((key) => !['member', 'kind', 'named', 'fields', 'fieldsNamed', 'absent', 'notYetReached'].includes(key));
     if (others.length > 0) fail(`${name} states ${others.join(', ')}, which a member does not`);
     for (const [said, entries] of [['named', member.named ?? {}], ['absent', member.absent ?? {}], ['notYetReached', member.notYetReached ?? {}]]) {
       for (const [sdk, value] of Object.entries(entries)) {
@@ -3487,8 +3499,8 @@ for (const module of moduleRows ?? []) {
 // ── The registry's records ──────────────────────────────────────────────
 
 /**
- * What protocol/specs/src/client/registry.json states, held in every SDK
- * this reads as the opening comment's THE REGISTRY'S RECORDS says. Each
+ * What the tables of types state, and the modules' `fields`, held in every
+ * SDK this reads as the opening comment's THE REGISTRY'S RECORDS says. Each
  * SDK's reader is given a name and the SDK's `where` of the module that
  * lists it, and answers every declaration of the name there, each with where
  * it is and what it holds: a record's public fields (`record`), an enum's
@@ -3497,9 +3509,12 @@ for (const module of moduleRows ?? []) {
  * object types, each its members, with the string literal each one's type is
  * (`union`). Of one it cannot read it says so, and answers `unreadable`.
  */
-const RECORDS = 'protocol/specs/src/client/registry.json';
-const recordTypes = JSON.parse(read(RECORDS)).types;
-/** How a message names what the table states, and what a declaration holds. */
+/** Each table of types, in the order they are read: its file, the key its types are under, and the types. */
+const RECORD_TABLES = [
+  { file: 'protocol/specs/src/client/registry.json', key: 'types' },
+  { file: 'protocol/specs/src/client/state-units.json', key: 'notices' },
+].map((table) => ({ ...table, types: JSON.parse(read(table.file))[table.key] }));
+/** How a message names what a table states, and what a declaration holds. */
 const FORMS = { record: 'a record', enum: 'an enum', union: 'a union' };
 const HELD = { record: 'a record', values: 'an enum of values', variants: 'an enum', union: 'a union of object types' };
 const pascalCase = (value) => value.split(/[-_]/).map(capitalized).join('');
@@ -3832,23 +3847,25 @@ const RECORD_READERS = {
 const RECORD_SDKS = Object.keys(RECORD_READERS);
 
 /**
- * What registry.json states of `type`, by the rule its `$comment` reads it
- * by: a record's members (`record`); an enum's values (`enum`); or a union's
- * tag, the enum its values are, and each branch's value and members, its
- * members those of every branch (`union`). `undefined`, having failed, when
- * it is none of them.
+ * What `table` states of `type`, by the rule registry.json's `$comment` reads
+ * it by: a record's members (`record`); an enum's values (`enum`); or a
+ * union's tag, the enum of the same table its values are, and each branch's
+ * value and members, its members those of every branch (`union`). Each says
+ * where it is stated (`source`). `undefined`, having failed, when it is none
+ * of them.
  */
-function recordShape(type, schema) {
-  const at = `${RECORDS}: types.${type}`;
+function recordShape(type, schema, table) {
+  const at = `${table.file}: ${table.key}.${type}`;
+  const source = table.file;
   const isObject = (stated) => stated?.type === 'object' && stated.properties !== null && typeof stated.properties === 'object' && !Array.isArray(stated.properties);
   const isEnum = (stated) => stated?.type === 'string' && Array.isArray(stated.enum) && stated.enum.length > 0 && stated.enum.every((value) => typeof value === 'string' && value !== '');
-  if (isObject(schema)) return { form: 'record', members: Object.keys(schema.properties) };
+  if (isObject(schema)) return { form: 'record', members: Object.keys(schema.properties), source };
   if (isEnum(schema)) {
     if (new Set(schema.enum).size !== schema.enum.length) {
       fail(`${at} states a value twice: ${schema.enum.join(', ')}`);
       return undefined;
     }
-    return { form: 'enum', values: schema.enum, members: [] };
+    return { form: 'enum', values: schema.enum, members: [], source };
   }
   const tag = schema.discriminator?.propertyName;
   if (!Array.isArray(schema.oneOf) || schema.oneOf.length === 0 || typeof tag !== 'string' || tag === '') {
@@ -3859,9 +3876,9 @@ function recordShape(type, schema) {
   const enums = new Set();
   for (const [index, branch] of schema.oneOf.entries()) {
     const told = isObject(branch) ? branch.properties[tag] : undefined;
-    const ref = Array.isArray(told?.allOf) && told.allOf.length === 1 && typeof told.allOf[0]?.$ref === 'string' ? /^#\/types\/(\w+)$/.exec(told.allOf[0].$ref) : null;
+    const ref = Array.isArray(told?.allOf) && told.allOf.length === 1 && typeof told.allOf[0]?.$ref === 'string' ? new RegExp(`^#/${table.key}/(\\w+)$`).exec(told.allOf[0].$ref) : null;
     if (ref === null || !Array.isArray(told.enum) || told.enum.length !== 1) {
-      fail(`${at}: branch ${index} is no object whose ${tag} is one value of an enum of the table, \`{ "allOf": [{ "$ref": "#/types/<Enum>" }], "enum": ["<value>"] }\``);
+      fail(`${at}: branch ${index} is no object whose ${tag} is one value of an enum of the table, \`{ "allOf": [{ "$ref": "#/${table.key}/<Enum>" }], "enum": ["<value>"] }\``);
       return undefined;
     }
     enums.add(ref[1]);
@@ -3872,17 +3889,17 @@ function recordShape(type, schema) {
     return undefined;
   }
   const [enumName] = enums;
-  if (!isEnum(recordTypes[enumName])) {
+  if (!isEnum(table.types[enumName])) {
     fail(`${at}: its ${tag} is a value of ${enumName}, which is no enum of the table`);
     return undefined;
   }
-  const values = recordTypes[enumName].enum;
+  const values = table.types[enumName].enum;
   const told = branches.map((branch) => branch.value);
   if (new Set(told).size !== told.length || told.length !== values.length || !values.every((value) => told.includes(value))) {
     fail(`${at}: its branches' ${tag} are ${told.join(', ')}, and ${enumName}'s values are ${values.join(', ')}: it has a branch for each value, once`);
     return undefined;
   }
-  return { form: 'union', tag, enumName, branches, members: [...new Set(branches.flatMap((branch) => branch.members))] };
+  return { form: 'union', tag, enumName, branches, members: [...new Set(branches.flatMap((branch) => branch.members))], source };
 }
 
 /**
@@ -3891,7 +3908,7 @@ function recordShape(type, schema) {
  * lacks, and a field that is no member, both fail. Each `fieldsNamed` it
  * reads is put in `consulted`.
  */
-function heldFields(sdk, its, type, members, had, member, row, consulted) {
+function heldFields(sdk, its, type, source, members, had, member, row, consulted) {
   const declared = new Set(had);
   const expected = new Set();
   for (const stated of members) {
@@ -3906,23 +3923,23 @@ function heldFields(sdk, its, type, members, had, member, row, consulted) {
       fail(`${its} has ${ruled}, which is ${LANGUAGES[sdk]}'s spelling of ${type}'s ${stated} by the rule, and ${row} gives it as ${named} (\`fieldsNamed\`): the entry is stale, so take it out`);
       continue;
     }
-    fail(`${its} has no ${spelled}, which is ${type}'s ${stated} in ${RECORDS}: add it, or give ${LANGUAGES[sdk]}'s own spelling of it in the \`fieldsNamed\` of ${row}`);
+    fail(`${its} has no ${spelled}, which is ${type}'s ${stated} in ${source}: add it, or give ${LANGUAGES[sdk]}'s own spelling of it in the \`fieldsNamed\` of ${row}`);
   }
   for (const field of declared) {
-    if (!expected.has(field)) fail(`${its} has ${field}, which is no member of ${type} in ${RECORDS}: take it out, or add the member there before any SDK has it`);
+    if (!expected.has(field)) fail(`${its} has ${field}, which is no member of ${type} in ${source}: take it out, or add the member there before any SDK has it`);
   }
 }
 
 /** Hold `had`, the values or the variants `its` states, to `values`, each as `spell` spells it. */
-function heldValues(its, type, values, had, spell, noun) {
+function heldValues(its, type, source, values, had, spell, noun) {
   const declared = new Set(had);
   if (declared.size !== had.length) fail(`${its} states a ${noun} more than once: ${had.join(', ')}`);
   const spelled = new Set(values.map(spell));
   for (const value of values) {
-    if (!declared.has(spell(value))) fail(`${its} has no ${noun} ${spell(value)}, for ${type}'s ${value} in ${RECORDS}: add it`);
+    if (!declared.has(spell(value))) fail(`${its} has no ${noun} ${spell(value)}, for ${type}'s ${value} in ${source}: add it`);
   }
   for (const value of declared) {
-    if (!spelled.has(value)) fail(`${its} has the ${noun} ${value}, which is no value of ${type} in ${RECORDS}: take it out, or add the value there before any SDK has it`);
+    if (!spelled.has(value)) fail(`${its} has the ${noun} ${value}, which is no value of ${type} in ${source}: take it out, or add the value there before any SDK has it`);
   }
 }
 
@@ -3931,14 +3948,14 @@ function heldBranches(its, declared, type, shape, fields) {
   const { tag } = shape;
   const shown = (branch) => `{ ${branch.map((member) => member.name).join('; ')} }`;
   if (declared.branches.every((branch) => !branch.some((member) => member.name === tag))) {
-    fail(`${its} has ${tag} in none of its branches, and ${type} in ${RECORDS} is told apart by ${tag}: ${declared.branches.map(shown).join(' | ')}`);
+    fail(`${its} has ${tag} in none of its branches, and ${type} in ${shape.source} is told apart by ${tag}: ${declared.branches.map(shown).join(' | ')}`);
     return;
   }
   const seen = new Set();
   for (const branch of declared.branches) {
     const told = branch.find((member) => member.name === tag);
     if (told === undefined) {
-      fail(`${its} has a branch with no ${tag}, which tells ${type}'s branches apart in ${RECORDS}: ${shown(branch)}`);
+      fail(`${its} has a branch with no ${tag}, which tells ${type}'s branches apart in ${shape.source}: ${shown(branch)}`);
       continue;
     }
     if (told.literal === undefined) {
@@ -3947,7 +3964,7 @@ function heldBranches(its, declared, type, shape, fields) {
     }
     const stated = shape.branches.find((candidate) => candidate.value === told.literal);
     if (stated === undefined) {
-      fail(`${its} has a branch whose ${tag} is '${told.literal}', which is no value of ${shape.enumName} in ${RECORDS}`);
+      fail(`${its} has a branch whose ${tag} is '${told.literal}', which is no value of ${shape.enumName} in ${shape.source}`);
       continue;
     }
     if (seen.has(told.literal)) {
@@ -3958,32 +3975,32 @@ function heldBranches(its, declared, type, shape, fields) {
     fields(`${its}, its '${told.literal}' branch`, stated.members, branch.map((member) => member.name));
   }
   for (const stated of shape.branches) {
-    if (!seen.has(stated.value)) fail(`${its} has no branch whose ${tag} is '${stated.value}', which ${type} has in ${RECORDS}`);
+    if (!seen.has(stated.value)) fail(`${its} has no branch whose ${tag} is '${stated.value}', which ${type} has in ${shape.source}`);
   }
 }
 
-/** Hold `declared`, what `its` names, to what registry.json states of `type` (`shape`), as `member`, of `row`, spells it. */
+/** Hold `declared`, what `its` names, to what is stated of `type` (`shape`), as `member`, of `row`, spells it. */
 function heldRecord(sdk, its, declared, type, shape, member, row) {
   const reader = RECORD_READERS[sdk];
   const consulted = new Set();
-  const fields = (of, members, had) => heldFields(sdk, of, type, members, had, member, row, consulted);
+  const fields = (of, members, had) => heldFields(sdk, of, type, shape.source, members, had, member, row, consulted);
   const as = { record: 'record', enum: reader.enumAs, union: reader.unionAs }[shape.form];
   if (declared.held !== as) {
-    fail(`${its} is ${HELD[declared.held]}, and ${type} in ${RECORDS} is ${FORMS[shape.form]}, which ${LANGUAGES[sdk]} holds as ${HELD[as]}`);
+    fail(`${its} is ${HELD[declared.held]}, and ${type} in ${shape.source} is ${FORMS[shape.form]}, which ${LANGUAGES[sdk]} holds as ${HELD[as]}`);
     return;
   }
   if (shape.form === 'enum' && as === 'values') {
-    heldValues(its, type, shape.values, declared.values, (value) => value, 'value');
+    heldValues(its, type, shape.source, shape.values, declared.values, (value) => value, 'value');
   } else if (shape.form === 'enum') {
     for (const variant of declared.variants) {
-      if (!variant.unit) fail(`${its} has the variant ${variant.name}, which carries fields, and ${type} in ${RECORDS} is an enum, whose variants carry none`);
+      if (!variant.unit) fail(`${its} has the variant ${variant.name}, which carries fields, and ${type} in ${shape.source} is an enum, whose variants carry none`);
     }
-    heldValues(its, type, shape.values, declared.variants.map((variant) => variant.name), pascalCase, 'variant');
+    heldValues(its, type, shape.source, shape.values, declared.variants.map((variant) => variant.name), pascalCase, 'variant');
   } else if (as === 'record') {
     // A record holds a record's members, and a union's: its tag, with every branch's other members.
     fields(its, shape.members, declared.fields);
   } else if (as === 'variants') {
-    heldValues(its, type, shape.branches.map((branch) => branch.value), declared.variants.map((variant) => variant.name), pascalCase, 'variant');
+    heldValues(its, type, shape.source, shape.branches.map((branch) => branch.value), declared.variants.map((variant) => variant.name), pascalCase, 'variant');
     for (const branch of shape.branches) {
       const variant = declared.variants.find((candidate) => candidate.name === pascalCase(branch.value));
       if (variant) fields(`${its}, its variant ${variant.name}`, branch.members.filter((stated) => stated !== shape.tag), variant.fields);
@@ -3996,19 +4013,54 @@ function heldRecord(sdk, its, declared, type, shape, member, row) {
   }
 }
 
-/** type → what registry.json states of it */
+/** type → where it is stated: a table's key, or the member of `modules` whose `fields` it is */
+const recordStated = new Map();
+/** type → what is stated of it */
 const recordShapes = new Map();
-for (const [type, schema] of Object.entries(recordTypes)) {
-  const shape = recordShape(type, schema);
-  if (shape !== undefined) recordShapes.set(type, shape);
+for (const table of RECORD_TABLES) {
+  if (table.types === null || typeof table.types !== 'object' || Array.isArray(table.types)) {
+    fail(`${table.file} states no \`${table.key}\`: the types it holds, each under its name`);
+    continue;
+  }
+  for (const [type, schema] of Object.entries(table.types)) {
+    if (recordStated.has(type)) {
+      fail(`${type} is stated by both ${recordStated.get(type)} and ${table.file}'s \`${table.key}\`: state it in one`);
+      continue;
+    }
+    recordStated.set(type, `${table.file}'s \`${table.key}\``);
+    const shape = recordShape(type, schema, table);
+    if (shape !== undefined) recordShapes.set(type, shape);
+  }
+}
+
+for (const module of moduleRows ?? []) {
+  for (const member of module.members ?? []) {
+    if (member.fields === undefined) continue;
+    const row = `the \`${module.module}\` row of \`modules\` in ${TABLE}, member ${member.member}`;
+    if (recordStated.has(member.member)) {
+      fail(`${row} states \`fields\`, and ${recordStated.get(member.member)} states ${member.member} too: state its members in one place`);
+      continue;
+    }
+    recordStated.set(member.member, row);
+    if (member.kind !== 'type') {
+      fail(`${row} states \`fields\`, and is a ${member.kind}: only a type has fields`);
+      continue;
+    }
+    const { fields } = member;
+    if (!Array.isArray(fields) || fields.length === 0 || !fields.every((field) => typeof field === 'string' && field !== '') || new Set(fields).size !== fields.length) {
+      fail(`${row}: \`fields\` is not its members' names, each once: ${JSON.stringify(fields)}`);
+      continue;
+    }
+    recordShapes.set(member.member, { form: 'record', members: fields, source: TABLE });
+  }
 }
 
 for (const module of moduleRows ?? []) {
   for (const member of module.members ?? []) {
     if (member.fieldsNamed === undefined) continue;
     const row = `the \`${module.module}\` row of \`modules\` in ${TABLE}, member ${member.member}`;
-    if (!Object.hasOwn(recordTypes, member.member)) {
-      fail(`${row} states \`fieldsNamed\`, and ${RECORDS} states no type ${member.member}: only a field of a type of that table is spelled there`);
+    if (!recordStated.has(member.member)) {
+      fail(`${row} states \`fieldsNamed\`, and no table states ${member.member}, nor does the member state its \`fields\`: only a field of a type so stated is spelled there`);
       continue;
     }
     const shape = recordShapes.get(member.member);
@@ -4031,7 +4083,7 @@ for (const module of moduleRows ?? []) {
         continue;
       }
       for (const [field, spelled] of Object.entries(names)) {
-        if (!shape.members.includes(field)) fail(`${row}: \`fieldsNamed\` spells ${sdk}'s ${field}, which is no member of ${member.member} in ${RECORDS}`);
+        if (!shape.members.includes(field)) fail(`${row}: \`fieldsNamed\` spells ${sdk}'s ${field}, which is no member of ${member.member} in ${shape.source}`);
         if (typeof spelled !== 'string' || spelled === '') fail(`${row}: \`fieldsNamed\` says nothing for ${sdk}'s ${field}`);
         else if (spelled === RECORD_READERS[sdk].spell(field)) fail(`${row}: \`fieldsNamed\` spells ${sdk}'s ${field} ${spelled}, as the rule spells it already: take it out`);
       }
@@ -4044,15 +4096,15 @@ for (const [type, shape] of recordShapes) {
   if (listed.length !== 1) {
     fail(
       listed.length === 0
-        ? `${RECORDS} states ${type}, and no row of \`modules\` in ${TABLE} lists it: list it as a \`type\` member of the module whose files declare it`
-        : `${RECORDS} states ${type}, and ${listed.length} rows of \`modules\` in ${TABLE} list it (${listed.map(({ module }) => module.module).join(', ')}): list it in one`,
+        ? `${recordStated.get(type)} states ${type}, and no row of \`modules\` in ${TABLE} lists it: list it as a \`type\` member of the module whose files declare it`
+        : `${recordStated.get(type)} states ${type}, and ${listed.length} rows of \`modules\` in ${TABLE} list it (${listed.map(({ module }) => module.module).join(', ')}): list it in one`,
     );
     continue;
   }
   const [{ module, member }] = listed;
   const row = `the \`${module.module}\` row of \`modules\` in ${TABLE}, member ${type}`;
   if (member.kind !== 'type') {
-    fail(`${row} is a ${member.kind}, and ${RECORDS} states ${type} as a type: make the member one`);
+    fail(`${row} is a ${member.kind}, and ${recordStated.get(type)} states ${type} as a type: make the member one`);
     continue;
   }
   for (const sdk of RECORD_SDKS) {
@@ -4557,5 +4609,5 @@ const stillToReach = (value) =>
       ? Object.entries(value).reduce((total, [key, item]) => total + (key === 'notYetReached' ? Object.keys(item).length : stillToReach(item)), 0)
       : 0;
 console.log(
-  `✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, ${heldBy(NAMESPACE_SDKS)}; ${membersCount} members of what a worker is handed, ${heldBy(WORKER_SDKS)}; ${unitMembers} members of ${units.size} state units, ${heldBy(UNIT_SDKS)}; ${wireMembers.size} members of the bus over the wire, ${heldBy(WIRE_SDKS)}; ${storageMembers.size} members of the storage, ${heldBy(STORAGE_SDKS)}; ${[...modules.values()].reduce((total, module) => total + (module.members?.length ?? 0), 0)} members of ${modules.size} modules, ${heldBy(MODULE_SDKS)}; ${Object.keys(recordTypes).length} records, enums and unions a registry hands its caller, ${heldBy(RECORD_SDKS)}; and ${clockMakers} makers of ${clockSources.size} sources a caller controls, ${heldBy(CLOCK_SDKS)}; ${stillToReach(table)} rows name an SDK that is still to reach them`,
+  `✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, ${heldBy(NAMESPACE_SDKS)}; ${membersCount} members of what a worker is handed, ${heldBy(WORKER_SDKS)}; ${unitMembers} members of ${units.size} state units, ${heldBy(UNIT_SDKS)}; ${wireMembers.size} members of the bus over the wire, ${heldBy(WIRE_SDKS)}; ${storageMembers.size} members of the storage, ${heldBy(STORAGE_SDKS)}; ${[...modules.values()].reduce((total, module) => total + (module.members?.length ?? 0), 0)} members of ${modules.size} modules, ${heldBy(MODULE_SDKS)}; ${recordStated.size} records, enums and unions of the registry, a session's notices and the modules' own \`fields\`, ${heldBy(RECORD_SDKS)}; and ${clockMakers} makers of ${clockSources.size} sources a caller controls, ${heldBy(CLOCK_SDKS)}; ${stillToReach(table)} rows name an SDK that is still to reach them`,
 );

@@ -112,7 +112,7 @@ sessionCases root fixtures = do
               "unreachable" -> throwIO (SignInError Code.SignInExchange "no answer" Nothing)
               _ -> ioError (userError "unknown issuer script answer")
           options = Session.SessionOptions "case" target (Stored.keptIn storage (kbTargetId target)) Nothing (Just (const renew)) (Just (\_ -> validate))
-            (\reason -> atomically (modifyTVar' told (<>[Session.sessionEndReason reason])))
+            (\reason -> atomically (modifyTVar' told (<>[reason])))
             (\failure -> atomically (modifyTVar' failures (<>[Code.sessionCode (sessionErrorCode failure)])))
             (pure 1800000000)
           checkState expected = do

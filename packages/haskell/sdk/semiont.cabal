@@ -113,7 +113,6 @@ library internal
     Semiont.State.Search
     Semiont.Internal.Generated.SearchState
     Semiont.Internal.StateTasks
-    Semiont.Internal.Generated.SessionNotices
     Semiont.StoragePersister
     Semiont.Internal.Coupled
     Semiont.Internal.Persistence
@@ -216,6 +215,8 @@ library internal
     Semiont.Internal.Generated.Models.SettingsHoverDelayChangedEvent
     Semiont.Internal.Generated.Models.SessionLeftEvent
     Semiont.Internal.Generated.Models.SessionJoinedEvent
+    Semiont.Internal.Generated.Models.SessionEndReason
+    Semiont.Internal.Generated.Models.SessionEnded
     Semiont.Internal.Generated.Models.ResourceUpdatedPayload
     Semiont.Internal.Generated.Models.ResourceUnarchivedPayload
     Semiont.Internal.Generated.Models.ResourceMovedPayload
@@ -247,6 +248,7 @@ library internal
     Semiont.Internal.Generated.Models.PrincipalProfiledPayload
     Semiont.Internal.Generated.Models.PrincipalProfileCommand
     Semiont.Internal.Generated.Models.PersistedEventId
+    Semiont.Internal.Generated.Models.PermissionDenied
     Semiont.Internal.Generated.Models.PdfTextItem
     Semiont.Internal.Generated.Models.PdfCoordinate
     Semiont.Internal.Generated.Models.OpenResource
@@ -277,6 +279,7 @@ library internal
     Semiont.Internal.Generated.Models.KbReadKind
     Semiont.Internal.Generated.Models.KbReadVerdict
     Semiont.Internal.Generated.Models.KbRead
+    Semiont.Internal.Generated.Models.KbIdentityConflict
     Semiont.Internal.Generated.Models.KbIdentity
     Semiont.Internal.Generated.Models.KbDescription
     Semiont.Internal.Generated.Models.JobType

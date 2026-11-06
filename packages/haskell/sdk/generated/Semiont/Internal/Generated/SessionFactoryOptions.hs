@@ -1,4 +1,4 @@
--- Generated from session/session-factory.ts; do not edit.
+-- Generated from client/surface.json; do not edit.
 module Semiont.Internal.Generated.SessionFactoryOptions where
 import Semiont.Types (KnowledgeBase)
 import Semiont.Errors (SessionError)

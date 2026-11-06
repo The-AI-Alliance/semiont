@@ -113,7 +113,6 @@ library internal
     Semiont.State.Search
     Semiont.Internal.Generated.SearchState
     Semiont.Internal.StateTasks
-    Semiont.Internal.Generated.SessionNotices
     Semiont.StoragePersister
     Semiont.Internal.Coupled
     Semiont.Internal.Persistence

@@ -2,7 +2,7 @@
 -- | One connection's token and confirmed person. Disposal ends the session's
 -- work and observations; the client remains owned by whoever constructed it.
 module Semiont.Session
-  ( Session, SessionOptions(..), OpenedSession(..), SessionEndReason(..), sessionEndReason
+  ( Session, SessionOptions(..), OpenedSession(..), SessionEndReason(..)
   , newSession, fromHttp, fromIssuedSession, fromKeptSession, signInDevice, signInAgent, id, kb, client, token, user, streamState, errors, ready
   , expiresAt, refresh, dispose
   ) where
@@ -26,7 +26,6 @@ import qualified Semiont.ServiceToken as Service
 import qualified Semiont.Auth as Auth
 import qualified Semiont.Gateway as Gateway
 import qualified Semiont.Internal.Lifetime as Lifetime
-import Semiont.Internal.Generated.Stored (SessionEndReason(..), sessionEndReason)
 import qualified Semiont.Internal.StateValue as State
 import qualified Semiont.Retry as Retry
 import qualified Semiont.SignIn as SignIn
@@ -34,7 +33,7 @@ import qualified Semiont.Timing.Settings as Timing
 import qualified Semiont.Tokens as Tokens
 import qualified Semiont.Transport as Transport
 import Semiont.Timing (RetryBudget)
-import Semiont.Types (KbTarget(..), StoredSession(..), UserResponse, KbEndpoint(..), HttpEndpoint, DeviceCode, IssuerEndpoints(..), IssuedTokens(..))
+import Semiont.Types (KbTarget(..), StoredSession(..), UserResponse, KbEndpoint(..), HttpEndpoint, DeviceCode, IssuerEndpoints(..), IssuedTokens(..), SessionEndReason(..))
 import Streaming (Of, Stream)
 
 data SessionOptions = SessionOptions
@@ -365,7 +364,7 @@ validate session schedule access justIssued reportUnreachable = case sessionVali
       Right person -> atomically (State.update (user session) person)
       Left problem -> case fromException problem of
         Just failure | transportErrorCode failure == Code.TransportUnauthorized ->
-          if justIssued then signedOut session schedule Refused Code.SessionCredentialRefused
+          if justIssued then signedOut session schedule SessionEndReasonRefused Code.SessionCredentialRefused
             else void (renew session schedule True reportUnreachable)
         _ -> when reportUnreachable (report session Code.SessionAuthFailed "The gateway could not confirm the credential")
 
@@ -382,7 +381,7 @@ renew session schedule ask reportUnreachable = do
         Nothing -> do
           atomically (State.update (token session) Nothing >> State.update (user session) Nothing)
           clear session schedule
-        Just _ -> signedOut session schedule Expired Code.SessionRefreshExhausted
+        Just _ -> signedOut session schedule SessionEndReasonExpired Code.SessionRefreshExhausted
     Renewed access -> do
       accept session schedule access
       when ask (validate session schedule access True reportUnreachable)
@@ -390,7 +389,7 @@ renew session schedule ask reportUnreachable = do
       stored <- SignIn.held (sessionKept (configuration session))
       case stored of
         Nothing | not hadToken && not hadPerson -> atomically (State.update (token session) Nothing) >> clear session schedule
-        _ | terminal -> signedOut session schedule Expired Code.SessionRefreshExhausted
+        _ | terminal -> signedOut session schedule SessionEndReasonExpired Code.SessionRefreshExhausted
         _ -> do
           atomically (State.update (token session) Nothing)
           later session schedule
@@ -413,7 +412,7 @@ signedOut session schedule reason code = do
   clear session schedule
   forget session
   sessionOnAuthFailed (configuration session) reason
-  report session code (case reason of Expired -> "The credential could not be renewed"; Refused -> "The gateway refused a newly issued credential")
+  report session code (case reason of SessionEndReasonExpired -> "The credential could not be renewed"; SessionEndReasonRefused -> "The gateway refused a newly issued credential")
 
 report :: Session -> Code.SessionCode -> Text -> IO ()
 report session code message = sessionOnError (configuration session) (SessionError code message (kbTargetId (kb session)))

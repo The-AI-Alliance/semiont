@@ -1699,7 +1699,8 @@
         },
         {
           "member": "SessionFactoryOptions",
-          "kind": "type"
+          "kind": "type",
+          "fields": ["kb", "storage", "signals", "onError"]
         },
         {
           "member": "HttpSessionFactory",
@@ -1820,6 +1821,25 @@
             "typescript": "TypeScript's is a method of `SemiontBrowser`."
           }
         }
+      ]
+    },
+    {
+      "module": "sessionNotices",
+      "docs": "What a session's signals raise: that a session ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. protocol/specs/src/client/state-units.json's `notices` states each one.",
+      "where": {
+        "haskell": ["packages/haskell/sdk/src/Semiont/State/SessionSignals.hs"],
+        "csharp": ["packages/csharp/sdk/src/Semiont/State"],
+        "swift": ["packages/swift/sdk/Sources/Semiont/State/SessionSignals.swift"],
+        "typescript": ["packages/typescript/sdk/src/session/session-signals.ts"],
+        "rust": ["packages/rust/sdk/src/session/signals.rs"],
+        "python": ["packages/python/sdk/src/semiont/session_signals.py"],
+        "go": ["packages/go/sdk"],
+        "kotlin": ["packages/kotlin/sdk/src/main/kotlin/semiont/session"]
+      },
+      "members": [
+        { "member": "SessionEnded", "kind": "type" },
+        { "member": "PermissionDenied", "kind": "type" },
+        { "member": "KbIdentityConflict", "kind": "type" }
       ]
     },
     {

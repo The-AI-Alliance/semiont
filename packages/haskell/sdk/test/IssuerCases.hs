@@ -243,7 +243,7 @@ issuerCases fixtures = do
   errors <- newTVarIO []
   beforeRefusal <- length . filter ((=="/token") . route) <$> readTVarIO seen
   let refusedOptions=agentOptions {
-        Session.sessionOnAuthFailed = \reason -> atomically (modifyTVar' ended (<>[Session.sessionEndReason reason])),
+        Session.sessionOnAuthFailed = \reason -> atomically (modifyTVar' ended (<>[reason])),
         Session.sessionOnError = \failure -> atomically (modifyTVar' errors (<>[sessionErrorCode failure])) }
   bracket (Service.newServiceTokenSecret options "http://issuer.test" "account" "test-only-secret") Service.dispose $ \service ->
     bracket (async (try (Session.signInAgent http Nothing refusedOptions (Budget.RetryBudget 2 10 20) service)
@@ -255,7 +255,7 @@ issuerCases fixtures = do
         _ -> False)
   afterRefusal <- length . filter ((=="/token") . route) <$> readTVarIO seen
   require "agent refusal caused extra account grants" (afterRefusal==beforeRefusal+1)
-  require "agent refusal was not reported as a refused session" . (==["refused"]) =<< readTVarIO ended
+  require "agent refusal was not reported as a refused session" . (==[SessionEndReasonRefused]) =<< readTVarIO ended
   require "agent refusal lost the session diagnostic" . (==[Code.SessionCredentialRefused]) =<< readTVarIO errors
   putStrLn "PASS issuer discovery, RFC PKCE, one-shot redirect, atomic rotation, explicit credentials and agent startup over real HTTP parsing"
 

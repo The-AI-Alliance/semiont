@@ -513,10 +513,20 @@ main = do
     >>= either (ioError . userError) pure . fieldsOf
   registryRecords <- either (ioError . userError) pure
     (traverse (pointedReferences [("",registryTable),("../session/stored.json",storedTable)]) registryTypes)
-  let adapterNames=concatMap KM.keys [sessionAdapters,annotationAdapters,registryRecords]
-  unless (length adapterNames==length (nub adapterNames)) (ioError (userError "an SDK-owned adapter and a registry record share a name"))
+  sessionCases <- readJSON (root </> "protocol/specs/src/session/cases.json") >>= either (ioError . userError) pure . fieldsOf
+  endReasons <- maybe (ioError (userError "session end reasons missing")) pure (KM.lookup "told" sessionCases)
+  endReasonsName <- either (ioError . userError) pure (fieldsOf endReasons)
+    >>= maybe (ioError (userError "session end reasons have no title")) pure . textAt "title"
+  unitsTable <- readJSON (root </> "protocol/specs/src/client/state-units.json") >>= either (ioError . userError) pure . fieldsOf
+  notices <- maybe (ioError (userError "session notices missing")) pure (KM.lookup "notices" unitsTable)
+    >>= either (ioError . userError) pure . fieldsOf
+  noticeRecords <- either (ioError . userError) pure (traverse (pointedReferences [("../session/cases.json",sessionCases)]) notices)
+  let endReasonsRecord = KM.singleton (Key.fromText endReasonsName) endReasons
+      specRecords = registryRecords <> noticeRecords <> endReasonsRecord
+      adapterNames=concatMap KM.keys [sessionAdapters,annotationAdapters,registryRecords,noticeRecords,endReasonsRecord]
+  unless (length adapterNames==length (nub adapterNames)) (ioError (userError "an SDK-owned adapter and a record of the spec share a name"))
   let storedSchemas =
-        [(Key.toText name,value) | (name,value) <- KM.toList (sessionAdapters <> annotationAdapters <> registryRecords)] ++ [ ("SignIn",signIn), ("StoredSession",stored), ("OpenResource",openResource)
+        [(Key.toText name,value) | (name,value) <- KM.toList (sessionAdapters <> annotationAdapters <> specRecords)] ++ [ ("SignIn",signIn), ("StoredSession",stored), ("OpenResource",openResource)
         , ("IssuerEndpoints",issuer)
         , ("PendingAuthorization",Object (KM.insert "properties" (Object (KM.insert "issuer"
             (Object (KM.singleton "$ref" (String "IssuerEndpoints.json"))) pendingProperties)) pending))
@@ -533,18 +543,22 @@ main = do
       >>= either (ioError . userError) pure . fieldsOf
     prefix <- maybe (ioError (userError "stored prefix value missing")) pure (textAt "prefix" fields)
     pure (name,prefix)
-  sessionCases <- readJSON (root </> "protocol/specs/src/session/cases.json") >>= either (ioError . userError) pure . fieldsOf
-  endReasons <- fmap (sort . nub . concat . concat) $ forM ["startup","refusal"] $ \section ->
-    case KM.lookup section sessionCases of
-      Just (Array rows) -> forM (toList rows) $ \row -> do
-        fields <- either (ioError . userError) pure (fieldsOf row)
-        case KM.lookup "told" fields of
-          Just Null -> pure []
-          Just (String reason) -> pure [reason]
-          _ -> ioError (userError "session end reason missing")
-      _ -> ioError (userError "session cases missing")
-  unless (not (null endReasons) && length (nub (map fst (storedKeys++storedPrefixes))) == length (storedKeys++storedPrefixes))
-    (ioError (userError "stored names collide or session end reasons absent"))
+  unless (length (nub (map fst (storedKeys++storedPrefixes))) == length (storedKeys++storedPrefixes))
+    (ioError (userError "stored names collide"))
+  surface <- readJSON (root </> "protocol/specs/src/client/surface.json") >>= either (ioError . userError) pure . fieldsOf
+  factoryFields <- case KM.lookup "modules" surface of
+    Just (Array modules) -> case [listed | Object row <- toList modules, textAt "module" row == Just "registry", Just (Array members) <- [KM.lookup "members" row], Object listed <- toList members, textAt "member" listed == Just "SessionFactoryOptions"] of
+      [listed] -> case KM.lookup "fields" listed of
+        Just (Array names) | names' <- [name | String name <- toList names], length names' == V.length names -> pure names'
+        _ -> ioError (userError "SessionFactoryOptions states no fields in surface.json")
+      _ -> ioError (userError "surface.json's registry module does not list SessionFactoryOptions once")
+    _ -> ioError (userError "surface.json states no modules")
+  -- Each member's type is Haskell's own: a storage, the signals unit, an error callback.
+  let factoryTypes = [("kb","KnowledgeBase"),("storage","Storage.SessionStorage"),("signals","Signals.SessionSignals"),("onError","SessionError -> IO ()")]
+  factoryMembers <- forM factoryFields $ \field ->
+    maybe (ioError (userError ("SessionFactoryOptions' " ++ T.unpack field ++ " has no Haskell type"))) (pure . (,) field) (lookup field factoryTypes)
+  unless (length factoryFields == length factoryTypes && length (nub factoryFields) == length factoryFields)
+    (ioError (userError "SessionFactoryOptions' fields in surface.json are not those Haskell types"))
   oauth <- readJSON (root </> "protocol/specs/src/session/oauth.json") >>= either (ioError . userError) pure . fieldsOf
   clients <- case KM.lookup "clients" oauth of
     Just (Array rows) -> forM (toList rows) $ \row -> do
@@ -619,17 +633,17 @@ main = do
          ,"module Semiont.Internal.Generated.OAuth where","import Data.Text (Text)"]
           ++ concat [[name<>" :: Text",name<>" = "<>literal value] | (name,value) <- clients++[("signInScope",scope)]]))
       storedFile = ("generated/Semiont/Internal/Generated/Stored.hs", T.unlines
-        (["-- Generated from session/stored.json and session/cases.json; do not edit."
-         ,"{-# LANGUAGE OverloadedStrings #-}","module Semiont.Internal.Generated.Stored where","import Data.Text (Text)","import Data.Aeson (FromJSON(..), ToJSON(..), Value(String), withText)"]
-         ++ concat [[name<>" :: Text",name<>" = "<>literal value] | (name,value) <- storedKeys++storedPrefixes]
-         ++ ["data SessionEndReason = "<>T.intercalate " | " (map identifier endReasons)<>" deriving (Eq, Ord, Show, Enum, Bounded)"
-            ,"sessionEndReason :: SessionEndReason -> Text"]
-         ++ ["sessionEndReason "<>identifier reason<>" = "<>literal reason | reason <- endReasons]
-         ++ ["instance ToJSON SessionEndReason where toJSON = String . sessionEndReason"
-            ,"instance FromJSON SessionEndReason where"
-            ,"  parseJSON = withText \"SessionEndReason\" $ \\value -> case value of"]
-         ++ ["    "<>literal reason<>" -> pure "<>identifier reason | reason<-endReasons]
-         ++ ["    _ -> fail \"unknown session end reason\""]))
+        (["-- Generated from session/stored.json; do not edit."
+         ,"{-# LANGUAGE OverloadedStrings #-}","module Semiont.Internal.Generated.Stored where","import Data.Text (Text)"]
+         ++ concat [[name<>" :: Text",name<>" = "<>literal value] | (name,value) <- storedKeys++storedPrefixes]))
+      factoryFile = ("generated/Semiont/Internal/Generated/SessionFactoryOptions.hs", T.unlines
+        (["-- Generated from client/surface.json; do not edit."
+         ,"module Semiont.Internal.Generated.SessionFactoryOptions where"
+         ,"import Semiont.Types (KnowledgeBase)","import Semiont.Errors (SessionError)"
+         ,"import qualified Semiont.SessionStorage as Storage","import qualified Semiont.State.SessionSignals as Signals"
+         ,"data SessionFactoryOptions = SessionFactoryOptions"]
+         ++ [(if index == (0 :: Int) then "  { " else "  , ")<>"sessionFactoryOptions"<>identifier field<>" :: "<>typ | (index,(field,typ)) <- zip [0..] factoryMembers]
+         ++ ["  }"]))
   (httpSchemas, httpFiles) <- httpFacts root (Object spec) schemas
   unless (length storedSchemas==length (nub (map fst storedSchemas))) (ioError (userError "duplicate stored SDK schema"))
   forM_ ("ResourceUploadMetadata" : "TraceCarrier" : map fst (storedSchemas ++ optionSchemas ++ httpSchemas)) $ \name ->
@@ -645,7 +659,7 @@ main = do
   version <- maybe (ioError (userError "root package.json has no version")) pure (textAt "version" package)
   license <- readUTF8 (root </> "LICENSE")
   let manifest = T.replace "@VERSION@" version $ T.replace "@MODEL_MODULES@" (T.intercalate "\n" (map ("    " <>) moduleNames)) template
-      generated = ("LICENSE", license) : ("semiont.cabal", manifest) : [storedFile,oauthFile,assertionFile,storePolicy,storeNames,principalFile,busLogFile] ++ busFiles ++ models ++ facts ++ transportFiles ++ httpFiles ++ workerFiles
+      generated = ("LICENSE", license) : ("semiont.cabal", manifest) : [storedFile,factoryFile,oauthFile,assertionFile,storePolicy,storeNames,principalFile,busLogFile] ++ busFiles ++ models ++ facts ++ transportFiles ++ httpFiles ++ workerFiles
       modelsDirectory = output </> "generated/Semiont/Internal/Generated/Models"
       expected = Set.fromList (map (normalise . (output </>)) (map fst generated))
   existsModels <- doesDirectoryExist modelsDirectory
