@@ -21,12 +21,13 @@
 use crate::errors::{BusRequestError, BusRequestErrorCode, TransportError};
 use crate::event_bus::EventBus;
 use crate::locked;
-use crate::types::ResourceId;
+use crate::required::{fault_of, schema};
 use crate::types::{
     AnchoredTextAnswer, CreateResourceResponse, GetAnnotationsResponse, GetResourceResponse,
     HealthResponse, MediaTokenResponse, ProtectedResourceMetadata, StatusResponse, UserResponse,
 };
 use crate::types::{AnnotationId, JobId};
+use crate::types::{BusFrame, ResourceId, Schema};
 use bytes::Bytes;
 use futures_core::Stream;
 use serde_json::{Map, Value};
@@ -115,6 +116,58 @@ pub struct Frame {
     pub trace: Option<TraceCarrier>,
 }
 
+/// Why a value is refused at a member, as every SDK finds a value's first
+/// fault (packages/codegen/schemas/required-shapes.mjs).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FrameRefusalReason {
+    /// The value does not carry the member, or the member holds null where it
+    /// may not.
+    Lacks,
+    /// The member is not what its schema allows (of another kind, another
+    /// value, form or size), or is one a closed object does not name.
+    Malformed,
+}
+
+impl FrameRefusalReason {
+    /// The reason as every SDK spells it.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            FrameRefusalReason::Lacks => "lacks",
+            FrameRefusalReason::Malformed => "malformed",
+        }
+    }
+}
+
+/// What a transport delivers in place of a frame BusFrame does not allow,
+/// to the readers it names: those of its channel, in its scope. It names the
+/// frame's first fault by its way from the frame (`member`: `payload`,
+/// `correlationId`, or a member BusFrame does not name), and carries the
+/// frame's payload as it came, when it carried one.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FrameRefusal {
+    pub channel: String,
+    pub member: String,
+    pub reason: FrameRefusalReason,
+    pub payload: Option<Value>,
+    pub scope: Option<ResourceId>,
+}
+
+impl FrameRefusal {
+    /// The refusal of `frame`, which names its readers on `channel` in
+    /// `scope`, for its first fault as BusFrame; `None` when the table of
+    /// what BusFrame requires finds none.
+    pub fn of(frame: &Value, channel: String, scope: Option<ResourceId>) -> Option<FrameRefusal> {
+        let fault = fault_of(schema(BusFrame::NAME), frame)?;
+        Some(FrameRefusal {
+            channel,
+            member: fault.member,
+            reason: fault.reason,
+            payload: frame.get("payload").cloned(),
+            scope,
+        })
+    }
+}
+
 /// A reader of an event stream fell behind and missed this many items. On a
 /// channel that carries events of the record this is a gap: an unknown set
 /// of events was missed, and what was built from them is read again.
@@ -161,12 +214,17 @@ impl<T: Clone + Send + 'static> Stream for Events<T> {
     }
 }
 
-/// The frames delivered on one channel.
-pub type Frames = Events<Frame>;
+/// The frames delivered on one channel, and in place of each frame refused
+/// that names its readers there, its refusal.
+pub type Frames = Events<Result<Frame, FrameRefusal>>;
 /// The failures a transport met: what a server refused, what the gateway
-/// never answered, and each line its stream carried that names no channel.
+/// never answered, and each line its stream carried that names no reader.
 /// Each is reported here as it is returned to its caller.
 pub type Failures = Events<TransportError>;
+
+/// The sender of one channel's broadcast: its frames, and the refusals
+/// delivered in their place.
+pub(crate) type Broadcast = broadcast::Sender<Result<Frame, FrameRefusal>>;
 
 /// A handler's subscription (`Transport::on`): it runs until this is dropped.
 pub struct Subscription {
@@ -184,7 +242,7 @@ impl Drop for Subscription {
 /// a transport delivers goes through one of these.
 pub struct FrameHub {
     /// `None` once closed.
-    channels: Mutex<Option<HashMap<String, broadcast::Sender<Frame>>>>,
+    channels: Mutex<Option<HashMap<String, Broadcast>>>,
 }
 
 impl Default for FrameHub {
@@ -214,20 +272,25 @@ impl FrameHub {
         }
     }
 
-    /// Deliver `frame` to its channel's readers; how many there were.
-    pub fn deliver(&self, frame: Frame) -> usize {
+    /// Deliver a frame, or the refusal of one, to its channel's readers; how
+    /// many there were.
+    pub fn deliver(&self, carried: Result<Frame, FrameRefusal>) -> usize {
+        let channel = match &carried {
+            Ok(frame) => &frame.channel,
+            Err(refusal) => &refusal.channel,
+        };
         let mut channels = locked(&self.channels);
         let Some(channels) = channels.as_mut() else {
             return 0;
         };
-        let Some(sender) = channels.get(&frame.channel) else {
+        let Some(sender) = channels.get(channel) else {
             return 0;
         };
         if sender.receiver_count() == 0 {
-            channels.remove(&frame.channel);
+            channels.remove(channel);
             return 0;
         }
-        sender.send(frame).unwrap_or(0)
+        sender.send(carried).unwrap_or(0)
     }
 
     /// End every stream taken from this hub, and every one taken later.
@@ -379,7 +442,8 @@ pub trait Transport: Send + Sync + 'static {
         envelope: Envelope,
     ) -> BoxFuture<'a, Result<Option<u64>, TransportError>>;
 
-    /// The frames delivered on `channel` from now on. Refused, as
+    /// The frames delivered on `channel` from now on, and the refusal of each
+    /// frame refused that names its readers there. Refused, as
     /// `bus.unsubscribed`, for a channel this transport can never deliver.
     fn frames(&self, channel: &str) -> Result<Frames, BusRequestError>;
 
@@ -395,7 +459,7 @@ pub trait Transport: Send + Sync + 'static {
     fn state(&self) -> watch::Receiver<ConnectionState>;
 
     /// The failures the transport meets, from now on, and each line its
-    /// stream carried that names no channel. A listener taken as soon as the
+    /// stream carried that names no reader. A listener taken as soon as the
     /// transport is made hears every one, from its first request.
     fn failures(&self) -> Failures;
 
@@ -404,7 +468,8 @@ pub trait Transport: Send + Sync + 'static {
     /// unawaited.
     fn track_reply(&self, correlation_id: &str, reply_channels: &[&str]) -> PendingReply;
 
-    /// Publish into `bus` every frame this transport delivers. The bus is
+    /// Publish into `bus` every frame this transport delivers, and the
+    /// refusal of every frame it refuses that names its readers. The bus is
     /// its client's: a transport never constructs or replaces one.
     fn bridge_into(&self, bus: Arc<EventBus>);
 
@@ -412,27 +477,30 @@ pub trait Transport: Send + Sync + 'static {
     /// still pending fails as closed. Closing twice is closing once.
     fn close(&self) -> BoxFuture<'_, ()>;
 
-    /// The payloads delivered on `channel` from now on.
+    /// The payloads delivered on `channel` from now on, and the refusal of
+    /// each frame refused that names its readers there.
     fn stream(&self, channel: &str) -> Result<Payloads, BusRequestError> {
         Ok(Payloads {
             frames: self.frames(channel)?,
         })
     }
 
-    /// Run `handler` on each payload delivered on `channel`, until the
+    /// Run `handler` on each payload delivered on `channel`, and on the
+    /// refusal of each frame refused that names its readers there, until the
     /// returned subscription is dropped. A handler that falls behind is not
     /// told what it missed; a reader that must know reads `frames`.
+    #[allow(clippy::type_complexity)]
     fn on(
         &self,
         channel: &str,
-        mut handler: Box<dyn FnMut(Map<String, Value>) + Send>,
+        mut handler: Box<dyn FnMut(Result<Map<String, Value>, FrameRefusal>) + Send>,
     ) -> Result<Subscription, BusRequestError> {
         let mut frames = self.frames(channel)?;
         Ok(Subscription {
             task: tokio::spawn(async move {
                 while let Some(item) = frames.next().await {
-                    if let Ok(frame) = item {
-                        handler(frame.payload);
+                    if let Ok(carried) = item {
+                        handler(carried.map(|frame| frame.payload));
                     }
                 }
             }),
@@ -440,27 +508,38 @@ pub trait Transport: Send + Sync + 'static {
     }
 }
 
-/// The payloads delivered on one channel: `Frames`, without the envelopes.
+/// The payloads delivered on one channel, and the refusals delivered in
+/// place of frames: `Frames`, without the envelopes.
 pub struct Payloads {
     frames: Frames,
 }
 
 impl Payloads {
-    pub async fn next(&mut self) -> Option<Result<Map<String, Value>, Lagged>> {
-        self.frames
-            .next()
-            .await
-            .map(|item| item.map(|frame| frame.payload))
+    pub async fn next(
+        &mut self,
+    ) -> Option<Result<Result<Map<String, Value>, FrameRefusal>, Lagged>> {
+        self.frames.next().await.map(without_envelope)
+    }
+}
+
+/// What `Frames` gave, without the envelope.
+fn without_envelope(
+    item: Result<Result<Frame, FrameRefusal>, Lagged>,
+) -> Result<Result<Map<String, Value>, FrameRefusal>, Lagged> {
+    match item {
+        Ok(Ok(frame)) => Ok(Ok(frame.payload)),
+        Ok(Err(refusal)) => Ok(Err(refusal)),
+        Err(lagged) => Err(lagged),
     }
 }
 
 impl Stream for Payloads {
-    type Item = Result<Map<String, Value>, Lagged>;
+    type Item = Result<Result<Map<String, Value>, FrameRefusal>, Lagged>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut self.frames)
             .poll_next(cx)
-            .map(|item| item.map(|item| item.map(|frame| frame.payload)))
+            .map(|item| item.map(without_envelope))
     }
 }
 
@@ -699,10 +778,10 @@ mod tests {
         let mut quiet = hub.frames("quiet");
         let _busy = hub.frames("busy");
         for _ in 0..(STREAM_BACKLOG * 3) {
-            hub.deliver(frame("busy", None));
+            hub.deliver(Ok(frame("busy", None)));
         }
-        hub.deliver(frame("quiet", None));
-        assert_eq!(quiet.next().await, Some(Ok(frame("quiet", None))));
+        hub.deliver(Ok(frame("quiet", None)));
+        assert_eq!(quiet.next().await, Some(Ok(Ok(frame("quiet", None)))));
     }
 
     #[tokio::test]
@@ -710,7 +789,7 @@ mod tests {
         let hub = FrameHub::new();
         let mut frames = hub.frames("busy");
         for _ in 0..(STREAM_BACKLOG + 5) {
-            hub.deliver(frame("busy", None));
+            hub.deliver(Ok(frame("busy", None)));
         }
         assert_eq!(frames.next().await, Some(Err(Lagged(5))));
         assert!(matches!(frames.next().await, Some(Ok(_))));

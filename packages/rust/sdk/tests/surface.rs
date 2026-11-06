@@ -760,7 +760,8 @@ async fn every_method_does_what_its_row_says() {
                         let frame = within_a_second(&why, published.next())
                             .await
                             .unwrap_or_else(|| panic!("{why}: the client's bus ended"))
-                            .expect("not lagged");
+                            .expect("not lagged")
+                            .expect("not refused");
                         same(
                             &Value::Object(frame.payload),
                             &sends,

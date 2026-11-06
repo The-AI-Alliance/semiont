@@ -186,7 +186,7 @@ impl Wire {
         locked(&self.reporters).spawn(async move {
             while let Some(delivered) = frames.next().await {
                 match delivered {
-                    Ok(frame) => {
+                    Ok(Ok(frame)) => {
                         let mut line = json!({ "channel": channel, "payload": frame.payload });
                         if let Some(correlation_id) = frame.correlation_id {
                             line["correlationId"] = json!(correlation_id);
@@ -196,6 +196,7 @@ impl Wire {
                         }
                         say(json!({ "frame": line }));
                     }
+                    Ok(Err(refusal)) => eprintln!("listening to {channel}: {refusal:?}"),
                     Err(lagged) => eprintln!("listening to {channel}: {lagged}"),
                 }
             }

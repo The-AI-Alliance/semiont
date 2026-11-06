@@ -200,7 +200,7 @@ impl FailureStream {
 
     /// A listener: the first one taken hears every failure reported since the
     /// stream was made, and each after it those reported from now on.
-    fn listen(&mut self) -> broadcast::Receiver<TransportError> {
+    pub(crate) fn listen(&mut self) -> broadcast::Receiver<TransportError> {
         match self.first.take() {
             Some(first) => first,
             None => self.sender.subscribe(),

@@ -1209,7 +1209,7 @@ async fn run(inner: Arc<Inner>, out: mpsc::Sender<Handed>, mut stop: watch::Rece
                 want = again;
             }
             announced = queued.next() => match announced {
-                Some(Ok(announced)) => {
+                Some(Ok(Ok(announced))) => {
                     // Every announcement received is stamped, before any filtering.
                     locked(&inner.state).last_queued_event_at = Some(SystemTime::now());
                     let announced = Value::Object(announced.payload);
@@ -1218,18 +1218,21 @@ async fn run(inner: Arc<Inner>, out: mpsc::Sender<Handed>, mut stop: watch::Rece
                         .iter()
                         .any(|filter| job_matches_filter(filter, &announced));
                 }
-                // The stream fell behind, and what it missed may have been a
-                // wake-up: the queue is asked.
-                Some(Err(_)) => want = true,
+                // The stream fell behind, or carried an announcement it
+                // refused, and either may have been a wake-up: the queue is
+                // asked.
+                Some(Ok(Err(_)) | Err(_)) => want = true,
                 None => break,
             },
             request = cancels.next() => match request {
-                Some(Ok(request)) => {
+                Some(Ok(Ok(request))) => {
                     if let Some(job_id) = request.payload.get("jobId").and_then(Value::as_str) {
                         inner.signal_cancellation(job_id);
                     }
                 }
-                Some(Err(_)) => {}
+                // A cancellation missed is not known, and one refused names no
+                // job to trust.
+                Some(Ok(Err(_)) | Err(_)) => {}
                 None => break,
             },
             changed = state.changed() => {

@@ -45,7 +45,8 @@ use crate::errors::{
 };
 use crate::required::{Fault, fault_of};
 use crate::transport::{
-    ConnectionState, Envelope, Frame, Frames, Lagged, ResourceHold, TraceCarrier, Transport,
+    ConnectionState, Envelope, Frame, FrameRefusal, Frames, Lagged, ResourceHold, TraceCarrier,
+    Transport,
 };
 use crate::types::ResourceId;
 use futures_core::Stream;
@@ -280,7 +281,10 @@ pub struct Delivered<C: Channel> {
 pub enum StreamError {
     /// The reader fell behind and missed this many frames.
     Lagged(u64),
-    /// A frame arrived whose payload is not the channel's.
+    /// A frame arrived that is not the channel's: one the transport refused,
+    /// or one whose payload is not the channel's. Said as "a frame on" the
+    /// channel " is not that channel's: " and its first fault, named by its
+    /// way from the frame.
     Undecodable(String),
 }
 
@@ -297,8 +301,8 @@ impl std::error::Error for StreamError {}
 
 /// A payload as the channel `C` types it. A gateway's stamps the type does
 /// not declare are the bus's, not the payload's, and are left out. A payload
-/// with a fault as the channel's is refused, naming the fault.
-pub(crate) fn decoded<C: Channel>(mut payload: Map<String, Value>) -> Result<C::Payload, String> {
+/// with a fault as the channel's is refused, for the fault.
+pub(crate) fn decoded<C: Channel>(mut payload: Map<String, Value>) -> Result<C::Payload, Fault> {
     payload.retain(|key, _| !key.starts_with('_') || C::STAMPS.contains(&key.as_str()));
     let payload = Value::Object(payload);
     let fault = match fault_of(payload_shape(C::NAME), &payload) {
@@ -308,25 +312,33 @@ pub(crate) fn decoded<C: Channel>(mut payload: Map<String, Value>) -> Result<C::
             Err(_) => Fault::undecoded(),
         },
     };
-    Err(format!(
-        "a payload on {} is not that channel's: {fault}",
-        C::NAME
-    ))
+    Err(fault)
 }
 
-fn delivered<C: Channel>(frame: Frame) -> Result<Delivered<C>, StreamError> {
+/// A frame of the channel `C`, its payload decoded; or, refused, its
+/// payload's fault.
+fn delivered<C: Channel>(frame: Frame) -> Result<Delivered<C>, Fault> {
     let user_id = frame
         .payload
         .get("_userId")
         .and_then(Value::as_str)
         .map(str::to_owned);
     Ok(Delivered {
-        payload: decoded::<C>(frame.payload).map_err(StreamError::Undecodable)?,
+        payload: decoded::<C>(frame.payload)?,
         correlation_id: frame.correlation_id,
         scope: frame.scope,
         user_id,
         trace: frame.trace,
     })
+}
+
+/// What a typed read of the channel `C` says of a frame it refuses for
+/// `fault`, named by its way from the frame.
+fn not_the_channels<C: Channel>(fault: Fault) -> StreamError {
+    StreamError::Undecodable(format!(
+        "a frame on {} is not that channel's: {fault}",
+        C::NAME
+    ))
 }
 
 /// The frames of the channel `C`, each with its payload decoded, out of the
@@ -346,28 +358,38 @@ impl<C: Channel, F> Typed<C, F> {
     }
 }
 
-impl<C: Channel, F: Stream<Item = Result<Frame, Lagged>> + Unpin> Typed<C, F> {
+impl<C: Channel, F: Stream<Item = Result<Result<Frame, FrameRefusal>, Lagged>> + Unpin>
+    Typed<C, F>
+{
     /// The next frame; `None` when the stream has ended.
     pub async fn next(&mut self) -> Option<Result<Delivered<C>, StreamError>> {
         std::future::poll_fn(|cx| Pin::new(&mut *self).poll_next(cx)).await
     }
 }
 
-impl<C: Channel, F: Stream<Item = Result<Frame, Lagged>> + Unpin> Stream for Typed<C, F> {
+impl<C: Channel, F: Stream<Item = Result<Result<Frame, FrameRefusal>, Lagged>> + Unpin> Stream
+    for Typed<C, F>
+{
     type Item = Result<Delivered<C>, StreamError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut self.frames).poll_next(cx).map(|item| {
             item.map(|item| match item {
-                Ok(frame) => delivered::<C>(frame),
+                Ok(Ok(frame)) => delivered::<C>(frame)
+                    .map_err(|fault| not_the_channels::<C>(fault.within("payload"))),
+                Ok(Err(refusal)) => Err(not_the_channels::<C>(Fault {
+                    member: refusal.member,
+                    reason: refusal.reason,
+                })),
                 Err(Lagged(missed)) => Err(StreamError::Lagged(missed)),
             })
         })
     }
 }
 
-/// One resource's frames out of a transport's: those of its scope, with the
-/// hold on that scope that brings them. Dropped, it lets go of the scope.
+/// One resource's frames out of a transport's: those of its scope, and the
+/// refusals of its scope's frames, with the hold on that scope that brings
+/// them. Dropped, it lets go of the scope.
 pub struct ScopedFrames {
     frames: Frames,
     resource: ResourceId,
@@ -375,14 +397,17 @@ pub struct ScopedFrames {
 }
 
 impl Stream for ScopedFrames {
-    type Item = Result<Frame, Lagged>;
+    type Item = Result<Result<Frame, FrameRefusal>, Lagged>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
             match Pin::new(&mut self.frames).poll_next(cx) {
                 // A stream carries every scope it holds on the one channel,
                 // and another reader may hold another resource's.
-                Poll::Ready(Some(Ok(frame))) if frame.scope.as_ref() != Some(&self.resource) => {}
+                Poll::Ready(Some(Ok(Ok(frame))))
+                    if frame.scope.as_ref() != Some(&self.resource) => {}
+                Poll::Ready(Some(Ok(Err(refusal))))
+                    if refusal.scope.as_ref() != Some(&self.resource) => {}
                 other => return other,
             }
         }
@@ -472,9 +497,15 @@ impl Bus {
         let result = self
             .result_of(&Operation::of::<R>(), payload_of(payload)?, within)
             .await?;
-        delivered::<R::Result>(result).map_err(|undecodable| {
-            TransportError::without_response(undecodable.to_string(), TransportErrorCode::Error)
-                .into()
+        delivered::<R::Result>(result).map_err(|fault| {
+            TransportError::without_response(
+                format!(
+                    "a payload on {} is not that channel's: {fault}",
+                    <R::Result as Channel>::NAME
+                ),
+                TransportErrorCode::Error,
+            )
+            .into()
         })
     }
 }

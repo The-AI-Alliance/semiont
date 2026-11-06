@@ -181,7 +181,8 @@ enum Step {
     Heard(Heard),
     /// The reader fell behind: some frames were missed.
     Missed,
-    /// A frame that is not its channel's: nobody's to act on.
+    /// A frame that is not its channel's, or one refused in its place:
+    /// nobody's to act on.
     Unreadable,
     /// The client's bus ended.
     Ended,

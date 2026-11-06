@@ -73,8 +73,9 @@ impl BeckonStateUnit {
 
 async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
     while let Some(frame) = heard.next().await {
-        // A hover that was missed is replaced by the next one.
-        let Ok(frame) = frame else { continue };
+        // A hover that was missed is replaced by the next one, as is one
+        // refused.
+        let Ok(Ok(frame)) = frame else { continue };
         if let Some(hover) = said::<BeckonHover>(&frame) {
             shared.hovered.set(hover.annotation_id.clone());
             if let Some(annotation_id) = hover.annotation_id {

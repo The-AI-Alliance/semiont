@@ -188,8 +188,9 @@ impl MarkStateUnit {
 
 async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
     while let Some(frame) = heard.next().await {
-        // A signal that was missed is not known, and is not acted on.
-        let Ok(frame) = frame else { continue };
+        // A signal that was missed is not known, and one refused says nothing
+        // to act on.
+        let Ok(Ok(frame)) = frame else { continue };
         if let Some(request) = said::<MarkRequested>(&frame) {
             if request.source == shared.resource_id {
                 shared.pending.set(Some(PendingAnnotation {

@@ -309,7 +309,8 @@ mod tests {
     /// the resource; every other resource has none.
     #[test]
     fn every_resource_the_table_refuses_has_the_fault_it_states_and_no_other_has_one() {
-        use crate::required::{Fault, Reason, fault_of, schema};
+        use crate::required::{Fault, fault_of, schema};
+        use crate::transport::FrameRefusalReason;
         let table = table(include_str!("../specs/resources/reader-cases.json"));
         let (mut lacking, mut malformed) = (0, 0);
         for case in table["cases"].as_array().expect("cases") {
@@ -322,11 +323,11 @@ mod tests {
             let reason = match stated(case, "reason") {
                 "lacks" => {
                     lacking += 1;
-                    Reason::Lacks
+                    FrameRefusalReason::Lacks
                 }
                 "malformed" => {
                     malformed += 1;
-                    Reason::Malformed
+                    FrameRefusalReason::Malformed
                 }
                 other => panic!("{why}: {other} is no reason"),
             };

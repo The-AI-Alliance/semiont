@@ -127,7 +127,7 @@ impl Inner {
                 );
             }
         }
-        self.hub.deliver(frame);
+        self.hub.deliver(Ok(frame));
     }
 }
 

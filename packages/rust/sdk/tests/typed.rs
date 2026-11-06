@@ -48,7 +48,12 @@ async fn a_typed_emit_sends_the_channels_name_and_its_payload_as_an_object() {
     bus.emit::<BeckonFocus>(&event, Envelope::default())
         .await
         .expect("it is sent");
-    let frame = sent.next().await.expect("a frame").expect("not lagged");
+    let frame = sent
+        .next()
+        .await
+        .expect("a frame")
+        .expect("not lagged")
+        .expect("not refused");
     assert_eq!(frame.channel, "beckon:focus");
     assert_eq!(
         frame.payload,
@@ -87,8 +92,8 @@ async fn a_typed_stream_decodes_each_payload_and_leaves_the_gateways_stamps_out_
     // A payload that is not the channel's is said to be so, by its first
     // fault, not skipped.
     for said in [
-        "a payload on beckon:focus is not that channel's: its `annotationId` is malformed",
-        "a payload on beckon:focus is not that channel's: it has no `resourceId`",
+        "a frame on beckon:focus is not that channel's: its `payload.annotationId` is malformed",
+        "a frame on beckon:focus is not that channel's: it has no `payload.resourceId`",
     ] {
         match focus.next().await {
             Some(Err(StreamError::Undecodable(why))) => assert_eq!(why, said),

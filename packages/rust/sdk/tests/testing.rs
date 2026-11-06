@@ -520,7 +520,8 @@ async fn a_reply_that_names_what_it_answers_for_names_what_its_request_named() {
             .await
             .expect("the reply reached the client's bus")
             .expect("the bus is open")
-            .expect("no frame was missed");
+            .expect("no frame was missed")
+            .expect("it is no refusal");
         assert_eq!(
             Value::Object(reply.payload),
             json!({ named: asked[named], "response": "scripted" }),
@@ -540,7 +541,8 @@ async fn a_reply_that_names_what_it_answers_for_names_what_its_request_named() {
         .await
         .expect("the reply reached the client's bus")
         .expect("the bus is open")
-        .expect("no frame was missed");
+        .expect("no frame was missed")
+        .expect("it is no refusal");
     assert_eq!(
         Value::Object(reply.payload),
         json!({ "response": "scripted" })
