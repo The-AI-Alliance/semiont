@@ -2429,9 +2429,15 @@
         "go": {
           "HTTPTransportConfig": ["rand.Rand"],
           "SessionConfig": ["rand.Rand"],
-          "RetryPolicy": ["rand.Rand"],
+          "ResumeConfig": ["rand.Rand"],
+          "SessionFromKeptConfig": ["rand.Rand"],
           "Issuer": ["rand.Rand"],
           "AgentConfig": ["rand.Rand"],
+          "HttpSessionFactory": ["rand.Rand"],
+          "CompleteSignIn": ["rand.Rand"],
+          "DescribeConnection": ["rand.Rand"],
+          "NewScriptedSessions": ["rand.Rand"],
+          "RetryWithBackoff": ["rand.Rand"],
           "EqualJitter": ["rand.Rand"]
         },
         "kotlin": {
@@ -2486,14 +2492,6 @@
           "refresh_stored_session": "Its renewal retry draws its jitter from a v4 UUID.",
           "AgentToken::sign_in": "The agent's renewal retry draws its jitter from a v4 UUID.",
           "equal_jitter": "It draws from a v4 UUID."
-        },
-        "go": {
-          "HTTPTransportConfig": "The stream's reconnect draws its jitter from math/rand/v2's global source.",
-          "SessionConfig": "A session's renewal retry draws its jitter from math/rand/v2's global source.",
-          "RetryPolicy": "RetryWithBackoff draws its jitter from math/rand/v2's global source.",
-          "Issuer": "Its renewal retry draws its jitter from math/rand/v2's global source.",
-          "AgentConfig": "The agent's renewal retry draws its jitter from math/rand/v2's global source.",
-          "EqualJitter": "It draws from math/rand/v2's global source."
         },
         "kotlin": {
           "HttpTransport": "The stream's reconnect and the emit retry draw from Random.Default.",
