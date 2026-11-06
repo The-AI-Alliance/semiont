@@ -125,18 +125,20 @@ def carried(data: str) -> BusFrame | FrameRefusal | Unaddressed:
         return Unaddressed(read)
     if not isinstance(value, dict):
         return Unaddressed(read)
-    channel, scope = value.get("channel"), value.get("scope")
+    channel, scope, correlation_id = value.get("channel"), value.get("scope"), value.get("correlationId")
     if not isinstance(channel, str) or channel == "":
         return Unaddressed(read)
+    # Carried whenever it can be read: when it is what BusFrame allows, a text of at least one character.
+    carries = correlation_id if isinstance(correlation_id, str) and correlation_id != "" else None
     if scope is None:
         return FrameRefusal(
-            channel=channel, member=read.member, reason=read.reason, payload=value.get("payload"), scope=None, correlation_id=None
+            channel=channel, member=read.member, reason=read.reason, payload=value.get("payload"), scope=None, correlation_id=carries
         )
     held = ResourceId.parse(scope) if isinstance(scope, str) else None
     if held is None:
         return Unaddressed(read)
     return FrameRefusal(
-        channel=channel, member=read.member, reason=read.reason, payload=value.get("payload"), scope=held, correlation_id=None
+        channel=channel, member=read.member, reason=read.reason, payload=value.get("payload"), scope=held, correlation_id=carries
     )
 
 
@@ -560,6 +562,7 @@ class Stream:
             self._failures.deliver(TransportError("error", f"the stream carried what is not a frame: {read.fault}"))
             return
         if isinstance(read, FrameRefusal):
+            self._router.route(read)
             self._hub.deliver(read)
             return
         bus_log("RECV", read.channel, read.payload, scope=read.scope, correlation_id=read.correlation_id)

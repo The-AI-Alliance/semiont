@@ -228,7 +228,7 @@ def heard[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], carri
             reason=fault.reason,
             payload=dict(carried.payload),
             scope=carried.scope,
-            correlation_id=None,
+            correlation_id=carried.correlation_id,
         )
     return read
 

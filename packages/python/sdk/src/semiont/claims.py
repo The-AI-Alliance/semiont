@@ -13,7 +13,8 @@ the truth, and no message carries correctness. The idle moments:
 
 - its claims are first read, once the stream is open;
 - it settles the job it holds, immediately, with no timer;
-- a matching `job:queued` arrives while it holds nothing;
+- a matching `job:queued` arrives while it holds nothing, or one its
+  transport refused, which no filter can be compared with;
 - the stream opens again: every change to `open` after the first.
 
 `job:queued` is a WAKE-UP with no memory. While the worker holds nothing it
@@ -788,12 +789,10 @@ class Claims:
 
     async def _hear_announcements(self, announced: Events[Frame | FrameRefusal]) -> None:
         async for frame in announced:
-            if isinstance(frame, FrameRefusal):
-                # A frame refused announces nothing.
-                continue
-            # Every announcement received is stamped, before any filtering.
+            # Every announcement received is stamped, before any filtering, a refused one among them.
             self._last_queued_event_at = datetime.now(UTC)
-            if any(job_matches_filter(accepted, frame.payload) for accepted in self._filters):
+            # What cannot be read cannot be compared with a filter: a refused one wakes the worker as a matching one does.
+            if isinstance(frame, FrameRefusal) or any(job_matches_filter(accepted, frame.payload) for accepted in self._filters):
                 self._pull()
         # The stream has ended: nothing more can be claimed.
         self._end()

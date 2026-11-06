@@ -254,9 +254,10 @@ class ReplyRouter:
     """The replies a transport's requests still await.
 
     A reply is handed, by its correlation id, to the one request that awaits
-    it, so no amount of other traffic can cost a request its reply. And the ids
-    here are what a wire transport names when it opens a stream, so a reply
-    published while the stream was down is sent again.
+    it, so no amount of other traffic can cost a request its reply; so is the
+    refusal of a reply that carries one. And the ids here are what a wire
+    transport names when it opens a stream, so a reply published while the
+    stream was down is sent again.
     """
 
     def __init__(self) -> None:

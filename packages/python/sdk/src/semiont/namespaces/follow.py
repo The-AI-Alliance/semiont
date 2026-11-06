@@ -12,6 +12,12 @@ the job's id is known are held, and the job's are then handled in the order
 they came. The reply itself is the follower's first event: it names the job,
 to `job.cancel` and to `job.status`.
 
+A frame of the lifecycle refused, by the transport or as its channel's,
+names no job: it is reported as `JobRefused`, held as the job's frames are
+until the job has its id, and is no word of the job. It starts neither the
+silence nor a stall deadline again, so a follower whose job's end was refused
+learns the end from the job's status.
+
 A failure the queue will retry is reported and followed past: the job is not
 over. A failure it will not retry ends the follower with `job.failed`. A
 follower given a stall deadline that hears nothing for that long asks for the
@@ -241,7 +247,7 @@ async def _followed[C: JobCompleteCommand](
     hearing: asyncio.Task[Frame | FrameRefusal | None] = asyncio.ensure_future(anext(frames, None))
     asking: asyncio.Task[JobStatusResponse] | None = None
     job_id: JobId | None = None
-    held: list[_Heard] = []
+    held: list[_Heard | FrameRefusal] = []
     ask_at: float | None = None
     stall_at = None if stall is None else loop.time() + stall
     try:
@@ -266,7 +272,7 @@ async def _followed[C: JobCompleteCommand](
             due = min((at for at in (ask_at, stall_at) if at is not None), default=None)
             done, _ = await asyncio.wait(waiting, timeout=None if due is None else max(due - now, 0), return_when=asyncio.FIRST_COMPLETED)
             now = loop.time()
-            to_act_on: list[_Heard] = []
+            to_act_on: list[_Heard | FrameRefusal] = []
 
             if creating is not None and creating in done:
                 created = creating.result()
@@ -282,10 +288,7 @@ async def _followed[C: JobCompleteCommand](
                 if frame is None:
                     raise BusRequestError("bus.closed", "The client closed while it was following a job")
                 hearing = asyncio.ensure_future(anext(frames, None))
-                said = _heard(frame)
-                # A refusal is read as no job's: what a follower reports of one, the protocol does not yet say.
-                if not isinstance(said, FrameRefusal):
-                    (held if job_id is None else to_act_on).append(said)
+                (held if job_id is None else to_act_on).append(_heard(frame))
 
             if asking is not None and asking in done:
                 answered, asking = asking, None
@@ -314,6 +317,9 @@ async def _followed[C: JobCompleteCommand](
                     asking = asyncio.ensure_future(_status(links, job_id))
 
             for said in to_act_on:
+                if isinstance(said, FrameRefusal):
+                    report(JobRefused(said))
+                    continue
                 if said.job_id != job_id:
                     continue
                 match said:
