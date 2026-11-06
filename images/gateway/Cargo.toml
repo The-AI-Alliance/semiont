@@ -44,6 +44,6 @@ tower = { workspace = true, features = ["util"] }
 uuid = { workspace = true, features = ["v4"] }
 
 [dev-dependencies]
-# The reads client's retry, on tokio's paused clock.
+# The reads client's retry, and the waits for the Archivist's answers, on tokio's paused clock.
 tokio = { workspace = true, features = ["test-util"] }
 

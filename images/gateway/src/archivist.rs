@@ -10,7 +10,8 @@
 use crate::http::ApiError;
 use axum::body::Body;
 use axum::http::StatusCode;
-use futures::StreamExt;
+use bytes::Bytes;
+use futures::{Stream, StreamExt, TryStreamExt};
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
 use semiont::identity::encode_uri_component;
@@ -35,13 +36,14 @@ const CALLS: [(&str, &str); 6] = [
 
 pub struct Archivist {
     base: String,
-    /// The reads: each part of an answer waited for `read`, and a read that
-    /// got no answer sent once more, unless its connection was not taken in
-    /// time.
+    /// The reads: a read that got no answer sent once more, unless its
+    /// connection was not taken in time, and its answer waited for as
+    /// `waits` says.
     reads: reqwest::Client,
-    /// The uploads: an answer waited for `read` from the upload's last byte.
+    /// The uploads: an answer waited for `readSeconds` from the upload's last
+    /// byte.
     uploads: reqwest::Client,
-    read: Duration,
+    waits: Waits,
     token: ServiceToken,
 }
 
@@ -58,16 +60,77 @@ fn client(fields: Value) -> Value {
 }
 
 /// How long the gateway waits for the Archivist, as the Archivist's document
-/// states it (`x-semiont-limits`): `connectSeconds` for a connection, and
-/// `readSeconds` for each part of an answer.
-fn waits() -> Result<(Duration, Duration), String> {
-    let limit = |key: &str| {
-        spec().archivist["x-semiont-limits"][key]
-            .as_u64()
-            .map(Duration::from_secs)
-            .ok_or_else(|| format!("The Archivist's document states no x-semiont-limits.{key}"))
-    };
-    Ok((limit("connectSeconds")?, limit("readSeconds")?))
+/// states it (`x-semiont-limits`).
+#[derive(Clone, Copy)]
+struct Waits {
+    /// `connectSeconds`: for a connection to be taken.
+    connect: Duration,
+    /// `readSeconds`: for each next part of an answer and, with `connect`,
+    /// for a read's answer to begin.
+    read: Duration,
+}
+
+impl Waits {
+    fn stated() -> Result<Waits, String> {
+        let limit = |key: &str| {
+            spec().archivist["x-semiont-limits"][key]
+                .as_u64()
+                .map(Duration::from_secs)
+                .ok_or_else(|| format!("The Archivist's document states no x-semiont-limits.{key}"))
+        };
+        Ok(Waits {
+            connect: limit("connectSeconds")?,
+            read: limit("readSeconds")?,
+        })
+    }
+
+    /// A read's answer, begun within `connect` and `read` together of the
+    /// read's first send, its retry included: the retry happens inside
+    /// `send`. Past that, the read is unanswered.
+    async fn answer(self, read: reqwest::RequestBuilder) -> Result<reqwest::Response, String> {
+        let begun_within = self.connect + self.read;
+        match tokio::time::timeout(begun_within, read.send()).await {
+            Ok(answered) => answered.map_err(|error| logging::chain(&error)),
+            Err(_) => Err(format!(
+                "no answer begun {}s after the read was first sent",
+                begun_within.as_secs()
+            )),
+        }
+    }
+
+    /// An answer's parts as they arrive, each waited for `read` from when it
+    /// is asked for: one that does not come within it ends the answer with an
+    /// error, as a stall.
+    fn parts(
+        self,
+        answer: reqwest::Response,
+    ) -> impl Stream<Item = Result<Bytes, String>> + Send + 'static {
+        let read = self.read;
+        futures::stream::unfold(
+            Some(Box::pin(answer.bytes_stream())),
+            move |parts| async move {
+                let mut parts = parts?;
+                match tokio::time::timeout(read, parts.next()).await {
+                    Ok(Some(Ok(part))) => Some((Ok(part), Some(parts))),
+                    Ok(Some(Err(error))) => Some((Err(logging::chain(&error)), None)),
+                    Ok(None) => None,
+                    Err(_) => Some((
+                        Err(format!(
+                            "no part of the answer came within {}s",
+                            read.as_secs()
+                        )),
+                        None,
+                    )),
+                }
+            },
+        )
+    }
+
+    /// An answer whole, each part waited for as `parts` waits, read as JSON.
+    async fn json(self, answer: reqwest::Response) -> Result<Value, String> {
+        let whole: Vec<u8> = self.parts(answer).map_ok(Vec::from).try_concat().await?;
+        serde_json::from_slice(&whole).map_err(|error| error.to_string())
+    }
 }
 
 /// The retry policy of the client the gateway reads from the Archivist with:
@@ -76,9 +139,9 @@ fn waits() -> Result<(Duration, Duration), String> {
 /// closes just as a read is written to it does — is sent once more. A read
 /// whose connection was not taken within `connectSeconds` is not: the
 /// Archivist cannot be reached, and a second attempt would only wait as long
-/// again. An answer is never asked again, whatever its status. A read whose
-/// answer did not come within its wait is not sent again either: reqwest
-/// keeps that timer outside the policy.
+/// again. An answer is never asked again, whatever its status. The wait for
+/// a read's answer to begin is kept outside the policy (`Waits::answer`), so
+/// it counts from the first send, the retry inside it.
 fn read_retry(host: &str) -> reqwest::retry::Builder {
     reqwest::retry::for_host(host.to_owned())
         .max_retries_per_request(1)
@@ -96,12 +159,12 @@ fn read_retry(host: &str) -> reqwest::retry::Builder {
         })
 }
 
-/// The client the gateway reads from the Archivist at `host` with.
-fn reads_client(host: &str, connect: Duration, read: Duration) -> reqwest::ClientBuilder {
+/// The client the gateway reads from the Archivist at `host` with. It keeps
+/// no timer on an answer: `Waits` does.
+fn reads_client(host: &str, waits: Waits) -> reqwest::ClientBuilder {
     reqwest::Client::builder()
         .retry(read_retry(host))
-        .connect_timeout(connect)
-        .read_timeout(read)
+        .connect_timeout(waits.connect)
 }
 
 /// Whether a call failed because its connection was not taken in time.
@@ -157,7 +220,7 @@ impl Archivist {
         credential: Credential,
         http: reqwest::Client,
     ) -> Result<Archivist, String> {
-        let (connect, read) = waits()?;
+        let waits = Waits::stated()?;
         let built = |builder: reqwest::ClientBuilder| {
             builder
                 .build()
@@ -165,9 +228,9 @@ impl Archivist {
         };
         Ok(Archivist {
             base: origin(host, port),
-            reads: built(reads_client(host, connect, read))?,
-            uploads: built(reqwest::Client::builder().connect_timeout(connect))?,
-            read,
+            reads: built(reads_client(host, waits))?,
+            uploads: built(reqwest::Client::builder().connect_timeout(waits.connect))?,
+            waits,
             token: ServiceToken::new(credential, http),
         })
     }
@@ -215,7 +278,7 @@ impl Archivist {
         if !roles.is_empty() {
             request = request.header("semiont-roles", roles.join(","));
         }
-        let read = self.read;
+        let read = self.waits.read;
         let unanswered = async move {
             let _ = sent_whole.await;
             tokio::time::sleep(read).await;
@@ -280,22 +343,22 @@ impl Archivist {
                 path("/resources/{id}/jsonld", resource_id)
             ))
             .header("authorization", authorization);
-        let response = in_client_span("resources.describe", request.send())
+        let response = in_client_span("resources.describe", self.waits.answer(request))
             .await
-            .map_err(|e| {
+            .map_err(|error| {
                 logging::error(
                     "Archivist unreachable for a description",
-                    client(json!({ "resourceId": resource_id, "error": logging::chain(&e) })),
+                    client(json!({ "resourceId": resource_id, "error": error })),
                 );
                 unavailable()
             })?;
         match response.status() {
             StatusCode::NOT_FOUND => Ok(None),
             status if status.is_success() => {
-                response.json::<Value>().await.map(Some).map_err(|e| {
+                self.waits.json(response).await.map(Some).map_err(|error| {
                     logging::error(
                         "Archivist description is not JSON",
-                        client(json!({ "resourceId": resource_id, "error": logging::chain(&e) })),
+                        client(json!({ "resourceId": resource_id, "error": error })),
                     );
                     unavailable()
                 })
@@ -322,17 +385,17 @@ impl Archivist {
                 path("/resources/{id}/annotations", resource_id)
             ))
             .header("authorization", authorization);
-        let response = in_client_span("resources.annotations", request.send())
+        let response = in_client_span("resources.annotations", self.waits.answer(request))
             .await
-            .map_err(|e| {
+            .map_err(|error| {
                 logging::error(
                     "Archivist unreachable for a resource's annotations",
-                    client(json!({ "resourceId": resource_id, "error": logging::chain(&e) })),
+                    client(json!({ "resourceId": resource_id, "error": error })),
                 );
                 unavailable()
             })?;
         match response.status() {
-            StatusCode::OK => Ok(Some(Body::from_stream(response.bytes_stream()))),
+            StatusCode::OK => Ok(Some(Body::from_stream(self.waits.parts(response)))),
             StatusCode::NOT_FOUND => Ok(None),
             status => {
                 logging::error(
@@ -356,12 +419,12 @@ impl Archivist {
                 path("/resources/{id}/anchored-text", resource_id)
             ))
             .header("authorization", authorization);
-        let response = in_client_span("resources.anchored_text", request.send())
+        let response = in_client_span("resources.anchored_text", self.waits.answer(request))
             .await
-            .map_err(|e| {
+            .map_err(|error| {
                 logging::error(
                     "Archivist unreachable for an anchored text",
-                    client(json!({ "resourceId": resource_id, "error": logging::chain(&e) })),
+                    client(json!({ "resourceId": resource_id, "error": error })),
                 );
                 unavailable()
             })?;
@@ -373,7 +436,7 @@ impl Archivist {
             );
             return Err(unavailable());
         }
-        Ok(Body::from_stream(response.bytes_stream()))
+        Ok(Body::from_stream(self.waits.parts(response)))
     }
 
     /// A representation's bytes, streamed as they arrive, and their media
@@ -388,19 +451,20 @@ impl Archivist {
                 path("/resources/{id}/content", resource_id)
             ))
             .header("authorization", authorization);
-        let response = in_client_span("content.get", request.send())
+        let response = in_client_span("content.get", self.waits.answer(request))
             .await
-            .map_err(|e| {
+            .map_err(|error| {
                 logging::error(
                     "Archivist content read unreachable",
-                    client(json!({ "resourceId": resource_id, "error": logging::chain(&e) })),
+                    client(json!({ "resourceId": resource_id, "error": error })),
                 );
                 unavailable()
             })?;
         let status = response.status();
         if status == StatusCode::NOT_FOUND {
-            let answer: Value = response.json().await.unwrap_or(Value::Null);
-            if spec().validator("RepresentationNotFound").is_valid(&answer) {
+            if let Ok(answer) = self.waits.json(response).await
+                && spec().validator("RepresentationNotFound").is_valid(&answer)
+            {
                 let message = if answer["code"] == "representation" {
                     "Resource representation not found"
                 } else {
@@ -428,7 +492,7 @@ impl Archivist {
             .filter(|v| !v.is_empty())
             .unwrap_or("application/octet-stream")
             .to_owned();
-        Ok((Body::from_stream(response.bytes_stream()), media_type))
+        Ok((Body::from_stream(self.waits.parts(response)), media_type))
     }
 
     /// A resource's persisted events from `from_sequence`, inclusive: one
@@ -476,21 +540,20 @@ impl Archivist {
         );
         let response = in_client_span(
             "events.replay",
-            self.reads
-                .get(url)
-                .header("authorization", authorization)
-                .send(),
+            self.waits
+                .answer(self.reads.get(url).header("authorization", authorization)),
         )
         .await
-        .map_err(|e| format!("Archivist replay read failed: {}", logging::chain(&e)))?;
+        .map_err(|error| format!("Archivist replay read failed: {error}"))?;
         let status = response.status();
         if !status.is_success() {
             return Err(format!("Archivist replay read failed: {}", status.as_u16()));
         }
-        let mut answer: Value = response
-            .json()
+        let mut answer = self
+            .waits
+            .json(response)
             .await
-            .map_err(|e| format!("Archivist replay answer is not JSON: {e}"))?;
+            .map_err(|error| format!("Archivist replay answer is not JSON: {error}"))?;
         if let Some(problems) = semiont_core::spec::problems("ArchivistEventsResponse", &answer) {
             return Err(format!(
                 "Archivist replay answer is not an ArchivistEventsResponse: {problems}"
@@ -505,20 +568,25 @@ impl Archivist {
     }
 }
 
-/// The reads client's retry, on tokio's paused clock, over connections that a
-/// stand-in for its connector makes none of: an address that takes no
-/// connection cannot be staged on the loopback, but reqwest's own connect
-/// timeout over a connector that never answers ends an attempt exactly as it
-/// ends one to such an address.
+/// The reads client and the gateway's waits for the Archivist's answers, on
+/// tokio's paused clock. A stand-in for the client's connector counts each
+/// attempt to connect, and makes it late, or makes none: an address that
+/// takes no connection cannot be staged on the loopback, but reqwest's own
+/// connect timeout over a connector that never answers ends an attempt
+/// exactly as it ends one to such an address. A connection that is made goes
+/// to a stand-in Archivist on the loopback.
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io;
-    use std::marker::PhantomData;
-    use std::pin::Pin;
+    use std::pin::{Pin, pin};
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::task::Context;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::{TcpListener, TcpStream};
+    use tokio::time::{Instant, sleep};
+    use tower::ServiceExt;
 
     const HOST: &str = "archivist.test";
 
@@ -529,9 +597,11 @@ mod tests {
         NeverTaken,
         /// The connection is refused at once.
         Refused,
+        /// The connection is made, this long after it is asked for.
+        Taken { after: Duration },
     }
 
-    /// Counts each attempt to connect, and makes none.
+    /// Counts each attempt to connect.
     #[derive(Clone)]
     struct Attempts {
         made: Arc<AtomicUsize>,
@@ -541,25 +611,27 @@ mod tests {
     #[derive(Clone)]
     struct Attempt<S> {
         attempts: Attempts,
-        connector: PhantomData<fn() -> S>,
+        connector: S,
     }
 
     impl<S> tower::Layer<S> for Attempts {
         type Service = Attempt<S>;
 
-        fn layer(&self, _: S) -> Attempt<S> {
+        fn layer(&self, connector: S) -> Attempt<S> {
             Attempt {
                 attempts: self.clone(),
-                connector: PhantomData,
+                connector,
             }
         }
     }
 
     impl<S, R> tower::Service<R> for Attempt<S>
     where
-        S: tower::Service<R>,
+        S: tower::Service<R> + Clone + Send + 'static,
+        S::Future: Send,
         S::Response: Send + 'static,
         S::Error: From<io::Error> + Send + 'static,
+        R: Send + 'static,
     {
         type Response = S::Response;
         type Error = S::Error;
@@ -569,7 +641,7 @@ mod tests {
             Poll::Ready(Ok(()))
         }
 
-        fn call(&mut self, _: R) -> Self::Future {
+        fn call(&mut self, request: R) -> Self::Future {
             self.attempts.made.fetch_add(1, Ordering::SeqCst);
             match self.attempts.connecting {
                 Connecting::NeverTaken => Box::pin(std::future::pending()),
@@ -577,23 +649,39 @@ mod tests {
                     let refused = io::Error::from(io::ErrorKind::ConnectionRefused);
                     Box::pin(std::future::ready(Err(refused.into())))
                 }
+                Connecting::Taken { after } => {
+                    let connector = self.connector.clone();
+                    Box::pin(async move {
+                        sleep(after).await;
+                        connector.oneshot(request).await
+                    })
+                }
             }
         }
+    }
+
+    /// The reads client of the Archivist at `host`, its connections made
+    /// through `attempts`.
+    fn reads(host: &str, attempts: Attempts) -> reqwest::Client {
+        // Already installed by another test of this process: one is enough.
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        reads_client(host, Waits::stated().unwrap())
+            .connector_layer(attempts)
+            .build()
+            .unwrap()
     }
 
     /// A read on the reads client, with the Archivist's waits: how it failed,
     /// and how many attempts it made.
     async fn read(connecting: Connecting) -> (reqwest::Error, usize) {
-        let _ = rustls::crypto::ring::default_provider().install_default();
-        let (connect, read) = waits().unwrap();
         let made = Arc::new(AtomicUsize::new(0));
-        let client = reads_client(HOST, connect, read)
-            .connector_layer(Attempts {
+        let client = reads(
+            HOST,
+            Attempts {
                 made: made.clone(),
                 connecting,
-            })
-            .build()
-            .unwrap();
+            },
+        );
         let failed = client
             .get(format!("http://{HOST}/health"))
             .send()
@@ -614,5 +702,215 @@ mod tests {
         let (failed, attempts) = read(Connecting::Refused).await;
         assert!(failed.is_connect() && !failed.is_timeout(), "{failed:?}");
         assert_eq!(attempts, 2);
+    }
+
+    /// The clock of a test that waits out long times over real sockets.
+    ///
+    /// A paused clock alone will not do. It runs ahead to the next timer
+    /// whenever nothing is runnable, and a connection or an answer that is on
+    /// its way is not runnable: a wait for it would end before it could
+    /// arrive. So the clock is held still, which the runtime does while a
+    /// blocking task runs, and moved by hand, `STEP` for each real
+    /// millisecond.
+    struct QuickClock(tokio::task::JoinHandle<()>);
+
+    const STEP: Duration = Duration::from_millis(250);
+
+    impl QuickClock {
+        fn start() -> QuickClock {
+            QuickClock(tokio::spawn(async {
+                loop {
+                    let _ = tokio::task::spawn_blocking(|| {
+                        std::thread::sleep(Duration::from_millis(1));
+                    })
+                    .await;
+                    tokio::time::advance(STEP).await;
+                }
+            }))
+        }
+    }
+
+    impl Drop for QuickClock {
+        fn drop(&mut self) {
+            self.0.abort();
+        }
+    }
+
+    /// Whether `elapsed` is `expected`: no less, and no more than the quick
+    /// clock moves while the sockets carry what they carry.
+    fn took(elapsed: Duration, expected: Duration) -> bool {
+        elapsed >= expected && elapsed < expected + Duration::from_secs(2)
+    }
+
+    /// `work`, which must end within twice the longest wait for an answer to
+    /// begin: a wait that never ends fails the test instead of hanging it.
+    async fn guarded<T>(work: impl Future<Output = T>) -> T {
+        let waits = Waits::stated().unwrap();
+        tokio::time::timeout((waits.connect + waits.read) * 2, work)
+            .await
+            .expect("it ended")
+    }
+
+    /// The longest the Archivist holds a read of anchored text.
+    fn settle_wait() -> Duration {
+        spec().archivist["paths"]["/resources/{id}/anchored-text"]["get"]["x-semiont-limits"]
+            ["settleWaitSeconds"]
+            .as_u64()
+            .map(Duration::from_secs)
+            .unwrap()
+    }
+
+    /// What the stand-in Archivist does on a connection, once a read has come
+    /// whole on it.
+    enum Answering {
+        /// Begins its answer this long after, and sends it whole.
+        After(Duration),
+        /// Closes the connection this long after, having answered nothing.
+        Closes(Duration),
+        /// Never answers.
+        Never,
+        /// Sends its answer's head and first part at once, and no more.
+        Stalls,
+    }
+
+    /// A stand-in Archivist on the loopback, which answers the connections
+    /// made to it, in the order they are made, as `answering` says; and the
+    /// URL of a read of it.
+    async fn archivist(answering: Vec<Answering>) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            for answering in answering {
+                let (connection, _) = listener.accept().await.unwrap();
+                tokio::spawn(answer(connection, answering));
+            }
+        });
+        format!("http://{address}/health")
+    }
+
+    async fn answer(mut connection: TcpStream, answering: Answering) {
+        let mut read = Vec::new();
+        let mut chunk = [0u8; 1024];
+        while !read.ends_with(b"\r\n\r\n") {
+            let got = connection.read(&mut chunk).await.unwrap();
+            assert_ne!(got, 0, "closed before its read came whole");
+            read.extend_from_slice(&chunk[..got]);
+        }
+        match answering {
+            Answering::After(wait) => {
+                sleep(wait).await;
+                connection
+                    .write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 2\r\n\r\n{}")
+                    .await
+                    .unwrap();
+            }
+            Answering::Closes(wait) => {
+                sleep(wait).await;
+                return;
+            }
+            Answering::Never => {}
+            Answering::Stalls => {
+                connection
+                    .write_all(b"HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\n\r\n1\r\n{\r\n")
+                    .await
+                    .unwrap();
+            }
+        }
+        std::future::pending::<()>().await;
+    }
+
+    /// A read of `url` on the reads client, whose answer is waited for as the
+    /// gateway waits.
+    async fn answered(
+        url: &str,
+        connecting: Connecting,
+    ) -> (Result<reqwest::Response, String>, usize) {
+        let made = Arc::new(AtomicUsize::new(0));
+        let client = reads(
+            "127.0.0.1",
+            Attempts {
+                made: made.clone(),
+                connecting,
+            },
+        );
+        let answer = guarded(Waits::stated().unwrap().answer(client.get(url))).await;
+        (answer, made.load(Ordering::SeqCst))
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_read_whose_answer_begins_after_read_seconds_and_within_connect_and_read_seconds_is_answered()
+     {
+        let _clock = QuickClock::start();
+        let waits = Waits::stated().unwrap();
+        let connecting = waits.connect - Duration::from_secs(1);
+        let held = settle_wait() + Duration::from_secs(2);
+        let begins = connecting + held;
+        assert!(
+            begins > waits.read && begins < waits.connect + waits.read,
+            "an answer that begins {begins:?} after its read is sent tells nothing of the waits"
+        );
+        let url = archivist(vec![Answering::After(held)]).await;
+        let sent = Instant::now();
+        let (answer, attempts) = answered(&url, Connecting::Taken { after: connecting }).await;
+        let elapsed = sent.elapsed();
+        let answer = answer.unwrap();
+        assert_eq!(answer.status(), reqwest::StatusCode::OK);
+        assert!(
+            took(elapsed, begins),
+            "answered after {elapsed:?}, not {begins:?}"
+        );
+        assert_eq!(attempts, 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_read_whose_first_attempt_breaks_late_and_whose_second_hangs_gives_up_connect_and_read_seconds_after_its_first_send()
+     {
+        let _clock = QuickClock::start();
+        let waits = Waits::stated().unwrap();
+        let breaks = waits.read - Duration::from_secs(2);
+        let url = archivist(vec![Answering::Closes(breaks), Answering::Never]).await;
+        let sent = Instant::now();
+        let (answer, attempts) = answered(
+            &url,
+            Connecting::Taken {
+                after: Duration::ZERO,
+            },
+        )
+        .await;
+        let elapsed = sent.elapsed();
+        let given_up = waits.connect + waits.read;
+        assert!(answer.is_err(), "{answer:?}");
+        assert!(
+            took(elapsed, given_up),
+            "gave up after {elapsed:?}, not {given_up:?}"
+        );
+        assert_eq!(attempts, 2);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_part_that_does_not_come_within_read_seconds_ends_the_answer_as_a_stall() {
+        let _clock = QuickClock::start();
+        let waits = Waits::stated().unwrap();
+        let url = archivist(vec![Answering::Stalls]).await;
+        let (answer, _) = answered(
+            &url,
+            Connecting::Taken {
+                after: Duration::ZERO,
+            },
+        )
+        .await;
+        let mut parts = pin!(waits.parts(answer.unwrap()));
+        let first = guarded(parts.next()).await;
+        assert_eq!(first, Some(Ok(Bytes::from_static(b"{"))));
+        let asked = Instant::now();
+        let stalled = guarded(parts.next()).await;
+        let elapsed = asked.elapsed();
+        assert!(matches!(stalled, Some(Err(_))), "{stalled:?}");
+        assert!(
+            took(elapsed, waits.read),
+            "stalled after {elapsed:?}, not {:?}",
+            waits.read
+        );
+        assert_eq!(guarded(parts.next()).await, None);
     }
 }
