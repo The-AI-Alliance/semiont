@@ -66,7 +66,7 @@ class MetricRow:
 BUS_EMIT: Final = SpanRow(
     name="bus.emit:{channel}",
     kind="producer",
-    attributes=("bus.channel", "bus.scope"),
+    attributes=("bus.channel", "bus.scope", "thread.id"),
     always=("bus.channel",),
 )
 
@@ -74,7 +74,7 @@ BUS_EMIT: Final = SpanRow(
 BUS_RECV: Final = SpanRow(
     name="bus.recv:{channel}",
     kind="consumer",
-    attributes=("bus.channel", "bus.scope"),
+    attributes=("bus.channel", "bus.scope", "thread.id"),
     always=("bus.channel",),
 )
 
@@ -82,7 +82,7 @@ BUS_RECV: Final = SpanRow(
 CONTENT_PUT: Final = SpanRow(
     name="content.put",
     kind="client",
-    attributes=("content.format", "content.size_bytes"),
+    attributes=("content.format", "content.size_bytes", "thread.id"),
     always=("content.format", "content.size_bytes"),
 )
 
@@ -90,7 +90,7 @@ CONTENT_PUT: Final = SpanRow(
 CONTENT_GET: Final = SpanRow(
     name="content.get",
     kind="client",
-    attributes=("resource.id", "content.stream"),
+    attributes=("resource.id", "content.stream", "thread.id"),
     always=("resource.id",),
 )
 
@@ -98,7 +98,7 @@ CONTENT_GET: Final = SpanRow(
 CONTENT_GET_GRAPH: Final = SpanRow(
     name="content.get_graph",
     kind="client",
-    attributes=("resource.id",),
+    attributes=("resource.id", "thread.id"),
     always=("resource.id",),
 )
 
@@ -106,7 +106,7 @@ CONTENT_GET_GRAPH: Final = SpanRow(
 CONTENT_GET_ANCHORED_TEXT: Final = SpanRow(
     name="content.get_anchored_text",
     kind="client",
-    attributes=("resource.id",),
+    attributes=("resource.id", "thread.id"),
     always=("resource.id",),
 )
 
@@ -114,7 +114,7 @@ CONTENT_GET_ANCHORED_TEXT: Final = SpanRow(
 CONTENT_GET_ANNOTATIONS: Final = SpanRow(
     name="content.get_annotations",
     kind="client",
-    attributes=("resource.id",),
+    attributes=("resource.id", "thread.id"),
     always=("resource.id",),
 )
 
