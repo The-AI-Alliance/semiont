@@ -2304,6 +2304,12 @@
         "retryWithBackoff": [
           "RetryOptions"
         ],
+        "newSession": [
+          "RetryOptions"
+        ],
+        "fromIssuedSession": ["HttpOptions"],
+        "signInDevice": ["HttpOptions"],
+        "IssuerOptions": ["RetryOptions"],
         "pollUntilComplete": [
           "JobNamespace"
         ]
@@ -2449,7 +2455,13 @@
         ],
         "retryWithBackoff": [
           "RetryOptions"
-        ]
+        ],
+        "newSession": [
+          "RetryOptions"
+        ],
+        "fromIssuedSession": ["HttpOptions"],
+        "signInDevice": ["HttpOptions"],
+        "IssuerOptions": ["RetryOptions"]
       }
     },
       "notYetReached": {

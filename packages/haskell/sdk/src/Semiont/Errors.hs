@@ -1,9 +1,9 @@
-module Semiont.Errors (BusRequestError(..), TransportError(..)) where
+module Semiont.Errors (BusRequestError(..), TransportError(..), SessionError(..), SignInError(..)) where
 
 import Control.Exception (Exception)
 import Data.Aeson (Object)
 import Data.Text (Text)
-import Semiont.ErrorCodes (BusRequestCode, TransportCode)
+import Semiont.ErrorCodes (BusRequestCode, TransportCode, SessionCode, SignInCode)
 
 data BusRequestError = BusRequestError
   { busRequestErrorCode :: BusRequestCode
@@ -21,3 +21,18 @@ data TransportError = TransportError
   , retryAfterMs :: Maybe Integer
   } deriving (Eq, Show)
 instance Exception TransportError
+
+-- | Session diagnostics contain no credential or raw issuer response.
+data SessionError = SessionError
+  { sessionErrorCode :: SessionCode
+  , sessionErrorMessage :: Text
+  , sessionErrorKbId :: Text
+  } deriving (Eq, Show)
+instance Exception SessionError
+
+data SignInError = SignInError
+  { signInErrorCode :: SignInCode
+  , signInErrorMessage :: Text
+  , signInStatus :: Maybe Int
+  } deriving (Eq, Show)
+instance Exception SignInError

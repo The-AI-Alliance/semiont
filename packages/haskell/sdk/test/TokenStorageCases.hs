@@ -62,9 +62,11 @@ tokenStorageCases root = do
   require "a missing claim was fabricated" (Tokens.textClaim custom "missing"==Nothing)
   require "zero exp was read as a time" (Tokens.tokenExpiry custom==Nothing)
   storage <- Storage.newMemoryStorage
-  replicateConcurrently_ 200 (Storage.update storage "shared" (Just . maybe "x" (<>"x")))
+  replicateConcurrently_ 200 (Storage.update storage "shared" (\previous -> (Just (maybe "x" (<>"x") previous),())))
   value <- Storage.get storage "shared"
   require "atomic memory storage lost a concurrent writer" (fmap Text.length value==Just 200)
+  prior <- Storage.update storage "shared" (\previous -> (Nothing,previous))
+  require "atomic storage did not return the value it changed" (fmap Text.length prior==Just 200)
   Storage.set storage "another" "retained"
   Storage.delete storage "shared"
   require "memory storage removed another key" . (==Just "retained") =<< Storage.get storage "another"

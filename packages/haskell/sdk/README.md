@@ -9,8 +9,9 @@ scoped operation consumption, retry support, and launcher discovery.
 HTTP/SSE and content adapters and the client facade are available, including
 the Frame, Bind, Beckon, Browse, Gather, Match, Mark, Yield, Job, Auth and System namespaces.
 All client namespaces, live queries, typed delegation, uploads, claims, held jobs
-and durable worker commits are available. Sign-in, persisted client sessions,
-registry and state units are still being implemented.
+and durable worker commits are available, together with OAuth redirect/device
+sign-in and sessions with token renewal. Native kept sign-ins, persisted client
+queries, registry and state units are still being implemented.
 
 [Install](#install) · [Signing in](#signing-in) · [Connect](#connect) ·
 [Delegation](#delegation) · [Live queries](#live-queries) ·
@@ -33,11 +34,44 @@ Haskell installation; see [Building and verifying](#building-and-verifying).
 
 ## Signing in
 
-In development. Kept launcher sign-ins, device sign-in, browser redirect,
-agent credentials, and session renewal are part of this SDK's implementation
-scope. There is no public Haskell sign-in API yet. The shared
-[sign-in guide](../../../docs/builder/SIGN-IN.md) describes the supported flows
-in the other SDKs.
+`Semiont.Issuer` discovers the issuer from a knowledge base's resource metadata.
+`signInWithDeviceGrant` reports the approval code to your callback and polls at
+the issuer's interval. `beginAuthorization` saves PKCE/state and returns the
+URL to navigate to; `completeAuthorization` consumes the callback once and
+returns the pending identity and issued tokens. Both use the application's
+HTTP pool and controlled clock. The client ids and scope come from the shared
+OAuth registration table.
+
+`Semiont.Session.signInDevice` opens a client/session from a device grant.
+`fromIssuedSession` persists an already issued grant and installs its rotating
+refresh callback. `SessionOptions` carries the knowledge base, storage, wall
+clock and host callbacks; provide `sessionValidate` to confirm a person with
+the gateway. A service can omit that callback. `ready` waits for startup;
+`token`, `user` and `streamState` are read-only observations. Refusals that arrive
+together share one renewal. An issuer refusal forgets the grant; an outage
+keeps it and retries with reconnect backoff. Disposing a session joins its
+work and leaves its client open; `closeOpenedSession` closes both.
+
+```haskell
+module DeviceSignIn where
+import Control.Exception (bracket)
+import qualified Semiont.Http as Http
+import qualified Semiont.Session as Session
+import Semiont.Types (DeviceCode)
+
+withDeviceSession :: Http.HttpOptions -> Session.SessionOptions
+  -> (DeviceCode -> IO ()) -> (Session.Session -> IO result) -> IO result
+withDeviceSession http options showCode use =
+  bracket (Session.signInDevice http options showCode)
+    Session.closeOpenedSession (use . Session.openedSession)
+```
+
+`Semiont.SessionStorage.newMemoryStorage` keeps one context's text values;
+applications can implement `SessionStorage` for their own storage.
+Its `update` transforms and returns a result atomically, so redirect completion
+and refresh rotation cannot overwrite another writer. Native launcher kept
+sign-ins and service/agent key credentials remain in progress. The shared
+[sign-in guide](../../../docs/builder/SIGN-IN.md) describes the flows.
 
 ## Connect
 
@@ -454,9 +488,12 @@ JSON payloads from the wire, live-query, and worker corpora.
 The wire driver additionally executes the transport scenarios against the real
 gateway on both signal planes. The worker driver runs every worker case against
 the real gateway on both planes as well. The live-query driver remains outstanding.
-The shared clock cases exercise HTTP waits, scope handoffs, cache saves,
-discovery and held-job stalls in-process at the protocol timings; session,
-delegation and invalidation-window clock cases remain outstanding.
+All 15 shared clock subjects run in-process at the protocol timings, including
+HTTP waits, scope handoffs, cache saves, discovery, session renewal, device
+polling, delegation, invalidation windows and held-job stalls. Every shared
+session startup/refusal case also runs, including recovery after an unanswered
+renewal. Issuer tests use byte-level HTTP connections for discovery, PKCE,
+one-shot callbacks, atomic grant rotation and revocation.
 `npm run lint:haskell-complete` rejects any remaining Haskell table exemption,
 missing census reader or missing parity conformance driver. CI runs it as
 **Haskell SDK Completion**, separately from checks of the implemented surface.

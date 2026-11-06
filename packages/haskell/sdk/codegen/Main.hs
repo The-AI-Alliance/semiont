@@ -478,12 +478,72 @@ main = do
         , ("GatherResourceOptions",Object (KM.delete "required" gatherOptions))
         , ("MatchSearchOptions",Object (KM.insert "properties" (Object (foldr KM.delete searchProperties ["resourceId", "referenceId", "context"])) (KM.delete "required" searchOptions)))
         ]
+  storedTable <- readJSON (root </> "protocol/specs/src/session/stored.json") >>= either (ioError . userError) pure . fieldsOf
+  stored <- maybe (ioError (userError "stored-session authority missing")) pure (KM.lookup "storedSession" storedTable)
+  pending <- maybe (ioError (userError "pending-authorization authority missing")) pure (KM.lookup "pendingAuthorization" storedTable)
+    >>= either (ioError . userError) pure . fieldsOf
+  pendingProperties <- maybe (ioError (userError "pending-authorization properties missing")) pure (KM.lookup "properties" pending)
+    >>= either (ioError . userError) pure . fieldsOf
+  issuer <- maybe (ioError (userError "pending authorization's issuer missing")) pure (KM.lookup "issuer" pendingProperties)
+  sessionAdapters <- readJSON (output </> "codegen/session-adapters.json") >>= either (ioError . userError) pure . fieldsOf
+  let storedSchemas =
+        [(Key.toText name,value) | (name,value) <- KM.toList sessionAdapters] ++ [ ("StoredSession",stored)
+        , ("IssuerEndpoints",issuer)
+        , ("PendingAuthorization",Object (KM.insert "properties" (Object (KM.insert "issuer"
+            (Object (KM.singleton "$ref" (String "IssuerEndpoints.json"))) pendingProperties)) pending))
+        ]
+  storedKeys <- case KM.lookup "keys" storedTable of
+    Just (Array values) -> forM (toList values) $ \value -> do
+      fields <- either (ioError . userError) pure (fieldsOf value)
+      case (textAt "member" fields,textAt "key" fields) of
+        (Just name,Just key) -> pure (name,key)
+        _ -> ioError (userError "stored key has no name or value")
+    _ -> ioError (userError "stored keys missing")
+  storedPrefixes <- forM ["sessionKeyPrefix","lastEventIdKeyPrefix","cacheKeyPrefix"] $ \name -> do
+    fields <- maybe (ioError (userError "stored prefix missing")) pure (KM.lookup (Key.fromText name) storedTable)
+      >>= either (ioError . userError) pure . fieldsOf
+    prefix <- maybe (ioError (userError "stored prefix value missing")) pure (textAt "prefix" fields)
+    pure (name,prefix)
+  sessionCases <- readJSON (root </> "protocol/specs/src/session/cases.json") >>= either (ioError . userError) pure . fieldsOf
+  endReasons <- fmap (sort . nub . concat . concat) $ forM ["startup","refusal"] $ \section ->
+    case KM.lookup section sessionCases of
+      Just (Array rows) -> forM (toList rows) $ \row -> do
+        fields <- either (ioError . userError) pure (fieldsOf row)
+        case KM.lookup "told" fields of
+          Just Null -> pure []
+          Just (String reason) -> pure [reason]
+          _ -> ioError (userError "session end reason missing")
+      _ -> ioError (userError "session cases missing")
+  unless (not (null endReasons) && length (nub (map fst (storedKeys++storedPrefixes))) == length (storedKeys++storedPrefixes))
+    (ioError (userError "stored names collide or session end reasons absent"))
+  oauth <- readJSON (root </> "protocol/specs/src/session/oauth.json") >>= either (ioError . userError) pure . fieldsOf
+  clients <- case KM.lookup "clients" oauth of
+    Just (Array rows) -> forM (toList rows) $ \row -> do
+      fields <- either (ioError . userError) pure (fieldsOf row)
+      case (textAt "name" fields,textAt "id" fields) of
+        (Just name,Just value) -> pure (name<>"ClientId",value)
+        _ -> ioError (userError "OAuth client missing its name or id")
+    _ -> ioError (userError "OAuth clients missing")
+  scopeFields <- maybe (ioError (userError "OAuth scope missing")) pure (KM.lookup "scope" oauth)
+    >>= either (ioError . userError) pure . fieldsOf
+  scope <- maybe (ioError (userError "OAuth scope value missing")) pure (textAt "value" scopeFields)
+  let oauthFile = ("generated/Semiont/Internal/Generated/OAuth.hs", T.unlines
+        (["-- Generated from session/oauth.json; do not edit.","{-# LANGUAGE OverloadedStrings #-}"
+         ,"module Semiont.Internal.Generated.OAuth where","import Data.Text (Text)"]
+          ++ concat [[name<>" :: Text",name<>" = "<>literal value] | (name,value) <- clients++[("signInScope",scope)]]))
+      storedFile = ("generated/Semiont/Internal/Generated/Stored.hs", T.unlines
+        (["-- Generated from session/stored.json and session/cases.json; do not edit."
+         ,"{-# LANGUAGE OverloadedStrings #-}","module Semiont.Internal.Generated.Stored where","import Data.Text (Text)"]
+         ++ concat [[name<>" :: Text",name<>" = "<>literal value] | (name,value) <- storedKeys++storedPrefixes]
+         ++ ["data SessionEndReason = "<>T.intercalate " | " (map identifier endReasons)<>" deriving (Eq, Ord, Show, Enum, Bounded)"
+            ,"sessionEndReason :: SessionEndReason -> Text"]
+         ++ ["sessionEndReason "<>identifier reason<>" = "<>literal reason | reason <- endReasons]))
   (httpSchemas, httpFiles) <- httpFacts root (Object spec) schemas
-  forM_ ("ResourceUploadMetadata" : "TraceCarrier" : map fst (optionSchemas ++ httpSchemas)) $ \name ->
+  forM_ ("ResourceUploadMetadata" : "TraceCarrier" : map fst (storedSchemas ++ optionSchemas ++ httpSchemas)) $ \name ->
     when (Map.member name schemas) (ioError (userError ("adapter schema name is owned by OpenAPI: " ++ T.unpack name)))
   facts <- generateFacts root
   workerFiles <- workerFacts root member
-  (busSchemas, busFiles) <- either (ioError . userError) pure (busDescriptors (Map.insert "TraceCarrier" carrier (Map.insert "ResourceUploadMetadata" metadata (Map.fromList (optionSchemas ++ httpSchemas) <> schemas))) registry)
+  (busSchemas, busFiles) <- either (ioError . userError) pure (busDescriptors (Map.insert "TraceCarrier" carrier (Map.insert "ResourceUploadMetadata" metadata (Map.fromList (storedSchemas ++ optionSchemas ++ httpSchemas) <> schemas))) registry)
   (moduleNames, models) <- either (ioError . userError) pure (generate busSchemas (Set.fromList ids))
   template <- readUTF8 (output </> "semiont.cabal.in")
   forM_ ["@VERSION@", "@MODEL_MODULES@"] $ \marker ->
@@ -492,7 +552,7 @@ main = do
   version <- maybe (ioError (userError "root package.json has no version")) pure (textAt "version" package)
   license <- readUTF8 (root </> "LICENSE")
   let manifest = T.replace "@VERSION@" version $ T.replace "@MODEL_MODULES@" (T.intercalate "\n" (map ("    " <>) moduleNames)) template
-      generated = ("LICENSE", license) : ("semiont.cabal", manifest) : busFiles ++ models ++ facts ++ transportFiles ++ httpFiles ++ workerFiles
+      generated = ("LICENSE", license) : ("semiont.cabal", manifest) : [storedFile,oauthFile] ++ busFiles ++ models ++ facts ++ transportFiles ++ httpFiles ++ workerFiles
       modelsDirectory = output </> "generated/Semiont/Internal/Generated/Models"
       expected = Set.fromList (map (output </>) (map fst generated))
   existsModels <- doesDirectoryExist modelsDirectory

@@ -9,7 +9,7 @@ category: Network
 author: The AI Alliance
 maintainer: Semiont contributors
 build-type: Simple
-extra-source-files: semiont.cabal.in, README.md, run.sh, api.py, public-api.inputs.json, public-api.json, test/refusals.py, test/refusals/*.hs, test/http-peer.py, conformance/README.md, conformance/launch.sh
+extra-source-files: codegen/session-adapters.json, semiont.cabal.in, README.md, run.sh, api.py, public-api.inputs.json, public-api.json, test/refusals.py, test/refusals/*.hs, test/http-peer.py, conformance/README.md, conformance/launch.sh
 
 common settings
   default-language: GHC2021
@@ -20,6 +20,8 @@ common settings
     async >=2.2 && <2.3,
     bytestring >=0.12 && <0.13,
     base64-bytestring >=1.2 && <1.3,
+    crypton >=2.2 && <2.3,
+    ram >=0.22 && <0.23,
     containers >=0.7 && <0.8,
     regex-tdfa >=1.3 && <1.4,
     scientific >=0.3 && <0.4,
@@ -34,7 +36,7 @@ common context-propagation
 library
   default-language: GHC2021
   build-depends: base >=4.20 && <4.21, semiont:internal
-  reexported-modules: Semiont.Types, Semiont.Types.Presence, Semiont.Channels, Semiont.Running, Semiont.ErrorCodes, Semiont.Timing, Semiont.Timing.Settings, Semiont.Retry, Semiont.Discovery, Semiont.Discovery.Reasons, Semiont.Transport, Semiont.Transport.Facts, Semiont.StateValue, Semiont.Errors, Semiont.EventBus, Semiont.Bus, Semiont.Http, Semiont.Content, Semiont.Gateway, Semiont.Frame, Semiont.Auth, Semiont.System, Semiont.Client, Semiont.JobFilter, Semiont.Claims, Semiont.HostName, Semiont.Worker, Semiont.Worker.Types, Semiont.Bind, Semiont.Beckon, Semiont.Job, Semiont.Cache, Semiont.Resources, Semiont.MediaTypes, Semiont.Browse, Semiont.Gather, Semiont.Match, Semiont.Delegation, Semiont.Mark, Semiont.Yield, Semiont.Tokens, Semiont.SessionStorage
+  reexported-modules: Semiont.Types, Semiont.Types.Presence, Semiont.Channels, Semiont.Running, Semiont.ErrorCodes, Semiont.Timing, Semiont.Timing.Settings, Semiont.Retry, Semiont.Discovery, Semiont.Discovery.Reasons, Semiont.Transport, Semiont.Transport.Facts, Semiont.StateValue, Semiont.Errors, Semiont.EventBus, Semiont.Bus, Semiont.Http, Semiont.Content, Semiont.Gateway, Semiont.Frame, Semiont.Auth, Semiont.System, Semiont.Client, Semiont.JobFilter, Semiont.Claims, Semiont.HostName, Semiont.Worker, Semiont.Worker.Types, Semiont.Bind, Semiont.Beckon, Semiont.Job, Semiont.Cache, Semiont.Resources, Semiont.MediaTypes, Semiont.Browse, Semiont.Gather, Semiont.Match, Semiont.Delegation, Semiont.Mark, Semiont.Yield, Semiont.Tokens, Semiont.SessionStorage, Semiont.Session, Semiont.Issuer, Semiont.Registry.Stored
 
 library internal
   import: settings, context-propagation
@@ -105,6 +107,9 @@ library internal
     Semiont.Yield
     Semiont.Tokens
     Semiont.SessionStorage
+    Semiont.Session
+    Semiont.Issuer
+    Semiont.Registry.Stored
     Semiont.Internal.Http
     Semiont.Internal.HttpActor
     Semiont.Internal.HttpContent
@@ -122,6 +127,8 @@ library internal
     Semiont.Internal.Local
     Semiont.Internal.RetryPolicy
     Semiont.Internal.Generated.OperationFailure
+    Semiont.Internal.Generated.Stored
+    Semiont.Internal.Generated.OAuth
     Semiont.Internal.Generated.WorkerChannels
     Semiont.Internal.Generated.Models.YieldJobFilter
     Semiont.Internal.Generated.Models.YieldCloneResourceRequest
@@ -140,6 +147,7 @@ library internal
     Semiont.Internal.Generated.Models.TagSchemasProjection
     Semiont.Internal.Generated.Models.SvgSelector
     Semiont.Internal.Generated.Models.SupportedMediaType
+    Semiont.Internal.Generated.Models.StoredSession
     Semiont.Internal.Generated.Models.StatusResponse
     Semiont.Internal.Generated.Models.SettingsThemeChangedEvent
     Semiont.Internal.Generated.Models.SettingsLocaleChangedEvent
@@ -237,6 +245,8 @@ library internal
     Semiont.Internal.Generated.Models.JobAssignedPayload
     Semiont.Internal.Generated.Models.JobAssignCommand
     Semiont.Internal.Generated.Models.JanusGraphConfig
+    Semiont.Internal.Generated.Models.IssuerEndpoints
+    Semiont.Internal.Generated.Models.IssuedTokens
     Semiont.Internal.Generated.Models.InferenceLimitsRequest
     Semiont.Internal.Generated.Models.InferenceLimits
     Semiont.Internal.Generated.Models.HttpEndpoint
@@ -244,6 +254,7 @@ library internal
     Semiont.Internal.Generated.Models.KbTarget
     Semiont.Internal.Generated.Models.KnowledgeBase
     Semiont.Internal.Generated.Models.NewKnowledgeBase
+    Semiont.Internal.Generated.Models.PendingAuthorization
     Semiont.Internal.Generated.Models.HighlightingJobParams
     Semiont.Internal.Generated.Models.HealthResponse
     Semiont.Internal.Generated.Models.GraphResourceNode
@@ -301,6 +312,7 @@ library internal
     Semiont.Internal.Generated.Models.DiscoveryDocument
     Semiont.Internal.Generated.Models.DirEntry
     Semiont.Internal.Generated.Models.DirectoryEntry
+    Semiont.Internal.Generated.Models.DeviceCode
     Semiont.Internal.Generated.Models.CursorsPath
     Semiont.Internal.Generated.Models.SmelterConfig
     Semiont.Internal.Generated.Models.WeaverConfig
@@ -355,6 +367,7 @@ library internal
     Semiont.Internal.Generated.Models.BodyOperationAdd
     Semiont.Internal.Generated.Models.UpdateAnnotationBodyRequest
     Semiont.Internal.Generated.Models.BindBodyUpdated
+    Semiont.Internal.Generated.Models.BeginAuthorizationOptions
     Semiont.Internal.Generated.Models.AssessingJobParams
     Semiont.Internal.Generated.Models.MarkJobParams
     Semiont.Internal.Generated.Models.MarkJobCreateCommand
@@ -488,7 +501,7 @@ test-suite schema-cases
   type: exitcode-stdio-1.0
   main-is: Main.hs
   hs-source-dirs: test
-  other-modules: Semiont.Internal.Generated.RoundTrip, Semiont.Internal.Generated.ChannelRoundTrip, Semiont.Internal.Generated.ErrorRoundTrip, Semiont.Internal.Generated.TimingValues, Semiont.Internal.Generated.DiscoveryReasonRoundTrip, Runtime, Discovery, BusCases, SchemaCases, HttpCases, LifetimeCases, WorkerCases, GatewayCases, HeldCases, SurfaceCases, CacheCases, ControlledTime, ClockCases, ResourceCases, FrameCases, RefreshCases, TextCases, DelegationCases, TokenStorageCases
+  other-modules: Semiont.Internal.Generated.RoundTrip, Semiont.Internal.Generated.ChannelRoundTrip, Semiont.Internal.Generated.ErrorRoundTrip, Semiont.Internal.Generated.TimingValues, Semiont.Internal.Generated.DiscoveryReasonRoundTrip, Runtime, Discovery, BusCases, SchemaCases, HttpCases, LifetimeCases, WorkerCases, GatewayCases, HeldCases, SurfaceCases, CacheCases, ControlledTime, ClockCases, ResourceCases, FrameCases, RefreshCases, TextCases, DelegationCases, TokenStorageCases, SessionCases, IssuerCases
   ghc-options: -threaded
   build-depends: semiont:internal, process >=1.6 && <1.7, directory >=1.3 && <1.4, filepath >=1.5 && <1.6
 

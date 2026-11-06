@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs, OverloadedStrings, ScopedTypeVariables #-}
 module Semiont.Internal.Http
-  ( Http, HttpClient, newHttpClient, HttpOptions(..), newHttp, transport, spawn
+  ( Http, HttpClient(..), newHttpClient, HttpOptions(..), newHttp, transport, spawn
   , json, exchange, currentToken, renew, quarantine, jsonBody, deadline, pause, raceOwned, request, refusal, checked, readAnswer
   , options, lifetime, input, positions, clientId, openScoped, HttpFailure(..), report
   ) where

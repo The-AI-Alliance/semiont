@@ -49,6 +49,8 @@ import ResourceCases (resourceCases)
 import FrameCases (frameCases)
 import RefreshCases (refreshCases)
 import TextCases (textCases)
+import IssuerCases (issuerCases, deviceClockCases)
+import SessionCases (sessionCases, sessionClockCases)
 import TokenStorageCases (tokenStorageCases)
 import DelegationCases (delegationCases, followerClockCases)
 import qualified SchemaCases
@@ -386,6 +388,10 @@ main = do
     pure (Just wire, code)
   busCases command browse event (failureRows ++ [(Nothing, fallback), (Just "__unknown_test_code", fallback)])
   fixtures <- traverse (either (ioError . userError) pure . sample 0) schemas
+  issuerCases fixtures
+  deviceClockCases root
+  sessionCases root fixtures
+  sessionClockCases root fixtures
   delegationCases fixtures
   followerClockCases root fixtures
   surfaceCases root fixtures
