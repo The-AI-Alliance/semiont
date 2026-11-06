@@ -134,7 +134,8 @@ export function createMarkStateUnit(
     // Workers emit a heartbeat every ~15 s while a call is in flight, so
     // reaching this window means the worker really has gone quiet.
     // `mark:delegate-timeout` reports that silence; despite its name it ends
-    // nothing.
+    // nothing. A frame on the job's channels that its follower refuses is not
+    // the job saying something: the silence goes on being counted past it.
     let staleTimer: ReturnType<typeof setTimeout> | null = null;
     const clearStale = () => {
       if (staleTimer) { clearTimeout(staleTimer); staleTimer = null; }
@@ -160,6 +161,9 @@ export function createMarkStateUnit(
 
     const delegationSub = client.mark.delegate(resourceId, params).subscribe({
       next: (e) => {
+        // A refused frame names no job: it is no word of this one, and the
+        // silence goes on being counted.
+        if (e.kind === 'refused') return;
         armStale();
         // Surface only the live progress events to the UI; the final
         // `complete` event carries `result` for callers awaiting the
