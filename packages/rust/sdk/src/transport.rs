@@ -179,14 +179,42 @@ impl FrameRefusal {
     /// what BusFrame requires finds none.
     pub fn of(frame: &Value, channel: String, scope: Option<ResourceId>) -> Option<FrameRefusal> {
         let fault = fault_of(schema(BusFrame::NAME), frame)?;
-        Some(FrameRefusal {
+        Some(FrameRefusal::at(fault, frame, channel, scope))
+    }
+
+    /// The refusal of `frame`, which names its readers on `channel` in
+    /// `scope`, as malformed itself: for what serde refuses of it that the
+    /// table of what BusFrame requires does not.
+    pub fn malformed(frame: &Value, channel: String, scope: Option<ResourceId>) -> FrameRefusal {
+        FrameRefusal::at(Fault::undecoded(), frame, channel, scope)
+    }
+
+    fn at(fault: Fault, frame: &Value, channel: String, scope: Option<ResourceId>) -> FrameRefusal {
+        FrameRefusal {
             channel,
             member: fault.member,
             reason: fault.reason,
             payload: frame.get("payload").cloned(),
             scope,
-            correlation_id: None,
-        })
+            correlation_id: correlation_in(frame),
+        }
+    }
+}
+
+/// The correlation id `frame` carries, when it carries one BusFrame allows,
+/// whatever else is wrong with it.
+fn correlation_in(frame: &Value) -> Option<String> {
+    let id = frame.get("correlationId")?;
+    let Some((_, allowed)) = schema(BusFrame::NAME)
+        .members
+        .iter()
+        .find(|(name, _)| *name == "correlationId")
+    else {
+        panic!("BusFrame names no correlationId");
+    };
+    match fault_of(allowed, id) {
+        None => id.as_str().map(str::to_owned),
+        Some(_) => None,
     }
 }
 

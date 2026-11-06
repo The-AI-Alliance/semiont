@@ -359,7 +359,7 @@ fn not_the_channels(fault: Fault, frame: Frame) -> FrameRefusal {
         reason,
         payload: Some(Value::Object(frame.payload)),
         scope: frame.scope,
-        correlation_id: None,
+        correlation_id: frame.correlation_id,
     }
 }
 

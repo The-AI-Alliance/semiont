@@ -29,9 +29,7 @@ use semiont::channels::{RESOURCE_SCOPED_CHANNELS, TRACE_FIELD};
 use semiont::errors::{TransportError, TransportErrorCode};
 use semiont::retry::{equal_jitter, retry_after};
 use semiont::timing::{DEGRADED_THRESHOLD, MAX_RECONNECT, RECONNECT_DEBOUNCE};
-use semiont::transport::{
-    ConnectionState, Envelope, Frame, FrameRefusal, FrameRefusalReason, TraceCarrier,
-};
+use semiont::transport::{ConnectionState, Envelope, Frame, FrameRefusal, TraceCarrier};
 use semiont::types::ResourceId;
 use semiont::types::{BusFrame, BusSubscribeRequest, BusSubscribeRequestScopedItem};
 use serde_json::Value;
@@ -450,10 +448,12 @@ impl Actor {
             || RESOURCE_SCOPED_CHANNELS.contains(&channel)
     }
 
-    /// A frame refused that names its readers: its refusal is delivered in
-    /// its place, and published into the client's own bus as the frame would
-    /// have been.
+    /// A frame refused that names its readers: the request its correlation
+    /// id names is told of it, as of the frame, and its refusal is delivered
+    /// in its place and published into the client's own bus as the frame
+    /// would have been.
     fn tell(&self, refusal: FrameRefusal) {
+        self.shared.router.route(Err(&refusal));
         if self.bridged(&refusal.channel) {
             for bus in locked(&self.shared.bridges).iter() {
                 bus.emit_refusal(FrameRefusal {
@@ -695,14 +695,12 @@ fn carried(data: &str) -> Line {
             Some(refusal) => Line::Told(refusal),
             None => match serde_json::from_value(value) {
                 Ok(frame) => Line::Frame(frame),
-                Err(_) => Line::Told(FrameRefusal {
-                    channel,
-                    member: String::new(),
-                    reason: FrameRefusalReason::Malformed,
-                    payload: payload_in(data),
-                    scope,
-                    correlation_id: None,
-                }),
+                // What serde was given is gone: `data` is read again for
+                // what the refusal carries.
+                Err(_) => match serde_json::from_str::<Value>(data) {
+                    Ok(frame) => Line::Told(FrameRefusal::malformed(&frame, channel, scope)),
+                    Err(_) => Line::Unread(MALFORMED.to_owned()),
+                },
             },
         },
         None => match semiont::fault_said::<BusFrame>(&value) {
@@ -713,12 +711,6 @@ fn carried(data: &str) -> Line {
             },
         },
     }
-}
-
-/// The payload `data` carries, when it is a JSON object that carries one.
-fn payload_in(data: &str) -> Option<Value> {
-    let mut frame: Value = serde_json::from_str(data).ok()?;
-    frame.get_mut("payload").map(Value::take)
 }
 
 /// The readers `value` names: those of its `channel`, when that is a text of
@@ -881,7 +873,7 @@ mod tests {
     use semiont::bus::StreamError;
     use semiont::channels::{BeckonFocus, BrowseResourceRequested, Channel, Request};
     use semiont::event_bus::EventBus;
-    use semiont::transport::{Events, Lagged};
+    use semiont::transport::{Events, FrameRefusalReason, Lagged};
     use serde_json::json;
 
     #[test]
