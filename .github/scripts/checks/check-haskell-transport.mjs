@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** Hold Haskell's common transport and typed bus to the reference interfaces. */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const read = (path) => readFileSync(path, 'utf8');
 const inventory = JSON.parse(read('packages/haskell/sdk/public-api.json'));
@@ -59,9 +59,22 @@ if (!wireProtocol) throw new Error('missing wire driver protocol operations');
 const operations = new Set([...wireProtocol.matchAll(/^\| ([^|]+)\|/gm)]
   .flatMap((row) => row[1].trim() === '`op`' ? [] : [...row[1].matchAll(/`([^`]+)`/g)].map((name) => name[1])));
 const driver = read('packages/haskell/sdk/conformance/Main.hs');
-const implemented = new Set([...driver.matchAll(/^  "([^"]+)" ->/gm)].map((match) => match[1]));
+function dispatch(name) {
+  const header = new RegExp(`^${name} ::`, 'm').exec(driver);
+  if (!header) throw new Error(`missing Haskell driver dispatcher: ${name}`);
+  const rest = driver.slice(driver.indexOf('\n', header.index) + 1);
+  const end = rest.search(/^[a-z]\w* ::/m);
+  if (end < 0) throw new Error(`unbounded Haskell driver dispatcher: ${name}`);
+  return new Set([...rest.slice(0, end).matchAll(/^  "([^"]+)" ->/gm)].map((match) => match[1]));
+}
+const implemented = dispatch('perform');
 if (driver.includes('operation == "abandon"')) implemented.add('abandon');
 same('Haskell wire driver operations', operations, implemented);
+const workerProtocol = read('protocol/conformance/worker/README.md').split('## The worker driver\n')[1]?.split('It writes,')[0];
+if (!workerProtocol) throw new Error('missing worker driver protocol operations');
+const workerOperations = new Set([...workerProtocol.matchAll(/^\| `([^`]+)` \|/gm)].map((match) => match[1]).filter((name) => name !== 'op'));
+same('Haskell worker driver operations', workerOperations,
+  new Set([...dispatch('workerPerform'), ...[...implemented].filter((name) => workerOperations.has(name))]));
 same('Haskell transport', declaredMembers(transportSource, 'export interface ITransport {'), haskellMembers('Semiont.Transport', 'Transport'));
 same('Haskell typed bus', declaredMembers(read('packages/typescript/core/src/bus.ts'), 'export class Bus {'), haskellMembers('Semiont.Bus', 'Bus'));
 same('Haskell content transport', declaredMembers(transportSource, 'export interface IContentTransport {'), haskellMembers('Semiont.Content', 'ContentTransport'));
@@ -76,7 +89,12 @@ const actualStates = new Set(Object.entries(inventory.modules['Semiont.Transport
 same('Haskell connection states', expectedStates, actualStates);
 
 // Accept future codes; the generated CommandError validates every other field.
-const bus = read('packages/haskell/sdk/src/Semiont/Bus.hs');
+const busType = /^(?:data|newtype) ([\w.]+)\b/.exec(inventory.modules['Semiont.Bus'].types.Bus.definition);
+if (!busType) throw new Error('GHC declares no implementation of Bus');
+const busPath = busType[1].split('.').slice(0, -1).join('/');
+const busFiles = ['src', 'internal', 'generated'].map((directory) => `packages/haskell/sdk/${directory}/${busPath}.hs`).filter(existsSync);
+if (busFiles.length !== 1) throw new Error(`Bus implementation source is ambiguous: ${busFiles}`);
+const bus = read(busFiles[0]);
 const readKeys = [...bus.matchAll(/KM\.lookup "(\w+)" fields/g)].map((match) => match[1]);
 const commandError = JSON.parse(read('protocol/specs/src/components/schemas/CommandError.json'));
 same('Haskell direct failure fields', new Set(['code']), new Set(readKeys));

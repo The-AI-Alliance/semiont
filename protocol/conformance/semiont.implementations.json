@@ -4,7 +4,8 @@
   "archivist": ["../../packages/rust/target/release/semiont-archivist"],
   "sdks": {
     "haskell": {
-      "wire": ["../../packages/haskell/sdk/conformance/bin/semiont-haskell-wire-driver"]
+      "wire": ["../../packages/haskell/sdk/conformance/bin/semiont-haskell-wire-driver"],
+      "worker": ["../../packages/haskell/sdk/conformance/bin/semiont-haskell-wire-driver", "--worker"]
     },
     "typescript": {
       "wire": ["node", "../../packages/typescript/http-transport/conformance/driver.ts"],

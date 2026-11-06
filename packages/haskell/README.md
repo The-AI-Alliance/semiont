@@ -3,9 +3,11 @@
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=haskell)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
 The Haskell SDK is under construction toward full parity on one branch. Its
-model library, typed bus, common transport runtime, operation consumption,
-retry support, and launcher discovery are implemented; the client and conformance drivers
-remain to be built.
+model library, typed bus, HTTP/content transports, initial client namespaces,
+operation consumption, retry support, launcher discovery, claims and held jobs
+are implemented. Wire and worker conformance drivers run against the real
+gateway. The remaining client namespaces, sign-in, live queries, registry and
+state units are still being built.
 The [SDK README](sdk/README.md) follows the other SDK guides, with feature status
 and local package setup. Development continues on
 [one SDK PR](https://github.com/The-AI-Alliance/semiont/pull/2104).

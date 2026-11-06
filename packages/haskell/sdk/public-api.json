@@ -9,7 +9,8 @@
     "codegen/HttpFacts.hs": "51b09ace5bf07d7e44e6b79a6d1fe6edd1855a2bb5721590bf942230d7fc5dff",
     "codegen/Main.hs": "f4113a1ab25669012def189f3400b9fa373d8ea0275dffae454a32178ece3ac7",
     "codegen/TransportFacts.hs": "9d801421300ae21ac723a2655dbbdf21eef3824ee62877b1e9f7d14ac113bca7",
-    "codegen/WorkerFacts.hs": "6b3acf8ef12063559c1fccc7180e129f85673d9845d078ab1f7373173266077c",
+    "codegen/WorkerFacts.hs": "33c32e430b31882a2a1000b58fe9b12e70fb300d9af188441847ecf6df7ff476",
+    "codegen/WorkerTypes.hs": "7d63b6493f9978dfc5657c222b580519a7251082dfe939158e597efd65a323d2",
     "generated/Semiont/Internal/Generated/Models/Agent.hs": "9f16d6b0adbdad7edec31fcade8037bd4a591b1dee50a64dfe26e48317445abc",
     "generated/Semiont/Internal/Generated/Models/AgentOrganization.hs": "2735d00995d286d640c26b8bb699fd373f25718140ae51501756cb93657ee554",
     "generated/Semiont/Internal/Generated/Models/AgentPerson.hs": "b15baf27004b89b455f9c1784264e28726a0d750fe791a89a50d7f37b98984f2",
@@ -358,7 +359,9 @@
     "generated/Semiont/Internal/Generated/Models/YieldUpdateOk.hs": "743bae600dacc40eb1c9170b0ecc72cb0543a244756b99cc6fd2650f7d0fa3ce",
     "generated/Semiont/Internal/Generated/Schemas.hs": "98fa6298090fedd6970dde21678f102b43309f58792c94ed0b60291fb3ff7f51",
     "generated/Semiont/Internal/Generated/WorkerChannels.hs": "c48c5494a2ce12d6840296216b086f1cdbd49adad82a8cd9f95d8b6b6f43626b",
+    "generated/Semiont/Worker/Types.hs": "a4a8399744a282e795370f24908cf35084ddd55b34ed220d47848ced46ddd76f",
     "internal/Semiont/Internal/Broadcast.hs": "81a79b90958a3dc3dc12bc14989e7ce337eb5ec6c34c3be0ebf5c375d80089d0",
+    "internal/Semiont/Internal/Bus.hs": "4e826d88dc540e629d3437430580c80454429939a40fbe13ba4c84f6f3597eac",
     "internal/Semiont/Internal/Codec.hs": "fbc8af29dc06bc97706d979907ec37e53ae83273b7efb65283a33e81211c56fa",
     "internal/Semiont/Internal/Delivery.hs": "2fa0818ab8d07cde41a2650fedea8663592777cf9eb522e2c757859ab569dd84",
     "internal/Semiont/Internal/Http.hs": "d60236efacc71c7c02c9b1e2ccf0e4fad064f69db9b0f035d79ca90778796f70",
@@ -374,10 +377,10 @@
     "internal/Semiont/Internal/Telemetry.hs": "3e4116285bbb9ed281c0d0c8608f8267213bd68674bafb4acbd1f08a226fa7c0",
     "internal/Semiont/Internal/Transport.hs": "9eb3f38052bb3be66866a48c11313c3bfce50c6a04ad2463a631e1b42bddecd9",
     "public-api.inputs.json": "150c411495a0d0dc5cb417a4c7063103bc2fcce758c1ec5e88b955f223d6ebfe",
-    "semiont.cabal": "3a56075acbc1957e498ad8a0149be100380d24554d8f99ff5fb9505cb496e233",
-    "semiont.cabal.in": "59d27b66a063e700466400f0902a15da48e452615294a4f6cb9201e45fa735ae",
+    "semiont.cabal": "f0c2824970d9027ad47859305fb3a7d66dc6b3b45cb03dcc742bda11bbecbcbc",
+    "semiont.cabal.in": "0be452f4b58333a1d37bf2debd42914f17771ce12704baa328610c949cb860f7",
     "src/Semiont/Auth.hs": "1b82d21a297f0b724242094ddb763c0ebf70dffbb2c4d208468dc3c03b9b945d",
-    "src/Semiont/Bus.hs": "e97a61618e659cdf6229e8895f7c7b57c60f600e2ca07fd3070b98c7d00c9c40",
+    "src/Semiont/Bus.hs": "b721fd2f9528fd174ae80422b5525563a30cfa70dbd5b1dbe00d58cef7af3c77",
     "src/Semiont/Channels.hs": "54992808f1254897811d1745b23343b353c5cbb0453bc18168c816c78953255d",
     "src/Semiont/Claims.hs": "c56dd2175b12fd1fc44126e4298f93dcb2ba4b20894e33710434e5d74db3b95d",
     "src/Semiont/Client.hs": "ddbefcf00b338600942ace1b05cccca673960e7997c982caf4e38570cf63ece9",
@@ -402,7 +405,8 @@
     "src/Semiont/Transport.hs": "b5a0cd3a7d487e79143711a6d0d8b6c325e1d7934707098f58be0a47d323710b",
     "src/Semiont/Transport/Facts.hs": "49b39361ecc6c4128f5e60257f95446856993e774b20abb35f953e1f58159b36",
     "src/Semiont/Types.hs": "0c172da00db0eddf14e62648181479732e133e1d489a0a9ddbfb39e0bd8cdca9",
-    "src/Semiont/Types/Presence.hs": "fbdb22094e0b0a8d0671ffc220e5f9462f457333e854859d0cd31b69ac1eeda8"
+    "src/Semiont/Types/Presence.hs": "fbdb22094e0b0a8d0671ffc220e5f9462f457333e854859d0cd31b69ac1eeda8",
+    "src/Semiont/Worker.hs": "70f13819273f62ec0f708b0a8eeee4bd6a6d029efea36141eece6af3da99c0d5"
   },
   "modules": {
     "Semiont.Auth": {
@@ -422,46 +426,46 @@
     "Semiont.Bus": {
       "types": {
         "Bus": {
-          "definition": "data Semiont.Bus.Bus = ...",
+          "definition": "data Semiont.Internal.Bus.Bus = ...",
           "kind": "*"
         },
         "BusOptions": {
-          "definition": "data Semiont.Bus.BusOptions = ...",
+          "definition": "data Semiont.Internal.Bus.BusOptions = ...",
           "kind": "*"
         },
         "Delivered": {
-          "definition": "data Semiont.Bus.Delivered payload = ...",
+          "definition": "data Semiont.Internal.Bus.Delivered payload = ...",
           "kind": "* -> *"
         },
         "FrameRefusal": {
-          "definition": "data Semiont.Bus.FrameRefusal = ...",
+          "definition": "data Semiont.Internal.Bus.FrameRefusal = ...",
           "kind": "*"
         },
         "Heard": {
-          "definition": "data Semiont.Bus.Heard payload = ...",
+          "definition": "data Semiont.Internal.Bus.Heard payload = ...",
           "kind": "* -> *"
         }
       },
       "values": {
-        "BusOptions": "IO Integer -> (Integer -> IO ()) -> IO Data.Text.Internal.Text -> Semiont.Bus.BusOptions",
-        "Delivered": "payload -> Semiont.Internal.Transport.Frame -> Maybe Semiont.Internal.Generated.Models.UserId.UserId -> Semiont.Bus.Delivered payload",
-        "FrameRefusal": "Semiont.Internal.Transport.Frame -> Maybe Data.Text.Internal.Text -> Semiont.Bus.FrameRefusal",
-        "Heard": "Semiont.Bus.Delivered payload -> Semiont.Bus.Heard payload",
-        "Refused": "Semiont.Bus.FrameRefusal -> Semiont.Bus.Heard payload",
-        "deliveredFrame": "Semiont.Bus.Delivered payload -> Semiont.Internal.Transport.Frame",
-        "deliveredPayload": "Semiont.Bus.Delivered payload -> payload",
-        "emit": "Semiont.Bus.Bus -> Semiont.Channels.Channel scope payload -> payload -> Semiont.Channels.ScopeArg scope -> Maybe Data.Text.Internal.Text -> IO (Maybe Integer)",
-        "emittedBy": "Semiont.Bus.Delivered payload -> Maybe Semiont.Internal.Generated.Models.UserId.UserId",
-        "frames": "Semiont.Bus.Bus -> Semiont.Channels.Channel scope payload -> Semiont.Channels.ScopeArg scope -> (Streaming.Internal.Stream (Data.Functor.Of.Of (Semiont.Bus.Heard payload)) IO () -> IO result) -> IO result",
-        "lacks": "Semiont.Bus.FrameRefusal -> Maybe Data.Text.Internal.Text",
-        "newBus": "Semiont.Bus.BusOptions -> Semiont.Internal.Transport.Transport -> Semiont.Bus.Bus",
-        "nextCorrelationId": "Semiont.Bus.BusOptions -> IO Data.Text.Internal.Text",
+        "BusOptions": "IO Integer -> (Integer -> IO ()) -> IO Data.Text.Internal.Text -> Semiont.Internal.Bus.BusOptions",
+        "Delivered": "payload -> Semiont.Internal.Transport.Frame -> Maybe Semiont.Internal.Generated.Models.UserId.UserId -> Semiont.Internal.Bus.Delivered payload",
+        "FrameRefusal": "Semiont.Internal.Transport.Frame -> Maybe Data.Text.Internal.Text -> Semiont.Internal.Bus.FrameRefusal",
+        "Heard": "Semiont.Internal.Bus.Delivered payload -> Semiont.Internal.Bus.Heard payload",
+        "Refused": "Semiont.Internal.Bus.FrameRefusal -> Semiont.Internal.Bus.Heard payload",
+        "deliveredFrame": "Semiont.Internal.Bus.Delivered payload -> Semiont.Internal.Transport.Frame",
+        "deliveredPayload": "Semiont.Internal.Bus.Delivered payload -> payload",
+        "emit": "Semiont.Internal.Bus.Bus -> Semiont.Channels.Channel scope payload -> payload -> Semiont.Channels.ScopeArg scope -> Maybe Data.Text.Internal.Text -> IO (Maybe Integer)",
+        "emittedBy": "Semiont.Internal.Bus.Delivered payload -> Maybe Semiont.Internal.Generated.Models.UserId.UserId",
+        "frames": "Semiont.Internal.Bus.Bus -> Semiont.Channels.Channel scope payload -> Semiont.Channels.ScopeArg scope -> (Streaming.Internal.Stream (Data.Functor.Of.Of (Semiont.Internal.Bus.Heard payload)) IO () -> IO result) -> IO result",
+        "lacks": "Semiont.Internal.Bus.FrameRefusal -> Maybe Data.Text.Internal.Text",
+        "newBus": "Semiont.Internal.Bus.BusOptions -> Semiont.Internal.Transport.Transport -> Semiont.Internal.Bus.Bus",
+        "nextCorrelationId": "Semiont.Internal.Bus.BusOptions -> IO Data.Text.Internal.Text",
         "persistedEventTypes": "[Data.Text.Internal.Text]",
-        "refusedFrame": "Semiont.Bus.FrameRefusal -> Semiont.Internal.Transport.Frame",
+        "refusedFrame": "Semiont.Internal.Bus.FrameRefusal -> Semiont.Internal.Transport.Frame",
         "replyChannelsFor": "[Semiont.Channels.SomeOperation] -> [Data.Text.Internal.Text]",
-        "request": "Semiont.Bus.Bus -> Semiont.Channels.Operation input output failure -> input -> Integer -> IO output",
-        "requestNow": "Semiont.Bus.BusOptions -> IO Integer",
-        "requestWaitUntil": "Semiont.Bus.BusOptions -> Integer -> IO ()",
+        "request": "Semiont.Internal.Bus.Bus -> Semiont.Channels.Operation input output failure -> input -> Integer -> IO output",
+        "requestNow": "Semiont.Internal.Bus.BusOptions -> IO Integer",
+        "requestWaitUntil": "Semiont.Internal.Bus.BusOptions -> Integer -> IO ()",
         "unsubscribed": "Data.Text.Internal.Text -> Semiont.Errors.BusRequestError"
       }
     },
@@ -761,11 +765,11 @@
         "dispose": "Semiont.Client.Client -> IO ()",
         "frame": "Semiont.Client.Client -> Semiont.Frame.FrameNamespace",
         "fromHttp": "Semiont.Internal.Http.HttpOptions -> IO Semiont.Client.Client",
-        "newClient": "Semiont.Internal.Transport.Transport -> Semiont.Content.ContentTransport -> Maybe Semiont.Gateway.GatewayOperations -> Semiont.Bus.BusOptions -> IO Semiont.Client.Client",
+        "newClient": "Semiont.Internal.Transport.Transport -> Semiont.Content.ContentTransport -> Maybe Semiont.Gateway.GatewayOperations -> Semiont.Internal.Bus.BusOptions -> IO Semiont.Client.Client",
         "state": "Semiont.Client.Client -> Semiont.Internal.StateValue.StateValue Semiont.Transport.Facts.ConnectionState",
         "system": "Semiont.Client.Client -> Maybe Semiont.System.SystemNamespace",
         "transport": "Semiont.Client.Client -> Semiont.Internal.Transport.Transport",
-        "wire": "Semiont.Client.Client -> Semiont.Bus.Bus"
+        "wire": "Semiont.Client.Client -> Semiont.Internal.Bus.Bus"
       }
     },
     "Semiont.Content": {
@@ -1025,7 +1029,7 @@
         "addEntityType": "Semiont.Frame.FrameNamespace -> Data.Text.Internal.Text -> IO ()",
         "addEntityTypes": "Semiont.Frame.FrameNamespace -> [Data.Text.Internal.Text] -> IO ()",
         "addTagSchema": "Semiont.Frame.FrameNamespace -> Semiont.Internal.Generated.Models.TagSchema.TagSchema -> IO ()",
-        "newFrame": "Semiont.Bus.Bus -> Semiont.Frame.FrameNamespace"
+        "newFrame": "Semiont.Internal.Bus.Bus -> Semiont.Frame.FrameNamespace"
       }
     },
     "Semiont.Gateway": {
@@ -6032,6 +6036,135 @@
         "Absent": "Semiont.Types.Presence.Presence value",
         "Null": "Semiont.Types.Presence.Presence value",
         "Present": "value -> Semiont.Types.Presence.Presence value"
+      }
+    },
+    "Semiont.Worker": {
+      "types": {
+        "Claims": {
+          "definition": "data Semiont.Worker.Claims = ...",
+          "kind": "*"
+        },
+        "HeldJob": {
+          "definition": "data Semiont.Worker.HeldJob result = ...",
+          "kind": "* -> *",
+          "roles": "nominal"
+        },
+        "SomeHeldJob": {
+          "definition": "data Semiont.Worker.SomeHeldJob = ...",
+          "kind": "*"
+        },
+        "WorkerError": {
+          "definition": "data Semiont.Worker.WorkerError = ...",
+          "kind": "*"
+        },
+        "WorkerOptions": {
+          "definition": "data Semiont.Worker.WorkerOptions = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "ClaimsAlreadyReading": "Semiont.Worker.WorkerError",
+        "HeldMark": "Semiont.Worker.HeldJob Semiont.Internal.Generated.Models.MarkJobResult.MarkJobResult -> Semiont.Worker.SomeHeldJob",
+        "HeldYield": "Semiont.Worker.HeldJob Semiont.Internal.Generated.Models.YieldJobResult.YieldJobResult -> Semiont.Worker.SomeHeldJob",
+        "InvalidWorkerTiming": "Semiont.Worker.WorkerError",
+        "JobAlreadySettled": "Semiont.Worker.WorkerError",
+        "StartAlreadySaid": "Semiont.Worker.WorkerError",
+        "WorkerOptions": "GHC.Internal.Base.NonEmpty Semiont.Internal.Generated.Models.JobFilter.JobFilter -> Semiont.Internal.Bus.BusOptions -> Semiont.Timing.Settings.Settings -> IO Data.Text.Internal.Text -> Semiont.Worker.WorkerOptions",
+        "annotationId": "Semiont.Worker.HeldJob result -> Maybe Semiont.Internal.Generated.Models.AnnotationId.AnnotationId",
+        "attempt": "Semiont.Worker.HeldJob result -> Integer",
+        "cancel": "Semiont.Worker.HeldJob result -> Maybe Semiont.Worker.Types.JobReached -> IO ()",
+        "cancelled": "Semiont.Worker.HeldJob result -> GHC.Internal.Conc.Sync.STM Bool",
+        "checkpoint": "Semiont.Worker.HeldJob result -> Semiont.Worker.Types.JobCheckpoint -> IO ()",
+        "commit": "Semiont.Worker.HeldJob result -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> [Semiont.Internal.Generated.Models.Annotation.Annotation] -> IO ()",
+        "complete": "Semiont.Worker.HeldJob result -> result -> IO ()",
+        "completedUnits": "Semiont.Worker.HeldJob result -> [Data.Text.Internal.Text]",
+        "fail": "Semiont.Worker.HeldJob result -> Data.Text.Internal.Text -> Maybe Semiont.Worker.Types.JobFailure -> IO ()",
+        "jobId": "Semiont.Worker.HeldJob result -> Semiont.Internal.Generated.Models.JobId.JobId",
+        "jobType": "Semiont.Worker.HeldJob result -> Semiont.Internal.Generated.Models.JobType.JobType",
+        "maxRetries": "Semiont.Worker.HeldJob result -> Integer",
+        "newClaims": "Semiont.Internal.Transport.Transport -> Semiont.Worker.WorkerOptions -> IO Semiont.Worker.Claims",
+        "next": "Semiont.Worker.Claims -> IO (Maybe Semiont.Worker.SomeHeldJob)",
+        "params": "Semiont.Worker.HeldJob result -> Semiont.Internal.Generated.Models.JobParams.JobParams",
+        "progress": "Semiont.Worker.HeldJob result -> Semiont.Internal.Generated.Models.JobProgress.JobProgress -> IO ()",
+        "refused": "Semiont.Worker.Claims -> (Streaming.Internal.Stream (Data.Functor.Of.Of Semiont.Worker.Types.ClaimRefusal) IO () -> IO result) -> IO result",
+        "resourceId": "Semiont.Worker.HeldJob result -> Semiont.Internal.Generated.Models.ResourceId.ResourceId",
+        "retryCount": "Semiont.Worker.HeldJob result -> Integer",
+        "settled": "Semiont.Worker.HeldJob result -> GHC.Internal.Conc.Sync.STM Bool",
+        "stalled": "Semiont.Worker.Claims -> (Streaming.Internal.Stream (Data.Functor.Of.Of Semiont.Worker.Types.HeldJobStall) IO () -> IO result) -> IO result",
+        "start": "Semiont.Worker.HeldJob result -> IO ()",
+        "stop": "Semiont.Worker.Claims -> IO ()",
+        "trace": "Semiont.Worker.HeldJob result -> Maybe Semiont.Internal.Generated.Models.TraceCarrier.TraceCarrier",
+        "unitCursors": "Semiont.Worker.HeldJob result -> Data.Aeson.KeyMap.KeyMap Semiont.Internal.Generated.Models.UnitCursor.UnitCursor",
+        "vitals": "Semiont.Worker.Claims -> IO Semiont.Worker.Types.WorkerVitals",
+        "workerAccepts": "Semiont.Worker.WorkerOptions -> GHC.Internal.Base.NonEmpty Semiont.Internal.Generated.Models.JobFilter.JobFilter",
+        "workerBusOptions": "Semiont.Worker.WorkerOptions -> Semiont.Internal.Bus.BusOptions",
+        "workerTimestamp": "Semiont.Worker.WorkerOptions -> IO Data.Text.Internal.Text",
+        "workerTiming": "Semiont.Worker.WorkerOptions -> Semiont.Timing.Settings.Settings"
+      }
+    },
+    "Semiont.Worker.Types": {
+      "types": {
+        "ClaimRefusal": {
+          "definition": "data Semiont.Worker.Types.ClaimRefusal = ...",
+          "kind": "*"
+        },
+        "HeldJobStall": {
+          "definition": "data Semiont.Worker.Types.HeldJobStall = ...",
+          "kind": "*"
+        },
+        "JobCheckpoint": {
+          "definition": "data Semiont.Worker.Types.JobCheckpoint = ...",
+          "kind": "*"
+        },
+        "JobFailure": {
+          "definition": "data Semiont.Worker.Types.JobFailure = ...",
+          "kind": "*"
+        },
+        "JobReached": {
+          "definition": "data Semiont.Worker.Types.JobReached = ...",
+          "kind": "*"
+        },
+        "WorkerVitals": {
+          "definition": "data Semiont.Worker.Types.WorkerVitals = ...",
+          "kind": "*"
+        },
+        "WorkerVitalsActiveJob": {
+          "definition": "data Semiont.Worker.Types.WorkerVitalsActiveJob = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "ClaimRefusal": "Maybe Semiont.ErrorCodes.BusRequestCode -> Data.Text.Internal.Text -> Semiont.Worker.Types.ClaimRefusal",
+        "HeldJobStall": "Semiont.Internal.Generated.Models.JobId.JobId -> Semiont.Internal.Generated.Models.JobType.JobType -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> Data.Scientific.Scientific -> Data.Scientific.Scientific -> Semiont.Worker.Types.HeldJobStall",
+        "JobCheckpoint": "[Data.Text.Internal.Text] -> Maybe (Data.Aeson.KeyMap.KeyMap Semiont.Internal.Generated.Models.UnitCursor.UnitCursor) -> Semiont.Worker.Types.JobCheckpoint",
+        "JobFailure": "Maybe [Data.Text.Internal.Text] -> Maybe (Data.Aeson.KeyMap.KeyMap Semiont.Internal.Generated.Models.UnitCursor.UnitCursor) -> Maybe Semiont.Internal.Generated.Models.FailureClass.FailureClass -> Semiont.Worker.Types.JobFailure",
+        "JobReached": "Maybe [Data.Text.Internal.Text] -> Maybe (Data.Aeson.KeyMap.KeyMap Semiont.Internal.Generated.Models.UnitCursor.UnitCursor) -> Semiont.Worker.Types.JobReached",
+        "WorkerVitals": "Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> Maybe Semiont.Worker.Types.WorkerVitalsActiveJob -> Data.Scientific.Scientific -> Semiont.Worker.Types.WorkerVitals",
+        "WorkerVitalsActiveJob": "Semiont.Internal.Generated.Models.JobId.JobId -> Semiont.Internal.Generated.Models.JobType.JobType -> Data.Text.Internal.Text -> Semiont.Worker.Types.WorkerVitalsActiveJob",
+        "claimRefusalCode": "Semiont.Worker.Types.ClaimRefusal -> Maybe Semiont.ErrorCodes.BusRequestCode",
+        "claimRefusalMessage": "Semiont.Worker.Types.ClaimRefusal -> Data.Text.Internal.Text",
+        "heldJobStallHeldSince": "Semiont.Worker.Types.HeldJobStall -> Data.Text.Internal.Text",
+        "heldJobStallJobId": "Semiont.Worker.Types.HeldJobStall -> Semiont.Internal.Generated.Models.JobId.JobId",
+        "heldJobStallJobType": "Semiont.Worker.Types.HeldJobStall -> Semiont.Internal.Generated.Models.JobType.JobType",
+        "heldJobStallLastActivityAt": "Semiont.Worker.Types.HeldJobStall -> Data.Text.Internal.Text",
+        "heldJobStallSilentForMs": "Semiont.Worker.Types.HeldJobStall -> Data.Scientific.Scientific",
+        "heldJobStallThresholdMs": "Semiont.Worker.Types.HeldJobStall -> Data.Scientific.Scientific",
+        "jobCheckpointCompletedUnits": "Semiont.Worker.Types.JobCheckpoint -> [Data.Text.Internal.Text]",
+        "jobCheckpointUnitCursors": "Semiont.Worker.Types.JobCheckpoint -> Maybe (Data.Aeson.KeyMap.KeyMap Semiont.Internal.Generated.Models.UnitCursor.UnitCursor)",
+        "jobFailureCompletedUnits": "Semiont.Worker.Types.JobFailure -> Maybe [Data.Text.Internal.Text]",
+        "jobFailureFailureClass": "Semiont.Worker.Types.JobFailure -> Maybe Semiont.Internal.Generated.Models.FailureClass.FailureClass",
+        "jobFailureUnitCursors": "Semiont.Worker.Types.JobFailure -> Maybe (Data.Aeson.KeyMap.KeyMap Semiont.Internal.Generated.Models.UnitCursor.UnitCursor)",
+        "jobReachedCompletedUnits": "Semiont.Worker.Types.JobReached -> Maybe [Data.Text.Internal.Text]",
+        "jobReachedUnitCursors": "Semiont.Worker.Types.JobReached -> Maybe (Data.Aeson.KeyMap.KeyMap Semiont.Internal.Generated.Models.UnitCursor.UnitCursor)",
+        "workerVitalsActiveJob": "Semiont.Worker.Types.WorkerVitals -> Maybe Semiont.Worker.Types.WorkerVitalsActiveJob",
+        "workerVitalsActiveJobJobId": "Semiont.Worker.Types.WorkerVitalsActiveJob -> Semiont.Internal.Generated.Models.JobId.JobId",
+        "workerVitalsActiveJobSince": "Semiont.Worker.Types.WorkerVitalsActiveJob -> Data.Text.Internal.Text",
+        "workerVitalsActiveJobType": "Semiont.Worker.Types.WorkerVitalsActiveJob -> Semiont.Internal.Generated.Models.JobType.JobType",
+        "workerVitalsJobsCompleted": "Semiont.Worker.Types.WorkerVitals -> Data.Scientific.Scientific",
+        "workerVitalsLastActivityAt": "Semiont.Worker.Types.WorkerVitals -> Maybe Data.Text.Internal.Text",
+        "workerVitalsLastClaimAt": "Semiont.Worker.Types.WorkerVitals -> Maybe Data.Text.Internal.Text",
+        "workerVitalsLastFinishedAt": "Semiont.Worker.Types.WorkerVitals -> Maybe Data.Text.Internal.Text",
+        "workerVitalsLastQueuedEventAt": "Semiont.Worker.Types.WorkerVitals -> Maybe Data.Text.Internal.Text"
       }
     }
   }

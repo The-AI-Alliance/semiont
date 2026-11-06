@@ -39,6 +39,7 @@ import HttpCases (httpCases)
 import LifetimeCases (lifetimeCases)
 import WorkerCases (workerCases)
 import GatewayCases (gatewayCases)
+import HeldCases (heldCases)
 import qualified SchemaCases
 
 require :: String -> Bool -> IO ()
@@ -355,5 +356,6 @@ main = do
     pure (Just wire, code)
   busCases command browse event (failureRows ++ [(Nothing, fallback), (Just "__unknown_test_code", fallback)])
   fixtures <- traverse (either (ioError . userError) pure . sample 0) schemas
+  heldCases fixtures
   httpCases root fixtures
   corpusCases root

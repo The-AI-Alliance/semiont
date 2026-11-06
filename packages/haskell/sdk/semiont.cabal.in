@@ -33,7 +33,7 @@ common context-propagation
 library
   default-language: GHC2021
   build-depends: base >=4.20 && <4.21, semiont:internal
-  reexported-modules: Semiont.Types, Semiont.Types.Presence, Semiont.Channels, Semiont.Running, Semiont.ErrorCodes, Semiont.Timing, Semiont.Timing.Settings, Semiont.Retry, Semiont.Discovery, Semiont.Discovery.Reasons, Semiont.Transport, Semiont.Transport.Facts, Semiont.StateValue, Semiont.Errors, Semiont.EventBus, Semiont.Bus, Semiont.Http, Semiont.Content, Semiont.Gateway, Semiont.Frame, Semiont.Auth, Semiont.System, Semiont.Client, Semiont.JobFilter, Semiont.Claims, Semiont.HostName
+  reexported-modules: Semiont.Types, Semiont.Types.Presence, Semiont.Channels, Semiont.Running, Semiont.ErrorCodes, Semiont.Timing, Semiont.Timing.Settings, Semiont.Retry, Semiont.Discovery, Semiont.Discovery.Reasons, Semiont.Transport, Semiont.Transport.Facts, Semiont.StateValue, Semiont.Errors, Semiont.EventBus, Semiont.Bus, Semiont.Http, Semiont.Content, Semiont.Gateway, Semiont.Frame, Semiont.Auth, Semiont.System, Semiont.Client, Semiont.JobFilter, Semiont.Claims, Semiont.HostName, Semiont.Worker, Semiont.Worker.Types
 
 library internal
   import: settings, context-propagation
@@ -73,6 +73,8 @@ library internal
     Semiont.JobFilter
     Semiont.Claims
     Semiont.HostName
+    Semiont.Worker
+    Semiont.Worker.Types
     Semiont.Internal.Http
     Semiont.Internal.HttpActor
     Semiont.Internal.HttpContent
@@ -83,6 +85,7 @@ library internal
     Paths_semiont
     Semiont.Internal.Telemetry
     Semiont.Internal.Codec
+    Semiont.Internal.Bus
     Semiont.Internal.Required
     Semiont.Internal.RetryPolicy
     Semiont.Internal.Generated.WorkerChannels
@@ -93,7 +96,7 @@ executable semiont-codegen
   import: settings
   main-is: Main.hs
   hs-source-dirs: codegen, internal
-  other-modules: Semiont.Internal.Schema, Facts, TransportFacts, HttpFacts, WorkerFacts
+  other-modules: Semiont.Internal.Schema, Facts, TransportFacts, HttpFacts, WorkerFacts, WorkerTypes
   ghc-options: -threaded
   build-depends: mtl >=2.3 && <2.4, directory >=1.3 && <1.4, filepath >=1.5 && <1.6
 
@@ -103,13 +106,13 @@ test-suite schema-cases
   type: exitcode-stdio-1.0
   main-is: Main.hs
   hs-source-dirs: test
-  other-modules: Semiont.Internal.Generated.RoundTrip, Semiont.Internal.Generated.ChannelRoundTrip, Semiont.Internal.Generated.ErrorRoundTrip, Semiont.Internal.Generated.TimingValues, Semiont.Internal.Generated.DiscoveryReasonRoundTrip, Runtime, Discovery, BusCases, SchemaCases, HttpCases, LifetimeCases, WorkerCases, GatewayCases
+  other-modules: Semiont.Internal.Generated.RoundTrip, Semiont.Internal.Generated.ChannelRoundTrip, Semiont.Internal.Generated.ErrorRoundTrip, Semiont.Internal.Generated.TimingValues, Semiont.Internal.Generated.DiscoveryReasonRoundTrip, Runtime, Discovery, BusCases, SchemaCases, HttpCases, LifetimeCases, WorkerCases, GatewayCases, HeldCases
   ghc-options: -threaded
   build-depends: semiont:internal, process >=1.6 && <1.7, directory >=1.3 && <1.4, filepath >=1.5 && <1.6
 
 executable semiont-haskell-wire-driver
-  import: settings
+  import: settings, context-propagation
   main-is: Main.hs
   hs-source-dirs: conformance
   ghc-options: -threaded
-  build-depends: semiont, http-client >=0.7 && <0.8, uuid >=1.3 && <1.4, uuid-types >=1.0 && <1.1, random >=1.3 && <1.4, base64-bytestring >=1.2 && <1.3, hs-opentelemetry-sdk >=1.0 && <1.1
+  build-depends: semiont, http-client >=0.7 && <0.8, uuid >=1.3 && <1.4, uuid-types >=1.0 && <1.1, random >=1.3 && <1.4, base64-bytestring >=1.2 && <1.3, time >=1.12 && <1.13, hs-opentelemetry-sdk >=1.0 && <1.1

@@ -7,9 +7,9 @@ as the other Semiont SDKs. It currently provides protocol types, checked
 identifiers, a typed bus and common carrier runtime, read-only state,
 scoped operation consumption, retry support, and launcher discovery.
 HTTP/SSE and content adapters and the client facade are available, including
-the Frame, Auth and System namespaces. The other namespaces, sign-in,
-delegation, live queries, workers, registry and state units are still being
-implemented.
+the Frame, Auth and System namespaces. Claims, held jobs and durable worker
+commits are available. The other namespaces, sign-in, delegation, live queries,
+registry and state units are still being implemented.
 
 [Install](#install) · [Signing in](#signing-in) · [Connect](#connect) ·
 [Delegation](#delegation) · [Live queries](#live-queries) ·
@@ -129,10 +129,67 @@ transient and unclassified failures retry while the record has budget left.
 channels to subscribe to for claiming and committing. They are generated from
 the existing SDK's worker channel declarations and the typed bus descriptors.
 
-Claims streams, held jobs, checkpoints, progress, settlement, and durable
-commits are still in development. The shared
-[worker contract](../../../protocol/contract/WORKER-CONTRACT.md) states their
-behavior.
+`Semiont.Worker` claims one job at a time. `newClaims` is lazy: the first
+`next` starts claiming, and the worker claims again after settlement, a
+matching announcement while idle, or a stream reopening. Bracket it with
+`stop` so a job still held when the worker stops is failed for retry before
+the transport closes.
+
+```haskell
+{-# LANGUAGE GADTs #-}
+module WorkerExample where
+
+import Control.Exception (bracket)
+import qualified Semiont.Client as Client
+import qualified Semiont.Worker as Worker
+import Semiont.Types (MarkJobResult, YieldJobResult)
+
+runWorker :: Client.Client -> Worker.WorkerOptions
+  -> (Worker.HeldJob MarkJobResult -> IO MarkJobResult)
+  -> (Worker.HeldJob YieldJobResult -> IO YieldJobResult)
+  -> IO ()
+runWorker client options mark yield =
+  bracket (Worker.newClaims (Client.transport client) options) Worker.stop loop
+  where
+    loop claims = do
+      next <- Worker.next claims
+      case next of
+        Nothing -> pure ()
+        Just (Worker.HeldMark job) -> do
+          Worker.start job
+          mark job >>= Worker.complete job
+          loop claims
+        Just (Worker.HeldYield job) -> do
+          Worker.start job
+          yield job >>= Worker.complete job
+          loop claims
+```
+
+`WorkerOptions` supplies a nonempty list of generated filters, `BusOptions`
+for monotonic time and correlation ids, generated timing settings, and a wall
+clock that returns ISO 8601 timestamps. The transport must subscribe to
+`jobClaimChannels`, plus `jobCommitChannels` when the worker commits annotations.
+
+A held job exposes the claimed record's identity, parameters, retry budget,
+completed units and unit cursors. Its `cancelled` and `settled` observations
+are read-only STM actions. The worker's code watches cancellation and calls
+`cancel` after its work has stopped. `progress` and `checkpoint` report activity;
+`complete`, `fail` and `cancel` settle once, releasing the job even if sending
+the outcome fails. A mark job's completion accepts only `MarkJobResult`, and a
+yield job's only `YieldJobResult`.
+
+`commit` waits for the record's acknowledgement. If it times out, it probes
+the batch's last annotation once instead of sending the batch again. Settlement
+reports the weakest durability evidence observed. Supply stable annotation ids
+across attempts, and count a unit completed only after its commit is established.
+
+Use the scoped `refused` and `stalled` streams for faults the host must judge,
+and `vitals` for activity snapshots. An empty queue is not a refusal. `trace`
+exposes the carrier that handed over the job; a host exporting telemetry uses
+that carrier as the parent of its own job span. Claims start outside the trace
+of the previous job. The shared
+[worker contract](../../../protocol/contract/WORKER-CONTRACT.md) states these
+lifetimes and observations.
 
 ## Several knowledge bases
 
@@ -298,7 +355,8 @@ permitted extra members. It also executes the shared identifier table and
 every shared job-filter, job-retry, and gateway URL case, and checks resolved
 JSON payloads from the wire, live-query, and worker corpora.
 The wire driver additionally executes the transport scenarios against the real
-gateway on both signal planes. Live-query and worker drivers remain outstanding.
+gateway on both signal planes. The worker driver runs every worker case against
+the real gateway on both planes as well. The live-query driver remains outstanding.
 
 Runtime tests also cover atomic publication of raw replies before request
 continuations, channel/correlation matching, tracking cleanup on cancellation,

@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE GADTs, OverloadedStrings, ScopedTypeVariables, RankNTypes #-}
 module Main (main) where
 
 import Control.Concurrent (threadDelay, yield)
@@ -6,8 +6,19 @@ import Control.Concurrent.Async
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
 import Control.Exception
+import qualified Data.HashMap.Strict as HashMap
+import Data.List.NonEmpty (nonEmpty)
+import Data.Time (getCurrentTime, formatTime, defaultTimeLocale)
+import qualified OpenTelemetry.Context as Context
+import OpenTelemetry.Context.ThreadLocal (getContext, attachContext, detachContext)
+import qualified OpenTelemetry.Propagator as Propagator
+import OpenTelemetry.Attributes (toAttribute)
+import qualified Semiont.Worker as Worker
+import Semiont.Worker.Types
+import Semiont.Claims (jobClaimChannels, jobCommitChannels)
 import Control.Monad (forM_, unless, void, when)
 import Data.Aeson hiding (decode)
+import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString as Bytes
 import qualified Data.ByteString.Char8 as Char8
@@ -22,6 +33,7 @@ import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID.Types as UUID
 import GHC.Clock (getMonotonicTimeNSec)
 import Network.HTTP.Client (defaultManagerSettings, noProxy)
+import qualified OpenTelemetry.Trace.Core as TraceCore
 import qualified OpenTelemetry.Trace as Trace
 import qualified OpenTelemetry.Metric as Metric
 import qualified Semiont.Bus as Bus
@@ -38,12 +50,14 @@ import qualified Semiont.Transport as Transport
 import Semiont.Transport.Facts (connectionStateName)
 import Semiont.Types
 import System.IO
-import System.Environment (lookupEnv)
+import System.Environment (lookupEnv, getArgs)
 import System.Random (randomRIO)
 import qualified Streaming.Prelude as Stream
 
 data Misuse = Misuse String deriving Show
 instance Exception Misuse
+
+data ActiveJob = ActiveJob Worker.SomeHeldJob Context.Context
 
 data Driver = Driver
   { connection :: TVar (Maybe Http.HttpTransport)
@@ -56,6 +70,10 @@ data Driver = Driver
   , pool :: Http.HttpClient
   , time :: Retry.RetryOptions
   , reported :: TVar (Maybe Transport.ConnectionState)
+  , workerMode :: Bool
+  , claims :: TVar (Maybe Worker.Claims)
+  , currentJob :: TVar (Maybe ActiveJob)
+  , workerTimings :: TVar Timing.Settings
   }
 
 say :: Driver -> Value -> IO ()
@@ -122,9 +140,13 @@ open driver args = do
   when (maybe False (const True) previous) (throwIO (Misuse "A transport is already open"))
   address <- need args "baseUrl"
   token <- need args "token"
-  channels <- need args "channels"
+  channels <- if workerMode driver then do
+    commits <- maybe False id <$> optional args "commits"
+    pure (jobClaimChannels ++ if commits then jobCommitChannels else [])
+    else need args "channels"
   overrides <- maybe (pure (Object KM.empty)) pure =<< optional args "timing"
   timings <- either (throwIO . Misuse) pure (Timing.withOverrides overrides)
+  atomically (writeTVar (workerTimings driver) timings)
   remaining <- newTVarIO =<< (maybe (pure []) pure =<< optional args "renewals")
   atomically (writeTVar (credential driver) (Just token))
   let renew _ = atomically $ do
@@ -250,12 +272,107 @@ perform driver identifier operation args = case operation of
     gatewayRead :: ToJSON answer => (Gateway.GatewayOperations -> IO answer) -> IO Value
     gatewayRead readGateway = opened driver >>= fmap toJSON . readGateway . Http.gateway
 
+withJob :: Driver -> (forall result. Worker.HeldJob result -> IO Value) -> IO Value
+withJob driver action = do
+  value <- readTVarIO (currentJob driver) >>= maybe (throwIO (Misuse "No job is held")) pure
+  case value of
+    ActiveJob some context -> bracket (attachContext context) detachContext $ \_ ->
+      case some of Worker.HeldMark job -> action job; Worker.HeldYield job -> action job
+
+reportJobs :: Driver -> Worker.Claims -> IO ()
+reportJobs driver worker = do
+  item <- Worker.next worker
+  forM_ item $ \some -> do
+    let runJob :: Worker.HeldJob result -> IO ()
+        runJob job = do
+          propagator <- Propagator.getGlobalTextMapPropagator
+          let carrier = case toJSON (Worker.trace job) of
+                Object fields -> Propagator.textMapFromList [(Key.toText key,value) | (key,String value) <- KM.toList fields]
+                _ -> Propagator.emptyTextMap
+          parent <- Propagator.extract propagator carrier Context.empty
+          bracket (attachContext parent) detachContext $ \_ -> do
+            provider <- Trace.getGlobalTracerProvider
+            tracer <- Trace.getTracer provider (TraceCore.instrumentationLibrary "semiont-conformance" "1") Trace.tracerOptions
+            Trace.inSpan'' tracer ("job:" <> (case Worker.jobType job of JobTypeMark -> "mark"; JobTypeYield -> "yield"))
+              Trace.defaultSpanArguments { Trace.attributes = HashMap.singleton "job.id" (toAttribute (jobIdValue (Worker.jobId job))) } $ \_ -> do
+                context <- getContext
+                atomically (writeTVar (currentJob driver) (Just (ActiveJob some context)))
+                say driver (object ["claimed" .= object
+                  ["jobId" .= Worker.jobId job, "jobType" .= Worker.jobType job, "resourceId" .= Worker.resourceId job,
+                   "params" .= Worker.params job, "completedUnits" .= Worker.completedUnits job, "unitCursors" .= Worker.unitCursors job,
+                   "retryCount" .= Worker.retryCount job, "maxRetries" .= Worker.maxRetries job]])
+                let waitSettled = atomically (Worker.settled job >>= check)
+                    cancellation = do
+                      signalled <- atomically ((Worker.cancelled job >>= check >> pure True) `orElse` (Worker.settled job >>= check >> pure False))
+                      when signalled (say driver (object ["signalled" .= Worker.jobId job]))
+                withAsync cancellation (const waitSettled)
+                atomically (writeTVar (currentJob driver) Nothing)
+    case some of Worker.HeldMark job -> runJob job; Worker.HeldYield job -> runJob job
+    reportJobs driver worker
+
+workerPerform :: Driver -> Integer -> Text -> Object -> Maybe (IO Value)
+workerPerform driver identifier operation args = case operation of
+  "close" -> Just $ do
+    readTVarIO (claims driver) >>= mapM_ Worker.stop
+    opened driver >>= Http.dispose
+    pure Null
+  "claim" -> Just $ do
+    previous <- readTVarIO (claims driver)
+    when (maybe False (const True) previous) (throwIO (Misuse "Worker is already claiming"))
+    filters <- need args "accepts" >>= maybe (throwIO (Misuse "No filters")) pure . nonEmpty
+    http <- opened driver
+    timing <- readTVarIO (workerTimings driver)
+    let clock = Bus.BusOptions now waitUntil (UUID.toText <$> UUID.nextRandom)
+        timestamp = Text.pack . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" <$> getCurrentTime
+    worker <- Worker.newClaims (Http.transport http) (Worker.WorkerOptions filters clock timing timestamp)
+    atomically (writeTVar (claims driver) (Just worker))
+    reporter driver $ \ready -> Worker.refused worker $ \events -> ready >> Stream.mapM_ (\refusal -> say driver (object ["refused" .= object
+      (["detail" .= claimRefusalMessage refusal] ++ maybe [] (\code -> ["code" .= Code.busRequestCode code]) (claimRefusalCode refusal))])) events
+    reporter driver $ \ready -> Worker.stalled worker $ \events -> ready >> Stream.mapM_ (\event -> say driver (object ["stalled" .= heldJobStallJobId event])) events
+    reporter driver $ \ready -> ready >> reportJobs driver worker
+    pure Null
+  "start" -> Just $ withJob driver (\job -> Worker.start job >> pure Null)
+  "progress" -> Just $ withJob driver $ \job -> do
+    value <- decode (Object (foldr KM.delete args ["id","op"]))
+    Worker.progress job value
+    pure Null
+  "checkpoint" -> Just $ withJob driver $ \job -> do
+    value <- decode (Object (foldr KM.delete args ["id","op"]))
+    Worker.checkpoint job value
+    pure Null
+  "commit" -> Just $ withJob driver $ \job -> do
+    resource <- need args "resourceId"
+    annotations <- need args "annotations"
+    Worker.commit job resource annotations
+    pure Null
+  "complete" -> Just $ do
+    value <- readTVarIO (currentJob driver) >>= maybe (throwIO (Misuse "No job is held")) pure
+    case value of
+      ActiveJob some context -> bracket (attachContext context) detachContext $ \_ -> case some of
+        Worker.HeldMark job -> need args "result" >>= Worker.complete job
+        Worker.HeldYield job -> need args "result" >>= Worker.complete job
+    pure Null
+  "fail" -> Just $ withJob driver $ \job -> do
+    message <- need args "error"
+    failureValue <- decode (Object (foldr KM.delete args ["id","op","error"]))
+    Worker.fail job message (Just failureValue)
+    pure Null
+  "cancel" -> Just $ withJob driver $ \job -> do
+    reached <- decode (Object (foldr KM.delete args ["id","op"]))
+    Worker.cancel job (Just reached)
+    pure Null
+  "vitals" -> Just $ do
+    worker <- readTVarIO (claims driver) >>= maybe (throwIO (Misuse "No claims")) pure
+    toJSON <$> Worker.vitals worker
+  _ -> perform driver identifier operation args
+
 answer :: Driver -> Integer -> IO Value -> IO ()
 answer driver identifier action = do
   outcome <- try action
   case outcome of
     Right value -> say driver (object ["id" .= identifier, "ok" .= value])
     Left problem
+      | Just issue <- (fromException problem :: Maybe Worker.WorkerError) -> say driver (object ["id" .= identifier, "misuse" .= show issue])
       | Just (Misuse reason) <- fromException problem -> say driver (object ["id" .= identifier, "misuse" .= reason])
       | Just AsyncCancelled <- fromException problem -> say driver (object ["id" .= identifier, "abandoned" .= True])
       | Just value <- failure problem -> say driver (object ["id" .= identifier, "error" .= value])
@@ -270,7 +387,7 @@ dispatch driver args = do
     active <- readTVarIO (jobs driver)
     maybe (throwIO (Misuse "No active operation to abandon")) cancel (Map.lookup target active)
     pure Null
-  else case perform driver identifier operation args of
+  else case (if workerMode driver then workerPerform driver identifier operation args else perform driver identifier operation args) of
     Nothing -> say driver (object ["id" .= identifier, "unsupported" .= True])
     Just action -> if operation `elem` ["open", "close", "set-token", "listen", "subscribe-resource", "release-resource", "sync"]
         then answer driver identifier action
@@ -313,9 +430,11 @@ main = do
 
 run :: IO ()
 run = do
+  arguments <- getArgs
+  mode <- case arguments of [] -> pure False; ["--worker"] -> pure True; _ -> throwIO (Misuse "Unknown driver arguments")
   hSetBuffering stdout NoBuffering
   client <- Http.newHttpClient noProxy defaultManagerSettings
   driver <- Driver <$> newTVarIO Nothing <*> newTVarIO Nothing <*> newTVarIO Map.empty
     <*> newTVarIO [] <*> newTVarIO Map.empty <*> newMVar () <*> newEmptyTMVarIO <*> pure client
-    <*> pure (Retry.RetryOptions now waitUntil (randomRIO (0,1))) <*> newTVarIO Nothing
+    <*> pure (Retry.RetryOptions now waitUntil (randomRIO (0,1))) <*> newTVarIO Nothing <*> pure mode <*> newTVarIO Nothing <*> newTVarIO Nothing <*> newTVarIO Timing.protocolSettings
   void (race (serve driver) (atomically (readTMVar (fatal driver)) >>= throwIO)) `finally` dispose driver

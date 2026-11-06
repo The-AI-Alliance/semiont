@@ -2001,7 +2001,7 @@ const VERBS = JSON.parse(read(`${SCHEMAS}/JobType.json`)).enum;
 const HANDED = ['claims', 'heldJob'];
 
 /** Each SDK whose worker's surface this reads, and its reader. */
-const WORKERS = { typescript: typescriptWorker, rust: rustWorker, python: pythonWorker, go: goWorker, kotlin: kotlinWorker, swift: swiftWorker, csharp: csharpWorker };
+const WORKERS = { haskell: haskellWorker, typescript: typescriptWorker, rust: rustWorker, python: pythonWorker, go: goWorker, kotlin: kotlinWorker, swift: swiftWorker, csharp: csharpWorker };
 const WORKER_SDKS = Object.keys(WORKERS);
 
 /** handed → member → row */
@@ -2161,6 +2161,51 @@ function unreadable(file) {
     fail(`${file}: ${what}: this lint cannot read what a worker is handed there, and holds that SDK to none of it`);
   };
   return { said, cannot };
+}
+
+function haskellWorker() {
+  const file = 'packages/haskell/sdk/public-api.json';
+  const module = JSON.parse(read(file)).modules['Semiont.Worker'];
+  const { said, cannot } = unreadable(file);
+  if (!module?.types.Claims || !module.types.HeldJob || !module.types.SomeHeldJob) {
+    cannot('GHC exports no Claims, HeldJob or SomeHeldJob');
+    return undefined;
+  }
+  const values = Object.entries(module.values);
+  const claims = new Map();
+  const generic = new Map();
+  const concrete = new Map();
+  for (const [member, signature] of values) {
+    if (!/^[a-z_]/.test(member)) continue;
+    const parts = signature.replace(/^forall [^.]+\. /, '').split(' -> ');
+    const first = parts[0].split(' => ').at(-1);
+    if (first === 'Semiont.Worker.Claims') claims.set(member, { takes: parts.slice(1, -1).map((type) => ({ name: '', type })) });
+    const receiver = /^Semiont\.Worker\.HeldJob (\S+)$/.exec(first);
+    if (receiver) {
+      const [target, variable] = /^[a-z]\w*$/.test(receiver[1]) ? [generic, receiver[1]] : [concrete, undefined];
+      target.set(member, { variable, receiver: receiver[1], takes: parts.slice(1, -1) });
+    } else if (first.includes('Semiont.Worker.HeldJob')) cannot(`unreadable held-job receiver of ${member}: ${first}`);
+  }
+  const jobs = Object.fromEntries(VERBS.map((verb) => {
+    const constructor = `Held${verb[0].toUpperCase()}${verb.slice(1)}`;
+    const signature = module.values[constructor];
+    const binding = /^Semiont\.Worker\.HeldJob (\S+) -> Semiont\.Worker\.SomeHeldJob$/.exec(signature ?? '');
+    if (!binding) cannot(`GHC exports no typed ${constructor} constructor`);
+    const its = [...generic, ...[...concrete].filter(([, declaration]) => declaration.receiver === binding?.[1])];
+    const members = new Map(its.map(([member, { variable, takes }]) => [member, { takes: takes.map((type) => ({
+      name: '', type: (type === variable && binding ? binding[1] : type).replace(/\b(?:[A-Z]\w*\.)+(\w+)/g, '$1'),
+    })) }]));
+    return [verb, { of: constructor, members }];
+  }));
+  const constructors = values.filter(([, type]) => / -> Semiont\.Worker\.SomeHeldJob$/.test(type)).map(([name]) => name);
+  const expected = VERBS.map((verb) => `Held${verb[0].toUpperCase()}${verb.slice(1)}`);
+  if (constructors.length !== expected.length || constructors.some((name) => !expected.includes(name))) cannot('SomeHeldJob constructors differ from the job verbs');
+  for (const [member, declaration] of concrete) {
+    if (!Object.values(jobs).some((job) => job.members.has(member))) cannot(`${member} takes a held job of no supported verb: ${declaration.receiver}`);
+  }
+  return said.any ? undefined : { where: file, claims: { of: 'Claims', members: claims }, jobs,
+    either: { of: 'HeldJob result', members: new Map([...generic].filter(([member]) => handed.get('heldJob')?.get(member)?.takes === undefined).map(([member]) => [member, { takes: [] }])) },
+    spelled: (name) => name };
 }
 
 function typescriptWorker() {
@@ -2980,7 +3025,9 @@ function haskellWire(made, where) {
   const inventory = JSON.parse(read('packages/haskell/sdk/public-api.json'));
   const module = inventory.modules['Semiont.Bus'];
   if (!module?.types[made]) return undefined;
-  const receiver = `Semiont.Bus.${made} -> `;
+  const declared = /^(?:data|newtype) (\S+)/.exec(module.types[made].definition ?? '');
+  if (!declared) return undefined;
+  const receiver = `${declared[1]} -> `;
   return { where, members: new Set(Object.entries(module.values)
     .filter(([, signature]) => signature.startsWith(receiver)).map(([name]) => name)) };
 }
@@ -2993,8 +3040,8 @@ const WIRES = {
       file: 'packages/haskell/sdk/public-api.json',
       says: (made) => ({ test: (source) => {
         const signature = JSON.parse(source).modules['Semiont.Client']?.values.wire;
-        const returned = /^Semiont\.Client\.Client -> Semiont\.Bus\.(\w+)$/.exec(signature ?? '');
-        return returned !== null && new RegExp(`^${made}$`).test(returned[1]);
+        const declared = /^(?:data|newtype) (\S+)/.exec(JSON.parse(source).modules['Semiont.Bus']?.types[made]?.definition ?? '');
+        return declared !== null && signature === `Semiont.Client.Client -> ${declared[1]}`;
       } }),
     },
   },

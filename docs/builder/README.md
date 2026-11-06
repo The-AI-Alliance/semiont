@@ -98,7 +98,7 @@ The main guide examples use TypeScript. Each SDK README shows how to call the sa
 - **[Kotlin](../../packages/kotlin/sdk/README.md)**, for Kotlin and Java programs: `suspend` functions and `Flow`s in Kotlin, and in Java a `CompletableFuture` for each and a `Flow.Publisher` for each stream. It has the client, live queries, sessions, the state units, a worker's claims, the annotation readers and builders, and a registry of several knowledge bases with a person's sign-in by a page redirect. It is not published yet.
 - **[C#](../../packages/csharp/sdk/README.md)** uses tasks and async enumerables. The README has runnable examples for delegation, workers, and live queries.
 - **[Swift](../../packages/swift/sdk/README.md)** uses async functions and sequences in Apple apps and Linux services. The README shows local package setup, device sign-in, resource reads, delegation, and live queries.
-- **[Haskell](../../packages/haskell/sdk/README.md)** is in development toward the same contract. Protocol types, checked identifiers, typed channels, scoped operation consumption, retry support, and launcher discovery are available; the client, sign-in, delegation, live queries, workers, registry, and state units are still being implemented.
+- **[Haskell](../../packages/haskell/sdk/README.md)** is in development toward the same contract. Protocol types, typed channels, HTTP/content transports, initial client namespaces, scoped operations, launcher discovery, and [claims and held jobs](../../packages/haskell/sdk/README.md#running-a-worker) are available. The remaining namespaces, sign-in, delegation, live queries, registry, and state units are still being implemented.
 
 ## Agent skills
 

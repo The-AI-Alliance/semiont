@@ -26,7 +26,11 @@ with tempfile.TemporaryDirectory() as output:
         "TransportInputCoercion": "constructor",
         "HttpPoolCoercion": "constructor",
         "WrongHttpAnswer": "GHC-83865",
+        "WorkerWrongResult": "GHC-83865",
     }
+    actual = {path.stem for path in Path("test/refusals").glob("*.hs")}
+    if actual != set(expected) | {"Valid"}:
+        raise AssertionError(f"external compiler cases differ from their runner: {actual ^ (set(expected) | {'Valid'})}")
     for name, diagnostic in expected.items():
         result = subprocess.run(
             command + [f"test/refusals/{name}.hs"], text=True,

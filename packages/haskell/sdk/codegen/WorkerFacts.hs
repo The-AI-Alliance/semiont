@@ -11,6 +11,7 @@ import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8')
 import System.FilePath ((</>))
 import TransportFacts (between)
+import WorkerTypes (workerTypes)
 
 quotedList :: Text -> Either String [Text]
 quotedList source = do
@@ -55,4 +56,5 @@ workerFacts root member = do
           , "jobCommitChannels :: [Text]"
           , "jobCommitChannels = " <> operations commitOperations
           ]
-    pure [("generated/Semiont/Internal/Generated/WorkerChannels.hs", code)]
+    records <- workerTypes source
+    pure (("generated/Semiont/Internal/Generated/WorkerChannels.hs", code) : records)
