@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
 
 namespace Semiont.Serialization;
@@ -138,9 +137,6 @@ internal static partial class Required
 
     private static Shape Resolved(Shape shape) => shape.Ref is { } reference ? Resolved(Component(reference)) : shape;
 
-    private static int ByCodePoint(string left, string right) =>
-        Encoding.UTF8.GetBytes(left).AsSpan().SequenceCompareTo(Encoding.UTF8.GetBytes(right));
-
     private static string Within(string way, string name) => way.Length == 0 ? name : way + "." + name;
 
     private static Kind KindOf(JsonElement value) => value.ValueKind switch
@@ -256,13 +252,13 @@ internal static partial class Required
         }
         if (shape.Members is { } members)
         {
-            foreach (var (name, member) in members.OrderBy(pair => pair.Key, Comparer<string>.Create(ByCodePoint)))
+            foreach (var (name, member) in members.OrderBy(pair => pair.Key, CodePoints.Order))
             {
                 if (!value.TryGetProperty(name, out var held) || held.ValueKind == JsonValueKind.Null) continue;
                 if (FaultAt(member, held, Within(way, name)) is { } inMember) return inMember;
             }
         }
-        var names = value.EnumerateObject().Select(property => property.Name).Order(Comparer<string>.Create(ByCodePoint)).ToArray();
+        var names = value.EnumerateObject().Select(property => property.Name).Order(CodePoints.Order).ToArray();
         if (shape.Closed is { } closed && names.FirstOrDefault(name => !closed.Contains(name, StringComparer.Ordinal)) is { } unnamed)
         {
             return new Fault(Within(way, unnamed), FrameRefusalReason.Malformed);

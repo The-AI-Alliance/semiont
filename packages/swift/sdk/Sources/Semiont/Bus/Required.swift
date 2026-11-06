@@ -121,10 +121,6 @@ private func resolved(_ shape: Shape) -> Shape {
   return resolved(component(ref))
 }
 
-private func byCodePoint(_ left: String, _ right: String) -> Bool {
-  left.unicodeScalars.lexicographicallyPrecedes(right.unicodeScalars)
-}
-
 private func within(_ way: String, _ name: String) -> String {
   way.isEmpty ? name : "\(way).\(name)"
 }
