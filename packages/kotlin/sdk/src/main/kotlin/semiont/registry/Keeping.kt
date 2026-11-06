@@ -51,9 +51,9 @@ public fun loadKnowledgeBases(storage: SessionStorage): List<KnowledgeBase> {
 public fun saveKnowledgeBases(storage: SessionStorage, kbs: List<KnowledgeBase>): Unit =
     storage.set(KNOWLEDGE_BASES_KEY, wireJson.encodeToString(ListSerializer(KnowledgeBase.serializer()), kbs))
 
-private fun heldOf(stored: StoredSession) = HeldSignIn(stored.access, stored.refresh, stored.clientId, stored.tokenEndpoint, stored.revocationEndpoint)
+private fun heldOf(stored: StoredSession) = HeldSignIn(stored.access, stored.refresh, stored.clientId, stored.tokenEndpoint, stored.revocationEndpoint, stored.personKey)
 
-private fun storedOf(held: HeldSignIn) = StoredSession(held.access, held.refresh, held.clientId, held.tokenEndpoint, held.revocationEndpoint)
+private fun storedOf(held: HeldSignIn) = StoredSession(held.access, held.refresh, held.clientId, held.tokenEndpoint, held.revocationEndpoint, held.personKey)
 
 /** A knowledge base's sign-in, kept where a registry keeps it. */
 private class KeptIn(private val storage: SessionStorage, private val kbId: String) : SignInKept {
@@ -85,6 +85,28 @@ private class KeptIn(private val storage: SessionStorage, private val kbId: Stri
     }
 
     override suspend fun forget(): Unit = clearStoredSession(storage, kbId)
+
+    override suspend fun recordPersonKey(access: String, personKey: String): Boolean {
+        var recorded = false
+        storage.update(sessionKey(kbId)) { stored ->
+            val session = stored?.let(::sessionIn)
+            when {
+                session == null || session.access != access -> {
+                    recorded = false
+                    stored
+                }
+                session.personKey == null -> {
+                    recorded = true
+                    writtenOf(session.copy(personKey = personKey))
+                }
+                else -> {
+                    recorded = session.personKey == personKey
+                    stored
+                }
+            }
+        }
+        return recorded
+    }
 }
 
 /**

@@ -24,6 +24,7 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import semiont.bus.EventBus
+import semiont.cache.PERSISTED_QUERIES
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
 import semiont.errors.SemiontError
@@ -370,7 +371,13 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     /** `signedIn`, for Java. */
     public fun signedInFuture(signedIn: SignedIn): CompletableFuture<SignInOutcome> = scope.futureOf { signedIn(signedIn) }
 
-    /** Sign out of a knowledge base: its tokens are forgotten, and the issuer is told so its refresh token is good for nothing. If it is active, its session is closed. */
+    /**
+     * Sign out of a knowledge base: its tokens are forgotten, and the issuer is
+     * told so its refresh token is good for nothing. If it is active, its
+     * session is closed. Then what a client kept there for the person the
+     * sign-in named, its queries and its stream's places, is deleted: after the
+     * session closed, so nothing it wrote as it closed is left.
+     */
     public suspend fun signOut(kbId: String) {
         if (closing) return
         val stored = storedSession(storage, kbId)
@@ -380,6 +387,10 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
         // Said again, so whoever shows each knowledge base's status reads it anew.
         synchronized(lock) { kbsHeld.raise(kbsHeld.value) }
         if (activeKbIdHeld.value == kbId) takeSession()?.close()
+        stored?.personKey?.let { person ->
+            PERSISTED_QUERIES.forEach { storage.delete(cacheKey(kbId, person, it.wire)) }
+            storage.delete(lastEventIdKey(kbId, person))
+        }
     }
 
     /** `signOut`, for Java. */

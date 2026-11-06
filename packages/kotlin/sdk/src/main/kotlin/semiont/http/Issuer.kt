@@ -273,7 +273,7 @@ public suspend fun signInDevice(kb: KbTarget, kept: SignInKept, http: HttpClient
         throw SignInError(SignInErrorCode.Discovery, invalid.message ?: "Invalid KB hostname")
     }
     val (issuer, tokens) = signInWithDeviceGrant(baseUrl, http, onCode)
-    kept.keep(HeldSignIn(tokens.access, tokens.refresh, SCRIPT_CLIENT_ID, issuer.token, issuer.revocation))
+    kept.keep(HeldSignIn(tokens.access, tokens.refresh, SCRIPT_CLIENT_ID, issuer.token, issuer.revocation, null))
 }
 
 /** `signInDevice`, for Java. */

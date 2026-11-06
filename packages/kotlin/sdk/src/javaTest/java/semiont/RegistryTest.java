@@ -153,7 +153,7 @@ final class RegistryTest {
     @Test
     void whatARegistryKeepsIsWrittenAndReadFromJava() {
         MemoryStorage storage = new MemoryStorage();
-        StoredSession session = new StoredSession("an-access-token", "a-refresh-token", "semiont-browser", "https://issuer.test/token", null);
+        StoredSession session = new StoredSession("an-access-token", "a-refresh-token", "semiont-browser", "https://issuer.test/token", null, null);
         KeepingKt.storeSession(storage, "kb-a", session);
         assertEquals(session, KeepingKt.storedSession(storage, "kb-a"));
         assertEquals("kb-a", StoredKt.kbOfSessionKey(StoredKt.sessionKey("kb-a")));

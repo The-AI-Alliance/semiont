@@ -67,8 +67,14 @@ public class MemoryStorage : SessionStorage {
     override fun subscribe(onChange: (key: String, value: String?) -> Unit): AutoCloseable? = null
 }
 
-/** Where a client keeps what its queries hold, so the next client of the same knowledge base shows it at once: documents in `storage`, under `semiont.cache.<keyPrefix>.<query>`. */
-public class CachePersistence(public val storage: SessionStorage, public val keyPrefix: String)
+/**
+ * Where a client keeps what its queries hold for one person, so the next
+ * client of the same knowledge base for them shows it at once: a document for
+ * each query client/refresh.json marks persisted, in `storage`, under
+ * `semiont.cache.<kbId>.<personKey>.<query>`. `personKey` is
+ * `semiont.registry.personKey` of the did the gateway said the client's token is.
+ */
+public class CachePersistence(public val storage: SessionStorage, public val kbId: String, public val personKey: String)
 
 /**
  * A cache's values in `storage`, under `storageKey`, as one document:

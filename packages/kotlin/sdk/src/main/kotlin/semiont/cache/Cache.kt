@@ -29,7 +29,7 @@ import java.util.function.Function
 
 /** Where a cache keeps its values, so a later one begins with them. */
 public interface CachePersister<K : Any, V : Any> {
-    /** What was kept, asked once, when the cache is built: none when nothing was. */
+    /** What was kept, asked once, when the cache is given this persister: none when nothing was. */
     public fun load(): Map<K, V>?
 
     /** Keep these: the cache's values, after they changed. */
@@ -71,12 +71,13 @@ private class Key<V : Any>(state: CacheState<V>) {
  * cache's own on the default dispatcher, for one a host makes. With a
  * `persister`, the cache begins with what was kept, shows a kept value at once
  * and asks for it again the first time it is observed, and saves its values
- * once they have stopped changing for `saveDebounceMs`.
+ * once they have stopped changing for `saveDebounceMs`. One a client gives its
+ * persister later (`attach`) does the same from then on.
  */
 public class Cache<K : Any, V : Any> internal constructor(
     private val ask: suspend (K) -> V,
     private val scope: CoroutineScope,
-    private val persister: CachePersister<K, V>? = null,
+    persister: CachePersister<K, V>? = null,
     private val saveDebounceMs: Long = Timings.SAVE_DEBOUNCE_MS,
 ) : StateUnit {
     /** A cache of a host's own, whose fetches ask `fetch` and run on the default dispatcher. */
@@ -95,6 +96,7 @@ public class Cache<K : Any, V : Any> internal constructor(
     ) : this({ key: K -> fetch.apply(key).await() }, ownScope(), persister, saveDebounceMs)
 
     private val lock = Any()
+    private var keeping: CachePersister<K, V>? = null
     private var disposed = false
     private var fetches = 0
     private var saving: Job? = null
@@ -104,8 +106,25 @@ public class Cache<K : Any, V : Any> internal constructor(
     private val kept = mutableSetOf<K>()
 
     init {
-        persister?.load()?.forEach { (key, value) -> keys[key] = Key(CacheState.Ready(value)) }
-        kept += keys.keys
+        if (persister != null) attach(persister)
+    }
+
+    /**
+     * Keep the cache's values with `persister` from now on, beginning with what
+     * it kept: a kept value fills only a key the cache holds nothing for, is
+     * shown at once, and is asked for anew the first time it is observed. What
+     * the cache holds is saved there from its next change. A closed cache, and
+     * one that keeps its values already, are left as they are.
+     */
+    internal fun attach(persister: CachePersister<K, V>): Unit = synchronized(lock) {
+        if (disposed || keeping != null) return
+        keeping = persister
+        persister.load()?.forEach { (key, value) ->
+            if (keys[key]?.known() != true) {
+                held(key).state.value = CacheState.Ready(value)
+                kept += key
+            }
+        }
     }
 
     private fun held(key: K): Key<V> = keys.getOrPut(key) { Key(CacheState.Pending) }
@@ -114,7 +133,7 @@ public class Cache<K : Any, V : Any> internal constructor(
 
     /** The values changed: save them once they have stopped changing. Called under the lock. */
     private fun oweASave() {
-        val keeping = persister ?: return
+        val persister = keeping ?: return
         saving?.cancel()
         saving = scope.launch {
             delay(saveDebounceMs)
@@ -122,7 +141,7 @@ public class Cache<K : Any, V : Any> internal constructor(
                 saving = null
                 values()
             }
-            keeping.save(entries)
+            persister.save(entries)
         }
     }
 
@@ -280,7 +299,7 @@ public class Cache<K : Any, V : Any> internal constructor(
 
     /** Whether a cache that keeps its values has not yet kept what it knows: a fetch is in flight, or a save is owed. */
     public val persistencePending: Boolean
-        get() = synchronized(lock) { persister != null && (saving != null || keys.values.any { it.inFlight != null }) }
+        get() = synchronized(lock) { keeping != null && (saving != null || keys.values.any { it.inFlight != null }) }
 
     /** The key's value is out of date: ask again, showing what there is meanwhile. A fetch in flight is not waited on. */
     public fun invalidate(key: K): Unit = synchronized(lock) {
@@ -325,7 +344,7 @@ public class Cache<K : Any, V : Any> internal constructor(
             kept.clear()
             owed to ended
         }
-        owed?.let { persister?.save(it) }
+        owed?.let { keeping?.save(it) }
         ended.forEach { it.state.value = null }
     }
 }

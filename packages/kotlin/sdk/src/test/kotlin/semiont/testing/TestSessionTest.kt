@@ -35,7 +35,7 @@ class TestSessionTest {
         val client = TestClient()
         val kb = KbTarget(id = "kb-2", label = "Another", endpoint = HttpEndpoint(host = "example.org", port = 443, protocol = HttpEndpointProtocol.Https))
         val access = token(3600, 1)
-        val kept = MemorySignIn(HeldSignIn(access, "a-refresh-token", "semiont-cli", "https://issuer.test/token", null))
+        val kept = MemorySignIn(HeldSignIn(access, "a-refresh-token", "semiont-cli", "https://issuer.test/token", null, null))
         val given = createTestSession(TestSessionOptions(client, kb, kept))
         withTimeout(5_000) { given.session.ready() }
         assertSame(client.client, given.client)

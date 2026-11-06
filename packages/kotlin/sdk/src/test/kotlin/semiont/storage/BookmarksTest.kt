@@ -14,10 +14,14 @@ import semiont.http.StreamGateway
 import semiont.http.Timing
 import semiont.http.firstOf
 import semiont.identifiers.ResourceId
+import semiont.registry.cacheKey
+import semiont.registry.lastEventIdKey
 import semiont.testing.SharedStorage
 
-private const val KEY = "semiont.lastEventId.kb-a"
-private const val CACHE = "semiont.cache.kb-a.resource"
+private const val PERSON = "the key of jo"
+private val KEY = lastEventIdKey("kb-a", PERSON)
+private val CACHE = cacheKey("kb-a", PERSON, "resource")
+private val ANNOTATIONS = cacheKey("kb-a", PERSON, "annotations")
 private val RESOURCE = ResourceId("res-1")
 private val OTHER = ResourceId("res-2")
 private val QUICK = Timing(reconnectMs = 10, lazyRemoveMs = 10, lingerMs = 10)
@@ -79,7 +83,7 @@ class BookmarksTest {
         // Late, which is safe: the cache that was written may not be the one still taking the event in.
         assertNull(storage.get(KEY))
         atRest = true
-        places.storage.set("semiont.cache.kb-a.annotations", "{}")
+        places.storage.set(ANNOTATIONS, "{}")
         assertEquals(mapOf(RESOURCE to "p-7"), places.load())
     }
 
@@ -125,7 +129,7 @@ class BookmarksTest {
         assertThrows(java.io.IOException::class.java) { places.storage.set(CACHE, "{}") }
         // The cache kept nothing of what the place names, and no place says it did.
         assertNull(full.get(KEY))
-        places.storage.set("semiont.cache.kb-a.annotations", "{}")
+        places.storage.set(ANNOTATIONS, "{}")
         assertEquals(mapOf(RESOURCE to "p-7"), places.load())
     }
 

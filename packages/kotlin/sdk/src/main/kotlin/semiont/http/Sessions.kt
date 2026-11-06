@@ -22,6 +22,8 @@ import semiont.registry.SignedIn
 import semiont.registry.StoredSession
 import semiont.registry.keptIn
 import semiont.registry.lastEventIdKey
+import semiont.registry.personKey
+import semiont.registry.storedSession
 import semiont.session.OpenedSession
 import semiont.session.SemiontSession
 import semiont.session.SessionEndReason
@@ -37,6 +39,7 @@ import semiont.types.LocalEndpoint
 import semiont.types.UserResponse
 import java.net.http.HttpClient
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.function.Consumer
 
 /** A kept sign-in's renewals at its issuer, one at a time: a renewal asked for while one is under way is that one, and whoever stops waiting does not stop it. */
@@ -66,6 +69,51 @@ private fun asking(baseUrl: String, http: HttpClient): suspend (String) -> UserR
     HttpTransport(baseUrl, MutableStateFlow(token), emptyList(), http = http).use { it.getCurrentUser() }
 }
 
+/**
+ * `beneath`, written only while the sign-in of knowledge base `kbId` kept
+ * there names the person whose key is `personKey`. Once it does not (signed
+ * out, or another sign-in in its place, here or in another context), nothing
+ * is written for the rest of its life: what was owed is dropped. A renewal
+ * keeps the person, and changes nothing.
+ */
+private class WhileSignedIn(private val beneath: SessionStorage, private val kbId: String, private val personKey: String) : SessionStorage {
+    @Volatile
+    private var signedIn = true
+
+    private fun stillSignedIn(): Boolean {
+        if (signedIn && storedSession(beneath, kbId)?.personKey != personKey) signedIn = false
+        return signedIn
+    }
+
+    override fun get(key: String): String? = beneath.get(key)
+
+    override fun set(key: String, value: String) {
+        if (stillSignedIn()) beneath.set(key, value)
+    }
+
+    override fun delete(key: String) {
+        if (stillSignedIn()) beneath.delete(key)
+    }
+
+    override fun update(key: String, change: (String?) -> String?) {
+        if (stillSignedIn()) beneath.update(key, change)
+    }
+
+    override fun subscribe(onChange: (key: String, value: String?) -> Unit): AutoCloseable? = beneath.subscribe(onChange)
+}
+
+/**
+ * What a session's client keeps in `storage` of knowledge base `kbId` for the
+ * person whose key is `personKey`: the stream's places, which ride the
+ * caches' writes, and the caches. Where the knowledge base's sign-in is kept
+ * in `storage` too (`signInBeside`), each write is made only while that
+ * sign-in names the person.
+ */
+private class KeptFor(storage: SessionStorage, kbId: String, personKey: String, signInBeside: Boolean) {
+    val places = CoupledBookmarks(if (signInBeside) WhileSignedIn(storage, kbId, personKey) else storage, lastEventIdKey(kbId, personKey))
+    val persistence = CachePersistence(places.storage, kbId, personKey)
+}
+
 /** The origin of the gateway `kb` is reached at. Throws `SessionError` (`session.construct-failed`) for a knowledge base reached otherwise than over HTTP, or whose host is no host's name. */
 private fun gatewayOf(kb: KbTarget): String {
     val endpoint = kb.endpoint as? HttpEndpoint
@@ -79,10 +127,14 @@ private fun gatewayOf(kb: KbTarget): String {
 
 /**
  * The session of `kb` as soon as it has started, before it is ready: what a
- * registry holds, and waits on itself. With a `storage`, what the client's
- * small queries hold is kept there under the knowledge base's id, and the
- * stream's place in each scope with it. The gateway and the issuer are asked
- * with `http`.
+ * registry holds, and waits on itself. With a `storage` and `validate`, what
+ * the client's small queries hold is kept there for the person the gateway
+ * says the token is, and the stream's place in each scope with it: from the
+ * start when the kept sign-in names them already, and otherwise once the
+ * gateway has named them and that is recorded on the sign-in the gateway was
+ * asked about. A session that never asks who its token is keeps nothing.
+ * `signInBeside` says the sign-in is kept in `storage` too. The gateway and
+ * the issuer are asked with `http`.
  */
 internal suspend fun sessionStarted(
     kb: KbTarget,
@@ -90,6 +142,7 @@ internal suspend fun sessionStarted(
     validate: Boolean,
     channels: List<String>,
     storage: SessionStorage?,
+    signInBeside: Boolean,
     onAuthFailed: ((SessionEndReason) -> Unit)?,
     onError: ((SessionError) -> Unit)?,
     http: HttpClient,
@@ -97,9 +150,8 @@ internal suspend fun sessionStarted(
     val baseUrl = gatewayOf(kb)
     val token = MutableStateFlow<String?>(null)
     val renewing = Renewing(kept, token, http)
-    // The stream's place rides the caches' writes, and only when every cache is at rest: a place kept ahead of a
-    // cache still taking in the event it names would have the next session skip that event.
-    val places = storage?.let { CoupledBookmarks(it, lastEventIdKey(kb.id)) }
+    val keeping = storage?.takeIf { validate }
+    val atStart = keeping?.let { into -> kept.held()?.personKey?.let { person -> KeptFor(into, kb.id, person, signInBeside) } }
     // The transport's refresher is made before the session that answers it: it waits for that session,
     // and closing the transport ends the wait (SDK-FOLLOW-UPS item 16).
     val made = CompletableDeferred<SemiontSession>()
@@ -110,13 +162,30 @@ internal suspend fun sessionStarted(
         refresher = object : TokenRefresher {
             override suspend fun refresh(refused: String?): String? = made.await().refresh(refused)
         },
-        bookmarks = places,
+        bookmarks = atStart?.places,
         http = http,
     )
     val content = HttpContentTransport(transport)
-    val client = SemiontClient(transport, content, transport, persistence = places?.let { CachePersistence(it.storage, kb.id) })
-    places?.flushGate = { client.persistenceSettled }
-    val session = SemiontSession(kb, client, token, kept, { renewing() }, if (validate) asking(baseUrl, http) else null, onAuthFailed, onError)
+    val client = SemiontClient(transport, content, transport, persistence = atStart?.persistence)
+    // The stream's place rides the caches' writes, and only when every cache is at rest: a place kept ahead of a
+    // cache still taking in the event it names would have the next session skip that event.
+    atStart?.places?.flushGate = { client.persistenceSettled }
+    val attached = AtomicBoolean(atStart != null)
+    val ask = asking(baseUrl, http)
+    // Who the gateway says a token is: by a session that keeps, recorded on the sign-in that holds that token, and only
+    // then is anything kept for them.
+    val whoIs: suspend (String) -> UserResponse = { asked ->
+        val user = ask(asked)
+        val person = personKey(user.did.value)
+        if (keeping != null && kept.recordPersonKey(asked, person) && attached.compareAndSet(false, true)) {
+            val late = KeptFor(keeping, kb.id, person, signInBeside)
+            late.places.flushGate = { client.persistenceSettled }
+            client.attach(late.persistence)
+            transport.keepPlaces(late.places)
+        }
+        user
+    }
+    val session = SemiontSession(kb, client, token, kept, { renewing() }, if (validate) whoIs else null, onAuthFailed, onError)
     made.complete(session)
     val opened = OpenedSession(session) {
         renewing.close()
@@ -140,10 +209,13 @@ internal suspend fun sessionStarted(
  * different ones. With nothing kept, the session is signed out: its token is
  * null, and a request made through its client is refused. `validate` is
  * whether the gateway is asked who the token is; `channels` are the global
- * channels the transport's stream names. With a `storage`, what the client's
- * small queries hold is kept there under the knowledge base's id, and the
+ * channels the transport's stream names. With a `storage`, and `validate`,
+ * what the client's small queries hold is kept there for the person the
+ * gateway says the token is, once that is recorded on `kept`, and the
  * stream's place in each scope with it: the next session over the same
- * storage shows what was kept at once, and is sent what was recorded since.
+ * storage for them shows what was kept at once, and is sent what was recorded
+ * since. Where `kept` has no place to record a person (the sign-in store of
+ * `semiont login`), nothing is kept.
  * The gateway and the issuer are asked with `http`. Throws `SessionError`
  * (`session.construct-failed`), before anything is asked, for a knowledge
  * base that is not reached over HTTP or whose host is no host's name.
@@ -158,7 +230,7 @@ public suspend fun sessionFromKept(
     onError: ((SessionError) -> Unit)? = null,
     http: HttpClient = ownHttp,
 ): OpenedSession {
-    val opened = sessionStarted(kb, kept, validate, channels, storage, onAuthFailed, onError, http)
+    val opened = sessionStarted(kb, kept, validate, channels, storage, false, onAuthFailed, onError, http)
     try {
         opened.session.ready()
     } catch (failure: Throwable) {
@@ -188,10 +260,11 @@ public fun sessionFromKeptFuture(
 /**
  * Builds the session of each knowledge base a registry activates, over its
  * gateway. The session's caches, and the stream's place in each scope, are
- * kept in the registry's storage under the knowledge base's id, and its token
- * is renewed at the issuer its stored session names. Each session renews its
- * own: a knowledge base's old session and its new one, during a sign-in, are
- * closed in turn. Every gateway and issuer is asked with `http`.
+ * kept in the registry's storage for the person its gateway says the token
+ * is, while the stored sign-in names them, and its token is renewed at the
+ * issuer its stored session names. Each session renews its own: a knowledge
+ * base's old session and its new one, during a sign-in, are closed in turn.
+ * Every gateway and issuer is asked with `http`.
  */
 public class HttpSessionFactory @JvmOverloads constructor(private val http: HttpClient = ownHttp) : SessionFactory {
     override suspend fun session(options: SessionFactoryOptions): OpenedSession {
@@ -202,6 +275,7 @@ public class HttpSessionFactory @JvmOverloads constructor(private val http: Http
             true,
             BRIDGED_CHANNELS,
             options.storage,
+            true,
             options.signals::notifySessionEnded,
             options.onError,
             http,

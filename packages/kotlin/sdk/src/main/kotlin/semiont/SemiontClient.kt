@@ -77,6 +77,9 @@ public class SemiontClient internal constructor(
     /** Whether every query the client keeps is at rest: none is being fetched, and none is owed to storage. A client that keeps nothing is always so. */
     public val persistenceSettled: Boolean get() = live.persistenceSettled
 
+    /** Keep what the client's queries hold in `persistence` from now on: what a client made keeping nothing is given once the person it is for is known. */
+    internal fun attach(persistence: CachePersistence): Unit = live.attach(persistence)
+
     /** The vocabulary: what kinds of things exist. */
     public val frame: FrameNamespace = FrameNamespace(links)
 

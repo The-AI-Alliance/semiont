@@ -3,6 +3,7 @@ package semiont.registry
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonIgnoreUnknownKeys
+import semiont.http.codeChallenge
 
 // What a registry of knowledge bases keeps in a SessionStorage, as protocol/specs/src/session/stored.json states it.
 // StoredTest fails when this differs from the table.
@@ -34,17 +35,26 @@ public fun sessionKey(kbId: String): String = SESSION_KEY_PREFIX + kbId
 /** The knowledge base a key is the session of; null when it is no session's key. */
 public fun kbOfSessionKey(key: String): String? = if (key.startsWith(SESSION_KEY_PREFIX)) key.removePrefix(SESSION_KEY_PREFIX) else null
 
-/** The key a knowledge base's stream's places are kept under. */
-internal fun lastEventIdKey(kbId: String): String = "semiont.lastEventId.$kbId"
+/**
+ * The key of the person the gateway says a token is, by their did: what names
+ * them in the keys their client's caches and stream places are kept under, and
+ * in a stored sign-in, in place of the did itself. Unpadded base64url of the
+ * SHA-256 of the did's UTF-8.
+ */
+public fun personKey(did: String): String = codeChallenge(did)
 
-/** The key the query `name` is kept under, by a persistence whose key prefix is `keyPrefix`. */
-internal fun cacheKey(keyPrefix: String, name: String): String = "semiont.cache.$keyPrefix.$name"
+/** The key the stream's places in each scope of knowledge base `kbId` are kept under, for the person whose key is `personKey`. */
+internal fun lastEventIdKey(kbId: String, personKey: String): String = "semiont.lastEventId.$kbId.$personKey"
+
+/** The key the query `query` of knowledge base `kbId` is kept under, for the person whose key is `personKey`. */
+internal fun cacheKey(kbId: String, personKey: String, query: String): String = "semiont.cache.$kbId.$personKey.$query"
 
 /**
  * What is kept of a sign-in: the tokens an issuer issued, the client they
- * were issued to, and the issuer's endpoints a renewal and a sign-out need,
- * learned once at sign-in so no session asks again. Tokens, never a password.
- * A stored value that lacks a member it requires is no session.
+ * were issued to, the issuer's endpoints a renewal and a sign-out need,
+ * learned once at sign-in so no session asks again, and whom the gateway said
+ * the tokens are, once it has. Tokens, never a password. A stored value that
+ * lacks a member it requires is no session.
  */
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
@@ -60,4 +70,6 @@ public data class StoredSession(
     public val tokenEndpoint: String,
     /** The issuer's revocation endpoint (RFC 7009), where a sign-out tells it to forget the refresh token. Null when the issuer has none. */
     public val revocationEndpoint: String? = null,
+    /** The key of the person the gateway said this sign-in's token is (`personKey`). Null until a gateway has named them: a renewal keeps it, a new sign-in has none. */
+    public val personKey: String? = null,
 )

@@ -93,4 +93,23 @@ class GeneratorTest {
         }.message.orEmpty()
         assertTrue(said.contains("x:done") && said.contains("scope"), said)
     }
+
+    private fun refreshTable(queries: String): JsonObject = definitions("""{"queries":$queries,"refresh":[]}""")
+
+    @Test
+    fun theQueriesAClientKeepsAreThoseTheTableMarksPersistedInItsOrder() {
+        val code = cacheRefreshFile(
+            refreshTable("""[{"name":"b","persisted":true,"docs":"B."},{"name":"c","docs":"C."},{"name":"a","persisted":true,"docs":"A."}]"""),
+            registry("[]"),
+        )
+        assertTrue(code.contains("internal val PERSISTED_QUERIES: List<CacheQuery> = listOf(CacheQuery.B, CacheQuery.A)"), code)
+    }
+
+    @Test
+    fun aQueryPersistedAnyWayButTrueIsRefused() {
+        val said = assertThrows(Refused::class.java) {
+            cacheRefreshFile(refreshTable("""[{"name":"a","persisted":false,"docs":"A."}]"""), registry("[]"))
+        }.message.orEmpty()
+        assertTrue(said.contains("a is persisted false"), said)
+    }
 }

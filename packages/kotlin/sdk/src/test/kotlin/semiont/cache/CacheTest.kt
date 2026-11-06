@@ -575,6 +575,26 @@ class CacheTest {
     }
 
     @Test
+    fun b17ACacheGivenItsPersisterLaterTakesWhatWasKeptOnlyForTheKeysItHoldsNothingFor() = runTest {
+        val world = World(this)
+        readied(world, 5)
+        val persister = Kept(mapOf(KEY to 1, "unobserved" to 2))
+        world.cache.attach(persister)
+        // What the cache holds stands; what it held nothing for is shown at once, and asked for anew when it is observed.
+        assertEquals(5, world.cache.get(KEY))
+        assertEquals(2, world.cache.get("unobserved"))
+        assertEquals(ready(2), now(world.observe("unobserved")))
+        assertEquals(listOf(KEY, "unobserved"), world.service.asked)
+        world.service.answer(1, 3)
+        // Saved there from its next change, and a second persister is not taken up.
+        world.cache.attach(Kept(mapOf("another" to 9)))
+        assertNull(world.cache.get("another"))
+        advanceTimeBy(100)
+        assertEquals(listOf(mapOf(KEY to 5, "unobserved" to 3)), persister.saves)
+        world.close()
+    }
+
+    @Test
     fun b18AKeptValueWhoseRevalidationFailsTwiceStaysAndIsNotAskedForAThirdTime() = runTest {
         val world = World(this, Kept(mapOf(KEY to 1)))
         assertEquals(ready(1), now(world.observe()))

@@ -411,9 +411,11 @@ internal fun encodingsFile(table: JsonObject): String = buildString {
 
 /**
  * What a client asks again for, and when (client/refresh.json): the live
- * queries, the triggers, and each trigger's rows. A row reaches `subject`
- * unless it says otherwise. A row that names a query the table lacks, or a
- * trigger that is neither `reopened` nor a channel of the registry, is refused.
+ * queries, those a client with a storage keeps, the triggers, and each
+ * trigger's rows. A row reaches `subject` unless it says otherwise. A row that
+ * names a query the table lacks, a trigger that is neither `reopened` nor a
+ * channel of the registry, or a query whose `persisted` is anything but true,
+ * is refused.
  */
 internal fun cacheRefreshFile(table: JsonObject, registry: JsonObject): String = buildString {
     val queries = table["queries"].list("the refresh table's queries").map { it.obj("a query") }
@@ -427,6 +429,13 @@ internal fun cacheRefreshFile(table: JsonObject, registry: JsonObject): String =
         append("    ${variantOf(query["name"].text("a query's name"))}(${literal(query["name"].text("a query's name"))}),\n")
     }
     append("}\n\n")
+    val persisted = queries.filter { query ->
+        val stated = query["persisted"] ?: return@filter false
+        if ((stated as? JsonPrimitive)?.booleanOrNull != true) refuse("${query["name"].text("a query's name")} is persisted $stated, which is not true")
+        true
+    }
+    append("/** The queries whose answers a client with a storage keeps, in the table's order. */\n")
+    append("internal val PERSISTED_QUERIES: List<CacheQuery> = ${persisted.joinToString(", ", "listOf(", ")") { "CacheQuery.${variantOf(it["name"].text("a query's name"))}" }}\n\n")
     val rows = table["refresh"].list("the refresh table's rows").map { it.obj("a row") }
     val triggers = rows.map { it["on"].text("a row's trigger") }.distinct()
     for (trigger in triggers) if (trigger != "reopened" && trigger !in channels) refuse("$trigger is no channel of the registry")

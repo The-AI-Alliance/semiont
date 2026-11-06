@@ -15,11 +15,12 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.Timings
 import semiont.identifiers.ResourceId
+import semiont.registry.cacheKey
 import semiont.testing.SharedStorage
 import semiont.types.ResourceDescriptor
 import semiont.types.wireJson
 
-private const val KEY = "semiont.cache.kb.resource"
+private val KEY = cacheKey("kb", "the key of jo", "resource")
 private val RESOURCE = ResourceId("res-1")
 
 private fun persister(storage: SessionStorage, version: Long = 1, maxBytes: Long = Timings.MAX_STORED_BYTES_COUNT) =

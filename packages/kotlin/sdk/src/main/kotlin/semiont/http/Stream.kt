@@ -136,7 +136,7 @@ internal class Stream(
     private val router: ReplyRouter,
     private val failures: Broadcast<SemiontError>,
     private val scope: CoroutineScope,
-    private val bookmarks: Bookmarks?,
+    private var bookmarks: Bookmarks?,
 ) {
     private sealed interface Report
 
@@ -153,6 +153,8 @@ internal class Stream(
     private class ScopeLetGo(val resource: ResourceId) : Report
 
     private object TokenChanged : Report
+
+    private class PlacesKept(val bookmarks: Bookmarks) : Report
 
     private class Renewed(val keepPrevious: Boolean) : Report
 
@@ -196,6 +198,11 @@ internal class Stream(
 
     fun letGoOfScope(resource: ResourceId) {
         reports.trySend(ScopeLetGo(resource))
+    }
+
+    /** Keep the places in `bookmarks` from now on, each kept place taken up for a scope that has none yet. */
+    fun keepPlaces(bookmarks: Bookmarks) {
+        reports.trySend(PlacesKept(bookmarks))
     }
 
     /** Close: the state is `closed` from now, and the stream's coroutine ends what it started. */
@@ -255,6 +262,10 @@ internal class Stream(
                 if (scoped.remove(report.resource.value) != null && debounceAt == null && lazyAt == null) lazyAt = now + timing.lazyRemoveMs
             }
             TokenChanged -> tokenChanged(now)
+            is PlacesKept -> {
+                for ((resource, id) in report.bookmarks.load()) watermarks.putIfAbsent(resource.value, id)
+                bookmarks = report.bookmarks
+            }
             is Renewed -> scheduleRetry(0, report.keepPrevious, now)
             Stop -> Unit
         }

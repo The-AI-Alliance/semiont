@@ -7,7 +7,6 @@ import semiont.Timings
 import semiont.bus.LIMITS_OPERATIONS
 import semiont.bus.Operations
 import semiont.cache.Cache
-import semiont.cache.CachePersister
 import semiont.cache.CacheQuery
 import semiont.cache.CacheRefreshWhen
 import semiont.cache.Cached
@@ -75,25 +74,16 @@ internal data class Subject(
  * One of these is a client's: `browse`, `gather` and `match` make their
  * queries over it, and the client's refresher keeps it true.
  */
-internal class Live(private val links: Links, private val content: ContentTransport, private val persistence: CachePersistence?) {
+internal class Live(private val links: Links, private val content: ContentTransport, persistence: CachePersistence?) {
     /** The resource each annotation that was asked for is of: an annotation is kept by its own id, and a request for it names its resource too. */
     val annotationOf = ConcurrentHashMap<AnnotationId, ResourceId>()
 
-    // The small queries are kept: a resource's description, its annotations, one annotation, the entity types, the tag schemas.
-    val resource = Cache(::resourceOf, links.scope, kept("resource", ResourceId.serializer(), ResourceDescriptor.serializer()))
+    val resource = Cache(::resourceOf, links.scope)
     val lists = Cache(::resourcesOf, links.scope)
-    val annotations = Cache(content::getAnnotations, links.scope, kept("annotations", ResourceId.serializer(), GetAnnotationsResponse.serializer()))
-    val annotation = Cache(::annotationOf, links.scope, kept("annotation-detail", AnnotationId.serializer(), Annotation.serializer()))
-    val entityTypes = Cache(
-        { _: String -> links.request(Operations.BROWSE_ENTITY_TYPES_REQUESTED, BrowseEntityTypesRequest).response.entityTypes },
-        links.scope,
-        kept("entity-types", String.serializer(), ListSerializer(String.serializer())),
-    )
-    val tagSchemas = Cache(
-        { _: String -> links.request(Operations.BROWSE_TAG_SCHEMAS_REQUESTED, BrowseTagSchemasRequest).response.tagSchemas },
-        links.scope,
-        kept("tag-schemas", String.serializer(), ListSerializer(TagSchema.serializer())),
-    )
+    val annotations = Cache(content::getAnnotations, links.scope)
+    val annotation = Cache(::annotationOf, links.scope)
+    val entityTypes = Cache({ _: String -> links.request(Operations.BROWSE_ENTITY_TYPES_REQUESTED, BrowseEntityTypesRequest).response.entityTypes }, links.scope)
+    val tagSchemas = Cache({ _: String -> links.request(Operations.BROWSE_TAG_SCHEMAS_REQUESTED, BrowseTagSchemasRequest).response.tagSchemas }, links.scope)
     val engines = Cache({ _: String -> links.request(Operations.BROWSE_ENGINES_REQUESTED, BrowseEnginesRequest).response.engines }, links.scope)
 
     /** Each key holder's report of its engines' limits, by the operation that asks it. */
@@ -102,14 +92,25 @@ internal class Live(private val links: Links, private val content: ContentTransp
     val referencedBy = Cache(::referencedByOf, links.scope)
     val searches = Cache(::searchOf, links.scope)
 
-    /** What keeps the cache named `name`, when the client keeps its caches. */
-    private fun <K : Any, V : Any> kept(name: String, key: KSerializer<K>, value: KSerializer<V>): CachePersister<K, V>? = persistence?.let {
-        StoragePersister(it.storage, cacheKey(it.keyPrefix, name), key, value, KEPT_VERSION, Timings.MAX_STORED_BYTES_COUNT)
+    /** The caches of the queries client/refresh.json marks persisted, in its order: those a client with a storage keeps. */
+    private val keptCaches = listOf(
+        KeptCache(CacheQuery.Resource, resource, ResourceId.serializer(), ResourceDescriptor.serializer()),
+        KeptCache(CacheQuery.Annotations, annotations, ResourceId.serializer(), GetAnnotationsResponse.serializer()),
+        KeptCache(CacheQuery.Annotation, annotation, AnnotationId.serializer(), Annotation.serializer()),
+        KeptCache(CacheQuery.EntityTypes, entityTypes, String.serializer(), ListSerializer(String.serializer())),
+        KeptCache(CacheQuery.TagSchemas, tagSchemas, String.serializer(), ListSerializer(TagSchema.serializer())),
+    )
+
+    init {
+        persistence?.let(::attach)
     }
+
+    /** Keep the caches in `persistence` from now on, each beginning with what was kept there. */
+    fun attach(persistence: CachePersistence): Unit = keptCaches.forEach { it.attach(persistence) }
 
     /** Whether every cache the client keeps is at rest: none is fetching, and none owes a save. */
     val persistenceSettled: Boolean
-        get() = listOf(resource, annotations, annotation, entityTypes, tagSchemas).none { it.persistencePending }
+        get() = keptCaches.none { it.cache.persistencePending }
 
     /** A live query of this client, answered from `source`. */
     fun <T : Any> query(source: Source<T>): Cached<T> = Cached(source, links.scope)
@@ -208,6 +209,13 @@ internal class Live(private val links: Links, private val content: ContentTransp
         searches.close()
         annotationOf.clear()
     }
+}
+
+/** A cache a client with a storage keeps: the query it answers, whose name its document is kept under, and how its keys and values are written. */
+private class KeptCache<K : Any, V : Any>(val query: CacheQuery, val cache: Cache<K, V>, private val key: KSerializer<K>, private val value: KSerializer<V>) {
+    fun attach(persistence: CachePersistence): Unit = cache.attach(
+        StoragePersister(persistence.storage, cacheKey(persistence.kbId, persistence.personKey, query.wire), key, value, KEPT_VERSION, Timings.MAX_STORED_BYTES_COUNT),
+    )
 }
 
 /** The annotations of a resource's list, as its query shows them. */

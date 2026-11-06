@@ -210,7 +210,7 @@ final class ModulesTest {
         assertNull(storage.get(StoredKt.LAST_VIEWED_RESOURCE_BY_KB_KEY));
         assertNotNull(KeepingKt.keptIn(storage, "kb-a"));
 
-        StoredSession session = new StoredSession("an-access-token", "a-refresh-token", "semiont-browser", "https://issuer.example/token", null);
+        StoredSession session = new StoredSession("an-access-token", "a-refresh-token", "semiont-browser", "https://issuer.example/token", null, null);
         SignedIn signedIn = new SignedIn(kb.getEndpoint(), KbDescription.builder("A KB", "kb.example").build(), session);
         assertEquals(session, signedIn.getSession());
         SignInOutcome outcome = new SignInOutcome(kb, new Expected("did:web:kb.example", "A KB"));

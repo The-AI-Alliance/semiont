@@ -59,7 +59,7 @@ internal val TARGET = KbTarget(id = "kb-alpha", label = "Alpha", endpoint = Http
  * are spent.
  */
 internal class SessionWorld(kept: String? = null, renewals: List<Any?> = emptyList(), validations: List<Any> = emptyList()) {
-    val kept = MemorySignIn(kept?.let { HeldSignIn(it, "a-refresh-token", SCRIPT_CLIENT_ID, "https://issuer.test/token", null) })
+    val kept = MemorySignIn(kept?.let { HeldSignIn(it, "a-refresh-token", SCRIPT_CLIENT_ID, "https://issuer.test/token", null, null) })
     val token = MutableStateFlow<String?>(null)
     private val renewalsLeft = ArrayDeque(renewals)
     var renewed = 0

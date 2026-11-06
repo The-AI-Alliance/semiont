@@ -35,6 +35,11 @@ private val alice = Json.parseToJsonElement(
 
 private val refused = buildJsonObject { put("error", "invalid_token") }
 
+/** The key Alice's caches are kept under, and what is kept of res-1 for her on the knowledge base `local`. */
+private val ALICE_KEY = personKey(alice.getValue("did").jsonPrimitive.content)
+private val KEPT_FOR_ALICE = cacheKey("local", ALICE_KEY, "resource") to
+    """{"version":1,"writtenAt":1700000000000,"entries":[["res-1",{"@context":"https://schema.org/","@id":"res-1","name":"kept","representations":[]},1700000000000]]}"""
+
 /** A session over HTTP from a kept sign-in: opened, renewed through itself, keeping its caches for the person its gateway names, and closed with what it opened. */
 class SessionFromKeptTest {
     private fun kb(realm: Realm) = KbTarget(id = "local", label = "Local", endpoint = HttpEndpoint(host = "127.0.0.1", port = realm.origin.substringAfterLast(':').toLong(), protocol = HttpEndpointProtocol.Http))
@@ -48,12 +53,14 @@ class SessionFromKeptTest {
             realm.script("/bus/subscribe", Said(401, refused))
             realm.script("/api/users/me", Said(401, refused), Said(200, alice))
             realm.script("/token", issued(renewed, "refresh-2"))
-            val kept = MemorySignIn(HeldSignIn(stored, "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null))
+            val kept = MemorySignIn(HeldSignIn(stored, "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, null))
             sessionFromKept(kb(realm), kept).use { opened ->
                 assertEquals(renewed, opened.session.token.value)
                 assertEquals("alice@example.org", opened.session.user.value?.email)
                 assertEquals(listOf("refresh-1"), realm.of("/token").map { it.form["refresh_token"] })
                 assertEquals(renewed, kept.held()?.access)
+                // A session given no storage keeps nothing, and records nobody.
+                assertNull(kept.held()?.personKey)
             }
         }
     }
@@ -64,7 +71,7 @@ class SessionFromKeptTest {
             val renewed = tokenFor("access-2")
             realm.script("/api/users/me", Said(401, refused), Said(200, alice))
             realm.script("/token", issued(renewed, "refresh-2"))
-            val kept = MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null))
+            val kept = MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, null))
             val http = CallersHttp()
             sessionFromKept(kb(realm), kept, http = http).use { opened ->
                 assertEquals(renewed, opened.session.token.value)
@@ -87,7 +94,7 @@ class SessionFromKeptTest {
             realm.script("/bus/subscribe", Said(401, refused))
             realm.script("/api/users/me", Said(200, alice), Said(200, alice))
             realm.script("/token", issued(renewed, "refresh-2"))
-            val kept = MemorySignIn(HeldSignIn(stored, "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null))
+            val kept = MemorySignIn(HeldSignIn(stored, "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, null))
             sessionFromKept(kb(realm), kept).use { opened ->
                 withTimeout(10_000) { opened.session.token.first { it == renewed } }
                 assertEquals(listOf("refresh-1"), realm.of("/token").map { it.form["refresh_token"] })
@@ -100,18 +107,28 @@ class SessionFromKeptTest {
         Realm().use { realm ->
             realm.script("/api/users/me", Said(200, alice))
             val storage = MemoryStorage()
-            storage.set(
-                cacheKey("local", personKey(alice.getValue("did").jsonPrimitive.content), "resource"),
-                """{"version":1,"writtenAt":1700000000000,"entries":[["res-1",{"@context":"https://schema.org/","@id":"res-1","name":"kept","representations":[]},1700000000000]]}""",
-            )
+            storage.set(KEPT_FOR_ALICE.first, KEPT_FOR_ALICE.second)
             // A sign-in whose person no gateway has named yet.
             val kept = MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, null))
             sessionFromKept(kb(realm), kept, storage = storage).use { opened ->
-                assertEquals(personKey(alice.getValue("did").jsonPrimitive.content), kept.held()?.personKey)
+                assertEquals(ALICE_KEY, kept.held()?.personKey)
                 // What was kept for them is shown at once.
                 val shown = withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-1")).first() }
                 assertEquals("kept", (shown as? CacheState.Ready)?.value?.name, "$shown")
             }
+        }
+    }
+
+    @Test
+    fun aSessionThatNeverAsksWhoItsTokenIsKeepsNothingEvenForASignInThatNamesItsPerson() = runBlocking {
+        Realm().use { realm ->
+            val storage = MemoryStorage()
+            storage.set(KEPT_FOR_ALICE.first, KEPT_FOR_ALICE.second)
+            val kept = MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, ALICE_KEY))
+            sessionFromKept(kb(realm), kept, validate = false, storage = storage).use { opened ->
+                assertEquals(CacheState.Pending, withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-1")).first() })
+            }
+            assertEquals(emptyList<Asked>(), realm.of("/api/users/me"))
         }
     }
 
