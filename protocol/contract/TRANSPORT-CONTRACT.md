@@ -368,6 +368,11 @@ resource's scope while it is observed: freshness follows observation.
 - **An emit whose credential is refused** is renewed, as
   § A refused credential says.
   *Held by `sdk/wire/emit-credential-renewed`, `sdk/wire/emit-credential-refused-twice`.*
+- **A renewed credential starts a fresh `emitRetry` budget.** The attempts
+  made before the renewal are not counted against it, and its backoff
+  begins again, so an emit spans at most two budgets: the one before the
+  renewal and the one after.
+  *Held by `sdk/wire/emit-budget-renewed`.*
 - **An emit refused outright fails** with the refusal's code, is reported
   on the error stream, and is not sent again.
   *Held by `sdk/wire/emit-refused`.*
