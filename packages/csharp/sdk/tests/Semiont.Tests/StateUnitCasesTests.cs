@@ -56,7 +56,7 @@ public sealed partial class TransportTests
     {
         private readonly JsonElement row;
         private readonly JsonElement fixtures;
-        private readonly StateCaseClock clock = new();
+        private readonly StateCaseClock clock = new(DateTimeOffset.UnixEpoch);
         private readonly Handler gateway = new();
         private readonly HttpClient http;
         private readonly SemiontClient client;

@@ -9,3 +9,4 @@ SEM003 | Semiont | Error | Use a static type instead of dynamic
 SEM004 | Semiont | Error | Fix a diagnostic instead of suppressing it
 SEM005 | Semiont | Error | Only SEMIONT_BUS_LOG may be read from the environment
 SEM006 | Semiont | Error | Tests must run instead of being skipped
+SEM007 | Semiont | Error | Wait, measure and draw on the TimeProvider and Random the caller gives
