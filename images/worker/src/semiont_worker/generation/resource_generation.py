@@ -18,6 +18,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Final, final
 
 from semiont.identifiers import AnnotationId, ResourceId
+from semiont.timing import GENERATION_STALL_ASSUMED_TOKENS_COUNT
 from semiont.types import (
     GatheredContext,
     GatheredContextFocusAnnotation,
@@ -38,9 +39,6 @@ from semiont_worker.inference_call import bounded_generate_text
 from semiont_worker.locales import language_name
 from semiont_worker.log import LOG
 from semiont_worker.numbers import as_javascript_writes
-
-DEFAULT_MAX_TOKENS: Final = 500
-"""How long a document is asked for, in tokens, where the job states no length: a short definition's."""
 
 DEFAULT_TEMPERATURE: Final = 0.7
 """The temperature a document is asked for at, where the job states none."""
@@ -76,14 +74,14 @@ class GeneratedDocument:
 
 
 def tokens_asked(params: GenerationJobParams) -> int:
-    """How long a document `params` asks for, in tokens: the job's `maxTokens`, or 500 where it states none.
+    """How long a document `params` asks for, in tokens: the job's `maxTokens`, or `generationStallAssumedTokensCount` where it states none.
 
     Raises a `DeterministicJobError` for a length that is no whole number. A
     job states its length as a JSON number, a model is asked for a whole
     number of tokens, and the job states the same length on every attempt.
     """
     if params.max_tokens is None:
-        return DEFAULT_MAX_TOKENS
+        return GENERATION_STALL_ASSUMED_TOKENS_COUNT
     if not params.max_tokens.is_integer():
         raise DeterministicJobError(
             f"The job asks for {as_javascript_writes(params.max_tokens)} tokens, and a model is asked for a whole number of them"

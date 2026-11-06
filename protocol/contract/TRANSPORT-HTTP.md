@@ -414,6 +414,19 @@ client delivers a frame only if its id is not among the last
 - A passing frame (`e-<publishId>`) is delivered once.
   *Held by `sdk/wire/passing-across-handoff`.*
 
+### Requests
+
+`httpRequestTimeoutMs` is the deadline of each request its entry in
+[`timing.json`](../specs/src/client/timing.json) names. The stream's open
+(§ Reconnect discipline) and an emit (§ Emitting) have deadlines of their
+own.
+
+- A request the gateway never answers fails at `httpRequestTimeoutMs`, as
+  one that got no answer, and is not made again. A read whose connection
+  failed, or closed before any response came, is not that: it is sent once
+  more ([TRANSPORT-CONTRACT.md § Failures](./TRANSPORT-CONTRACT.md#failures)).
+  *Held by `protocol/specs/src/client/clock-cases.json`.*
+
 ### Emitting
 
 - An emit carries the client's `clientId`, and its `scope` and
