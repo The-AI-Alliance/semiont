@@ -1458,13 +1458,15 @@
     },
     {
       "module": "bus",
-      "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps.",
+      "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps; and what a transport delivers in place of a frame it refuses, and why it refuses it.",
       "notYetReached": {"csharp": "C# is still to implement the bus module."},
       "where": {
         "swift": [
-          "packages/swift/sdk/Sources/Semiont/Bus/Bus.swift"
+          "packages/swift/sdk/Sources/Semiont/Bus/Bus.swift",
+          "packages/swift/sdk/Sources/Semiont/Bus/Typed.swift"
         ],
         "typescript": [
+          "packages/typescript/core/src/bus.ts",
           "packages/typescript/core/src/bus-request.ts",
           "packages/typescript/core/src/persisted-events.ts"
         ],
@@ -1503,6 +1505,41 @@
           "kind": "constant",
           "absent": {
             "rust": "Rust tells the record's events by their channels' type, `Recorded`."
+          }
+        },
+        {
+          "member": "FrameRefusal",
+          "kind": "type",
+          "notYetReached": {
+            "rust": "Rust's transport is to deliver a frame BusFrame refuses, whose channel and scope can be read, as a FrameRefusal in its place.",
+            "go": "Go's transport is to deliver a frame BusFrame refuses, whose channel and scope can be read, as a FrameRefusal in its place."
+          }
+        },
+        {
+          "member": "FrameRefusalReason",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript's refusal states its reason as one of two strings, `lacks` and `malformed`.",
+            "python": "Python's refusal states its reason as a Literal of the two spellings, `lacks` and `malformed`."
+          },
+          "notYetReached": {
+            "rust": "Rust's FrameRefusal is to state its reason as this, the one kind every fault's reason is.",
+            "go": "Go's FrameRefusal is to state its reason as this, the one kind every fault's reason is.",
+            "swift": "Swift's FrameRefusal is still to name its member and its reason."
+          }
+        },
+        {
+          "member": "Carried",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript's transport delivers a refusal where a frame's payload would be, on the frame's envelope (`BusFrame<P | FrameRefusal>`), as its client's bus does.",
+            "rust": "Rust's transport delivers a frame or its refusal as a `Result<Frame, FrameRefusal>`.",
+            "python": "Python's transport delivers a frame or its refusal as the union `Frame | FrameRefusal`.",
+            "go": "Go's transport delivers a frame or, as its error, its refusal (`iter.Seq2[Frame, error]`).",
+            "swift": "Swift's transport does not yet deliver a frame's refusal; its catch-up says how."
+          },
+          "notYetReached": {
+            "kotlin": "Kotlin's transport is to deliver a frame or its refusal as one sealed kind, which Frame and FrameRefusal are, beside each other in semiont.transport."
           }
         }
       ]
