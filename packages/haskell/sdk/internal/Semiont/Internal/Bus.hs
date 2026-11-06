@@ -2,7 +2,7 @@
 
 module Semiont.Internal.Bus
   ( Bus(..), BusOptions(..), newBus, emit, frames, request, requestDelivered
-  , Delivered(..), FrameRefusal(..), Heard(..), decoded
+  , Delivered(..), FrameRefusal(..), Heard(..), Fault(..), FaultReason(..), decoded
   , replyChannelsFor, unsubscribed, persistedEventTypes
   ) where
 
@@ -21,8 +21,8 @@ import Semiont.Channels
 import Semiont.ErrorCodes hiding (TransportError)
 import qualified Semiont.ErrorCodes as Codes
 import Semiont.Errors
-import Semiont.Internal.Generated.Schemas (schemas)
-import Semiont.Internal.Required (missingRequired)
+import Semiont.Internal.Required (Fault(..), FaultReason(..))
+import qualified Semiont.Internal.Required as Required
 import qualified Semiont.Internal.StateValue as State
 import qualified Semiont.Internal.Transport as Transport
 import Semiont.Transport.Facts (ConnectionState(..), userField)
@@ -46,7 +46,7 @@ data Delivered payload = Delivered
   } deriving (Eq, Show)
 data FrameRefusal = FrameRefusal
   { refusedFrame :: Transport.Frame
-  , lacks :: Maybe Text
+  , fault :: Fault
   } deriving (Eq, Show)
 data Heard payload = Heard (Delivered payload) | Refused FrameRefusal deriving (Eq, Show)
 
@@ -72,7 +72,9 @@ decoded channel frame =
         Just value -> case fromJSON value of Success user -> Right (Just user); Error _ -> Left ()
   in case (decodePayload channel (Object raw), identity) of
     (Right payload, Right user) -> Heard (Delivered payload frame user)
-    _ -> Refused (FrameRefusal frame (missingRequired schemas (channelSchema channel) (Object raw)))
+    _ -> Refused (FrameRefusal frame (case Required.faultChannel (channelName channel) (Object raw) of
+      Just issue -> issue
+      Nothing -> case identity of Left () -> Fault userField Malformed; Right _ -> Required.undecoded))
 
 frames :: Bus -> Channel scope payload -> ScopeArg scope -> (Stream (Of (Heard payload)) IO () -> IO result) -> IO result
 frames (Bus _ transport) channel scope consume = Transport.frames transport (channelName channel) $ \wire ->
@@ -126,7 +128,7 @@ requestReply refusalMode bus@(Bus options transport) operation input timeoutMs =
             case decoded result frame of
               Heard delivered -> pure delivered
               Refused refusal -> rejectReply refusalMode transport (TransportError Codes.TransportError
-                ("reply payload is not its channel's" <> maybe "" (": missing " <>) (lacks refusal)) Nothing Nothing)
+                ("reply payload is not its channel's: " <> Required.faultSaid (fault refusal)) Nothing Nothing)
           else do
             let fields = busFramePayloadAdditionalProperties (busFramePayload (Transport.wireFrame frame))
             code <- case KM.lookup "code" fields of

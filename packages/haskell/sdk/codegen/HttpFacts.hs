@@ -115,7 +115,7 @@ httpFacts root (Object spec) schemas = do
       code = T.unlines
         [ "-- Generated from protocol/specs/src/openapi.json and its paths, and the reference credential classifier. Do not edit."
         , "{-# LANGUAGE GADTs, OverloadedStrings #-}"
-        , "module Semiont.Http.Routes (HttpRoute(..), routeMethod, routePath, routeStatus, routeMediaType, routeAuthenticated, routeRequestMediaType, routeRequiredHeaders, wireRefusesCredential, persistedScopePrefix, busEventName) where"
+        , "module Semiont.Http.Routes (HttpRoute(..), routeName, routeMethod, routePath, routeStatus, routeMediaType, routeAuthenticated, routeRequestMediaType, routeRequiredHeaders, wireRefusesCredential, persistedScopePrefix, busEventName) where"
         , "import Data.ByteString (ByteString)"
         , "import Data.Text (Text)"
         , "import Data.Aeson (Value(..))"
@@ -123,6 +123,7 @@ httpFacts root (Object spec) schemas = do
         , "import Semiont.Types"
         , "data HttpRoute request answer where"
         ] <> T.unlines ["  " <> constructorName row <> " :: HttpRoute " <> inputName row <> " " <> outputName row | row <- rows]
+        <> "routeName :: HttpRoute request answer -> Text\n" <> T.unlines ["routeName " <> constructorName row <> " = " <> quote (constructorName row) | row <- rows]
         <> "routeMethod :: HttpRoute request answer -> ByteString\n" <> T.unlines ["routeMethod " <> constructorName row <> " = " <> quote (methodName row) | row <- rows]
         <> "routePath :: HttpRoute request answer -> Text\n" <> T.unlines ["routePath " <> constructorName row <> " = " <> quote (pathName row) | row <- rows]
         <> "routeStatus :: HttpRoute request answer -> Int\n" <> T.unlines ["routeStatus " <> constructorName row <> " = " <> successCode row | row <- rows]

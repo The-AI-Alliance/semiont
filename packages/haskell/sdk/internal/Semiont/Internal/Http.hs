@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs, OverloadedStrings, ScopedTypeVariables #-}
 module Semiont.Internal.Http
   ( Http, HttpClient, newHttpClient, HttpOptions(..), newHttp, transport, spawn
-  , json, exchange, currentToken, renew, quarantine, jsonBody, deadline, pause, raceOwned, request, refusal, checked
+  , json, exchange, currentToken, renew, quarantine, jsonBody, deadline, pause, raceOwned, request, refusal, checked, readAnswer
   , options, lifetime, input, positions, clientId, openScoped, HttpFailure(..), report
   ) where
 
@@ -11,6 +11,7 @@ import Control.Concurrent.STM
 import Control.Concurrent.Async (Async, ExceptionInLinkedThread(..), asyncThreadId, race, cancel, link)
 import Control.Exception (Exception, Handler(..), bracket, catch, catches, mask, throwIO, try)
 import Control.Monad (unless, void, when)
+import qualified Semiont.Internal.Required as Required
 import Data.Aeson (FromJSON, ToJSON, Result(..), Value(String), eitherDecodeStrict', encode, fromJSON, toJSON)
 import qualified Data.ByteString as Bytes
 import qualified Data.ByteString.Char8 as Char8
@@ -282,7 +283,19 @@ jsonBody route payload = case routeRequestMediaType route of
 json :: (ToJSON requestBodyType, FromJSON answer) => Http -> HttpRoute requestBodyType answer -> Maybe ResourceId -> requestBodyType -> IO answer
 json http route resource payload = report http $ exchange http route resource (jsonBody route payload) Nothing False [] $ \response -> do
   bytes <- Bytes.concat <$> brConsume (responseBody response)
-  either (const (throwIO (HttpFailure (TransportError Code.TransportError "HTTP answer is not its declared schema" (Just (routeStatus route)) Nothing) False))) pure (eitherDecodeStrict' bytes)
+  readAnswer route bytes
+
+readAnswer :: FromJSON answer => HttpRoute request answer -> Bytes.ByteString -> IO answer
+readAnswer route bytes = do
+  let reject issue = throwIO (HttpFailure (TransportError Code.TransportError
+        ("HTTP answer is not its declared schema: " <> Required.faultSaid issue) (Just (routeStatus route)) Nothing) False)
+  case eitherDecodeStrict' bytes of
+    Left _ -> reject Required.undecoded
+    Right value -> case Required.faultHttp (routeName route) value of
+      Just issue -> reject issue
+      Nothing -> case fromJSON value of
+        Error _ -> reject Required.undecoded
+        Success answer -> pure answer
 
 emit :: Http -> BusFrame -> IO (Maybe Integer)
 emit http frame = Telemetry.sending frame $ do

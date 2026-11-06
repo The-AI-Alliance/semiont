@@ -1,6 +1,6 @@
 -- Generated from protocol/specs/src/openapi.json and its paths, and the reference credential classifier. Do not edit.
 {-# LANGUAGE GADTs, OverloadedStrings #-}
-module Semiont.Http.Routes (HttpRoute(..), routeMethod, routePath, routeStatus, routeMediaType, routeAuthenticated, routeRequestMediaType, routeRequiredHeaders, wireRefusesCredential, persistedScopePrefix, busEventName) where
+module Semiont.Http.Routes (HttpRoute(..), routeName, routeMethod, routePath, routeStatus, routeMediaType, routeAuthenticated, routeRequestMediaType, routeRequiredHeaders, wireRefusesCredential, persistedScopePrefix, busEventName) where
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Aeson (Value(..))
@@ -22,6 +22,22 @@ data HttpRoute request answer where
   GetResourceAnchoredText :: HttpRoute () AnchoredTextAnswer
   GetResourceAnnotations :: HttpRoute () GetAnnotationsResponse
   GetResourceJsonLd :: HttpRoute () GetResourceResponse
+routeName :: HttpRoute request answer -> Text
+routeName GetHealthAtRoot = "GetHealthAtRoot"
+routeName GetProtectedResourceMetadata = "GetProtectedResourceMetadata"
+routeName GetHealth = "GetHealth"
+routeName GetOpenApiDocument = "GetOpenApiDocument"
+routeName GetResourceRepresentationWithMediaToken = "GetResourceRepresentationWithMediaToken"
+routeName GetStatus = "GetStatus"
+routeName CreateMediaToken = "CreateMediaToken"
+routeName GetCurrentUser = "GetCurrentUser"
+routeName EmitOnBus = "EmitOnBus"
+routeName SubscribeToBus = "SubscribeToBus"
+routeName UploadResource = "UploadResource"
+routeName GetResourceRepresentation = "GetResourceRepresentation"
+routeName GetResourceAnchoredText = "GetResourceAnchoredText"
+routeName GetResourceAnnotations = "GetResourceAnnotations"
+routeName GetResourceJsonLd = "GetResourceJsonLd"
 routeMethod :: HttpRoute request answer -> ByteString
 routeMethod GetHealthAtRoot = "GET"
 routeMethod GetProtectedResourceMetadata = "GET"

@@ -5,7 +5,7 @@ import Control.Concurrent.Async (Async, cancel, waitCatchSTM)
 import Control.Concurrent.STM
 import Control.Exception (SomeAsyncException, SomeException(..), catch, finally, fromException, onException, throwIO, try)
 import Control.Monad (forM_, unless, void, when)
-import Data.Aeson (Result(..), Value(..), eitherDecodeStrict', fromJSON)
+import Data.Aeson (Result(..), Value(..), fromJSON)
 import qualified Data.ByteString as Bytes
 import qualified Data.ByteString.Char8 as Char8
 import Data.Char (toLower, isSpace)
@@ -17,7 +17,6 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Data.Text.Encoding (encodeUtf8)
 import Data.Typeable (typeOf)
 import Network.HTTP.Client (responseHeaders, responseStatus, responseBody, brRead)
 import Network.HTTP.Types (statusCode)
@@ -27,6 +26,8 @@ import Semiont.Channels (scopedChannels)
 import Semiont.Http.Routes
 import Semiont.Internal.Http
 import qualified Semiont.Internal.Sse as SSE
+import qualified Semiont.Internal.StreamFrame as StreamFrame
+import qualified Semiont.Internal.Required as Required
 import qualified Semiont.Internal.StateValue as State
 import qualified Semiont.Internal.Transport as Transport
 import qualified Semiont.Internal.Telemetry as Telemetry
@@ -188,9 +189,11 @@ runActor http = do
       unless (Bytes.null bytes) $ do
         let (next, messages) = SSE.feed parser bytes
         forM_ messages $ \message -> case message of
-          SSE.Message event | SSE.eventType event == busEventName -> case eitherDecodeStrict' (encodeUtf8 (SSE.eventData event)) of
-            Left _ -> pure ()
-            Right frame -> do
+          SSE.Message event | SSE.eventType event == busEventName -> case StreamFrame.readFrame (SSE.eventData event) of
+            StreamFrame.Rejected Nothing issue -> Transport.reportError (input http)
+              (TransportError Code.TransportError ("the stream carried what is not a frame: " <> Required.faultSaid issue) Nothing Nothing)
+            StreamFrame.Rejected (Just _) _ -> pure ()
+            StreamFrame.Accepted frame -> do
               let identity = SSE.assignedId event >>= \value -> if Text.null value then Nothing else Just value
               claimed <- atomically $ do
                 queue <- readTVar seen

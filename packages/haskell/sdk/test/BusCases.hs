@@ -102,7 +102,7 @@ requestFailures command browse failureRows = do
       outcome <- try (Bus.request (Bus.newBus options transport) BrowseResourceRequestedOperation browse Timing.busRequestTimeoutMs) :: IO (Either TransportError BrowseResourceResult)
       case outcome of
         Left problem -> do
-          require "malformed result did not name its missing member" (transportErrorCode problem == Code.TransportError && Text.isInfixOf "missing " (transportErrorMessage problem))
+          require "malformed result did not name its missing member" (transportErrorCode problem == Code.TransportError && Text.isInfixOf "it has no `response`" (transportErrorMessage problem))
           noticed <- Stream.toList_ (Stream.take 1 observations)
           require "typed request failure was not observed before it was thrown" (noticed == [problem])
         Right _ -> ioError (userError "malformed result was accepted")
@@ -271,7 +271,7 @@ scopesAndFrames event = rig (const (pure Nothing)) (pure ()) $ \transport input 
     seen <- Stream.toList_ (Stream.take 2 values)
     case seen of
       [Bus.Refused refusal, Bus.Heard delivered] -> do
-        require "missing member refusal lost its path" (Bus.lacks refusal /= Nothing)
+        require "missing member refusal lost its path" (Bus.reason (Bus.fault refusal) == Bus.Lacks && Bus.member (Bus.fault refusal) /= "")
         require "frame lost its authenticated emitter" (Bus.emittedBy delivered == Just user)
         require "frame lost its trace carrier" (Transport.frameTrace (Bus.deliveredFrame delivered) == Just carrier)
         let raw = busFramePayloadAdditionalProperties (busFramePayload (Transport.wireFrame (Bus.deliveredFrame delivered)))

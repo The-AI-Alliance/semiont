@@ -26,6 +26,7 @@ import Semiont.Internal.Generated.TimingValues (timingValues)
 import qualified Semiont.Internal.Generated.DiscoveryReasonRoundTrip as DiscoveryReasons
 import qualified Semiont.ErrorCodes as Errors
 import qualified Semiont.Retry as Retry
+import qualified Semiont.Internal.Required as Required
 import qualified Semiont.Timing.Settings as TimingSettings
 import Semiont.Internal.Generated.Schemas (schemas)
 import Semiont.Internal.Schema (normalize, validate, validateNamed)
@@ -44,6 +45,8 @@ import GatewayCases (gatewayCases)
 import HeldCases (heldCases, heldClockCases)
 import SurfaceCases (surfaceCases)
 import ClockCases (cacheClockCases, httpClockCases, discoveryClockCases)
+import ResourceCases (resourceCases)
+import FrameCases (frameCases)
 import qualified SchemaCases
 
 require :: String -> Bool -> IO ()
@@ -231,6 +234,7 @@ channelCases root = do
       _ -> ioError (userError "channel payload is not an object")
     require ("channel decoder lost a declared stamp or retained an unknown one on " ++ T.unpack name)
       (roundTripChannel name stamped == Right payload)
+    require "common channel shape disagrees with the typed codec" (Required.faultChannel name stamped == Nothing)
     require "channel accepted a non-object payload" (isLeft (roundTripChannel name Null))
   require "channel inventory disagrees with the registry" (map String Channels.channelNames == map (at "channel") channels)
   let operations = array (at "operations" registry)
@@ -335,7 +339,17 @@ main = do
   forM_ ["\n", "\r", "\x2028", "\x2029"] $ \separator ->
     require "ECMAScript dot matched line terminator" (isLeft (validate schemas dot (String ("x" <> separator <> "z"))))
   schemaCases root
+  specification <- readJSON (root </> "protocol/specs/src/openapi.json")
+  forM_ (KM.keys (object (at "schemas" (at "components" specification)))) $ \key -> do
+    let name = Key.toText key
+    shape <- maybe (ioError (userError "missing native schema for common required-shape proof")) pure (Map.lookup name schemas)
+    value <- either (ioError . userError) pure (sample 0 shape)
+    require ("common required shape refused native sample: " ++ T.unpack name ++ " " ++ show (Required.faultOf name value))
+      (Required.faultOf name value == Nothing)
+  putStrLn "PASS common required-shape reader accepts every generated component sample"
   putStrLn "PASS generated schema samples, null presence, open members, exact numbers and enums"
+  resourceCases root
+  frameCases root
   identifierCases root
   putStrLn "PASS shared identifier acceptance/refusal cases"
   channelCases root

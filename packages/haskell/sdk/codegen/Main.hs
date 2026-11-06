@@ -287,16 +287,6 @@ runtimeSchema (Object fields) = Object $ KM.mapWithKey transform $ KM.filterWith
     transform _ value = value
 runtimeSchema value = value
 
-schemaStamps :: Schemas -> Value -> Either String [Text]
-schemaStamps schemas value = do
-  fields <- normalize schemas value >>= fieldsOf
-  properties <- case KM.lookup "properties" fields of Nothing -> pure KM.empty; Just node -> fieldsOf node
-  nested <- fmap concat $ forM ["oneOf", "anyOf"] $ \key -> case KM.lookup key fields of
-    Nothing -> pure []
-    Just (Array parts) -> concat <$> traverse (schemaStamps schemas) (toList parts)
-    Just _ -> Left "schema union is not an array"
-  pure (Set.toAscList (Set.fromList (filter (T.isPrefixOf "_") (map Key.toText (KM.keys properties)) ++ nested)))
-
 member :: Text -> Text
 member = T.concat . map identifier . T.split (\character -> character == ':' || character == '-')
 
@@ -334,15 +324,6 @@ busDescriptors original registry = do
   unless (Set.size (Set.fromList names) == length names) (Left "duplicate bus channel")
   unless (Set.size (Set.fromList constructors) == length constructors) (Left "colliding Haskell channel names")
   forM_ typed $ \(_, _, typ, _, _) -> unless (Map.member typ schemas') (Left ("unknown bus payload schema: " ++ T.unpack typ))
-  stamps <- forM rows $ \row -> do
-    fields <- fieldsOf row
-    name <- required "channel" fields
-    shape <- required "shape" fields
-    declared <- if shape /= "schema" then pure [] else do
-      typ <- required "schema" fields
-      schema <- maybe (Left "missing channel schema") Right (Map.lookup typ schemas')
-      schemaStamps schemas' schema
-    pure (member name, declared)
   ops <- forM operations $ \value -> do
     fields <- fieldsOf value
     request <- required "request" fields >>= find
@@ -354,11 +335,9 @@ busDescriptors original registry = do
       code = header <> T.unlines
         [ "module Semiont.Channels (Scope(..), ScopeArg(..), Channel(..), Operation(..), SomeOperation(..), allOperations, channelName, channelNames, globalChannels, scopedChannels, channelSchema, channelIsScoped, encodePayload, decodePayload, operationChannels, persistedEventTypes) where"
         , "import Data.Aeson (Value(..), toJSON, parseJSON)"
-        , "import qualified Data.Aeson.Key as Key"
-        , "import qualified Data.Aeson.KeyMap as KM"
         , "import Data.Aeson.Types (parseEither)"
         , "import Data.Text (Text)"
-        , "import qualified Data.Text as T"
+        , "import qualified Semiont.Internal.Required as Required"
         , "import qualified Semiont.Types as Types"
         , "data Scope = Global | Scoped"
         , "data ScopeArg (scope :: Scope) where"
@@ -380,10 +359,7 @@ busDescriptors original registry = do
         <> "encodePayload :: Channel scope payload -> payload -> Value\n"
         <> T.unlines ["encodePayload " <> constructor <> " = toJSON" | (_, constructor, _, _, _) <- typed]
         <> "decodePayload :: Channel scope payload -> Value -> Either String payload\n"
-        <> T.unlines ["decodePayload " <> constructor <> " = parseEither parseJSON . withoutStamps (channelStamps " <> constructor <> ")" | (_, constructor, _, _, _) <- typed]
-        <> "channelStamps :: Channel scope payload -> [Text]\n"
-        <> T.unlines ["channelStamps " <> constructor <> " = [" <> T.intercalate ", " (map literal declared) <> "]" | (constructor, declared) <- stamps]
-        <> "withoutStamps :: [Text] -> Value -> Value\nwithoutStamps declared (Object fields) = Object (KM.filterWithKey (\\key _ -> let name = Key.toText key in not (T.isPrefixOf \"_\" name) || name `elem` declared) fields)\nwithoutStamps _ value = value\n"
+        <> T.unlines ["decodePayload " <> constructor <> " = parseEither parseJSON . Required.channelValue (channelName " <> constructor <> ")" | (_, constructor, _, _, _) <- typed]
         <> "data Operation input output failure where\n"
         <> T.unlines ["  " <> request <> "Operation :: Operation Types." <> input <> " Types." <> output <> " Types." <> failure | ((request, input, _), (_, output, _), (_, failure, _)) <- ops]
         <> "data SomeOperation where\n  SomeOperation :: Operation input output failure -> SomeOperation\n"

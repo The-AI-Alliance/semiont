@@ -224,6 +224,16 @@ httpFaults origin http client resource clock waits =
     atomically (writeTVar clock retiredAt)
     _ <- awaitState origin ((>= 1) . count "disconnected")
 
+    Transport.errors (Http.transport http) $ \failures -> Transport.frames (Http.transport http) channel $ \frames -> do
+      postControl origin "/test/publish" (object
+        [ "id" .= ("e-frame-refusal" :: Text), "frame" .= object ["payload" .= object []] ])
+      publish "after-refusal"
+      refused <- Stream.head_ failures
+      require "an unnamed malformed frame did not reach the failure report" (refused == Just
+        (TransportError Code.TransportError "the stream carried what is not a frame: it has no `channel`" Nothing Nothing))
+      continued <- Stream.head_ frames
+      require "a malformed frame ended the stream" (fmap (busFrameCorrelationId . Transport.wireFrame) continued == Just (Just "after-refusal"))
+
     postControl origin "/test/config" (object ["emitStatuses" .= ([429, 503] :: [Int])])
     atomically (writeTVar waits Set.empty)
     retryAt <- readTVarIO clock

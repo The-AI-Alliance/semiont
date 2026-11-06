@@ -268,6 +268,10 @@ apply the same protocol constraints. Optional nullable properties use
 `Semiont.Types.Presence`, whose `Absent`, `Null`, and `Present` cases preserve
 JSON membership. Other optional properties use `Maybe`.
 
+`Semiont.Resources` reads a descriptor's primary representation, primary media
+type and entity types. Representation order decides which is primary; media
+types retain their case and parameters.
+
 Records preserve extra members when their schema permits them. Closed enums
 and unions are algebraic types. JSON numbers use `Integer` or `Scientific`,
 and date and URI values retain their `Text` spelling.
@@ -321,8 +325,11 @@ addEntityType wire command =
 `Bus.frames` requires `InScope resourceId` for a resource channel and holds that
 scope until its reader leaves. It yields `Heard delivered` or `Refused refusal`
 in order, and continues after a refusal. Deliveries retain their emitter,
-envelope, and trace; a refusal keeps the raw frame and the missing-member path
-when it is known. The trace field is lifted out of the payload.
+envelope, and trace. A refusal keeps the raw frame and a `Fault`: its `member`
+path and `Lacks` or `Malformed` reason. Successful HTTP answers and stream
+frames are checked against the same generated rules that the other SDKs use;
+a diagnostic never includes the rejected value. The trace field is lifted out
+of the payload.
 
 `Semiont.EventBus` is the client's separate local plane. A transport bridge
 publishes raw replies there before request continuations can emit derived

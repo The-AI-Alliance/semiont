@@ -5,7 +5,7 @@ import Control.Concurrent.STM
 import Control.Exception (bracket_, throwIO)
 import Control.Monad (unless, when)
 import Control.Monad.IO.Class (liftIO)
-import Data.Aeson (Value(..), encode, eitherDecodeStrict', toJSON)
+import Data.Aeson (Value(..), encode, toJSON)
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString as Bytes
@@ -107,8 +107,7 @@ newContent http = do
             _ -> throwIO (TransportError Code.TransportBadRequest "Upload route no longer accepts multipart" Nothing Nothing)
           exchange http uploadRoute Nothing (pure body) (Just key) True [("Content-Type", media <> "; boundary=" <> marker)] $ \response -> do
             bytes <- deadline http (Settings.httpRequestTimeoutMs (httpTiming (options http))) (Bytes.concat <$> brConsume (responseBody response))
-            either (const (throwIO (TransportError Code.TransportError "Upload answer is not its declared schema" Nothing Nothing)))
-              (pure . createResourceResponseResourceId) (eitherDecodeStrict' bytes)
+            createResourceResponseResourceId <$> readAnswer uploadRoute bytes
   pure Content.ContentTransport
     { Content.putBinary = upload
     , Content.getBinaryStream = stream True
