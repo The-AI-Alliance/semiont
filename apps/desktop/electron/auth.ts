@@ -8,6 +8,7 @@ import {
   SignInError,
   beginAuthorization,
   completeAuthorization,
+  getStoredSession,
   parseJwtExpiry,
   refreshStoredSession,
   revokeAtIssuer,
@@ -131,20 +132,6 @@ function signIn(kbId: string, target: HttpEndpoint): Promise<string> {
   return attempt;
 }
 
-/** What a sign-out needs of a stored session, read back out of the file. The SDK writes a
- *  `StoredSession` as JSON and exports no reader for one. */
-function revocable(value: string): Pick<StoredSession, 'refresh' | 'clientId' | 'revocationEndpoint'> | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    return null;
-  }
-  if (!isObject(parsed) || !isString(parsed.refresh) || !isString(parsed.clientId)) return null;
-  if (!isString(parsed.revocationEndpoint)) return null;
-  return { refresh: parsed.refresh, clientId: parsed.clientId, revocationEndpoint: parsed.revocationEndpoint };
-}
-
 async function signOut(kbId: string): Promise<void> {
   held.delete(kbId);
   let storage: FileSessionStorage;
@@ -157,9 +144,8 @@ async function signOut(kbId: string): Promise<void> {
     rmSync(sessionPath(kbId), { force: true });
     return;
   }
-  for (const value of storage.values()) {
-    const session = revocable(value);
-    if (session?.revocationEndpoint === undefined) continue;
+  const session = getStoredSession(storage, kbId);
+  if (session !== null && session.revocationEndpoint !== undefined) {
     try {
       await revokeAtIssuer(session.revocationEndpoint, session.clientId, session.refresh);
     } catch (err) {
