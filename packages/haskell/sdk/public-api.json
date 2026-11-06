@@ -399,8 +399,8 @@
     "internal/Semiont/Internal/Utf8.hs": "d06e96469c355ed9546f4a5d10d6f0070a7098374e9573bde91e99d0e7eb3374",
     "internal/Semiont/Internal/Yield.hs": "20aff3e11c2005fe5ce325779b38f39445847ac52a73f4acc774f5262c47def9",
     "public-api.inputs.json": "150c411495a0d0dc5cb417a4c7063103bc2fcce758c1ec5e88b955f223d6ebfe",
-    "semiont.cabal": "49706c4284e3577bcc14a105a6a2eda0306c1e98550a5a543bcc8c47bca6b55c",
-    "semiont.cabal.in": "c2a6db71aa9dfb74645ea79b01529caf9689a9d3c78550d2f39f0333a969735b",
+    "semiont.cabal": "b2bd7b5415d2d4a77fde05b85f9d4f2e82b21cf82c32289059a9076cf7c9bf26",
+    "semiont.cabal.in": "a8b89ccee8a13cd73922a2f4d346e4ae3ddce5093eec97306bb5d622d90727ee",
     "src/Semiont/Auth.hs": "1b82d21a297f0b724242094ddb763c0ebf70dffbb2c4d208468dc3c03b9b945d",
     "src/Semiont/Beckon.hs": "c6e90eab2db81fbb73f990c15eb6e818051b2790ffdaf4f7a2ff29fdccc5ecff",
     "src/Semiont/Bind.hs": "0bd322e0f235169f891401a23bd9977590af90cb8fcaf772e08eb88cd89ffad9",
@@ -431,10 +431,12 @@
     "src/Semiont/Resources.hs": "3b92dad6f449a940d117b54a02a348e4471cb76f7b46618beb227c548621914d",
     "src/Semiont/Retry.hs": "c13b609b5f6e29bfea5156e592e4a652462be405b75ef6ad7fd64953022b9bf6",
     "src/Semiont/Running.hs": "168b8478bf820fa7eae3c74c4699b7af7e0baeb929c4b380e966f91e0dd76fe7",
+    "src/Semiont/SessionStorage.hs": "9e35fd0dfa723f67115f588efb67ce55522a85dd7c0e6bc68463f496604a3939",
     "src/Semiont/StateValue.hs": "6b95705ae944d67fec37611298a8732fa2caa60078b600dc6016f1ba8c5ca4f9",
     "src/Semiont/System.hs": "8ca43e36fe0d07b6d49ec4b09dbb4560365caf36f3d9ce1edafb4d53610c4bd7",
     "src/Semiont/Timing.hs": "66fd016a466a3f241d02be2472af12b8d49f7da6a31327a04dbdc6e1db77d30f",
     "src/Semiont/Timing/Settings.hs": "1660c012ca9722ece120115851180de94af5806ba56aa19588563bc1d4a52cd4",
+    "src/Semiont/Tokens.hs": "e42c9d624164fca56fa94858e323747e9599ae6e5b1f7bd7d08e93e85814c8be",
     "src/Semiont/Transport.hs": "b5a0cd3a7d487e79143711a6d0d8b6c325e1d7934707098f58be0a47d323710b",
     "src/Semiont/Transport/Facts.hs": "49b39361ecc6c4128f5e60257f95446856993e774b20abb35f953e1f58159b36",
     "src/Semiont/Types.hs": "0fa839a64906348e0272c3300b4ced264c7ed34735169d8a9f8997534e7d67ba",
@@ -1455,6 +1457,23 @@
         "withReports": "Semiont.Internal.Running.Running report result -> (Streaming.Internal.Stream (Data.Functor.Of.Of report) IO result -> IO value) -> IO value"
       }
     },
+    "Semiont.SessionStorage": {
+      "types": {
+        "SessionStorage": {
+          "definition": "data Semiont.SessionStorage.SessionStorage = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "SessionStorage": "(Data.Text.Internal.Text -> IO (Maybe Data.Text.Internal.Text)) -> (Data.Text.Internal.Text -> Data.Text.Internal.Text -> IO ()) -> (Data.Text.Internal.Text -> IO ()) -> (Data.Text.Internal.Text -> (Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text) -> IO ()) -> ((Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> IO ()) -> IO (Maybe (IO ()))) -> Semiont.SessionStorage.SessionStorage",
+        "delete": "Semiont.SessionStorage.SessionStorage -> Data.Text.Internal.Text -> IO ()",
+        "get": "Semiont.SessionStorage.SessionStorage -> Data.Text.Internal.Text -> IO (Maybe Data.Text.Internal.Text)",
+        "newMemoryStorage": "IO Semiont.SessionStorage.SessionStorage",
+        "set": "Semiont.SessionStorage.SessionStorage -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> IO ()",
+        "subscribe": "Semiont.SessionStorage.SessionStorage -> (Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text -> IO ()) -> IO (Maybe (IO ()))",
+        "update": "Semiont.SessionStorage.SessionStorage -> Data.Text.Internal.Text -> (Maybe Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text) -> IO ()"
+      }
+    },
     "Semiont.StateValue": {
       "types": {
         "StateValue": {
@@ -1579,6 +1598,16 @@
         "seenEventIdsCount": "Semiont.Timing.Settings.Settings -> Integer",
         "streamOpenTimeoutMs": "Semiont.Timing.Settings.Settings -> Integer",
         "withOverrides": "Data.Aeson.Types.Internal.Value -> Either String Semiont.Timing.Settings.Settings"
+      }
+    },
+    "Semiont.Tokens": {
+      "types": {},
+      "values": {
+        "isTokenExpired": "Data.Text.Internal.Text -> Data.Scientific.Scientific -> Bool",
+        "refreshDelay": "Semiont.Timing.Settings.Settings -> Data.Text.Internal.Text -> Data.Scientific.Scientific -> Maybe Data.Scientific.Scientific",
+        "renewalDelay": "Semiont.Timing.Settings.Settings -> Data.Scientific.Scientific -> Data.Scientific.Scientific -> Data.Scientific.Scientific",
+        "textClaim": "Data.Text.Internal.Text -> Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text",
+        "tokenExpiry": "Data.Text.Internal.Text -> Maybe Data.Scientific.Scientific"
       }
     },
     "Semiont.Transport": {

@@ -106,6 +106,19 @@ type CachePersistence struct {
 	KeyPrefix string
 }
 
+// cacheStorageKey is the key the query name is kept under, by a persistence
+// whose key prefix is keyPrefix, as protocol/specs/src/session/stored.json
+// states it.
+func cacheStorageKey(keyPrefix, name string) string {
+	return "semiont.cache." + keyPrefix + "." + name
+}
+
+// lastEventIDKey is the key a knowledge base's stream's places are kept
+// under, as protocol/specs/src/session/stored.json states it.
+func lastEventIDKey(kbID string) string {
+	return "semiont.lastEventId." + kbID
+}
+
 // keptVersion is the version of what the kept caches hold. A document of
 // another version reads as nothing kept, so this changes when a kept value's
 // shape does.

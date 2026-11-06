@@ -34,6 +34,12 @@ public fun sessionKey(kbId: String): String = SESSION_KEY_PREFIX + kbId
 /** The knowledge base a key is the session of; null when it is no session's key. */
 public fun kbOfSessionKey(key: String): String? = if (key.startsWith(SESSION_KEY_PREFIX)) key.removePrefix(SESSION_KEY_PREFIX) else null
 
+/** The key a knowledge base's stream's places are kept under. */
+internal fun lastEventIdKey(kbId: String): String = "semiont.lastEventId.$kbId"
+
+/** The key the query `name` is kept under, by a persistence whose key prefix is `keyPrefix`. */
+internal fun cacheKey(keyPrefix: String, name: String): String = "semiont.cache.$keyPrefix.$name"
+
 /**
  * What is kept of a sign-in: the tokens an issuer issued, the client they
  * were issued to, and the issuer's endpoints a renewal and a sign-out need,

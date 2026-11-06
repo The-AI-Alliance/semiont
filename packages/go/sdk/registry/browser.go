@@ -48,6 +48,7 @@ import (
 	"errors"
 	"iter"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -609,8 +610,9 @@ func (b *SemiontBrowser) spawn(work func() error) {
 	}()
 }
 
-// samePlace is whether two endpoints are one place: for a gateway, its host
-// and port; for a loaded knowledge base, its id.
+// samePlace is whether two endpoints are one place: for a gateway, its origin
+// (the protocol, the host in lowercase and the port); for a loaded knowledge
+// base, its id.
 func samePlace(one, other api.KbEndpoint) bool {
 	oneKind, err := one.Discriminator()
 	if err != nil {
@@ -624,7 +626,7 @@ func samePlace(one, other api.KbEndpoint) bool {
 	case string(api.HttpEndpointKindHttp):
 		a, errA := one.AsHttpEndpoint()
 		b, errB := other.AsHttpEndpoint()
-		return errA == nil && errB == nil && a.Host == b.Host && a.Port == b.Port
+		return errA == nil && errB == nil && a.Protocol == b.Protocol && strings.ToLower(a.Host) == strings.ToLower(b.Host) && a.Port == b.Port
 	case string(api.LocalEndpointKindLocal):
 		a, errA := one.AsLocalEndpoint()
 		b, errB := other.AsLocalEndpoint()

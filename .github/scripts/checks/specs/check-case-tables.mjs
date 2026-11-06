@@ -12,6 +12,7 @@
 //     to be built for it to. A partially implemented subject-based table may
 //     state { why, runBy, subjects } instead: its incomplete obligation stays,
 //     with the runners and the proper subset of subjects they already cover.
+//     Sectioned tables may use sections for their proper subset of top-level arrays.
 //
 // An implementation is named by its key in IMPLEMENTATIONS, which says where
 // its files are. The table owns who runs it; this gate holds the table to it.
@@ -171,22 +172,25 @@ for (const table of tables) {
       if (!SDKS.includes(sdk)) fail(`${table}: ${said} names ${sdk}, which is no SDK`);
       if (said === 'notYetReached' && why !== null && typeof why === 'object' && !Array.isArray(why)) {
         const keys = Object.keys(why);
-        if (keys.length !== 3 || !['why', 'runBy', 'subjects'].every((key) => keys.includes(key)) || typeof why.why !== 'string' || !why.why.trim()) {
-          fail(`${table}: ${sdk}'s partial obligation must state why, runBy and subjects`);
+        const mode = keys.includes('subjects') ? 'subjects' : keys.includes('sections') ? 'sections' : undefined;
+        if (keys.length !== 3 || !mode || !['why', 'runBy', mode].every((key) => keys.includes(key)) || typeof why.why !== 'string' || !why.why.trim()) {
+          fail(`${table}: ${sdk}'s partial obligation must state why, runBy and subjects or sections`);
           continue;
         }
         validateRunners(sdk, why.runBy);
-        const subjects = new Set(content.cases?.map((row) => row.subject));
-        if (subjects.has(undefined) || !Array.isArray(why.subjects) || why.subjects.length === 0 || new Set(why.subjects).size !== why.subjects.length
-          || why.subjects.some((subject) => typeof subject !== 'string' || !subjects.has(subject))) {
-          fail(`${table}: ${sdk}'s partial subjects are not a unique nonempty subset of the table's subjects`);
-        } else if (why.subjects.length === subjects.size) {
-          fail(`${table}: ${sdk} covers every subject and belongs in runBy, with no notYetReached`);
+        const units = mode === 'subjects' ? new Set(content.cases?.map((row) => row.subject))
+          : content.cases === undefined ? new Set(Object.entries(content).filter(([, rows]) => Array.isArray(rows)).map(([name]) => name)) : new Set();
+        const covered = why[mode];
+        if (units.size === 0 || units.has(undefined) || !Array.isArray(covered) || covered.length === 0 || new Set(covered).size !== covered.length
+          || covered.some((unit) => typeof unit !== 'string' || !units.has(unit))) {
+          fail(`${table}: ${sdk}'s partial ${mode} are not a unique nonempty subset of the table's ${mode}`);
+        } else if (covered.length === units.size) {
+          fail(`${table}: ${sdk} covers every ${mode === 'subjects' ? 'subject' : 'section'} and belongs in runBy, with no notYetReached`);
         } else {
           const runners = Array.isArray(why.runBy) ? why.runBy.filter((runner) => typeof runner === 'string' && existsSync(resolve(REPO, runner))) : [];
           const source = runners.map((runner) => readFileSync(resolve(REPO, runner), 'utf8')).join('\n');
-          for (const subject of why.subjects) if (!source.includes(JSON.stringify(subject)) && !source.includes(`'${subject}'`)) {
-            fail(`${table}: ${sdk}'s partial runners name no subject ${subject}`);
+          for (const unit of covered) if (!source.includes(JSON.stringify(unit)) && !source.includes(`'${unit}'`)) {
+            fail(`${table}: ${sdk}'s partial runners name no ${mode === 'subjects' ? 'subject' : 'section'} ${unit}`);
           }
           partialRunners.set(sdk, new Set(runners));
         }
@@ -209,7 +213,7 @@ for (const table of tables) {
     const partial = partialRunners.get(sdk);
     const unstated = partial ? running.filter((runner) => !partial.has(runner)) : running;
     if (unstated.length > 0) {
-      fail(`${table}: ${sdk} is notYetReached, and ${unstated.join(', ')} names it: declare its partial subjects or put it in runBy`);
+      fail(`${table}: ${sdk} is notYetReached, and ${unstated.join(', ')} names it: declare its partial subjects/sections or put it in runBy`);
     }
   }
 }

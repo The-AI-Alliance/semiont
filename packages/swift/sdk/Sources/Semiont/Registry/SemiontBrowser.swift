@@ -580,9 +580,13 @@ public actor SemiontBrowser {
   }
 }
 
-private func samePlace(_ lhs: KbEndpoint, _ rhs: KbEndpoint) -> Bool {
+/// Whether two endpoints are one place: for a gateway, its origin (the protocol, the host in
+/// lowercase and the port); for a loaded knowledge base, its id.
+func samePlace(_ lhs: KbEndpoint, _ rhs: KbEndpoint) -> Bool {
   switch (lhs, rhs) {
-  case (.httpEndpoint(let a), .httpEndpoint(let b)): return a.host == b.host && a.port == b.port
+  case (.httpEndpoint(let a), .httpEndpoint(let b)):
+    return a.protocol == b.protocol && a.host.lowercased() == b.host.lowercased()
+      && a.port == b.port
   case (.localEndpoint(let a), .localEndpoint(let b)): return a.kbId == b.kbId
   default: return false
   }

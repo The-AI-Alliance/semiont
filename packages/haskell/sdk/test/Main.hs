@@ -49,6 +49,7 @@ import ResourceCases (resourceCases)
 import FrameCases (frameCases)
 import RefreshCases (refreshCases)
 import TextCases (textCases)
+import TokenStorageCases (tokenStorageCases)
 import DelegationCases (delegationCases, followerClockCases)
 import qualified SchemaCases
 
@@ -355,6 +356,7 @@ main = do
   resourceCases root
   frameCases root
   textCases root
+  tokenStorageCases root
   identifierCases root
   putStrLn "PASS shared identifier acceptance/refusal cases"
   channelCases root

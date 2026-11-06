@@ -3033,9 +3033,11 @@ function sectionMembers(section, row, roster, noun) {
  * bus as; where the bus is declared (TypeScript's is @semiont/core's); and
  * where the SDK's client hands it out as `wire`, with what says it does.
  */
-function haskellWire(made, where) {
+function haskellReceiver(made, where) {
   const inventory = JSON.parse(read('packages/haskell/sdk/public-api.json'));
-  const module = inventory.modules['Semiont.Bus'];
+  const declaredModule = /^module\s+([A-Z][\w.]*)\b/m.exec(read(where))?.[1];
+  if (!declaredModule) return undefined;
+  const module = inventory.modules[declaredModule];
   if (!module?.types[made]) return undefined;
   const declared = /^(?:data|newtype) (\S+)/.exec(module.types[made].definition ?? '');
   if (!declared) return undefined;
@@ -3046,7 +3048,7 @@ function haskellWire(made, where) {
 
 const WIRES = {
   haskell: {
-    read: haskellWire,
+    read: haskellReceiver,
     sources: 'packages/haskell/sdk/src/Semiont/Bus.hs',
     handedOut: {
       file: 'packages/haskell/sdk/public-api.json',
@@ -3132,6 +3134,7 @@ else {
  * of the root package, and Rust's a trait.
  */
 const STORAGES = {
+  haskell: { read: haskellReceiver, sources: 'packages/haskell/sdk/src/Semiont/SessionStorage.hs' },
   typescript: { read: typescriptUnit, sources: TS_SDK },
   rust: { read: rustTrait, sources: RUST_SDK },
   python: { read: pythonUnit, sources: PYTHON_SDK },

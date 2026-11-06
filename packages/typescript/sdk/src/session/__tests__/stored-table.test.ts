@@ -1,8 +1,9 @@
 /**
  * What a registry keeps in its storage, as protocol/specs/src/session/stored.json
  * states it: every key this SDK writes by hand, the key of a knowledge base's
- * session, and the members of a stored session. A key or a member the table
- * gains fails here until this SDK has it.
+ * session, the keys of what a session keeps of its stream and its queries, and
+ * the members of a stored session. A key or a member the table gains fails
+ * here until this SDK has it. oauth.test.ts holds a pending sign-in's members.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -16,7 +17,9 @@ import {
   LAST_VIEWED_RESOURCE_BY_KB_KEY,
   OPEN_RESOURCES_BY_KB_KEY,
   STORAGE_KEY,
+  cacheKey,
   getStoredSession,
+  lastEventIdKey,
   sessionKey,
   setStoredSession,
   type StoredSession,
@@ -25,6 +28,8 @@ import {
 interface StoredTable {
   keys: { member: string; key: string }[];
   sessionKeyPrefix: { prefix: string };
+  lastEventIdKeyPrefix: { prefix: string };
+  cacheKeyPrefix: { prefix: string };
   storedSession: { properties: Record<string, unknown>; required: string[] };
 }
 
@@ -52,6 +57,14 @@ describe('what a registry keeps, as protocol/specs/src/session/stored.json state
 
   it("a knowledge base's session is kept under the table's prefix and its id", () => {
     expect(sessionKey('kb-a')).toBe(`${table.sessionKeyPrefix.prefix}kb-a`);
+  });
+
+  it("where a knowledge base's stream was is kept under the table's prefix and its id", () => {
+    expect(lastEventIdKey('kb-a')).toBe(`${table.lastEventIdKeyPrefix.prefix}kb-a`);
+  });
+
+  it("a kept query is kept under the table's prefix, its persistence's key prefix and its name", () => {
+    expect(cacheKey('kb-a', 'resource')).toBe(`${table.cacheKeyPrefix.prefix}kb-a.resource`);
   });
 
   it("a stored session is written with the table's members, and no others", () => {

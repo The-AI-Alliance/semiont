@@ -1,0 +1,28 @@
+-- | Atomic text storage supplied by an application or a native store.
+module Semiont.SessionStorage (SessionStorage(..), newMemoryStorage) where
+
+import Control.Concurrent.STM
+import qualified Data.Map.Strict as Map
+import Data.Text (Text)
+
+data SessionStorage = SessionStorage
+  { get :: Text -> IO (Maybe Text)
+  , set :: Text -> Text -> IO ()
+  , delete :: Text -> IO ()
+  , update :: Text -> (Maybe Text -> Maybe Text) -> IO ()
+  , subscribe :: (Text -> Maybe Text -> IO ()) -> IO (Maybe (IO ()))
+  }
+
+-- | One context's memory: no external writer and no external notifications.
+newMemoryStorage :: IO SessionStorage
+newMemoryStorage = do
+  values <- newTVarIO Map.empty
+  let change key transform = atomically $ do
+        previous <- Map.lookup key <$> readTVar values
+        case transform previous of
+          Nothing -> modifyTVar' values (Map.delete key)
+          Just value -> modifyTVar' values (Map.insert key value)
+  pure (SessionStorage
+    (\key -> Map.lookup key <$> readTVarIO values)
+    (\key value -> change key (const (Just value)))
+    (\key -> change key (const Nothing)) change (const (pure Nothing)))

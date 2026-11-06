@@ -1257,6 +1257,85 @@ fn a_pending_sign_in_is_kept_under_the_tables_key() {
     assert_eq!(PENDING_AUTHORIZATION_KEY, key);
 }
 
+/// The members an object schema of the table names.
+fn members_of(shape: &Value) -> HashSet<String> {
+    shape["properties"]
+        .as_object()
+        .expect("the shape names its members")
+        .keys()
+        .cloned()
+        .collect()
+}
+
+/// The members an object schema of the table requires.
+fn required_of(shape: &Value) -> HashSet<String> {
+    shape["required"]
+        .as_array()
+        .expect("the shape requires members")
+        .iter()
+        .map(|member| member.as_str().expect("a member is named").to_owned())
+        .collect()
+}
+
+/// What is kept of a sign-in begun is protocol/specs/src/session/stored.json's
+/// `pendingAuthorization`: every member it names when the person believed
+/// something, and only what it requires when they named nothing.
+#[tokio::test]
+async fn a_sign_in_begun_is_kept_as_the_table_states_it() {
+    let table: Value = serde_json::from_str(include_str!(
+        "../../../../protocol/specs/src/session/stored.json"
+    ))
+    .expect("the table");
+    let shape = &table["pendingAuthorization"];
+    let issuer = &shape["properties"]["issuer"];
+    let written = |storage: &InMemorySessionStorage| -> HashSet<String> {
+        let record: Value = serde_json::from_str(
+            &storage
+                .get(PENDING_AUTHORIZATION_KEY)
+                .expect("a pending sign-in"),
+        )
+        .expect("a pending sign-in is JSON");
+        let kept: HashSet<String> = record["issuer"]
+            .as_object()
+            .expect("an issuer")
+            .keys()
+            .cloned()
+            .collect();
+        assert!(
+            required_of(issuer).is_subset(&kept) && kept.is_subset(&members_of(issuer)),
+            "its issuer is kept with {kept:?}"
+        );
+        record
+            .as_object()
+            .expect("a pending sign-in is an object")
+            .keys()
+            .cloned()
+            .collect()
+    };
+    let world = World::start().await;
+
+    let believed = InMemorySessionStorage::new();
+    begin_authorization(
+        BeginAuthorization {
+            kb_id: Some("kb-a".to_owned()),
+            expected_did: Some("did:web:example.org:kb-a".to_owned()),
+            expected_name: Some("KB A".to_owned()),
+            ..world.begin()
+        },
+        &believed,
+        &world.http,
+    )
+    .await
+    .expect("a URL");
+    assert_eq!(written(&believed), members_of(shape));
+
+    let bare = InMemorySessionStorage::new();
+    begin_authorization(world.begin(), &bare, &world.http)
+        .await
+        .expect("a URL");
+    assert_eq!(written(&bare), required_of(shape));
+}
+
 #[tokio::test]
 async fn every_renewal_is_the_tables() {
     let table: Value = serde_json::from_str(include_str!(
