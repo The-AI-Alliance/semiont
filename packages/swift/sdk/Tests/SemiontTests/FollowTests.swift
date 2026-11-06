@@ -19,7 +19,7 @@ private actor ReplyGate<Value: Sendable> {
     continuation = nil
   }
 }
-private func markParams() throws -> MarkJobParams {
+func markParams() throws -> MarkJobParams {
   let table = try Spec.read("client/surface.json").object
   let namespace = try #require(
     required(table, "namespaces").array.first { try $0.object["namespace"] == .string("mark") })
@@ -30,7 +30,7 @@ private func markParams() throws -> MarkJobParams {
   let row = try #require(required(method.object, "cases").array.first).object
   return try decoded(MarkJobParams.self, required(required(row, "args").object, "params"))
 }
-private func progress(_ job: String = "job-1", percentage: Double) throws
+func progress(_ job: String = "job-1", percentage: Double) throws
   -> JobReportProgressCommand
 {
   JobReportProgressCommand(
