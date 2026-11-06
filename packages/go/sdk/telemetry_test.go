@@ -32,6 +32,14 @@ func TestAFrameWithNoTraceKeepsItsPayloadAsItCame(t *testing.T) {
 	}
 }
 
+func TestAPayloadThatIsNoObjectCarriesNoTraceAndKeepsItsPayloadAsItCame(t *testing.T) {
+	payload := json.RawMessage(`["_trace"]`)
+	rest, sentUnder, ok := withoutTrace(payload)
+	if !ok || string(rest) != string(payload) || !sentUnder.IsZero() {
+		t.Fatalf("got %s, %+v, %v: a payload that is not an object has no trace member, and is passed on as it came", rest, sentUnder, ok)
+	}
+}
+
 func TestAFramesTraceIsTakenOffItsPayload(t *testing.T) {
 	payload := json.RawMessage(`{"annotationId":"a-1","_trace":{"traceparent":"` + aTraceparent + `","tracestate":"` + aTracestate + `"}}`)
 	rest, sentUnder, ok := withoutTrace(payload)
