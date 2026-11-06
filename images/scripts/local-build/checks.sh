@@ -214,18 +214,19 @@ fi
 
 # --- The table of what each component schema requires ---
 #
-# Rust's and Kotlin's copies of it are COMMITTED: Rust's build and Kotlin's
-# generator read them, and neither runs the rules they are written by
+# Rust's, Kotlin's, Swift's and C#'s copies of it are COMMITTED: Rust's build,
+# Kotlin's generator, Swift's build plugin and C#'s source generator read them,
+# and none runs the rules they are written by
 # (packages/codegen/schemas/required-shapes.mjs).
 
 if ! run_logged "the table of what each component schema requires matches protocol/specs/src" \
     $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
     npm run generate:required:check; then
-  fail "Rust's or Kotlin's copy of the table of what each schema requires is STALE (or was hand-edited) — it must match the component schemas."
+  fail "Rust's, Kotlin's, Swift's or C#'s copy of the table of what each schema requires is STALE (or was hand-edited) — it must match the component schemas."
   echo ""
   echo -e "  Regenerate and commit:"
   echo ""
-  echo -e "    ${BOLD}npm run generate:required${RESET}   (packages/rust/sdk/src, packages/kotlin/sdk/src/codegen)"
+  echo -e "    ${BOLD}npm run generate:required${RESET}   (packages/rust/sdk/src, packages/kotlin/sdk/src/codegen, packages/swift/sdk/Sources/SemiontCodegen, packages/csharp/sdk/generators/Semiont.Generator)"
   echo ""
   exit 1
 fi
