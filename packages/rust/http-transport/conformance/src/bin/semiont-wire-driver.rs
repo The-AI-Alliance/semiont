@@ -139,6 +139,7 @@ impl Wire {
             timing,
 
             bookmarks: None,
+            random: None,
         });
 
         let mut reporters = locked(&self.reporters);

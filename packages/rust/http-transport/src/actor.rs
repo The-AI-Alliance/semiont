@@ -228,7 +228,7 @@ impl Actor {
             .saturating_mul(2u32.saturating_pow(self.retry_attempt))
             .min(MAX_RECONNECT);
         self.retry_attempt = self.retry_attempt.saturating_add(1);
-        equal_jitter(cap)
+        equal_jitter(cap, self.shared.random.as_deref())
     }
 
     fn abort(&mut self, conn: u64) {
@@ -941,6 +941,7 @@ mod tests {
             http: reqwest::Client::new(),
             timing: Timing::default(),
             bookmarks: None,
+            random: None,
         }))
     }
 

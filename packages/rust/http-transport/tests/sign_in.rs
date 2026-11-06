@@ -958,7 +958,7 @@ async fn a_stored_sessions_renewal_rides_out_an_issuer_that_says_not_now_and_kee
         granted("a2", Some("r2")),
     ]);
 
-    let renewed = refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http)
+    let renewed = refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http, None)
         .await
         .expect("renewed");
 
@@ -982,10 +982,11 @@ async fn a_refused_grant_is_final_on_its_first_answer() {
         let before = world.token_forms().len();
         world.answers([refusal.clone(), granted("never", None)]);
 
-        let refused = refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http)
-            .await
-            .map_err(sign_in_error)
-            .expect_err("the grant is refused");
+        let refused =
+            refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http, None)
+                .await
+                .map_err(sign_in_error)
+                .expect_err("the grant is refused");
 
         assert_eq!(refused.status, Some(refusal.0));
         assert!(
@@ -1009,7 +1010,7 @@ async fn a_renewal_that_is_never_answered_gives_up_and_says_how_hard_it_tried() 
     let storage = storing(&world, "kb-a", "a1");
     world.answers((0..10).map(|_| (503, Value::Null)));
 
-    let refused = refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http)
+    let refused = refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http, None)
         .await
         .map_err(sign_in_error)
         .expect_err("the budget is spent");
@@ -1031,10 +1032,11 @@ async fn a_renewal_that_is_never_answered_gives_up_and_says_how_hard_it_tried() 
         },
     )
     .expect("stored");
-    let unanswered = refresh_stored_session(nowhere.as_ref(), "kb-a", Some("a1"), &world.http)
-        .await
-        .map_err(sign_in_error)
-        .expect_err("nothing is there");
+    let unanswered =
+        refresh_stored_session(nowhere.as_ref(), "kb-a", Some("a1"), &world.http, None)
+            .await
+            .map_err(sign_in_error)
+            .expect_err("nothing is there");
     assert_eq!(unanswered.status, None);
     assert!(
         unanswered
@@ -1195,8 +1197,14 @@ async fn renewed_as_the_row_says(row: &Value, store: &str) -> Vec<String> {
     };
     let holding = row["holding"].as_str().map(token);
 
-    let given =
-        refresh_stored_session(renewing.as_ref(), "local", holding.as_deref(), &world.http).await;
+    let given = refresh_stored_session(
+        renewing.as_ref(),
+        "local",
+        holding.as_deref(),
+        &world.http,
+        None,
+    )
+    .await;
 
     let mut wrong = Vec::new();
     let spent: Vec<String> = world
@@ -1568,6 +1576,7 @@ fn issued(world: &World, storage: Arc<InMemorySessionStorage>, access: &str) -> 
         on_auth_failed: None,
         on_error: None,
         http: world.http.clone(),
+        random: None,
     }
 }
 
@@ -1810,6 +1819,7 @@ async fn a_script_signs_in_by_the_device_grant_and_holds_a_ready_session() {
             on_auth_failed: None,
             on_error: None,
             http: world.http.clone(),
+            random: None,
         },
         |_| {},
     )
@@ -1841,6 +1851,7 @@ async fn a_script_signs_in_by_the_device_grant_and_holds_a_ready_session() {
             on_auth_failed: None,
             on_error: None,
             http: world.http.clone(),
+            random: None,
         },
         |_| {},
     )
@@ -1869,7 +1880,7 @@ fn registered(world: &World, id: &str, did: &str) -> KnowledgeBase {
 fn browser(world: &World, storage: Arc<InMemorySessionStorage>) -> SemiontBrowser {
     SemiontBrowser::new(SemiontBrowserConfig {
         storage,
-        session_factory: Arc::new(HttpSessionFactory::new(world.http.clone())),
+        session_factory: Arc::new(HttpSessionFactory::new(world.http.clone(), None)),
     })
     .expect("a browser")
 }
@@ -2027,7 +2038,7 @@ async fn a_registrys_sign_in_registers_the_knowledge_base_under_what_it_says_it_
         },
     )
     .await;
-    let outcome = complete_sign_in(&browser, &callback, &world.http)
+    let outcome = complete_sign_in(&browser, &callback, &world.http, None)
         .await
         .expect("the sign-in completes");
 
@@ -2074,7 +2085,7 @@ async fn a_knowledge_base_that_cannot_say_who_it_is_is_not_registered() {
     *world.staged.describes.lock().unwrap() = Describes::Refusing;
     world.answers([granted(&jwt(3600, 1), Some("r"))]);
     let callback = sent_back(&world, &browser, world.begin()).await;
-    let refused = complete_sign_in(&browser, &callback, &world.http)
+    let refused = complete_sign_in(&browser, &callback, &world.http, None)
         .await
         .expect_err("it cannot say who it is");
     let unverifiable = refused
@@ -2092,7 +2103,7 @@ async fn a_knowledge_base_that_cannot_say_who_it_is_is_not_registered() {
         .push(unwelcome.clone());
     world.answers([granted(&unwelcome, Some("r"))]);
     let callback = sent_back(&world, &browser, world.begin()).await;
-    let unreached = complete_sign_in(&browser, &callback, &world.http)
+    let unreached = complete_sign_in(&browser, &callback, &world.http, None)
         .await
         .expect_err("it was not reached");
     let unverifiable = unreached
@@ -2115,6 +2126,7 @@ async fn a_callback_that_is_not_the_pending_sign_ins_registers_nothing() {
         &browser,
         "http://127.0.0.1:9/callback?state=another&code=the-code",
         &world.http,
+        None,
     )
     .await
     .expect_err("the state is another's");
@@ -2134,7 +2146,7 @@ async fn a_callback_that_is_not_the_pending_sign_ins_registers_nothing() {
 async fn asked_with_a_token_the_knowledge_base_says_who_it_is() {
     let world = World::start().await;
 
-    let identity = describe_connection(&world.target(), &jwt(3600, 1), &world.http)
+    let identity = describe_connection(&world.target(), &jwt(3600, 1), &world.http, None)
         .await
         .expect("it says who it is");
 
@@ -2370,6 +2382,7 @@ impl World {
                 self.http.clone(),
             ),
             self.http.clone(),
+            None,
         )
         .await
     }
@@ -2783,6 +2796,7 @@ impl World {
                 http: self.http.clone(),
                 timing: Timing::default(),
                 bookmarks: None,
+                random: None,
             },
             ClientOptions::default(),
         )
@@ -2904,6 +2918,7 @@ async fn a_session_whose_gateway_never_says_who_it_is_is_ready_at_the_deadline_a
             saying.lock().unwrap().push(error.message)
         })),
         http: world.http.clone(),
+        random: None,
     }))
     .await
     .expect("a sign-in is stored");
@@ -3062,6 +3077,7 @@ async fn a_renewal_the_issuer_never_answers_is_tried_inside_the_budget_and_then_
         "kb-a",
         Some("a1"),
         &world.http,
+        None,
     ))
     .await
     .map_err(sign_in_error)
@@ -3201,6 +3217,7 @@ async fn a_script(
         on_auth_failed: None,
         on_error: None,
         http,
+        random: None,
     })
     .await
     .ok_or("Not signed in. Run `semiont login`.")?;
@@ -3228,6 +3245,7 @@ async fn a_first_sign_in(
             on_auth_failed: None,
             on_error: None,
             http,
+            random: None,
         },
         |code| {
             println!(
@@ -3254,6 +3272,7 @@ async fn a_daemon(
         gateway,
         ServiceToken::new(credential, http.clone()),
         http.clone(),
+        None,
     )
     .await?;
     let client = client(
@@ -3265,6 +3284,7 @@ async fn a_daemon(
             http,
             timing: Timing::default(),
             bookmarks: None,
+            random: None,
         },
         ClientOptions::default(),
     );
@@ -3310,6 +3330,7 @@ async fn a_worker(
         gateway,
         ServiceToken::new(Credential::Key(Box::new(credential)), http.clone()),
         http.clone(),
+        None,
     )
     .await?;
     println!("working as {}", agent.did());
@@ -3337,6 +3358,7 @@ async fn a_worker(
             http,
             timing: Timing::default(),
             bookmarks: None,
+            random: None,
         },
         ClientOptions::default(),
     );
@@ -3433,7 +3455,7 @@ async fn an_application(
     // The registry an application holds, with its sessions over HTTP.
     let browser = SemiontBrowser::new(SemiontBrowserConfig {
         storage,
-        session_factory: Arc::new(HttpSessionFactory::new(http.clone())),
+        session_factory: Arc::new(HttpSessionFactory::new(http.clone(), None)),
     })?;
 
     // A person signs in at the issuer the knowledge base trusts, in their
@@ -3455,7 +3477,7 @@ async fn an_application(
     let callback = redirect.callback().await?;
 
     // The knowledge base that answered is registered, signed in and active.
-    let signed_in = complete_sign_in(&browser, &callback, &http).await?;
+    let signed_in = complete_sign_in(&browser, &callback, &http, None).await?;
     // </readme:application>
     browser.close().await?;
     Ok(signed_in.kb)
@@ -3527,6 +3549,7 @@ async fn a_session_over_a_stored_sign_in_renews_at_the_issuer_the_sign_in_names(
         on_auth_failed: None,
         on_error: None,
         http: world.http.clone(),
+        random: None,
     })
     .await
     .expect("a sign-in is stored");

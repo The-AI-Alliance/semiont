@@ -163,6 +163,7 @@ fn transport(origin: String, refresher: Option<Arc<dyn TokenRefresher>>) -> Http
         http: reqwest::Client::new(),
         timing: Timing::default(),
         bookmarks: None,
+        random: None,
     })
 }
 
