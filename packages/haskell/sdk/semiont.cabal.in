@@ -49,7 +49,7 @@ library internal
   include-dirs: generated/Semiont/Internal/Generated
   cc-options: -Wall -Wextra -Werror
   if os(windows)
-    extra-libraries: advapi32
+    extra-libraries: advapi32, bcrypt
   exposed-modules:
     Semiont.Types
     Semiont.Types.Presence

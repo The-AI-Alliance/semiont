@@ -201,7 +201,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self.wfile.write(b"a")
                     self.wfile.flush()
                 self.connection.settimeout(10)
-                assert self.connection.recv(1) == b"", "an abandoned response socket was reused"
+                # A client that closes with response bytes still unread resets the connection instead of ending it.
+                try:
+                    assert self.connection.recv(1) == b"", "an abandoned response socket was reused"
+                except ConnectionResetError:
+                    pass
                 with gate:
                     state[suffix + "Closed"] += 1
             else:
