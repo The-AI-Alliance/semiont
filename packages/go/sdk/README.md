@@ -416,7 +416,7 @@ Every method returns one of nine shapes, and the table says which:
 | a worker's claims | `*Claims` | `All()`: each job the worker comes to hold, or a claim it was refused; a held job says its own lifecycle and commits its own annotations, and `Complete`, `Fail` and `Cancel` each settle it once |
 | a signal | no result | published on the client's own bus, or sent and not awaited |
 | a drive | `(subscribers int, counted bool, err error)` | how many participants the gateway reached; `counted` is false when it kept no count |
-| a channel's events | `iter.Seq2[Delivered[P], error]`, given a context | each event's payload decoded, until the context is done |
+| a channel's events | `iter.Seq2[Delivered[P], error]`, given a context | each event's payload decoded, until the context is done; a frame refused, or whose payload is not its channel's, is a `*FrameRefusal` in its place |
 
 - **A delegated job** (`Mark.Delegate`, `Yield.Delegate`) is described by
   its parameters, which are the protocol's own shapes: `api.MarkJobParams`,
@@ -427,8 +427,11 @@ Every method returns one of nine shapes, and the table says which:
   job's counts (`MarkJobDone`) or a decline (`JobDeclined`), or an
   `api.YieldJobCompleteCommand`, whose `Result` is the resource the job made
   (`YieldJobDone`) or a decline. Ranged over, its events are `JobCreated`,
-  `JobProgressed`, `JobAttemptFailed` and `JobCompleted[C]`, read with a type
-  switch. A job that says nothing is asked for its status, so a completion
+  `JobProgressed`, `JobAttemptFailed`, `JobRefused` and `JobCompleted[C]`,
+  read with a type switch. A `JobRefused` is a frame of a job's progress,
+  completion or failure that was refused, naming its channel and the member
+  and reason of its fault: it names no job, and the job goes on being
+  followed. A job that says nothing is asked for its status, so a completion
   the stream did not carry is still heard. It ends as a `*JobError` when the
   job failed for good, was cancelled, or (a generation) said nothing for
   longer than its stall deadline allows; and as a `*TransportError` when what
@@ -664,8 +667,9 @@ func Run(ctx context.Context, client *semiont.Client) error {
   record has it. A worker that commits names `semiont.JobCommitChannels` in
   its stream as well.
 - **It claims when it is idle**: when its stream opens, each time a job
-  settles, when a job it accepts is announced, and when its stream opens
-  again. A claim answered with nothing pending is no refusal, and the worker
+  settles, when a job it accepts is announced (or an announcement its
+  transport refused, which it cannot tell it does not accept), and when its
+  stream opens again. A claim answered with nothing pending is no refusal, and the worker
   waits. A `*ClaimRefusal` is a claim the dispatcher refused or did not
   answer.
 - **A held job settles once**: `Complete`, with what its verb reports,

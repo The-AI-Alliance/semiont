@@ -427,7 +427,8 @@ func carried(data string) (Frame, required.Fault, bool) {
 
 // refusalOf is the refusal of data, which BusFrame refused for fault, and
 // true when the channel and the scope it carries name its readers; false
-// when they do not, and it names no reader.
+// when they do not, and it names no reader. It carries data's correlation id
+// when that can be read.
 func refusalOf(data string, fault required.Fault) (*FrameRefusal, bool) {
 	var members map[string]json.RawMessage
 	if json.Unmarshal([]byte(data), &members) != nil {
@@ -438,15 +439,30 @@ func refusalOf(data string, fault required.Fault) (*FrameRefusal, bool) {
 	if scope, has := members["scope"]; has {
 		named["scope"] = scope
 	}
-	alone, err := json.Marshal(named)
-	if err != nil {
-		return nil, false
-	}
-	readers, _, ok := carried(string(alone))
+	readers, ok := framed(named)
 	if !ok {
 		return nil, false
 	}
-	return &FrameRefusal{Channel: readers.Channel, Member: fault.Member, Reason: fault.Reason, Payload: members["payload"], Envelope: Envelope{Scope: readers.Scope}}, true
+	refusal := &FrameRefusal{Channel: readers.Channel, Member: fault.Member, Reason: fault.Reason, Payload: members["payload"], Envelope: readers.Envelope}
+	// Its correlation id can be read when a frame of it and its readers alone is one BusFrame allows.
+	if correlationID, has := members["correlationId"]; has {
+		named["correlationId"] = correlationID
+		if read, ok := framed(named); ok {
+			refusal.CorrelationID = read.CorrelationID
+		}
+	}
+	return refusal, true
+}
+
+// framed is members read as a frame, and true; false when BusFrame does not
+// allow them.
+func framed(members map[string]json.RawMessage) (Frame, bool) {
+	written, err := json.Marshal(members)
+	if err != nil {
+		return Frame{}, false
+	}
+	frame, _, ok := carried(string(written))
+	return frame, ok
 }
 
 func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
@@ -464,6 +480,7 @@ func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
 			s.shared.failures.report(transportErrorWithoutResponse(fmt.Sprintf("the stream carried what is not a frame: %s", fault), TransportErrorCodeError))
 			return
 		}
+		s.shared.router.RouteRefusal(refusal)
 		s.shared.hub.DeliverRefusal(refusal)
 		return
 	}

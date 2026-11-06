@@ -14,7 +14,8 @@ package semiont
 //
 //   - its claims are first ranged over, once the stream is open;
 //   - it settles the job it holds, immediately, with no timer;
-//   - a matching job:queued arrives while it holds nothing;
+//   - a matching job:queued arrives while it holds nothing, or one its
+//     transport refused, which no claim's question can be asked of;
 //   - the stream opens again: every change to open after the first.
 //
 // job:queued is a WAKE-UP with no memory. While the worker holds nothing it
@@ -199,11 +200,12 @@ type ActiveJob struct {
 // WorkerVitals is what a worker can say of itself at any moment
 // (WORKER-CONTRACT V1). A time that is zero has not happened yet.
 //
-// LastQueuedEventAt is any job:queued received, matching or not. On an idle
-// stack with an empty queue it stands still by design, so a still stamp alone
-// is not a fault of the stream. LastActivityAt (a claim, a progress report, a
-// checkpoint, a settle) is the liveness of the work: a job stuck partway
-// stops advancing it, and that is what the stall rule reads.
+// LastQueuedEventAt is any job:queued received, matching or not, refused by
+// its transport or not. On an idle stack with an empty queue it stands still
+// by design, so a still stamp alone is not a fault of the stream.
+// LastActivityAt (a claim, a progress report, a checkpoint, a settle) is the
+// liveness of the work: a job stuck partway stops advancing it, and that is
+// what the stall rule reads.
 type WorkerVitals struct {
 	LastQueuedEventAt time.Time
 	LastClaimAt       time.Time
@@ -997,29 +999,41 @@ func (c *Claims) begin() error {
 }
 
 // hear reads the announcements and the cancellations as the transport
-// delivers them. A frame it refused is neither, and wakes and cancels
+// delivers them. An announcement it refused was received all the same, and
+// no filter can be compared with what cannot be read: it wakes the worker as
+// a matching one would. A cancellation it refused names no job, and cancels
 // nothing. The transport's closing ends the claims: nothing more can be
 // claimed.
 func (c *Claims) hear(frames iter.Seq2[Frame, error]) {
 	for frame, refused := range frames {
-		if refused != nil {
-			continue
-		}
-		if frame.Channel == bus.JobQueued.Channel() {
+		switch {
+		case frame.Channel != bus.JobQueued.Channel():
+			if refused == nil {
+				c.cancellation(frame)
+			}
+		case refused != nil:
+			c.queued()
+			c.mu.Lock()
+			c.pull()
+			c.mu.Unlock()
+		default:
 			c.announced(frame)
-		} else {
-			c.cancellation(frame)
 		}
 	}
 	c.stop()
 }
 
-// announced is a job:queued. Every announcement received is stamped, before
-// any filtering.
-func (c *Claims) announced(frame Frame) {
+// queued stamps a job:queued received. Every announcement is stamped,
+// before any filtering.
+func (c *Claims) queued() {
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.lastQueuedEventAt = time.Now()
-	c.mu.Unlock()
+}
+
+// announced is a job:queued, which claims when it matches a filter.
+func (c *Claims) announced(frame Frame) {
+	c.queued()
 	var job any
 	if json.Unmarshal(frame.Payload, &job) != nil {
 		return
@@ -1252,5 +1266,9 @@ func claimed(ctx context.Context, l *links, accepts []api.JobFilter) (Delivered[
 	if err != nil {
 		return Delivered[api.JobClaimedResult]{}, err
 	}
-	return delivered[api.JobClaimedResult](reply)
+	answer, refusal := delivered[api.JobClaimedResult](reply)
+	if refusal != nil {
+		return Delivered[api.JobClaimedResult]{}, refusal
+	}
+	return answer, nil
 }

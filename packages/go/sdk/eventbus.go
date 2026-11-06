@@ -166,17 +166,18 @@ func Publish[P any](b *EventBus, c bus.Global[P], payload P, envelope Envelope) 
 }
 
 // Published is the frames published to everyone on c from now on, until ctx
-// is done, each with its payload decoded. One whose payload is not c's is
-// given as its error, and the frames after it follow.
+// is done, each with its payload decoded. One whose payload is not c's, and
+// the refusal published in a frame's place, is given as its *FrameRefusal,
+// and the frames after it follow.
 func Published[P any](ctx context.Context, b *EventBus, c bus.Global[P]) iter.Seq2[Delivered[P], error] {
 	return typed[P](b.FramesOn(ctx, c.Channel(), api.ResourceId{}))
 }
 
 // Decoded is a frame read as a frame of c, its payload decoded: how a reader
 // of several channels at once (FramesAmong) reads each frame and the refusal
-// given in a frame's place, by its channel. A frame of another channel, a
-// payload that is not c's, or a frame refused, is a *TransportError saying
-// so.
+// given in a frame's place, by its channel. A frame of another channel is a
+// *TransportError saying so; a frame refused, and one whose payload is not
+// c's, is its *FrameRefusal.
 func Decoded[P any](c bus.Global[P], frame Frame, refused error) (Delivered[P], error) {
 	if frame.Channel != c.Channel() {
 		return Delivered[P]{}, transportErrorWithoutResponse(fmt.Sprintf("a frame on %s read as one on %s", frame.Channel, c.Channel()), TransportErrorCodeError)
