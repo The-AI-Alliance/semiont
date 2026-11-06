@@ -308,14 +308,18 @@ func (b *SemiontBrowser) AddKb(input api.NewKnowledgeBase, session StoredSession
 	return kb, b.setActiveKb(kb.Id)
 }
 
-// RemoveKb forgets a knowledge base: its entry, its tokens, what was open in
-// it and where the person was. If it was active, the first of the others
-// becomes active.
+// RemoveKb forgets a knowledge base: its entry, its saved sign-in, what was
+// open in it and where the person was. If it was active, its session is
+// closed and the first of the others becomes active. Then what its sessions
+// kept of the person its sign-in named is deleted (forgetKept): forgetting a
+// saved sign-in deletes its person's entries, once the client has closed, so
+// nothing its closing writes is left.
 func (b *SemiontBrowser) RemoveKb(id string) error {
-	if err := ClearStoredSession(b.storage, id); err != nil {
+	stored, _, err := takeStoredSession(b.storage, id)
+	if err != nil {
 		return err
 	}
-	if err := b.forgetKeptOf(id); err != nil {
+	if err := b.forgetOpenIn(id); err != nil {
 		return err
 	}
 	rest := slices.DeleteFunc(slices.Clone(b.knowledgeBases.Value()), func(kb api.KnowledgeBase) bool { return kb.Id == id })
@@ -327,9 +331,11 @@ func (b *SemiontBrowser) RemoveKb(id string) error {
 		return err
 	}
 	if b.activeKbID.Value() == id {
-		return b.setActiveKb(next)
+		if err := b.setActiveKb(next); err != nil {
+			return err
+		}
 	}
-	return nil
+	return forgetKept(b.storage, id, stored.PersonKey)
 }
 
 // UpdateKb writes what a knowledge base last said of itself onto its entry: a
@@ -439,16 +445,16 @@ func (b *SemiontBrowser) SignedIn(signedIn SignedIn) (SignInOutcome, error) {
 
 // SignOut signs out of a knowledge base: its tokens are forgotten, and the
 // issuer is told so its refresh token is good for nothing. If it is active,
-// its session is closed. Then what its sessions kept for the person its
-// sign-in named, each persisted query's values and the stream's places, is
-// deleted, whether or not anything was kept; a sign-in that named nobody
-// deletes nothing.
+// its session is closed. Then what its sessions kept of the person its
+// sign-in named is deleted (forgetKept): forgetting a saved sign-in deletes
+// its person's entries, once the client has closed, so nothing its closing
+// writes is left.
 func (b *SemiontBrowser) SignOut(id string) error {
 	if b.closed.Load() {
 		return nil
 	}
-	stored, ok := StoredSessionOf(b.storage, id)
-	if err := ClearStoredSession(b.storage, id); err != nil {
+	stored, ok, err := takeStoredSession(b.storage, id)
+	if err != nil {
 		return err
 	}
 	if ok {
@@ -464,18 +470,7 @@ func (b *SemiontBrowser) SignOut(id string) error {
 			taken.close()
 		}
 	}
-	if !ok || stored.PersonKey == nil {
-		return nil
-	}
-	// Deleted once the session's client has closed, so nothing its closing
-	// writes is left.
-	var failed []error
-	for _, key := range keptOf(id, *stored.PersonKey) {
-		if err := b.storage.Delete(key); err != nil {
-			failed = append(failed, err)
-		}
-	}
-	return errors.Join(failed...)
+	return forgetKept(b.storage, id, stored.PersonKey)
 }
 
 // ── What is open ────────────────────────────────────────────────────────
@@ -980,9 +975,9 @@ func (b *SemiontBrowser) mutateLastViewed(mutate func(map[string]api.ResourceId)
 	return nil
 }
 
-// forgetKeptOf forgets what was open in a knowledge base and where the person
+// forgetOpenIn forgets what was open in a knowledge base and where the person
 // was.
-func (b *SemiontBrowser) forgetKeptOf(kbID string) error {
+func (b *SemiontBrowser) forgetOpenIn(kbID string) error {
 	var committed map[string][]OpenResource
 	err := b.storage.Update(OpenResourcesByKbKey, func(stored string, has bool) (string, bool) {
 		open := openByKbOf(stored, has)

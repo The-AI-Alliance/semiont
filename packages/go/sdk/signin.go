@@ -180,8 +180,11 @@ type SessionFromKeptConfig struct {
 	// what was recorded since. The person is the one the kept sign-in names
 	// as the session is made; when it names nobody, nothing is kept until the
 	// gateway names them and the sign-in records it
-	// (SignInKept.RecordPersonKey). Nil, or a session that does not ask who
-	// its token is, keeps nothing.
+	// (SignInKept.RecordPersonKey). Each is written only while the kept
+	// sign-in names that person: once a write finds it forgotten, or naming
+	// nobody or another person, the session writes nothing more there, so
+	// nothing it writes puts back what forgetting the sign-in deleted. Nil, or
+	// a session that does not ask who its token is, keeps nothing.
 	Storage SessionStorage
 	// OnAuthFailed and OnError are the session's (SessionConfig).
 	OnAuthFailed func(SessionEndReason)
@@ -267,11 +270,51 @@ type keptFor struct {
 // a cache still taking in the event it names would have the next session
 // skip that event.
 func (k *keptFor) attach(personKey string) {
-	places := NewCoupledBookmarks(k.storage, LastEventIDKey(k.kbID, personKey))
+	places := NewCoupledBookmarks(&whileNamed{SessionStorage: k.storage, kept: k.kept, personKey: personKey}, LastEventIDKey(k.kbID, personKey))
 	places.SetFlushGate(k.client.PersistenceSettled)
 	k.transport.keepPlaces(places)
 	k.client.live.attach(&CachePersistence{Storage: places.Storage(), KbID: k.kbID, PersonKey: personKey})
 	k.attached = true
+}
+
+// whileNamed is the storage a session keeps one person's things in, written
+// only while its kept sign-in names that person (HeldSignIn.PersonKey). Once a
+// write finds the sign-in forgotten, or naming nobody or another person, that
+// write and every one after it are dropped: what the session had not written
+// of the person is discarded.
+type whileNamed struct {
+	SessionStorage
+	kept      SignInKept
+	personKey string
+
+	mu      sync.Mutex
+	dropped bool
+}
+
+// writes reports whether a write is made. A sign-in that cannot be read is
+// not known to name the person.
+func (w *whileNamed) writes() bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if !w.dropped {
+		held, has, err := w.kept.Held(context.Background())
+		w.dropped = err != nil || !has || held.PersonKey == nil || *held.PersonKey != w.personKey
+	}
+	return !w.dropped
+}
+
+func (w *whileNamed) Set(key, value string) error {
+	if !w.writes() {
+		return nil
+	}
+	return w.SessionStorage.Set(key, value)
+}
+
+func (w *whileNamed) Update(key string, change func(stored string, has bool) (string, bool)) error {
+	if !w.writes() {
+		return nil
+	}
+	return w.SessionStorage.Update(key, change)
 }
 
 // recording is validate, and, once the gateway has said who a token is, the
