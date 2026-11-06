@@ -156,8 +156,27 @@ def test_a_request_answered_on_its_failure_channel_fails_under_the_code_the_tabl
         error = run(scenario({"message": "said by the peer", "code": wire}))
         assert (error.code, error.message, error.failure) == (code, "said by the peer", {"message": "said by the peer", "code": wire})
     assert run(scenario({"message": "no code at all"})).code == unrecognized
-    assert run(scenario({"message": "a code from a later peer", "code": "not-a-code-yet"})).code == unrecognized
-    assert run(scenario({"code": 7})).message == "Bus request rejected"
+    later = run(scenario({"message": "a code from a later peer", "code": "not-a-code-yet"}))
+    assert (later.code, later.message) == (unrecognized, "a code from a later peer")
+
+
+def test_a_failure_that_is_not_its_channel_s_is_refused_naming_its_fault_and_is_given_no_words() -> None:
+    async def scenario(failure: Mapping[str, JsonValue]) -> TransportError:
+        transport = unanswered()
+        asking = asyncio.ensure_future(request(transport, BROWSE_RESOURCE_REQUESTED, ASKED))
+        transport.deliver(frame(FAILURE, await soon(asked(transport)), failure))
+        with pytest.raises(TransportError) as raised:
+            await soon(asking)
+        assert transport.pending_replies == []
+        return raised.value
+
+    for failure, said in (
+        ({}, "it has no `message`"),
+        ({"code": "not-found"}, "it has no `message`"),
+        ({"message": "said by the peer", "code": 7}, "its `code` is malformed"),
+    ):
+        refused = run(scenario(failure))
+        assert (refused.code, refused.message) == ("error", f"a payload on {FAILURE} is not that channel's: {said}")
 
 
 def test_a_request_whose_replies_the_stream_does_not_carry_fails_at_once_and_sends_nothing() -> None:

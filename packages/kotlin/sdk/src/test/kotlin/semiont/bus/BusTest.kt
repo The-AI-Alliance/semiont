@@ -281,6 +281,33 @@ class BusTest {
     }
 
     @Test
+    fun aFailureWhoseCodeTheWireDoesNotListIsRejectedInItsOwnWords() = runBlocking {
+        val wire = Wire(replyChannelsFor(ADD).toSet())
+        wire.answer = { sent -> wire.deliver(Frame("frame:entity-type-add-failed", json("""{"message":"a code from a later peer","code":"not-a-code-yet"}"""), sent.correlationId)) }
+        val error = assertThrows(BusRequestError::class.java) { runBlocking { Bus(wire).request(ADD, added("Person"), timeoutMs = 5_000) } }
+        assertEquals(BusRequestErrorCode.Rejected, error.reason)
+        assertEquals("a code from a later peer", error.message)
+    }
+
+    // A failure is held to its channel's schema as a result is: one with no
+    // words, or with a code that is no text, is not its channel's, and is
+    // refused naming its first fault. It is given no words.
+    @Test
+    fun aFailureThatIsNotItsChannelsIsRefusedNamingItsFault() = runBlocking {
+        for ((failure, said) in listOf(
+            "{}" to "it has no `message`",
+            """{"code":"not-found"}""" to "it has no `message`",
+            """{"message":"refused","code":7}""" to "its `code` is malformed",
+        )) {
+            val wire = Wire(replyChannelsFor(ADD).toSet())
+            wire.answer = { sent -> wire.deliver(Frame("frame:entity-type-add-failed", json(failure), sent.correlationId)) }
+            val error = assertThrows(TransportError::class.java) { runBlocking { Bus(wire).request(ADD, added("Person"), timeoutMs = 5_000) } }
+            assertEquals(TransportErrorCode.Error, error.reason)
+            assertEquals("a payload on frame:entity-type-add-failed is not that channel's: $said", error.message)
+        }
+    }
+
+    @Test
     fun aResultThatIsNotTheOperationsIsATransportFailure() = runBlocking {
         val wire = Wire(replyChannelsFor(ADD).toSet())
         wire.answer = { sent -> wire.deliver(Frame("frame:entity-type-add-ok", json("""{"unasked":true,"_userId":"$ALICE"}"""), sent.correlationId)) }
