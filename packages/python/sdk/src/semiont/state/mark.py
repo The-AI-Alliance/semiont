@@ -23,7 +23,9 @@ job's end: it is what `client.job.cancel` names.
 
 A delegated job that says nothing for `DELEGATE_SILENCE_MS` has gone quiet,
 which is not over: the unit says so once (`mark:delegate-timeout`) and keeps
-following, so a completion that arrives later still ends it.
+following, so a completion that arrives later still ends it. A frame on the
+job's channels that its follower refuses is not the job saying something: the
+silence goes on being counted past it.
 """
 
 import asyncio
@@ -197,13 +199,16 @@ class MarkStateUnit(StateUnit):
         # The next event, read on a task of its own: a silence gives up waiting for it, never the reading,
         # since a delegation whose reader is cancelled is abandoned, and a quiet job is still followed.
         coming = asyncio.ensure_future(anext(events))
-        # Whether the next silence is still to be said. It is said once, and again only after the job has said something.
-        listening_for_silence = True
+        loop = asyncio.get_running_loop()
+        silence = DELEGATE_SILENCE_MS / 1000
+        # When, by the loop's clock, the silence is to be said, counted from the last thing the job said.
+        # It is said once, and again only after the job has said something: none while it is not to be said again.
+        quiet_at: float | None = loop.time() + silence
         try:
             while True:
-                heard, _ = await asyncio.wait({coming}, timeout=DELEGATE_SILENCE_MS / 1000 if listening_for_silence else None)
+                heard, _ = await asyncio.wait({coming}, timeout=None if quiet_at is None else quiet_at - loop.time())
                 if not heard:
-                    listening_for_silence = False
+                    quiet_at = None
                     self._gone_quiet(motivation)
                     continue
                 try:
@@ -211,7 +216,9 @@ class MarkStateUnit(StateUnit):
                 except StopAsyncIteration:
                     break
                 coming = asyncio.ensure_future(anext(events))
-                listening_for_silence = True
+                # A frame refused names no job: it is no word of this one, and the silence goes on being counted.
+                if not isinstance(event, JobRefused):
+                    quiet_at = loop.time() + silence
                 match event:
                     case JobCreated(data=job):
                         self._job_id.set(job.job_id)
