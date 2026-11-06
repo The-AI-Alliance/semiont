@@ -32,7 +32,10 @@
 //!   system can do with each (media-types/registry.json);
 //! - `utf8_labels.rs`: the labels of UTF-8 in the Encoding Standard, which
 //!   the reader of a resource's text has without the `charsets` feature
-//!   (text/encoding-cases.json).
+//!   (text/encoding-cases.json);
+//! - `refused_encodings.rs`: the encodings of the Encoding Standard whose
+//!   labels every reader of a resource's text refuses, which the reader
+//!   refuses with the `charsets` feature (text/encoding-cases.json).
 
 use semiont_codegen::bundle::{Bundle, draft7_definitions, read_json};
 use semiont_codegen::types::{Generation, generate, pascal};
@@ -294,11 +297,14 @@ fn main() {
         media_types(&read_json(&specs.join("media-types/registry.json"))),
     )
     .expect("cannot write media_types.rs");
+    let encodings = read_json(&specs.join("text/encoding-cases.json"));
+    fs::write(out.join("utf8_labels.rs"), utf8_labels(&encodings))
+        .expect("cannot write utf8_labels.rs");
     fs::write(
-        out.join("utf8_labels.rs"),
-        utf8_labels(&read_json(&specs.join("text/encoding-cases.json"))),
+        out.join("refused_encodings.rs"),
+        refused_encodings(&encodings),
     )
-    .expect("cannot write utf8_labels.rs");
+    .expect("cannot write refused_encodings.rs");
     let required_schemas = crate_dir.join("src/required-schemas.json");
     println!("cargo:rerun-if-changed={}", required_schemas.display());
     fs::write(
@@ -506,6 +512,27 @@ fn utf8_labels(table: &Value) -> String {
     );
     format!(
         "// Generated from protocol/specs/src/text/encoding-cases.json; do not edit.\n/// Every label of UTF-8 in the Encoding Standard, in lower case.\nconst UTF_8_LABELS: &[&str] = &{labels:?};\n"
+    )
+}
+
+/// The encodings whose labels every reader refuses, by their names in lower
+/// case: the table's `refused` cases.
+fn refused_encodings(table: &Value) -> String {
+    let refused: Vec<&str> = list(&table["cases"], "cases")
+        .iter()
+        .filter(|case| case.get("refused") == Some(&Value::Bool(true)))
+        .map(|case| {
+            case["encoding"]
+                .as_str()
+                .expect("an encoding is named by text")
+        })
+        .collect();
+    assert!(
+        refused.contains(&"replacement"),
+        "the table of encodings does not refuse replacement"
+    );
+    format!(
+        "// Generated from protocol/specs/src/text/encoding-cases.json; do not edit.\n/// Every encoding of the Encoding Standard whose labels are refused, by its name in lower case.\nconst REFUSED_ENCODINGS: &[&str] = &{refused:?};\n"
     )
 }
 
