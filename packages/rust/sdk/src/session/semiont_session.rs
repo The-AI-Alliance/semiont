@@ -16,13 +16,17 @@
 //!   issuer had just issued (`Refused`). What a person reads of it is the host's.
 //!   `on_error` is told of every failure that makes the session unusable.
 //!
-//! A session whose issuer refuses to renew it clears its token and what it
-//! stored, so a dead credential is never used again. One that never had a credential is
-//! only signed out: there is nothing to end, and nothing is said. Whenever a
-//! token is renewed, what is stored is forgotten only when the issuer
-//! refuses: a renewal that got no answer leaves the session no usable token
-//! and keeps what is stored, and the next refusal renews again, and so does
-//! the session on its own, on the reconnect backoff.
+//! A session whose issuer refuses to renew it, or whose gateway refuses a
+//! token its issuer has just issued, clears its token and forgets its saved
+//! sign-in, so a dead credential is never used again. Forgetting a saved
+//! sign-in deletes what was kept for the person it named
+//! (protocol/specs/src/session/persisted-cases.json, `forget`). One that
+//! never had a credential is only signed out: there is nothing to end, and
+//! nothing is said. Whenever a token is renewed, what is stored is
+//! forgotten only when the issuer refuses: a renewal that got no answer
+//! leaves the session no usable token and keeps what is stored, and the
+//! next refusal renews again, and so does the session on its own, on the
+//! reconnect backoff.
 //!
 //! The token is renewed before it expires, by the schedule every Semiont
 //! client keeps (`super::refresh_delay`). What another context writes under

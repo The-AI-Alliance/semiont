@@ -370,11 +370,12 @@ impl Bookmarks for Places {
 
 /// The storage a person's caches and places are written through: a write is
 /// made only while the knowledge base's stored sign-in names the person.
-/// Once it does not (signed out, here or in another context, or replaced by
-/// a sign-in of someone else, or of someone the gateway has not named yet)
-/// nothing more is written for the client's life, and what it had not
-/// written is dropped, which is no failure
-/// (protocol/specs/src/session/persisted-cases.json, `crossTab`).
+/// Once it does not (forgotten, here or in another context, however it was
+/// forgotten, or replaced by a sign-in of someone else, or of someone the
+/// gateway has not named yet) nothing more is written for the client's
+/// life, and what it had not written is dropped, which is no failure
+/// (protocol/specs/src/session/persisted-cases.json, `crossTab`). So what
+/// forgetting the sign-in deletes, the client does not put back (`forget`).
 struct ForThePerson {
     storage: Arc<dyn SessionStorage>,
     kb_id: String,

@@ -44,14 +44,13 @@ use super::open_resource::{OpenResource, TabCheck, apply_tab_checks, sort_open_r
 use super::semiont_session::SemiontSession;
 use super::signals::{KbIdentityConflict, SessionSignals};
 use super::stored::{
-    ACTIVE_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY, OPEN_RESOURCES_BY_KB_KEY, StoredSession, cache_key,
-    clear_stored_session, is_token_expired, last_event_id_key, load_knowledge_bases,
+    ACTIVE_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY, OPEN_RESOURCES_BY_KB_KEY, StoredSession,
+    forget_kept, forget_stored_session, is_token_expired, load_knowledge_bases,
     save_knowledge_bases, store_session, stored_session,
 };
 use crate::errors::{BusRequestErrorCode, SemiontError, SessionError, TransportErrorCode};
 use crate::event_bus::EventBus;
 use crate::locked;
-use crate::refresh::CacheQuery;
 use crate::resources::primary_media_type;
 use crate::state::{Held, Tasks};
 use crate::storage::{SessionStorage, StorageSubscription};
@@ -312,16 +311,20 @@ impl SemiontBrowser {
         self.inner.add_kb(input, session).await
     }
 
-    /// Forget a knowledge base: its entry, its tokens, what was open in it
-    /// and where the person was. If it was active, the first of the others
-    /// becomes active.
+    /// Forget a knowledge base: its entry, its saved sign-in, what was open
+    /// in it and where the person was. If it was active, the first of the
+    /// others becomes active. Then what its client kept of the person the
+    /// sign-in named goes, as forgetting a saved sign-in has it go: deleted
+    /// once the client has closed, so nothing its closing saves is left
+    /// (protocol/specs/src/session/persisted-cases.json, `forget`).
     pub async fn remove_kb(
         &self,
         id: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let inner = &self.inner;
-        clear_stored_session(inner.storage.as_ref(), id)?;
-        inner.forget_kept_of(id)?;
+        let person_key =
+            forget_stored_session(inner.storage.as_ref(), id)?.and_then(|stored| stored.person_key);
+        inner.forget_open_of(id)?;
         let rest: Vec<KnowledgeBase> = inner
             .kbs
             .now()
@@ -332,6 +335,9 @@ impl SemiontBrowser {
         inner.put_kbs(rest)?;
         if inner.active_kb_id.now().as_deref() == Some(id) {
             inner.set_active_kb(next).await?;
+        }
+        if let Some(person_key) = person_key {
+            forget_kept(inner.storage.as_ref(), id, &person_key)?;
         }
         Ok(())
     }
@@ -440,21 +446,20 @@ impl SemiontBrowser {
         Ok(SignInOutcome { kb, expected })
     }
 
-    /// Sign out of a knowledge base: forget its tokens, and have the issuer
-    /// told so its refresh token is good for nothing. If it is active, its
-    /// session is closed. Then what its client kept of the person the
-    /// sign-in named goes: every persisted query's key and the stream's,
-    /// deleted once the client has closed, so nothing its closing saves is
-    /// left (protocol/specs/src/session/persisted-cases.json, `signOut`). A
-    /// sign-in that named nobody leaves nothing known to be theirs.
+    /// Sign out of a knowledge base: forget its saved sign-in, and have the
+    /// issuer told so its refresh token is good for nothing. If it is
+    /// active, its session is closed. Then what its client kept of the
+    /// person the sign-in named goes, as forgetting a saved sign-in has it
+    /// go: deleted once the client has closed, so nothing its closing saves
+    /// is left (protocol/specs/src/session/persisted-cases.json, `forget`).
+    /// A sign-in that named nobody leaves nothing known to be theirs.
     pub async fn sign_out(&self, id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let inner = &self.inner;
         if inner.closed() {
             return Ok(());
         }
-        let stored = stored_session(inner.storage.as_ref(), id);
+        let stored = forget_stored_session(inner.storage.as_ref(), id)?;
         let person_key = stored.as_ref().and_then(|stored| stored.person_key.clone());
-        clear_stored_session(inner.storage.as_ref(), id)?;
         if let Some(stored) = stored {
             // The sign-out is the local act: an issuer that cannot be
             // reached does not keep anyone in a session they asked to end.
@@ -472,10 +477,7 @@ impl SemiontBrowser {
             ended.close().await;
         }
         if let Some(person_key) = person_key {
-            for query in CacheQuery::PERSISTED {
-                inner.storage.delete(&cache_key(id, &person_key, *query))?;
-            }
-            inner.storage.delete(&last_event_id_key(id, &person_key))?;
+            forget_kept(inner.storage.as_ref(), id, &person_key)?;
         }
         Ok(())
     }
@@ -982,7 +984,7 @@ impl Inner {
     }
 
     /// Forget what was open in a knowledge base and where the person was.
-    fn forget_kept_of(&self, kb_id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    fn forget_open_of(&self, kb_id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut open = None;
         self.storage
             .update(OPEN_RESOURCES_BY_KB_KEY, &mut |stored| {

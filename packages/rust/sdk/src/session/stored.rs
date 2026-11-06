@@ -100,11 +100,47 @@ pub fn store_session(
     storage.set(&session_key(kb_id), &session.written())
 }
 
+/// Forget a knowledge base's saved sign-in, and with it what was kept for
+/// the person it named (`forget_kept`). A client of that person that is
+/// still open writes nothing once the stored sign-in does not name them
+/// (protocol/specs/src/session/persisted-cases.json, `crossTab`), so what
+/// it has yet to write, its closing's included, does not put back what is
+/// deleted here.
 pub fn clear_stored_session(
     storage: &dyn SessionStorage,
     kb_id: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    storage.delete(&session_key(kb_id))
+    match forget_stored_session(storage, kb_id)?.and_then(|stored| stored.person_key) {
+        Some(person_key) => forget_kept(storage, kb_id, &person_key),
+        None => Ok(()),
+    }
+}
+
+/// Forget a knowledge base's saved sign-in, and give what it was: what was
+/// kept for the person it named is left for `forget_kept`, for a caller
+/// that deletes it once nothing more can write it.
+pub(crate) fn forget_stored_session(
+    storage: &dyn SessionStorage,
+    kb_id: &str,
+) -> Result<Option<StoredSession>, Box<dyn std::error::Error + Send + Sync>> {
+    let stored = stored_session(storage, kb_id);
+    storage.delete(&session_key(kb_id))?;
+    Ok(stored)
+}
+
+/// Delete what a client kept on a knowledge base for the person whose key is
+/// `person_key`: every persisted query's answers, and where its stream was.
+/// Forgetting a saved sign-in that named them, however it is forgotten,
+/// deletes these (protocol/specs/src/session/persisted-cases.json, `forget`).
+pub(crate) fn forget_kept(
+    storage: &dyn SessionStorage,
+    kb_id: &str,
+    person_key: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    for query in CacheQuery::PERSISTED {
+        storage.delete(&cache_key(kb_id, person_key, *query))?;
+    }
+    storage.delete(&last_event_id_key(kb_id, person_key))
 }
 
 /// Whether a token is past its expiry at `now`. One that names no expiry is
