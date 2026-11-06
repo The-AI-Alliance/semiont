@@ -1,0 +1,28 @@
+{
+  "about": "a job's completion that the follower's reading refuses is reported as a refusal and is not taken for the end, nor for word of the job: the follower, having heard nothing of the job for jobSilenceMs, asks for its status and reports the end the status states",
+  "source": "protocol/contract/JOBS.md § Following a job; protocol/specs/src/client/timing.json jobSilenceMs, jobStatusPollMs; protocol/specs/src/bus/frame-cases.json",
+  "tier": "parity",
+  "notYetReached": {
+    "swift": "The Swift SDK's stream reader, which is to hold each frame to BusFrame.",
+    "csharp": "The C# SDK's stream reader, which is to hold each frame to BusFrame."
+  },
+  "steps": [
+    {"backend": "listen", "with": {"channels": ["job:create", "job:status-requested"]}},
+    {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50, "jobSilenceMs": 1500, "jobStatusPollMs": 60000}}},
+    {"state": "open"},
+
+    {"driver": "markDelegate", "with": {"observer": "job", "resource": {"$var": "r1"}, "params": {"motivation": "highlighting"}}},
+    {"fetch": "job:create", "payload": {"jobType": "mark", "resourceId": {"$var": "r1"}, "params": {"motivation": "highlighting"}}, "as": "c1"},
+    {"backend": "emit", "with": {"channel": "job:created", "correlationId": {"$var": "c1"}, "payload": {"response": {"jobId": "job-1"}}}},
+    {"reaches": "job", "state": {"status": "ready", "value": {"kind": "created", "data": {"jobId": "job-1"}}}},
+
+    {"backend": "carry", "with": {"frame": {"channel": "job:complete", "payload": {"resourceId": {"$var": "r1"}, "jobType": "mark"}}}},
+    {"reaches": "job", "state": {"status": "ready", "value": {"kind": "refused", "data": {"channel": "job:complete", "member": "payload.jobId", "reason": "lacks"}}}},
+
+    {"fetch": "job:status-requested", "payload": {"jobId": "job-1"}, "as": "s1"},
+    {"backend": "emit", "with": {"channel": "job:status-result", "correlationId": {"$var": "s1"}, "payload": {"response": {"jobId": "job-1", "type": "mark", "status": "complete", "userId": {"$var": "client"}, "created": "2026-01-01T00:00:00.000Z", "result": {}}}}},
+    {"reaches": "job", "state": {"status": "ready", "value": {"kind": "complete", "data": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "mark"}}}},
+    {"completes": "job"},
+    {"quiet": 300}
+  ]
+}

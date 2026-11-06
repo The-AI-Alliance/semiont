@@ -24,28 +24,18 @@
 
 import { vi } from 'vitest';
 import { BehaviorSubject, Observable, Subject, map } from 'rxjs';
-import { EventBus, FrameRefusal, baseUrl } from '@semiont/core';
+import { EventBus, baseUrl } from '@semiont/core';
 import type {
   ConnectionState,
   EventMap,
   BusEnvelope,
   BusFrame,
+  FrameRefusal,
   IContentTransport,
   IGatewayOperations,
   ITransport,
   SemiontError,
 } from '@semiont/core';
-
-/**
- * A frame of a double's wire as a wire delivers it. The double's bus is its
- * wire, and nothing bridges into it: a refusal there is no frame any wire
- * carries, and is the test's own fault.
- */
-export function onTheWire<T>(frame: BusFrame<T | FrameRefusal>): BusFrame<T> {
-  const { payload, ...envelope } = frame;
-  if (payload instanceof FrameRefusal) throw new Error(`this double's wire holds a refusal on ${payload.channel}, which no wire carries`);
-  return { ...envelope, payload };
-}
 
 export interface InMemoryTransportOptions {
   /** The bus `stream`/`on` read from. Defaults to a fresh one. */
@@ -82,9 +72,9 @@ export function inMemoryTransport(options: InMemoryTransportOptions = {}): ITran
     errors$ = new Subject<SemiontError>().asObservable(),
   } = options;
 
-  // The bus is this transport's wire: what it gives is what was emitted on it.
-  const frames = <K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>> =>
-    bus.frames(channel).pipe(map((frame) => onTheWire(frame)));
+  // The bus is this transport's wire: what it gives is what was emitted on it,
+  // a refusal among it, as a transport delivers one in place of a frame it refused.
+  const frames = <K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K] | FrameRefusal>> => bus.frames(channel);
 
   return {
     baseUrl: baseUrl('http://transport.test'),

@@ -87,6 +87,13 @@ matches one of them, or with `none-pending`.
   ([`timing.json`](../specs/src/client/timing.json)) for its answer. One
   not answered by then is reported as a refusal.
   *Held by `worker/claim-timeout`.*
+- **C11.** A `job:queued` the worker's transport refused
+  ([`frame-cases.json`](../specs/src/bus/frame-cases.json)) was received
+  all the same. No filter can be compared with what cannot be read, so it
+  counts as one that matches: it causes a claim while the worker holds
+  nothing, earns one more while a claim is in flight, and is ignored while a
+  job is held, and the queue answers the claim as it answers any.
+  *Held by `worker/claim-on-refused-announcement`.*
 
 ## The claimed record
 
@@ -214,10 +221,10 @@ worker stops.
 ## Liveness
 
 - **V1.** A worker can say, at any moment: when it last received a
-  `job:queued`, matching or not; when it last claimed a job; when it last
-  settled one; when it was last active; the job it holds and since when; and
-  how many jobs it has completed.
-  *Held by `worker/vitals`.*
+  `job:queued`, matching or not, one its transport refused among them; when
+  it last claimed a job; when it last settled one; when it was last active;
+  the job it holds and since when; and how many jobs it has completed.
+  *Held by `worker/vitals`, `worker/claim-on-refused-announcement`.*
 - **V2.** A held job that shows no activity for `heldJobStallMs` is stalled.
   A worker looks every `heldJobStallCheckMs`
   ([`timing.json`](../specs/src/client/timing.json)) and reports a stall
