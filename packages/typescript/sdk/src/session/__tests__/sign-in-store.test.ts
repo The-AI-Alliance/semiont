@@ -462,7 +462,7 @@ describe('SemiontSession.fromStoredSession', () => {
     opened = await SemiontSession.fromStoredSession({ kb, storage: store, baseUrl: 'http://localhost:4000', fetch: issuer.fetch });
     expect(opened?.session.token$.getValue()).toBe(tokens.of('access-1'));
 
-    expect(await opened?.session.refresh()).toBe(tokens.of('access-2'));
+    expect(await opened?.session.refresh(tokens.of('access-1'))).toBe(tokens.of('access-2'));
     expect(issuer.spent).toEqual(['refresh-1']);
     expect(directory.document()[KEY]).toMatchObject({ token: tokens.of('access-2'), refreshToken: 'refresh-2', email: EMAIL, issuer: ISSUER });
   });
