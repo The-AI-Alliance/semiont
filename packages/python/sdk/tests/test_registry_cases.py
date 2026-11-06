@@ -9,7 +9,7 @@ import pytest
 from pydantic import BaseModel, Field
 from spec import SPEC
 
-from semiont.registry import _same_place  # pyright: ignore[reportPrivateUsage]
+from semiont._endpoints import same_place
 from semiont.types import KbEndpoint
 
 
@@ -29,8 +29,8 @@ TABLE: Final = Table.model_validate_json((SPEC / "session/registry-cases.json").
 
 @pytest.mark.parametrize("case", TABLE.cases, ids=lambda case: case.why)
 def test_one_place_is_as_the_shared_table_states(case: Case) -> None:
-    assert _same_place(case.one, case.other) is case.same_place
-    assert _same_place(case.other, case.one) is case.same_place
+    assert same_place(case.one, case.other) is case.same_place
+    assert same_place(case.other, case.one) is case.same_place
 
 
 def test_the_table_was_read() -> None:
