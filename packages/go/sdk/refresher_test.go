@@ -344,8 +344,13 @@ func TestAnEventThatCannotBeReadAsksAgainForEverythingHeld(t *testing.T) {
 			m := w.mark()
 			each.frame(t, w)
 			w.asksCome(t, m, each.asks)
-			if _, failed := annotation.now(t).(semiont.Failed); failed {
-				t.Fatal("an event that names no annotation removed one")
+			// A row that asks again for the annotation gives it its value again; any other gives it nothing.
+			if slices.ContainsFunc(asks[semiont.CacheQueryAnnotation], func(channel string) bool { return each.asks[channel] > 0 }) {
+				if _, failed := annotation.now(t).(semiont.Failed); failed {
+					t.Fatal("an event that names no annotation removed one")
+				}
+			} else {
+				annotation.nothingMore(t)
 			}
 		})
 	}
