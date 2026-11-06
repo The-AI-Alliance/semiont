@@ -3,7 +3,7 @@
 -- work and observations; the client remains owned by whoever constructed it.
 module Semiont.Session
   ( Session, SessionOptions(..), OpenedSession(..), SessionEndReason(..), sessionEndReason
-  , newSession, fromHttp, fromIssuedSession, signInDevice, id, kb, client, token, user, streamState, errors, ready
+  , newSession, fromHttp, fromIssuedSession, signInDevice, signInAgent, id, kb, client, token, user, streamState, errors, ready
   , expiresAt, refresh, renewer, dispose
   ) where
 
@@ -23,6 +23,8 @@ import qualified Semiont.ErrorCodes as Code
 import Semiont.Errors
 import qualified Semiont.Http as Http
 import qualified Semiont.Issuer as Issuer
+import qualified Semiont.ServiceToken as Service
+import qualified Semiont.Auth as Auth
 import qualified Semiont.Gateway as Gateway
 import qualified Semiont.Internal.Lifetime as Lifetime
 import Semiont.Internal.Generated.Stored (SessionEndReason(..), sessionEndReason)
@@ -33,6 +35,7 @@ import qualified Semiont.Registry.Stored as Stored
 import qualified Semiont.Timing.Settings as Timing
 import qualified Semiont.Tokens as Tokens
 import qualified Semiont.Transport as Transport
+import Semiont.Timing (RetryBudget)
 import Semiont.Types (KbTarget(..), StoredSession(..), UserResponse, KbEndpoint(..), HttpEndpoint, DeviceCode, IssuerEndpoints(..), IssuedTokens(..))
 import Streaming (Of, Stream)
 
@@ -41,8 +44,8 @@ data SessionOptions = SessionOptions
   , sessionKb :: KbTarget
   , sessionStorage :: Storage.SessionStorage
   , sessionInitialToken :: Maybe Text
-  , sessionRefresh :: Maybe (IO (Maybe Text))
-  , sessionValidate :: Maybe (Text -> IO (Maybe UserResponse))
+  , sessionRefresh :: Maybe (Maybe Text -> IO (Maybe Text))
+  , sessionValidate :: Maybe (Client.Client -> Text -> IO (Maybe UserResponse))
   , sessionOnAuthFailed :: SessionEndReason -> IO ()
   , sessionOnError :: SessionError -> IO ()
   , sessionWallNow :: IO Scientific
@@ -145,7 +148,7 @@ fromIssuedSession http options issued = do
       storage = sessionStorage options
       identity = kbTargetId (sessionKb options)
       actual = options { sessionInitialToken=Just (storedSessionAccess issued),
-        sessionRefresh=Just (Issuer.refreshStoredSession issuer storage identity) }
+        sessionRefresh=Just (\_ -> Issuer.refreshStoredSession issuer storage identity) }
   Stored.storeSession storage identity issued
   opened <- fromHttp http { Http.httpBaseUrl=base } actual
   ready (openedSession opened) `onException` closeOpenedSession opened
@@ -159,6 +162,46 @@ signInDevice http options onCode = do
   let stored = StoredSession (issuedTokensAccess issued) Issuer.scriptClientId (issuedTokensRefresh issued)
         (issuerEndpointsRevocation issuer) (issuerEndpointsToken issuer) mempty
   fromIssuedSession http options stored
+
+-- | An account proves itself to its issuer, and the gateway names that account.
+-- This factory owns the credential callbacks; its ServiceToken remains borrowed.
+signInAgent :: Http.HttpOptions -> SessionOptions -> RetryBudget -> Service.ServiceToken -> IO OpenedSession
+signInAgent http options budget service = Retry.retryWithBackoff (Http.httpTime http) budget accepts delay $ do
+  endpoint <- httpTarget options
+  base <- either (\message -> throwIO (SessionError Code.SessionConstructFailed message (kbTargetId (sessionKb options)))) pure
+    (Gateway.gatewayUrl endpoint)
+  access <- Service.token service
+  refused <- newIORef Nothing
+  let validateAgent owned credential = case Client.auth owned of
+        Nothing -> throwIO (SessionError Code.SessionConstructFailed "The agent's client has no HTTP identity operation" (kbTargetId (sessionKb options)))
+        Just auth -> do
+          answer <- trySync (Auth.me auth (Just credential))
+          case answer of
+            Left failure -> writeIORef refused (Just failure) >> throwIO failure
+            Right person -> pure (Just person)
+      actual=options { sessionInitialToken=Just access,
+        sessionRefresh=Just (\held -> Just <$> maybe (Service.token service) (Service.renew service) held),
+        sessionValidate=Just validateAgent }
+  opened <- fromHttp http { Http.httpBaseUrl=base } actual
+  ready (openedSession opened) `onException` closeOpenedSession opened
+  person <- atomically (State.current (user (openedSession opened)))
+  case person of
+    Just _ -> pure opened
+    Nothing -> do
+      closeOpenedSession opened
+      failure <- readIORef refused
+      maybe (throwIO (SessionError Code.SessionAuthFailed "The gateway did not confirm the account" (kbTargetId (sessionKb options)))) throwIO failure
+  where
+    accepts :: SomeException -> Bool
+    accepts failure = case fromException failure of
+      Just problem -> transportErrorCode problem/=Code.TransportUnauthorized
+        && (httpStatus problem==Nothing || Retry.retryable Retry.Boot (httpStatus problem) Nothing False)
+      Nothing -> case fromException failure of
+        Just problem -> signInErrorCode problem `elem` [Code.SignInDiscovery,Code.SignInExchange]
+          && (signInStatus problem==Nothing || Retry.retryable Retry.Boot (signInStatus problem) Nothing False)
+        Nothing -> False
+    delay :: SomeException -> Maybe Integer
+    delay failure = fromException failure >>= retryAfterMs
 
 httpTarget :: SessionOptions -> IO HttpEndpoint
 httpTarget options = case kbTargetEndpoint (sessionKb options) of
@@ -268,7 +311,8 @@ attempt session = case sessionRefresh (configuration session) of
   Nothing -> pure (Unrenewed True)
   Just action -> do
     version <- readTVarIO (revision session)
-    outcome <- trySync action
+    currentAccess <- atomically (State.current (token session))
+    outcome <- trySync (action currentAccess)
     current <- readTVarIO (revision session)
     pure $ if current/=version then Superseded else case outcome of
       Right (Just value) -> Renewed value
@@ -291,7 +335,7 @@ startup session schedule = do
   mapM_ (scheduleToken session schedule) current
   stored <- Stored.storedSession (sessionStorage (configuration session)) (kbTargetId (kb session))
   case stored of
-    Nothing -> pure ()
+    Nothing -> forM_ current (\access -> validate session schedule access True True)
     Just value -> do
       now <- sessionWallNow (configuration session)
       let expired = Tokens.isTokenExpired (storedSessionAccess value) now
@@ -311,7 +355,7 @@ validate session schedule access justIssued reportUnreachable = case sessionVali
   Nothing -> pure ()
   Just action -> do
     version <- readTVarIO (revision session)
-    answer <- trySync (action access)
+    answer <- trySync (action (client session) access)
     latest <- readTVarIO (revision session)
     current <- atomically (State.current (token session))
     when (current == Just access && latest==version) $ case answer of
@@ -324,6 +368,8 @@ validate session schedule access justIssued reportUnreachable = case sessionVali
 
 renew :: Session -> IORef Schedule -> Bool -> Bool -> IO (Maybe Text)
 renew session schedule ask reportUnreachable = do
+  hadToken <- (/=Nothing) <$> atomically (State.current (token session))
+  hadPerson <- (/=Nothing) <$> atomically (State.current (user session))
   outcome <- attempt session
   case outcome of
     Superseded -> pure ()
@@ -333,9 +379,9 @@ renew session schedule ask reportUnreachable = do
     Unrenewed terminal -> do
       stored <- Stored.storedSession (sessionStorage (configuration session)) (kbTargetId (kb session))
       case stored of
-        Nothing -> atomically (State.update (token session) Nothing) >> clear session schedule
-        Just _ | terminal -> signedOut session schedule Expired Code.SessionRefreshExhausted
-        Just _ -> do
+        Nothing | not hadToken && not hadPerson -> atomically (State.update (token session) Nothing) >> clear session schedule
+        _ | terminal -> signedOut session schedule Expired Code.SessionRefreshExhausted
+        _ -> do
           atomically (State.update (token session) Nothing)
           later session schedule
           report session Code.SessionRefreshExhausted "The issuer could not renew the credential"

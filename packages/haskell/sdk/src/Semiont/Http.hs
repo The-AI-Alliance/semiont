@@ -26,11 +26,11 @@ newHttpTransport options = do
   contents <- newContent http `onException` Transport.dispose (Internal.transport http)
   let empty = ()
       operations = GatewayOperations
-        { getCurrentUser = Internal.json http GetCurrentUser Nothing empty
-        , getMediaToken = \resource -> Internal.json http CreateMediaToken Nothing (MediaTokenRequest resource mempty)
-        , getProtectedResourceMetadata = Internal.json http GetProtectedResourceMetadata Nothing empty
-        , healthCheck = Internal.json http GetHealth Nothing empty
-        , getStatus = Internal.json http GetStatus Nothing empty
+        { getCurrentUser = \override -> Internal.json http GetCurrentUser Nothing override empty
+        , getMediaToken = \resource -> Internal.json http CreateMediaToken Nothing Nothing (MediaTokenRequest resource mempty)
+        , getProtectedResourceMetadata = Internal.json http GetProtectedResourceMetadata Nothing Nothing empty
+        , healthCheck = Internal.json http GetHealth Nothing Nothing empty
+        , getStatus = Internal.json http GetStatus Nothing Nothing empty
         }
   pure (HttpTransport http contents operations)
 

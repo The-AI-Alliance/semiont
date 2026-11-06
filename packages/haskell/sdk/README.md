@@ -46,7 +46,7 @@ OAuth registration table.
 `fromIssuedSession` persists an already issued grant and installs its rotating
 refresh callback. `SessionOptions` carries the knowledge base, storage, wall
 clock and host callbacks; provide `sessionValidate` to confirm a person with
-the gateway. A service can omit that callback. `ready` waits for startup;
+the supplied client and token. A service can omit that callback. `ready` waits for startup;
 `token`, `user` and `streamState` are read-only observations. Refusals that arrive
 together share one renewal. An issuer refusal forgets the grant; an outage
 keeps it and retries with reconnect backoff. Disposing a session joins its
@@ -70,8 +70,44 @@ withDeviceSession http options showCode use =
 applications can implement `SessionStorage` for their own storage.
 Its `update` transforms and returns a result atomically, so redirect completion
 and refresh rotation cannot overwrite another writer. Native launcher kept
-sign-ins and service/agent key credentials remain in progress. The shared
+sign-ins remain in progress. The shared
 [sign-in guide](../../../docs/builder/SIGN-IN.md) describes the flows.
+
+`Semiont.ServiceToken` performs a lazy client-credentials grant with a secret
+or RSA key. It discovers the token endpoint once and keeps each opaque access
+token only for the lifetime the issuer stated. Key grants carry a fresh RS256
+assertion, with the shared RFC 7638 thumbprint and claims; the private key stays
+in the process. `Semiont.ClientAssertion.privateKeyFromPem` reads one unencrypted
+PKCS#8 RSA key and refuses other key formats without echoing their contents.
+
+```haskell
+module ServiceAccount where
+import Control.Exception (bracket)
+import Data.ByteString (ByteString)
+import Data.Scientific (Scientific)
+import Data.Text (Text)
+import qualified Data.Text as Text
+import qualified Semiont.ClientAssertion as Assertion
+import qualified Semiont.Issuer as Issuer
+import qualified Semiont.ServiceToken as Service
+
+withAccount :: Issuer.IssuerOptions -> Text -> Text -> ByteString
+  -> IO Scientific -> (Service.ServiceToken -> IO result) -> IO result
+withAccount options authority clientId pem wallNow use = do
+  key <- either (ioError . userError . Text.unpack) pure
+    (Assertion.privateKeyFromPem pem)
+  bracket (Service.newServiceTokenKey options authority clientId key wallNow)
+    Service.dispose use
+```
+
+`Session.signInAgent http options budget service` opens a session for that
+account and keeps the DID the gateway actually returned. Supply its startup
+`RetryBudget` explicitly: unreachable peers and boot-transient responses retry,
+and a refused freshly issued credential ends the attempt. The service token
+remains owned by its caller. Session renewal callbacks receive the token held;
+`Auth.me auth (Just token)` validates an explicit credential in one attempt,
+without renewing or quarantining the inherited token. `Auth.me auth Nothing`
+uses the client's own token and retry policy.
 
 ## Connect
 

@@ -527,6 +527,18 @@ main = do
   scopeFields <- maybe (ioError (userError "OAuth scope missing")) pure (KM.lookup "scope" oauth)
     >>= either (ioError . userError) pure . fieldsOf
   scope <- maybe (ioError (userError "OAuth scope value missing")) pure (textAt "value" scopeFields)
+  assertion <- readJSON (root </> "protocol/specs/src/session/client-assertion-cases.json") >>= either (ioError . userError) pure . fieldsOf
+  assertionStrings <- forM ["grantType","assertionType"] $ \name -> do
+    value <- maybe (ioError (userError "client assertion string missing")) pure (textAt (Key.fromText name) assertion)
+    pure (name,value)
+  lifetime <- case KM.lookup "lifetimeSeconds" assertion of
+    Just (Number value) | value > 0 && fromInteger (floor value) == value -> pure (floor value :: Integer)
+    _ -> ioError (userError "client assertion lifetime missing or not a positive whole second")
+  let assertionFile = ("generated/Semiont/Internal/Generated/ClientAssertion.hs",T.unlines
+        (["-- Generated from session/client-assertion-cases.json; do not edit.","{-# LANGUAGE OverloadedStrings #-}"
+         ,"module Semiont.Internal.Generated.ClientAssertion where","import Data.Text (Text)"]
+         ++ concat [[name<>" :: Text",name<>" = "<>literal value] | (name,value) <- assertionStrings]
+         ++ ["lifetimeSeconds :: Integer","lifetimeSeconds = "<>T.pack (show lifetime)]))
   let oauthFile = ("generated/Semiont/Internal/Generated/OAuth.hs", T.unlines
         (["-- Generated from session/oauth.json; do not edit.","{-# LANGUAGE OverloadedStrings #-}"
          ,"module Semiont.Internal.Generated.OAuth where","import Data.Text (Text)"]
@@ -552,7 +564,7 @@ main = do
   version <- maybe (ioError (userError "root package.json has no version")) pure (textAt "version" package)
   license <- readUTF8 (root </> "LICENSE")
   let manifest = T.replace "@VERSION@" version $ T.replace "@MODEL_MODULES@" (T.intercalate "\n" (map ("    " <>) moduleNames)) template
-      generated = ("LICENSE", license) : ("semiont.cabal", manifest) : [storedFile,oauthFile] ++ busFiles ++ models ++ facts ++ transportFiles ++ httpFiles ++ workerFiles
+      generated = ("LICENSE", license) : ("semiont.cabal", manifest) : [storedFile,oauthFile,assertionFile] ++ busFiles ++ models ++ facts ++ transportFiles ++ httpFiles ++ workerFiles
       modelsDirectory = output </> "generated/Semiont/Internal/Generated/Models"
       expected = Set.fromList (map (output </>) (map fst generated))
   existsModels <- doesDirectoryExist modelsDirectory

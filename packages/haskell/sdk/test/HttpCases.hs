@@ -123,7 +123,7 @@ httpCases root fixtures = do
         case Client.auth client of
           Nothing -> ioError (userError "HTTP client has no auth namespace")
           Just auth -> do
-            Auth.me auth >>= require "typed current user changed" . (== fromFixture "UserResponse")
+            Auth.me auth Nothing >>= require "typed current user changed" . (== fromFixture "UserResponse")
             Auth.mediaToken auth resource >>= require "typed media token changed" . (== fromFixture "MediaTokenResponse")
             Auth.protectedResourceMetadata auth >>= require "protected metadata changed" . (== fromFixture "ProtectedResourceMetadata")
         case Client.system client of

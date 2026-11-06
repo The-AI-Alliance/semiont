@@ -1844,6 +1844,7 @@
       "module": "serviceToken",
       "docs": "A service account's token, which a process holds for its own account at the issuer a knowledge base trusts: the issuer's token endpoint discovered once, through the HTTP client the token was made with, one client-credentials grant at a time, the token held until it is due for renewal, and the `Authorization` header's value it gives (`authorization`).",
       "where": {
+        "haskell": ["packages/haskell/sdk/src/Semiont/ServiceToken.hs"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/SignIn/ServiceToken.swift"
         ],
@@ -1869,10 +1870,7 @@
           "member": "ServiceToken",
           "kind": "type"
         }
-      ],
-      "notYetReached": {
-        "haskell": "P4: implement Haskell service-account assertions and credential renewal."
-      }
+      ]
     },
     {
       "module": "discovery",
@@ -2310,6 +2308,9 @@
         "fromIssuedSession": ["HttpOptions"],
         "signInDevice": ["HttpOptions"],
         "IssuerOptions": ["RetryOptions"],
+        "newServiceTokenSecret": ["IssuerOptions"],
+        "newServiceTokenKey": ["IssuerOptions"],
+        "signInAgent": ["HttpOptions"],
         "pollUntilComplete": [
           "JobNamespace"
         ]
@@ -2461,7 +2462,10 @@
         ],
         "fromIssuedSession": ["HttpOptions"],
         "signInDevice": ["HttpOptions"],
-        "IssuerOptions": ["RetryOptions"]
+        "IssuerOptions": ["RetryOptions"],
+        "newServiceTokenSecret": ["IssuerOptions"],
+        "newServiceTokenKey": ["IssuerOptions"],
+        "signInAgent": ["HttpOptions"]
       }
     },
       "notYetReached": {

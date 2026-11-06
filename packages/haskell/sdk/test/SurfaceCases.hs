@@ -90,7 +90,7 @@ withAnswers fixtures answerOverride action = do
       gatewayCall :: FromJSON result => Text -> Value -> Text -> IO result
       gatewayCall name input schema = atomically (writeTQueue calls (Called ("gateway:" <> name) input)) >> fixture fixtures schema
       gateway = Gateway.GatewayOperations
-        (gatewayCall "getCurrentUser" (Object KM.empty) "UserResponse")
+        (\_ -> gatewayCall "getCurrentUser" (Object KM.empty) "UserResponse")
         (\resource -> gatewayCall "getMediaToken" (Object (KM.singleton "resourceId" (toJSON resource))) "MediaTokenResponse")
         (gatewayCall "getProtectedResourceMetadata" (Object KM.empty) "ProtectedResourceMetadata")
         (gatewayCall "healthCheck" (Object KM.empty) "HealthResponse")
@@ -323,7 +323,7 @@ invoke (Rig client _ clock _) namespace member args = case (namespace,member) of
     filters <- field "accepts" config >>= maybe (ioError (userError "empty claim filter fixture")) pure . NE.nonEmpty
     bracket (Job.claim (Client.job client) (Worker.WorkerOptions filters clock Timing.protocolSettings (pure "2026-11-05T00:00:00Z"))) Worker.stop $ \claims ->
       void (Worker.next claims)
-  ("auth","me") -> auth >>= void . Auth.me
+  ("auth","me") -> auth >>= \value -> void (Auth.me value Nothing)
   ("auth","mediaToken") -> do resource <- field "resourceId" args; auth >>= \value -> void (Auth.mediaToken value resource)
   ("auth","protectedResourceMetadata") -> auth >>= void . Auth.protectedResourceMetadata
   ("system","healthCheck") -> system >>= void . System.healthCheck

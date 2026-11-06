@@ -250,7 +250,7 @@ perform driver identifier operation args = case operation of
   "anchored-text" -> Just $ contentRead Content.getAnchoredText
   "health" -> Just $ gatewayRead Gateway.healthCheck
   "status" -> Just $ gatewayRead Gateway.getStatus
-  "current-user" -> Just $ gatewayRead Gateway.getCurrentUser
+  "current-user" -> Just $ gatewayRead (\operations -> Gateway.getCurrentUser operations Nothing)
   "protected-resource-metadata" -> Just $ gatewayRead Gateway.getProtectedResourceMetadata
   "media-token" -> Just $ do
     gateway <- Http.gateway <$> opened driver

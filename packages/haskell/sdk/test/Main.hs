@@ -49,7 +49,8 @@ import ResourceCases (resourceCases)
 import FrameCases (frameCases)
 import RefreshCases (refreshCases)
 import TextCases (textCases)
-import IssuerCases (issuerCases, deviceClockCases)
+import ClientAssertionCases (clientAssertionCases)
+import IssuerCases (issuerCases, serviceTokenCases, deviceClockCases)
 import SessionCases (sessionCases, sessionClockCases)
 import TokenStorageCases (tokenStorageCases)
 import DelegationCases (delegationCases, followerClockCases)
@@ -359,6 +360,7 @@ main = do
   frameCases root
   textCases root
   tokenStorageCases root
+  clientAssertionCases root
   identifierCases root
   putStrLn "PASS shared identifier acceptance/refusal cases"
   channelCases root
@@ -389,6 +391,7 @@ main = do
   busCases command browse event (failureRows ++ [(Nothing, fallback), (Just "__unknown_test_code", fallback)])
   fixtures <- traverse (either (ioError . userError) pure . sample 0) schemas
   issuerCases fixtures
+  serviceTokenCases root
   deviceClockCases root
   sessionCases root fixtures
   sessionClockCases root fixtures

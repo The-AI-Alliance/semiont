@@ -10,7 +10,7 @@ import Semiont.Internal.Schema (validateNamed)
 import Semiont.Types
 
 data GatewayOperations = GatewayOperations
-  { getCurrentUser :: IO UserResponse
+  { getCurrentUser :: Maybe Text -> IO UserResponse
   , getMediaToken :: ResourceId -> IO MediaTokenResponse
   , getProtectedResourceMetadata :: IO ProtectedResourceMetadata
   , healthCheck :: IO HealthResponse

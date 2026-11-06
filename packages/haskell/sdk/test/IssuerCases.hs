@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
-module IssuerCases (issuerCases, deviceClockCases) where
+module IssuerCases (issuerCases, serviceTokenCases, deviceClockCases) where
 
-import Control.Concurrent.Async (async, cancel, wait)
+import Control.Concurrent.Async (async, cancel, wait, poll, replicateConcurrently)
 import Control.Concurrent.STM
 import Control.Exception (try, bracket)
-import Control.Monad (unless, when)
+import Control.Monad (unless, when, void)
 import Data.Aeson (Value(..), object, (.=), encode, eitherDecodeStrict', fromJSON, Result(..))
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
@@ -19,27 +19,32 @@ import Data.List (find)
 import Data.IORef
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Network.HTTP.Client (defaultManagerSettings, managerRawConnection, noProxy)
 import Network.HTTP.Client.Internal (makeConnection)
 import Network.HTTP.Types (parseQuery)
 import qualified Semiont.Http as Http
 import qualified Semiont.Client as Client
+import qualified Semiont.ClientAssertion as Assertion
+import qualified Semiont.ServiceToken as Service
 import qualified Semiont.Auth as Auth
 import qualified Semiont.Session as Session
 import qualified Semiont.StateValue as State
 import qualified Semiont.Transport as Transport
 import qualified Semiont.Issuer as Issuer
 import qualified Semiont.ErrorCodes as Code
-import Semiont.Errors (SignInError(..))
+import Semiont.Errors (SignInError(..), TransportError(..), SessionError(..))
 import qualified Semiont.Retry as Retry
 import qualified Semiont.SessionStorage as Storage
 import qualified Semiont.Registry.Stored as Stored
 import qualified Semiont.Timing.Settings as Timing
+import qualified Semiont.Timing as Budget
 import Semiont.Types
 import qualified ControlledTime as Time
 -- Runs protocol/specs/src/client/clock-cases.json through the shared clock runner.
 import ClockCases (clockCasesFor, Scenario(..))
+import System.FilePath ((</>))
+import qualified Data.ByteString.Base64.URL as Base64
 
 require :: String -> Bool -> IO ()
 require label good = unless good (ioError (userError label))
@@ -102,6 +107,7 @@ issuerCases fixtures = do
   status <- newTVarIO (200::Int)
   tokenBody <- newTVarIO (object ["access_token" .= String "access", "refresh_token" .= String "refresh"])
   hold <- newTVarIO Nothing
+  identities <- newTVarIO [200::Int]
   options <- peer time $ \request -> do
     atomically (modifyTVar' seen (<>[request]))
     case route request of
@@ -112,7 +118,14 @@ issuerCases fixtures = do
         mapM_ (atomically . readTMVar) waiting
         (,) <$> readTVarIO status <*> readTVarIO tokenBody
       "/revoke" -> pure (200,object [])
-      "/api/users/me" -> maybe (ioError (userError "factory test has no UserResponse fixture")) (pure . (200,)) (Map.lookup "UserResponse" fixtures)
+      "/api/users/me" -> do
+        code <- if "Bearer refused-override" `Bytes.isInfixOf` request then pure 401 else atomically $ do
+          replies <- readTVar identities
+          case replies of
+            [] -> throwSTM (userError "identity peer has no answer")
+            first:rest -> writeTVar identities (if null rest then [first] else rest) >> pure first
+        if code/=200 then pure (code,object ["error" .= String "identity refused"])
+          else maybe (ioError (userError "factory test has no UserResponse fixture")) (pure . (200,)) (Map.lookup "UserResponse" fixtures)
       path | "/bus/subscribe" `Bytes.isPrefixOf` path -> pure (503,object [])
       _ -> ioError (userError "unhandled issuer route")
   issuer <- Issuer.discoverIssuer options endpoint
@@ -180,7 +193,7 @@ issuerCases fixtures = do
     require "issued-session factory did not renew its expired grant" . (==Just "fresh")
       =<< atomically (State.current (Session.token session))
     auth <- maybe (ioError (userError "HTTP session has no auth namespace")) pure (Client.auth (Session.client session))
-    person <- Auth.me auth
+    person <- Auth.me auth Nothing
     expected <- case Map.lookup "UserResponse" fixtures of
       Just value -> case fromJSON value of Success parsed -> pure parsed; Error message -> ioError (userError message)
       Nothing -> ioError (userError "missing UserResponse")
@@ -191,7 +204,55 @@ issuerCases fixtures = do
     Session.closeOpenedSession opened
     require "opened session closer left the client open" . (==Transport.Closed)
       =<< atomically (State.current (Client.state (Session.client session)))
-  putStrLn "PASS issuer discovery, RFC PKCE, one-shot redirect, grants, atomic rotation and revocation over real HTTP parsing"
+  let agentKb=targetKb { kbTargetId="agent-factory" }
+      agentOptions=sessionOptions { Session.sessionKb=agentKb, Session.sessionOnError=const (pure ()) }
+  atomically (writeTVar identities [503,200])
+  bracket (Service.newServiceTokenSecret options "http://issuer.test" "account" "test-only-secret") Service.dispose $ \service -> do
+    opening <- async (Session.signInAgent http agentOptions (Budget.RetryBudget 2 10 20) service)
+    Time.settle
+    Time.advance time 4000000
+    waitingForRetry <- poll opening
+    require "agent retried before its caller-controlled equal-jitter delay" (case waitingForRetry of Nothing -> True; _ -> False)
+    Time.advance time 1000000
+    opened <- wait opening
+    let session=Session.openedSession opened
+    bracket (pure opened) Session.closeOpenedSession $ \_ -> do
+      person <- atomically (State.current (Session.user session))
+      expected <- case Map.lookup "UserResponse" fixtures of
+        Just value -> case fromJSON value of Success parsed -> pure parsed; Error message -> ioError (userError message)
+        Nothing -> ioError (userError "missing agent identity fixture")
+      require "agent did not retain the gateway's actual identity" (person==Just expected)
+      require "agent manufactured a stored refresh grant" . (==Nothing) =<< Stored.storedSession storage (kbTargetId agentKb)
+      auth <- maybe (ioError (userError "agent has no identity operation")) pure (Client.auth (Session.client session))
+      before <- filter ((=="/token") . route) <$> readTVarIO seen
+      refusedIdentity <- try (Auth.me auth (Just "refused-override")) :: IO (Either TransportError UserResponse)
+      require "explicit credential refusal was not final" (case refusedIdentity of Left failure -> transportErrorCode failure==Code.TransportUnauthorized; _ -> False)
+      after <- filter ((=="/token") . route) <$> readTVarIO seen
+      require "explicit credential refusal renewed the inherited credential" (length before==length after)
+      require "explicit credential refusal quarantined the held token" . (==Just "fresh")
+        =<< atomically (State.current (Session.token session))
+      void (Auth.me auth Nothing)
+    require "agent disposal disposed its borrowed service account" . (=="fresh") =<< Service.token service
+  atomically (writeTVar identities [401])
+  ended <- newTVarIO []
+  errors <- newTVarIO []
+  beforeRefusal <- length . filter ((=="/token") . route) <$> readTVarIO seen
+  let refusedOptions=agentOptions {
+        Session.sessionOnAuthFailed = \reason -> atomically (modifyTVar' ended (<>[Session.sessionEndReason reason])),
+        Session.sessionOnError = \failure -> atomically (modifyTVar' errors (<>[sessionErrorCode failure])) }
+  bracket (Service.newServiceTokenSecret options "http://issuer.test" "account" "test-only-secret") Service.dispose $ \service ->
+    bracket (async (try (Session.signInAgent http refusedOptions (Budget.RetryBudget 2 10 20) service)
+      :: IO (Either TransportError Session.OpenedSession))) cancel $ \attempt -> do
+      Time.settle
+      result <- poll attempt
+      require "agent retried a gateway-refused freshly issued credential" (case result of
+        Just (Right (Left failure)) -> transportErrorCode failure==Code.TransportUnauthorized
+        _ -> False)
+  afterRefusal <- length . filter ((=="/token") . route) <$> readTVarIO seen
+  require "agent refusal caused extra account grants" (afterRefusal==beforeRefusal+1)
+  require "agent refusal was not reported as a refused session" . (==["refused"]) =<< readTVarIO ended
+  require "agent refusal lost the session diagnostic" . (==[Code.SessionCredentialRefused]) =<< readTVarIO errors
+  putStrLn "PASS issuer discovery, RFC PKCE, one-shot redirect, atomic rotation, explicit credentials and agent startup over real HTTP parsing"
 
 deviceClockCases :: FilePath -> IO ()
 deviceClockCases root = clockCasesFor root ["deviceGrant"] $ \time row -> do
@@ -212,3 +273,94 @@ deviceClockCases root = clockCasesFor root ["deviceGrant"] $ \time row -> do
     _ -> ioError (userError "unhandled device clock request")
   operation <- async (Issuer.signInWithDeviceGrant options endpoint (const (pure ())))
   pure (Scenario (pure ()) (readTVarIO calls) (cancel operation))
+
+serviceTokenCases :: FilePath -> IO ()
+serviceTokenCases root = do
+  time <- Time.newTime
+  discoveries <- newTVarIO (0::Integer)
+  grants <- newTVarIO (0::Integer)
+  requests <- newTVarIO []
+  reply <- newTVarIO (200::Int)
+  discoveryReply <- newTVarIO (200::Int)
+  duration <- newTVarIO (Just (3600::Integer))
+  hold <- newTVarIO Nothing
+  options <- peer time $ \request -> case route request of
+    "/.well-known/openid-configuration" -> do
+      atomically (modifyTVar' discoveries (+1))
+      code <- readTVarIO discoveryReply
+      pure (code,discovery)
+    "/token" -> do
+      count <- atomically $ do
+        modifyTVar' grants (+1)
+        modifyTVar' requests (<>[request])
+        readTVar grants
+      blocked <- readTVarIO hold
+      mapM_ (atomically . readTMVar) blocked
+      code <- readTVarIO reply
+      lifetime <- readTVarIO duration
+      pure (code,Object (KM.fromList ([ ("access_token",String ("opaque-"<>Text.pack (show count))) ]
+        ++maybe [] (\seconds -> [("expires_in",Number (fromInteger seconds))]) lifetime)))
+    _ -> ioError (userError "service token used an unrelated endpoint")
+  pem <- Bytes.readFile (root </> "packages/haskell/sdk/test/fixtures/client-assertion-test-only.pem")
+  key <- either (ioError . userError . Text.unpack) pure (Assertion.privateKeyFromPem pem)
+  bracket (Service.newServiceTokenKey options "http://issuer.test" "account" key (pure 1800000000)) Service.dispose $ \service -> do
+    answers <- replicateConcurrently 20 (Service.token service)
+    require "concurrent service asks did not share the first grant" (all (=="opaque-1") answers)
+    require "service authorization changed the held token" . (=="Bearer opaque-1") =<< Service.authorization service
+    require "service endpoint was not discovered once" . (==1) =<< readTVarIO discoveries
+    require "service made extra initial grants" . (==1) =<< readTVarIO grants
+    Time.advance time (3299*1000000000)
+    require "service renewed before its controlled lifetime" . (=="opaque-1") =<< Service.token service
+    Time.advance time 1000000000
+    require "service reused a grant due for renewal" . (=="opaque-2") =<< Service.token service
+    atomically (writeTVar reply 400)
+    refused <- try (Service.renew service "opaque-2")
+    require "failed account renewal lost the issuer status" (case refused of Left failure -> signInStatus failure==Just 400; Right _ -> False)
+    atomically (writeTVar reply 200)
+    require "failed renewal restored the refused token cache" . (=="opaque-4") =<< Service.token service
+    require "failed grant forgot the successfully discovered endpoint" . (==1) =<< readTVarIO discoveries
+    atomically (writeTVar duration Nothing)
+    require "forced service renewal did not renew" . (=="opaque-5") =<< Service.renew service "opaque-4"
+    require "a grant with no lifetime was cached" . (=="opaque-6") =<< Service.token service
+    proofs <- readTVarIO requests
+    let decodedProof request = do
+          compact <- case lookup "client_assertion" (form request) of
+            Just (Just encoded) -> pure (decodeUtf8 encoded)
+            _ -> ioError (userError "key grant did not carry an assertion")
+          require "key grant sent a client secret" (lookup "client_secret" (form request)==Nothing)
+          case Text.splitOn "." compact of
+            [_,claims,_] -> do
+              bytes <- either (ioError . userError) pure (Base64.decodeUnpadded (encodeUtf8 claims))
+              value <- either (ioError . userError) pure (eitherDecodeStrict' bytes)
+              case member "jti" value of String nonce -> pure nonce; _ -> ioError (userError "client assertion nonce is not text")
+            _ -> ioError (userError "service assertion is not a JWT")
+    nonces <- mapM decodedProof proofs
+    require "client assertion nonce was reused" (Set.size (Set.fromList nonces)==length nonces)
+    blocked <- newEmptyTMVarIO
+    atomically (writeTVar hold (Just blocked))
+    result <- newEmptyTMVarIO
+    operation <- async $ do
+      answer <- try (Service.token service) :: IO (Either SignInError Text)
+      atomically (putTMVar result answer)
+    Time.settle
+    Time.advance time (Timing.httpRequestTimeoutMs Timing.protocolSettings*1000000-1000000)
+    require "account request expired before its controlled deadline" =<< atomically (isEmptyTMVar result)
+    Time.advance time 1000000
+    answer <- atomically (readTMVar result)
+    require "account request did not expire at its controlled deadline" (case answer of Left failure -> signInStatus failure==Nothing; _ -> False)
+    wait operation
+    atomically (writeTVar hold Nothing)
+  -- A failed discovery is not a remembered endpoint.
+  atomically (writeTVar discoveryReply 503)
+  bracket (Service.newServiceTokenSecret options "http://issuer.test" "account" "test-only-secret") Service.dispose $ \service -> do
+    absent <- try (Service.token service)
+    require "service discovery refusal lost its code" (case absent of Left failure -> signInErrorCode failure==Code.SignInDiscovery; Right _ -> False)
+    atomically (writeTVar discoveryReply 200)
+    void (Service.token service)
+    captured <- readTVarIO requests
+    case reverse captured of
+      request:_ -> require "secret account proof has the wrong fields"
+        (Set.fromList (map fst (form request))==Set.fromList ["grant_type","client_id","client_secret"])
+      [] -> ioError (userError "secret account sent no grant")
+    require "failed discovery was cached" . (==3) =<< readTVarIO discoveries
+  putStrLn "PASS service account key/secret grants, deduplication, controlled reuse/deadlines, fresh proofs and refusal quarantine"

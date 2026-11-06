@@ -110,7 +110,7 @@ sessionCases root fixtures = do
               "refuses" -> throwIO (SignInError Code.SignInExchange "refused" (Just 400))
               "unreachable" -> throwIO (SignInError Code.SignInExchange "no answer" Nothing)
               _ -> ioError (userError "unknown issuer script answer")
-          options = Session.SessionOptions "case" target storage Nothing (Just renew) (Just validate)
+          options = Session.SessionOptions "case" target storage Nothing (Just (const renew)) (Just (\_ -> validate))
             (\reason -> atomically (modifyTVar' told (<>[Session.sessionEndReason reason])))
             (\failure -> atomically (modifyTVar' failures (<>[Code.sessionCode (sessionErrorCode failure)])))
             (pure 1800000000)
@@ -169,7 +169,7 @@ concurrentCases target person = do
     calls <- newTVarIO (0::Integer)
     gate <- newEmptyTMVarIO
     let renew = atomically (modifyTVar' calls (+1)) >> atomically (readTMVar gate) >> pure (Just (jwt 3600 1))
-        options = Session.SessionOptions "concurrent" target storage Nothing (Just renew) (Just (const (pure (Just person))))
+        options = Session.SessionOptions "concurrent" target storage Nothing (Just (const renew)) (Just (\_ _ -> pure (Just person)))
           (const (pure ())) (const (pure ())) (pure 1800000000)
     bracket (Session.newSession owned options (timeOptions time) Timing.protocolSettings) Session.dispose $ \session -> do
       Session.ready session
@@ -198,7 +198,7 @@ externalCases target person = do
     gate <- newEmptyTMVarIO
     started <- newEmptyTMVarIO
     let issue = atomically (putTMVar started ()) >> atomically (readTMVar gate) >> pure (Just (jwt 3600 1))
-        options = Session.SessionOptions "external" target storage Nothing (Just issue) (Just (const (pure (Just person))))
+        options = Session.SessionOptions "external" target storage Nothing (Just (const issue)) (Just (\_ _ -> pure (Just person)))
           (const (ioError (userError "external sign-out notified expiry")))
           (const (ioError (userError "a replaced renewal reported a failure"))) (pure 1800000000)
     session <- Session.newSession owned options (timeOptions time) Timing.protocolSettings
@@ -220,7 +220,7 @@ externalCases target person = do
     Stored.storeSession memory (kbTargetId target) (stored (jwt 3600 0))
     waiting <- newEmptyTMVarIO
     let held = options { Session.sessionStorage=memory,
-          Session.sessionRefresh=Just (atomically (putTMVar waiting ()) >> atomically retry) }
+          Session.sessionRefresh=Just (\_ -> atomically (putTMVar waiting ()) >> atomically retry) }
     blocked <- Session.newSession owned held (timeOptions time) Timing.protocolSettings
     Session.ready blocked
     refusal <- async (try (Session.refresh blocked) :: IO (Either BusRequestError (Maybe Text)))
@@ -230,7 +230,7 @@ externalCases target person = do
     require "disposed renewal caller remained usable" (case outcome of Left failure -> busRequestErrorCode failure==Code.BusRequestClosed; _ -> False)
     Stored.storeSession memory (kbTargetId target) (stored (jwt (-300) 0))
     let broken = options { Session.sessionStorage=memory,
-          Session.sessionRefresh=Just (throwIO (SignInError Code.SignInExchange "no answer" Nothing)),
+          Session.sessionRefresh=Just (\_ -> throwIO (SignInError Code.SignInExchange "no answer" Nothing)),
           Session.sessionOnError=const (ioError (userError "host error handler failed")) }
     failed <- Session.newSession owned broken (timeOptions time) Timing.protocolSettings
     badReady <- try (Session.ready failed) :: IO (Either IOException ())
@@ -261,7 +261,7 @@ sessionClockCases root fixtures = clockCasesFor root ["renewal"] $ \time row -> 
       busOptions = Bus.BusOptions (Time.now time) (Time.waitUntil time) (pure "session-clock")
   (transport,_) <- Transport.newTransport (Transport.TransportOptions "http://localhost:4000" Set.empty (const unused) (pure ()))
   owned <- Client.newClient transport contents Nothing busOptions Timing.protocolSettings
-  let options = Session.SessionOptions "clock" target storage Nothing (Just issue) (Just (const (pure (Just person))))
+  let options = Session.SessionOptions "clock" target storage Nothing (Just (const issue)) (Just (\_ _ -> pure (Just person)))
         (const (pure ())) (const (pure ())) now
   session <- Session.newSession owned options (timeOptions time) Timing.protocolSettings
   Session.ready session

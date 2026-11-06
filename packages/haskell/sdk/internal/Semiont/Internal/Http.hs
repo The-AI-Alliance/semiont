@@ -188,8 +188,8 @@ open http asked = let HttpClient manager = httpClient (options http) in
 
 -- The callback stays inside the response scope, including through a renewal.
 exchange :: Http -> HttpRoute requestBodyType answer -> Maybe ResourceId -> IO RequestBody -> Maybe Text
-  -> RequestHeaders -> (Response BodyReader -> IO value) -> IO value
-exchange http route resource body key headers consume = do
+  -> Maybe Text -> RequestHeaders -> (Response BodyReader -> IO value) -> IO value
+exchange http route resource body key override headers consume = do
   requiredHeaders <- case (routeRequiredHeaders route, key) of
     ([], Nothing) -> pure []
     ([(name, named)], Just value) -> case validateNamed schemas named (String value) of
@@ -198,7 +198,7 @@ exchange http route resource body key headers consume = do
     _ -> throwIO (HttpFailure (TransportError Code.TransportBadRequest "HTTP required headers were not supplied" Nothing Nothing) False)
   renewed <- newTVarIO False
   let attempt retries = do
-        sent <- if routeAuthenticated route then currentToken http else pure Nothing
+        sent <- if routeAuthenticated route then maybe (currentToken http) (pure . Just) override else pure Nothing
         when (routeAuthenticated route && sent == Nothing)
           (throwIO (HttpFailure (TransportError Code.TransportUnauthorized "No usable credential" (Just 401) Nothing) False))
         fresh <- body
@@ -222,15 +222,15 @@ exchange http route resource body key headers consume = do
           Right answer -> pure answer
           Left problem -> do
             let problemError = failure problem
-            when (transportErrorCode problemError == Code.TransportUnauthorized) (mapM_ (quarantine http) sent)
+            when (override==Nothing && transportErrorCode problemError == Code.TransportUnauthorized) (mapM_ (quarantine http) sent)
             alreadyRenewed <- readTVarIO renewed
-            if transportErrorCode problemError == Code.TransportUnauthorized && not alreadyRenewed then case sent of
+            if override==Nothing && transportErrorCode problemError == Code.TransportUnauthorized && not alreadyRenewed then case sent of
               Just refused -> do
                 atomically (writeTVar renewed True)
                 replacement <- renew http refused
                 if replacement /= Nothing then attempt retries else throwIO problem
               Nothing -> throwIO problem
-            else if (case route of EmitOnBus -> False; _ -> True) && retries == (0 :: Int) && not (expired problem)
+            else if override==Nothing && (case route of EmitOnBus -> False; _ -> True) && retries == (0 :: Int) && not (expired problem)
                 && transportErrorCode problemError /= Code.TransportUnauthorized
                 && (Retry.retryable Retry.Transport (httpStatus problemError) (Just (decodeUtf8With lenientDecode (routeMethod route))) (key /= Nothing)
                   || (httpStatus problemError == Nothing && (key /= Nothing || repeatableMethod (decodeUtf8With lenientDecode (routeMethod route))))) then do
@@ -280,8 +280,8 @@ jsonBody route payload = case routeRequestMediaType route of
   Just media | media == "application/json" || "+json" `Bytes.isSuffixOf` media -> pure (RequestBodyLBS (encode payload))
   _ -> throwIO (TransportError Code.TransportBadRequest "HTTP route requires a non-JSON body" Nothing Nothing)
 
-json :: (ToJSON requestBodyType, FromJSON answer) => Http -> HttpRoute requestBodyType answer -> Maybe ResourceId -> requestBodyType -> IO answer
-json http route resource payload = report http $ exchange http route resource (jsonBody route payload) Nothing [] $ \response -> do
+json :: (ToJSON requestBodyType, FromJSON answer) => Http -> HttpRoute requestBodyType answer -> Maybe ResourceId -> Maybe Text -> requestBodyType -> IO answer
+json http route resource override payload = report http $ exchange http route resource (jsonBody route payload) Nothing override [] $ \response -> do
   bytes <- Bytes.concat <$> brConsume (responseBody response)
   readAnswer route bytes
 
@@ -302,7 +302,7 @@ emit http frame = Telemetry.sending frame $ do
   key <- UUID.toText <$> httpNewId (options http)
   let body = BusEmitRequest (busFrameChannel frame) (Just (clientId http)) (busFrameCorrelationId frame)
         (BusEmitRequestPayload (busFramePayloadAdditionalProperties (busFramePayload frame))) (busFrameScope frame) mempty
-      sending = exchange http EmitOnBus Nothing (jsonBody EmitOnBus body) (Just key) [] $ \response -> do
+      sending = exchange http EmitOnBus Nothing (jsonBody EmitOnBus body) (Just key) Nothing [] $ \response -> do
         let count = do
               bytes <- deadline http (Settings.emitTimeoutMs (httpTiming (options http))) (Bytes.concat <$> brConsume (responseBody response))
               pure $ either (const Nothing) busEmitAcceptedSubscribers (eitherDecodeStrict' bytes)

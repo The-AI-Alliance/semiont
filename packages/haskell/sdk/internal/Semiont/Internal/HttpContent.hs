@@ -39,7 +39,7 @@ newContent http = do
       owned = Lifetime.run life
       stream :: Bool -> ResourceId -> (Text.Text -> Stream.Stream (Stream.Of Bytes.ByteString) IO () -> IO result) -> IO result
       stream streaming resource consume = owned $ report http $ Telemetry.withSpan Trace.Client "content.get"
-        (("resource.id", toAttribute (resourceIdValue resource)) : [("content.stream", toAttribute True) | streaming]) $ exchange http GetResourceRepresentation (Just resource) (pure (RequestBodyBS Bytes.empty)) Nothing [] $ \response -> do
+        (("resource.id", toAttribute (resourceIdValue resource)) : [("content.stream", toAttribute True) | streaming]) $ exchange http GetResourceRepresentation (Just resource) (pure (RequestBodyBS Bytes.empty)) Nothing Nothing [] $ \response -> do
         media <- maybe (throwIO (TransportError Code.TransportError "Content response has no media type" Nothing Nothing)) pure
           (lookup "Content-Type" (responseHeaders response))
         active <- newTVarIO True
@@ -105,15 +105,15 @@ newContent http = do
           media <- case routeRequestMediaType uploadRoute of
             Just value | value == "multipart/form-data" -> pure value
             _ -> throwIO (TransportError Code.TransportBadRequest "Upload route no longer accepts multipart" Nothing Nothing)
-          exchange http uploadRoute Nothing (pure body) (Just key) [("Content-Type", media <> "; boundary=" <> marker)] $ \response -> do
+          exchange http uploadRoute Nothing (pure body) (Just key) Nothing [("Content-Type", media <> "; boundary=" <> marker)] $ \response -> do
             bytes <- deadline http (Settings.httpRequestTimeoutMs (httpTiming (options http))) (Bytes.concat <$> brConsume (responseBody response))
             createResourceResponseResourceId <$> readAnswer uploadRoute bytes
   pure Content.ContentTransport
     { Content.putBinary = upload
     , Content.getBinaryStream = stream True
     , Content.getBinary = \resource -> stream False resource (\media chunks -> deadline http (Settings.httpRequestTimeoutMs (httpTiming (options http))) (Content.BinaryContent media . Bytes.concat <$> Stream.toList_ chunks))
-    , Content.getResourceGraph = \resource -> owned (Telemetry.withSpan Trace.Client "content.get_graph" [("resource.id", toAttribute (resourceIdValue resource))] (json http GetResourceJsonLd (Just resource) ()))
-    , Content.getAnnotations = \resource -> owned (Telemetry.withSpan Trace.Client "content.get_annotations" [("resource.id", toAttribute (resourceIdValue resource))] (json http GetResourceAnnotations (Just resource) ()))
-    , Content.getAnchoredText = \resource -> owned (Telemetry.withSpan Trace.Client "content.get_anchored_text" [("resource.id", toAttribute (resourceIdValue resource))] (json http GetResourceAnchoredText (Just resource) ()))
+    , Content.getResourceGraph = \resource -> owned (Telemetry.withSpan Trace.Client "content.get_graph" [("resource.id", toAttribute (resourceIdValue resource))] (json http GetResourceJsonLd (Just resource) Nothing ()))
+    , Content.getAnnotations = \resource -> owned (Telemetry.withSpan Trace.Client "content.get_annotations" [("resource.id", toAttribute (resourceIdValue resource))] (json http GetResourceAnnotations (Just resource) Nothing ()))
+    , Content.getAnchoredText = \resource -> owned (Telemetry.withSpan Trace.Client "content.get_anchored_text" [("resource.id", toAttribute (resourceIdValue resource))] (json http GetResourceAnchoredText (Just resource) Nothing ()))
     , Content.dispose = Lifetime.close life
     }
