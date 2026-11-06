@@ -1,5 +1,8 @@
 package semiont.http
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withTimeoutOrNull
 import semiont.Timings
 import semiont.discovery.Absent
 import semiont.discovery.DiscoveryAbsentReason
@@ -8,15 +11,22 @@ import semiont.discovery.DiscoveryTransport
 import semiont.discovery.Managed
 import semiont.discovery.Unchanged
 import semiont.discovery.parseDiscoveryDocument
+import semiont.telemetry.futureOf
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.CompletableFuture
+import kotlin.coroutines.CoroutineContext
 
-/** A transport that reads the discovery document at `url` with `http`, each read within `deadlineMs`. */
-private class HttpDiscovery(private val url: String, private val deadlineMs: Long, private val http: HttpClient) : DiscoveryTransport {
+/** A transport that reads the discovery document at `url` with `http`, each read within `deadlineMs`, and a Java read on `context`. */
+private class HttpDiscovery(
+    private val url: String,
+    private val deadlineMs: Long,
+    private val http: HttpClient,
+    private val context: CoroutineContext,
+) : DiscoveryTransport {
     /** The tag of the last document that read as managed; null when that document had none, or none has. */
     @Volatile
     private var tag: String? = null
@@ -39,20 +49,25 @@ private class HttpDiscovery(private val url: String, private val deadlineMs: Lon
         if (state is Managed) tag = response.headers().firstValue("etag").orElse(null)
         return state
     }
+
+    override fun readFuture(): CompletableFuture<DiscoveryRead> = CoroutineScope(context).futureOf { read() }
 }
 
 /** The discovery reader's own HTTP client: the JDK's, with its default proxy selector and trust store, following a redirect. */
 private fun redirecting(): HttpClient = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).followRedirects(HttpClient.Redirect.NORMAL).build()
 
 /** `httpDiscovery`, each read within `deadlineMs`. */
-internal fun httpDiscovery(url: String, deadlineMs: Long): DiscoveryTransport = HttpDiscovery(url, deadlineMs, redirecting())
+internal fun httpDiscovery(url: String, deadlineMs: Long, context: CoroutineContext = Dispatchers.Default): DiscoveryTransport =
+    HttpDiscovery(url, deadlineMs, redirecting(), context)
 
 /**
  * A transport that reads the discovery document at `url` with `http`, each
  * read within the timing table's request deadline. Its own client keeps the
  * JDK's default proxy selector and trust store, reads no environment
  * variable, and follows a redirect; a caller's client follows its own
- * redirect policy, and trusts what it trusts.
+ * redirect policy, and trusts what it trusts. A read waits on its caller's
+ * context, and a Java read on `context`.
  */
 @JvmOverloads
-public fun httpDiscovery(url: String, http: HttpClient = redirecting()): DiscoveryTransport = HttpDiscovery(url, Timings.HTTP_REQUEST_TIMEOUT_MS, http)
+public fun httpDiscovery(url: String, http: HttpClient = redirecting(), context: CoroutineContext = Dispatchers.Default): DiscoveryTransport =
+    HttpDiscovery(url, Timings.HTTP_REQUEST_TIMEOUT_MS, http, context)

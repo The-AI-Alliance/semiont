@@ -15,17 +15,16 @@ import kotlin.time.TimeSource
  * nothing is scripted to answer and that holds nothing. Whoever made the
  * client closes it, and whoever made the transport closes that. The client's
  * work runs on `context`, and its waits keep `clock`; a transport it makes
- * itself delivers on the default dispatcher, so a test that moves the clock
- * gives it one made on `context`.
+ * itself delivers on `context` too.
  */
 public class TestClient @JvmOverloads constructor(
-    public val transport: FaultyTransport = FaultyTransport(),
+    context: CoroutineContext = Dispatchers.Default,
+    clock: TimeSource = TimeSource.Monotonic,
+    public val transport: FaultyTransport = FaultyTransport(context = context),
     public val content: InMemoryContent = InMemoryContent(),
     public val gateway: StubGateway = StubGateway(),
     timing: ClientTiming = ClientTiming(),
     persistence: CachePersistence? = null,
-    context: CoroutineContext = Dispatchers.Default,
-    clock: TimeSource = TimeSource.Monotonic,
 ) {
 
     /** The client, over the doubles. */

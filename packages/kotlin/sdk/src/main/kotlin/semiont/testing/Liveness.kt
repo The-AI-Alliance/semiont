@@ -34,9 +34,11 @@ public class LivenessScenario @JvmOverloads constructor(
  * it: the timeout times one more than `retryBudget`, how often a logical
  * request may be sent again, and the schedule's delays, all of it four times
  * over. `respond` answers what nothing queued an answer for, as
- * `FaultyTransport`'s does. The transport is made on `context`, and a case
- * waits out its bound there: a dispatcher whose time nobody moves while the
- * case blocks, as a test dispatcher's is, never ends the wait.
+ * `FaultyTransport`'s does. The transport is made on `context`, and each case
+ * blocks its caller's thread while it waits out its bound there. A wait on a
+ * clock the caller controls ends only when the caller moves it, so on a test
+ * dispatcher, whose time moves only when its test advances it, a case never
+ * ends: give it a dispatcher that keeps the system's time.
  */
 public class LivenessSpec @JvmOverloads constructor(
     public val setup: (FaultyTransport) -> LivenessScenario,

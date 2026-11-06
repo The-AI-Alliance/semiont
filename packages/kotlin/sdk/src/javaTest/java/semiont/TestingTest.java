@@ -13,6 +13,8 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import kotlin.time.TimeSource;
+import kotlinx.coroutines.Dispatchers;
 import kotlinx.serialization.json.JsonElement;
 import kotlinx.serialization.json.JsonElementKt;
 import kotlinx.serialization.json.JsonObject;
@@ -54,8 +56,8 @@ final class TestingTest {
 
     @Test
     void aJavaTestScriptsTheTransportAndReadsWhatWasAsked() throws Exception {
-        FaultyTransport transport = new FaultyTransport();
-        TestClient made = new TestClient(transport);
+        TestClient made = new TestClient();
+        FaultyTransport transport = made.getTransport();
         transport.queueReply("browse:kb-requested", List.of(object("name", "A KB")));
         JsonObject answered = BusKt.requestFuture(made.getClient().getTransport(), Operations.BROWSE_KB_REQUESTED, new JsonObject(Map.of()), 5_000).get(10, SECONDS);
         assertEquals(object("name", "A KB"), answered.get("response"));
@@ -121,7 +123,7 @@ final class TestingTest {
     void aJavaTestAnswersWhatNobodyQueuedAndDrawsItsFaults() throws Exception {
         FaultyTransport transport = new FaultyTransport(List.of(), (operation, payload) -> new JsonObject(Map.<String, JsonElement>of(
                 "answered", JsonElementKt.JsonPrimitive(operation), "asked", payload)));
-        TestClient made = new TestClient(transport);
+        TestClient made = new TestClient(Dispatchers.getDefault(), TimeSource.Monotonic.INSTANCE, transport);
         JsonObject answered = BusKt.requestFuture(made.getClient().getTransport(), Operations.BROWSE_KB_REQUESTED, new JsonObject(Map.of()), 5_000).get(10, SECONDS);
         JsonObject response = JsonElementKt.getJsonObject(answered.get("response"));
         assertEquals(JsonElementKt.JsonPrimitive("browse:kb-requested"), response.get("answered"));

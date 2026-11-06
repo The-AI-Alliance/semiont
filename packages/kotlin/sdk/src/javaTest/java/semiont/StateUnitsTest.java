@@ -250,8 +250,9 @@ final class StateUnitsTest {
 
     @Test
     void whatAUnitHoldsIsReadFromJavaAndAFailedRunIsHeld() throws Exception {
-        FaultyTransport transport = new FaultyTransport();
-        SemiontClient client = new TestClient(transport).getClient();
+        TestClient made = new TestClient();
+        FaultyTransport transport = made.getTransport();
+        SemiontClient client = made.getClient();
         ResourceId resource = new ResourceId("res-1");
         transport.queueReply("gather:requested", List.of(JsonElementKt.getJsonObject(Json.Default.parseToJsonElement(CONTEXT))));
         GatheredContext context = client.getGather().annotation(resource, new AnnotationId("ann-1")).awaitFuture().get(10, SECONDS).getResponse();

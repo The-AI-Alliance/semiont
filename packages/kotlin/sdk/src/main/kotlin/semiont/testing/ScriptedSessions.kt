@@ -129,7 +129,7 @@ public class ScriptedSessions @JvmOverloads constructor(
         val transport = FaultyTransport(respond = { operation, payload -> answer.answer(kbId, operation, payload) }, context = context)
         transport.refuseWhen { operation, payload -> refusing?.refuse(kbId, operation, payload) }
         synchronized(built) { built += kbId to transport }
-        val client = TestClient(transport, context = context, clock = clock).client
+        val client = TestClient(context, clock, transport).client
         val saidWho = user
         val wait = answersAfterMs
         val session = SemiontSession(

@@ -2218,6 +2218,7 @@
           "HoverDwell": ["CoroutineContext"],
           "SearchPipeline": ["CoroutineContext"],
           "Cache": ["CoroutineContext"],
+          "httpDiscovery": ["CoroutineContext"],
           "FaultyTransport": ["CoroutineContext"],
           "ServiceToken": ["CoroutineContext", "TimeSource"],
           "AgentToken": ["CoroutineContext"],
