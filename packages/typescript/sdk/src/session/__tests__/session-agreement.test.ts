@@ -62,6 +62,8 @@ interface StartupCase {
 
 interface RefusalCase {
   why: string;
+  /** Which token the gateway refused: the one the session holds, or one it held before the one it holds. */
+  refused: 'held' | 'replaced';
   /** What the issuer answers the renewal. */
   issuer: Array<'renews' | 'refuses' | 'unreachable'>;
   /** What the gateway answers when asked who the renewed token is. */
@@ -270,8 +272,9 @@ describe('session — the SDK agrees with the shared table', () => {
     expect(session.user$.getValue()).toEqual(ALICE);
     started = true;
 
-    // The gateway refused the session's token: its transport asks it to refresh.
-    const given = await session.refresh();
+    // The gateway refused a token: its transport asks the session to refresh, and tells it which.
+    expect(['held', 'replaced']).toContain(c.refused);
+    const given = await session.refresh(c.refused === 'held' ? token$.getValue() : issued(-1));
 
     expect({ asks, renewals }).toEqual({ asks: c.asks, renewals: c.renewals });
     expect(given !== null).toBe(c.given);

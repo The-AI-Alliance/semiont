@@ -158,7 +158,8 @@ transport. Dispose that owner before shutting down the HTTP client. The sessionâ
 `ready()` raises startup task failures; `errors()` reports session, transport and
 storage failures. Pass `onError` to hear diagnostics from the start of construction,
 including before the factory returns. Startup is bounded, overlapping refusals share one renewal, and a failed
-network renewal keeps the stored sign-in for another attempt. Session token and
+network renewal keeps the stored sign-in for another attempt. The transport tells the session the token refused:
+a refusal of a token the session has already replaced is given the token it holds, and renews nothing. Session token and
 user state are read-only, and their sequences finish on disposal.
 
 Use `SemiontClient.fromHttp(baseUrl:httpClient:token:)` for a short-lived

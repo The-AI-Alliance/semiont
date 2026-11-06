@@ -150,6 +150,7 @@ describe('a refused credential is renewed, never waited out', () => {
     expect(keyOf(0)).toEqual(expect.any(String));
     expect(keyOf(1), 'the renewed resend is the same emit').toBe(keyOf(0));
     expect(refresher).toHaveBeenCalledTimes(1);
+    expect(refresher, 'told the token the refused emit carried').toHaveBeenCalledWith(bearerOf(0).replace(/^Bearer /, ''));
     actor.dispose();
   });
 
@@ -215,6 +216,7 @@ describe('a refused credential is renewed, never waited out', () => {
     expect(bearerOf(1)).toBe('Bearer fresh-tok');
     expect(states.at(-1)).toBe('open');
     expect(refresher).toHaveBeenCalledTimes(1);
+    expect(refresher, 'told the token the refused connect carried').toHaveBeenCalledWith(bearerOf(0).replace(/^Bearer /, ''));
     actor.dispose();
   });
 });

@@ -89,8 +89,11 @@ public actor SemiontSession: StateUnit {
     guard let starting else { preconditionFailure("Session not started") }
     _ = try await sharedValue(starting, lifetime: lifetime)
   }
-  public func refresh() async throws -> String? { try await refreshOf(token.value) }
-  func refreshOf(_ refused: String?) async throws -> String? {
+  /// The gateway refused `refused`, the token a request carried (nil when it carried none): renew it,
+  /// and ask the gateway who the new one is. A caller that wants the token renewed passes the token
+  /// the session holds. A token the session no longer holds was answered already: the token it holds
+  /// is given, and nothing is renewed or asked.
+  public func refresh(_ refused: String?) async throws -> String? {
     guard !lifetime.ended else { throw CancellationError() }
     if token.value != refused { return token.value }
     if let (credential, task) = validation, credential == refused {
@@ -276,7 +279,7 @@ public actor SemiontSession: StateUnit {
   private func due() async throws {
     scheduled = nil
     if unanswered, user.value == nil {
-      _ = try await refreshOf(nil)
+      _ = try await refresh(nil)
     } else {
       _ = try await renewed()
     }

@@ -268,6 +268,11 @@ async fn settle() {
     tokio::time::sleep(Duration::from_millis(1)).await;
 }
 
+/// The token the session holds: what a refusal of that token names.
+fn held_by(session: &SemiontSession) -> Option<String> {
+    session.token().borrow().clone()
+}
+
 // ── How it starts ───────────────────────────────────────────────────────
 
 #[tokio::test(start_paused = true)]
@@ -395,7 +400,10 @@ async fn an_expired_token_whose_renewal_got_no_answer_is_kept_and_renewed_when_a
         );
         // The issuer answers again: a request refused for want of a token
         // renews it.
-        assert_eq!(session.refresh().await, Some(renewed.clone()));
+        assert_eq!(
+            session.refresh(held_by(&session).as_deref()).await,
+            Some(renewed.clone())
+        );
         assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
         assert_eq!(world.renewed(), 2);
     }
@@ -740,8 +748,14 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
         );
         assert_eq!((world.validated().len(), world.renewed()), (1, 0));
 
-        // The gateway refused the session's token: its transport asks it to refresh.
-        let given = session.refresh().await;
+        // The gateway refused a token: its transport asks the session to
+        // refresh, and tells it which.
+        let refused = match case["refused"].as_str().expect("refused") {
+            "held" => held_by(&session),
+            "replaced" => Some(token(3600, 2)),
+            other => panic!("{why}: a refused token the table calls {other}"),
+        };
+        let given = session.refresh(refused.as_deref()).await;
 
         assert_eq!(
             (world.validated().len() - 1, world.renewed()),
@@ -862,7 +876,8 @@ async fn a_stream_refused_while_the_session_is_starting_costs_one_renewal_and_on
     // The stream's refusal arrives before the start has its answer.
     let refreshing = tokio::spawn({
         let renewer = session.renewer();
-        async move { renewer.refresh().await }
+        let refused = held_by(&session);
+        async move { renewer.refresh(refused.as_deref()).await }
     });
     settle().await;
     release.notify_one();
@@ -927,7 +942,8 @@ async fn the_start_does_the_asking_when_it_and_the_stream_are_both_waiting_on_on
     // The start is refused and asks for a renewal; so does the stream.
     let refreshing = tokio::spawn({
         let renewer = session.renewer();
-        async move { renewer.refresh().await }
+        let refused = held_by(&session);
+        async move { renewer.refresh(refused.as_deref()).await }
     });
     settle().await;
     assert_eq!(*renewals.lock().expect("renewals"), 2);
@@ -961,7 +977,8 @@ async fn a_token_renewed_while_the_session_is_starting_is_taken_up_and_not_renew
 
     let refreshing = tokio::spawn({
         let renewer = session.renewer();
-        async move { renewer.refresh().await }
+        let refused = held_by(&session);
+        async move { renewer.refresh(refused.as_deref()).await }
     });
     settle().await;
     release.notify_one();
@@ -999,7 +1016,12 @@ async fn refusals_that_arrive_together_cost_one_renewal_and_one_ask() {
     ready(&session).await;
 
     // Three requests refused at once: each asks the session to refresh.
-    let (a, b, c) = tokio::join!(session.refresh(), session.refresh(), session.refresh());
+    let refused = held_by(&session);
+    let (a, b, c) = tokio::join!(
+        session.refresh(refused.as_deref()),
+        session.refresh(refused.as_deref()),
+        session.refresh(refused.as_deref())
+    );
 
     assert_eq!(
         [a, b, c],
@@ -1013,7 +1035,7 @@ async fn refusals_that_arrive_together_cost_one_renewal_and_one_ask() {
     assert_eq!(world.validated(), [access, renewed]);
 
     // A refusal after that is a new one.
-    session.refresh().await;
+    session.refresh(held_by(&session).as_deref()).await;
     assert_eq!(*renewals.lock().expect("renewals"), 2);
 }
 
@@ -1043,7 +1065,8 @@ async fn a_session_is_not_ended_by_the_refusal_of_a_token_it_no_longer_holds() {
 
     let refreshing = tokio::spawn({
         let renewer = session.renewer();
-        async move { renewer.refresh().await }
+        let refused = held_by(&session);
+        async move { renewer.refresh(refused.as_deref()).await }
     });
     settle().await;
     // Another context signs in again while the gateway is being asked.
@@ -1072,7 +1095,10 @@ async fn refresh_gives_the_new_token_and_makes_it_the_sessions() {
     let session = world.session();
     ready(&session).await;
 
-    assert_eq!(session.refresh().await, Some(renewed.clone()));
+    assert_eq!(
+        session.refresh(held_by(&session).as_deref()).await,
+        Some(renewed.clone())
+    );
     assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
     assert!(world.auth_failed().is_empty());
 }
@@ -1112,7 +1138,7 @@ async fn a_session_that_cannot_be_renewed_is_over_and_says_so_once() {
     let session = world.session();
     ready(&session).await;
 
-    assert_eq!(session.refresh().await, None);
+    assert_eq!(session.refresh(held_by(&session).as_deref()).await, None);
     assert_eq!(*session.token().borrow(), None);
     // The dead credential is not kept to be used again.
     assert!(!world.has_stored());
@@ -1126,7 +1152,7 @@ async fn a_session_that_cannot_be_renewed_is_over_and_says_so_once() {
     );
 
     // What follows finds nothing stored, and is quiet.
-    assert_eq!(session.refresh().await, None);
+    assert_eq!(session.refresh(held_by(&session).as_deref()).await, None);
     assert_eq!(world.auth_failed().len(), 1);
     assert_eq!(world.errors().len(), 1);
 }
@@ -1140,7 +1166,7 @@ async fn a_session_whose_credential_the_storage_will_not_forget_says_so_as_it_en
     });
     ready(&session).await;
 
-    assert_eq!(session.refresh().await, None);
+    assert_eq!(session.refresh(held_by(&session).as_deref()).await, None);
     assert_eq!(*session.token().borrow(), None);
     assert!(world.has_stored());
     assert_eq!(world.auth_failed(), ["expired"]);
@@ -1162,7 +1188,7 @@ async fn a_renewal_the_issuer_refused_ends_the_session_and_names_its_cause() {
     let session = world.session();
     ready(&session).await;
 
-    assert_eq!(session.refresh().await, None);
+    assert_eq!(session.refresh(held_by(&session).as_deref()).await, None);
     assert!(!world.has_stored());
     assert_eq!(world.auth_failed(), ["expired"]);
     assert_eq!(
@@ -1189,7 +1215,7 @@ async fn a_renewal_that_got_no_answer_keeps_what_is_stored_and_the_next_refusal_
         let session = world.session();
         ready(&session).await;
 
-        assert_eq!(session.refresh().await, None);
+        assert_eq!(session.refresh(held_by(&session).as_deref()).await, None);
         // No usable token, what is stored stays, and the session is not over.
         assert_eq!(*session.token().borrow(), None);
         assert!(world.has_stored());
@@ -1201,7 +1227,10 @@ async fn a_renewal_that_got_no_answer_keeps_what_is_stored_and_the_next_refusal_
                 format!("Token refresh failed: {}", failure.message)
             )]
         );
-        assert_eq!(session.refresh().await, Some(renewed.clone()));
+        assert_eq!(
+            session.refresh(held_by(&session).as_deref()).await,
+            Some(renewed.clone())
+        );
         assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
     }
 }
@@ -1221,7 +1250,7 @@ async fn a_renewal_that_got_no_answer_is_tried_again_on_the_reconnect_backoff_un
     let session = world.session();
     ready(&session).await;
 
-    assert_eq!(session.refresh().await, None);
+    assert_eq!(session.refresh(held_by(&session).as_deref()).await, None);
     // Past every wait at its longest: the renewal made ends them.
     tokio::time::sleep(waits.iter().sum::<Duration>() + Duration::from_secs(30)).await;
     settle().await;
@@ -1254,7 +1283,7 @@ async fn the_issuers_refusal_ends_the_renewals_on_the_reconnect_backoff() {
     let session = world.session();
     ready(&session).await;
 
-    assert_eq!(session.refresh().await, None);
+    assert_eq!(session.refresh(held_by(&session).as_deref()).await, None);
     tokio::time::sleep(RECONNECT * 6 / 5).await;
     settle().await;
     assert_eq!(world.renewed(), 2);
@@ -1270,7 +1299,7 @@ async fn a_session_that_never_signed_in_cannot_expire() {
     let session = world.session();
     ready(&session).await;
 
-    assert_eq!(session.refresh().await, None);
+    assert_eq!(session.refresh(held_by(&session).as_deref()).await, None);
     assert_eq!(world.renewed(), 1);
     assert!(world.auth_failed().is_empty());
     assert!(world.errors().is_empty());
@@ -1286,7 +1315,7 @@ async fn a_session_given_no_way_to_renew_asks_nothing_and_ends_nothing() {
     });
     ready(&session).await;
 
-    assert_eq!(session.refresh().await, None);
+    assert_eq!(session.refresh(held_by(&session).as_deref()).await, None);
     assert_eq!(session.token().borrow().as_deref(), Some(access.as_str()));
     assert!(world.has_stored());
 }
@@ -1324,7 +1353,7 @@ async fn ending_a_session_ends_what_it_holds_and_leaves_its_client_open() {
     // Nothing it had scheduled runs, and nothing it is told does anything.
     tokio::time::sleep(Duration::from_secs(600)).await;
     assert_eq!(world.renewed(), 0);
-    assert_eq!(session.refresh().await, None);
+    assert_eq!(session.refresh(held_by(&session).as_deref()).await, None);
     assert_eq!(world.renewed(), 0);
     session.ready().await;
 }

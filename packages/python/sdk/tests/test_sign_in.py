@@ -751,10 +751,14 @@ def test_an_agent_says_the_did_its_gateway_names_it_by_as_it_came_once_it_is_sig
 
                 # A renewal brings a token. Who the agent is was said when it signed in, and is said once.
                 first = agent.token.value
-                assert await soon(agent.refresh()) not in (None, first)
+                assert await soon(agent.refresh(agent.token.value)) not in (None, first)
                 assert len(gateway.of("POST", TOKEN)) == 2
                 assert len(gateway.of("GET", ME)) == 1
                 assert agent.did == named_as
+                # A refusal of the token it has replaced was answered by that renewal:
+                # the one it holds is given, and the issuer is not asked.
+                assert await soon(agent.refresh(first)) == agent.token.value
+                assert len(gateway.of("POST", TOKEN)) == 2
             # Left, it is still who it was signed in as.
             assert agent.did == named_as
 
@@ -782,7 +786,7 @@ def test_an_agent_renews_its_token_when_it_is_due_and_keeps_the_one_it_has_when_
 
                 # A refused grant is final for this renewal: the token is left as it is, and nothing is said.
                 gateway.scripted[("POST", TOKEN)] = [Answer(status=401)]
-                assert await soon(agent.refresh()) is None
+                assert await soon(agent.refresh(agent.token.value)) is None
                 assert agent.token.value == second
 
                 # An outage is tried again inside the renewal budget, and a token that still works is not given up.
@@ -856,7 +860,7 @@ def test_a_session_over_what_semiont_login_kept_is_ready_and_renews_through_the_
                 assert sent_with(gateway, "POST", "/bus/subscribe") == [f"Bearer {first}"]
 
                 # The gateway refuses the token: it is renewed at the issuer the sign-in names, and asked about.
-                assert await soon(session.refresh()) == second
+                assert await soon(session.refresh(session.token.value)) == second
                 assert form(gateway.of("POST", TOKEN)[0]) == {
                     "grant_type": "refresh_token",
                     "refresh_token": "refresh-1",
@@ -1006,7 +1010,7 @@ def test_a_session_whose_issuer_will_not_renew_it_is_over_and_its_sign_in_is_for
                 # The kept token had expired: it was renewed before anyone was asked.
                 assert session.token.value == renewed
                 assert sent_with(gateway, "GET", ME) == [f"Bearer {renewed}"]
-                assert await soon(session.refresh()) is None
+                assert await soon(session.refresh(session.token.value)) is None
                 assert now(session.token) is None
             assert told == ["expired"]
             assert said == ["Token refresh failed: The issuer refused the token request (invalid_grant: Session not active)"]

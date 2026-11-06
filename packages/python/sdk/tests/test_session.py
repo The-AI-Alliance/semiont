@@ -250,7 +250,9 @@ def test_a_refused_session_renews_and_asks_as_the_table_states(row: JsonObject) 
         async with world.its_session() as session:
             await soon(session.ready())
             assert ends(session) == "signed-in"
-            given = await soon(session.refresh())
+            # The gateway refused a token: its transport asks the session to refresh, and tells it which.
+            refused = {"held": session.token.value, "replaced": token(3600, -1)}[text(row["refused"], "refused")]
+            given = await soon(session.refresh(refused))
             assert (given is not None) == row["given"], "whether `refresh` gives a token"
             if given is not None:
                 assert given == session.token.value
@@ -317,7 +319,7 @@ def test_a_gateway_that_fails_in_some_other_way_has_refused_nothing_either() -> 
         world = World(kept=access, renewals=[renewed], validations=[alice(), unanswered])
         async with world.its_session() as session:
             await soon(session.ready())
-            assert await soon(session.refresh()) == renewed
+            assert await soon(session.refresh(session.token.value)) == renewed
             assert (world.told, world.errors, await world.is_kept()) == ([], [], True)
 
     run(at_its_start())
@@ -378,7 +380,7 @@ def test_an_expired_token_whose_renewal_got_no_answer_is_kept_and_renewed_when_a
             assert (session.token.value, await world.is_kept(), world.told) == (None, True, [])
             assert world.said() == [("session.auth-failed", f"Token refresh failed: {failure.message}")]
             # The issuer answers again: a request refused for want of a token renews it.
-            assert await soon(session.refresh()) == renewed
+            assert await soon(session.refresh(session.token.value)) == renewed
             assert session.token.value == renewed
             assert world.renewed == 2
 
@@ -419,7 +421,7 @@ def test_a_stream_refused_while_the_session_is_starting_costs_one_renewal_and_on
         async with world.session(refresh=world.refresh, validate=gateway.validate) as session:
             await turns()
             # The stream's refusal arrives before the start has its answer.
-            refreshing = asyncio.create_task(session.refresh())
+            refreshing = asyncio.create_task(session.refresh(session.token.value))
             await turns()
             gateway.release.set()
             await soon(session.ready())
@@ -442,7 +444,7 @@ def test_a_token_renewed_while_the_session_is_starting_is_taken_up_and_not_renew
     async def scenario() -> None:
         async with world.session(refresh=world.refresh, validate=gateway.validate) as session:
             await turns()
-            refreshing = asyncio.create_task(session.refresh())
+            refreshing = asyncio.create_task(session.refresh(session.token.value))
             await turns()
             gateway.release.set()
             await soon(session.ready())
@@ -476,12 +478,13 @@ def test_refusals_that_arrive_together_cost_one_renewal_and_one_ask() -> None:
         async with world.session(refresh=refresh, validate=world.validate) as session:
             await soon(session.ready())
             # Three requests refused at once: each asks the session to refresh.
-            given = await soon(asyncio.gather(session.refresh(), session.refresh(), session.refresh()))
+            refused = session.token.value
+            given = await soon(asyncio.gather(session.refresh(refused), session.refresh(refused), session.refresh(refused)))
             assert list(given) == [renewed, renewed, renewed]
             assert renewals == 1
             assert world.validated == [access, renewed]
             # A refusal after that is a new one.
-            await soon(session.refresh())
+            await soon(session.refresh(session.token.value))
             assert renewals == 2
 
     run(scenario())
@@ -496,7 +499,7 @@ def test_a_session_is_not_ended_by_the_refusal_of_a_token_it_no_longer_holds() -
     async def scenario() -> None:
         async with world.session(refresh=world.refresh, validate=gateway.validate) as session:
             await soon(session.ready())
-            refreshing = asyncio.create_task(session.refresh())
+            refreshing = asyncio.create_task(session.refresh(session.token.value))
             await turns()
             # The token is replaced while the gateway is being asked.
             world.token.set(other)
@@ -516,7 +519,7 @@ def test_refresh_gives_the_new_token_and_makes_it_the_sessions() -> None:
     async def scenario() -> None:
         async with world.its_session() as session:
             await soon(session.ready())
-            assert await soon(session.refresh()) == renewed
+            assert await soon(session.refresh(session.token.value)) == renewed
             assert session.token.value == renewed
             assert world.told == []
 
@@ -558,14 +561,14 @@ def test_a_session_that_cannot_be_renewed_is_over_and_says_so_once() -> None:
     async def scenario() -> None:
         async with world.its_session() as session:
             await soon(session.ready())
-            assert await soon(session.refresh()) is None
+            assert await soon(session.refresh(session.token.value)) is None
             assert session.token.value is None
             # The dead credential is not kept to be used again.
             assert not await world.is_kept()
             assert world.told == ["expired"]
             assert world.said() == [("session.refresh-exhausted", "Token refresh failed")]
             # What follows finds nothing kept, and is quiet.
-            assert await soon(session.refresh()) is None
+            assert await soon(session.refresh(session.token.value)) is None
             assert (len(world.told), len(world.errors)) == (1, 1)
 
     run(scenario())
@@ -577,7 +580,7 @@ def test_a_renewal_the_issuer_refused_ends_the_session_and_names_its_cause() -> 
     async def scenario() -> None:
         async with world.its_session() as session:
             await soon(session.ready())
-            assert await soon(session.refresh()) is None
+            assert await soon(session.refresh(session.token.value)) is None
             assert not await world.is_kept()
             assert world.told == ["expired"]
             assert world.said() == [("session.refresh-exhausted", f"Token refresh failed: {refused_by_the_issuer().message}")]
@@ -593,11 +596,11 @@ def test_a_renewal_that_got_no_answer_keeps_what_is_kept_and_the_next_refusal_re
         world = World(kept=token(3600, 1), renewals=[failure, renewed])
         async with world.its_session() as session:
             await soon(session.ready())
-            assert await soon(session.refresh()) is None
+            assert await soon(session.refresh(session.token.value)) is None
             # No usable token, what is kept stays, and the session is not over.
             assert (session.token.value, await world.is_kept(), world.told) == (None, True, [])
             assert world.said() == [("session.refresh-exhausted", f"Token refresh failed: {failure.message}")]
-            assert await soon(session.refresh()) == renewed
+            assert await soon(session.refresh(session.token.value)) == renewed
             assert session.token.value == renewed
 
     run(scenario(unanswered_by_the_issuer()))
@@ -612,7 +615,7 @@ def test_a_renewal_that_got_no_answer_is_tried_again_on_the_reconnect_backoff_un
     async def scenario() -> None:
         async with world.its_session() as session:
             await soon(session.ready())
-            assert await soon(session.refresh()) is None
+            assert await soon(session.refresh(session.token.value)) is None
             step = 0.1
             # Past every wait at its longest: the renewal made ends them.
             await pass_time(sum(waits) + 30, step=step)
@@ -635,7 +638,7 @@ def test_the_issuers_refusal_ends_the_renewals_on_the_reconnect_backoff() -> Non
     async def scenario() -> None:
         async with world.its_session() as session:
             await soon(session.ready())
-            assert await soon(session.refresh()) is None
+            assert await soon(session.refresh(session.token.value)) is None
             await pass_time(FIRST_RETRY_HELD, step=0.1)
             assert world.renewed == 2
             assert (await world.is_kept(), world.told) == (False, ["expired"])
@@ -651,7 +654,7 @@ def test_a_session_that_never_signed_in_cannot_expire() -> None:
     async def scenario() -> None:
         async with world.its_session() as session:
             await soon(session.ready())
-            assert await soon(session.refresh()) is None
+            assert await soon(session.refresh(session.token.value)) is None
             assert world.renewed == 1
             assert (world.told, world.errors) == ([], [])
 
@@ -665,7 +668,7 @@ def test_a_session_given_no_way_to_renew_asks_nothing_and_ends_nothing() -> None
     async def scenario() -> None:
         async with world.session(refresh=None, validate=world.validate) as session:
             await soon(session.ready())
-            assert await soon(session.refresh()) is None
+            assert await soon(session.refresh(session.token.value)) is None
             assert session.token.value == access
             assert await world.is_kept()
 
@@ -697,7 +700,7 @@ def test_ending_a_session_ends_what_it_holds_and_leaves_its_client_open() -> Non
         # Nothing it had scheduled runs, and nothing it is told does anything.
         await pass_time(600)
         assert world.renewed == 0
-        assert await soon(session.refresh()) is None
+        assert await soon(session.refresh(session.token.value)) is None
         assert world.renewed == 0
         await soon(session.ready())
         with pytest.raises(RuntimeError, match="started once"):

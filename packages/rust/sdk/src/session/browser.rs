@@ -1186,8 +1186,11 @@ async fn route(session: Arc<SemiontSession>, signals: Arc<SessionSignals>) {
         match failure.code {
             TransportErrorCode::Unauthorized => {
                 let session = session.clone();
+                // A failure does not say which token was refused: the one the
+                // session holds as it is read is.
+                let refused = session.token().borrow().clone();
                 renewing.spawn(async move {
-                    session.refresh().await;
+                    session.refresh(refused.as_deref()).await;
                 });
             }
             TransportErrorCode::Forbidden => {

@@ -923,10 +923,10 @@
           "member": "renewer",
           "absent": {
             "csharp": "The transport takes a callback bound to the kept session when the transport is constructed.",
-            "swift": "The transport uses a closure that calls the session's renewal through a weak session reference.",
-            "typescript": "A TypeScript transport is handed a closure that calls the session's `refresh`, and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
-            "python": "A Python transport is handed a closure that calls the session's `refresh` (`refresher`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
-            "go": "A Go transport is handed a TokenRefresher that asks the session's `Refresh` (SessionFromKept's `refreshedBy`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
+            "swift": "The transport uses a closure that calls the session's `refresh` with the token refused through a weak session reference.",
+            "typescript": "A TypeScript transport is handed a closure that calls the session's `refresh` with the token refused, and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
+            "python": "A Python transport is handed a closure that calls the session's `refresh` with the token refused (`refresher`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
+            "go": "A Go transport is handed a TokenRefresher that asks the session's `Refresh` with the token refused (SessionFromKept's `refreshedBy`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
             "kotlin": "A Kotlin transport is handed a refresher that asks the session to renew the token a request was refused with (sessionFromKept's), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead."
           }
         }
