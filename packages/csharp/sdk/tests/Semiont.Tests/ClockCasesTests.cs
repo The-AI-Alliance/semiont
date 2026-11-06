@@ -133,7 +133,7 @@ public sealed class ClockCasesTests
         var times = value.TryGetProperty("times", out var scale) ? scale.GetDouble() : 1;
         var plus = value.TryGetProperty("plusMs", out var moved) ? moved.GetInt64() : 0;
         var scaled = TimingMs(Text(value, "timing")) * times + plus;
-        if (scaled != Math.Floor(scaled)) throw new CaseFailed($"{value.GetRawText()} is not a whole number of milliseconds");
+        if (!double.IsInteger(scaled)) throw new CaseFailed($"{value.GetRawText()} is not a whole number of milliseconds");
         return (long)scaled;
     }
 
@@ -444,8 +444,8 @@ public sealed class ClockCasesTests
             undo.Push(async () =>
             {
                 await stopping.CancelAsync();
-                try { await task.WaitAsync(Patience); }
-                catch (Exception) when (task.IsCompleted) { }
+                await task.WaitAsync(Patience).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+                if (!task.IsCompleted) throw new CaseFailed("what it set going did not stop once the case was over");
             });
             return task;
         }
