@@ -1953,7 +1953,8 @@
         ],
         "kotlin": [
           "packages/kotlin/sdk/src/main/kotlin/semiont/signin"
-        ]
+        ],
+        "haskell": ["packages/haskell/sdk/src/Semiont/SignInStore.hs"]
       },
       "members": [
         {
@@ -1963,6 +1964,9 @@
         {
           "member": "stateDir",
           "kind": "function",
+          "named": {
+            "haskell": "stateDirectory"
+          },
           "absent": {
             "csharp": "C#'s state home is SignInStore.StateDirectory, a static member of the store, which takes the system's name as text."
           }
@@ -1975,7 +1979,8 @@
             "swift": "Platform"
           },
           "absent": {
-            "csharp": "C#'s SignInStore.StateDirectory takes the system's name as text."
+            "csharp": "C#'s SignInStore.StateDirectory takes the system's name as text.",
+            "haskell": "Haskell's stateDirectory takes the system's name as text."
           }
         },
         {
@@ -1995,7 +2000,8 @@
           "member": "fileName",
           "kind": "constant",
           "named": {
-            "go": "SignInFile"
+            "go": "SignInFile",
+            "haskell": "signInFileName"
           },
           "absent": {
             "typescript": "TypeScript's is SIGN_IN_STORE_FILE, generated into @semiont/core, which the store hands to its caller's files.",
@@ -2012,7 +2018,8 @@
             "go": "Go reads, writes and locks the file itself, through its standard library.",
             "kotlin": "Kotlin reads, writes and locks the file itself, through the JDK and its foreign-function interface.",
             "swift": "Swift reads, writes and locks the file itself, through Foundation and the C library.",
-            "csharp": "C# reads, writes and locks the file itself, through .NET and the C library."
+            "csharp": "C# reads, writes and locks the file itself, through .NET and the C library.",
+            "haskell": "Haskell reads, writes and locks the file itself, through its directory and file libraries and the C library."
           }
         }
       ]

@@ -5,7 +5,7 @@ One standalone contract: `<stateDir>/tokens.json`, where the semiont launcher
 to, and where an application built on any Semiont SDK finds it. One sign-in
 serves the launcher's verbs and that application.
 
-It is a contract because programs in seven languages read and write the
+It is a contract because programs in eight languages read and write the
 file. Like [discovery](../discovery/README.md), its schema refs nothing
 outside this directory.
 
@@ -90,7 +90,8 @@ Every writer takes the lock:
 - the Kotlin SDK (`semiont.signin.SignInStore`);
 - the Swift SDK (`SignInStore`, `packages/swift/sdk/Sources/Semiont/SignIn`);
 - the C# SDK (`Semiont.SignIn.SignInStore`);
-- the TypeScript SDK (`SignInStore`, `packages/typescript/sdk/src/session/sign-in-store.ts`).
+- the TypeScript SDK (`SignInStore`, `packages/typescript/sdk/src/session/sign-in-store.ts`);
+- the Haskell SDK (`Semiont.SignInStore`).
 
 The TypeScript SDK reaches no file itself. It takes the lock, reads, and
 renames through the files its caller gives it (`SignInFiles`), and hands
