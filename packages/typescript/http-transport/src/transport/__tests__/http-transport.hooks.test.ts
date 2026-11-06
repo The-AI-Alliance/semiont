@@ -200,8 +200,8 @@ describe('HttpTransport ky hooks', () => {
 
 // ── shouldRetry is the retry gate ───────────────────────────────────────
 // ky's `methods`/`statusCodes` are ANDed independently — there is no
-// per-status method list, so "every status but one on idempotent methods
-// only" cannot be said with them. `shouldRetry` says it instead, deriving
+// per-status method list, so "every status but one, on idempotent methods
+// or a request that carries an Idempotency-Key" cannot be said with them. `shouldRetry` says it instead, deriving
 // from `RETRY_RULES.transport` rather than restating a set of numbers, and
 // asks the rule nothing about a refused credential, which is renewed or final.
 //
@@ -233,22 +233,34 @@ describe('HttpTransport shouldRetry — the transport retry rule', () => {
     shouldRetry = (retryConfig as unknown as { shouldRetry: typeof shouldRetry }).shouldRetry;
   });
 
-  /** Ask the gate about a request of `method` that failed with `status`, and the body ky read. */
-  function verdict(method: string, status: number, data?: unknown) {
+  /** Ask the gate about a request of `method`, sent with `headers`, that failed with `status`, and the body ky read. */
+  function verdict(method: string, status: number, data?: unknown, headers = new Headers()) {
     const error = Object.assign(httpError({ status, statusText: 'x', headers: new Headers() }, data), {
-      request: { method },
+      request: { method, headers },
     });
     return shouldRetry({ error, retryCount: 1 });
   }
+
+  /** The header an upload carries, the same on every attempt at it. */
+  const keyHeaders = () => new Headers({ 'Idempotency-Key': '0b9e6c1e-7d4f-4c2a-9a51-3f0f7c1d2e8b' });
 
   test('a POST that got a 504 is NOT retried — it may already have been processed', () => {
     expect(verdict('POST', 504)).toBe(false);
   });
 
-  test('a POST that got a 502 is NOT retried — the upload case that bites', () => {
-    // `POST /resources` mints a fresh UUID in the Stower, so a duplicate
-    // writes a second resource the caller never learns about.
+  test('a POST with no key that got a 502 is NOT retried — it may already have been processed', () => {
     expect(verdict('POST', 502)).toBe(false);
+  });
+
+  test('a POST that carries an Idempotency-Key and got a 502 or 503 is the rule\'s to retry — its repeat is answered as the first was', () => {
+    expect(verdict('POST', 502, undefined, keyHeaders())).toBeUndefined();
+    expect(verdict('POST', 503, undefined, keyHeaders())).toBeUndefined();
+  });
+
+  test('a keyed POST refused 400 or 422, or refused its credential, is NOT retried', () => {
+    expect(verdict('POST', 400, undefined, keyHeaders())).toBe(false);
+    expect(verdict('POST', 422, undefined, keyHeaders())).toBe(false);
+    expect(verdict('POST', 401, undefined, keyHeaders())).toBe(false);
   });
 
   test('a refused credential is never retried, whatever the method — it is renewed, or final', () => {
@@ -297,7 +309,9 @@ describe('HttpTransport shouldRetry — the transport retry rule', () => {
     const approved = [];
     for (let status = 400; status < 600; status++) {
       for (const method of ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']) {
-        if (RETRY_RULES.transport.retryable({ status, method })) approved.push(status);
+        for (const keyed of [false, true]) {
+          if (RETRY_RULES.transport.retryable({ status, method, keyed })) approved.push(status);
+        }
       }
     }
 

@@ -126,7 +126,7 @@ TypeScript imports a NATS client. The subjects, the bucket names and the round t
 that confirms a subscription are private to `nats.rs`. Another broker would take an implementation of
 `SignalPlane` and `SharedTable` meeting the contract in
 [signal/mod.rs](../src/signal/mod.rs) — delivery at most once, in order per
-channel and scope; tables with an atomic insert-if-absent, a TTL per table, and
+channel and scope; tables with an atomic insert-if-absent, a compare-and-swap, a TTL per table, and
 a watch that delivers what is present and then everything after, with no gap; a
 subscription that resolves only once the fabric holds it; a flush that resolves
 once the fabric has processed everything sent before it —
@@ -142,9 +142,26 @@ correlation id for (client, principal) in a table every replica shares, before
 it is published; a reply reaches only the claim's owner, and a replica that has
 not seen a claim yet reads the table rather than refusing the reply; the first
 reply to each claim is retained for `replyRetentionSeconds` for recovery from
-any replica. [src/composition.rs](../src/composition.rs) opens the ledger over
+any replica. A claim whose request could not be published is let go with the
+503, so the attempt after it may claim the id again.
+[src/composition.rs](../src/composition.rs) opens the ledger over
 the plane and holds its standing tap — one subscription over every reply
 channel for the life of the process.
+
+An emit's `Idempotency-Key` is held in `emit_keys`, a table every replica
+shares ([src/emit_keys.rs](../src/emit_keys.rs)), keyed by a hash of the
+principal's DID and the key. Before an emit is carried out its entry is
+created in hand, with a lease of `emitTimeoutMs`; once its outcome is one
+another attempt would get again (a 2xx, or a 4xx other than 401 and 429) the
+outcome is held there for `idempotencySeconds`, written only over the attempt's
+own entry in hand, and any other outcome deletes the entry. A repeat with the
+same body, its fields in any order, is answered with the held status and body;
+one with another body is refused 422; one that arrives while the entry is in
+hand waits for it, and takes it over once its lease has run out. Once an
+attempt holds its entry, the emit and the settling of its key run as a task of
+their own, to their end even when the client goes away, so a resend is never
+carried out a second time because the first was cut short. An entry the
+broker could not read or write is a 503.
 
 ## The stream
 
@@ -192,7 +209,7 @@ client-credentials grant, kept until shortly before it expires:
 
 | Client calls the gateway | The gateway calls the Archivist |
 |---|---|
-| `POST /resources` | `POST /resources`, the multipart body streamed unchanged, naming the caller in `Semiont-Principal` and `Semiont-Roles` |
+| `POST /resources` | `POST /resources`, the multipart body streamed unchanged, naming the caller in `Semiont-Principal` and `Semiont-Roles`, with the upload's `Idempotency-Key`; the Archivist's 422 comes back as `unprocessable` |
 | `GET /resources/{id}`, `GET /api/resources/{id}` | `GET /resources/{id}/content`, streamed back unchanged |
 | `GET /resources/{id}/jsonld` | `GET /resources/{id}/jsonld` |
 | `GET /resources/{id}/annotations` | `GET /resources/{id}/annotations`, streamed back unread |

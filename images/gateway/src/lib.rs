@@ -9,6 +9,7 @@ pub mod app;
 pub mod archivist;
 pub mod composition;
 pub mod config;
+pub mod emit_keys;
 pub mod http;
 pub mod ledger;
 pub mod limits;

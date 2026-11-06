@@ -101,6 +101,10 @@ const (
 	TransportErrorCodeConflict TransportErrorCode = "conflict"
 	// The request is malformed.
 	TransportErrorCodeBadRequest TransportErrorCode = "bad-request"
+	// The request is well formed and cannot be carried out as it stands: an
+	// `Idempotency-Key` used for two different requests. Sent again, it is
+	// refused again.
+	TransportErrorCodeUnprocessable TransportErrorCode = "unprocessable"
 	// A limit refused it; the refusal's `Retry-After` says when to return.
 	TransportErrorCodeRateLimited TransportErrorCode = "rate-limited"
 	// The gateway is unreachable, the network failed, or the server answered
@@ -123,6 +127,8 @@ func TransportErrorCodeOfStatus(status int) TransportErrorCode {
 		return TransportErrorCodeConflict
 	case status == 400:
 		return TransportErrorCodeBadRequest
+	case status == 422:
+		return TransportErrorCodeUnprocessable
 	case status == 429:
 		return TransportErrorCodeRateLimited
 	case status >= 500:

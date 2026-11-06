@@ -290,6 +290,14 @@ So is every line the stream carried that names no channel (§ The transport).
   response came. A read unanswered at its deadline is not sent again
   ([`protocol/specs/src/client/timing.json`](../specs/src/client/timing.json)).
   *Held by `sdk/wire/read-unanswered`.*
+- **An upload that got no answer is sent once more**, after
+  `requestRetryPauseMs`, with the key it was first sent with: one whose
+  connection failed or closed before its answer reached the client, and one
+  answered with a status the `transport` rule retries for a keyed request
+  ([`protocol/specs/src/retry/cases.json`](../specs/src/retry/cases.json)).
+  The Archivist answers the repeat with the resource the first made, so the
+  upload resolves with that resource's id.
+  *Held by `sdk/wire/upload-unanswered`, `sdk/wire/upload-answer-lost`, `protocol/specs/src/retry/cases.json`.*
 - A gateway that cannot be reached fails an emit or a read as `unavailable`
   once its attempts are spent.
   *Held by `sdk/wire/unreachable`.*

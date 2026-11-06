@@ -11,7 +11,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, test } from 'vitest';
-import { accessToken, baseUrl, type SemiontError } from '@semiont/core';
+import { REQUEST_RETRY_PAUSE_MS, accessToken, baseUrl, type SemiontError } from '@semiont/core';
 import { HttpContentTransport } from '../http-content-transport';
 import { HttpTransport } from '../http-transport';
 
@@ -241,5 +241,97 @@ describe('an upload outside a browser', () => {
       return report.bytesUploaded;
     }, 0);
     expect(reports.at(-1)!.bytesUploaded).toBe(reports.at(-1)!.totalBytes);
+  });
+
+  describe('sent once more, with the same key and the same bytes, when a repeat is answered as the first was', () => {
+    /** A refusal that promises recovery, as the gateway sends one. */
+    const unavailable: Answer = (_request, response) => {
+      response.writeHead(503, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ error: 'The Archivist is not answering' }));
+    };
+
+    const keysOf = (received: Received[]) => received.map((record) => record.headers['idempotency-key']);
+
+    test('answered 503, then 202: it resolves, the 503 is not reported, and its progress never goes back', async () => {
+      const { url, received } = await gateway((request, response, record, nth) =>
+        (nth === 1 ? unavailable : accepts)(request, response, record, nth));
+      const { content, errors } = contentOf(url);
+      const reports: Report[] = [];
+
+      await expect(content.putBinary(upload(bytes(300 * 1024)), { auth: TOKEN, onProgress: (report) => reports.push(report) })).resolves.toEqual({ resourceId: 'uploaded' });
+
+      expect(received).toHaveLength(2);
+      const [first, second] = keysOf(received);
+      expect(first).toEqual(expect.any(String));
+      expect(second, 'the second sending is the same upload').toBe(first);
+      expect(received[1]!.body!.equals(received[0]!.body!), 'the second sending is the first, byte for byte').toBe(true);
+      expect(errors, 'an upload accepted the second time reports nothing').toEqual([]);
+      reports.reduce((before, report) => {
+        expect(report.bytesUploaded).toBeGreaterThanOrEqual(before);
+        return report.bytesUploaded;
+      }, 0);
+      expect(reports.at(-1)!.bytesUploaded).toBe(reports.at(-1)!.totalBytes);
+    });
+
+    for (const [how, options] of [
+      ['', {}],
+      [', reporting its progress', { onProgress: () => {} }],
+    ] as const) {
+      test(`given no answer${how}, then 202: it resolves, and the failure is not reported`, async () => {
+        // The gateway takes the whole upload, and closes the connection before answering.
+        const { url, received } = await gateway((request, response, record, nth) => {
+          if (nth === 1) {
+            request.socket.destroy();
+            return;
+          }
+          accepts(request, response, record, nth);
+        });
+        const { content, errors } = contentOf(url);
+
+        await expect(content.putBinary(upload(bytes(1024)), { auth: TOKEN, ...options })).resolves.toEqual({ resourceId: 'uploaded' });
+
+        expect(received).toHaveLength(2);
+        const [first, second] = keysOf(received);
+        expect(second).toBe(first);
+        expect(received[1]!.body!.equals(received[0]!.body!)).toBe(true);
+        expect(errors).toEqual([]);
+      });
+    }
+
+    for (const [status, code] of [[400, 'bad-request'], [422, 'unprocessable']] as const) {
+      test(`answered ${status}, it is not sent again: a key makes a repeat harmless, not a refused upload acceptable`, async () => {
+        const { url, received } = await gateway((_request, response) => {
+          response.writeHead(status, { 'content-type': 'application/json' });
+          response.end(JSON.stringify({ error: 'refused' }));
+        });
+        const { content, errors } = contentOf(url);
+
+        const failure = await content.putBinary(upload(bytes(1024)), { auth: TOKEN }).catch((error: unknown) => error);
+
+        expect(failure).toMatchObject({ name: 'APIError', status, code });
+        expect(received).toHaveLength(1);
+        expect(errors).toEqual([failure]);
+      });
+    }
+
+    test('cancelled while it waits to be sent again, it rejects with its caller\'s reason and is not sent again', async () => {
+      let refused = false;
+      const { url, received } = await gateway((request, response, record, nth) => {
+        unavailable(request, response, record, nth);
+        refused = true;
+      });
+      const { content, errors } = contentOf(url);
+      const caller = new AbortController();
+
+      const settled = content.putBinary(upload(bytes(1024)), { auth: TOKEN, signal: caller.signal }).catch((error: unknown) => error);
+      await until('the upload to be refused', () => refused);
+      await pause(REQUEST_RETRY_PAUSE_MS / 3);
+      caller.abort();
+
+      expect(await settled).toBe(caller.signal.reason);
+      await pause(REQUEST_RETRY_PAUSE_MS + 100);
+      expect(received).toHaveLength(1);
+      expect(errors, 'a cancellation its caller asked for is not a transport failure').toEqual([]);
+    });
   });
 });

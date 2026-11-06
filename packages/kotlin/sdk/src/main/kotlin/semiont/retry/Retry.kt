@@ -12,8 +12,12 @@ import java.util.function.Predicate
 import java.util.function.Supplier
 import kotlin.random.Random
 
-/** What a retry rule is asked about a failure: the status its answer had, and the request's method. What is not stated is null. */
-public data class RetryFacts(public val status: Int? = null, public val method: String? = null)
+/**
+ * What a retry rule is asked about a failure: the status its answer had, the
+ * request's method, and whether the request carries an `Idempotency-Key`. A
+ * status or method not stated is null.
+ */
+public data class RetryFacts(public val status: Int? = null, public val method: String? = null, public val keyed: Boolean)
 
 /** Which failures one context tries again (protocol/specs/src/retry/cases.json). A 401 is in none: a refused credential is renewed, never retried. */
 public class RetryRule internal constructor(
@@ -38,12 +42,13 @@ public val BOOT: RetryRule = RetryRule("boot") { it.status in setOf(429, 503, 50
 private val idempotent = setOf("GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE")
 
 /**
- * An HTTP client's request: a retryable status, on a method that cannot cause
- * a second effect, because a POST answered 502 may already have been
- * processed.
+ * An HTTP client's request: a retryable status, when a repeat cannot cause a
+ * second effect. Its method cannot, or it carries an `Idempotency-Key`, whose
+ * repeat the server answers as it answered the first. An unkeyed POST answered
+ * 502 may already have been processed.
  */
 public val TRANSPORT: RetryRule = RetryRule("transport") {
-    it.status != null && it.method?.uppercase() in idempotent && it.status in setOf(408, 413, 429, 500, 502, 503, 504)
+    it.status != null && (it.keyed || it.method?.uppercase() in idempotent) && it.status in setOf(408, 413, 429, 500, 502, 503, 504)
 }
 
 /**

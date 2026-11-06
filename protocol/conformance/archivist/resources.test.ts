@@ -3,6 +3,7 @@
  * HTTP surface): an upload stored and recorded, what the record then holds
  * and publishes, and the commands that change a resource.
  */
+import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import { sha256, shardOf, unstamped, withArchivist } from '../harness/archivist-world';
@@ -153,13 +154,18 @@ withArchivist('a resource', (world) => {
       return body;
     };
     const good = { name: 'Refused', storageUri: 'file://docs/refused.md', format: 'text/markdown' };
-    const post = (body: BodyInit, headers: Record<string, string> = { 'Semiont-Principal': ada }) => world().http('POST', '/resources', { body, headers, route: '/resources' });
+    const post = (body: BodyInit, headers: Record<string, string> = { 'Semiont-Principal': ada, 'Idempotency-Key': randomUUID() }) =>
+      world().http('POST', '/resources', { body, headers, route: '/resources' });
 
-    const unattributed = await post(form(good), {});
+    const unattributed = await post(form(good), { 'Idempotency-Key': randomUUID() });
     expect(unattributed.status).toBe(400);
     expect(unattributed.json).toEqual({ error: 'Semiont-Principal is required: the record attributes every resource to someone' });
 
-    const notMultipart = await world().http('POST', '/resources', { json: good, headers: { 'Semiont-Principal': ada }, route: '/resources' });
+    const unkeyed = await post(form(good), { 'Semiont-Principal': ada });
+    expect(unkeyed.status).toBe(400);
+    expect((unkeyed.json as { error: string }).error).toContain('Idempotency-Key');
+
+    const notMultipart = await world().http('POST', '/resources', { json: good, headers: { 'Semiont-Principal': ada, 'Idempotency-Key': randomUUID() }, route: '/resources' });
     expect(notMultipart.status).toBe(400);
     expect(notMultipart.json).toEqual({ error: 'The body is not multipart/form-data' });
 

@@ -40,7 +40,7 @@ eachPlane('every response', (world) => {
       ['a 401', await call(world().origin, 'GET', '/api/users/me')],
       ['a 404', await call(world().origin, 'GET', '/no/such/path')],
       ['content bytes', await call(world().origin, 'GET', `/resources/${id}`, { token })],
-      ['a 400', await call(world().origin, 'POST', '/bus/emit', { token, json: {} })],
+      ['a 400', await world().emit(token, {})],
     ];
     const problems = replies.flatMap(([label, reply]) => edgeProblems(label, reply));
 

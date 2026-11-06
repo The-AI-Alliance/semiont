@@ -188,15 +188,16 @@ const refusedCredential = (error: Error): boolean =>
 
 /**
  * How every request is made a second time, whether or not anything renews
- * its token: once, after `REQUEST_RETRY_PAUSE_MS`, for the statuses and
- * methods `RETRY_RULES.transport` approves, or when it got no answer at all
- * on a method that cannot cause a second effect. Where a refresher is
- * configured, the renewal in the transport's `afterResponse` hook spends the
- * same one attempt. A refused credential is never retried: it is renewed, or
- * final.
+ * its token: once, after `REQUEST_RETRY_PAUSE_MS`, for the statuses
+ * `RETRY_RULES.transport` approves of its method and its `Idempotency-Key`,
+ * or when it got no answer at all and a repeat cannot cause a second effect.
+ * Where a refresher is configured, the renewal in the transport's
+ * `afterResponse` hook spends the same one attempt. A refused credential is
+ * never retried: it is renewed, or final.
  *
  * **`statusCodes` is a superset PRE-FILTER, not the decision**, and ky's
- * default `methods` are the idempotent ones. `shouldRetry` is the
+ * default `methods` are the idempotent ones: a request that carries a key,
+ * an upload, adds its own method to them. `shouldRetry` is the
  * authoritative gate and rejects what the lists over-admit; the hooks
  * suite's census test pins that `statusCodes` stays a superset of what
  * `RETRY_RULES.transport` can approve, so the two cannot drift apart.
@@ -208,9 +209,9 @@ const RETRY: RetryOptions = {
   // A refused credential first: it is never asked of the rule, which would
   // retry a 429 `refusal-rate` after its `Retry-After` with the token
   // refused. Then one rule, stated in core with its reasoning: every other
-  // status on idempotent methods only. A POST that got a 502 may already
-  // have been processed, and one of them mints a fresh resource id, so a
-  // repeat writes a second resource the caller never learns about.
+  // status only where a repeat cannot cause a second effect, on an
+  // idempotent method or a request that carries an Idempotency-Key. A POST
+  // with no key that got a 502 may already have been processed.
   //
   // Narrowing only — `false` or `undefined`, never `true`. A `true` here
   // would bypass ky's own remaining checks, including the one that retries
@@ -222,6 +223,7 @@ const RETRY: RetryOptions = {
       !RETRY_RULES.transport.retryable({
         status: error.response.status,
         method: error.request.method,
+        keyed: error.request.headers.has('Idempotency-Key'),
       }))
       ? false
       : undefined,

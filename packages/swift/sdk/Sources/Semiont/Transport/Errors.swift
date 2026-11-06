@@ -41,14 +41,13 @@ public enum ConnectionState: String, Sendable, CaseIterable {
 
 enum RetryContext: String, CaseIterable {
   case boot, transport, refresh, job
-  func retryable(status: Int?, method: String?) -> Bool {
+  private static let idempotentMethods: Set = ["GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE"]
+  func retryable(status: Int?, method: String?, keyed: Bool) -> Bool {
     switch self {
     case .boot: status.map { [429, 503, 504].contains($0) } == true
     case .transport:
       status.map { [408, 413, 429, 500, 502, 503, 504].contains($0) } == true
-        && method.map {
-          ["GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE"].contains($0.uppercased())
-        } == true
+        && (keyed || method.map { Self.idempotentMethods.contains($0.uppercased()) } == true)
     case .refresh: status.map { $0 == 408 || $0 == 429 || $0 >= 500 } ?? true
     case .job: status.map { [408, 429, 500, 503].contains($0) } == true
     }

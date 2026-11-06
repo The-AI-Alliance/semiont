@@ -4,6 +4,7 @@
 use crate::app::App;
 use crate::principal::{Principal, holder_of, principal_from_token};
 use crate::refusals::Holder;
+use crate::signal::Unavailable;
 use axum::body::Body;
 use axum::extract::{FromRequestParts, Path, Request};
 use axum::http::request::Parts;
@@ -11,12 +12,14 @@ use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use futures::StreamExt;
+use semiont::errors::TransportErrorCode;
 use semiont::types::{ErrorResponse, LimitRefusal, LimitRefusalCode, ResourceId};
 use semiont_http_service::bearer_token;
 use semiont_observability::logging;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
+use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -186,6 +189,29 @@ impl ApiError {
         ApiError::new(StatusCode::BAD_REQUEST, message)
     }
 
+    /// 422 `unprocessable`: an `Idempotency-Key` used for two different requests.
+    pub fn unprocessable(message: impl Into<String>) -> ApiError {
+        let body = ErrorResponse {
+            error: message.into(),
+            code: Some(TransportErrorCode::Unprocessable.as_str().to_owned()),
+            hint: None,
+            details: None,
+        };
+        ApiError {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            body: serde_json::to_value(body).expect("an ErrorResponse serializes"),
+            headers: Vec::new(),
+        }
+    }
+
+    pub fn status(&self) -> StatusCode {
+        self.status
+    }
+
+    pub fn body(&self) -> &Value {
+        &self.body
+    }
+
     /// A 500 whose cause goes to the log and never to the caller.
     pub fn internal(what: &str, cause: impl std::fmt::Display) -> ApiError {
         logging::error(
@@ -197,6 +223,22 @@ impl ApiError {
 
     pub fn not_found() -> ApiError {
         ApiError::new(StatusCode::NOT_FOUND, "Not found")
+    }
+
+    /// The plane's 503, for a shared table its broker could not read or
+    /// write: the broker went away. The cause goes to the log.
+    pub fn unrecorded(during: &str, cause: impl std::fmt::Display) -> ApiError {
+        logging::warn(
+            "The signal plane's broker could not read or write a shared table",
+            json!({ "type": "plane_unavailable", "during": during, "error": cause.to_string() }),
+        );
+        Unavailable.into()
+    }
+}
+
+impl From<Unavailable> for ApiError {
+    fn from(unavailable: Unavailable) -> ApiError {
+        ApiError::new(StatusCode::SERVICE_UNAVAILABLE, unavailable.to_string())
     }
 }
 
@@ -212,17 +254,23 @@ impl IntoResponse for ApiError {
     }
 }
 
-/// The JSON body of `operation` ("POST /bus/emit"), whatever its content
-/// type: refused with 413 when it is larger than the operation's
-/// maxBodyBytes (unread, when its Content-Length says so), and with 400 when
-/// it is not JSON or does not match the operation's schema.
-pub async fn json_body(body: Body, operation: &str) -> Result<Value, ApiError> {
-    let Some(accepts) = crate::limits::json_body(operation) else {
-        return Err(ApiError::internal(
+/// What `operation` accepts as its JSON body; an operation the spec gives
+/// none is the gateway's fault.
+fn declared_body(operation: &str) -> Result<&'static crate::limits::JsonBody, ApiError> {
+    crate::limits::json_body(operation).ok_or_else(|| {
+        ApiError::internal(
             "reading a request body",
             format!("the spec gives {operation} no JSON body"),
-        ));
-    };
+        )
+    })
+}
+
+/// The JSON body of `operation` ("POST /bus/emit"), whatever its content
+/// type, not yet held to its schema: refused with 413 when it is larger than
+/// the operation's maxBodyBytes (unread, when its Content-Length says so),
+/// and with 400 when it is not JSON.
+pub async fn json_body(body: Body, operation: &str) -> Result<Value, ApiError> {
+    let accepts = declared_body(operation)?;
     let too_large = || {
         ApiError::new(
             StatusCode::PAYLOAD_TOO_LARGE,
@@ -245,21 +293,48 @@ pub async fn json_body(body: Body, operation: &str) -> Result<Value, ApiError> {
         }
         bytes.extend_from_slice(&chunk);
     }
-    let value: Value = serde_json::from_slice(&bytes)
-        .map_err(|_| ApiError::bad_request("The body is not JSON"))?;
-    if let Some(problems) = semiont_core::spec::problems(&accepts.schema, &value) {
-        return Err(ApiError::bad_request(problems));
-    }
-    Ok(value)
+    serde_json::from_slice(&bytes).map_err(|_| ApiError::bad_request("The body is not JSON"))
 }
 
-/// A string field of a body its schema has already accepted: absent, the
-/// schema and this code disagree, which is the gateway's fault.
-/// A JSON body held to its operation's schema (`json_body`), then read as its
-/// type: once it validates, it cannot fail to decode.
-pub async fn typed_body<T: DeserializeOwned>(body: Body, operation: &str) -> Result<T, ApiError> {
-    let value = json_body(body, operation).await?;
+/// A JSON body held to its operation's schema, 400 when it does not match,
+/// then read as its type: once it validates, it cannot fail to decode.
+pub fn conforming<T: DeserializeOwned>(value: Value, operation: &str) -> Result<T, ApiError> {
+    if let Some(problems) = semiont_core::spec::problems(&declared_body(operation)?.schema, &value)
+    {
+        return Err(ApiError::bad_request(problems));
+    }
     serde_json::from_value(value).map_err(|e| ApiError::internal("reading a validated body", e))
+}
+
+/// The JSON body of `operation` (`json_body`), held to its schema and read as its type (`conforming`).
+pub async fn typed_body<T: DeserializeOwned>(body: Body, operation: &str) -> Result<T, ApiError> {
+    conforming(json_body(body, operation).await?, operation)
+}
+
+/// The request's `Idempotency-Key`, as many characters as `length` allows:
+/// 400 when it is missing, is not text, or is shorter or longer.
+pub fn idempotency_key<'a>(
+    headers: &'a HeaderMap,
+    length: &RangeInclusive<usize>,
+) -> Result<&'a str, ApiError> {
+    let Some(value) = headers.get("idempotency-key") else {
+        return Err(ApiError::bad_request(
+            "The request carries no Idempotency-Key",
+        ));
+    };
+    let Ok(key) = value.to_str() else {
+        return Err(ApiError::bad_request(
+            "The Idempotency-Key is not text: only visible ASCII characters",
+        ));
+    };
+    if !length.contains(&key.chars().count()) {
+        return Err(ApiError::bad_request(format!(
+            "The Idempotency-Key must be {} to {} characters",
+            length.start(),
+            length.end()
+        )));
+    }
+    Ok(key)
 }
 
 // ── The bearer credential ────────────────────────────────────────────────

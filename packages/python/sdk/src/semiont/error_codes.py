@@ -99,6 +99,9 @@ type TransportErrorCode = Literal[
     "conflict",
     # The request is malformed.
     "bad-request",
+    # The request is well formed and cannot be carried out as it stands: an `Idempotency-Key`
+    # used for two different requests. Sent again, it is refused again.
+    "unprocessable",
     # A limit refused it; the refusal's `Retry-After` says when to return.
     "rate-limited",
     # The gateway is unreachable, the network failed, or the server answered 5xx.
@@ -113,6 +116,7 @@ TRANSPORT_ERROR_CODES: Final[tuple[TransportErrorCode, ...]] = (
     "not-found",
     "conflict",
     "bad-request",
+    "unprocessable",
     "rate-limited",
     "unavailable",
     "error",
@@ -132,6 +136,8 @@ def transport_error_code_for_status(status: int) -> TransportErrorCode:
             return "conflict"
         case 400:
             return "bad-request"
+        case 422:
+            return "unprocessable"
         case 429:
             return "rate-limited"
         case _:

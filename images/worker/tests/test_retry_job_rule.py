@@ -19,6 +19,7 @@ class Row(BaseModel, frozen=True, extra="forbid", strict=True):
     rule: str
     status: int | None = None
     method: str | None = None
+    keyed: bool = False
     retries: bool
 
 

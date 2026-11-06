@@ -430,6 +430,12 @@ client delivers a frame only if its id is not among the last
   than a refusal's `Retry-After`; any other refusal is final
   ([`protocol/specs/src/retry/cases.json`](../specs/src/retry/cases.json)).
   *Held by `sdk/wire/emit-rate-limited`, `sdk/wire/emit-budget-spent`, `sdk/wire/emit-refused`, `sdk/wire/unreachable`.*
+- An attempt whose answer was lost, its connection closed before the answer
+  reached the client, is made again inside `emitRetry` with the emit's key
+  and the body it was first sent with. The gateway answers it as it answered
+  the first, status and body, so a request whose emit was accepted resolves
+  with its reply however many attempts its emit took.
+  *Held by `sdk/wire/emit-answer-lost`.*
 - An attempt whose credential is refused (a 401, or a 429 `refusal-rate`)
   is neither of those: the token is renewed once and the emit sent again
   with it, outside `emitRetry`

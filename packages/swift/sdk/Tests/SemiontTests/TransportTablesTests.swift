@@ -38,9 +38,14 @@ import Testing
     covered.insert(name)
     let status: Int? = if case .number(let n) = row["status"] { Int(n) } else { nil }
     let method = try row["method"].map { try $0.text }
-    #expect(
-      .bool(rule.retryable(status: status, method: method)) == (try required(row, "retries")),
-      "\(row["why"] ?? .null)")
+    let keyed: Bool =
+      switch row["keyed"] {
+      case nil: false
+      case .bool(let stated): stated
+      default: throw SpecFailure.shape("keyed is not a boolean")
+      }
+    let retries = rule.retryable(status: status, method: method, keyed: keyed)
+    #expect(.bool(retries) == (try required(row, "retries")), "\(row["why"] ?? .null)")
   }
   #expect(covered == Set(RetryContext.allCases.map(\.rawValue)))
   for value in try required(table, "retryAfter").array {

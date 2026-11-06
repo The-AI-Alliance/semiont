@@ -12,12 +12,6 @@ pub struct Content {
     staging: Arc<dyn Staging>,
 }
 
-/// What is at a storage URI: its checksum and its size.
-pub struct Held {
-    pub checksum: String,
-    pub byte_size: u64,
-}
-
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
@@ -64,7 +58,7 @@ impl Content {
     }
 
     /// Put `bytes` at `uri`: to a file beside the target, renamed onto it.
-    pub async fn store(&self, uri: &str, bytes: &[u8]) -> Result<Held, String> {
+    pub async fn store(&self, uri: &str, bytes: &[u8]) -> Result<(), String> {
         let target = self.resolve(uri)?;
         if let Some(parent) = target.parent() {
             tokio::fs::create_dir_all(parent)
@@ -82,20 +76,16 @@ impl Content {
             let _ = tokio::fs::remove_file(&beside).await;
             return Err(format!("cannot write {uri}: {error}"));
         }
-        Ok(Held {
-            checksum: checksum(bytes),
-            byte_size: bytes.len() as u64,
-        })
+        Ok(())
     }
 
-    /// What is at `uri`, read through.
-    async fn held(&self, uri: &str) -> Result<Held, String> {
+    /// The checksum of what is at `uri`, read through.
+    async fn checksum_at(&self, uri: &str) -> Result<String, String> {
         let path = self.resolve(uri)?;
         let mut file = tokio::fs::File::open(&path)
             .await
             .map_err(|e| format!("cannot read {uri}: {e}"))?;
         let mut context = Context::new(&SHA256);
-        let mut byte_size = 0u64;
         let mut buffer = vec![0u8; 64 * 1024];
         loop {
             let read = file
@@ -106,30 +96,26 @@ impl Content {
                 break;
             }
             context.update(&buffer[..read]);
-            byte_size += read as u64;
         }
-        Ok(Held {
-            checksum: hex(context.finish().as_ref()),
-            byte_size,
-        })
+        Ok(hex(context.finish().as_ref()))
     }
 
     /// Take the file already at `uri` into the record: it must be the
-    /// checksum expected, and is then staged.
-    pub async fn register(&self, uri: &str, expected: Option<&str>) -> Result<Held, String> {
-        let held = self.held(uri).await?;
+    /// checksum expected, and is then staged. Answers its checksum.
+    pub async fn register(&self, uri: &str, expected: Option<&str>) -> Result<String, String> {
+        let checksum = self.checksum_at(uri).await?;
         if let Some(expected) = expected
-            && expected != held.checksum
+            && expected != checksum
         {
             let head = |checksum: &str| checksum.chars().take(8).collect::<String>();
             return Err(format!(
                 "Checksum mismatch for {uri}: expected {}... but got {}...\nThe file on disk differs from the recorded checksum. Has it been modified since staging?",
                 head(expected),
-                head(&held.checksum)
+                head(&checksum)
             ));
         }
         self.staging.stage(&self.resolve(uri)?);
-        Ok(held)
+        Ok(checksum)
     }
 
     pub async fn exists(&self, uri: &str) -> Result<bool, String> {

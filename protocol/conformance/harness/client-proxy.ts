@@ -14,8 +14,9 @@
  *   as the client meets them;
  * - it keeps a request waiting (`hold`, `release`), answers one itself with a
  *   refusal a case scripted (`answer`), reads one whole and closes its
- *   connection with no answer (`leaveUnanswered`), and passes a stream on a few
- *   bytes at a time (`rechunk`).
+ *   connection with no answer (`leaveUnanswered`), passes one on and closes its
+ *   connection with none of the gateway's answer written (`loseAnswer`), and
+ *   passes a stream on a few bytes at a time (`rechunk`).
  *
  * Everything else passes through untouched, streams included. The gateway
  * behind it is the real one. `answer` is the one place the proxy speaks for
@@ -57,6 +58,8 @@ export interface ProxiedRequest {
   events: CarriedEvent[];
   /** Whether the exchange is over: answered in full, or its connection ended, by either side. */
   closed: boolean;
+  /** Whether the gateway's answer, which `status` and `answer` record, was kept from the client (`loseAnswer`). */
+  answerLost: boolean;
 }
 
 /** An answer the proxy gives itself, in the gateway's place. */
@@ -93,6 +96,13 @@ export interface ClientProxy {
    * dropped unanswered, as the client meets it.
    */
   leaveUnanswered(match: (r: ProxiedRequest) => boolean, times: number): void;
+  /**
+   * Pass the next `times` requests `match` accepts on, record the gateway's
+   * whole answer to each, and close each one's connection with none of it
+   * written: a request the gateway carried out whose answer the client never
+   * got. Not for a stream, whose answer has no end to wait for.
+   */
+  loseAnswer(match: (r: ProxiedRequest) => boolean, times: number): void;
   /** Pass every stream on `bytes` at a time, each piece written on its own. */
   rechunk(bytes: number): void;
   close(): Promise<void>;
@@ -146,6 +156,7 @@ export async function startClientProxy(gatewayOrigin: string): Promise<ClientPro
   let releases: Array<() => void> = [];
   const scripted: Array<{ match: (r: ProxiedRequest) => boolean; answer: ScriptedAnswer; left: number }> = [];
   const unanswering: Array<{ match: (r: ProxiedRequest) => boolean; left: number }> = [];
+  const losing: Array<{ match: (r: ProxiedRequest) => boolean; left: number }> = [];
   let pieceBytes: number | undefined;
 
   const wake = () => {
@@ -169,15 +180,18 @@ export async function startClientProxy(gatewayOrigin: string): Promise<ClientPro
     }
   };
 
+  /** The request as the client sent it, addressed to the gateway. */
+  const toGateway = (recorded: ProxiedRequest) => ({
+    host: gateway.hostname,
+    port: gateway.port,
+    path: recorded.path,
+    method: recorded.method,
+    headers: { ...recorded.headers, host: gateway.host },
+  });
+
   const forward = (recorded: ProxiedRequest, body: Buffer, res: ServerResponse): void => {
     const upstream = request(
-      {
-        host: gateway.hostname,
-        port: gateway.port,
-        path: recorded.path,
-        method: recorded.method,
-        headers: { ...recorded.headers, host: gateway.host },
-      },
+      toGateway(recorded),
       (answer) => {
         recorded.status = answer.statusCode;
         answeredNow(recorded, answer.headers['retry-after']);
@@ -226,6 +240,30 @@ export async function startClientProxy(gatewayOrigin: string): Promise<ClientPro
     upstream.end(body);
   };
 
+  /** Passes a request on and records the gateway's whole answer before closing the client's connection with none of it written. */
+  const forwardAndLose = (recorded: ProxiedRequest, body: Buffer, res: ServerResponse): void => {
+    const upstream = request(toGateway(recorded), (answer) => {
+      const chunks: Buffer[] = [];
+      answer.on('data', (chunk: Buffer) => chunks.push(chunk));
+      answer.on('error', () => res.destroy());
+      answer.on('end', () => {
+        recorded.status = answer.statusCode;
+        recorded.answerLost = true;
+        answeredNow(recorded, answer.headers['retry-after']);
+        try {
+          recorded.answer = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        } catch {
+          recorded.answer = undefined;
+        }
+        res.destroy();
+        wake();
+      });
+    });
+    upstream.on('error', () => res.destroy());
+    res.on('close', () => upstream.destroy());
+    upstream.end(body);
+  };
+
   const server: Server = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -251,6 +289,7 @@ export async function startClientProxy(gatewayOrigin: string): Promise<ClientPro
         answer: undefined,
         events: [],
         closed: false,
+        answerLost: false,
       };
       requests.push(recorded);
       wake();
@@ -278,6 +317,12 @@ export async function startClientProxy(gatewayOrigin: string): Promise<ClientPro
       if (dropping) {
         dropping.left--;
         res.destroy();
+        return;
+      }
+      const lost = losing.find((l) => l.left > 0 && l.match(recorded));
+      if (lost) {
+        lost.left--;
+        forwardAndLose(recorded, body, res);
         return;
       }
       if (held?.(recorded)) releases.push(() => forward(recorded, body, res));
@@ -345,6 +390,9 @@ export async function startClientProxy(gatewayOrigin: string): Promise<ClientPro
     },
     leaveUnanswered(match, times) {
       unanswering.push({ match, left: times });
+    },
+    loseAnswer(match, times) {
+      losing.push({ match, left: times });
     },
     rechunk(bytes) {
       pieceBytes = bytes;

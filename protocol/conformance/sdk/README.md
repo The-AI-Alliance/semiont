@@ -65,8 +65,9 @@ the client:
   the client is pointed at it instead of the gateway. It records every
   request and every event each stream carried, and can end the client's
   connections, refuse new ones, keep a request waiting, answer one itself
-  with a refusal the case scripted, close one unanswered, and pass a stream
-  on a byte at a time;
+  with a refusal the case scripted, close one unanswered, pass one on and
+  keep the gateway's answer from the client, and pass a stream on a byte at
+  a time;
 - a **participant**: a software agent the suite plays in place of the
   services, which listens for requests and emits what a case tells it to.
 
@@ -236,7 +237,7 @@ Steps run in order, each waiting for what it states:
 | `{"settles": "name", "abandoned": true}` | it ended because it was abandoned, and reported nothing |
 | `{"wire": "POST /bus/emit", ...}` | the client's next request is this operation of the spec, with each of `status`, `params`, `body`, `token`, `headers` (only the headers named), `answer` given |
 | `{"carried": "name", "is": frame}` | the stream a wire step named has carried this frame to the client |
-| `{"closed": "name"}` | the request a wire step named has ended with no answer: the client closed it |
+| `{"closed": "name"}` | the request a wire step named has ended with no answer reaching the client: the client closed it, or the proxy kept the gateway's answer from it (`answer-lost`), which the wire step's `status` and `answer` state |
 | `{"progress": "name"}` | an upload started with `as`, and not yet settled, has reported all of it sent: every report states the same total, none states less than the one before, and the last states the total |
 | `{"state": "open"}` | the transport reaches this state |
 | `{"stays": "open"}` | the transport is in this state and has reported no other since the case last read its state |
@@ -314,6 +315,7 @@ no other.
 | `uploaded` | `resource`, `fields`, `bytes` | the Archivist recorded this upload, for the case's principal |
 | `refuse` | `wire`, `status`, `retryAfter`, `headers` (any other header the refusal declares, such as a 401's `WWW-Authenticate`), `body`, `times` | the proxy answers the next `times` such requests itself, as the spec lets a gateway answer |
 | `unanswered` | `wire`, `times` | the proxy reads the next `times` such requests whole and closes each one's connection with nothing written |
+| `answer-lost` | `wire`, `times` | the proxy passes the next `times` such requests on, records the gateway's answer to each, and closes each one's connection with none of it written |
 | `hold` | `wire` | the proxy keeps such requests waiting |
 | `release` | | held requests go through |
 | `rechunk` | `bytes` | streams reach the client this many bytes at a time |

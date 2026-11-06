@@ -2347,6 +2347,7 @@ dependencies = [
  "opentelemetry",
  "percent-encoding",
  "reqwest",
+ "ring",
  "rustls",
  "semiont",
  "semiont-core",

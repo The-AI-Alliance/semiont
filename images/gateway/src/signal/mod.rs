@@ -18,7 +18,7 @@ use futures::future::BoxFuture;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Routing facts that ride beside a payload, carried verbatim.
 pub type Meta = HashMap<String, String>;
@@ -103,6 +103,15 @@ pub struct IngestReceipt {
     pub observers: Option<usize>,
 }
 
+/// The wall-clock time, in milliseconds since the epoch, that shared tables'
+/// entries are stamped with: every replica reads its own clock.
+pub fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("the host's clock reads after 1970")
+        .as_millis() as u64
+}
+
 /// A table every replica on one fabric shares. An entry lives for the table's
 /// TTL from when it was last written, and is then gone. Keys and values are
 /// opaque strings.
@@ -111,6 +120,15 @@ pub trait SharedTable: Send + Sync {
     fn create(&self, key: String, value: String) -> BoxFuture<'_, Result<bool, String>>;
     /// Set `key` whether or not it is present, its TTL starting again.
     fn put(&self, key: String, value: String) -> BoxFuture<'_, Result<(), String>>;
+    /// Set `key` to `value` only while it holds `expected`, its TTL starting
+    /// again: true once the fabric holds `value`, false when `key` was absent
+    /// or had been written since it held `expected`.
+    fn replace(
+        &self,
+        key: String,
+        expected: String,
+        value: String,
+    ) -> BoxFuture<'_, Result<bool, String>>;
     /// Remove `key`, if present.
     fn delete(&self, key: String) -> BoxFuture<'_, Result<(), String>>;
     /// The authoritative value, if present.

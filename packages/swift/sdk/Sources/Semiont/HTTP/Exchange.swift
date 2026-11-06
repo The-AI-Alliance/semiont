@@ -33,6 +33,34 @@ func within<Value: Sendable>(
   }
 }
 
+/// The one further sending the transport rule allows an HTTP request that is neither the stream
+/// nor an emit, and the wait before it.
+struct OneResend {
+  let method: String
+  let keyed: Bool
+  private var spent: Bool
+  init(method: String, keyed: Bool) {
+    self.method = method
+    self.keyed = keyed
+    spent = false
+  }
+  mutating func after(_ refusal: TransportError) async throws -> Bool {
+    try await take(
+      status: refusal.status, pauseMs: max(Timings.requestRetryPauseMs, refusal.retryAfterMs ?? 0))
+  }
+  /// An attempt that got no answer is asked about as a 503: the gateway may be recovering.
+  mutating func afterNoAnswer() async throws -> Bool {
+    try await take(status: 503, pauseMs: Timings.requestRetryPauseMs)
+  }
+  private mutating func take(status: Int?, pauseMs: Int) async throws -> Bool {
+    guard !spent, RetryContext.transport.retryable(status: status, method: method, keyed: keyed)
+    else { return false }
+    spent = true
+    try await sleepMilliseconds(pauseMs)
+    return true
+  }
+}
+
 extension HttpTransport {
   func owned<Value: Sendable>(
     _ operation: @escaping @Sendable (isolated HttpTransport) async throws -> Value
@@ -75,7 +103,7 @@ extension HttpTransport {
   ) async throws -> Exchange {
     var credential = authenticated ? token : nil
     var renewed = false
-    var retried = false
+    var resend = OneResend(method: method, keyed: false)
     while true {
       try Task.checkCancellation()
       if lifetime.ended { throw CancellationError() }
@@ -107,9 +135,7 @@ extension HttpTransport {
               continue
             }
           }
-        } else if !retried, RetryContext.transport.retryable(status: error.status, method: method) {
-          retried = true
-          try await sleepMilliseconds(max(Timings.requestRetryPauseMs, error.retryAfterMs ?? 0))
+        } else if try await resend.after(error) {
           continue
         }
         throw error
@@ -118,13 +144,7 @@ extension HttpTransport {
         throw error
       } catch {
         if Task.isCancelled || lifetime.ended { throw CancellationError() }
-        if !(error is RequestDeadline), !retried,
-          RetryContext.transport.retryable(status: 503, method: method)
-        {
-          retried = true
-          try await sleepMilliseconds(Timings.requestRetryPauseMs)
-          continue
-        }
+        if !(error is RequestDeadline), try await resend.afterNoAnswer() { continue }
         let failure = TransportError(.unavailable, "\(method) \(path) got no answer: \(error)")
         failureEvents.yield(failure)
         throw failure
@@ -286,7 +306,7 @@ extension HttpTransport {
       }
       if attempts >= timing.emitAttempts
         || (failure.status != nil
-          && !RetryContext.boot.retryable(status: failure.status, method: "POST"))
+          && !RetryContext.boot.retryable(status: failure.status, method: "POST", keyed: true))
       {
         failureEvents.yield(failure)
         throw failure

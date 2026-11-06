@@ -16,6 +16,7 @@ interface RuleCase {
   rule: string;
   status?: number;
   method?: string;
+  keyed?: boolean;
   retries: boolean;
 }
 
@@ -44,7 +45,7 @@ describe('retry — core agrees with the shared table', () => {
 
   it.each(rules)('$rule: $why', (c) => {
     if (!isRuleName(c.rule)) throw new Error(`the table names a rule core does not have: ${c.rule}`);
-    expect(RETRY_RULES[c.rule].retryable({ status: c.status, method: c.method })).toBe(c.retries);
+    expect(RETRY_RULES[c.rule].retryable({ status: c.status, method: c.method, keyed: c.keyed })).toBe(c.retries);
   });
 
   it.each(retryAfter)('Retry-After: $why', (c) => {

@@ -56,15 +56,17 @@ func unanswered(method, path string, deadline time.Duration) *TransportError {
 // one refused, on any method; it is never retried. Any other request is made
 // a second time when that is worth it and safe (RetryRuleTransport): a status
 // that promises recovery, or no answer at all, on a method that cannot cause a
-// second effect. A failure is reported on the error stream as it is returned;
-// a request its caller abandoned reports nothing.
+// second effect or a request that carries an Idempotency-Key, with the same
+// key and a body made afresh. A failure is reported on the error stream as it
+// is returned; a request its caller abandoned reports nothing.
 //
 // An attempt whose answer has not begun by the deadline fails as one that got
 // no answer, and is not made again: the gateway has the request, and may yet
 // act on it.
 func (s *transportShared) exchange(ctx context.Context, spec request) (answered, error) {
 	unavailable := http.StatusServiceUnavailable
-	repeatable := RetryRuleTransport.Retryable(RetryFacts{Status: &unavailable, Method: &spec.method})
+	keyed := spec.idempotencyKey != ""
+	repeatable := RetryRuleTransport.Retryable(RetryFacts{Status: &unavailable, Method: &spec.method, Keyed: keyed})
 	token := s.token.Value()
 	retried, renewed := false, false
 	for {
@@ -151,7 +153,7 @@ func (s *transportShared) exchange(ctx context.Context, spec request) (answered,
 					continue
 				}
 			}
-		} else if status := response.StatusCode; !retried && RetryRuleTransport.Retryable(RetryFacts{Status: &status, Method: &spec.method}) {
+		} else if status := response.StatusCode; !retried && RetryRuleTransport.Retryable(RetryFacts{Status: &status, Method: &spec.method, Keyed: keyed}) {
 			retried = true
 			if !pause(ctx, max(s.timing.RequestRetryPause, wait)) {
 				return answered{}, ctx.Err()

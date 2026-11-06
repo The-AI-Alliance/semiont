@@ -33,7 +33,12 @@ class RetryCasesTest {
             val named = row.getValue("rule").jsonPrimitive.content
             if (named in notThisSdks) return@dynamicTest
             val rule = RETRY_RULES[named] ?: error("the table names the rule $named, which this SDK neither keeps nor says why not")
-            val facts = RetryFacts(status = row["status"]?.jsonPrimitive?.int, method = row["method"]?.jsonPrimitive?.content)
+            val facts = RetryFacts(
+                status = row["status"]?.jsonPrimitive?.int,
+                method = row["method"]?.jsonPrimitive?.content,
+                // The table's `$comment`: a row that omits `keyed` states a request with no key.
+                keyed = "keyed" in row && row.getValue("keyed").jsonPrimitive.content.toBooleanStrict(),
+            )
             assertEquals(row.getValue("retries").jsonPrimitive.content.toBooleanStrict(), rule.retryable(facts))
         }
     }
@@ -61,7 +66,7 @@ class RetryCasesTest {
     fun aFailureWorthAnotherAttemptIsTriedAgainUntilTheAttemptsAreSpent() = runBlocking {
         var made = 0
         val error = assertThrows(TransportError::class.java) {
-            runBlocking { retryWithBackoff(quick, { BOOT.retryable(RetryFacts(status = it.status())) }) { made += 1; throw refused(503) } }
+            runBlocking { retryWithBackoff(quick, { BOOT.retryable(RetryFacts(status = it.status(), keyed = false)) }) { made += 1; throw refused(503) } }
         }
         assertEquals(503, error.status)
         assertEquals(3, made)
@@ -71,7 +76,7 @@ class RetryCasesTest {
     fun aFailureNotWorthAnotherAttemptIsThrownAtOnce() = runBlocking {
         var made = 0
         assertThrows(TransportError::class.java) {
-            runBlocking { retryWithBackoff(quick, { BOOT.retryable(RetryFacts(status = it.status())) }) { made += 1; throw refused(400) } }
+            runBlocking { retryWithBackoff(quick, { BOOT.retryable(RetryFacts(status = it.status(), keyed = false)) }) { made += 1; throw refused(400) } }
         }
         assertEquals(1, made)
     }
@@ -79,7 +84,7 @@ class RetryCasesTest {
     @Test
     fun anAttemptThatSucceedsIsTheAnswer() = runBlocking {
         var made = 0
-        val answer = retryWithBackoff(quick, { BOOT.retryable(RetryFacts(status = it.status())) }) {
+        val answer = retryWithBackoff(quick, { BOOT.retryable(RetryFacts(status = it.status(), keyed = false)) }) {
             made += 1
             if (made < 3) throw refused(429)
             "third time"

@@ -20,7 +20,7 @@ use semiont::channels::{
 };
 use semiont::errors::TransportError;
 use semiont::transport::{Envelope, Frame, Frames};
-use semiont_archivist_record::Object;
+use semiont_archivist_record::{Object, ids};
 use semiont_observability::logging;
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -139,10 +139,10 @@ async fn handle(archivist: &Archivist, channel: &str, payload: &Object) -> Optio
         });
     }
     let answered = match channel {
-        YieldCreate::NAME => commands::yield_create(archivist, payload).await,
+        YieldCreate::NAME => commands::yield_create(archivist, payload, &ids::mint()).await,
         YieldClonePersist::NAME => commands::yield_clone_persist(archivist, payload).await,
         YieldUpdate::NAME => commands::yield_update(archivist, payload).await,
-        YieldCloneCreate::NAME => commands::clone_create(archivist, payload).await,
+        YieldCloneCreate::NAME => commands::clone_create(archivist, payload, &ids::mint()).await,
         YieldCloneTokenRequested::NAME => commands::clone_token(archivist, payload).await,
         YieldCloneResourceRequested::NAME => commands::clone_resource(archivist, payload).await,
         MarkCreateRequest::NAME => commands::mark_create_request(archivist, payload).await,
