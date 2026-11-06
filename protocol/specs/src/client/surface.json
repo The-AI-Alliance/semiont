@@ -1297,8 +1297,8 @@
     {
       "module": "retry",
       "docs": "Doing work again by a backoff, until it succeeds, it fails as nothing can mend, or the attempts run out.",
-      "notYetReached": {"csharp": "C# is still to implement the retry module."},
       "where": {
+        "csharp": ["packages/csharp/sdk/src/Semiont/Http"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Transport/Retry.swift"
         ],
@@ -1328,10 +1328,8 @@
     {
       "module": "hostName",
       "docs": "Whether a host is one a knowledge base's HTTP endpoint may name. Held by protocol/specs/src/session/gateway-url-cases.json.",
-      "notYetReached": {
-        "csharp": "C# is still to implement the hostName module."
-      },
       "where": {
+        "csharp": ["packages/csharp/sdk/src/Semiont/Session"],
         "typescript": [
           "packages/typescript/sdk/src/session/storage.ts"
         ],
@@ -1459,8 +1457,8 @@
     {
       "module": "bus",
       "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps.",
-      "notYetReached": {"csharp": "C# is still to implement the bus module."},
       "where": {
+        "csharp": ["packages/csharp/sdk/src/Semiont"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Bus/Bus.swift"
         ],
@@ -2217,7 +2215,8 @@
           "BeginAuthorizationAsync": ["TimeProvider"],
           "CompleteAuthorizationAsync": ["TimeProvider"],
           "DescribeConnectionAsync": ["TimeProvider"],
-          "LivenessSpec": ["TimeProvider"]
+          "LivenessSpec": ["TimeProvider"],
+          "RetryWithBackoffAsync": ["TimeProvider"]
         }
       },
       "notYetReached": {
@@ -2346,7 +2345,8 @@
           "ScriptedSessions": ["Random"],
           "BeginAuthorizationAsync": ["Random"],
           "CompleteAuthorizationAsync": ["Random"],
-          "DescribeConnectionAsync": ["Random"]
+          "DescribeConnectionAsync": ["Random"],
+          "RetryWithBackoffAsync": ["Random"]
         }
       },
       "notYetReached": {
