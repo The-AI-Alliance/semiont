@@ -10,10 +10,11 @@ import Testing
 @testable import Semiont
 
 // What a client keeps of one person, against protocol/specs/src/session/persisted-cases.json: the
-// keys it keeps them under (`keys`), what a registry's sign-out deletes (`signOut`), what a session
-// of a registry reads, records and restores from its start (`startup`), and what it still writes
-// once another context changes its stored sign-in (`crossTab`). The sessions of `startup` and
-// `crossTab` are the registry's own, made by HttpSessionFactory over a gateway in this process.
+// keys it keeps them under (`keys`), what forgetting a stored sign-in deletes, however it is
+// forgotten (`forget`), what a session of a registry reads, records and restores from its start
+// (`startup`), and what it still writes once another context changes its stored sign-in
+// (`crossTab`). The sessions of `forget`'s expiry and refusal, of `startup` and of `crossTab` are
+// the registry's own, made by HttpSessionFactory over a gateway and an issuer in this process.
 
 private func casesTable() throws -> [String: JSONValue] {
   try Spec.read("session/persisted-cases.json").object
@@ -66,13 +67,27 @@ private func namedIn(_ row: [String: JSONValue], jo: String) throws -> String? {
   }
 }
 
-private func signIn(personKey: String?, tokens: String = "kept") throws -> HeldSignIn {
+/// The issuer of a sign-in that is never renewed: nothing is asked there.
+private let unaskedIssuer = "http://issuer.test/token"
+
+/// An access token of `tokens` that expired an hour ago when `expired`, and expires in an hour
+/// otherwise.
+private func accessToken(_ tokens: String, expired: Bool) throws -> String {
+  try jwt(
+    .object([
+      "exp": .number(Date().timeIntervalSince1970 + (expired ? -3600 : 3600)),
+      "name": .string(tokens),
+    ]))
+}
+
+/// A sign-in naming `personKey`, whose tokens are `tokens`' and are renewed at `tokenEndpoint`.
+private func signIn(
+  personKey: String?, tokens: String = "kept", expired: Bool, tokenEndpoint: String
+) throws -> HeldSignIn {
   HeldSignIn(
-    access: try jwt(
-      .object([
-        "exp": .number(Date().timeIntervalSince1970 + 3600), "name": .string(tokens),
-      ])), clientId: scriptClientID, personKey: personKey, refresh: tokens + "-refresh",
-    tokenEndpoint: "http://issuer.test/token")
+    access: try accessToken(tokens, expired: expired), clientId: scriptClientID,
+    personKey: personKey,
+    refresh: tokens + "-refresh", tokenEndpoint: tokenEndpoint)
 }
 
 private let kbDomain = "kb.example.org"
@@ -171,7 +186,7 @@ private final class Observed<Value: Sendable>: Sendable {
   }
 }
 
-// ── signOut ─────────────────────────────────────────────────────────────
+// ── forget ──────────────────────────────────────────────────────────────
 
 /// A registry's sessions whose closing writes `document` under `key`, as a client closing with a
 /// save pending could.
@@ -207,11 +222,12 @@ private final class ClosingWrites: SessionFactory {
   func revoke(_ session: HeldSignIn) async { await scripted.revoke(session) }
 }
 
-@Test func aRegistrysSignOutDeletesWhatTheCaseTableSays() async throws {
+@Test func forgettingAStoredSignInDeletesWhatTheCaseTableSays() async throws {
   let table = try casesTable()
-  let seeded = try required(table, "signOutStorage").object.mapValues { try $0.text }
+  let seeded = try required(table, "forgetStorage").object.mapValues { try $0.text }
   let jo = try personKeyOf(table, "jo")
   let joOnA = try keysOf(table, kbId: "kb-a", personKey: jo)
+  let user = try JSONEncoder().encode(required(table, "whoAmI"))
   let closingAt = JSONValue.number(1_700_000_000_001)
   let closingValue = try encoded(resource(ResourceId("res-1"), named: "closing"))
   let closing = try JSONEncoder().encode(
@@ -221,9 +237,10 @@ private final class ClosingWrites: SessionFactory {
     ]))
   let closingDocument = String(decoding: closing, as: UTF8.self)
   let closingKey = try joOnA.query("resource")
-  for value in try required(table, "signOut").array {
+  for value in try required(table, "forget").array {
     let row = try value.object
     let why = try required(row, "why").text
+    let by = try required(row, "by").text
     let open = try required(row, "open") == .bool(true)
     let removed: Set<String>
     switch try required(row, "removes").text {
@@ -231,42 +248,90 @@ private final class ClosingWrites: SessionFactory {
     case "nothing": removed = []
     case let other: throw SpecFailure.shape("removes \(other)")
     }
+    // Whether kb-a has a stored sign-in, and the person it names.
+    let stored = try required(row, "signedIn") != .string("none")
+    let named = try stored ? namedIn(row, jo: jo) : nil
     let storage = MemorySessionStorage()
     for (key, text) in seeded { storage.set(key, text) }
-    try saveKnowledgeBases(
-      storage,
-      knowledgeBases: [knowledgeBase("kb-a", port: 4000), knowledgeBase("kb-b", port: 4001)])
-    storage.set(activeKey, open ? "kb-a" : "kb-b")
-    switch try required(row, "signedIn").text {
-    case "named": try storeSession(storage, kbId: "kb-a", session: signIn(personKey: jo))
-    case "unnamed": try storeSession(storage, kbId: "kb-a", session: signIn(personKey: nil))
-    case "none": break
-    case let other: throw SpecFailure.shape("signedIn \(other)")
-    }
-    let factory = ClosingWrites(storage: storage, key: closingKey, document: closingDocument)
-    let browser = try await newSemiontBrowser(
-      SemiontBrowserConfig(storage: storage, sessionFactory: factory))
-    do {
-      if open {
-        try await withinTestDeadline {
-          for await opened in browser.activeSession where opened?.session.kb.id == "kb-a" { break }
+    switch by {
+    case "signOut", "removal":
+      try saveKnowledgeBases(
+        storage,
+        knowledgeBases: [knowledgeBase("kb-a", port: 4000), knowledgeBase("kb-b", port: 4001)])
+      storage.set(activeKey, open ? "kb-a" : "kb-b")
+      if stored {
+        try storeSession(
+          storage, kbId: "kb-a",
+          session: signIn(personKey: named, expired: false, tokenEndpoint: unaskedIssuer))
+      }
+      let factory = ClosingWrites(storage: storage, key: closingKey, document: closingDocument)
+      let browser = try await newSemiontBrowser(
+        SemiontBrowserConfig(storage: storage, sessionFactory: factory))
+      do {
+        if open {
+          try await withinTestDeadline {
+            for await opened in browser.activeSession where opened?.session.kb.id == "kb-a" {
+              break
+            }
+          }
+        }
+        if by == "signOut" {
+          try await browser.signOut("kb-a")
+        } else {
+          try await browser.removeKb("kb-a")
+        }
+        #expect(factory.closings == (open ? 1 : 0), "\(why): kb-a's client closed")
+      } catch {
+        try? await browser.close()
+        throw error
+      }
+      try await browser.close()
+    case "expiry", "refusal":
+      guard open else { throw SpecFailure.shape("\(why): a session that ends is kb-a's open one") }
+      let expired: Bool
+      switch try required(row, "stored").text {
+      case "expired": expired = true
+      case "unexpired": expired = false
+      case let other: throw SpecFailure.shape("stored \(other)")
+      }
+      let issuer: Issuer =
+        try by == "refusal" ? .renews(access: accessToken("renewed", expired: false)) : .refuses
+      try await overGateway(.refuses, issuer: issuer, user: user) { _, port, http in
+        if stored {
+          try storeSession(
+            storage, kbId: "kb-a",
+            session: signIn(
+              personKey: named, expired: expired, tokenEndpoint: "http://127.0.0.1:\(port)/token"))
+        }
+        let (failures, into) = AsyncStream<any Error>.makeStream()
+        let opened = try await HttpSessionFactory(httpClient: http).session(
+          SessionFactoryOptions(
+            kb: knowledgeBase("kb-a", port: port), storage: storage, signals: SessionSignals(),
+            onError: { into.yield($0) }))
+        defer { opened.dispose() }
+        // Its start ends as the row says: it is ready once it has forgotten the stored sign-in.
+        try await withinTestDeadline { try await opened.session.ready() }
+        opened.dispose()
+        into.finish()
+        var ended: [SessionErrorCode] = []
+        for await failure in failures {
+          if let failure = failure as? SessionError { ended.append(failure.reason) }
+        }
+        #expect(try storedSession(storage, kbId: "kb-a") == nil, "\(why): the sign-in is kept")
+        if by == "refusal" {
+          #expect(ended.contains(.sessionCredentialRefused), "\(why): it ended \(ended)")
         }
       }
-      try await browser.signOut("kb-a")
-      #expect(factory.closings == (open ? 1 : 0), "\(why): kb-a's client closed")
-      for key in removed { #expect(storage.get(key) == nil, "\(why): \(key) is left") }
-      for (key, text) in seeded where !removed.contains(key) {
-        #expect(storage.get(key) == text, "\(why): \(key) changed")
-      }
-    } catch {
-      try? await browser.close()
-      throw error
+    case let other: throw SpecFailure.shape("by \(other)")
     }
-    try await browser.close()
+    for key in removed { #expect(storage.get(key) == nil, "\(why): \(key) is left") }
+    for (key, text) in seeded where !removed.contains(key) {
+      #expect(storage.get(key) == text, "\(why): \(key) changed")
+    }
   }
 }
 
-// ── The gateway of `startup` and `crossTab` ─────────────────────────────
+// ── The gateway and issuer of `forget`, `startup` and `crossTab` ────────
 
 /// What the gateway says to whoever asks who a token is.
 private enum WhoAmI: Sendable {
@@ -276,6 +341,18 @@ private enum WhoAmI: Sendable {
   case holds
   /// It answers that it cannot say.
   case unavailable
+  /// It refuses the token.
+  case refuses
+}
+
+/// What the issuer, at the gateway's `/token`, says to a refresh grant.
+private enum Issuer: Sendable {
+  /// It is never asked.
+  case unasked
+  /// It refuses the grant.
+  case refuses
+  /// It issues the access token `access`.
+  case renews(access: String)
 }
 
 /// What the gateway writes on a connection.
@@ -313,8 +390,8 @@ private enum Answer: Sendable {
 
 /// A gateway in this process. It holds open every stream a client opens and remembers what each
 /// subscribes to; it answers a read of a resource with that resource named `fresh` and a read of
-/// the knowledge base with kb.example.org, on the stream opened last; and it answers who a token
-/// is as `WhoAmI` says, naming `user`.
+/// the knowledge base with kb.example.org, on the stream opened last; it answers who a token is as
+/// `WhoAmI` says, naming `user`; and it answers a refresh grant at `/token` as `Issuer` says.
 private final class PersonGateway: Sendable {
   private struct State: Sendable {
     var whoAmI: WhoAmI
@@ -324,10 +401,12 @@ private final class PersonGateway: Sendable {
     var faults: [String] = []
   }
   private let state: Mutex<State>
+  private let issuer: Issuer
   private let user: Data
 
-  init(whoAmI: WhoAmI, user: Data) {
+  init(whoAmI: WhoAmI, issuer: Issuer, user: Data) {
     state = Mutex(State(whoAmI: whoAmI))
+    self.issuer = issuer
     self.user = user
   }
 
@@ -370,12 +449,32 @@ private final class PersonGateway: Sendable {
         switch state.whoAmI {
         case .names: return .json(200, user)
         case .unavailable: return .json(503, Data(#"{"error":"The gateway cannot say"}"#.utf8))
+        case .refuses: return .json(401, Data(#"{"error":"The token is refused"}"#.utf8))
         case .holds:
           state.waiting.append(respond)
           return nil
         }
       }
       if let answer { respond(answer) }
+    case "/token":
+      switch issuer {
+      case .unasked:
+        fault("asked the issuer")
+        respond(.json(404, Data(#"{"error":"No issuer"}"#.utf8)))
+      case .refuses: respond(.json(400, Data(#"{"error":"invalid_grant"}"#.utf8)))
+      case .renews(let access):
+        do {
+          let issued = try JSONEncoder().encode(
+            JSONValue.object([
+              "access_token": .string(access), "refresh_token": .string("renewed-refresh"),
+              "token_type": .string("Bearer"),
+            ]))
+          respond(.json(200, issued))
+        } catch {
+          fault("an unwritable grant: \(error)")
+          respond(.json(500, Data()))
+        }
+      }
     default:
       fault("asked \(path)")
       respond(.json(404, Data(#"{"error":"No route"}"#.utf8)))
@@ -466,12 +565,13 @@ private final class PersonGatewayHandler: ChannelInboundHandler {
   }
 }
 
-/// `run` with a client of a gateway in this process that answers who a token is as `whoAmI` says.
+/// `run` with a client of a gateway in this process that answers who a token is as `whoAmI` says,
+/// and a refresh grant as `issuer` says.
 private func overGateway(
-  _ whoAmI: WhoAmI, user: Data,
+  _ whoAmI: WhoAmI, issuer: Issuer, user: Data,
   _ run: @Sendable (PersonGateway, _ port: Int, HTTPClient) async throws -> Void
 ) async throws {
-  let gateway = PersonGateway(whoAmI: whoAmI, user: user)
+  let gateway = PersonGateway(whoAmI: whoAmI, issuer: issuer, user: user)
   let server = try await ServerBootstrap(group: MultiThreadedEventLoopGroup.singleton)
     .childChannelInitializer { channel in
       channel.eventLoop.makeCompletedFuture {
@@ -537,8 +637,11 @@ private func overGateway(
     let untouched = row["untouched"] == .bool(true)
     let storage = ListedStorage()
     for (key, text) in seeded { storage.set(key, text) }
-    try storeSession(storage, kbId: "kb-a", session: signIn(personKey: namedIn(row, jo: jo)))
-    try await overGateway(whoAmI, user: user) { gateway, port, http in
+    try storeSession(
+      storage, kbId: "kb-a",
+      session: signIn(
+        personKey: namedIn(row, jo: jo), expired: false, tokenEndpoint: unaskedIssuer))
+    try await overGateway(whoAmI, issuer: .unasked, user: user) { gateway, port, http in
       let opened = try await HttpSessionFactory(httpClient: http).session(
         SessionFactoryOptions(
           kb: knowledgeBase("kb-a", port: port), storage: storage, signals: SessionSignals(),
@@ -605,14 +708,17 @@ private final class ListedStorage: SessionStorage {
     case .null: replacement = nil
     case .object(let stored):
       replacement = try signIn(
-        personKey: optionalText(required(stored, "personKey")), tokens: "another")
+        personKey: optionalText(required(stored, "personKey")), tokens: "another",
+        expired: false, tokenEndpoint: unaskedIssuer)
     default: throw SpecFailure.shape("\(why): stored is a sign-in or null")
     }
-    try await overGateway(.names, user: user) { _, port, http in
+    try await overGateway(.names, issuer: .unasked, user: user) { _, port, http in
       let storage = SharedStorage()
       try saveKnowledgeBases(storage, knowledgeBases: [knowledgeBase("kb-a", port: port)])
       storage.set(activeKey, "kb-a")
-      try storeSession(storage, kbId: "kb-a", session: signIn(personKey: jo))
+      try storeSession(
+        storage, kbId: "kb-a",
+        session: signIn(personKey: jo, expired: false, tokenEndpoint: unaskedIssuer))
       // On a clock that never moves, every save waits for the client's close.
       let browser = try await newSemiontBrowser(
         SemiontBrowserConfig(

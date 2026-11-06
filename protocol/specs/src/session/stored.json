@@ -33,7 +33,7 @@
   },
   "lastEventIdKeyPrefix": {
     "prefix": "semiont.lastEventId.",
-    "docs": "Where a knowledge base's stream was, for one person, is kept under this followed by the knowledge base's id, a dot and the person's key: the unpadded base64url SHA-256 of the UTF-8 of the did the gateway answers for the person's token (components/schemas/UserResponse.json), never the did itself. What is kept is a JSON object from a scope, a resource's id, to the id of the last recorded event delivered on it. It is written only with a write of the caches kept beside it, so it never leads them. Nothing is kept for a token whose person the gateway has not named, and signing out of the knowledge base deletes it.",
+    "docs": "Where a knowledge base's stream was, for one person, is kept under this followed by the knowledge base's id, a dot and the person's key: the unpadded base64url SHA-256 of the UTF-8 of the did the gateway answers for the person's token (components/schemas/UserResponse.json), never the did itself. What is kept is a JSON object from a scope, a resource's id, to the id of the last recorded event delivered on it. It is written only with a write of the caches kept beside it, so it never leads them. Nothing is kept for a token whose person the gateway has not named, and forgetting the knowledge base's stored sign-in, however it is forgotten, deletes it.",
     "example": {
       "kbId": "kb-a",
       "did": "did:web:kb.example.org:users:jo%40example.org",
@@ -42,7 +42,7 @@
   },
   "cacheKeyPrefix": {
     "prefix": "semiont.cache.",
-    "docs": "What a client keeps of a query, for one person, is kept under this followed by the knowledge base's id, a dot, the person's key as `lastEventIdKeyPrefix` makes it, a dot and the query's name. The queries kept are those protocol/specs/src/client/refresh.json marks `persisted`, each under its name there, and each as one JSON document, `{\"version\": 1, \"writtenAt\": …, \"entries\": [[key, value, writtenAt], …]}`: an entry's key as JSON, its value, and when the value was last written, in milliseconds since the Unix epoch (protocol/contract/CACHE-SEMANTICS.md, B17). Nothing is kept for a token whose person the gateway has not named, and signing out of the knowledge base deletes the key of every persisted query.",
+    "docs": "What a client keeps of a query, for one person, is kept under this followed by the knowledge base's id, a dot, the person's key as `lastEventIdKeyPrefix` makes it, a dot and the query's name. The queries kept are those protocol/specs/src/client/refresh.json marks `persisted`, each under its name there, and each as one JSON document, `{\"version\": 1, \"writtenAt\": …, \"entries\": [[key, value, writtenAt], …]}`: an entry's key as JSON, its value, and when the value was last written, in milliseconds since the Unix epoch (protocol/contract/CACHE-SEMANTICS.md, B17). Nothing is kept for a token whose person the gateway has not named, and forgetting the knowledge base's stored sign-in, however it is forgotten, deletes the key of every persisted query.",
     "example": {
       "kbId": "kb-a",
       "did": "did:web:kb.example.org:users:jo%40example.org",
@@ -77,7 +77,7 @@
       },
       "personKey": {
         "type": "string",
-        "description": "Who the gateway said the sign-in's person is, as the key their caches and stream position are kept under (`lastEventIdKeyPrefix`), never the did itself. Written once the gateway names the person, on the sign-in whose token it was asked about; a renewal keeps it, a new sign-in starts without it, and a sign-out reads it to delete what is kept under it. Absent for a sign-in whose gateway has not yet named its person."
+        "description": "Who the gateway said the sign-in's person is, as the key their caches and stream position are kept under (`lastEventIdKeyPrefix`), never the did itself. Written once the gateway names the person, on the sign-in whose token it was asked about; a renewal keeps it, a new sign-in starts without it, and forgetting the sign-in, however it is forgotten, reads it first to delete what is kept under it. Absent for a sign-in whose gateway has not yet named its person."
       }
     },
     "required": ["access", "refresh", "clientId", "tokenEndpoint"]

@@ -1,5 +1,5 @@
 {
-  "$comment": "What a client keeps of one person in a SessionStorage, and when it is read, written and deleted, as every SDK must do it. A client keeps the answers of the queries protocol/specs/src/client/refresh.json marks `persisted`, and where its stream was, under keys that name the knowledge base and the person the gateway said its token is (protocol/specs/src/session/stored.json, `lastEventIdKeyPrefix` and `cacheKeyPrefix`). The person's key is recorded in the stored sign-in (`storedSession`'s `personKey`) once the gateway names them. `people` are the people the parts name, each by a did and the key it makes. `keys`: each row is a knowledge base and a person, and the key of every persisted query, in the order refresh.json lists them, and of the stream's places; a runner fails unless its persisted queries are exactly those, in that order, and it makes every key. `signOut`: what a registry's sign-out of `kb-a` deletes. Before each row, storage holds every key of `signOutStorage`, and `signedIn` says what kb-a's stored sign-in is: `named`, a sign-in whose personKey is jo's; `unnamed`, one with no personKey; `none`, nothing stored. `open` is whether kb-a is active when it is signed out, with its client kept for jo; a runner may stand in for that client a session whose closing writes a value under jo's `resource` key, as a client closing with a save pending could (protocol/contract/CACHE-SEMANTICS.md, B17). `removes` is `person` when the sign-out deletes every key of the person the stored sign-in names on kb-a, the stream's and every persisted query's, whether or not each holds anything, and `nothing` when it deletes none; every other key of `signOutStorage` holds what it held. The sign-out deletes only after the client has closed, so whatever its closing does, no key the row removes holds anything afterwards. `startup`: a session of kb-a made by a registry over storage that holds `startupStorage`, whose gateway answers who the token is as `gateway` says (`names`: jo, with `whoAmI`; `unreachable`: no answer). A read of a resource the gateway is asked for is answered with that resource named `fresh`. `first` is what the client gives for res-2 when it is asked before the gateway has answered who the token is, and `then` what it gives for res-1 when it is asked after, res-1's scope not having been subscribed to before: `kept`, the value `startupStorage` keeps (given at once, then revalidated as B18 says), or `fresh`, the gateway's answer (nothing kept was read). `recorded` is the personKey the stored sign-in holds once the gateway has answered, null for none. `place` is the event id the stream resumes res-1's scope from when it is subscribed to after the gateway has answered, null for none. `untouched`, where a row states it, is whether, when the client has closed, every key of `startupStorage` holds what it held and no other key under either prefix is there. `crossTab`: kb-a is active, its stored sign-in names jo, and its client, kept for jo, holds a value of res-1 it has not yet written; then another context writes kb-a's stored sign-in as `stored` says (null: deleted; otherwise a sign-in with other tokens whose personKey is the one stated, or which has none for null), and the client closes. `saved` is whether jo's `resource` key then holds the value the client held: a session that sees its stored sign-in deleted, or replaced by a sign-in that does not name its person, discards what it has not written, and writes nothing more; a renewal keeps the person, and changes nothing of what is written. Every runner runs all four parts and fails on a difference.",
+  "$comment": "What a client keeps of one person in a SessionStorage, and when it is read, written and deleted, as every SDK must do it. A client keeps the answers of the queries protocol/specs/src/client/refresh.json marks `persisted`, and where its stream was, under keys that name the knowledge base and the person the gateway said its token is (protocol/specs/src/session/stored.json, `lastEventIdKeyPrefix` and `cacheKeyPrefix`). The person's key is recorded in the stored sign-in (`storedSession`'s `personKey`) once the gateway names them. `people` are the people the parts name, each by a did and the key it makes. `keys`: each row is a knowledge base and a person, and the key of every persisted query, in the order refresh.json lists them, and of the stream's places; a runner fails unless its persisted queries are exactly those, in that order, and it makes every key. `forget`: what forgetting kb-a's stored sign-in deletes, whichever way it is forgotten. `by` is the way: `signOut`, the registry signing out of kb-a; `removal`, the registry removing kb-a; `expiry`, kb-a's session renewing its token and the issuer refusing, which forgets the stored sign-in (protocol/specs/src/session/cases.json, `startup`), the token it found being `stored`: `expired`, renewed before the gateway is asked, or `unexpired`, renewed once the gateway refuses it; `refusal`, kb-a's session finding its `unexpired` token refused, the issuer renewing it and the gateway refusing the renewed token too, so that the session ends as `session.credential-refused`. Before each row, storage holds every key of `forgetStorage`, and `signedIn` says what kb-a's stored sign-in is: `named`, a sign-in whose personKey is jo's; `unnamed`, one with no personKey; `none`, nothing stored. `open` is whether kb-a is active when its sign-in is forgotten, its client kept for jo when the sign-in names jo; a session that expires or is refused is kb-a's active one. For `signOut` and `removal` a runner may stand in for that client a session whose closing writes a value under jo's `resource` key, as a client closing with a save pending could (protocol/contract/CACHE-SEMANTICS.md, B17), because the registry closes the client before it deletes. For `expiry` and `refusal` the client is the registry's own, over a gateway and an issuer that answer as the row says: the session ends while its client is open, and that client writes nothing more, as `crossTab` says, so its closing cannot put back what was deleted. `removes` is `person` when forgetting deletes every key of the person the stored sign-in named on kb-a, the stream's and every persisted query's, whether or not each holds anything, and `nothing` when it deletes none; every other key of `forgetStorage` holds what it held. A runner looks once kb-a's client has closed, so whatever its closing does, no key the row removes holds anything then. `startup`: a session of kb-a made by a registry over storage that holds `startupStorage`, whose gateway answers who the token is as `gateway` says (`names`: jo, with `whoAmI`; `unreachable`: no answer). A read of a resource the gateway is asked for is answered with that resource named `fresh`. `first` is what the client gives for res-2 when it is asked before the gateway has answered who the token is, and `then` what it gives for res-1 when it is asked after, res-1's scope not having been subscribed to before: `kept`, the value `startupStorage` keeps (given at once, then revalidated as B18 says), or `fresh`, the gateway's answer (nothing kept was read). `recorded` is the personKey the stored sign-in holds once the gateway has answered, null for none. `place` is the event id the stream resumes res-1's scope from when it is subscribed to after the gateway has answered, null for none. `untouched`, where a row states it, is whether, when the client has closed, every key of `startupStorage` holds what it held and no other key under either prefix is there. `crossTab`: kb-a is active, its stored sign-in names jo, and its client, kept for jo, holds a value of res-1 it has not yet written; then another context writes kb-a's stored sign-in as `stored` says (null: deleted; otherwise a sign-in with other tokens whose personKey is the one stated, or which has none for null), and the client closes. `saved` is whether jo's `resource` key then holds the value the client held: a session that sees its stored sign-in deleted, or replaced by a sign-in that does not name its person, discards what it has not written, and writes nothing more; a renewal keeps the person, and changes nothing of what is written. Every runner runs all four parts and fails on a difference.",
   "runBy": {
     "typescript": [
       "packages/typescript/sdk/src/session/__tests__/persisted-cases.test.ts"
@@ -63,7 +63,7 @@
       }
     }
   ],
-  "signOutStorage": {
+  "forgetStorage": {
     "semiont.cache.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I.resource": "{\"version\":1,\"writtenAt\":1700000000000,\"entries\":[]}",
     "semiont.cache.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I.annotations": "{\"version\":1,\"writtenAt\":1700000000000,\"entries\":[]}",
     "semiont.cache.kb-a.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I.annotation": "{\"version\":1,\"writtenAt\":1700000000000,\"entries\":[]}",
@@ -75,30 +75,80 @@
     "semiont.cache.kb-b.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I.resource": "{\"version\":1,\"writtenAt\":1700000000000,\"entries\":[]}",
     "semiont.lastEventId.kb-b.gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I": "{\"res-1\":\"p-jo-b\"}"
   },
-  "signOut": [
+  "forget": [
     {
       "why": "a knowledge base with no open client: every key of the person its sign-in names goes, and no other person's, nor theirs on another knowledge base",
+      "by": "signOut",
       "signedIn": "named",
       "open": false,
       "removes": "person"
     },
     {
       "why": "an open client is closed before anything is deleted, so nothing of the person is left, whatever its closing writes",
+      "by": "signOut",
       "signedIn": "named",
       "open": true,
       "removes": "person"
     },
     {
       "why": "a sign-in whose gateway never named its person: no key is known to be theirs, so none is deleted",
+      "by": "signOut",
       "signedIn": "unnamed",
       "open": false,
       "removes": "nothing"
     },
     {
       "why": "nothing stored: nothing is deleted",
+      "by": "signOut",
       "signedIn": "none",
       "open": false,
       "removes": "nothing"
+    },
+    {
+      "why": "removing a knowledge base forgets its sign-in, and every key of its person there goes with it",
+      "by": "removal",
+      "signedIn": "named",
+      "open": false,
+      "removes": "person"
+    },
+    {
+      "why": "a knowledge base removed while open: its client is closed before anything is deleted",
+      "by": "removal",
+      "signedIn": "named",
+      "open": true,
+      "removes": "person"
+    },
+    {
+      "why": "an expired token the issuer will not renew is forgotten, and what was kept for its person goes with it",
+      "by": "expiry",
+      "stored": "expired",
+      "signedIn": "named",
+      "open": true,
+      "removes": "person"
+    },
+    {
+      "why": "a token the gateway refuses and the issuer will not renew: the session has expired, and what was kept for its person goes with its sign-in",
+      "by": "expiry",
+      "stored": "unexpired",
+      "signedIn": "named",
+      "open": true,
+      "removes": "person"
+    },
+    {
+      "why": "an expired sign-in whose gateway never named its person: no key is known to be theirs, so none is deleted",
+      "by": "expiry",
+      "stored": "expired",
+      "signedIn": "unnamed",
+      "open": true,
+      "removes": "nothing"
+    },
+    {
+      "why": "a renewed token the gateway refuses ends the session, and what was kept for its person goes with its sign-in",
+      "by": "refusal",
+      "stored": "unexpired",
+      "signedIn": "named",
+      "open": true,
+      "removes": "person"
     }
   ],
   "whoAmI": {
@@ -150,17 +200,23 @@
     },
     {
       "why": "a new sign-in in another context, whose gateway has not named its person: what was not written is discarded",
-      "stored": { "personKey": null },
+      "stored": {
+        "personKey": null
+      },
       "saved": false
     },
     {
       "why": "another person signed in in another context: what was not written is discarded",
-      "stored": { "personKey": "oJXMBS_YgRdGkRGgoRP3a1gD4T1VeD9aCS3GlygJEOM" },
+      "stored": {
+        "personKey": "oJXMBS_YgRdGkRGgoRP3a1gD4T1VeD9aCS3GlygJEOM"
+      },
       "saved": false
     },
     {
       "why": "a renewal in another context keeps the person: what was not written is written as the client closes",
-      "stored": { "personKey": "gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I" },
+      "stored": {
+        "personKey": "gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I"
+      },
       "saved": true
     }
   ]

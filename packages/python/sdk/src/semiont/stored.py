@@ -64,7 +64,8 @@ def kb_of_session_key(key: str) -> str | None:
 # never the did itself. What is kept is a JSON object from a scope, a resource's id, to the id
 # of the last recorded event delivered on it. It is written only with a write of the caches kept
 # beside it, so it never leads them. Nothing is kept for a token whose person the gateway has
-# not named, and signing out of the knowledge base deletes it.
+# not named, and forgetting the knowledge base's stored sign-in, however it is forgotten,
+# deletes it.
 _LAST_EVENT_ID_KEY_PREFIX: Final = "semiont.lastEventId."
 
 
@@ -85,8 +86,8 @@ def last_event_id_key(kb_id: str, person_key: str) -> str:
 # "entries": [[key, value, writtenAt], …]}`: an entry's key as JSON, its value, and when the
 # value was last written, in milliseconds since the Unix epoch
 # (protocol/contract/CACHE-SEMANTICS.md, B17). Nothing is kept for a token whose person the
-# gateway has not named, and signing out of the knowledge base deletes the key of every
-# persisted query.
+# gateway has not named, and forgetting the knowledge base's stored sign-in, however it is
+# forgotten, deletes the key of every persisted query.
 _CACHE_KEY_PREFIX: Final = "semiont.cache."
 
 
@@ -122,6 +123,7 @@ class StoredSession(WireModel, frozen=True):
     # Who the gateway said the sign-in's person is, as the key their caches and stream position
     # are kept under (`lastEventIdKeyPrefix`), never the did itself. Written once the gateway
     # names the person, on the sign-in whose token it was asked about; a renewal keeps it, a new
-    # sign-in starts without it, and a sign-out reads it to delete what is kept under it. Absent
-    # for a sign-in whose gateway has not yet named its person.
+    # sign-in starts without it, and forgetting the sign-in, however it is forgotten, reads it
+    # first to delete what is kept under it. Absent for a sign-in whose gateway has not yet
+    # named its person.
     person_key: Annotated[str | None, Field(alias="personKey")] = None

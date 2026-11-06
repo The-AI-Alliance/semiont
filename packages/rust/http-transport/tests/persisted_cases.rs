@@ -1,11 +1,12 @@
 //! The runner of protocol/specs/src/session/persisted-cases.json: what a
 //! client keeps of one person in a registry's storage, and when it is read,
 //! written and deleted. `keys` against the key functions and the generated
-//! list of persisted queries; `signOut` against a registry; `startup`
-//! against the session the HTTP session factory builds, over a stand-in
-//! gateway that names the person, or nobody, once the test lets it;
-//! `crossTab` against a registry whose stored sign-in another context
-//! deletes or replaces.
+//! list of persisted queries; `forget` against a registry, its sign-out and
+//! its removal over stand-in sessions, its session's expiry and refusal over
+//! a stand-in gateway and issuer; `startup` against the session the HTTP
+//! session factory builds, over a stand-in gateway that names the person, or
+//! nobody, once the test lets it; `crossTab` against a registry whose stored
+//! sign-in another context deletes or replaces.
 
 use axum::Router;
 use axum::body::Body;
@@ -40,6 +41,7 @@ use semiont::types::{
 };
 use semiont_http_transport::session::HttpSessionFactory;
 use serde_json::{Map, Value, json};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc, watch};
@@ -117,11 +119,10 @@ fn the_table_states_only_what_this_runner_reads() {
     let parts = [
         "$comment",
         "runBy",
-        "notYetReached",
         "people",
         "keys",
-        "signOutStorage",
-        "signOut",
+        "forgetStorage",
+        "forget",
         "whoAmI",
         "startupStorage",
         "startup",
@@ -145,7 +146,10 @@ fn the_table_states_only_what_this_runner_reads() {
                 "cacheKeys",
             ],
         ),
-        ("signOut", &["why", "signedIn", "open", "removes"]),
+        (
+            "forget",
+            &["why", "by", "stored", "signedIn", "open", "removes"],
+        ),
         (
             "startup",
             &[
@@ -243,13 +247,14 @@ fn keys() {
 
 // ── A sign-in, and a stand-in gateway ───────────────────────────────────
 
-/// An access token good for an hour: nothing renews it.
-fn jwt(n: u64) -> String {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("after the epoch")
-        .as_secs();
-    let claims = json!({ "n": n, "iat": now, "exp": now + 3600 });
+/// The `n`th access token, which expires at `expires`.
+fn jwt(n: u64, expires: SystemTime) -> String {
+    let seconds = |at: SystemTime| {
+        at.duration_since(UNIX_EPOCH)
+            .expect("after the epoch")
+            .as_secs()
+    };
+    let claims = json!({ "n": n, "iat": seconds(SystemTime::now()), "exp": seconds(expires) });
     format!(
         "{}.{}.sig",
         URL_SAFE_NO_PAD.encode(r#"{"alg":"none"}"#),
@@ -257,12 +262,17 @@ fn jwt(n: u64) -> String {
     )
 }
 
+/// An hour from now: nothing renews a token that expires then.
+fn in_an_hour() -> SystemTime {
+    SystemTime::now() + Duration::from_secs(3600)
+}
+
 /// The `n`th sign-in, naming the person whose key is `person_key`, or
-/// nobody. Its issuer has no revocation endpoint, so a sign-out tells
-/// nobody.
+/// nobody, its token good for an hour. Its issuer has no revocation
+/// endpoint, so a sign-out tells nobody.
 fn sign_in(n: u64, person_key: Option<&str>) -> StoredSession {
     StoredSession {
-        access: jwt(n),
+        access: jwt(n, in_an_hour()),
         refresh: format!("refresh-{n}"),
         client_id: "semiont-browser".to_owned(),
         token_endpoint: "http://127.0.0.1:9/token".to_owned(),
@@ -304,6 +314,8 @@ enum Who {
     Names,
     /// Nobody.
     Unreachable,
+    /// Every token is refused.
+    Refuses,
 }
 
 struct Staged {
@@ -311,6 +323,9 @@ struct Staged {
     who_am_i: Value,
     /// Shut until the test lets the gateway say who a token is.
     who_answers: watch::Sender<bool>,
+    /// Whether the issuer renews a sign-in; it refuses to until the test
+    /// lets it.
+    renews: AtomicBool,
     /// What each stream was opened with.
     subscriptions: Mutex<Vec<Value>>,
     streams: Mutex<Vec<mpsc::UnboundedSender<Bytes>>>,
@@ -351,6 +366,19 @@ async fn me(State(staged): State<Arc<Staged>>) -> Response {
         // An answer that names nobody, and that a client does not ask again
         // for, as it would a 503.
         Who::Unreachable => StatusCode::NOT_FOUND.into_response(),
+        Who::Refuses => StatusCode::UNAUTHORIZED.into_response(),
+    }
+}
+
+/// The issuer's answer to a renewal: a new token, or a refusal.
+async fn token(State(staged): State<Arc<Staged>>) -> Response {
+    if staged.renews.load(Ordering::SeqCst) {
+        json_answer(
+            200,
+            json!({ "access_token": jwt(2, in_an_hour()), "refresh_token": "refresh-2" }),
+        )
+    } else {
+        json_answer(400, json!({ "error": "invalid_grant" }))
     }
 }
 
@@ -432,12 +460,14 @@ impl Gateway {
             who,
             who_am_i,
             who_answers: watch::channel(false).0,
+            renews: AtomicBool::new(false),
             subscriptions: Mutex::default(),
             streams: Mutex::default(),
             opened: watch::channel(0).0,
         });
         let app = Router::new()
             .route("/api/users/me", get(me))
+            .route("/token", post(token))
             .route("/bus/subscribe", post(subscribe))
             .route("/bus/emit", post(emit))
             .with_state(staged.clone());
@@ -462,6 +492,14 @@ impl Gateway {
 
     fn let_who_answer(&self) {
         self.staged.who_answers.send_replace(true);
+    }
+
+    fn let_the_issuer_renew(&self) {
+        self.staged.renews.store(true, Ordering::SeqCst);
+    }
+
+    fn token_endpoint(&self) -> String {
+        format!("http://127.0.0.1:{}/token", self.port)
     }
 
     /// The event id the first stream that held `scope` resumed it from,
@@ -558,7 +596,7 @@ async fn given_as(watcher: &mut Observed<ResourceDescriptor>, said: &str) -> Opt
     }
 }
 
-// ── signOut ─────────────────────────────────────────────────────────────
+// ── forget ──────────────────────────────────────────────────────────────
 
 /// A transport that answers nothing, and whose closing writes under `key`,
 /// as a client closing with a save pending could.
@@ -657,26 +695,19 @@ impl SessionFactory for ClosingSessions {
     }
 }
 
-/// How one row of `signOut` is not what the registry did.
-async fn signed_out(cases: &Value, row: &Value) -> Vec<String> {
-    let jo = person(cases, "jo");
-    let storage = Arc::new(SharedStorage::new());
-    let seeded = object(&cases["signOutStorage"], "signOutStorage");
-    for (key, value) in seeded {
-        storage
-            .set(key, value.as_str().expect("a stored value is text"))
-            .expect("stored");
+/// The registry signs out of kb-a, or removes it (`by`), over stand-in
+/// sessions whose closing writes under jo's `resource` key; kb-a is active
+/// when `open`.
+async fn forgotten_by_the_registry(
+    storage: &Arc<SharedStorage>,
+    by: &str,
+    signed_in: Option<StoredSession>,
+    open: bool,
+    jo: &str,
+) {
+    if let Some(signed_in) = &signed_in {
+        store_session(storage.as_ref(), KB, signed_in).expect("stored");
     }
-    let signed_in = text(row, "signedIn");
-    let named = (signed_in == "named").then(|| jo.clone());
-    match signed_in.as_str() {
-        "named" | "unnamed" => {
-            store_session(storage.as_ref(), KB, &sign_in(1, named.as_deref())).expect("stored");
-        }
-        "none" => {}
-        other => panic!("a row is signed in {other}"),
-    }
-    let open = row["open"].as_bool().expect("open is a boolean");
     // A knowledge base that is not registered has no client to open.
     if open {
         save_knowledge_bases(
@@ -688,15 +719,96 @@ async fn signed_out(cases: &Value, row: &Value) -> Vec<String> {
     let browser = SemiontBrowser::new(SemiontBrowserConfig {
         storage: storage.clone(),
         session_factory: Arc::new(ClosingSessions {
-            key: cache_key(KB, &jo, CacheQuery::Resource),
+            key: cache_key(KB, jo, CacheQuery::Resource),
         }),
     })
     .expect("a browser");
     if open {
         live(&browser).await;
     }
+    match by {
+        "signOut" => browser.sign_out(KB).await.expect("signed out"),
+        "removal" => browser.remove_kb(KB).await.expect("removed"),
+        other => panic!("the registry forgets by {other}"),
+    }
+    browser.close().await.expect("closed");
+}
 
-    browser.sign_out(KB).await.expect("signed out");
+/// kb-a's session, the registry's own over the HTTP session factory, ends
+/// while its client is open: its gateway refuses every token, and its
+/// issuer refuses to renew (`expiry`), or renews (`refusal`), the token
+/// `stored` says. How it is not that the session forgot its stored sign-in.
+async fn forgotten_by_the_session(
+    cases: &Value,
+    storage: &Arc<SharedStorage>,
+    row: &Value,
+    signed_in: StoredSession,
+) -> Option<String> {
+    let gateway = Gateway::start(Who::Refuses, cases["whoAmI"].clone()).await;
+    gateway.let_who_answer();
+    match text(row, "by").as_str() {
+        "expiry" => {}
+        "refusal" => gateway.let_the_issuer_renew(),
+        other => panic!("a session forgets by {other}"),
+    }
+    let expires = match text(row, "stored").as_str() {
+        "expired" => SystemTime::now() - Duration::from_secs(60),
+        "unexpired" => in_an_hour(),
+        other => panic!("a row's stored token is {other}"),
+    };
+    store_session(
+        storage.as_ref(),
+        KB,
+        &StoredSession {
+            access: jwt(1, expires),
+            token_endpoint: gateway.token_endpoint(),
+            ..signed_in
+        },
+    )
+    .expect("stored");
+    save_knowledge_bases(storage.as_ref(), &[gateway.kb()]).expect("stored");
+    let browser = SemiontBrowser::new(SemiontBrowserConfig {
+        storage: storage.clone(),
+        session_factory: Arc::new(HttpSessionFactory::new(gateway.http.clone())),
+    })
+    .expect("a browser");
+    let ended = settled(|| stored_session(storage.as_ref(), KB).is_none()).await;
+    browser.close().await.expect("closed");
+    (!ended).then(|| "the session never forgot its stored sign-in".to_owned())
+}
+
+/// How one row of `forget` is not what forgetting kb-a's stored sign-in
+/// deleted, looked at once kb-a's client has closed.
+async fn forgotten(cases: &Value, row: &Value) -> Vec<String> {
+    let jo = person(cases, "jo");
+    let storage = Arc::new(SharedStorage::new());
+    let seeded = object(&cases["forgetStorage"], "forgetStorage");
+    for (key, value) in seeded {
+        storage
+            .set(key, value.as_str().expect("a stored value is text"))
+            .expect("stored");
+    }
+    let signed_in = text(row, "signedIn");
+    let named = (signed_in == "named").then(|| jo.clone());
+    let stored = match signed_in.as_str() {
+        "named" | "unnamed" => Some(sign_in(1, named.as_deref())),
+        "none" => None,
+        other => panic!("a row is signed in {other}"),
+    };
+    let open = row["open"].as_bool().expect("open is a boolean");
+    let by = text(row, "by");
+
+    let mut wrong = Vec::new();
+    match by.as_str() {
+        "signOut" | "removal" => {
+            forgotten_by_the_registry(&storage, &by, stored, open, &jo).await;
+        }
+        _ => {
+            assert!(open, "a session that ends is kb-a's active one");
+            let stored = stored.expect("a session that ends was signed in");
+            wrong.extend(forgotten_by_the_session(cases, &storage, row, stored).await);
+        }
+    }
 
     let removed = match (text(row, "removes").as_str(), &named) {
         ("person", Some(named)) => keys_of(KB, named),
@@ -704,7 +816,6 @@ async fn signed_out(cases: &Value, row: &Value) -> Vec<String> {
         ("nothing", _) => Vec::new(),
         (other, _) => panic!("a row removes {other}"),
     };
-    let mut wrong = Vec::new();
     for key in &removed {
         if let Some(left) = storage.get(key) {
             wrong.push(format!("{key} still holds {left}"));
@@ -715,18 +826,17 @@ async fn signed_out(cases: &Value, row: &Value) -> Vec<String> {
             wrong.push(format!("{key} holds {:?}, want {value}", storage.get(key)));
         }
     }
-    browser.close().await.expect("closed");
     wrong
 }
 
 #[tokio::test]
-async fn sign_out() {
+async fn forget() {
     let cases = table();
     let mut wrong = Vec::new();
-    for row in rows(&cases, "signOut") {
+    for row in rows(&cases, "forget") {
         let why = text(row, "why");
         wrong.extend(
-            signed_out(&cases, row)
+            forgotten(&cases, row)
                 .await
                 .into_iter()
                 .map(|differs| format!("{why}: {differs}")),

@@ -26,6 +26,7 @@ import semiont.cache.PERSISTED_QUERIES
 import semiont.http.HttpSessionFactory
 import semiont.http.Realm
 import semiont.http.Said
+import semiont.http.issued
 import semiont.http.tokenFor
 import semiont.identifiers.ResourceId
 import semiont.session.OpenedSession
@@ -56,7 +57,7 @@ private fun storedOf(part: String): Map<String, String> = cases.getValue(part).j
 /** The members of each part's rows the runner reads. */
 private val MEMBERS = mapOf(
     "keys" to setOf("why", "kbId", "did", "personKey", "lastEventIdKey", "cacheKeys"),
-    "signOut" to setOf("why", "signedIn", "open", "removes"),
+    "forget" to setOf("why", "by", "stored", "signedIn", "open", "removes"),
     "startup" to setOf("why", "signedIn", "gateway", "first", "then", "recorded", "place", "untouched"),
     "crossTab" to setOf("why", "stored", "saved"),
 )
@@ -70,6 +71,9 @@ private val joOnARow: JsonObject = rows("keys").single { it.text("kbId") == KB_A
 /** Every key of jo's on kb-a: the stream's places and each persisted query's. */
 private val JO_ON_A: Set<String> = setOf(joOnARow.text("lastEventIdKey")) + joOnARow.getValue("cacheKeys").jsonObject.values.map { it.jsonPrimitive.content }
 private val JO_RESOURCE_ON_A: String = joOnARow.getValue("cacheKeys").jsonObject.text("resource")
+
+/** What storage holds before each row of `forget`. */
+private val FORGET_STORAGE: Map<String, String> = storedOf("forgetStorage")
 
 private val whoAmI: JsonObject = cases.getValue("whoAmI").jsonObject
 
@@ -85,6 +89,12 @@ private val UNAVAILABLE = Said(503, buildJsonObject { put("error", "the gateway 
 /** What the client of jo's, standing in for one closing with a save owed, writes as it closes. */
 private const val WRITTEN_CLOSING = """{"version":1,"writtenAt":1700000000001,"entries":[]}"""
 
+/** The gateway's refusal of a token. */
+private val REFUSED = Said(401, buildJsonObject { put("error", "invalid_token") })
+
+/** The issuer's refusal to renew a token. */
+private val NOT_RENEWED = Said(400, buildJsonObject { put("error", "invalid_grant") })
+
 /** A row the runner reads every member of: a member the table gains fails here until the runner reads it. */
 private fun read(row: JsonObject, part: String) {
     val unread = row.keys - MEMBERS.getValue(part)
@@ -99,8 +109,16 @@ private fun Realm.kbA(): KnowledgeBase =
 private fun Realm.signIn(personKey: String?, access: String = tokenFor("access"), refresh: String = "r1"): StoredSession =
     StoredSession(access, refresh, "semiont-browser", "$origin/token", "$origin/revoke", personKey)
 
+/** kb-a's stored sign-in as the row's `signedIn` says, made by `signIn` for the person it names (null for nobody); null when nothing is stored. */
+private fun signInOf(row: JsonObject, signIn: (String?) -> StoredSession): StoredSession? = when (val signedIn = row.text("signedIn")) {
+    "named" -> signIn(JO)
+    "unnamed" -> signIn(null)
+    "none" -> null
+    else -> throw AssertionError("signedIn $signedIn is none the runner knows")
+}
+
 /** The knowledge base behind the realm's gateway: a read of any resource is answered with that resource named `fresh`, and it cannot say what it is. */
-private fun Realm.answersFresh() {
+internal fun Realm.answersFresh() {
     onEmit = { emit ->
         val correlation = emit["correlationId"]?.jsonPrimitive?.content
         val payload = emit["payload"]?.jsonObject
@@ -202,9 +220,9 @@ private class Watching(client: SemiontClient, id: String, scope: CoroutineScope)
 /**
  * What a client keeps of one person, and when it is read, written and deleted
  * (protocol/specs/src/session/persisted-cases.json): the keys of each person,
- * what a registry's sign-out deletes, what a registry's session over HTTP reads
- * and records as it starts, and what it writes once another context has
- * written its knowledge base's sign-in.
+ * what forgetting a saved sign-in deletes, whichever way it is forgotten, what
+ * a registry's session over HTTP reads and records as it starts, and what it
+ * writes once another context has written its knowledge base's sign-in.
  */
 class PersistedCasesTest {
     @TestFactory
@@ -225,8 +243,8 @@ class PersistedCasesTest {
     }
 
     @TestFactory
-    fun aSignOutDeletesWhatTheTableSays(): List<DynamicTest> = rows("signOut").map { row ->
-        DynamicTest.dynamicTest(row.text("why")) { signOut(row) }
+    fun forgettingASignInDeletesWhatTheTableSays(): List<DynamicTest> = rows("forget").map { row ->
+        DynamicTest.dynamicTest(row.text("why")) { forget(row) }
     }
 
     @TestFactory
@@ -239,33 +257,86 @@ class PersistedCasesTest {
         DynamicTest.dynamicTest(row.text("why")) { crossTab(row) }
     }
 
-    /** kb-b is active unless the row has kb-a open: then kb-a's session, standing in for jo's client, writes as it closes. */
-    private fun signOut(row: JsonObject): Unit = runBlocking {
-        read(row, "signOut")
-        val kept = storedOf("signOutStorage")
+    private fun forget(row: JsonObject) {
+        read(row, "forget")
+        when (val by = row.text("by")) {
+            "signOut", "removal" -> forgetByTheRegistry(row, by)
+            "expiry", "refusal" -> forgetAsTheSessionEnds(row, by)
+            else -> throw AssertionError("by $by is none the runner knows")
+        }
+    }
+
+    /**
+     * The registry signs out of kb-a, or removes it. kb-b is active unless the
+     * row has kb-a open: then kb-a's session, standing in for jo's client,
+     * writes as it closes.
+     */
+    private fun forgetByTheRegistry(row: JsonObject, by: String): Unit = runBlocking {
+        assertNull(row["stored"], "a $by row states no token")
         val storage = MemoryStorage()
-        for ((key, value) in kept) storage.set(key, value)
+        for ((key, value) in FORGET_STORAGE) storage.set(key, value)
         saveKnowledgeBases(storage, listOf(kbOfA(), kbOfB()))
         val open = row.getValue("open").jsonPrimitive.boolean
         storage.set(ACTIVE_KEY, if (open) KB_A else KB_B)
-        when (val signedIn = row.text("signedIn")) {
-            "named" -> storeSession(storage, KB_A, tokens("r").copy(personKey = JO))
-            "unnamed" -> storeSession(storage, KB_A, tokens("r"))
-            "none" -> Unit
-            else -> throw AssertionError("signedIn $signedIn is none the runner knows")
-        }
+        signInOf(row) { person -> tokens("r").copy(personKey = person) }?.let { storeSession(storage, KB_A, it) }
         val scripted = ScriptedSessions().also { it.saysWho(wireJson.decodeFromJsonElement(UserResponse.serializer(), whoAmI)) }
         SemiontBrowser(SemiontBrowserConfig(storage, ClosingWrites(scripted, storage))).use { browser ->
             if (open) assertEquals(KB_A, live(browser).kb.id)
-            browser.signOut(KB_A)
-            val removed = when (val removes = row.text("removes")) {
-                "person" -> JO_ON_A
-                "nothing" -> emptySet()
-                else -> throw AssertionError("removes $removes is none the runner knows")
+            when (by) {
+                "signOut" -> browser.signOut(KB_A)
+                "removal" -> browser.removeKb(KB_A)
             }
-            for (key in removed) assertNull(storage.get(key), key)
-            for ((key, value) in kept) if (key !in removed) assertEquals(value, storage.get(key), key)
         }
+        forgotten(row, storage)
+    }
+
+    /**
+     * kb-a's session, the registry's own over HTTP, finds the token the row
+     * says, and its gateway and issuer answer so that it ends: the issuer
+     * refusing to renew the token (`expiry`), or the gateway refusing the token
+     * the issuer renewed (`refusal`). It ends as it starts, so the registry
+     * shows it once its sign-in is forgotten.
+     */
+    private fun forgetAsTheSessionEnds(row: JsonObject, by: String): Unit = runBlocking {
+        assertTrue(row.getValue("open").jsonPrimitive.boolean, "a session that ends is kb-a's active one")
+        Realm().use { realm ->
+            val access = when (val stored = row.text("stored")) {
+                // Renewed before the gateway is asked.
+                "expired" -> tokenFor("access", -10)
+                // Renewed once the gateway refuses it.
+                "unexpired" -> tokenFor("access").also { realm.script(WHO, REFUSED) }
+                else -> throw AssertionError("stored $stored is none the runner knows")
+            }
+            when (by) {
+                "expiry" -> realm.script("/token", NOT_RENEWED)
+                "refusal" -> {
+                    realm.script("/token", issued(tokenFor("renewed"), "r2"))
+                    realm.script(WHO, REFUSED)
+                }
+            }
+            val storage = MemoryStorage()
+            for ((key, value) in FORGET_STORAGE) storage.set(key, value)
+            saveKnowledgeBases(storage, listOf(realm.kbA()))
+            storage.set(ACTIVE_KEY, KB_A)
+            val signIn = checkNotNull(signInOf(row) { person -> realm.signIn(person, access) }) { "a session over nothing stored has no sign-in to forget" }
+            storeSession(storage, KB_A, signIn)
+            SemiontBrowser(SemiontBrowserConfig(storage, HttpSessionFactory())).use { browser ->
+                live(browser)
+                assertNull(storedSession(storage, KB_A), "kb-a's session ended without forgetting its sign-in")
+            }
+            forgotten(row, storage)
+        }
+    }
+
+    /** Once kb-a's client has closed: what the row removes holds nothing, and every other key of `forgetStorage` holds what it held. */
+    private fun forgotten(row: JsonObject, storage: SessionStorage) {
+        val removed = when (val removes = row.text("removes")) {
+            "person" -> JO_ON_A
+            "nothing" -> emptySet()
+            else -> throw AssertionError("removes $removes is none the runner knows")
+        }
+        for (key in removed) assertNull(storage.get(key), key)
+        for ((key, value) in FORGET_STORAGE) if (key !in removed) assertEquals(value, storage.get(key), key)
     }
 
     /**

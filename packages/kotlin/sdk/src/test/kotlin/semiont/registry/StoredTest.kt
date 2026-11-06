@@ -110,6 +110,18 @@ class StoredTest {
     }
 
     @Test
+    fun clearingAStoredSessionDeletesWhatWasKeptForThePersonItNamedAndNoOtherPersons() {
+        val storage = MemoryStorage()
+        val keptForJo = listOf(cacheKey(KB_A, "the key of jo", "resource"), lastEventIdKey(KB_A, "the key of jo"))
+        val keptForAnn = cacheKey(KB_A, "the key of ann", "resource")
+        for (key in keptForJo + keptForAnn) storage.set(key, "{}")
+        storeSession(storage, KB_A, tokens("r").copy(personKey = "the key of jo"))
+        clearStoredSession(storage, KB_A)
+        for (key in keptForJo) assertNull(storage.get(key), key)
+        assertEquals("{}", storage.get(keptForAnn))
+    }
+
+    @Test
     fun aRenewalIsKeptAgainstWhatIsStoredThen() = runBlocking {
         val storage = MemoryStorage()
         val kept = keptIn(storage, KB_A)

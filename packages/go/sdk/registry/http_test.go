@@ -41,6 +41,8 @@ type stage struct {
 	// answerWho, when it is not nil, holds each answer of who a token is
 	// until it is closed.
 	answerWho chan struct{}
+	// refusesWho is the tokens the gateway refuses to say who they are.
+	refusesWho map[string]bool
 	// grants is the tokens the token endpoint grants next, one each.
 	grants [][2]string
 	// tokenForms and revokeForms are every form those endpoints were sent.
@@ -59,6 +61,7 @@ func newStage(t *testing.T) *stage {
 	s := &stage{
 		describes:       description("KB A", "example.org:kb-a", "main"),
 		who:             json.RawMessage(`{"did":"did:web:example.org:users:alice","email":"alice@example.org","domain":"example.org","name":"Alice","image":null}`),
+		refusesWho:      map[string]bool{},
 		refusedOnTheBus: map[string]bool{},
 	}
 	s.issuer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -102,8 +105,12 @@ func newStage(t *testing.T) *stage {
 		case "/api/users/me":
 			s.mu.Lock()
 			s.askedWho = append(s.askedWho, token)
-			who, held := s.who, s.answerWho
+			who, held, refused := s.who, s.answerWho, s.refusesWho[token]
 			s.mu.Unlock()
+			if refused {
+				answerJSON(w, http.StatusUnauthorized, map[string]any{"error": "Invalid token"})
+				return
+			}
 			if held != nil {
 				select {
 				case <-held:

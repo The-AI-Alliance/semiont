@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Semiont.Errors;
 using Semiont.Identifiers;
 using Semiont.Registry;
 using Semiont.State;
@@ -14,6 +15,8 @@ namespace Semiont.Tests;
 // HttpSessionFactory's, which opens once its start has asked who the token is: a gateway that names the
 // person only after the client is first asked leaves the start's ask unanswered and names them on the ask a
 // renewal makes, and every startup row runs again with the start's ask answered, where nothing is asked before.
+// For the same reason a token found `expired` is forgotten by the start's refused renewal, before the factory
+// makes the client; an `unexpired` one is refused once the client is open and holds a value it has not written.
 public sealed partial class TransportTests
 {
     private const string PersistedCases = "session/persisted-cases.json";
@@ -44,13 +47,13 @@ public sealed partial class TransportTests
     }
 
     [Fact]
-    public async Task SigningOutDeletesWhatIsKeptForThePersonItsSignInNames()
+    public async Task ForgettingASignInDeletesWhatIsKeptForThePersonItNames()
     {
         using var table = ReadSpec(PersistedCases);
         var root = table.RootElement;
-        var rows = root.GetProperty("signOut").EnumerateArray().ToArray();
+        var rows = root.GetProperty("forget").EnumerateArray().ToArray();
         Assert.NotEmpty(rows);
-        foreach (var row in rows) await SignOutCaseAsync(root, row);
+        foreach (var row in rows) await ForgetCaseAsync(root, row);
     }
 
     [Fact]
@@ -107,28 +110,23 @@ public sealed partial class TransportTests
         }
     }
 
-    private static async Task SignOutCaseAsync(JsonElement root, JsonElement row)
+    private static async Task ForgetCaseAsync(JsonElement root, JsonElement row)
     {
-        var why = Text(row, "why");
+        var by = Text(row, "by");
+        var why = by + ": " + Text(row, "why");
         var jo = Text(root.GetProperty("people").GetProperty("jo"), "personKey");
         var joKeys = PersonKeysRow(root, CaseKb, jo);
-        var seeded = root.GetProperty("signOutStorage").EnumerateObject()
+        var seeded = root.GetProperty("forgetStorage").EnumerateObject()
             .ToDictionary(entry => entry.Name, entry => entry.Value.GetString() ?? throw new InvalidOperationException("Nothing kept under " + entry.Name));
         string[] removed = Text(row, "removes") switch
         {
             "person" => [Text(joKeys, "lastEventIdKey"), .. joKeys.GetProperty("cacheKeys").EnumerateObject()
                 .Select(key => key.Value.GetString() ?? throw new InvalidOperationException("No key for " + key.Name))],
             "nothing" => [],
-            var stated => throw new InvalidOperationException(why + ": a sign-out removes no " + stated),
+            var stated => throw new InvalidOperationException(why + ": forgetting removes no " + stated),
         };
-        var open = row.GetProperty("open").GetBoolean();
         var storage = new ExternallyWritableStorage();
         foreach (var (key, value) in seeded) storage.Set(key, value);
-        var signingOut = RegistryKb(CaseKb, "kb-a.test");
-        var standing = RegistryKb("kb-b", "kb-b.test");
-        RegistryStorage.SaveKnowledgeBases(storage, [signingOut, standing]);
-        var active = open ? signingOut : standing;
-        storage.Set(RegistryStorage.ActiveKey, active.Id);
         var signedIn = Text(row, "signedIn") switch
         {
             "named" => RegistryTokens() with { PersonKey = jo },
@@ -136,17 +134,86 @@ public sealed partial class TransportTests
             "none" => null,
             var stated => throw new InvalidOperationException(why + ": no sign-in is " + stated),
         };
-        if (signedIn is not null) RegistryStorage.StoreSession(storage, signingOut.Id, signedIn);
-        var joResource = Text(joKeys.GetProperty("cacheKeys"), "resource");
-        var factory = new RegistryFactory((options, _) => Task.FromResult(OpenRegistrySession(options.Kb,
-            onClose: options.Kb.Id == signingOut.Id ? () => storage.Set(joResource, """{"version":1,"writtenAt":1700000000001,"entries":[]}""") : null)));
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await using var browser = new SemiontBrowser(new SemiontBrowserConfig(storage, factory));
-        await browser.SetActiveKbAsync(active.Id, deadline.Token);
-        Assert.True(browser.State.ActiveSession is not null, why + ": " + active.Id + " is open");
-        await browser.SignOutAsync(signingOut.Id, deadline.Token);
+        switch (by)
+        {
+            case "signOut" or "removal":
+                await RegistryForgetsAsync(storage, signedIn, row, Text(joKeys.GetProperty("cacheKeys"), "resource"), why, deadline.Token);
+                break;
+            case "expiry" or "refusal":
+                await SessionForgetsAsync(root, storage, signedIn ?? throw new InvalidOperationException(why + ": a session needs a sign-in"),
+                    row, why, deadline.Token);
+                break;
+            default: throw new InvalidOperationException(why + ": no sign-in is forgotten by " + by);
+        }
         foreach (var (key, value) in seeded)
             Assert.True(storage.Get(key) == (removed.Contains(key) ? null : value), why + ": " + key + " holds " + (storage.Get(key) ?? "nothing"));
+    }
+
+    private static async Task RegistryForgetsAsync(ExternallyWritableStorage storage, StoredSession? signedIn, JsonElement row,
+        string joResource, string why, CancellationToken cancellation)
+    {
+        var open = row.GetProperty("open").GetBoolean();
+        var signingOut = RegistryKb(CaseKb, "kb-a.test");
+        var standing = RegistryKb("kb-b", "kb-b.test");
+        RegistryStorage.SaveKnowledgeBases(storage, [signingOut, standing]);
+        var active = open ? signingOut : standing;
+        storage.Set(RegistryStorage.ActiveKey, active.Id);
+        if (signedIn is not null) RegistryStorage.StoreSession(storage, signingOut.Id, signedIn);
+        var factory = new RegistryFactory((options, _) => Task.FromResult(OpenRegistrySession(options.Kb,
+            onClose: options.Kb.Id == signingOut.Id ? () => storage.Set(joResource, """{"version":1,"writtenAt":1700000000001,"entries":[]}""") : null)));
+        await using var browser = new SemiontBrowser(new SemiontBrowserConfig(storage, factory));
+        await browser.SetActiveKbAsync(active.Id, cancellation);
+        Assert.True(browser.State.ActiveSession is not null, why + ": " + active.Id + " is open");
+        await (Text(row, "by") == "signOut" ? browser.SignOutAsync(signingOut.Id, cancellation) : browser.RemoveKbAsync(signingOut.Id, cancellation));
+    }
+
+    private static async Task SessionForgetsAsync(JsonElement root, ExternallyWritableStorage storage, StoredSession signedIn, JsonElement row,
+        string why, CancellationToken cancellation)
+    {
+        Assert.True(row.GetProperty("open").GetBoolean(), why + ": a session that ends is the open one");
+        var by = Text(row, "by");
+        var clock = new TestClock();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        var stored = Text(row, "stored");
+        var access = TokenTests.Jwt(new
+        {
+            exp = stored switch
+            {
+                "expired" => now - 60,
+                "unexpired" => now + 3600,
+                var stated => throw new InvalidOperationException(why + ": no token is " + stated),
+            },
+        });
+        RegistryStorage.StoreSession(storage, CaseKb, signedIn with { Access = access });
+        var renewed = TokenTests.Jwt(new { exp = now + 7200 });
+        using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), renewed);
+        gateway.Name(true);
+        if (by == "expiry") gateway.RefuseRenewal();
+        using var signals = new SessionSignals();
+        var opened = await new HttpSessionFactory(gateway.Http, clock)
+            .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals, _ => { }), cancellation);
+        try
+        {
+            if (stored == "unexpired")
+            {
+                // The debounce never fires on this clock, so the value waits for the client's close to be written.
+                Assert.Equal("fresh", (await opened.Client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(cancellation)).Name);
+                gateway.Refuse(access);
+                gateway.Refuse(renewed);
+                await Assert.ThrowsAsync<TransportError>(() => opened.Client.Transport.GetStatusAsync(cancellation));
+                Assert.True(await EndedAsync(signals, cancellation) == (by == "refusal" ? "refused" : "expired"), why + ": how the session ended");
+            }
+            Assert.True(RegistryStorage.StoredSession(storage, CaseKb) is null, why + ": the session forgot its sign-in");
+        }
+        finally { await opened.DisposeAsync(); }
+    }
+
+    private static async Task<string> EndedAsync(SessionSignals signals, CancellationToken cancellation)
+    {
+        await foreach (var ended in signals.SessionEnded.WithCancellation(cancellation))
+            if (ended is { Reason: var reason }) return reason;
+        throw new InvalidOperationException("The session's signals closed before it ended.");
     }
 
     private static async Task StartupCaseAsync(JsonElement root, JsonElement row, bool namedLate)
@@ -262,7 +329,8 @@ public sealed partial class TransportTests
     {
         private const string Status = """{"status":"ready","message":"ready","version":"1","features":{"semanticContent":"ready","collaboration":"ready"}}""";
         private volatile bool names;
-        private volatile string? refused;
+        private volatile bool renewalRefused;
+        private volatile string[] refused = [];
 
         internal PersonGateway(string whoAmI, string renewed)
         {
@@ -274,11 +342,12 @@ public sealed partial class TransportTests
             };
             Server.Other = (request, _) => request.RequestUri?.AbsolutePath switch
             {
-                "/api/users/me" => names ? Answered(HttpStatusCode.OK, whoAmI)
+                "/api/users/me" => Refused(request) ? Answered(HttpStatusCode.Unauthorized, "{}")
+                    : names ? Answered(HttpStatusCode.OK, whoAmI)
                     : Task.FromException<HttpResponseMessage>(new HttpRequestException("The gateway is unreachable.")),
-                "/api/status" => request.Headers.Authorization?.Parameter == refused
-                    ? Answered(HttpStatusCode.Unauthorized, "{}") : Answered(HttpStatusCode.OK, Status),
-                "/token" => Answered(HttpStatusCode.OK, JsonSerializer.Serialize(new { access_token = renewed, refresh_token = "renewed refresh" })),
+                "/api/status" => Refused(request) ? Answered(HttpStatusCode.Unauthorized, "{}") : Answered(HttpStatusCode.OK, Status),
+                "/token" => renewalRefused ? Answered(HttpStatusCode.BadRequest, """{"error":"invalid_grant"}""")
+                    : Answered(HttpStatusCode.OK, JsonSerializer.Serialize(new { access_token = renewed, refresh_token = "renewed refresh" })),
                 var path => throw new InvalidOperationException("Unexpected request to " + path),
             };
             Http = new HttpClient(Server);
@@ -287,7 +356,11 @@ public sealed partial class TransportTests
         internal Handler Server { get; } = new();
         internal HttpClient Http { get; }
         internal void Name(bool answer) => names = answer;
-        internal void Refuse(string token) => refused = token;
+        internal void Refuse(string token) => refused = [.. refused, token];
+        internal void RefuseRenewal() => renewalRefused = true;
+
+        private bool Refused(HttpRequestMessage request) =>
+            request.Headers.Authorization?.Parameter is { } bearer && refused.Contains(bearer);
 
         private static Task<HttpResponseMessage> Answered(HttpStatusCode status, string body) =>
             Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(body) });

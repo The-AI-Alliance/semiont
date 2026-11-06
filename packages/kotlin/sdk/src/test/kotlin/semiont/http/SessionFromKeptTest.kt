@@ -18,8 +18,12 @@ import semiont.cache.CacheState
 import semiont.errors.SessionError
 import semiont.errors.SessionErrorCode
 import semiont.identifiers.ResourceId
+import semiont.registry.StoredSession
+import semiont.registry.answersFresh
 import semiont.registry.cacheKey
+import semiont.registry.keptIn
 import semiont.registry.personKey
+import semiont.registry.storeSession
 import semiont.signin.HeldSignIn
 import semiont.signin.MemorySignIn
 import semiont.signin.SCRIPT_CLIENT_ID
@@ -116,6 +120,25 @@ class SessionFromKeptTest {
                 val shown = withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-1")).first() }
                 assertEquals("kept", (shown as? CacheState.Ready)?.value?.name, "$shown")
             }
+        }
+    }
+
+    @Test
+    fun aSessionOverTheRegistrysKeptSignInPutsNothingBackOnceItIsForgotten() = runBlocking {
+        Realm().use { realm ->
+            realm.answersFresh()
+            realm.script("/api/users/me", Said(200, alice))
+            val storage = MemoryStorage()
+            storeSession(storage, "local", StoredSession(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, ALICE_KEY))
+            val kept = keptIn(storage, "local")
+            sessionFromKept(kb(realm), kept, storage = storage).use { opened ->
+                val shown = withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-1")).first { it is CacheState.Ready } }
+                assertEquals("fresh", (shown as? CacheState.Ready)?.value?.name, "$shown")
+                // What the client holds of res-1 is written after a pause, and nothing here waits: its close owes it.
+                assertNull(storage.get(KEPT_FOR_ALICE.first), "the client wrote res-1 before its sign-in was forgotten")
+                kept.forget()
+            }
+            assertNull(storage.get(KEPT_FOR_ALICE.first))
         }
     }
 

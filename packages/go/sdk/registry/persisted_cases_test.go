@@ -28,6 +28,17 @@ type person struct {
 	PersonKey string `json:"personKey"`
 }
 
+type forgetRow struct {
+	Why string `json:"why"`
+	By  string `json:"by"`
+	// Stored is the token kb-a's session found, for a row whose session
+	// forgets the sign-in; "" for the registry's.
+	Stored   string `json:"stored"`
+	SignedIn string `json:"signedIn"`
+	Open     bool   `json:"open"`
+	Removes  string `json:"removes"`
+}
+
 type persistedCases struct {
 	Comment string              `json:"$comment"`
 	RunBy   map[string][]string `json:"runBy"`
@@ -41,13 +52,8 @@ type persistedCases struct {
 		// CacheKeys is read in its order, which is the refresh table's.
 		CacheKeys json.RawMessage `json:"cacheKeys"`
 	} `json:"keys"`
-	SignOutStorage map[string]string `json:"signOutStorage"`
-	SignOut        []struct {
-		Why      string `json:"why"`
-		SignedIn string `json:"signedIn"`
-		Open     bool   `json:"open"`
-		Removes  string `json:"removes"`
-	} `json:"signOut"`
+	ForgetStorage  map[string]string `json:"forgetStorage"`
+	Forget         []forgetRow       `json:"forget"`
 	WhoAmI         json.RawMessage   `json:"whoAmI"`
 	StartupStorage map[string]string `json:"startupStorage"`
 	Startup        []struct {
@@ -79,7 +85,7 @@ func readPersistedCases(t *testing.T) persistedCases {
 	decoder.DisallowUnknownFields()
 	var table persistedCases
 	must(t, decoder.Decode(&table))
-	if len(table.People) == 0 || len(table.Keys) == 0 || len(table.SignOut) == 0 || len(table.Startup) == 0 || len(table.CrossTab) == 0 {
+	if len(table.People) == 0 || len(table.Keys) == 0 || len(table.Forget) == 0 || len(table.Startup) == 0 || len(table.CrossTab) == 0 {
 		t.Fatal("a part of the persisted cases has no rows")
 	}
 	return table
@@ -174,7 +180,7 @@ func personOf(t *testing.T, table persistedCases, name string) person {
 func TestThePersistedCases(t *testing.T) {
 	table := readPersistedCases(t)
 	t.Run("keys", func(t *testing.T) { runPersistedKeys(t, table) })
-	t.Run("signOut", func(t *testing.T) { runPersistedSignOut(t, table) })
+	t.Run("forget", func(t *testing.T) { runPersistedForget(t, table) })
 	t.Run("startup", func(t *testing.T) { runPersistedStartup(t, table) })
 	t.Run("crossTab", func(t *testing.T) { runPersistedCrossTab(t, table) })
 }
@@ -230,65 +236,147 @@ func (c closingWrites) Session(ctx context.Context, options registry.SessionFact
 	}, nil
 }
 
-func runPersistedSignOut(t *testing.T, table persistedCases) {
+func runPersistedForget(t *testing.T, table persistedCases) {
 	jo := personOf(t, table, "jo").PersonKey
-	for _, row := range table.SignOut {
+	for _, row := range table.Forget {
 		t.Run(row.Why, func(t *testing.T) {
-			bubble(t, func(t *testing.T, w *world) {
-				for key, value := range table.SignOutStorage {
-					must(t, w.storage.Set(key, value))
-				}
-				must(t, registry.SaveKnowledgeBases(w.storage, []api.KnowledgeBase{kbOfA(), kbOfB()}))
-				must(t, registry.StoreSession(w.storage, kbB, tokens("r-b")))
-				switch row.SignedIn {
-				case "named":
-					must(t, registry.StoreSession(w.storage, kbA, naming(tokens("r-a"), jo)))
-				case "unnamed":
-					must(t, registry.StoreSession(w.storage, kbA, tokens("r-a")))
-				case "none":
-				default:
-					t.Fatalf("signedIn %q is none this runner knows", row.SignedIn)
-				}
-				active := kbB
-				if row.Open {
-					active = kbA
-				}
-				must(t, w.storage.Set(registry.ActiveKey, active))
-				factory := closingWrites{ScriptedSessions: w.factory.sessions, key: keyOf(t, table, kbA, jo, "resource"), value: `{"version":1,"writtenAt":1700000000001,"entries":[]}`}
-				browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: factory})
-				must(t, err)
-				closedAtTheEnd(t, browser)
-				if live(t, browser).Kb().Id != active {
-					t.Fatalf("the live session is not %s's", active)
-				}
-
-				must(t, browser.SignOut(kbA))
-
-				removed := map[string]bool{}
-				switch row.Removes {
-				case "person":
-					for _, key := range keysOf(t, table, kbA, jo) {
-						removed[key] = true
-					}
-				case "nothing":
-				default:
-					t.Fatalf("removes %q is none this runner knows", row.Removes)
-				}
-				for key := range removed {
-					if _, has := w.storage.Get(key); has {
-						t.Errorf("%s holds something after the sign-out", key)
-					}
-				}
-				for key, value := range table.SignOutStorage {
-					if removed[key] {
-						continue
-					}
-					if stored, has := w.storage.Get(key); !has || stored != value {
-						t.Errorf("%s holds %q after the sign-out; it held %q", key, stored, value)
-					}
-				}
-			})
+			switch row.By {
+			case "signOut", "removal":
+				forgottenByTheRegistry(t, table, row, jo)
+			case "expiry", "refusal":
+				forgottenByTheSession(t, table, row, jo)
+			default:
+				t.Fatalf("by %q is none this runner knows", row.By)
+			}
 		})
+	}
+}
+
+// forgottenByTheRegistry signs out of kb-a, or removes it, with kb-b active
+// unless kb-a is open, over scripted sessions whose kb-a session writes under
+// jo's resource key as it closes.
+func forgottenByTheRegistry(t *testing.T, table persistedCases, row forgetRow, jo string) {
+	bubble(t, func(t *testing.T, w *world) {
+		for key, value := range table.ForgetStorage {
+			must(t, w.storage.Set(key, value))
+		}
+		must(t, registry.SaveKnowledgeBases(w.storage, []api.KnowledgeBase{kbOfA(), kbOfB()}))
+		must(t, registry.StoreSession(w.storage, kbB, tokens("r-b")))
+		switch row.SignedIn {
+		case "named":
+			must(t, registry.StoreSession(w.storage, kbA, naming(tokens("r-a"), jo)))
+		case "unnamed":
+			must(t, registry.StoreSession(w.storage, kbA, tokens("r-a")))
+		case "none":
+		default:
+			t.Fatalf("signedIn %q is none this runner knows", row.SignedIn)
+		}
+		active := kbB
+		if row.Open {
+			active = kbA
+		}
+		must(t, w.storage.Set(registry.ActiveKey, active))
+		factory := closingWrites{ScriptedSessions: w.factory.sessions, key: keyOf(t, table, kbA, jo, "resource"), value: `{"version":1,"writtenAt":1700000000001,"entries":[]}`}
+		browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: factory})
+		must(t, err)
+		closedAtTheEnd(t, browser)
+		if live(t, browser).Kb().Id != active {
+			t.Fatalf("the live session is not %s's", active)
+		}
+
+		if row.By == "signOut" {
+			must(t, browser.SignOut(kbA))
+		} else {
+			must(t, browser.RemoveKb(kbA))
+		}
+		leftAsTheRowSays(t, table, row, w.storage, jo)
+	})
+}
+
+// forgottenByTheSession has kb-a's session, the registry's own over the stage,
+// find its token refused, as the row's `by` and `stored` say: the issuer
+// grants nothing, so a renewal is refused, except that a refusal's renewal is
+// granted and the gateway refuses the renewed token too.
+func forgottenByTheSession(t *testing.T, table persistedCases, row forgetRow, jo string) {
+	if !row.Open {
+		t.Fatalf("a session that is not open ends by no %s", row.By)
+	}
+	s := newStage(t)
+	storage := semiont.NewMemoryStorage()
+	for key, value := range table.ForgetStorage {
+		must(t, storage.Set(key, value))
+	}
+	must(t, registry.SaveKnowledgeBases(storage, []api.KnowledgeBase{s.registered(t, kbA)}))
+	var access string
+	switch row.Stored {
+	case "expired":
+		access = jwt(-time.Minute)
+	case "unexpired":
+		access = jwt(time.Hour)
+	default:
+		t.Fatalf("stored %q is none this runner knows", row.Stored)
+	}
+	signIn := s.stored(access, "r1")
+	switch row.SignedIn {
+	case "named":
+		signIn = naming(signIn, jo)
+	case "unnamed":
+	default:
+		t.Fatalf("signedIn %q is none this runner knows", row.SignedIn)
+	}
+	must(t, registry.StoreSession(storage, kbA, signIn))
+	s.mu.Lock()
+	s.who = table.WhoAmI
+	if row.Stored == "unexpired" {
+		s.refusesWho[access] = true
+	}
+	if row.By == "refusal" {
+		renewed := jwt(2 * time.Hour)
+		s.grants = append(s.grants, [2]string{renewed, "r2"})
+		s.refusesWho[renewed] = true
+	}
+	s.mu.Unlock()
+
+	browser := s.browser(t, storage)
+	// A session is handed to the registry once its start is done, and the
+	// start is what forgets the sign-in.
+	liveOver(t, browser)
+	if _, saved := registry.StoredSessionOf(storage, kbA); saved {
+		t.Fatal("kb-a's sign-in is still saved")
+	}
+	if err := browser.Close(); err != nil {
+		t.Errorf("closing the registry: %v", err)
+	}
+	leftAsTheRowSays(t, table, row, storage, jo)
+}
+
+// leftAsTheRowSays holds storage, once kb-a's client has closed, to the row's
+// `removes`: jo's keys on kb-a gone, or none, and every other key of
+// `forgetStorage` holding what it held.
+func leftAsTheRowSays(t *testing.T, table persistedCases, row forgetRow, storage semiont.SessionStorage, jo string) {
+	t.Helper()
+	removed := map[string]bool{}
+	switch row.Removes {
+	case "person":
+		for _, key := range keysOf(t, table, kbA, jo) {
+			removed[key] = true
+		}
+	case "nothing":
+	default:
+		t.Fatalf("removes %q is none this runner knows", row.Removes)
+	}
+	for key := range removed {
+		if _, has := storage.Get(key); has {
+			t.Errorf("%s holds something once the sign-in is forgotten", key)
+		}
+	}
+	for key, value := range table.ForgetStorage {
+		if removed[key] {
+			continue
+		}
+		if stored, has := storage.Get(key); !has || stored != value {
+			t.Errorf("%s holds %q once the sign-in is forgotten; it held %q", key, stored, value)
+		}
 	}
 }
 

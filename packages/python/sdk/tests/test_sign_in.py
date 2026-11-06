@@ -57,6 +57,7 @@ from semiont.identifiers import ResourceId, UserId
 from semiont.identity import agent_did
 from semiont.operations import BROWSE_RESOURCE_REQUESTED, MARK_DELETE
 from semiont.refresh import PERSISTED_QUERIES
+from semiont.registry import kept_in
 from semiont.session import HeldSignIn, MemorySignIn, SessionEndReason, SignInKept
 from semiont.sign_in_store import FILE_NAME, SignInStore
 from semiont.storage import MemoryStorage
@@ -1413,6 +1414,52 @@ def test_a_session_that_never_asks_who_its_token_is_keeps_nothing_and_names_nobo
             unnamed = await kept.held()
             assert unnamed is not None
             assert unnamed.person_key is None
+            for key in (last_event_id_key("kb", ALICE_KEY), *(cache_key("kb", ALICE_KEY, query) for query in PERSISTED_QUERIES)):
+                assert storage.get(key) is None, key
+
+    run(scenario())
+
+
+def test_a_session_over_a_registrys_kept_sign_in_puts_back_nothing_that_forgetting_it_deleted() -> None:
+    async def scenario() -> None:
+        storage = MemoryStorage()
+        kept_resources = cache_key("kb", ALICE_KEY, "resource")
+
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+
+            def answering(emit: JsonObject) -> None:
+                payload = emit.get("payload")
+                if emit["channel"] == "browse:resource-requested" and isinstance(payload, dict):
+                    described: JsonObject = {
+                        "@context": "https://schema.org",
+                        "@id": payload["resourceId"],
+                        "name": "A resource",
+                        "representations": [],
+                    }
+                    answer: JsonObject = {"response": {"resource": described, "lastSequence": 1}}
+                    gateway.send(None, {"channel": "browse:resource-result", "payload": answer, "correlationId": emit["correlationId"]})
+
+            gateway.on_emit = answering
+            # The sign-in a registry keeps, in its storage: a script's session over the same storage is a registry's.
+            kept = kept_in(storage, "kb")
+            await kept.keep(held(gateway, access(1)))
+
+            async with session_from_kept(gateway.target("kb"), kept=kept, storage=storage) as session:
+                client = session.client
+                await soon(reached(client.transport.state, lambda state: state == "open"))
+                await soon(client.browse.resource(ResourceId("res-1")).fresh())
+                await pass_time(0.2, step=0.01)
+                assert storage.get(kept_resources) is not None
+                await soon(client.browse.resource(ResourceId("res-2")).fresh())
+                # Held, and not yet written.
+                assert not client.persistence_settled
+
+                # As a session whose sign-in expired or was refused forgets it.
+                await kept.forget()
+                assert storage.get(kept_resources) is None
+
+            # Its client closed owing a write, and wrote nothing.
             for key in (last_event_id_key("kb", ALICE_KEY), *(cache_key("kb", ALICE_KEY, query) for query in PERSISTED_QUERIES)):
                 assert storage.get(key) is None, key
 

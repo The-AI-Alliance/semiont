@@ -19,7 +19,7 @@ import { createHttpSessionFactory } from '../http-session-factory';
 import { createSessionSignals } from '../session-signals';
 import type { SemiontSessionError } from '../errors';
 import { cacheKey, getStoredSession, personKey, sessionKey } from '../storage';
-import { fakeGateway } from './fake-gateway';
+import { fakeGateway, renews } from './fake-gateway';
 import { freshJwt, seedStoredSession, SharedStorage, TestStorage, testSession, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
 
 const KB = {
@@ -215,6 +215,7 @@ describe('a session over HTTP whose gateway names its person only after it has s
         if (!reachable) throw new TypeError('fetch failed');
         return Response.json(ALICE);
       },
+      issuer: renews,
       resourceName: 'fresh',
     });
 
