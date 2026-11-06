@@ -199,28 +199,37 @@ client-credentials grant, kept until shortly before it expires:
 | `GET /resources/{id}/anchored-text` | `GET /resources/{id}/anchored-text`, streamed back unread |
 | `POST /bus/subscribe` with a watermark | `GET /events/{resourceId}?fromSequence=N`, held to `ArchivistEventsResponse`, an answer at a time until the stream's `lastSequence` |
 
-The gateway waits for the Archivist as the Archivist's document states
-(its `x-semiont-limits`): `connectSeconds` for a connection, and `readSeconds`
-for each part of an answer — for the answer to begin once its request is sent
-whole, and for each next part of one that streams. No bound is put on a whole
-answer, nor on sending an upload: an upload's wait begins at its last byte. A
-call whose wait runs out has failed, as one that got no answer has; an answer
-already streaming back to the client when it stops ends that response
-unfinished.
+The gateway waits for the Archivist as the Archivist's document states (its
+`x-semiont-limits`): `connectSeconds` for a connection, and `readSeconds` for
+each part of an answer. A read's answer begins within `connectSeconds` and
+`readSeconds` together of the read's first send, its retry included, and each
+next part of one that streams within `readSeconds` of being asked for. No
+bound is put on a whole answer, nor on sending an upload: an upload's answer
+begins within `readSeconds` of its last byte. A call whose wait runs out has
+failed, as one that got no answer has; an answer already streaming back to the
+client when it stops ends that response unfinished. The waits nest:
+`readSeconds` is longer than the Archivist holds a read of anchored text for
+the Smelter, and `connectSeconds` and `readSeconds` together are shorter than
+a client's `httpRequestTimeoutMs`, so the gateway has answered a read the
+Archivist did not before its client stops waiting. `lint:spec-protocol` holds
+the order.
 
 Reads and uploads go on clients of their own. A read (`GET`) that gets no
-answer — its connection could not be made in `connectSeconds`, or broke or
-closed before a response came back, as a pooled connection the Archivist
-closes just as the read is written to it does — is sent once more, at once:
-reqwest's own retry, on the reads client. A read whose answer did not begin
-within `readSeconds` is not sent again. An answer is never asked again,
-whatever its status, and an upload is never sent again: the uploads client
-retries nothing, and an upload's body is streamed, which cannot be sent twice.
-When a read's second attempt gets no answer either, a content route answers
-503, `Content store unavailable`, as it does an upload that got none, and a
-replay sends the stream a `bus:resume-gap` with reason `query-error` for that
-scope alone. The service account's token is asked of the issuer on another
-client, which retries nothing.
+answer — its connection was refused, or broke or closed before a response came
+back, as a pooled connection the Archivist closes just as the read is written
+to it does — is sent once more, at once: reqwest's own retry, on the reads
+client. A read whose connection was not taken within `connectSeconds` is not
+sent again: the Archivist cannot be reached, and a second attempt would only
+wait as long again. Nor is a read whose answer did not begin in time: that
+wait counts from the first send, the retry inside it. An answer is never asked
+again, whatever its status, and an upload is never sent again: the uploads
+client retries nothing, and an upload's body is streamed, which cannot be sent
+twice. When a read's second attempt gets no answer either, or its answer does
+not begin in time, a content route answers 503, `Content store unavailable`,
+as it does an upload that got none, and a replay sends the stream a
+`bus:resume-gap` with reason `query-error` for that scope alone. The service
+account's token is asked of the issuer on another client, which retries
+nothing.
 
 Everything else the Archivist answers, it answers over the bus the gateway
 relays. The gateway makes no bus request of its own.

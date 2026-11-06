@@ -46,8 +46,10 @@ type Timing struct {
 	// every renewal after it, for as long as the process lives. An upload has no
 	// deadline: how long it takes is how large the resource is. A read of
 	// anchored text may be held by the Archivist while the Smelter reads the
-	// content, for the time protocol/contract/ARCHIVIST.md states, and this
-	// deadline is longer than that wait.
+	// content, and the gateway waits for the Archivist as the Archivist's
+	// document states (protocol/specs/src/archivist/openapi.json): this deadline
+	// is longer than its `connectSeconds` and `readSeconds` together, and the
+	// hold is shorter than `readSeconds`, which `lint:spec-protocol` holds.
 	HttpRequestTimeout time.Duration
 	// RequestRetryPause is requestRetryPauseMs: The wait before an HTTP request
 	// that is neither the stream nor an emit is made a second time. It is made

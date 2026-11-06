@@ -220,6 +220,7 @@ async fn run(
         routes::router(app.clone()),
         app.config.capacity.connections as usize,
         Duration::from_secs(limits().request_head_seconds),
+        Duration::from_secs(limits().idle_connection_seconds),
         || crate::metrics::record_refused("connections"),
         async {
             received = rx.await.unwrap_or("SIGTERM");

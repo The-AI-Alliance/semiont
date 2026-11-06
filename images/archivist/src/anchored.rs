@@ -13,8 +13,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
 
-/// How long a read waits for the Smelter to settle content the store lacks.
-const SETTLE: Duration = Duration::from_secs(15);
 /// How long the last settlement of a resource is remembered.
 const REMEMBERED: Duration = Duration::from_secs(5 * 60);
 
@@ -69,16 +67,16 @@ impl SmeltProgress {
         }
     }
 
-    /// Whether the Smelter has settled this content, waiting for it to if it
-    /// has not. False when the wait runs out.
-    async fn when_settled(&self, resource_id: &str, checksum: &str) -> bool {
-        let wait = {
+    /// Whether the Smelter has settled this content, waiting up to `wait` for
+    /// it to if it has not. False when the wait runs out.
+    async fn when_settled(&self, resource_id: &str, checksum: &str, wait: Duration) -> bool {
+        let told = {
             let settled = locked(&self.settled);
             let held = settled.get(resource_id);
             if held.is_some_and(|h| h.checksum == checksum) {
                 return true;
             }
-            let (tell, wait) = oneshot::channel();
+            let (tell, told) = oneshot::channel();
             let mut waiting = locked(&self.waiting);
             if self.stopping.load(Ordering::SeqCst) {
                 return false;
@@ -88,9 +86,9 @@ impl SmeltProgress {
                 checksum: checksum.to_owned(),
                 tell,
             });
-            wait
+            told
         };
-        matches!(tokio::time::timeout(SETTLE, wait).await, Ok(Ok(())))
+        matches!(tokio::time::timeout(wait, told).await, Ok(Ok(())))
     }
 }
 
@@ -152,8 +150,13 @@ fn absent(kind: &str) -> Object {
 /// Content the Smelter has settled and the store has no entry of is
 /// `not-yet`, however it was settled. Every outcome of deriving a text is
 /// stored, a decline too, so the entry was lost, and the Smelter derives it
-/// again when it next starts.
-pub async fn anchored_text(archivist: &Archivist, resource_id: &str) -> Result<Object, Refusal> {
+/// again when it next starts. Content not yet settled is waited for up to
+/// `settle_wait` (the operation's `x-semiont-limits.settleWaitSeconds`).
+pub async fn anchored_text(
+    archivist: &Archivist,
+    resource_id: &str,
+    settle_wait: Duration,
+) -> Result<Object, Refusal> {
     let view = archivist.held_view(resource_id)?;
     let representation = view.as_ref().and_then(primary_representation);
     let checksum = representation
@@ -173,7 +176,10 @@ pub async fn anchored_text(archivist: &Archivist, resource_id: &str) -> Result<O
     if let Some(entry) = read_entry(dir, checksum).await {
         return Ok(entry);
     }
-    if archivist.smelt.when_settled(resource_id, checksum).await
+    if archivist
+        .smelt
+        .when_settled(resource_id, checksum, settle_wait)
+        .await
         && let Some(entry) = read_entry(dir, checksum).await
     {
         return Ok(entry);
