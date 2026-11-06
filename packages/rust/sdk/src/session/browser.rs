@@ -54,6 +54,7 @@ use crate::locked;
 use crate::resources::primary_media_type;
 use crate::state::{Held, Tasks};
 use crate::storage::{SessionStorage, StorageSubscription};
+use crate::timing::CHECKS_AT_ONCE_COUNT;
 use crate::transport::{Events, STREAM_BACKLOG};
 use crate::types::{
     KbDescription, KbEndpoint, KbRead, KnowledgeBase, NewKnowledgeBase, ResourceId,
@@ -64,10 +65,6 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{broadcast, watch};
 use tokio::task::JoinSet;
-
-/// How many open resources are checked at once when a session comes up: a
-/// connection that has just opened is not handed every check together.
-const CHECKS_AT_ONCE: usize = 4;
 
 pub struct SemiontBrowserConfig {
     /// Where everything the browser keeps is kept.
@@ -1054,7 +1051,7 @@ impl Inner {
         }
         let waiting = Arc::new(Mutex::new(ids));
         let mut lanes = JoinSet::new();
-        for _ in 0..CHECKS_AT_ONCE {
+        for _ in 0..CHECKS_AT_ONCE_COUNT {
             let (waiting, session) = (waiting.clone(), session.clone());
             lanes.spawn(async move {
                 let mut checked = Vec::new();

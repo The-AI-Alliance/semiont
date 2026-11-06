@@ -47,7 +47,7 @@ import qualified Semiont.Identity as Identity
 import qualified Semiont.Internal.Broadcast as Broadcast
 import qualified Semiont.Internal.Lifetime as Lifetime
 import qualified Semiont.Internal.Stored as Kept
-import qualified Semiont.Internal.Generated.RegistryPolicy as Policy
+import qualified Semiont.Timing as Timing
 import qualified Semiont.Internal.Generated.CachePersistence as Persistent
 import qualified Semiont.Internal.Generated.Stored as StoredKeys
 import qualified Semiont.Tokens as Tokens
@@ -453,7 +453,7 @@ validateOpened owner version session=do
             `catchSync` \problem -> pure (openResourceId tab,case fromException problem of
               Just failure | busRequestErrorCode failure==Code.BusRequestNotFound -> TabCheckBranch1 (TabCheckBranch1Value TabCheckBranch1ValueKindGone mempty)
               _ -> TabCheckBranch3 (TabCheckBranch3Value TabCheckBranch3ValueKindUnknown mempty))
-      lanes <- newQSem Policy.checksAtOnce
+      lanes <- newQSem (fromInteger Timing.checksAtOnceCount)
       checks <- Map.fromList <$> mapConcurrently (\tab -> bracket_ (waitQSem lanes) (signalQSem lanes) (checkTab tab)) waiting
       latest <- readTVarIO (revision owner)
       when (latest==version) (changeOpenOf owner (Session.id session) (`applyTabChecks` checks))

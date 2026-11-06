@@ -59,11 +59,6 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
-// checksAtOnce is how many open resources are checked at once when a session
-// comes up: a connection that has just opened is not handed every check
-// together.
-const checksAtOnce = 4
-
 // failuresBacklog is how many failures a reader of Errors that has fallen
 // behind is kept; it misses those after.
 const failuresBacklog = 64
@@ -1058,7 +1053,7 @@ func (b *SemiontBrowser) validateOpenResources(session *semiont.Session) error {
 	var mu sync.Mutex
 	checks := map[api.ResourceId]TabCheck{}
 	var lanes sync.WaitGroup
-	for range checksAtOnce {
+	for range semiont.DefaultTiming().ChecksAtOnceCount {
 		lanes.Go(func() {
 			for id := range ids {
 				check := checkOpenResource(b.alive, session, id)

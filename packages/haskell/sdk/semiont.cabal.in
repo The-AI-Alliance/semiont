@@ -93,7 +93,6 @@ library internal
     Semiont.Registry.Resources
     Semiont.Registry.Factory
     Semiont.Internal.Generated.SessionFactoryOptions
-    Semiont.Internal.Generated.RegistryPolicy
     Semiont.Registry.Identity
     Semiont.State.SessionSignals
     Semiont.State.Beckon

@@ -105,20 +105,11 @@ for value in status.slice.elts:
  assert isinstance(value,ast.Constant) and isinstance(value.value,str)
  statuses.append(value.value)
 assert len(statuses)==len(set(statuses))
-check_lines=[raw.splitlines()[token.start[0]-1] for token in tokens if token.type==tokenize.NAME and token.string=='_CHECKS_AT_ONCE' and token.start[1]==0]
-assert len(check_lines)==1
-checked=ast.parse(check_lines[0]).body[0]
-assert isinstance(checked,ast.AnnAssign) and isinstance(checked.value,ast.Constant) and type(checked.value.value) is int and checked.value.value>0
-print(json.dumps({'signedIn':{'title':'SignedIn','type':'object','properties':properties,'required':required},'statuses':statuses,'checksAtOnce':checked.value.value}))
+print(json.dumps({'signedIn':{'title':'SignedIn','type':'object','properties':properties,'required':required},'statuses':statuses}))
 `;
 const pythonOwned=JSON.parse(execFileSync('python3',['-c',python,resolve(ROOT,'packages/python/sdk/src/semiont/registry.py')],{encoding:'utf8'}));
 schemas.SignedIn=pythonOwned.signedIn;
 schemas.KbSessionStatus={title:'KbSessionStatus',type:'string',enum:pythonOwned.statuses};
-writeOrCheck(ROOT,resolve(ROOT,'packages/haskell/sdk/generated/Semiont/Internal/Generated/RegistryPolicy.hs'),`-- Generated from the Python registry's checked concurrency; do not edit.
-module Semiont.Internal.Generated.RegistryPolicy (checksAtOnce) where
-checksAtOnce :: Int
-checksAtOnce = ${pythonOwned.checksAtOnce}
-`,process.argv.includes('--check'));
 writeOrCheck(ROOT,resolve(ROOT,'packages/haskell/sdk/codegen/registry-adapters.json'),JSON.stringify(schemas,null,2)+'\n',process.argv.includes('--check'));
 
 const notices=load('session-signals.ts');

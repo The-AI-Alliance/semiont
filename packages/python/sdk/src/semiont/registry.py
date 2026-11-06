@@ -77,6 +77,7 @@ from semiont.stored import (
     StoredSession,
     session_key,
 )
+from semiont.timing import CHECKS_AT_ONCE_COUNT
 from semiont.transport import Transport
 from semiont.types import KbDescription, KbEndpoint, KbRead, KnowledgeBase, NewKnowledgeBase
 from semiont.watched import Variable, Watched
@@ -104,9 +105,6 @@ __all__ = [
     "store_session",
     "stored_session",
 ]
-
-_CHECKS_AT_ONCE: Final = 4
-"""How many open resources are checked at once when a session comes up: a connection just opened is not handed every check together."""
 
 _LIST: Final = TypeAdapter[list[JsonValue]](list[JsonValue])
 
@@ -1107,7 +1105,7 @@ class SemiontBrowser:
         waiting = [tab.id for tab in _open_by_kb_of(self._storage.get(OPEN_RESOURCES_BY_KB_KEY)).get(kb_id, [])]
         if not waiting:
             return
-        lanes = asyncio.Semaphore(_CHECKS_AT_ONCE)
+        lanes = asyncio.Semaphore(CHECKS_AT_ONCE_COUNT)
 
         async def checked(resource_id: ResourceId) -> tuple[ResourceId, TabCheck]:
             async with lanes:

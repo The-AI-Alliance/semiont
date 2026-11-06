@@ -25,6 +25,7 @@
 import { BehaviorSubject, Subject, map, type Observable } from 'rxjs';
 import {
   BusRequestError,
+  CHECKS_AT_ONCE_COUNT,
   EventBus,
   FrameRefusal,
   getPrimaryRepresentation,
@@ -713,7 +714,7 @@ export class SemiontBrowser {
     // Bounded concurrency. Tab counts are small, so a fixed lane count
     // beats any cleverer scheduler; the point is to not open N requests at
     // once on a connection that just came up.
-    const lanes = Array.from({ length: Math.min(4, ids.length) }, async () => {
+    const lanes = Array.from({ length: Math.min(CHECKS_AT_ONCE_COUNT, ids.length) }, async () => {
       for (;;) {
         const id = ids.shift();
         if (id === undefined) return;

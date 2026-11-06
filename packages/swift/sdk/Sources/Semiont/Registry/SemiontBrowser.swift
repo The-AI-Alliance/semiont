@@ -549,7 +549,7 @@ public actor SemiontBrowser {
           (resource.id, await checkOpenResource(opened.client, id: resource.id))
         }
       }
-      for _ in 0..<min(4, resources.count) { startNext() }
+      for _ in 0..<min(Timings.checksAtOnceCount, resources.count) { startNext() }
       for await (id, check) in group {
         checks[id] = check
         startNext()
