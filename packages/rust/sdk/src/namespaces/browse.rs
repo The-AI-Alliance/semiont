@@ -173,9 +173,30 @@ pub(super) struct Live {
     pub(super) events: Cache<ResourceId, Vec<AttributedEvent>>,
 }
 
-/// A cache the client's storage keeps under `name`, when it has one: the
-/// small ones a returning client shows at once.
-fn kept<K, V, F, Fut>(persistence: Option<&CachePersistence>, name: &str, fetch: F) -> Cache<K, V>
+/// Where `persistence` keeps the persisted query `query`.
+fn persister<K, V>(
+    persistence: &CachePersistence,
+    query: CacheQuery,
+) -> Arc<dyn CachePersister<K, V>>
+where
+    K: CacheKey + Serialize + DeserializeOwned,
+    V: CacheValue + Serialize + DeserializeOwned,
+{
+    Arc::new(StoragePersister::new(
+        persistence.storage.clone(),
+        cache_key(&persistence.kb_id, &persistence.person_key, query),
+        PERSISTED_VERSION,
+        MAX_STORED_BYTES_COUNT,
+    ))
+}
+
+/// The cache of a persisted query: kept in the client's persistence, when it
+/// was built with one.
+fn kept<K, V, F, Fut>(
+    persistence: Option<&CachePersistence>,
+    query: CacheQuery,
+    fetch: F,
+) -> Cache<K, V>
 where
     K: CacheKey + Serialize + DeserializeOwned,
     V: CacheValue + Serialize + DeserializeOwned,
@@ -184,15 +205,7 @@ where
 {
     match persistence {
         None => Cache::new(fetch),
-        Some(persistence) => {
-            let persister: Arc<dyn CachePersister<K, V>> = Arc::new(StoragePersister::new(
-                persistence.storage.clone(),
-                cache_key(&persistence.key_prefix, name),
-                PERSISTED_VERSION,
-                MAX_STORED_BYTES_COUNT,
-            ));
-            Cache::persisted(fetch, persister, SAVE_DEBOUNCE)
-        }
+        Some(persistence) => Cache::persisted(fetch, persister(persistence, query), SAVE_DEBOUNCE),
     }
 }
 
@@ -214,7 +227,7 @@ impl Live {
         let annotation_of: Arc<Mutex<HashMap<AnnotationId, ResourceId>>> = Arc::default();
         let asking = |links: &Links| links.clone();
 
-        let resource = kept(persistence, "resource", {
+        let resource = kept(persistence, CacheQuery::Resource, {
             let links = asking(links);
             move |resource_id: ResourceId| {
                 let links = links.clone();
@@ -242,14 +255,14 @@ impl Live {
                 }
             }
         });
-        let annotations = kept(persistence, "annotations", {
+        let annotations = kept(persistence, CacheQuery::Annotations, {
             let content = content.clone();
             move |resource_id: ResourceId| {
                 let content = content.clone();
                 async move { Ok(content.get_annotations(&resource_id).await?) }
             }
         });
-        let annotation = kept(persistence, "annotation-detail", {
+        let annotation = kept(persistence, CacheQuery::Annotation, {
             let links = asking(links);
             let annotation_of = annotation_of.clone();
             move |annotation_id: AnnotationId| {
@@ -275,7 +288,7 @@ impl Live {
                 }
             }
         });
-        let entity_types = kept(persistence, "entity-types", {
+        let entity_types = kept(persistence, CacheQuery::EntityTypes, {
             let links = asking(links);
             move |_: String| {
                 let links = links.clone();
@@ -287,7 +300,7 @@ impl Live {
                 }
             }
         });
-        let tag_schemas = kept(persistence, "tag-schemas", {
+        let tag_schemas = kept(persistence, CacheQuery::TagSchemas, {
             let links = asking(links);
             move |_: String| {
                 let links = links.clone();
@@ -398,6 +411,20 @@ impl Live {
                 ))),
             );
         }
+    }
+
+    /// Keep each persisted query's cache in `persistence` from now on.
+    fn attach(&self, persistence: &CachePersistence) {
+        self.resource
+            .attach(persister(persistence, CacheQuery::Resource));
+        self.annotations
+            .attach(persister(persistence, CacheQuery::Annotations));
+        self.annotation
+            .attach(persister(persistence, CacheQuery::Annotation));
+        self.entity_types
+            .attach(persister(persistence, CacheQuery::EntityTypes));
+        self.tag_schemas
+            .attach(persister(persistence, CacheQuery::TagSchemas));
     }
 
     fn dispose(&self) {
@@ -561,6 +588,11 @@ impl BrowseNamespace {
             || live.annotation.persistence_pending()
             || live.entity_types.persistence_pending()
             || live.tag_schemas.persistence_pending())
+    }
+
+    /// See `SemiontClient::attach_persistence`.
+    pub(crate) fn attach_persistence(&self, persistence: &CachePersistence) {
+        self.live.attach(persistence);
     }
 
     /// End the queries: every watcher's stream ends, and what was owed to

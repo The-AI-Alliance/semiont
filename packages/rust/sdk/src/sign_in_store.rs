@@ -323,6 +323,8 @@ fn session_of(sign_in: &SignIn) -> Option<StoredSession> {
         client_id: SCRIPT_CLIENT_ID.to_owned(),
         token_endpoint: sign_in.token_endpoint.clone(),
         revocation_endpoint: sign_in.revocation_endpoint.clone(),
+        // The file keeps no person.
+        person_key: None,
     })
 }
 

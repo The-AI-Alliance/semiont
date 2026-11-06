@@ -44,13 +44,14 @@ use super::open_resource::{OpenResource, TabCheck, apply_tab_checks, sort_open_r
 use super::semiont_session::SemiontSession;
 use super::signals::{KbIdentityConflict, SessionSignals};
 use super::stored::{
-    ACTIVE_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY, OPEN_RESOURCES_BY_KB_KEY, StoredSession,
-    clear_stored_session, is_token_expired, load_knowledge_bases, save_knowledge_bases,
-    store_session, stored_session,
+    ACTIVE_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY, OPEN_RESOURCES_BY_KB_KEY, StoredSession, cache_key,
+    clear_stored_session, is_token_expired, last_event_id_key, load_knowledge_bases,
+    save_knowledge_bases, store_session, stored_session,
 };
 use crate::errors::{BusRequestErrorCode, SemiontError, SessionError, TransportErrorCode};
 use crate::event_bus::EventBus;
 use crate::locked;
+use crate::refresh::CacheQuery;
 use crate::resources::primary_media_type;
 use crate::state::{Held, Tasks};
 use crate::storage::{SessionStorage, StorageSubscription};
@@ -441,13 +442,18 @@ impl SemiontBrowser {
 
     /// Sign out of a knowledge base: forget its tokens, and have the issuer
     /// told so its refresh token is good for nothing. If it is active, its
-    /// session is closed.
+    /// session is closed. Then what its client kept of the person the
+    /// sign-in named goes: every persisted query's key and the stream's,
+    /// deleted once the client has closed, so nothing its closing saves is
+    /// left (protocol/specs/src/session/persisted-cases.json, `signOut`). A
+    /// sign-in that named nobody leaves nothing known to be theirs.
     pub async fn sign_out(&self, id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let inner = &self.inner;
         if inner.closed() {
             return Ok(());
         }
         let stored = stored_session(inner.storage.as_ref(), id);
+        let person_key = stored.as_ref().and_then(|stored| stored.person_key.clone());
         clear_stored_session(inner.storage.as_ref(), id)?;
         if let Some(stored) = stored {
             // The sign-out is the local act: an issuer that cannot be
@@ -464,6 +470,12 @@ impl SemiontBrowser {
             && let Some(ended) = inner.take_session()
         {
             ended.close().await;
+        }
+        if let Some(person_key) = person_key {
+            for query in CacheQuery::PERSISTED {
+                inner.storage.delete(&cache_key(id, &person_key, *query))?;
+            }
+            inner.storage.delete(&last_event_id_key(id, &person_key))?;
         }
         Ok(())
     }

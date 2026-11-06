@@ -59,20 +59,24 @@ impl Default for ClientTiming {
     }
 }
 
-/// Where a client keeps its small caches so the next client for the same
-/// knowledge base shows them at once: a storage, and a prefix for its keys,
-/// which is what tells one knowledge base's from another's.
+/// Where a client keeps the queries protocol/specs/src/client/refresh.json
+/// marks `persisted`, so the next client of the same person on the same
+/// knowledge base shows them at once: a storage, the knowledge base's id and
+/// the person's key (`crate::session::person_key`), under which each query
+/// is kept (`crate::session::cache_key`).
 #[derive(Clone)]
 pub struct CachePersistence {
     pub storage: Arc<dyn SessionStorage>,
-    pub key_prefix: String,
+    pub kb_id: String,
+    pub person_key: String,
 }
 
 /// What a client is built with, beyond what it speaks through.
 #[derive(Clone, Default)]
 pub struct ClientOptions {
     pub timing: ClientTiming,
-    /// Absent, the client's caches live as long as it does.
+    /// Absent, the client's caches live as long as it does, until it is
+    /// given one (`SemiontClient::attach_persistence`).
     pub cache_persistence: Option<CachePersistence>,
 }
 
@@ -243,6 +247,17 @@ impl SemiontClient {
     /// kept only then (`crate::resume`).
     pub fn persistence_settled(&self) -> bool {
         self.browse.persistence_settled()
+    }
+
+    /// Keep the persisted queries in `persistence` from now on, as a client
+    /// built with it would have from its start: what is kept there is taken
+    /// in for every key a cache holds no value for, shown at once and asked
+    /// for again the first time it is observed, and each later change is
+    /// saved there. A cache that is kept somewhere already is left as it is.
+    /// What a session does once the gateway names the person its token is
+    /// (protocol/contract/CACHE-SEMANTICS.md, B17).
+    pub fn attach_persistence(&self, persistence: &CachePersistence) {
+        self.browse.attach_persistence(persistence);
     }
 
     /// Stop. The queries end first, so nothing they had in flight asks

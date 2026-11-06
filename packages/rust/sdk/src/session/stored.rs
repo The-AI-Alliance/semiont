@@ -1,18 +1,25 @@
 //! What a session layer keeps in a `SessionStorage`, and under which keys:
 //! each knowledge base's tokens, the list of registered knowledge bases and
-//! which of them is active, and each one's open resources and last-viewed
-//! resource.
+//! which of them is active, each one's open resources and last-viewed
+//! resource, and what a client keeps of one person: its persisted queries
+//! and where its stream was.
 //!
 //! An entry that does not read as what it should be is not there: a store
 //! written by another release is dropped entry by entry, never half-read.
 
 use super::token_expiry;
+use crate::refresh::CacheQuery;
 use crate::storage::SessionStorage;
 use crate::types::KnowledgeBase;
+use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use ring::digest::{SHA256, digest};
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
 const SESSION_PREFIX: &str = "semiont.session.";
+const LAST_EVENT_ID_PREFIX: &str = "semiont.lastEventId.";
+const CACHE_PREFIX: &str = "semiont.cache.";
 /// The registered knowledge bases.
 pub const KNOWLEDGE_BASES_KEY: &str = "semiont.knowledgeBases";
 /// The id of the active one.
@@ -32,10 +39,22 @@ pub fn kb_of_session_key(key: &str) -> Option<&str> {
     key.strip_prefix(SESSION_PREFIX)
 }
 
-/// The key the query `name` is kept under, by a persistence whose key prefix
-/// is `key_prefix`.
-pub(crate) fn cache_key(key_prefix: &str, name: &str) -> String {
-    format!("semiont.cache.{key_prefix}.{name}")
+/// The key of the person a did names: the unpadded base64url SHA-256 of its
+/// UTF-8. What is kept of a person is kept under this, never under the did.
+pub fn person_key(did: &str) -> String {
+    URL_SAFE_NO_PAD.encode(digest(&SHA256, did.as_bytes()))
+}
+
+/// The key where a knowledge base's stream was is kept under, for the person
+/// whose key is `person_key`.
+pub fn last_event_id_key(kb_id: &str, person_key: &str) -> String {
+    format!("{LAST_EVENT_ID_PREFIX}{kb_id}.{person_key}")
+}
+
+/// The key a persisted query of a knowledge base is kept under, for the
+/// person whose key is `person_key`.
+pub fn cache_key(kb_id: &str, person_key: &str, query: CacheQuery) -> String {
+    format!("{CACHE_PREFIX}{kb_id}.{person_key}.{}", query.name())
 }
 
 /// What is kept of a sign-in: the tokens an issuer issued, the client they
@@ -50,6 +69,11 @@ pub struct StoredSession {
     pub token_endpoint: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revocation_endpoint: Option<String>,
+    /// The key (`person_key`) of the person the gateway said this sign-in's
+    /// token is; none until it has said. A renewal keeps it, and a new
+    /// sign-in names nobody.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub person_key: Option<String>,
 }
 
 impl StoredSession {
@@ -112,26 +136,4 @@ pub fn save_knowledge_bases(
     // A list of structs of strings and numbers always serializes.
     let written = serde_json::to_string(knowledge_bases).unwrap_or_default();
     storage.set(KNOWLEDGE_BASES_KEY, &written)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::Value;
-
-    /// protocol/specs/src/session/stored.json. tests/tables.rs holds the
-    /// table's other keys, which are public.
-    const STORED: &str = include_str!("../../specs/session/stored.json");
-
-    #[test]
-    fn a_kept_query_is_kept_under_the_tables_prefix_its_persistences_key_prefix_and_its_name() {
-        let table: Value = serde_json::from_str(STORED).expect("the table is JSON");
-        let prefix = table["cacheKeyPrefix"]["prefix"]
-            .as_str()
-            .expect("the table states the prefix of a kept query's key");
-        assert_eq!(
-            cache_key("kb-a", "resource"),
-            format!("{prefix}kb-a.resource")
-        );
-    }
 }

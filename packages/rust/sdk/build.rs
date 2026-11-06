@@ -639,6 +639,17 @@ fn cache_refresh(table: &Value) -> String {
     for name in &queries {
         let _ = writeln!(code, "        CacheQuery::{},", pascal(name));
     }
+    code.push_str("    ];\n\n    /// The queries whose answers a client keeps across its lives, for the person signed in, in the table's order.\n    pub const PERSISTED: &'static [CacheQuery] = &[\n");
+    for query in list(&table["queries"], "queries") {
+        let name = text(query, "name", "a query");
+        match &query["persisted"] {
+            Value::Null => {}
+            Value::Bool(true) => {
+                let _ = writeln!(code, "        CacheQuery::{},", pascal(name));
+            }
+            other => panic!("{name}: persisted is {other}, which is neither true nor absent"),
+        }
+    }
     code.push_str("    ];\n\n    /// The query's name, as the table and every SDK spell it.\n    pub const fn name(self) -> &'static str {\n        match self {\n");
     for name in &queries {
         let _ = writeln!(

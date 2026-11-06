@@ -25,8 +25,8 @@ use semiont::identity::kb_did;
 use semiont::refresh::CacheQuery;
 use semiont::session::{
     SemiontBrowser, SemiontBrowserConfig, SemiontSession, SemiontSessionConfig, SessionFactory,
-    SessionFactoryOptions, SessionSignals, StoredSession, cache_key, last_event_id_key,
-    person_key, save_knowledge_bases, session_key, store_session, stored_session,
+    SessionFactoryOptions, SessionSignals, StoredSession, cache_key, last_event_id_key, person_key,
+    save_knowledge_bases, session_key, store_session, stored_session,
 };
 use semiont::state_unit::StateUnit;
 use semiont::storage::SessionStorage;
@@ -199,7 +199,10 @@ fn keys() {
     for (name, stated) in object(&cases["people"], "people") {
         let made = person_key(&text(stated, "did"));
         if made != text(stated, "personKey") {
-            wrong.push(format!("{name}'s key is {made}, want {}", stated["personKey"]));
+            wrong.push(format!(
+                "{name}'s key is {made}, want {}",
+                stated["personKey"]
+            ));
         }
     }
 
@@ -212,7 +215,9 @@ fn keys() {
         }
         let places = last_event_id_key(&kb_id, &made);
         if places != text(row, "lastEventIdKey") {
-            wrong.push(format!("{why}: the stream's places are kept under {places}"));
+            wrong.push(format!(
+                "{why}: the stream's places are kept under {places}"
+            ));
         }
         let mut stated: Vec<&str> = object(&row["cacheKeys"], "cacheKeys")
             .keys()
@@ -306,10 +311,6 @@ struct Staged {
     who_am_i: Value,
     /// Shut until the test lets the gateway say who a token is.
     who_answers: watch::Sender<bool>,
-    /// Shut while the test holds the answers to reads of a resource.
-    reads_answer: watch::Sender<bool>,
-    /// The resources a read was asked of, in order.
-    asked_for: Mutex<Vec<String>>,
     /// What each stream was opened with.
     subscriptions: Mutex<Vec<Value>>,
     streams: Mutex<Vec<mpsc::UnboundedSender<Bytes>>>,
@@ -331,7 +332,8 @@ impl Staged {
     async fn deliver(&self, reply: &str, correlation_id: &str, payload: Value) {
         let mut opened = self.opened.subscribe();
         let _ = opened.wait_for(|_| self.streaming()).await;
-        let frame = json!({ "channel": reply, "correlationId": correlation_id, "payload": payload });
+        let frame =
+            json!({ "channel": reply, "correlationId": correlation_id, "payload": payload });
         let event = Bytes::from(format!(
             "event: bus-event\nid: e-{reply}:{correlation_id}\ndata: {frame}\n\n"
         ));
@@ -369,8 +371,8 @@ async fn subscribe(State(staged): State<Arc<Staged>>, body: String) -> Response 
         .into_response()
 }
 
-/// A read of a resource is answered with the resource named `fresh`, once
-/// the test lets reads answer; the knowledge base says what it is at once.
+/// A read of a resource is answered with the resource named `fresh`, and
+/// the knowledge base says what it is.
 async fn emit(State(staged): State<Arc<Staged>>, body: String) -> Response {
     let sent: Value = serde_json::from_str(&body).expect("an emit");
     let Some(correlation_id) = sent["correlationId"].as_str().map(str::to_owned) else {
@@ -379,11 +381,8 @@ async fn emit(State(staged): State<Arc<Staged>>, body: String) -> Response {
     match sent["channel"].as_str() {
         Some("browse:resource-requested") => {
             let resource = text(&sent["payload"], "resourceId");
-            staged.asked_for.lock().unwrap().push(resource.clone());
             let staged = staged.clone();
             tokio::spawn(async move {
-                let mut answering = staged.reads_answer.subscribe();
-                let _ = answering.wait_for(|answering| *answering).await;
                 let payload = json!({ "response": {
                     "resource": descriptor(&resource, "fresh"), "lastSequence": 1,
                 } });
@@ -433,8 +432,6 @@ impl Gateway {
             who,
             who_am_i,
             who_answers: watch::channel(false).0,
-            reads_answer: watch::channel(true).0,
-            asked_for: Mutex::default(),
             subscriptions: Mutex::default(),
             streams: Mutex::default(),
             opened: watch::channel(0).0,
@@ -465,23 +462,6 @@ impl Gateway {
 
     fn let_who_answer(&self) {
         self.staged.who_answers.send_replace(true);
-    }
-
-    fn hold_reads(&self) {
-        self.staged.reads_answer.send_replace(false);
-    }
-
-    fn let_reads_answer(&self) {
-        self.staged.reads_answer.send_replace(true);
-    }
-
-    fn was_asked_for(&self, resource: &str) -> bool {
-        self.staged
-            .asked_for
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|asked| asked == resource)
     }
 
     /// The event id the first stream that held `scope` resumed it from,
@@ -850,7 +830,9 @@ async fn started(cases: &Value, row: &Value) -> Vec<String> {
             .keys()
             .into_iter()
             .filter(|key| {
-                prefixes.iter().any(|prefix| key.starts_with(prefix.as_str()))
+                prefixes
+                    .iter()
+                    .any(|prefix| key.starts_with(prefix.as_str()))
                     && !kept.contains_key(key)
             })
             .collect();
@@ -894,10 +876,13 @@ fn kept_value(storage: &SharedStorage, key: &str, entry: &str) -> Option<Value> 
 
 /// How one row of `crossTab` is not what the registry's client wrote.
 ///
-/// The other context writes while res-1's answer is held, and the client
-/// is given it after: it then holds a value it has not written, with no
-/// race against its save's debounce, which a write made after the value
-/// arrived would run.
+/// In the table's order: the client is given res-1 and owes its save, the
+/// other context writes before that save's wait is over, and the client
+/// closes. Nothing is awaited between the value's arrival and the other
+/// context's write, so the save cannot be made between them on this
+/// runtime's one thread, unless its wait was already over when the value
+/// arrived; a save written before the other context wrote fails the row,
+/// which was then not run in its order.
 async fn across(cases: &Value, row: &Value) -> Vec<String> {
     let jo = person(cases, "jo");
     let gateway = Gateway::start(Who::Names, cases["whoAmI"].clone()).await;
@@ -912,27 +897,27 @@ async fn across(cases: &Value, row: &Value) -> Vec<String> {
     })
     .expect("a browser");
     let session = live(&browser).await;
+    let kept_for_jo = cache_key(KB, &jo, CacheQuery::Resource);
 
-    gateway.hold_reads();
     let mut res_1 = session.client().browse.resource(&as_id("res-1")).watch();
-    settled(|| gateway.was_asked_for("res-1")).await;
+    let held = next_value(&mut res_1).await;
+    let written_before = kept_value(&storage, &kept_for_jo, "res-1");
     match &row["stored"] {
         Value::Null => elsewhere.delete(&session_key(KB)).expect("deleted"),
-        stated => store_session(
-            &elsewhere,
-            KB,
-            &sign_in(2, stated["personKey"].as_str()),
-        )
-        .expect("stored"),
+        stated => store_session(&elsewhere, KB, &sign_in(2, stated["personKey"].as_str()))
+            .expect("stored"),
     }
-    gateway.let_reads_answer();
-    let held = next_value(&mut res_1).await;
     browser.close().await.expect("closed");
 
     let Some(held) = held else {
         return vec!["the client was given no value of res-1".to_owned()];
     };
-    let saved = kept_value(&storage, &cache_key(KB, &jo, CacheQuery::Resource), "res-1")
+    if let Some(written) = written_before {
+        return vec![format!(
+            "res-1's save, {written}, was written before the other context wrote: the row was not run in its order"
+        )];
+    }
+    let saved = kept_value(&storage, &kept_for_jo, "res-1")
         == Some(serde_json::to_value(&held).expect("a resource serializes"));
     let want = row["saved"].as_bool().expect("saved is a boolean");
     if saved == want {

@@ -1,6 +1,7 @@
-//! A stream's place in each scope, kept so the next client for the same
-//! knowledge base resumes from it: what that client kept of a scope is then
-//! brought up to date by the events recorded since, replayed.
+//! A stream's place in each scope, kept so the next client of the same
+//! person on the same knowledge base resumes from it: what that client kept
+//! of a scope is then brought up to date by the events recorded since,
+//! replayed.
 //!
 //! **The place may lag the caches and never leads them.** A place kept
 //! ahead of a cache would have the next client resume past an event the

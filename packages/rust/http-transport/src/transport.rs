@@ -663,6 +663,13 @@ impl HttpTransport {
     pub(crate) fn shared(&self) -> &Arc<Shared> {
         &self.inner.shared
     }
+
+    /// Places kept elsewhere: each scope the stream holds no place for
+    /// resumes from its place here the next time the stream opens with it.
+    /// A place the stream holds already is its own, and newer.
+    pub(crate) fn restore_places(&self, places: HashMap<ResourceId, String>) {
+        let _ = self.inner.commands.send(Command::Restore(places));
+    }
 }
 
 impl Transport for HttpTransport {

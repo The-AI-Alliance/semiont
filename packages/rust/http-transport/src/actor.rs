@@ -44,6 +44,8 @@ pub(crate) enum Command {
     AddScope(ResourceId),
     /// A resource's scope lost its last hold.
     RemoveScope(ResourceId),
+    /// Places kept elsewhere, for the scopes the stream holds none for.
+    Restore(HashMap<ResourceId, String>),
     Close(oneshot::Sender<()>),
 }
 
@@ -584,6 +586,11 @@ impl Actor {
                     // a client that brushes past scopes would otherwise
                     // reopen its stream at each.
                     self.lazy_at = Some(Instant::now() + self.shared.timing.lazy_remove);
+                }
+            }
+            Command::Restore(places) => {
+                for (scope, place) in places {
+                    self.watermarks.entry(scope).or_insert(place);
                 }
             }
             Command::Close(_) => {}

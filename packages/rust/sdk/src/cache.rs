@@ -25,10 +25,12 @@
 //! fetched, retried or failed after it.
 //!
 //! A cache with a `CachePersister` begins with what was kept and saves its
-//! values as they change. A value that was kept is shown at once and asked
-//! for again the first time it is observed: nothing says it is still true.
-//! Keeping its values is a convenience: a save that fails is logged as a
-//! warning, the cache goes on as it was, and its next save tries again.
+//! values as they change; one given its persister later takes in what was
+//! kept of each key it does not know yet. A value that was kept is shown at
+//! once and asked for again the first time it is observed: nothing says it
+//! is still true. Keeping its values is a convenience: a save that fails is
+//! logged as a warning, the cache goes on as it was, and its next save tries
+//! again. Once a cache is disposed no save of it is still being written.
 
 use crate::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
 use crate::state_unit::StateUnit;
@@ -104,7 +106,8 @@ impl<V: Clone + Send + Sync + 'static> CacheValue for V {}
 
 /// Where a cache keeps its values so a later one begins with them.
 pub trait CachePersister<K, V>: Send + Sync + 'static {
-    /// What was kept, asked once, when the cache is built.
+    /// What was kept, none when nothing was: asked once, when the cache is
+    /// given the persister.
     fn load(&self) -> Option<HashMap<K, V>>;
 
     /// Keep these: the cache's values, after they changed. The error when
@@ -160,6 +163,8 @@ struct State<K, V> {
     fetches: u64,
     /// The wait before the next save, while one is owed.
     saving: Option<AbortHandle>,
+    /// Where the values are kept, once the cache keeps them somewhere.
+    persister: Option<Arc<dyn CachePersister<K, V>>>,
 }
 
 struct Inner<K, V>
@@ -168,9 +173,10 @@ where
     V: CacheValue,
 {
     fetch: Box<Fetch<K, V>>,
-    persister: Option<Arc<dyn CachePersister<K, V>>>,
     save_debounce: Duration,
     state: Mutex<State<K, V>>,
+    /// Held while a save is written, so disposal waits for one under way.
+    writing: Mutex<()>,
 }
 
 fn closed() -> Arc<dyn std::error::Error + Send + Sync> {
@@ -217,9 +223,15 @@ where
             .collect()
     }
 
+    fn writing(&self) -> MutexGuard<'_, ()> {
+        self.writing
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     /// The values changed: save them once they have stopped changing.
     fn owe_a_save(self: &Arc<Self>, state: &mut State<K, V>) {
-        if self.persister.is_none() || state.disposed {
+        if state.persister.is_none() || state.disposed {
             return;
         }
         if let Some(waiting) = state.saving.take() {
@@ -231,18 +243,27 @@ where
             tokio::spawn(async move {
                 tokio::time::sleep(wait).await;
                 if let Some(cache) = Weak::upgrade(&cache) {
-                    let entries = {
-                        let mut state = cache.state();
-                        state.saving = None;
-                        Inner::values(&state)
-                    };
-                    if let Some(persister) = &cache.persister {
-                        saved(persister.as_ref(), &entries);
-                    }
+                    cache.save_owed();
                 }
             })
             .abort_handle(),
         );
+    }
+
+    /// Make the save that is owed, unless disposal has made it.
+    fn save_owed(&self) {
+        let _writing = self.writing();
+        let (entries, persister) = {
+            let mut state = self.state();
+            if state.disposed {
+                return;
+            }
+            state.saving = None;
+            (Inner::values(&state), state.persister.clone())
+        };
+        if let Some(persister) = persister {
+            saved(persister.as_ref(), &entries);
+        }
     }
 
     /// Start a fetch for `key`, or join the one in flight.
@@ -336,7 +357,7 @@ where
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         if let Some(waiting) = state.saving.take() {
             waiting.abort();
-            if let Some(persister) = &self.persister {
+            if let Some(persister) = &state.persister {
                 saved(persister.as_ref(), &Inner::values(state));
             }
         }
@@ -395,29 +416,59 @@ where
         F: Fn(K) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<V, Box<dyn std::error::Error + Send + Sync>>> + Send + 'static,
     {
-        let kept = persister
-            .as_ref()
-            .and_then(|persister| persister.load())
-            .unwrap_or_default();
-        let inner = Arc::new(Inner {
-            fetch: Box::new(move |key| {
-                let fetching = fetch(key);
-                Box::pin(async move { fetching.await.map_err(Arc::from) })
+        let cache = Cache {
+            inner: Arc::new(Inner {
+                fetch: Box::new(move |key| {
+                    let fetching = fetch(key);
+                    Box::pin(async move { fetching.await.map_err(Arc::from) })
+                }),
+                save_debounce,
+                state: Mutex::new(State {
+                    disposed: false,
+                    keys: HashMap::new(),
+                    kept: HashSet::new(),
+                    fetches: 0,
+                    saving: None,
+                    persister: None,
+                }),
+                writing: Mutex::new(()),
             }),
-            save_debounce,
-            state: Mutex::new(State {
-                disposed: false,
-                kept: kept.keys().cloned().collect(),
-                keys: kept
-                    .into_iter()
-                    .map(|(key, value)| (key, Key::new(CacheState::Ready(value))))
-                    .collect(),
-                fetches: 0,
-                saving: None,
-            }),
-            persister,
-        });
-        Cache { inner }
+        };
+        if let Some(persister) = persister {
+            cache.attach(persister);
+        }
+        cache
+    }
+
+    /// Keep the cache's values with `persister` from now on. What it kept is
+    /// taken in for each key the cache does not know (`known`), and asked
+    /// for again the first time it is observed, as a value kept by an
+    /// earlier cache is; nothing is saved until a value next changes. A
+    /// cache that is kept somewhere already, or is disposed, is left as it
+    /// is.
+    pub(crate) fn attach(&self, persister: Arc<dyn CachePersister<K, V>>) {
+        let kept = persister.load().unwrap_or_default();
+        let mut state = self.inner.state();
+        let State {
+            disposed,
+            keys,
+            kept: unasked,
+            persister: keeping,
+            ..
+        } = &mut *state;
+        if *disposed || keeping.is_some() {
+            return;
+        }
+        for (key, value) in kept {
+            let held = keys
+                .entry(key.clone())
+                .or_insert_with(|| Key::new(CacheState::Pending));
+            if !held.known() {
+                held.state.send_replace(CacheState::Ready(value));
+                unasked.insert(key);
+            }
+        }
+        *keeping = Some(persister);
     }
 
     /// The key's state, now and as it changes, until the cache is disposed.
@@ -576,10 +627,11 @@ where
     K: CacheKey,
     V: CacheValue,
 {
-    /// End the cache: a save that was owed is made now, every observer's
-    /// stream ends, and nothing is fetched or written after.
+    /// End the cache: a save that was owed is made now, one under way is
+    /// waited for, every observer's stream ends, and nothing is fetched or
+    /// written after.
     fn dispose(&self) {
-        let owed = {
+        let (owed, persister) = {
             let mut state = self.inner.state();
             if state.disposed {
                 return;
@@ -591,9 +643,10 @@ where
             });
             state.kept.clear();
             state.keys.clear();
-            owed
+            (owed, state.persister.clone())
         };
-        if let (Some(entries), Some(persister)) = (owed, &self.inner.persister) {
+        let _writing = self.inner.writing();
+        if let (Some(entries), Some(persister)) = (owed, persister) {
             saved(persister.as_ref(), &entries);
         }
     }

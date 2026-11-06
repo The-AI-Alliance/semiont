@@ -46,11 +46,11 @@ pub use semiont_session::{
 pub use signals::{
     KbIdentityConflict, PermissionDenied, SessionEndReason, SessionEnded, SessionSignals,
 };
-pub(crate) use stored::cache_key;
 pub use stored::{
     ACTIVE_KEY, KNOWLEDGE_BASES_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY, OPEN_RESOURCES_BY_KB_KEY,
-    StoredSession, clear_stored_session, is_token_expired, kb_of_session_key, load_knowledge_bases,
-    save_knowledge_bases, session_key, store_session, stored_session,
+    StoredSession, cache_key, clear_stored_session, is_token_expired, kb_of_session_key,
+    last_event_id_key, load_knowledge_bases, person_key, save_knowledge_bases, session_key,
+    store_session, stored_session,
 };
 
 include!(concat!(env!("OUT_DIR"), "/oauth_clients.rs"));

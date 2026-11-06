@@ -32,8 +32,8 @@ use semiont::identity::agent_did;
 use semiont::roles::{AGENT_KIND, KIND_CLAIM, is_agent};
 use semiont::session::{
     OpenedSession, SemiontBrowser, SemiontBrowserConfig, SemiontSession, SessionEndReason,
-    StoredSession, last_event_id_key, person_key, save_knowledge_bases, session_key,
-    store_session, stored_session,
+    StoredSession, last_event_id_key, person_key, save_knowledge_bases, session_key, store_session,
+    stored_session,
 };
 use semiont::sign_in_store::{FILE_NAME, SignInStore};
 use semiont::storage::{InMemorySessionStorage, SessionStorage};

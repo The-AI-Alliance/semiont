@@ -1198,7 +1198,12 @@ async fn b17_a_client_keeps_the_queries_the_table_marks_persisted_and_no_other()
     })
     .client;
     let resource = as_id("res-1");
-    client.browse.resource(&resource).fresh().await.expect("a resource");
+    client
+        .browse
+        .resource(&resource)
+        .fresh()
+        .await
+        .expect("a resource");
     client
         .browse
         .annotations(&resource)
@@ -1211,15 +1216,30 @@ async fn b17_a_client_keeps_the_queries_the_table_marks_persisted_and_no_other()
         .fresh()
         .await
         .expect("an annotation");
-    client.browse.entity_types().fresh().await.expect("the entity types");
-    client.browse.tag_schemas().fresh().await.expect("the tag schemas");
+    client
+        .browse
+        .entity_types()
+        .fresh()
+        .await
+        .expect("the entity types");
+    client
+        .browse
+        .tag_schemas()
+        .fresh()
+        .await
+        .expect("the tag schemas");
     client
         .browse
         .resources(ResourceFilters::default())
         .fresh()
         .await
         .expect("a page of resources");
-    client.browse.events(&resource).fresh().await.expect("a history");
+    client
+        .browse
+        .events(&resource)
+        .fresh()
+        .await
+        .expect("a history");
     client.close().await;
 
     let mut persisted: Vec<String> = CacheQuery::PERSISTED
@@ -1227,9 +1247,7 @@ async fn b17_a_client_keeps_the_queries_the_table_marks_persisted_and_no_other()
         .map(|query| cache_key("kb-1", "a-person-key", *query))
         .collect();
     persisted.sort();
-    let mut kept = storage.keys();
-    kept.sort();
-    assert_eq!(kept, persisted);
+    assert_eq!(storage.keys(), persisted);
 }
 
 // ── Liveness: under any behaviour of the wire, a watcher is told something ──

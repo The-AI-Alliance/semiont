@@ -11,6 +11,7 @@ use semiont::cached::Observed;
 use semiont::client::{CachePersistence, ClientOptions, ClientTiming, SemiontClient};
 use semiont::namespaces::{Delegation, ResourceFilters};
 use semiont::refresh::CacheQuery;
+use semiont::session::person_key;
 use semiont::storage::InMemorySessionStorage;
 use semiont::transport::ConnectionState;
 use semiont::types::{AnnotationId, GenerationJobParams, MarkJobParams, ResourceId};
@@ -27,6 +28,11 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::watch;
 use tokio::task::{AbortHandle, JoinSet};
+
+/// The knowledge base and the person a persisting client keeps for: every
+/// SDK's driver keeps for these, so the suite's `persist` cases rehydrate.
+const CONFORMANCE_KB: &str = "conformance";
+const CONFORMANCE_PERSON: &str = "did:web:conformance.example:users:driver";
 
 /// The client, kept once closed: what a closed client does is part of what
 /// the suite asks.
@@ -212,7 +218,8 @@ impl Live {
                 cache_persistence: (args.get("persist") == Some(&Value::Bool(true))).then(|| {
                     CachePersistence {
                         storage: self.storage.clone(),
-                        key_prefix: "conformance".to_owned(),
+                        kb_id: CONFORMANCE_KB.to_owned(),
+                        person_key: person_key(CONFORMANCE_PERSON),
                     }
                 }),
             },

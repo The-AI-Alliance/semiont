@@ -33,14 +33,15 @@ use semiont::resume::CoupledBookmarks;
 use semiont::session::{
     BROWSER_CLIENT_ID, OnAuthFailed, OnSessionError, OpenedSession, Refresh, SCRIPT_CLIENT_ID,
     SemiontBrowser, SemiontSession, SemiontSessionConfig, SessionFactory, SessionFactoryOptions,
-    SessionRenewer, SignInOutcome, SignedIn, StoredSession, Validate, store_session,
-    stored_session,
+    SessionRenewer, SignInOutcome, SignedIn, StoredSession, Validate, last_event_id_key,
+    person_key, session_key, store_session, stored_session,
 };
-use semiont::storage::SessionStorage;
+use semiont::storage::{SessionStorage, StorageChange, StorageSubscription};
 use semiont::transport::BoxFuture;
 use semiont::types::{HttpEndpoint, KbDescription, KbEndpoint, KbTarget, ResourceId};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 use tokio::sync::watch;
 
 /// What a session over a gateway is built with.
@@ -85,12 +86,17 @@ impl TokenRefresher for Renews {
 /// renewed through the session, so the transport and the session never hold
 /// different ones.
 pub fn session_over_http(options: HttpSession) -> OpenedSession {
-    OpenedSession::new(built_over_http(options))
+    OpenedSession::new(built_over_http(options, |_, _| {}))
 }
 
 /// A session over the gateway at `base_url`: its transport, its client and
 /// the token they share. Whoever this is built for owns the client too.
-fn built_over_http(options: HttpSession) -> SemiontSession {
+/// `built` is given the transport and the client before the session is
+/// made over them.
+fn built_over_http(
+    options: HttpSession,
+    built: impl FnOnce(&Arc<HttpTransport>, &Arc<SemiontClient>),
+) -> SemiontSession {
     let (token, sent) = watch::channel(options.token);
     let (renewer, renews) = watch::channel(None);
     let transport = Arc::new(HttpTransport::new(HttpTransportConfig {
@@ -106,9 +112,10 @@ fn built_over_http(options: HttpSession) -> SemiontSession {
     let client = Arc::new(SemiontClient::new(
         transport.clone(),
         content,
-        Some(transport),
+        Some(transport.clone()),
         options.client,
     ));
+    built(&transport, &client);
     let session = SemiontSession::new(SemiontSessionConfig {
         kb: options.kb,
         storage: options.storage,
@@ -128,11 +135,6 @@ type Renewal =
 
 /// The renewals under way, by knowledge base.
 type Renewing = Arc<Mutex<HashMap<String, Renewal>>>;
-
-/// The key a knowledge base's stream's places are kept under.
-fn last_event_id_key(kb_id: &str) -> String {
-    format!("semiont.lastEventId.{kb_id}")
-}
 
 /// Renew at the issuer the stored session of `kb_id` names. A renewal asked
 /// for while one is under way is that one: a stream refused and a request
@@ -322,6 +324,7 @@ pub async fn sign_in_device(
             client_id: SCRIPT_CLIENT_ID.to_owned(),
             token_endpoint: issuer.token,
             revocation_endpoint: issuer.revocation,
+            person_key: None,
         },
         validate: options.validate,
         on_auth_failed: options.on_auth_failed,
@@ -333,22 +336,217 @@ pub async fn sign_in_device(
 
 // ── For a registry of knowledge bases ───────────────────────────────────
 
-/// The places a client's caches carry, as the stream's bookmarks.
-struct Kept(CoupledBookmarks);
+/// The stream's bookmarks: the places kept for the person, once there is one.
+#[derive(Default)]
+struct Places(Mutex<Option<CoupledBookmarks>>);
 
-impl Bookmarks for Kept {
-    fn load(&self) -> HashMap<ResourceId, String> {
-        self.0.load()
-    }
-
-    fn save(&self, scope: &ResourceId, event_id: &str) {
-        self.0.save(scope, event_id);
+impl Places {
+    /// Keep the places of `kept` from now on; false when places are kept
+    /// already, which is for the client's life.
+    fn keep(&self, kept: CoupledBookmarks) -> bool {
+        let mut places = locked(&self.0);
+        if places.is_some() {
+            return false;
+        }
+        *places = Some(kept);
+        true
     }
 }
 
+impl Bookmarks for Places {
+    fn load(&self) -> HashMap<ResourceId, String> {
+        match locked(&self.0).as_ref() {
+            Some(kept) => kept.load(),
+            None => HashMap::new(),
+        }
+    }
+
+    fn save(&self, scope: &ResourceId, event_id: &str) {
+        if let Some(kept) = locked(&self.0).as_ref() {
+            kept.save(scope, event_id);
+        }
+    }
+}
+
+/// The storage a person's caches and places are written through: a write is
+/// made only while the knowledge base's stored sign-in names the person.
+/// Once it does not (signed out, here or in another context, or replaced by
+/// a sign-in of someone else, or of someone the gateway has not named yet)
+/// nothing more is written for the client's life, and what it had not
+/// written is dropped, which is no failure
+/// (protocol/specs/src/session/persisted-cases.json, `crossTab`).
+struct ForThePerson {
+    storage: Arc<dyn SessionStorage>,
+    kb_id: String,
+    person_key: String,
+    moved_on: AtomicBool,
+}
+
+impl ForThePerson {
+    fn named(&self) -> bool {
+        if self.moved_on.load(Ordering::SeqCst) {
+            return false;
+        }
+        let named = stored_session(self.storage.as_ref(), &self.kb_id)
+            .is_some_and(|stored| stored.person_key.as_deref() == Some(self.person_key.as_str()));
+        if !named {
+            self.moved_on.store(true, Ordering::SeqCst);
+        }
+        named
+    }
+}
+
+impl SessionStorage for ForThePerson {
+    fn get(&self, key: &str) -> Option<String> {
+        self.storage.get(key)
+    }
+
+    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if !self.named() {
+            return Ok(());
+        }
+        self.storage.set(key, value)
+    }
+
+    fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if !self.named() {
+            return Ok(());
+        }
+        self.storage.delete(key)
+    }
+
+    fn update(
+        &self,
+        key: &str,
+        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if !self.named() {
+            return Ok(());
+        }
+        self.storage.update(key, change)
+    }
+
+    fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {
+        self.storage.subscribe(on_change)
+    }
+}
+
+/// What a registry's session keeps of the person its token is, in the
+/// registry's storage: the client's persisted queries and where its stream
+/// was, under the knowledge base's id and the person's key
+/// (protocol/specs/src/session/persisted-cases.json). Nothing is kept until
+/// the person is known: from the start when the stored sign-in names them,
+/// or once the gateway names them and the sign-in records it.
+struct Keeping {
+    storage: Arc<dyn SessionStorage>,
+    kb_id: String,
+    places: Arc<Places>,
+    /// The transport and the client, once they are built.
+    built: OnceLock<(Weak<HttpTransport>, Weak<SemiontClient>)>,
+}
+
+impl Keeping {
+    /// Record on the stored sign-in that the gateway named the person whose
+    /// key is `person_key` as who `access` is: only while it still holds
+    /// `access` and names nobody else. Whether it names them now. A storage
+    /// that will not take the record keeps nothing of them.
+    fn record(&self, access: &str, person_key: &str) -> bool {
+        let names = |held: &StoredSession| {
+            held.access == access
+                && held
+                    .person_key
+                    .as_deref()
+                    .is_none_or(|named| named == person_key)
+        };
+        match stored_session(self.storage.as_ref(), &self.kb_id) {
+            Some(held) if names(&held) && held.person_key.is_none() => {}
+            held => return held.as_ref().is_some_and(names),
+        }
+        let mut named = false;
+        let recorded = self
+            .storage
+            .update(&session_key(&self.kb_id), &mut |stored| {
+                let held = stored.and_then(StoredSession::read);
+                named = held.as_ref().is_some_and(names);
+                match held {
+                    Some(held) if named => Some(
+                        StoredSession {
+                            person_key: Some(person_key.to_owned()),
+                            ..held
+                        }
+                        .written(),
+                    ),
+                    _ => stored.map(str::to_owned),
+                }
+            });
+        recorded.is_ok() && named
+    }
+
+    /// Keep what the client keeps of the person whose key is `person_key`,
+    /// from now on: its persisted queries take in what was kept for them and
+    /// are saved there, and the stream resumes each scope it holds no place
+    /// for from the person's place. A client keeps for one person in its
+    /// life: a second attach changes nothing.
+    fn attach(&self, person_key: &str) {
+        let Some((transport, client)) = self
+            .built
+            .get()
+            .and_then(|(transport, client)| Some((transport.upgrade()?, client.upgrade()?)))
+        else {
+            return;
+        };
+        let kept = CoupledBookmarks::new(
+            Arc::new(ForThePerson {
+                storage: self.storage.clone(),
+                kb_id: self.kb_id.clone(),
+                person_key: person_key.to_owned(),
+                moved_on: AtomicBool::new(false),
+            }),
+            &last_event_id_key(&self.kb_id, person_key),
+        );
+        if !self.places.keep(kept.clone()) {
+            return;
+        }
+        // The stream's place rides the caches' writes, and only when every
+        // cache is at rest: a place kept ahead of a cache still taking in
+        // the event it names would have the next life skip that event.
+        let settled = Arc::downgrade(&client);
+        kept.set_flush_gate(move || {
+            settled
+                .upgrade()
+                .is_some_and(|client| client.persistence_settled())
+        });
+        client.attach_persistence(&CachePersistence {
+            storage: kept.storage(),
+            kb_id: self.kb_id.clone(),
+            person_key: person_key.to_owned(),
+        });
+        transport.restore_places(kept.load());
+    }
+}
+
+/// Ask the gateway who a token is, as `asking` does, and once it names the
+/// person, record them on the stored sign-in and keep what the client keeps
+/// for them. Both are done before the answer is given, so before the
+/// session is ready.
+fn asking_and_keeping(asking: Validate, keeping: Arc<Keeping>) -> Validate {
+    Arc::new(move |token: String| {
+        let asked = asking(token.clone());
+        let keeping = keeping.clone();
+        Box::pin(async move {
+            let user = asked.await?;
+            let person = person_key(&user.did);
+            if keeping.record(&token, &person) {
+                keeping.attach(&person);
+            }
+            Ok(user)
+        })
+    })
+}
+
 /// Builds the session of each knowledge base a `SemiontBrowser` activates,
-/// over its gateway. The session's caches are kept in the registry's
-/// storage, under the knowledge base's id. The renewals under way are the
+/// over its gateway. What the session's client keeps of its person is kept
+/// in the registry's storage (`Keeping`). The renewals under way are the
 /// factory's, so a knowledge base's old session and its new one, during a
 /// sign-in, do not each renew.
 pub struct HttpSessionFactory {
@@ -385,38 +583,45 @@ impl SessionFactory for HttpSessionFactory {
             self.renewing.clone(),
         );
 
-        // The stream's place rides the caches' writes, and only when every
-        // cache is at rest: a place kept ahead of a cache still taking in
-        // the event it names would have the next life skip that event.
-        let kept = CoupledBookmarks::new(options.storage.clone(), &last_event_id_key(&kb_id));
+        let keeping = Arc::new(Keeping {
+            storage: options.storage.clone(),
+            kb_id: kb_id.clone(),
+            places: Arc::default(),
+            built: OnceLock::new(),
+        });
+        // Read before the client is built: a sign-in that names its person
+        // has the client keep for them from its start (B17).
+        let named =
+            stored_session(options.storage.as_ref(), &kb_id).and_then(|stored| stored.person_key);
         let signals = options.signals;
-        let session = built_over_http(HttpSession {
-            kb: options.kb.target(),
-            base_url: base_url.clone(),
-            token: None,
-            refresh: Some(refresh),
-            validate: Some(asking_the_gateway(base_url, self.http.clone())),
-            on_auth_failed: Some(Arc::new(move |reason| {
-                signals.notify_session_ended(reason);
-            })),
-            on_error: Some(options.on_error),
-            http: self.http.clone(),
-            client: ClientOptions {
-                cache_persistence: Some(CachePersistence {
-                    storage: kept.storage(),
-                    key_prefix: kb_id.clone(),
-                }),
-                ..ClientOptions::default()
+        let session = built_over_http(
+            HttpSession {
+                kb: options.kb.target(),
+                base_url: base_url.clone(),
+                token: None,
+                refresh: Some(refresh),
+                validate: Some(asking_and_keeping(
+                    asking_the_gateway(base_url, self.http.clone()),
+                    keeping.clone(),
+                )),
+                on_auth_failed: Some(Arc::new(move |reason| {
+                    signals.notify_session_ended(reason);
+                })),
+                on_error: Some(options.on_error),
+                http: self.http.clone(),
+                client: ClientOptions::default(),
+                bookmarks: Some(keeping.places.clone()),
+                storage: options.storage,
             },
-            bookmarks: Some(Arc::new(Kept(kept.clone()))),
-            storage: options.storage,
-        });
-        let client = Arc::downgrade(session.client());
-        kept.set_flush_gate(move || {
-            client
-                .upgrade()
-                .is_some_and(|client| client.persistence_settled())
-        });
+            |transport, client| {
+                let _ = keeping
+                    .built
+                    .set((Arc::downgrade(transport), Arc::downgrade(client)));
+                if let Some(person_key) = &named {
+                    keeping.attach(person_key);
+                }
+            },
+        );
         Ok(session)
     }
 
@@ -531,6 +736,7 @@ pub async fn complete_sign_in(
                 client_id: BROWSER_CLIENT_ID.to_owned(),
                 token_endpoint: pending.issuer.token,
                 revocation_endpoint: pending.issuer.revocation,
+                person_key: None,
             },
             kb_id: pending.kb_id,
             expected_did: pending.expected_did,
@@ -546,18 +752,6 @@ mod tests {
     use semiont::testing::{TestClientOptions, create_test_client};
     use semiont::types::LocalEndpoint;
     use std::sync::atomic::{AtomicUsize, Ordering};
-
-    #[test]
-    fn where_a_knowledge_bases_stream_was_is_kept_under_the_tables_prefix_and_its_id() {
-        let table: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../../protocol/specs/src/session/stored.json"
-        ))
-        .expect("the table");
-        let prefix = table["lastEventIdKeyPrefix"]["prefix"]
-            .as_str()
-            .expect("the table states the prefix of a stream's places' key");
-        assert_eq!(last_event_id_key("kb-a"), format!("{prefix}kb-a"));
-    }
 
     /// A session whose renewal answers `renewed`, counted each time it is asked.
     fn renewing(asked: Arc<AtomicUsize>) -> SemiontSession {
