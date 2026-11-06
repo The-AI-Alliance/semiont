@@ -81,7 +81,7 @@ func TestASlowListenerDelaysNoOther(t *testing.T) {
 		hub.Deliver(Frame{Channel: "beckon:focus", Payload: json.RawMessage(fmt.Sprintf(`{"resourceId":"res-1","n":%d}`, n))})
 	}
 	hub.Close()
-	read := func(frames func(func(Frame) bool)) []string {
+	read := func(frames func(func(Frame, error) bool)) []string {
 		var got []string
 		for frame := range frames {
 			got = append(got, string(frame.Payload))

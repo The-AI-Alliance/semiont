@@ -30,23 +30,30 @@ import (
 // verb's client hears them, so its follower does (launcher.Session.Client).
 var jobChannels = []bus.Channel{bus.JobReportProgress.Channel(), bus.JobComplete.Channel(), bus.JobFail.Channel()}
 
+// arrival is what the stream delivered on a channel: a frame, or, in place of
+// one it refused, the refusal.
+type arrival struct {
+	frame   semiont.Frame
+	refused error
+}
+
 // arrivals is the frames of channels, delivered from when it is called, on
 // one channel, until ctx is done; stop lets them go. The frames that arrive
 // while nobody reads wait, in the order the stream delivered them, whatever
 // their channel: a job's progress is read before the completion that followed
 // it.
-func arrivals(ctx context.Context, transport semiont.Transport, channels []bus.Channel) (frames <-chan semiont.Frame, stop func(), err error) {
+func arrivals(ctx context.Context, transport semiont.Transport, channels []bus.Channel) (frames <-chan arrival, stop func(), err error) {
 	reading, stop := context.WithCancel(ctx)
 	listener, err := transport.Frames(reading, channels...)
 	if err != nil {
 		stop()
 		return nil, nil, err
 	}
-	out := make(chan semiont.Frame)
+	out := make(chan arrival)
 	go func() {
-		for frame := range listener {
+		for frame, refused := range listener {
 			select {
-			case out <- frame:
+			case out <- arrival{frame: frame, refused: refused}:
 			case <-reading.Done():
 				return
 			}

@@ -997,10 +997,14 @@ func (c *Claims) begin() error {
 }
 
 // hear reads the announcements and the cancellations as the transport
-// delivers them. The transport's closing ends the claims: nothing more can be
+// delivers them. A frame it refused is neither, and wakes and cancels
+// nothing. The transport's closing ends the claims: nothing more can be
 // claimed.
-func (c *Claims) hear(frames iter.Seq[Frame]) {
-	for frame := range frames {
+func (c *Claims) hear(frames iter.Seq2[Frame, error]) {
+	for frame, refused := range frames {
+		if refused != nil {
+			continue
+		}
 		if frame.Channel == bus.JobQueued.Channel() {
 			c.announced(frame)
 		} else {

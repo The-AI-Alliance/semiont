@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"iter"
+	"slices"
 	"sync"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
@@ -24,14 +25,17 @@ import (
 // channel is given its frames in the order they were published; two readers
 // give no order between them, so one that needs what was said on several
 // channels in the order it was said reads them as one (FramesAmong).
+//
+// The refusal of a frame its transport refused is published in the frame's
+// place (DeliverRefusal), and its readers are given it as their error.
 type EventBus struct {
 	mu sync.Mutex
 	// views is the readers of each channel: of what is published to
 	// everyone, and of each scope.
-	views map[eventView]*broadcast[Frame]
+	views map[eventView]*broadcast[arrival]
 	// among is the readers of several channels at once, each with the
 	// channels it reads.
-	among  map[*queue[Frame]][]bus.Channel
+	among  map[*queue[arrival]][]bus.Channel
 	closed bool
 }
 
@@ -45,71 +49,82 @@ var _ FrameSink = (*EventBus)(nil)
 
 // NewEventBus is a bus with no reader.
 func NewEventBus() *EventBus {
-	return &EventBus{views: map[eventView]*broadcast[Frame]{}, among: map[*queue[Frame]][]bus.Channel{}}
+	return &EventBus{views: map[eventView]*broadcast[arrival]{}, among: map[*queue[arrival]][]bus.Channel{}}
 }
 
 // Deliver publishes frame as it is: to everyone, or into the scope its
 // envelope names. A closed bus has no reader to give it to.
 func (b *EventBus) Deliver(frame Frame) {
+	b.publish(frame.Channel, frame.Scope, arrival{frame: frame})
+}
+
+// DeliverRefusal publishes the refusal of a frame in its place: to everyone,
+// or into the scope the refusal names. A closed bus has no reader to give it
+// to.
+func (b *EventBus) DeliverRefusal(refusal *FrameRefusal) {
+	b.publish(refusal.Channel, refusal.Scope, arrival{refusal: refusal})
+}
+
+// publish gives one arrival on channel to the readers of scope's.
+func (b *EventBus) publish(channel bus.Channel, scope api.ResourceId, one arrival) {
 	b.mu.Lock()
-	view := b.views[eventView{frame.Channel, frame.Scope}]
-	var among []*queue[Frame]
-	if frame.Scope.IsZero() {
+	view := b.views[eventView{channel, scope}]
+	var among []*queue[arrival]
+	if scope.IsZero() {
 		for q, channels := range b.among {
-			for _, channel := range channels {
-				if channel == frame.Channel {
-					among = append(among, q)
-					break
-				}
+			if slices.Contains(channels, channel) {
+				among = append(among, q)
 			}
 		}
 	}
 	b.mu.Unlock()
 	for _, q := range among {
-		q.push(frame)
+		q.push(one)
 	}
 	if view != nil {
-		view.give(frame)
+		view.give(one)
 	}
 }
 
 // FramesOn is the frames published on channel from now on: to everyone when
-// scope is the zero ResourceId, and into scope otherwise. One reader, taken
-// when FramesOn is called and let go when the loop over what it returns stops
-// or ctx is done; of a closed bus, a sequence that has ended.
-func (b *EventBus) FramesOn(ctx context.Context, channel bus.Channel, scope api.ResourceId) iter.Seq[Frame] {
+// scope is the zero ResourceId, and into scope otherwise, the refusal of a
+// frame refused in its place as its error. One reader, taken when FramesOn
+// is called and let go when the loop over what it returns stops or ctx is
+// done; of a closed bus, a sequence that has ended.
+func (b *EventBus) FramesOn(ctx context.Context, channel bus.Channel, scope api.ResourceId) iter.Seq2[Frame, error] {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	q := newQueue[Frame]()
+	q := newQueue[arrival]()
 	if b.closed {
 		q.close()
-		return q.all(nil, func() {})
+		return toldFrames(q.all(nil, func() {}))
 	}
 	key := eventView{channel, scope}
 	view, ok := b.views[key]
 	if !ok {
-		view = newBroadcast[Frame]()
+		view = newBroadcast[arrival]()
 		b.views[key] = view
 	}
 	view.join(q)
-	return q.all(ctx.Done(), func() { view.leave(q) })
+	return toldFrames(q.all(ctx.Done(), func() { view.leave(q) }))
 }
 
 // FramesAmong is the frames published to everyone on any of channels from
-// now on, in the order they were published. One reader, taken when
-// FramesAmong is called and let go when the loop over what it returns stops
-// or ctx is done; of a closed bus, a sequence that has ended.
-func (b *EventBus) FramesAmong(ctx context.Context, channels ...bus.Channel) iter.Seq[Frame] {
+// now on, in the order they were published, the refusal of a frame refused
+// in its place as its error. One reader, taken when FramesAmong is called
+// and let go when the loop over what it returns stops or ctx is done; of a
+// closed bus, a sequence that has ended.
+func (b *EventBus) FramesAmong(ctx context.Context, channels ...bus.Channel) iter.Seq2[Frame, error] {
 	q, leave := b.listenAmong(channels...)
-	return q.all(ctx.Done(), leave)
+	return toldFrames(q.all(ctx.Done(), leave))
 }
 
 // listenAmong is a reader of what is published to everyone on any of
 // channels from now on, and what lets it go.
-func (b *EventBus) listenAmong(channels ...bus.Channel) (q *queue[Frame], leave func()) {
+func (b *EventBus) listenAmong(channels ...bus.Channel) (q *queue[arrival], leave func()) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	q = newQueue[Frame]()
+	q = newQueue[arrival]()
 	if b.closed {
 		q.close()
 		return q, func() {}
@@ -157,13 +172,14 @@ func Published[P any](ctx context.Context, b *EventBus, c bus.Global[P]) iter.Se
 	return typed[P](b.FramesOn(ctx, c.Channel(), api.ResourceId{}))
 }
 
-// Decoded is frame read as a frame of c, its payload decoded: how a reader
-// of several channels at once (FramesAmong) reads each frame, by its channel.
-// A frame of another channel, or a payload that is not c's, is a
-// *TransportError saying so.
-func Decoded[P any](c bus.Global[P], frame Frame) (Delivered[P], error) {
+// Decoded is a frame read as a frame of c, its payload decoded: how a reader
+// of several channels at once (FramesAmong) reads each frame and the refusal
+// given in a frame's place, by its channel. A frame of another channel, a
+// payload that is not c's, or a frame refused, is a *TransportError saying
+// so.
+func Decoded[P any](c bus.Global[P], frame Frame, refused error) (Delivered[P], error) {
 	if frame.Channel != c.Channel() {
 		return Delivered[P]{}, transportErrorWithoutResponse(fmt.Sprintf("a frame on %s read as one on %s", frame.Channel, c.Channel()), TransportErrorCodeError)
 	}
-	return delivered[P](frame)
+	return heardAs[P](frame, refused)
 }

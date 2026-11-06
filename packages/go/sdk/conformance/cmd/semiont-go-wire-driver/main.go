@@ -313,7 +313,11 @@ func (w *wire) listen(args protocol.Arguments) (any, error) {
 	w.reporters.Add(1)
 	go func() {
 		defer w.reporters.Done()
-		for frame := range frames {
+		for frame, refused := range frames {
+			// The suite's protocol has a line for a frame delivered, and none for one refused.
+			if refused != nil {
+				continue
+			}
 			line := map[string]any{"channel": channel, "payload": frame.Payload}
 			if frame.CorrelationID != "" {
 				line["correlationId"] = frame.CorrelationID

@@ -401,23 +401,15 @@ type wireFrame struct {
 	Scope         *string         `json:"scope"`
 }
 
-// refusedFrame is what BusFrame does not allow: its first fault, and the
-// channel it names when BusFrame allows its channel. One whose channel is ""
-// names no channel, and so no reader.
-type refusedFrame struct {
-	fault   required.Fault
-	channel bus.Channel
-}
-
-// carried is data read as a frame, or why it is not one, and whether it is
-// one. A frame carries what BusFrame names, and nothing more.
-func carried(data string) (Frame, refusedFrame, bool) {
+// carried is data read as a frame, and true; or, when BusFrame does not allow
+// it, its first fault. A frame carries what BusFrame names, and nothing more.
+func carried(data string) (Frame, required.Fault, bool) {
 	if fault, faulty := required.FaultOf([]byte(data), reflect.TypeFor[api.BusFrame]()); faulty {
-		return Frame{}, refusedFrame{fault: fault, channel: channelOf(data)}, false
+		return Frame{}, fault, false
 	}
 	var read wireFrame
 	if json.Unmarshal([]byte(data), &read) != nil {
-		return Frame{}, refusedFrame{fault: required.Undecoded, channel: channelOf(data)}, false
+		return Frame{}, required.Undecoded, false
 	}
 	frame := Frame{Channel: bus.Channel(read.Channel), Payload: read.Payload}
 	if read.CorrelationID != nil {
@@ -426,25 +418,35 @@ func carried(data string) (Frame, refusedFrame, bool) {
 	if read.Scope != nil {
 		scope, err := api.ParseResourceId(*read.Scope)
 		if err != nil {
-			return Frame{}, refusedFrame{fault: required.Undecoded, channel: frame.Channel}, false
+			return Frame{}, required.Undecoded, false
 		}
 		frame.Scope = scope
 	}
-	return frame, refusedFrame{}, true
+	return frame, required.Fault{}, true
 }
 
-// channelOf is the channel data names: the channel of a JSON object, when it
-// is a text of at least one character. It is "" when data names none.
-func channelOf(data string) bus.Channel {
+// refusalOf is the refusal of data, which BusFrame refused for fault, and
+// true when the channel and the scope it carries name its readers; false
+// when they do not, and it names no reader.
+func refusalOf(data string, fault required.Fault) (*FrameRefusal, bool) {
 	var members map[string]json.RawMessage
 	if json.Unmarshal([]byte(data), &members) != nil {
-		return ""
+		return nil, false
 	}
-	var channel string
-	if json.Unmarshal(members["channel"], &channel) != nil {
-		return ""
+	// They name its readers when a frame of them alone is one BusFrame allows.
+	named := map[string]json.RawMessage{"channel": members["channel"], "payload": json.RawMessage(`{}`)}
+	if scope, has := members["scope"]; has {
+		named["scope"] = scope
 	}
-	return bus.Channel(channel)
+	alone, err := json.Marshal(named)
+	if err != nil {
+		return nil, false
+	}
+	readers, _, ok := carried(string(alone))
+	if !ok {
+		return nil, false
+	}
+	return &FrameRefusal{Channel: readers.Channel, Member: fault.Member, Reason: fault.Reason, Payload: members["payload"], Scope: readers.Scope}, true
 }
 
 func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
@@ -454,12 +456,15 @@ func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
 	if hasID && !s.seen.remember(id) {
 		return
 	}
-	frame, refused, ok := carried(data)
+	frame, fault, ok := carried(data)
 	if !ok {
-		if refused.channel == "" {
-			// What names no channel names no reader: it is told to the failure report.
-			s.shared.failures.report(transportErrorWithoutResponse(fmt.Sprintf("the stream carried what is not a frame: %s", refused.fault), TransportErrorCodeError))
+		refusal, named := refusalOf(data, fault)
+		if !named {
+			// What names no reader is told to the failure report.
+			s.shared.failures.report(transportErrorWithoutResponse(fmt.Sprintf("the stream carried what is not a frame: %s", fault), TransportErrorCodeError))
+			return
 		}
+		s.shared.hub.DeliverRefusal(refusal)
 		return
 	}
 	payload, sentUnder, ok := withoutTrace(frame.Payload)

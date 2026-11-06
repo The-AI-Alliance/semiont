@@ -23,9 +23,12 @@ type Transport interface {
 	Emit(ctx context.Context, channel bus.Channel, payload map[string]any, envelope Envelope) (subscribers int, counted bool, err error)
 	// Frames is the frames delivered on any of channels from now on, in the
 	// order they were delivered, until the loop stops, ctx is done or the
-	// transport closes. A channel the transport can never deliver is refused,
-	// as unsubscribed.
-	Frames(ctx context.Context, channels ...bus.Channel) (iter.Seq[Frame], error)
+	// transport closes. A frame the transport refused, whose channel and
+	// scope name its readers, is given in its place as the channel and scope
+	// it names, with its *FrameRefusal as the error, and the frames after it
+	// follow. A channel the transport can never deliver is refused, as
+	// unsubscribed.
+	Frames(ctx context.Context, channels ...bus.Channel) (iter.Seq2[Frame, error], error)
 	// IsSubscribed reports whether the transport delivers channel globally:
 	// whether a reply published there can reach this client.
 	IsSubscribed(channel bus.Channel) bool
@@ -41,14 +44,16 @@ type Transport interface {
 	// it missed.
 	State() Watched[ConnectionState]
 	// BridgeInto delivers into sink, the client's own bus, every frame the
-	// transport delivers from now on, each published to everyone there
-	// whichever scope it came on. The bus is the client's: a transport never
+	// transport delivers from now on, and every refusal it delivers in a
+	// frame's place, each published to everyone there whichever scope it
+	// came on. The bus is the client's: a transport never
 	// makes one (protocol/contract/TRANSPORT-CONTRACT.md § The bus belongs to the
 	// client).
 	BridgeInto(sink FrameSink)
 	// Failures is the failures the transport meets from now on, each as it is
 	// returned to its caller, and each line its stream carried that names no
-	// channel. A listener taken as soon as the transport is made hears every
+	// reader: one that is no frame, and whose channel or scope cannot be
+	// read. A listener taken as soon as the transport is made hears every
 	// one, from its first request.
 	Failures() iter.Seq[*TransportError]
 	// Close stops the transport: the state becomes closed, every sequence

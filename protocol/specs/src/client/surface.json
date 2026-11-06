@@ -1509,10 +1509,7 @@
         },
         {
           "member": "FrameRefusal",
-          "kind": "type",
-          "notYetReached": {
-            "go": "Go's transport is to deliver a frame BusFrame refuses, whose channel and scope can be read, as a FrameRefusal in its place."
-          }
+          "kind": "type"
         },
         {
           "member": "FrameRefusalReason",
@@ -1522,7 +1519,6 @@
             "python": "Python's refusal states its reason as a Literal of the two spellings, `lacks` and `malformed`."
           },
           "notYetReached": {
-            "go": "Go's FrameRefusal is to state its reason as this, the one kind every fault's reason is.",
             "swift": "Swift's FrameRefusal is still to name its member and its reason."
           }
         },

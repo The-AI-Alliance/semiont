@@ -417,7 +417,7 @@ func (f *FaultyTransport) arrive(reply semiont.Frame, copies int) {
 	}
 }
 
-func (f *FaultyTransport) Frames(ctx context.Context, channels ...bus.Channel) (iter.Seq[semiont.Frame], error) {
+func (f *FaultyTransport) Frames(ctx context.Context, channels ...bus.Channel) (iter.Seq2[semiont.Frame, error], error) {
 	if len(channels) == 0 {
 		return nil, fmt.Errorf("Frames names no channel to listen to")
 	}

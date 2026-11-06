@@ -328,8 +328,12 @@ func followed[C any](ctx context.Context, l *links, create api.JobCreateCommand,
 			said, held = held, nil
 		case <-frames.ready:
 			items, closed := frames.drain()
-			for _, frame := range items {
-				if one, ok := hear(frame); ok {
+			for _, item := range items {
+				// A JobEvent has no kind to report a refused frame as.
+				if item.refusal != nil {
+					continue
+				}
+				if one, ok := hear(item.frame); ok {
 					if jobID.IsZero() {
 						held = append(held, one)
 					} else {

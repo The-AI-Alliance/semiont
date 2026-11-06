@@ -41,7 +41,7 @@ func TestALoopThatStopsLetsGoOfEveryChannelItListenedTo(t *testing.T) {
 		break
 	}
 	for _, channel := range []bus.Channel{"job:report-progress", "job:complete"} {
-		if listening := hub.channels[channel].give(numbered(channel, 1)); listening != 0 {
+		if listening := hub.channels[channel].give(arrival{frame: numbered(channel, 1)}); listening != 0 {
 			t.Errorf("%s still has %d listener(s) after the loop stopped", channel, listening)
 		}
 	}

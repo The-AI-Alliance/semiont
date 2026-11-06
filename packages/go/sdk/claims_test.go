@@ -92,7 +92,7 @@ func (w *workerWire) Emit(_ context.Context, channel bus.Channel, payload map[st
 	return 0, false, nil
 }
 
-func (w *workerWire) Frames(ctx context.Context, channels ...bus.Channel) (iter.Seq[Frame], error) {
+func (w *workerWire) Frames(ctx context.Context, channels ...bus.Channel) (iter.Seq2[Frame, error], error) {
 	return w.hub.Frames(ctx, channels...), nil
 }
 

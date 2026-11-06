@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 // written is a struct of no schema, as the generator writes an object: an
@@ -30,8 +31,10 @@ type item struct {
 }
 
 // lacks and malformed are the faults of each reason at member.
-func lacks(member string) Fault     { return Fault{Member: member, Reason: Lacks} }
-func malformed(member string) Fault { return Fault{Member: member, Reason: Malformed} }
+func lacks(member string) Fault { return Fault{Member: member, Reason: bus.FrameRefusalReasonLacks} }
+func malformed(member string) Fault {
+	return Fault{Member: member, Reason: bus.FrameRefusalReasonMalformed}
+}
 
 // none is no fault.
 var none = Fault{}
