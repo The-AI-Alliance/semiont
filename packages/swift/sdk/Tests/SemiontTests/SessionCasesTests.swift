@@ -100,8 +100,20 @@ private func status(_ session: SemiontSession) -> String {
       await session.start()
       try await session.ready()
       if part == "refusal" {
-        let given = try await session.refresh()
+        let refused: String?
+        switch try required(row, "refused").text {
+        case "held": refused = session.token.value
+        case "replaced":
+          refused = try jwt(
+            .object([
+              "iss": .string("issuer"), "name": .string("replaced"),
+              "exp": .number(Date().timeIntervalSince1970 + 3600),
+            ]))
+        case let said: throw SpecFailure.shape("a refused token the table calls \(said)")
+        }
+        let given = try await session.refreshOf(refused)
         #expect((given != nil) == (row["given"] == .bool(true)))
+        if let given { #expect(given == session.token.value) }
       }
       let counts = await script.counts()
       #expect(

@@ -250,7 +250,9 @@ def test_a_refused_session_renews_and_asks_as_the_table_states(row: JsonObject) 
         async with world.its_session() as session:
             await soon(session.ready())
             assert ends(session) == "signed-in"
-            given = await soon(session.refresh())
+            # The gateway refused a token: its transport asks the session to refresh, and tells it which.
+            refused = {"held": session.token.value, "replaced": token(3600, -1)}[text(row["refused"], "refused")]
+            given = await soon(session.refresh(refused))
             assert (given is not None) == row["given"], "whether `refresh` gives a token"
             if given is not None:
                 assert given == session.token.value

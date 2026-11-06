@@ -346,6 +346,14 @@ describe('HttpTransport afterResponse — a refused credential is renewed once, 
     expect(request.headers.get('Authorization')).toBe('Bearer fresh-token');
   });
 
+  test('the refresher is told the token the refused request carried', async () => {
+    const refresher = vi.fn(async () => 'fresh-token');
+    const { request, run } = build(refresher);
+    const carried = request.headers.get('Authorization')!.replace(/^Bearer /, '');
+    await run(refusedToken());
+    expect(refresher).toHaveBeenCalledWith(carried);
+  });
+
   test('a 429 refusal-rate is a refused credential: renewed the same way, not waited out', async () => {
     const { request, run } = build(async () => 'fresh-token');
     await expect(run(refusedByRate('refusal-rate'))).resolves.toEqual({ forced: { delay: 0, code: 'credential-renewed' } });

@@ -740,8 +740,14 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
         );
         assert_eq!((world.validated().len(), world.renewed()), (1, 0));
 
-        // The gateway refused the session's token: its transport asks it to refresh.
-        let given = session.refresh().await;
+        // The gateway refused a token: its transport asks the session to
+        // refresh, and tells it which.
+        let refused = match case["refused"].as_str().expect("refused") {
+            "held" => session.token().borrow().clone(),
+            "replaced" => Some(token(3600, 2)),
+            other => panic!("{why}: a refused token the table calls {other}"),
+        };
+        let given = session.refresh(refused.as_deref()).await;
 
         assert_eq!(
             (world.validated().len() - 1, world.renewed()),

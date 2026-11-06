@@ -47,10 +47,11 @@ class Source:
     def __init__(self, first: str | None, *renewals: str | SignInError | None) -> None:
         self.token = Variable[str | None](first)
         self.renewals = list(renewals)
-        self.asked = 0
+        self.asked: list[str | None] = []
+        """The token each ask said the gateway refused."""
 
-    async def refresh(self) -> str | None:
-        self.asked += 1
+    async def refresh(self, refused: str | None) -> str | None:
+        self.asked.append(refused)
         renewal = self.renewals.pop(0) if self.renewals else None
         if isinstance(renewal, SignInError):
             raise renewal
@@ -95,7 +96,7 @@ def test_a_stream_refused_asks_its_refresher_and_opens_at_once_with_what_it_is_g
                 failures = transport.failures()
                 await state_is(transport, "open")
                 assert sent_with(gateway, "POST", "/bus/subscribe") == ["Bearer stale", "Bearer fresh"]
-                assert source.asked == 1
+                assert [f"Bearer {refused}" for refused in source.asked] == sent_with(gateway, "POST", "/bus/subscribe")[:1]
                 # A refused connect is a request the gateway refused, and is reported as one.
                 refusal = await soon(anext(failures))
                 assert (refusal.code, refusal.status) == ("unauthorized", 401)
@@ -117,13 +118,13 @@ def test_a_stream_whose_refresher_gives_no_other_token_waits_for_one_and_asks_on
                 # Many of its retries pass: the token the gateway refused is not sent again, and nobody is asked again.
                 await asyncio.sleep(0.3)
                 assert sent_with(gateway, "POST", "/bus/subscribe") == ["Bearer stale"]
-                assert source.asked == 1
+                assert len(source.asked) == 1
                 assert transport.state.value == "unauthenticated"
 
                 source.token.set("another")
                 await state_is(transport, "open")
                 assert sent_with(gateway, "POST", "/bus/subscribe") == ["Bearer stale", "Bearer another"]
-                assert source.asked == 1
+                assert len(source.asked) == 1
 
     run(scenario())
 
@@ -139,12 +140,12 @@ def test_a_stream_whose_renewed_token_is_refused_too_asks_for_no_third() -> None
                 await soon(gateway.arrived("POST", "/bus/subscribe", 2))
                 await asyncio.sleep(0.2)
                 assert sent_with(gateway, "POST", "/bus/subscribe") == ["Bearer first", "Bearer second"]
-                assert source.asked == 1
+                assert len(source.asked) == 1
                 assert transport.state.value == "unauthenticated"
 
                 source.token.set("another")
                 await state_is(transport, "open")
-                assert source.asked == 1
+                assert len(source.asked) == 1
 
     run(scenario())
 
@@ -157,7 +158,7 @@ def test_a_stream_refused_again_after_it_opened_asks_its_refresher_again() -> No
             gateway.scripted[("POST", "/bus/subscribe")] = [REFUSED]
             async with HttpTransport(gateway.origin, token=source.token, refresher=source.refresh, timing=QUICK) as transport:
                 await state_is(transport, "open")
-                assert source.asked == 1
+                assert len(source.asked) == 1
 
                 # The stream drops, and the gateway refuses the token it reconnects with: another outage.
                 gateway.scripted[("POST", "/bus/subscribe")] = [REFUSED]
@@ -165,7 +166,7 @@ def test_a_stream_refused_again_after_it_opened_asks_its_refresher_again() -> No
                 await soon(gateway.arrived("POST", "/bus/subscribe", 4))
                 await state_is(transport, "open")
                 assert sent_with(gateway, "POST", "/bus/subscribe") == ["Bearer first", "Bearer second", "Bearer second", "Bearer third"]
-                assert source.asked == 2
+                assert len(source.asked) == 2
 
     run(scenario())
 
@@ -202,7 +203,7 @@ def test_a_request_refused_is_made_once_more_with_the_token_its_refresher_gives(
                 failures = transport.failures()
                 assert (await soon(transport.get_status())).version == "1.0.0"
                 assert sent_with(gateway, "GET", "/api/status") == ["Bearer stale", "Bearer fresh"]
-                assert source.asked == 1
+                assert [f"Bearer {refused}" for refused in source.asked] == sent_with(gateway, "GET", "/api/status")[:1]
                 # A request that was answered in the end failed nobody.
                 assert await nothing_reported(failures)
             finally:
@@ -243,7 +244,7 @@ def test_a_request_refused_twice_is_refused_and_its_refresher_was_asked_once() -
                 assert (refused.value.code, refused.value.status) == ("unauthorized", 401)
                 assert refused.value.message == "The token is not one this gateway admits"
                 assert sent_with(gateway, "GET", "/api/status") == ["Bearer stale", "Bearer fresh"]
-                assert source.asked == 1
+                assert len(source.asked) == 1
             finally:
                 await transport.close()
 
@@ -264,7 +265,7 @@ def test_a_request_refused_with_nothing_to_renew_with_is_refused_at_once(gives: 
                     await soon(transport.get_status())
                 assert refused.value.code == "unauthorized"
                 assert sent_with(gateway, "GET", "/api/status") == ["Bearer stale"]
-                assert source.asked == (0 if refresher is None else 1)
+                assert len(source.asked) == (0 if refresher is None else 1)
             finally:
                 await transport.close()
 
@@ -287,7 +288,7 @@ def test_a_request_refused_by_the_limit_on_refused_credentials_is_not_made_again
                 # It says what a `401` says, with the status it was answered: never `rate-limited`, and not waited out.
                 assert (refused.value.code, refused.value.status) == ("unauthorized", 429)
                 assert sent_with(gateway, "GET", "/api/status") == ["Bearer stale"]
-                assert source.asked == 1
+                assert len(source.asked) == 1
             finally:
                 await transport.close()
 
@@ -304,7 +305,7 @@ def test_a_request_that_sends_no_token_asks_nobody_to_renew_one() -> None:
             try:
                 with pytest.raises(TransportError):
                     await soon(transport.get_protected_resource_metadata())
-                assert source.asked == 0
+                assert len(source.asked) == 0
                 assert sent_with(gateway, "GET", "/.well-known/oauth-protected-resource") == [None]
             finally:
                 await transport.close()
@@ -327,7 +328,7 @@ def test_an_emit_whose_token_is_refused_is_sent_again_at_once_with_the_token_its
                 failures = transport.failures()
                 assert await soon(transport.emit("beckon:focus", {"resourceId": "res-1"})) == 1
                 assert sent_with(gateway, "POST", "/bus/emit") == ["Bearer stale", "Bearer fresh"]
-                assert source.asked == 1
+                assert [f"Bearer {refused}" for refused in source.asked] == sent_with(gateway, "POST", "/bus/emit")[:1]
                 # An emit accepted in the end failed nobody.
                 assert await nothing_reported(failures)
                 # Both attempts were the one emit, by its key; the next emit is another.
@@ -357,7 +358,7 @@ def test_an_emit_whose_renewed_token_is_refused_too_fails_as_unauthorized_and_is
                 assert await nothing_reported(failures)
                 await asyncio.sleep(0.1)
                 assert sent_with(gateway, "POST", "/bus/emit") == ["Bearer stale", "Bearer fresh"]
-                assert source.asked == 1
+                assert len(source.asked) == 1
 
     run(scenario())
 

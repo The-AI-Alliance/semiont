@@ -252,8 +252,15 @@ public sealed class SessionTests
                 running = true;
                 if (part == "refusal")
                 {
-                    var given = await session.RefreshAsync(session.State.Token);
+                    var refused = row.GetProperty("refused").GetString() switch
+                    {
+                        "held" => session.State.Token,
+                        "replaced" => TokenTests.Jwt(new { exp = clock.GetUtcNow().ToUnixTimeSeconds() + 3600, sub = "alice", replaced = true }),
+                        var said => throw new InvalidOperationException("Unknown refused token " + said),
+                    };
+                    var given = await session.RefreshAsync(refused);
                     Assert.Equal(row.GetProperty("given").GetBoolean(), given is not null);
+                    if (given is not null) Assert.Equal(session.State.Token, given);
                 }
                 Assert.Equal(row.GetProperty("asks").GetInt32(), asks);
                 Assert.Equal(row.GetProperty("renewals").GetInt32(), renewals);
