@@ -170,11 +170,12 @@ def test_a_failure_that_is_not_its_channel_s_is_refused_naming_its_fault_and_is_
         assert transport.pending_replies == []
         return raised.value
 
-    for failure, said in (
+    faulty: tuple[tuple[dict[str, JsonValue], str], ...] = (
         ({}, "it has no `message`"),
         ({"code": "not-found"}, "it has no `message`"),
         ({"message": "said by the peer", "code": 7}, "its `code` is malformed"),
-    ):
+    )
+    for failure, said in faulty:
         refused = run(scenario(failure))
         assert (refused.code, refused.message) == ("error", f"a payload on {FAILURE} is not that channel's: {said}")
 

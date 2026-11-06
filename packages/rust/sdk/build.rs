@@ -846,6 +846,7 @@ fn typed_channels(registry: &Value, definitions: &Value) -> String {
     let mut code = String::new();
     let mut markers: Vec<String> = Vec::new();
     let mut shapes: Vec<(&str, String)> = Vec::new();
+    let mut stamped: Vec<(&str, Vec<String>)> = Vec::new();
     let scoped = list(&registry["audience"]["scoped"], "audience.scoped");
     for channel in list(&registry["channels"], "channels") {
         let name = text(channel, "channel", "a registry channel");
@@ -888,6 +889,7 @@ fn typed_channels(registry: &Value, definitions: &Value) -> String {
             other => panic!("{name} has the shape {other}, which has no Rust type"),
         };
         shapes.push((name, shape));
+        stamped.push((name, declared.clone()));
         let _ = writeln!(
             code,
             "/// `{name}`\npub struct {marker};\nimpl Channel for {marker} {{\n    const NAME: &'static str = {name:?};\n    const STAMPS: &'static [&'static str] = &{declared:?};\n    type Payload = {payload};\n}}"
@@ -925,6 +927,13 @@ fn typed_channels(registry: &Value, definitions: &Value) -> String {
     code.push_str("/// What a payload on each channel must be, by the channel's name, as\n/// `crate::required` holds a payload to it.\npub(crate) fn payload_shape(channel: &str) -> &'static crate::required::Shape {\n    use crate::required::{Kind, NONE, Shape};\n    match channel {\n");
     for (name, shape) in shapes {
         let _ = writeln!(code, "        {name:?} => &{shape},");
+    }
+    code.push_str(
+        "        other => panic!(\"{other} is no channel of the registry\"),\n    }\n}\n",
+    );
+    code.push_str("/// What the gateway stamps on a payload on each channel that the payload's\n/// type declares, by the channel's name: its type's `Channel::STAMPS`.\npub(crate) fn payload_stamps(channel: &str) -> &'static [&'static str] {\n    match channel {\n");
+    for (name, declared) in stamped {
+        let _ = writeln!(code, "        {name:?} => &{declared:?},");
     }
     code.push_str(
         "        other => panic!(\"{other} is no channel of the registry\"),\n    }\n}\n",

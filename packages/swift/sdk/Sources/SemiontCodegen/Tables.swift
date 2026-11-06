@@ -492,7 +492,7 @@ package struct TableGenerator {
         throw GenerationRefused(description: "failure message must be a required string")
       }
       out +=
-        "  \(literal(names[0])): WireOperation(result: \(literal(names[1])), resultStamps: Channels.\(escaped(memberName(names[1]))).stamps, failure: \(literal(names[2])), request: { try projectWire(\(request.type).self, $0, stamps: Channels.\(escaped(memberName(names[0]))).stamps) }, response: { try projectWire(\(response.type).self, $0, stamps: Channels.\(escaped(memberName(names[1]))).stamps) }, decodeFailure: { try projectFailure(\(failure.type).self, $0, stamps: Channels.\(escaped(memberName(names[2]))).stamps) }),\n"
+        "  \(literal(names[0])): WireOperation(result: \(literal(names[1])), resultStamps: Channels.\(escaped(memberName(names[1]))).stamps, failure: \(literal(names[2])), failureStamps: Channels.\(escaped(memberName(names[2]))).stamps, request: { try projectWire(\(request.type).self, $0, stamps: Channels.\(escaped(memberName(names[0]))).stamps) }, response: { try projectWire(\(response.type).self, $0, stamps: Channels.\(escaped(memberName(names[1]))).stamps) }),\n"
     }
     guard scoped.isDisjoint(with: everyone.union(replies)) else {
       throw GenerationRefused(description: "channel delivered both scoped and everywhere")

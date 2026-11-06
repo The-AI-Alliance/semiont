@@ -16,7 +16,12 @@ internal enum FrameRefusalReason
 
 /// <summary>The first thing wrong with a value: the way to the member it is at (the names of the members it is within,
 /// and its own, joined by dots; empty for the value itself), and why.</summary>
-internal sealed record Fault(string Member, FrameRefusalReason Reason);
+internal sealed record Fault(string Member, FrameRefusalReason Reason)
+{
+    /// <summary>What every SDK says of it.</summary>
+    internal string Said => Reason == FrameRefusalReason.Lacks ? $"it has no `{Member}`"
+        : Member.Length == 0 ? "it is malformed" : $"its `{Member}` is malformed";
+}
 
 // The first fault of a value as one of the protocol's component schemas. Every SDK holds what it reads to the table of
 // what each schema requires, and names the first fault it finds the same way. The table is this SDK's copy of it

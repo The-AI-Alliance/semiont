@@ -431,6 +431,12 @@ result and failure channels are the registry's.
   request fails as `error`, saying the payload is not its channel's and
   naming its first fault, as § Identity says a fault is named.
   *Held by `protocol/specs/src/resources/reader-cases.json`, `packages/go/sdk/replies_test.go`, `packages/typescript/core/src/__tests__/bus-request.test.ts`.*
+- **A failure with a fault** is held to its channel's schema as a result
+  is: the request fails as `error`, naming its first fault, and a failure
+  without words is never given any. A peer sends a code the wire lists,
+  but a reader holds the code to no list: a failure whose code the wire
+  does not list settles the request as `bus.rejected`, in its own words.
+  *Held by `sdk/wire/failure-codes`, `packages/typescript/core/src/__tests__/bus-request.test.ts`, `packages/go/sdk/replies_test.go`, `packages/rust/sdk/tests/bus.rs`, `packages/python/sdk/tests/test_transport.py`, `packages/kotlin/sdk/src/test/kotlin/semiont/bus/BusTest.kt`, `packages/swift/sdk/Tests/SemiontTests/HTTPTests.swift`, `packages/csharp/sdk/tests/Semiont.Tests/TransportTests.cs`.*
 - **A request nobody is there to answer** fails as `peer-unavailable` when
   the gateway can tell, and as a timeout when it cannot.
   *Held by `sdk/wire/request-unanswerable`, `gateway/emit.test.ts`.*

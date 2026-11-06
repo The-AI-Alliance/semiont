@@ -4,9 +4,9 @@ struct WireOperation: Sendable {
   let result: String
   let resultStamps: Set<String>
   let failure: String
+  let failureStamps: Set<String>
   let request: @Sendable ([String: JSONValue]) throws -> [String: JSONValue]
   let response: @Sendable ([String: JSONValue]) throws -> [String: JSONValue]
-  let decodeFailure: @Sendable ([String: JSONValue]) throws -> BusRequestError
 }
 func projectWire<Value: Codable>(
   _ type: Value.Type, _ payload: [String: JSONValue], stamps: Set<String>
@@ -17,15 +17,22 @@ func projectWire<Value: Codable>(
   let decoded = try JSONDecoder().decode(type, from: data)
   return try JSONDecoder().decode([String: JSONValue].self, from: JSONEncoder().encode(decoded))
 }
-func projectFailure<Value: Codable>(
-  _ type: Value.Type, _ payload: [String: JSONValue], stamps: Set<String>
-) throws -> BusRequestError {
-  let value = try projectWire(type, payload, stamps: stamps)
-  guard case .string(let message) = value["message"] else {
-    throw TransportError(.error, "An operation's failure has no message")
+/// What a request answered on `channel`, its operation's failure channel, fails with. A failure is
+/// held to its channel's shape before it is read, as a result is: one with a fault is refused,
+/// naming the fault. One the shape passes is a `BusRequestError` in its own words, under the code
+/// its own code becomes; the shape holds the code to no list, so it is never decoded to a type whose
+/// code is closed.
+func projectFailure(_ payload: [String: JSONValue], on channel: String, stamps: Set<String>)
+  -> any Error
+{
+  let failure = declared(payload, stamps: stamps)
+  guard payloadFault(of: failure, on: channel) == nil,
+    case .string(let message) = failure["message"]
+  else {
+    return TransportError(.error, notTheChannels(channel, refusedFault(of: failure, on: channel)))
   }
   let code: BusRequestErrorCode
-  if case .string(let wireCode) = value["code"] {
+  if case .string(let wireCode) = failure["code"] {
     code = busRequestCodeByWireCode[wireCode] ?? unrecognizedBusFailure
   } else {
     code = unrecognizedBusFailure
@@ -96,11 +103,7 @@ extension HttpTransport {
       Task { await self.fail(correlation, error: CancellationError()) }
     }
     if frame.channel == descriptor.failure {
-      let failure: BusRequestError
-      do { failure = try descriptor.decodeFailure(frame.payload) } catch {
-        throw BusRequestError(unrecognizedBusFailure, "Malformed failure for \(operation)")
-      }
-      throw failure
+      throw projectFailure(frame.payload, on: descriptor.failure, stamps: descriptor.failureStamps)
     }
     do {
       var answer = frame

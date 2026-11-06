@@ -39,7 +39,8 @@ final class StateCaseWire: Sendable {
     let descriptor = try requiredOperation(channel)
     let result: Result<[String: JSONValue], any Error>
     if reply == descriptor.failure {
-      result = .failure(try descriptor.decodeFailure(payload))
+      result = .failure(
+        projectFailure(payload, on: descriptor.failure, stamps: descriptor.failureStamps))
     } else if reply == descriptor.result {
       result = .success(payload)
     } else {

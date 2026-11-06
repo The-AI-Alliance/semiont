@@ -99,13 +99,19 @@ func faultOf(_ schema: String, _ value: JSONValue) -> Fault? {
   faultAt(component(schema), value, way: "")
 }
 
-/// What a payload `channel`'s decoder refused is refused for: its first fault, or, where the table
-/// finds none, the payload itself.
-func refusedFault(of payload: [String: JSONValue], on channel: String) -> Fault {
+/// The first fault `payload` has as a payload on `channel`, by the rules every SDK reads the table
+/// by; nil when it has none.
+func payloadFault(of payload: [String: JSONValue], on channel: String) -> Fault? {
   guard let shape = requiredPayloadShapes[channel] else {
     preconditionFailure("\(channel) is no channel of the bus's registry")
   }
-  if let fault = faultAt(shape, .object(payload), way: "") { return fault }
+  return faultAt(shape, .object(payload), way: "")
+}
+
+/// What a payload `channel`'s decoder refused is refused for: its first fault, or, where the table
+/// finds none, the payload itself.
+func refusedFault(of payload: [String: JSONValue], on channel: String) -> Fault {
+  if let fault = payloadFault(of: payload, on: channel) { return fault }
   return .undecoded
 }
 

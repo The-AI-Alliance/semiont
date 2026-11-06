@@ -42,7 +42,7 @@ from typing import Final, Literal, Self, final, overload
 from pydantic import JsonValue, ValidationError
 
 from semiont._required import UNDECODED, Fault, fault_of
-from semiont.channel import AnyOperation, Channel, Operation, ScopedChannel
+from semiont.channel import AnyChannel, AnyOperation, Channel, Operation, ScopedChannel
 from semiont.errors import BusRequestError, TransportError
 from semiont.events import Events
 from semiont.identifiers import ResourceId, UserId
@@ -87,7 +87,8 @@ async def request(
     Raises `BusRequestError` when it is answered with a failure, when no
     reply comes in time, when the transport is closed, and when the
     transport's stream does not carry the operation's replies; and
-    `TransportError` when the emit itself is refused.
+    `TransportError` when the emit itself is refused, and when the failure
+    it is answered with is not its channel's.
     """
     return (await _result_of(transport, operation, payload, timeout_ms)).payload
 
@@ -142,13 +143,31 @@ async def _result_of(transport: Transport, operation: AnyOperation, payload: Map
         )
     if reply.channel == result:
         return reply
-    raise BusRequestError.answered(reply.payload)
+    raise _answered(operation.failure, reply.payload)
+
+
+def _answered(channel: AnyChannel, failure: Mapping[str, JsonValue]) -> BusRequestError | TransportError:
+    """The failure a request was answered with on `channel`, its operation's failure channel.
+
+    A failure is held to its channel's shape before it is read, as a result
+    is: one with a fault is refused, naming the fault. A failure the shape
+    passes is a `BusRequestError` in its own words, under the code its own
+    code becomes; the shape holds the code to no list.
+    """
+    fault = fault_of(channel.payload, _unstamped(channel, failure))
+    if fault is None:
+        match failure:
+            case {"message": str(said)}:
+                return BusRequestError.answered(said, failure)
+            case _:
+                fault = UNDECODED
+    return TransportError("error", f"a payload on {channel.name} is not that channel's: {fault}")
 
 
 # ── By type ─────────────────────────────────────────────────────────────
 
 
-def _unstamped[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], payload: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+def _unstamped(channel: AnyChannel, payload: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
     """`payload` without what the gateway stamped on it that `channel`'s type does not declare.
 
     What the gateway stamps on a payload (a member whose name begins `_`) is

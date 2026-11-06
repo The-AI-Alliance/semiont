@@ -153,13 +153,20 @@ const restated = (o) => {
   return named.length === 0 ? '' : `, ReplyNames: []string{${named.map((name) => JSON.stringify(name)).join(', ')}}`;
 };
 const repliesRows = alignRows(
-  reg.operations.map((o) => [`${JSON.stringify(o.request)}:`, `{Result: ${JSON.stringify(o.result)}, Failure: ${JSON.stringify(o.failure)}${restated(o)}},`]),
+  reg.operations.map((o) => [
+    `${JSON.stringify(o.request)}:`,
+    `{Result: ${JSON.stringify(o.result)}, Failure: ${JSON.stringify(o.failure)}, FailurePayload: reflect.TypeFor[${typeOf(o.failure)}]()${restated(o)}},`,
+  ]),
 );
 
 const operationsGo = `${BANNER}
 package bus
 
-import "github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+import (
+\t"reflect"
+
+\t"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+)
 
 // Every operation, named for its request channel and typed by what it sends
 // and what each of its replies carries.
@@ -174,11 +181,14 @@ var LimitsOperations = []Operation[${shapeOf(limitsOperations[0])}]{
 ${limitsOperations.map((o) => `\t${goName(o.request)},`).join('\n')}
 }
 
-// Replies is the two channels a request is answered on, and what its result
-// states beside its response.
+// Replies is the two channels a request is answered on, the type its
+// failure is read as, and what its result states beside its response.
 type Replies struct {
 \tResult  Channel
 \tFailure Channel
+\t// FailurePayload is the type of what the failure channel carries: a
+\t// failure is held to its shape before it is read.
+\tFailurePayload reflect.Type
 \t// ReplyNames is what the result states beside its response: properties of
 \t// the request, which whoever answers states again (the resource a context
 \t// was gathered for, the reference a search was for). None, for most.

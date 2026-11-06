@@ -35,15 +35,21 @@ private struct OperationRefused: Error, Equatable {}
   await #expect(throws: CancellationError.self) { try await waiting.completed() }
   #expect(!started.value)
 }
-@Test func nativeFailureProjectionPreservesDeclaredCodesAndRejectsAnAbsentMessage() throws {
+@Test func nativeFailureProjectionPreservesDeclaredCodesAndRefusesAnAbsentMessage() throws {
   let descriptor = try #require(wireOperations[Operations.frameAddEntityType.request.name])
-  let error = try descriptor.decodeFailure(
-    wirePayload(CommandError(code: .peerUnavailable, message: "still starting")))
+  let declared = try wirePayload(CommandError(code: .peerUnavailable, message: "still starting"))
+  let error = try #require(
+    projectFailure(declared, on: descriptor.failure, stamps: descriptor.failureStamps)
+      as? BusRequestError)
   #expect(error.reason == .busPeerUnavailable)
   #expect(error.description == "still starting")
-  #expect(throws: TransportError.self) {
-    try projectFailure(BusEmptyPayload.self, [:], stamps: [])
-  }
+  let refused = try #require(
+    projectFailure([:], on: descriptor.failure, stamps: descriptor.failureStamps)
+      as? TransportError)
+  #expect(refused.reason == .error)
+  #expect(
+    refused.description
+      == "a payload on \(descriptor.failure) is not that channel's: it has no `message`")
 }
 
 @Test func runningStartsOnDemandAndReportsTheFinalValueOnce() async throws {
@@ -173,9 +179,11 @@ private actor OperationGate {
 }
 @Test func aSearchFailureIsReadByItsMessage() throws {
   let descriptor = try #require(wireOperations[Operations.matchSearchRequested.request.name])
-  let error = try descriptor.decodeFailure(
-    wirePayload(
-      MatchSearchFailed(message: "the search was refused", referenceId: AnnotationId("ann-1"))))
+  let failed = try wirePayload(
+    MatchSearchFailed(message: "the search was refused", referenceId: AnnotationId("ann-1")))
+  let error = try #require(
+    projectFailure(failed, on: descriptor.failure, stamps: descriptor.failureStamps)
+      as? BusRequestError)
   #expect(error.description == "the search was refused")
   #expect(error.reason == unrecognizedBusFailure)
 }

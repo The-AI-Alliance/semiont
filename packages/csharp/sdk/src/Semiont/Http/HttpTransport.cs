@@ -1,5 +1,6 @@
 using Semiont.Protocol;
 using Semiont.Errors;
+using Semiont.Serialization;
 using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
@@ -292,11 +293,7 @@ public sealed partial class HttpTransport : IDisposable
             sendOrder.Release();
             ownsTurn = false;
             var frame = await reply.Completion.Task.WaitAsync(linked.Token).ConfigureAwait(false);
-            if (frame.Frame.Channel == replies.Failure)
-            {
-                string? code = frame.Frame.Payload.TryGetProperty("code", out var field) && field.ValueKind == JsonValueKind.String ? field.GetString() : null;
-                throw new BusRequestError(ProtocolFacts.Failure(code), FailureText(frame.Frame.Payload, "message") ?? frame.Frame.Payload.ToString());
-            }
+            if (frame.Frame.Channel == replies.Failure) throw Answered(replies.Failure, frame.Frame.Payload);
             return frame;
         }
         catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
@@ -310,8 +307,18 @@ public sealed partial class HttpTransport : IDisposable
         }
     }
 
-    private static string? FailureText(JsonElement payload, string name) =>
-        payload.TryGetProperty(name, out var field) && field.ValueKind == JsonValueKind.String ? field.GetString() : null;
+    /// <summary>What a request answered on <paramref name="channel"/>, its operation's failure channel, fails with. A
+    /// failure is held to its channel's schema as a result is: one with a fault is refused, naming the fault. One the
+    /// schema passes is a <see cref="BusRequestError"/> in its own words, under the code its own code becomes; the schema
+    /// holds the code to no list.</summary>
+    private static SemiontError Answered(string channel, JsonElement failure)
+    {
+        if (Required.FaultOf(ProtocolFacts.PayloadSchema(channel), failure) is { } fault)
+            return new TransportError(ProtocolFacts.Error(0), $"a payload on {channel} is not that channel's: {fault.Said}");
+        var code = failure.TryGetProperty("code", out var field) ? field.GetString() : null;
+        return new BusRequestError(ProtocolFacts.Failure(code), failure.GetProperty("message").GetString()
+            ?? throw new InvalidOperationException($"The schema of {channel} let a failure's message be null."));
+    }
 
     private async Task RunAsync()
     {
