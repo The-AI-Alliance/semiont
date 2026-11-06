@@ -27,9 +27,9 @@ import semiont.retry.BOOT
 import semiont.retry.equalJitter
 import semiont.retry.retryAfterMs
 import semiont.transport.Broadcast
+import semiont.transport.Carried
 import semiont.transport.ConnectionState
 import semiont.transport.Events
-import semiont.transport.Frame
 import semiont.transport.FrameSink
 import semiont.transport.GatewayOperations
 import semiont.transport.PendingReply
@@ -186,7 +186,7 @@ public class HttpTransport @JvmOverloads constructor(
     override fun emitFuture(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): CompletableFuture<Long?> =
         this.scope.futureOf { emit(channel, payload, scope, correlationId) }
 
-    override fun frames(channel: String): Events<Frame> {
+    override fun frames(channel: String): Events<Carried> {
         if (channel !in channels && channel !in RESOURCE_SCOPED_CHANNELS) throw unsubscribed(channel)
         return hub.frames(channel)
     }

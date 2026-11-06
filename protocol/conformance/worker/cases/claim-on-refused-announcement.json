@@ -1,0 +1,27 @@
+{
+  "about": "an announcement the worker's transport refuses is still one received: it is stamped as heard, and, since no filter can be compared with what cannot be read, it wakes the worker as a matching one would, a claim when it holds nothing and one more claim when it arrives while a claim is in flight",
+  "source": "protocol/contract/WORKER-CONTRACT.md § Claiming, § Liveness; protocol/specs/src/bus/frame-cases.json",
+  "needs": "bus/frame-cases.json",
+  "steps": [
+    {"let": {"accepts": [{"jobType": "mark", "params": {"motivation": "highlighting"}}]}},
+    {"backend": "listen", "with": {"channels": ["job:claim"]}},
+    {"driver": "open", "with": {"timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["job:cancel-requested", "job:claim-failed", "job:claimed", "job:queued"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+    {"driver": "claim", "with": {"accepts": {"$var": "accepts"}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:claim", "payload": {"accepts": {"$var": "accepts"}}, "correlationId": {"$var": "c1"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "job:claim-failed", "correlationId": {"$var": "c1"}, "payload": {"message": "No pending job matches", "code": "none-pending"}}},
+    {"driver": "vitals", "returns": {"lastQueuedEventAt": null, "lastClaimAt": null, "lastFinishedAt": null, "lastActivityAt": null, "activeJob": null, "jobsCompleted": 0}},
+
+    {"backend": "carry", "with": {"frame": {"channel": "job:queued", "payload": "job-8"}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:claim", "payload": {"accepts": {"$var": "accepts"}}, "correlationId": {"$var": "c2"}, "clientId": {"$var": "clientId"}}},
+    {"driver": "vitals", "returns": {"lastQueuedEventAt": {"$var": "heard"}, "lastClaimAt": null, "lastFinishedAt": null, "lastActivityAt": null, "activeJob": null, "jobsCompleted": 0}},
+
+    {"backend": "carry", "with": {"frame": {"channel": "job:queued", "payload": "job-9"}}},
+    {"quiet": 300},
+    {"backend": "emit", "with": {"channel": "job:claim-failed", "correlationId": {"$var": "c2"}, "payload": {"message": "No pending job matches", "code": "none-pending"}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:claim", "payload": {"accepts": {"$var": "accepts"}}, "correlationId": {"$var": "c3"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "job:claim-failed", "correlationId": {"$var": "c3"}, "payload": {"message": "No pending job matches", "code": "none-pending"}}},
+    {"quiet": 300}
+  ]
+}

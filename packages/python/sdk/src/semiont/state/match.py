@@ -10,13 +10,13 @@ said.
 from types import TracebackType
 from typing import Final, Self, TypedDict, final, override
 
-from semiont.bus import Delivered, FrameRefusal, Typed
+from semiont.bus import Delivered, Typed
 from semiont.channels import MATCH_SEARCH_FAILED, MATCH_SEARCH_REQUESTED, MATCH_SEARCH_RESULTS
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError
 from semiont.state._tasks import Tasks
 from semiont.state_unit import StateUnit
-from semiont.transport import Transport
+from semiont.transport import FrameRefusal, Transport
 from semiont.types import MatchSearchFailed, MatchSearchRequest
 
 __all__ = ["MatchStateUnit"]

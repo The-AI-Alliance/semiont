@@ -5,6 +5,7 @@ import semiont.JobAttemptFailed
 import semiont.JobCompleted
 import semiont.JobCreated
 import semiont.JobProgressed
+import semiont.JobRefused
 import semiont.SemiontClient
 import semiont.StateUnit
 import semiont.errors.SemiontError
@@ -88,8 +89,9 @@ public class YieldStateUnit(private val client: SemiontClient, private val local
                         generating.set(true)
                     }
                     is JobCompleted -> (event.data.result as? YieldJobDone)?.let(produced::set)
-                    // An attempt that failed and will be tried again: the run is not over.
-                    is JobAttemptFailed -> Unit
+                    // An attempt that failed and will be tried again, or a refused frame, which is no word of the job:
+                    // the run is not over.
+                    is JobAttemptFailed, is JobRefused -> Unit
                 }
             }
         } catch (failure: SemiontError) {

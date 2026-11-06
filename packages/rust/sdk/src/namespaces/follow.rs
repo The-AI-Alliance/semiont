@@ -15,6 +15,11 @@
 //! the order they came. The reply itself is the follower's first event: it
 //! names the job, to `job.cancel` and to `job.status`.
 //!
+//! A frame of the lifecycle that the follower's reading refuses names no
+//! job, so it may be this job's. It is reported once the job's id is known,
+//! in the order it came, and it is no word of the job: neither the silence
+//! nor a stall deadline starts again for it.
+//!
 //! A failure the queue will retry is reported and followed past: the job is
 //! not over. A failure it will not retry ends the follower with `job.failed`.
 //! A follower given a stall deadline that hears nothing for that long asks
@@ -38,7 +43,7 @@ use crate::errors::{
     TransportErrorCode,
 };
 use crate::running::{Reporter, Running};
-use crate::transport::BoxFuture;
+use crate::transport::{BoxFuture, FrameRefusal, FrameRefusalReason};
 use crate::types::{
     FailureClass, JobCancelRequest, JobCompleteCommand, JobCreateCommand, JobCreatedResult,
     JobCreatedResultResponse, JobFailCommand, JobId, JobProgress, JobReportProgressCommand,
@@ -64,6 +69,16 @@ pub enum JobEvent<C> {
     Progress(JobProgress),
     /// An attempt failed and the queue will try again. The job is not over.
     Failed(JobFailCommand),
+    /// A frame of a job's progress, completion or failure that the
+    /// follower's reading refused: its transport refused it, or its payload
+    /// is not its channel's. It names no job, so it may be this job's or
+    /// another's, and it is no word of the job: the follower goes on, and
+    /// its silence goes on being counted. It comes only after `Created`.
+    Refused {
+        channel: String,
+        member: String,
+        reason: FrameRefusalReason,
+    },
     /// The job completed. A follower's last event.
     Complete(C),
 }
@@ -159,19 +174,22 @@ fn completed_job(frame: &JobCompleteCommand) -> &JobId {
     }
 }
 
-/// A frame of some job's lifecycle.
+/// A frame of some job's lifecycle, or the refusal of one.
 enum Heard {
     Progress(JobReportProgressCommand),
     Complete(JobCompleteCommand),
     Fail(JobFailCommand),
+    Refused(Box<FrameRefusal>),
 }
 
 impl Heard {
-    fn job_id(&self) -> &JobId {
+    /// The job it is of; none for a refusal, which names no job.
+    fn job_id(&self) -> Option<&JobId> {
         match self {
-            Heard::Progress(frame) => &frame.job_id,
-            Heard::Complete(frame) => completed_job(frame),
-            Heard::Fail(frame) => &frame.job_id,
+            Heard::Progress(frame) => Some(&frame.job_id),
+            Heard::Complete(frame) => Some(completed_job(frame)),
+            Heard::Fail(frame) => Some(&frame.job_id),
+            Heard::Refused(_) => None,
         }
     }
 }
@@ -181,8 +199,6 @@ enum Step {
     Heard(Heard),
     /// The reader fell behind: some frames were missed.
     Missed,
-    /// A frame that is not its channel's: nobody's to act on.
-    Unreadable,
     /// The client's bus ended.
     Ended,
     AskDue,
@@ -209,7 +225,7 @@ fn heard<T>(item: Option<Result<T, StreamError>>, of: impl FnOnce(T) -> Heard) -
     match item {
         Some(Ok(frame)) => Step::Heard(of(frame)),
         Some(Err(StreamError::Lagged(_))) => Step::Missed,
-        Some(Err(StreamError::Undecodable(_))) => Step::Unreadable,
+        Some(Err(StreamError::Refused(refusal))) => Step::Heard(Heard::Refused(refusal)),
         None => Step::Ended,
     }
 }
@@ -287,7 +303,6 @@ async fn followed<C: Completion>(
             }
             Step::Heard(frame) if job_id.is_none() => held.push(frame),
             Step::Heard(frame) => frames.push(frame),
-            Step::Unreadable => {}
             Step::Ended => {
                 return Err(BusRequestError::new(
                     BusRequestErrorCode::Closed,
@@ -374,10 +389,23 @@ async fn followed<C: Completion>(
             continue;
         };
         for frame in frames {
-            if frame.job_id() != following_id {
+            if frame.job_id().is_some_and(|job_id| job_id != following_id) {
                 continue;
             }
             match frame {
+                Heard::Refused(refusal) => {
+                    let FrameRefusal {
+                        channel,
+                        member,
+                        reason,
+                        ..
+                    } = *refusal;
+                    reporter.report(JobEvent::Refused {
+                        channel,
+                        member,
+                        reason,
+                    });
+                }
                 Heard::Progress(frame) => {
                     if let Some(progress) = frame.progress {
                         reporter.report(JobEvent::Progress(progress));

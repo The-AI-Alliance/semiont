@@ -16,8 +16,10 @@ import semiont.channels.Channels
 import semiont.errors.TransportError
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
+import semiont.transport.Carried
 import semiont.transport.ConnectionState
 import semiont.transport.Frame
+import semiont.transport.FrameRefusal
 
 /** The triggers that are events, by the channel each is. */
 private val EVENTS: Map<String, CacheRefreshTrigger> =
@@ -116,17 +118,22 @@ internal class Refresher(private val links: Links, private val live: Live) {
         links.scope.launch { reopenings() }
     }
 
-    private fun heard(frame: Frame) {
+    private fun heard(carried: Carried) {
+        val frame = when (carried) {
+            is Frame -> carried
+            is FrameRefusal -> return everythingHeld()
+        }
         val trigger = EVENTS.getValue(frame.channel)
         val subject = try {
             named(trigger, frame.payload)
         } catch (_: TransportError) {
-            // An event that cannot be read: something changed and nothing says what. Everything held is asked for again, as after a gap.
-            CacheQuery.entries.forEach { refetch(it, Subject(), CacheRefreshReach.Held) }
-            return
+            return everythingHeld()
         }
         refresh(trigger, subject)
     }
+
+    /** An event that cannot be read: something changed and nothing says what. Everything held is asked for again, as after a gap. */
+    private fun everythingHeld() = CacheQuery.entries.forEach { refetch(it, Subject(), CacheRefreshReach.Held) }
 
     /** B13: the stream is open again having left `open`, which only a drop does. A changed subscription is handed over with the state still `open`, and misses nothing. */
     private suspend fun reopenings() {

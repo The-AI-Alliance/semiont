@@ -114,9 +114,9 @@ func (r *refresher) start() {
 			case <-ctx.Done():
 				return
 			case <-events.ready:
-				frames, closed := events.drain()
-				for _, frame := range frames {
-					r.heard(frame)
+				arrivals, closed := events.drain()
+				for _, one := range arrivals {
+					r.heard(one)
 				}
 				if closed {
 					return
@@ -143,19 +143,20 @@ func (r *refresher) start() {
 	})
 }
 
-// heard applies the row of frame's trigger. An event that cannot be read is
-// something that changed with nothing saying what: everything held is asked
-// for again, as after a gap.
-func (r *refresher) heard(frame Frame) {
-	trigger := CacheRefreshTrigger(frame.Channel)
-	subject, err := subjectOf(r, trigger, frame)
-	if err != nil {
-		for _, query := range CacheQueries {
-			applyRefresh(r, CacheRefresh{Reach: CacheRefreshReachHeld, Refetches: []CacheQuery{query}}, cacheSubject{})
+// heard applies the row of a frame's trigger. An event that cannot be read,
+// and one whose frame was refused, is something that changed with nothing
+// saying what: everything held is asked for again, as after a gap.
+func (r *refresher) heard(one arrival) {
+	if one.refusal == nil {
+		trigger := CacheRefreshTrigger(one.frame.Channel)
+		if subject, err := subjectOf(r, trigger, one.frame); err == nil {
+			r.refresh(trigger, subject)
+			return
 		}
-		return
 	}
-	r.refresh(trigger, subject)
+	for _, query := range CacheQueries {
+		applyRefresh(r, CacheRefresh{Reach: CacheRefreshReachHeld, Refetches: []CacheQuery{query}}, cacheSubject{})
+	}
 }
 
 // refresh applies trigger's row for subject: the one its event's way of

@@ -7,6 +7,7 @@
 //! does not state is a fault of the value itself, and nothing of serde's own
 //! account is said: it shows what it was given.
 
+use crate::transport::FrameRefusalReason;
 use crate::types::Schema;
 use serde_json::{Map, Value};
 use std::fmt;
@@ -114,24 +115,13 @@ pub(crate) const NONE: Shape = Shape {
 
 include!(concat!(env!("OUT_DIR"), "/required.rs"));
 
-/// Why a value is refused at a member.
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) enum Reason {
-    /// The value does not carry the member, or the member holds null where it
-    /// may not.
-    Lacks,
-    /// The member is not what its schema allows (of another kind, another
-    /// value, form or size), or is one a closed object does not name.
-    Malformed,
-}
-
 /// The first thing wrong with a value: the way to the member it is at (the
 /// names of the members it is within, and its own, joined by dots; empty for
 /// the value itself), and why.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Fault {
     pub(crate) member: String,
-    pub(crate) reason: Reason,
+    pub(crate) reason: FrameRefusalReason,
 }
 
 impl Fault {
@@ -140,7 +130,19 @@ impl Fault {
     pub(crate) fn undecoded() -> Self {
         Fault {
             member: String::new(),
-            reason: Reason::Malformed,
+            reason: FrameRefusalReason::Malformed,
+        }
+    }
+
+    /// This fault of the value at `member` of another, named by its way from
+    /// that other.
+    pub(crate) fn within(self, member: &str) -> Fault {
+        Fault {
+            member: match self.member.is_empty() {
+                true => member.to_owned(),
+                false => within(member, &self.member),
+            },
+            reason: self.reason,
         }
     }
 }
@@ -149,9 +151,11 @@ impl Fault {
 impl fmt::Display for Fault {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.reason {
-            Reason::Lacks => write!(f, "it has no `{}`", self.member),
-            Reason::Malformed if self.member.is_empty() => f.write_str("it is malformed"),
-            Reason::Malformed => write!(f, "its `{}` is malformed", self.member),
+            FrameRefusalReason::Lacks => write!(f, "it has no `{}`", self.member),
+            FrameRefusalReason::Malformed if self.member.is_empty() => {
+                f.write_str("it is malformed")
+            }
+            FrameRefusalReason::Malformed => write!(f, "its `{}` is malformed", self.member),
         }
     }
 }
@@ -202,7 +206,7 @@ fn within(way: &str, name: &str) -> String {
 fn malformed(way: &str) -> Fault {
     Fault {
         member: way.to_owned(),
-        reason: Reason::Malformed,
+        reason: FrameRefusalReason::Malformed,
     }
 }
 
@@ -298,7 +302,7 @@ fn fault_of_members(
         if lacking {
             return Some(Fault {
                 member: within(way, name),
-                reason: Reason::Lacks,
+                reason: FrameRefusalReason::Lacks,
             });
         }
     }
@@ -368,14 +372,15 @@ pub fn fault_said<T: Schema>(body: &Value) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Fault, Reason, fault_of, fault_said, schema};
+    use super::{Fault, fault_of, fault_said, schema};
+    use crate::transport::FrameRefusalReason;
     use crate::types::UserResponse;
     use serde_json::json;
 
     fn malformed(member: &str) -> Option<Fault> {
         Some(Fault {
             member: member.to_owned(),
-            reason: Reason::Malformed,
+            reason: FrameRefusalReason::Malformed,
         })
     }
 
@@ -455,7 +460,7 @@ mod tests {
                 json!({"more": 1}),
                 Some(Fault {
                     member: "dids".to_owned(),
-                    reason: Reason::Lacks,
+                    reason: FrameRefusalReason::Lacks,
                 }),
             ),
             (

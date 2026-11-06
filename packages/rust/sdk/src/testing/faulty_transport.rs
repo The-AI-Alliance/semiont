@@ -24,8 +24,8 @@ use crate::errors::{BusRequestError, BusRequestErrorCode, TransportError, Transp
 use crate::event_bus::EventBus;
 use crate::locked;
 use crate::transport::{
-    BoxFuture, ConnectionState, Envelope, Events, Failures, Frame, FrameHub, Frames, PendingReply,
-    ReplyRouter, ResourceHold, STREAM_BACKLOG, Transport,
+    BoxFuture, ConnectionState, Envelope, Events, Failures, Frame, FrameHub, FrameRefusal, Frames,
+    PendingReply, ReplyRouter, ResourceHold, STREAM_BACKLOG, Transport,
 };
 use crate::types::ResourceId;
 use serde_json::{Map, Value};
@@ -110,24 +110,41 @@ struct Inner {
 }
 
 impl Inner {
-    fn deliver(&self, frame: Frame) {
+    /// A frame, or the refusal a transport delivers in its place: to the
+    /// request that awaits it, to the client's own bus, and to its channel's
+    /// readers, as a wire transport does.
+    fn deliver(&self, carried: Result<Frame, FrameRefusal>) {
         if self.closed.load(Ordering::SeqCst) {
             return;
         }
-        self.router.route(&frame);
-        if BRIDGED_CHANNELS.contains(&frame.channel.as_str()) {
+        self.router.route(carried.as_ref());
+        let channel = match &carried {
+            Ok(frame) => &frame.channel,
+            Err(refusal) => &refusal.channel,
+        };
+        if BRIDGED_CHANNELS.contains(&channel.as_str()) {
             for bus in locked(&self.bridges).iter() {
-                bus.emit(
-                    &frame.channel,
-                    frame.payload.clone(),
-                    Envelope {
-                        correlation_id: frame.correlation_id.clone(),
-                        scope: None,
-                    },
-                );
+                match &carried {
+                    Ok(frame) => {
+                        bus.emit(
+                            &frame.channel,
+                            frame.payload.clone(),
+                            Envelope {
+                                correlation_id: frame.correlation_id.clone(),
+                                scope: None,
+                            },
+                        );
+                    }
+                    Err(refusal) => {
+                        bus.emit_refusal(FrameRefusal {
+                            scope: None,
+                            ..refusal.clone()
+                        });
+                    }
+                }
             }
         }
-        self.hub.deliver(frame);
+        self.hub.deliver(carried);
     }
 }
 
@@ -251,7 +268,13 @@ impl FaultyTransport {
 
     /// Deliver a frame as if the bus had carried it.
     pub fn deliver(&self, frame: Frame) {
-        self.inner.deliver(frame);
+        self.inner.deliver(Ok(frame));
+    }
+
+    /// Deliver a refusal as if the bus had carried a frame this transport
+    /// refused that names its readers.
+    pub fn deliver_refusal(&self, refusal: FrameRefusal) {
+        self.inner.deliver(Err(refusal));
     }
 
     /// Stop naming `channel` in the stream: it is no longer delivered, as on
@@ -286,7 +309,7 @@ impl Transport for FaultyTransport {
             };
             locked(&inner.emitted).push(request.clone());
             let Some(op) = operation(channel) else {
-                inner.deliver(request);
+                inner.deliver(Ok(request));
                 return Ok(Some(1));
             };
 
@@ -353,7 +376,7 @@ impl Transport for FaultyTransport {
                     (op.result, reply_payload)
                 }
             };
-            inner.deliver(request);
+            inner.deliver(Ok(request));
 
             let reply = Frame {
                 channel: reply_channel.to_owned(),
@@ -375,7 +398,7 @@ impl Transport for FaultyTransport {
                         tokio::time::sleep(after).await;
                     }
                     for _ in 0..copies {
-                        inner.deliver(reply.clone());
+                        inner.deliver(Ok(reply.clone()));
                     }
                 });
             }

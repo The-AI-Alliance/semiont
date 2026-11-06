@@ -4,6 +4,7 @@ Through the two methods that create one: `mark.delegate` and `yield_.delegate`.
 """
 
 import asyncio
+from dataclasses import asdict
 from typing import assert_never
 
 import pytest
@@ -16,12 +17,12 @@ from spec import JsonObject
 from semiont.client import ClientTiming, SemiontClient
 from semiont.errors import BusRequestError, JobError, SemiontError, TransportError
 from semiont.identifiers import ResourceId
-from semiont.namespaces.follow import Delegation, JobAttemptFailed, JobCompleted, JobCreated, JobEvent, JobProgressed
+from semiont.namespaces.follow import Delegation, JobAttemptFailed, JobCompleted, JobCreated, JobEvent, JobProgressed, JobRefused
 from semiont.namespaces.yield_ import generation_stall_deadline_ms
 from semiont.running import Running
 from semiont.testing import FaultyTransport, InMemoryContent, StubGateway
 from semiont.timing import GENERATION_STALL_FLOOR_MS, JOB_SILENCE_MS, JOB_STATUS_POLL_MS
-from semiont.transport import Frame
+from semiont.transport import Frame, FrameRefusal
 from semiont.types import (
     CommentingJobParams,
     GatheredContext,
@@ -103,6 +104,8 @@ def kind[C: JobCompleteCommand](event: JobEvent[C]) -> str:
             return f"progress {data.percentage:g}"
         case JobAttemptFailed():
             return "failed"
+        case JobRefused(data=data):
+            return f"refused {data.channel} {data.member}"
         case JobCompleted():
             return "complete"
         case _:
@@ -298,6 +301,62 @@ def test_frames_that_arrive_before_the_jobs_id_is_known_are_kept_and_handled_in_
         assert not task.done()
         transport.deliver(Frame(channel="job:created", payload={"response": {"jobId": "job-1"}}, correlation_id=created.correlation_id))
         assert await soon(task) == ["created job-1", "progress 10", "complete"]
+        await client.close()
+
+    run(scenario())
+
+
+def test_a_refused_frame_of_the_lifecycle_is_reported_once_the_job_has_its_id_in_the_order_it_came_and_the_follower_goes_on() -> None:
+    async def scenario() -> None:
+        client, transport = world(answered=False)
+        task, seen = following(highlighting(client))
+        await turns()
+        created = asked(transport, "job:create")[0]
+        # Before the job has its id: a frame its transport refused, held with the job's frames.
+        transport.deliver(
+            FrameRefusal(
+                channel="job:fail", member="payload.error", reason="lacks", payload={"jobId": "job-1"}, scope=None, correlation_id=None
+            )
+        )
+        say(client, "job:report-progress", "job-1", **progress(10))
+        await turns()
+        assert not task.done()
+        transport.deliver(Frame(channel="job:created", payload={"response": {"jobId": "job-1"}}, correlation_id=created.correlation_id))
+        await turns()
+        # After it: a frame whose payload is not its channel's, which names no job.
+        client.bus.emit("job:report-progress", {"resourceId": "res-1", "jobType": "mark", **progress(20)})
+        await turns()
+        assert not task.done()
+        say(client, "job:complete", "job-1")
+        assert await soon(task) == [
+            "created job-1",
+            "refused job:fail payload.error",
+            "progress 10",
+            "refused job:report-progress payload.jobId",
+            "complete",
+        ]
+        refused = seen[1]
+        assert isinstance(refused, JobRefused)
+        # The frame's channel, and the member and reason of its fault: nothing else, as in every SDK.
+        assert refused.kind == "refused"
+        assert asdict(refused.data) == {"channel": "job:fail", "member": "payload.error", "reason": "lacks"}
+        await client.close()
+
+    run(scenario())
+
+
+def test_a_refused_frame_is_no_word_of_the_job_so_its_silence_goes_on_and_its_end_is_learned_from_its_status() -> None:
+    async def scenario() -> None:
+        client, transport = world()
+        transport.queue_reply("job:status-requested", [status("complete")])
+        task, _ = following(highlighting(client))
+        await turns()
+        await pass_time(SILENCE - 1, step=0.5)
+        # Its completion, refused: not taken for the end, nor for word of the job.
+        client.bus.emit("job:complete", {"resourceId": "res-1", "jobType": "mark"})
+        await pass_time(1.5, step=0.5)
+        assert [dict(frame.payload) for frame in asked(transport, "job:status-requested")] == [{"jobId": "job-1"}]
+        assert await soon(task) == ["created job-1", "refused job:complete payload.jobId", "complete"]
         await client.close()
 
     run(scenario())
@@ -642,6 +701,21 @@ def test_what_a_generation_says_starts_its_stall_deadline_again_and_a_setback_is
         assert await soon(task) == ["created job-1", "progress 10", "failed", "complete"]
         await pass_time(60, step=5)
         assert asked(transport, "job:cancel-requested") == []
+        await client.close()
+
+    run(scenario())
+
+
+def test_a_refused_frame_does_not_start_a_generation_s_stall_deadline_again() -> None:
+    async def scenario() -> None:
+        client, transport = world()
+        transport.queue_reply("job:status-requested", [status("running")] * 50)
+        task, _ = following(generation(client, stall_deadline_ms=30_000))
+        await turns()
+        await pass_time(25, step=1)
+        client.bus.emit("job:report-progress", {"resourceId": "res-1", "jobType": "yield", **progress(10)})
+        await pass_time(5.5, step=0.5)
+        assert await soon(task) == ["created job-1", "refused job:report-progress payload.jobId", "error job.stalled"]
         await client.close()
 
     run(scenario())

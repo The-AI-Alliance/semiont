@@ -208,8 +208,12 @@ func Listen(args []string) int {
 			// though the user had asked to stop.
 			u.Warn("The event stream closed.")
 			return 1
-		case frame := <-frames:
-			printEvent(u, render, frame, asJSON)
+		case one := <-frames:
+			if one.refused != nil {
+				u.Warn("%v", one.refused)
+				continue
+			}
+			printEvent(u, render, one.frame, asJSON)
 		}
 	}
 }

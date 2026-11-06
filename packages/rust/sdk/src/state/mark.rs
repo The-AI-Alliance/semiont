@@ -188,8 +188,9 @@ impl MarkStateUnit {
 
 async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
     while let Some(frame) = heard.next().await {
-        // A signal that was missed is not known, and is not acted on.
-        let Ok(frame) = frame else { continue };
+        // A signal that was missed is not known, and one refused says nothing
+        // to act on.
+        let Ok(Ok(frame)) = frame else { continue };
         if let Some(request) = said::<MarkRequested>(&frame) {
             if request.source == shared.resource_id {
                 shared.pending.set(Some(PendingAnnotation {
@@ -260,9 +261,10 @@ async fn delegate(shared: Arc<Shared>, params: MarkJobParams, motivation: Motiva
                 created = Some(job.job_id);
             }
             Some(Ok(JobEvent::Progress(progress))) => shared.progress.set(Some(progress)),
-            // An attempt that will be tried again, or the completion, which
-            // the stream's end follows.
-            Some(Ok(JobEvent::Failed(_) | JobEvent::Complete(_))) => {}
+            // An attempt that will be tried again, a frame refused, which
+            // names no job, or the completion, which the stream's end
+            // follows.
+            Some(Ok(JobEvent::Failed(_) | JobEvent::Refused { .. } | JobEvent::Complete(_))) => {}
             Some(Err(error)) => {
                 // Why it ended is said before the end itself. A cancelled
                 // job's commits stand, and its display stays to say so.

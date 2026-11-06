@@ -76,7 +76,7 @@ from semiont.errors import SemiontError
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.media_types import text_source_of, yields_geometry_of
 from semiont.resources import decode_representation, primary_representation, resource_entity_types
-from semiont.transport import Frame, FrameSink, Transport
+from semiont.transport import Frame, FrameRefusal, FrameSink, Transport
 from semiont.types import (
     Annotation,
     CommandError,
@@ -273,7 +273,10 @@ class _Delivered(FrameSink):
         self._smelter: Final = smelter
 
     @override
-    def deliver(self, frame: Frame) -> None:
+    def deliver(self, frame: Frame | FrameRefusal) -> None:
+        if isinstance(frame, FrameRefusal):
+            # A frame refused is nothing to act on.
+            return
         self._smelter.delivered(frame)
 
 

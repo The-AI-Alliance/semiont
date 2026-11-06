@@ -2,12 +2,12 @@ package semiont.state
 
 import semiont.SemiontClient
 import semiont.StateUnit
-import semiont.bus.Delivered
-import semiont.bus.FrameRefusal
 import semiont.channels.Channels
 import semiont.errors.SemiontError
 import semiont.namespaces.SEARCH_LIMIT
 import semiont.namespaces.SEMANTIC_SCORING
+import semiont.transport.Delivered
+import semiont.transport.FrameRefusal
 import semiont.types.MatchSearchFailed
 import semiont.types.MatchSearchRequest
 

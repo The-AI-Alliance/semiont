@@ -186,7 +186,7 @@ impl Wire {
         locked(&self.reporters).spawn(async move {
             while let Some(delivered) = frames.next().await {
                 match delivered {
-                    Ok(frame) => {
+                    Ok(Ok(frame)) => {
                         let mut line = json!({ "channel": channel, "payload": frame.payload });
                         if let Some(correlation_id) = frame.correlation_id {
                             line["correlationId"] = json!(correlation_id);
@@ -195,6 +195,17 @@ impl Wire {
                             line["scope"] = json!(scope);
                         }
                         say(json!({ "frame": line }));
+                    }
+                    // The suite's backend sends only frames BusFrame allows, and the driver's
+                    // lines have none for a refusal: a frame the transport refused is its bug,
+                    // which ends the driver.
+                    Ok(Err(refusal)) => {
+                        eprintln!(
+                            "the transport refused a frame on {channel}: {}, at its `{}`",
+                            refusal.reason.as_str(),
+                            refusal.member
+                        );
+                        std::process::exit(1);
                     }
                     Err(lagged) => eprintln!("listening to {channel}: {lagged}"),
                 }

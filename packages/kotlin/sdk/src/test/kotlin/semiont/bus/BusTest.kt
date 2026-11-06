@@ -28,10 +28,15 @@ import semiont.errors.TransportErrorCode
 import semiont.identifiers.ResourceId
 import semiont.identifiers.UserId
 import semiont.transport.Broadcast
+import semiont.transport.Carried
 import semiont.transport.ConnectionState
+import semiont.transport.Delivered
 import semiont.transport.Events
 import semiont.transport.Frame
+import semiont.transport.FrameRefusal
+import semiont.transport.FrameRefusalReason
 import semiont.transport.FrameSink
+import semiont.transport.Heard
 import semiont.transport.PendingReply
 import semiont.transport.ReplyRouter
 import semiont.transport.ResourceHold
@@ -62,7 +67,7 @@ private class Wire(private val subscribed: Set<String>) : Transport {
     override val state: Watched<ConnectionState> = Watched(now) { it == ConnectionState.Closed }
     val emitted = mutableListOf<Emitted>()
     var answer: (Emitted) -> Unit = {}
-    private val channels = mutableMapOf<String, Broadcast<Frame>>()
+    private val channels = mutableMapOf<String, Broadcast<Carried>>()
     private val router = ReplyRouter()
     val holds = mutableMapOf<ResourceId, Int>()
 
@@ -76,11 +81,11 @@ private class Wire(private val subscribed: Set<String>) : Transport {
     override fun emitFuture(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): CompletableFuture<Long?> =
         throw UnsupportedOperationException("the bus emits by its own future")
 
-    override fun frames(channel: String): Events<Frame> = synchronized(channels) { channels.getOrPut(channel) { Broadcast() } }.listen()
+    override fun frames(channel: String): Events<Carried> = synchronized(channels) { channels.getOrPut(channel) { Broadcast() } }.listen()
 
-    fun deliver(frame: Frame) {
-        synchronized(channels) { channels[frame.channel] }?.deliver(frame)
-        router.route(frame)
+    fun deliver(carried: Carried) {
+        synchronized(channels) { channels[carried.channel] }?.deliver(carried)
+        router.route(carried)
     }
 
     override fun isSubscribed(channel: String): Boolean = channel in subscribed
@@ -158,12 +163,22 @@ class BusTest {
         wire.deliver(Frame("frame:add-entity-type", malformed))
         wire.deliver(Frame("frame:add-entity-type", json("""{"tag":"Person"}""")))
         val (refused, unread, next) = withTimeout(5_000) { frames.take(3).toList() }
-        // The way to its first fault, why, and the payload as it came.
-        assertEquals(FrameRefusal("frame:add-entity-type", "tag", FrameRefusalReason.Lacks, lacking), refused)
+        // The way from the frame to its first fault, why, and the payload as it came.
+        assertEquals(FrameRefusal("frame:add-entity-type", "payload.tag", FrameRefusalReason.Lacks, lacking, null, null), refused)
         assertEquals("refused", refused.status)
         // One that holds a member of a kind its schema does not allow is malformed there.
-        assertEquals(FrameRefusal("frame:add-entity-type", "tag", FrameRefusalReason.Malformed, malformed), unread)
+        assertEquals(FrameRefusal("frame:add-entity-type", "payload.tag", FrameRefusalReason.Malformed, malformed, null, null), unread)
         assertEquals("Person", next.delivered().payload.tag)
+    }
+
+    @Test
+    fun aFrameTheTransportRefusedIsToldTheReaderOfItsChannelAndScopeAsItCame() = runBlocking {
+        val wire = Wire(emptySet())
+        val frames = Bus(wire).frames(Channels.JOB_STARTED, ONE)
+        fun refused(resource: ResourceId) = FrameRefusal("job:started", "correlationId", FrameRefusalReason.Malformed, json("{}"), null, resource)
+        wire.deliver(refused(TWO))
+        wire.deliver(refused(ONE))
+        assertEquals(refused(ONE), withTimeout(5_000) { frames.first() })
     }
 
     @Test
@@ -219,7 +234,7 @@ class BusTest {
             """{"id":"e-1","type":"job:started","timestamp":"2026-10-29T00:00:00Z","userId":"$ALICE","resourceId":"${ONE.value}","version":1,"payload":{},"metadata":{}}""",
         )
         wire.deliver(Frame("job:started", unsequenced, null, ONE))
-        assertEquals(FrameRefusal("job:started", "metadata.sequenceNumber", FrameRefusalReason.Lacks, unsequenced), withTimeout(5_000) { frames.first() })
+        assertEquals(FrameRefusal("job:started", "payload.metadata.sequenceNumber", FrameRefusalReason.Lacks, unsequenced, null, ONE), withTimeout(5_000) { frames.first() })
     }
 
     @Test
@@ -274,6 +289,20 @@ class BusTest {
         // What it says names the channel, and none of what the payload held.
         assertTrue(error.message.contains("frame:entity-type-add-ok"), error.message)
         assertTrue(!error.message.contains("unasked") && !error.message.contains(ALICE), error.message)
+    }
+
+    @Test
+    fun aReplyRefusedWithTheRequestsCorrelationIdFailsTheRequestAtOnce() = runBlocking {
+        val wire = Wire(replyChannelsFor(ADD).toSet())
+        wire.answer = { sent ->
+            wire.deliver(FrameRefusal("frame:entity-type-add-ok", "addedByALaterGateway", FrameRefusalReason.Malformed, json("{}"), sent.correlationId, null))
+        }
+        // Long before the request's own timeout.
+        val error = assertThrows(TransportError::class.java) {
+            runBlocking { withTimeout(5_000) { Bus(wire).request(ADD, added("Person"), timeoutMs = 60_000) } }
+        }
+        assertEquals(TransportErrorCode.Error, error.reason)
+        assertEquals("a frame on frame:entity-type-add-ok is not that channel's: its `addedByALaterGateway` is malformed", error.message)
     }
 
     @Test

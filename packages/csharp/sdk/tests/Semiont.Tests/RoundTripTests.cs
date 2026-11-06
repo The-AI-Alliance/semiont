@@ -115,6 +115,12 @@ public sealed class RoundTripTests
     {
         if (node is JsonObject obj)
         {
+            // A frame a carry step writes is one the gateway never sends: it is written for a client to refuse, and its
+            // case holds the refusal.
+            if (obj["backend"] is JsonValue backend && backend.TryGetValue<string>(out var step) && step == "carry")
+            {
+                yield break;
+            }
             if (obj["let"] is JsonObject bindings)
             {
                 foreach (var pair in bindings)

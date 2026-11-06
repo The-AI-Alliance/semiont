@@ -1,13 +1,13 @@
 {
-  "$comment": "What a stream's reader takes for a frame, as every SDK's reader must. A frame is the JSON object the `data` line of a `bus-event` message carries, and it carries what BusFrame (protocol/specs/src/components/schemas/BusFrame.json) names and nothing more: its `channel` and its `payload`, and its `correlationId` and its `scope` when it has them. THE RULE. A reader holds every frame to BusFrame before it delivers it. A frame BusFrame allows is delivered, with its channel, payload, correlationId and scope as it states them. A frame BusFrame does not allow is refused, and the stream goes on to what else it carries. It is refused for its first fault, found as every SDK finds a value's first fault (packages/codegen/schemas/required-shapes.mjs): a member it lacks (`lacks`), or a member that is not what BusFrame allows (`malformed`), a member BusFrame does not name among them; a `data` line that is no JSON object is itself `malformed`. WHO IS TOLD (`told`). A refused frame whose `channel` is one BusFrame allows (a text of at least one character) is told to that channel's readers (`readers`), as a refused payload is; no SDK's stream tells them yet, and each runner holds only that its reader finds the channel they read. Any other refused frame, one that is no JSON object, carries no `channel` or carries one that is not a text of at least one character, names no reader, and is told to the transport's failure report (`failure-report`): as `error`, with no status, saying `the stream carried what is not a frame: ` and then its first fault in the words every SDK says one in. A CASE is a `frame` that is delivered; or a `frame`, or for a line that is no JSON its `data`, `refused`: true, its first fault, its `member` (the way to it: the names of the members it is within, and its own, joined by dots; empty for the frame itself) and its `reason`, and who is `told`.",
+  "$comment": "What a stream's reader takes for a frame, and who it tells of one it refuses, as every SDK's reader must. A frame is the JSON object the `data` line of a `bus-event` message carries, and it carries what BusFrame (protocol/specs/src/components/schemas/BusFrame.json) names and nothing more: its `channel` and its `payload`, and its `correlationId` and its `scope` when it has them. THE RULE. A reader holds every frame to BusFrame before it delivers it. A frame BusFrame allows is delivered, with its channel, payload, correlationId and scope as it states them. A frame BusFrame does not allow is refused, and the stream goes on to what else it carries. It is refused for its first fault, found as every SDK finds a value's first fault (packages/codegen/schemas/required-shapes.mjs): a member it lacks (`lacks`), or a member that is not what BusFrame allows (`malformed`), a member BusFrame does not name among them; a `data` line that is no JSON object is itself `malformed`. BusFrame takes any object for a payload, so a frame whose payload is not its channel's is delivered by the stream and refused by its channel's typed reader, for the payload's first fault. A FAULT is named by its way from the frame (`member`: the names of the members it is within, and its own, joined by dots; empty for the frame itself), so a fault of the frame and a fault of its payload are told apart: one of the payload's is within `payload` (`payload.resourceId`), and the payload itself is `payload`. WHO IS TOLD (`told`). A refused frame that names its readers is told to them (`readers`): one whose `channel` is a text of at least one character, and that carries no `scope` or one that is a resource's id. Its channel's typed reader gives a frame refusal in its place, as it gives one for a frame whose payload is not its channel's: naming the channel, the member and the reason, and, where the refusal is said in words, saying `a frame on ` and the channel, ` is not that channel's: ` and then the fault in the words every SDK says one in. Every other refused frame names no reader, whatever its first fault: one that is no JSON object, that carries no `channel` or one that is not a text of at least one character, or that carries a `scope` that is not a resource's id. It is told to the transport's failure report (`failure-report`): as `error`, with no status, saying `the stream carried what is not a frame: ` and then its first fault. Every case told to its readers is on `beckon:focus`, which every runner reads by type, but a request's (below). THE CORRELATION ID. A refusal carries the frame's `correlationId` whenever it can be read: when the frame carries one BusFrame allows, a text of at least one character. It carries none when the frame carries none, and none when the frame's is not what BusFrame allows, whatever the frame's first fault. A REQUEST awaiting the reply a refusal's correlation id names, on the refusal's channel, is told of it at once, and fails with it, as it fails for a reply whose payload is not its channel's: in words, `a frame on ` and the channel, ` is not that channel's: ` and the fault, as a typed reader says one. A frame whose correlationId cannot be read reaches no request: the request awaiting its reply goes on awaiting it. A CASE is a `frame` that is delivered; or a `frame`, or for a line that is no JSON its `data`, `refused`: true, its first fault's `member` and `reason`, who is `told`, and the `correlationId` its refusal carries, when it carries one. A case may state a `request`: what becomes of a request awaiting the reply `c-1` on the frame's channel when the line is carried, `fails`, told of the refusal at once, or `waits`, told nothing. A runner whose requests choose their own correlation ids makes its request and carries the frame with that request's id in place of `c-1`. A request's case is on `browse:resource-result`, the result channel of `browse:resource-requested`, which its runner reads by type as it reads `beckon:focus`.",
   "runBy": {
+    "typescript": ["packages/typescript/http-transport/src/transport/__tests__/frame-cases.test.ts"],
     "rust": ["packages/rust/http-transport/src/actor.rs"],
     "python": ["packages/python/sdk/tests/test_frame_cases.py"],
     "go": ["packages/go/sdk/frame_cases_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/FrameCasesTest.kt"]
   },
   "notYetReached": {
-    "typescript": "TypeScript's stream reader (packages/typescript/http-transport/src/transport/actor-state-unit.ts) tells its failure report of a line that names no channel, but holds a frame that names its channel to nothing: it delivers one that lacks a member BusFrame requires or carries one BusFrame does not name. It is to hold each frame to BusFrame, as the other readers do.",
     "swift": "The Swift SDK's stream reader, which is to hold each frame to BusFrame.",
     "csharp": "The C# SDK's stream reader, which is to hold each frame to BusFrame."
   },
@@ -53,12 +53,137 @@
       "told": "readers"
     },
     {
-      "why": "a frame whose scope is no resource's id is refused, naming the scope, and told to its channel's readers",
+      "why": "a frame whose scope is no resource's id is refused, naming the scope, and names no reader",
       "frame": {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}, "scope": "not an id"},
       "refused": true,
       "member": "scope",
       "reason": "malformed",
+      "told": "failure-report"
+    },
+    {
+      "why": "a frame whose scope is not a text is refused, naming the scope, and names no reader",
+      "frame": {"channel": "beckon:focus", "payload": {"resourceId": "res-1", "annotationId": "a-1"}, "scope": 7},
+      "refused": true,
+      "member": "scope",
+      "reason": "malformed",
+      "told": "failure-report"
+    },
+    {
+      "why": "a frame whose scope is empty is refused, naming the scope, and names no reader",
+      "frame": {"channel": "beckon:focus", "payload": {"resourceId": "res-1", "annotationId": "a-1"}, "scope": ""},
+      "refused": true,
+      "member": "scope",
+      "reason": "malformed",
+      "told": "failure-report"
+    },
+    {
+      "why": "a frame whose scope is null carries none, as BusFrame's walk reads a null member it does not require, and is told to its channel's readers",
+      "frame": {"channel": "beckon:focus", "correlationId": 7, "payload": {"resourceId": "res-1", "annotationId": "a-1"}, "scope": null},
+      "refused": true,
+      "member": "correlationId",
+      "reason": "malformed",
       "told": "readers"
+    },
+    {
+      "why": "a frame whose scope is no resource's id names no reader, though its first fault is another member",
+      "frame": {"channel": "beckon:focus", "correlationId": 7, "payload": {"resourceId": "res-1", "annotationId": "a-1"}, "scope": "not an id"},
+      "refused": true,
+      "member": "correlationId",
+      "reason": "malformed",
+      "told": "failure-report"
+    },
+    {
+      "why": "a frame whose correlationId is not a text is refused, naming the correlationId, and told to its channel's readers",
+      "frame": {"channel": "beckon:focus", "correlationId": 7, "payload": {"resourceId": "res-1", "annotationId": "a-1"}},
+      "refused": true,
+      "member": "correlationId",
+      "reason": "malformed",
+      "told": "readers"
+    },
+    {
+      "why": "a frame whose correlationId is empty is refused, naming the correlationId, and told to its channel's readers",
+      "frame": {"channel": "beckon:focus", "correlationId": "", "payload": {"resourceId": "res-1", "annotationId": "a-1"}},
+      "refused": true,
+      "member": "correlationId",
+      "reason": "malformed",
+      "told": "readers"
+    },
+    {
+      "why": "a frame that carries no payload is refused, naming the payload, and told to its channel's readers",
+      "frame": {"channel": "beckon:focus"},
+      "refused": true,
+      "member": "payload",
+      "reason": "lacks",
+      "told": "readers"
+    },
+    {
+      "why": "a frame whose payload is no object is refused, naming the payload, and told to its channel's readers",
+      "frame": {"channel": "beckon:focus", "payload": "res-1"},
+      "refused": true,
+      "member": "payload",
+      "reason": "malformed",
+      "told": "readers"
+    },
+    {
+      "why": "a frame whose payload lacks a member its channel's schema requires is refused by its channel's reader, naming the member within the payload",
+      "frame": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}},
+      "refused": true,
+      "member": "payload.resourceId",
+      "reason": "lacks",
+      "told": "readers"
+    },
+    {
+      "why": "a frame whose payload has a member its channel's schema does not allow is refused by its channel's reader, naming the member within the payload",
+      "frame": {"channel": "beckon:focus", "payload": {"resourceId": 7, "annotationId": "a-1"}},
+      "refused": true,
+      "member": "payload.resourceId",
+      "reason": "malformed",
+      "told": "readers"
+    },
+    {
+      "why": "a frame with a fault of its own and one in its payload is refused for its own",
+      "frame": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}, "addedByALaterGateway": true},
+      "refused": true,
+      "member": "addedByALaterGateway",
+      "reason": "malformed",
+      "told": "readers"
+    },
+    {
+      "why": "a frame refused for its payload carries its correlationId, which can be read",
+      "frame": {"channel": "beckon:focus", "correlationId": "c-1", "payload": "res-1"},
+      "refused": true,
+      "member": "payload",
+      "reason": "malformed",
+      "told": "readers",
+      "correlationId": "c-1"
+    },
+    {
+      "why": "a frame whose payload is not its channel's is refused by its channel's reader, carrying its correlationId",
+      "frame": {"channel": "beckon:focus", "correlationId": "c-1", "payload": {"annotationId": "a-1"}},
+      "refused": true,
+      "member": "payload.resourceId",
+      "reason": "lacks",
+      "told": "readers",
+      "correlationId": "c-1"
+    },
+    {
+      "why": "a reply whose correlationId can be read, refused for a member BusFrame does not name, is told to the request awaiting it at once, which fails with it",
+      "frame": {"channel": "browse:resource-result", "correlationId": "c-1", "payload": {"response": {}}, "addedByALaterGateway": true},
+      "refused": true,
+      "member": "addedByALaterGateway",
+      "reason": "malformed",
+      "told": "readers",
+      "correlationId": "c-1",
+      "request": "fails"
+    },
+    {
+      "why": "a reply whose correlationId is not a text is refused for it, carries none, and reaches no request: the request awaiting its reply goes on awaiting it",
+      "frame": {"channel": "browse:resource-result", "correlationId": 7, "payload": {"response": {}}},
+      "refused": true,
+      "member": "correlationId",
+      "reason": "malformed",
+      "told": "readers",
+      "request": "waits"
     }
   ]
 }

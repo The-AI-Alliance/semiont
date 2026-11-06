@@ -47,7 +47,7 @@ from semiont.model import WireModel
 from semiont.namespaces.links import Links
 from semiont.namespaces.live import WHOLE, Live, Subject
 from semiont.refresh import CACHE_QUERIES, CACHE_REFRESH, CacheQuery, CacheRefreshReach, CacheRefreshTrigger
-from semiont.transport import ConnectionState, Frame
+from semiont.transport import ConnectionState, Frame, FrameRefusal
 from semiont.types import StoredEventResponse
 from semiont.watched import Watched
 
@@ -177,8 +177,12 @@ class Refresher:
         self._links.run(self._listen(self._links.own.frames_among(tuple(_EVENTS))))
         self._links.run(self._reopenings(self._links.transport.state))
 
-    async def _listen(self, events: Events[Frame]) -> None:
+    async def _listen(self, events: Events[Frame | FrameRefusal]) -> None:
         async for frame in events:
+            if isinstance(frame, FrameRefusal):
+                # An event refused: something changed and nothing says what.
+                self._everything_held()
+                continue
             # Its reader is given the frames of these channels and no others.
             trigger = _EVENTS[frame.channel]
             try:

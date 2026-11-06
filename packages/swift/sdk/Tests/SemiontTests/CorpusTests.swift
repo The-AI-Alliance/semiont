@@ -42,6 +42,9 @@ private func frames(
 ) throws {
   switch value {
   case .object(let object):
+    // A frame a carry step writes is one the gateway never sends: it is written for a client to
+    // refuse, and its case holds the refusal.
+    if case .string("carry")? = object["backend"] { return }
     if let bindings = object["let"] {
       for (key, value) in try bindings.object {
         if let resolved = try resolved(value, names: names) { names[key] = resolved }

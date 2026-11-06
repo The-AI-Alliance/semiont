@@ -7,7 +7,7 @@
  * answer is not its declared body and names the fault.
  */
 
-import { faultSaid, type components } from '@semiont/core';
+import { faultOf, said, type components } from '@semiont/core';
 import { APIError } from './api-error';
 
 type Schemas = components['schemas'];
@@ -42,13 +42,13 @@ export async function declaredBody<K extends keyof Schemas>(
     if (!(error instanceof SyntaxError)) throw error;
     throw refused(MALFORMED);
   }
-  const refusal = faultSaid(schema, body);
-  if (refusal !== undefined) throw refused(refusal);
+  const fault = faultOf(schema, body);
+  if (fault !== undefined) throw refused(said(fault));
   return body as Schemas[K];
 
-  function refused(said: string): APIError {
+  function refused(words: string): APIError {
     const failure = APIError.fromStatus(
-      `${method} ${path} answered what is not its declared body: ${said}`,
+      `${method} ${path} answered what is not its declared body: ${words}`,
       answer.status,
       answer.statusText,
       undefined,

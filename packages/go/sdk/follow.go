@@ -20,6 +20,12 @@ package semiont
 // follower given a stall deadline that hears nothing for that long asks for
 // the cancellation and ends with job.stalled.
 //
+// A frame of the lifecycle the follower's reading refuses, its transport
+// refusing it or its payload not being its channel's, names no job: it is
+// reported as a JobRefused, held like the job's own frames until the job is
+// named, and followed past. It is no word of the job, so it starts neither
+// the silence nor the stall deadline again.
+//
 // A job completes as its verb's jobs do: a mark job with a
 // MarkJobCompleteCommand, a yield job with a YieldJobCompleteCommand. The
 // follower of a job is told which, and reads the completion as that one,
@@ -42,9 +48,9 @@ import (
 )
 
 // JobEvent is what a followed job reports, and how it ends: a JobCreated
-// first, then JobProgressed and JobAttemptFailed as they come, and a
-// JobCompleted last. As JSON it is {"kind": "progress", "data": …}, the same
-// event in every SDK.
+// first, then JobProgressed, JobAttemptFailed and JobRefused as they come,
+// and a JobCompleted last. As JSON it is {"kind": "progress", "data": …}, the
+// same event in every SDK.
 type JobEvent interface {
 	jobEvent()
 }
@@ -66,6 +72,20 @@ type JobAttemptFailed struct {
 	Data api.JobFailCommand
 }
 
+// JobRefused is a frame of a job's progress, completion or failure that the
+// follower's reading refused: its transport refused the frame, or its
+// payload is not its channel's. It names the frame's channel, and the member
+// and reason of its fault. It names no job, so it may be this job's or
+// another's, and it is no word of the job: the job goes on being followed,
+// and its silence goes on being counted.
+type JobRefused struct {
+	Data struct {
+		Channel bus.Channel            `json:"channel"`
+		Member  string                 `json:"member"`
+		Reason  bus.FrameRefusalReason `json:"reason"`
+	}
+}
+
 // JobCompleted is the job's completion, as its verb's jobs give it. A
 // follower's last event.
 type JobCompleted[C any] struct {
@@ -75,6 +95,7 @@ type JobCompleted[C any] struct {
 func (JobCreated) jobEvent()       {}
 func (JobProgressed) jobEvent()    {}
 func (JobAttemptFailed) jobEvent() {}
+func (JobRefused) jobEvent()       {}
 func (JobCompleted[C]) jobEvent()  {}
 
 // kinded is a JobEvent as JSON: its kind, and what it carries.
@@ -88,6 +109,7 @@ func kinded(kind string, data any) ([]byte, error) {
 func (e JobCreated) MarshalJSON() ([]byte, error)       { return kinded("created", e.Data) }
 func (e JobProgressed) MarshalJSON() ([]byte, error)    { return kinded("progress", e.Data) }
 func (e JobAttemptFailed) MarshalJSON() ([]byte, error) { return kinded("failed", e.Data) }
+func (e JobRefused) MarshalJSON() ([]byte, error)       { return kinded("refused", e.Data) }
 func (e JobCompleted[C]) MarshalJSON() ([]byte, error)  { return kinded("complete", e.Data) }
 
 // Delegation is a job another party does (Mark.Delegate, Yield.Delegate),
@@ -144,9 +166,11 @@ func follow[C any](l *links, create api.JobCreateCommand, delegated api.JobType,
 // lifecycle is what a job says of itself, by channel.
 var lifecycle = []bus.Channel{bus.JobReportProgress.Channel(), bus.JobComplete.Channel(), bus.JobFail.Channel()}
 
-// heard is a frame of some job's lifecycle, read as its channel's.
+// heard is a frame of some job's lifecycle, read as its channel's; or the
+// refusal of one, which names no job.
 type heard struct {
 	channel  bus.Channel
+	refusal  *FrameRefusal
 	jobID    api.JobId
 	jobType  api.JobType
 	progress api.JobReportProgressCommand
@@ -156,40 +180,37 @@ type heard struct {
 	complete json.RawMessage
 }
 
-// hear reads frame as its channel's; false for one that is not its
-// channel's, which is nobody's to act on. A completion is its channel's when
-// it is a completion of the verb it states, its result that verb's.
-func hear(frame Frame) (heard, bool) {
+// hear reads what arrived as its channel's: the refusal its transport gave
+// in a frame's place, the refusal of a payload that is not its channel's,
+// or what the frame says of its job. False for a frame of no channel of the
+// lifecycle. A completion is its channel's when it is a completion of the
+// verb it states, its result that verb's.
+func hear(one arrival) (heard, bool) {
+	if one.refusal != nil {
+		return heard{channel: one.refusal.Channel, refusal: one.refusal}, true
+	}
+	frame := one.frame
 	said := heard{channel: frame.Channel}
-	var ok bool
 	switch frame.Channel {
 	case bus.JobReportProgress.Channel():
-		if said.progress, ok = required.ReadFramePayloadAs[api.JobReportProgressCommand](frame.Payload); !ok {
-			return heard{}, false
-		}
-		said.jobID, said.jobType = said.progress.JobId, said.progress.JobType
+		read, refusal := delivered[api.JobReportProgressCommand](frame)
+		said.refusal, said.progress = refusal, read.Payload
+		said.jobID, said.jobType = read.Payload.JobId, read.Payload.JobType
 	case bus.JobFail.Channel():
-		if said.fail, ok = required.ReadFramePayloadAs[api.JobFailCommand](frame.Payload); !ok {
-			return heard{}, false
-		}
-		said.jobID, said.jobType = said.fail.JobId, said.fail.JobType
+		read, refusal := delivered[api.JobFailCommand](frame)
+		said.refusal, said.fail = refusal, read.Payload
+		said.jobID, said.jobType = read.Payload.JobId, read.Payload.JobType
 	case bus.JobComplete.Channel():
+		if _, said.refusal = delivered[api.JobCompleteCommand](frame); said.refusal != nil {
+			break
+		}
 		var named struct {
-			JobID   api.JobId       `json:"jobId"`
-			JobType api.JobType     `json:"jobType"`
-			Result  json.RawMessage `json:"result"`
+			JobID   api.JobId   `json:"jobId"`
+			JobType api.JobType `json:"jobType"`
 		}
 		if json.Unmarshal(frame.Payload, &named) != nil {
-			return heard{}, false
-		}
-		switch named.JobType {
-		case api.JobTypeMark:
-			_, ok = required.ReadFramePayloadAs[api.MarkJobCompleteCommand](frame.Payload)
-		case api.JobTypeYield:
-			_, ok = required.ReadFramePayloadAs[api.YieldJobCompleteCommand](frame.Payload)
-		}
-		if !ok || (named.Result != nil && string(named.Result) != "null" && !isVerbsResult(named.JobType, named.Result)) {
-			return heard{}, false
+			said.refusal = refusedPayload(frame, required.Undecoded)
+			break
 		}
 		said.jobID, said.jobType, said.complete = named.JobID, named.JobType, frame.Payload
 	default:
@@ -199,8 +220,9 @@ func hear(frame Frame) (heard, bool) {
 }
 
 // resultMembers is each verb's result union: the spec's MarkJobResult and
-// YieldJobResult. Their members share no required member, so a result is the
-// one member whose required members it carries all of; the generated As*
+// YieldJobResult, read here for a status, which states a result of any
+// verb's. Their members share no required member, so a result is the one
+// member whose required members it carries all of; the generated As*
 // accessors are bare decodings and cannot say.
 var resultMembers = map[api.JobType][]reflect.Type{
 	api.JobTypeMark:  {reflect.TypeFor[api.MarkJobDone](), reflect.TypeFor[api.JobDeclined]()},
@@ -328,8 +350,8 @@ func followed[C any](ctx context.Context, l *links, create api.JobCreateCommand,
 			said, held = held, nil
 		case <-frames.ready:
 			items, closed := frames.drain()
-			for _, frame := range items {
-				if one, ok := hear(frame); ok {
+			for _, item := range items {
+				if one, ok := hear(item); ok {
 					if jobID.IsZero() {
 						held = append(held, one)
 					} else {
@@ -385,6 +407,13 @@ func followed[C any](ctx context.Context, l *links, create api.JobCreateCommand,
 			}
 		}
 		for _, one := range said {
+			if one.refusal != nil {
+				// It names no job, and is no word of this one: neither deadline starts again.
+				var event JobRefused
+				event.Data.Channel, event.Data.Member, event.Data.Reason = one.refusal.Channel, one.refusal.Member, one.refusal.Reason
+				report(event)
+				continue
+			}
 			if one.jobID != jobID {
 				continue
 			}

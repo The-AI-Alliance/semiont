@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 // shape is what a value must be: packages/codegen/schemas/required-shapes.mjs states
@@ -98,30 +99,27 @@ var (
 	byType sync.Map
 )
 
-// Reason is why a value is refused at a member.
-type Reason string
-
-const (
-	// Lacks: the value does not carry the member, or the member holds null
-	// where it may not.
-	Lacks Reason = "lacks"
-	// Malformed: the member is not what its schema allows (of another kind,
-	// another value, form or size), or is one a closed object does not name.
-	Malformed Reason = "malformed"
-)
-
 // Fault is the first thing wrong with a value: the way to the member it is
 // at (the names of the members it is within, and its own, joined by dots;
 // the empty way is the value itself), and why.
 type Fault struct {
 	Member string
-	Reason Reason
+	Reason bus.FrameRefusalReason
+}
+
+// Within is f as a fault of the value that holds the faulty value as its
+// member name: a fault of that value itself is at name.
+func (f Fault) Within(name string) Fault {
+	if f.Member == "" {
+		return Fault{Member: name, Reason: f.Reason}
+	}
+	return Fault{Member: name + "." + f.Member, Reason: f.Reason}
 }
 
 // String is what every SDK says of the fault.
 func (f Fault) String() string {
 	switch {
-	case f.Reason == Lacks:
+	case f.Reason == bus.FrameRefusalReasonLacks:
 		return fmt.Sprintf("it has no `%s`", f.Member)
 	case f.Member == "":
 		return "it is malformed"
@@ -132,7 +130,7 @@ func (f Fault) String() string {
 
 // Undecoded is the fault of a value Go's decoding refuses that has no fault
 // the table states: the value itself is malformed.
-var Undecoded = Fault{Reason: Malformed}
+var Undecoded = Fault{Reason: bus.FrameRefusalReasonMalformed}
 
 // shapeOf is what a value of generated must be.
 func shapeOf(generated reflect.Type) *shape {
@@ -334,13 +332,13 @@ func allows(kinds []string, value any) bool {
 func faultOf(s *shape, value any, way string) (Fault, bool) {
 	s = resolved(s)
 	if !allows(s.Kinds, value) || !isOneOf(s.Enum, value) || !inBounds(s, value) {
-		return Fault{Member: way, Reason: Malformed}, true
+		return Fault{Member: way, Reason: bus.FrameRefusalReasonMalformed}, true
 	}
 	if object, isObject := value.(map[string]any); isObject {
 		for _, name := range s.Required {
 			held, has := object[name]
 			if !has || (held == nil && !allowsNull(memberShape(s, name))) {
-				return Fault{Member: within(way, name), Reason: Lacks}, true
+				return Fault{Member: within(way, name), Reason: bus.FrameRefusalReasonLacks}, true
 			}
 		}
 		for _, name := range sortedKeys(s.Members) {
@@ -353,7 +351,7 @@ func faultOf(s *shape, value any, way string) (Fault, bool) {
 		if s.Closed != nil {
 			for _, name := range sortedKeys(object) {
 				if !slices.Contains(s.Closed, name) {
-					return Fault{Member: within(way, name), Reason: Malformed}, true
+					return Fault{Member: within(way, name), Reason: bus.FrameRefusalReasonMalformed}, true
 				}
 			}
 		}
@@ -461,7 +459,7 @@ func faultOfOneOf(s *shape, value any, way string) (Fault, bool) {
 		}
 	}
 	if len(candidates) == 0 {
-		return Fault{Member: way, Reason: Malformed}, true
+		return Fault{Member: way, Reason: bus.FrameRefusalReasonMalformed}, true
 	}
 	var first Fault
 	for i, candidate := range candidates {

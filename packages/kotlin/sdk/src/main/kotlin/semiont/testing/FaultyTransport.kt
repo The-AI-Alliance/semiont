@@ -20,6 +20,7 @@ import semiont.http.FrameHub
 import semiont.identifiers.ResourceId
 import semiont.telemetry.futureOf
 import semiont.transport.Broadcast
+import semiont.transport.Carried
 import semiont.transport.ConnectionState
 import semiont.transport.Events
 import semiont.transport.Frame
@@ -170,10 +171,10 @@ public class FaultyTransport internal constructor(
     /** Change the connection's state, as a wire would. */
     public fun setState(state: ConnectionState): Unit = connection.set(state)
 
-    /** Deliver a frame as if the stream had carried it. */
-    public fun deliver(frame: Frame) {
-        router.route(frame)
-        hub.deliver(frame)
+    /** Deliver a frame, or a frame's refusal, as if the stream had carried it. */
+    public fun deliver(carried: Carried) {
+        router.route(carried)
+        hub.deliver(carried)
     }
 
     /** Every request sent, in order. */
@@ -250,7 +251,7 @@ public class FaultyTransport internal constructor(
     override fun emitFuture(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): CompletableFuture<Long?> =
         arriving.futureOf { emit(channel, payload, scope, correlationId) }
 
-    override fun frames(channel: String): Events<Frame> {
+    override fun frames(channel: String): Events<Carried> {
         if (!isSubscribed(channel)) throw unsubscribed(channel)
         return hub.frames(channel)
     }

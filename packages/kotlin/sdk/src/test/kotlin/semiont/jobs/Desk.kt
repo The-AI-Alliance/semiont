@@ -13,6 +13,8 @@ import semiont.bus.OPERATIONS
 import semiont.testing.FaultAction
 import semiont.testing.FaultyTransport
 import semiont.transport.Frame
+import semiont.transport.FrameRefusal
+import semiont.transport.FrameRefusalReason
 import kotlin.coroutines.CoroutineContext
 
 internal fun obj(vararg pairs: Pair<String, Any?>): JsonObject = JsonObject(
@@ -82,6 +84,10 @@ internal class Desk(clock: CoroutineContext, wire: List<FaultAction> = emptyList
 
     /** A broadcast the gateway relays to this worker. */
     fun relay(channel: String, payload: JsonObject): Unit = transport.deliver(Frame(channel, payload))
+
+    /** A broadcast this worker's transport refuses, its payload being no object. */
+    fun relayRefused(channel: String, payload: JsonElement): Unit =
+        transport.deliver(FrameRefusal(channel, "payload", FrameRefusalReason.Malformed, payload, null, null))
 
     /** What was said on `channel`, in order. */
     fun sent(channel: String): List<JsonObject> = transport.emitted.filter { it.channel == channel }.map { it.payload }

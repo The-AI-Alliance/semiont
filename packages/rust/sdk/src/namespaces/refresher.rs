@@ -274,7 +274,7 @@ impl Refresher {
                     // An event that was missed, or one that cannot be read:
                     // something changed and nothing says what. Everything
                     // held is asked for again, as after a gap.
-                    Err(StreamError::Lagged(_) | StreamError::Undecodable(_)) => {
+                    Err(StreamError::Lagged(_) | StreamError::Refused(_)) => {
                         refresher.everything_held();
                     }
                 }

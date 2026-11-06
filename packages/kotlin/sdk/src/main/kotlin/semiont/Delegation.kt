@@ -5,6 +5,7 @@ package semiont
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.jdk9.asPublisher
+import semiont.transport.FrameRefusalReason
 import semiont.types.JobCompleteCommand
 import semiont.types.JobCreatedResultResponse
 import semiont.types.JobFailCommand
@@ -36,6 +37,23 @@ public data class JobProgressed(public val data: JobProgress) : JobEvent<Nothing
 public data class JobAttemptFailed(public val data: JobFailCommand) : JobEvent<Nothing> {
     override val kind: String get() = "failed"
 }
+
+/**
+ * A frame of a job's progress, completion or failure, refused by its
+ * transport or as its channel's. It names no job, so it may be this job's or
+ * another's, and it is no word of the job: the follower goes on, and its
+ * silence goes on being counted. It comes only after `JobCreated`.
+ */
+public data class JobRefused(public val data: RefusedFrame) : JobEvent<Nothing> {
+    override val kind: String get() = "refused"
+}
+
+/** A refused frame as a follower reports one: its channel, and the member and reason of its fault. */
+public data class RefusedFrame(
+    public val channel: String,
+    public val member: String,
+    public val reason: FrameRefusalReason,
+)
 
 /** The job completed, with the completion its verb's jobs give. A follower's last value. */
 public data class JobCompleted<out C : JobCompleteCommand>(public val data: C) : JobEvent<C> {

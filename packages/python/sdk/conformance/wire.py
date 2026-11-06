@@ -27,7 +27,7 @@ from semiont.identifiers import AnnotationId, InvalidIdentifier, JobId, Resource
 from semiont.model import WireModel
 from semiont.operations import OPERATIONS
 from semiont.retry import RetryPolicy
-from semiont.transport import ConnectionState, Frame, PutBinaryRequest, ResourceHold
+from semiont.transport import ConnectionState, Frame, FrameRefusal, PutBinaryRequest, ResourceHold
 from semiont.watched import Variable
 
 
@@ -143,8 +143,11 @@ class Wire:
 
         return renew
 
-    async def _frames(self, channel: str, frames: Events[Frame]) -> None:
+    async def _frames(self, channel: str, frames: Events[Frame | FrameRefusal]) -> None:
         async for frame in frames:
+            if isinstance(frame, FrameRefusal):
+                # The suite has no line for a refusal: a stream that carries what BusFrame does not allow ends the driver.
+                raise RuntimeError(f"the transport refused a frame on {channel}: {frame.reason}, at its `{frame.member}`")
             line: dict[str, JsonValue] = {"channel": channel, "payload": dict(frame.payload)}
             if frame.correlation_id is not None:
                 line["correlationId"] = frame.correlation_id

@@ -181,6 +181,8 @@ func kindOf(event semiont.JobEvent) string {
 		return fmt.Sprintf("progress %g", event.Data.Percentage)
 	case semiont.JobAttemptFailed:
 		return "failed"
+	case semiont.JobRefused:
+		return fmt.Sprintf("refused %s %s %s", event.Data.Channel, event.Data.Member, event.Data.Reason)
 	case semiont.JobCompleted[api.MarkJobCompleteCommand], semiont.JobCompleted[api.YieldJobCompleteCommand]:
 		return "complete"
 	}
@@ -762,10 +764,11 @@ func TestACreationThatNamesNoJobIsItsFollowersFailure(t *testing.T) {
 	}
 }
 
-// A frame that is not its channel's is nobody's to act on: one that lacks a
+// A frame that is not its channel's is no word of any job: one that lacks a
 // member its schema requires, and a completion whose result is not its
-// verb's.
-func TestAFrameThatIsNotItsChannelsIsNobodysToActOn(t *testing.T) {
+// verb's, are each reported as refused, naming the first fault of its
+// payload, and the job is followed past them.
+func TestAFrameThatIsNotItsChannelsIsReportedAsRefusedAndFollowedPast(t *testing.T) {
 	t.Parallel()
 	c, fake := jobWorld(t, true, semiont.DefaultTiming())
 	followed := following(highlighting(t, c).Events(context.Background()))
@@ -783,12 +786,85 @@ func TestAFrameThatIsNotItsChannelsIsNobodysToActOn(t *testing.T) {
 	say(t, c, jobComplete, "job-1", "mark", map[string]any{"result": made})
 	say(t, c, jobComplete, "job-1", "mark", map[string]any{"result": map[string]any{"found": 1, "persisted": 1}})
 	got := followedWithin(t, followed, time.Second)
-	if !slices.Equal(got.kinds, []string{"created job-1", "complete"}) {
-		t.Fatalf("the follower gave %v", got.kinds)
+	if want := []string{"created job-1", "refused job:complete payload.resourceId lacks", "refused job:complete payload.result.found lacks", "complete"}; !slices.Equal(got.kinds, want) {
+		t.Fatalf("the follower gave %v, want %v", got.kinds, want)
 	}
-	done := got.seen[1].(semiont.JobCompleted[api.MarkJobCompleteCommand])
+	done := got.seen[3].(semiont.JobCompleted[api.MarkJobCompleteCommand])
 	if counts, err := done.Data.Result.AsMarkJobDone(); err != nil || counts.Found != 1 {
 		t.Fatalf("the completion followed is %+v (%v)", counts, err)
+	}
+}
+
+// A frame of the lifecycle its reading refused names no job: it is reported
+// once the job is named, in the order it came among the job's frames,
+// naming its channel, member and reason and nothing more; and one that
+// comes after the job's end is not reported.
+func TestARefusedFrameOfTheLifecycleIsReportedOnceTheJobIsNamedInTheOrderItCame(t *testing.T) {
+	t.Parallel()
+	c, fake := jobWorld(t, false, semiont.DefaultTiming())
+	followed := following(highlighting(t, c).Events(context.Background()))
+	request := created(t, fake, 1)
+	// One its transport refused, and one whose payload is not its channel's.
+	c.Bus.DeliverRefusal(&semiont.FrameRefusal{Channel: jobFail, Member: "payload.error", Reason: bus.FrameRefusalReasonLacks, Payload: json.RawMessage(`{"jobId":"job-1"}`)})
+	say(t, c, jobProgress, "job-1", "mark", progressOf(10))
+	c.Bus.Deliver(semiont.Frame{Channel: jobProgress, Payload: json.RawMessage(`{"resourceId":"res-1","jobType":"mark","percentage":20}`)})
+	time.Sleep(50 * time.Millisecond)
+	select {
+	case got := <-followed:
+		t.Fatalf("the follower ended before its job was named: %v", got.kinds)
+	default:
+	}
+	fake.Deliver(semiont.Frame{Channel: bus.JobCreate.Result().Channel(), Envelope: semiont.Envelope{CorrelationID: request.CorrelationID}, Payload: json.RawMessage(`{"response":{"jobId":"job-1"}}`)})
+	say(t, c, jobComplete, "job-1", "mark", nil)
+	c.Bus.DeliverRefusal(&semiont.FrameRefusal{Channel: jobComplete, Member: "payload.jobId", Reason: bus.FrameRefusalReasonLacks})
+	got := followedWithin(t, followed, time.Second)
+	if want := []string{"created job-1", "refused job:fail payload.error lacks", "progress 10", "refused job:report-progress payload.jobId lacks", "complete"}; !slices.Equal(got.kinds, want) {
+		t.Fatalf("the follower gave %v, want %v", got.kinds, want)
+	}
+	written, err := json.Marshal(got.seen[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(written) != `{"kind":"refused","data":{"channel":"job:fail","member":"payload.error","reason":"lacks"}}` {
+		t.Fatalf("a refused frame is written %s", written)
+	}
+}
+
+// A refused frame is no word of the job: the silence it comes in goes on
+// being counted, and the job's status is asked for when it ends.
+func TestARefusedFrameDoesNotStartTheSilenceAgain(t *testing.T) {
+	t.Parallel()
+	silence := 600 * time.Millisecond
+	c, fake := jobWorld(t, true, jobTiming(silence, time.Minute))
+	fake.QueueReply(jobStatus, statusOf(t, "complete", nil))
+	followed := following(highlighting(t, c).Events(context.Background()))
+	created(t, fake, 1)
+	time.Sleep(400 * time.Millisecond)
+	c.Bus.DeliverRefusal(&semiont.FrameRefusal{Channel: jobComplete, Member: "payload.jobId", Reason: bus.FrameRefusalReasonLacks})
+	// Started again, the silence would end 600ms from here.
+	waitUntil(t, "the status ask the silence owes", 400*time.Millisecond, func() bool { return len(requestsOn(fake, jobStatus)) >= 1 })
+	if got := followedWithin(t, followed, time.Second); !slices.Equal(got.kinds, []string{"created job-1", "refused job:complete payload.jobId lacks", "complete"}) {
+		t.Fatalf("the follower gave %v", got.kinds)
+	}
+}
+
+// Nor does a refused frame start a generation's stall deadline again.
+func TestARefusedFrameDoesNotStartTheStallDeadlineAgain(t *testing.T) {
+	t.Parallel()
+	c, fake := jobWorld(t, true, semiont.DefaultTiming())
+	stall := 600 * time.Millisecond
+	followed := following(generation(t, c, stall, nil).Events(context.Background()))
+	created(t, fake, 1)
+	start := time.Now()
+	time.Sleep(400 * time.Millisecond)
+	c.Bus.DeliverRefusal(&semiont.FrameRefusal{Channel: jobProgress, Member: "payload.jobId", Reason: bus.FrameRefusalReasonLacks})
+	got := followedWithin(t, followed, 2*time.Second)
+	if want := []string{"created job-1", "refused job:report-progress payload.jobId lacks", "error job.stalled"}; !slices.Equal(got.kinds, want) {
+		t.Fatalf("the follower gave %v, want %v", got.kinds, want)
+	}
+	// Started again, the deadline would end 1000ms after the job was named.
+	if ended := time.Since(start); ended >= stall+300*time.Millisecond {
+		t.Fatalf("the generation stalled %s after it was named, and its deadline is %s", ended, stall)
 	}
 }
 

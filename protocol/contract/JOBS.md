@@ -422,6 +422,16 @@ longer, unless its caller states one. Each frame of the job starts the deadline 
 among them: the attempt that follows one has the whole deadline to say something.
 *Held by `sdk/live/job-failed`, `sdk/live/job-failed-unheard`, `sdk/live/job-cancelled`, `sdk/live/job-stalled`, `sdk/live/generation-retried`.*
 
+A `job:report-progress`, `job:complete` or `job:fail` that the follower's reading refuses, its
+transport refusing the frame or its payload not being its channel's
+([`frame-cases.json`](../specs/src/bus/frame-cases.json)), names no job: it may be this job's or
+another's. The follower reports it as `refused`, naming the frame's channel and the member and
+reason of its fault, and goes on following. It reports none before it has said what the queue
+answered: one that reached the client first is held, as the job's own frames are, and reported then,
+in the order it came. It is no word of the job: it starts neither the silence nor the stall deadline
+again, so a follower whose job's end was refused learns the end from the job's status.
+*Held by `sdk/live/job-refused-progress`, `sdk/live/job-refused-completion`.*
+
 ## What the dispatcher emits on its own
 
 ### `job:queued`
