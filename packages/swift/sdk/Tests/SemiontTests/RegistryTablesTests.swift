@@ -115,6 +115,54 @@ import Testing
   }
 }
 
+@Test func keepingANewSignInForgetsWhatWasKeptForThePersonTheOldOneNamed() async throws {
+  let hour = Date().timeIntervalSince1970 + 3600
+  let jo = personKey(try UserId("did:web:kb.example.org:users:jo%40example.org"))
+  let ann = personKey(try UserId("did:web:kb.example.org:users:ann%40example.org"))
+  func signIn(_ tokens: String, personKey: String?) throws -> HeldSignIn {
+    HeldSignIn(
+      access: try jwt(.object(["exp": .number(hour), "name": .string(tokens)])),
+      clientId: scriptClientID, personKey: personKey, refresh: tokens + "-refresh",
+      tokenEndpoint: "http://issuer.test/token")
+  }
+  let joOnA = KeptQuery.allCases.map { cacheKey("kb-a", jo, $0) } + [lastEventIdKey("kb-a", jo)]
+  let others = [
+    cacheKey("kb-a", ann, .resource), lastEventIdKey("kb-a", ann), cacheKey("kb-b", jo, .resource),
+    lastEventIdKey("kb-b", jo),
+  ]
+  // The sign-in kb-a holds before the new one is kept, and whether jo's keys there go.
+  let befores: [(String, HeldSignIn?, Bool)] = try [
+    ("over a sign-in naming jo", signIn("old", personKey: jo), true),
+    ("over a sign-in naming nobody", signIn("old", personKey: nil), false),
+    ("over nothing", nil, false),
+  ]
+  for (why, before, forgets) in befores {
+    let storage = MemorySessionStorage()
+    for key in joOnA + others { storage.set(key, "kept") }
+    if let before { try storeSession(storage, kbId: "kb-a", session: before) }
+    let kept = keptIn(storage, kbId: "kb-a")
+    let next = try signIn("new", personKey: nil)
+    try await kept.keep(next)
+    let now = try storedSession(storage, kbId: "kb-a")
+    #expect(now?.access == next.access, "\(why): the new sign-in is kept")
+    #expect(now?.personKey == nil, "\(why): the new sign-in names nobody")
+    for key in joOnA { #expect((storage.get(key) == nil) == forgets, "\(why): \(key)") }
+    for key in others { #expect(storage.get(key) == "kept", "\(why): \(key) changed") }
+  }
+
+  // A renewal is no replacement: it keeps the person, and deletes nothing.
+  let storage = MemorySessionStorage()
+  for key in joOnA { storage.set(key, "kept") }
+  let named = try signIn("old", personKey: jo)
+  try storeSession(storage, kbId: "kb-a", session: named)
+  let renewed = try signIn("renewed", personKey: nil).access
+  #expect(
+    try await keptIn(storage, kbId: "kb-a").renewed(
+      read: named, access: renewed, refresh: "renewed-refresh") == renewed)
+  #expect(try storedSession(storage, kbId: "kb-a")?.personKey == jo, "a renewal keeps the person")
+  for key in joOnA { #expect(storage.get(key) == "kept", "a renewal deleted \(key)") }
+}
+
 @Test func onePlaceRunsEverySharedCase() throws {
   for value in try required(Spec.read("session/registry-cases.json").object, "cases").array {
     let row = try value.object

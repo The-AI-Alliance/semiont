@@ -6,13 +6,17 @@
  * `keys` holds the key builders and the generated list of persisted queries,
  * and the client a registry's session makes to reading exactly those keys.
  * `forget` forgets kb-a's saved sign-in over a storage seeded as the table
- * says: by the registry's sign-out or removal, where an open knowledge base's
- * client is stood in for by one whose closing writes under jo's `resource`
- * key, as the table allows; or by the registry's own session expiring or
- * being refused, over a gateway and an issuer that answer as the row says.
- * `startup` and `crossTab` run the sessions the HTTP session factory makes —
- * what a registry's sessions are — over a gateway that is `fetch` and
- * nothing else (fake-gateway.ts).
+ * says: by the registry's sign-out, removal or new sign-in, where a client
+ * kept for jo is stood in for by one whose closing writes under jo's
+ * `resource` key, as the table allows; or by the registry's own session
+ * expiring or being refused, over a gateway and an issuer that answer as the
+ * row says. `startup`, `crossTab` and `holder` run the sessions the HTTP
+ * session factory makes — what a registry's sessions are — over a gateway
+ * that is `fetch` and nothing else (fake-gateway.ts). This SDK builds no
+ * keeping session over anything but a registry's storage, so `holder`
+ * changes kb-a's sign-in through the storage's own functions: forgotten by
+ * `clearStoredSession`, a new one saved by `setStoredSession`, renewed by a
+ * write of other tokens that keeps the person, as a renewal writes it.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -34,10 +38,12 @@ import {
   ACTIVE_KEY,
   STORAGE_KEY,
   cacheKey,
+  clearStoredSession,
   getStoredSession,
   lastEventIdKey,
   personKey,
   sessionKey,
+  setStoredSession,
 } from '../storage';
 import { fakeGateway, GATEWAY_ENDPOINT, refuses, renews, type FakeGateway, type StreamConnect } from './fake-gateway';
 import { SharedStorage, freshJwt, testSession } from './test-storage-helpers';
@@ -62,7 +68,7 @@ interface KeysRow {
 
 interface ForgetRow {
   why: string;
-  by: 'signOut' | 'removal' | 'expiry' | 'refusal';
+  by: 'signOut' | 'removal' | 'signIn' | 'expiry' | 'refusal';
   /** For `expiry` and `refusal`: the token the session finds stored. */
   stored?: 'expired' | 'unexpired';
   signedIn: SignedIn;
@@ -96,6 +102,7 @@ interface PersistedCases {
   startupStorage: Kept;
   startup: StartupRow[];
   crossTab: CrossTabRow[];
+  holder: CrossTabRow[];
 }
 
 interface StoredTable {
@@ -220,10 +227,15 @@ describe('protocol/specs/src/session/persisted-cases.json', () => {
   describe('forget', () => {
     const CLOSING = 'written as the client closed';
 
-    /** Sessions over a client of no gateway; kb-a's client writes under jo's `resource` key as it closes. */
+    /**
+     * Sessions over a client of no gateway; a client of kb-a made while its
+     * stored sign-in names jo, so kept for jo, writes under jo's `resource`
+     * key as it closes. A client made for a new sign-in, which names nobody,
+     * keeps nothing.
+     */
     const closingWrites: SessionFactory = ({ kb, storage }) => {
       const { client } = createTestClient({ busTimeoutMs: 40 });
-      if (kb.id === KB_A.id) {
+      if (kb.id === KB_A.id && getStoredSession(storage, kb.id)?.personKey === jo.personKey) {
         const close = client.dispose.bind(client);
         client.dispose = () => {
           close();
@@ -232,6 +244,9 @@ describe('protocol/specs/src/session/persisted-cases.json', () => {
       }
       return new SemiontSession({ kb, storage, client, token$: new BehaviorSubject<AccessToken | null>(null) });
     };
+
+    /** The sign-in the registry signs in to kb-a with: new, so naming nobody. */
+    const newSignIn = testSession(freshJwt(), 'refresh-new');
 
     /** The registry forgets kb-a's sign-in as it is asked to, with the stand-in for an open client. */
     const forgetByRegistry = async (storage: SessionStorage, row: ForgetRow): Promise<void> => {
@@ -243,6 +258,7 @@ describe('protocol/specs/src/session/persisted-cases.json', () => {
       await firstValueFrom(browser.activeSession$.pipe(filter((session) => session !== null)));
       expect(browser.activeKbId$.getValue()).toBe(row.open ? KB_A.id : KB_B.id);
       if (row.by === 'signOut') await browser.signOut(KB_A.id);
+      else if (row.by === 'signIn') await browser.signIn(KB_A.id, newSignIn);
       else browser.removeKb(KB_A.id);
       await browser.dispose();
     };
@@ -274,7 +290,7 @@ describe('protocol/specs/src/session/persisted-cases.json', () => {
       storage.set(STORAGE_KEY, JSON.stringify([KB_A, KB_B]));
       storage.set(ACTIVE_KEY, row.open ? KB_A.id : KB_B.id);
 
-      if (row.by === 'signOut' || row.by === 'removal') await forgetByRegistry(storage, row);
+      if (row.by === 'signOut' || row.by === 'removal' || row.by === 'signIn') await forgetByRegistry(storage, row);
       else await forgetBySession(storage, row);
 
       const removed = row.removes === 'person' ? keysOf(KB_A.id, jo.personKey) : [];
@@ -282,7 +298,8 @@ describe('protocol/specs/src/session/persisted-cases.json', () => {
       for (const [key, value] of Object.entries(table.forgetStorage)) {
         if (!removed.includes(key)) expect(storage.get(key), key).toBe(value);
       }
-      expect(getStoredSession(storage, KB_A.id)).toBeNull();
+      if (row.by === 'signIn') expect(getStoredSession(storage, KB_A.id)).toEqual(newSignIn);
+      else expect(getStoredSession(storage, KB_A.id)).toBeNull();
     });
   });
 
@@ -333,6 +350,14 @@ describe('protocol/specs/src/session/persisted-cases.json', () => {
     });
   });
 
+  /** Whether jo's `resource` key holds res-1 as the gateway answered it. */
+  const savedRes1 = (storage: SessionStorage): boolean => {
+    const raw = storage.get(cacheKey(KB_A.id, jo.personKey, 'resource'));
+    if (raw === null) return false;
+    const document = JSON.parse(raw) as { entries: Array<[unknown, { name: string }, number]> };
+    return document.entries.some(([key, value]) => key === 'res-1' && value.name === 'fresh');
+  };
+
   describe('crossTab', () => {
     /** What another context writes as kb-a's stored sign-in: nothing, or one with other tokens naming whom the row says. */
     const writeElsewhere = (elsewhere: SessionStorage, written: CrossTabRow['stored']): void => {
@@ -345,14 +370,6 @@ describe('protocol/specs/src/session/persisted-cases.json', () => {
         sessionKey(KB_A.id),
         JSON.stringify(written.personKey === null ? signIn : { ...signIn, personKey: written.personKey }),
       );
-    };
-
-    /** Whether jo's `resource` key holds res-1 as the gateway answered it. */
-    const savedRes1 = (storage: SessionStorage): boolean => {
-      const raw = storage.get(cacheKey(KB_A.id, jo.personKey, 'resource'));
-      if (raw === null) return false;
-      const document = JSON.parse(raw) as { entries: Array<[unknown, { name: string }, number]> };
-      return document.entries.some(([key, value]) => key === 'res-1' && value.name === 'fresh');
     };
 
     it.each(table.crossTab)('$why', async (row) => {
@@ -368,6 +385,45 @@ describe('protocol/specs/src/session/persisted-cases.json', () => {
         // only once the save's wait is over: the write elsewhere comes first.
         expect(await firstName(session, 'res-1')).toBe('fresh');
         writeElsewhere(elsewhere, row.stored);
+      } finally {
+        end(session, gateway);
+      }
+
+      expect(savedRes1(here)).toBe(row.saved);
+    });
+  });
+
+  describe('holder', () => {
+    /**
+     * kb-a's sign-in changed in this process, through the storage that holds
+     * it: forgotten; a new sign-in saved in its place, naming whom the row
+     * says; or, when the row names jo, renewed with other tokens.
+     */
+    const changeHeld = (storage: SessionStorage, held: CrossTabRow['stored']): void => {
+      if (held === null) {
+        clearStoredSession(storage, KB_A.id);
+        return;
+      }
+      const signIn = testSession(freshJwt(), 'refresh-held');
+      if (held.personKey === jo.personKey) {
+        storage.set(sessionKey(KB_A.id), JSON.stringify({ ...signIn, personKey: held.personKey }));
+        return;
+      }
+      setStoredSession(storage, KB_A.id, held.personKey === null ? signIn : { ...signIn, personKey: held.personKey });
+    };
+
+    it.each(table.holder)('$why', async (row) => {
+      const here = new SharedStorage();
+      storeSignIn(here, KB_A.id, 'named', jo.personKey, freshJwt());
+      const { gateway, release } = heldGateway('names');
+      release();
+      const session = sessionOver(gateway, KB_A, here);
+      try {
+        await session.ready;
+        // The gateway's answer, which reaches the cache now and is written
+        // only once the save's wait is over: the change comes first.
+        expect(await firstName(session, 'res-1')).toBe('fresh');
+        changeHeld(here, row.stored);
       } finally {
         end(session, gateway);
       }

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.Spec
+import semiont.cache.PERSISTED_QUERIES
 import semiont.signin.HeldSignIn
 import semiont.signin.namingIsRecordedOnTheSignInAskedAbout
 import semiont.storage.MemoryStorage
@@ -119,6 +120,32 @@ class StoredTest {
         clearStoredSession(storage, KB_A)
         for (key in keptForJo) assertNull(storage.get(key), key)
         assertEquals("{}", storage.get(keptForAnn))
+    }
+
+    @Test
+    fun keepingANewSignInInPlaceOfOneThatNamesItsPersonDeletesWhatWasKeptForThemAndNoOtherPersons() = runBlocking {
+        val storage = MemoryStorage()
+        val kept = keptIn(storage, KB_A)
+        val keptForJo = PERSISTED_QUERIES.map { cacheKey(KB_A, "the key of jo", it.wire) } + lastEventIdKey(KB_A, "the key of jo")
+        val keptForOthers = listOf(cacheKey(KB_A, "the key of ann", "resource"), cacheKey(KB_B, "the key of jo", "resource"), lastEventIdKey(KB_B, "the key of jo"))
+        fun signIn(access: String, refresh: String, personKey: String?) = HeldSignIn(access, refresh, "semiont-browser", "https://issuer.test/token", null, personKey)
+
+        // A new sign-in names nobody until its gateway names them: the person the replaced one named is forgotten.
+        for (key in keptForJo + keptForOthers) storage.set(key, "{}")
+        storeSession(storage, KB_A, tokens("r").copy(personKey = "the key of jo"))
+        kept.keep(signIn("a2", "r2", null))
+        assertEquals(signIn("a2", "r2", null), kept.held())
+        for (key in keptForJo) assertNull(storage.get(key), key)
+        for (key in keptForOthers) assertEquals("{}", storage.get(key), key)
+
+        // In place of one that names nobody, or of nothing, nothing is known to be anyone's: nothing is deleted.
+        for (key in keptForJo) storage.set(key, "{}")
+        kept.keep(signIn("a3", "r3", null))
+        assertEquals(signIn("a3", "r3", null), kept.held())
+        kept.forget()
+        kept.keep(signIn("a4", "r4", null))
+        assertEquals(signIn("a4", "r4", null), kept.held())
+        for (key in keptForJo + keptForOthers) assertEquals("{}", storage.get(key), key)
     }
 
     @Test

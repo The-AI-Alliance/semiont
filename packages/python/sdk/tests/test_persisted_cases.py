@@ -2,14 +2,18 @@
 
 `keys`: the key of every persisted query, and of the stream's places, made of
 a knowledge base and a person. `forget`: what forgetting a saved sign-in
-deletes. A registry's sign-out and removal close a session of the active
-knowledge base that is a stand-in whose closing writes under the person's
-`resource` key, as a client closing with a save owed could; an expiry and a
-refusal are those of the registry's own session, of its HTTP factory, over a
-scripted gateway and issuer. `startup`: a session of the registry's HTTP factory, over a scripted
-gateway that names the person, or cannot be reached, only once the test lets
-it answer. `crossTab`: a registry's session whose stored sign-in another
-context deletes or replaces before the client has written what it holds.
+deletes. A registry's sign-out, removal and new sign-in close a session of the
+active knowledge base that is a stand-in whose closing writes under the
+person's `resource` key when its sign-in names them, as a client closing with
+a save owed could; an expiry and a refusal are those of the registry's own
+session, of its HTTP factory, over a scripted gateway and issuer. `startup`: a
+session of the registry's HTTP factory, over a scripted gateway that names the
+person, or cannot be reached, only once the test lets it answer. `crossTab`: a
+registry's session whose stored sign-in another context deletes or replaces
+before the client has written what it holds. `holder`: a script's session over
+a memory sign-in, keeping in a storage of its own, whose sign-in is forgotten,
+replaced or renewed through the memory sign-in before the client has written
+what it holds.
 """
 
 import asyncio
@@ -26,7 +30,7 @@ from spec import SPEC, JsonObject, objects, read, text
 from tokens import expired, token
 
 from semiont.cache import CacheState, Pending, Ready
-from semiont.http.session import HttpSessionFactory
+from semiont.http.session import HttpSessionFactory, session_from_kept
 from semiont.identifiers import ResourceId
 from semiont.refresh import PERSISTED_QUERIES
 from semiont.registry import (
@@ -38,7 +42,7 @@ from semiont.registry import (
     store_session,
     stored_session,
 )
-from semiont.session import SemiontSession
+from semiont.session import HeldSignIn, MemorySignIn, SemiontSession
 from semiont.session_signals import SessionSignals
 from semiont.storage import MemoryStorage, SessionStorage
 from semiont.stored import ACTIVE_KEY, StoredSession, cache_key, last_event_id_key, person_key, session_key
@@ -77,6 +81,7 @@ STARTUP = objects(TABLE["startup"], "startup")
 STARTUP_STORAGE = texts(TABLE["startupStorage"], "startupStorage")
 WHO_AM_I = object_of(TABLE["whoAmI"], "whoAmI")
 CROSS_TAB = objects(TABLE["crossTab"], "crossTab")
+HOLDER = objects(TABLE["holder"], "holder")
 PREFIXES: Final = tuple(text(object_of(STORED[member], member)["prefix"], member) for member in ("lastEventIdKeyPrefix", "cacheKeyPrefix"))
 """What every key a client keeps of a person begins with."""
 
@@ -130,10 +135,11 @@ def jo() -> UserResponse:
 
 @final
 class ClosingWrites(SessionFactory):
-    """Scripted sessions, each of which, when it is kb-a's, writes under jo's `resource` key once it has closed.
+    """Scripted sessions, each of which, when it is kb-a's on a sign-in naming jo, writes under jo's `resource` key once it has closed.
 
-    As a client closing with a save owed could: what a sign-out or a removal
-    deletes is deleted after that.
+    As a client kept for jo closing with a save owed could: what a sign-out, a
+    removal or a new sign-in deletes is deleted after that. A session built on
+    a sign-in that names nobody keeps nothing, as a client does.
     """
 
     def __init__(self) -> None:
@@ -143,11 +149,13 @@ class ClosingWrites(SessionFactory):
     @override
     @asynccontextmanager
     async def session(self, options: SessionFactoryOptions) -> AsyncGenerator[SemiontSession[FaultyTransport]]:
+        stored = stored_session(options.storage, options.kb.id)
+        keeps_for_jo = options.kb.id == KB and stored is not None and stored.person_key == JO
         try:
             async with self._sessions.session(options) as session:
                 yield session
         finally:
-            if options.kb.id == KB:
+            if keeps_for_jo:
                 options.storage.set(cache_key(KB, JO, "resource"), CLOSING_WRITE)
 
     @override
@@ -185,8 +193,11 @@ def sign_in_of(row: JsonObject, sign_in: Callable[[str | None], StoredSession]) 
             raise AssertionError(f"a stored sign-in the table does not state: {other}")
 
 
-async def forgotten_by_the_registry(row: JsonObject) -> SessionStorage:
-    """What storage holds once the registry has signed out of kb-a, or removed it, and has closed."""
+async def forgotten_by_the_registry(row: JsonObject, new: StoredSession) -> SessionStorage:
+    """What storage holds once the registry has signed out of kb-a, removed it, or signed in to it again with `new`, and has closed.
+
+    kb-a is registered in every row, and active when the row says it is open.
+    """
     storage = holding_forget_storage()
     save_knowledge_bases(storage, [registered_at(KB, 4000), registered_at("kb-b", 4001)])
     stored = sign_in_of(row, signed_in)
@@ -199,10 +210,15 @@ async def forgotten_by_the_registry(row: JsonObject) -> SessionStorage:
         session = await soon(reached(browser.active_session, lambda session: session is not None))
         assert session is not None
         assert session.kb.id == active
-        if row["by"] == "signOut":
-            await soon(browser.sign_out(KB))
-        else:
-            await soon(browser.remove_kb(KB))
+        match row["by"]:
+            case "signOut":
+                await soon(browser.sign_out(KB))
+            case "removal":
+                await soon(browser.remove_kb(KB))
+            case "signIn":
+                await soon(browser.sign_in(KB, new))
+            case other:
+                raise AssertionError(f"a way the registry forgets the table does not state: {other}")
     return storage
 
 
@@ -268,16 +284,18 @@ def test_forgetting_a_saved_sign_in_deletes_what_the_table_says(row: JsonObject)
     assert row["removes"] in ("person", "nothing")
     removed = kept_of(KB, JO) if row["removes"] == "person" else set[str]()
     assert removed <= set(FORGET_STORAGE)
+    # A new sign-in, with other tokens, naming nobody until its gateway names them.
+    new = signed_in(None, 2)
     match row["by"]:
-        case "signOut" | "removal":
-            storage = run(forgotten_by_the_registry(row))
+        case "signOut" | "removal" | "signIn":
+            storage = run(forgotten_by_the_registry(row, new))
         case "expiry" | "refusal":
             storage = run(forgotten_by_the_session(row))
         case other:
             raise AssertionError(f"a way of forgetting the table does not state: {other}")
 
-    # Looked at once kb-a's client has closed.
-    assert stored_session(storage, KB) is None
+    # Looked at once kb-a's client has closed. After a new sign-in, it is the one stored.
+    assert stored_session(storage, KB) == (new if row["by"] == "signIn" else None)
     assert {key: storage.get(key) for key in FORGET_STORAGE} == {
         key: None if key in removed else value for key, value in FORGET_STORAGE.items()
     }
@@ -466,8 +484,57 @@ def test_a_session_whose_stored_sign_in_another_context_changes_writes_what_the_
     assert run(scenario()) is row["saved"]
 
 
+# ── holder ──────────────────────────────────────────────────────────────
+
+
+def held_by(gateway: GatewayServer, person: str | None, n: int) -> HeldSignIn:
+    """A sign-in whose token is good for an hour, told from another by `n`, naming `person`, or nobody."""
+    return HeldSignIn(
+        access=token(3600, n),
+        refresh=f"refresh-{n}",
+        client_id="semiont-browser",
+        token_endpoint=f"{gateway.origin}{TOKEN}",
+        person_key=person,
+    )
+
+
+@pytest.mark.parametrize("row", HOLDER, ids=why)
+def test_a_session_whose_sign_in_what_holds_it_changes_writes_what_the_table_says(row: JsonObject) -> None:
+    async def scenario() -> bool:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            gateway.answers[ME] = WHO_AM_I
+            answers_fresh(gateway)
+            # The client keeps in a storage of its own; the sign-in is held apart from it, in memory.
+            storage = MemoryStorage()
+            read = held_by(gateway, JO, 1)
+            kept = MemorySignIn(read)
+
+            async with session_from_kept(gateway.target(KB), kept=kept, storage=storage) as session:
+                client = session.client
+                assert (await soon(client.browse.resource(ResourceId("res-1")).fresh())).name == "fresh"
+                # Held, and not yet written.
+                assert not client.persistence_settled
+
+                stored = row["stored"]
+                if stored is None:
+                    await kept.forget()
+                else:
+                    person = object_of(stored, "stored")["personKey"]
+                    assert person is None or isinstance(person, str)
+                    if person == JO:
+                        renewed = held_by(gateway, JO, 2)
+                        assert await kept.renewed(read, renewed.access, renewed.refresh) == renewed.access
+                    else:
+                        await kept.keep(held_by(gateway, person, 2))
+            return saved(storage)
+
+    assert run(scenario()) is row["saved"]
+
+
 def test_the_table_was_read() -> None:
     assert len(KEYS) >= 2
-    assert len(FORGET) >= 10
+    assert len(FORGET) >= 14
     assert len(STARTUP) >= 3
     assert len(CROSS_TAB) >= 4
+    assert len(HOLDER) >= 4

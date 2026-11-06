@@ -108,7 +108,7 @@ class RegistryTest {
     }
 
     @Test
-    fun signingInAgainOverASignInThatNamesItsPersonNamesNobodyAndDeletesNothing() = runBlocking {
+    fun signingInAgainOverASignInThatNamesItsPersonNamesNobodyAndForgetsWhatWasKeptForThem() = runBlocking {
         val storage = MemoryStorage()
         saveKnowledgeBases(storage, listOf(kbOfA()))
         storeSession(storage, KB_A, tokens("r").copy(personKey = "the key of jo"))
@@ -118,7 +118,7 @@ class RegistryTest {
         SemiontBrowser(SemiontBrowserConfig(storage, ScriptedSessions())).use { browser ->
             browser.signIn(KB_A, tokens("r2"))
             assertEquals("r2" to null, checkNotNull(storedSession(storage, KB_A)).let { it.refresh to it.personKey })
-            for (key in keptForJo) assertEquals("{}", storage.get(key), key)
+            for (key in keptForJo) assertNull(storage.get(key), key)
         }
     }
 

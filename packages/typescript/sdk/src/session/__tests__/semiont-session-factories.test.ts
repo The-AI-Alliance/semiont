@@ -6,13 +6,18 @@
  * grant end to end). Each gives an `OpenedSession`: the session and the
  * client it was built with, ended together. They construct a real `SemiontClient` over a real
  * `HttpTransport`, so the wire is kept quiet by spying on the transport and
- * stubbing `fetch` for the issuer.
+ * stubbing `fetch` for the issuer. And a new sign-in saved over a stored one,
+ * by `setStoredSession` or `fromIssuedSession`, forgets it, with what was kept
+ * for the person it named; a renewal forgets nothing.
  */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HttpTransport } from '@semiont/http-transport';
+import { PERSISTED_QUERIES } from '@semiont/core';
 
 import { SemiontSession } from '../semiont-session';
+import { refreshStoredSession } from '../oauth';
+import { cacheKey, getStoredSession, lastEventIdKey, personKey, setStoredSession, type StoredSession } from '../storage';
 import { TestStorage, freshJwt, storageKey, testSession, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
 
 const KB = {
@@ -328,5 +333,79 @@ describe('SemiontSession.signInDevice', () => {
     } finally {
       opened.dispose();
     }
+  });
+});
+
+describe('a new sign-in saved over a stored one', () => {
+  const JO = personKey('did:web:kb.example.org:users:jo%40example.org');
+  const ANN = personKey('did:web:kb.example.org:users:ann%40example.org');
+
+  /** Every key a person's client keeps on a knowledge base: its stream's places, and each persisted query's. */
+  const keptFor = (kbId: string, person: string): string[] => [
+    lastEventIdKey(kbId, person),
+    ...PERSISTED_QUERIES.map((query) => cacheKey(kbId, person, query)),
+  ];
+  const JOS = keptFor(KB.id, JO);
+  /** What is kept for another person here, and for jo on another knowledge base. */
+  const OTHERS = [...keptFor(KB.id, ANN), ...keptFor('kb-elsewhere', JO)];
+  const KEPT = 'kept';
+
+  /** Everything kept for jo and the others, and the KB's stored sign-in as `signedIn` says. */
+  const seedOld = (signedIn: 'named' | 'unnamed' | 'none'): void => {
+    for (const key of [...JOS, ...OTHERS]) storage.set(key, KEPT);
+    if (signedIn === 'none') return;
+    const old = testSession(freshJwt(), 'refresh-old');
+    storage.set(storageKey(KB.id), JSON.stringify(signedIn === 'named' ? { ...old, personKey: JO } : old));
+  };
+
+  const saves: Array<[string, (issued: StoredSession) => Promise<void>]> = [
+    ['setStoredSession', async (issued) => {
+      setStoredSession(storage, KB.id, issued);
+    }],
+    ['SemiontSession.fromIssuedSession', async (issued) => {
+      const opened = await SemiontSession.fromIssuedSession({ kb: KB, storage, baseUrl: 'http://test.local', session: issued });
+      opened.dispose();
+    }],
+  ];
+
+  describe.each(saves)('%s', (_, save) => {
+    test('over a stored sign-in naming a person: what was kept for them on the knowledge base is deleted, and nothing else', async () => {
+      seedOld('named');
+      const issued = testSession(freshJwt(), 'refresh-new');
+
+      await save(issued);
+
+      for (const key of JOS) expect(storage.get(key), key).toBeNull();
+      for (const key of OTHERS) expect(storage.get(key), key).toBe(KEPT);
+      expect(getStoredSession(storage, KB.id)).toEqual(issued);
+    });
+
+    test.each(['unnamed', 'none'] as const)('over %s: nothing is deleted', async (signedIn) => {
+      seedOld(signedIn);
+      const issued = testSession(freshJwt(), 'refresh-new');
+
+      await save(issued);
+
+      for (const key of [...JOS, ...OTHERS]) expect(storage.get(key), key).toBe(KEPT);
+      expect(getStoredSession(storage, KB.id)).toEqual(issued);
+    });
+  });
+
+  describe('a renewal', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    test('of a stored sign-in naming a person keeps them, and deletes nothing', async () => {
+      seedOld('named');
+      const held = getStoredSession(storage, KB.id);
+      if (held === null) throw new Error('the sign-in was not stored');
+      vi.stubGlobal('fetch', vi.fn(async () => issuerReply({ access_token: freshJwt(), refresh_token: 'refresh-2' })));
+
+      expect(await refreshStoredSession(storage, KB.id, held.access)).not.toBeNull();
+
+      expect(getStoredSession(storage, KB.id)?.personKey).toBe(JO);
+      for (const key of [...JOS, ...OTHERS]) expect(storage.get(key), key).toBe(KEPT);
+    });
   });
 });

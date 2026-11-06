@@ -29,11 +29,12 @@ use semiont::errors::{
     SignInError, SignInErrorCode,
 };
 use semiont::identity::agent_did;
+use semiont::refresh::CacheQuery;
 use semiont::roles::{AGENT_KIND, KIND_CLAIM, is_agent};
 use semiont::session::{
     OpenedSession, SemiontBrowser, SemiontBrowserConfig, SemiontSession, SessionEndReason,
-    StoredSession, last_event_id_key, person_key, save_knowledge_bases, session_key, store_session,
-    stored_session,
+    StoredSession, cache_key, last_event_id_key, person_key, save_knowledge_bases, session_key,
+    store_session, stored_session,
 };
 use semiont::sign_in_store::{FILE_NAME, SignInStore};
 use semiont::storage::{InMemorySessionStorage, SessionStorage};
@@ -1625,6 +1626,102 @@ async fn a_session_over_issued_tokens_keeps_them_is_ready_and_says_who_it_is() {
         Some("alice@example.org".to_owned())
     );
     opened.close().await;
+}
+
+/// Every key a person's queries and stream's places are kept under on a
+/// knowledge base.
+fn kept_for(kb_id: &str, did: &str) -> Vec<String> {
+    let person = person_key(did);
+    CacheQuery::PERSISTED
+        .iter()
+        .map(|query| cache_key(kb_id, &person, *query))
+        .chain([last_event_id_key(kb_id, &person)])
+        .collect()
+}
+
+const BOB: &str = "did:web:example.org:users:bob";
+
+/// What a client kept for alice and for bob on "a-script", and for alice on
+/// another knowledge base, each under every key of theirs; and a sign-in of
+/// "a-script" that names alice, or nobody.
+fn kept_and_signed_in(world: &World, names: Option<&str>) -> Arc<InMemorySessionStorage> {
+    let storage = Arc::new(InMemorySessionStorage::new());
+    for key in kept_for("a-script", ALICE)
+        .into_iter()
+        .chain(kept_for("a-script", BOB))
+        .chain(kept_for("another", ALICE))
+    {
+        storage.set(&key, "kept").expect("stored");
+    }
+    store_session(
+        storage.as_ref(),
+        "a-script",
+        &StoredSession {
+            person_key: names.map(person_key),
+            ..world.stored("a0", "r0")
+        },
+    )
+    .expect("stored");
+    storage
+}
+
+/// Saving a new sign-in into a storage replaces the one it holds, and
+/// forgets it: what was kept for the person it named is deleted, though the
+/// new one may turn out to be theirs, as it names nobody until its gateway
+/// names them (protocol/specs/src/session/persisted-cases.json, `forget`).
+/// Nobody else's is, nor theirs on another knowledge base.
+#[tokio::test]
+async fn a_new_sign_in_saved_over_one_naming_a_person_deletes_what_was_kept_for_them() {
+    let world = World::start().await;
+    let storage = kept_and_signed_in(&world, Some(ALICE));
+    let access = jwt(3600, 1);
+
+    let opened = session_from_issued(issued(&world, storage.clone(), &access))
+        .await
+        .expect("a session");
+    opened.close().await;
+
+    assert_eq!(
+        stored_session(storage.as_ref(), "a-script"),
+        Some(world.stored(&access, "r1"))
+    );
+    let left: Vec<String> = kept_for("a-script", ALICE)
+        .into_iter()
+        .filter(|key| storage.get(key).is_some())
+        .collect();
+    assert!(left.is_empty(), "alice's keys left: {left:?}");
+    for key in kept_for("a-script", BOB)
+        .into_iter()
+        .chain(kept_for("another", ALICE))
+    {
+        assert_eq!(storage.get(&key).as_deref(), Some("kept"), "{key}");
+    }
+}
+
+/// A sign-in that named nobody leaves nothing known to be anyone's: saving
+/// a new one over it deletes nothing.
+#[tokio::test]
+async fn a_new_sign_in_saved_over_one_naming_nobody_deletes_nothing() {
+    let world = World::start().await;
+    let storage = kept_and_signed_in(&world, None);
+    let access = jwt(3600, 1);
+
+    let opened = session_from_issued(issued(&world, storage.clone(), &access))
+        .await
+        .expect("a session");
+    opened.close().await;
+
+    assert_eq!(
+        stored_session(storage.as_ref(), "a-script"),
+        Some(world.stored(&access, "r1"))
+    );
+    for key in kept_for("a-script", ALICE)
+        .into_iter()
+        .chain(kept_for("a-script", BOB))
+        .chain(kept_for("another", ALICE))
+    {
+        assert_eq!(storage.get(&key).as_deref(), Some("kept"), "{key}");
+    }
 }
 
 #[tokio::test]

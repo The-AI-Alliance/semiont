@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -156,6 +157,67 @@ func TestThePersonIsRecordedOnTheStoredSignInOfTheTokenAskedAbout(t *testing.T) 
 	must(t, kept.Keep(ctx, semiont.HeldSignIn{Access: "a3", Refresh: "r3", ClientID: "semiont-browser", TokenEndpoint: "https://issuer.test/token"}))
 	if stored, _ := registry.StoredSessionOf(storage, "kb-a"); stored.PersonKey != nil {
 		t.Fatalf("a new sign-in names %s", *stored.PersonKey)
+	}
+}
+
+// A new sign-in kept where a registry keeps a knowledge base's sign-in
+// replaces the one stored, and forgets what was kept there of the person it
+// named, whoever the new one turns out to be: a new sign-in names nobody until
+// its gateway names them. Over one that named nobody, or nothing, nothing is
+// deleted; no other person's entries, nor the person's on another knowledge
+// base, ever are.
+func TestANewSignInKeptOverOneNamingItsPersonDeletesWhatWasKeptOfThem(t *testing.T) {
+	jo, ann := semiont.PersonKey("did:web:example.org:users:jo"), semiont.PersonKey("did:web:example.org:users:ann")
+	entriesOf := func(kbID, personKey string) []string {
+		keys := []string{semiont.LastEventIDKey(kbID, personKey)}
+		for _, query := range semiont.PersistedCacheQueries {
+			keys = append(keys, semiont.CacheKey(kbID, personKey, query))
+		}
+		return keys
+	}
+	josOnA := entriesOf("kb-a", jo)
+	others := slices.Concat(entriesOf("kb-a", ann), entriesOf("kb-b", jo))
+	signIn := semiont.HeldSignIn{Access: "a2", Refresh: "r2", ClientID: "semiont-browser", TokenEndpoint: "https://issuer.test/token"}
+	for _, over := range []struct {
+		name      string
+		stored    bool
+		personKey *string
+		deletes   bool
+	}{
+		{name: "a sign-in naming jo", stored: true, personKey: &jo, deletes: true},
+		{name: "a sign-in naming nobody", stored: true},
+		{name: "nothing stored"},
+	} {
+		t.Run(over.name, func(t *testing.T) {
+			ctx := context.Background()
+			storage := semiont.NewMemoryStorage()
+			for _, key := range slices.Concat(josOnA, others) {
+				must(t, storage.Set(key, "kept"))
+			}
+			if over.stored {
+				must(t, registry.StoreSession(storage, "kb-a", registry.StoredSession{Access: "a1", Refresh: "r1", ClientID: "semiont-browser", TokenEndpoint: "https://issuer.test/token", PersonKey: over.personKey}))
+			}
+			kept := registry.KeptIn(storage, "kb-a")
+
+			must(t, kept.Keep(ctx, signIn))
+			if held, ok, err := kept.Held(ctx); err != nil || !ok || !reflect.DeepEqual(held, signIn) {
+				t.Errorf("kb-a's sign-in is %+v (%v, %v); the new one is %+v", held, ok, err, signIn)
+			}
+			for _, key := range josOnA {
+				_, has := storage.Get(key)
+				if over.deletes && has {
+					t.Errorf("%s holds something once the sign-in naming jo is replaced", key)
+				}
+				if !over.deletes && !has {
+					t.Errorf("%s was deleted; what was replaced named nobody", key)
+				}
+			}
+			for _, key := range others {
+				if _, has := storage.Get(key); !has {
+					t.Errorf("%s, no entry of the person replaced on kb-a, was deleted", key)
+				}
+			}
+		})
 	}
 }
 

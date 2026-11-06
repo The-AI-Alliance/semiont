@@ -1,12 +1,16 @@
 //! The runner of protocol/specs/src/session/persisted-cases.json: what a
 //! client keeps of one person in a registry's storage, and when it is read,
 //! written and deleted. `keys` against the key functions and the generated
-//! list of persisted queries; `forget` against a registry, its sign-out and
-//! its removal over stand-in sessions, its session's expiry and refusal over
-//! a stand-in gateway and issuer; `startup` against the session the HTTP
-//! session factory builds, over a stand-in gateway that names the person, or
-//! nobody, once the test lets it; `crossTab` against a registry whose stored
-//! sign-in another context deletes or replaces.
+//! list of persisted queries; `forget` against a registry, its sign-out, its
+//! removal and its sign-in again over stand-in sessions, its session's
+//! expiry and refusal over a stand-in gateway and issuer; `startup` against
+//! the session the HTTP session factory builds, over a stand-in gateway that
+//! names the person, or nobody, once the test lets it; `crossTab` against a
+//! registry whose stored sign-in another context deletes or replaces;
+//! `holder` against a registry whose stored sign-in this process forgets,
+//! replaces or renews through the storage's functions, which are what holds
+//! a registry session's sign-in. Then a save being written as the session
+//! forgets its sign-in: no save lands after the delete.
 
 use axum::Router;
 use axum::body::Body;
@@ -26,11 +30,12 @@ use semiont::identity::kb_did;
 use semiont::refresh::CacheQuery;
 use semiont::session::{
     SemiontBrowser, SemiontBrowserConfig, SemiontSession, SemiontSessionConfig, SessionFactory,
-    SessionFactoryOptions, SessionSignals, StoredSession, cache_key, last_event_id_key, person_key,
-    save_knowledge_bases, session_key, store_session, stored_session,
+    SessionFactoryOptions, SessionSignals, StoredSession, cache_key, clear_stored_session,
+    last_event_id_key, person_key, save_knowledge_bases, session_key, store_session,
+    stored_session,
 };
 use semiont::state_unit::StateUnit;
-use semiont::storage::SessionStorage;
+use semiont::storage::{SessionStorage, StorageChange, StorageSubscription};
 use semiont::testing::{FaultyTransport, InMemoryContent, SharedStorage, as_id};
 use semiont::transport::{
     BoxFuture, ConnectionState, Envelope, Failures, Frames, PendingReply, ResourceHold, Transport,
@@ -127,6 +132,7 @@ fn the_table_states_only_what_this_runner_reads() {
         "startupStorage",
         "startup",
         "crossTab",
+        "holder",
     ];
     for part in object(&cases, "the table").keys() {
         assert!(
@@ -134,7 +140,7 @@ fn the_table_states_only_what_this_runner_reads() {
             "the table states {part}, which this runner does not read"
         );
     }
-    let members: [(&str, &[&str]); 4] = [
+    let members: [(&str, &[&str]); 5] = [
         (
             "keys",
             &[
@@ -164,6 +170,7 @@ fn the_table_states_only_what_this_runner_reads() {
             ],
         ),
         ("crossTab", &["why", "stored", "saved"]),
+        ("holder", &["why", "stored", "saved"]),
     ];
     for (part, read) in members {
         for row in rows(&cases, part) {
@@ -290,6 +297,17 @@ fn kb_at(endpoint: KbEndpoint) -> KnowledgeBase {
         label: "KB A".to_owned(),
         did: kb_did(DOMAIN),
         endpoint,
+        last_read: None,
+    }
+}
+
+/// A knowledge base loaded in this process, by its id.
+fn loaded(id: &str) -> KnowledgeBase {
+    KnowledgeBase {
+        id: id.to_owned(),
+        label: id.to_owned(),
+        did: kb_did(&format!("example.org:{id}")),
+        endpoint: KbEndpoint::LocalEndpoint(LocalEndpoint::new(id)),
         last_read: None,
     }
 }
@@ -599,11 +617,11 @@ async fn given_as(watcher: &mut Observed<ResourceDescriptor>, said: &str) -> Opt
 // ── forget ──────────────────────────────────────────────────────────────
 
 /// A transport that answers nothing, and whose closing writes under `key`,
-/// as a client closing with a save pending could.
+/// when it has one, as a client closing with a save pending could.
 struct ClosingWrites {
     answers_nothing: FaultyTransport,
     storage: Arc<dyn SessionStorage>,
-    key: String,
+    key: Option<String>,
 }
 
 impl Transport for ClosingWrites {
@@ -651,26 +669,33 @@ impl Transport for ClosingWrites {
 
     fn close(&self) -> BoxFuture<'_, ()> {
         Box::pin(async move {
-            self.storage
-                .set(&self.key, "written as the client closed")
-                .expect("written");
+            if let Some(key) = &self.key {
+                self.storage
+                    .set(key, "written as the client closed")
+                    .expect("written");
+            }
             self.answers_nothing.close().await;
         })
     }
 }
 
 /// Builds each session over a `ClosingWrites`: the session of the table's
-/// open client, kept for jo, whose closing writes under jo's `resource` key.
-struct ClosingSessions {
-    key: String,
-}
+/// open client, kept for the person its knowledge base's stored sign-in
+/// names as it is built, whose closing writes under that person's
+/// `resource` key. One built over a sign-in that names nobody, or over none,
+/// keeps nothing, and its closing writes nothing.
+struct ClosingSessions;
 
 impl SessionFactory for ClosingSessions {
     fn session(&self, options: SessionFactoryOptions) -> Result<SemiontSession, SessionError> {
+        let kb_id = options.kb.id.clone();
+        let kept_for = stored_session(options.storage.as_ref(), &kb_id)
+            .and_then(|stored| stored.person_key)
+            .map(|person_key| cache_key(&kb_id, &person_key, CacheQuery::Resource));
         let transport = ClosingWrites {
             answers_nothing: FaultyTransport::new(vec![]),
             storage: options.storage.clone(),
-            key: self.key.clone(),
+            key: kept_for,
         };
         let client = Arc::new(SemiontClient::new(
             Arc::new(transport),
@@ -695,43 +720,47 @@ impl SessionFactory for ClosingSessions {
     }
 }
 
-/// The registry signs out of kb-a, or removes it (`by`), over stand-in
-/// sessions whose closing writes under jo's `resource` key; kb-a is active
-/// when `open`.
+/// The registry signs out of kb-a, removes it, or signs in to it again with
+/// a new sign-in (`by`), over stand-in sessions whose closing writes under
+/// the `resource` key of the person their sign-in named; kb-a is active
+/// when `open`. A sign-in is of a registered knowledge base, so for one kb-a
+/// is registered whether or not it is open, and when it is not, kb-b is the
+/// active one. How it is not that a sign-in left its new sign-in stored.
 async fn forgotten_by_the_registry(
     storage: &Arc<SharedStorage>,
     by: &str,
     signed_in: Option<StoredSession>,
     open: bool,
-    jo: &str,
-) {
+) -> Option<String> {
     if let Some(signed_in) = &signed_in {
         store_session(storage.as_ref(), KB, signed_in).expect("stored");
     }
     // A knowledge base that is not registered has no client to open.
-    if open {
-        save_knowledge_bases(
-            storage.as_ref(),
-            &[kb_at(KbEndpoint::LocalEndpoint(LocalEndpoint::new(KB)))],
-        )
-        .expect("stored");
-    }
+    let registered = match (by, open) {
+        (_, true) => vec![loaded(KB)],
+        ("signIn", false) => vec![loaded("kb-b"), loaded(KB)],
+        (_, false) => Vec::new(),
+    };
+    save_knowledge_bases(storage.as_ref(), &registered).expect("stored");
     let browser = SemiontBrowser::new(SemiontBrowserConfig {
         storage: storage.clone(),
-        session_factory: Arc::new(ClosingSessions {
-            key: cache_key(KB, jo, CacheQuery::Resource),
-        }),
+        session_factory: Arc::new(ClosingSessions),
     })
     .expect("a browser");
-    if open {
+    if !registered.is_empty() {
         live(&browser).await;
     }
+    let new = sign_in(2, None);
     match by {
         "signOut" => browser.sign_out(KB).await.expect("signed out"),
         "removal" => browser.remove_kb(KB).await.expect("removed"),
+        "signIn" => browser.sign_in(KB, &new).await.expect("signed in"),
         other => panic!("the registry forgets by {other}"),
     }
     browser.close().await.expect("closed");
+    let stored = stored_session(storage.as_ref(), KB);
+    (by == "signIn" && stored.as_ref() != Some(&new))
+        .then(|| format!("kb-a's stored sign-in is {stored:?}, not the new one"))
 }
 
 /// kb-a's session, the registry's own over the HTTP session factory, ends
@@ -800,8 +829,8 @@ async fn forgotten(cases: &Value, row: &Value) -> Vec<String> {
 
     let mut wrong = Vec::new();
     match by.as_str() {
-        "signOut" | "removal" => {
-            forgotten_by_the_registry(&storage, &by, stored, open, &jo).await;
+        "signOut" | "removal" | "signIn" => {
+            wrong.extend(forgotten_by_the_registry(&storage, &by, stored, open).await);
         }
         _ => {
             assert!(open, "a session that ends is kb-a's active one");
@@ -984,16 +1013,39 @@ fn kept_value(storage: &SharedStorage, key: &str, entry: &str) -> Option<Value> 
         .map(|kept| kept[1].clone())
 }
 
-/// How one row of `crossTab` is not what the registry's client wrote.
+/// Where kb-a's stored sign-in is changed while its client holds a value it
+/// has not written.
+#[derive(Clone, Copy)]
+enum Changed {
+    /// By another context, writing the storage (`crossTab`).
+    Elsewhere,
+    /// In this process, through what holds the registry session's sign-in:
+    /// the storage's functions (`holder`). Forgotten by the public clear,
+    /// replaced by the save of a new sign-in, renewed by a write of the
+    /// stored session that keeps its person.
+    ThroughTheHolder,
+}
+
+/// A sign-in written as the stored session, as a renewal writes it: no save
+/// of a new sign-in, which forgets whom the one it replaces named.
+fn written_over(
+    storage: &dyn SessionStorage,
+    signed_in: &StoredSession,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    storage.set(&session_key(KB), &signed_in.written())
+}
+
+/// How one row of `crossTab` or `holder` is not what the registry's client
+/// wrote.
 ///
 /// In the table's order: the client is given res-1 and owes its save, the
-/// other context writes before that save's wait is over, and the client
-/// closes. Nothing is awaited between the value's arrival and the other
-/// context's write, so the save cannot be made between them on this
-/// runtime's one thread, unless its wait was already over when the value
-/// arrived; a save written before the other context wrote fails the row,
-/// which was then not run in its order.
-async fn across(cases: &Value, row: &Value) -> Vec<String> {
+/// stored sign-in is changed before that save's wait is over, and the
+/// client closes. Nothing is awaited between the value's arrival and the
+/// change, so the save cannot be made between them on this runtime's one
+/// thread, unless its wait was already over when the value arrived; a save
+/// written before the change fails the row, which was then not run in its
+/// order.
+async fn across(cases: &Value, row: &Value, changed: Changed) -> Vec<String> {
     let jo = person(cases, "jo");
     let gateway = Gateway::start(Who::Names, cases["whoAmI"].clone()).await;
     gateway.let_who_answer();
@@ -1012,11 +1064,18 @@ async fn across(cases: &Value, row: &Value) -> Vec<String> {
     let mut res_1 = session.client().browse.resource(&as_id("res-1")).watch();
     let held = next_value(&mut res_1).await;
     let written_before = kept_value(&storage, &kept_for_jo, "res-1");
-    match &row["stored"] {
-        Value::Null => elsewhere.delete(&session_key(KB)).expect("deleted"),
-        stated => store_session(&elsewhere, KB, &sign_in(2, stated["personKey"].as_str()))
-            .expect("stored"),
+    let stated = &row["stored"];
+    let naming = stated["personKey"].as_str();
+    match (changed, stated) {
+        (Changed::Elsewhere, Value::Null) => elsewhere.delete(&session_key(KB)),
+        (Changed::Elsewhere, _) => written_over(&elsewhere, &sign_in(2, naming)),
+        (Changed::ThroughTheHolder, Value::Null) => clear_stored_session(storage.as_ref(), KB),
+        (Changed::ThroughTheHolder, _) if naming == Some(jo.as_str()) => {
+            written_over(storage.as_ref(), &sign_in(2, naming))
+        }
+        (Changed::ThroughTheHolder, _) => store_session(storage.as_ref(), KB, &sign_in(2, naming)),
     }
+    .expect("the stored sign-in changed");
     browser.close().await.expect("closed");
 
     let Some(held) = held else {
@@ -1024,7 +1083,7 @@ async fn across(cases: &Value, row: &Value) -> Vec<String> {
     };
     if let Some(written) = written_before {
         return vec![format!(
-            "res-1's save, {written}, was written before the other context wrote: the row was not run in its order"
+            "res-1's save, {written}, was written before the stored sign-in changed: the row was not run in its order"
         )];
     }
     let saved = kept_value(&storage, &kept_for_jo, "res-1")
@@ -1044,11 +1103,177 @@ async fn cross_tab() {
     for row in rows(&cases, "crossTab") {
         let why = text(row, "why");
         wrong.extend(
-            across(&cases, row)
+            across(&cases, row, Changed::Elsewhere)
                 .await
                 .into_iter()
                 .map(|differs| format!("{why}: {differs}")),
         );
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+// ── holder ──────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn holder() {
+    let cases = table();
+    let mut wrong = Vec::new();
+    for row in rows(&cases, "holder") {
+        let why = text(row, "why");
+        wrong.extend(
+            across(&cases, row, Changed::ThroughTheHolder)
+                .await
+                .into_iter()
+                .map(|differs| format!("{why}: {differs}")),
+        );
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+// ── A save being written as the session forgets its sign-in ─────────────
+
+/// A storage whose first write under `key` says it has begun, then waits
+/// until the test lets it go: a save that found the sign-in naming its
+/// person, still being written.
+struct HeldWrite {
+    beneath: SharedStorage,
+    key: String,
+    begun: Mutex<Option<std::sync::mpsc::Sender<()>>>,
+    let_go: Mutex<std::sync::mpsc::Receiver<()>>,
+}
+
+impl SessionStorage for HeldWrite {
+    fn get(&self, key: &str) -> Option<String> {
+        self.beneath.get(key)
+    }
+
+    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let begun = if key == self.key {
+            self.begun.lock().unwrap().take()
+        } else {
+            None
+        };
+        if let Some(begun) = begun {
+            begun.send(()).expect("the test listens");
+            self.let_go
+                .lock()
+                .unwrap()
+                .recv()
+                .expect("the test lets it go");
+        }
+        self.beneath.set(key, value)
+    }
+
+    fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.beneath.delete(key)
+    }
+
+    fn update(
+        &self,
+        key: &str,
+        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.beneath.update(key, change)
+    }
+
+    fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {
+        self.beneath.subscribe(on_change)
+    }
+}
+
+/// How long a forget is given to finish while the save it met is held: one
+/// whose delete waits for that save cannot finish until it is let go.
+const A_MOMENT: Duration = Duration::from_millis(200);
+
+/// The session the HTTP session factory builds, its client kept for jo,
+/// forgets its sign-in (the gateway refused its token, and its issuer
+/// refuses to renew it) while a save of res-1, which found the sign-in
+/// naming jo, is being written. Once both have finished, no key of jo's on
+/// kb-a holds anything: the check and the write are one step, and the
+/// forget's delete is not made while that step is under way.
+///
+/// The save is held from before the forget begins, and let go only after
+/// the session has given up its token, from which its forget runs to its
+/// delete with nothing awaited, and after the forget has had a moment to
+/// finish.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_save_being_written_as_the_session_forgets_its_sign_in_is_not_left_after_the_delete() {
+    let cases = table();
+    let jo = person(&cases, "jo");
+    let gateway = Gateway::start(Who::Names, cases["whoAmI"].clone()).await;
+    gateway.let_who_answer();
+    let (begun, has_begun) = std::sync::mpsc::channel();
+    let (let_go, letting_go) = std::sync::mpsc::channel();
+    let storage = Arc::new(HeldWrite {
+        beneath: SharedStorage::new(),
+        key: cache_key(KB, &jo, CacheQuery::Resource),
+        begun: Mutex::new(Some(begun)),
+        let_go: Mutex::new(letting_go),
+    });
+    store_session(
+        storage.as_ref(),
+        KB,
+        &StoredSession {
+            token_endpoint: gateway.token_endpoint(),
+            ..sign_in(1, Some(&jo))
+        },
+    )
+    .expect("stored");
+    let session = Arc::new(
+        HttpSessionFactory::new(gateway.http.clone())
+            .session(SessionFactoryOptions {
+                kb: gateway.kb(),
+                storage: storage.clone(),
+                signals: Arc::new(SessionSignals::new()),
+                on_error: Arc::new(|_: SessionError| {}),
+            })
+            .expect("a session"),
+    );
+    tokio::time::timeout(PATIENCE, session.ready())
+        .await
+        .expect("the session is ready");
+    let client = session.client().clone();
+
+    let mut res_1 = client.browse.resource(&as_id("res-1")).watch();
+    assert!(
+        next_value(&mut res_1).await.is_some(),
+        "the client was given no value of res-1"
+    );
+    tokio::task::spawn_blocking(move || has_begun.recv_timeout(PATIENCE))
+        .await
+        .expect("the wait ran")
+        .expect("res-1's save is written");
+
+    let mut token = session.token();
+    let refused = token.borrow().clone();
+    let mut forgetting = tokio::spawn({
+        let session = session.clone();
+        async move { session.refresh(refused.as_deref()).await }
+    });
+    tokio::time::timeout(PATIENCE, token.wait_for(Option::is_none))
+        .await
+        .expect("the session gives up its token")
+        .expect("the session lives");
+    let _ = tokio::time::timeout(A_MOMENT, &mut forgetting).await;
+    let_go.send(()).expect("the save waits");
+    tokio::time::timeout(PATIENCE, forgetting)
+        .await
+        .expect("the forget finishes")
+        .expect("the forget ran");
+    session.dispose();
+    client.close().await;
+
+    assert!(
+        stored_session(storage.as_ref(), KB).is_none(),
+        "the session did not forget its sign-in"
+    );
+    let left: Vec<String> = keys_of(KB, &jo)
+        .into_iter()
+        .filter_map(|key| storage.get(&key).map(|held| format!("{key} holds {held}")))
+        .collect();
+    assert!(
+        left.is_empty(),
+        "once the forget and the save it met have both finished:\n{}",
+        left.join("\n")
+    );
 }

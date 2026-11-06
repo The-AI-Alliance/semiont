@@ -3,8 +3,10 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Semiont.Errors;
 using Semiont.Identifiers;
+using Semiont.Protocol;
 using Semiont.Registry;
 using Semiont.State;
+using Semiont.Storage;
 using Semiont.Types;
 using Xunit;
 
@@ -17,10 +19,13 @@ namespace Semiont.Tests;
 // renewal makes, and every startup row runs again with the start's ask answered, where nothing is asked before.
 // For the same reason a token found `expired` is forgotten by the start's refused renewal, before the factory
 // makes the client; an `unexpired` one is refused once the client is open and holds a value it has not written.
+// C# builds no keeping session over a memory sign-in, so `holder` changes the registry's sign-in through
+// RegistryStorage.KeptIn, what holds it in the storage the client keeps in.
 public sealed partial class TransportTests
 {
     private const string PersistedCases = "session/persisted-cases.json";
     private const string CaseKb = "kb-a";
+    private static readonly TimeSpan SaveDebounce = TimeSpan.FromMilliseconds(ProtocolFacts.Timing("saveDebounceMs").GetInt32());
 
     [Fact]
     public void PersistedKeysFollowTheirCases()
@@ -110,18 +115,146 @@ public sealed partial class TransportTests
         }
     }
 
+    [Fact]
+    public async Task ASignInChangedThroughWhatHoldsItKeepsOnlyARenewalsWrites()
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var jo = Text(root.GetProperty("people").GetProperty("jo"), "personKey");
+        var joResource = Text(PersonKeysRow(root, CaseKb, jo).GetProperty("cacheKeys"), "resource");
+        var rows = root.GetProperty("holder").EnumerateArray().ToArray();
+        Assert.NotEmpty(rows);
+        foreach (var row in rows)
+        {
+            var why = Text(row, "why");
+            var clock = new TestClock();
+            var now = clock.GetUtcNow().ToUnixTimeSeconds();
+            var storage = new MemoryStorage();
+            RegistryStorage.StoreSession(storage, CaseKb, RegistryTokens() with { Access = TokenTests.Jwt(new { exp = now + 3600 }), PersonKey = jo });
+            using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), TokenTests.Jwt(new { exp = now + 7200 }));
+            gateway.Name(true);
+            using var signals = new SessionSignals();
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var opened = await new HttpSessionFactory(gateway.Http, clock)
+                .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals, _ => { }), deadline.Token);
+            try
+            {
+                Assert.Equal("fresh", (await opened.Client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(deadline.Token)).Name);
+                Assert.True(storage.Get(joResource) is null, why + ": the client has not yet written what it holds");
+                var holder = RegistryStorage.KeptIn(storage, CaseKb);
+                var stored = row.GetProperty("stored");
+                var access = TokenTests.Jwt(new { exp = now + 5400 });
+                if (stored.ValueKind == JsonValueKind.Null) await holder.ForgetAsync(deadline.Token);
+                else if (NullableText(stored, "personKey") == jo)
+                {
+                    var read = await holder.HeldAsync(deadline.Token) ?? throw new InvalidOperationException(why + ": nothing is held to renew");
+                    Assert.True(await holder.RenewedAsync(read, access, "refresh renewed through the holder", deadline.Token) == access,
+                        why + ": the holder keeps the renewal");
+                }
+                else
+                {
+                    await holder.KeepAsync(RegistryTokens() with
+                    {
+                        Access = access,
+                        Refresh = "refresh kept through the holder",
+                        PersonKey = NullableText(stored, "personKey"),
+                    }, deadline.Token);
+                }
+            }
+            finally { await opened.DisposeAsync(); }
+            Assert.True(HoldsFresh(storage.Get(joResource), "res-1") == row.GetProperty("saved").GetBoolean(), why);
+        }
+    }
+
+    [Theory]
+    [InlineData("named")]
+    [InlineData("unnamed")]
+    [InlineData("none")]
+    public async Task KeepingANewSignInForgetsWhatWasKeptForThePersonTheReplacedOneNamed(string signedIn)
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var jo = Text(root.GetProperty("people").GetProperty("jo"), "personKey");
+        var seeded = Seeded(root, "forgetStorage");
+        var storage = new MemoryStorage();
+        foreach (var (key, value) in seeded) storage.Set(key, value);
+        var replaced = signedIn switch
+        {
+            "named" => RegistryTokens() with { PersonKey = jo },
+            "unnamed" => RegistryTokens(),
+            "none" => null,
+            var stated => throw new InvalidOperationException("No sign-in is " + stated),
+        };
+        if (replaced is not null) RegistryStorage.StoreSession(storage, CaseKb, replaced);
+        await RegistryStorage.KeptIn(storage, CaseKb).KeepAsync(SigningIn());
+        Assert.Equal(SigningIn(), RegistryStorage.StoredSession(storage, CaseKb));
+        string[] removed = signedIn == "named" ? PersonKeys(PersonKeysRow(root, CaseKb, jo)) : [];
+        foreach (var (key, value) in seeded)
+            Assert.True(storage.Get(key) == (removed.Contains(key) ? null : value), signedIn + ": " + key + " holds " + (storage.Get(key) ?? "nothing"));
+    }
+
+    // The save passes the check and is held as it writes; the session's own forget of its sign-in runs while it is held,
+    // waiting for it or not; once both have finished, nothing the forget deleted holds anything.
+    [Fact]
+    public async Task NoSaveLandsAfterTheSessionForgetsItsSignIn()
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var jo = Text(root.GetProperty("people").GetProperty("jo"), "personKey");
+        var joKeys = PersonKeysRow(root, CaseKb, jo);
+        var joResource = Text(joKeys.GetProperty("cacheKeys"), "resource");
+        var clock = new TestClock();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        var access = TokenTests.Jwt(new { exp = now + 3600 });
+        var renewed = TokenTests.Jwt(new { exp = now + 7200 });
+        using var storage = new HeldWriteStorage(joResource);
+        RegistryStorage.StoreSession(storage, CaseKb, RegistryTokens() with { Access = access, PersonKey = jo });
+        using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), renewed);
+        gateway.Name(true);
+        using var signals = new SessionSignals();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var opened = await new HttpSessionFactory(gateway.Http, clock)
+            .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals, _ => { }), deadline.Token);
+        try
+        {
+            var session = opened.Session ?? throw new InvalidOperationException("The registry's session holds no sign-in.");
+            Assert.Equal("fresh", (await opened.Client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(deadline.Token)).Name);
+            await clock.WaitForAsync(SaveDebounce);
+            // The debounce's save runs on the thread that passes it, and is held there.
+            var passing = Task.Run(() => clock.Advance(SaveDebounce), deadline.Token);
+            await storage.Writing.Task.WaitAsync(deadline.Token);
+            gateway.Refuse(access);
+            gateway.Refuse(renewed);
+            var refused = opened.Client.Transport.GetStatusAsync(deadline.Token);
+            await foreach (var token in session.Token.WithCancellation(deadline.Token))
+                if (token is null) break;
+            // The session ending has begun its forget: unfixed, it deletes at once; fixed, it waits for the held save.
+            await Task.WhenAny(storage.Deleted.Task, Task.Delay(TimeSpan.FromMilliseconds(500), deadline.Token));
+            Assert.True(storage.Get(joResource) is null, "the save is still held, unwritten, when the session forgets its sign-in");
+            storage.Release();
+            await passing;
+            await Assert.ThrowsAsync<TransportError>(() => refused);
+            Assert.Equal("refused", await EndedAsync(signals, deadline.Token));
+            Assert.True(RegistryStorage.StoredSession(storage, CaseKb) is null, "the session forgot its sign-in");
+        }
+        finally
+        {
+            storage.Release();
+            await opened.DisposeAsync();
+        }
+        foreach (var key in PersonKeys(joKeys)) Assert.True(storage.Get(key) is null, key + " holds " + storage.Get(key));
+    }
+
     private static async Task ForgetCaseAsync(JsonElement root, JsonElement row)
     {
         var by = Text(row, "by");
         var why = by + ": " + Text(row, "why");
         var jo = Text(root.GetProperty("people").GetProperty("jo"), "personKey");
         var joKeys = PersonKeysRow(root, CaseKb, jo);
-        var seeded = root.GetProperty("forgetStorage").EnumerateObject()
-            .ToDictionary(entry => entry.Name, entry => entry.Value.GetString() ?? throw new InvalidOperationException("Nothing kept under " + entry.Name));
+        var seeded = Seeded(root, "forgetStorage");
         string[] removed = Text(row, "removes") switch
         {
-            "person" => [Text(joKeys, "lastEventIdKey"), .. joKeys.GetProperty("cacheKeys").EnumerateObject()
-                .Select(key => key.Value.GetString() ?? throw new InvalidOperationException("No key for " + key.Name))],
+            "person" => PersonKeys(joKeys),
             "nothing" => [],
             var stated => throw new InvalidOperationException(why + ": forgetting removes no " + stated),
         };
@@ -137,8 +270,8 @@ public sealed partial class TransportTests
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         switch (by)
         {
-            case "signOut" or "removal":
-                await RegistryForgetsAsync(storage, signedIn, row, Text(joKeys.GetProperty("cacheKeys"), "resource"), why, deadline.Token);
+            case "signOut" or "removal" or "signIn":
+                await RegistryForgetsAsync(storage, signedIn, row, jo, Text(joKeys.GetProperty("cacheKeys"), "resource"), why, deadline.Token);
                 break;
             case "expiry" or "refusal":
                 await SessionForgetsAsync(root, storage, signedIn ?? throw new InvalidOperationException(why + ": a session needs a sign-in"),
@@ -148,25 +281,37 @@ public sealed partial class TransportTests
         }
         foreach (var (key, value) in seeded)
             Assert.True(storage.Get(key) == (removed.Contains(key) ? null : value), why + ": " + key + " holds " + (storage.Get(key) ?? "nothing"));
+        if (by == "signIn") Assert.True(RegistryStorage.StoredSession(storage, CaseKb) == SigningIn(), why + ": the stored sign-in is the new one");
     }
 
+    // A stand-in client of kb-a opened while its sign-in names jo writes under jo's resource key as it closes.
     private static async Task RegistryForgetsAsync(ExternallyWritableStorage storage, StoredSession? signedIn, JsonElement row,
-        string joResource, string why, CancellationToken cancellation)
+        string jo, string joResource, string why, CancellationToken cancellation)
     {
         var open = row.GetProperty("open").GetBoolean();
-        var signingOut = RegistryKb(CaseKb, "kb-a.test");
+        var forgetting = RegistryKb(CaseKb, "kb-a.test");
         var standing = RegistryKb("kb-b", "kb-b.test");
-        RegistryStorage.SaveKnowledgeBases(storage, [signingOut, standing]);
-        var active = open ? signingOut : standing;
+        RegistryStorage.SaveKnowledgeBases(storage, [forgetting, standing]);
+        var active = open ? forgetting : standing;
         storage.Set(RegistryStorage.ActiveKey, active.Id);
-        if (signedIn is not null) RegistryStorage.StoreSession(storage, signingOut.Id, signedIn);
+        if (signedIn is not null) RegistryStorage.StoreSession(storage, forgetting.Id, signedIn);
         var factory = new RegistryFactory((options, _) => Task.FromResult(OpenRegistrySession(options.Kb,
-            onClose: options.Kb.Id == signingOut.Id ? () => storage.Set(joResource, """{"version":1,"writtenAt":1700000000001,"entries":[]}""") : null)));
+            onClose: options.Kb.Id == forgetting.Id && RegistryStorage.StoredSession(options.Storage, options.Kb.Id)?.PersonKey == jo
+                ? () => storage.Set(joResource, """{"version":1,"writtenAt":1700000000001,"entries":[]}""") : null)));
         await using var browser = new SemiontBrowser(new SemiontBrowserConfig(storage, factory));
         await browser.SetActiveKbAsync(active.Id, cancellation);
         Assert.True(browser.State.ActiveSession is not null, why + ": " + active.Id + " is open");
-        await (Text(row, "by") == "signOut" ? browser.SignOutAsync(signingOut.Id, cancellation) : browser.RemoveKbAsync(signingOut.Id, cancellation));
+        await (Text(row, "by") switch
+        {
+            "signOut" => browser.SignOutAsync(forgetting.Id, cancellation),
+            "removal" => browser.RemoveKbAsync(forgetting.Id, cancellation),
+            "signIn" => browser.SignInAsync(forgetting.Id, SigningIn(), cancellation),
+            var by => throw new InvalidOperationException(why + ": the registry forgets no sign-in by " + by),
+        });
     }
+
+    /// <summary>A new sign-in: other tokens, and no person until its gateway names them.</summary>
+    private static StoredSession SigningIn() => RegistryTokens() with { Access = "new access", Refresh = "new refresh" };
 
     private static async Task SessionForgetsAsync(JsonElement root, ExternallyWritableStorage storage, StoredSession signedIn, JsonElement row,
         string why, CancellationToken cancellation)
@@ -273,6 +418,15 @@ public sealed partial class TransportTests
     private static JsonElement PersonKeysRow(JsonElement root, string kbId, string personKey) =>
         root.GetProperty("keys").EnumerateArray().Single(row => Text(row, "kbId") == kbId && Text(row, "personKey") == personKey);
 
+    /// <summary>Every key a keys row names: the stream's places and each persisted query's.</summary>
+    private static string[] PersonKeys(JsonElement keysRow) =>
+        [Text(keysRow, "lastEventIdKey"), .. keysRow.GetProperty("cacheKeys").EnumerateObject()
+            .Select(key => key.Value.GetString() ?? throw new InvalidOperationException("No key for " + key.Name))];
+
+    private static Dictionary<string, string> Seeded(JsonElement root, string part) =>
+        root.GetProperty(part).EnumerateObject()
+            .ToDictionary(entry => entry.Name, entry => entry.Value.GetString() ?? throw new InvalidOperationException("Nothing kept under " + entry.Name));
+
     private static string? NullableText(JsonElement row, string name) =>
         row.GetProperty(name).ValueKind == JsonValueKind.Null ? null : Text(row, name);
 
@@ -366,5 +520,37 @@ public sealed partial class TransportTests
             Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(body) });
 
         public void Dispose() => Http.Dispose();
+    }
+
+    /// <summary>
+    /// A storage whose first write of one key waits, outside the storage's own lock, until the test releases it, and
+    /// which tells when that write has begun and when the key is deleted.
+    /// </summary>
+    private sealed class HeldWriteStorage(string held) : ISessionStorage, IDisposable
+    {
+        private readonly MemoryStorage values = new();
+        private readonly ManualResetEventSlim released = new();
+        internal TaskCompletionSource Writing { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Deleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal void Release() => released.Set();
+
+        public string? Get(string key) => values.Get(key);
+
+        public void Set(string key, string value)
+        {
+            if (key == held && Writing.TrySetResult() && !released.Wait(TimeSpan.FromSeconds(10)))
+                throw new InvalidOperationException("The test never released the held write of " + key);
+            values.Set(key, value);
+        }
+
+        public void Delete(string key)
+        {
+            values.Delete(key);
+            if (key == held) Deleted.TrySetResult();
+        }
+
+        public void Update(string key, Func<string?, string?> change) => values.Update(key, change);
+        public IDisposable? Subscribe(Action<string, string?> onChange) => null;
+        public void Dispose() => released.Dispose();
     }
 }

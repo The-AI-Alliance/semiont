@@ -26,6 +26,7 @@ from tokens import expired, token
 
 from semiont.errors import TransportError
 from semiont.identifiers import ResourceId
+from semiont.refresh import PERSISTED_QUERIES
 from semiont.registry import (
     Expected,
     KbReadVerdict,
@@ -418,6 +419,39 @@ def test_a_renewal_is_kept_against_what_is_stored_then() -> None:
 
         await kept.forget()
         assert await kept.held() is None
+
+    run(scenario())
+
+
+def test_a_new_sign_in_kept_in_a_registrys_storage_forgets_what_was_kept_for_the_person_the_one_it_replaces_named() -> None:
+    async def scenario() -> None:
+        storage = MemoryStorage()
+        theirs = [last_event_id_key(KB_A, JO), *(cache_key(KB_A, JO, query) for query in PERSISTED_QUERIES)]
+        others = [
+            last_event_id_key(KB_A, ANN),
+            cache_key(KB_A, ANN, "resource"),
+            last_event_id_key(KB_B, JO),
+            cache_key(KB_B, JO, "resource"),
+        ]
+        for key in (*theirs, *others):
+            storage.set(key, f"kept under {key}")
+        kept = kept_in(storage, KB_A)
+
+        def held_now() -> dict[str, str | None]:
+            return {key: storage.get(key) for key in (*theirs, *others)}
+
+        # Over a sign-in that names nobody, no entry is known to be anyone's: none is deleted.
+        store_session(storage, KB_A, tokens("r"))
+        await kept.keep(HeldSignIn(access="a1", refresh="r1", client_id="semiont-browser", token_endpoint="https://issuer.test/token"))
+        assert held_now() == {key: f"kept under {key}" for key in (*theirs, *others)}
+
+        # Over one that names jo, every entry of jo's on the knowledge base goes, and no other person's, nor jo's on another.
+        store_session(storage, KB_A, tokens("r", JO))
+        new = HeldSignIn(access="b1", refresh="s1", client_id="semiont-browser", token_endpoint="https://issuer.test/token")
+        await kept.keep(new)
+        assert held_now() == {**dict.fromkeys(theirs), **{key: f"kept under {key}" for key in others}}
+        # The new sign-in is the one kept, and names nobody until a gateway names its person.
+        assert await kept.held() == new
 
     run(scenario())
 
@@ -852,7 +886,7 @@ def test_new_tokens_for_the_active_knowledge_base_replace_its_session() -> None:
     run(scenario())
 
 
-def test_new_tokens_name_nobody_and_leave_what_was_kept_for_whoever_the_old_ones_named() -> None:
+def test_new_tokens_name_nobody_and_forget_what_was_kept_for_whoever_the_old_ones_named() -> None:
     async def scenario() -> None:
         world = World().with_(kb_of_a())
         store_session(world.storage, KB_A, tokens("r", JO))
@@ -871,7 +905,8 @@ def test_new_tokens_name_nobody_and_leave_what_was_kept_for_whoever_the_old_ones
             stored = stored_session(world.storage, KB_A)
             assert stored is not None
             assert (stored.refresh, stored.person_key) == ("renewed", None)
-            assert {key: world.storage.get(key) for key in kept} == kept
+            # A new sign-in in place of one that named jo is a forgetting of it: what was kept for jo goes.
+            assert {key: world.storage.get(key) for key in kept} == dict.fromkeys(kept)
 
     run(scenario())
 

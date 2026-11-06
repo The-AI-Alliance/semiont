@@ -19,6 +19,7 @@ import (
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/registry"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/semionttest"
 )
@@ -66,13 +67,19 @@ type persistedCases struct {
 		Place     *string `json:"place"`
 		Untouched *bool   `json:"untouched"`
 	} `json:"startup"`
-	CrossTab []struct {
-		Why    string `json:"why"`
-		Stored *struct {
-			PersonKey *string `json:"personKey"`
-		} `json:"stored"`
-		Saved bool `json:"saved"`
-	} `json:"crossTab"`
+	CrossTab []changedSignInRow `json:"crossTab"`
+	Holder   []changedSignInRow `json:"holder"`
+}
+
+// changedSignInRow is a row of crossTab or holder: what kb-a's stored sign-in
+// becomes while its client holds a value it has not written, and whether the
+// value is written.
+type changedSignInRow struct {
+	Why    string `json:"why"`
+	Stored *struct {
+		PersonKey *string `json:"personKey"`
+	} `json:"stored"`
+	Saved bool `json:"saved"`
 }
 
 // readPersistedCases is the table, read whole: a member it gains that this
@@ -85,7 +92,7 @@ func readPersistedCases(t *testing.T) persistedCases {
 	decoder.DisallowUnknownFields()
 	var table persistedCases
 	must(t, decoder.Decode(&table))
-	if len(table.People) == 0 || len(table.Keys) == 0 || len(table.Forget) == 0 || len(table.Startup) == 0 || len(table.CrossTab) == 0 {
+	if len(table.People) == 0 || len(table.Keys) == 0 || len(table.Forget) == 0 || len(table.Startup) == 0 || len(table.CrossTab) == 0 || len(table.Holder) == 0 {
 		t.Fatal("a part of the persisted cases has no rows")
 	}
 	return table
@@ -183,6 +190,7 @@ func TestThePersistedCases(t *testing.T) {
 	t.Run("forget", func(t *testing.T) { runPersistedForget(t, table) })
 	t.Run("startup", func(t *testing.T) { runPersistedStartup(t, table) })
 	t.Run("crossTab", func(t *testing.T) { runPersistedCrossTab(t, table) })
+	t.Run("holder", func(t *testing.T) { runPersistedHolder(t, table) })
 }
 
 func runPersistedKeys(t *testing.T, table persistedCases) {
@@ -216,17 +224,22 @@ func runPersistedKeys(t *testing.T, table persistedCases) {
 	}
 }
 
-// closingWrites is scripted sessions whose session of kb-a writes value under
-// key as it closes, as a client closing with a save pending could.
+// closingWrites is scripted sessions whose session of kb-a, built while kb-a's
+// stored sign-in names the person whose key is personKey, writes value under
+// key as it closes, as a client kept for them closing with a save pending
+// could. One built over another sign-in keeps nothing of them.
 type closingWrites struct {
 	*semionttest.ScriptedSessions
-	key, value string
+	personKey, key, value string
 }
 
 func (c closingWrites) Session(ctx context.Context, options registry.SessionFactoryOptions) (*semiont.Session, func(), error) {
 	session, end, err := c.ScriptedSessions.Session(ctx, options)
 	if err != nil || options.Kb.Id != kbA {
 		return session, end, err
+	}
+	if stored, _ := registry.StoredSessionOf(options.Storage, kbA); stored.PersonKey == nil || *stored.PersonKey != c.personKey {
+		return session, end, nil
 	}
 	return session, func() {
 		end()
@@ -241,7 +254,7 @@ func runPersistedForget(t *testing.T, table persistedCases) {
 	for _, row := range table.Forget {
 		t.Run(row.Why, func(t *testing.T) {
 			switch row.By {
-			case "signOut", "removal":
+			case "signOut", "removal", "signIn":
 				forgottenByTheRegistry(t, table, row, jo)
 			case "expiry", "refusal":
 				forgottenByTheSession(t, table, row, jo)
@@ -252,9 +265,11 @@ func runPersistedForget(t *testing.T, table persistedCases) {
 	}
 }
 
-// forgottenByTheRegistry signs out of kb-a, or removes it, with kb-b active
-// unless kb-a is open, over scripted sessions whose kb-a session writes under
-// jo's resource key as it closes.
+// forgottenByTheRegistry signs out of kb-a, removes it, or signs in to it
+// again with a new sign-in, with both registered and kb-b active unless kb-a
+// is open, over scripted sessions whose kb-a session kept for jo writes under
+// jo's resource key as it closes. After a sign-in, kb-a's stored sign-in is
+// the new one.
 func forgottenByTheRegistry(t *testing.T, table persistedCases, row forgetRow, jo string) {
 	bubble(t, func(t *testing.T, w *world) {
 		for key, value := range table.ForgetStorage {
@@ -276,7 +291,7 @@ func forgottenByTheRegistry(t *testing.T, table persistedCases, row forgetRow, j
 			active = kbA
 		}
 		must(t, w.storage.Set(registry.ActiveKey, active))
-		factory := closingWrites{ScriptedSessions: w.factory.sessions, key: keyOf(t, table, kbA, jo, "resource"), value: `{"version":1,"writtenAt":1700000000001,"entries":[]}`}
+		factory := closingWrites{ScriptedSessions: w.factory.sessions, personKey: jo, key: keyOf(t, table, kbA, jo, "resource"), value: `{"version":1,"writtenAt":1700000000001,"entries":[]}`}
 		browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: factory})
 		must(t, err)
 		closedAtTheEnd(t, browser)
@@ -284,10 +299,17 @@ func forgottenByTheRegistry(t *testing.T, table persistedCases, row forgetRow, j
 			t.Fatalf("the live session is not %s's", active)
 		}
 
-		if row.By == "signOut" {
+		switch row.By {
+		case "signOut":
 			must(t, browser.SignOut(kbA))
-		} else {
+		case "removal":
 			must(t, browser.RemoveKb(kbA))
+		case "signIn":
+			signIn := tokens("r-new")
+			must(t, browser.SignIn(kbA, signIn))
+			if stored, saved := registry.StoredSessionOf(w.storage, kbA); !saved || !reflect.DeepEqual(stored, signIn) {
+				t.Errorf("kb-a's stored sign-in is %+v (%v); the new one is %+v", stored, saved, signIn)
+			}
 		}
 		leftAsTheRowSays(t, table, row, w.storage, jo)
 	})
@@ -598,5 +620,191 @@ func runPersistedCrossTab(t *testing.T, table persistedCases) {
 				t.Errorf("saved: %v; the table's is %v", saved, row.Saved)
 			}
 		})
+	}
+}
+
+// runPersistedHolder has a script's session, made by SessionFromKept over a
+// memory sign-in that names jo, keep its caches in a storage of their own, the
+// gateway naming jo; the sign-in is changed through the memory sign-in:
+// forgotten, a new one kept in its place, or renewed with other tokens.
+func runPersistedHolder(t *testing.T, table persistedCases) {
+	jo := personOf(t, table, "jo").PersonKey
+	resource := keyOf(t, table, kbA, jo, "resource")
+	for _, row := range table.Holder {
+		t.Run(row.Why, func(t *testing.T) {
+			s := newStage(t)
+			s.mu.Lock()
+			s.who = table.WhoAmI
+			s.mu.Unlock()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			memory := &semiont.MemorySignIn{}
+			must(t, memory.Keep(ctx, s.heldSignIn(jwt(time.Hour), "r1", &jo)))
+			caches := semiont.NewMemoryStorage()
+			issuer := s.issuerOf()
+			timing := issuer.Timing
+			// Nothing the client holds is written before it closes.
+			timing.SaveDebounce = time.Hour
+			session, end, err := semiont.SessionFromKept(ctx, semiont.SessionFromKeptConfig{
+				Kb:            api.KbTarget{Endpoint: s.registered(t, kbA).Endpoint, Id: kbA, Label: "KB A"},
+				Kept:          memory,
+				HTTP:          issuer.HTTP,
+				Timing:        timing,
+				AskWhoTokenIs: true,
+				Channels:      bus.BridgedChannels,
+				Storage:       caches,
+			})
+			must(t, err)
+			ended := sync.OnceFunc(end)
+			defer ended()
+			held, err := session.Client().Browse.Resource(id("res-1")).Fresh(ctx)
+			must(t, err)
+			if _, written := caches.Get(resource); written || session.Client().PersistenceSettled() {
+				t.Fatal("the client wrote what it holds, or owes no save, before its sign-in changes")
+			}
+
+			switch {
+			case row.Stored == nil:
+				must(t, memory.Forget(ctx))
+			case row.Stored.PersonKey != nil && *row.Stored.PersonKey == jo:
+				read, has, err := memory.Held(ctx)
+				must(t, err)
+				if !has {
+					t.Fatal("the memory sign-in holds nothing to renew")
+				}
+				if _, renewed, err := memory.Renewed(ctx, read, jwt(2*time.Hour), "r-renewed"); err != nil || !renewed {
+					t.Fatalf("the renewal was not kept: %v, %v", renewed, err)
+				}
+			default:
+				must(t, memory.Keep(ctx, s.heldSignIn(jwt(2*time.Hour), "r-other", row.Stored.PersonKey)))
+			}
+			ended()
+
+			kept := semiont.NewStoragePersister[api.ResourceId, api.ResourceDescriptor](caches, resource, timing.MaxStoredBytesCount).Load()
+			value, has := kept[id("res-1")]
+			if saved := has && same(t, value, held); saved != row.Saved {
+				t.Errorf("saved: %v; the table's is %v", saved, row.Saved)
+			}
+		})
+	}
+}
+
+// heldSignIn is a sign-in of the stage's issuer as a script keeps it, naming
+// the person whose key is personKey, or nobody for nil.
+func (s *stage) heldSignIn(access, refresh string, personKey *string) semiont.HeldSignIn {
+	return semiont.HeldSignIn{Access: access, Refresh: refresh, ClientID: semiont.ScriptClientID, TokenEndpoint: s.issuer.URL + "/token", RevocationEndpoint: s.issuer.URL + "/revoke", PersonKey: personKey}
+}
+
+// stalledWrite is a storage whose first write of key, once it has begun,
+// waits until release is closed: entered is closed when it begins, and landed
+// when it is done. deleted is closed when key is deleted.
+type stalledWrite struct {
+	semiont.SessionStorage
+	key                               string
+	entered, release, landed, deleted chan struct{}
+	stallOnce, deleteOnce             sync.Once
+}
+
+func newStalledWrite(key string) *stalledWrite {
+	return &stalledWrite{SessionStorage: semiont.NewMemoryStorage(), key: key, entered: make(chan struct{}), release: make(chan struct{}), landed: make(chan struct{}), deleted: make(chan struct{})}
+}
+
+func (s *stalledWrite) Set(key, value string) error {
+	stalls := false
+	if key == s.key {
+		s.stallOnce.Do(func() { stalls = true })
+	}
+	if !stalls {
+		return s.SessionStorage.Set(key, value)
+	}
+	close(s.entered)
+	<-s.release
+	defer close(s.landed)
+	return s.SessionStorage.Set(key, value)
+}
+
+func (s *stalledWrite) Delete(key string) error {
+	err := s.SessionStorage.Delete(key)
+	if key == s.key {
+		s.deleteOnce.Do(func() { close(s.deleted) })
+	}
+	return err
+}
+
+// A save that passed its check, and is still being written when the session's
+// own forget of its sign-in runs (its renewal refused by the issuer, which
+// forgets the sign-in and what was kept of its person), does not land after
+// the forget's delete: once both are done, nothing kept of the person is
+// left. The session is the registry's, its sign-in and its caches in one
+// storage, over the stage; so the wait below is on the clock, not a bubble's.
+func TestASaveBeingWrittenDoesNotLandAfterTheSessionForgetsItsSignIn(t *testing.T) {
+	table := readPersistedCases(t)
+	jo := personOf(t, table, "jo").PersonKey
+	s := newStage(t)
+	s.mu.Lock()
+	s.who = table.WhoAmI
+	s.mu.Unlock()
+	storage := newStalledWrite(keyOf(t, table, kbA, jo, "resource"))
+	must(t, registry.StoreSession(storage, kbA, naming(s.stored(jwt(time.Hour), "r1"), jo)))
+	issuer := s.issuerOf()
+	timing := issuer.Timing
+	timing.SaveDebounce = time.Millisecond
+	signals := semiont.NewSessionSignals()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	session, end, err := registry.HttpSessionFactory{HTTP: issuer.HTTP, Timing: timing}.Session(ctx, registry.SessionFactoryOptions{Kb: s.registered(t, kbA), Storage: storage, Signals: signals})
+	must(t, err)
+	ended := sync.OnceFunc(end)
+	defer ended()
+	// Run first: a client closing waits for the write it is making.
+	released := sync.OnceFunc(func() { close(storage.release) })
+	defer released()
+	if session.User().Value() == nil {
+		t.Fatal("the gateway has not said who the session's token is")
+	}
+
+	_, err = session.Client().Browse.Resource(id("res-1")).Fresh(ctx)
+	must(t, err)
+	select {
+	case <-storage.entered:
+	case <-ctx.Done():
+		t.Fatal("the client never began writing what it holds")
+	}
+
+	// The session's own forget: its token refused, and the issuer, granting
+	// nothing, refusing to renew it.
+	forgotten := make(chan struct{})
+	go func() {
+		defer close(forgotten)
+		session.Refresh(ctx, session.Token().Value())
+	}()
+	// The session says nobody is signed in, then forgets the sign-in.
+	until(t, "the session's renewal is refused", func() bool { return session.User().Value() == nil })
+	// The one step on the clock: a forget that does not wait for the write
+	// deletes at once; one that waits is given a moment to show it does not.
+	select {
+	case <-storage.deleted:
+	case <-time.After(500 * time.Millisecond):
+	}
+	released()
+	select {
+	case <-forgotten:
+	case <-ctx.Done():
+		t.Fatal("the session's forget never finished")
+	}
+	select {
+	case <-storage.landed:
+	case <-ctx.Done():
+		t.Fatal("the write never finished")
+	}
+	if told := signals.SessionEnded().Value(); told == nil || told.Reason != semiont.SessionEndExpired {
+		t.Fatalf("the session ended as %+v; its sign-in was not forgotten by an expiry", told)
+	}
+	ended()
+
+	for _, key := range keysOf(t, table, kbA, jo) {
+		if _, has := storage.Get(key); has {
+			t.Errorf("%s holds something once the forget and the write are both done", key)
+		}
 	}
 }
