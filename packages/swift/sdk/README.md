@@ -175,8 +175,11 @@ nothing. Cancellation, leaving a loop, or `dispose()` stops its owned work.
 Closing the client ends an unfinished operation with `bus.closed`.
 
 `mark.delegate` and `yield.delegate` return a `Delegation` of that verb's typed
-completion. Iteration reports creation first, then progress and retry setbacks,
-and finally completion. Awaiting `completed()` returns just the completion.
+completion. Iteration reports creation first, then progress, retry setbacks and
+refused frames, and finally completion. Awaiting `completed()` returns just the
+completion. A refused frame of a job's progress, completion or failure,
+`JobEvent.refused`, names its channel and its fault; it names no job and is no
+word of one, so the follower goes on and goes on counting the job's silence.
 A quiet job is checked through status polling, one request at a time; retry
 setbacks keep the follower alive. A generation's stall deadline grows with its
 requested length unless supplied explicitly. Stalling asks for job cancellation;
@@ -188,7 +191,8 @@ optional callback and bounds requests and sleeps by the caller's deadline.
 
 Workers configure their HTTP transport with `jobClaimChannels` and add
 `jobCommitChannels` when they write annotations. Iterate `client.job.claim`
-to take matching jobs one at a time. A held job exposes cancellation, progress,
+to take matching jobs one at a time. An announcement its transport refused
+wakes an idle worker as a matching one does. A held job exposes cancellation, progress,
 checkpoints, and settlement. Cast it to `HeldMarkJob` or `HeldYieldJob` to
 complete it with that verb's result. Await `claims.stop()` before disposing
 the worker client so it can settle a job it still holds.
@@ -271,8 +275,11 @@ references.
 `ScopedChannel` requires a resource and holds that resource only while the read
 is alive. Breaking, cancellation, completion or disposal releases the hold.
 A `Typed` sequence gives `Heard.delivered` with its original `ReceivedFrame`,
-decoded payload and principal, or `Heard.refused` for a malformed payload. A
-refusal names the missing member when known and leaves later frames readable.
+decoded payload and principal, or `Heard.refused` with a `FrameRefusal` in place
+of a frame its transport refused or whose payload is not its channel's. A
+refusal names the channel, the way from the frame to its first fault (such as
+`payload.resourceId`) and why, holds the payload as it came, and leaves later
+frames readable. A request whose reply its transport refused fails at once.
 A second iterator is refused. Channel construction and payload mismatches are
 also checked by the compile-refusal suite.
 
@@ -285,7 +292,7 @@ once and finishes listeners. Custom transports can supply read-only state via
 
 The HTTP transport uses the caller's AsyncHTTPClient `HTTPClient` for every request. Its default proxy setting is `nil`; it does not read proxy environment variables. Callers configure trust and proxies on that client and shut it down after disposing the transport. The SDK reads only `SEMIONT_BUS_LOG`.
 
-`HttpTransport` exposes connection state, independent lossless `frames` sequences (several channels can share one ordered sequence), scoped holds, correlated requests, uploads and content reads. `dispose()` synchronously cancels owned work and finishes sequences. A second iterator on an events, upload or content stream throws `MultipleConsumers`. Incoming trace carriers are lifted out of payloads into `ReceivedFrame.trace`. OpenTelemetry's API is the library's only telemetry dependency; the application selects its provider and exporters.
+`HttpTransport` exposes connection state, independent lossless `frames` sequences of `Carried` (several channels can share one ordered sequence), scoped holds, correlated requests, uploads and content reads. `dispose()` synchronously cancels owned work and finishes sequences. A second iterator on an events, upload or content stream throws `MultipleConsumers`. Each frame is held to `BusFrame`: one it allows is `Carried.frame`, one it does not that names its channel's readers is `Carried.refused`, and anything else is reported on `failures()`. Incoming trace carriers are lifted out of payloads into `ReceivedFrame.trace`. OpenTelemetry's API is the library's only telemetry dependency; the application selects its provider and exporters.
 
 ## Working on the SDK
 

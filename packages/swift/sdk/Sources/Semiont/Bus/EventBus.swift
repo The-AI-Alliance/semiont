@@ -1,11 +1,11 @@
 import Foundation
 import Synchronization
 
-/// The client's own signals and the wire events bridged into it.
+/// The client's own signals and the wire events bridged into it, a frame's refusal among them.
 public final class EventBus: Sendable {
   private struct State: Sendable {
     var ended = false
-    var listeners: [UUID: (Set<String>, Broadcast<ReceivedFrame>)] = [:]
+    var listeners: [UUID: (Set<String>, Broadcast<Carried>)] = [:]
   }
   private let dispatch = Mutex(())
   private let state = Mutex(State())
@@ -19,7 +19,7 @@ public final class EventBus: Sendable {
       guard !state.withLock({ $0.ended }) else {
         throw BusRequestError(.busClosed, "The local bus closed")
       }
-      publish(frame)
+      publish(.frame(frame))
     }
   }
   public func frames<Payload>(_ channel: Channel<Payload>) -> Typed<Payload> {
@@ -32,9 +32,9 @@ public final class EventBus: Sendable {
       channel: channel.name, stamps: channel.stamps, source: listen([channel.name]),
       resource: resource)
   }
-  func listen(_ channels: [String]) -> Events<ReceivedFrame> {
+  func listen(_ channels: [String]) -> Events<Carried> {
     let id = UUID()
-    let hub = Broadcast<ReceivedFrame>()
+    let hub = Broadcast<Carried>()
     let source = hub.listen { [weak self] in self?.remove(id) }
     let ended = state.withLock { state in
       if state.ended { return true }
@@ -45,13 +45,13 @@ public final class EventBus: Sendable {
     return source
   }
   private func remove(_ id: UUID) { _ = state.withLock { $0.listeners.removeValue(forKey: id) } }
-  private func publish(_ frame: ReceivedFrame) {
+  private func publish(_ carried: Carried) {
     let listeners = state.withLock { state in
-      state.ended ? [] : state.listeners.values.filter { $0.0.contains(frame.channel) }.map(\.1)
+      state.ended ? [] : state.listeners.values.filter { $0.0.contains(carried.channel) }.map(\.1)
     }
-    for listener in listeners { listener.yield(frame) }
+    for listener in listeners { listener.yield(carried) }
   }
-  func receive(_ frame: ReceivedFrame) { dispatch.withLock { _ in publish(frame) } }
+  func receive(_ carried: Carried) { dispatch.withLock { _ in publish(carried) } }
   public func dispose() {
     dispatch.withLock { _ in
       let listeners = state.withLock { state in

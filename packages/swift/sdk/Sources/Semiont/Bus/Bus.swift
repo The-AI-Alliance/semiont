@@ -54,14 +54,11 @@ public struct Bus: Sendable {
         operation: operation.request.name, payload: body, timeoutMs: timeoutMs)
       enqueued?()
     }
-    do {
-      return try JSONDecoder().decode(
-        Result.self, from: JSONEncoder().encode(declared(response, stamps: operation.result.stamps))
-      )
+    do throws(Fault) {
+      return try held(
+        Result.self, response, on: operation.result.name, stamps: operation.result.stamps)
     } catch {
-      let fault = refusedFault(
-        of: declared(response, stamps: operation.result.stamps), on: operation.result.name)
-      throw TransportError(.error, notTheChannels(operation.result.name, fault))
+      throw TransportError(.error, notTheChannels(operation.result.name, error))
     }
   }
 }
@@ -69,6 +66,12 @@ public struct Bus: Sendable {
 /// What every SDK says of a payload on `channel` that has `fault`.
 func notTheChannels(_ channel: String, _ fault: Fault) -> String {
   "a payload on \(channel) is not that channel's: \(fault.said)"
+}
+
+/// What every SDK says of a frame it refused, for the fault the refusal names.
+func notTheFrames(_ refusal: FrameRefusal) -> String {
+  "a frame on \(refusal.channel) is not that channel's: "
+    + Fault(member: refusal.member, reason: refusal.reason).said
 }
 
 /// Reply subscriptions for the given requests, in request order with duplicates removed.

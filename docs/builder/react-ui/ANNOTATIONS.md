@@ -219,7 +219,11 @@ A delegated job that says nothing for `delegateSilenceMs` (three minutes, in
 [`protocol/specs/src/client/timing.json`](../../../protocol/specs/src/client/timing.json)) is
 reported on the local channel `mark:delegate-timeout`. The signal ends nothing:
 the job goes on, the state unit keeps following it, and
-`delegatingMotivation$` stays set until the job ends.
+`delegatingMotivation$` stays set until the job ends. A frame on the job's
+channels that the follower refuses is not the job saying something: the
+silence goes on being counted past it. Saying the silence is all the unit does
+when it falls due: it does not ask for the job's status, which the follower
+already asks for once the job has said nothing for `jobSilenceMs`.
 
 To trigger detection, a panel asks the mark unit — there is no handler to wire
 up and no detection context object:

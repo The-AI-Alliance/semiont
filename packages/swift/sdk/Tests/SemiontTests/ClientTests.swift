@@ -27,7 +27,7 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
   let baseUrl = "http://kb.test"
   let emitted = Watched(false)
   let state = Watched<ConnectionState>(.open)
-  private let hub = Broadcast<ReceivedFrame>()
+  private let hub = Broadcast<Carried>()
   private let failureEvents = Broadcast<TransportError>()
   private struct State: Sendable {
     var calls: [Call] = []
@@ -54,8 +54,8 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
   func reset() { storage.withLock { $0.calls = [] } }
   func setCount(_ count: Int?) { storage.withLock { $0.count = count } }
   func setFailure(_ failure: BusRequestError?) { storage.withLock { $0.failure = failure } }
-  func deliver(_ frame: ReceivedFrame) { hub.yield(frame) }
-  func frames(_ channels: [String]) async throws -> Events<ReceivedFrame> {
+  func deliver(_ carried: Carried) { hub.yield(carried) }
+  func frames(_ channels: [String]) async throws -> Events<Carried> {
     let source = hub.listen { [weak self] in self?.storage.withLock { $0.frameEnds += 1 } }
     storage.withLock { $0.onFrames }?()
     return source
@@ -522,7 +522,9 @@ private let callsByName:
           let make = try #require(eventReadersByName[key])
           let read = make(client)
           probe.deliver(
-            ReceivedFrame(channel: try observed.text, payload: try required(item, "sends").object))
+            .frame(
+              ReceivedFrame(
+                channel: try observed.text, payload: try required(item, "sends").object)))
           let result = try await withinTestDeadline { try await read() }
           #expect(result == (try required(item, "sends")))
           #expect(probe.calls.isEmpty)
@@ -546,14 +548,18 @@ private let callsByName:
               payload: try required(next, "sends").object))
         }
         if let local {
-          let frame = try await withinTestDeadline {
+          let carried = try await withinTestDeadline {
             var iterator = local.makeAsyncIterator()
             return try await iterator.next()
           }
+          guard case .frame(let frame)? = carried else {
+            Issue.record("\(key) said no frame on the client's own bus")
+            continue
+          }
           #expect(probe.calls.isEmpty)
-          #expect(frame?.payload == expected.first?.payload)
+          #expect(frame.payload == expected.first?.payload)
           if let correlation = item["correlationId"] {
-            #expect(frame?.correlationId == (try correlation.text))
+            #expect(try frame.correlationId == correlation.text)
           }
         } else {
           if via["emit"] != nil, try required(row, "shape").text == "signal" {
@@ -585,25 +591,28 @@ private let callsByName:
   let source = try await bus.frames(Channels.beckonFocus)
   let trace = ["traceparent": "00-trace-parent-01"]
   probe.deliver(
-    ReceivedFrame(
-      channel: "beckon:focus", correlationId: "first",
-      payload: ["_userId": .string("did:web:kb.test:users:person")], trace: trace))
+    .frame(
+      ReceivedFrame(
+        channel: "beckon:focus", correlationId: "first",
+        payload: ["_userId": .string("did:web:kb.test:users:person")], trace: trace)))
   probe.deliver(
-    ReceivedFrame(
-      channel: "beckon:focus", correlationId: "second",
-      payload: [
-        "resourceId": .string("res-1"), "_userId": .string("did:web:kb.test:users:person"),
-        "_unrecognized": .string("ignore"),
-      ], trace: trace))
+    .frame(
+      ReceivedFrame(
+        channel: "beckon:focus", correlationId: "second",
+        payload: [
+          "resourceId": .string("res-1"), "_userId": .string("did:web:kb.test:users:person"),
+          "_unrecognized": .string("ignore"),
+        ], trace: trace)))
   var iterator = source.makeAsyncIterator()
   guard case .refused(let bad) = try await iterator.next() else {
     Issue.record("Malformed frame delivered")
     return
   }
   #expect(bad.channel == "beckon:focus")
-  #expect(bad.member == "resourceId")
+  #expect(bad.member == "payload.resourceId")
   #expect(bad.reason == .lacks)
-  #expect(bad.payload["_userId"] != nil)
+  #expect(bad.correlationId == "first")
+  #expect(try bad.payload?.object["_userId"] != nil)
   guard case .delivered(let good) = try await iterator.next() else {
     Issue.record("Valid frame refused")
     return
@@ -614,7 +623,8 @@ private let callsByName:
   #expect(good.userId?.value == "did:web:kb.test:users:person")
   var second = source.makeAsyncIterator()
   await #expect(throws: MultipleConsumers.self) { try await second.next() }
-  probe.deliver(ReceivedFrame(channel: "beckon:focus", payload: ["resourceId": .string("res-2")]))
+  probe.deliver(
+    .frame(ReceivedFrame(channel: "beckon:focus", payload: ["resourceId": .string("res-2")])))
   guard case .delivered(let third) = try await iterator.next() else {
     Issue.record("Second reader ended first")
     return
@@ -629,17 +639,20 @@ private let callsByName:
   let resource = try ResourceId("res-1")
   let source = try await bus.frames(Channels.markAdded, resource: resource)
   #expect(probe.holds == 1)
-  probe.deliver(ReceivedFrame(channel: "mark:added", payload: [:], scope: try ResourceId("res-2")))
   probe.deliver(
-    ReceivedFrame(
-      channel: "mark:added", payload: ["test-source": .string("wanted")], scope: resource))
+    .frame(ReceivedFrame(channel: "mark:added", payload: [:], scope: try ResourceId("res-2"))))
+  probe.deliver(
+    .frame(
+      ReceivedFrame(
+        channel: "mark:added", payload: ["test-source": .string("wanted")], scope: resource)))
   probe.dispose()
   var iterator = source.makeAsyncIterator()
   guard case .refused(let wanted) = try await iterator.next() else {
     Issue.record("No scoped frame")
     return
   }
-  #expect(wanted.payload["test-source"] == .string("wanted"))
+  #expect(try wanted.payload?.object["test-source"] == .string("wanted"))
+  #expect(wanted.scope == resource)
   #expect(try await iterator.next() == nil)
   #expect(probe.holds == 0)
   source.dispose()
@@ -655,7 +668,7 @@ private let callsByName:
   _ = try await client?.beckon.sparkleAll(AnnotationId("ann-1"))
   // Emission itself cannot loop back. Only the received copy is bridged.
   probe.deliver(
-    ReceivedFrame(channel: "beckon:sparkle", payload: ["annotationId": .string("ann-2")]))
+    .frame(ReceivedFrame(channel: "beckon:sparkle", payload: ["annotationId": .string("ann-2")])))
   let first = try await withinTestDeadline {
     var iterator = local.makeAsyncIterator()
     return try await iterator.next()
@@ -752,7 +765,8 @@ private let callsByName:
 @Test func breakingOrCancellingATypedReadReleasesItsScopeWhileTheSequenceIsHeld() async throws {
   let probe = ProbeTransport()
   let source = try await Bus(probe).frames(Channels.markAdded, resource: ResourceId("res-1"))
-  probe.deliver(ReceivedFrame(channel: "mark:added", payload: [:], scope: try ResourceId("res-1")))
+  probe.deliver(
+    .frame(ReceivedFrame(channel: "mark:added", payload: [:], scope: try ResourceId("res-1"))))
   for try await _ in source { break }
   #expect(probe.holds == 0)
   let waiting = try await Bus(probe).frames(Channels.markAdded, resource: ResourceId("res-2"))
@@ -797,7 +811,7 @@ private let eventReadersByName:
 }
 private struct ReadFailure: Error {}
 @Test func aTypedReadReleasesItsResourceWhenItsSourceFails() async throws {
-  let (stream, continuation) = AsyncThrowingStream<ReceivedFrame, any Error>.makeStream()
+  let (stream, continuation) = AsyncThrowingStream<Carried, any Error>.makeStream()
   let released = Watched(false)
   let source = Events(stream, stop: { continuation.finish() })
   let typed = Typed<EnrichedResourceEvent>(
@@ -835,11 +849,14 @@ private struct ReadFailure: Error {}
   let resource = try ResourceId("res-1")
   let source = bus.frames(Channels.markAdded, resource: resource)
   bus.receive(
-    ReceivedFrame(channel: Channels.markAdded.name, payload: [:], scope: try ResourceId("other")))
+    .frame(
+      ReceivedFrame(
+        channel: Channels.markAdded.name, payload: [:], scope: try ResourceId("other"))))
   bus.receive(
-    ReceivedFrame(
-      channel: Channels.markAdded.name, payload: ["test-source": .string("wanted")], scope: resource
-    ))
+    .frame(
+      ReceivedFrame(
+        channel: Channels.markAdded.name, payload: ["test-source": .string("wanted")],
+        scope: resource)))
   bus.dispose()
   var iterator = source.makeAsyncIterator()
   guard case .refused(let refusal) = try await iterator.next() else {
@@ -847,6 +864,6 @@ private struct ReadFailure: Error {}
     return
   }
   #expect(refusal.channel == Channels.markAdded.name)
-  #expect(refusal.payload["test-source"] == .string("wanted"))
+  #expect(try refusal.payload?.object["test-source"] == .string("wanted"))
   #expect(try await iterator.next() == nil)
 }

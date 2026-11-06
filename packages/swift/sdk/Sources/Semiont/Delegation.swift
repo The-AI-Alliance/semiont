@@ -4,7 +4,18 @@ public enum JobEvent<Completion: Sendable>: Sendable {
   case created(JobCreatedResultResponse)
   case progress(JobProgress)
   case failed(JobFailCommand)
+  /// A frame of some job's progress, completion or failure, refused by its transport or as its
+  /// channel's. It names no job, so it may be this job's or another's, and it is no word of the
+  /// job: the follower goes on following, and goes on counting its silence. It comes only after
+  /// `created`.
+  case refused(RefusedFrame)
   case complete(Completion)
+}
+/// A refused frame as a follower reports one: its channel, and the member and reason of its fault.
+public struct RefusedFrame: Sendable, Equatable {
+  public let channel: String
+  public let member: String
+  public let reason: FrameRefusalReason
 }
 public final class Delegation<Completion: Sendable>: AsyncSequence, Sendable {
   public typealias Element = JobEvent<Completion>

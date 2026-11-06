@@ -12,8 +12,8 @@ public final class BeckonStateUnit: StateUnit {
     life.onEnd { frames.dispose() }
     life.start { [weak self] in
       do {
-        for try await frame in frames {
-          self?.hear(frame)
+        for try await carried in frames {
+          self?.hear(carried)
         }
       } catch {}
     }
@@ -26,10 +26,17 @@ public final class BeckonStateUnit: StateUnit {
     }
   }
 
-  private func hear(_ frame: ReceivedFrame) {
-    switch frame.channel {
+  /// Act on what was heard. A frame refused, or one whose payload is not its channel's, is nobody's
+  /// to act on.
+  private func hear(_ carried: Carried) {
+    switch carried.channel {
     case Channels.beckonHover.name:
-      guard let hover = try? frame.decode(Channels.beckonHover) else { return }
+      let channel = Channels.beckonHover
+      guard
+        case .delivered(let hovered) = heard(
+          BeckonHoverEvent.self, on: channel.name, stamps: channel.stamps, carried)
+      else { return }
+      let hover = hovered.payload
       life.whileOpen {
         hoveredAnnotationId.set(hover.annotationId)
         if let id = hover.annotationId {
@@ -37,7 +44,12 @@ public final class BeckonStateUnit: StateUnit {
         }
       }
     case Channels.browseClick.name:
-      if let click = try? frame.decode(Channels.browseClick) { focus(click.annotationId) }
+      let channel = Channels.browseClick
+      if case .delivered(let click) = heard(
+        BrowseClickEvent.self, on: channel.name, stamps: channel.stamps, carried)
+      {
+        focus(click.payload.annotationId)
+      }
     default: break
     }
   }
