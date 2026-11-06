@@ -132,7 +132,7 @@ def _resource_named(payload: Mapping[str, JsonValue], member: str) -> ResourceId
 def _search_unread(payload: Mapping[str, JsonValue], said: str) -> MatchSearchFailed | None:
     """The failure of a reference search that could not be read: it names the reference, so it is none where no reference is named."""
     reference = _annotation_named(payload, "referenceId")
-    return None if reference is None else MatchSearchFailed(reference_id=reference, error=said)
+    return None if reference is None else MatchSearchFailed(reference_id=reference, message=said)
 
 
 def _gather_unread(payload: Mapping[str, JsonValue], said: str) -> GatherFailed | None:
@@ -436,7 +436,7 @@ class Librarian:
         await self._answer(frame, GATHER_RESOURCE_REQUESTED.result, GATHER_RESOURCE_REQUESTED.failure, gathered, failed)
 
     async def _search_references(self, frame: Frame, request: MatchSearchRequest) -> None:
-        """Answer a `match:search-requested`: the candidates of a reference, by score. Its failure names the reference, under `error`."""
+        """Answer a `match:search-requested`: the candidates of a reference, by score. Its failure names the reference."""
 
         async def searched() -> MatchSearchResult:
             return await search_references(
@@ -451,7 +451,7 @@ class Librarian:
             )
 
         def failed(said: str) -> MatchSearchFailed:
-            return MatchSearchFailed(reference_id=request.reference_id, error=said)
+            return MatchSearchFailed(reference_id=request.reference_id, message=said)
 
         await self._answer(frame, MATCH_SEARCH_REQUESTED.result, MATCH_SEARCH_REQUESTED.failure, searched, failed)
 

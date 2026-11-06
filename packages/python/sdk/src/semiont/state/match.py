@@ -62,7 +62,7 @@ class MatchStateUnit(StateUnit):
         try:
             found = await self._client.match.search(request.resource_id, request.reference_id, request.context, **_options(request))
         except SemiontError as error:
-            failed = MatchSearchFailed(reference_id=request.reference_id, error=error.message)
+            failed = MatchSearchFailed(reference_id=request.reference_id, message=error.message)
             self._client.bus.publish(MATCH_SEARCH_FAILED, failed, correlation_id=correlation_id)
             return
         self._client.bus.publish(MATCH_SEARCH_RESULTS, found, correlation_id=correlation_id)

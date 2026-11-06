@@ -244,7 +244,7 @@
     "MatchResourcesRequest": {"kinds":["object"],"required":["search"],"members":{"archived":{"kinds":["boolean"]},"entityType":{"kinds":["string"]},"limit":{"kinds":["integer"],"minimum":1,"maximum":200},"offset":{"kinds":["integer"],"minimum":0},"search":{"kinds":["string"]}}},
     "MatchResourcesResponse": {"kinds":["object"],"required":["resources","total","offset","limit","matchKind"],"members":{"limit":{"kinds":["integer"],"minimum":1},"matchKind":{"kinds":["string"],"enum":["lexical","semantic"]},"offset":{"kinds":["integer"],"minimum":0},"resources":{"kinds":["array"],"items":{"ref":"ResourceDescriptor"}},"total":{"kinds":["integer"],"minimum":0}}},
     "MatchResourcesResult": {"kinds":["object"],"required":["response"],"members":{"response":{"ref":"MatchResourcesResponse"}}},
-    "MatchSearchFailed": {"kinds":["object"],"required":["referenceId","error"],"members":{"error":{"kinds":["string"]},"referenceId":{"ref":"AnnotationId"}}},
+    "MatchSearchFailed": {"kinds":["object"],"allOf":[{"ref":"CommandError"},{"kinds":["object"],"required":["referenceId"],"members":{"referenceId":{"ref":"AnnotationId"}}}]},
     "MatchSearchRequest": {"kinds":["object"],"required":["resourceId","referenceId","context"],"members":{"context":{"ref":"GatheredContext"},"limit":{"kinds":["integer"],"minimum":1,"maximum":200},"referenceId":{"ref":"AnnotationId"},"resourceId":{"ref":"ResourceId"},"useSemanticScoring":{"kinds":["boolean"]}}},
     "MatchSearchResult": {"kinds":["object"],"required":["referenceId","response"],"members":{"referenceId":{"ref":"AnnotationId"},"response":{"kinds":["array"],"items":{"ref":"ScoredResource"}}}},
     "MediaTokenRequest": {"kinds":["object"],"required":["resourceId"],"members":{"resourceId":{"ref":"ResourceId"}}},
