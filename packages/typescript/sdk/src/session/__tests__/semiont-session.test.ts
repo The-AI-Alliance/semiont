@@ -266,7 +266,7 @@ describe('SemiontSession — refresh', () => {
   });
 
   // ── A refresh margin equal to the token lifetime ────────────────────
-  // The unit tests above drive `refresh()` DIRECTLY, so to them a schedule
+  // To a test that drives `refresh(refused)` DIRECTLY, a schedule
   // that fires at `delay = 0` is indistinguishable from one that fires
   // correctly — and a zero delay is a signed-in tab issuing 1418 successful
   // `POST /token` in ten idle seconds. This one asserts the SCHEDULE.
