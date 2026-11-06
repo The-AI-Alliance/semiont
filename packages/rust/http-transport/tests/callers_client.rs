@@ -74,6 +74,7 @@ async fn a_transport_makes_its_stream_its_emits_its_requests_and_its_content_wit
         http: callers,
         timing: Timing::default(),
         bookmarks: None,
+        random: None,
     });
 
     let mut states = transport.state();

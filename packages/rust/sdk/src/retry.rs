@@ -9,8 +9,19 @@
 //! answers the first as protocol/specs/src/retry/cases.json states, which this crate's
 //! tests run; the budgets a client keeps are protocol/specs/src/client/timing.json's
 //! (`crate::timing`).
+//!
+//! Every jitter is drawn here, from the random source its caller gives, or
+//! the system's when it gives none. A maker of something that backs off
+//! takes one, `Option<Arc<Mutex<dyn Rng + Send>>>`, and what it makes keeps
+//! it; a function that draws only while it runs takes it borrowed. A caller
+//! whose source gives its lowest draw sees each wait end when
+//! protocol/specs/src/client/clock-cases.json says.
 
+use crate::locked;
+use getrandom::SysRng;
+use rand_core::{Rng, UnwrapErr};
 use std::future::Future;
+use std::sync::Mutex;
 use std::time::Duration;
 
 /// A budget: `attempts` in all, the first included, with a wait before each
@@ -114,20 +125,28 @@ pub fn retry_after(header: Option<&str>) -> Option<Duration> {
 /// Equal jitter: half of `cap`, and a random share of the other half. Callers
 /// that back off by one schedule against one gateway re-converge on the same
 /// instant and deliver again the burst that failed; the random half keeps them
-/// apart, and the wait never exceeds `cap`.
-pub fn equal_jitter(cap: Duration) -> Duration {
+/// apart, and the wait never exceeds `cap`. The share is drawn from `random`,
+/// or the system's source when it is `None`; a lowest draw waits half of
+/// `cap`.
+pub fn equal_jitter(cap: Duration, random: Option<&Mutex<dyn Rng + Send>>) -> Duration {
+    let drawn = match random {
+        Some(random) => locked(random).next_u64(),
+        None => UnwrapErr(SysRng).next_u64(),
+    };
     // 53 random bits: every one a double holds exactly.
-    let share = (uuid::Uuid::new_v4().as_u128() >> 75) as f64 / (1u64 << 53) as f64;
+    let share = (drawn >> 11) as f64 / (1u64 << 53) as f64;
     cap.div_f64(2.0) + cap.div_f64(2.0).mul_f64(share)
 }
 
 /// Run `attempt` until it succeeds, `policy`'s attempts are spent, or it
 /// fails in a way `retryable` does not accept. The wait before each further
-/// attempt is the policy's jittered backoff, and never less than the wait the
-/// failure itself stated (`stated_wait`: a refusal's `Retry-After`). The last
-/// failure is returned as it was.
+/// attempt is the policy's jittered backoff, drawn from `random`
+/// (`equal_jitter`), and never less than the wait the failure itself stated
+/// (`stated_wait`: a refusal's `Retry-After`). The last failure is returned
+/// as it was.
 pub async fn retry_with_backoff<T, E, F>(
     policy: RetryPolicy,
+    random: Option<&Mutex<dyn Rng + Send>>,
     mut attempt: impl FnMut() -> F,
     retryable: impl Fn(&E) -> bool,
     stated_wait: impl Fn(&E) -> Option<Duration>,
@@ -145,7 +164,7 @@ where
         if made >= policy.attempts || !retryable(&error) {
             return Err(error);
         }
-        let wait = equal_jitter(cap).max(stated_wait(&error).unwrap_or_default());
+        let wait = equal_jitter(cap, random).max(stated_wait(&error).unwrap_or_default());
         tokio::time::sleep(wait).await;
         cap = (cap * 2).min(policy.max_delay);
         made += 1;
@@ -155,14 +174,63 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::convert::Infallible;
+
+    /// A source whose every draw is its lowest.
+    struct Lowest;
+
+    impl rand_core::TryRng for Lowest {
+        type Error = Infallible;
+
+        fn try_next_u32(&mut self) -> Result<u32, Infallible> {
+            Ok(0)
+        }
+
+        fn try_next_u64(&mut self) -> Result<u64, Infallible> {
+            Ok(0)
+        }
+
+        fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Infallible> {
+            dst.fill(0);
+            Ok(())
+        }
+    }
 
     #[test]
     fn jitter_stays_between_half_the_cap_and_the_cap() {
         let cap = Duration::from_millis(1000);
         for _ in 0..1000 {
-            let wait = equal_jitter(cap);
+            let wait = equal_jitter(cap, None);
             assert!(wait >= cap / 2 && wait <= cap, "{wait:?}");
         }
+    }
+
+    #[test]
+    fn a_jitter_drawn_lowest_from_the_callers_source_is_half_the_cap() {
+        let lowest = Mutex::new(Lowest);
+        let cap = Duration::from_millis(1000);
+        assert_eq!(equal_jitter(cap, Some(&lowest)), cap / 2);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn each_wait_of_a_budget_is_drawn_from_the_callers_source() {
+        let lowest = Mutex::new(Lowest);
+        let policy = RetryPolicy {
+            attempts: 3,
+            initial_delay: Duration::from_millis(10),
+            max_delay: Duration::from_millis(20),
+        };
+        let started = tokio::time::Instant::now();
+        let outcome: Result<(), ()> = retry_with_backoff(
+            policy,
+            Some(&lowest),
+            || async { Err(()) },
+            |_| true,
+            |_| None,
+        )
+        .await;
+        assert_eq!(outcome, Err(()));
+        assert_eq!(started.elapsed(), Duration::from_millis(5 + 10));
     }
 
     #[tokio::test(start_paused = true)]
@@ -175,6 +243,7 @@ mod tests {
         let mut made = 0;
         let outcome: Result<(), u32> = retry_with_backoff(
             policy,
+            None,
             || {
                 made += 1;
                 let n = made;
@@ -197,6 +266,7 @@ mod tests {
         let mut made = 0;
         let outcome: Result<(), u32> = retry_with_backoff(
             policy,
+            None,
             || {
                 made += 1;
                 async { Err(400) }
@@ -220,6 +290,7 @@ mod tests {
         let mut made = 0;
         let outcome: Result<u32, u32> = retry_with_backoff(
             policy,
+            None,
             || {
                 made += 1;
                 let n = made;

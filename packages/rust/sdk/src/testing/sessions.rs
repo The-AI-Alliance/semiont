@@ -22,6 +22,7 @@ use crate::session::{
 };
 use crate::transport::BoxFuture;
 use crate::types::UserResponse;
+use rand_core::Rng;
 use serde_json::{Map, Value};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -53,6 +54,7 @@ struct Scripted {
 struct Inner {
     answer: Arc<Answer>,
     scripted: Mutex<Scripted>,
+    random: Option<Arc<Mutex<dyn Rng + Send>>>,
 }
 
 /// See the module's documentation.
@@ -61,34 +63,36 @@ pub struct ScriptedSessions {
     inner: Arc<Inner>,
 }
 
-impl Default for ScriptedSessions {
-    fn default() -> ScriptedSessions {
-        ScriptedSessions::new()
-    }
-}
-
 impl ScriptedSessions {
     /// Sessions of knowledge bases that answer nothing: every request is
-    /// refused, naming its operation and its knowledge base.
-    pub fn new() -> ScriptedSessions {
-        ScriptedSessions::answering(|kb_id, operation, _| {
-            Err(format!(
-                "No response scripted for \"{operation}\" of knowledge base \"{kb_id}\". Build the factory with ScriptedSessions::answering."
-            ))
-        })
+    /// refused, naming its operation and its knowledge base. Each session's
+    /// renewal retry draws its jitter from `random`, the system's source
+    /// when it is `None`.
+    pub fn new(random: Option<Arc<Mutex<dyn Rng + Send>>>) -> ScriptedSessions {
+        ScriptedSessions::answering(
+            |kb_id, operation, _| {
+                Err(format!(
+                    "No response scripted for \"{operation}\" of knowledge base \"{kb_id}\". Build the factory with ScriptedSessions::answering."
+                ))
+            },
+            random,
+        )
     }
 
-    /// Sessions of knowledge bases whose gateways answer as `answer` says.
+    /// Sessions of knowledge bases whose gateways answer as `answer` says,
+    /// each drawing its renewal retry's jitter from `random`.
     pub fn answering(
         answer: impl Fn(&str, &str, &Map<String, Value>) -> Result<Option<Value>, String>
         + Send
         + Sync
         + 'static,
+        random: Option<Arc<Mutex<dyn Rng + Send>>>,
     ) -> ScriptedSessions {
         ScriptedSessions {
             inner: Arc::new(Inner {
                 answer: Arc::new(answer),
                 scripted: Mutex::new(Scripted::default()),
+                random,
             }),
         }
     }
@@ -226,6 +230,7 @@ impl SessionFactory for ScriptedSessions {
                 signals.notify_session_ended(reason);
             })),
             on_error: Some(options.on_error),
+            random: self.inner.random.clone(),
         }))
     }
 

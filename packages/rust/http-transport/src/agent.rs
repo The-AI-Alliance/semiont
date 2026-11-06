@@ -17,6 +17,7 @@
 
 use crate::service_account::{ServiceToken, SignInError};
 use crate::transport::{TokenRefresher, declared, refuses_credential, why_unanswered};
+use rand_core::Rng;
 use semiont::retry::{self, RetryFacts, retry_with_backoff};
 use semiont::session::renew_when_due;
 use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
@@ -24,7 +25,7 @@ use semiont::transport::BoxFuture;
 use semiont::types::{UserId, UserResponse};
 use serde_json::Value;
 use std::fmt;
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, Mutex, Weak};
 use tokio::sync::watch;
 
 /// Why the agent could not be signed in.
@@ -85,15 +86,18 @@ pub struct AgentToken {
     service: ServiceToken,
     did: UserId,
     token: watch::Sender<Option<String>>,
+    random: Option<Arc<Mutex<dyn Rng + Send>>>,
 }
 
 impl AgentToken {
     /// Sign the agent in at `gateway` as the account `service` names, and
-    /// keep it signed in for as long as this is held.
+    /// keep it signed in for as long as this is held. The renewal retry's
+    /// jitter is drawn from `random`, the system's source when it is `None`.
     pub async fn sign_in(
         gateway: &str,
         service: ServiceToken,
         http: reqwest::Client,
+        random: Option<Arc<Mutex<dyn Rng + Send>>>,
     ) -> Result<Arc<AgentToken>, AgentSignInError> {
         let gateway = gateway.trim_end_matches('/').to_owned();
         let token = service
@@ -106,6 +110,7 @@ impl AgentToken {
             service,
             did,
             token: watch::channel(Some(token)).0,
+            random,
         });
         tokio::spawn(keep_renewed(Arc::downgrade(&agent), agent.token()));
         Ok(agent)
@@ -199,8 +204,14 @@ async fn keep_renewed(agent: Weak<AgentToken>, token: watch::Receiver<Option<Str
             let Some(agent) = agent.upgrade() else {
                 return;
             };
-            let _ =
-                retry_with_backoff(REFRESH_RETRY, || agent.renew(), worth_another, |_| None).await;
+            let _ = retry_with_backoff(
+                REFRESH_RETRY,
+                agent.random.as_deref(),
+                || agent.renew(),
+                worth_another,
+                |_| None,
+            )
+            .await;
         }
     })
     .await;

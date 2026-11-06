@@ -2413,12 +2413,21 @@
       },
       "takes": {
         "rust": {
-          "HttpTransportConfig": ["RngCore"],
-          "SemiontSessionConfig": ["RngCore"],
-          "retry_with_backoff": ["RngCore"],
-          "refresh_stored_session": ["RngCore"],
-          "AgentToken::sign_in": ["RngCore"],
-          "equal_jitter": ["RngCore"]
+          "HttpTransportConfig": ["Rng"],
+          "SemiontSessionConfig": ["Rng"],
+          "retry_with_backoff": ["Rng"],
+          "refresh_stored_session": ["Rng"],
+          "AgentToken::sign_in": ["Rng"],
+          "equal_jitter": ["Rng"],
+          "HttpSession": ["Rng"],
+          "IssuedSession": ["Rng"],
+          "StoredSignIn": ["Rng"],
+          "SignInDevice": ["Rng"],
+          "HttpSessionFactory::new": ["Rng"],
+          "describe_connection": ["Rng"],
+          "complete_sign_in": ["Rng"],
+          "ScriptedSessions::new": ["Rng"],
+          "ScriptedSessions::answering": ["Rng"]
         },
         "go": {
           "HTTPTransportConfig": ["rand.Rand"],
@@ -2479,14 +2488,6 @@
         }
       },
       "notYetReached": {
-        "rust": {
-          "HttpTransportConfig": "The stream's reconnect draws its jitter from a v4 UUID.",
-          "SemiontSessionConfig": "A session's renewal retry draws its jitter from a v4 UUID.",
-          "retry_with_backoff": "Its jitter draws from a v4 UUID.",
-          "refresh_stored_session": "Its renewal retry draws its jitter from a v4 UUID.",
-          "AgentToken::sign_in": "The agent's renewal retry draws its jitter from a v4 UUID.",
-          "equal_jitter": "It draws from a v4 UUID."
-        },
         "kotlin": {
           "HttpTransport": "The stream's reconnect and the emit retry draw from Random.Default.",
           "AgentToken": "Its renewal retry draws from Random.Default.",

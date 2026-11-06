@@ -54,6 +54,7 @@ async fn an_answer_that_is_not_its_declared_body_fails_as_error_naming_its_first
         http: reqwest::Client::new(),
         timing: Timing::default(),
         bookmarks: None,
+        random: None,
     });
     let mut failures = transport.failures();
 
