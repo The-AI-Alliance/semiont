@@ -86,6 +86,9 @@ a different issuer or provides invalid endpoint addresses.
 `BrowserSignIn.BeginSignInAsync` gives the authorization URL with PKCE.
 Pass the callback URL to `CompleteSignInAsync` once. It exchanges the code
 and asks the gateway for its knowledge-base identity before storing credentials.
+Both keep the browser's `TimeProvider` and `Random` for the issuer and transport
+they build. Without a browser, `RedirectSignIn.BeginAuthorizationAsync`,
+`CompleteAuthorizationAsync` and `DescribeConnectionAsync` take them directly.
 
 ### Signing in as an agent
 
@@ -96,7 +99,8 @@ in-flight grant among callers. The caller keeps any supplied key and HTTP client
 usable for the service token's lifetime.
 
 `AgentToken` uses a service token to sign in to a knowledge base and confirm
-its DID. It renews the token when due or after a credential refusal.
+its DID. It renews the token when due or after a credential refusal, on its
+service token's `TimeProvider`.
 `RefreshAsync` can serve as a transport refresher, and `TokensChanged` exposes
 updates to consumers. A transport tells its refresher the token refused: an
 agent or a kept session that holds another by then gives it and renews
@@ -323,7 +327,9 @@ format that can be authored, using plain text for other formats.
 
 `Semiont.Registry.SemiontBrowser` keeps registered knowledge bases, the active
 session, and open resources. Give it an `ISessionStorage` and a session factory,
-such as `HttpSessionFactory`, then hold it with `await using`. `MemoryStorage`
+such as `HttpSessionFactory`, then hold it with `await using`. `SemiontBrowserConfig`
+and `HttpSessionFactory` take a `TimeProvider` and a `Random` for the sign-ins and
+sessions they make. `MemoryStorage`
 lasts for the process. A shared store implements atomic `Update` and sends
 `Subscribe` notifications for writes from other contexts.
 
@@ -338,6 +344,7 @@ or a caller-provided text reader and streams changes by address.
 reconciles a quote against its source, and builds annotations from a whole resource,
 plain text, or PDF anchored text. Spans count Unicode code points. The builders
 derive the same ID when they are given the same resource, motivation, span, and body.
+They stamp `created` from the `TimeProvider` they are given.
 
 ## Testing a composition
 
@@ -348,11 +355,13 @@ for drops, delays, duplicates, and emit refusal. Queue responses by operation or
 provide a `Respond` delegate. Use its `Other` handler for content endpoints.
 
 `Liveness.AssertLivenessAxiomsAsync` runs a fresh composition for each fault schedule
-and checks that its output speaks and awaited paths settle within a bounded time.
+and checks that its output speaks and awaited paths settle within a bounded time, which
+it waits out on the `LivenessSpec`'s `TimeProvider`.
 `Liveness.AssertExactlyOnceDeliveryAsync` checks that writes survive connection
 transitions exactly once. Use a seeded `Random` with `FaultSchedules` and
 `DeliveryOps` to replay the generated cases. For registry tests, `ScriptedSessions`
-supplies gateway answers, identity and renewal. `SharedStorage.Context()` creates
+supplies gateway answers, identity and renewal. `TestSessionOptions` and `ScriptedSessions`
+take a `TimeProvider` and a `Random` and hand them to the sessions they make. `SharedStorage.Context()` creates
 another view of the same storage that hears writes from other contexts.
 
 ## The bus and transport
@@ -381,7 +390,12 @@ content and reads resource bytes, descriptions, annotations, and anchored text.
 
 The transport accepts a caller-owned `HttpClient`. Its own HTTP handler uses no proxy.
 Deadlines and backoffs use the public `TimeProvider` and `Random` constructor arguments;
-the defaults are `TimeProvider.System` and `Random.Shared`. Disposing the transport ends
+the defaults are `TimeProvider.System` and `Random.Shared`. Every deadline is the SDK's own
+on that `TimeProvider`: an `HttpClient` the SDK makes keeps no `Timeout`, and a caller-owned
+one should keep `Timeout.InfiniteTimeSpan`. A stream that fails is opened again after an equal
+jitter of a cap that doubles from `reconnectMs` to `maxReconnectMs`, and never sooner than a
+refusal's `Retry-After`; once it has been reconnecting for `degradedThresholdMs` its state is
+`Degraded`. Disposing the transport ends
 its observers and requests and leaves a caller-owned HTTP client usable. Errors share
 `Semiont.Errors.SemiontError`, with distinct transport and bus-request families.
 

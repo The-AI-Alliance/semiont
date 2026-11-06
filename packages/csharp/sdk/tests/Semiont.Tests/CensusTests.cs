@@ -9,6 +9,14 @@ namespace Semiont.Tests;
 
 public sealed class CensusTests
 {
+    /// <summary>Every assembly of the shared framework this test runs on: what a fixture may name, as the SDK may.</summary>
+    private static readonly MetadataReference[] Framework = (AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string
+            ?? throw new InvalidOperationException("The runtime names no trusted platform assemblies"))
+        .Split(Path.PathSeparator)
+        .Where(path => Path.GetDirectoryName(path) == Path.GetDirectoryName(typeof(object).Assembly.Location))
+        .Select(path => (MetadataReference)MetadataReference.CreateFromFile(path))
+        .ToArray();
+
     public static IEnumerable<object[]> Refusals()
     {
         foreach (var file in Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "refusals"), "*.cs").Order())
@@ -25,13 +33,7 @@ public sealed class CensusTests
     public async Task RefusalFixturesReportTheirExpectedDiagnostic(string source, string expected)
     {
         var tree = CSharpSyntaxTree.ParseText(source);
-        var references = new[]
-        {
-            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Runtime.CompilerServices.DynamicAttribute).Assembly.Location),
-            MetadataReference.CreateFromFile(System.Reflection.Assembly.Load("System.Runtime").Location),
-        };
-        var compilation = CSharpCompilation.Create("Example", [tree], references,
+        var compilation = CSharpCompilation.Create("Example", [tree], Framework,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
                 nullableContextOptions: NullableContextOptions.Enable));
         var compilerDiagnostics = compilation.GetDiagnostics();
@@ -68,11 +70,23 @@ public sealed class CensusTests
     [InlineData("public static async System.Threading.Tasks.Task<int> Read() => await System.Threading.Tasks.Task.FromResult(1);")]
     [InlineData("public static int Read() => new { Result = 1 }.Result;")]
     [InlineData("public static bool Read(string? value) => value is not null;")]
+    [InlineData("public static System.Threading.Tasks.Task Wait(System.TimeProvider clock) => System.Threading.Tasks.Task.Delay(System.TimeSpan.FromSeconds(1), clock);")]
+    [InlineData("public static System.Threading.Tasks.Task Wait(System.Threading.Tasks.Task work, System.TimeProvider clock) => work.WaitAsync(System.TimeSpan.FromSeconds(1), clock);")]
+    [InlineData("public static System.Threading.Tasks.Task Turn(System.Threading.SemaphoreSlim turn, System.Threading.CancellationToken cancellation) => turn.WaitAsync(cancellation);")]
+    [InlineData("public static System.Threading.CancellationTokenSource Deadline(System.TimeProvider clock) => new(System.TimeSpan.FromSeconds(1), clock);")]
+    [InlineData("public static System.Threading.CancellationTokenSource Lifetime() => new();")]
+    [InlineData("public static System.Threading.PeriodicTimer Ticks(System.TimeProvider clock) => new(System.TimeSpan.FromSeconds(1), clock);")]
+    [InlineData("public static System.DateTimeOffset Now(System.TimeProvider clock) => clock.GetUtcNow();")]
+    [InlineData("public static System.TimeProvider Clock(System.TimeProvider? given) => given ?? System.TimeProvider.System;")]
+    [InlineData("public static System.Random Draws(System.Random? given) => given ?? System.Random.Shared;")]
+    [InlineData("public static System.Net.Http.HttpClient Client() => new() { Timeout = System.Threading.Timeout.InfiniteTimeSpan };")]
+    [InlineData("public static System.TimeSpan Limit(System.Net.Http.HttpClient client) => client.Timeout;")]
+    [InlineData("public static System.Guid Id() => System.Guid.NewGuid();")]
+    [InlineData("public static byte[] Secret() => System.Security.Cryptography.RandomNumberGenerator.GetBytes(16);")]
     public async Task ValidCodeHasNoCensusDiagnostic(string member)
     {
         var tree = CSharpSyntaxTree.ParseText("#nullable enable\npublic static class Example { " + member + " }");
-        var references = new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) };
-        var compilation = CSharpCompilation.Create("Example", [tree], references,
+        var compilation = CSharpCompilation.Create("Example", [tree], Framework,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
         Assert.Empty(compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
         var diagnostics = await compilation.WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new CensusAnalyzer()))

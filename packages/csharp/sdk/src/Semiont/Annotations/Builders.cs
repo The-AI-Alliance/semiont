@@ -24,7 +24,7 @@ public sealed record OfResource(ResourceId ResourceId, Motivation Motivation, Ag
 
 public static partial class AnnotationTools
 {
-    public static Annotation AnnotationOfSpan(OfSpan input)
+    public static Annotation AnnotationOfSpan(OfSpan input, TimeProvider? timeProvider = null)
     {
         var anchored = input.Text is Spanned.Anchored(var pdf) ? pdf : null;
         var source = input.Text switch
@@ -56,11 +56,11 @@ public static partial class AnnotationTools
             Selector = new AnnotationSelector.ArrayCase(selectors.ToArray()),
         };
         return Build(target, input.Motivation, FormattableString.Invariant($"{span.Start}:{span.End}:{span.Exact}"),
-            input.Generator, input.Body);
+            input.Generator, input.Body, timeProvider);
     }
 
-    public static Annotation AnnotationOfResource(OfResource input) =>
-        Build(new AnnotationTarget { Source = input.ResourceId }, input.Motivation, "", input.Generator, input.Body);
+    public static Annotation AnnotationOfResource(OfResource input, TimeProvider? timeProvider = null) =>
+        Build(new AnnotationTarget { Source = input.ResourceId }, input.Motivation, "", input.Generator, input.Body, timeProvider);
 
     private static List<Selector> TextSelectors(ScalarText text, TextSpan span)
     {
@@ -84,11 +84,12 @@ public static partial class AnnotationTools
         })).ToList();
     }
 
-    private static Annotation Build(AnnotationTarget target, Motivation motivation, string anchor, Agent? generator, AnnotationBodies? body) =>
+    private static Annotation Build(AnnotationTarget target, Motivation motivation, string anchor, Agent? generator, AnnotationBodies? body,
+        TimeProvider? timeProvider) =>
         new()
         {
             Id = AnnotationIdentity.Derive(target.Source, motivation, anchor, body is null ? null : JsonSerializer.SerializeToElement(body)),
-            Created = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
+            Created = (timeProvider ?? TimeProvider.System).GetUtcNow().ToString("O", CultureInfo.InvariantCulture),
             Target = new AnnotationTargetValue.AnnotationTargetCase(target),
             Motivation = motivation,
             Generator = generator is null ? null : new AnnotationGenerator.AgentCase(generator),

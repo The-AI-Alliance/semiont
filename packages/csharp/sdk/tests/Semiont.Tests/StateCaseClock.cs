@@ -1,13 +1,17 @@
 namespace Semiont.Tests;
 
-/// <summary>A clock the table runner advances one due instant at a time.</summary>
-internal sealed class StateCaseClock : TimeProvider
+/// <summary>A clock a table runner advances one due instant at a time, from <paramref name="start"/>.</summary>
+internal sealed class StateCaseClock(DateTimeOffset start) : TimeProvider
 {
     private readonly object gate = new();
     private readonly List<Timer> timers = [];
     private long now;
+    private long changes;
 
-    public override DateTimeOffset GetUtcNow() => DateTimeOffset.UnixEpoch.AddTicks(GetTimestamp());
+    /// <summary>How many times a timer has been set, changed or let go: what a runner settles on.</summary>
+    internal long Changes { get { lock (gate) return changes; } }
+
+    public override DateTimeOffset GetUtcNow() => start.AddTicks(GetTimestamp());
     public override long TimestampFrequency => TimeSpan.TicksPerSecond;
     public override long GetTimestamp() { lock (gate) return now; }
 
@@ -44,6 +48,7 @@ internal sealed class StateCaseClock : TimeProvider
             lock (clock.gate)
             {
                 if (closed) return false;
+                clock.changes++;
                 clock.timers.Remove(this);
                 Period = period;
                 if (dueTime != Timeout.InfiniteTimeSpan)
@@ -59,7 +64,7 @@ internal sealed class StateCaseClock : TimeProvider
 
         public void Dispose()
         {
-            lock (clock.gate) { closed = true; clock.timers.Remove(this); }
+            lock (clock.gate) { closed = true; clock.changes++; clock.timers.Remove(this); }
         }
 
         public ValueTask DisposeAsync()
