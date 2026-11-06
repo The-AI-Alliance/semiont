@@ -501,7 +501,7 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
       });
     }
 
-    test('cancelled while it waits to be sent again, it rejects with its caller\'s reason and is not sent again', async () => {
+    test('cancelled as its sending fails, before the wait begins, it rejects with its caller\'s reason and is not sent again', async () => {
       const { content, transport } = makeTransportAndContent();
       const errors: unknown[] = [];
       transport.errors$.subscribe((e) => errors.push(e));
@@ -515,6 +515,47 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
       await new Promise((waited) => setTimeout(waited, REQUEST_RETRY_PAUSE_MS + 100));
       expect(FakeXHR.instances).toHaveLength(1);
       expect(errors, 'a cancellation its caller asked for is not a transport failure').toEqual([]);
+    });
+
+    test('cancelled while it waits to be sent again, it rejects with its caller\'s reason and is not sent again', async () => {
+      const { content, transport } = makeTransportAndContent();
+      const errors: unknown[] = [];
+      transport.errors$.subscribe((e) => errors.push(e));
+      const controller = new AbortController();
+      vi.useFakeTimers();
+      try {
+        const outcome = content.putBinary(note, { onProgress: vi.fn(), signal: controller.signal }).catch((e: unknown) => e);
+        FakeXHR.instances[0]!.fireFailure(503, 'Service Unavailable', { error: 'busy' });
+        await vi.advanceTimersByTimeAsync(REQUEST_RETRY_PAUSE_MS - 1);
+        controller.abort();
+
+        expect(await outcome).toBe(controller.signal.reason);
+        await vi.advanceTimersByTimeAsync(REQUEST_RETRY_PAUSE_MS);
+        expect(FakeXHR.instances).toHaveLength(1);
+        expect(errors, 'a cancellation its caller asked for is not a transport failure').toEqual([]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    test('given its caller\'s signal, never cancelled, it is sent again once the wait is over', async () => {
+      const { content } = makeTransportAndContent();
+      const controller = new AbortController();
+      vi.useFakeTimers();
+      try {
+        const promise = content.putBinary(note, { onProgress: vi.fn(), signal: controller.signal });
+        FakeXHR.instances[0]!.fireFailure(503, 'Service Unavailable', { error: 'busy' });
+
+        await vi.advanceTimersByTimeAsync(REQUEST_RETRY_PAUSE_MS - 1);
+        expect(FakeXHR.instances).toHaveLength(1);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(FakeXHR.instances).toHaveLength(2);
+
+        FakeXHR.instances[1]!.fireSuccess(202, { resourceId: 'r-4' });
+        await expect(promise).resolves.toEqual({ resourceId: 'r-4' });
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 
