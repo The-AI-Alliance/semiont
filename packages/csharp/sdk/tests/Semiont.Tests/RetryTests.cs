@@ -44,7 +44,7 @@ public sealed class RetryTests
     public async Task ABudgetIsSpentOnItsDoublingBackoffAndItsLastFailureIsThrownAsItWas()
     {
         var clock = new TestClock();
-        var policy = RefreshRetry();
+        var policy = RetryPolicy.FromTiming("refreshRetry");
         var failures = new List<TransportError>();
         var retrying = Retry.RetryWithBackoffAsync(policy, _ =>
         {
@@ -68,7 +68,7 @@ public sealed class RetryTests
     {
         var made = 0;
         var refused = Refused(400);
-        var thrown = await Assert.ThrowsAsync<TransportError>(() => Retry.RetryWithBackoffAsync(RefreshRetry(), _ =>
+        var thrown = await Assert.ThrowsAsync<TransportError>(() => Retry.RetryWithBackoffAsync(RetryPolicy.FromTiming("refreshRetry"), _ =>
         {
             made++;
             return Task.FromException<string>(refused);
@@ -81,7 +81,7 @@ public sealed class RetryTests
     public async Task AFailureThatIsNoSdkErrorIsThrownAtOnce()
     {
         var made = 0;
-        await Assert.ThrowsAsync<InvalidOperationException>(() => Retry.RetryWithBackoffAsync(RefreshRetry(), _ =>
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Retry.RetryWithBackoffAsync(RetryPolicy.FromTiming("refreshRetry"), _ =>
         {
             made++;
             return Task.FromException<string>(new InvalidOperationException("not the SDK's"));
@@ -93,7 +93,7 @@ public sealed class RetryTests
     public async Task AnAttemptThatSucceedsIsTheAnswer()
     {
         var clock = new TestClock();
-        var policy = RefreshRetry();
+        var policy = RetryPolicy.FromTiming("refreshRetry");
         var made = 0;
         var answer = Retry.RetryWithBackoffAsync(policy, _ => ++made < 3 ? Task.FromException<string>(Refused(429)) : Task.FromResult("third time"),
             _ => true, _ => null, clock, new ZeroRandom());
@@ -112,7 +112,7 @@ public sealed class RetryTests
     public async Task TheWaitAFailureStatesIsAFloorUnderTheBackoff()
     {
         var clock = new TestClock();
-        var policy = RefreshRetry();
+        var policy = RetryPolicy.FromTiming("refreshRetry");
         var stated = TimeSpan.FromMilliseconds(policy.MaxDelayMs) * 2;
         var made = 0;
         var answer = Retry.RetryWithBackoffAsync(policy, _ => ++made == 1 ? Task.FromException<string>(Refused(429)) : Task.FromResult("answered"),
@@ -129,7 +129,7 @@ public sealed class RetryTests
     public async Task CancellingGivesUpAWaitInProgress()
     {
         var clock = new TestClock();
-        var policy = RefreshRetry();
+        var policy = RetryPolicy.FromTiming("refreshRetry");
         using var cancellation = new CancellationTokenSource();
         var made = 0;
         var retrying = Retry.RetryWithBackoffAsync(policy, _ =>
@@ -141,17 +141,6 @@ public sealed class RetryTests
         await cancellation.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => retrying);
         Assert.Equal(1, made);
-    }
-
-    private static RetryPolicy RefreshRetry()
-    {
-        var budget = ProtocolFacts.Timing("refreshRetry");
-        return new RetryPolicy
-        {
-            Attempts = budget.GetProperty("attempts").GetInt32(),
-            InitialDelayMs = budget.GetProperty("initialDelayMs").GetInt32(),
-            MaxDelayMs = budget.GetProperty("maxDelayMs").GetInt32(),
-        };
     }
 
     private static TransportError Refused(int status) => new(ProtocolFacts.Error(status), "refused " + status, status);

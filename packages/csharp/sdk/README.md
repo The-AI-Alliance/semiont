@@ -395,8 +395,8 @@ Every emit and every upload carries an `Idempotency-Key` the transport makes onc
 and sends unchanged on each of its attempts, including the one after a renewed credential.
 
 `Retry.RetryWithBackoffAsync` does work again until it succeeds, fails in a way its
-`retryable` refuses, or its `RetryPolicy`'s attempts run out, and throws the last failure
-as it was. Each wait is an equal jitter of a cap that doubles from the initial delay to
+`retryable` refuses, or the attempts of its `RetryPolicy(Attempts, InitialDelayMs, MaxDelayMs)`
+run out, and throws the last failure as it was. Each wait is an equal jitter of a cap that doubles from the initial delay to
 the maximum, and never shorter than the wait the failure stated. Its optional
 `TimeProvider` and `Random` default to `TimeProvider.System` and `Random.Shared`.
 

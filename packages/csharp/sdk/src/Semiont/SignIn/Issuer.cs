@@ -8,12 +8,7 @@ namespace Semiont.SignIn;
 
 public sealed partial class Issuer : IDisposable
 {
-    private static readonly RetryPolicy RefreshRetry = new()
-    {
-        Attempts = ProtocolFacts.Timing("refreshRetry").GetProperty("attempts").GetInt32(),
-        InitialDelayMs = ProtocolFacts.Timing("refreshRetry").GetProperty("initialDelayMs").GetInt32(),
-        MaxDelayMs = ProtocolFacts.Timing("refreshRetry").GetProperty("maxDelayMs").GetInt32(),
-    };
+    private static readonly RetryPolicy RefreshRetry = RetryPolicy.FromTiming("refreshRetry");
 
     private readonly HttpClient? client;
     private readonly HttpMessageInvoker? owned;
