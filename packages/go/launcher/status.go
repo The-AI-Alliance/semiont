@@ -263,12 +263,11 @@ func Status(args []string) int {
 		// (file:// vs https://). Then the services they all share, a section
 		// for each group.
 		u.Section("KNOWLEDGE BASES")
-		readout := collectorReadout()
 		for i, v := range views {
 			if i > 0 {
 				fmt.Println()
 			}
-			healthy = printKnowledgeBase(u, v, ss.Shared, readout) && healthy
+			healthy = printKnowledgeBase(u, v, ss.Shared, collectorReadout(v.at)) && healthy
 		}
 		fmt.Println()
 		printRootsPointer(u, localStacks(ss), cs)
@@ -740,8 +739,11 @@ func (l *lazyBody) get() string {
 }
 
 // collectorReadout: the collector's Prometheus readout, which every start
-// runs and every knowledge base's work in flight is read from.
-func collectorReadout() *lazyBody { return &lazyBody{url: "http://localhost:24110/metrics"} }
+// runs and every knowledge base's work in flight is read from. It is the
+// collector's health endpoint, asked where at publishes it.
+func collectorReadout(at exposure) *lazyBody {
+	return &lazyBody{url: healthEndpoint("collector", probeDriver("collector"), nil, at)}
+}
 
 // printInFlightOf prints what r has in flight in v's knowledge base, read from
 // the collector's readout. Only for a service that is up: a dead service's
@@ -990,7 +992,6 @@ func remoteModels(rec ServiceState) map[string]remoteModelMeta {
 // every such row is healthy.
 func printServiceRows(u *UI, views []stackView, service string, shared map[string]*ServiceState, ceilings func(stackView) modelCeilings) bool {
 	healthy := true
-	readout := collectorReadout()
 	for i, v := range views {
 		if len(views) > 1 {
 			if i > 0 {
@@ -1007,7 +1008,7 @@ func printServiceRows(u *UI, views []stackView, service string, shared map[strin
 		if r.counted(service) {
 			healthy = healthy && r.healthy
 		}
-		printInFlightOf(u, v, r, readout)
+		printInFlightOf(u, v, r, collectorReadout(v.at))
 		if r.rec != nil && len(r.rec.Models) > 0 {
 			var facts modelFacts
 			if len(servedBy(r.rec.Models, "ollama")) > 0 {
