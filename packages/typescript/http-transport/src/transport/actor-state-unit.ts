@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, UnansweredError, retryAfterMs, equalJitter, BusRequestError, SemiontError, FrameRefusal, faultOf, said, isObject, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusPrimitive, type components, type ConnectionState, type EventMap, type Fault, type ResourceId, type RetryPolicy, type StateUnit, type TraceCarrier, type TransportErrorCode, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, HTTP_REQUEST_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT, STREAM_OPEN_TIMEOUT_MS } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, withinDeadline, UnansweredError, retryAfterMs, equalJitter, BusRequestError, SemiontError, FrameRefusal, faultOf, said, isObject, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusPrimitive, type components, type ConnectionState, type EventMap, type Fault, type ResourceId, type RetryPolicy, type StateUnit, type TraceCarrier, type TransportErrorCode, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, HTTP_REQUEST_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT, STREAM_OPEN_TIMEOUT_MS } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -901,14 +901,14 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // retried, and never waits out a `Retry-After`
       // (protocol/contract/TRANSPORT-CONTRACT.md § A refused credential).
       //
-      // The whole attempt — POST, status check, and the error it throws — is
-      // inside the retried unit, because the refusal IS the failure being
-      // classified. Retrying only the fetch would re-run the request and then
-      // hand back the same unexamined response.
-      const send = (token: string) => retryWithBackoff(async () => {
-        // Bounded: an unresponsive gateway must not hang
-        // the caller's loop forever.
-        //
+      // The whole attempt — POST, status check, the error it throws, and the
+      // read of what it was answered — is inside the retried unit, because the
+      // refusal IS the failure being classified. Retrying only the fetch would
+      // re-run the request and then hand back the same unexamined response.
+      //
+      // Each attempt is bounded, its reading too: an unresponsive gateway
+      // must not hang the caller's loop forever.
+      const send = (token: string): Promise<number | undefined> => retryWithBackoff(() => withinDeadline(EMIT_TIMEOUT_MS, async (signal) => {
         // `fetch()` rejects only when no answer came: on a network error with
         // a `TypeError` in the runtime's own words (the Fetch standard), on the
         // deadline with a `TimeoutError`. So its rejection is no answer,
@@ -917,7 +917,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           method: 'POST',
           headers: { ...headers, Authorization: `Bearer ${token}` },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(EMIT_TIMEOUT_MS),
+          signal,
         }).catch((error: unknown) => {
           throw new UnansweredError('/bus/emit', error);
         });
@@ -943,8 +943,18 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
             retryAfterMs(attempt.headers.get('retry-after')),
           );
         }
-        return attempt;
-      }, retryableUnlessRefused, emitRetry)
+        // No count is reported as no count, never as a zero: an absent
+        // `subscribers` is the gateway saying it could not count (a broker
+        // signal plane), and an unreadable body says nothing at all. Either way
+        // the emit was accepted, so neither may read as an empty room.
+        let accepted: components['schemas']['BusEmitAccepted'];
+        try {
+          accepted = await attempt.json();
+        } catch {
+          return undefined;
+        }
+        return accepted.subscribers;
+      }), retryableUnlessRefused, emitRetry)
         .catch((error: unknown) => {
           // The gateway never answered, on any attempt the budget allowed. It
           // reaches the caller as every failure of this transport does.
@@ -956,24 +966,13 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // with the token the refresher gives, outside `emitRetry`. Given none,
       // or the token refused, or refused again, the emit fails `unauthorized`
       // and is not sent a third time. Without a refresher the refusal is final.
-      const res = await send(token).catch(async (error: unknown) => {
+      return send(token).catch(async (error: unknown) => {
         if (!(error instanceof APIError && error.code === 'unauthorized') || !tokenRefresher) throw error;
         // The actor holds no token as the empty one; a refresher is told none as null.
         const renewed = await renewedToken(tokenRefresher, token === '' ? null : token);
         if (renewed === null) throw error;
         return send(renewed);
       });
-      // No count is reported as no count, never as a zero: an absent
-      // `subscribers` is the gateway saying it could not count (a broker
-      // signal plane), and an unreadable body says nothing at all. Either way
-      // the emit was accepted, so neither may read as an empty room.
-      let accepted: components['schemas']['BusEmitAccepted'];
-      try {
-        accepted = await res.json();
-      } catch {
-        return undefined;
-      }
-      return accepted.subscribers;
     },
 
     state$: state$.asObservable(),

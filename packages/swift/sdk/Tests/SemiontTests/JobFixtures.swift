@@ -18,6 +18,16 @@ func contextFixture() throws -> GatheredContext {
 func jobCreatedFixture(_ job: String = "job-1") throws -> [String: JSONValue] {
   try wirePayload(JobCreatedResult(response: JobCreatedResultResponse(jobId: JobId(job))))
 }
+func jobClaimedFixture(_ job: String = "job-1") throws -> [String: JSONValue] {
+  try wirePayload(
+    JobClaimedResult(
+      response: JobRunning(
+        metadata: JobMetadata(
+          created: "2026-11-04T00:00:00Z", id: JobId(job), maxRetries: 1, retryCount: 0,
+          type: .mark, userId: UserId("did:web:kb.test:users:person")),
+        params: JobParams(resourceId: ResourceId("res-1")),
+        progress: .empty(JobStoredProgressEmpty()), startedAt: "2026-11-04T00:00:00Z")))
+}
 func completionFixture(_ create: JobCreateCommand, job: String = "job-1") throws
   -> JobCompleteCommand
 {
@@ -73,7 +83,7 @@ func surfaceReplies(_ probe: ProbeTransport, cloneAnswer: JSONValue?) {
       }
       return try wirePayload(
         BrowseResourceResult(
-          response: BrowseResourceResultResponse(lastSequence: 0, resource: focus.resource)))
+          response: BrowseResourceResultResponse(lastSequence: 1, resource: focus.resource)))
     case Operations.gatherReferencedByRequested.request.name:
       return try wirePayload(
         GatherReferencedByResult(
@@ -109,17 +119,11 @@ func surfaceReplies(_ probe: ProbeTransport, cloneAnswer: JSONValue?) {
     case Operations.jobCreate.request.name:
       let completion = try completionFixture(decoded(JobCreateCommand.self, .object(payload)))
       probe?.deliver(
-        ReceivedFrame(channel: Channels.jobComplete.name, payload: try wirePayload(completion)))
+        .frame(
+          ReceivedFrame(channel: Channels.jobComplete.name, payload: try wirePayload(completion))))
       return try jobCreatedFixture()
     case Operations.jobClaim.request.name:
-      return try wirePayload(
-        JobClaimedResult(
-          response: JobRunning(
-            metadata: JobMetadata(
-              created: "2026-11-04T00:00:00Z", id: JobId("job-1"), maxRetries: 1, retryCount: 0,
-              type: .mark, userId: UserId("did:web:kb.test:users:person")),
-            params: JobParams(resourceId: ResourceId("res-1")),
-            progress: .empty(JobStoredProgressEmpty()), startedAt: "2026-11-04T00:00:00Z")))
+      return try jobClaimedFixture()
     case Operations.jobStatusRequested.request.name:
       return try wirePayload(JobStatusResult(response: statusFixture()))
     case Operations.jobCancelRequested.request.name:

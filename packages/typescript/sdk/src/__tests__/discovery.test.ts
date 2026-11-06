@@ -149,17 +149,23 @@ describe('httpDiscovery', () => {
   });
 
   it('a read has the deadline every SDK keeps, and one that passes it is unreadable, never a hang', async () => {
-    const deadline = vi.spyOn(AbortSignal, 'timeout');
-    // What a request rejects with when its deadline passes.
-    const fetchSpy = vi.fn(async () => { throw new DOMException('The operation timed out.', 'TimeoutError'); });
-    vi.stubGlobal('fetch', fetchSpy);
+    // The double never answers and, as fetch does, rejects with its
+    // signal's reason when that signal is aborted.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      vi.stubGlobal('fetch', vi.fn((_input: string | URL | Request, init?: RequestInit) => new Promise<Response>((_answer, fail) => {
+        init?.signal?.addEventListener('abort', () => fail(init.signal?.reason), { once: true });
+      })));
+      let read: unknown = 'unsettled';
+      void httpDiscovery(DISCOVERY_URL_PATH).read().then((result) => { read = result; });
 
-    expect(await httpDiscovery(DISCOVERY_URL_PATH).read()).toMatchObject({ kind: 'absent', reason: 'unreadable' });
-
-    expect(deadline.mock.calls).toEqual([[HTTP_REQUEST_TIMEOUT_MS]]);
-    const [, init] = fetchSpy.mock.calls[0] as unknown as [string, { signal?: unknown }];
-    expect(init.signal).toBe(deadline.mock.results[0]?.value);
-    deadline.mockRestore();
+      await vi.advanceTimersByTimeAsync(HTTP_REQUEST_TIMEOUT_MS - 1);
+      expect(read).toBe('unsettled');
+      await vi.advanceTimersByTimeAsync(1);
+      expect(read).toMatchObject({ kind: 'absent', reason: 'unreadable' });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

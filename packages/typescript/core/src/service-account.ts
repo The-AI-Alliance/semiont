@@ -18,6 +18,7 @@
  */
 
 import { JWT_BEARER, clientAssertion } from './client-assertion';
+import { withinDeadline } from './deadline';
 import { HTTP_REQUEST_TIMEOUT_MS } from './generated/client-timing';
 import { uuidV4 } from './id-generation';
 import { SignInError } from './sign-in-error';
@@ -117,13 +118,15 @@ export class ServiceToken {
     const { issuer } = this.credential;
     const url = new URL('.well-known/openid-configuration', issuer.endsWith('/') ? issuer : `${issuer}/`);
     const unanswered = (error: unknown) => new UnansweredError(`OIDC discovery for ${issuer}`, error);
-    const response = await fetchOf(this.fetch)(url, { signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS) }).catch((error: unknown) => {
-      throw unanswered(error);
+    const document = await withinDeadline(HTTP_REQUEST_TIMEOUT_MS, async (signal) => {
+      const response = await fetchOf(this.fetch)(url, { signal }).catch((error: unknown) => {
+        throw unanswered(error);
+      });
+      if (!response.ok) {
+        throw new SignInError('discovery', `OIDC discovery for ${issuer} failed: HTTP ${response.status} from ${url}`, response.status);
+      }
+      return jsonOf(response, unanswered);
     });
-    if (!response.ok) {
-      throw new SignInError('discovery', `OIDC discovery for ${issuer} failed: HTTP ${response.status} from ${url}`, response.status);
-    }
-    const document = await jsonOf(response, unanswered);
     if (!isObject(document) || !isString(document['token_endpoint'])) {
       throw new SignInError('discovery', `OIDC discovery for ${issuer} returned no \`token_endpoint\``);
     }
@@ -175,26 +178,28 @@ export class ServiceToken {
     const form = await proof(this.credential, endpoint);
 
     const unanswered = (error: unknown) => new UnansweredError(`Client-credentials grant for ${clientId} at ${issuer}`, error);
-    const response = await fetchOf(this.fetch)(endpoint, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: form,
-      signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
-    }).catch((error: unknown) => {
-      throw unanswered(error);
+    const body = await withinDeadline(HTTP_REQUEST_TIMEOUT_MS, async (signal) => {
+      const response = await fetchOf(this.fetch)(endpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: form,
+        signal,
+      }).catch((error: unknown) => {
+        throw unanswered(error);
+      });
+
+      if (!response.ok) {
+        // The status, not the body: a token endpoint's error body can echo the
+        // request, and this one carried the secret or the assertion.
+        throw new SignInError(
+          'exchange',
+          `Client-credentials grant for ${clientId} at ${issuer} failed (HTTP ${response.status})`,
+          response.status,
+        );
+      }
+
+      return jsonOf(response, unanswered);
     });
-
-    if (!response.ok) {
-      // The status, not the body: a token endpoint's error body can echo the
-      // request, and this one carried the secret or the assertion.
-      throw new SignInError(
-        'exchange',
-        `Client-credentials grant for ${clientId} at ${issuer} failed (HTTP ${response.status})`,
-        response.status,
-      );
-    }
-
-    const body = await jsonOf(response, unanswered);
     if (!isObject(body) || !isString(body['access_token'])) {
       throw new SignInError('exchange', `Token endpoint for ${issuer} returned no \`access_token\``);
     }

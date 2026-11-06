@@ -4,10 +4,10 @@
     "python": ["packages/python/sdk/tests/test_clock_cases.py"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/ClockCasesTest.kt"],
     "go": ["packages/go/sdk/clock_cases_test.go"],
-    "swift": ["packages/swift/sdk/Tests/SemiontTests/ClockCasesTests.swift"]
+    "swift": ["packages/swift/sdk/Tests/SemiontTests/ClockCasesTests.swift"],
+    "typescript": ["packages/typescript/sdk/src/__tests__/clock-cases.test.ts"]
   },
   "notYetReached": {
-    "typescript": "The seven AbortSignal.timeout deadlines become timers the SDK sets, and a runner under vitest's fake timers with Math.random giving its lowest.",
     "rust": "A random source the caller gives replaces the UUID draw behind the jitter, and a runner on a paused runtime over a faked network.",
     "csharp": "The stream's reconnect draws equal jitter from the transport's Random, the redirect sign-in and the session factory hand on the caller's clock and Random, and a runner on a FakeTimeProvider."
   },
