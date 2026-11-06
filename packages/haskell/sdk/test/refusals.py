@@ -27,6 +27,7 @@ with tempfile.TemporaryDirectory() as output:
         "HttpPoolCoercion": "constructor",
         "WrongHttpAnswer": "GHC-83865",
         "WorkerWrongResult": "GHC-83865",
+        "ClientRecordUpdate": "GHC-22385",
     }
     actual = {path.stem for path in Path("test/refusals").glob("*.hs")}
     if actual != set(expected) | {"Valid"}:

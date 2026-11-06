@@ -6,7 +6,7 @@ module Semiont.Internal.Transport
   , subscribeToResource, trackReply, bridgeInto, dispose
   , receiveSTM, receive, setState, subscriptions, reportError, withPendingReply
   , ownAction, raiseTransportError
-  , newEventBus, local, events, closeEventBus
+  , newEventBus, local, localSTM, events, closeEventBus
   ) where
 
 import Control.Concurrent (ThreadId, myThreadId)
@@ -211,7 +211,10 @@ newEventBus :: IO EventBus
 newEventBus = atomically $ EventBus <$> Delivery.newHub frameChannel
 
 local :: EventBus -> Frame -> IO ()
-local (EventBus hub) = atomically . Delivery.publish hub
+local bus = atomically . localSTM bus
+
+localSTM :: EventBus -> Frame -> STM ()
+localSTM (EventBus hub) = Delivery.publish hub
 
 events :: EventBus -> Text -> (Stream (Of Frame) IO () -> IO result) -> IO result
 events (EventBus hub) channel consume = Delivery.withFrames hub channel (consume . fromReader)

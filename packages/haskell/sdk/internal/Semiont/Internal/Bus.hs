@@ -2,7 +2,7 @@
 
 module Semiont.Internal.Bus
   ( Bus(..), BusOptions(..), newBus, emit, frames, request, requestDelivered
-  , Delivered(..), FrameRefusal(..), Heard(..)
+  , Delivered(..), FrameRefusal(..), Heard(..), decoded
   , replyChannelsFor, unsubscribed, persistedEventTypes
   ) where
 

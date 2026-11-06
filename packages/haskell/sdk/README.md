@@ -7,7 +7,7 @@ as the other Semiont SDKs. It currently provides protocol types, checked
 identifiers, a typed bus and common carrier runtime, read-only state,
 scoped operation consumption, retry support, and launcher discovery.
 HTTP/SSE and content adapters and the client facade are available, including
-the Frame, Auth and System namespaces. Claims, held jobs and durable worker
+the Frame, Bind, Beckon, Job, Auth and System namespaces. Claims, held jobs and durable worker
 commits are available. The other namespaces, sign-in, delegation, live queries,
 registry and state units are still being implemented.
 
@@ -86,7 +86,7 @@ refuses further reads.
 The Haskell client will implement the same namespaces and methods as the
 [client surface](../../../protocol/specs/src/client/surface.json). Typed
 channel and operation descriptors already exist in `Semiont.Channels`;
-Frame, Auth and System namespace methods are available; the remaining namespace
+Frame, Bind, Beckon, Job, Auth and System namespace methods are available; the remaining namespace
 methods are still being implemented. See the
 [builder guide](../../../docs/builder/README.md) for the shared model.
 

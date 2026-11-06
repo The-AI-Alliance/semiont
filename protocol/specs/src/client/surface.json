@@ -328,7 +328,6 @@
     {
       "namespace": "bind",
       "docs": "Linking a reference to what it refers to.",
-      "notYetReached": {"haskell": "The Haskell client is still to implement this namespace and its operation lifetimes."},
       "methods": [
         {
           "method": "body",
@@ -560,7 +559,6 @@
     {
       "namespace": "beckon",
       "docs": "Attention: driving the other participants' viewers, and this viewer's own signals.",
-      "notYetReached": {"haskell": "The Haskell client is still to implement this namespace and its operation lifetimes."},
       "methods": [
         {
           "method": "attention",
@@ -609,7 +607,6 @@
     {
       "namespace": "job",
       "docs": "Jobs: their lifecycle as it is announced, their status, their cancellation, and, for a worker, the claiming of them.",
-      "notYetReached": {"haskell": "The Haskell client is still to implement this namespace and its operation lifetimes."},
       "methods": [
         {
           "method": "queued",

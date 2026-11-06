@@ -361,13 +361,14 @@
     "generated/Semiont/Internal/Generated/WorkerChannels.hs": "c48c5494a2ce12d6840296216b086f1cdbd49adad82a8cd9f95d8b6b6f43626b",
     "generated/Semiont/Worker/Types.hs": "a4a8399744a282e795370f24908cf35084ddd55b34ed220d47848ced46ddd76f",
     "internal/Semiont/Internal/Broadcast.hs": "81a79b90958a3dc3dc12bc14989e7ce337eb5ec6c34c3be0ebf5c375d80089d0",
-    "internal/Semiont/Internal/Bus.hs": "4e826d88dc540e629d3437430580c80454429939a40fbe13ba4c84f6f3597eac",
+    "internal/Semiont/Internal/Bus.hs": "faf19fbfd50ca11d345ffc922b8bd67215f28d642cf8e22b9e6a0532d4c9b55d",
     "internal/Semiont/Internal/Codec.hs": "fbc8af29dc06bc97706d979907ec37e53ae83273b7efb65283a33e81211c56fa",
     "internal/Semiont/Internal/Delivery.hs": "2fa0818ab8d07cde41a2650fedea8663592777cf9eb522e2c757859ab569dd84",
     "internal/Semiont/Internal/Http.hs": "d60236efacc71c7c02c9b1e2ccf0e4fad064f69db9b0f035d79ca90778796f70",
     "internal/Semiont/Internal/HttpActor.hs": "6cf0c01dfcbfb95e9e3cb4a659a53a3e7c392e192426daec4b4877b19e784932",
     "internal/Semiont/Internal/HttpContent.hs": "a157d792ba855736e5b7f2b0a114c9fb351286c731602d6c9cdc4a7a51bc056c",
     "internal/Semiont/Internal/Lifetime.hs": "3a4d989183bb3fba34141cad5214ce37117e335584171d6a98648c95b3ddec5e",
+    "internal/Semiont/Internal/Local.hs": "217ad44d8ee7d7a8500c2a1ada04c7923f6adfb561dcb66e3be92d78ce7805c6",
     "internal/Semiont/Internal/Required.hs": "62a63c0773205238070d679e5a80d5e74f4a18483e0d01434db81499843d6671",
     "internal/Semiont/Internal/RetryPolicy.hs": "baf4eba213d5e252a7ec3a62fd4745680f951c264e67f9b4fcfc64176e7a3028",
     "internal/Semiont/Internal/Running.hs": "07479987021cf84e1a1803ba8bffff076514e3669c82f5fd90f14bddc1770482",
@@ -375,26 +376,29 @@
     "internal/Semiont/Internal/Sse.hs": "763dad6ddfaf6e0f676d3dcc533957f6ec54e530da7d5e8d719b5f0ac081f72b",
     "internal/Semiont/Internal/StateValue.hs": "39c7d8e97a6b4f0912f6a5b518997842f87ac4009afdff9e0b7756731205154c",
     "internal/Semiont/Internal/Telemetry.hs": "3e4116285bbb9ed281c0d0c8608f8267213bd68674bafb4acbd1f08a226fa7c0",
-    "internal/Semiont/Internal/Transport.hs": "9eb3f38052bb3be66866a48c11313c3bfce50c6a04ad2463a631e1b42bddecd9",
+    "internal/Semiont/Internal/Transport.hs": "ef57f7c69e46f3f85e268ad64b3caf363ecde0c3bc890b95c7b541522b2056c6",
     "public-api.inputs.json": "150c411495a0d0dc5cb417a4c7063103bc2fcce758c1ec5e88b955f223d6ebfe",
-    "semiont.cabal": "f0c2824970d9027ad47859305fb3a7d66dc6b3b45cb03dcc742bda11bbecbcbc",
-    "semiont.cabal.in": "0be452f4b58333a1d37bf2debd42914f17771ce12704baa328610c949cb860f7",
+    "semiont.cabal": "0c613d4014fe4d93a532f5525867d19ba9a85b89810b9b6931afdc2efac281c8",
+    "semiont.cabal.in": "379f2b45a8f6d9915d0ae913f54f52cdd3314e77b9428fdef965cd26354e4bfc",
     "src/Semiont/Auth.hs": "1b82d21a297f0b724242094ddb763c0ebf70dffbb2c4d208468dc3c03b9b945d",
+    "src/Semiont/Beckon.hs": "c6e90eab2db81fbb73f990c15eb6e818051b2790ffdaf4f7a2ff29fdccc5ecff",
+    "src/Semiont/Bind.hs": "d9b8650a082e92e679d6e69341cb3253aa8a8fd81b6f511fe2a2b1cd5b17745b",
     "src/Semiont/Bus.hs": "b721fd2f9528fd174ae80422b5525563a30cfa70dbd5b1dbe00d58cef7af3c77",
     "src/Semiont/Channels.hs": "54992808f1254897811d1745b23343b353c5cbb0453bc18168c816c78953255d",
     "src/Semiont/Claims.hs": "c56dd2175b12fd1fc44126e4298f93dcb2ba4b20894e33710434e5d74db3b95d",
-    "src/Semiont/Client.hs": "ddbefcf00b338600942ace1b05cccca673960e7997c982caf4e38570cf63ece9",
+    "src/Semiont/Client.hs": "5451df81a7a60bd5bd1f8513749dbb5fe5b4cab35c84a993f6485abad1620692",
     "src/Semiont/Content.hs": "95514c7d127c98be19baab81d6ff1604e46c3f24747964dcd2281595aa7f1ab4",
     "src/Semiont/Discovery.hs": "ebfc710854ff3d7c057fe1cc412768752f80da27b2d8213295cb8a1f1518265a",
     "src/Semiont/Discovery/Reasons.hs": "9e1d9a770326b331ee43e8e2e3df33c4d25c5f77203c0341b4238f4d9e0f50e3",
     "src/Semiont/ErrorCodes.hs": "f1759d178779f632947eddab1991a7edcf8b3a08a92f0e8a5f770ea65f312917",
     "src/Semiont/Errors.hs": "9cf57463e3c025e96fa610a9141ec6bf052d16353816d793f911be0427f16b0f",
     "src/Semiont/EventBus.hs": "561b85f3dbdee8f0fcb381d27d708aa6430fef4486bca7fbea75990ce1587a43",
-    "src/Semiont/Frame.hs": "d0f6d3a82dce7a4864959d629e8f53e3341a648aa662830047f5ee2c42ee9fdb",
+    "src/Semiont/Frame.hs": "c6fc7a71e1842255ff4a982ee8f802a6d7044a2bfc3ed09bc4798bd24b6a2798",
     "src/Semiont/Gateway.hs": "5e890ffe0811f88d2a8b9dab01e32616d735326ee11ed2151a2d9454499a8c11",
     "src/Semiont/HostName.hs": "2eb5a6a767564649e59677a5d578e429df7be46d5636bf01ff9a8820ebb2ef77",
     "src/Semiont/Http.hs": "b987e9f5a4cafc9e0add0ccea5358a84a202f550eda313650ca09be89f3e2571",
     "src/Semiont/Http/Routes.hs": "6e2af1ff1afd238a2226e0796bac2fc1e931b996436bfe2bbbf5ea066c78eb7c",
+    "src/Semiont/Job.hs": "0b667310b04ac97b5b4a87e3357875fd686427732c56caf3635eca7610a3300f",
     "src/Semiont/JobFilter.hs": "8c8309e1f86d20d211b1ec3020d27bda851e2b08f763e785a4d8e8fe2717dc13",
     "src/Semiont/Retry.hs": "c13b609b5f6e29bfea5156e592e4a652462be405b75ef6ad7fd64953022b9bf6",
     "src/Semiont/Running.hs": "168b8478bf820fa7eae3c74c4699b7af7e0baeb929c4b380e966f91e0dd76fe7",
@@ -421,6 +425,37 @@
         "mediaToken": "Semiont.Auth.AuthNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Internal.Generated.Models.MediaTokenResponse.MediaTokenResponse",
         "newAuth": "Semiont.Gateway.GatewayOperations -> Semiont.Auth.AuthNamespace",
         "protectedResourceMetadata": "Semiont.Auth.AuthNamespace -> IO Semiont.Internal.Generated.Models.ProtectedResourceMetadata.ProtectedResourceMetadata"
+      }
+    },
+    "Semiont.Beckon": {
+      "types": {
+        "BeckonNamespace": {
+          "definition": "data Semiont.Beckon.BeckonNamespace = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "attention": "Semiont.Beckon.BeckonNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Maybe Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> IO (Maybe Integer)",
+        "click": "Semiont.Beckon.BeckonNamespace -> Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> IO (Maybe Integer)",
+        "hover": "Semiont.Beckon.BeckonNamespace -> Maybe Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> GHC.Internal.Conc.Sync.STM ()",
+        "newBeckon": "Semiont.Internal.Bus.Bus -> Semiont.Internal.Transport.EventBus -> Semiont.Beckon.BeckonNamespace",
+        "openResource": "Semiont.Beckon.BeckonNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO (Maybe Integer)",
+        "sparkle": "Semiont.Beckon.BeckonNamespace -> Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> GHC.Internal.Conc.Sync.STM ()",
+        "sparkleAll": "Semiont.Beckon.BeckonNamespace -> Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> IO (Maybe Integer)"
+      }
+    },
+    "Semiont.Bind": {
+      "types": {
+        "BindNamespace": {
+          "definition": "data Semiont.Bind.BindNamespace = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "body": "Semiont.Bind.BindNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> [Semiont.Internal.Generated.Models.BindBodyOperation.BindBodyOperation] -> IO ()",
+        "initiate": "Semiont.Bind.BindNamespace -> Semiont.Internal.Generated.Models.BindInitiateCommand.BindInitiateCommand -> GHC.Internal.Conc.Sync.STM ()",
+        "newBind": "Semiont.Internal.Bus.Bus -> Semiont.Internal.Transport.EventBus -> Semiont.Timing.Settings.Settings -> Semiont.Bind.BindNamespace",
+        "reportBodyError": "Semiont.Bind.BindNamespace -> Semiont.Internal.Generated.Models.ResourceErrorEvent.ResourceErrorEvent -> GHC.Internal.Conc.Sync.STM ()"
       }
     },
     "Semiont.Bus": {
@@ -760,12 +795,15 @@
       "values": {
         "auth": "Semiont.Client.Client -> Maybe Semiont.Auth.AuthNamespace",
         "baseUrl": "Semiont.Client.Client -> Data.Text.Internal.Text",
+        "beckon": "Semiont.Client.Client -> Semiont.Beckon.BeckonNamespace",
+        "bind": "Semiont.Client.Client -> Semiont.Bind.BindNamespace",
         "bus": "Semiont.Client.Client -> Semiont.Internal.Transport.EventBus",
         "content": "Semiont.Client.Client -> Semiont.Content.ContentTransport",
         "dispose": "Semiont.Client.Client -> IO ()",
         "frame": "Semiont.Client.Client -> Semiont.Frame.FrameNamespace",
         "fromHttp": "Semiont.Internal.Http.HttpOptions -> IO Semiont.Client.Client",
-        "newClient": "Semiont.Internal.Transport.Transport -> Semiont.Content.ContentTransport -> Maybe Semiont.Gateway.GatewayOperations -> Semiont.Internal.Bus.BusOptions -> IO Semiont.Client.Client",
+        "job": "Semiont.Client.Client -> Semiont.Job.JobNamespace",
+        "newClient": "Semiont.Internal.Transport.Transport -> Semiont.Content.ContentTransport -> Maybe Semiont.Gateway.GatewayOperations -> Semiont.Internal.Bus.BusOptions -> Semiont.Timing.Settings.Settings -> IO Semiont.Client.Client",
         "state": "Semiont.Client.Client -> Semiont.Internal.StateValue.StateValue Semiont.Transport.Facts.ConnectionState",
         "system": "Semiont.Client.Client -> Maybe Semiont.System.SystemNamespace",
         "transport": "Semiont.Client.Client -> Semiont.Internal.Transport.Transport",
@@ -1029,7 +1067,7 @@
         "addEntityType": "Semiont.Frame.FrameNamespace -> Data.Text.Internal.Text -> IO ()",
         "addEntityTypes": "Semiont.Frame.FrameNamespace -> [Data.Text.Internal.Text] -> IO ()",
         "addTagSchema": "Semiont.Frame.FrameNamespace -> Semiont.Internal.Generated.Models.TagSchema.TagSchema -> IO ()",
-        "newFrame": "Semiont.Internal.Bus.Bus -> Semiont.Frame.FrameNamespace"
+        "newFrame": "Semiont.Internal.Bus.Bus -> Semiont.Timing.Settings.Settings -> Semiont.Frame.FrameNamespace"
       }
     },
     "Semiont.Gateway": {
@@ -1088,6 +1126,33 @@
         "newHttpClient": "Network.HTTP.Client.Types.ProxyOverride -> Network.HTTP.Client.Types.ManagerSettings -> IO Semiont.Internal.Http.HttpClient",
         "newHttpTransport": "Semiont.Internal.Http.HttpOptions -> IO Semiont.Http.HttpTransport",
         "transport": "Semiont.Http.HttpTransport -> Semiont.Internal.Transport.Transport"
+      }
+    },
+    "Semiont.Job": {
+      "types": {
+        "JobNamespace": {
+          "definition": "data Semiont.Job.JobNamespace = ...",
+          "kind": "*"
+        },
+        "PollOptions": {
+          "definition": "data Semiont.Job.PollOptions = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "PollOptions": "Integer -> Integer -> (Semiont.Internal.Generated.Models.JobStatusResponse.JobStatusResponse -> IO ()) -> Semiont.Job.PollOptions",
+        "cancel": "Semiont.Job.JobNamespace -> Semiont.Internal.Generated.Models.JobId.JobId -> IO Bool",
+        "claim": "Semiont.Job.JobNamespace -> Semiont.Worker.WorkerOptions -> IO Semiont.Worker.Claims",
+        "complete": "Semiont.Job.JobNamespace -> (Streaming.Internal.Stream (Data.Functor.Of.Of (Semiont.Internal.Bus.Heard Semiont.Internal.Generated.Models.JobCompleteCommand.JobCompleteCommand)) IO () -> IO result) -> IO result",
+        "fail": "Semiont.Job.JobNamespace -> (Streaming.Internal.Stream (Data.Functor.Of.Of (Semiont.Internal.Bus.Heard Semiont.Internal.Generated.Models.JobFailCommand.JobFailCommand)) IO () -> IO result) -> IO result",
+        "newJob": "Semiont.Internal.Bus.Bus -> Semiont.Internal.Transport.EventBus -> Semiont.Internal.Transport.Transport -> Semiont.Internal.Bus.BusOptions -> Semiont.Timing.Settings.Settings -> Semiont.Job.JobNamespace",
+        "pollIntervalMs": "Semiont.Job.PollOptions -> Integer",
+        "pollProgress": "Semiont.Job.PollOptions -> Semiont.Internal.Generated.Models.JobStatusResponse.JobStatusResponse -> IO ()",
+        "pollTimeoutMs": "Semiont.Job.PollOptions -> Integer",
+        "pollUntilComplete": "Semiont.Job.JobNamespace -> Semiont.Internal.Generated.Models.JobId.JobId -> Semiont.Job.PollOptions -> IO Semiont.Internal.Generated.Models.JobStatusResponse.JobStatusResponse",
+        "progress": "Semiont.Job.JobNamespace -> (Streaming.Internal.Stream (Data.Functor.Of.Of (Semiont.Internal.Bus.Heard Semiont.Internal.Generated.Models.JobReportProgressCommand.JobReportProgressCommand)) IO () -> IO result) -> IO result",
+        "queued": "Semiont.Job.JobNamespace -> (Streaming.Internal.Stream (Data.Functor.Of.Of (Semiont.Internal.Bus.Heard Semiont.Internal.Generated.Models.JobQueuedEvent.JobQueuedEvent)) IO () -> IO result) -> IO result",
+        "status": "Semiont.Job.JobNamespace -> Semiont.Internal.Generated.Models.JobId.JobId -> IO Semiont.Internal.Generated.Models.JobStatusResponse.JobStatusResponse"
       }
     },
     "Semiont.JobFilter": {

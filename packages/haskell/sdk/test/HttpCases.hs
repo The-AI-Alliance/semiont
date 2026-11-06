@@ -77,7 +77,7 @@ httpCases root fixtures = do
         { managerModifyRequest = \asked -> modifyIORef' hookRequests (+ 1) >> pure asked }
       http <- Http.newHttpTransport (options pool)
       let busOptions = Bus.BusOptions (Retry.retryNow time) (Retry.retryWaitUntil time) (UUID.toText <$> fresh)
-      client <- Client.newClient (Http.transport http) (Http.content http) (Just (Http.gateway http)) busOptions
+      client <- Client.newClient (Http.transport http) (Http.content http) (Just (Http.gateway http)) busOptions Settings.protocolSettings
       let contents = Client.content client
           fromFixture name = case Map.lookup name fixtures of
             Nothing -> error ("test fixture missing: " ++ Text.unpack name)

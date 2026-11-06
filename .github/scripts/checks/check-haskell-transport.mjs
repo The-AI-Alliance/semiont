@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** Hold Haskell's common transport and typed bus to the reference interfaces. */
 import { existsSync, readFileSync } from 'node:fs';
+import { posix } from 'node:path';
 
 const read = (path) => readFileSync(path, 'utf8');
 const inventory = JSON.parse(read('packages/haskell/sdk/public-api.json'));
@@ -75,6 +76,36 @@ if (!workerProtocol) throw new Error('missing worker driver protocol operations'
 const workerOperations = new Set([...workerProtocol.matchAll(/^\| `([^`]+)` \|/gm)].map((match) => match[1]).filter((name) => name !== 'op'));
 same('Haskell worker driver operations', workerOperations,
   new Set([...dispatch('workerPerform'), ...[...implemented].filter((name) => workerOperations.has(name))]));
+
+// Every registered driver must reach the CI job that runs it. A locally
+// installed binary cannot establish that an artifact crosses a job boundary.
+const workflow = read('.github/workflows/ci.yml');
+const jobHeaders = [...workflow.matchAll(/^  ([a-z][a-z0-9-]+):\n/gm)];
+const jobs = new Map(jobHeaders.map((header, index) => [header[1], workflow.slice(header.index, jobHeaders[index + 1]?.index ?? workflow.length)]));
+const implementations = JSON.parse(read('protocol/conformance/semiont.implementations.json')).sdks.haskell;
+const wireFile = posix.normalize(posix.join('protocol/conformance', implementations.wire[0]));
+const driverDirectory = posix.dirname(wireFile);
+const artifact = (job, action) => job.split(/^      - name:/m).flatMap((step) => {
+  if (!step.includes(`uses: actions/${action}-artifact@`)) return [];
+  const name = /^          name: (\S+)$/m.exec(step)?.[1];
+  const path = /^          path: (\S+)$/m.exec(step)?.[1];
+  return name && path ? [{ name, path }] : [];
+});
+const producers = [...jobs].flatMap(([name, job]) => artifact(job, 'upload').filter((item) => item.path === driverDirectory).map((item) => ({ job: name, ...item })));
+if (producers.length !== 1) throw new Error(`Haskell driver needs one artifact producer, found ${producers.length}`);
+const [producer] = producers;
+for (const [role, name] of [['wire', 'sdk-conformance'], ['worker', 'worker-conformance']]) {
+  if (!implementations[role]) throw new Error(`Haskell has no registered ${role} driver`);
+  const job = jobs.get(name);
+  if (!job) throw new Error(`no CI job consumes Haskell's ${role} driver: ${name}`);
+  const needs = /^    needs: \[([^\]]+)\]$/m.exec(job)?.[1].split(',').map((part) => part.trim());
+  if (!needs?.includes(producer.job)) throw new Error(`${name} does not await ${producer.job}`);
+  const fetched = artifact(job, 'download').some((item) => item.name === producer.name && item.path === producer.path);
+  if (!fetched) throw new Error(`${name} does not download ${producer.name} to ${producer.path}`);
+  if (!job.includes(`chmod +x ${wireFile}*`)) throw new Error(`${name} does not restore the Haskell driver's executable modes`);
+}
+const runner = (name) => /^    runs-on: (\S+)$/m.exec(jobs.get(name))?.[1];
+if (!runner('sdk-conformance') || runner('worker-conformance') !== runner('sdk-conformance')) throw new Error('Haskell wire and worker drivers need the same native runtime host');
 same('Haskell transport', declaredMembers(transportSource, 'export interface ITransport {'), haskellMembers('Semiont.Transport', 'Transport'));
 same('Haskell typed bus', declaredMembers(read('packages/typescript/core/src/bus.ts'), 'export class Bus {'), haskellMembers('Semiont.Bus', 'Bus'));
 same('Haskell content transport', declaredMembers(transportSource, 'export interface IContentTransport {'), haskellMembers('Semiont.Content', 'ContentTransport'));
