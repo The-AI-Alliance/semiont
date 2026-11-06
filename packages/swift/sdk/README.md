@@ -132,12 +132,14 @@ the resource's event subscription until iteration ends. Call `fresh()` to ask
 the service directly and share its answer with observers. Disposing the client
 ends the sequences.
 
-Pass `CachePersistence(storage:keyPrefix:)` as the client's `persistence` option
-to keep resource details, annotations, and vocabulary in application-provided
-`SessionStorage`. Use a distinct prefix for each knowledge base. The first
-observation shows the saved value while asking for a current one. The HTTP
-transport resumes saved resource scopes from bookmarks committed with the cache.
-Disposal flushes pending settled values.
+Pass `CachePersistence(storage:kbId:personKey:)` (the key from `personKey(_:)`)
+as the client's `persistence` option to keep resource details, annotations, and
+vocabulary in application-provided `SessionStorage` for one person, one key per
+query. The first observation shows the saved value while asking for a current
+one. The HTTP transport resumes saved resource scopes from bookmarks committed
+with the cache. Disposal flushes pending settled values. A registry's session
+keeps for the person once its stored sign-in names them, and forgetting that
+sign-in, however it is forgotten, deletes what was kept.
 
 ## Signing in and managing a session
 
@@ -210,7 +212,7 @@ Use `MarkStateUnit` to compose annotations and follow delegated work,
 context, and `MatchStateUnit` for searches requested on the local bus.
 `BeckonStateUnit`, `HoverDwell`, and `SearchPipeline` hold attention and
 search input. `SessionSignals` carries session notices. `Cache` offers the
-same read-through queries for app data, with optional `CachePersistence`.
+same read-through queries for app data, with an optional `StoragePersister`.
 
 Call `dispose()` on a state unit to cancel its work and finish its streams.
 The app owns the client it handed the unit. Await `SemiontBrowser.close()`

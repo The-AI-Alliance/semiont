@@ -382,14 +382,18 @@ async def watch(client: SemiontClient[Transport], resource: ResourceId) -> None:
   listens for the events. After the client closes, a watcher is given
   nothing and a read is refused as `bus.closed`.
 - **A client can keep what its small queries hold**
-  (`SemiontClient(..., persistence=CachePersistence(storage=..., key_prefix=...))`),
-  in a `semiont.storage.SessionStorage` the application supplies: a
-  resource's description, its annotations, one annotation, the entity types,
-  the tag schemas. The next client over the same storage shows them at once
-  and asks for each anew the first time it is watched.
-  `session_from_kept(..., storage=...)` does this for a session, and keeps the
+  (`SemiontClient(..., persistence=CachePersistence(storage=..., kb_id=...,
+  person_key=person_key(did)))`), in a `semiont.storage.SessionStorage` the
+  application supplies, for one person, one key per query: a resource's
+  description, its annotations, one annotation, the entity types, the tag
+  schemas. The next client of the same knowledge base and person shows them
+  at once and asks for each anew the first time it is watched.
+  `session_from_kept(..., storage=...)` does this for a session once the
+  gateway names its person and its kept sign-in records them, and keeps the
   stream's place in each resource's scope with it (`semiont.resume`), so the
-  next session is sent what was recorded since.
+  next session is sent what was recorded since. Forgetting a registry's
+  stored sign-in, however it is forgotten, deletes what was kept for its
+  person.
 
 The behaviours every SDK's live queries are held to are numbered in
 [the cache's semantics][cache-semantics].

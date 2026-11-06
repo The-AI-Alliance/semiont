@@ -211,10 +211,12 @@ stream as an observable, reference `System.Interactive.Async` in the host
 project and import `System.Linq`. Then call
 `client.Browse.Resource(resourceId).ToObservable()`.
 
-Supply `CachePersistence` when constructing a client to keep selected values
-and their replay bookmarks across sessions. Use a separate document for each
-knowledge base and principal. Its `Write` callback should replace the whole
-document atomically. A restored value is visible immediately and revalidated
+Supply `CachePersistence(storage, kbId, RegistryStorage.PersonKey(did))` when
+constructing a client to keep its persisted queries and their replay bookmarks
+across sessions for that person, one key per query. A registry's
+`HttpSessionFactory` keeps for the person from when the knowledge base's stored
+sign-in names them, and forgetting that sign-in, however it is forgotten,
+deletes what was kept. A restored value is visible immediately and revalidated
 when first read.
 
 ## State units

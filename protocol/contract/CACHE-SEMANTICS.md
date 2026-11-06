@@ -368,12 +368,20 @@ to starve.
 
 An optional `CachePersister` on `createCache` (and the
 `sessionStoragePersister` adapter over the `SessionStorage` seam) gives a
-cache durable, per-KB rehydration:
+cache durable rehydration, for one person on one knowledge base:
 
-1. **Load-on-construct.** `persister.load()` seeds the store before the
-   first observation, so a rehydrated key serves **synchronously** — no
-   `pending` flash, no waiting on the wire to paint. (It does issue one
-   revalidation request; see B18.)
+1. **Load-on-construct, or on attach.** When the client is made knowing
+   its person (its stored sign-in names them), `persister.load()` seeds
+   the store before the first observation, so a rehydrated key serves
+   **synchronously** — no `pending` flash, no waiting on the wire to
+   paint. (It does issue one revalidation request; see B18.) A client made
+   before the gateway has named its person keeps nothing (it reads, writes
+   and resumes from nothing kept) until the gateway names them; then its
+   persisted caches attach: what was kept fills only the keys the cache
+   does not already hold, each marked as restored (B18), saves begin, and
+   the transport takes the kept watermarks only for the scopes it holds
+   none for. A client whose session never asks who its token is keeps
+   nothing.
 2. **Rehydrated data is stale-until-reconciled**, and reconciliation is
    **two independent layers** — neither sufficient alone:
    - *Replay*, when it is available: the transport reconnects with each
@@ -407,6 +415,22 @@ cache durable, per-KB rehydration:
    longest without a new value until it fits.
 5. **Version-gated.** A stored document whose version doesn't match (or
    that fails to parse) reads as empty — never an error into the cache.
+6. **One person's, and forgotten with their sign-in.** What is kept is
+   kept under keys that name the knowledge base and the person the gateway
+   says the token is, one key for each query
+   [`refresh.json`](../specs/src/client/refresh.json) marks `persisted`
+   and one for the watermarks
+   ([`stored.json`](../specs/src/session/stored.json), `cacheKeyPrefix`
+   and `lastEventIdKeyPrefix`). Forgetting a saved sign-in, however it is
+   forgotten — signing out, removing the knowledge base, the issuer
+   refusing a renewal, the gateway refusing a renewed token — deletes
+   every one of its person's keys on that knowledge base, after the
+   client has closed or once it writes nothing more. A client whose
+   sign-in is stored beside what it keeps checks at every write that the
+   stored sign-in still names its person: one whose
+   sign-in another context deleted, or replaced with one that does not
+   name its person, discards what it has not written and writes nothing
+   more.
 
 ### B18 — A restored-from-disk value is revalidated on first observation
 

@@ -601,14 +601,24 @@ cold-starting every request. In the browser this is on by default (the react-ui
 `SemiontProvider` supplies `WebBrowserStorage`); a desktop or Node host gets it by
 supplying its own `SessionStorage` — no other wiring.
 
-What persists, per KB:
-- Five browse caches — resource descriptors, annotation lists, annotation details,
-  entity types, tag schemas — under `semiont.cache.<kbId>.<name>`. Lists, event
-  histories, and the engines deliberately stay in-memory.
+What persists, per KB and per person (`<p>` is `personKey(did)` of the did the
+gateway answers for the token, recorded on the stored sign-in once it answers):
+- Five browse caches — the queries `refresh.json` marks `persisted`: `resource`,
+  `annotations`, `annotation`, `entityTypes`, `tagSchemas` — under
+  `semiont.cache.<kbId>.<p>.<name>`. Lists, event histories, and the engines
+  deliberately stay in-memory.
 - The last **persisted** SSE event id PER SCOPE (a record under
-  `semiont.lastEventId.<kbId>`), written only alongside cache-document flushes
+  `semiont.lastEventId.<kbId>.<p>`), written only alongside cache-document flushes
   so the bookmark can never claim more than the caches contain. Ephemeral
   (`e-*`) ids are never saved: they carry no replay meaning.
+
+A session whose stored sign-in already names its person loads these as its client
+is made; one whose gateway has not yet named the person keeps nothing until it does,
+then attaches them. Forgetting the saved sign-in — signing out, removing the
+knowledge base, the issuer refusing a renewal, the gateway refusing a renewed
+token — deletes every one of these keys of its person. A client whose stored
+sign-in another tab deletes, or replaces with one that does not name its person,
+discards what it has not written.
 
 How reconciliation works — there is no reconcile code path, only the existing
 contract: rehydrated entries serve immediately (plus one background
@@ -623,11 +633,11 @@ debounced with a flush on dispose, and stored documents are version-gated
 Constructing a client directly (no factory)? Opt in explicitly:
 
 ```ts
-import { SemiontClient, HttpTransport, HttpContentTransport, baseUrl as brandBaseUrl } from '@semiont/sdk';
+import { SemiontClient, HttpTransport, HttpContentTransport, baseUrl as brandBaseUrl, personKey } from '@semiont/sdk';
 
 const raw = new HttpTransport({ baseUrl: brandBaseUrl('http://localhost:4000'), token$ });
 const client = new SemiontClient(raw, new HttpContentTransport(raw), raw, {
-  cachePersistence: { storage, keyPrefix: kbId },
+  cachePersistence: { storage, kbId, personKey: personKey(did) },
 });
 ```
 

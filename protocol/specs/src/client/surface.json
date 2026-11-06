@@ -1418,7 +1418,7 @@
     },
     {
       "module": "storagePersister",
-      "docs": "Where a client keeps its queries' values: a session storage, under one key, kept within a size.",
+      "docs": "Where a client keeps its queries' values: a session storage, one key for each query it keeps for the person signed in, each kept within a size.",
       "where": {
         "csharp": ["packages/csharp/sdk/src/Semiont"],
         "swift": [
