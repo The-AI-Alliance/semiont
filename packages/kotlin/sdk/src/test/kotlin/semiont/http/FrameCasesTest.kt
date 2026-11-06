@@ -1,23 +1,95 @@
 package semiont.http
 
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.transformWhile
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.Spec
+import semiont.bus.Bus
+import semiont.bus.Delivered
 import semiont.bus.Fault
+import semiont.bus.FrameRefusal
 import semiont.bus.FrameRefusalReason
+import semiont.bus.Heard
+import semiont.bus.UNDECODED
+import semiont.channels.Channels
+import semiont.errors.SemiontError
+import semiont.errors.TransportError
+import semiont.errors.TransportErrorCode
 import semiont.sameJson
-import semiont.types.BusFrame
-import semiont.types.wireJson
+import semiont.transport.Frame
+import semiont.types.BeckonFocusEvent
 
-/** The stream's reader, held to protocol/specs/src/bus/frame-cases.json: the table every SDK's stream reader runs. */
+/** The channel every case told to its readers is on, read here by type. */
+private val READ = Channels.BECKON_FOCUS
+
+/** A line that names no channel: what the failure report is told after each case's line. */
+private const val NAMES_NO_CHANNEL = "{"
+
+/** The frame each case's line is followed by, read cleanly. */
+private val AFTER = """{"channel": "${READ.name}", "payload": {"resourceId": "after"}}"""
+
+private fun isAfter(heard: Heard<BeckonFocusEvent>): Boolean = heard is Delivered && heard.payload.resourceId.value == "after"
+
+/** What the failure report is told of a line with `fault`. */
+private fun told(fault: Fault) = Triple(TransportErrorCode.Error, null, "the stream carried what is not a frame: $fault")
+
+/** What `failure` says, as `told` states it. */
+private fun said(failure: SemiontError) = assertInstanceOf(TransportError::class.java, failure).let { Triple(it.reason, it.status, it.message) }
+
+/** What came, up to the first that `last` holds of, and without it. */
+private suspend fun <T> Flow<T>.before(last: (T) -> Boolean): List<T> =
+    withTimeout(5_000) {
+        transformWhile {
+            emit(it)
+            !last(it)
+        }.toList()
+    }.dropLast(1)
+
+/** `frame` as the wire states one. */
+private fun written(frame: Frame): JsonObject = JsonObject(
+    buildMap {
+        put("channel", JsonPrimitive(frame.channel))
+        put("payload", frame.payload)
+        frame.correlationId?.let { put("correlationId", JsonPrimitive(it)) }
+        frame.scope?.let { put("scope", JsonPrimitive(it.value)) }
+    },
+)
+
+/** A transport over a stand-in gateway, its stream open, for `read`. */
+private fun carrying(read: suspend (StreamGateway, HttpTransport) -> Unit) = runBlocking {
+    StreamGateway().use { gateway ->
+        HttpTransport(gateway.origin, MutableStateFlow("t"), listOf(READ.name, Channels.BROWSE_RESOURCE_RESULT.name)).use { transport ->
+            withTimeout(5_000) { while (gateway.subscriptions.isEmpty()) delay(5) }
+            read(gateway, transport)
+        }
+    }
+}
+
+/**
+ * The stream's reader, held to protocol/specs/src/bus/frame-cases.json: the
+ * table every SDK's stream reader runs. Each case's line is carried on a
+ * stand-in gateway's stream, followed by a line that names no channel and a
+ * frame of `beckon:focus` read cleanly. What the transport delivers, what a
+ * typed read of `beckon:focus` is given before that frame, and what the
+ * failure report is told before that line are each held to the case; the
+ * frame's coming shows the stream went on.
+ */
 class FrameCasesTest {
     private val cases: List<JsonObject> = Spec.read("bus/frame-cases.json").jsonObject.getValue("cases").jsonArray.map { it.jsonObject }
 
@@ -36,13 +108,19 @@ class FrameCasesTest {
     }
 
     @TestFactory
-    fun aFrameBusFrameAllowsIsReadAsItStatesIt(): List<DynamicTest> = delivered.map { case ->
+    fun aFrameBusFrameAllowsIsDeliveredAsItStatesIt(): List<DynamicTest> = delivered.map { case ->
         DynamicTest.dynamicTest(case.why()) {
             assertEquals(setOf("why", "frame"), case.keys)
-            val read = carried(case.getValue("frame").toString())
-            assertTrue(read is Carried.Read, "it is $read")
-            val written = wireJson.encodeToJsonElement(BusFrame.serializer(), (read as Carried.Read).frame)
-            assertTrue(sameJson(case.getValue("frame"), written), "it is read as $written")
+            val stated = case.getValue("frame").jsonObject
+            carrying { gateway, transport ->
+                val frames = transport.frames(stated.getValue("channel").jsonPrimitive.content)
+                val failures = transport.failures()
+                gateway.send("e-1", stated.toString())
+                gateway.send("e-2", NAMES_NO_CHANNEL)
+                val frame = withTimeout(5_000) { frames.firstOf(1) }.single()
+                assertTrue(sameJson(stated, written(frame)), "it is delivered as $frame")
+                assertEquals(listOf(told(UNDECODED)), withTimeout(5_000) { failures.firstOf(1) }.map(::said))
+            }
         }
     }
 
@@ -53,15 +131,29 @@ class FrameCasesTest {
             val frame = case["frame"]?.jsonObject
             assertEquals(setOf("why", if (line == null) "frame" else "data", "refused", "member", "reason", "told"), case.keys)
             val reason = FrameRefusalReason.entries.single { it.wire == case.getValue("reason").jsonPrimitive.content }
-            val channel = when (val told = case.getValue("told").jsonPrimitive.content) {
-                "readers" -> checkNotNull(frame).getValue("channel").jsonPrimitive.content
-                "failure-report" -> null
-                else -> error("told to whom the table does not give: $told")
+            val fault = Fault(case.getValue("member").jsonPrimitive.content, reason)
+            carrying { gateway, transport ->
+                val typed = Bus(transport).frames(READ)
+                val failures = transport.failures()
+                gateway.send("e-1", line ?: checkNotNull(frame).toString())
+                gateway.send("e-2", NAMES_NO_CHANNEL)
+                gateway.send("e-3", AFTER)
+                val heard = typed.before(::isAfter)
+                when (val whom = case.getValue("told").jsonPrimitive.content) {
+                    "readers" -> {
+                        assertEquals(READ.name, checkNotNull(frame).getValue("channel").jsonPrimitive.content)
+                        val refusal = assertInstanceOf(FrameRefusal::class.java, heard.single())
+                        assertEquals(Triple(READ.name, fault.member, fault.reason), Triple(refusal.channel, refusal.member, refusal.reason))
+                        assertEquals(frame["payload"], refusal.payload)
+                        assertEquals(listOf(told(UNDECODED)), withTimeout(5_000) { failures.firstOf(1) }.map(::said))
+                    }
+                    "failure-report" -> {
+                        assertEquals(emptyList<Heard<BeckonFocusEvent>>(), heard)
+                        assertEquals(listOf(told(fault), told(UNDECODED)), withTimeout(5_000) { failures.firstOf(2) }.map(::said))
+                    }
+                    else -> error("told to whom the table does not give: $whom")
+                }
             }
-            assertEquals(
-                Carried.Refused(Fault(case.getValue("member").jsonPrimitive.content, reason), channel),
-                carried(line ?: checkNotNull(frame).toString()),
-            )
         }
     }
 }
