@@ -69,8 +69,8 @@ public struct Bus: Sendable {
 /// the frame that answers it on the operation's result channel. It fails as timed out once
 /// `timeoutMs` has passed on `clock` since it was asked, whatever the transport, which keeps no
 /// deadline of its own. Every request the SDK makes is made here: a bus's, a worker's claim and a
-/// held job's commit. `parent` is the trace it is sent in, and `enqueued` is told when it is
-/// handed to the wire.
+/// held job's commit. `parent` is the trace the HTTP transport sends it in. `enqueued` is told when
+/// the HTTP transport hands it to the wire, and over any other transport once its reply has come.
 package func resultOf(
   _ operation: String, _ payload: [String: JSONValue], over transport: any Transport,
   timeoutMs: Int, clock: any Clock<Duration>, parent: [String: String]? = nil,
