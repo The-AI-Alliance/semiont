@@ -1,6 +1,5 @@
 using Semiont.Http;
 using Semiont.Namespaces;
-using Semiont.Protocol;
 
 namespace Semiont;
 
@@ -12,7 +11,7 @@ public sealed class SemiontClient : IDisposable
 
     public SemiontClient(string baseUrl, string? token = null, HttpClient? httpClient = null,
         TimeProvider? timeProvider = null, Random? random = null, Timing? timing = null, CachePersistence? persistence = null)
-        : this(new HttpTransport(baseUrl, token, ProtocolFacts.Channels("everyone").Concat(BusRegistry.ReplyChannelsFor(ProtocolFacts.Requests())),
+        : this(new HttpTransport(baseUrl, token, BusRegistry.FullClientChannels,
             timing: timing, httpClient: httpClient, timeProvider: timeProvider, random: random), persistence)
     {
     }

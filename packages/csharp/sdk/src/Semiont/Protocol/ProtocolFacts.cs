@@ -24,8 +24,6 @@ internal static class ProtocolFacts
             operation.GetProperty("result").GetString() ?? throw new InvalidOperationException("Missing result channel"),
             operation.GetProperty("failure").GetString() ?? throw new InvalidOperationException("Missing failure channel")));
 
-    internal static IEnumerable<string> Requests() => Operations().Select(operation => operation.Request);
-
     internal static (string Result, string Failure) Operation(string channel)
     {
         var (_, result, failure) = Operations().Single(operation => operation.Request == channel);
