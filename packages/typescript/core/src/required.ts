@@ -1,44 +1,66 @@
 /**
- * What a value lacks to be one of the spec's component schemas, as far as its
- * members go.
+ * The first fault of a value as one of the spec's component schemas: a member
+ * it lacks, or one that is not what its schema allows.
  *
- * Rust, Python and Kotlin decode a reply as the type their generators write of
- * its schema, and that decoding refuses a reply that lacks a member the schema
- * requires, wherever the member is. This SDK does not decode: it holds every
- * reply it reads to what its schema requires instead, and refuses one that
- * lacks a member, as they do. What each schema requires is generated from the
- * spec (`generated/required-schemas.ts`, by the rules of
- * packages/codegen/schemas/required-members.mjs, which Go's table is read by too). It is
- * not a validator of the schemas: a member of the wrong kind is no member
- * missing.
+ * Every SDK holds a reply to what its schema requires before it reads it, and
+ * names the first fault it finds the same way, by the same table: what each
+ * schema requires is generated from the spec (`generated/required-schemas.ts`,
+ * by the rules of packages/codegen/schemas/required-shapes.mjs, which every SDK's table is
+ * written by). This SDK does not decode a reply: it refuses one with a fault,
+ * as every other SDK refuses it, and reads the rest as its schema's type.
  */
 
+import { byCodePoint } from './by-code-point';
 import { REQUIRED_SCHEMAS } from './generated/required-schemas';
 import type { components } from './types';
 
 /** A component schema of the spec, by its name. */
 type SchemaName = keyof components['schemas'];
 
-/** The kind of a JSON value, as a schema names it. */
-type Kind = 'object' | 'array' | 'string' | 'number' | 'boolean' | 'null';
+/** The kind of a JSON value, as a schema names it. An integer is a number with no fractional part. */
+type Kind = 'object' | 'array' | 'string' | 'integer' | 'number' | 'boolean' | 'null';
 
-/** One of the shapes a union may be, and the kinds of value it is. */
-interface Variant {
-  readonly kinds: readonly Kind[];
-  readonly shape: Shape;
+/** One step of a pattern: at least `min` of a text's next code points, and at most `max` (none: any number), each in one of the ranges `of`. */
+interface Step {
+  readonly of: readonly (readonly [number, number])[];
+  readonly min: number;
+  readonly max?: number;
 }
 
-/** What a value must carry, as far as its members go: packages/codegen/schemas/required-members.mjs states what each part means. */
+/** What a value must be: packages/codegen/schemas/required-shapes.mjs states what each part means. */
 export interface Shape {
   readonly ref?: SchemaName;
+  readonly kinds?: readonly Kind[];
+  readonly enum?: readonly (string | number | boolean)[];
+  readonly pattern?: readonly Step[];
+  readonly minLength?: number;
+  readonly maxLength?: number;
+  readonly minimum?: number;
+  readonly maximum?: number;
+  readonly minItems?: number;
+  readonly maxItems?: number;
   readonly required?: readonly string[];
-  readonly nullable?: readonly string[];
   readonly members?: { readonly [name: string]: Shape };
+  /** The only members an object may carry; none, where it may carry any. */
+  readonly closed?: readonly string[];
   readonly items?: Shape;
   readonly values?: Shape;
-  readonly oneOf?: readonly Variant[];
+  readonly oneOf?: readonly Shape[];
   readonly discriminator?: { readonly property: string; readonly mapping: { readonly [value: string]: number } };
   readonly allOf?: readonly Shape[];
+}
+
+/**
+ * The first thing wrong with a value: the way to the member it is at (the
+ * names of the members it is within, and its own, joined by dots; the empty
+ * way is the value itself), and why. `lacks`: the value does not carry the
+ * member, or the member holds null where it may not. `malformed`: the member
+ * is not what its schema allows (of another kind, another value, form or
+ * size), or is one a closed object does not name.
+ */
+export interface Fault {
+  readonly member: string;
+  readonly reason: 'lacks' | 'malformed';
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -63,97 +85,164 @@ function kindOf(value: unknown): Kind | undefined {
   }
 }
 
+/** Whether `kinds` allow `value`: none allow any, and an integer is a number with no fractional part. */
+function allows(kinds: readonly Kind[] | undefined, value: unknown): boolean {
+  if (kinds === undefined) return true;
+  const kind = kindOf(value);
+  if (kind === undefined) return false;
+  return kinds.includes(kind) || (kinds.includes('integer') && Number.isInteger(value));
+}
+
+/** `shape`, or the component it refers to. */
+function resolved(shape: Shape): Shape {
+  return shape.ref === undefined ? shape : resolved(REQUIRED_SCHEMAS[shape.ref]);
+}
+
 const within = (way: string, name: string): string => (way === '' ? name : `${way}.${name}`);
 
-/** The way to the first member `value` lacks to be of `shape`, from `way`. */
-function lacking(shape: Shape, value: unknown, way: string): string | undefined {
-  if (shape.ref !== undefined) return lacking(REQUIRED_SCHEMAS[shape.ref], value, way);
-  if (isObject(value)) {
-    const lacks = lackingMembers(shape, value, way);
-    if (lacks !== undefined) return lacks;
+/** Whether `count` is at least `least` and at most `most`, where each is stated. */
+const counted = (least: number | undefined, count: number, most: number | undefined): boolean =>
+  (least === undefined || count >= least) && (most === undefined || count <= most);
+
+/**
+ * Whether the code points from `at` are of `steps`: the first step takes as
+ * many of them as it may, and gives them back one by one until the steps
+ * after it take the rest.
+ */
+function matches(steps: readonly Step[], points: readonly number[], at: number): boolean {
+  const [first, ...rest] = steps;
+  if (first === undefined) return at === points.length;
+  let taken = 0;
+  while (
+    at + taken < points.length &&
+    (first.max === undefined || taken < first.max) &&
+    first.of.some(([from, to]) => from <= points[at + taken]! && points[at + taken]! <= to)
+  ) {
+    taken += 1;
   }
-  if (Array.isArray(value) && shape.items !== undefined) {
+  for (; taken >= first.min; taken -= 1) if (matches(rest, points, at + taken)) return true;
+  return false;
+}
+
+/**
+ * Whether `value` is one of `shape`'s values, a text is of its pattern and
+ * has as many code points as it allows, a number is within its bounds, and an
+ * array has as many items as it allows.
+ */
+function isAsStated(shape: Shape, value: unknown): boolean {
+  if (shape.enum !== undefined && !shape.enum.some((one) => one === value)) return false;
+  if (typeof value === 'string') {
+    const points = Array.from(value, (point) => point.codePointAt(0)!);
+    return counted(shape.minLength, points.length, shape.maxLength) && (shape.pattern === undefined || matches(shape.pattern, points, 0));
+  }
+  if (typeof value === 'number') return counted(shape.minimum, value, shape.maximum);
+  if (Array.isArray(value)) return counted(shape.minItems, value.length, shape.maxItems);
+  return true;
+}
+
+/** The first fault `value` has as a value of `shape`, from `way`. */
+function faultAt(shape: Shape, value: unknown, way: string): Fault | undefined {
+  const own = resolved(shape);
+  if (!allows(own.kinds, value) || !isAsStated(own, value)) return { member: way, reason: 'malformed' };
+  if (isObject(value)) {
+    const fault = faultOfMembers(own, value, way);
+    if (fault !== undefined) return fault;
+  }
+  if (Array.isArray(value) && own.items !== undefined) {
     for (const item of value) {
-      const lacks = lacking(shape.items, item, way);
-      if (lacks !== undefined) return lacks;
+      const fault = faultAt(own.items, item, way);
+      if (fault !== undefined) return fault;
     }
   }
-  if (shape.oneOf !== undefined) {
-    const lacks = lackingOneOf(shape.oneOf, shape.discriminator, value, way);
-    if (lacks !== undefined) return lacks;
+  if (own.oneOf !== undefined) {
+    const fault = faultOfOneOf(own.oneOf, own.discriminator, value, way);
+    if (fault !== undefined) return fault;
   }
-  if (shape.allOf !== undefined) {
-    for (const part of shape.allOf) {
-      const lacks = lacking(part, value, way);
-      if (lacks !== undefined) return lacks;
+  if (own.allOf !== undefined) {
+    for (const part of own.allOf) {
+      const fault = faultAt(part, value, way);
+      if (fault !== undefined) return fault;
     }
   }
   return undefined;
 }
 
-/** What an object lacks of the members `shape` requires, and of what its members and its values require. */
-function lackingMembers(shape: Shape, object: Record<string, unknown>, way: string): string | undefined {
-  if (shape.required !== undefined) {
-    for (const name of shape.required) {
-      const held = object[name];
-      // A member that is undefined is one JSON does not carry.
-      if (held === undefined || (held === null && !(shape.nullable !== undefined && shape.nullable.includes(name)))) {
-        return within(way, name);
-      }
+/** The first fault of an object in the members `shape` requires, in what its members are, in the members it may not carry, and in its values. */
+function faultOfMembers(shape: Shape, object: Record<string, unknown>, way: string): Fault | undefined {
+  for (const name of shape.required ?? []) {
+    const held = object[name];
+    const member = shape.members?.[name];
+    // A member that is undefined is one JSON does not carry.
+    if (held === undefined || (held === null && member !== undefined && !allows(resolved(member).kinds, null))) {
+      return { member: within(way, name), reason: 'lacks' };
     }
   }
-  if (shape.members !== undefined) {
-    for (const [name, member] of Object.entries(shape.members)) {
-      const held = object[name];
-      if (held === undefined || held === null) continue;
-      const lacks = lacking(member, held, within(way, name));
-      if (lacks !== undefined) return lacks;
-    }
+  for (const [name, member] of Object.entries(shape.members ?? {})) {
+    const held = object[name];
+    if (held === undefined || held === null) continue;
+    const fault = faultAt(member, held, within(way, name));
+    if (fault !== undefined) return fault;
+  }
+  const { closed } = shape;
+  if (closed !== undefined) {
+    const unnamed = Object.keys(object).filter((name) => object[name] !== undefined && !closed.includes(name)).sort(byCodePoint)[0];
+    if (unnamed !== undefined) return { member: within(way, unnamed), reason: 'malformed' };
   }
   if (shape.values !== undefined) {
-    for (const key of Object.keys(object).sort()) {
-      const lacks = lacking(shape.values, object[key], way);
-      if (lacks !== undefined) return lacks;
+    for (const key of Object.keys(object).sort(byCodePoint)) {
+      const fault = faultAt(shape.values, object[key], way);
+      if (fault !== undefined) return fault;
     }
   }
   return undefined;
 }
 
 /**
- * What `value` lacks to be one of a union's `variants`: what the variant its
- * discriminator names lacks, or, naming none, what the first of the variants
- * of its kind lacks when each of them lacks something. A value of no
- * variant's kind lacks nothing here.
+ * The fault `value` has as one of a union's `variants`: the variant its
+ * discriminator names, or else each variant whose kinds allow it. None when
+ * one of them has none; the first one's when each has one; and a value no
+ * variant allows is malformed.
  */
-function lackingOneOf(variants: readonly Variant[], discriminator: Shape['discriminator'], value: unknown, way: string): string | undefined {
-  const kind = kindOf(value);
-  let candidates = variants.filter((variant) => kind !== undefined && variant.kinds.includes(kind));
+function faultOfOneOf(variants: readonly Shape[], discriminator: Shape['discriminator'], value: unknown, way: string): Fault | undefined {
+  let candidates = variants.filter((variant) => allows(resolved(variant).kinds, value));
   if (isObject(value) && discriminator !== undefined) {
     const named = value[discriminator.property];
     const at = typeof named === 'string' && Object.hasOwn(discriminator.mapping, named) ? discriminator.mapping[named] : undefined;
     const variant = at === undefined ? undefined : variants[at];
     if (variant !== undefined) candidates = [variant];
   }
-  let first: string | undefined;
+  if (candidates.length === 0) return { member: way, reason: 'malformed' };
+  let first: Fault | undefined;
   for (const candidate of candidates) {
-    const lacks = lacking(candidate.shape, value, way);
-    if (lacks === undefined) return undefined;
-    if (first === undefined) first = lacks;
+    const fault = faultAt(candidate, value, way);
+    if (fault === undefined) return undefined;
+    if (first === undefined) first = fault;
   }
   return first;
 }
 
-/**
- * The way to the first member `value` lacks to be a `schema`: the names of the
- * members it is within, and its own, joined by dots, as every SDK names it. A
- * member lacks when it is missing, or holds null where it may not. An array's
- * positions and a map's keys are not said. Nothing, when it lacks none.
- */
-export function memberLacking(schema: SchemaName, value: unknown): string | undefined {
-  return lacking(REQUIRED_SCHEMAS[schema], value, '');
+/** The first fault `value` has as a `schema`, by the rules every SDK reads the table by; nothing, when it has none. */
+export function faultOf(schema: SchemaName, value: unknown): Fault | undefined {
+  return faultAt(REQUIRED_SCHEMAS[schema], value, '');
 }
 
-/** The way to the first member `value` lacks to be of `shape`, named as `memberLacking` names it. */
-export function lackingOf(shape: Shape, value: unknown): string | undefined {
-  return lacking(shape, value, '');
+/** The first fault `value` has as a value of `shape`, found as `faultOf` finds it. */
+export function faultOfShape(shape: Shape, value: unknown): Fault | undefined {
+  return faultAt(shape, value, '');
+}
+
+/** What every SDK says of `fault`. */
+export function said(fault: Fault): string {
+  if (fault.reason === 'lacks') return `it has no \`${fault.member}\``;
+  return fault.member === '' ? 'it is malformed' : `its \`${fault.member}\` is malformed`;
+}
+
+/**
+ * What every SDK says of the first fault `value` has as a `schema`, as it
+ * refuses it: `it has no \`member\``, `its \`member\` is malformed`, or `it is
+ * malformed`; nothing, when it has none.
+ */
+export function faultSaid(schema: SchemaName, value: unknown): string | undefined {
+  const fault = faultOf(schema, value);
+  return fault === undefined ? undefined : said(fault);
 }

@@ -1,15 +1,21 @@
 /**
- * How long the gateway waits for the Archivist: the Archivist document's
- * `x-semiont-limits.readSeconds` for each part of an answer, for the answer
- * to begin once its request is sent whole and for each next part, and no
- * bound on a whole answer or on sending a request
- * (protocol/specs/src/archivist/openapi.json, whose description states the
- * rule). `connectSeconds` is not held here: an address that takes no
- * connection cannot be staged on the loopback.
+ * How long the gateway waits for the Archivist, as the Archivist document's
+ * `x-semiont-limits` say (protocol/specs/src/archivist/openapi.json, whose
+ * description states the rule): a read's answer begins within
+ * `connectSeconds` and `readSeconds` together of the read's first send, each
+ * next part of an answer within `readSeconds`, and an upload's answer within
+ * `readSeconds` of its last byte; no bound is put on a whole answer or on
+ * sending a request. A connection not taken within `connectSeconds` is not
+ * staged here: an address that takes no connection cannot be staged on the
+ * loopback. The gateway's own tests hold that a read whose connection is not
+ * taken in time is not sent again, and that a read's wait counts from its
+ * first send with its retry inside it, over a stand-in for its connector
+ * (images/gateway/src/archivist.rs).
  *
- * Plane-independent, and slow: it waits `readSeconds` out, four waits side by
- * side. The fourth is an upload the Archivist recorded and never answered: its
- * resend, under its key, is answered with the resource it made
+ * Plane-independent, and slow: the one case waits four waits out side by
+ * side, the longest `connectSeconds` and `readSeconds` together. The fourth is
+ * an upload the Archivist recorded and never answered: its resend, under its
+ * key, is answered with the resource it made
  * (protocol/specs/src/paths/resources.json, A key).
  */
 import { randomUUID } from 'node:crypto';
@@ -21,15 +27,18 @@ import { eachPlane } from '../harness/world';
 
 const READ_MS = archivistSpec().documentLimit('readSeconds') * 1000;
 
+/** How long a read's answer may take to begin from the read's first send, its retry included. */
+const ANSWER_BEGINS_MS = archivistSpec().documentLimit('connectSeconds') * 1000 + READ_MS;
+
 /** How long the slow upload takes to send: a wait counted from its first byte would end this much before one counted from its last. */
 const SENDING_MS = 10_000;
 
 const BYTES = Buffer.from(Array.from({ length: 1024 }, (_, i) => i % 256));
 
-/** That `elapsed` waited the wait out: no sooner than it, less a quarter second for the trip, and not past 1.3 times it. */
-function waitedOut(what: string, elapsed: number): void {
-  expect(elapsed, `${what}: ${elapsed} ms`).toBeGreaterThanOrEqual(READ_MS - 250);
-  expect(elapsed, `${what}: ${elapsed} ms`).toBeLessThan(READ_MS * 1.3);
+/** That `elapsed` waited `wait` out: no sooner than it, less a quarter second for the trip, and not past 1.3 times it. */
+function waitedOut(what: string, elapsed: number, wait: number): void {
+  expect(elapsed, `${what}: ${elapsed} ms`).toBeGreaterThanOrEqual(wait - 250);
+  expect(elapsed, `${what}: ${elapsed} ms`).toBeLessThan(wait * 1.3);
 }
 
 /**
@@ -83,7 +92,7 @@ function slowUpload(origin: string, token: string, storageUri: string): Promise<
 }
 
 eachPlane('an Archivist that stops answering', (world) => {
-  it('is waited for readSeconds for each part of an answer, counted from a request\'s last byte; an upload it recorded and never answered is answered on its resend under its key', async () => {
+  it('is waited for connectSeconds and readSeconds for a read\'s answer to begin, and readSeconds for each next part and for an upload\'s answer from its last byte; an upload it recorded and never answered is answered on its resend under its key', async () => {
     const token = await world().person('waiting');
     const stored = (id: string) => {
       world().archivist.resources.set(id, { storageUri: `file://${id}`, mediaType: 'text/plain' });
@@ -96,7 +105,7 @@ eachPlane('an Archivist that stops answering', (world) => {
       world().archivist.mode.unanswered.add(id);
       const started = Date.now();
       const reply = await call(world().origin, 'GET', `/resources/${id}`, { token });
-      waitedOut('a read never answered', Date.now() - started);
+      waitedOut('a read never answered', Date.now() - started, ANSWER_BEGINS_MS);
       expect(reply.status).toBe(503);
       expect(nonConformance('get', '/resources/{id}', reply)).toEqual([]);
       // A read whose wait ran out is not sent again.
@@ -114,7 +123,7 @@ eachPlane('an Archivist that stops answering', (world) => {
         () => 'whole',
         () => 'cut short',
       );
-      waitedOut('an answer that stopped part way', Date.now() - headed);
+      waitedOut('an answer that stopped part way', Date.now() - headed, READ_MS);
       expect(body).toBe('cut short');
     };
 
@@ -123,7 +132,7 @@ eachPlane('an Archivist that stops answering', (world) => {
       world().archivist.mode.unanswered.add(storageUri);
       const { status, lastByte, answered } = await slowUpload(world().origin, token, storageUri);
       expect(status).toBe(503);
-      waitedOut('an upload never answered, from its last byte', answered - lastByte);
+      waitedOut('an upload never answered, from its last byte', answered - lastByte, READ_MS);
       expect(world().archivist.uploads.some((u) => u.fields['storageUri'] === storageUri)).toBe(false);
     };
 
@@ -139,7 +148,9 @@ eachPlane('an Archivist that stops answering', (world) => {
       const made = () => world().archivist.uploads.filter((u) => u.fields['storageUri'] === storageUri);
       world().archivist.mode.recordsUnanswered.add(storageUri);
 
+      const started = Date.now();
       const lost = await world().upload(token, form(), key);
+      waitedOut('an upload recorded and never answered', Date.now() - started, READ_MS);
       expect(lost.status, lost.text).toBe(503);
       expect(nonConformance('post', '/resources', lost)).toEqual([]);
       expect(made()).toHaveLength(1);
@@ -152,5 +163,5 @@ eachPlane('an Archivist that stops answering', (world) => {
     };
 
     await Promise.all([neverAnswered(), answeredInPart(), uploadNeverAnswered(), recordedNeverAnswered()]);
-  }, READ_MS * 2 + SENDING_MS + 30_000);
+  }, ANSWER_BEGINS_MS * 2 + SENDING_MS + 30_000);
 }, {}, ['in-process']);

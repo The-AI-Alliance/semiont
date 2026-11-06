@@ -13,9 +13,10 @@ import kotlinx.serialization.json.longOrNull
  * timing a client keeps (client/timing.json), the codes its failures carry
  * (errors/codes.json), the media types a knowledge base admits
  * (media-types/registry.json), the Encoding Standard's labels and
- * single-byte encodings (text/encoding-cases.json), and what each event does
- * to a client's cache (client/refresh.json). Each refuses what it cannot
- * render.
+ * single-byte encodings (text/encoding-cases.json), what each event does to
+ * a client's cache (client/refresh.json); and what each component schema
+ * requires of a value, from the SDK's copy of that table. Each refuses what
+ * it cannot render.
  */
 private fun JsonElement?.obj(what: String): JsonObject = this as? JsonObject ?: refuse("$what is no object")
 
@@ -349,6 +350,22 @@ private fun escaped(text: String): String = buildString {
         }
     }
     append('"')
+}
+
+/**
+ * What each component schema requires of a value, by its name, each as its
+ * own JSON: one string of the whole table would be past what a class file's
+ * constant holds. The table is the SDK's copy (src/codegen/required-schemas.json),
+ * which packages/codegen/schemas/generate-required.mjs writes by the rules of
+ * packages/codegen/schemas/required-shapes.mjs.
+ */
+internal fun requiredFile(table: JsonObject): String = buildString {
+    val schemas = table["schemas"].obj("the table's schemas")
+    if (schemas.isEmpty()) refuse("the table of what each schema requires holds none")
+    append("/** What each component schema requires of a value, by its name, as JSON: the rules are packages/codegen/schemas/required-shapes.mjs's. */\n")
+    append("internal val REQUIRED_SCHEMAS: Map<String, String> = mapOf(\n")
+    for ((name, shape) in schemas) append("    ${literal(name)} to ${literal(shape.obj("$name's shape").toString())},\n")
+    append(")\n")
 }
 
 /**

@@ -125,25 +125,36 @@ describe('a reply that names what it answers for', () => {
     return replies;
   }
 
-  it.each<[BusOperationKey, Record<string, unknown>, Record<string, unknown>]>([
+  const resource = { '@context': 'https://schema.org/', '@id': resourceId('res-1'), name: 'A resource', representations: [] };
+  const context: GatheredContext = {
+    focus: { kind: 'resource', resource },
+    graph: { nodes: [], edges: [] },
+    metadata: {},
+  };
+  const candidates: components['schemas']['ScoredResource'][] = [{ ...resource, score: 0.9, matchReason: 'the same name' }];
+
+  it.each<[BusOperationKey, Record<string, unknown>, unknown, Record<string, unknown>]>([
     [
       'gather:requested',
       { annotationId: 'ann-1', resourceId: 'res-1' },
-      { annotationId: 'ann-1', response: 'scripted' },
+      context,
+      { annotationId: 'ann-1', response: context },
     ],
     [
       'gather:resource-requested',
       { resourceId: 'res-1', options: {} },
-      { resourceId: 'res-1', response: 'scripted' },
+      context,
+      { resourceId: 'res-1', response: context },
     ],
     [
       'match:search-requested',
       { resourceId: 'res-1', referenceId: 'ann-1', context: {} },
-      { referenceId: 'ann-1', response: 'scripted' },
+      candidates,
+      { referenceId: 'ann-1', response: candidates },
     ],
-  ])('the reply to %s states the id its request stated, beside the queued response', async (op, request, reply) => {
+  ])('the reply to %s states the id its request stated, beside the queued response', async (op, request, response, reply) => {
     const transport = new FaultyTransport();
-    transport.queueReply(op, 'scripted');
+    transport.queueReply(op, response);
 
     expect(await repliesTo(transport, op, request)).toStrictEqual([reply]);
 
@@ -151,14 +162,6 @@ describe('a reply that names what it answers for', () => {
   });
 
   it('so does a reply makeResponse answers, and each copy of a duplicated one', async () => {
-    const context: GatheredContext = {
-      focus: {
-        kind: 'resource',
-        resource: { '@context': 'https://schema.org/', '@id': resourceId('res-1'), name: 'A resource', representations: [] },
-      },
-      graph: { nodes: [], edges: [] },
-      metadata: {},
-    };
     const transport = new FaultyTransport({
       schedule: [{ kind: 'duplicate-reply' }],
       makeResponse: () => context,

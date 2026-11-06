@@ -1203,9 +1203,6 @@ func (c *Claims) claimNext() (HeldJob, *ClaimRefusal) {
 		return nil, &ClaimRefusal{Message: err.Error()}
 	}
 	running := answer.Payload.Response
-	if running.Metadata.Type != api.JobTypeMark && running.Metadata.Type != api.JobTypeYield {
-		return nil, &ClaimRefusal{Message: fmt.Sprintf("a payload on %s is not that channel's: it names no job type", bus.JobClaim.Result().Channel())}
-	}
 	// The verb's handle is made first, and its job filled in place: a held
 	// job holds a lock, and is never copied.
 	var job HeldJob

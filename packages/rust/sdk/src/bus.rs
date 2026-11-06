@@ -39,10 +39,11 @@
 //! registry's name and the payload a JSON object: for what relays frames it
 //! does not read, or is told its channels at run time.
 
-use crate::channels::{Channel, Request, Scoped, Unscoped};
+use crate::channels::{Channel, Request, Scoped, Unscoped, payload_shape};
 use crate::errors::{
     BusRequestError, BusRequestErrorCode, SemiontError, TransportError, TransportErrorCode,
 };
+use crate::required::{Fault, fault_of};
 use crate::transport::{
     ConnectionState, Envelope, Frame, Frames, Lagged, ResourceHold, TraceCarrier, Transport,
 };
@@ -295,11 +296,22 @@ impl fmt::Display for StreamError {
 impl std::error::Error for StreamError {}
 
 /// A payload as the channel `C` types it. A gateway's stamps the type does
-/// not declare are the bus's, not the payload's, and are left out.
+/// not declare are the bus's, not the payload's, and are left out. A payload
+/// with a fault as the channel's is refused, naming the fault.
 pub(crate) fn decoded<C: Channel>(mut payload: Map<String, Value>) -> Result<C::Payload, String> {
     payload.retain(|key, _| !key.starts_with('_') || C::STAMPS.contains(&key.as_str()));
-    serde_json::from_value(Value::Object(payload))
-        .map_err(|error| format!("a payload on {} is not that channel's: {error}", C::NAME))
+    let payload = Value::Object(payload);
+    let fault = match fault_of(payload_shape(C::NAME), &payload) {
+        Some(fault) => fault,
+        None => match serde_json::from_value(payload) {
+            Ok(decoded) => return Ok(decoded),
+            Err(_) => Fault::undecoded(),
+        },
+    };
+    Err(format!(
+        "a payload on {} is not that channel's: {fault}",
+        C::NAME
+    ))
 }
 
 fn delivered<C: Channel>(frame: Frame) -> Result<Delivered<C>, StreamError> {

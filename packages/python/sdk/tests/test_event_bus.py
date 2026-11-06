@@ -125,7 +125,7 @@ def test_by_type_a_frame_is_published_as_its_channel_writes_it_and_read_as_its_c
         assert [heard async for heard in typed] == [
             Delivered(payload=BeckonHoverEvent(annotation_id=AnnotationId("ann-1"))),
             Delivered(payload=BeckonHoverEvent(annotation_id=None)),
-            FrameRefusal(channel="beckon:hover", lacks=None, payload={"annotationId": 7}),
+            FrameRefusal(channel="beckon:hover", member="annotationId", reason="malformed", payload={"annotationId": 7}),
             Delivered(payload=BeckonHoverEvent(annotation_id=AnnotationId("ann-2"))),
         ]
         assert [dict(frame.payload) async for frame in nothing] == [{}]

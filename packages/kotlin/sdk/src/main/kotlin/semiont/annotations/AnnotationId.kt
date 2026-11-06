@@ -22,8 +22,8 @@ import java.util.Base64
 /** How many characters of the digest's base64url an id is. */
 private const val LENGTH = 21
 
-/** Two names by their code points: what canonical JSON orders an object's members by. */
-private val BY_CODE_POINT: Comparator<String> = Comparator { one, other ->
+/** Two names by their code points: what canonical JSON orders an object's members by, and the protocol orders names by wherever it orders them. */
+internal val BY_CODE_POINT: Comparator<String> = Comparator { one, other ->
     val a = codePointsOf(one)
     val b = codePointsOf(other)
     for (at in 0 until minOf(a.size, b.size)) if (a[at] != b[at]) return@Comparator a[at].compareTo(b[at])

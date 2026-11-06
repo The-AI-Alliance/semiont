@@ -427,7 +427,7 @@ class FollowTest {
         val (client, queue) = world("job-1", timing = QUICK)
         queue.statuses(status("complete", "result" to JsonObject(GENERATED + ("resourceName" to JsonPrimitive(carried)))))
         val ended = assertInstanceOf(TransportError::class.java, failedWith(awaiting(client.highlighting())))
-        assertTrue(ended.message!!.startsWith("The status of job job-1 is not a completed mark job's"), ended.message)
+        assertEquals("The status of job job-1 is not a completed mark job's: it has no `result.found`", ended.message)
         assertFalse(ended.stackTraceToString().contains(carried), "the failure prints what the job made")
         assertEquals("error", ended.code)
         client.close()

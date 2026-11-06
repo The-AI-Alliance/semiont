@@ -31,6 +31,19 @@ goes: its `channel`; a `scope`, when it belongs to one resource; a
 `correlationId`, when it is a request or the reply to one. The payload is
 the channel's own type and carries no routing.
 
+A frame carries what `BusFrame` names and nothing more. A reader holds
+every frame it is given to `BusFrame` before it delivers it, through the
+table a payload is held to (§ Identity), and refuses one with a fault: one
+that is no JSON, lacks its `channel` or its `payload`, holds a member of a
+kind `BusFrame` does not allow, or carries a member `BusFrame` does not
+name. A refused frame is not delivered, and the stream goes on to the
+frames after it. One that names no channel (it is no JSON object, carries
+no `channel`, or carries one that is not a text of at least one
+character) names no reader, and is told to the error stream: as `error`,
+with no status, saying "the stream carried what is not a frame: " and
+then its first fault, in the words a request's refusal says it in.
+*Held by `protocol/specs/src/bus/frame-cases.json`, `packages/python/sdk/tests/test_http_transport.py`, `packages/rust/http-transport/tests/stream.rs`, `packages/go/sdk/stream_test.go`, `packages/kotlin/sdk/src/test/kotlin/semiont/http/StreamTest.kt`, `packages/typescript/http-transport/src/transport/__tests__/actor-state-unit.test.ts`.*
+
 The **registry** ([`protocol/specs/src/bus/registry.json`](../specs/src/bus/registry.json))
 is the authority for channels. It classifies each on independent axes:
 whether it is half of an operation (a request, its result, its failure);
@@ -262,6 +275,7 @@ from which every SDK generates its constants.
 Everything a server refused, and every request the gateway never answered,
 is reported on the error stream as it is thrown to its caller, under a code
 from [`protocol/specs/src/errors/codes.json`](../specs/src/errors/codes.json).
+So is every line the stream carried that names no channel (§ The transport).
 
 - **A listener taken as soon as the client is made hears every failure**,
   from the transport's first request on, even when that request was refused
@@ -383,10 +397,9 @@ result and failure channels are the registry's.
   `busRequestTimeoutMs` unless the caller gave another; or because its
   caller abandoned it.
   *Held by `sdk/wire/failure-codes`, `sdk/wire/request-timeout`.*
-- **A result that lacks a member its schema requires** is no result,
-  wherever the member is missing: the request fails as `error`, saying the
-  payload is not its channel's and naming the member by the members it is
-  within.
+- **A result with a fault** is no result, wherever the fault is: the
+  request fails as `error`, saying the payload is not its channel's and
+  naming its first fault, as § Identity says a fault is named.
   *Held by `protocol/specs/src/resources/reader-cases.json`, `packages/go/sdk/replies_test.go`, `packages/typescript/core/src/__tests__/bus-request.test.ts`.*
 - **A request nobody is there to answer** fails as `peer-unavailable` when
   the gateway can tell, and as a timeout when it cannot.
@@ -421,23 +434,40 @@ this emit, never provenance.
   *Held by no case.*
 - An SDK delivers a payload as its channel types it: a stamp the channel's
   payload schema does not declare is the bus's, not the payload's, and is
-  left out. A transport's own frames are the wire's, and keep every stamp.
+  left out before the payload is held to its schema. A transport's own
+  frames are the wire's, and keep every stamp.
   *Held by `sdk/live/job-failed`, `sdk/live/generation-retried`, `sdk/live/job-created`, `sdk/wire/chunked-stream`.*
-- A payload that lacks a member its channel's schema requires is not its
-  channel's, wherever the member is missing. A typed read tells its reader,
-  in place of the frame, and goes on to the frames after it; nothing is
-  dropped and nothing is logged instead. Rust and Go give the refusal as the
-  stream's error; Go's names the way to the member, in the words a request's
-  refusal says it in. TypeScript, Python and Kotlin give a `FrameRefusal`,
-  a value the reader tells apart
-  from a frame by its `status`, `refused` where a frame's is `delivered`. It
-  names the channel and the way to the member the payload lacks (`lacks`:
-  the names of the members it is within and its own, joined by dots), and
-  holds the payload as it came. Python and Kotlin, whose decoders refuse a
-  payload for what it holds too, give such a refusal no `lacks`. A
-  TypeScript transport's bridge publishes the refusal on the client's own
-  bus in place of the payload, where a reader of payloads tells it apart
-  with `instanceof`.
+- A payload with a fault is not its channel's, wherever the fault is.
+  Every SDK holds a payload, before it decodes it, to the table of what
+  each component schema requires (written from the schemas by
+  `packages/codegen/schemas/required-shapes.mjs`, whose header states the order it is
+  walked in), and finds the same first fault: its `member`, the way to it
+  (the names of the members it is within and its own, joined by dots; empty
+  for the payload itself), and its `reason`, `lacks` (a required member it
+  does not carry, or one that holds null where it may not) or `malformed`
+  (a member of a kind its schema does not allow, an integer being a number
+  with no fractional part; a value its enumeration does not list; a text
+  not of its pattern, or with fewer or more code points than it allows; a
+  number past its bounds; an array with fewer or more items than it allows;
+  or a member a closed object does not name). A member inside a union is
+  named as any other. The table states whatever a schema states that some
+  SDK's decoding refuses, but a `format` and `uniqueItems`, which none
+  refuses. What an SDK's decoding refuses past the table is a fault of the
+  payload itself, `malformed` with the empty way: a payload that is no JSON,
+  a number past what the SDK's integer holds, and, in Go, Rust and Kotlin,
+  whose decoding reads an integer only from a number written without a
+  fraction, `1.0` where an integer is required. A typed read tells its reader, in
+  place of the frame, and goes on to the frames after it; nothing is
+  dropped and nothing is logged instead. Rust and Go give the refusal as
+  the stream's error, saying the payload is not its channel's and then
+  "it has no `<member>`", "its `<member>` is malformed", or "it is
+  malformed", the words a request's refusal says it in. TypeScript, Python
+  and Kotlin give a `FrameRefusal`, a value the reader tells apart from a
+  frame by its `status`, `refused` where a frame's is `delivered`. It names
+  the channel, the `member` and the `reason`, and holds the payload as it
+  came. A TypeScript transport's bridge publishes the refusal on the
+  client's own bus in place of the payload, where a reader of payloads
+  tells it apart with `instanceof`.
   *Held by `packages/typescript/core/src/__tests__/bus.test.ts`, `packages/typescript/http-transport/src/transport/__tests__/http-transport.http-paths.test.ts`, `packages/python/sdk/tests/test_bus.py`, `packages/kotlin/sdk/src/test/kotlin/semiont/bus/BusTest.kt`, `packages/rust/sdk/tests/typed.rs`, `packages/go/sdk/internal/required/required_test.go`.*
 
 ## Content and the gateway's own operations
@@ -471,10 +501,10 @@ Bytes do not ride the bus.
 - Each of the gateway's own operations is one request to its own path,
   carrying the client's token.
   *Held by `sdk/wire/gateway-operations`.*
-- An answer that lacks a member its declared body requires fails as
-  `error`, with the answer's status, saying it is not its declared body and
-  naming the member; it is reported on the error stream too.
-  *Held by `packages/go/sdk/replies_test.go`, `packages/typescript/http-transport/src/transport/__tests__/http-transport.http-paths.test.ts`.*
+- An answer with a fault fails as `error`, with the answer's status,
+  saying it is not its declared body and naming its first fault, as
+  § Identity says a fault is named; it is reported on the error stream too.
+  *Held by `packages/go/sdk/replies_test.go`, `packages/typescript/http-transport/src/transport/__tests__/http-transport.http-paths.test.ts`, `packages/python/sdk/tests/test_withheld.py`, `packages/kotlin/sdk/src/test/kotlin/semiont/http/HttpTransportTest.kt`, `packages/rust/http-transport/tests/answers.rs`.*
 - A read or one of the gateway's own operations whose credential is refused
   is renewed, as § A refused credential says.
   *Held by `sdk/wire/request-credential-renewed`, `sdk/wire/request-credential-limit-refused-twice`.*

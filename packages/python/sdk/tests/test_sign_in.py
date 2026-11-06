@@ -660,19 +660,21 @@ def test_an_agent_that_cannot_be_signed_in_says_so_on_the_way_in() -> None:
 
 
 @pytest.mark.parametrize(
-    ("answer", "lacks"),
+    ("answer", "fault"),
     [
         (says({"email": CARRIED, "name": None, "image": None, "domain": "example.org"}), "it has no `did`"),
-        (says({**agent_named("semiont-smelter"), "did": CARRIED}), "its `did` is malformed"),
+        (says({**agent_named("semiont-smelter"), "did": [CARRIED]}), "its `did` is malformed"),
         (says({**agent_named("semiont-smelter"), "name": [CARRIED]}), "its `name` is malformed"),
-        (says({}), "it has no `did`; it has no `email`; it has no `name`; it has no `image`; it has no `domain`"),
-        (says([{**agent_named("semiont-smelter"), "name": CARRIED}]), "it is not the JSON object a principal is"),
-        (Answer(body=f"did={CARRIED}".encode()), "it is not the JSON object a principal is"),
+        (says({}), "it has no `did`"),
+        # A DID of no DID's form: the table states a DID's form, so the refusal names the `did`.
+        (says({**agent_named("semiont-smelter"), "did": CARRIED}), "its `did` is malformed"),
+        (says([{**agent_named("semiont-smelter"), "name": CARRIED}]), "it is malformed"),
+        (Answer(body=f"did={CARRIED}".encode()), "it is malformed"),
     ],
-    ids=["no DID", "a DID that is none", "a name that is none", "nothing", "not an object", "not JSON"],
+    ids=["no DID", "a DID that is no text", "a name that is none", "nothing", "a DID that is none", "not an object", "not JSON"],
 )
-def test_an_answer_that_does_not_say_who_the_agent_is_is_refused_for_what_it_lacks_and_in_none_of_its_own_words(
-    answer: Answer, lacks: str
+def test_an_answer_that_does_not_say_who_the_agent_is_is_refused_for_its_first_fault_and_in_none_of_its_own_words(
+    answer: Answer, fault: str
 ) -> None:
     async def scenario() -> None:
         async with GatewayServer() as gateway:
@@ -684,7 +686,7 @@ def test_an_answer_that_does_not_say_who_the_agent_is_is_refused_for_what_it_lac
                     pass
             # What an answer carries is its own, whatever it is: no part of it is said.
             assert parts_of(CARRIED, printed(refused.value)) == []
-            assert refused.value.message == f"{gateway.origin}{ME} did not answer who the agent is: {lacks}"
+            assert refused.value.message == f"{gateway.origin}{ME} did not answer who the agent is: {fault}"
             assert (refused.value.code, refused.value.status) == ("error", 200)
 
     run(scenario())

@@ -179,7 +179,7 @@ public class MarkStateUnit @JvmExposeBoxed constructor(private val client: Semio
         try {
             client.mark.annotation(CreateAnnotationRequest(motivation = submission.motivation, target = target, body = submission.body))
         } catch (failure: SemiontError) {
-            client.bus.publish(Channels.MARK_CREATE_ERROR, ResourceErrorEvent(resourceId = resourceId, message = failure.message ?: ""), null, null)
+            client.bus.publish(Channels.MARK_CREATE_ERROR, ResourceErrorEvent(resourceId = resourceId, message = failure.message), null, null)
             return
         }
         pending.set(null)

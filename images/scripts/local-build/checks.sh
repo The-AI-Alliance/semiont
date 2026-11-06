@@ -212,6 +212,24 @@ if ! run_logged "the Go SDK's generated tables match protocol/specs/src" \
   exit 1
 fi
 
+# --- The table of what each component schema requires ---
+#
+# Rust's and Kotlin's copies of it are COMMITTED: Rust's build and Kotlin's
+# generator read them, and neither runs the rules they are written by
+# (packages/codegen/schemas/required-shapes.mjs).
+
+if ! run_logged "the table of what each component schema requires matches protocol/specs/src" \
+    $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
+    npm run generate:required:check; then
+  fail "Rust's or Kotlin's copy of the table of what each schema requires is STALE (or was hand-edited) — it must match the component schemas."
+  echo ""
+  echo -e "  Regenerate and commit:"
+  echo ""
+  echo -e "    ${BOLD}npm run generate:required${RESET}   (packages/rust/sdk/src, packages/kotlin/sdk/src/codegen)"
+  echo ""
+  exit 1
+fi
+
 # Both Go caches are this script's own, not shared with other container
 # consumers. Concurrent container VMs extracting into one shared module cache
 # corrupt it — Go's cache locking is flock, which does not hold across VM

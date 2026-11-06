@@ -16,7 +16,7 @@
 //! stop working over one bad round trip.
 
 use crate::service_account::{ServiceToken, SignInError};
-use crate::transport::{TokenRefresher, refuses_credential, why_unanswered};
+use crate::transport::{TokenRefresher, declared, refuses_credential, why_unanswered};
 use semiont::retry::{self, RetryFacts, retry_with_backoff};
 use semiont::session::renew_when_due;
 use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
@@ -165,8 +165,11 @@ async fn named(
             AgentSignInError::Refused { status }
         });
     }
-    let user: UserResponse = response.json().await.map_err(|e| {
-        AgentSignInError::Malformed(format!("{url} did not answer who the agent is: {e}"))
+    let body = response.bytes().await.map_err(|e| {
+        AgentSignInError::Unreachable(format!("{url} got no answer{}", why_unanswered(&e)))
+    })?;
+    let user: UserResponse = declared(&body).map_err(|said| {
+        AgentSignInError::Malformed(format!("{url} did not answer who the agent is: {said}"))
     })?;
     Ok(user.did)
 }

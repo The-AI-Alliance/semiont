@@ -225,6 +225,23 @@ func TestTheLaunchersProbesGoWhereTheDialersAre(t *testing.T) {
 	}
 }
 
+// Status reads each knowledge base's work in flight from the collector's
+// readout where the collector's probe goes: under Apple container only the
+// bridge address publishes it.
+func TestStatusReadsTheCollectorWhereItsProbeGoes(t *testing.T) {
+	for _, c := range []struct {
+		at   exposure
+		want string
+	}{
+		{appleContainer, "http://" + bridge + ":24110/metrics"},
+		{exposure{rt: "docker", addr: "host.docker.internal"}, "http://localhost:24110/metrics"},
+	} {
+		if got := collectorReadout(c.at).url; got != c.want {
+			t.Errorf("under %s status reads the collector at %s, want %s", c.at.rt, got, c.want)
+		}
+	}
+}
+
 // A container dials the containers' side of a port a person dials too, and a
 // start claims that side free; under Docker there is one side.
 func TestTheContainersDialTheirSideOfAPortAPersonDialsToo(t *testing.T) {

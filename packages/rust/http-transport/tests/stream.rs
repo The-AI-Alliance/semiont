@@ -20,6 +20,7 @@ use proptest::prelude::{Just, prop_oneof};
 use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestCaseError, TestRunner};
 use semiont::bus::{Bus, operation};
+use semiont::errors::{TransportError, TransportErrorCode};
 use semiont::retry::RetryPolicy;
 use semiont::testing::as_id;
 use semiont::testing::liveness::{DeliverySubject, assert_exactly_once_delivery_on};
@@ -64,17 +65,24 @@ struct Opened {
 
 impl Opened {
     fn write(&self, id: &str, payload: Value) {
-        let frame = json!({ "channel": CHANNEL, "payload": payload });
-        let _ = self.events.send(Bytes::from(format!(
-            "event: bus-event\nid: {id}\ndata: {frame}\n\n"
-        )));
+        self.write_data(
+            id,
+            &json!({ "channel": CHANNEL, "payload": payload }).to_string(),
+        );
     }
 
     /// A frame said to have been published on `scope`.
     fn write_under(&self, id: &str, scope: &str, payload: Value) {
-        let frame = json!({ "channel": CHANNEL, "payload": payload, "scope": scope });
+        self.write_data(
+            id,
+            &json!({ "channel": CHANNEL, "payload": payload, "scope": scope }).to_string(),
+        );
+    }
+
+    /// A `bus-event` whose `data` line is `data`, a frame or not.
+    fn write_data(&self, id: &str, data: &str) {
         let _ = self.events.send(Bytes::from(format!(
-            "event: bus-event\nid: {id}\ndata: {frame}\n\n"
+            "event: bus-event\nid: {id}\ndata: {data}\n\n"
         )));
     }
 
@@ -435,6 +443,56 @@ async fn a_frame_from_a_superseded_connection_leaves_a_breadcrumb() {
             .any(|line| line == "[bus LINGER] beckon:focus delivered on superseded connection"),
         "{lines:?}"
     );
+    transport.close().await;
+}
+
+#[tokio::test]
+async fn a_line_that_names_no_channel_is_told_to_the_failure_report_and_the_stream_goes_on() {
+    let gateway = Gateway::start().await;
+    let transport = gateway.client(Duration::from_secs(5));
+    let delivered = deliveries(&transport);
+    let mut failures = transport.failures();
+    reaches(&transport, ConnectionState::Open).await;
+    let subscribes = gateway.arrived();
+
+    let opened = gateway.opened()[0].clone();
+    opened.write_data("e-1", r#"{"channel": "beckon:focus", "payload": {"#);
+    opened.write_data(
+        "e-2",
+        &json!({ "payload": { "resourceId": "res-1" } }).to_string(),
+    );
+    opened.write_data(
+        "e-3",
+        &json!({ "channel": 7, "payload": { "resourceId": "res-1" } }).to_string(),
+    );
+    opened.write(
+        "e-4",
+        json!({ "resourceId": "res-1", "annotationId": "after" }),
+    );
+    until("the frame after", || !delivered.lock().unwrap().is_empty()).await;
+
+    for said in [
+        "it is malformed",
+        "it has no `channel`",
+        "its `channel` is malformed",
+    ] {
+        let told = tokio::time::timeout(Duration::from_secs(5), failures.next())
+            .await
+            .expect("the line is told")
+            .expect("a failure")
+            .expect("not lagged");
+        assert_eq!(
+            told,
+            TransportError {
+                code: TransportErrorCode::Error,
+                status: None,
+                message: format!("the stream carried what is not a frame: {said}"),
+                retry_after: None,
+            }
+        );
+    }
+    assert_eq!(*delivered.lock().unwrap(), ["after"]);
+    assert_eq!(gateway.arrived(), subscribes, "the stream goes on");
     transport.close().await;
 }
 

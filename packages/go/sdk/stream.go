@@ -32,6 +32,7 @@ import (
 	"io"
 	"maps"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -39,6 +40,7 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
 
 type commandKind int
@@ -390,12 +392,59 @@ func (s *stream) opened(conn uint64) {
 	s.settleConnect(conn, true)
 }
 
-// wireFrame is a frame as the stream's data line carries it.
+// wireFrame is a frame as the stream's data line carries it, its payload as
+// it was written.
 type wireFrame struct {
-	Channel       *string         `json:"channel"`
+	Channel       string          `json:"channel"`
 	Payload       json.RawMessage `json:"payload"`
 	CorrelationID *string         `json:"correlationId"`
 	Scope         *string         `json:"scope"`
+}
+
+// refusedFrame is what BusFrame does not allow: its first fault, and the
+// channel it names when BusFrame allows its channel. One whose channel is ""
+// names no channel, and so no reader.
+type refusedFrame struct {
+	fault   required.Fault
+	channel bus.Channel
+}
+
+// carried is data read as a frame, or why it is not one, and whether it is
+// one. A frame carries what BusFrame names, and nothing more.
+func carried(data string) (Frame, refusedFrame, bool) {
+	if fault, faulty := required.FaultOf([]byte(data), reflect.TypeFor[api.BusFrame]()); faulty {
+		return Frame{}, refusedFrame{fault: fault, channel: channelOf(data)}, false
+	}
+	var read wireFrame
+	if json.Unmarshal([]byte(data), &read) != nil {
+		return Frame{}, refusedFrame{fault: required.Undecoded, channel: channelOf(data)}, false
+	}
+	frame := Frame{Channel: bus.Channel(read.Channel), Payload: read.Payload}
+	if read.CorrelationID != nil {
+		frame.CorrelationID = *read.CorrelationID
+	}
+	if read.Scope != nil {
+		scope, err := api.ParseResourceId(*read.Scope)
+		if err != nil {
+			return Frame{}, refusedFrame{fault: required.Undecoded, channel: frame.Channel}, false
+		}
+		frame.Scope = scope
+	}
+	return frame, refusedFrame{}, true
+}
+
+// channelOf is the channel data names: the channel of a JSON object, when it
+// is a text of at least one character. It is "" when data names none.
+func channelOf(data string) bus.Channel {
+	var members map[string]json.RawMessage
+	if json.Unmarshal([]byte(data), &members) != nil {
+		return ""
+	}
+	var channel string
+	if json.Unmarshal(members["channel"], &channel) != nil {
+		return ""
+	}
+	return bus.Channel(channel)
 }
 
 func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
@@ -405,31 +454,19 @@ func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
 	if hasID && !s.seen.remember(id) {
 		return
 	}
-	// Read by what it means: a frame a later gateway adds a field to is still
-	// a frame. One that is not a frame at all is not delivered.
-	var read wireFrame
-	if json.Unmarshal([]byte(data), &read) != nil || read.Channel == nil {
+	frame, refused, ok := carried(data)
+	if !ok {
+		if refused.channel == "" {
+			// What names no channel names no reader: it is told to the failure report.
+			s.shared.failures.report(transportErrorWithoutResponse(fmt.Sprintf("the stream carried what is not a frame: %s", refused.fault), TransportErrorCodeError))
+		}
 		return
 	}
-	if trimmed := bytes.TrimSpace(read.Payload); len(trimmed) == 0 || trimmed[0] != '{' {
-		return
-	}
-	payload, sentUnder, ok := withoutTrace(read.Payload)
+	payload, sentUnder, ok := withoutTrace(frame.Payload)
 	if !ok {
 		return
 	}
-	frame := Frame{Channel: bus.Channel(*read.Channel), Payload: payload}
-	if read.CorrelationID != nil {
-		frame.CorrelationID = *read.CorrelationID
-	}
-	if read.Scope != nil {
-		// A scope is a resource's id. One that is not is not a frame.
-		scope, err := api.ParseResourceId(*read.Scope)
-		if err != nil {
-			return
-		}
-		frame.Scope = scope
-	}
+	frame.Payload = payload
 	busLog(context.Background(), busRecv, string(frame.Channel), payload, frame.Envelope)
 	if _, retired := s.superseded[conn]; retired {
 		// What closing a retired connection at once would have lost.

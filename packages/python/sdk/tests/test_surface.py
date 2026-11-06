@@ -347,7 +347,7 @@ async def first_payload[P: WireModel](events: Typed[P]) -> JsonObject:
     """The payload of the next event, as the wire would carry it. A refusal of it fails the case."""
     heard = await anext(events)
     if isinstance(heard, FrameRefusal):
-        raise AssertionError(f"a payload on {heard.channel} was refused: it lacks {heard.lacks}")
+        raise AssertionError(f"a payload on {heard.channel} was refused: its `{heard.member}` {heard.reason}")
     return written(heard.payload)
 
 

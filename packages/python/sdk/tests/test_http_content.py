@@ -353,7 +353,8 @@ def test_an_anchored_text_is_the_gateway_s_answer_whichever_shape_it_is_and_an_a
             carried = [asked.headers.get("authorization") for asked in gateway.of("GET", path)]
             failed: list[TransportError] = []
             for said in (
-                # A member of the shape it names is missing; and the answer inside a `response`, as a reply on the bus has one.
+                # A member of the shape it names is missing; and the answer inside a `response`, as a reply on the bus has one,
+                # which names no shape, so it lacks what the first of them requires.
                 b'{"kind": "extracted", "method": "pdf-text-layer", "items": []}',
                 b'{"response": {"kind": "unknown"}}',
             ):
@@ -373,7 +374,7 @@ def test_an_anchored_text_is_the_gateway_s_answer_whichever_shape_it_is_and_an_a
     assert carried == ["Bearer the-token"] * len(answers)
     assert (lacking.code, lacking.status) == (wrapped.code, wrapped.status) == ("error", 200)
     assert lacking.message == f"GET {path} answered what is not its declared body: it has no `text`"
-    assert wrapped.message == f"GET {path} answered what is not its declared body: it is not the JSON object its declared body is"
+    assert wrapped.message == f"GET {path} answered what is not its declared body: it has no `text`"
     assert (refused.code, refused.status, refused.message) == ("unavailable", 503, "The Archivist cannot be reached")
     assert asked == len(answers) + 2 + 2
 

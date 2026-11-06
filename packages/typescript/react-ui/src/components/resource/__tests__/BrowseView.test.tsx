@@ -11,7 +11,7 @@ import { FrameRefusal, annotationId, resourceId } from '@semiont/core';
 
 /** What the bus said, as its channel's payload: nothing bridges into this test's bus, so a refusal on it is the test's own fault. */
 function told<T>(payload: T | FrameRefusal): T {
-  if (payload instanceof FrameRefusal) throw new Error(`refused: ${payload.channel} lacks ${payload.lacks}`);
+  if (payload instanceof FrameRefusal) throw new Error(`refused: ${payload.channel} ${payload.reason} ${payload.member}`);
   return payload;
 }
 

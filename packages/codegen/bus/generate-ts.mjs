@@ -221,8 +221,9 @@ const protocol =
   " * What each channel's payload is, as a reader holds it: the component schema\n" +
   ' * it is (`payload`), a `{ response }` whose response is one (`response`), or\n' +
   ' * nothing a schema states (`{}`). A stored event is its stored form; what it\n' +
-  " * records is the channel's own. A payload read off the wire that lacks a\n" +
-  ' * member its schema requires is not its channel\'s.\n' +
+  " * records is the channel's own. A payload read off the wire with a fault as\n" +
+  ' * its schema\'s, a member it lacks or one that is malformed, is not its\n' +
+  " * channel's.\n" +
   ' */\n' +
   'export const CHANNEL_PAYLOADS = {\n' +
   payloadLines.join('\n') +

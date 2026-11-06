@@ -19,6 +19,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::ops::RangeInclusive;
 use std::sync::{Arc, Mutex, Weak};
+use std::time::Duration;
 use tokio::io::AsyncReadExt;
 
 pub struct Surface {
@@ -52,13 +53,14 @@ impl UploadLocks {
 }
 
 /// The limits the Archivist's API states: the most each operation that takes
-/// a JSON body is sent, and the most events one answer of a stream holds
-/// (`x-semiont-limits`); and the characters an upload's `Idempotency-Key` may
-/// have.
+/// a JSON body is sent, the most events one answer of a stream holds, and how
+/// long a read of anchored text waits for the Smelter (`x-semiont-limits`);
+/// and the characters an upload's `Idempotency-Key` may have.
 pub struct Limits {
     anchored_text: usize,
     stamp: usize,
     events: usize,
+    settle_wait: Duration,
     upload_key: RangeInclusive<usize>,
 }
 
@@ -93,6 +95,11 @@ impl Limits {
             anchored_text: limit("/resources/{id}/anchored-text", "put", "maxBodyBytes")?,
             stamp: limit("/anchored-text/stamp", "put", "maxBodyBytes")?,
             events: limit("/events/{resourceId}", "get", "maxEvents")?,
+            settle_wait: Duration::from_secs(limit(
+                "/resources/{id}/anchored-text",
+                "get",
+                "settleWaitSeconds",
+            )? as u64),
             upload_key: shortest as usize..=longest as usize,
         })
     }
@@ -336,7 +343,9 @@ async fn anchored_text(
     if !ids::is_safe(&resource_id) {
         return json_reply(StatusCode::OK, json!({ "kind": "unknown" }));
     }
-    match anchored::anchored_text(&surface.archivist, &resource_id).await {
+    match anchored::anchored_text(&surface.archivist, &resource_id, surface.limits.settle_wait)
+        .await
+    {
         Ok(answer) => json_reply(StatusCode::OK, Value::Object(answer)),
         Err(refusal) => {
             logging::error(

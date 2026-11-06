@@ -20,6 +20,7 @@ import semiont.channels.Channels
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
 import semiont.errors.SemiontError
+import semiont.errors.TransportError
 import semiont.telemetry.futureOf
 import semiont.transport.Broadcast
 import semiont.transport.ConnectionState
@@ -334,14 +335,14 @@ public class Claims internal constructor(
             resultOf(transport, Operations.JOB_CLAIM, asked, jobClaimTimeoutMs)
         } catch (refused: BusRequestError) {
             if (refused.reason == BusRequestErrorCode.NonePending) return Answer.NonePending
-            return Answer.Refused(ClaimRefusal(refused.reason, refused.message ?: ""))
+            return Answer.Refused(ClaimRefusal(refused.reason, refused.message))
         } catch (failed: SemiontError) {
-            return Answer.Refused(ClaimRefusal(null, failed.message ?: ""))
+            return Answer.Refused(ClaimRefusal(null, failed.message))
         }
         val claimed = try {
             decoded(Operations.JOB_CLAIM.result, reply.payload).response
-        } catch (unreadable: IllegalArgumentException) {
-            return Answer.Refused(ClaimRefusal(null, "The reply to job:claim is no claimed job: ${unreadable.message}"))
+        } catch (unread: TransportError) {
+            return Answer.Refused(ClaimRefusal(null, unread.message))
         }
         val signal = Variable(false)
         synchronized(lock) { cancelling = signal }

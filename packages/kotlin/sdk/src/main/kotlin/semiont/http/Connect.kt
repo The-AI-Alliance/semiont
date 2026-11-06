@@ -45,10 +45,10 @@ public suspend fun describeConnection(target: HttpEndpoint, access: String, http
     } catch (refusal: BusRequestError) {
         // A refusal is the knowledge base answering that it cannot say what it is.
         val why = if (refusal.reason == BusRequestErrorCode.Rejected) IdentityUnverifiableReason.NotReported else IdentityUnverifiableReason.Unreachable
-        throw IdentityUnverifiableError(why, refusal.message ?: refusal.code)
+        throw IdentityUnverifiableError(why, refusal.message)
     } catch (unanswered: SemiontError) {
         // Anything else is not having reached it.
-        throw IdentityUnverifiableError(IdentityUnverifiableReason.Unreachable, unanswered.message ?: unanswered.code)
+        throw IdentityUnverifiableError(IdentityUnverifiableReason.Unreachable, unanswered.message)
     } finally {
         transport.close()
     }

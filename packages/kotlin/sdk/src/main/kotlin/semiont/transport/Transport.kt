@@ -365,7 +365,7 @@ public interface Transport : AutoCloseable {
     /** Take one hold on a resource's scope. The scope is on the stream from its first hold to its last release. */
     public fun subscribeToResource(resourceId: ResourceId): ResourceHold
 
-    /** The failures the transport meets from now on: everything a server refused, and every request never answered. */
+    /** The failures the transport meets from now on: everything a server refused, every request never answered, and every line its stream carried that names no channel. */
     public fun failures(): Events<SemiontError>
 
     /** Deliver into `bus` every frame this transport delivers. The bus is its client's: a transport never makes one. */

@@ -304,6 +304,41 @@ mod tests {
         utf8_alone(label.as_deref(), bytes)
     }
 
+    /// Each refused resource of protocol/specs/src/resources/reader-cases.json has the
+    /// first fault the table states, as every SDK finds it before it decodes
+    /// the resource; every other resource has none.
+    #[test]
+    fn every_resource_the_table_refuses_has_the_fault_it_states_and_no_other_has_one() {
+        use crate::required::{Fault, Reason, fault_of, schema};
+        let table = table(include_str!("../specs/resources/reader-cases.json"));
+        let (mut lacking, mut malformed) = (0, 0);
+        for case in table["cases"].as_array().expect("cases") {
+            let why = stated(case, "why");
+            let fault = fault_of(schema("ResourceDescriptor"), &case["resource"]);
+            if case.get("refused") != Some(&Value::Bool(true)) {
+                assert_eq!(fault, None, "{why}");
+                continue;
+            }
+            let reason = match stated(case, "reason") {
+                "lacks" => {
+                    lacking += 1;
+                    Reason::Lacks
+                }
+                "malformed" => {
+                    malformed += 1;
+                    Reason::Malformed
+                }
+                other => panic!("{why}: {other} is no reason"),
+            };
+            let member = stated(case, "member").to_owned();
+            assert_eq!(fault, Some(Fault { member, reason }), "{why}");
+        }
+        assert!(
+            lacking > 0 && malformed > 0,
+            "the table refuses no resource that lacks a member, or none that is malformed"
+        );
+    }
+
     #[cfg(feature = "charsets")]
     #[test]
     fn the_reader_of_utf8_alone_reads_a_case_as_the_table_has_it_or_refuses_it() {

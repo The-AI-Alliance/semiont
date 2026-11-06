@@ -344,7 +344,7 @@ class SignInTest {
         realm.script("/token", Said(401, buildJsonObject { put("error", "invalid_client"); put("echo", "the-secret") }))
         val refused = assertThrows(SignInError::class.java) { runBlocking { ServiceToken(SecretCredential(realm.origin, "worker", "the-secret")).authorization() } }
         assertEquals(401, refused.status)
-        assertTrue(refused.message!!.contains("worker") && !refused.message!!.contains("the-secret"), refused.message)
+        assertTrue(refused.message.contains("worker") && !refused.message.contains("the-secret"), refused.message)
         assertTrue(!SecretCredential(realm.origin, "worker", "the-secret").toString().contains("the-secret"))
     }
 
@@ -405,7 +405,7 @@ class SignInTest {
         realm.script("/.well-known/openid-configuration", Said(200, buildJsonObject { put("issuer", realm.origin); put("token_endpoint", "${realm.origin}/token"); put("authorization_endpoint", "${realm.origin}/authorize") }))
         val failed = signInFails(realm)
         assertEquals(SignInErrorCode.Discovery, failed.reason)
-        assertTrue(failed.message!!.contains("device"), failed.message)
+        assertTrue(failed.message.contains("device"), failed.message)
     }
 
     @Test
@@ -414,7 +414,7 @@ class SignInTest {
         realm.script("/device", refusal(400, "invalid_client"))
         val failed = signInFails(realm)
         assertEquals(SignInErrorCode.Exchange to 400, failed.reason to failed.status)
-        assertTrue(failed.message!!.contains("invalid_client"), failed.message)
+        assertTrue(failed.message.contains("invalid_client"), failed.message)
     }
 
     @Test
@@ -440,7 +440,7 @@ class SignInTest {
         realm.script("/token", issued(tokenFor("access-1")))
         val failed = signInFails(realm)
         assertEquals(SignInErrorCode.Exchange, failed.reason)
-        assertTrue(failed.message!!.contains("no refresh token"), failed.message)
+        assertTrue(failed.message.contains("no refresh token"), failed.message)
     }
 
     private fun kept(realm: Realm, access: String) = MemorySignIn(HeldSignIn(access, "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null))
@@ -451,7 +451,7 @@ class SignInTest {
         realm.script("/token", Said(400, buildJsonObject { put("error", "invalid_grant"); put("error_description", "the refresh token was revoked") }))
         val failed = assertThrows(SignInError::class.java) { runBlocking { renewKept(kept(realm, tokenFor("access-1")), tokenFor("access-1")) } }
         assertEquals(400, failed.status)
-        assertTrue(failed.message!!.contains("invalid_grant: the refresh token was revoked"), failed.message)
+        assertTrue(failed.message.contains("invalid_grant: the refresh token was revoked"), failed.message)
     }
 
     @Test
@@ -461,7 +461,7 @@ class SignInTest {
         val access = tokenFor("access-1")
         val failed = assertThrows(SignInError::class.java) { runBlocking { renewKept(kept(realm, access), access) } }
         assertEquals(4, realm.of("/token").size)
-        assertTrue(failed.message!!.contains("after 4 attempts"), failed.message)
+        assertTrue(failed.message.contains("after 4 attempts"), failed.message)
     }
 
     @Test
@@ -506,12 +506,23 @@ class SignInTest {
     }
 
     @Test
-    fun aGatewayThatDoesNotSayWhoTheAgentIsSaysSoAndNothingOfTheAnswer() = runBlocking {
-        val realm = realm()
-        realm.script("/api/users/me", Said(200, buildJsonObject { put("secret", "not-a-principal") }))
-        agent(realm).use { agent ->
-            val failed = assertThrows(semiont.errors.TransportError::class.java) { runBlocking { agent.signIn() } }
-            assertTrue(!failed.message!!.contains("not-a-principal"), failed.message)
+    fun aGatewayThatDoesNotSayWhoTheAgentIsIsRefusedForItsFirstFaultAndNothingOfTheAnswer() = runBlocking {
+        val carried = "not-a-principal"
+        val agentNamed = named(AGENT_DID).body
+        for ((answer, fault) in listOf(
+            buildJsonObject { put("secret", carried) } to "it has no `did`",
+            JsonObject(agentNamed + ("did" to buildJsonArray { add(JsonPrimitive(carried)) })) to "its `did` is malformed",
+            // A DID of no DID's form: the table states a DID's form, so the refusal names the `did`.
+            JsonObject(agentNamed + ("did" to JsonPrimitive(carried))) to "its `did` is malformed",
+            JsonObject(agentNamed + ("name" to buildJsonArray { add(JsonPrimitive(carried)) })) to "its `name` is malformed",
+        )) {
+            val realm = realm()
+            realm.script("/api/users/me", Said(200, answer))
+            agent(realm).use { agent ->
+                val failed = assertThrows(semiont.errors.TransportError::class.java) { runBlocking { agent.signIn() } }
+                assertEquals("${realm.origin}/api/users/me did not answer who the agent is: $fault", failed.message)
+                assertEquals(200, failed.status)
+            }
         }
     }
 

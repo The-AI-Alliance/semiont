@@ -108,8 +108,11 @@ move the table: what puts a case here is that a function call can check it.
    challenge header, a response with no body schema, an error whose body is not
    `ErrorResponse`, an operation with no 500 (or with a request body and no
    400), an operation that takes a JSON body with no `maxBodyBytes` limit or no
-   413, a stream whose event names, frame or id formats no schema names, or a
-   limit in `x-semiont-limits` that is not a positive integer.
+   413, a stream whose event names, frame or id formats no schema names, a
+   limit in `x-semiont-limits` that is not a positive integer, or waits that do
+   not nest: the Archivist's hold on a read of anchored text not shorter than
+   its `readSeconds`, or its `connectSeconds` and `readSeconds` together not
+   shorter than a client's `httpRequestTimeoutMs`.
 
 3. **Regenerate types** (happens automatically during build):
    ```bash

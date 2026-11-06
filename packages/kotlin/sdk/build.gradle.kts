@@ -47,19 +47,22 @@ configurations.matching { it.name.startsWith("kotlin") }.configureEach {
 }
 
 // The generator of the SDK's protocol types: Kotlin of its own, compiled
-// first and run over protocol/specs/src, whose output is compiled with the SDK's own
-// sources. Nothing it writes is committed.
+// first and run over protocol/specs/src and the SDK's copy of the table of
+// what each component schema requires, whose output is compiled with the
+// SDK's own sources. Nothing it writes is committed.
 val codegen: SourceSet = sourceSets.create("codegen")
 val generated = layout.buildDirectory.dir("generated/semiont/main/kotlin")
 val generate = tasks.register<JavaExec>("generate") {
     description = "Writes the SDK's protocol types from protocol/specs/src."
     group = LifecycleBasePlugin.BUILD_GROUP
     val specs = layout.projectDirectory.dir("../../../protocol/specs/src")
+    val required = layout.projectDirectory.file("src/codegen/required-schemas.json")
     inputs.dir(specs).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file(required).withPathSensitivity(PathSensitivity.RELATIVE)
     outputs.dir(generated)
     classpath = codegen.runtimeClasspath
     mainClass = "semiont.codegen.GenerateKt"
-    args(specs.asFile.path, generated.get().asFile.path)
+    args(specs.asFile.path, generated.get().asFile.path, required.asFile.path)
 }
 kotlin.sourceSets.named("main") {
     kotlin.srcDir(files(generated).builtBy(generate))

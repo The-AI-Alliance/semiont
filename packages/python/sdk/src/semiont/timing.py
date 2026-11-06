@@ -81,8 +81,10 @@ EMIT_RETRY: Final = RetryPolicy(attempts=4, initial_delay_ms=1000, max_delay_ms=
 # issuer that accepts a connection and never answers holds a session's start, and every renewal
 # after it, for as long as the process lives. An upload has no deadline: how long it takes is
 # how large the resource is. A read of anchored text may be held by the Archivist while the
-# Smelter reads the content, for the time protocol/contract/ARCHIVIST.md states, and this
-# deadline is longer than that wait.
+# Smelter reads the content, and the gateway waits for the Archivist as the Archivist's document
+# states (protocol/specs/src/archivist/openapi.json): this deadline is longer than its
+# `connectSeconds` and `readSeconds` together, and the hold is shorter than `readSeconds`, which
+# `lint:spec-protocol` holds.
 HTTP_REQUEST_TIMEOUT_MS: Final = 30000
 
 # The wait before an HTTP request that is neither the stream nor an emit is made a second time.

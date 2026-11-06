@@ -3,6 +3,9 @@
 #
 #   images/tests/stack/smoke-stack.sh up local          # boot and check a stack of :local images; leave it up
 #   images/tests/stack/smoke-stack.sh e2e               # run images/e2e's default tier beside it
+#   images/tests/stack/smoke-stack.sh e2e --script test:slow --model gemma4:26b -- specs/01-sign-in.spec.ts
+#                                                       # another npm script, a knowledge base bound to another
+#                                                       # model, Playwright's arguments after --
 #   images/tests/stack/smoke-stack.sh down              # stop it, and check every port is released
 #   images/tests/stack/smoke-stack.sh run 0.6.5 --e2e   # all three in one run, as Stack Smoke does
 #
@@ -30,21 +33,30 @@
 #
 # E2E asks what a model does, which UP does not. Each run makes a knowledge
 # base of its own beside UP's, as `init` makes one, with a domain no other run
-# has, on the images UP's documents name: its start joins the shared
+# has, bound to init's model or the one --model names (init's is the smallest
+# that serves a first knowledge base; @slow asks more of a model than it has),
+# on the images UP's documents name: its start joins the shared
 # containers UP's left running and gives it a gateway port of its own. It makes
 # a user in that knowledge base's realm with `useradd`, then runs images/e2e's
 # default tier less its @model tests (`npm run test:ci`, which typechecks the
-# specs and leaves out @slow and @model) against its gateway, in the Playwright
-# image whose tag is the version images/e2e/package.json pins. On exit it stops,
-# cleans and forgets that knowledge base, leaving UP's running. The suite's
-# assertions are made against a knowledge base no earlier run touched: some of
-# them hold only on a fresh one. The image reaches the stack at localhost
+# specs and leaves out @slow and @model), or the npm script --script names,
+# with the arguments after -- given to Playwright, against its gateway, in the
+# Playwright image whose tag is the version images/e2e/package.json pins. Then
+# it reads the knowledge base's job queue from `semiont status` until nothing
+# is pending or running: a job the suite started that no worker claimed, or
+# that none finished, fails the run though every test passed. On exit, when
+# everything passed, it stops, cleans and forgets that knowledge base, leaving
+# UP's running; when anything failed it leaves it running, its logs, jobs and
+# traces there to read, and records it for DOWN. The suite's assertions are
+# made against a knowledge base no earlier run touched: some of them hold only
+# on a fresh one. The image reaches the stack at localhost
 # through `--network host` on Docker and Podman, or the existing localhost
 # bridge on Apple container. The suite's packages, @semiont/core and
 # @semiont/sdk, link to this checkout's packages/, which must be built:
 # images/scripts/build-session.sh builds them, as `npm run build:packages` does.
 #
-# DOWN stops UP's stack, puts back the Browser's and Worker's documents as UP
+# DOWN stops, cleans, forgets and removes each knowledge base a failed E2E
+# left, then stops UP's stack, puts back the Browser's and Worker's documents as UP
 # found them (the launcher's own, if there were none), cleans the state,
 # forgets the knowledge base in the launcher's registry, removes its directory
 # (never one SMOKE_KB names), and asserts that every claimed port is released.
@@ -69,37 +81,66 @@ SELF="${BASH_SOURCE[0]}"
 usage() {
   {
     echo "usage: $SELF up <images-tag>          e.g. $SELF up local"
-    echo "       $SELF e2e"
+    echo "       $SELF e2e [--script <npm-script>] [--model <model>] [-- <playwright-argument>...]"
     echo "       $SELF down"
-    echo "       $SELF run <images-tag> [--e2e]"
+    echo "       $SELF run <images-tag> [--e2e [--script <npm-script>] [--model <model>] [-- <playwright-argument>...]]"
   } >&2
   exit 2
 }
 COMMAND="${1:-}"
 [ $# -gt 0 ] && shift
 E2E=false
+# What follows e2e's name, which run passes on to its e2e.
+E2E_OPTIONS=()
 case "$COMMAND" in
   up)
     [ $# -eq 1 ] && [ -n "$1" ] || usage
     IMAGES="$1" ;;
   run)
-    [ $# -ge 1 ] && [ $# -le 2 ] && [ -n "$1" ] || usage
+    [ $# -ge 1 ] && [ -n "$1" ] || usage
     IMAGES="$1"
-    case "${2:-}" in
-      "") ;;
-      --e2e) E2E=true ;;
-      *) usage ;;
-    esac ;;
-  e2e) [ $# -eq 0 ] || usage; E2E=true ;;
+    shift
+    if [ $# -gt 0 ]; then
+      [ "$1" = --e2e ] || usage
+      shift
+      E2E=true
+      [ $# -eq 0 ] || E2E_OPTIONS=("$@")
+    fi ;;
+  e2e)
+    E2E=true
+    [ $# -eq 0 ] || E2E_OPTIONS=("$@") ;;
   down) [ $# -eq 0 ] || usage ;;
   *) usage ;;
 esac
+# The suite's npm script, the model e2e's knowledge base is bound to when init's is not the one, and
+# Playwright's arguments.
+SUITE_SCRIPT=test:ci
+E2E_KB_MODEL=
+SUITE_ARGUMENTS=()
+set -- ${E2E_OPTIONS[@]+"${E2E_OPTIONS[@]}"}
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --script)
+      [ $# -ge 2 ] && [ -n "$2" ] || usage
+      SUITE_SCRIPT="$2"
+      shift 2 ;;
+    --model)
+      [ $# -ge 2 ] && [ -n "$2" ] || usage
+      E2E_KB_MODEL="$2"
+      shift 2 ;;
+    --)
+      shift
+      [ $# -eq 0 ] || SUITE_ARGUMENTS=("$@")
+      break ;;
+    *) usage ;;
+  esac
+done
 
 if [ "$COMMAND" = run ]; then
   bash "$SELF" up "$IMAGES" || exit 1
   trap 'bash "$SELF" down >/dev/null; exit 1' INT TERM
   STATUS=0
-  if [ "$E2E" = true ]; then bash "$SELF" e2e || STATUS=1; fi
+  if [ "$E2E" = true ]; then bash "$SELF" e2e ${E2E_OPTIONS[@]+"${E2E_OPTIONS[@]}"} || STATUS=1; fi
   bash "$SELF" down || STATUS=1
   exit "$STATUS"
 fi
@@ -176,21 +217,24 @@ bad()   { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
 head_() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 summary() { printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"; [ "$FAIL" -eq 0 ]; }
 
-# init_kb <directory> <domain> <images-tag>: a knowledge base as a new user
-# makes one, its documents naming the tag's images. The images are the
-# documents' to name: init names :latest, and the run names the set it was
-# given, as a person choosing a release would.
+# init_kb <directory> <domain> <images-tag> [<model>]: a knowledge base as a new
+# user makes one, its documents naming the tag's images, bound to the model
+# named or to init's. The images are the documents' to name: init names
+# :latest, and the run names the set it was given, as a person choosing a
+# release would.
 init_kb() {
   local dir="$1" domain="$2" tag="$3" doc
+  # The domain is the one setting with no safe default, so it is the one flag a new user's init needs.
+  local flags=(--domain "$domain")
+  [ $# -lt 4 ] || flags+=(--model "$4")
   head_ "A new knowledge base: semiont init in $dir"
   echo "  launcher: $SEMIONT ($(semiont --version))"
   mkdir -p "$dir" && cd "$dir" || return 1
   git init -q && git config user.email smoke@example.com && git config user.name smoke
-  # The domain is the one setting with no safe default, so it is the one flag.
-  if semiont init --yes --domain "$domain" >/dev/null; then
-    ok "semiont init --domain $domain made it, with a config the plan deriver accepts"
+  if semiont init --yes "${flags[@]}" >/dev/null; then
+    ok "semiont init ${flags[*]} made it, with a config the plan deriver accepts"
   else
-    bad "semiont init --domain $domain refused"; return 1
+    bad "semiont init ${flags[*]} refused"; return 1
   fi
   for doc in "$dir"/.semiont/stack/*.yaml; do
     sed "s#\(ghcr.io/the-ai-alliance/semiont-[a-z]*\):latest#\1:$tag#" "$doc" > "$doc.next" && mv "$doc.next" "$doc"
@@ -244,11 +288,21 @@ restore_documents() {
   rm -rf "$KEPT"
 }
 
-# down_kb: UP's stack, stopped and gone, the machine's documents back. The
-# stop comes first, so no Browser or Worker reads a document mid-restore.
+# down_kb: each knowledge base a failed E2E left, then UP's stack, stopped and
+# gone, the machine's documents back. UP's stops last, since the shared
+# containers stop with the last knowledge base recorded, and before the
+# restore, so no Browser or Worker reads a document mid-restore.
 down_kb() {
-  local removable=true
+  local removable=true left
   [ -n "${SMOKE_KB:-}" ] && removable=false
+  if [ -f "$KEPT/e2e" ]; then
+    while IFS= read -r left; do
+      [ -n "$left" ] || continue
+      stop_kb "$left"
+      forget_kb "$left" true
+      echo "  removed $left, which a failed e2e left running"
+    done < "$KEPT/e2e"
+  fi
   stop_kb "$KB"
   restore_documents
   forget_kb "$KB" "$removable"
@@ -363,8 +417,21 @@ if [ -z "$IMAGES" ]; then
 fi
 RUN=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
 E2E_KB="$(mktemp -d)/kb"
-trap 'cd / && { stop_kb "$E2E_KB"; forget_kb "$E2E_KB" true; }' EXIT
-init_kb "$E2E_KB" "example.github.io:e2e-$RUN" "$IMAGES" || exit 1
+# finish_e2e: a run that passed leaves nothing behind. One that failed leaves
+# its knowledge base running, its logs, jobs and traces there to read, and
+# records it for DOWN to stop and remove.
+finish_e2e() {
+  cd / || return
+  if [ "$FAIL" -eq 0 ]; then
+    stop_kb "$E2E_KB"
+    forget_kb "$E2E_KB" true
+  else
+    printf '%s\n' "$E2E_KB" >> "$KEPT/e2e"
+    echo "Left the knowledge base at $E2E_KB running, to read what failed; make stack-down stops and removes it."
+  fi
+}
+trap finish_e2e EXIT
+init_kb "$E2E_KB" "example.github.io:e2e-$RUN" "$IMAGES" ${E2E_KB_MODEL:+"$E2E_KB_MODEL"} || exit 1
 start_kb "$IMAGES" || exit 1
 # A port of its own beside up's.
 GATEWAY=$(gateway_of "$E2E_KB")
@@ -372,7 +439,7 @@ if [ -z "$GATEWAY" ]; then
   bad "$E2E_KB/.semiont/stack/knowledge-base.yaml names no spec.gateway.publicURL"; exit 1
 fi
 
-head_ "The e2e default tier, in mcr.microsoft.com/playwright:v$PLAYWRIGHT-noble, against $GATEWAY"
+head_ "npm run $SUITE_SCRIPT${SUITE_ARGUMENTS[@]+ -- ${SUITE_ARGUMENTS[*]}}, in mcr.microsoft.com/playwright:v$PLAYWRIGHT-noble, against $GATEWAY"
 # A fresh realm has no users. The suite's is made here, with a password made
 # here and known to nothing else, and both reach the suite under the names
 # playwright.config.ts reads. The password goes to useradd on stdin and to
@@ -399,18 +466,39 @@ if "$RUNTIME" run --rm -m 8g ${E2E_NETWORK[@]+"${E2E_NETWORK[@]}"} \
   "mcr.microsoft.com/playwright:v$PLAYWRIGHT-noble" \
   sh -c '
     set -e
+    runtime=$1
+    script=$2
+    shift 2
     npm ci
-    if [ "$1" = container ]; then
+    if [ "$runtime" = container ]; then
       node e2e-localhost-bridge.mjs &
       bridge_pid=$!
       trap "kill $bridge_pid 2>/dev/null || true" EXIT
       sleep 1
       kill -0 "$bridge_pid"
     fi
-    npm run test:ci -- --reporter=list,html,json
-  ' sh "$RUNTIME"; then
-  ok "the default tier passed ($((SECONDS - STARTED))s)"
+    npm run "$script" -- --reporter=list,html,json "$@"
+  ' sh "$RUNTIME" "$SUITE_SCRIPT" ${SUITE_ARGUMENTS[@]+"${SUITE_ARGUMENTS[@]}"}; then
+  ok "npm run $SUITE_SCRIPT passed ($((SECONDS - STARTED))s)"
 else
-  bad "the default tier failed ($((SECONDS - STARTED))s): images/e2e/playwright-report holds the report"
+  bad "npm run $SUITE_SCRIPT failed ($((SECONDS - STARTED))s): images/e2e/playwright-report holds the report"
 fi
+
+head_ "The knowledge base's job queue, after the suite"
+# A job the suite started that no worker claimed, or that none finished, is a
+# failure no test sees. Status reads the queue from the collector, which holds
+# what the dispatcher last exported, up to 30 seconds old, so it is read until
+# it reads empty, for two minutes.
+QUEUE=""
+for ATTEMPT in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  QUEUE=$(semiont status --root "$E2E_KB" 2>/dev/null \
+    | sed -n 's/^ *queue  *\([0-9][0-9]*\) pending[^0-9]*\([0-9][0-9]*\) running.*/\1 \2/p')
+  [ "$QUEUE" = "0 0" ] && break
+  [ "$ATTEMPT" -eq 12 ] || sleep 10
+done
+case "$QUEUE" in
+  "0 0") ok "nothing pending or running" ;;
+  "") bad "semiont status printed no queue line for the knowledge base's dispatcher" ;;
+  *) bad "${QUEUE% *} pending and ${QUEUE#* } running two minutes after the suite: a job it started was never claimed, or never finished" ;;
+esac
 summary

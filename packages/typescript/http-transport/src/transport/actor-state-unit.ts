@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, UnansweredError, retryAfterMs, equalJitter, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusPrimitive, type components, type ConnectionState, type EventMap, type ResourceId, type RetryPolicy, type StateUnit, type TraceCarrier, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, HTTP_REQUEST_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT, STREAM_OPEN_TIMEOUT_MS } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, UnansweredError, retryAfterMs, equalJitter, BusRequestError, SemiontError, faultSaid, isObject, isString, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusPrimitive, type components, type ConnectionState, type EventMap, type ResourceId, type RetryPolicy, type StateUnit, type TraceCarrier, type TransportErrorCode, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, HTTP_REQUEST_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT, STREAM_OPEN_TIMEOUT_MS } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -9,6 +9,7 @@ import {
   withTraceparent,
 } from '@semiont/observability';
 import { APIError, gatewayWords, refusalBody, retryableUnlessRefused } from './api-error';
+import { MALFORMED } from './declared-body';
 import { fetchOf } from './fetch-of';
 
 export type { ConnectionState };
@@ -84,6 +85,29 @@ export interface ActorStateUnitOptions {
 type Received = components['schemas']['BusFrame'] & { readonly trace?: TraceCarrier };
 
 /**
+ * `data` read as a frame, or, when it names no channel, what every SDK says
+ * of its first fault: one that names no channel names no reader. A frame
+ * that names its channel is taken as it comes.
+ */
+function carried(data: string): components['schemas']['BusFrame'] | string {
+  let value: unknown;
+  try {
+    value = JSON.parse(data);
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+    return MALFORMED;
+  }
+  const said = faultSaid('BusFrame', value);
+  if (said === undefined || namesAChannel(value)) return value as components['schemas']['BusFrame'];
+  return said;
+}
+
+/** Whether `value` names a channel: it is a JSON object whose `channel` is a text of at least one character. */
+function namesAChannel(value: unknown): boolean {
+  return isObject(value) && isString(value['channel']) && value['channel'] !== '';
+}
+
+/**
  * The token `tokenRefresher` gives in place of a refused one, or none. A
  * refresher that throws has given none: the request fails on the refusal it
  * already has, and why the renewal failed is its owner's to report.
@@ -105,13 +129,14 @@ export async function renewedToken(tokenRefresher: () => Promise<string | null>)
  */
 export interface ActorStateUnit extends StateUnit, Omit<BusPrimitive, 'subscribeToResource'> {
   /**
-   * Refused connects. One `APIError` per non-2xx
-   * `/bus/subscribe` answer, carrying the HTTP status and the code it maps
-   * to, as a refused request does. Network-level failures (fetch
-   * rejections) have no status and do not emit here — they stay on the
-   * reconnect path.
+   * Refused connects, and what the stream carried that names no channel.
+   * One `APIError` per non-2xx `/bus/subscribe` answer, carrying the HTTP
+   * status and the code it maps to, as a refused request does; and one
+   * `error`, with no status, per `data` line that names no channel, saying
+   * what is wrong with it. Network-level failures (fetch rejections) have no
+   * status and do not emit here — they stay on the reconnect path.
    */
-  errors$: Observable<APIError>;
+  errors$: Observable<SemiontError>;
   /** With `scope`: upsert channels into that scope's matrix entry. Without: global channels. */
   addChannels(channels: readonly (keyof EventMap)[], scope?: ResourceId): void;
   /** With `scope`: remove channels from that scope's entry (empty entry drops the scope). Without: global channels. */
@@ -168,7 +193,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
   const events$ = new Subject<Received>();
   const state$ = new BehaviorSubject<ConnectionState>('initial');
-  const errors$ = new Subject<APIError>();
+  const errors$ = new Subject<SemiontError>();
   let currentState: ConnectionState = 'initial';
   let degradedTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -578,8 +603,12 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
             // handoff. No two frames share an id, so this never drops a
             // distinct event.
             const isDuplicate = currentId !== undefined && seenEventIds.has(currentId);
-            if (currentEvent === 'bus-event' && currentData && !isDuplicate) {
-              const parsed = JSON.parse(currentData) as components['schemas']['BusFrame'];
+            const parsed = currentEvent === 'bus-event' && currentData && !isDuplicate ? carried(currentData) : undefined;
+            if (typeof parsed === 'string') {
+              if (currentId !== undefined) rememberEventId(currentId);
+              // What names no channel names no reader: it is told to the failure report.
+              errors$.next(new SemiontError(`the stream carried what is not a frame: ${parsed}`, 'error' satisfies TransportErrorCode));
+            } else if (parsed !== undefined) {
               busLog('RECV', parsed.channel, parsed.payload, parsed.scope, parsed.correlationId);
               // Drain-window forensics: an event delivered by a SUPERSEDED
               // (lingering) connection is one that an immediate handover abort

@@ -11,13 +11,15 @@ import kotlin.io.path.writeText
  * Writes, from protocol/specs/src, what the SDK holds of the protocol: every component
  * schema of the bundled OpenAPI document as a type of `semiont.types`, each in
  * a file of its own, and the kinds of id (protocol/specs/src/identifiers/kinds.json) in
- * `semiont.identifiers`. What it writes before is gone first, so a schema the
- * spec drops leaves nothing behind.
+ * `semiont.identifiers`; and, from the SDK's copy of the table of what each
+ * component schema requires, that table. What it writes before is gone
+ * first, so a schema the spec drops leaves nothing behind.
  */
 public fun main(args: Array<String>) {
-    require(args.size == 2) { "usage: <protocol/specs/src> <output directory>" }
+    require(args.size == 3) { "usage: <protocol/specs/src> <output directory> <required-schemas.json>" }
     val specs = Path.of(args[0])
     val out = Path.of(args[1])
+    val required = Path.of(args[2])
     try {
         // The sign-in store's entry is no component of the API: it is the store's own schema, beside it.
         val signIn = readJson(specs.resolve("sign-in-store/SignIn.json")) as? JsonObject ?: refuse("sign-in-store/SignIn.json is no object")
@@ -52,6 +54,7 @@ public fun main(args: Array<String>) {
         table("semiont.resources", "Encodings.kt", emptyList(), encodingsFile(readJson(specs.resolve("text/encoding-cases.json")) as? JsonObject ?: refuse("text/encoding-cases.json is no object")))
         table("semiont.cache", "CacheRefresh.kt", emptyList(), cacheRefreshFile(readJson(specs.resolve("client/refresh.json")) as? JsonObject ?: refuse("client/refresh.json is no object"), registry))
         table("semiont.errors", "ErrorCodes.kt", listOf("semiont.Generated"), errorCodesFile(readJson(specs.resolve("errors/codes.json")) as? JsonObject ?: refuse("errors/codes.json is no object")))
+        table("semiont.bus", "RequiredTable.kt", emptyList(), requiredFile(readJson(required) as? JsonObject ?: refuse("$required is no object")))
         println("generated ${generated.types.size} types and ${kinds.size} kinds of id")
     } catch (refused: Refused) {
         System.err.println("the generator refuses: ${refused.message}")

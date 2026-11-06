@@ -25,4 +25,4 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
                     case Delivered():
                         print(heard.scope, heard.payload.type)
                     case FrameRefusal():
-                        print(f"a payload on {heard.channel} that has no `{heard.lacks}`")
+                        print(f"a payload on {heard.channel} whose `{heard.member}` {heard.reason}")

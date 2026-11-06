@@ -41,7 +41,7 @@
  */
 
 import type { AccessToken, AnchoredTextAnswer, ResourceId, PutBinaryOptions, PutBinaryProgress, components } from '@semiont/core';
-import { REQUEST_RETRY_PAUSE_MS, RETRY_RULES, busLog, retryAfterMs, uuidV4 } from '@semiont/core';
+import { REQUEST_RETRY_PAUSE_MS, RETRY_RULES, busLog, uuidV4 } from '@semiont/core';
 import { SpanKind, getActiveTraceparent, withSpan } from '@semiont/observability';
 import type { HttpTransport } from './http-transport';
 import { APIError, refusalBody } from './api-error';
@@ -428,8 +428,8 @@ interface XhrUploadOptions {
  * A POST through `XMLHttpRequest`, for its `upload.onprogress`. A refusal
  * (4xx/5xx) is the `APIError` every refusal is, as on the ky path, and
  * `onApiError` is told of it before the promise rejects. So is a connection
- * that failed. A cancellation rejects with the signal's reason, and
- * `onApiError` is not told of it.
+ * that failed, and an answer that is not its declared body. A cancellation
+ * rejects with the signal's reason, and `onApiError` is not told of it.
  */
 function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId }> {
   const { url, formData, headers, onProgress, signal, onApiError } = opts;
@@ -469,22 +469,7 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
 
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(xhr.responseText);
-        } catch (parseErr) {
-          const err = APIError.fromStatus(
-            `Upload succeeded but response was not valid JSON: ${(parseErr as Error).message}`,
-            xhr.status,
-            xhr.statusText,
-            xhr.responseText,
-            retryAfterMs(xhr.getResponseHeader('retry-after')),
-          );
-          onApiError(err, false);
-          reject(err);
-          return;
-        }
-        const answer = { status: xhr.status, statusText: xhr.statusText, json: () => Promise.resolve(parsed) };
+        const answer = { status: xhr.status, statusText: xhr.statusText, json: async (): Promise<unknown> => JSON.parse(xhr.responseText) };
         declaredBody('CreateResourceResponse', 'POST', '/resources', answer, (err) => onApiError(err, false)).then((body) => resolve({ resourceId: body.resourceId }), reject);
         return;
       }
