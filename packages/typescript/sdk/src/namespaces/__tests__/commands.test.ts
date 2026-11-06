@@ -763,7 +763,7 @@ describe('MatchNamespace', () => {
   it('search() errors on match:search-failed, with what went wrong', async () => {
     const refused = new MatchNamespace(
       createMockTransport({
-        'match:search-requested': (reply) => reply('match:search-failed', { referenceId: REF, error: 'no results' }),
+        'match:search-requested': (reply) => reply('match:search-failed', { referenceId: REF, message: 'no results' }),
       }).transport,
       eventBus,
     );

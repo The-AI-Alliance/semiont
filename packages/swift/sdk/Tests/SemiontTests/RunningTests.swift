@@ -175,7 +175,7 @@ private actor OperationGate {
   let descriptor = try #require(wireOperations[Operations.matchSearchRequested.request.name])
   let error = try descriptor.decodeFailure(
     wirePayload(
-      MatchSearchFailed(error: "the search was refused", referenceId: AnnotationId("ann-1"))))
+      MatchSearchFailed(message: "the search was refused", referenceId: AnnotationId("ann-1"))))
   #expect(error.description == "the search was refused")
   #expect(error.reason == unrecognizedBusFailure)
 }
