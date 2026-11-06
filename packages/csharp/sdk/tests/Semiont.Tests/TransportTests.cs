@@ -476,6 +476,55 @@ public sealed partial class TransportTests
         Assert.Equal(1, calls);
     }
 
+    [Fact]
+    public async Task AnEmitRenewsItsCredentialOnceAndKeepsTheTokenItWasGiven()
+    {
+        var replies = 0;
+        var refusedElsewhere = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondAsked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var third = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var server = new Handler
+        {
+            EmitStatus = token => token switch
+            {
+                "first" => HttpStatusCode.Unauthorized,
+                "third" => HttpStatusCode.Accepted,
+                _ => HttpStatusCode.ServiceUnavailable,
+            },
+            BeforeEmitReply = (_, cancellation) => Interlocked.Increment(ref replies) == 2 ? refusedElsewhere.Task.WaitAsync(cancellation) : Task.CompletedTask,
+            Other = (request, _) => Task.FromResult(request.Headers.Authorization?.Parameter == "second"
+                ? new HttpResponseMessage(HttpStatusCode.Unauthorized) { Content = new StringContent("{\"error\":\"refused\"}") }
+                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"token\":\"media\"}") }),
+        };
+        using var client = new HttpClient(server);
+        using var transport = new HttpTransport("http://unit.test", "first", ["beckon:focus"],
+            new Timing { EmitRetry = new RetryPolicy { Attempts = 2, InitialDelayMs = 1, MaxDelayMs = 1 } },
+            refresher: async (refused, cancellation) =>
+            {
+                if (refused == "first") return "second";
+                secondAsked.TrySetResult();
+                return await third.Task.WaitAsync(cancellation);
+            },
+            httpClient: client);
+        await OpenAsync(transport);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var emitted = transport.EmitAsync("beckon:focus", JsonSerializer.SerializeToElement(new { }), cancellation: deadline.Token);
+        Assert.Equal("first", (await server.Emits.Reader.ReadAsync(deadline.Token)).Token);
+        Assert.Equal("second", (await server.Emits.Reader.ReadAsync(deadline.Token)).Token);
+
+        // The gateway holds the emit's answer until a request has had the emit's renewed token refused and is renewing it.
+        var media = transport.GetMediaTokenAsync(ResourceId.Parse("r1"), deadline.Token);
+        await secondAsked.Task.WaitAsync(deadline.Token);
+        refusedElsewhere.SetResult();
+        third.SetResult("third");
+        await media;
+
+        var error = await Assert.ThrowsAsync<TransportError>(() => emitted);
+        Assert.Equal(503, error.Status);
+        Assert.Equal("second", (await server.Emits.Reader.ReadAsync(deadline.Token)).Token);
+        Assert.False(server.Emits.Reader.TryPeek(out _));
+    }
+
     public static IEnumerable<object[]> Refusals()
     {
         using var table = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "specs/errors/codes.json")));
