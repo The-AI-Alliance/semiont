@@ -61,7 +61,7 @@ a bus refusal both answer no for different reasons.
 
 | predicate | true for | lives in |
 |---|---|---|
-| an emit's, from the `boot` rule | what the rule accepts of a `POST`: no answer, or a status that says the gateway will recover | every SDK |
+| an emit's, from the `boot` rule | what the rule accepts of a `POST`: no answer, a limit's refusal, or a status that says the gateway will recover | every SDK |
 | `_not_ready` | the model is not pulled, **or** the provider is not listening | `semiont_vectors` (`_dimensions.py`) |
 
 What counts as worth another attempt is the same in every language: the rules are
