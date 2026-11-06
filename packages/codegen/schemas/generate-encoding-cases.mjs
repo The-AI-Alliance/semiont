@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // generate-encoding-cases.mjs — generate protocol/specs/src/text/encoding-cases.json:
 // every label of the Encoding Standard with the encoding it names, every byte
-// of each of the standard's single-byte encodings, and some bytes of each of
-// its other encodings, as cases every reader of a resource's text runs.
+// of each of the standard's single-byte encodings, some bytes of UTF-8,
+// UTF-16BE and UTF-16LE, and the encodings whose labels every reader refuses,
+// as cases every reader of a resource's text runs.
 //
 // Two things are read, and nothing is typed here but the names of the three
-// groups an encoding can be in, and the bytes of each encoding that is not a
-// single-byte one:
+// groups an encoding can be in, and the bytes of each Unicode encoding:
 //
 //   - The labels, from the npm package @exodus/bytes (an implementation of
 //     the Encoding Standard; jsdom reads with it) at the one version the
@@ -14,7 +14,7 @@
 //     (fallback/encoding.labels.js) that the package does not export, so it
 //     is read by its path and its shape is checked before it is believed.
 //   - What each byte of a single-byte encoding is, and what the bytes of each
-//     other encoding are, from this Node's own TextDecoder.
+//     Unicode encoding are, from this Node's own TextDecoder.
 //
 // Each is held to the other before anything is written: TextDecoder must
 // take every label as the encoding the table gives it, and refuse the labels
@@ -37,21 +37,13 @@ const CHECK = process.argv.includes('--check');
 
 /** The encodings that are not single-byte ones, by the standard's own headings. Everything else the standard names is. */
 const UNICODE = { 'utf-8': 'c3 a9', 'utf-16be': '00 e9', 'utf-16le': 'e9 00' };
-/**
- * For each legacy multi-byte encoding, bytes only a decoder of it reads as what
- * this Node's TextDecoder reads them as: gb18030's hold a four-byte sequence,
- * and ISO-2022-JP's switch to its two-byte mode and back.
- */
-const LEGACY_MULTI_BYTE = {
-  big5: 'a4 a4',
-  'euc-jp': 'c6 fc',
-  'euc-kr': 'c7 d1 b1 db',
-  gb18030: 'd6 d0 81 30 81 30',
-  gbk: 'd6 d0',
-  'iso-2022-jp': '1b 24 42 46 7c 1b 28 42 41',
-  shift_jis: '93 fa',
-};
 const REPLACEMENT = 'replacement';
+/**
+ * The encodings no reader reads a text in: the standard's seven legacy
+ * multi-byte encodings, which each reader's own decoder reads otherwise than
+ * the standard and than the others, and `replacement`, which has no text.
+ */
+const REFUSED = ['big5', 'euc-jp', 'euc-kr', 'gb18030', 'gbk', 'iso-2022-jp', 'shift_jis', REPLACEMENT];
 
 function refuse(message) {
   console.error(`✗ ${PACKAGE}: ${message}`);
@@ -101,10 +93,10 @@ for (const [label, encoding] of seen) {
   }
 }
 
-for (const encoding of [...Object.keys(UNICODE), ...Object.keys(LEGACY_MULTI_BYTE), REPLACEMENT]) {
+for (const encoding of [...Object.keys(UNICODE), ...REFUSED]) {
   if (!labelsOf.has(encoding)) refuse(`its table has no ${encoding}`);
 }
-const singleByte = [...labelsOf.keys()].filter((encoding) => !(encoding in UNICODE) && !(encoding in LEGACY_MULTI_BYTE) && encoding !== REPLACEMENT).sort();
+const singleByte = [...labelsOf.keys()].filter((encoding) => !(encoding in UNICODE) && !REFUSED.includes(encoding)).sort();
 
 /** The 256 characters the bytes 00 to ff are in a single-byte encoding, each byte read on its own. */
 function everyByte(encoding) {
@@ -128,13 +120,8 @@ const cases = [
     if (text !== 'é') refuse(`${encoding} reads ${bytes} as ${JSON.stringify(text)}`);
     return { encoding, labels: labelsOf.get(encoding), bytes, text };
   }),
-  ...Object.entries(LEGACY_MULTI_BYTE).map(([encoding, bytes]) => {
-    const text = new TextDecoder(encoding).decode(bytesFrom(bytes));
-    if (text.includes('\uFFFD') || /^[\x00-\x7f]*$/.test(text)) refuse(`${encoding} reads ${bytes} as ${JSON.stringify(text)}, which proves no decoder of it`);
-    return { encoding, labels: labelsOf.get(encoding), bytes, text };
-  }),
   ...singleByte.map((encoding) => ({ encoding, labels: labelsOf.get(encoding), everyByte: everyByte(encoding) })),
-  { encoding: REPLACEMENT, labels: labelsOf.get(REPLACEMENT), refused: true },
+  ...REFUSED.map((encoding) => ({ encoding, labels: labelsOf.get(encoding), refused: true })),
 ];
 
 const table = {
@@ -146,13 +133,14 @@ const table = {
     'it and written by hand, holds what is said of a content type, of a label, of a byte-order mark and of malformed ' +
     'UTF-8 and UTF-16. A CASE is an `encoding`, by its name in lower case, and its `labels`, the name among them. A ' +
     'reader given a content type whose charset is any one of the labels, in any case and with ASCII white space around ' +
-    'it, reads the bytes in that encoding. What that is, is one of three things. `everyByte`: the encoding is a ' +
-    'single-byte one, and this is the text the 256 bytes 00 to ff, in that order, are: one character to a byte, and ' +
-    'U+FFFD where the encoding gives the byte none. `bytes` and `text`: some bytes in hexadecimal and the text they ' +
-    'are, which tell UTF-8, UTF-16BE and UTF-16LE from one another, and which only a decoder of each of the ' +
-    'standard\'s seven legacy multi-byte encodings reads; where readers\' decoders of those differ, in rarer sequences ' +
-    'and in what they make of a fault, is not held here. `refused`: every label of the case is refused, by its name: ' +
-    'these are the labels of the standard\'s `replacement` encoding. Every character here that is not printable ASCII ' +
+    'it, does one of three things. `everyByte`: the encoding is a single-byte one, and the reader reads the bytes in ' +
+    'it; this is the text the 256 bytes 00 to ff, in that order, are: one character to a byte, and U+FFFD where the ' +
+    'encoding gives the byte none. `bytes` and `text`: the reader reads the bytes in the encoding, and these are some ' +
+    'bytes in hexadecimal and the text they are, which tell UTF-8, UTF-16BE and UTF-16LE from one another. ' +
+    '`refused`: the reader refuses every label of the case, by its name, whatever the bytes are: these are the labels ' +
+    'of the standard\'s `replacement` encoding and of its seven legacy multi-byte encodings (Big5, EUC-JP, EUC-KR, ' +
+    'gb18030, GBK, ISO-2022-JP and Shift_JIS), whose bytes each reader\'s own decoder reads otherwise than the ' +
+    'standard and than the others. Every character here that is not printable ASCII ' +
     'is written as an escape. WHERE IT COMES FROM. The labels are read from ' +
     `the npm package ${PACKAGE}, an implementation of the standard, at the version the repository's package.json pins ` +
     '(MIT, Exodus Movement); the characters of each byte, and the text of each case\'s bytes, are what Node\'s ' +

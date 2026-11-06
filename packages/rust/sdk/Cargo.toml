@@ -12,7 +12,8 @@ categories = ["api-bindings", "asynchronous"]
 [features]
 # The doubles and the axiom harnesses a consumer's tests use.
 testing = ["dep:proptest", "tokio/test-util"]
-# Text in any charset the Encoding Standard names, as a browser reads it.
+# Text in any charset of the Encoding Standard that every reader decodes, as a
+# browser reads it: the standard's legacy multi-byte charsets are refused.
 # Without it a resource's text is decoded only when it is UTF-8. A service
 # reads no resource as text, and does not enable it.
 charsets = ["dep:encoding_rs"]
@@ -42,7 +43,7 @@ windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_Securit
 base64.workspace = true
 # The claims tests read the trace a claim is made in, as a transport would.
 opentelemetry = { workspace = true, features = ["trace"] }
-# This crate's own tests use its testing surface, and read text in every charset.
+# This crate's own tests use its testing surface, and read text in every charset a reader decodes.
 semiont = { path = ".", features = ["testing", "charsets"] }
 # The multi-threaded runtime is for the tests that hold a unit to the order it hears things in.
 tokio = { workspace = true, features = ["test-util", "rt-multi-thread"] }

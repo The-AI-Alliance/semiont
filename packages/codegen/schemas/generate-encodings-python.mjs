@@ -74,9 +74,8 @@ ${labels.map((label) => `    ${pyAscii(label)}: ${pyAscii(encodingOf.get(label))
 }
 """The encoding each label of the standard names. A label is matched in lower case, with no white space around it.
 
-An encoding that is neither in \`SINGLE_BYTE\` nor in \`REFUSED\` is one no
-table here decodes: UTF-8, UTF-16BE, UTF-16LE, or one of the standard's legacy
-multi-byte encodings.
+An encoding that is neither in \`SINGLE_BYTE\` nor in \`REFUSED\` is UTF-8,
+UTF-16BE or UTF-16LE, which no table here decodes.
 """
 
 SINGLE_BYTE: Final[Mapping[str, str]] = {

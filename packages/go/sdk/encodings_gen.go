@@ -7,8 +7,8 @@ package semiont
 // labelsOfEncodings is every label of the Encoding Standard, 228 of them,
 // each with the encoding it names. A label is matched in lower case, with no
 // white space around it. An encoding that is neither in singleByteEncodings
-// nor in refusedEncodings is one no table here decodes: UTF-8, UTF-16BE,
-// UTF-16LE, or one of the standard's legacy multi-byte encodings.
+// nor in refusedEncodings is UTF-8, UTF-16BE or UTF-16LE, which no table here
+// decodes.
 var labelsOfEncodings = []struct{ label, encoding string }{
 	{"866", "ibm866"},
 	{"ansi_x3.4-1968", "windows-1252"},
@@ -276,4 +276,4 @@ var singleByteEncodings = []struct{ encoding, everyByte string }{
 
 // refusedEncodings is the encodings whose labels are refused: no text is read
 // under them.
-var refusedEncodings = []string{"replacement"}
+var refusedEncodings = []string{"big5", "euc-jp", "euc-kr", "gb18030", "gbk", "iso-2022-jp", "replacement", "shift_jis"}

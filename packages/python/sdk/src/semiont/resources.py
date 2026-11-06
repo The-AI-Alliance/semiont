@@ -61,22 +61,6 @@ _MARKS: Final = ((b"\xef\xbb\xbf", "utf-8"), (b"\xfe\xff", "utf-16-be"), (b"\xff
 # input included: protocol/specs/src/text/decode-cases.json holds them to it.
 _PYTHONS_OWN: Final = {"utf-8": "utf-8", "utf-16be": "utf-16-be", "utf-16le": "utf-16-le"}
 
-# The standard's legacy multi-byte encodings, each by Python's codec of the
-# decoder the standard names for it: GBK's is gb18030's, and each other is the
-# superset of what its name says that the standard reads (Big5-HKSCS,
-# windows-949, windows-31j). Every label of each is the encoding's, whatever
-# codec Python would look the label up as. protocol/specs/src/text/encoding-cases.json
-# holds every label of each.
-_LEGACY_MULTI_BYTE: Final = {
-    "big5": "big5hkscs",
-    "euc-jp": "euc_jp",
-    "euc-kr": "cp949",
-    "gb18030": "gb18030",
-    "gbk": "gb18030",
-    "iso-2022-jp": "iso2022_jp",
-    "shift_jis": "cp932",
-}
-
 
 def _is_http_token(text: str) -> bool:
     return text != "" and all(character in _HTTP_TOKEN for character in text)
@@ -168,9 +152,7 @@ def _stated_encoding(content_type: str) -> str | None:
     label = stated.strip(_ASCII_WHITE_SPACE).translate(_ASCII_LOWER)
     encoding = ENCODING_OF_LABEL.get(label)
     if encoding is None or encoding in REFUSED:
-        raise TransportError(
-            "error", f"The resource's text is {stated}, which is no charset the Encoding Standard decodes: read its bytes instead"
-        )
+        raise TransportError("error", f"The resource's text is {stated}, which is no charset this reader decodes: read its bytes instead")
     return encoding
 
 
@@ -204,8 +186,8 @@ def decode_representation(data: bytes, media_type: str) -> str:
 
     The labels and the single-byte encodings are the standard's, from the
     table generated of it (`semiont._encodings`), and not Python's own, which
-    differ from it. The legacy multi-byte encodings are read by Python's codec
-    of the decoder the standard names for each, whatever the label.
+    differ from it. The standard's seven legacy multi-byte encodings are
+    refused, as every reader refuses them.
     """
     base = base_media_type(media_type)
     if derives_text_of(media_type):
@@ -222,7 +204,4 @@ def decode_representation(data: bytes, media_type: str) -> str:
         return data.decode("utf-8", "replace")
     if encoding in _PYTHONS_OWN:
         return data.decode(_PYTHONS_OWN[encoding], "replace")
-    if encoding in SINGLE_BYTE:
-        return data.decode("latin-1").translate(SINGLE_BYTE[encoding])
-    # What is left is the standard's legacy multi-byte encodings.
-    return data.decode(_LEGACY_MULTI_BYTE[encoding], "replace")
+    return data.decode("latin-1").translate(SINGLE_BYTE[encoding])

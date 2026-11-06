@@ -1,15 +1,13 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Semiont.Internal.Text (decodeRepresentation) where
 
-import Control.Exception (IOException, catch, throwIO)
+import Control.Exception (throwIO)
 import qualified Data.ByteString as Bytes
 import Data.Char (chr)
 import qualified Data.Vector as Vector
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
-import GHC.Foreign (peekCStringLen)
-import GHC.IO.Encoding (mkTextEncoding)
 import qualified Semiont.Internal.Utf8 as Utf8
 import qualified Semiont.ErrorCodes as Code
 import Semiont.Errors (TransportError(..))
@@ -92,26 +90,15 @@ decodeRepresentation bytes contentType = do
     Just "" -> pure "utf-8"
     Just stated -> case Map.lookup (asciiLower (Text.dropAround asciiWhite stated)) Fact.encodingOf of
       Just name | name `notElem` Fact.refused -> pure name
-      _ -> refuse ("The resource's text is "<>stated<>", which is no charset the Encoding Standard decodes")
+      _ -> refuse ("The resource's text is "<>stated<>", which is no charset this reader decodes")
   let decode name data' = case name of
-        "utf-8" -> pure (Utf8.decodeUtf8 data')
-        "utf-16be" -> pure (decodeUtf16 True data')
-        "utf-16le" -> pure (decodeUtf16 False data')
+        "utf-8" -> Utf8.decodeUtf8 data'
+        "utf-16be" -> decodeUtf16 True data'
+        "utf-16le" -> decodeUtf16 False data'
         _ -> case Map.lookup name Fact.singleByte of
-          Just points -> pure (Text.unfoldrN (Bytes.length data') (\index -> if index >= Bytes.length data' then Nothing else Just (chr (points Vector.! fromIntegral (Bytes.index data' index)), index+1)) 0)
-          Nothing -> do
-            -- The platform supplies the seven legacy multi-byte decoders.
-            -- Their labels still come exclusively from the Encoding Standard.
-            let codec = case name of
-                  "big5" -> "BIG5-HKSCS"
-                  "euc-kr" -> "CP949"
-                  "gbk" -> "GB18030"
-                  "shift_jis" -> "CP932"
-                  _ -> Text.unpack name
-            (do decoder <- mkTextEncoding (codec<>"//ROUNDTRIP")
-                Text.pack <$> Bytes.useAsCStringLen data' (peekCStringLen decoder))
-              `catch` (\(_::IOException) -> refuse ("The resource's text is "<>name<>", which this platform cannot decode"))
-  if Bytes.pack [239,187,191] `Bytes.isPrefixOf` bytes then decode "utf-8" (Bytes.drop 3 bytes)
+          Just points -> Text.unfoldrN (Bytes.length data') (\index -> if index >= Bytes.length data' then Nothing else Just (chr (points Vector.! fromIntegral (Bytes.index data' index)), index+1)) 0
+          Nothing -> error ("the table of encodings names " <> Text.unpack name <> ", which it neither refuses nor reads byte by byte")
+  pure $ if Bytes.pack [239,187,191] `Bytes.isPrefixOf` bytes then decode "utf-8" (Bytes.drop 3 bytes)
     else if Bytes.pack [254,255] `Bytes.isPrefixOf` bytes then decode "utf-16be" (Bytes.drop 2 bytes)
     else if Bytes.pack [255,254] `Bytes.isPrefixOf` bytes then decode "utf-16le" (Bytes.drop 2 bytes)
     else decode encoding bytes

@@ -14,8 +14,10 @@
 //! `browse.resource_content` reads with, and an offset counts the code
 //! points of the text it gives. It reads the bytes of a media type whose
 //! text they are and refuses any other by name: a PDF's text is derived by
-//! reading its bytes, and an image has none. Without the `charsets` feature
-//! it decodes UTF-8 alone.
+//! reading its bytes, and an image has none. With the `charsets` feature it
+//! decodes every encoding of the Encoding Standard but the ones every reader
+//! refuses (protocol/specs/src/text/encoding-cases.json); without it, UTF-8
+//! alone.
 
 use crate::errors::{TransportError, TransportErrorCode};
 use crate::media_types::{TextSource, base_media_type, derives_text_of, text_source_of};
@@ -223,15 +225,22 @@ pub fn decode_representation(bytes: &[u8], media_type: &str) -> Result<String, T
     })
 }
 
-/// Every encoding of the Encoding Standard, by `encoding_rs`. What is not
-/// decoded is the error, said as the refusal says it.
+#[cfg(feature = "charsets")]
+include!(concat!(env!("OUT_DIR"), "/refused_encodings.rs"));
+
+/// Every encoding of the Encoding Standard that a reader decodes, by
+/// `encoding_rs`: a label of one the table of encodings refuses is refused.
+/// What is not decoded is the error, said as the refusal says it.
 #[cfg(feature = "charsets")]
 fn every_charset(label: Option<&str>, bytes: &[u8]) -> Result<String, String> {
     let encoding = match label {
         None => encoding_rs::UTF_8,
         // The label is held to the standard before the bytes are looked at.
-        Some(label) => encoding_rs::Encoding::for_label_no_replacement(label.as_bytes())
-            .ok_or_else(|| format!("{label}, which is no charset the Encoding Standard decodes"))?,
+        Some(label) => encoding_rs::Encoding::for_label(label.as_bytes())
+            .filter(|named| {
+                !REFUSED_ENCODINGS.contains(&named.name().to_ascii_lowercase().as_str())
+            })
+            .ok_or_else(|| format!("{label}, which is no charset this reader decodes"))?,
     };
     // The standard's `decode`: a leading mark decides the encoding, and is
     // left out.
