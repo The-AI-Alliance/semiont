@@ -208,7 +208,9 @@ async def _session_started(
     # at rest: a place kept ahead of a cache still taking in the event it names
     # would have the next session skip that event.
     places = None if storage is None else CoupledBookmarks(storage, f"semiont.lastEventId.{kb.id}")
-    transport = HttpTransport(base_url, token=token, refresher=lambda: session.refresh(), channels=channels, bookmarks=places, http=http)
+    transport = HttpTransport(
+        base_url, token=token, refresher=lambda refused: session.refresh(refused), channels=channels, bookmarks=places, http=http
+    )
     client = SemiontClient(
         transport,
         transport.content,

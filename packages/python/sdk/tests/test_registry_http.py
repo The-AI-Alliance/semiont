@@ -196,7 +196,8 @@ def test_renewals_asked_for_together_are_one_request_of_the_issuer() -> None:
                 renewed = token(3600, 2)
                 granting(gateway, (renewed, "r2"))
 
-                renewals = await soon(asyncio.gather(session.refresh(), session.refresh(), session.refresh()))
+                refused = session.token.value
+                renewals = await soon(asyncio.gather(session.refresh(refused), session.refresh(refused), session.refresh(refused)))
 
                 assert list(renewals) == [renewed, renewed, renewed]
                 assert len(gateway.of("POST", TOKEN)) == 1, "an issuer that rotates refresh tokens would have refused the second"

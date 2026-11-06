@@ -302,8 +302,14 @@ class AgentToken:
             if not keeping.cancelled():
                 await keeping
 
-    async def refresh(self) -> str | None:
-        """The gateway refused the token: ask the issuer for another. The new token, or nothing when it gave none."""
+    async def refresh(self, refused: str | None) -> str | None:
+        """The gateway refused `refused`: ask the issuer for another. The new token, or nothing when it gave none.
+
+        A token the agent no longer holds was renewed already: the one it holds
+        is given, and the issuer is not asked.
+        """
+        if self._token.value != refused:
+            return self._token.value
         try:
             return await self._renew()
         except SemiontError:

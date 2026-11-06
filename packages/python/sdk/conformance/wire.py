@@ -135,7 +135,7 @@ class Wire:
         """
         remaining = iter(renewals)
 
-        async def renew() -> str | None:
+        async def renew(_: str | None) -> str | None:
             renewed = next(remaining, None)
             if renewed is not None:
                 self._token.set(renewed)
