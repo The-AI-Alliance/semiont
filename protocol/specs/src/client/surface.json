@@ -1391,22 +1391,22 @@
         {
           "member": "tokenExpiry",
           "kind": "function",
-          "absent": {
-            "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
+          "named": {
+            "typescript": "parseJwtExpiry"
           }
         },
         {
           "member": "isTokenExpired",
           "kind": "function",
-          "absent": {
-            "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
+          "named": {
+            "typescript": "isJwtExpired"
           }
         },
         {
           "member": "renewalDelay",
           "kind": "function",
           "absent": {
-            "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
+            "typescript": "TypeScript's session reads when to renew from the token itself (refreshDelayMs), and hands out no reckoning from a lifetime and what is left of it."
           }
         },
         {
@@ -1903,7 +1903,7 @@
             "go": "SignInFile"
           },
           "absent": {
-            "typescript": "TypeScript's store hands the file's name to its caller's files, which never name it themselves.",
+            "typescript": "TypeScript's is SIGN_IN_STORE_FILE, generated into @semiont/core, which the store hands to its caller's files.",
             "swift": "Swift's store is made at a path its caller gives.",
             "csharp": "C#'s store is made in a directory its caller gives, and names the file there itself."
           }
