@@ -459,6 +459,11 @@ own.
   with it, outside `emitRetry`
   ([TRANSPORT-CONTRACT.md § A refused credential](./TRANSPORT-CONTRACT.md#a-refused-credential)).
   *Held by `sdk/wire/emit-credential-renewed`, `sdk/wire/emit-credential-limit-renewed`, `sdk/wire/emit-credential-refused-twice`.*
+- The emit sent again with a renewed credential starts a fresh `emitRetry`
+  budget: the attempts made before the renewal are not counted against it,
+  and its backoff begins again at `initialDelayMs`. An emit's attempts span
+  at most two budgets, the one before the renewal and the one after.
+  *Held by `sdk/wire/emit-budget-renewed`.*
 
 ## Wire framing and client parser obligations
 

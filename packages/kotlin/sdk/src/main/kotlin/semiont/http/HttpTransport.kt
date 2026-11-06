@@ -118,7 +118,7 @@ public class HttpTransport @JvmOverloads constructor(
         return Telemetry.emitting(channel, scope) { sent(channel, payload, scope, correlationId) }
     }
 
-    /** One emit, made again inside the retry budget, its credential renewed once, every attempt under the one key that names it. */
+    /** One emit, made again inside the retry budget, its credential renewed once with a fresh budget after it, every attempt under the one key that names it. */
     private suspend fun sent(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): Long? {
         val body = wireJson.encodeToString(
             BusEmitRequest.serializer(),
@@ -159,6 +159,8 @@ public class HttpTransport @JvmOverloads constructor(
                     val another = exchange.renewal(sent)
                     if (another != null) {
                         sent = another
+                        made = 1
+                        capMs = timing.emitRetry.initialDelayMs
                         continue
                     }
                 }
