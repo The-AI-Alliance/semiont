@@ -683,7 +683,7 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
       expect(getAnnotations).toHaveBeenCalledTimes(1);
 
       // Something changed and nothing says what.
-      eventBus.emit('mark:added', new FrameRefusal('mark:added', 'resourceId', 'lacks', { not: 'a recorded event' }));
+      eventBus.emit('mark:added', new FrameRefusal('mark:added', 'payload.resourceId', 'lacks', { not: 'a recorded event' }));
       await flush();
 
       expect(requests(emitSpy, 'browse:resource-requested')).toBe(2);

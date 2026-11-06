@@ -98,7 +98,8 @@ function resolved(shape: Shape): Shape {
   return shape.ref === undefined ? shape : resolved(REQUIRED_SCHEMAS[shape.ref]);
 }
 
-const within = (way: string, name: string): string => (way === '' ? name : `${way}.${name}`);
+/** The way to `name` within the member at `way`: their names joined by a dot; `name` alone within the value itself. */
+export const within = (way: string, name: string): string => (way === '' ? name : `${way}.${name}`);
 
 /** Whether `count` is at least `least` and at most `most`, where each is stated. */
 const counted = (least: number | undefined, count: number, most: number | undefined): boolean =>

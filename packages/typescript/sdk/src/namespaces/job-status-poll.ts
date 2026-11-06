@@ -127,7 +127,7 @@ export class JobFrames {
   of<K extends JobFrameChannel>(channel: K): Observable<EventMap[K]> {
     return new Observable<EventMap[K]>((subscriber) =>
       this.bus.on(channel).subscribe((frame) => {
-        // A frame that is not its channel's names no job it can be told to.
+        // A frame refused, by its transport or as its channel's, names no job it can be told to.
         if (frame instanceof FrameRefusal) return;
         const deliver = (): void => {
           if (frame.jobId === this.jobId) subscriber.next(frame);

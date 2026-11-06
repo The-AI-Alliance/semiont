@@ -29,20 +29,7 @@ import type { ConnectionState, ITransport } from './transport';
 import { EventBus } from './event-bus';
 import { BRIDGED_CHANNELS } from './bridged-channels';
 import { BUS_OPERATIONS, REPLY_NAMES, type BusOperationKey } from './bus-operations';
-import { FrameRefusal, asDeclared } from './bus';
-
-/**
- * A frame of this double's wire as a wire delivers it. Its bus is its wire,
- * and nothing bridges into it: a refusal there is no frame any wire carries,
- * and is this double's own fault.
- */
-function onTheWire<T>(frame: BusFrame<T | FrameRefusal>): BusFrame<T> {
-  const { payload, ...envelope } = frame;
-  if (payload instanceof FrameRefusal) {
-    throw new Error(`FaultyTransport: its wire holds a refusal on ${payload.channel}, which no wire carries`);
-  }
-  return { ...envelope, payload };
-}
+import { asDeclared, type FrameRefusal } from './bus';
 
 /** One wire behavior, applied to a single request-channel emit. */
 export type FaultAction =
@@ -264,13 +251,13 @@ export class FaultyTransport implements ITransport {
     return 1;
   }
 
-  on<K extends keyof EventMap>(channel: K, handler: (payload: EventMap[K]) => void): () => void {
+  on<K extends keyof EventMap>(channel: K, handler: (payload: EventMap[K] | FrameRefusal) => void): () => void {
     const sub = this.stream(channel).subscribe(handler);
     return () => sub.unsubscribe();
   }
 
-  stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
-    return this.bus.frames(channel).pipe(map((frame) => onTheWire<EventMap[K]>(frame).payload));
+  stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K] | FrameRefusal> {
+    return this.frames(channel).pipe(map((frame) => frame.payload));
   }
 
   /**
@@ -278,8 +265,8 @@ export class FaultyTransport implements ITransport {
    * delivers it: a reader of one resource's keeps that scope's
    * (`Bus.frames(channel, resourceId)`).
    */
-  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>> {
-    return this.bus.channelStream(channel).asObservable().pipe(map((frame) => onTheWire<EventMap[K]>(frame)));
+  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K] | FrameRefusal>> {
+    return this.bus.channelStream(channel).asObservable();
   }
 
   /**

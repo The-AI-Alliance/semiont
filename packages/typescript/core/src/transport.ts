@@ -33,6 +33,7 @@ import type { AnnotationId, ResourceId } from './identifiers';
 import type { EventMap } from './bus-protocol';
 import type { BusEnvelope, BusFrame } from './event-bus';
 import type { EventBus } from './event-bus';
+import type { FrameRefusal } from './bus';
 import type { SemiontError } from './errors';
 import type { AnchoredTextAnswer } from './pdf-anchoring';
 
@@ -126,8 +127,8 @@ export interface ITransport {
     payload: EventMap[K],
     envelope?: BusEnvelope,
   ): Promise<number | undefined>;
-  on<K extends keyof EventMap>(channel: K, handler: (payload: EventMap[K]) => void): () => void;
-  stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]>;
+  on<K extends keyof EventMap>(channel: K, handler: (payload: EventMap[K] | FrameRefusal) => void): () => void;
+  stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K] | FrameRefusal>;
 
   /**
    * Subscribe to a resource-scoped channel set. HTTP attaches a scope to
@@ -153,9 +154,9 @@ export interface ITransport {
    * construct or replace it. Concrete transports decide what "receives"
    * means: HTTP bridges every channel it observes on its SSE wire;
    * a transport with no wire bridges from its own source. Each payload is
-   * published as its channel types it (`asDeclared`), and one that lacks a
-   * member its channel's schema requires is published as its
-   * `FrameRefusal`, in its place.
+   * published as its channel types it (`asDeclared`), and one that has a
+   * fault as its channel's is published as its frame's `FrameRefusal`, in
+   * its place, as a frame the transport refused is.
    */
   bridgeInto(bus: EventBus): void;
 
@@ -194,16 +195,17 @@ export interface ITransport {
   isSubscribed(channel: keyof EventMap): boolean;
 
   /**
-   * The ENVELOPE view (`BusPrimitive.frames`). `Bus.request` matches a
-   * reply on `frame.correlationId`, so the key never enters a channel's
-   * domain type. Required: every transport can answer it.
+   * The ENVELOPE view (`BusPrimitive.frames`): each frame, or in place of
+   * one the transport refused that names the channel, its `FrameRefusal`.
+   * `Bus.request` matches a reply on `frame.correlationId`, so the key never
+   * enters a channel's domain type. Required: every transport can answer it.
    */
-  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>>;
+  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K] | FrameRefusal>>;
 
   /**
    * Stream of transport-level errors surfaced from typed-wire methods or
    * other transport-mediated round-trips, just before they're thrown to
-   * the caller, and of each line the stream carried that names no channel.
+   * the caller, and of each line the stream carried that names no reader.
    * Each emission is a `SemiontError` (or subclass — HTTP emits `APIError`
    * for a refusal, other transports emit whatever subclass is
    * appropriate). Consumers can subscribe for global error handling

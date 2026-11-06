@@ -79,7 +79,7 @@ describe('Bus.frames: a channel of no scope', () => {
   it('gives the trace a frame was sent under, when the transport received one', () => {
     const trace: TraceCarrier = { traceparent: '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01' };
     class Traced extends FaultyTransport {
-      override frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>> {
+      override frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K] | FrameRefusal>> {
         return super.frames(channel).pipe(map((frame) => ({ ...frame, trace })));
       }
     }
@@ -104,10 +104,10 @@ describe('Bus.frames: a channel of no scope', () => {
 /**
  * A payload with a fault as its channel's is not that channel's: a typed read
  * gives, in place of its frame, a `FrameRefusal` that names the channel, the
- * way to the member the fault is at and why (`lacks` or `malformed`), with the
- * payload as it came, and goes on, as every SDK's typed read does. A
- * transport's bridge publishes the refusal on the bus it feeds, in place of
- * the payload.
+ * way from the frame to the member the fault is at (within `payload`) and why
+ * (`lacks` or `malformed`), with the payload as it came, and goes on, as
+ * every SDK's typed read does. A transport's bridge publishes the refusal on
+ * the bus it feeds, in place of the payload.
  */
 describe('Bus.frames: a payload that is not its channel\'s', () => {
   const failed: EventMap['job:fail'] = { resourceId: RID, jobId: jobId('job-1'), jobType: 'mark', error: 'the model did not answer' };
@@ -131,7 +131,7 @@ describe('Bus.frames: a payload that is not its channel\'s', () => {
       const [refused, next] = seen;
       expect(seen).toHaveLength(2);
       expect(refused).toBeInstanceOf(FrameRefusal);
-      expect(refused).toStrictEqual(new FrameRefusal('job:fail', 'jobId', 'lacks', lacking));
+      expect(refused).toStrictEqual(new FrameRefusal('job:fail', 'payload.jobId', 'lacks', lacking));
       expect(refused?.status).toBe('refused');
       expect(next !== undefined && delivered(next).payload).toEqual(failed);
       // The reader is told, and nothing is said in its place.
@@ -152,7 +152,7 @@ describe('Bus.frames: a payload that is not its channel\'s', () => {
       void transport.emit('job:fail', lacking);
       void transport.emit('job:fail', failed);
 
-      expect(seen).toStrictEqual([new FrameRefusal('job:fail', 'jobId', 'lacks', lacking), failed]);
+      expect(seen).toStrictEqual([new FrameRefusal('job:fail', 'payload.jobId', 'lacks', lacking), failed]);
       expect(warned).not.toHaveBeenCalled();
       bridged.destroy();
     } finally {
@@ -171,7 +171,7 @@ describe('Bus.frames: a payload that is not its channel\'s', () => {
     void transport.emit('job:fail', numbered);
     void transport.emit('job:fail', twice);
 
-    expect(seen).toStrictEqual([new FrameRefusal('job:fail', 'error', 'malformed', numbered), new FrameRefusal('job:fail', 'jobId', 'lacks', twice)]);
+    expect(seen).toStrictEqual([new FrameRefusal('job:fail', 'payload.error', 'malformed', numbered), new FrameRefusal('job:fail', 'payload.jobId', 'lacks', twice)]);
   });
 });
 
@@ -233,6 +233,6 @@ describe('asDeclared', () => {
     const stamped = { ...gap, _userId: 'did:web:example.org:users:a', _roles: ['admin'] };
     expect(asDeclared('bus:resume-gap', stamped)).toStrictEqual(gap);
     const more = { ...gap, more: 1 };
-    expect(asDeclared('bus:resume-gap', more)).toStrictEqual(new FrameRefusal('bus:resume-gap', 'more', 'malformed', more));
+    expect(asDeclared('bus:resume-gap', more)).toStrictEqual(new FrameRefusal('bus:resume-gap', 'payload.more', 'malformed', more));
   });
 });

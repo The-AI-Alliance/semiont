@@ -13,7 +13,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
-import { accessToken, baseUrl, type AccessToken, type EventMap, annotationId, resourceId } from '@semiont/core';
+import { accessToken, baseUrl, type AccessToken, type EventMap, type FrameRefusal, annotationId, resourceId } from '@semiont/core';
 import { HttpContentTransport } from '../http-content-transport';
 import { HttpTransport, currentUserOf } from '../http-transport';
 import { createSSEStream, mockFetch, mockSSEResponse, sseChunk } from './helpers/mock-conn';
@@ -66,7 +66,7 @@ describe('HttpTransport ITransport delegation', () => {
     // tokenless transport would never issue the subscribe this test waits on.
     const transport = new HttpTransport({ baseUrl: BASE, token$: token() });
 
-    const seen: EventMap['beckon:focus'][] = [];
+    const seen: (EventMap['beckon:focus'] | FrameRefusal)[] = [];
     const off = transport.on('beckon:focus', (p) => seen.push(p));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
@@ -85,7 +85,7 @@ describe('HttpTransport ITransport delegation', () => {
       channel: 'beckon:focus', payload: { resourceId: 'res-1', annotationId: 'a-3' },
     })));
     await vi.waitFor(() => expect(seen).toHaveLength(2));
-    expect(seen.map((p) => p.annotationId)).toEqual(['a-1', 'a-3']);
+    expect(seen).toEqual([{ resourceId: 'res-1', annotationId: 'a-1' }, { resourceId: 'res-1', annotationId: 'a-3' }]);
 
     off();
     sse.push(sseChunk('bus-event', JSON.stringify({
@@ -103,7 +103,7 @@ describe('HttpTransport ITransport delegation', () => {
     // tokenless transport would never issue the subscribe this test waits on.
     const transport = new HttpTransport({ baseUrl: BASE, token$: token() });
 
-    const seen: EventMap['beckon:focus'][] = [];
+    const seen: (EventMap['beckon:focus'] | FrameRefusal)[] = [];
     const sub = transport.stream('beckon:focus').subscribe((p) => seen.push(p));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 

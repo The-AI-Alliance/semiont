@@ -14,9 +14,10 @@
  *   read for one resource: the read holds that resource's scope while it is
  *   read, and is given that resource's frames and no other's. Read with no
  *   resource, such a channel does not compile, and is refused when called;
- *   so is any other channel read for a resource. A frame whose payload has a
- *   fault as its channel's is told the reader in its place, as a
- *   `FrameRefusal` (`asDeclared`), and the frames after it follow.
+ *   so is any other channel read for a resource. A frame the transport
+ *   refused, or whose payload has a fault as its channel's, is told the
+ *   reader in its place, as a `FrameRefusal` (`asDeclared`), and the frames
+ *   after it follow.
  * - `request` sends an operation's request and awaits its reply.
  */
 
@@ -28,7 +29,7 @@ import type { ConnectionState } from './transport';
 import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
 import { BusRequestError, classifyFailureCode, type BusReply } from './bus-request';
 import { SemiontError } from './errors';
-import { faultOfShape, said, type Fault, type Shape } from './required';
+import { faultOfShape, said, within, type Fault, type Shape } from './required';
 import { BUS_REQUEST_TIMEOUT_MS } from './generated/client-timing';
 import { isResourceScopedChannel, type ResourceScopedChannel, type UnscopedChannel } from './bridged-channels';
 import { uuidV4 } from './id-generation';
@@ -52,16 +53,18 @@ export interface BusPrimitive {
   ): Promise<number | undefined>;
   /**
    * The ENVELOPE view: every frame the transport delivers on a channel,
-   * whatever its scope. A request matches its reply on `frame.correlationId`,
-   * which is why the key never needs to enter a channel's domain type.
+   * whatever its scope, and in place of one it refused that names the
+   * channel, its `FrameRefusal`, with the frame's scope. A request matches
+   * its reply on `frame.correlationId`, which is why the key never needs to
+   * enter a channel's domain type.
    * Required, not optional: every transport can answer it, and an optional
    * member here would be one interface in two dialects — the
    * capability-sniffing compatibility layer that a required `isSubscribed`
    * exists to rule out.
    */
-  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>>;
+  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K] | FrameRefusal>>;
   /** The payload view, DERIVED from `frames` so the two cannot disagree. */
-  stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]>;
+  stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K] | FrameRefusal>;
   /**
    * Connection state of the stream that carries replies. Required, not
    * optional: a request gates its emit on this — no correlated emit before
@@ -133,21 +136,21 @@ export interface Delivered<T> {
 }
 
 /**
- * A frame a typed read refused, in its place: its payload has a fault as its
- * channel's, a member it lacks or one that is malformed. A class, so that a
- * reader of payloads (`EventBus.on`), whatever their shape, tells one apart
- * with `instanceof`; a reader of frames reads `status`, as it reads
- * `Delivered`'s.
+ * A frame refused, in its place: by its transport, for a fault it has as
+ * BusFrame, or by a typed read, for a fault its payload has as its channel's;
+ * a member it lacks or one that is malformed. A class, so that a reader of
+ * payloads (`EventBus.on`), whatever their shape, tells one apart with
+ * `instanceof`; a reader of frames reads `status`, as it reads `Delivered`'s.
  */
 export class FrameRefusal {
   readonly status = 'refused' as const;
   /** The channel the frame came on. */
   readonly channel: keyof EventMap;
-  /** The way to the member the fault is at: the names of the members it is within and its own, joined by dots; empty for the payload itself. */
+  /** The way from the frame to the member the fault is at: the names of the members it is within and its own, joined by dots; `payload` for the payload itself, and `payload.` and its way for a member within it. */
   readonly member: string;
-  /** Why: `lacks`, the payload does not carry the member or it holds null where it may not; `malformed`, the member is not what its schema allows (of another kind, another value, form or size), or is one a closed object does not name. */
+  /** Why: `lacks`, the frame does not carry the member or it holds null where it may not; `malformed`, the member is not what its schema allows (of another kind, another value, form or size), or is one a closed object does not name. */
   readonly reason: Fault['reason'];
-  /** The payload as it came, the gateway's stamps and all. */
+  /** The payload as it came, the gateway's stamps and all; absent when the frame carried none. */
   readonly payload: unknown;
 
   constructor(channel: keyof EventMap, member: string, reason: Fault['reason'], payload: unknown) {
@@ -179,28 +182,43 @@ function payloadShape(channel: keyof EventMap): Shape {
 const notTheChannels = (channel: string, fault: Fault): string => `a payload on ${channel} is not that channel's: ${said(fault)}`;
 
 /**
- * `payload` as `channel` types it: the rule every SDK's typed read keeps. A
- * stamp the gateway put on it that the channel's payload type does not
- * declare (`CHANNEL_STAMPS`) is the bus's, not the payload's, and is left
- * out before the payload is held to its shape. A payload with a fault as its
- * channel's is not its channel's: its refusal is given in its place, as every
- * SDK's typed read gives one. A refusal, which a bus a transport bridged into
- * carries and a relay passes on, is one already.
+ * `payload` as `channel` types it, or the first fault it has as that
+ * channel's, named from the payload. A stamp the gateway put on it that the
+ * channel's payload type does not declare (`CHANNEL_STAMPS`) is the bus's,
+ * not the payload's, and is left out before the payload is held to its shape.
  */
-export function asDeclared<K extends keyof EventMap>(channel: K, payload: EventMap[K] | FrameRefusal): EventMap[K] | FrameRefusal {
-  if (payload instanceof FrameRefusal) return payload;
+function readAs<K extends keyof EventMap>(channel: K, payload: unknown): { readonly payload: EventMap[K] } | { readonly fault: Fault } {
   const stamps: readonly string[] = CHANNEL_STAMPS[channel];
   const declared =
     typeof payload === 'object' && payload !== null && !Array.isArray(payload)
       ? Object.fromEntries(Object.entries(payload).filter(([name]) => !name.startsWith('_') || stamps.includes(name)))
       : payload;
   const fault = faultOfShape(payloadShape(channel), declared);
-  if (fault !== undefined) return new FrameRefusal(channel, fault.member, fault.reason, payload);
-  return declared as EventMap[K];
+  return fault === undefined ? { payload: declared as EventMap[K] } : { fault };
 }
 
-/** `frame` as a frame of `channel`, or its refusal when its payload is not that channel's. */
-function heard<K extends keyof EventMap>(channel: K, frame: BusFrame<EventMap[K]>): Heard<EventMap[K]> {
+/**
+ * `payload` as `channel` types it (`readAs`): the rule every SDK's typed read
+ * keeps. A payload with a fault as its channel's is not its channel's: its
+ * frame's refusal is given in its place, naming the fault by its way from the
+ * frame, as every SDK's typed read gives one. A refusal, which a transport
+ * delivers in place of a frame it refused, a bus it bridged into carries and
+ * a relay passes on, is one already.
+ */
+export function asDeclared<K extends keyof EventMap>(channel: K, payload: EventMap[K] | FrameRefusal): EventMap[K] | FrameRefusal {
+  if (payload instanceof FrameRefusal) return payload;
+  const read = readAs(channel, payload);
+  if ('fault' in read) return new FrameRefusal(channel, within('payload', read.fault.member), read.fault.reason, payload);
+  return read.payload;
+}
+
+/** Whether its transport delivered `frame`, rather than refused it. A refused frame carries no correlationId, so no request is told of one. */
+function isDelivered<T>(frame: BusFrame<T | FrameRefusal>): frame is BusFrame<T> {
+  return !(frame.payload instanceof FrameRefusal);
+}
+
+/** `frame` as a frame of `channel`, or its refusal when its transport refused it or its payload is not that channel's. */
+function heard<K extends keyof EventMap>(channel: K, frame: BusFrame<EventMap[K] | FrameRefusal>): Heard<EventMap[K]> {
   const declared = asDeclared(channel, frame.payload);
   if (declared instanceof FrameRefusal) return declared;
   const stamped = (frame.payload as Record<string, unknown>)[EMITTED_BY];
@@ -344,21 +362,23 @@ export class Bus {
     // refuses it.
     const settled$ = merge(
       bus.frames(resultChannel as keyof EventMap).pipe(
+        filter(isDelivered),
         filter((frame) => frame.correlationId === correlationId),
         map(({ payload: e }) => {
-          const read = asDeclared(resultChannel as keyof EventMap, e);
-          return read instanceof FrameRefusal
+          const read = readAs(resultChannel as keyof EventMap, e);
+          return 'fault' in read
             ? {
                 ok: false as const,
-                error: new SemiontError(notTheChannels(resultChannel, { member: read.member, reason: read.reason }), 'error', {
+                error: new SemiontError(notTheChannels(resultChannel, read.fault), 'error', {
                   channel: resultChannel,
                   correlationId,
                 }),
               }
-            : { ok: true as const, response: (read as Record<string, unknown>).response as BusReply<Op> };
+            : { ok: true as const, response: (read.payload as Record<string, unknown>).response as BusReply<Op> };
         }),
       ),
       bus.frames(failureChannel as keyof EventMap).pipe(
+        filter(isDelivered),
         filter((frame) => frame.correlationId === correlationId),
         map(({ payload: p }) => p as Record<string, unknown>),
         map((e) => ({

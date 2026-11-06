@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, UnansweredError, retryAfterMs, equalJitter, BusRequestError, SemiontError, faultSaid, isObject, isString, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusPrimitive, type components, type ConnectionState, type EventMap, type ResourceId, type RetryPolicy, type StateUnit, type TraceCarrier, type TransportErrorCode, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, HTTP_REQUEST_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT, STREAM_OPEN_TIMEOUT_MS } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, UnansweredError, retryAfterMs, equalJitter, BusRequestError, SemiontError, FrameRefusal, faultOf, said, isObject, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusPrimitive, type components, type ConnectionState, type EventMap, type Fault, type ResourceId, type RetryPolicy, type StateUnit, type TraceCarrier, type TransportErrorCode, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, HTTP_REQUEST_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT, STREAM_OPEN_TIMEOUT_MS } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -84,12 +84,19 @@ export interface ActorStateUnitOptions {
 /** A frame as the stream delivered it, with the trace lifted off its payload. */
 type Received = components['schemas']['BusFrame'] & { readonly trace?: TraceCarrier };
 
+/** The channel and scope a frame names, which name its readers. */
+type Readers = Pick<components['schemas']['BusFrame'], 'channel' | 'scope'>;
+
+/** A frame the stream refused that names its readers: its first fault as BusFrame, and its payload as it came. */
+type Refused = Readers & { readonly fault: Fault; readonly payload: unknown };
+
 /**
- * `data` read as a frame, or, when it names no channel, what every SDK says
- * of its first fault: one that names no channel names no reader. A frame
- * that names its channel is taken as it comes.
+ * `data` held to BusFrame: the frame it is; or, for one BusFrame refuses,
+ * its refusal when it names its readers, and when it names none, what every
+ * SDK says of its first fault. Its channel and scope name its readers when a
+ * frame of them alone is one BusFrame allows.
  */
-function carried(data: string): components['schemas']['BusFrame'] | string {
+function carried(data: string): Received | Refused | string {
   let value: unknown;
   try {
     value = JSON.parse(data);
@@ -97,14 +104,31 @@ function carried(data: string): components['schemas']['BusFrame'] | string {
     if (!(error instanceof SyntaxError)) throw error;
     return MALFORMED;
   }
-  const said = faultSaid('BusFrame', value);
-  if (said === undefined || namesAChannel(value)) return value as components['schemas']['BusFrame'];
-  return said;
+  const fault = faultOf('BusFrame', value);
+  if (fault === undefined) return value as Received;
+  if (!isObject(value)) return said(fault);
+  const readers = { channel: value['channel'], ...('scope' in value ? { scope: value['scope'] } : {}) };
+  if (faultOf('BusFrame', { ...readers, payload: {} }) !== undefined) return said(fault);
+  return { ...(readers as Readers), fault, payload: value['payload'] };
 }
 
-/** Whether `value` names a channel: it is a JSON object whose `channel` is a text of at least one character. */
-function namesAChannel(value: unknown): boolean {
-  return isObject(value) && isString(value['channel']) && value['channel'] !== '';
+/** `frame` as a reader of `channel` is given it: the frame, or in place of one the stream refused, its refusal. */
+function framed<K extends keyof EventMap>(channel: K, frame: Received | Refused): BusFrame<EventMap[K] | FrameRefusal> {
+  if ('fault' in frame) {
+    return {
+      ...(frame.scope !== undefined ? { scope: frame.scope } : {}),
+      payload: new FrameRefusal(channel, frame.fault.member, frame.fault.reason, frame.payload),
+    };
+  }
+  return {
+    correlationId: frame.correlationId,
+    scope: frame.scope,
+    // SSE frames arrive as untyped JSON, so something has to name their
+    // shape. The assertion is keyed by the channel rather than chosen by the
+    // caller; a typed read holds the payload to it (`asDeclared`).
+    payload: frame.payload as EventMap[K],
+    trace: frame.trace,
+  };
 }
 
 /**
@@ -129,11 +153,12 @@ export async function renewedToken(tokenRefresher: () => Promise<string | null>)
  */
 export interface ActorStateUnit extends StateUnit, Omit<BusPrimitive, 'subscribeToResource'> {
   /**
-   * Refused connects, and what the stream carried that names no channel.
+   * Refused connects, and what the stream carried that names no reader.
    * One `APIError` per non-2xx `/bus/subscribe` answer, carrying the HTTP
    * status and the code it maps to, as a refused request does; and one
-   * `error`, with no status, per `data` line that names no channel, saying
-   * what is wrong with it. Network-level failures (fetch rejections) have no
+   * `error`, with no status, per `data` line that names no reader (no JSON
+   * object, no channel, or a scope that is no resource's id), saying what is
+   * wrong with it. Network-level failures (fetch rejections) have no
    * status and do not emit here — they stay on the reconnect path.
    */
   errors$: Observable<SemiontError>;
@@ -191,7 +216,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
    */
   const clientId = uuidV4();
 
-  const events$ = new Subject<Received>();
+  const events$ = new Subject<Received | Refused>();
   const state$ = new BehaviorSubject<ConnectionState>('initial');
   const errors$ = new Subject<SemiontError>();
   let currentState: ConnectionState = 'initial';
@@ -606,8 +631,11 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
             const parsed = currentEvent === 'bus-event' && currentData && !isDuplicate ? carried(currentData) : undefined;
             if (typeof parsed === 'string') {
               if (currentId !== undefined) rememberEventId(currentId);
-              // What names no channel names no reader: it is told to the failure report.
+              // What names no reader is told to the failure report.
               errors$.next(new SemiontError(`the stream carried what is not a frame: ${parsed}`, 'error' satisfies TransportErrorCode));
+            } else if (parsed !== undefined && 'fault' in parsed) {
+              if (currentId !== undefined) rememberEventId(currentId);
+              events$.next(parsed);
             } else if (parsed !== undefined) {
               busLog('RECV', parsed.channel, parsed.payload, parsed.scope, parsed.correlationId);
               // Drain-window forensics: an event delivered by a SUPERSEDED
@@ -796,57 +824,40 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     }, lazyRemoveMs);
   };
 
-  return {
-    frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>> {
-      const scopable = (RESOURCE_SCOPED_CHANNELS as readonly string[]).includes(channel);
-      if (!globalChannels.has(channel) && !scopable) {
-        throw new BusRequestError(
-          `Transport is not subscribed to ${channel as string} — a frame on it can never arrive on this connection. Add the channel to this client's manifest.`,
-          'bus.unsubscribed',
-          { channel },
-        );
-      }
-      return shared$.pipe(
-        filter((e) => e.channel === channel),
-        map((e) => ({
-          correlationId: e.correlationId,
-          scope: e.scope,
-          payload: e.payload as EventMap[K],
-          trace: e.trace,
-        })),
+  const framesOn = <K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K] | FrameRefusal>> => {
+    // A channel this connection does not carry can never fire, and a
+    // stream that never fires is indistinguishable from a quiet system:
+    // a worker sits idle on `stream('job:queued')` while the frame flows
+    // on the broker, and the only tell is a null timestamp on /health.
+    // Refuse AT THE CALL, naming the channel.
+    //
+    // The question is wider than `isSubscribed`, which answers for the
+    // global set alone — correlated replies ride global channels, so that
+    // is the right question for `Bus.request` and the wrong one here.
+    //
+    // A SCOPABLE channel passes even with no scope joined yet: `bridgeInto`
+    // wires every scoped channel up front so frames flow the moment a scope
+    // is subscribed, and that pre-wiring is correct. Asking the live scope
+    // entries instead would refuse the bridge its own subscription.
+    const scopable = (RESOURCE_SCOPED_CHANNELS as readonly string[]).includes(channel);
+    if (!globalChannels.has(channel) && !scopable) {
+      throw new BusRequestError(
+        `Transport is not subscribed to ${channel as string} — a frame on it can never arrive on this connection. Add the channel to this client's manifest.`,
+        'bus.unsubscribed',
+        { channel },
       );
-    },
+    }
+    return shared$.pipe(
+      filter((e) => e.channel === channel),
+      map((e) => framed(channel, e)),
+    );
+  };
 
-    stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
-      // A channel this connection does not carry can never fire, and a
-      // stream that never fires is indistinguishable from a quiet system:
-      // a worker sits idle on `stream('job:queued')` while the frame flows
-      // on the broker, and the only tell is a null timestamp on /health.
-      // Refuse AT THE CALL, naming the channel.
-      //
-      // The question is wider than `isSubscribed`, which answers for the
-      // global set alone — correlated replies ride global channels, so that
-      // is the right question for `Bus.request` and the wrong one here.
-      //
-      // A SCOPABLE channel passes even with no scope joined yet: `bridgeInto`
-      // wires every scoped channel up front so frames flow the moment a scope
-      // is subscribed, and that pre-wiring is correct. Asking the live scope
-      // entries instead would refuse the bridge its own subscription.
-      const scopable = (RESOURCE_SCOPED_CHANNELS as readonly string[]).includes(channel);
-      if (!globalChannels.has(channel) && !scopable) {
-        throw new BusRequestError(
-          `Transport is not subscribed to ${channel as string} — a frame on it can never arrive on this connection. Add the channel to this client's manifest.`,
-          'bus.unsubscribed',
-          { channel },
-        );
-      }
-      return shared$.pipe(
-        filter((e) => e.channel === channel),
-        // SSE frames arrive as untyped JSON, so something has to name their
-        // shape. The assertion is keyed by the channel rather than chosen by
-        // the caller.
-        map((e) => e.payload as EventMap[K]),
-      );
+  return {
+    frames: framesOn,
+
+    stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K] | FrameRefusal> {
+      return framesOn(channel).pipe(map((frame) => frame.payload));
     },
 
     emit: async <K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number | undefined> => {

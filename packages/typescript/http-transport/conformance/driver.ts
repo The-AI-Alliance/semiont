@@ -13,6 +13,7 @@ import { createInterface } from 'node:readline';
 import { BehaviorSubject } from 'rxjs';
 import {
   Bus,
+  FrameRefusal,
   SemiontError,
   accessToken,
   baseUrl,
@@ -165,7 +166,9 @@ const operations: Record<string, (args: Arguments, id: number) => Promise<unknow
     const channel = text(args, 'channel');
     opened()
       .frames(channel as keyof EventMap)
-      .subscribe((frame) =>
+      .subscribe((frame) => {
+        // The driver's lines have none for a frame its transport refused.
+        if (frame.payload instanceof FrameRefusal) return;
         say({
           frame: {
             channel,
@@ -173,8 +176,8 @@ const operations: Record<string, (args: Arguments, id: number) => Promise<unknow
             ...(frame.correlationId === undefined ? {} : { correlationId: frame.correlationId }),
             ...(frame.scope === undefined ? {} : { scope: frame.scope }),
           },
-        }),
-      );
+        });
+      });
   },
 
   'subscribe-resource'(args) {
