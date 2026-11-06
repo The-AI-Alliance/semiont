@@ -5,10 +5,10 @@
     "rust": ["packages/rust/http-transport/src/actor.rs"],
     "python": ["packages/python/sdk/tests/test_frame_cases.py"],
     "go": ["packages/go/sdk/frame_cases_test.go"],
-    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/FrameCasesTest.kt"]
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/FrameCasesTest.kt"],
+    "swift": ["packages/swift/sdk/Tests/SemiontTests/FrameCasesTests.swift"]
   },
   "notYetReached": {
-    "swift": "The Swift SDK's stream reader, which is to hold each frame to BusFrame.",
     "csharp": "The C# SDK's stream reader, which is to hold each frame to BusFrame."
   },
   "cases": [

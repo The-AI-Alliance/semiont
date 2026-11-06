@@ -145,14 +145,19 @@ struct LiveQueries: Sendable {
     }
   }
 
-  func receive(_ frame: ReceivedFrame) async {
+  func receive(_ carried: Carried) async {
     let rules = cacheRefresh.filter { rule in
-      rule.on == frame.channel
+      rule.on == carried.channel
         && ((rule.refetches ?? []) + (rule.writes ?? []) + (rule.removes ?? [])).contains {
           Query(rawValue: $0) != nil
         }
     }
     guard !rules.isEmpty else { return }
+    guard case .frame(let frame) = carried else {
+      // A refused event cannot identify what changed. Recheck the known entries.
+      await refresh(Query.allCases, subject: Subject(), coalescing: true)
+      return
+    }
     do {
       let subject = try subject(of: frame)
       for rule in rules where rule.when == subject.condition {

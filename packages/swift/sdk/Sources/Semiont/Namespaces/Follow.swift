@@ -1,31 +1,36 @@
 import Foundation
 
-private enum Lifecycle: Sendable {
+/// What a job says of itself.
+private enum Word: Sendable {
   case progress(JobReportProgressCommand)
   case failed(JobFailCommand)
   case complete(JobCompleteCommand)
-  var jobId: JobId {
-    switch self {
-    case .progress(let value): value.jobId
-    case .failed(let value): value.jobId
-    case .complete(.markJobCompleteCommand(let value)): value.jobId
-    case .complete(.yieldJobCompleteCommand(let value)): value.jobId
+}
+/// A frame of some job's lifecycle, as its channel's typed read hears it: a word of the job it
+/// names, or a refused frame, which names none.
+private enum Lifecycle: Sendable {
+  case said(JobId, Word)
+  case refused(FrameRefusal)
+  init?(_ carried: Carried) {
+    func read<Payload>(_ channel: Channel<Payload>, _ said: (Payload) -> (JobId, Word)) -> Self {
+      switch heard(Payload.self, on: channel.name, stamps: channel.stamps, carried) {
+      case .delivered(let delivered):
+        let (job, word) = said(delivered.payload)
+        return .said(job, word)
+      case .refused(let refusal): return .refused(refusal)
+      }
     }
-  }
-  init?(_ frame: ReceivedFrame) {
-    func read<Payload>(_ channel: Channel<Payload>) -> Payload? {
-      try? frame.decode(channel)
-    }
-    switch frame.channel {
+    switch carried.channel {
     case Channels.jobReportProgress.name:
-      guard let value = read(Channels.jobReportProgress) else { return nil }
-      self = .progress(value)
+      self = read(Channels.jobReportProgress) { ($0.jobId, .progress($0)) }
+    case Channels.jobFail.name: self = read(Channels.jobFail) { ($0.jobId, .failed($0)) }
     case Channels.jobComplete.name:
-      guard let value = read(Channels.jobComplete) else { return nil }
-      self = .complete(value)
-    case Channels.jobFail.name:
-      guard let value = read(Channels.jobFail) else { return nil }
-      self = .failed(value)
+      self = read(Channels.jobComplete) { completion in
+        switch completion {
+        case .markJobCompleteCommand(let value): (value.jobId, .complete(completion))
+        case .yieldJobCompleteCommand(let value): (value.jobId, .complete(completion))
+        }
+      }
     default: return nil
     }
   }
@@ -50,8 +55,8 @@ func follow<Completion: FollowedCompletion, Timer: Clock>(
       let (wakes, send) = AsyncStream<FollowWake>.makeStream(bufferingPolicy: .unbounded)
       let arriving = Task {
         do {
-          for try await frame in source {
-            if let event = Lifecycle(frame) { send.yield(.frame(event)) }
+          for try await carried in source {
+            if let event = Lifecycle(carried) { send.yield(.frame(event)) }
           }
         } catch {}
         send.yield(.closed)
@@ -140,24 +145,37 @@ func follow<Completion: FollowedCompletion, Timer: Clock>(
             }
           }
         }
-        for event in heard where event.jobId == job?.jobId {
-          asking?.1.cancel()
-          asking = nil
+        for event in heard {
           switch event {
-          case .progress(let value):
-            if let progress = value.progress { report(.progress(progress)) }
-            askAt = clock.now.advanced(by: .milliseconds(timing.silenceMs))
-          case .failed(let value):
-            guard value.willRetry == true else {
-              throw JobError(
-                reason: .jobFailed, description: value.error, jobId: value.jobId,
-                failureClass: value.failureClass)
+          case .refused(let refusal):
+            // It may be this job's or another's, and it is no word of the job: it answers no status
+            // asked, and starts neither the silence nor the stall deadline again.
+            report(
+              .refused(
+                RefusedFrame(
+                  channel: refusal.channel, member: refusal.member, reason: refusal.reason)))
+          case .said(let named, let word) where named == job?.jobId:
+            asking?.1.cancel()
+            asking = nil
+            switch word {
+            case .progress(let value):
+              if let progress = value.progress { report(.progress(progress)) }
+              askAt = clock.now.advanced(by: .milliseconds(timing.silenceMs))
+            case .failed(let value):
+              guard value.willRetry == true else {
+                throw JobError(
+                  reason: .jobFailed, description: value.error, jobId: value.jobId,
+                  failureClass: value.failureClass)
+              }
+              report(.failed(value))
+              askAt = nil
+            case .complete(let value): return .complete(try Completion.matching(value))
             }
-            report(.failed(value))
-            askAt = nil
-          case .complete(let value): return .complete(try Completion.matching(value))
+            stallAt = stallMs.map { clock.now.advanced(by: .milliseconds($0)) }
+          case .said:
+            // Another job's word.
+            break
           }
-          stallAt = stallMs.map { clock.now.advanced(by: .milliseconds($0)) }
         }
         if let deadline = askAt, clock.now >= deadline, let job {
           askAt = clock.now.advanced(by: .milliseconds(timing.statusPollMs))

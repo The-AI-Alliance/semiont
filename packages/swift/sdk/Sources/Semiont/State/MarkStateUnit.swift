@@ -33,7 +33,7 @@ public final class MarkStateUnit: StateUnit {
     life.onEnd { frames.dispose() }
     life.start { [weak self] in
       do {
-        for try await frame in frames { self?.hear(frame) }
+        for try await carried in frames { self?.hear(carried) }
       } catch {}
     }
   }
@@ -48,18 +48,30 @@ public final class MarkStateUnit: StateUnit {
     }
   }
 
-  private func hear(_ frame: ReceivedFrame) {
-    switch frame.channel {
+  /// Act on what was heard. A frame refused, or one whose payload is not its channel's, is nobody's
+  /// to act on.
+  private func hear(_ carried: Carried) {
+    switch carried.channel {
     case Channels.markRequested.name:
-      guard let request = try? frame.decode(Channels.markRequested), request.source == resourceId
+      let channel = Channels.markRequested
+      guard
+        case .delivered(let requested) = heard(
+          MarkRequestedEvent.self, on: channel.name, stamps: channel.stamps, carried),
+        requested.payload.source == resourceId
       else { return }
+      let request = requested.payload
       life.whileOpen {
         pendingAnnotation.set(
           PendingAnnotation(selector: request.selector, motivation: request.motivation))
       }
     case Channels.markSubmit.name:
-      guard let submission = try? frame.decode(Channels.markSubmit), submission.source == resourceId
+      let channel = Channels.markSubmit
+      guard
+        case .delivered(let submitted) = heard(
+          MarkSubmitEvent.self, on: channel.name, stamps: channel.stamps, carried),
+        submitted.payload.source == resourceId
       else { return }
+      let submission = submitted.payload
       let request = CreateAnnotationRequest(
         body: submission.body, motivation: submission.motivation,
         target: AnnotationTarget(selector: submission.selector, source: resourceId))
@@ -105,6 +117,8 @@ public final class MarkStateUnit: StateUnit {
         try await turn.wait()
         timer.reset()
         for try await event in mark.delegate(resourceId: resourceId, params: params) {
+          // A refused frame is no word of the job: its quiet goes on being counted.
+          if case .refused = event { continue }
           timer.reset()
           turn.releaseNext()
           if case .created(let answer) = event { created = answer.jobId }
@@ -124,7 +138,7 @@ public final class MarkStateUnit: StateUnit {
       switch event {
       case .created(let answer): jobId.set(answer.jobId)
       case .progress(let value): progress.set(value)
-      case .complete, .failed: break
+      case .complete, .failed, .refused: break
       }
     }
   }

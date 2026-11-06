@@ -45,7 +45,7 @@ import Testing
     case Channels.browseResourceRequested.name:
       try wirePayload(
         BrowseResourceResult(
-          response: BrowseResourceResultResponse(lastSequence: 0, resource: resource)))
+          response: BrowseResourceResultResponse(lastSequence: 1, resource: resource)))
     case Channels.gatherResourceRequested.name:
       try wirePayload(GatherResourceComplete(resourceId: resource.id, response: context))
     case Channels.jobCreate.name:
@@ -72,7 +72,8 @@ import Testing
     }
     let completion = YieldJobCompleteCommand(jobId: job, resourceId: resource.id)
     transport.deliver(
-      ReceivedFrame(channel: Channels.jobComplete.name, payload: try wirePayload(completion)))
+      .frame(
+        ReceivedFrame(channel: Channels.jobComplete.name, payload: try wirePayload(completion))))
     return try await running.value
   }
   #expect(completed.jobId == job)
