@@ -226,17 +226,6 @@ pub type Failures = Events<TransportError>;
 /// delivered in their place.
 pub(crate) type Broadcast = broadcast::Sender<Result<Frame, FrameRefusal>>;
 
-/// A handler's subscription (`Transport::on`): it runs until this is dropped.
-pub struct Subscription {
-    task: tokio::task::JoinHandle<()>,
-}
-
-impl Drop for Subscription {
-    fn drop(&mut self) {
-        self.task.abort();
-    }
-}
-
 /// The frames of every channel anybody listens to, a broadcast per channel:
 /// a reader of one channel falls behind only on that channel's traffic. What
 /// a transport delivers goes through one of these.
@@ -476,71 +465,6 @@ pub trait Transport: Send + Sync + 'static {
     /// Stop: the state becomes `Closed`, every stream ends, and every request
     /// still pending fails as closed. Closing twice is closing once.
     fn close(&self) -> BoxFuture<'_, ()>;
-
-    /// The payloads delivered on `channel` from now on, and the refusal of
-    /// each frame refused that names its readers there.
-    fn stream(&self, channel: &str) -> Result<Payloads, BusRequestError> {
-        Ok(Payloads {
-            frames: self.frames(channel)?,
-        })
-    }
-
-    /// Run `handler` on each payload delivered on `channel`, and on the
-    /// refusal of each frame refused that names its readers there, until the
-    /// returned subscription is dropped. A handler that falls behind is not
-    /// told what it missed; a reader that must know reads `frames`.
-    #[allow(clippy::type_complexity)]
-    fn on(
-        &self,
-        channel: &str,
-        mut handler: Box<dyn FnMut(Result<Map<String, Value>, FrameRefusal>) + Send>,
-    ) -> Result<Subscription, BusRequestError> {
-        let mut frames = self.frames(channel)?;
-        Ok(Subscription {
-            task: tokio::spawn(async move {
-                while let Some(item) = frames.next().await {
-                    if let Ok(carried) = item {
-                        handler(carried.map(|frame| frame.payload));
-                    }
-                }
-            }),
-        })
-    }
-}
-
-/// The payloads delivered on one channel, and the refusals delivered in
-/// place of frames: `Frames`, without the envelopes.
-pub struct Payloads {
-    frames: Frames,
-}
-
-impl Payloads {
-    pub async fn next(
-        &mut self,
-    ) -> Option<Result<Result<Map<String, Value>, FrameRefusal>, Lagged>> {
-        self.frames.next().await.map(without_envelope)
-    }
-}
-
-/// What `Frames` gave, without the envelope.
-fn without_envelope(
-    item: Result<Result<Frame, FrameRefusal>, Lagged>,
-) -> Result<Result<Map<String, Value>, FrameRefusal>, Lagged> {
-    match item {
-        Ok(Ok(frame)) => Ok(Ok(frame.payload)),
-        Ok(Err(refusal)) => Ok(Err(refusal)),
-        Err(lagged) => Err(lagged),
-    }
-}
-
-impl Stream for Payloads {
-    type Item = Result<Result<Map<String, Value>, FrameRefusal>, Lagged>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.frames)
-            .poll_next(cx)
-            .map(|item| item.map(without_envelope))
-    }
 }
 
 /// The refusal a transport gives for a channel it can never deliver.
