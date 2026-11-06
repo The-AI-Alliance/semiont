@@ -134,7 +134,7 @@ private fun <T> storedAs(serializer: KSerializer<Map<String, T>>, stored: String
 } ?: emptyMap()
 
 /** Whether two endpoints are one place: for a gateway, its host and port; for a loaded knowledge base, its id. */
-private fun samePlace(one: KbEndpoint, other: KbEndpoint): Boolean = when (one) {
+internal fun samePlace(one: KbEndpoint, other: KbEndpoint): Boolean = when (one) {
     is HttpEndpoint -> other is HttpEndpoint && one.host == other.host && one.port == other.port
     is LocalEndpoint -> other is LocalEndpoint && one.kbId == other.kbId
 }

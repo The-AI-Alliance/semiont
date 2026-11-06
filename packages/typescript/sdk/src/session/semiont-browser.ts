@@ -54,7 +54,7 @@ import {
   type BeginAuthorizationOptions,
 } from './oauth';
 import { describeConnection } from './connect';
-import type { KbRead, KnowledgeBase, NewKnowledgeBase } from '@semiont/core';
+import type { KbEndpoint, KbRead, KnowledgeBase, NewKnowledgeBase } from '@semiont/core';
 import { kbRead, type KbSessionStatus } from './knowledge-base';
 import {
   applyTabChecks,
@@ -103,6 +103,17 @@ function lastViewedByKbOf(stored: string | null): Record<string, string> {
   } catch {
     return {};
   }
+}
+
+/**
+ * Whether a registry takes two endpoints for one place: for a gateway, its
+ * host and port; for a loaded knowledge base, its id.
+ */
+export function samePlace(one: KbEndpoint, other: KbEndpoint): boolean {
+  if (one.kind === 'http') {
+    return other.kind === 'http' && one.host === other.host && one.port === other.port;
+  }
+  return other.kind === 'local' && one.kbId === other.kbId;
 }
 
 /**
@@ -380,10 +391,7 @@ export class SemiontBrowser {
       ...(pending.issuer.revocation ? { revocationEndpoint: pending.issuer.revocation } : {}),
     };
     const kbs = this.kbs$.getValue();
-    const atAddress = kbs.filter((kb) =>
-      kb.endpoint.kind === 'http'
-      && kb.endpoint.host === pending.target.host
-      && kb.endpoint.port === pending.target.port);
+    const atAddress = kbs.filter((kb) => samePlace(kb.endpoint, pending.target));
     // An address with several entries singles out no belief of its own.
     const believed = pending.kbId
       ? kbs.find((kb) => kb.id === pending.kbId)

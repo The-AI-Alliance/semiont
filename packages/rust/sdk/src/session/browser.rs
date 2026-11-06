@@ -1436,3 +1436,29 @@ mod tests {
         assert_eq!(viewed.get(A).map(String::as_str), Some("r1"));
     }
 }
+
+#[cfg(test)]
+mod registry_cases {
+    use super::*;
+    use serde_json::Value;
+
+    /// protocol/specs/src/session/registry-cases.json: when every SDK's
+    /// registry takes two endpoints for one place.
+    const REGISTRY_CASES: &str = include_str!("../../specs/session/registry-cases.json");
+
+    #[test]
+    fn one_place_is_as_the_shared_table_states() {
+        let table: Value = serde_json::from_str(REGISTRY_CASES).expect("the table is JSON");
+        let cases = table["cases"].as_array().expect("the table has cases");
+        assert!(!cases.is_empty());
+        for case in cases {
+            let why = case["why"].as_str().expect("a case says why");
+            let one: KbEndpoint = serde_json::from_value(case["one"].clone()).expect("an endpoint");
+            let other: KbEndpoint =
+                serde_json::from_value(case["other"].clone()).expect("an endpoint");
+            let same = case["samePlace"].as_bool().expect("a case says samePlace");
+            assert_eq!(same_place(&one, &other), same, "{why}");
+            assert_eq!(same_place(&other, &one), same, "{why}, the other way round");
+        }
+    }
+}

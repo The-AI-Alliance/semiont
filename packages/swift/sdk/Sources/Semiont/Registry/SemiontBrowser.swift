@@ -580,7 +580,7 @@ public actor SemiontBrowser {
   }
 }
 
-private func samePlace(_ lhs: KbEndpoint, _ rhs: KbEndpoint) -> Bool {
+func samePlace(_ lhs: KbEndpoint, _ rhs: KbEndpoint) -> Bool {
   switch (lhs, rhs) {
   case (.httpEndpoint(let a), .httpEndpoint(let b)): return a.host == b.host && a.port == b.port
   case (.localEndpoint(let a), .localEndpoint(let b)): return a.kbId == b.kbId

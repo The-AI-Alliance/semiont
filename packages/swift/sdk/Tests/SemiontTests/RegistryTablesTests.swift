@@ -46,6 +46,20 @@ import Testing
   #expect(try storedSession(storage, kbId: id) == nil)
 }
 
+@Test func onePlaceRunsEverySharedCase() throws {
+  for value in try required(Spec.read("session/registry-cases.json").object, "cases").array {
+    let row = try value.object
+    let why = try required(row, "why").text
+    let one = try JSONDecoder().decode(
+      KbEndpoint.self, from: JSONEncoder().encode(required(row, "one")))
+    let other = try JSONDecoder().decode(
+      KbEndpoint.self, from: JSONEncoder().encode(required(row, "other")))
+    let same = try required(row, "samePlace")
+    #expect(JSONValue.bool(samePlace(one, other)) == same, "\(why)")
+    #expect(JSONValue.bool(samePlace(other, one)) == same, "\(why), the other way round")
+  }
+}
+
 @Test func discoveryMatchesTheSharedReasonsAndRejectsAnInvalidMember() async throws {
   let table = try Spec.read("client/discovery-absent.json").object
   let expected = try required(table, "reasons").array.map { try required($0.object, "reason").text }

@@ -55,6 +55,22 @@ public sealed partial class TransportTests
     }
 
     [Fact]
+    public void OnePlaceFollowsItsTable()
+    {
+        using var table = ReadSpec("session/registry-cases.json");
+        var cases = table.RootElement.GetProperty("cases").EnumerateArray().ToArray();
+        Assert.NotEmpty(cases);
+        foreach (var row in cases)
+        {
+            var one = Required<KbEndpoint>(row.GetProperty("one"));
+            var other = Required<KbEndpoint>(row.GetProperty("other"));
+            var same = row.GetProperty("samePlace").GetBoolean();
+            Assert.True(SemiontBrowser.SamePlace(one, other) == same, Text(row, "why"));
+            Assert.True(SemiontBrowser.SamePlace(other, one) == same, Text(row, "why") + ", the other way round");
+        }
+    }
+
+    [Fact]
     public async Task RenewalAdoptsNewerCredentialsAndNeverResurrectsSignOut()
     {
         var store = new MemoryStorage();

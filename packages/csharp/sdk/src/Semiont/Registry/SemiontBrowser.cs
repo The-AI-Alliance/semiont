@@ -591,7 +591,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
     private static KnowledgeBase MakeKb(string label, KbEndpoint endpoint, string did, KbRead? read) =>
         new() { Id = Guid.NewGuid().ToString(), Label = label, Endpoint = endpoint, Did = did, LastRead = read };
 
-    private static bool SamePlace(KbEndpoint first, KbEndpoint second) => (first, second) switch
+    internal static bool SamePlace(KbEndpoint first, KbEndpoint second) => (first, second) switch
     {
         (KbEndpoint.HttpEndpointCase(var a), KbEndpoint.HttpEndpointCase(var b)) =>
             a.Port == b.Port && StringComparer.OrdinalIgnoreCase.Equals(a.Host, b.Host),
