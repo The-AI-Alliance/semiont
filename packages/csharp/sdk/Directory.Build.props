@@ -15,5 +15,7 @@
   <ItemGroup Condition="'$(MSBuildProjectName)' != 'Semiont.Analyzers'">
     <!-- Analyzers execute on the build host, not the application deployment target. -->
     <ProjectReference Include="$(MSBuildThisFileDirectory)analyzers/Semiont.Analyzers/Semiont.Analyzers.csproj" GlobalPropertiesToRemove="$(SemiontBuildToolGlobalPropertiesToRemove)" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <!-- SEM007 holds product code to the caller's clock; a test project keeps its own time. -->
+    <CompilerVisibleProperty Include="IsTestProject" />
   </ItemGroup>
 </Project>

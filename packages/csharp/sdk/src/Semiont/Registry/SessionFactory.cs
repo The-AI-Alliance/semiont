@@ -9,7 +9,8 @@ using Semiont.Types;
 
 namespace Semiont.Registry;
 
-public sealed record SemiontBrowserConfig(ISessionStorage Storage, SessionFactory SessionFactory, TimeProvider? TimeProvider = null);
+public sealed record SemiontBrowserConfig(ISessionStorage Storage, SessionFactory SessionFactory, TimeProvider? TimeProvider = null,
+    Random? Random = null);
 public sealed record SessionFactoryOptions(KnowledgeBase Kb, ISessionStorage Storage, SessionSignals Signals, Action<SessionError> OnError);
 
 public interface SessionFactory
@@ -42,20 +43,20 @@ public sealed class OpenedSession : IAsyncDisposable
 }
 
 /// <summary>Opens an active knowledge base with the same kept session used for other HTTP clients.</summary>
-public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvider? timeProvider = null) : SessionFactory
+public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvider? timeProvider = null, Random? random = null) : SessionFactory
 {
     public async Task<OpenedSession> OpenAsync(SessionFactoryOptions options, CancellationToken cancellation = default)
     {
         if (options.Kb.Endpoint is not KbEndpoint.HttpEndpointCase(var endpoint))
             throw new SessionError(ProtocolFacts.SessionError("construct-failed"), "This factory requires an HTTP endpoint.");
-        var kept = new KeptSession(endpoint, RegistryStorage.KeptIn(options.Storage, options.Kb.Id), httpClient, timeProvider);
+        var kept = new KeptSession(endpoint, RegistryStorage.KeptIn(options.Storage, options.Kb.Id), httpClient, timeProvider, random);
         HttpTransport? transport = null;
         try
         {
             await kept.ReadyAsync(cancellation).ConfigureAwait(false);
             var http = new HttpTransport(Gateway.Origin(endpoint), kept.State.Token,
                 BusRegistry.FullClientChannels, refresher: kept.RefreshAsync,
-                httpClient: httpClient, timeProvider: timeProvider);
+                httpClient: httpClient, timeProvider: timeProvider, random: random);
             transport = http;
             var user = kept.State.User;
             var persistence = user is null ? null : new CachePersistence(options.Storage, RegistryStorage.CacheKey(options.Kb.Id, user.Did));
@@ -100,7 +101,7 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
 
     public async Task RevokeAsync(StoredSession stored, CancellationToken cancellation = default)
     {
-        using var issuer = new Issuer(httpClient, timeProvider);
+        using var issuer = new Issuer(httpClient, timeProvider, random);
         await issuer.SignOutAsync(new MemorySignIn(stored), cancellation).ConfigureAwait(false);
     }
 }

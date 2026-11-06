@@ -46,6 +46,8 @@ public sealed class ServiceToken : IDisposable
         proof = address => ClientAssertion.Form(privateKey, clientId, address, clock.GetUtcNow().ToUnixTimeSeconds(), Guid.NewGuid().ToString("N"));
     }
 
+    internal TimeProvider Clock => clock;
+
     public async Task<string> AuthorizationAsync(CancellationToken cancellation = default) =>
         "Bearer " + await TokenAsync(null, false, cancellation).ConfigureAwait(false);
 

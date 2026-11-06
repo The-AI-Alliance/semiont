@@ -17,12 +17,13 @@ public closed record Renewal
 
 /// <summary>A factory that opens real sessions with scripted gateway answers, identity, and renewal.</summary>
 public sealed class ScriptedSessions(Func<string, string, JsonElement, JsonElement?>? answer = null,
-    TimeProvider? timeProvider = null) : SessionFactory
+    TimeProvider? timeProvider = null, Random? random = null) : SessionFactory
 {
     private readonly ConcurrentQueue<Renewal> renewals = new();
     private readonly ConcurrentQueue<(string KbId, FaultyTransport Transport)> built = new();
     private readonly ConcurrentQueue<StoredSession> revoked = new();
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
+    private readonly Random random = random ?? Random.Shared;
     private volatile Func<string, string, JsonElement, JsonElement?>? refusal;
     private volatile string? constructFailure;
     private volatile UserResponse? user;
@@ -58,18 +59,18 @@ public sealed class ScriptedSessions(Func<string, string, JsonElement, JsonEleme
             Refusal = (operation, payload) => refusal?.Invoke(kb.Id, operation, payload),
         };
         built.Enqueue((kb.Id, transport));
-        var http = new HttpClient(transport);
+        var http = new HttpClient(transport) { Timeout = Timeout.InfiniteTimeSpan };
         var stored = RegistryStorage.KeptIn(options.Storage, kb.Id);
         var identity = user;
         var delay = TimeSpan.FromTicks(Interlocked.Read(ref identityDelayTicks));
-        var kept = new KeptSession(stored, RenewAsync, IdentifyAsync, clock, Random.Shared);
+        var kept = new KeptSession(stored, RenewAsync, IdentifyAsync, clock, random);
         SemiontClient? client = null;
         try
         {
             await kept.ReadyAsync(cancellation).ConfigureAwait(false);
             var bus = new HttpTransport(origin, kept.State.Token,
                 BusRegistry.FullClientChannels,
-                refresher: kept.RefreshAsync, httpClient: http, timeProvider: clock);
+                refresher: kept.RefreshAsync, httpClient: http, timeProvider: clock, random: random);
             var openedClient = client = new SemiontClient(bus);
             var session = new SemiontSession(new KbTarget { Id = kb.Id, Label = kb.Label, Endpoint = kb.Endpoint }, openedClient, kept);
             var watching = Task.WhenAll(ErrorsAsync(), PermissionsAsync());
