@@ -24,9 +24,11 @@ import kotlin.io.path.readText
  * it (protocol/conformance/sdk/README.md, Values): `$var` is a value the suite
  * binds before a case begins or a `let` step binds, and `$join` the text its
  * parts make. A payload that captures what only a run tells (an unbound
- * `$var`, or `_`) states nothing to compare, and is passed over. A member that
- * a gateway stamps (its name begins with `_`) and the schema does not name is
- * ignored as it is read, and so is left out as it is written.
+ * `$var`, or `_`) states nothing to compare, and is passed over. So is a frame
+ * a `carry` step writes: the gateway never sends it, it is written for a client
+ * to refuse, and its case holds the refusal. A member that a gateway stamps
+ * (its name begins with `_`) and the schema does not name is ignored as it is
+ * read, and so is left out as it is written.
  */
 class RoundTripTest {
     private val corpora = listOf("sdk/wire", "sdk/live", "worker").map { Spec.conformance.resolve(it) }
@@ -74,6 +76,7 @@ class RoundTripTest {
     private fun frames(value: JsonElement, names: MutableMap<String, JsonElement>, found: MutableList<Pair<String, JsonElement?>>) {
         when (value) {
             is JsonObject -> {
+                if ((value["backend"] as? JsonPrimitive)?.content == "carry") return
                 (value["let"] as? JsonObject)?.forEach { (name, bound) -> resolved(bound, names)?.let { names[name] = it } }
                 val channel = value["channel"]
                 val payload = value["payload"]
