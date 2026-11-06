@@ -9,7 +9,7 @@ using Semiont.Types;
 namespace Semiont.Testing;
 
 public sealed record TestSessionOptions(FaultyTransport? Transport = null, KbTarget? Kb = null,
-    ISignInKept? Kept = null, TimeProvider? TimeProvider = null, Timing? Timing = null);
+    ISignInKept? Kept = null, TimeProvider? TimeProvider = null, Timing? Timing = null, Random? Random = null);
 
 /// <summary>An offline session over a real SDK client. Disposal closes the session and client.</summary>
 public sealed class TestSession : IDisposable
@@ -63,20 +63,22 @@ public static class TestSessions
         if (kb.Endpoint is not KbEndpoint.HttpEndpointCase(var endpoint))
             throw new SessionError(ProtocolFacts.SessionError("construct-failed"), "The test session requires an HTTP endpoint.");
         var origin = Gateway.Origin(endpoint);
-        var transport = options.Transport ?? new FaultyTransport(timeProvider: options.TimeProvider);
-        var http = new HttpClient(transport, disposeHandler: options.Transport is null);
+        var clock = options.TimeProvider ?? TimeProvider.System;
+        var random = options.Random ?? Random.Shared;
+        var transport = options.Transport ?? new FaultyTransport(timeProvider: clock);
+        var http = new HttpClient(transport, disposeHandler: options.Transport is null) { Timeout = Timeout.InfiniteTimeSpan };
         var kept = options.Kept ?? new MemorySignIn();
         var credentials = new KeptSession(kept,
             (_, _) => throw new InvalidOperationException("An offline session does not renew."),
             (_, _) => throw new InvalidOperationException("An offline session does not validate."),
-            options.TimeProvider ?? TimeProvider.System, Random.Shared, offline: true);
+            clock, random, offline: true);
         SemiontClient? client = null;
         try
         {
             await credentials.ReadyAsync(cancellation).ConfigureAwait(false);
             var bus = new HttpTransport(origin, credentials.State.Token,
                 BusRegistry.FullClientChannels,
-                timing: options.Timing, refresher: credentials.RefreshAsync, httpClient: http, timeProvider: options.TimeProvider);
+                timing: options.Timing, refresher: credentials.RefreshAsync, httpClient: http, timeProvider: clock, random: random);
             client = new SemiontClient(bus);
             return new TestSession(new SemiontSession(kb, client, credentials), transport, kept, credentials, http);
         }

@@ -38,7 +38,7 @@ public static class LauncherDiscovery
     private static readonly TimeSpan RequestDeadline = TimeSpan.FromMilliseconds(ProtocolFacts.Timing("httpRequestTimeoutMs").GetInt32());
     private static readonly long Version = JsonSerializer.Deserialize<JsonElement>(ProtocolTables.Discovery)
         .GetProperty("properties").GetProperty("version").GetProperty("enum").EnumerateArray().Single().GetInt64();
-    private static readonly HttpClient SharedHttp = new(new SocketsHttpHandler { UseProxy = false });
+    private static readonly HttpClient SharedHttp = new(new SocketsHttpHandler { UseProxy = false }) { Timeout = Timeout.InfiniteTimeSpan };
 
     public static DiscoveryState ParseDiscoveryDocument(string text)
     {

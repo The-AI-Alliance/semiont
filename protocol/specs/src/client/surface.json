@@ -2399,12 +2399,6 @@
           "describeConnectionFuture": "It runs on a scope of Dispatchers.Default.",
           "sessionFromKeptFuture": "It runs on a scope of Dispatchers.Default, and the session it opens renews by the system clock.",
           "createTestSessionFuture": "It runs on a scope of Dispatchers.Default."
-        },
-        "csharp": {
-          "BeginAuthorizationAsync": "Takes no TimeProvider: the Issuer it builds keeps the system clock.",
-          "CompleteAuthorizationAsync": "Takes no TimeProvider: the Issuer it builds keeps the system clock.",
-          "DescribeConnectionAsync": "Takes no TimeProvider: the HttpTransport it builds keeps the system clock.",
-          "LivenessSpec": "The liveness check waits with a Task.Delay that has no TimeProvider, over a FaultyTransport made without one."
         }
       }
     },
@@ -2505,15 +2499,6 @@
           "retryWithBackoffFuture": "retryWithBackoff draws its jitter from Random.Default.",
           "sessionFromKeptFuture": "The session it opens draws its renewal retry from Random.Default.",
           "describeConnectionFuture": "The transport it builds draws its emit retry from Random.Default."
-        },
-        "csharp": {
-          "HttpSessionFactory": "Takes no Random: its sessions draw from Random.Shared.",
-          "SemiontBrowserConfig": "Takes no Random: the sign-in its browser completes builds a transport that draws from Random.Shared.",
-          "TestSessionOptions": "Takes no Random: the test session draws from Random.Shared.",
-          "ScriptedSessions": "Takes no Random: its sessions draw from Random.Shared.",
-          "BeginAuthorizationAsync": "Takes no Random: the Issuer it builds draws from Random.Shared.",
-          "CompleteAuthorizationAsync": "Takes no Random: the Issuer it builds draws from Random.Shared.",
-          "DescribeConnectionAsync": "Takes no Random: the HttpTransport it builds draws from Random.Shared."
         }
       }
     }

@@ -21,12 +21,12 @@ public sealed class AgentToken : IDisposable
     private bool started;
     private bool disposed;
 
-    public AgentToken(HttpEndpoint endpoint, ServiceToken service, HttpClient? httpClient = null, TimeProvider? timeProvider = null)
+    public AgentToken(HttpEndpoint endpoint, ServiceToken service, HttpClient? httpClient = null)
     {
         Gateway = Session.Gateway.Origin(endpoint);
         this.service = service;
         client = httpClient;
-        clock = timeProvider ?? TimeProvider.System;
+        clock = service.Clock;
     }
 
     public string Gateway { get; }
