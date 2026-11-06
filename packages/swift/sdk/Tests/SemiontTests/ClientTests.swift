@@ -75,7 +75,7 @@ final class ProbeTransport: Transport, GatewayOperations, Sendable {
     emitted.set(true)
     return count
   }
-  func request(operation: String, payload: [String: JSONValue], timeoutMs: Int?) async throws
+  func request(operation: String, payload: [String: JSONValue]) async throws
     -> [String: JSONValue]
   {
     let handler = try storage.withLock { state in

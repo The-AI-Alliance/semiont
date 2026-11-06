@@ -476,7 +476,7 @@ func nativeRequestsPreserveFailureCodesAndRefuseMalformedFailures(malformed: Boo
     let request = Task {
       try await transport.request(
         operation: operation.request.name,
-        payload: wirePayload(FrameAddEntityTypeCommand(tag: "Person")), timeoutMs: 10000)
+        payload: wirePayload(FrameAddEntityTypeCommand(tag: "Person")))
     }
     let correlation = try await withinTestDeadline {
       while true {
