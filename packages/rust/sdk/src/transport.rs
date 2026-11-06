@@ -30,7 +30,7 @@ use crate::types::{AnnotationId, JobId};
 use crate::types::{BusFrame, ResourceId, Schema};
 use bytes::Bytes;
 use futures_core::Stream;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::fmt;
@@ -119,8 +119,7 @@ pub struct Frame {
 
 /// Why a value is refused at a member, as every SDK finds a value's first
 /// fault (packages/codegen/schemas/required-shapes.mjs).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameRefusalReason {
     /// The value does not carry the member, or the member holds null where it
     /// may not.
@@ -131,12 +130,31 @@ pub enum FrameRefusalReason {
 }
 
 impl FrameRefusalReason {
+    const EVERY: [FrameRefusalReason; 2] =
+        [FrameRefusalReason::Lacks, FrameRefusalReason::Malformed];
+
     /// The reason as every SDK spells it.
     pub const fn as_str(self) -> &'static str {
         match self {
             FrameRefusalReason::Lacks => "lacks",
             FrameRefusalReason::Malformed => "malformed",
         }
+    }
+}
+
+impl Serialize for FrameRefusalReason {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for FrameRefusalReason {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let spelled = String::deserialize(deserializer)?;
+        FrameRefusalReason::EVERY
+            .into_iter()
+            .find(|reason| reason.as_str() == spelled)
+            .ok_or_else(|| de::Error::custom(format!("no refusal's reason is spelled {spelled:?}")))
     }
 }
 
@@ -179,25 +197,14 @@ impl FrameRefusal {
     /// what BusFrame requires finds none.
     pub fn of(frame: &Value, channel: String, scope: Option<ResourceId>) -> Option<FrameRefusal> {
         let fault = fault_of(schema(BusFrame::NAME), frame)?;
-        Some(FrameRefusal::at(fault, frame, channel, scope))
-    }
-
-    /// The refusal of `frame`, which names its readers on `channel` in
-    /// `scope`, as malformed itself: for what serde refuses of it that the
-    /// table of what BusFrame requires does not.
-    pub fn malformed(frame: &Value, channel: String, scope: Option<ResourceId>) -> FrameRefusal {
-        FrameRefusal::at(Fault::undecoded(), frame, channel, scope)
-    }
-
-    fn at(fault: Fault, frame: &Value, channel: String, scope: Option<ResourceId>) -> FrameRefusal {
-        FrameRefusal {
+        Some(FrameRefusal {
             channel,
             member: fault.member,
             reason: fault.reason,
             payload: frame.get("payload").cloned(),
             scope,
             correlation_id: correlation_in(frame),
-        }
+        })
     }
 }
 

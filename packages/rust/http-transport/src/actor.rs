@@ -691,16 +691,13 @@ fn carried(data: &str) -> Line {
         return Line::Unread(MALFORMED.to_owned());
     };
     match readers_of(&value) {
-        Some((channel, scope)) => match FrameRefusal::of(&value, channel.clone(), scope.clone()) {
+        Some((channel, scope)) => match FrameRefusal::of(&value, channel, scope) {
             Some(refusal) => Line::Told(refusal),
+            // BusFrame's type states no length, and its scope was read as a
+            // resource's id: serde refuses nothing of a frame the table allows.
             None => match serde_json::from_value(value) {
                 Ok(frame) => Line::Frame(frame),
-                // What serde was given is gone: `data` is read again for
-                // what the refusal carries.
-                Err(_) => match serde_json::from_str::<Value>(data) {
-                    Ok(frame) => Line::Told(FrameRefusal::malformed(&frame, channel, scope)),
-                    Err(_) => Line::Unread(MALFORMED.to_owned()),
-                },
+                Err(error) => panic!("serde refused a frame BusFrame allows: {error}"),
             },
         },
         None => match semiont::fault_said::<BusFrame>(&value) {
@@ -1036,11 +1033,8 @@ mod tests {
             let member = case["member"]
                 .as_str()
                 .expect("a refused case names a member");
-            let reason = match case["reason"].as_str() {
-                Some("lacks") => FrameRefusalReason::Lacks,
-                Some("malformed") => FrameRefusalReason::Malformed,
-                reason => panic!("{why}: a reason the table does not give: {reason:?}"),
-            };
+            let reason: FrameRefusalReason = serde_json::from_value(case["reason"].clone())
+                .unwrap_or_else(|error| panic!("{why}: {error}"));
             let said = match reason {
                 FrameRefusalReason::Lacks => format!("it has no `{member}`"),
                 FrameRefusalReason::Malformed if member.is_empty() => MALFORMED.to_owned(),
