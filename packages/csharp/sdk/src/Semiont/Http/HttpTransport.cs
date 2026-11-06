@@ -227,7 +227,8 @@ public sealed partial class HttpTransport : IDisposable
             {
                 renewed = true;
                 if (!await RenewAsync(sent, cancellation).ConfigureAwait(false)) throw new TransportError(ProtocolFacts.Error(401), "No usable credential", 401);
-                attempt--;
+                attempt = 0;
+                cap = timing.EmitRetry.InitialDelayMs;
                 continue;
             }
             using var request = Request(HttpMethod.Post, "/bus/emit", sent);
@@ -256,7 +257,7 @@ public sealed partial class HttpTransport : IDisposable
                 if (failure.Code == ProtocolFacts.Error(401) && !renewed)
                 {
                     renewed = true;
-                    if (await RenewAsync(sent, cancellation).ConfigureAwait(false)) { attempt--; continue; }
+                    if (await RenewAsync(sent, cancellation).ConfigureAwait(false)) { attempt = 0; cap = timing.EmitRetry.InitialDelayMs; continue; }
                 }
                 if (!ProtocolFacts.RetryEmit((int)response.StatusCode) || failure.Code == ProtocolFacts.Error(401) || attempt >= timing.EmitRetry.Attempts) throw failure;
                 var delay = Math.Max(RetryAfter(response), cap / 2d + random.NextDouble() * cap / 2d);
