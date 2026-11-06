@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -77,37 +78,38 @@ func carryTrace(ctx context.Context, header http.Header) {
 }
 
 // withoutTrace is a frame's payload without the trace it rides in, and that
-// trace. ok is false when the payload, having a trace, cannot be written
-// again without it: such a payload is not a frame's.
-func withoutTrace(payload json.RawMessage) (rest json.RawMessage, sentUnder TraceContext, ok bool) {
+// trace. A payload that is not an object carries no trace member, and is
+// given as it came.
+func withoutTrace(payload json.RawMessage) (rest json.RawMessage, sentUnder TraceContext) {
 	if !bytes.Contains(payload, []byte(`"`+bus.TraceField+`"`)) {
-		return payload, TraceContext{}, true
+		return payload, TraceContext{}
 	}
 	var fields map[string]json.RawMessage
 	if json.Unmarshal(payload, &fields) != nil {
-		return nil, TraceContext{}, false
+		return payload, TraceContext{}
 	}
 	carried, has := fields[bus.TraceField]
 	if !has {
-		return payload, TraceContext{}, true
+		return payload, TraceContext{}
 	}
 	delete(fields, bus.TraceField)
 	rest, err := json.Marshal(fields)
 	if err != nil {
-		return nil, TraceContext{}, false
+		// Each member was read from JSON just now: writing them again cannot fail.
+		panic(fmt.Sprintf("a payload's members, read from JSON, cannot be written again: %v", err))
 	}
 	var stated struct {
 		Traceparent *string `json:"traceparent"`
 		Tracestate  *string `json:"tracestate"`
 	}
 	if json.Unmarshal(carried, &stated) != nil || stated.Traceparent == nil {
-		return rest, TraceContext{}, true
+		return rest, TraceContext{}
 	}
 	sentUnder.Traceparent = *stated.Traceparent
 	if stated.Tracestate != nil {
 		sentUnder.Tracestate = *stated.Tracestate
 	}
-	return rest, sentUnder, true
+	return rest, sentUnder
 }
 
 // named is the span's name for a frame on channel.

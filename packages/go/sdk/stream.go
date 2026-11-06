@@ -484,10 +484,7 @@ func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
 		s.shared.hub.DeliverRefusal(refusal)
 		return
 	}
-	payload, sentUnder, ok := withoutTrace(frame.Payload)
-	if !ok {
-		return
-	}
+	payload, sentUnder := withoutTrace(frame.Payload)
 	frame.Payload = payload
 	busLog(context.Background(), busRecv, string(frame.Channel), payload, frame.Envelope)
 	if _, retired := s.superseded[conn]; retired {

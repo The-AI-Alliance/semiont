@@ -26,26 +26,23 @@ const (
 
 func TestAFrameWithNoTraceKeepsItsPayloadAsItCame(t *testing.T) {
 	payload := json.RawMessage(`{"annotationId":"a-1","note":{"_trace":"inside a value, not the frame's"}}`)
-	rest, sentUnder, ok := withoutTrace(payload)
-	if !ok || string(rest) != string(payload) || !sentUnder.IsZero() {
-		t.Fatalf("got %s, %+v, %v: a payload with no trace of its own is the frame's as it came", rest, sentUnder, ok)
+	rest, sentUnder := withoutTrace(payload)
+	if string(rest) != string(payload) || !sentUnder.IsZero() {
+		t.Fatalf("got %s, %+v: a payload with no trace of its own is the frame's as it came", rest, sentUnder)
 	}
 }
 
 func TestAPayloadThatIsNoObjectCarriesNoTraceAndKeepsItsPayloadAsItCame(t *testing.T) {
 	payload := json.RawMessage(`["_trace"]`)
-	rest, sentUnder, ok := withoutTrace(payload)
-	if !ok || string(rest) != string(payload) || !sentUnder.IsZero() {
-		t.Fatalf("got %s, %+v, %v: a payload that is not an object has no trace member, and is passed on as it came", rest, sentUnder, ok)
+	rest, sentUnder := withoutTrace(payload)
+	if string(rest) != string(payload) || !sentUnder.IsZero() {
+		t.Fatalf("got %s, %+v: a payload that is not an object has no trace member, and is passed on as it came", rest, sentUnder)
 	}
 }
 
 func TestAFramesTraceIsTakenOffItsPayload(t *testing.T) {
 	payload := json.RawMessage(`{"annotationId":"a-1","_trace":{"traceparent":"` + aTraceparent + `","tracestate":"` + aTracestate + `"}}`)
-	rest, sentUnder, ok := withoutTrace(payload)
-	if !ok {
-		t.Fatal("a payload with a trace is a frame's")
-	}
+	rest, sentUnder := withoutTrace(payload)
 	if string(rest) != `{"annotationId":"a-1"}` {
 		t.Fatalf("the payload delivered is %s: it carries the trace still, or lost a field", rest)
 	}
@@ -55,9 +52,9 @@ func TestAFramesTraceIsTakenOffItsPayload(t *testing.T) {
 }
 
 func TestATraceWithNoTraceparentIsNoTraceAndIsStillTakenOff(t *testing.T) {
-	rest, sentUnder, ok := withoutTrace(json.RawMessage(`{"annotationId":"a-1","_trace":{"tracestate":"` + aTracestate + `"}}`))
-	if !ok || string(rest) != `{"annotationId":"a-1"}` || !sentUnder.IsZero() {
-		t.Fatalf("got %s, %+v, %v", rest, sentUnder, ok)
+	rest, sentUnder := withoutTrace(json.RawMessage(`{"annotationId":"a-1","_trace":{"tracestate":"` + aTracestate + `"}}`))
+	if string(rest) != `{"annotationId":"a-1"}` || !sentUnder.IsZero() {
+		t.Fatalf("got %s, %+v", rest, sentUnder)
 	}
 }
 
