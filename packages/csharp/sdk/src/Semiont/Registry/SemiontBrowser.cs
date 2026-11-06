@@ -117,11 +117,12 @@ public sealed class SemiontBrowser : IAsyncDisposable
         lock (gate)
         {
             RequireOpen();
-            ClearStoredSession(Storage, kbId);
+            var removed = TakeStoredSession(Storage, kbId);
             ForgetTabs(kbId);
             ChangeKbs(items => items.Where(kb => kb.Id != kbId).ToArray());
-            return state.ActiveKbId == kbId
+            var closing = state.ActiveKbId == kbId
                 ? Select(state.Kbs.FirstOrDefault()?.Id, replace: false, background: false, cancellation) : Task.CompletedTask;
+            return removed is { PersonKey: { } person } ? ForgetKeptAfterAsync(closing, kbId, person) : closing;
         }
     }
 
@@ -184,8 +185,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
         lock (gate)
         {
             RequireOpen();
-            StoredSession? removed = null;
-            Storage.Update(SessionKey(kbId), value => { removed = Read<StoredSession>(value); return null; });
+            var removed = TakeStoredSession(Storage, kbId);
             if (removed is { } stored)
                 _ = RunOwned(async () =>
                 {
@@ -196,19 +196,16 @@ public sealed class SemiontBrowser : IAsyncDisposable
             var closing = state.ActiveKbId == kbId
                 ? Select(kbId, replace: true, background: false, cancellation, openSession: false)
                 : Task.CompletedTask;
-            return removed is { PersonKey: { } person } ? ForgetPersonAsync(closing, kbId, person) : closing;
+            return removed is { PersonKey: { } person } ? ForgetKeptAfterAsync(closing, kbId, person) : closing;
         }
     }
 
-    // What is kept for the person goes only once the client has closed, so nothing its close writes is left.
-    private async Task ForgetPersonAsync(Task closing, string kbId, string personKey)
+    // Forgetting a saved sign-in deletes what is kept for its person only once the client has closed, so nothing its
+    // close writes is left.
+    private async Task ForgetKeptAfterAsync(Task closing, string kbId, string personKey)
     {
         try { await closing.ConfigureAwait(false); }
-        finally
-        {
-            foreach (var query in LiveQueries.PersistedQueries) Storage.Delete(CacheKey(kbId, personKey, query));
-            Storage.Delete(LastEventIdKey(kbId, personKey));
-        }
+        finally { ForgetKept(Storage, kbId, personKey); }
     }
 
     public void AddOpenResource(ResourceId resource, string name, string? mediaType = null, string? storageUri = null) =>

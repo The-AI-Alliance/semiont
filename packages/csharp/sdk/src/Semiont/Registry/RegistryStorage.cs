@@ -43,7 +43,29 @@ public static class RegistryStorage
     public static string? KbOfSessionKey(string key) => key.StartsWith(Prefix, StringComparison.Ordinal) ? key[Prefix.Length..] : null;
     public static StoredSession? StoredSession(ISessionStorage storage, string kbId) => Read<StoredSession>(storage.Get(SessionKey(kbId)));
     public static void StoreSession(ISessionStorage storage, string kbId, StoredSession session) => storage.Set(SessionKey(kbId), Write(session));
-    public static void ClearStoredSession(ISessionStorage storage, string kbId) => storage.Delete(SessionKey(kbId));
+
+    /// <summary>Forgets <paramref name="kbId"/>'s stored sign-in, and with it what is kept for the person it names.</summary>
+    public static void ClearStoredSession(ISessionStorage storage, string kbId)
+    {
+        if (TakeStoredSession(storage, kbId) is { PersonKey: { } person }) ForgetKept(storage, kbId, person);
+    }
+
+    internal static StoredSession? TakeStoredSession(ISessionStorage storage, string kbId)
+    {
+        StoredSession? taken = null;
+        storage.Update(SessionKey(kbId), value => { taken = Read<StoredSession>(value); return null; });
+        return taken;
+    }
+
+    /// <summary>
+    /// Deletes what is kept for one person on one knowledge base, as forgetting a saved sign-in that names them does:
+    /// the key of every persisted query and the stream's.
+    /// </summary>
+    internal static void ForgetKept(ISessionStorage storage, string kbId, string personKey)
+    {
+        foreach (var query in LiveQueries.PersistedQueries) storage.Delete(CacheKey(kbId, personKey, query));
+        storage.Delete(LastEventIdKey(kbId, personKey));
+    }
 
     public static IReadOnlyList<KnowledgeBase> LoadKnowledgeBases(ISessionStorage storage) => ReadKnowledgeBases(storage.Get(KnowledgeBasesKey));
     public static void SaveKnowledgeBases(ISessionStorage storage, IReadOnlyList<KnowledgeBase> kbs) => storage.Set(KnowledgeBasesKey, Write(kbs));

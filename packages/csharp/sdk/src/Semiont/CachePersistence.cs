@@ -24,24 +24,31 @@ public sealed class CachePersistence
     /// <summary>
     /// Keeps what a client holds in the knowledge base <paramref name="kbId"/> for the person whose key is
     /// <paramref name="personKey"/> (<see cref="RegistryStorage.PersonKey"/> of their did), read as the client is made.
+    /// It writes whatever sign-in is kept; a session that keeps only while the knowledge base's saved sign-in names the
+    /// person, and whose forgetting leaves nothing written after, is one <see cref="Registry.HttpSessionFactory"/> opens.
     /// </summary>
     public CachePersistence(ISessionStorage storage, string kbId, string personKey)
-        : this(storage, kbId, personKey, followsSignIn: false) => ArgumentException.ThrowIfNullOrEmpty(personKey);
+    {
+        ArgumentNullException.ThrowIfNull(storage);
+        ArgumentException.ThrowIfNullOrEmpty(personKey);
+        Storage = storage;
+        KbId = kbId;
+        this.personKey = personKey;
+    }
 
-    private CachePersistence(ISessionStorage storage, string kbId, string? personKey, bool followsSignIn)
+    private CachePersistence(ISessionStorage storage, string kbId)
     {
         ArgumentNullException.ThrowIfNull(storage);
         Storage = storage;
         KbId = kbId;
-        this.personKey = personKey;
-        FollowsSignIn = followsSignIn;
+        FollowsSignIn = true;
     }
 
     /// <summary>
     /// A registry session's: it keeps nothing until the knowledge base's sign-in records its person, and writes only
     /// while the sign-in stored beside it still names them.
     /// </summary>
-    internal static CachePersistence ForSignIn(ISessionStorage storage, string kbId) => new(storage, kbId, null, followsSignIn: true);
+    internal static CachePersistence ForSignIn(ISessionStorage storage, string kbId) => new(storage, kbId);
 
     internal ISessionStorage Storage { get; }
     internal string KbId { get; }
