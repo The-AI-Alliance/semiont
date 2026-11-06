@@ -605,7 +605,8 @@ impl Drop for SemiontBrowser {
     }
 }
 
-/// Whether two endpoints are one place: for a gateway, its host and port.
+/// Whether two endpoints are one place: for a gateway, its origin; for a
+/// loaded knowledge base, its id.
 fn same_place(one: &KbEndpoint, other: &KbEndpoint) -> bool {
     match (one, other) {
         (KbEndpoint::HttpEndpoint(one), KbEndpoint::HttpEndpoint(other)) => one.same_address(other),

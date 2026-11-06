@@ -107,11 +107,15 @@ function lastViewedByKbOf(stored: string | null): Record<string, string> {
 
 /**
  * Whether a registry takes two endpoints for one place: for a gateway, its
- * host and port; for a loaded knowledge base, its id.
+ * origin (the protocol, the host in lowercase and the port); for a loaded
+ * knowledge base, its id.
  */
 export function samePlace(one: KbEndpoint, other: KbEndpoint): boolean {
   if (one.kind === 'http') {
-    return other.kind === 'http' && one.host === other.host && one.port === other.port;
+    return other.kind === 'http'
+      && one.protocol === other.protocol
+      && one.host.toLowerCase() === other.host.toLowerCase()
+      && one.port === other.port;
   }
   return other.kind === 'local' && one.kbId === other.kbId;
 }

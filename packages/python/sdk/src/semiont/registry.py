@@ -461,9 +461,18 @@ _NO_VERDICT: Final = KbReadVerdict(kind="no-verdict")
 
 
 def _same_place(one: KbEndpoint, other: KbEndpoint) -> bool:
-    """Whether two endpoints are one place: for a gateway, its host and port; for a loaded knowledge base, its id."""
+    """Whether two endpoints are one place.
+
+    For a gateway, its origin: the protocol, the host in lowercase and the port.
+    For a loaded knowledge base, its id.
+    """
     if isinstance(one, HttpEndpoint):
-        return isinstance(other, HttpEndpoint) and (one.host, one.port) == (other.host, other.port)
+        return (
+            isinstance(other, HttpEndpoint)
+            and one.protocol == other.protocol
+            and one.host.lower() == other.host.lower()
+            and one.port == other.port
+        )
     return not isinstance(other, HttpEndpoint) and one.kb_id == other.kb_id
 
 
