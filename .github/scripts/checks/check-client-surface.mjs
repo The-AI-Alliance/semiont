@@ -1965,6 +1965,8 @@ function haskellSurface() {
           : / -> IO \(Maybe Integer\)$/.test(returns) ? 'count'
           : / -> IO Semiont\.Worker\.Claims$/.test(returns) ? 'claims'
           : / -> Semiont\.Internal\.Cache\.Query\b/.test(returns) ? 'cache'
+          : / -> IO \(Semiont\.Internal\.Running\.Running \(Semiont\.Internal\.Generated\.OperationReports\.JobEvent\b/.test(returns) ? 'delegation'
+          : / -> IO \(Semiont\.Internal\.Running\.Running Semiont\.Internal\.Generated\.OperationReports\.UploadEvent\b/.test(returns) ? 'upload'
           : / -> IO \(Semiont\.Internal\.Running\.Running\b/.test(returns) ? 'stream'
           : returns.includes('Streaming.Internal.Stream (Data.Functor.Of.Of (Semiont.Internal.Bus.Heard ') ? 'events'
           : / -> IO \S/.test(returns) ? 'promise' : undefined;

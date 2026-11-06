@@ -3563,9 +3563,6 @@ jobs:
       - name: Component schemas vs the table of what each requires
         run: npm run generate:required:check
 
-      - name: Refresh, text decoding and media tables vs Haskell
-        run: npm run generate:haskell:check
-
       # A knowledge base's documents (protocol/specs/src/stack, and the project file's
       # schema in protocol/specs/src/kb-identity) → the launcher's types for them and the
       # schema text it validates them against (packages/go/launcher/stack).
@@ -3632,7 +3629,7 @@ jobs:
       # one is the tests' fixture, real data at the pin, so the script, the
       # package's reader and the pin are held to each other. A bump of the pin
       # without `npm run generate:model-catalogue` fails here. This and the
-      # next are the checks of this job that read an installed package, so
+      # following steps are the checks of this job that read an installed package, so
       # this one installs first: the root's own dependencies at the lockfile's
       # versions, without the workspaces' and without running any package's
       # scripts. They are the job's last steps, so that no other check runs
@@ -3653,6 +3650,9 @@ jobs:
       # `npm run generate:encoding-cases` fails here when the table changes.
       - name: Encoding Standard vs the table of its labels and single-byte encodings
         run: npm run generate:encoding-cases:check
+
+      - name: Refresh, text, media and operation reports vs Haskell
+        run: npm run generate:haskell:check
 
   # Everything about the launcher's modules but its suite: formatting, vet on
   # every target a release ships, the Go SDK's own build and tests, and the

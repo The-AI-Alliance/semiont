@@ -439,8 +439,14 @@ The [Haskell SDK](../../packages/haskell/sdk/README.md) is in development.
 Its implemented `Running report result` handle starts work when consumed once:
 `await` returns the final result, while `withReports` gives a
 `Stream (Of report) IO result` from `streaming`. Leaving the report scope cancels
-and joins the producer. The client, delegation, live-query, and state-unit
-APIs that use these primitives are still being implemented.
+and joins the producer. `Mark.delegate` and `Yield.delegate` use typed
+`JobEvent completion` reports, and `Yield.resource` reports `UploadEvent` values.
+All client namespace methods are available.
+
+Live queries return `Query value`: `current` reads its `CacheState` in STM,
+`watch` scopes observation, and `fresh` performs a one-shot read in IO. Native
+`Pending`, `Ready value`, and `Failed exception` constructors keep those outcomes
+explicit. Sessions, persistence integration, and state units remain in development.
 
 ## See also
 

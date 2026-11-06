@@ -26,6 +26,7 @@ with tempfile.TemporaryDirectory() as output:
         "TransportInputCoercion": "constructor",
         "HttpPoolCoercion": "constructor",
         "WrongHttpAnswer": "GHC-83865",
+        "DelegateWrongResult": "GHC-83865",
         "WorkerWrongResult": "GHC-83865",
         "ClientRecordUpdate": "GHC-22385",
         "IncompleteCacheState": "non-exhaustive",

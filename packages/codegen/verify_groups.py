@@ -6,6 +6,7 @@ from operations import GROUPS, ROOT
 
 # Generation restoring these bytes gates this representative-output inventory to its owner.
 OUTPUTS = {
+    "haskell": "packages/haskell/sdk/generated/Semiont/Internal/Generated/CacheRefresh.hs",
     "bus": "packages/typescript/core/src/bus-protocol.ts",
     "typescript": "packages/typescript/core/src/bus-protocol.ts",
     "python": "packages/python/sdk/src/semiont/types.py",

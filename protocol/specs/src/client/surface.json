@@ -216,7 +216,6 @@
     {
       "namespace": "mark",
       "docs": "Annotations: their creation and removal, a resource's own metadata, and the annotating of a resource delegated as a job.",
-      "notYetReached": {"haskell": "The Haskell client is still to implement this namespace and its operation lifetimes."},
       "methods": [
         {
           "method": "annotation",
@@ -476,7 +475,6 @@
     {
       "namespace": "yield",
       "docs": "Creating resources: by upload, by a generation delegated as a job, by cloning.",
-      "notYetReached": {"haskell": "The Haskell client is still to implement this namespace and its operation lifetimes."},
       "methods": [
         {
           "method": "resource",

@@ -7,10 +7,10 @@ as the other Semiont SDKs. It currently provides protocol types, checked
 identifiers, a typed bus and common carrier runtime, read-only state,
 scoped operation consumption, retry support, and launcher discovery.
 HTTP/SSE and content adapters and the client facade are available, including
-the Frame, Bind, Beckon, Browse, Gather, Match, Job, Auth and System namespaces.
-Live queries, claims, held jobs and durable worker commits are available. Mark,
-Yield, sign-in, delegation, persisted client sessions, registry and state units
-are still being implemented.
+the Frame, Bind, Beckon, Browse, Gather, Match, Mark, Yield, Job, Auth and System namespaces.
+All client namespaces, live queries, typed delegation, uploads, claims, held jobs
+and durable worker commits are available. Sign-in, persisted client sessions,
+registry and state units are still being implemented.
 
 [Install](#install) · [Signing in](#signing-in) · [Connect](#connect) ·
 [Delegation](#delegation) · [Live queries](#live-queries) ·
@@ -87,15 +87,42 @@ refuses further reads.
 The Haskell client will implement the same namespaces and methods as the
 [client surface](../../../protocol/specs/src/client/surface.json). Typed
 channel and operation descriptors already exist in `Semiont.Channels`;
-Frame, Bind, Beckon, Browse, Gather, Match, Job, Auth and System methods are
-available. Mark and Yield are still being implemented. See the
+All 66 methods of Frame, Bind, Beckon, Browse, Gather, Match, Mark, Yield, Job,
+Auth and System are available. See the
 [builder guide](../../../docs/builder/README.md) for the shared model.
 
 ## Delegation
 
-In development. Job submission, job following, and the per-verb delegation
-methods are not yet available. The operation consumption primitive is in place:
-`Semiont.Running` exposes an opaque `Running report result`.
+`Mark.delegate` and `Yield.delegate` create and follow typed jobs. Each returns
+an opaque `Running (JobEvent completion) completion`: a mark job completes with
+`MarkJobCompleteCommand`, and a yield job with `YieldJobCompleteCommand`.
+
+```haskell
+module DelegateMarks (runMarks) where
+
+import qualified Semiont.Client as Client
+import qualified Semiont.Mark as Mark
+import qualified Semiont.Running as Running
+import Semiont.Types (ResourceId, MarkJobParams, MarkJobCompleteCommand)
+
+runMarks :: Client.Client -> ResourceId -> MarkJobParams -> IO MarkJobCompleteCommand
+runMarks client identity params =
+  Mark.delegate (Client.mark client) identity params >>= Running.await
+```
+
+The first report names the created job. Progress and retryable failures follow;
+the final report carries its completion. A final failure or cancellation raises
+`JobError` with the shared job code. After silence the follower asks for status;
+progress restarts that interval, and a retryable failure parks polling until the
+next attempt speaks. Early frames wait behind creation, and a completion of
+another verb is refused. Following a job acquires no resource subscription.
+
+Yield's silence guard derives from the requested token budget and the protocol
+floor, or accepts an explicit per-call deadline. Each progress or retryable
+failure restarts it. On expiry it requests cancellation of the known job and
+raises `job.stalled`. `Yield.resource` returns `Running UploadEvent ResourceId`,
+reporting started, byte progress and finished; abandoning its reader cancels
+the upload.
 
 Constructing an operation starts no work. `await` starts it and returns its
 terminal result; `withReports` instead supplies a `Stream (Of report) IO result`

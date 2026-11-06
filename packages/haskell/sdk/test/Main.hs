@@ -49,6 +49,7 @@ import ResourceCases (resourceCases)
 import FrameCases (frameCases)
 import RefreshCases (refreshCases)
 import TextCases (textCases)
+import DelegationCases (delegationCases, followerClockCases)
 import qualified SchemaCases
 
 require :: String -> Bool -> IO ()
@@ -383,6 +384,8 @@ main = do
     pure (Just wire, code)
   busCases command browse event (failureRows ++ [(Nothing, fallback), (Just "__unknown_test_code", fallback)])
   fixtures <- traverse (either (ioError . userError) pure . sample 0) schemas
+  delegationCases fixtures
+  followerClockCases root fixtures
   surfaceCases root fixtures
   clientClockCases root fixtures
   refreshCases fixtures

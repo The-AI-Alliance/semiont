@@ -7,10 +7,11 @@
   },
   "notYetReached": {
     "haskell": {
-      "why": "P7: session renewal, device grants and delegation following remain; every HTTP, save-debounce, discovery, live-query invalidation-window and held-job stall case runs in-process at the protocol timings.",
+      "why": "P7: session renewal and device grants remain; every HTTP, save-debounce, discovery, live-query invalidation-window, delegation-follower and held-job stall case runs in-process at the protocol timings.",
       "runBy": [
         "packages/haskell/sdk/test/ClockCases.hs",
-        "packages/haskell/sdk/test/HeldCases.hs"
+        "packages/haskell/sdk/test/HeldCases.hs",
+        "packages/haskell/sdk/test/DelegationCases.hs"
       ],
       "subjects": [
         "refusedStream",
@@ -24,7 +25,8 @@
         "saveDebounce",
         "discovery",
         "heldJobStall",
-        "invalidationWindow"
+        "invalidationWindow",
+        "jobFollower"
       ]
     },
     "typescript": "The seven AbortSignal.timeout deadlines become timers the SDK sets, and a runner under vitest's fake timers with Math.random giving its lowest.",

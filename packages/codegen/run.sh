@@ -90,7 +90,7 @@ group() {
       run "$NODE_IMAGE" node packages/go/sdk/scripts/check-go-schema-coverage.mjs
       ;;
     discovery-go) go_generate packages/go/launcher/discovery.go ;;
-    encoding-cases|model-catalogue) install; npm_script "generate:$name$SUFFIX" ;;
+    haskell|encoding-cases|model-catalogue) install; npm_script "generate:$name$SUFFIX" ;;
     *) npm_script "generate:$name$SUFFIX" ;;
   esac
 }

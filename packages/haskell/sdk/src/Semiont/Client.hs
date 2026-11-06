@@ -1,4 +1,4 @@
-module Semiont.Client (Client, newClient, fromHttp, baseUrl, transport, content, wire, bus, frame, bind, beckon, browse, gather, match, job, auth, system, state, dispose) where
+module Semiont.Client (Client, newClient, fromHttp, baseUrl, transport, content, wire, bus, frame, bind, beckon, browse, gather, match, mark, yield, job, auth, system, state, dispose) where
 
 import Control.Exception (onException, finally, bracketOnError)
 import Control.Monad (unless)
@@ -6,6 +6,9 @@ import Data.List (sort)
 import qualified Semiont.Internal.Browse as Browse
 import qualified Semiont.Internal.Gather as Gather
 import qualified Semiont.Internal.Match as Match
+import qualified Semiont.Internal.Mark as Mark
+import qualified Semiont.Internal.Yield as Yield
+import qualified Semiont.Internal.Delegation as Delegation
 import qualified Semiont.Internal.Refresh as Refresh
 import Data.Text (Text)
 import qualified Data.UUID.Types as UUID
@@ -36,6 +39,9 @@ data Client = Client
   , clientBrowse :: Browse.BrowseNamespace
   , clientGather :: Gather.GatherNamespace
   , clientMatch :: Match.MatchNamespace
+  , clientMark :: Mark.MarkNamespace
+  , clientYield :: Yield.YieldNamespace
+  , clientFollower :: Delegation.Follower
   , clientRefresh :: Refresh.Refresher
   , clientJob :: JobNamespace
   , clientAuth :: Maybe AuthNamespace
@@ -48,15 +54,16 @@ newClient carrier contents gateway options timing =
   bracketOnError Local.newEventBus Local.closeEventBus $ \local ->
   bracketOnError (Transport.bridgeInto carrier local) id $ \disconnect -> do
     let typed = Bus.newBus options carrier
-    bracketOnError (Browse.newBrowse typed local carrier contents options timing) Browse.dispose $ \browseQueries ->
-      bracketOnError (Gather.newGather typed carrier options timing) Gather.dispose $ \gatherQueries ->
-      bracketOnError (Match.newMatch typed local options timing) Match.dispose $ \matchQueries -> do
-        let controls = Browse.controls browseQueries ++ Gather.controls gatherQueries ++ Match.controls matchQueries
-        unless (sort (map fst controls) == [minBound..maxBound]) (ioError (userError "the client does not own every refresh-table query exactly once"))
-        refresher <- Refresh.newRefresher local carrier options timing controls
-        pure (Client carrier contents typed local (newFrame typed timing) (newBind typed local timing) (newBeckon typed local)
-          browseQueries gatherQueries matchQueries refresher (newJob typed local carrier options timing) (newAuth <$> gateway) (newSystem <$> gateway) disconnect)
-
+    bracketOnError (Delegation.newFollower typed local options timing) Delegation.dispose $ \follower ->
+      bracketOnError (Browse.newBrowse typed local carrier contents options timing) Browse.dispose $ \browseQueries ->
+        bracketOnError (Gather.newGather typed carrier options timing) Gather.dispose $ \gatherQueries ->
+        bracketOnError (Match.newMatch typed local options timing) Match.dispose $ \matchQueries -> do
+          let controls = Browse.controls browseQueries ++ Gather.controls gatherQueries ++ Match.controls matchQueries
+          unless (sort (map fst controls) == [minBound..maxBound]) (ioError (userError "the client does not own every refresh-table query exactly once"))
+          refresher <- Refresh.newRefresher local carrier options timing controls
+          pure (Client carrier contents typed local (newFrame typed timing) (newBind typed local timing) (newBeckon typed local)
+            browseQueries gatherQueries matchQueries (Mark.newMark typed local timing follower)
+              (Yield.newYield typed local contents timing follower) follower refresher (newJob typed local carrier options timing) (newAuth <$> gateway) (newSystem <$> gateway) disconnect)
 
 fromHttp :: Http.HttpOptions -> IO Client
 fromHttp options = do
@@ -90,6 +97,11 @@ gather Client { clientGather = value } = value
 match :: Client -> Match.MatchNamespace
 match Client { clientMatch = value } = value
 
+mark :: Client -> Mark.MarkNamespace
+mark Client { clientMark = value } = value
+yield :: Client -> Yield.YieldNamespace
+yield Client { clientYield = value } = value
+
 job :: Client -> JobNamespace
 job Client { clientJob = value } = value
 auth :: Client -> Maybe AuthNamespace
@@ -101,7 +113,7 @@ state :: Client -> StateValue Transport.ConnectionState
 state = Transport.state . transport
 dispose :: Client -> IO ()
 dispose client =
-  Refresh.dispose (clientRefresh client) `finally` (Browse.dispose (browse client)
+  Delegation.dispose (clientFollower client) `finally` Refresh.dispose (clientRefresh client) `finally` (Browse.dispose (browse client)
     `finally` Gather.dispose (gather client) `finally` Match.dispose (match client)
     `finally` Transport.dispose (transport client)) `finally` (Content.dispose (content client)
     `finally` (clientDisconnect client `finally` Local.closeEventBus (bus client)))

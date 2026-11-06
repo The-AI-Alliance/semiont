@@ -4,7 +4,7 @@ module SurfaceCases (surfaceCases) where
 import Control.Concurrent.Async (async, wait)
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
-import Control.Exception (bracket, try)
+import Control.Exception (bracket, try, IOException, catch, displayException)
 import Semiont.Errors (BusRequestError(..))
 import Control.Monad (forM_, unless, void)
 import Data.Aeson (FromJSON, ToJSON, Value(..), eitherDecodeStrict', toJSON, withObject, (.:))
@@ -12,6 +12,7 @@ import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
 import Data.Aeson.Types (parseEither, parseJSON)
 import qualified Data.ByteString as Bytes
+import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -23,6 +24,8 @@ import qualified Semiont.Bind as Bind
 import qualified Semiont.Browse as Browse
 import qualified Semiont.Gather as Gather
 import qualified Semiont.Match as Match
+import qualified Semiont.Mark as Mark
+import qualified Semiont.Yield as Yield
 import qualified Semiont.Cache as Cache
 import qualified Semiont.Running as Running
 import qualified Semiont.Bus as Bus
@@ -62,16 +65,23 @@ fixture fixtures name = maybe (ioError (userError ("missing surface fixture " ++
 data Called = Called Text Value deriving (Eq, Show)
 data Rig = Rig Client.Client Transport.TransportInput Bus.BusOptions (TQueue Called)
 
-withRig :: Map.Map Text Value -> (Rig -> IO result) -> IO result
-withRig fixtures action = do
+withAnswers :: Map.Map Text Value -> Maybe Value -> (Rig -> IO result) -> IO result
+withAnswers fixtures answerOverride action = do
   calls <- newTQueueIO
   ids <- newTVarIO (0 :: Integer)
   inputCell <- newEmptyTMVarIO
   let clock = Bus.BusOptions (pure 0) (\_ -> atomically retry) (atomically $ do modifyTVar' ids (+1); T.pack . show <$> readTVar ids)
-      unexpected :: IO value
-      unexpected = ioError (userError "unexpected content operation in surface test")
       recordContent name identity = atomically (writeTQueue calls (Called ("content:"<>name) (Object (KM.singleton "resourceId" (toJSON identity)))))
-      contents = Content.ContentTransport (\_ _ _ -> unexpected)
+      contents = Content.ContentTransport (\metadata source progress -> do
+          captured <- newEmptyTMVarIO
+          Content.openBody source $ \popper -> do
+            let readAll = do chunk <- popper; if Bytes.null chunk then pure Bytes.empty else (chunk<>) <$> readAll
+            readAll >>= atomically . putTMVar captured
+          bytes <- atomically (takeTMVar captured)
+          let sent=case toJSON metadata of Object fields -> Object (KM.insert "content" (String (decodeUtf8 bytes)) fields); _ -> error "upload metadata is not an object"
+          atomically (writeTQueue calls (Called "content:putBinary" sent))
+          progress (Content.UploadProgress (fromIntegral (Bytes.length bytes)) (fromIntegral (Bytes.length bytes)))
+          createResourceResponseResourceId <$> fixture fixtures "CreateResourceResponse")
         (\identity -> recordContent "getBinary" identity >> pure (Content.BinaryContent "text/plain" "surface"))
         (\identity consume -> recordContent "getBinaryStream" identity >> consume "text/plain" (Stream.yield "surface"))
         (\identity -> recordContent "getResourceGraph" identity >> fixture fixtures "GetResourceResponse")
@@ -93,8 +103,11 @@ withRig fixtures action = do
               let (asked, answered, _) = operationChannels operation
               if channelName asked /= busFrameChannel frame then answer rest else do
                 value <- maybe (ioError (userError "missing operation answer fixture")) pure (Map.lookup (channelSchema answered) fixtures)
-                let completed = case (channelSchema answered, value) of
-                      ("JobStatusResult", Object outer) -> case KM.lookup "response" outer of
+                let completed = case (answerOverride,channelSchema answered, value) of
+                      (Just Null,"EmptyBusPayload",_) -> value
+                      (Just Null,_,_) -> error "surface void answer names a nonempty reply"
+                      (Just output,_,_) -> Object (KM.singleton "response" output)
+                      (Nothing,"JobStatusResult", Object outer) -> case KM.lookup "response" outer of
                         Just (Object response) -> Object (KM.insert "response" (Object (KM.insert "status" (String "complete") response)) outer)
                         _ -> error "JobStatusResult fixture has no response"
                       _ -> value
@@ -139,64 +152,71 @@ surfaceCases root fixtures = do
           member <- field "method" method
           via <- field "via" method
           cases <- field "cases" method :: IO [Value]
-          forM_ cases $ \row -> runCase fixtures name member via row
+          forM_ cases $ \row -> runCase fixtures name member via row `catch` (\(problem::IOException) ->
+            ioError (userError (T.unpack name++"."++T.unpack member++": "++displayException problem++"; "++show row)))
   require "client surface liveness deadline expired" (result == Just ())
   putStrLn "PASS every shared behavior case of each compiled client namespace"
   where whenReached reached name run = if Set.member name reached then run else pure ()
 
 runCase :: Map.Map Text Value -> Text -> Text -> Value -> Value -> IO ()
-runCase fixtures namespace member via row = withRig fixtures $ \rigValue@(Rig client input _ calls) -> do
-  args <- field "args" row
-  expected <- field "sends" row
-  local <- optional "local" via
-  observes <- optional "observes" via
-  case (local,observes) of
-    (Just channel, _) -> do
-      ready <- newEmptyMVar
-      listener <- async $ Local.events (Client.bus client) channel $ \events -> putMVar ready () >> Stream.head_ events
-      takeMVar ready
-      invoke rigValue namespace member args
-      frame <- wait listener >>= maybe (ioError (userError "local signal disappeared")) pure
-      correlation <- optional "correlationId" row
-      require "local correlation escaped its envelope" (busFrameCorrelationId (Transport.wireFrame frame) == correlation)
-      require "local signal differs from surface table" (Object (busFramePayloadAdditionalProperties (busFramePayload (Transport.wireFrame frame))) == expected)
-      atomically (isEmptyTQueue calls) >>= require "local signal escaped to the wire"
-    (_, Just channel) -> do
-      ready <- newEmptyMVar
-      listener <- async (readEvent client member (putMVar ready ()))
-      takeMVar ready
-      payload <- decode expected
-      Transport.receive input (BusFrame channel Nothing (BusFramePayload payload) Nothing)
-      actual <- wait listener
-      require "job observation differs from surface table" (actual == expected)
-    _ -> do
-      invoke rigValue namespace member args
-      request <- optional "request" via
-      emit <- optional "emit" via
-      gateway <- optional "gateway" via
-      content <- optional "content" via
-      prefix <- case (request,emit,gateway,content) of
-        (Just channel,_,_,_) -> pure ("request:" <> channel)
-        (_,Just channel,_,_) -> pure ("request:" <> channel)
-        (_,_,Just name,_) -> pure ("gateway:" <> name)
-        (_,_,_,Just name) -> pure ("content:" <> name)
-        _ -> ioError (userError "unhandled surface operation route")
-      actual <- atomically (readTQueue calls)
-      require ("first effect differs for " ++ T.unpack namespace ++ "." ++ T.unpack member) (actual == Called prefix expected)
-      remaining <- maybe [] id <$> optional "then" row
-      forM_ remaining $ \step -> do
-        channel <- field "request" step
-        payload <- field "sends" step
-        received <- atomically (readTQueue calls)
-        require "surface continuation differs" (received == Called ("request:" <> channel) payload)
-      if namespace=="browse" && member=="engines" then forM_ limitsOperations (\operation -> do
-        let (channel,_,_)=operationChannels operation
-        received <- atomically (readTQueue calls)
-        require "engine limits lost their derived operation" (received==Called ("request:"<>channelName channel) (Object mempty))) else pure ()
-      -- A claims reader may be stopped after it has received a job; its
-      -- shutdown failure is checked by the worker suite, not this first-effect table.
-      unless (namespace == "job" && member == "claim") (atomically (isEmptyTQueue calls) >>= require "surface method performed an unlisted extra effect")
-
+runCase fixtures namespace member via row = do
+  answerOverride <- optional "answers" row
+  withAnswers fixtures answerOverride $ \rigValue@(Rig client input _ calls) -> do
+    args <- field "args" row
+    expected <- field "sends" row
+    local <- optional "local" via
+    observes <- optional "observes" via
+    case (local,observes) of
+      (Just channel, _) -> do
+        ready <- newEmptyMVar
+        listener <- async $ Local.events (Client.bus client) channel $ \events -> putMVar ready () >> Stream.head_ events
+        takeMVar ready
+        invoke rigValue namespace member args
+        frame <- wait listener >>= maybe (ioError (userError "local signal disappeared")) pure
+        correlation <- optional "correlationId" row
+        require "local correlation escaped its envelope" (busFrameCorrelationId (Transport.wireFrame frame) == correlation)
+        require "local signal differs from surface table" (Object (busFramePayloadAdditionalProperties (busFramePayload (Transport.wireFrame frame))) == expected)
+        atomically (isEmptyTQueue calls) >>= require "local signal escaped to the wire"
+      (_, Just channel) -> do
+        ready <- newEmptyMVar
+        listener <- async (readEvent client member (putMVar ready ()))
+        takeMVar ready
+        payload <- decode expected
+        Transport.receive input (BusFrame channel Nothing (BusFramePayload payload) Nothing)
+        actual <- wait listener
+        require "job observation differs from surface table" (actual == expected)
+      _ -> do
+        invoke rigValue namespace member args
+        request <- optional "request" via
+        emit <- optional "emit" via
+        gateway <- optional "gateway" via
+        content <- optional "content" via
+        prefix <- case (request,emit,gateway,content) of
+          (Just channel,_,_,_) -> pure ("request:" <> channel)
+          (_,Just channel,_,_) -> pure ("request:" <> channel)
+          (_,_,Just name,_) -> pure ("gateway:" <> name)
+          (_,_,_,Just name) -> pure ("content:" <> name)
+          _ -> ioError (userError "unhandled surface operation route")
+        actual <- atomically (readTQueue calls)
+        require ("first effect differs for " ++ T.unpack namespace ++ "." ++ T.unpack member) (actual == Called prefix expected)
+        remaining <- maybe [] id <$> optional "then" row
+        forM_ remaining $ \step -> do
+          continuedRequest <- optional "request" step
+          continuedContent <- optional "content" step
+          continuationPrefix <- case (continuedRequest,continuedContent) of
+            (Just channel,Nothing) -> pure ("request:"<>channel)
+            (Nothing,Just name) -> pure ("content:"<>name)
+            _ -> ioError (userError "surface continuation has no single operation")
+          payload <- field "sends" step
+          received <- atomically (readTQueue calls)
+          require "surface continuation differs" (received == Called continuationPrefix payload)
+        if namespace=="browse" && member=="engines" then forM_ limitsOperations (\operation -> do
+          let (channel,_,_)=operationChannels operation
+          received <- atomically (readTQueue calls)
+          require "engine limits lost their derived operation" (received==Called ("request:"<>channelName channel) (Object mempty))) else pure ()
+        -- A claims reader may be stopped after it has received a job; its
+        -- shutdown failure is checked by the worker suite, not this first-effect table.
+        unless (namespace == "job" && member == "claim") (atomically (isEmptyTQueue calls) >>= require "surface method performed an unlisted extra effect")
 invoke :: Rig -> Text -> Text -> Value -> IO ()
 invoke (Rig client _ clock _) namespace member args = case (namespace,member) of
   ("frame","addEntityType") -> field "type" args >>= void . Frame.addEntityType (Client.frame client)
@@ -259,6 +279,40 @@ invoke (Rig client _ clock _) namespace member args = case (namespace,member) of
   ("match","resources") -> do
     text <- field "search" args; filters <- optional "filters" args
     void (Cache.fresh (Match.resources (Client.match client) text filters))
+  ("mark","annotation") -> field "input" args >>= void . Mark.annotation (Client.mark client)
+  ("mark","delete") -> do
+    identity <- field "resourceId" args; mark <- field "annotationId" args
+    void (Mark.delete (Client.mark client) identity mark)
+  ("mark","archive") -> field "resourceId" args >>= void . Mark.archive (Client.mark client)
+  ("mark","unarchive") -> field "resourceId" args >>= void . Mark.unarchive (Client.mark client)
+  ("mark","updateEntityTypes") -> do
+    identity <- field "resourceId" args; current <- field "current" args; updated <- field "updated" args
+    void (Mark.updateEntityTypes (Client.mark client) identity current updated)
+  ("mark","delegate") -> do
+    identity <- field "resourceId" args; params <- field "params" args
+    operation <- Mark.delegate (Client.mark client) identity params
+    Running.withReports operation (Stream.effects . Stream.take 1)
+  ("mark","request") -> do
+    identity <- field "source" args; selector <- field "selector" args; motivation <- field "motivation" args
+    atomically (Mark.request (Client.mark client) identity selector motivation)
+  ("mark","submit") -> field "input" args >>= atomically . Mark.submit (Client.mark client)
+  ("mark","reportDeleteError") -> field "input" args >>= atomically . Mark.reportDeleteError (Client.mark client)
+  ("yield","resource") -> do
+    input <- field "data" args
+    text <- field "content" input
+    metadata <- case input of Object fields -> decode (Object (KM.delete "content" fields)); _ -> ioError (userError "resource data is not an object")
+    Yield.resource (Client.yield client) metadata (Content.bytesBody (encodeUtf8 text)) >>= void . Running.await
+  ("yield","delegate") -> do
+    params <- field "params" args; stall <- optional "stallDeadlineMs" args
+    operation <- Yield.delegate (Client.yield client) params stall
+    Running.withReports operation (Stream.effects . Stream.take 1)
+  ("yield","cloneToken") -> field "resourceId" args >>= void . Yield.cloneToken (Client.yield client)
+  ("yield","fromToken") -> field "token" args >>= void . Yield.fromToken (Client.yield client)
+  ("yield","createFromToken") -> do
+    options <- field "options" args
+    token <- field "token" options; name <- field "name" options; text <- field "content" options; archive <- optional "archiveOriginal" options
+    void (Yield.createFromToken (Client.yield client) token name text archive)
+  ("yield","clone") -> atomically (Yield.clone (Client.yield client))
   ("job","status") -> field "jobId" args >>= void . Job.status (Client.job client)
   ("job","pollUntilComplete") -> do
     identity <- field "jobId" args
