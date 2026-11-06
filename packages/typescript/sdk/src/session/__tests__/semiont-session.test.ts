@@ -37,14 +37,8 @@ vi.mock('../../client', async () => {
 import { SemiontClient, APIError } from '../../client';
 import { SemiontSession, type SemiontSessionConfig, type UserInfo } from '../semiont-session';
 import { accessToken, userId, MAX_RECONNECT_MS, RECONNECT_MS, SignInError, type AccessToken } from '@semiont/core';
-import { SESSION_PREFIX_RE, storageKey, seedStoredSession, testSession, TestStorage } from './test-storage-helpers';
+import { SESSION_PREFIX_RE, freshJwt, storageKey, seedStoredSession, testSession, TestStorage } from './test-storage-helpers';
 import { getStoredSession } from '../storage';
-
-function freshJwt(expSecondsFromNow = 3600): string {
-  const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }));
-  const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + expSecondsFromNow }));
-  return `${header}.${payload}.sig`;
-}
 
 const KB = {
   id: 'kb-alpha',

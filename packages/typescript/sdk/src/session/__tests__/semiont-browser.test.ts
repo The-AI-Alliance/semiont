@@ -53,7 +53,7 @@ import { SemiontBrowser } from '../semiont-browser';
 import { createHttpSessionFactory } from '../http-session-factory';
 import { getBrowser } from '../registry';
 import { __resetForTests } from '../testing';
-import { storageKey, seedStoredSession, testSession, SharedStorage, TestStorage, TEST_TOKEN_ENDPOINT, TEST_REVOCATION_ENDPOINT } from './test-storage-helpers';
+import { freshJwt, storageKey, seedStoredSession, testSession, SharedStorage, TestStorage, TEST_TOKEN_ENDPOINT, TEST_REVOCATION_ENDPOINT } from './test-storage-helpers';
 import { STORAGE_KEY, ACTIVE_KEY, OPEN_RESOURCES_BY_KB_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY } from '../storage';
 import { PENDING_AUTHORIZATION_KEY } from '../oauth';
 import { IdentityUnverifiableError } from '../connect';
@@ -101,12 +101,6 @@ const KB_B = {
   did: 'did:web:example.github.io:kb-b',
   endpoint: { kind: 'http' as const, host: 'example.com', port: 443, protocol: 'https' as const },
 };
-
-function freshJwt(expSecondsFromNow = 3600): string {
-  const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }));
-  const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + expSecondsFromNow }));
-  return `${header}.${payload}.sig`;
-}
 
 let storage: TestStorage;
 

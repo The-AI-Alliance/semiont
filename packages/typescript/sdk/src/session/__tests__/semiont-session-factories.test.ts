@@ -13,19 +13,7 @@ import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HttpTransport } from '@semiont/http-transport';
 
 import { SemiontSession } from '../semiont-session';
-import { TestStorage, storageKey, testSession, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
-
-/**
- * A JWT-shaped string with an unexpired `exp` claim. The session's
- * private `validate()` runs `isJwtExpired(stored.access)` and clears
- * storage if the token can't be parsed — so mock auth responses must
- * return real-looking JWTs.
- */
-function freshJwt(expSecondsFromNow = 3600): string {
-  const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }));
-  const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + expSecondsFromNow }));
-  return `${header}.${payload}.sig`;
-}
+import { TestStorage, freshJwt, storageKey, testSession, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
 
 const KB = {
   id: 'kb-factory',
