@@ -38,7 +38,7 @@ public sealed partial class HttpTransport : IDisposable
     private readonly Queue<string> remembered = [];
     private readonly HashSet<string> seen = [];
     private readonly SemaphoreSlim sendOrder = new(1, 1);
-    private Task<bool>? renewing;
+    private Task<string?>? renewing;
     private string? renewingToken;
     private TaskCompletionSource attached = NewCompletion();
     private string? token;
@@ -218,19 +218,11 @@ public sealed partial class HttpTransport : IDisposable
         var key = Guid.NewGuid().ToString();
         var cap = timing.EmitRetry.InitialDelayMs;
         var renewed = false;
+        var sent = Token();
+        if (string.IsNullOrEmpty(sent)) throw new TransportError(ProtocolFacts.Error(401), "No usable credential", 401);
         for (var attempt = 1; ; attempt++)
         {
             cancellation.ThrowIfCancellationRequested();
-            var sent = Token();
-            if (string.IsNullOrEmpty(sent)) throw new TransportError(ProtocolFacts.Error(401), "No usable credential", 401);
-            if (IsRefused(sent))
-            {
-                renewed = true;
-                if (!await RenewAsync(sent, cancellation).ConfigureAwait(false)) throw new TransportError(ProtocolFacts.Error(401), "No usable credential", 401);
-                attempt = 0;
-                cap = timing.EmitRetry.InitialDelayMs;
-                continue;
-            }
             using var request = Request(HttpMethod.Post, "/bus/emit", sent);
             request.Headers.Add(IdempotencyKey, key);
             request.Content = JsonContent.Create(body);
@@ -257,7 +249,7 @@ public sealed partial class HttpTransport : IDisposable
                 if (failure.Code == ProtocolFacts.Error(401) && !renewed)
                 {
                     renewed = true;
-                    if (await RenewAsync(sent, cancellation).ConfigureAwait(false)) { attempt = 0; cap = timing.EmitRetry.InitialDelayMs; continue; }
+                    if (await RenewAsync(sent, cancellation).ConfigureAwait(false) is { } renewal) { sent = renewal; attempt = 0; cap = timing.EmitRetry.InitialDelayMs; continue; }
                 }
                 if (!ProtocolFacts.RetryEmit((int)response.StatusCode) || failure.Code == ProtocolFacts.Error(401) || attempt >= timing.EmitRetry.Attempts) throw failure;
                 var delay = Math.Max(RetryAfter(response), cap / 2d + random.NextDouble() * cap / 2d);
@@ -382,7 +374,7 @@ public sealed partial class HttpTransport : IDisposable
                         failures.Publish(error);
                         if (error.Code == ProtocolFacts.Error(401))
                         {
-                            if (!await RenewAsync(sent, lifetime.Token).ConfigureAwait(false)) Transition(ConnectionState.Unauthenticated);
+                            if (await RenewAsync(sent, lifetime.Token).ConfigureAwait(false) is null) Transition(ConnectionState.Unauthenticated);
                         }
                         else
                         {
@@ -485,14 +477,15 @@ public sealed partial class HttpTransport : IDisposable
         }
     }
 
-    private async Task<bool> RenewAsync(string refused, CancellationToken cancellation)
+    /// <summary>The token to send again with in place of <paramref name="refused"/>, or null when there is none.</summary>
+    private async Task<string?> RenewAsync(string refused, CancellationToken cancellation)
     {
-        Task<bool> refresh;
+        Task<string?> refresh;
         lock (gate)
         {
-            if (token != refused) return !string.IsNullOrEmpty(token);
+            if (token != refused) return string.IsNullOrEmpty(token) ? null : token;
             refusedToken = refused;
-            if (refresher is null) return false;
+            if (refresher is null) return null;
             if (renewing is null || renewingToken != refused)
             {
                 renewingToken = refused;
@@ -501,10 +494,10 @@ public sealed partial class HttpTransport : IDisposable
                     var renewed = await refresher(refused, lifetime.Token).ConfigureAwait(false);
                     lock (gate)
                     {
-                        if (token != refused) return !string.IsNullOrEmpty(token);
-                        if (string.IsNullOrEmpty(renewed) || renewed == refused) return false;
+                        if (token != refused) return string.IsNullOrEmpty(token) ? null : token;
+                        if (string.IsNullOrEmpty(renewed) || renewed == refused) return null;
                         SetToken(renewed);
-                        return true;
+                        return renewed;
                     }
                 }, lifetime.Token);
             }
