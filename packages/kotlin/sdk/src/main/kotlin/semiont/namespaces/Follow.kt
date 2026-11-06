@@ -5,7 +5,7 @@ package semiont.namespaces
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
-import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.Channel.Factory.UNLIMITED
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.produce
 import kotlinx.coroutines.launch
@@ -23,10 +23,11 @@ import semiont.JobEvent
 import semiont.JobProgressed
 import semiont.Running
 import semiont.bus.Operations
-import semiont.bus.decoded
+import semiont.bus.heard
 import semiont.bus.Fault
 import semiont.bus.UNDECODED
 import semiont.bus.faultOf
+import semiont.channels.Channel
 import semiont.channels.Channels
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
@@ -38,7 +39,10 @@ import semiont.errors.TransportErrorCode
 import semiont.identifiers.JobId
 import semiont.identifiers.ResourceId
 import semiont.telemetry.callersTrace
-import semiont.transport.Frame
+import semiont.transport.Carried
+import semiont.transport.Delivered
+import semiont.transport.FrameRefusal
+import semiont.transport.Heard
 import semiont.types.JobCancelRequest
 import semiont.types.JobCompleteCommand
 import semiont.types.JobCreateCommand
@@ -56,7 +60,7 @@ import semiont.types.YieldJobCreateCommand
 import semiont.types.wireJson
 
 /** The channels of a job's lifecycle, read as one so its frames are heard in the order they were published. */
-private val LIFECYCLE = listOf(Channels.JOB_REPORT_PROGRESS.name, Channels.JOB_COMPLETE.name, Channels.JOB_FAIL.name)
+private val LIFECYCLE: List<Channel<out Any>> = listOf(Channels.JOB_REPORT_PROGRESS, Channels.JOB_COMPLETE, Channels.JOB_FAIL)
 
 /** The verb whose job a creation asks for, as the wire spells it. */
 private val JobCreateCommand.delegated: String
@@ -77,17 +81,8 @@ private val JobCompleteCommand.verb: String
         is YieldJobCompleteCommand -> jobType.value
     }
 
-/** A frame of some job's lifecycle, read as its channel's. One that is not its channel's is nobody's to act on. */
-private fun saidIn(frame: Frame): Any? = try {
-    when (frame.channel) {
-        Channels.JOB_REPORT_PROGRESS.name -> decoded(Channels.JOB_REPORT_PROGRESS, frame.payload)
-        Channels.JOB_COMPLETE.name -> decoded(Channels.JOB_COMPLETE, frame.payload)
-        Channels.JOB_FAIL.name -> decoded(Channels.JOB_FAIL, frame.payload)
-        else -> null
-    }
-} catch (_: TransportError) {
-    null
-}
+/** A frame of some job's lifecycle, as its channel's typed read hears it. */
+private fun heardIn(carried: Carried): Heard<Any> = heard(LIFECYCLE.single { it.name == carried.channel }, carried)
 
 /** The job a frame of the lifecycle is of. */
 private fun jobOf(said: Any): JobId? = when (said) {
@@ -116,7 +111,7 @@ internal fun <C : JobCompleteCommand> follow(
 private sealed interface Woke {
     class Created(val result: JobCreatedResult) : Woke
 
-    class Arrived(val frame: Frame?) : Woke
+    class Arrived(val carried: Carried?) : Woke
 
     data object Answered : Woke
 
@@ -148,8 +143,8 @@ private class Follower<C : JobCompleteCommand>(
     private suspend fun within(scope: CoroutineScope): JobEvent<C> {
         val silence = links.timing.jobSilenceMs
         val poll = links.timing.jobStatusPollMs
-        val frames = links.own.framesAmong(LIFECYCLE)
-        val arriving: ReceiveChannel<Frame> = scope.produce(capacity = Channel.UNLIMITED) { frames.collect { send(it) } }
+        val frames = links.own.framesAmong(LIFECYCLE.map { it.name })
+        val arriving: ReceiveChannel<Carried> = scope.produce(capacity = UNLIMITED) { frames.collect { send(it) } }
         var creating: Deferred<JobCreatedResult>? = scope.async { links.request(Operations.JOB_CREATE, create) }
         var asking: Deferred<JobStatusResponse>? = null
         var jobId: JobId? = null
@@ -180,8 +175,12 @@ private class Follower<C : JobCompleteCommand>(
                         held = mutableListOf()
                     }
                     is Woke.Arrived -> {
-                        val frame = woke.frame ?: throw BusRequestError(BusRequestErrorCode.Closed, "The client closed while it was following a job")
-                        saidIn(frame)?.let { said -> if (jobId == null) held += said else heard += said }
+                        val carried = woke.carried ?: throw BusRequestError(BusRequestErrorCode.Closed, "The client closed while it was following a job")
+                        when (val said = heardIn(carried)) {
+                            is Delivered -> if (jobId == null) held += said.payload else heard += said.payload
+                            // A refused frame names no job a follower can act on, and how a follower tells of one is not yet ruled.
+                            is FrameRefusal -> Unit
+                        }
                     }
                     Woke.Answered -> {
                         val answered = checkNotNull(asking)

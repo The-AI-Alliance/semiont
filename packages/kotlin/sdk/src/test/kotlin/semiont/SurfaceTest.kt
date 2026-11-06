@@ -29,8 +29,6 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.bus.decoded
-import semiont.bus.Delivered
-import semiont.bus.FrameRefusal
 import semiont.bus.Typed
 import semiont.channels.Channel
 import semiont.channels.Channels
@@ -43,8 +41,10 @@ import semiont.transport.ConnectionState
 import semiont.transport.Content
 import semiont.transport.ContentStream
 import semiont.transport.ContentTransport
+import semiont.transport.Delivered
 import semiont.transport.Events
 import semiont.transport.Frame
+import semiont.transport.FrameRefusal
 import semiont.transport.FrameSink
 import semiont.transport.GatewayOperations
 import semiont.transport.PendingReply
@@ -299,7 +299,7 @@ class SurfaceTest {
                 "local" -> {
                     val heard = client.bus.framesOn(name, null)
                     call(client, args)
-                    val frame = withTimeout(5_000) { heard.first() }
+                    val frame = withTimeout(5_000) { heard.first() }.frame()
                     assertTrue(sameJson(sends, frame.payload), "published ${frame.payload}, not $sends")
                 }
                 "observes" -> {

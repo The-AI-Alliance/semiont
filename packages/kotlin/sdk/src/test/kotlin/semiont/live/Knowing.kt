@@ -35,6 +35,7 @@ import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
 import semiont.storage.CachePersistence
 import semiont.transport.Broadcast
+import semiont.transport.Carried
 import semiont.transport.ConnectionState
 import semiont.transport.Content
 import semiont.transport.ContentStream
@@ -198,7 +199,7 @@ internal class Kb(private val answered: Boolean = true) : Transport {
     override fun emitFuture(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): CompletableFuture<Long?> =
         throw UnsupportedOperationException("the client emits by its own future")
 
-    override fun frames(channel: String): Events<Frame> = Broadcast<Frame>().listen()
+    override fun frames(channel: String): Events<Carried> = Broadcast<Carried>().listen()
 
     override fun isSubscribed(channel: String): Boolean = true
 

@@ -20,6 +20,7 @@ import semiont.http.FrameHub
 import semiont.identifiers.ResourceId
 import semiont.telemetry.futureOf
 import semiont.transport.Broadcast
+import semiont.transport.Carried
 import semiont.transport.ConnectionState
 import semiont.transport.Events
 import semiont.transport.Frame
@@ -250,7 +251,7 @@ public class FaultyTransport internal constructor(
     override fun emitFuture(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): CompletableFuture<Long?> =
         arriving.futureOf { emit(channel, payload, scope, correlationId) }
 
-    override fun frames(channel: String): Events<Frame> {
+    override fun frames(channel: String): Events<Carried> {
         if (!isSubscribed(channel)) throw unsubscribed(channel)
         return hub.frames(channel)
     }

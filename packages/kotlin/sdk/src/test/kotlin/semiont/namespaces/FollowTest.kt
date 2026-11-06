@@ -41,6 +41,7 @@ import semiont.errors.TransportError
 import semiont.identifiers.JobId
 import semiont.identifiers.ResourceId
 import semiont.transport.Broadcast
+import semiont.transport.Carried
 import semiont.transport.ConnectionState
 import semiont.transport.Events
 import semiont.transport.Frame
@@ -122,7 +123,7 @@ private class Queue(createdIds: List<String>) : Transport {
     override fun emitFuture(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): CompletableFuture<Long?> =
         throw UnsupportedOperationException("the client emits by its own future")
 
-    override fun frames(channel: String): Events<Frame> = Broadcast<Frame>().listen()
+    override fun frames(channel: String): Events<Carried> = Broadcast<Carried>().listen()
 
     override fun isSubscribed(channel: String): Boolean = true
 

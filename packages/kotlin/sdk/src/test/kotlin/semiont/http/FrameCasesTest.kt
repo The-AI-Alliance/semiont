@@ -21,18 +21,20 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.Spec
 import semiont.bus.Bus
-import semiont.bus.Delivered
 import semiont.bus.Fault
-import semiont.bus.FrameRefusal
-import semiont.bus.FrameRefusalReason
-import semiont.bus.Heard
 import semiont.bus.UNDECODED
 import semiont.channels.Channels
 import semiont.errors.SemiontError
 import semiont.errors.TransportError
 import semiont.errors.TransportErrorCode
+import semiont.frame
 import semiont.sameJson
+import semiont.transport.Carried
+import semiont.transport.Delivered
 import semiont.transport.Frame
+import semiont.transport.FrameRefusal
+import semiont.transport.FrameRefusalReason
+import semiont.transport.Heard
 import semiont.types.BeckonFocusEvent
 
 /** The channel every case told to its readers is on, read here by type. */
@@ -45,6 +47,8 @@ private const val NAMES_NO_CHANNEL = "{"
 private val AFTER = """{"channel": "${READ.name}", "payload": {"resourceId": "after"}}"""
 
 private fun isAfter(heard: Heard<BeckonFocusEvent>): Boolean = heard is Delivered && heard.payload.resourceId.value == "after"
+
+private fun isTheFrameAfter(carried: Carried): Boolean = carried is Frame && carried.payload["resourceId"] == JsonPrimitive("after")
 
 /** What the failure report is told of a line with `fault`. */
 private fun told(fault: Fault) = Triple(TransportErrorCode.Error, null, "the stream carried what is not a frame: $fault")
@@ -117,7 +121,7 @@ class FrameCasesTest {
                 val failures = transport.failures()
                 gateway.send("e-1", stated.toString())
                 gateway.send("e-2", NAMES_NO_CHANNEL)
-                val frame = withTimeout(5_000) { frames.firstOf(1) }.single()
+                val frame = withTimeout(5_000) { frames.firstOf(1) }.single().frame()
                 assertTrue(sameJson(stated, written(frame)), "it is delivered as $frame")
                 assertEquals(listOf(told(UNDECODED)), withTimeout(5_000) { failures.firstOf(1) }.map(::said))
             }
@@ -133,11 +137,13 @@ class FrameCasesTest {
             val reason = FrameRefusalReason.entries.single { it.wire == case.getValue("reason").jsonPrimitive.content }
             val fault = Fault(case.getValue("member").jsonPrimitive.content, reason)
             carrying { gateway, transport ->
+                val frames = transport.frames(READ.name)
                 val typed = Bus(transport).frames(READ)
                 val failures = transport.failures()
                 gateway.send("e-1", line ?: checkNotNull(frame).toString())
                 gateway.send("e-2", NAMES_NO_CHANNEL)
                 gateway.send("e-3", AFTER)
+                val carried = frames.before(::isTheFrameAfter)
                 val heard = typed.before(::isAfter)
                 when (val whom = case.getValue("told").jsonPrimitive.content) {
                     "readers" -> {
@@ -145,9 +151,17 @@ class FrameCasesTest {
                         val refusal = assertInstanceOf(FrameRefusal::class.java, heard.single())
                         assertEquals(Triple(READ.name, fault.member, fault.reason), Triple(refusal.channel, refusal.member, refusal.reason))
                         assertEquals(frame["payload"], refusal.payload)
+                        assertEquals(frame["scope"]?.jsonPrimitive?.content, refusal.scope?.value)
+                        // A payload that is not its channel's is its typed reader's to refuse: the transport delivers its frame.
+                        if (fault.member.startsWith("payload.")) {
+                            assertEquals(frame["payload"], carried.single().frame().payload)
+                        } else {
+                            assertEquals(refusal, carried.single())
+                        }
                         assertEquals(listOf(told(UNDECODED)), withTimeout(5_000) { failures.firstOf(1) }.map(::said))
                     }
                     "failure-report" -> {
+                        assertEquals(emptyList<Carried>(), carried)
                         assertEquals(emptyList<Heard<BeckonFocusEvent>>(), heard)
                         assertEquals(listOf(told(fault), told(UNDECODED)), withTimeout(5_000) { failures.firstOf(2) }.map(::said))
                     }

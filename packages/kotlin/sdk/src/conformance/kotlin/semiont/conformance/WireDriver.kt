@@ -26,6 +26,8 @@ import semiont.identifiers.JobId
 import semiont.identifiers.ResourceId
 import semiont.retry.RetryPolicy
 import semiont.transport.ConnectionState
+import semiont.transport.Frame
+import semiont.transport.FrameRefusal
 import semiont.transport.PutBinaryRequest
 import semiont.transport.ResourceHold
 import java.util.Base64
@@ -154,7 +156,12 @@ private class WireDriver(private val abandon: (Long) -> Boolean) : Driver {
         val channel = args.text("channel")
         val frames = current().transport.frames(channel)
         reporters += reporting.launch {
-            frames.collect { frame ->
+            frames.collect { carried ->
+                val frame = when (carried) {
+                    is Frame -> carried
+                    // The suite's lines name no refused frame, and its backend sends none.
+                    is FrameRefusal -> return@collect
+                }
                 val line = mutableMapOf<String, JsonElement>("channel" to JsonPrimitive(channel), "payload" to frame.payload)
                 frame.correlationId?.let { line["correlationId"] = JsonPrimitive(it) }
                 frame.scope?.let { line["scope"] = JsonPrimitive(it.value) }

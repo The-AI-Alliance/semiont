@@ -23,9 +23,11 @@ import semiont.errors.SemiontError
 import semiont.errors.TransportError
 import semiont.telemetry.futureOf
 import semiont.transport.Broadcast
+import semiont.transport.Carried
 import semiont.transport.ConnectionState
 import semiont.transport.Events
 import semiont.transport.Frame
+import semiont.transport.FrameRefusal
 import semiont.transport.Transport
 import semiont.transport.Variable
 import semiont.transport.Watched
@@ -101,7 +103,7 @@ public class Claims internal constructor(
     private val handed = Channel<HeldJob>(Channel.UNLIMITED)
     private val refusals = Broadcast<ClaimRefusal>(keepForFirst = true)
     private val stall = Variable<HeldJobStall?>(null)
-    private val listening = mutableListOf<Events<Frame>>()
+    private val listening = mutableListOf<Events<Carried>>()
 
     /** What watches for idle moments, cancellations and stalls: stopped when the claiming ends. */
     private val watching = mutableListOf<Job>()
@@ -203,7 +205,12 @@ public class Claims internal constructor(
         val cancellations = transport.frames(Channels.JOB_CANCEL_REQUESTED.name)
         val watchers = listOf(
             scope.launch {
-                announced.collect { frame ->
+                announced.collect { carried ->
+                    val frame = when (carried) {
+                        is Frame -> carried
+                        // A refused frame announces no job.
+                        is FrameRefusal -> return@collect
+                    }
                     synchronized(lock) { lastQueuedEventAt = Instant.now() }
                     if (filters.any { jobMatchesFilter(it, frame.payload) }) pull()
                 }
@@ -211,7 +218,12 @@ public class Claims internal constructor(
                 end()
             },
             scope.launch {
-                cancellations.collect { frame ->
+                cancellations.collect { carried ->
+                    val frame = when (carried) {
+                        is Frame -> carried
+                        // A refused frame names no job to cancel.
+                        is FrameRefusal -> return@collect
+                    }
                     // A cancellation is the held job's only when it names it, and one that arrives after the settle signals nothing.
                     val (holding, signal) = synchronized(lock) { held to cancelling }
                     val named = (frame.payload["jobId"] as? JsonPrimitive)?.content

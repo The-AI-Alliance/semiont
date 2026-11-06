@@ -16,12 +16,12 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.Spec
 import semiont.bus.Fault
-import semiont.bus.FrameRefusalReason
 import semiont.bus.Operations
 import semiont.bus.decoded
 import semiont.bus.faultOf
 import semiont.errors.TransportError
 import semiont.sameJson
+import semiont.transport.FrameRefusalReason
 import semiont.types.Representation
 import semiont.types.ResourceDescriptor
 import semiont.types.ResourceDescriptorRepresentations

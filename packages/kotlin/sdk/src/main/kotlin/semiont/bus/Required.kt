@@ -13,6 +13,7 @@ import semiont.annotations.BY_CODE_POINT
 import semiont.annotations.codePointsOf
 import semiont.channels.Empty
 import semiont.channels.Response
+import semiont.transport.FrameRefusalReason
 import semiont.types.wireJson
 import java.util.concurrent.ConcurrentHashMap
 

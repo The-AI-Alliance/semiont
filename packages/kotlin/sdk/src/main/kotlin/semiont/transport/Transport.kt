@@ -17,11 +17,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.jdk9.asPublisher
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
 import semiont.errors.SemiontError
 import semiont.identifiers.ResourceId
+import semiont.identifiers.UserId
 import semiont.telemetry.futureOf
 import java.util.Optional
 import java.util.concurrent.CompletableFuture
@@ -249,9 +251,28 @@ public enum class ConnectionState(
 /** A W3C trace context, as the wire carries one. */
 public data class TraceContext(public val traceparent: String, public val tracestate: String? = null)
 
+/**
+ * What a transport delivers on a channel, one after another: a frame, or, in
+ * the place of a frame BusFrame does not allow that names its channel's
+ * readers, the frame's refusal. Java tells them apart by type. The scope it
+ * was delivered on is each kind's own: Java can call no interface's member
+ * whose type is a value class.
+ */
+public sealed interface Carried {
+    /** The channel it was delivered on. */
+    public val channel: String
+}
+
+/** The resource whose scope it was delivered on. */
+internal val Carried.scope: ResourceId?
+    get() = when (this) {
+        is Frame -> scope
+        is FrameRefusal -> scope
+    }
+
 /** A frame as a transport delivers it: a payload, and what is beside it, never inside it. */
 public data class Frame @JvmExposeBoxed constructor(
-    public val channel: String,
+    override val channel: String,
     public val payload: JsonObject,
     /** What pairs a reply with its request. */
     public val correlationId: String? = null,
@@ -260,12 +281,72 @@ public data class Frame @JvmExposeBoxed constructor(
     public val scope: ResourceId? = null,
     /** The trace the work done for this frame continues, when the frame was sent under one. */
     public val trace: TraceContext? = null,
-)
+) : Carried
 
-/** Where a transport delivers every frame it receives: its client's own bus. */
+/**
+ * What a typed read gives for each frame: the frame, its payload decoded
+ * (`Delivered`), or, in its place, the refusal of a frame BusFrame does not
+ * allow or whose payload is not its channel's (`FrameRefusal`). Java tells
+ * them apart by `status`.
+ */
+public sealed interface Heard<out P> {
+    /** Which it is, as every SDK spells it: `delivered` or `refused`. */
+    public val status: String
+}
+
+/** A frame of one channel, its payload decoded, with what came beside it. */
+public data class Delivered<P>(
+    public val payload: P,
+    /** What pairs a reply with its request. */
+    public val correlationId: String?,
+    /** The resource whose scope it was delivered on. */
+    @get:JvmExposeBoxed
+    public val scope: ResourceId?,
+    /** Who emitted it, as the gateway stamped it. */
+    @get:JvmExposeBoxed
+    public val userId: UserId?,
+    /** The trace it was sent under. */
+    public val trace: TraceContext?,
+) : Heard<P> {
+    override val status: String get() = "delivered"
+}
+
+/** Why a frame is refused at a member, as every SDK spells it. */
+public enum class FrameRefusalReason(
+    /** The reason as every SDK spells it. */
+    public val wire: String,
+) {
+    /** It does not carry the member, or the member holds null where it may not. */
+    Lacks("lacks"),
+
+    /** The member is not what its schema allows (of another kind, another value, form or size), or is one a closed object does not name. */
+    Malformed("malformed"),
+}
+
+/**
+ * A frame refused, in its place: BusFrame does not allow it, or its payload
+ * is not its channel's. `member` is the way from the frame to the member its
+ * first fault is at, the names of the members it is within and its own
+ * joined by dots (`payload.resourceId` is within its payload, and `payload`
+ * is the payload itself); `reason` is why. `payload` is its payload as it
+ * came, the gateway's stamps and all, and null when it carried none.
+ */
+public data class FrameRefusal @JvmExposeBoxed constructor(
+    override val channel: String,
+    public val member: String,
+    public val reason: FrameRefusalReason,
+    public val payload: JsonElement?,
+    /** The resource whose scope it was delivered on. */
+    @get:JvmExposeBoxed
+    public val scope: ResourceId?,
+) : Heard<Nothing>, Carried {
+    override val status: String get() = "refused"
+}
+
+/** Where a transport delivers everything it carries: its client's own bus. */
 public fun interface FrameSink {
-    /** Take one frame, as the transport delivered it. */
-    public fun deliver(frame: Frame)
+    /** Take one frame, or one frame's refusal, as the transport delivered it. */
+    public fun deliver(carried: Carried)
 }
 
 /** One hold on a resource's scope. Let go by `close`; letting go twice is letting go once. */
@@ -356,8 +437,13 @@ public interface Transport : AutoCloseable {
     /** `emit`, for Java. */
     public fun emitFuture(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): CompletableFuture<Long?>
 
-    /** The frames delivered on `channel` from now on. Throws `BusRequestError` (`bus.unsubscribed`) for a channel this transport can never deliver. */
-    public fun frames(channel: String): Events<Frame>
+    /**
+     * The frames delivered on `channel` from now on, and in the place of each
+     * frame refused that names `channel` and its scope, its refusal. Throws
+     * `BusRequestError` (`bus.unsubscribed`) for a channel this transport can
+     * never deliver.
+     */
+    public fun frames(channel: String): Events<Carried>
 
     /** Whether the transport's stream delivers `channel` with no scope held: whether a reply published there can reach this client. */
     public fun isSubscribed(channel: String): Boolean
@@ -365,10 +451,15 @@ public interface Transport : AutoCloseable {
     /** Take one hold on a resource's scope. The scope is on the stream from its first hold to its last release. */
     public fun subscribeToResource(resourceId: ResourceId): ResourceHold
 
-    /** The failures the transport meets from now on: everything a server refused, every request never answered, and every line its stream carried that names no channel. */
+    /**
+     * The failures the transport meets from now on: everything a server
+     * refused, every request never answered, and every line its stream
+     * carried that names no reader: one that is no frame, or a frame refused
+     * whose channel or scope cannot be read.
+     */
     public fun failures(): Events<SemiontError>
 
-    /** Deliver into `bus` every frame this transport delivers. The bus is its client's: a transport never makes one. */
+    /** Deliver into `bus` everything this transport delivers. The bus is its client's: a transport never makes one. */
     public fun bridgeInto(bus: FrameSink)
 
     /** Await the reply to `correlationId` on one of `replyChannels`. A request calls this before it emits, so its reply cannot arrive unawaited. */

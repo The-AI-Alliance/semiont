@@ -15,12 +15,14 @@ import semiont.JobProgressed
 import semiont.SemiontClient
 import semiont.StateUnit
 import semiont.Timings
-import semiont.bus.decoded
+import semiont.bus.heard
 import semiont.channels.Channels
 import semiont.errors.SemiontError
 import semiont.identifiers.JobId
 import semiont.identifiers.ResourceId
-import semiont.transport.Frame
+import semiont.transport.Carried
+import semiont.transport.Delivered
+import semiont.transport.FrameRefusal
 import semiont.transport.Variable
 import semiont.transport.Watched
 import semiont.types.AnnotationSelector
@@ -120,13 +122,7 @@ public class MarkStateUnit @JvmExposeBoxed constructor(private val client: Semio
         // One reader of every signal it hears, taken now, so what is said from here on is acted on in the order it was said.
         val heard = client.bus.framesAmong(listOf(Channels.MARK_REQUESTED.name, Channels.MARK_SUBMIT.name))
         tasks.run {
-            heard.collect { frame ->
-                try {
-                    heard(frame)
-                } catch (_: IllegalArgumentException) {
-                    // A frame that is not its channel's is nobody's to act on.
-                }
-            }
+            heard.collect { heard(it) }
         }
     }
 
@@ -156,15 +152,16 @@ public class MarkStateUnit @JvmExposeBoxed constructor(private val client: Semio
         failing.set(null)
     }
 
-    private fun heard(frame: Frame) {
-        when (frame.channel) {
-            Channels.MARK_REQUESTED.name -> {
-                val request = decoded(Channels.MARK_REQUESTED, frame.payload)
-                if (request.source == resourceId) pending.set(PendingAnnotation(request.selector, request.motivation))
+    /** Act on what was heard. A frame refused, or one whose payload is not its channel's, is nobody's to act on. */
+    private fun heard(carried: Carried) {
+        when (carried.channel) {
+            Channels.MARK_REQUESTED.name -> when (val request = heard(Channels.MARK_REQUESTED, carried)) {
+                is Delivered -> if (request.payload.source == resourceId) pending.set(PendingAnnotation(request.payload.selector, request.payload.motivation))
+                is FrameRefusal -> Unit
             }
-            Channels.MARK_SUBMIT.name -> {
-                val submission = decoded(Channels.MARK_SUBMIT, frame.payload)
-                if (submission.source == resourceId) tasks.run { create(submission) }
+            Channels.MARK_SUBMIT.name -> when (val submission = heard(Channels.MARK_SUBMIT, carried)) {
+                is Delivered -> if (submission.payload.source == resourceId) tasks.run { create(submission.payload) }
+                is FrameRefusal -> Unit
             }
         }
     }

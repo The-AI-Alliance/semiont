@@ -1531,9 +1531,6 @@
             "python": "Python's transport delivers a frame or its refusal as the union `Frame | FrameRefusal`.",
             "go": "Go's transport delivers a frame or, as its error, its refusal (`iter.Seq2[Frame, error]`).",
             "swift": "Swift's transport does not yet deliver a frame's refusal; its catch-up says how."
-          },
-          "notYetReached": {
-            "kotlin": "Kotlin's transport is to deliver a frame or its refusal as one sealed kind, which Frame and FrameRefusal are, beside each other in semiont.transport."
           }
         }
       ]
