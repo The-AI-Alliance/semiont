@@ -296,7 +296,4 @@ public sealed class SessionTests
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         while (!condition()) await Task.Delay(1, deadline.Token);
     }
-
-    private sealed class ZeroRandom : Random { public override double NextDouble() => 0; }
-
 }

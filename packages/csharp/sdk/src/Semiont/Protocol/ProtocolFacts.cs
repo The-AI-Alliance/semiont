@@ -18,21 +18,21 @@ internal static class ProtocolFacts
     internal static string TraceField => Registry.RootElement.GetProperty("trace").GetProperty("field").GetString()
         ?? throw new InvalidOperationException("No trace field");
 
-    internal static IEnumerable<string> OperationReplies()
-    {
-        foreach (var operation in Registry.RootElement.GetProperty("operations").EnumerateArray())
-        {
-            yield return operation.GetProperty("result").GetString() ?? throw new InvalidOperationException("Missing result channel");
-            yield return operation.GetProperty("failure").GetString() ?? throw new InvalidOperationException("Missing failure channel");
-        }
-    }
+    internal static IEnumerable<(string Request, string Result, string Failure)> Operations() =>
+        Registry.RootElement.GetProperty("operations").EnumerateArray().Select(operation => (
+            operation.GetProperty("request").GetString() ?? throw new InvalidOperationException("Missing request channel"),
+            operation.GetProperty("result").GetString() ?? throw new InvalidOperationException("Missing result channel"),
+            operation.GetProperty("failure").GetString() ?? throw new InvalidOperationException("Missing failure channel")));
 
     internal static (string Result, string Failure) Operation(string channel)
     {
-        var row = Registry.RootElement.GetProperty("operations").EnumerateArray().Single(operation => operation.GetProperty("request").GetString() == channel);
-        return (row.GetProperty("result").GetString() ?? throw new InvalidOperationException("No result channel"),
-            row.GetProperty("failure").GetString() ?? throw new InvalidOperationException("No failure channel"));
+        var (_, result, failure) = Operations().Single(operation => operation.Request == channel);
+        return (result, failure);
     }
+
+    internal static IEnumerable<string> EventChannels() => Registry.RootElement.GetProperty("channels").EnumerateArray()
+        .Where(row => row.TryGetProperty("event", out _))
+        .Select(row => row.GetProperty("channel").GetString() ?? throw new InvalidOperationException("A channel is null"));
 
     internal static string Failure(string? wire)
     {

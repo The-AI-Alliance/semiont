@@ -3458,10 +3458,14 @@ jobs:
 
       # Authority: the component schemas (protocol/specs/src/components/schemas) →
       # what each requires of a value, the copy Rust's build reads
-      # (packages/rust/sdk/src/required-schemas.json) and the copy Kotlin's
-      # generator reads (packages/kotlin/sdk/src/codegen/required-schemas.json).
+      # (packages/rust/sdk/src/required-schemas.json), the copy Kotlin's
+      # generator reads (packages/kotlin/sdk/src/codegen/required-schemas.json),
+      # the copy Swift's build plugin reads
+      # (packages/swift/sdk/Sources/SemiontCodegen/required-schemas.json) and the
+      # copy C#'s source generator reads
+      # (packages/csharp/sdk/generators/Semiont.Generator/required-schemas.json).
       # The rules they are written by are packages/codegen/schemas/required-shapes.mjs's,
-      # which neither build runs, so the copies are committed, and are what can go stale.
+      # which no build runs, so the copies are committed, and are what can go stale.
       - name: Component schemas vs the table of what each requires
         run: npm run generate:required:check
 

@@ -59,12 +59,7 @@ public func applyTabChecks(
 func checkOpenResource(_ client: SemiontClient, id: ResourceId) async -> TabCheck {
   do {
     let descriptor = try await client.browse.resource(id).fresh()
-    let mediaType: String? =
-      switch descriptor.representations {
-      case .representation(let representation): representation.mediaType
-      case .list(let representations): representations.first?.mediaType
-      }
-    return TabCheck(.ready, name: descriptor.name, mediaType: mediaType)
+    return TabCheck(.ready, name: descriptor.name, mediaType: primaryMediaType(descriptor))
   } catch let error as BusRequestError where error.reason == .busNotFound {
     return TabCheck(.gone)
   } catch {
