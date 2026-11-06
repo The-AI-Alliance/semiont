@@ -329,6 +329,20 @@ lifecycle = do
   rig (const (pure Nothing)) (atomically (readTMVar transportCell) >>= Transport.dispose) $ \transport _ -> do
     atomically (putTMVar transportCell transport)
     Transport.dispose transport
+  -- Closing is observable before teardown finishes; a producer racing that
+  -- teardown must not publish another failure into the still-open queue.
+  shuttingDown <- newEmptyTMVarIO
+  finishClose <- newEmptyTMVarIO
+  rig (const (pure Nothing))
+    (atomically (putTMVar shuttingDown ()) >> atomically (takeTMVar finishClose)) $ \transport input ->
+      Transport.errors transport $ \observations -> do
+        closer <- async (Transport.dispose transport)
+        atomically (takeTMVar shuttingDown)
+        Transport.reportError input (TransportError Code.TransportError "late producer failure" Nothing Nothing)
+        atomically (putTMVar finishClose ())
+        wait closer
+        noticed <- Stream.toList_ observations
+        require "a closing transport published a late producer failure" (null noticed)
 
 contextCases :: FrameAddEntityTypeCommand -> IO ()
 contextCases command = do

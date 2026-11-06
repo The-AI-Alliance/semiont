@@ -30,13 +30,14 @@ import OpenTelemetry.Context.ThreadLocal.Propagation (propagateContext, tracedWi
 import qualified Semiont.ErrorCodes as Code
 import Semiont.Errors
 import qualified Semiont.Internal.Lifetime as Lifetime
+import qualified Semiont.Internal.Telemetry as Telemetry
 import qualified Semiont.Internal.Transport as Transport
 import Semiont.Internal.Generated.Schemas (schemas)
 import Semiont.Internal.Schema (validateNamed)
 import Semiont.Http.Routes
 import qualified Semiont.Retry as Retry
 import Semiont.Internal.RetryPolicy (repeatableMethod)
-import qualified Semiont.Timing as Timing
+import qualified Semiont.Timing.Settings as Settings
 import Semiont.Types
 
 -- A caller builds this pool once. Its settings retain TLS and proxy policy;
@@ -53,6 +54,7 @@ data HttpOptions = HttpOptions
   , httpToken :: IO (Maybe Text)
   , httpRenewToken :: Text -> IO (Maybe Text)
   , httpTime :: Retry.RetryOptions
+  , httpTiming :: Settings.Settings
   , httpNewId :: IO UUID
   -- ^ A fresh UUID on each call for routing and idempotency keys.
   , httpGlobalChannels :: Set.Set Text
@@ -78,6 +80,7 @@ instance Exception HttpFailure
 
 newHttp :: HttpOptions -> Set.Set Text -> (Http -> IO ()) -> IO Http
 newHttp configuration receives actor = do
+  _ <- checked (httpTiming configuration)
   let address = Text.dropWhileEnd (== '/') (httpBaseUrl configuration)
   case parseURI (Text.unpack address) of
     Just uri | uriScheme uri `elem` ["http:", "https:"] && uriQuery uri == "" && uriFragment uri == ""
@@ -142,18 +145,20 @@ renew http refused = withMVar (renewing http) $ \() -> do
     atomically (writeTVar (replacements http) (Just (refused, usable)))
     currentToken http
 
-request :: Http -> HttpRoute requestBodyType answer -> Maybe ResourceId -> Maybe Text -> RequestBody -> Request
-request http route resource token body = (template http)
-  { method = routeMethod route
-  , path = Char8.dropWhileEnd (== '/') (path (template http)) <> encodeUtf8 rendered
-  , queryString = ""
-  , requestHeaders = [(hContentType, media) | media <- maybe [] pure (routeRequestMediaType route)] ++ [("Accept", routeMediaType route)] ++ [(hAuthorization, "Bearer " <> encodeUtf8 value) | value <- maybe [] pure token]
-  , requestBody = body
-  , responseTimeout = responseTimeoutNone
-  , redirectCount = 0
-  , cookieJar = Nothing
-  , checkResponse = \_ _ -> pure ()
-  }
+request :: Http -> HttpRoute requestBodyType answer -> Maybe ResourceId -> Maybe Text -> RequestBody -> IO Request
+request http route resource token body = do
+  trace <- Telemetry.outgoingHeaders
+  pure $ (template http)
+    { method = routeMethod route
+    , path = Char8.dropWhileEnd (== '/') (path (template http)) <> encodeUtf8 rendered
+    , queryString = ""
+    , requestHeaders = [(hContentType, media) | media <- maybe [] pure (routeRequestMediaType route)] ++ [("Accept", routeMediaType route)] ++ [(hAuthorization, "Bearer " <> encodeUtf8 value) | value <- maybe [] pure token] ++ trace
+    , requestBody = body
+    , responseTimeout = responseTimeoutNone
+    , redirectCount = 0
+    , cookieJar = Nothing
+    , checkResponse = \_ _ -> pure ()
+    }
   where
     rendered = Text.replace "{id}" (maybe "" resourceIdValue resource) (routePath route)
 
@@ -164,7 +169,7 @@ checked value = case fromJSON (toJSON value) of
 
 refusal :: Http -> Response BodyReader -> IO HttpFailure
 refusal http response = do
-  bodyBytes <- (deadline http Timing.httpRequestTimeoutMs (Bytes.concat <$> brConsume (responseBody response)))
+  bodyBytes <- (deadline http (Settings.httpRequestTimeoutMs (httpTiming (options http))) (Bytes.concat <$> brConsume (responseBody response)))
     `catch` (\(_ :: HttpFailure) -> pure Bytes.empty)
     `catch` (\(_ :: HttpException) -> pure Bytes.empty)
   let status = statusCode (responseStatus response)
@@ -196,21 +201,21 @@ exchange http route resource body key upload headers consume = do
         when (routeAuthenticated route && sent == Nothing)
           (throwIO (HttpFailure (TransportError Code.TransportUnauthorized "No usable credential" (Just 401) Nothing) False))
         fresh <- body
-        let base = request http route resource sent fresh
-            asked = base { requestHeaders = filter (\(name, _) -> name `notElem` map fst headers) (requestHeaders base) ++ headers
+        base <- request http route resource sent fresh
+        let asked = base { requestHeaders = filter (\(name, _) -> name `notElem` map fst headers) (requestHeaders base) ++ headers
               ++ requiredHeaders }
             consumeAnswer response =
               if statusCode (responseStatus response) == routeStatus route then Right <$> consume response
               else Left <$> refusal http response
             one = case route of
-              GetResourceRepresentation -> openScoped http Timing.httpRequestTimeoutMs asked consumeAnswer
-              EmitOnBus -> openScoped http Timing.emitTimeoutMs asked consumeAnswer
+              GetResourceRepresentation -> openScoped http (Settings.httpRequestTimeoutMs (httpTiming (options http))) asked consumeAnswer
+              EmitOnBus -> openScoped http (Settings.emitTimeoutMs (httpTiming (options http))) asked consumeAnswer
               _ -> bracket (open http asked) responseClose consumeAnswer
         let bounded = case route of
               UploadResource -> one
               GetResourceRepresentation -> one
               EmitOnBus -> one
-              _ -> deadline http Timing.httpRequestTimeoutMs one
+              _ -> deadline http (Settings.httpRequestTimeoutMs (httpTiming (options http))) one
         outcome <- try bounded
         case either Left id outcome of
           Right answer -> pure answer
@@ -228,11 +233,11 @@ exchange http route resource body key upload headers consume = do
                 && transportErrorCode problemError /= Code.TransportUnauthorized
                 && (Retry.retryable Retry.Transport (httpStatus problemError) (Just (decodeUtf8With lenientDecode (routeMethod route)))
                   || (httpStatus problemError == Nothing && repeatableMethod (decodeUtf8With lenientDecode (routeMethod route)))) then do
-              pause http (max Timing.requestRetryPauseMs (maybe 0 id (retryAfterMs problemError)))
+              pause http (max (Settings.requestRetryPauseMs (httpTiming (options http))) (maybe 0 id (retryAfterMs problemError)))
               attempt 1
             else throwIO problem
   case route of
-    EmitOnBus -> Retry.retryWithBackoff (httpTime (options http)) Timing.emitRetry accepts (retryAfterMs . failure) (attempt 0)
+    EmitOnBus -> Retry.retryWithBackoff (httpTime (options http)) (Settings.emitRetry (httpTiming (options http))) accepts (retryAfterMs . failure) (attempt 0)
     _ -> attempt 0
   where
     accepts problem = let problemError = failure problem in
@@ -280,13 +285,13 @@ json http route resource payload = report http $ exchange http route resource (j
   either (const (throwIO (HttpFailure (TransportError Code.TransportError "HTTP answer is not its declared schema" (Just (routeStatus route)) Nothing) False))) pure (eitherDecodeStrict' bytes)
 
 emit :: Http -> BusFrame -> IO (Maybe Integer)
-emit http frame = do
+emit http frame = Telemetry.sending frame $ do
   key <- UUID.toText <$> httpNewId (options http)
   let body = BusEmitRequest (busFrameChannel frame) (Just (clientId http)) (busFrameCorrelationId frame)
         (BusEmitRequestPayload (busFramePayloadAdditionalProperties (busFramePayload frame))) (busFrameScope frame) mempty
       sending = exchange http EmitOnBus Nothing (jsonBody EmitOnBus body) (Just key) True [] $ \response -> do
         let count = do
-              bytes <- deadline http Timing.emitTimeoutMs (Bytes.concat <$> brConsume (responseBody response))
+              bytes <- deadline http (Settings.emitTimeoutMs (httpTiming (options http))) (Bytes.concat <$> brConsume (responseBody response))
               pure $ either (const Nothing) busEmitAcceptedSubscribers (eitherDecodeStrict' bytes)
         count `catch` (\(_ :: HttpFailure) -> pure Nothing) `catch` (\(_ :: HttpException) -> pure Nothing)
   Lifetime.run (lifetime http) (Transport.ownAction (transport http) sending)

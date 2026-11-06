@@ -6,7 +6,7 @@ import Control.Concurrent.Async (async, cancel, wait)
 import Control.Concurrent.STM
 import Control.Exception (bracket, finally, try)
 import Control.Monad (unless, void)
-import Data.Aeson (Value(..), eitherDecode, encode, fromJSON, Result(..), object, (.=))
+import Data.Aeson (Value(..), eitherDecode, encode, fromJSON, toJSON, Result(..), object, (.=))
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString as Bytes
@@ -15,6 +15,7 @@ import Data.Foldable (toList)
 import Data.IORef
 import qualified OpenTelemetry.Context as Context
 import OpenTelemetry.Context.ThreadLocal (getContext, attachContext, detachContext)
+import qualified OpenTelemetry.Propagator as Propagator
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -27,6 +28,8 @@ import qualified Semiont.Bus as Bus
 import Semiont.Channels (globalChannels, channelName, Channel(FrameEntityTypeAddOk))
 import qualified Semiont.Http.Routes as Routes
 import qualified Semiont.Timing as Timing
+import qualified Semiont.Timing.Settings as Settings
+import Semiont.Transport.Facts (traceField)
 import qualified Semiont.Client as Client
 import qualified Semiont.Content as Content
 import qualified Semiont.ErrorCodes as Code
@@ -68,7 +71,7 @@ httpCases root fixtures = do
             pure (UUID.fromWords 0 0 0 (fromInteger number))
           time = Retry.RetryOptions (readTVarIO clock) (\due -> atomically (modifyTVar' waits (Set.insert due)) >> atomically (readTVar clock >>= check . (>= due))) (pure 0)
           options client = Http.HttpOptions origin client (readTVarIO supplied)
-            (\refused -> modifyIORef' renewals (++ [refused]) >> pure (Just "renewed")) time fresh
+            (\refused -> modifyIORef' renewals (++ [refused]) >> pure (Just "renewed")) time Settings.protocolSettings fresh
             (Set.fromList globalChannels) (pure Map.empty) (\_ _ -> pure ())
       pool <- Http.newHttpClient noProxy defaultManagerSettings
         { managerModifyRequest = \asked -> modifyIORef' hookRequests (+ 1) >> pure asked }
@@ -85,6 +88,37 @@ httpCases root fixtures = do
         Frame.addEntityType (Client.frame client) "Entity"
         Frame.addEntityTypes (Client.frame client) ["One", "Two"]
         Frame.addTagSchema (Client.frame client) (fromFixture "TagSchema")
+        propagationKey <- Context.newKey "HTTP propagator caller"
+        injectedContexts <- newIORef ([] :: [Maybe Text])
+        extractions <- newIORef (0 :: Int)
+        let carrier = fromFixture "TraceCarrier" :: TraceCarrier
+            carrierPairs = case toJSON carrier of
+              Object fields -> [(Key.toText key,value) | (key,String value) <- KM.toList fields]
+              _ -> error "generated trace carrier is not an object"
+            propagator = Propagator.Propagator (map fst carrierPairs)
+              (\_ context -> modifyIORef' extractions (+ 1) >> pure context)
+              (\context _ -> do
+                modifyIORef' injectedContexts (++ [Context.lookup propagationKey context])
+                pure (Propagator.textMapFromList (("other-host-field", "not a trace field") : carrierPairs)))
+        callerContext <- getContext
+        bracket Propagator.getGlobalTextMapPropagator Propagator.setGlobalTextMapPropagator $ \_ -> do
+          Propagator.setGlobalTextMapPropagator propagator
+          bracket (attachContext (Context.insert propagationKey ("caller" :: Text) callerContext)) detachContext $ \_ ->
+            Frame.addEntityType (Client.frame client) "Propagated"
+        readIORef injectedContexts >>= require "transport injection lost the caller's context" . (== [Just "caller"])
+        readIORef extractions >>= require "transport ignored the host's extractor" . (> 0)
+        restoredContext <- getContext
+        require "transport propagation changed the caller's context"
+          (Context.lookup propagationKey restoredContext == Context.lookup propagationKey callerContext)
+        propagated <- readState origin
+        let traces = [trace | Object record <- values "requests" propagated,
+              Just (Object body) <- [KM.lookup "body" record], Just (Object payload) <- [KM.lookup "payload" body],
+              Just trace <- [KM.lookup (Key.fromText traceField) payload]]
+            headers = [fields | Object record <- values "requests" propagated, Just (Object fields) <- [KM.lookup "headers" record]]
+        require "transport changed the domain payload to propagate a trace" (null traces)
+        require "transport did not use the host's HTTP propagation headers"
+          (any (\fields -> all (\(key,value) -> KM.lookup (Key.fromText key) fields == Just (String value)) carrierPairs
+            && KM.lookup "other-host-field" fields == Just (String "not a trace field")) headers)
         httpFaults origin http client resource clock waits
         case Client.auth client of
           Nothing -> ioError (userError "HTTP client has no auth namespace")

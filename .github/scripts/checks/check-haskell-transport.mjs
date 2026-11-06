@@ -54,6 +54,14 @@ function same(label, expected, actual) {
 }
 
 const transportSource = read('packages/typescript/core/src/transport.ts');
+const wireProtocol = read('protocol/conformance/sdk/README.md').split('### Operations\n')[1]?.split('One driver holds one client:')[0];
+if (!wireProtocol) throw new Error('missing wire driver protocol operations');
+const operations = new Set([...wireProtocol.matchAll(/^\| ([^|]+)\|/gm)]
+  .flatMap((row) => row[1].trim() === '`op`' ? [] : [...row[1].matchAll(/`([^`]+)`/g)].map((name) => name[1])));
+const driver = read('packages/haskell/sdk/conformance/Main.hs');
+const implemented = new Set([...driver.matchAll(/^  "([^"]+)" ->/gm)].map((match) => match[1]));
+if (driver.includes('operation == "abandon"')) implemented.add('abandon');
+same('Haskell wire driver operations', operations, implemented);
 same('Haskell transport', declaredMembers(transportSource, 'export interface ITransport {'), haskellMembers('Semiont.Transport', 'Transport'));
 same('Haskell typed bus', declaredMembers(read('packages/typescript/core/src/bus.ts'), 'export class Bus {'), haskellMembers('Semiont.Bus', 'Bus'));
 same('Haskell content transport', declaredMembers(transportSource, 'export interface IContentTransport {'), haskellMembers('Semiont.Content', 'ContentTransport'));

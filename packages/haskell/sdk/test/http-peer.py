@@ -90,7 +90,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     received.put((publication["frame"], publication["id"]))
             self.reply({})
             return
-        record = {"path": self.path, "method": self.command, "token": self.headers.get("Authorization"), "key": self.headers.get("Idempotency-Key")}
+        record = {"path": self.path, "method": self.command, "token": self.headers.get("Authorization"), "key": self.headers.get("Idempotency-Key"), "headers": {key.lower(): value for key, value in self.headers.items()}}
         with gate:
             state["requests"].append(record)
         if self.path == routes["subscribeToBus"][1]:

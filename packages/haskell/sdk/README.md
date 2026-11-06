@@ -50,7 +50,9 @@ caller's pool. Its active requests and response scopes end on disposal.
 
 Supply the pool through `HttpOptions`, together with the base URL, token reader,
 refused-token renewal action, fresh UUID action, global channel profile, monotonic
-clock/wait/jitter actions, and replay-position load/save actions. Use
+clock/wait/jitter actions, timing settings, and replay-position load/save actions.
+`Semiont.Timing.Settings.protocolSettings` supplies the protocol timings;
+`withOverrides` validates explicitly supplied timing overrides. Use
 `Semiont.Channels.globalChannels` for a full client. All these choices are
 explicit. `Client.fromHttp` builds the bus, content and gateway adapters with
 the same clock and ID source. Keep the client scoped:
@@ -220,17 +222,21 @@ signals. Detach a bridge through its returned release action. Closing a
 transport completes its observations, ends pending requests, and joins its
 callback workers; closing from one of those callbacks does not join itself.
 
-The gateway HTTP adapter, reconnection and replay machinery are still being
-implemented.
+The HTTP adapter reconnects with bounded backoff, drains the old stream during
+scope handoffs, deduplicates overlap, and loads/saves per-resource replay
+positions through the supplied callbacks. Credential renewal receives the
+refused token; a credential refused again is quarantined until the host supplies
+a usable one. Ordinary reads retry once when eligible, and an unanswered request
+at its own deadline fails without another attempt.
 
 ## Telemetry
 
-In development. The design probes verify host-owned OpenTelemetry providers,
-propagation, and context across asynchronous work. The common runtime preserves
-the caller's OpenTelemetry context through request work, operation producers,
-and callback tasks using the API's context propagation functions. It creates
-no provider or exporter. HTTP/client spans, metrics, and extraction through the
-host's incoming-frame propagator remain to be implemented.
+The SDK uses the application's OpenTelemetry tracer/meter providers and text-map
+propagator. It creates no provider or exporter. Bus sends and receives, uploads,
+and content reads record the spans and counter declared by the shared telemetry
+table. Outgoing HTTP requests carry the host's injected headers; incoming frames
+are processed under its extracted context. Caller context also crosses request
+work, operation producers and callback tasks using the standard propagation API.
 
 ## Building and verifying
 
@@ -244,6 +250,11 @@ CI runs the same entry point with `docker` as its argument. The compiler and
 Cabal pins are shared with [the design probes](../probes/README.md); exact
 project dependencies are frozen. Ordinary builds use checked-in generated
 files and require no npm or schema generation.
+
+The runner also builds `conformance/bin/semiont-haskell-wire-driver`. The shared
+[wire suite](../../../protocol/conformance/sdk/README.md) drives that executable
+through the public SDK against the real gateway on both signal planes, including
+OTLP export. CI transfers the tested driver to the SDK Conformance job.
 
 Inside the development container, from this package directory:
 
@@ -268,8 +279,8 @@ The schema suite generates samples from the schema definitions, checks JSON
 round trips, absence/null behavior, closed enums, exact large numbers, and
 permitted extra members. It also executes the shared identifier table and
 checks resolved JSON payloads from the wire, live-query, and worker corpora.
-These model checks are distinct from executing the transport conformance
-drivers, which remain to be built.
+The wire driver additionally executes the transport scenarios against the real
+gateway on both signal planes. Live-query and worker drivers remain outstanding.
 
 Runtime tests also cover atomic publication of raw replies before request
 continuations, channel/correlation matching, tracking cleanup on cancellation,

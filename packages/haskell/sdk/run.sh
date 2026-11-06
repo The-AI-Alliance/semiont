@@ -6,6 +6,10 @@ bash ../probes/toolchain.sh --check
 cabal check
 cabal run semiont-codegen -- --check "$root"
 cabal build all --enable-tests --enable-coverage -j1
+mkdir -p conformance/bin
+cp "$(cabal list-bin semiont-haskell-wire-driver)" conformance/bin/semiont-haskell-wire-driver.native
+cp conformance/launch.sh conformance/bin/semiont-haskell-wire-driver
+chmod +x conformance/bin/semiont-haskell-wire-driver
 python3 api.py --compiler-check
 cabal test schema-cases --enable-coverage -j1 --test-show-details=direct --test-options="$root"
 python3 test/refusals.py

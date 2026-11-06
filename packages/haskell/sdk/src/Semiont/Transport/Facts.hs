@@ -1,6 +1,6 @@
 -- Generated from TRANSPORT-HTTP.md, bus/registry.json and identifiers/kinds.json. Do not edit.
 {-# LANGUAGE OverloadedStrings #-}
-module Semiont.Transport.Facts (ConnectionState(..), connectionStateName, connectionTransitions, traceField, userField) where
+module Semiont.Transport.Facts (ConnectionState(..), connectionStateName, connectionTransitions, traceField, traceCarrierFields, userField) where
 import Data.Text (Text)
 data ConnectionState = Initial | Connecting | Open | Reconnecting | Degraded | Unauthenticated | Closed deriving (Eq, Ord, Show, Enum, Bounded)
 connectionStateName :: ConnectionState -> Text
@@ -21,5 +21,7 @@ connectionTransitions Unauthenticated = [Connecting, Closed]
 connectionTransitions Closed = []
 traceField :: Text
 traceField = "_trace"
+traceCarrierFields :: [Text]
+traceCarrierFields = ["traceparent", "tracestate"]
 userField :: Text
 userField = "_userId"

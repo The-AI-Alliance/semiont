@@ -1,6 +1,6 @@
 -- Generated from protocol/specs/src/bus/registry.json. Do not edit.
 {-# LANGUAGE DataKinds, GADTs, KindSignatures, OverloadedStrings #-}
-module Semiont.Channels (Scope(..), ScopeArg(..), Channel(..), Operation(..), SomeOperation(..), channelName, channelNames, globalChannels, scopedChannels, channelSchema, channelIsScoped, encodePayload, decodePayload, operationChannels, persistedEventTypes) where
+module Semiont.Channels (Scope(..), ScopeArg(..), Channel(..), Operation(..), SomeOperation(..), allOperations, channelName, channelNames, globalChannels, scopedChannels, channelSchema, channelIsScoped, encodePayload, decodePayload, operationChannels, persistedEventTypes) where
 import Data.Aeson (Value(..), toJSON, parseJSON)
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
@@ -1383,6 +1383,8 @@ data Operation input output failure where
   YieldCloneTokenRequestedOperation :: Operation Types.YieldCloneTokenRequest Types.CloneResourceWithTokenResponseBusEnvelope Types.CommandError
 data SomeOperation where
   SomeOperation :: Operation input output failure -> SomeOperation
+allOperations :: [SomeOperation]
+allOperations = [SomeOperation BindUpdateBodyOperation, SomeOperation BrowseResourceRequestedOperation, SomeOperation BrowseResourcesRequestedOperation, SomeOperation BrowseAnnotationRequestedOperation, SomeOperation BrowseAnnotationHistoryRequestedOperation, SomeOperation BrowseEventsRequestedOperation, SomeOperation BrowseEntityTypesRequestedOperation, SomeOperation BrowseTagSchemasRequestedOperation, SomeOperation BrowseEnginesRequestedOperation, SomeOperation BrowseProfilesRequestedOperation, SomeOperation BrowseKbRequestedOperation, SomeOperation BrowseDirectoryRequestedOperation, SomeOperation FrameAddEntityTypeOperation, SomeOperation FrameAddTagSchemaOperation, SomeOperation GatherRequestedOperation, SomeOperation GatherResourceRequestedOperation, SomeOperation GatherSummaryRequestedOperation, SomeOperation GatherReferencedByRequestedOperation, SomeOperation GatherLimitsRequestedOperation, SomeOperation JobCreateOperation, SomeOperation JobStatusRequestedOperation, SomeOperation JobLimitsRequestedOperation, SomeOperation JobCancelRequestedOperation, SomeOperation JobClaimOperation, SomeOperation MarkCreateRequestOperation, SomeOperation MarkCommitOperation, SomeOperation MarkDeleteOperation, SomeOperation MarkArchiveOperation, SomeOperation MarkUnarchiveOperation, SomeOperation MarkUpdateEntityTypesOperation, SomeOperation MatchSearchRequestedOperation, SomeOperation MatchResourcesRequestedOperation, SomeOperation MatchLimitsRequestedOperation, SomeOperation WeaveRebuildOperation, SomeOperation SmeltRebuildAnchorsOperation, SomeOperation YieldCreateOperation, SomeOperation YieldClonePersistOperation, SomeOperation YieldUpdateOperation, SomeOperation YieldCloneCreateOperation, SomeOperation YieldCloneResourceRequestedOperation, SomeOperation YieldCloneTokenRequestedOperation]
 operationChannels :: Operation input output failure -> (Channel 'Global input, Channel 'Global output, Channel 'Global failure)
 operationChannels BindUpdateBodyOperation = (BindUpdateBody, BindBodyUpdated, BindBodyUpdateFailed)
 operationChannels BrowseResourceRequestedOperation = (BrowseResourceRequested, BrowseResourceResult, BrowseResourceFailed)

@@ -21,6 +21,10 @@ declare module 'vitest' {
 
 export default function setup(project: TestProject): void {
   const drivers = project.getProvidedContext().sdkDrivers;
+  const haskell = drivers['haskell']?.wire?.[0];
+  if (haskell !== undefined && !existsSync(haskell)) {
+    throw new Error(`The Haskell driver is not built: ${haskell} does not exist. Run \`bash packages/haskell/run-container.sh\` at the repository root.`);
+  }
   for (const rust of [drivers['rust']?.wire?.[0], drivers['rust']?.live?.command[0]]) {
     if (rust !== undefined && !existsSync(rust)) {
       throw new Error(`A Rust driver is not built: ${rust} does not exist. Run \`cargo build --release -p semiont-conformance-drivers\` at the repository root.`);

@@ -348,7 +348,7 @@ busDescriptors original registry = do
     pure (request, result, failure)
   let header = "-- Generated from protocol/specs/src/bus/registry.json. Do not edit.\n{-# LANGUAGE DataKinds, GADTs, KindSignatures, OverloadedStrings #-}\n"
       code = header <> T.unlines
-        [ "module Semiont.Channels (Scope(..), ScopeArg(..), Channel(..), Operation(..), SomeOperation(..), channelName, channelNames, globalChannels, scopedChannels, channelSchema, channelIsScoped, encodePayload, decodePayload, operationChannels, persistedEventTypes) where"
+        [ "module Semiont.Channels (Scope(..), ScopeArg(..), Channel(..), Operation(..), SomeOperation(..), allOperations, channelName, channelNames, globalChannels, scopedChannels, channelSchema, channelIsScoped, encodePayload, decodePayload, operationChannels, persistedEventTypes) where"
         , "import Data.Aeson (Value(..), toJSON, parseJSON)"
         , "import qualified Data.Aeson.Key as Key"
         , "import qualified Data.Aeson.KeyMap as KM"
@@ -383,6 +383,7 @@ busDescriptors original registry = do
         <> "data Operation input output failure where\n"
         <> T.unlines ["  " <> request <> "Operation :: Operation Types." <> input <> " Types." <> output <> " Types." <> failure | ((request, input, _), (_, output, _), (_, failure, _)) <- ops]
         <> "data SomeOperation where\n  SomeOperation :: Operation input output failure -> SomeOperation\n"
+        <> "allOperations :: [SomeOperation]\nallOperations = [" <> T.intercalate ", " ["SomeOperation " <> request <> "Operation" | ((request,_,_),_,_) <- ops] <> "]\n"
         <> "operationChannels :: Operation input output failure -> (Channel 'Global input, Channel 'Global output, Channel 'Global failure)\n"
         <> T.unlines ["operationChannels " <> request <> "Operation = (" <> request <> ", " <> result <> ", " <> failure <> ")" | ((request, _, _), (result, _, _), (failure, _, _)) <- ops]
       roundTrips = header <> T.unlines

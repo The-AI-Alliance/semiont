@@ -1,9 +1,17 @@
 -- Generated from protocol/specs/src/client/timing.json; do not edit.
 {-# LANGUAGE OverloadedStrings #-}
 module Semiont.Timing (RetryBudget(..), busRequestTimeoutMs, emitTimeoutMs, emitRetry, httpRequestTimeoutMs, requestRetryPauseMs, streamOpenTimeoutMs, reconnectMs, maxReconnectMs, degradedThresholdMs, lingerMs, seenEventIdsCount, reconnectDebounceMs, lazyRemoveMs, refreshRetry, refreshBeforeExpMs, minRefreshDelayMs, devicePollMs, deviceSlowDownMs, devicePollFloorMs, invalidationWindowMs, saveDebounceMs, maxStoredBytesCount, jobSilenceMs, jobStatusPollMs, generationStallFloorMs, generationStallPerTokenMs, generationStallAssumedTokensCount, delegateSilenceMs, jobClaimTimeoutMs, heldJobStallMs, heldJobStallCheckMs, markCommitTimeoutMs, generatedTextAsksCount, anchoredTextReaskMs, hoverDelayMs, searchDebounceMs, discoveryIntervalMs) where
-import Data.Aeson (ToJSON(..), object, (.=))
+import Control.Monad (unless)
+import Data.Aeson (FromJSON(..), ToJSON(..), withObject, object, (.:), (.=))
+import qualified Data.Aeson.KeyMap as KM
 data RetryBudget = RetryBudget { retryAttempts :: Integer, retryInitialDelayMs :: Integer, retryMaxDelayMs :: Integer } deriving (Eq, Show)
 instance ToJSON RetryBudget where toJSON value = object ["attempts" .= retryAttempts value, "initialDelayMs" .= retryInitialDelayMs value, "maxDelayMs" .= retryMaxDelayMs value]
+instance FromJSON RetryBudget where
+  parseJSON = withObject "RetryBudget" $ \fields -> do
+    unless (all (`elem` ["attempts", "initialDelayMs", "maxDelayMs"]) (KM.keys fields)) (fail "Unknown retry budget member")
+    value <- RetryBudget <$> fields .: "attempts" <*> fields .: "initialDelayMs" <*> fields .: "maxDelayMs"
+    unless (all (>= 0) [retryAttempts value, retryInitialDelayMs value, retryMaxDelayMs value]) (fail "Negative retry budget member")
+    pure value
 busRequestTimeoutMs :: Integer
 busRequestTimeoutMs = 30000
 

@@ -21,4 +21,3 @@ retryable Refresh status _ = maybe True (\value -> value `elem` [408, 429] || va
 
 repeatableMethod :: Text -> Bool
 repeatableMethod method = T.toUpper method `elem` ["GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE"]
-

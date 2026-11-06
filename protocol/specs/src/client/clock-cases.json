@@ -4,6 +4,7 @@
     "python": ["packages/python/sdk/tests/test_clock_cases.py"]
   },
   "notYetReached": {
+    "haskell": "P7: execute every shared clock case through public HTTP, session, cache, delegation, worker and discovery APIs; controlled HTTP/discovery tests currently cover only part of that table.",
     "typescript": "The seven AbortSignal.timeout deadlines become timers the SDK sets, and a runner under vitest's fake timers with Math.random giving its lowest.",
     "rust": "A random source the caller gives replaces the UUID draw behind the jitter, and a runner on a paused runtime over a faked network.",
     "go": "A *rand.Rand the caller gives replaces the global draw behind the jitter, and a runner in a synctest bubble over an in-memory network.",

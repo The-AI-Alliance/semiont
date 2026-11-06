@@ -165,10 +165,14 @@ timing source = do
   let field key = "retry" <> name (Key.toText key)
       definition = "data RetryBudget = RetryBudget { " <> T.intercalate ", " [field key <> " :: Integer" | key <- keys] <> " } deriving (Eq, Show)\n"
         <> "instance ToJSON RetryBudget where toJSON value = object [" <> T.intercalate ", " [quoted (Key.toText key) <> " .= " <> field key <> " value" | key <- keys] <> "]\n"
+        <> "instance FromJSON RetryBudget where\n  parseJSON = withObject \"RetryBudget\" $ \\fields -> do\n"
+        <> "    unless (all (`elem` [" <> T.intercalate ", " [quoted (Key.toText key) | key <- keys] <> "]) (KM.keys fields)) (fail \"Unknown retry budget member\")\n"
+        <> "    value <- RetryBudget <$> " <> T.intercalate " <*> " ["fields .: " <> quoted (Key.toText key) | key <- keys] <> "\n"
+        <> "    unless (all (>= 0) [" <> T.intercalate ", " [field key <> " value" | key <- keys] <> "]) (fail \"Negative retry budget member\")\n    pure value\n"
       valueCode (Budget fields') = "RetryBudget { " <> T.intercalate ", " [field key <> " = " <> T.pack (show number) | (key, number) <- Map.toAscList fields'] <> " }"
       valueCode (Scalar number) = T.pack (show number)
       code = header "protocol/specs/src/client/timing.json" <> "module Semiont.Timing (RetryBudget(..), " <> T.intercalate ", " (map fst pairs) <> ") where\n"
-        <> "import Data.Aeson (ToJSON(..), object, (.=))\n" <> definition
+        <> "import Control.Monad (unless)\nimport Data.Aeson (FromJSON(..), ToJSON(..), withObject, object, (.:), (.=))\nimport qualified Data.Aeson.KeyMap as KM\n" <> definition
         <> T.intercalate "\n" [named <> " :: " <> (case value of Budget _ -> "RetryBudget"; _ -> "Integer") <> "\n" <> named <> " = " <> valueCode value <> "\n" | (named, value) <- pairs]
       tests = header "protocol/specs/src/client/timing.json" <> T.unlines
         [ "module Semiont.Internal.Generated.TimingValues (timingValues) where"
@@ -179,7 +183,29 @@ timing source = do
         , "timingValues :: Map.Map Text Value"
         , "timingValues = Map.fromList [" <> T.intercalate ", " ["(" <> quoted named <> ", toJSON " <> named <> ")" | (named, _) <- pairs] <> "]"
         ]
-  pure [("src/Semiont/Timing.hs", code), ("test/Semiont/Internal/Generated/TimingValues.hs", tests)]
+      settings = header "protocol/specs/src/client/timing.json" <> T.unlines
+        [ "module Semiont.Timing.Settings (Settings(..), protocolSettings, withOverrides) where"
+        , "import Control.Monad (unless)"
+        , "import Data.Aeson (FromJSON(..), ToJSON(..), Result(..), Value(..), fromJSON, withObject, object, (.:), (.=))"
+        , "import qualified Data.Aeson.KeyMap as KM"
+        , "import qualified Semiont.Timing as Base"
+        , "data Settings = Settings { " <> T.intercalate ", " [named <> " :: " <> (case value of Budget _ -> "Base.RetryBudget"; _ -> "Integer") | (named,value) <- pairs] <> " } deriving (Eq, Show)"
+        , "protocolSettings :: Settings"
+        , "protocolSettings = Settings { " <> T.intercalate ", " [named <> " = Base." <> named | (named,_) <- pairs] <> " }"
+        , "instance ToJSON Settings where toJSON value = object [" <> T.intercalate ", " [quoted named <> " .= " <> named <> " value" | (named,_) <- pairs] <> "]"
+        , "instance FromJSON Settings where"
+        , "  parseJSON = withObject \"Settings\" $ \\fields -> do"
+        , "    unless (all (`elem` [" <> T.intercalate ", " [quoted named | (named,_) <- pairs] <> "]) (KM.keys fields)) (fail \"Unknown timing member\")"
+        , "    value <- Settings <$> " <> T.intercalate " <*> " ["fields .: " <> quoted named | (named,_) <- pairs]
+        , "    unless (all (>= 0) [" <> T.intercalate ", " [named <> " value" | (named,Scalar _) <- pairs] <> "]) (fail \"Negative timing member\")"
+        , "    pure value"
+        , "withOverrides :: Value -> Either String Settings"
+        , "withOverrides (Object overrides) = case toJSON protocolSettings of"
+        , "  Object fields -> case fromJSON (Object (KM.union overrides fields)) of Error reason -> Left reason; Success value -> Right value"
+        , "  _ -> Left \"Protocol timing is not an object\""
+        , "withOverrides _ = Left \"Timing overrides are not an object\""
+        ]
+  pure [("src/Semiont/Timing.hs", code), ("src/Semiont/Timing/Settings.hs", settings), ("test/Semiont/Internal/Generated/TimingValues.hs", tests)]
 
 generateFacts :: FilePath -> IO [(FilePath, Text)]
 generateFacts root = fmap concat $ forM

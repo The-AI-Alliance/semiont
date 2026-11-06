@@ -73,12 +73,12 @@ transportFacts root registry identifiers = do
         code = T.unlines
           [ "-- Generated from TRANSPORT-HTTP.md, bus/registry.json and identifiers/kinds.json. Do not edit."
           , "{-# LANGUAGE OverloadedStrings #-}"
-          , "module Semiont.Transport.Facts (ConnectionState(..), connectionStateName, connectionTransitions, traceField, userField) where"
+          , "module Semiont.Transport.Facts (ConnectionState(..), connectionStateName, connectionTransitions, traceField, traceCarrierFields, userField) where"
           , "import Data.Text (Text)"
           , "data ConnectionState = " <> T.intercalate " | " (map constructor states) <> " deriving (Eq, Ord, Show, Enum, Bounded)"
           , "connectionStateName :: ConnectionState -> Text"
           ] <> T.unlines ["connectionStateName " <> constructor value <> " = " <> quote value | value <- states]
             <> "connectionTransitions :: ConnectionState -> [ConnectionState]\n"
             <> T.unlines ["connectionTransitions " <> constructor source <> " = [" <> T.intercalate ", " (map constructor targets) <> "]" | (source, targets) <- edges]
-            <> "traceField :: Text\ntraceField = " <> quote traceField <> "\nuserField :: Text\nuserField = " <> quote userField <> "\n"
+            <> "traceField :: Text\ntraceField = " <> quote traceField <> "\ntraceCarrierFields :: [Text]\ntraceCarrierFields = [" <> T.intercalate ", " [quote key | (key,_) <- fields] <> "]\nuserField :: Text\nuserField = " <> quote userField <> "\n"
     pure (schema, [("src/Semiont/Transport/Facts.hs", code)])

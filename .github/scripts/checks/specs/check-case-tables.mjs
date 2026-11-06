@@ -51,6 +51,7 @@ const IMPLEMENTATIONS = {
   kotlin: ['packages/kotlin/sdk'],
   csharp: ['packages/csharp/sdk'],
   swift: ['packages/swift/sdk'],
+  haskell: ['packages/haskell/sdk'],
   launcher: ['apps/launcher', 'packages/go/launcher'],
   archivist: ['images/archivist'],
   librarian: ['images/librarian'],
@@ -64,8 +65,8 @@ const IMPLEMENTATIONS = {
   conformance: ['protocol/conformance'],
 };
 
-/** The SDKs, which are held to one another. */
-const SDKS = ['typescript', 'rust', 'python', 'go', 'kotlin', 'swift', 'csharp'];
+/** Every SDK in Semiont's implementation inventory is held to the others. */
+const SDKS = Object.keys(JSON.parse(readFileSync(resolve(REPO, 'protocol/conformance/semiont.implementations.json'), 'utf8')).sdks);
 
 /** The tables whose rule counts or states an offset. */
 const COUNTS_CODE_POINTS = new Set([

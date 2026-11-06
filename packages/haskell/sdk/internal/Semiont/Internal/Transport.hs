@@ -252,7 +252,9 @@ setState (TransportInput runtime) next = do
     when (next /= before) (State.update (connection runtime) next)
 
 reportError :: TransportInput -> TransportError -> IO ()
-reportError (TransportInput runtime) = atomically . Broadcast.publish (failures runtime)
+reportError (TransportInput runtime) problem = atomically $ do
+  over <- readTVar (closing runtime)
+  unless over (Broadcast.publish (failures runtime) problem)
 
 dispose :: Transport -> IO ()
 dispose (Transport runtime) = mask $ \restore -> do

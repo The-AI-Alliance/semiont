@@ -4,7 +4,7 @@ module Main (main) where
 
 import Control.Applicative ((<|>))
 import Control.Monad (forM, forM_, unless)
-import Data.Aeson (FromJSON, Value(..), eitherDecodeStrict', parseJSON)
+import Data.Aeson (FromJSON, Value(..), eitherDecodeStrict', parseJSON, toJSON)
 import Data.Aeson.Types (parseEither)
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
@@ -26,6 +26,7 @@ import Semiont.Internal.Generated.TimingValues (timingValues)
 import qualified Semiont.Internal.Generated.DiscoveryReasonRoundTrip as DiscoveryReasons
 import qualified Semiont.ErrorCodes as Errors
 import qualified Semiont.Retry as Retry
+import qualified Semiont.Timing.Settings as TimingSettings
 import Semiont.Internal.Generated.Schemas (schemas)
 import Semiont.Internal.Schema (normalize, validate, validateNamed)
 import System.Directory (doesDirectoryExist, listDirectory)
@@ -261,6 +262,19 @@ factCases root = do
   timings <- readJSON (root </> "protocol/specs/src/client/timing.json")
   let expectedTiming = Map.fromList [(key, at "value" row) | row <- array (at "timing" timings), String key <- [at "name" row]]
   require "timing constants or retry budgets differ from spec" (not (Map.null expectedTiming) && expectedTiming == timingValues)
+  require "configurable timings differ from the protocol constants"
+    (toJSON TimingSettings.protocolSettings == Object (KM.fromList [(Key.fromText key,value) | (key,value) <- Map.toList expectedTiming]))
+  forM_ (Map.toList expectedTiming) $ \(key,value) -> do
+    let changed = case value of
+          Number number -> Number (number + 1)
+          Object fields -> Object (KM.mapWithKey (\member number -> case number of Number n | member == "attempts" -> Number (n + 1); other -> other) fields)
+          other -> other
+        overridden = TimingSettings.withOverrides (Object (KM.singleton (Key.fromText key) changed))
+    require "a protocol timing cannot be overridden"
+      (fmap toJSON overridden == Right (Object (KM.fromList [(Key.fromText name,if name == key then changed else original) | (name,original) <- Map.toList expectedTiming])))
+  forM_ [Object (KM.singleton "unknown" (Number 1)), Object (KM.singleton "reconnectMs" (Number (-1))),
+      Object (KM.singleton "emitRetry" (Object KM.empty)), Object (KM.singleton "reconnectMs" (Number 0.5))] $ \invalid ->
+    require "malformed timing override was accepted" (isLeft (TimingSettings.withOverrides invalid))
   putStrLn "PASS every error vocabulary, wire/HTTP classifiers, timing constant and retry budget"
   discovery <- readJSON (root </> "protocol/specs/src/client/discovery-absent.json")
   forM_ (array (at "reasons" discovery)) $ \row -> do
