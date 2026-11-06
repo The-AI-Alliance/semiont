@@ -4,6 +4,7 @@ Through the two methods that create one: `mark.delegate` and `yield_.delegate`.
 """
 
 import asyncio
+from dataclasses import asdict
 from typing import assert_never
 
 import pytest
@@ -336,12 +337,9 @@ def test_a_refused_frame_of_the_lifecycle_is_reported_once_the_job_has_its_id_in
         ]
         refused = seen[1]
         assert isinstance(refused, JobRefused)
-        assert (refused.kind, refused.data.channel, refused.data.member, refused.data.reason) == (
-            "refused",
-            "job:fail",
-            "payload.error",
-            "lacks",
-        )
+        # The frame's channel, and the member and reason of its fault: nothing else, as in every SDK.
+        assert refused.kind == "refused"
+        assert asdict(refused.data) == {"channel": "job:fail", "member": "payload.error", "reason": "lacks"}
         await client.close()
 
     run(scenario())
