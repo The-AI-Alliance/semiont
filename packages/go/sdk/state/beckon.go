@@ -56,12 +56,12 @@ func (u *BeckonStateUnit) focus(annotationID api.AnnotationId) {
 	_ = semiont.Publish(u.client.Bus, bus.BeckonFocus, api.BeckonFocusEvent{ResourceId: u.resourceID, AnnotationId: &annotationID}, semiont.Envelope{})
 }
 
-// heard acts on a hover or a click. A frame that is not its channel's is
-// nobody's to act on.
-func (u *BeckonStateUnit) heard(frame semiont.Frame) {
+// heard acts on a hover or a click. A frame that is not its channel's, or
+// was refused, is nobody's to act on.
+func (u *BeckonStateUnit) heard(frame semiont.Frame, refused error) {
 	switch frame.Channel {
 	case bus.BeckonHover.Channel():
-		hover, err := semiont.Decoded(bus.BeckonHover, frame)
+		hover, err := semiont.Decoded(bus.BeckonHover, frame, refused)
 		if err != nil {
 			return
 		}
@@ -73,7 +73,7 @@ func (u *BeckonStateUnit) heard(frame semiont.Frame) {
 		u.hovered.Set(hovered)
 		_ = semiont.Publish(u.client.Bus, bus.BeckonSparkle, api.BeckonSparkleEvent{AnnotationId: hovered}, semiont.Envelope{})
 	case bus.BrowseClick.Channel():
-		click, err := semiont.Decoded(bus.BrowseClick, frame)
+		click, err := semiont.Decoded(bus.BrowseClick, frame, refused)
 		if err == nil {
 			u.focus(click.Payload.AnnotationId)
 		}

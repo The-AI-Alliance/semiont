@@ -26,7 +26,7 @@ use semiont::state_unit::StateUnit;
 use semiont::testing::{
     FaultAction, FaultyTransport, RequestLogEntry, TestClientOptions, create_test_client,
 };
-use semiont::transport::{Envelope, Frame, Lagged};
+use semiont::transport::{Envelope, Frame, FrameRefusal, Lagged};
 use semiont::types::{
     GatherAnnotationOptions, GatherResourceRequestOptions, GenerationJobParams, MarkJobParams,
 };
@@ -1050,7 +1050,7 @@ fn request_id(
 // ── A case, played ──────────────────────────────────────────────────────
 
 /// What the `listen` channels carried, in order.
-type Heard = Arc<Mutex<Vec<Result<Frame, Lagged>>>>;
+type Heard = Arc<Mutex<Vec<Result<Result<Frame, FrameRefusal>, Lagged>>>>;
 
 struct World {
     kind: String,
@@ -1203,10 +1203,17 @@ impl World {
             let frames = locked(&self.heard)[self.told..]
                 .iter()
                 .cloned()
-                .collect::<Result<Vec<Frame>, Lagged>>()
-                .map_err(|lagged| {
-                    format!("the listen channels' reader fell behind by {}", lagged.0)
-                })?;
+                .map(|heard| match heard {
+                    Ok(Ok(frame)) => Ok(frame),
+                    Ok(Err(refusal)) => Err(format!(
+                        "the listen channels' reader was given a refusal: {refusal:?}"
+                    )),
+                    Err(lagged) => Err(format!(
+                        "the listen channels' reader fell behind by {}",
+                        lagged.0
+                    )),
+                })
+                .collect::<Result<Vec<Frame>, String>>()?;
             self.check_heard(array(stated, "heard")?, &frames)?;
             self.told += frames.len();
         } else if let Some(ended) = step.get("ended") {

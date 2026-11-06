@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createTestSession, refuseUnscriptedOperation } from '@semiont/sdk/testing';
-import { jobId as brandJobId, resourceId as brandResourceId } from '@semiont/core';
+import { FrameRefusal, jobId as brandJobId, resourceId as brandResourceId } from '@semiont/core';
 import type { GatheredContext, ResourceId } from '@semiont/core';
 import { chatTurn, createResolvedReference } from './chat-turn';
 import { QUESTION_ENTITY_TYPE } from './session';
@@ -88,7 +88,10 @@ function harness(opts: {
   // Stall-guard observation: the SDK's guard cancels the job on the wire, by its id
   // (`job:cancel-requested`), so the pin listens at the transport.
   const cancels: Array<{ jobId: string }> = [];
-  transport.on('job:cancel-requested', (p) => cancels.push(p));
+  transport.on('job:cancel-requested', (p) => {
+    if (p instanceof FrameRefusal) throw new Error(`the transport was handed a refusal on ${p.channel}`);
+    cancels.push(p);
+  });
 
   return { session, transport, content, channels, payloadOf, payloadsOf, cancels };
 }

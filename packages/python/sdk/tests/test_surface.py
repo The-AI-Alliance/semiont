@@ -24,7 +24,7 @@ from aio import run, soon
 from pydantic import JsonValue, TypeAdapter
 from spec import SPEC, JsonObject, objects, read, text
 
-from semiont.bus import FrameRefusal, Typed
+from semiont.bus import Typed
 from semiont.client import SemiontClient
 from semiont.identifiers import AnnotationId, JobId, ResourceId
 from semiont.model import WireModel, written
@@ -40,7 +40,7 @@ from semiont.testing import (
     PutBinary,
     StubGateway,
 )
-from semiont.transport import Frame, PutBinaryRequest
+from semiont.transport import Frame, FrameRefusal, PutBinaryRequest
 from semiont.types import (
     AnnotationSelector,
     BindBodyOperation,
@@ -514,6 +514,7 @@ def test_a_method_does_what_its_row_says(case: tuple[str, str, JsonObject, JsonO
                 published = world.client.bus.frames_on(channel)
                 world.call(namespace, method, args)
                 frame = await soon(anext(published), within=1.0)
+                assert isinstance(frame, Frame), f"{why}: what was published was refused: {frame!r}"
                 assert numbers(dict(frame.payload)) == numbers(sends), f"{why}: what was published"
                 assert frame.correlation_id == stated.get("correlationId"), f"{why}: the key on its envelope"
                 await asyncio.sleep(0.02)

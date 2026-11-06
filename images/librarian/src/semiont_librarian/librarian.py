@@ -63,7 +63,7 @@ from semiont.operations import (
     MATCH_RESOURCES_REQUESTED,
     MATCH_SEARCH_REQUESTED,
 )
-from semiont.transport import Frame, FrameSink, Transport
+from semiont.transport import Frame, FrameRefusal, FrameSink, Transport
 from semiont.types import (
     CommandError,
     ContextualSummaryResponse,
@@ -160,7 +160,10 @@ class _Delivered(FrameSink):
         self._librarian: Final = librarian
 
     @override
-    def deliver(self, frame: Frame) -> None:
+    def deliver(self, frame: Frame | FrameRefusal) -> None:
+        if isinstance(frame, FrameRefusal):
+            # A frame refused is nothing to act on.
+            return
         self._librarian.delivered(frame)
 
 

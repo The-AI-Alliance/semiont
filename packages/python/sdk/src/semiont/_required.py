@@ -86,6 +86,10 @@ class Fault:
     member: str
     reason: Literal["lacks", "malformed"]
 
+    def within(self, name: str) -> "Fault":
+        """The fault as one of the value that holds this one as its member `name`: the value itself is that member."""
+        return Fault(member=name if self.member == "" else f"{name}.{self.member}", reason=self.reason)
+
     @override
     def __str__(self) -> str:
         """What every SDK says of the fault."""

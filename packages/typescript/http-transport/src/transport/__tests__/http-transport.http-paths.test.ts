@@ -629,7 +629,7 @@ describe('HttpTransport — HTTP wire shape', () => {
       actorHarness.pushEvent('job:fail', failed);
 
       expect(wire, "the transport's own frames are the wire's").toEqual([lacking, failed]);
-      expect(bridged).toStrictEqual([new FrameRefusal('job:fail', 'jobId', 'lacks', lacking), failed]);
+      expect(bridged).toStrictEqual([new FrameRefusal('job:fail', 'payload.jobId', 'lacks', lacking, undefined), failed]);
       expect(warned).not.toHaveBeenCalled();
 
       warned.mockRestore();

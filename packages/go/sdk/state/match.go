@@ -32,10 +32,10 @@ func NewMatchStateUnit(client *semiont.Client) *MatchStateUnit {
 	return u
 }
 
-// heard runs a search asked for. A frame that is not a request's is nobody's
-// to act on.
-func (u *MatchStateUnit) heard(frame semiont.Frame) {
-	asked, err := semiont.Decoded(bus.MatchSearchRequested.Request(), frame)
+// heard runs a search asked for. A frame that is not a request's, or was
+// refused, is nobody's to act on.
+func (u *MatchStateUnit) heard(frame semiont.Frame, refused error) {
+	asked, err := semiont.Decoded(bus.MatchSearchRequested.Request(), frame, refused)
 	if err == nil {
 		go u.search(asked.Payload, asked.CorrelationID)
 	}

@@ -34,7 +34,18 @@ from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast, Events
 from semiont.identifiers import ResourceId
 from semiont.operations import OPERATIONS
-from semiont.transport import ConnectionState, Frame, FrameHub, FrameSink, PendingReply, ReplyRouter, ResourceHold, Transport, unsubscribed
+from semiont.transport import (
+    ConnectionState,
+    Frame,
+    FrameHub,
+    FrameRefusal,
+    FrameSink,
+    PendingReply,
+    ReplyRouter,
+    ResourceHold,
+    Transport,
+    unsubscribed,
+)
 from semiont.watched import Variable, Watched
 
 __all__ = [
@@ -207,8 +218,8 @@ class FaultyTransport(Transport):
         """Change the connection's state, as a wire would. A closed transport's is closed."""
         self._state.set(state)
 
-    def deliver(self, frame: Frame) -> None:
-        """Deliver a frame as if the bus had carried it. A closed transport has nobody to deliver to."""
+    def deliver(self, frame: Frame | FrameRefusal) -> None:
+        """Deliver a frame, or its refusal, as if the bus had carried it. A closed transport has nobody to deliver to."""
         self._router.route(frame)
         self._hub.deliver(frame)
 
@@ -312,7 +323,7 @@ class FaultyTransport(Transport):
             self.deliver(reply)
 
     @override
-    def frames(self, channel: str) -> Events[Frame]:
+    def frames(self, channel: str) -> Events[Frame | FrameRefusal]:
         if not self.is_subscribed(channel):
             raise unsubscribed(channel)
         return self._hub.frames(channel)

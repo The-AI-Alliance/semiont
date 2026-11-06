@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import semiont.errors.TransportError
 import semiont.errors.TransportErrorCode
+import semiont.frame
 
 private val QUICK = Timing(reconnectMs = 10, lazyRemoveMs = 10, lingerMs = 10)
 
@@ -28,7 +29,7 @@ class StreamTest {
                 gateway.send("e-4", """{"channel": "beckon:focus", "payload": {"annotationId": "after"}}""")
 
                 val read = withTimeout(5_000) { heard.firstOf(1) }
-                assertEquals(listOf(JsonPrimitive("after")), read.map { it.payload.getValue("annotationId") })
+                assertEquals(listOf(JsonPrimitive("after")), read.map { it.frame().payload.getValue("annotationId") })
                 val failures = withTimeout(5_000) { told.firstOf(3) }
                 assertEquals(
                     listOf("it is malformed", "it has no `channel`", "its `channel` is malformed").map {

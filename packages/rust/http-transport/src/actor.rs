@@ -29,7 +29,7 @@ use semiont::channels::{RESOURCE_SCOPED_CHANNELS, TRACE_FIELD};
 use semiont::errors::{TransportError, TransportErrorCode};
 use semiont::retry::{equal_jitter, retry_after};
 use semiont::timing::{DEGRADED_THRESHOLD, MAX_RECONNECT, RECONNECT_DEBOUNCE};
-use semiont::transport::{ConnectionState, Envelope, Frame, TraceCarrier};
+use semiont::transport::{ConnectionState, Envelope, Frame, FrameRefusal, TraceCarrier};
 use semiont::types::ResourceId;
 use semiont::types::{BusFrame, BusSubscribeRequest, BusSubscribeRequestScopedItem};
 use serde_json::Value;
@@ -158,6 +158,44 @@ fn allowed(from: ConnectionState, to: ConnectionState) -> bool {
 }
 
 impl Actor {
+    /// The stream's task, not yet running, each scope to begin at its place
+    /// in `watermarks`.
+    fn new(
+        shared: Arc<Shared>,
+        state: watch::Sender<ConnectionState>,
+        events: mpsc::Sender<Event>,
+        watermarks: HashMap<ResourceId, String>,
+    ) -> Actor {
+        Actor {
+            seen: SeenIds {
+                order: VecDeque::new(),
+                ids: HashSet::new(),
+                capacity: shared.timing.seen_event_ids,
+            },
+            shared,
+            state,
+            events,
+            running: false,
+            scoped: BTreeMap::new(),
+            watermarks,
+            next_conn: 0,
+            connections: HashMap::new(),
+            live: None,
+            connecting: None,
+            reconnect_owed: false,
+            superseded: HashSet::new(),
+            lingering: Vec::new(),
+            retry_attempt: 0,
+            refused_token: None,
+            refresh_burned: false,
+            awaiting_credential: false,
+            retry_at: None,
+            debounce_at: None,
+            lazy_at: None,
+            degraded_at: None,
+        }
+    }
+
     fn state(&self) -> ConnectionState {
         *self.state.borrow()
     }
@@ -342,21 +380,18 @@ impl Actor {
             mut payload,
             scope,
         } = match carried(data) {
-            Ok(frame) => frame,
-            Err(Refused {
-                said,
-                channel: None,
-            }) => {
-                // What names no channel names no reader: it is told to the failure report.
+            Line::Frame(frame) => frame,
+            Line::Told(refusal) => {
+                self.tell(refusal);
+                return;
+            }
+            Line::Unread(said) => {
                 self.shared.failed(TransportError::without_response(
                     format!("the stream carried what is not a frame: {said}"),
                     TransportErrorCode::Error,
                 ));
                 return;
             }
-            Err(Refused {
-                channel: Some(_), ..
-            }) => return,
         };
         let trace = payload.remove(TRACE_FIELD).and_then(carrier);
 
@@ -379,10 +414,8 @@ impl Actor {
             scope,
         };
 
-        self.shared.router.route(&frame);
-        if self.shared.global.contains(&frame.channel)
-            || RESOURCE_SCOPED_CHANNELS.contains(&frame.channel.as_str())
-        {
+        self.shared.router.route(Ok(&frame));
+        if self.bridged(&frame.channel) {
             for bus in locked(&self.shared.bridges).iter() {
                 bus.emit(
                     &frame.channel,
@@ -405,7 +438,31 @@ impl Actor {
                 bookmarks.save(scope, id);
             }
         }
-        self.shared.hub.deliver(frame);
+        self.shared.hub.deliver(Ok(frame));
+    }
+
+    /// Whether frames of `channel` are published into the client's own bus:
+    /// those of its global channels and of every resource's scope.
+    fn bridged(&self, channel: &str) -> bool {
+        self.shared.global.iter().any(|global| global == channel)
+            || RESOURCE_SCOPED_CHANNELS.contains(&channel)
+    }
+
+    /// A frame refused that names its readers: the request its correlation
+    /// id names is told of it, as of the frame, and its refusal is delivered
+    /// in its place and published into the client's own bus as the frame
+    /// would have been.
+    fn tell(&self, refusal: FrameRefusal) {
+        self.shared.router.route(Err(&refusal));
+        if self.bridged(&refusal.channel) {
+            for bus in locked(&self.shared.bridges).iter() {
+                bus.emit_refusal(FrameRefusal {
+                    scope: None,
+                    ..refusal.clone()
+                });
+            }
+        }
+        self.shared.hub.deliver(Err(refusal));
     }
 
     fn refused(&mut self, conn: u64, error: TransportError) {
@@ -614,42 +671,61 @@ impl Actor {
     }
 }
 
-/// What BusFrame does not allow: what every SDK says of its first fault, and
-/// the channel it names when BusFrame allows its `channel`. One that names no
-/// channel names no reader.
+/// What a line of the stream is read as.
 #[derive(Debug, PartialEq)]
-struct Refused {
-    said: String,
-    channel: Option<String>,
+enum Line {
+    /// A frame BusFrame allows.
+    Frame(BusFrame),
+    /// A frame BusFrame does not allow that names its readers: its refusal,
+    /// told to them.
+    Told(FrameRefusal),
+    /// What names no reader, and what every SDK says of its first fault: told
+    /// to the failure report.
+    Unread(String),
 }
 
-/// `data` read as a frame, or why it is not one. A frame carries what
-/// BusFrame names, and nothing more.
-fn carried(data: &str) -> Result<BusFrame, Refused> {
+/// `data` read as a frame, or as why it is not one. A frame carries what
+/// BusFrame names, and nothing more. What serde refuses that the table of
+/// what BusFrame requires does not is malformed itself.
+fn carried(data: &str) -> Line {
     let Ok(value) = serde_json::from_str::<Value>(data) else {
-        return Err(Refused {
-            said: MALFORMED.to_owned(),
-            channel: None,
-        });
+        return Line::Unread(MALFORMED.to_owned());
     };
-    let channel = channel_of(&value);
-    if let Some(said) = semiont::fault_said::<BusFrame>(&value) {
-        return Err(Refused { said, channel });
+    match readers_of(&value) {
+        Some((channel, scope)) => match FrameRefusal::of(&value, channel, scope) {
+            Some(refusal) => Line::Told(refusal),
+            // BusFrame's type states no length, and its scope was read as a
+            // resource's id: serde refuses nothing of a frame the table allows.
+            None => match serde_json::from_value(value) {
+                Ok(frame) => Line::Frame(frame),
+                Err(error) => panic!("serde refused a frame BusFrame allows: {error}"),
+            },
+        },
+        None => match semiont::fault_said::<BusFrame>(&value) {
+            Some(said) => Line::Unread(said),
+            None => match serde_json::from_value(value) {
+                Ok(frame) => Line::Frame(frame),
+                Err(_) => Line::Unread(MALFORMED.to_owned()),
+            },
+        },
     }
-    serde_json::from_value(value).map_err(|_| Refused {
-        said: MALFORMED.to_owned(),
-        channel,
-    })
 }
 
-/// The channel `value` names: its `channel`, when that is a text of at least
-/// one character.
-fn channel_of(value: &Value) -> Option<String> {
-    value
-        .get("channel")
-        .and_then(Value::as_str)
-        .filter(|channel| !channel.is_empty())
-        .map(str::to_owned)
+/// The readers `value` names: those of its `channel`, when that is a text of
+/// at least one character, in its `scope`, when it carries none or one that
+/// is a resource's id. Any other names no reader. A null scope is none, as
+/// BusFrame's walk reads a null optional member.
+fn readers_of(value: &Value) -> Option<(String, Option<ResourceId>)> {
+    let channel = value.get("channel")?.as_str()?;
+    if channel.is_empty() {
+        return None;
+    }
+    let scope = match value.get("scope") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(scope)) => Some(scope.parse().ok()?),
+        Some(_) => return None,
+    };
+    Some((channel.to_owned(), scope))
 }
 
 fn carrier(value: Value) -> Option<TraceCarrier> {
@@ -746,34 +822,7 @@ pub(crate) async fn run(
         .as_ref()
         .map(|bookmarks| bookmarks.load())
         .unwrap_or_default();
-    let mut actor = Actor {
-        seen: SeenIds {
-            order: VecDeque::new(),
-            ids: HashSet::new(),
-            capacity: shared.timing.seen_event_ids,
-        },
-        shared,
-        state,
-        events,
-        running: false,
-        scoped: BTreeMap::new(),
-        watermarks,
-        next_conn: 0,
-        connections: HashMap::new(),
-        live: None,
-        connecting: None,
-        reconnect_owed: false,
-        superseded: HashSet::new(),
-        lingering: Vec::new(),
-        retry_attempt: 0,
-        refused_token: None,
-        refresh_burned: false,
-        awaiting_credential: false,
-        retry_at: None,
-        debounce_at: None,
-        lazy_at: None,
-        degraded_at: None,
-    };
+    let mut actor = Actor::new(shared, state, events, watermarks);
     // The stream starts when there is a token to open it with.
     token.borrow_and_update();
     actor.token_changed();
@@ -817,6 +866,13 @@ pub(crate) async fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::transport::{HttpTransportConfig, Timing};
+    use futures::{FutureExt, Stream};
+    use semiont::bus::StreamError;
+    use semiont::channels::{BeckonFocus, BrowseResourceRequested, Channel, Request};
+    use semiont::event_bus::EventBus;
+    use semiont::transport::{Events, FrameRefusalReason, Lagged};
+    use serde_json::json;
 
     #[test]
     fn the_ids_remembered_are_the_last_ones_delivered() {
@@ -857,51 +913,258 @@ mod tests {
         }
     }
 
-    /// Each frame of protocol/specs/src/bus/frame-cases.json, the table every
-    /// SDK's stream reader runs, is read as it states it, or refused.
-    #[test]
-    fn each_frame_of_the_table_is_read_as_it_states_or_refused_and_told_to_whom_it_states() {
+    /// The channel every case of the table told to its readers is on, but a
+    /// request's, read here by type.
+    const READ: &str = "beckon:focus";
+    /// The correlation id a request's case names its request's by.
+    const AWAITED: &str = "c-1";
+
+    /// What `stream` has been given so far. Each line is carried before it
+    /// is read, and carrying one delivers what it carries before it returns.
+    fn given<S: Stream + Unpin>(stream: &mut S) -> Vec<S::Item> {
+        let mut given = Vec::new();
+        while let Some(Some(item)) = stream.next().now_or_never() {
+            given.push(item);
+        }
+        given
+    }
+
+    /// A transport's shared parts, as `HttpTransport::new` makes them.
+    fn shared() -> Arc<Shared> {
+        // Already installed by another test of this process: one is enough.
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        Arc::new(Shared::new(HttpTransportConfig {
+            base_url: "http://gateway.test".to_owned(),
+            token: watch::channel(None).1,
+            refresher: None,
+            channels: None,
+            http: reqwest::Client::new(),
+            timing: Timing::default(),
+            bookmarks: None,
+        }))
+    }
+
+    /// The stream's task over `shared`, reading its live connection, 0.
+    fn reading(shared: Arc<Shared>) -> Actor {
+        let mut actor = Actor::new(
+            shared,
+            watch::channel(ConnectionState::Open).0,
+            mpsc::channel(1).0,
+            HashMap::new(),
+        );
+        actor.connections.insert(
+            0,
+            Connection {
+                task: tokio::spawn(async {}),
+                token: String::new(),
+                keep_previous: false,
+                previous: Vec::new(),
+            },
+        );
+        actor.live = Some(0);
+        actor
+    }
+
+    /// Each line of protocol/specs/src/bus/frame-cases.json, the table every
+    /// SDK's stream reader runs, carried on the stream with a frame of
+    /// `beckon:focus` after it: what the transport delivers, what a typed
+    /// read of the case's channel on the client's own bus is given, what the
+    /// failure report is told and what becomes of a request awaiting the
+    /// case's reply are each held to the case, and the frame after it is
+    /// delivered, so the stream is seen to go on.
+    #[tokio::test]
+    async fn each_line_of_the_table_is_delivered_or_refused_as_it_states() {
         let table: Value = serde_json::from_str(include_str!(
             "../../../../protocol/specs/src/bus/frame-cases.json"
         ))
         .expect("the table is JSON");
         let cases = table["cases"].as_array().expect("the table has cases");
         assert!(!cases.is_empty(), "the table was not read");
+        let after = json!({ "channel": READ, "payload": { "resourceId": "after" } });
+        let is_after = |item: &Result<Result<Frame, FrameRefusal>, Lagged>| matches!(item, Ok(Ok(frame)) if frame.payload.get("resourceId") == Some(&json!("after")));
+        type Reply = <BrowseResourceRequested as Request>::Result;
+        type Failure = <BrowseResourceRequested as Request>::Failure;
         for case in cases {
             let why = case["why"].as_str().expect("a case says why");
             let frame = &case["frame"];
-            let read = carried(&match case["data"].as_str() {
+            let shared = shared();
+            let own = Arc::new(EventBus::new());
+            locked(&shared.bridges).push(own.clone());
+            let mut failures = Events::new(
+                locked(&shared.failures)
+                    .as_mut()
+                    .expect("the error stream is open")
+                    .listen(),
+            );
+            let line = match case["data"].as_str() {
                 Some(data) => data.to_owned(),
                 None => frame.to_string(),
-            });
-            if case["refused"] == true {
-                let member = case["member"]
+            };
+
+            if case["refused"] != true {
+                let on = frame["channel"]
                     .as_str()
-                    .expect("a refused case names a member");
-                let said = match case["reason"].as_str() {
-                    Some("lacks") => format!("it has no `{member}`"),
-                    Some("malformed") if member.is_empty() => MALFORMED.to_owned(),
-                    Some("malformed") => format!("its `{member}` is malformed"),
-                    reason => panic!("{why}: a reason the table does not give: {reason:?}"),
+                    .expect("a frame delivered names its channel");
+                let mut delivered = shared.hub.frames(on);
+                let mut actor = reading(shared.clone());
+                actor.frame(0, None, &line);
+                let Some(Ok(Ok(read))) = delivered.next().await else {
+                    panic!("{why}: not delivered");
                 };
-                let channel = match case["told"].as_str() {
-                    Some("readers") => Some(
-                        frame["channel"]
-                            .as_str()
-                            .expect("a frame told to its readers names its channel")
-                            .to_owned(),
-                    ),
-                    Some("failure-report") => None,
-                    told => panic!("{why}: told to whom the table does not give: {told:?}"),
-                };
-                assert_eq!(read, Err(Refused { said, channel }), "{why}");
-            } else {
-                let read = read.unwrap_or_else(|said| panic!("{why}: refused: {said:?}"));
                 assert_eq!(
-                    &serde_json::to_value(&read).expect("a frame is JSON"),
-                    frame,
+                    (
+                        read.channel.as_str(),
+                        Value::Object(read.payload),
+                        read.correlation_id.as_deref(),
+                        read.scope.as_deref(),
+                    ),
+                    (
+                        on,
+                        frame["payload"].clone(),
+                        frame["correlationId"].as_str(),
+                        frame["scope"].as_str(),
+                    ),
                     "{why}"
                 );
+                assert!(
+                    failures.next().now_or_never().is_none(),
+                    "{why}: told to the failure report"
+                );
+                continue;
+            }
+
+            let member = case["member"]
+                .as_str()
+                .expect("a refused case names a member");
+            let reason: FrameRefusalReason = serde_json::from_value(case["reason"].clone())
+                .unwrap_or_else(|error| panic!("{why}: {error}"));
+            let said = match reason {
+                FrameRefusalReason::Lacks => format!("it has no `{member}`"),
+                FrameRefusalReason::Malformed if member.is_empty() => MALFORMED.to_owned(),
+                FrameRefusalReason::Malformed => format!("its `{member}` is malformed"),
+            };
+            // A refusal told to its readers is told to its channel's; one
+            // told to nobody is looked for on `beckon:focus`.
+            let on = match case["told"].as_str() {
+                Some("readers") => frame["channel"]
+                    .as_str()
+                    .expect("a refusal told to its readers names its channel"),
+                _ => READ,
+            };
+            let mut delivered = shared.hub.frames(on);
+            let mut went_on = shared.hub.frames(READ);
+            let mut focus = own.stream::<BeckonFocus>();
+            let mut replies = own.stream::<Reply>();
+            let pending = case
+                .get("request")
+                .map(|_| shared.router.track(AWAITED, &[Reply::NAME, Failure::NAME]));
+            let mut actor = reading(shared.clone());
+            actor.frame(0, None, &line);
+            actor.frame(0, None, &after.to_string());
+
+            assert!(
+                given(&mut went_on).last().is_some_and(is_after),
+                "{why}: the stream did not go on past it"
+            );
+            let carried: Vec<_> = given(&mut delivered)
+                .into_iter()
+                .filter(|item| !is_after(item))
+                .collect();
+            let heard: Vec<StreamError> = match on {
+                READ => given(&mut focus)
+                    .into_iter()
+                    .filter_map(|read| match read {
+                        Ok(focus) if &*focus.payload.resource_id == "after" => None,
+                        Ok(focus) => panic!("{why}: a typed read gave {:?}", focus.payload),
+                        Err(refused) => Some(refused),
+                    })
+                    .collect(),
+                _ => given(&mut replies)
+                    .into_iter()
+                    .map(|read| match read {
+                        Ok(_) => panic!("{why}: a typed read of {on} gave a reply"),
+                        Err(refused) => refused,
+                    })
+                    .collect(),
+            };
+            // As the client's own bus is given it, which knows no scope.
+            let refusal = FrameRefusal {
+                channel: on.to_owned(),
+                member: member.to_owned(),
+                reason,
+                payload: frame.get("payload").cloned(),
+                scope: None,
+                correlation_id: case["correlationId"].as_str().map(str::to_owned),
+            };
+            // As the transport delivers it to the readers a frame names,
+            // whose scope is none or a resource's id.
+            let delivered = || FrameRefusal {
+                scope: frame["scope"]
+                    .as_str()
+                    .map(|scope| scope.parse().expect("a scope told is an id")),
+                ..refusal.clone()
+            };
+
+            match case["told"].as_str() {
+                Some("readers") => {
+                    // A fault within the payload is its channel's to find:
+                    // BusFrame takes any object for a payload, and the
+                    // stream delivers the frame.
+                    if member.starts_with("payload.") {
+                        assert!(
+                            matches!(carried.as_slice(), [Ok(Ok(_))]),
+                            "{why}: {carried:?}"
+                        );
+                    } else {
+                        assert_eq!(carried, [Ok(Err(delivered()))], "{why}");
+                    }
+                    assert_eq!(
+                        heard,
+                        [StreamError::Refused(Box::new(refusal.clone()))],
+                        "{why}"
+                    );
+                    assert_eq!(
+                        refusal.to_string(),
+                        format!("a frame on {on} is not that channel's: {said}"),
+                        "{why}"
+                    );
+                    assert!(
+                        failures.next().now_or_never().is_none(),
+                        "{why}: told to the failure report as well"
+                    );
+                }
+                Some("failure-report") => {
+                    assert!(carried.is_empty(), "{why}: delivered {carried:?}");
+                    assert!(heard.is_empty(), "{why}: a typed read heard {heard:?}");
+                    let Some(Some(Ok(report))) = failures.next().now_or_never() else {
+                        panic!("{why}: the failure report was not told");
+                    };
+                    assert_eq!(
+                        (report.code, report.status, report.message),
+                        (
+                            TransportErrorCode::Error,
+                            None,
+                            format!("the stream carried what is not a frame: {said}")
+                        ),
+                        "{why}"
+                    );
+                }
+                told => panic!("{why}: told to whom the table does not give: {told:?}"),
+            }
+
+            match (case["request"].as_str(), pending) {
+                (Some("fails"), Some(mut pending)) => assert_eq!(
+                    pending.frame().now_or_never(),
+                    Some(Some(Err(delivered()))),
+                    "{why}: the request was not told of the refusal"
+                ),
+                (Some("waits"), Some(mut pending)) => assert_eq!(
+                    pending.frame().now_or_never(),
+                    None,
+                    "{why}: the request was told"
+                ),
+                (None, None) => {}
+                (request, _) => panic!("{why}: a request the table does not give: {request:?}"),
             }
         }
     }

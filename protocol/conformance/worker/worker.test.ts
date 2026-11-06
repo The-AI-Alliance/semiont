@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, inject, it } from 'vitest';
 import { startOtlp, type OtlpReceiver } from '../harness/otlp';
 import { eachPlane } from '../harness/world';
-import { casesIn, runCase } from '../sdk/case';
+import { casesIn, runCase, runFor } from '../sdk/case';
 
 const corpus = casesIn(join(dirname(fileURLToPath(import.meta.url)), 'cases'));
 
@@ -40,6 +40,7 @@ for (const [sdk, { worker }] of Object.entries(inject('sdkDrivers'))) {
   eachPlane(`a worker written on the ${sdk} SDK`, (world, plane) => {
     for (const kase of corpus) {
       if (kase.planes && !kase.planes.includes(plane)) continue;
+      if (!runFor(kase, sdk)) continue;
       it(`${kase.name}: ${kase.about}`, () => runCase(world(), worker, kase, 'worker'));
     }
   }, exporting);

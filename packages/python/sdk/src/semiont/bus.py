@@ -11,8 +11,9 @@ operation's reply:
     async with bus.frames(MARK_ADDED, resource) as added: ...  # a resource's channel, read for it
     created = await bus.request(MARK_CREATE_REQUEST, command)
 
-A frame whose payload is not its channel's is told its reader, in its place,
-as a `FrameRefusal`, and the frames after it follow.
+A frame the transport refused, and one whose payload is not its channel's, is
+told its reader, in its place, as a `FrameRefusal`, and the frames after it
+follow.
 
 **By name** (`request`, and the transport's own `emit` and `frames`), a
 channel is the registry's name and a payload a JSON object: for what relays
@@ -47,10 +48,10 @@ from semiont.events import Events
 from semiont.identifiers import ResourceId, UserId
 from semiont.model import WireModel
 from semiont.timing import BUS_REQUEST_TIMEOUT_MS
-from semiont.transport import ConnectionState, Frame, ResourceHold, TraceContext, Transport
+from semiont.transport import ConnectionState, Frame, FrameRefusal, ResourceHold, TraceContext, Transport
 from semiont.watched import NeverReached, reached
 
-__all__ = ["Bus", "Delivered", "FrameRefusal", "Heard", "Typed", "decoded", "reply_channels_for", "request"]
+__all__ = ["Bus", "Delivered", "Heard", "Typed", "decoded", "reply_channels_for", "request"]
 
 # What the gateway stamps on a payload to say who emitted it.
 _EMITTED_BY: Final = "_userId"
@@ -135,6 +136,10 @@ async def _result_of(transport: Transport, operation: AnyOperation, payload: Map
 
     if reply is None:
         raise BusRequestError("bus.closed", f"Bus closed before a reply on {result}")
+    if isinstance(reply, FrameRefusal):
+        raise TransportError(
+            "error", f"a frame on {reply.channel} is not that channel's: {Fault(member=reply.member, reason=reply.reason)}"
+        )
     if reply.channel == result:
         return reply
     raise BusRequestError.answered(reply.payload)
@@ -175,28 +180,6 @@ class Delivered[P: WireModel]:
     status: Literal["delivered"] = field(default="delivered", init=False)
 
 
-@final
-@dataclass(frozen=True, slots=True, kw_only=True)
-class FrameRefusal:
-    """A frame a typed read refused, in its place: its payload has a fault as its channel's."""
-
-    channel: str
-    member: str
-    """The way to the member the fault is at: the names of the members it is within and its own, joined by dots.
-
-    Empty for the payload itself.
-    """
-    reason: Literal["lacks", "malformed"]
-    """Why: `lacks`, the payload does not carry the member, or it holds null where it may not.
-
-    `malformed`: the member is not what its schema allows (of another kind, another value, form or
-    size), or is one a closed object does not name.
-    """
-    payload: Mapping[str, JsonValue]
-    """The payload as it came, the gateway's stamps and all."""
-    status: Literal["refused"] = field(default="refused", init=False)
-
-
 type Heard[P: WireModel] = Delivered[P] | FrameRefusal
 """What a typed read gives for each frame. A `match` over one names both."""
 
@@ -213,7 +196,7 @@ def _delivered[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], 
     )
 
 
-def _heard[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], frame: Frame) -> Delivered[P] | Fault:
+def _read[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], frame: Frame) -> Delivered[P] | Fault:
     """`frame`, its payload as `channel` types it; or the first fault of a payload that is not that channel's."""
     fault = fault_of(channel.payload, _unstamped(channel, frame.payload))
     if fault is not None:
@@ -224,14 +207,40 @@ def _heard[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], fram
         return UNDECODED
 
 
+def heard[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], carried: Frame | FrameRefusal) -> Heard[P]:
+    """What a typed read of `channel` gives for what its transport carried.
+
+    A frame, its payload as `channel` types it; the refusal of one whose
+    payload is not that channel's, its fault named within `payload`; and
+    the transport's refusal of a frame, as it is.
+
+    The package's own, and no part of what this module offers: it is not in
+    `__all__`. A follower reads several channels as one, in order.
+    """
+    if isinstance(carried, FrameRefusal):
+        return carried
+    read = _read(channel, carried)
+    if isinstance(read, Fault):
+        fault = read.within("payload")
+        return FrameRefusal(
+            channel=channel.name,
+            member=fault.member,
+            reason=fault.reason,
+            payload=dict(carried.payload),
+            scope=carried.scope,
+            correlation_id=carried.correlation_id,
+        )
+    return read
+
+
 @final
 class Typed[P: WireModel]:
     """One channel's frames from now on, each with its payload decoded.
 
     Iterated (`async for`), and can be held with `async with`, which stops
-    listening on the way out. A frame whose payload is not the channel's is
-    told the reader in its place, as a `FrameRefusal`, and the frames after
-    it follow.
+    listening on the way out. A frame its transport refused, and one whose
+    payload is not the channel's, is told the reader in its place, as a
+    `FrameRefusal`, and the frames after it follow.
 
     Read for a `resource`, it gives that resource's frames and no other's,
     and `hold`, its hold on that resource's scope, is let go when it stops
@@ -241,7 +250,7 @@ class Typed[P: WireModel]:
     def __init__(
         self,
         channel: Channel[P] | ScopedChannel[P, WireModel],
-        frames: Events[Frame],
+        frames: Events[Frame | FrameRefusal],
         *,
         resource: ResourceId | None = None,
         hold: ResourceHold | None = None,
@@ -256,14 +265,11 @@ class Typed[P: WireModel]:
 
     async def __anext__(self) -> Heard[P]:
         while True:
-            frame = await anext(self._frames)
-            if self._resource is not None and frame.scope != self._resource:
+            carried = await anext(self._frames)
+            if self._resource is not None and carried.scope != self._resource:
                 # A stream carries every scope it holds on the one channel, and another reader may hold another resource's.
                 continue
-            heard = _heard(self._channel, frame)
-            if isinstance(heard, Fault):
-                return FrameRefusal(channel=self._channel.name, member=heard.member, reason=heard.reason, payload=frame.payload)
-            return heard
+            return heard(self._channel, carried)
 
     async def aclose(self) -> None:
         """Stop listening, and let go of the scope it held."""
@@ -338,7 +344,7 @@ async def answer_of[Q: WireModel, R: WireModel, F: WireModel](
     the operation's.
     """
     reply = await _result_of(transport, operation, operation.request.encode(payload), timeout_ms)
-    heard = _heard(operation.result, reply)
-    if isinstance(heard, Fault):
-        raise TransportError("error", f"a payload on {operation.result.name} is not that channel's: {heard}")
-    return heard
+    read = _read(operation.result, reply)
+    if isinstance(read, Fault):
+        raise TransportError("error", f"a payload on {operation.result.name} is not that channel's: {read}")
+    return read

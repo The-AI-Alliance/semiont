@@ -36,6 +36,7 @@ import semiont.testing.TestClient;
 import semiont.testing.TestSession;
 import semiont.testing.TestSessionKt;
 import semiont.testing.TestSessionOptions;
+import semiont.transport.Carried;
 import semiont.transport.Content;
 import semiont.transport.Frame;
 import semiont.transport.PendingReply;
@@ -159,7 +160,7 @@ final class TestingTest {
         hold.close();
         assertEquals(0, transport.holds(resource));
         try (PendingReply pending = transport.trackReply("c-1", List.of("browse:kb-result"))) {
-            CompletableFuture<Frame> reply = pending.frameFuture();
+            CompletableFuture<Carried> reply = pending.frameFuture();
             transport.deliver(new Frame("browse:kb-result", object("response", "A KB"), "c-1", (ResourceId) null, null));
             assertEquals("c-1", reply.get(10, SECONDS).getCorrelationId());
         }

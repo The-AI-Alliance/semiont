@@ -21,9 +21,8 @@ import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-ho
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
 import { getActiveTraceparent, withTraceparent } from '@semiont/observability';
 import type { Annotation, BusPrimitive } from '@semiont/core';
-import { BusRequestError, EventBus, type BusEnvelope, type ConnectionState, type EventMap, annotationId, jobId as makeJobId, userId, resourceId } from '@semiont/core';
+import { BusRequestError, EventBus, FrameRefusal, type BusEnvelope, type ConnectionState, type EventMap, annotationId, jobId as makeJobId, userId, resourceId } from '@semiont/core';
 import { ClaimsObservable, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, willRetryAfter, type ClaimOptions, type ClaimRefusal, type HeldJob, type HeldJobStall, type HeldMarkJob, type HeldYieldJob, type JobFailure } from '../claims';
-import { onTheWire } from './helpers/in-memory-transport';
 
 /** The job a `job:claimed` reply carries: running, under the claimant. */
 type ClaimedJob = EventMap['job:claimed']['response'];
@@ -81,8 +80,8 @@ function fakeBus(initialState: ConnectionState = 'open') {
   const record: { commit: 'acknowledged' | 'refused' | 'unanswered'; question: 'there' | 'not-there' | 'unanswered' } = { commit: 'unanswered', question: 'unanswered' };
 
   const bus: BusPrimitive = {
-    stream: <K extends keyof EventMap>(channel: K) => eventBus.frames(channel).pipe(map((frame) => onTheWire(frame).payload)),
-    frames: <K extends keyof EventMap>(channel: K) => eventBus.frames(channel).pipe(map((frame) => onTheWire(frame))),
+    stream: <K extends keyof EventMap>(channel: K) => eventBus.frames(channel).pipe(map((frame) => frame.payload)),
+    frames: <K extends keyof EventMap>(channel: K) => eventBus.frames(channel),
     isSubscribed: (channel) => !unnamed.has(channel),
     trackReply: () => () => {},
     subscribeToResource: () => () => {},
@@ -128,6 +127,9 @@ function fakeBus(initialState: ConnectionState = 'open') {
     record,
     pushEvent: <K extends keyof EventMap>(channel: K, payload: EventMap[K], correlationId?: string) =>
       eventBus.emit(channel, payload, { correlationId }),
+    /** A frame on `channel` its transport refused, its payload no object, in its place. */
+    pushRefused: (channel: keyof EventMap) =>
+      eventBus.emit(channel, new FrameRefusal(channel, 'payload', 'malformed', 'j', undefined)),
     /** Every `job:claim` emitted so far, in order. */
     claims,
     claimAt: (i: number): EventMap['job:claim'] => {
@@ -335,6 +337,30 @@ describe('job.claim — a worker claims when it becomes idle, and at no other ti
     h.decline(1);
     await tick();
     expect(h.claims(), 'then nothing until the next idle moment').toHaveLength(2);
+
+    r.subscription.unsubscribe();
+  });
+
+  it('a job:queued its transport refused wakes the worker as a matching one would, since no filter can be compared with it', async () => {
+    const r = reading(h, { accepts: [mark('tagging')] });
+    expect(h.claims()).toHaveLength(1);
+
+    h.pushRefused('job:queued');
+    expect(h.claims(), 'a claim is in flight: one more is owed').toHaveLength(1);
+    h.decline(0);
+    await tick();
+    expect(h.claims(), 'exactly one more').toHaveLength(2);
+    h.decline(1);
+    await tick();
+    expect(h.claims()).toHaveLength(2);
+
+    h.pushRefused('job:queued');
+    expect(h.claims(), 'holding nothing: a claim').toHaveLength(3);
+    h.grant(2, 'j1');
+    await tick();
+
+    h.pushRefused('job:queued');
+    expect(h.claims(), 'holding a job: nothing').toHaveLength(3);
 
     r.subscription.unsubscribe();
   });
@@ -1090,6 +1116,16 @@ describe('job.claim — vitals', () => {
     expect(done.lastFinishedAt).not.toBeNull();
 
     subscription.unsubscribe();
+  });
+
+  it('stamp a job:queued its transport refused, which was received all the same', async () => {
+    const r = reading(h, { accepts: [YIELD] });
+
+    h.pushRefused('job:queued');
+
+    expect(r.claims.vitals().lastQueuedEventAt).not.toBeNull();
+
+    r.subscription.unsubscribe();
   });
 
   it('stamp every job:queued received, matching or not', async () => {

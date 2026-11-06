@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { resourceContextFor, annotationContextFor } from '../../__tests__/fixtures/gathered-context';
 import { mockResource } from '../../__tests__/fixtures/resource';
-import { BUS_REQUEST_TIMEOUT_MS, EventBus, JOB_SILENCE_MS, JOB_STATUS_POLL_MS, resourceId, annotationId, jobId, userId } from '@semiont/core';
+import { BUS_REQUEST_TIMEOUT_MS, EventBus, FrameRefusal, JOB_SILENCE_MS, JOB_STATUS_POLL_MS, resourceId, annotationId, jobId, userId } from '@semiont/core';
 import { MarkNamespace } from '../mark';
 import { BindNamespace } from '../bind';
 import { GatherNamespace } from '../gather';
@@ -426,6 +426,59 @@ describe('MarkNamespace', () => {
     expect(events).toContain('complete');
 
     bus.destroy();
+  });
+
+  // ── A refused frame of the lifecycle ─────────────────────────────────
+  // It names no job, so it is reported to the follower once its job has an
+  // id, in the order it came, and it is no word of the job.
+
+  it('delegate() reports a refused frame of the lifecycle once its job has an id, and follows on to the completion', async () => {
+    const bus = new EventBus();
+    const mock = createMockTransport({
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
+    });
+    const m = new MarkNamespace(mock.transport, bus);
+
+    const events: JobEvent[] = [];
+    let completed = false;
+    m.delegate(RID, { motivation: 'highlighting' }).subscribe({
+      next: (e) => events.push(e),
+      complete: () => { completed = true; },
+    });
+    // Before the reply to job:create is handled.
+    bus.emit('job:fail', new FrameRefusal('job:fail', 'payload.error', 'lacks', { jobId: JID }, undefined));
+    await new Promise((r) => setTimeout(r, 0));
+
+    bus.emit('job:report-progress', new FrameRefusal('job:report-progress', 'payload.jobId', 'lacks', { percentage: 10 }, undefined));
+    expect(completed).toBe(false);
+    bus.emit('job:complete', { jobId: JID, resourceId: RID, jobType: 'mark' });
+
+    expect(events.map((e) => e.kind)).toEqual(['created', 'refused', 'refused', 'complete']);
+    expect(events[1]).toEqual({ kind: 'refused', data: { channel: 'job:fail', member: 'payload.error', reason: 'lacks' } });
+    expect(events[2]).toEqual({ kind: 'refused', data: { channel: 'job:report-progress', member: 'payload.jobId', reason: 'lacks' } });
+    expect(completed).toBe(true);
+
+    bus.destroy();
+  });
+
+  it('delegate() takes a refused frame for no word of the job: its silence goes on being counted, and the status is asked for', async () => {
+    vi.useFakeTimers();
+    const bus = new EventBus();
+    const mock = createMockTransport({
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
+    });
+    const m = new MarkNamespace(mock.transport, bus);
+    m.delegate(RID, { motivation: 'highlighting' }).subscribe({ next: () => {}, error: () => {} });
+
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(JOB_SILENCE_MS - 1_000);
+    bus.emit('job:complete', new FrameRefusal('job:complete', 'payload.jobId', 'lacks', { resourceId: RID, jobType: 'mark' }, undefined));
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(mock.emitSpy).toHaveBeenCalledWith('job:status-requested', { jobId: JID }, expect.objectContaining({ correlationId: expect.any(String) }));
+
+    bus.destroy();
+    vi.useRealTimers();
   });
 
   it('delegate() still errors when the failure IS terminal', async () => {

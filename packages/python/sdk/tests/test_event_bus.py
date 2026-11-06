@@ -5,21 +5,21 @@ import logging
 import pytest
 from aio import run, soon
 
-from semiont.bus import Delivered, FrameRefusal
+from semiont.bus import Delivered
 from semiont.channels import BECKON_HOVER, PANEL_CLOSE
 from semiont.event_bus import EventBus
 from semiont.events import Events
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.testing import FaultyTransport
-from semiont.transport import Frame
+from semiont.transport import Frame, FrameHub, FrameRefusal
 from semiont.types import BeckonHoverEvent
 
 ONE, OTHER = ResourceId("res-1"), ResourceId("res-2")
 
 
-async def numbers(frames: Events[Frame]) -> list[object]:
-    """What `n` each frame still to be read carries, once the bus has ended."""
-    return [frame.payload["n"] async for frame in frames]
+async def numbers(frames: Events[Frame | FrameRefusal]) -> list[object]:
+    """What `n` each frame still to be read carries, once the bus has ended; a refusal, as it is."""
+    return [frame.payload["n"] if isinstance(frame, Frame) else frame async for frame in frames]
 
 
 def test_a_reader_of_a_channel_does_not_see_a_scope_and_a_scope_sees_only_its_own() -> None:
@@ -79,8 +79,7 @@ def test_a_frame_carries_what_is_beside_its_payload() -> None:
         bus = EventBus()
         frames = bus.frames_on("match:search-requested")
         bus.emit("match:search-requested", {"n": 1}, correlation_id="cid-1")
-        frame = await soon(anext(frames))
-        assert (frame.channel, frame.correlation_id, frame.scope) == ("match:search-requested", "cid-1", None)
+        assert await soon(anext(frames)) == Frame(channel="match:search-requested", payload={"n": 1}, correlation_id="cid-1")
 
     run(scenario())
 
@@ -116,7 +115,7 @@ def test_by_type_a_frame_is_published_as_its_channel_writes_it_and_read_as_its_c
         bus.emit("panel:close", {})
         bus.destroy()
 
-        assert [dict(frame.payload) async for frame in raw] == [
+        assert [frame.payload if isinstance(frame, Frame) else frame async for frame in raw] == [
             {"annotationId": "ann-1"},
             {"annotationId": None},
             {"annotationId": 7},
@@ -125,10 +124,17 @@ def test_by_type_a_frame_is_published_as_its_channel_writes_it_and_read_as_its_c
         assert [heard async for heard in typed] == [
             Delivered(payload=BeckonHoverEvent(annotation_id=AnnotationId("ann-1"))),
             Delivered(payload=BeckonHoverEvent(annotation_id=None)),
-            FrameRefusal(channel="beckon:hover", member="annotationId", reason="malformed", payload={"annotationId": 7}),
+            FrameRefusal(
+                channel="beckon:hover",
+                member="payload.annotationId",
+                reason="malformed",
+                payload={"annotationId": 7},
+                scope=None,
+                correlation_id=None,
+            ),
             Delivered(payload=BeckonHoverEvent(annotation_id=AnnotationId("ann-2"))),
         ]
-        assert [dict(frame.payload) async for frame in nothing] == [{}]
+        assert [frame.payload if isinstance(frame, Frame) else frame async for frame in nothing] == [{}]
         assert PANEL_CLOSE.name == "panel:close"
 
     with caplog.at_level(logging.WARNING, logger="semiont.bus"):
@@ -162,5 +168,41 @@ def test_a_transport_delivers_into_the_bus_it_was_bridged_into_every_frame_whate
         assert await soon(numbers(heard)) == [1, 2, 3]
         assert await soon(numbers(scoped)) == []
         assert await soon(numbers(also)) == [2]
+
+    run(scenario())
+
+
+def test_a_frame_its_transport_refused_is_given_where_the_frame_would_have_been_and_a_typed_read_passes_it_on() -> None:
+    async def scenario() -> None:
+        hub, bus = FrameHub(), EventBus()
+        hub.bridge(bus)
+        carried, raw, among = hub.frames("beckon:hover"), bus.frames_on("beckon:hover"), bus.frames_among(["beckon:hover"])
+        typed, scoped = bus.frames(BECKON_HOVER), bus.frames_on("beckon:hover", scope=ONE)
+        refused = FrameRefusal(
+            channel="beckon:hover",
+            member="correlationId",
+            reason="malformed",
+            payload={"annotationId": "ann-1"},
+            scope=ONE,
+            correlation_id=None,
+        )
+        hub.deliver(refused)
+        hub.close()
+        bus.destroy()
+
+        assert [frame async for frame in carried] == [refused]
+        # Bridged into the client's bus, it is published to everyone, as a frame that came on a scope is.
+        unscoped = FrameRefusal(
+            channel="beckon:hover",
+            member="correlationId",
+            reason="malformed",
+            payload={"annotationId": "ann-1"},
+            scope=None,
+            correlation_id=None,
+        )
+        assert [frame async for frame in raw] == [unscoped]
+        assert [frame async for frame in among] == [unscoped]
+        assert [frame async for frame in typed] == [unscoped]
+        assert [frame async for frame in scoped] == []
 
     run(scenario())

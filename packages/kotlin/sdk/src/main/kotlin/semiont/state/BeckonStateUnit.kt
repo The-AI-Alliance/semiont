@@ -4,11 +4,13 @@ package semiont.state
 
 import semiont.SemiontClient
 import semiont.StateUnit
-import semiont.bus.decoded
+import semiont.bus.heard
 import semiont.channels.Channels
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
-import semiont.transport.Frame
+import semiont.transport.Carried
+import semiont.transport.Delivered
+import semiont.transport.FrameRefusal
 import semiont.transport.Variable
 import semiont.transport.Watched
 import semiont.types.BeckonFocusEvent
@@ -35,13 +37,7 @@ public class BeckonStateUnit @JvmExposeBoxed constructor(private val client: Sem
         // One reader of both, taken now, so what is said from here on is heard in the order it was said.
         val heard = client.bus.framesAmong(listOf(Channels.BECKON_HOVER.name, Channels.BROWSE_CLICK.name))
         tasks.run {
-            heard.collect { frame ->
-                try {
-                    heard(frame)
-                } catch (_: IllegalArgumentException) {
-                    // A frame that is not its channel's is nobody's to act on.
-                }
-            }
+            heard.collect { heard(it) }
         }
     }
 
@@ -51,13 +47,20 @@ public class BeckonStateUnit @JvmExposeBoxed constructor(private val client: Sem
         if (!closed) client.bus.publish(Channels.BECKON_FOCUS, BeckonFocusEvent(resourceId = resourceId, annotationId = annotationId), null, null)
     }
 
-    private fun heard(frame: Frame) {
-        if (frame.channel == Channels.BECKON_HOVER.name) {
-            val annotationId = decoded(Channels.BECKON_HOVER, frame.payload).annotationId
+    /** Act on what was heard. A frame refused, or one whose payload is not its channel's, is nobody's to act on. */
+    private fun heard(carried: Carried) {
+        if (carried.channel == Channels.BECKON_HOVER.name) {
+            val annotationId = when (val hover = heard(Channels.BECKON_HOVER, carried)) {
+                is Delivered -> hover.payload.annotationId
+                is FrameRefusal -> return
+            }
             hovered.set(annotationId)
             if (annotationId != null) client.bus.publish(Channels.BECKON_SPARKLE, BeckonSparkleEvent(annotationId = annotationId), null, null)
         } else {
-            focus(decoded(Channels.BROWSE_CLICK, frame.payload).annotationId)
+            when (val click = heard(Channels.BROWSE_CLICK, carried)) {
+                is Delivered -> focus(click.payload.annotationId)
+                is FrameRefusal -> Unit
+            }
         }
     }
 

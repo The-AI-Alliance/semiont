@@ -40,12 +40,12 @@ from semiont.errors import SemiontError
 from semiont.events import Events
 from semiont.identifiers import JobId, ResourceId
 from semiont.model import WireModel
-from semiont.namespaces.follow import Delegation, JobAttemptFailed, JobCompleted, JobCreated, JobProgressed
+from semiont.namespaces.follow import Delegation, JobAttemptFailed, JobCompleted, JobCreated, JobProgressed, JobRefused
 from semiont.state._jobs import cancelled
 from semiont.state._tasks import Tasks
 from semiont.state_unit import StateUnit
 from semiont.timing import DELEGATE_SILENCE_MS
-from semiont.transport import Frame, Transport
+from semiont.transport import Frame, FrameRefusal, Transport
 from semiont.types import (
     AnnotationSelector,
     AnnotationTarget,
@@ -147,9 +147,12 @@ class MarkStateUnit(StateUnit):
         self._progress_motivation.set(None)
         self._failure.set(None)
 
-    async def _listen(self, heard: Events[Frame]) -> None:
+    async def _listen(self, heard: Events[Frame | FrameRefusal]) -> None:
         async with heard:
             async for frame in heard:
+                if isinstance(frame, FrameRefusal):
+                    # A frame refused is nobody's to act on.
+                    continue
                 try:
                     self._heard(frame)
                 except ValidationError:
@@ -215,8 +218,8 @@ class MarkStateUnit(StateUnit):
                         created = job.job_id
                     case JobProgressed(data=progress):
                         self._progress.set(progress)
-                    case JobAttemptFailed() | JobCompleted():
-                        # An attempt that will be tried again, or the completion, which the end follows.
+                    case JobAttemptFailed() | JobRefused() | JobCompleted():
+                        # An attempt that will be tried again, a frame refused, or the completion, which the end follows.
                         pass
         except SemiontError as error:
             # Why it ended is said before the end itself. A cancelled job's commits stand, and its display stays to say so.

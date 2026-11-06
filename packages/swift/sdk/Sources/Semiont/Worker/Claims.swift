@@ -87,6 +87,7 @@ public actor Claims: AsyncSequence {
   public typealias Element = any HeldJob
   private let transport: any Transport
   private let timing: WorkerTiming
+  private let clock: any Clock<Duration>
   private let command: JobClaimCommand
   private let filters: [JSONValue]
   private let stream: AsyncStream<any HeldJob>
@@ -103,16 +104,20 @@ public actor Claims: AsyncSequence {
   private var open = false
   private var stopped = false
   private var stopping: Task<Void, Never>?
-  private var lastActivity: ContinuousClock.Instant?
+  private var sinceActivity: (@Sendable () -> Duration)?
   private var stallReported = false
 
-  init(accepts: [JobFilter], transport: any Transport, lifetime: Lifetime, timing: WorkerTiming) {
+  init(
+    accepts: [JobFilter], transport: any Transport, lifetime: Lifetime, timing: WorkerTiming,
+    clock: any Clock<Duration>
+  ) {
     self.command = JobClaimCommand(accepts: accepts)
     self.filters = accepts.compactMap { filter in
       (try? wirePayload(filter)).map(JSONValue.object)
     }
     self.transport = transport
     self.timing = timing
+    self.clock = clock
     (self.stream, self.jobs) = AsyncStream.makeStream()
     lifetime.onEnd { [weak self] in Task { await self?.abandon() } }
   }
@@ -151,6 +156,7 @@ public actor Claims: AsyncSequence {
     guard readers.isEmpty, !stopped else { return }
     let transport = transport
     let timing = timing
+    let clock = clock
     readers.append(
       Task { [weak self] in
         do {
@@ -168,7 +174,7 @@ public actor Claims: AsyncSequence {
     readers.append(
       Task { [weak self] in
         while !Task.isCancelled {
-          do { try await sleepMilliseconds(timing.stallCheckMs) } catch { return }
+          do { try await sleepMilliseconds(timing.stallCheckMs, on: clock) } catch { return }
           await self?.checkStall()
         }
       })
@@ -268,7 +274,7 @@ public actor Claims: AsyncSequence {
   }
 
   func active() {
-    lastActivity = .now
+    sinceActivity = stopwatch(clock)
     currentVitals.lastActivityAt = Date()
   }
 
@@ -284,10 +290,10 @@ public actor Claims: AsyncSequence {
   }
 
   private func checkStall() {
-    guard !stopped, !stallReported, let job = currentVitals.activeJob, let lastActivity,
+    guard !stopped, !stallReported, let job = currentVitals.activeJob, let sinceActivity,
       let lastActivityAt = currentVitals.lastActivityAt
     else { return }
-    let silence = lastActivity.duration(to: .now)
+    let silence = sinceActivity()
     let threshold = Duration.milliseconds(timing.stallMs)
     if silence > threshold {
       stallReported = true

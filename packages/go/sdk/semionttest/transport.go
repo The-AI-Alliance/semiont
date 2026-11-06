@@ -238,6 +238,14 @@ func (f *FaultyTransport) Deliver(frame semiont.Frame) {
 	f.hub.Deliver(frame)
 }
 
+// DeliverRefusal delivers refusal in place of a frame the bus carried and
+// this transport refused, as a transport does: to the request awaiting the
+// correlation id it carries, and to whoever listens on its channel.
+func (f *FaultyTransport) DeliverRefusal(refusal *semiont.FrameRefusal) {
+	f.router.RouteRefusal(refusal)
+	f.hub.DeliverRefusal(refusal)
+}
+
 // ── What a test reads ───────────────────────────────────────────────────
 
 // RequestLog is every request sent, in order.
@@ -417,7 +425,7 @@ func (f *FaultyTransport) arrive(reply semiont.Frame, copies int) {
 	}
 }
 
-func (f *FaultyTransport) Frames(ctx context.Context, channels ...bus.Channel) (iter.Seq[semiont.Frame], error) {
+func (f *FaultyTransport) Frames(ctx context.Context, channels ...bus.Channel) (iter.Seq2[semiont.Frame, error], error) {
 	if len(channels) == 0 {
 		return nil, fmt.Errorf("Frames names no channel to listen to")
 	}

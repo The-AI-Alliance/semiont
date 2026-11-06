@@ -18,7 +18,7 @@
 use crate::bus::{Typed, payload_of};
 use crate::channels::Channel;
 use crate::errors::TransportError;
-use crate::transport::{Envelope, Events, Frame, Lagged, STREAM_BACKLOG};
+use crate::transport::{Broadcast, Envelope, Events, Frame, FrameRefusal, Lagged, STREAM_BACKLOG};
 use crate::types::ResourceId;
 use futures_core::Stream;
 use serde_json::{Map, Value};
@@ -32,9 +32,9 @@ use tokio::sync::broadcast;
 type View = (String, Option<ResourceId>);
 
 struct Channels {
-    frames: HashMap<String, broadcast::Sender<Frame>>,
+    frames: HashMap<String, Broadcast>,
     /// The views of several channels at once, each with the channels it sees.
-    among: Vec<(Vec<String>, broadcast::Sender<Frame>)>,
+    among: Vec<(Vec<String>, Broadcast)>,
     /// How many readers each view has: what `emit` reports.
     observers: HashMap<View, usize>,
 }
@@ -51,30 +51,29 @@ impl Inner {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    fn emit(&self, channel: &str, payload: Map<String, Value>, envelope: Envelope) -> usize {
+    /// Publish a frame, or the refusal of one, into the view its channel and
+    /// scope name. How many readers that view had.
+    fn deliver(&self, carried: Result<Frame, FrameRefusal>) -> usize {
+        let (channel, scope) = match &carried {
+            Ok(frame) => (&frame.channel, &frame.scope),
+            Err(refusal) => (&refusal.channel, &refusal.scope),
+        };
         let mut channels = self.channels();
         let Some(channels) = channels.as_mut() else {
             return 0;
         };
         let observers = channels
             .observers
-            .get(&(channel.to_owned(), envelope.scope.clone()))
+            .get(&(channel.clone(), scope.clone()))
             .copied()
             .unwrap_or(0);
-        let frame = Frame {
-            channel: channel.to_owned(),
-            payload,
-            correlation_id: envelope.correlation_id,
-            scope: envelope.scope,
-            trace: None,
-        };
         for (seen, sender) in &channels.among {
             if seen.iter().any(|one| one == channel) {
-                let _ = sender.send(frame.clone());
+                let _ = sender.send(carried.clone());
             }
         }
         if let Some(sender) = channels.frames.get(channel) {
-            let _ = sender.send(frame);
+            let _ = sender.send(carried);
         }
         observers
     }
@@ -133,28 +132,29 @@ impl Inner {
 }
 
 /// The frames of one view: a channel's, or several channels', globally or in
-/// one scope.
+/// one scope; and the refusals published there in place of frames.
 pub struct BusFrames {
     bus: Arc<Inner>,
     /// What it reads, for the count `emit` reports.
     views: Vec<View>,
     scope: Option<ResourceId>,
-    events: Events<Frame>,
+    events: Events<Result<Frame, FrameRefusal>>,
 }
 
 impl BusFrames {
-    pub async fn next(&mut self) -> Option<Result<Frame, Lagged>> {
+    pub async fn next(&mut self) -> Option<Result<Result<Frame, FrameRefusal>, Lagged>> {
         std::future::poll_fn(|cx| Pin::new(&mut *self).poll_next(cx)).await
     }
 }
 
 impl Stream for BusFrames {
-    type Item = Result<Frame, Lagged>;
+    type Item = Result<Result<Frame, FrameRefusal>, Lagged>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
             match Pin::new(&mut self.events).poll_next(cx) {
-                Poll::Ready(Some(Ok(frame))) if frame.scope != self.scope => continue,
+                Poll::Ready(Some(Ok(Ok(frame)))) if frame.scope != self.scope => continue,
+                Poll::Ready(Some(Ok(Err(refusal)))) if refusal.scope != self.scope => continue,
                 other => return other,
             }
         }
@@ -206,7 +206,21 @@ impl EventBus {
     /// Publish a frame: globally, or into `envelope.scope`. How many readers
     /// its view had when it was published. A destroyed bus publishes nothing.
     pub fn emit(&self, channel: &str, payload: Map<String, Value>, envelope: Envelope) -> usize {
-        self.inner.emit(channel, payload, envelope)
+        self.inner.deliver(Ok(Frame {
+            channel: channel.to_owned(),
+            payload,
+            correlation_id: envelope.correlation_id,
+            scope: envelope.scope,
+            trace: None,
+        }))
+    }
+
+    /// Publish the refusal of a frame in its place, into the view its
+    /// channel and scope name: what a transport bridged into this bus does
+    /// with each frame it refuses that names its readers. How many readers
+    /// that view had.
+    pub fn emit_refusal(&self, refusal: FrameRefusal) -> usize {
+        self.inner.deliver(Err(refusal))
     }
 
     /// The frames published globally on `channel` from now on. A frame
@@ -286,14 +300,13 @@ impl ScopedEventBus {
         payload: Map<String, Value>,
         correlation_id: Option<String>,
     ) -> usize {
-        self.inner.emit(
-            channel,
+        self.inner.deliver(Ok(Frame {
+            channel: channel.to_owned(),
             payload,
-            Envelope {
-                correlation_id,
-                scope: Some(self.scope.clone()),
-            },
-        )
+            correlation_id,
+            scope: Some(self.scope.clone()),
+            trace: None,
+        }))
     }
 
     /// The frames published into this scope on `channel` from now on.
@@ -305,6 +318,7 @@ impl ScopedEventBus {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::transport::FrameRefusalReason;
     use serde_json::json;
 
     fn payload(n: u64) -> Map<String, Value> {
@@ -342,12 +356,12 @@ mod tests {
             frames.into_iter().map(|f| f.payload["n"].clone()).collect()
         };
         let mut drained = Vec::new();
-        while let Some(Ok(frame)) = global.next().await {
+        while let Some(Ok(Ok(frame))) = global.next().await {
             drained.push(frame);
         }
         assert_eq!(seen(drained), [json!(1)]);
         let mut drained = Vec::new();
-        while let Some(Ok(frame)) = one.next().await {
+        while let Some(Ok(Ok(frame))) = one.next().await {
             drained.push(frame);
         }
         assert_eq!(seen(drained), [json!(2)]);
@@ -389,7 +403,7 @@ mod tests {
         bus.destroy();
 
         let mut seen = Vec::new();
-        while let Some(Ok(frame)) = both.next().await {
+        while let Some(Ok(Ok(frame))) = both.next().await {
             seen.push((frame.channel, frame.payload["n"].clone()));
         }
         let said = |channel: &str, n: u64| (channel.to_owned(), json!(n));
@@ -426,5 +440,33 @@ mod tests {
         assert_eq!(bus.emit("beckon:focus", focus(1), Envelope::default()), 0);
         assert_eq!(bus.frames("beckon:focus").next().await, None);
         assert_eq!(bus.frames_among(&["beckon:focus"]).next().await, None);
+    }
+
+    #[tokio::test]
+    async fn a_refusal_is_published_into_the_view_its_channel_and_scope_name() {
+        let bus = EventBus::new();
+        let resource: ResourceId = "res-1".parse().unwrap();
+        let mut global = bus.frames("beckon:focus");
+        let mut scoped = bus.scope(&resource).frames("beckon:focus");
+        let mut among = bus.frames_among(&["beckon:focus"]);
+        let refusal = |scope: Option<ResourceId>| FrameRefusal {
+            channel: "beckon:focus".to_owned(),
+            member: "correlationId".to_owned(),
+            reason: FrameRefusalReason::Malformed,
+            payload: Some(Value::Object(focus(1))),
+            scope,
+            correlation_id: None,
+        };
+
+        assert_eq!(bus.emit_refusal(refusal(None)), 2);
+        assert_eq!(bus.emit_refusal(refusal(Some(resource.clone()))), 1);
+        bus.destroy();
+
+        assert_eq!(global.next().await, Some(Ok(Err(refusal(None)))));
+        assert_eq!(global.next().await, None);
+        assert_eq!(among.next().await, Some(Ok(Err(refusal(None)))));
+        assert_eq!(among.next().await, None);
+        assert_eq!(scoped.next().await, Some(Ok(Err(refusal(Some(resource))))));
+        assert_eq!(scoped.next().await, None);
     }
 }

@@ -8,12 +8,14 @@ package semiont
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"iter"
 	"slices"
 	"sync"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
 
 // Envelope is the routing beside a payload, never inside it: the correlation
@@ -38,6 +40,62 @@ type Frame struct {
 	// Trace is the trace the work done for the frame continues (Continuing);
 	// the zero TraceContext when it was sent under none.
 	Trace TraceContext
+}
+
+// FrameRefusal is what a channel's readers are given in place of a frame
+// refused for its first fault: by its transport, as one BusFrame does not
+// allow whose channel and scope name its readers, or by its channel's typed
+// reader, as one whose payload is not its channel's.
+type FrameRefusal struct {
+	// Channel is the channel the frame names.
+	Channel bus.Channel
+	// Member is the way from the frame to its first fault: the names of the
+	// members it is within, and its own, joined by dots. A fault of the
+	// frame's payload is within `payload`.
+	Member string
+	// Reason is why the frame is refused at Member.
+	Reason bus.FrameRefusalReason
+	// Payload is the frame's payload as it came; nil when it carried none.
+	Payload json.RawMessage
+	// Envelope is the scope the frame names, and its correlation id when it
+	// carries one BusFrame allows: empty when its correlation id cannot be
+	// read. A request awaiting the reply that correlation id names is told
+	// of the refusal (ReplyRouter.RouteRefusal).
+	Envelope
+}
+
+// Error is what every SDK says of a frame its channel's reader is given a
+// refusal of.
+func (r *FrameRefusal) Error() string {
+	return fmt.Sprintf("a frame on %s is not that channel's: %s", r.Channel, required.Fault{Member: r.Member, Reason: r.Reason})
+}
+
+// arrival is what a channel's readers are given: a frame, or the refusal of
+// one in its place.
+type arrival struct {
+	frame   Frame
+	refusal *FrameRefusal
+}
+
+// told is the arrival as a sequence of frames gives it: the frame and no
+// error, or the channel and envelope the refused frame names, with its
+// refusal as the error.
+func (a arrival) told() (Frame, error) {
+	if a.refusal != nil {
+		return Frame{Channel: a.refusal.Channel, Envelope: a.refusal.Envelope}, a.refusal
+	}
+	return a.frame, nil
+}
+
+// toldFrames is arrivals, each as told gives it.
+func toldFrames(arrivals iter.Seq[arrival]) iter.Seq2[Frame, error] {
+	return func(yield func(Frame, error) bool) {
+		for one := range arrivals {
+			if !yield(one.told()) {
+				return
+			}
+		}
+	}
 }
 
 // queue is one listener's: every item given to it, in order, however far
@@ -195,11 +253,14 @@ func (b *broadcast[T]) close() {
 	clear(b.listeners)
 }
 
-// FrameSink is where a transport delivers every frame it receives: its
-// client's own bus.
+// FrameSink is where a transport delivers every frame it receives, and the
+// refusal of each frame it refuses that names its readers: its client's own
+// bus.
 type FrameSink interface {
 	// Deliver takes one frame, as the transport delivered it.
 	Deliver(frame Frame)
+	// DeliverRefusal takes the refusal of one frame, in its place.
+	DeliverRefusal(refusal *FrameRefusal)
 }
 
 // FrameHub is the frames of every channel anybody listens to, a broadcast per
@@ -208,43 +269,44 @@ type FrameSink interface {
 // delivers.
 type FrameHub struct {
 	mu       sync.Mutex
-	channels map[bus.Channel]*broadcast[Frame]
+	channels map[bus.Channel]*broadcast[arrival]
 	bridged  []FrameSink
 	closed   bool
 }
 
 // NewFrameHub is a hub with no listener.
 func NewFrameHub() *FrameHub {
-	return &FrameHub{channels: map[bus.Channel]*broadcast[Frame]{}}
+	return &FrameHub{channels: map[bus.Channel]*broadcast[arrival]{}}
 }
 
 // Frames is the frames delivered on any of channels from now on, in the order
-// they were delivered: one listener, taken when Frames is called, and let go
-// when the loop over what it returns stops, ctx is done or the hub closes. Of
-// a closed hub, a sequence that has ended.
-func (h *FrameHub) Frames(ctx context.Context, channels ...bus.Channel) iter.Seq[Frame] {
-	q := newQueue[Frame]()
+// they were delivered, the refusal of a frame refused in its place as its
+// error: one listener, taken when Frames is called, and let go when the loop
+// over what it returns stops, ctx is done or the hub closes. Of a closed hub,
+// a sequence that has ended.
+func (h *FrameHub) Frames(ctx context.Context, channels ...bus.Channel) iter.Seq2[Frame, error] {
+	q := newQueue[arrival]()
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.closed {
 		q.close()
-		return q.all(nil, func() {})
+		return toldFrames(q.all(nil, func() {}))
 	}
-	joined := make([]*broadcast[Frame], 0, len(channels))
+	joined := make([]*broadcast[arrival], 0, len(channels))
 	for _, channel := range channels {
 		b, ok := h.channels[channel]
 		if !ok {
-			b = newBroadcast[Frame]()
+			b = newBroadcast[arrival]()
 			h.channels[channel] = b
 		}
 		b.join(q)
 		joined = append(joined, b)
 	}
-	return q.all(ctx.Done(), func() {
+	return toldFrames(q.all(ctx.Done(), func() {
 		for _, b := range joined {
 			b.leave(q)
 		}
-	})
+	}))
 }
 
 // Bridge delivers into sink every frame delivered here from now on, whatever
@@ -262,18 +324,37 @@ func (h *FrameHub) Bridge(sink FrameSink) {
 // Deliver hands frame to every bus bridged into, and to its channel's
 // listeners.
 func (h *FrameHub) Deliver(frame Frame) {
-	h.mu.Lock()
-	bridged := slices.Clone(h.bridged)
-	b, ok := h.channels[frame.Channel]
-	h.mu.Unlock()
+	bridged, listening := h.listeners(frame.Channel)
 	everyone := frame
 	everyone.Scope = api.ResourceId{}
 	for _, sink := range bridged {
 		sink.Deliver(everyone)
 	}
-	if ok {
-		b.give(frame)
+	if listening != nil {
+		listening.give(arrival{frame: frame})
 	}
+}
+
+// DeliverRefusal hands the refusal of a frame, in its place, to every bus
+// bridged into, and to its channel's listeners.
+func (h *FrameHub) DeliverRefusal(refusal *FrameRefusal) {
+	bridged, listening := h.listeners(refusal.Channel)
+	everyone := *refusal
+	everyone.Scope = api.ResourceId{}
+	for _, sink := range bridged {
+		sink.DeliverRefusal(&everyone)
+	}
+	if listening != nil {
+		listening.give(arrival{refusal: refusal})
+	}
+}
+
+// listeners is the buses bridged into, and channel's listeners: nil when
+// nobody has listened to it.
+func (h *FrameHub) listeners(channel bus.Channel) ([]FrameSink, *broadcast[arrival]) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return slices.Clone(h.bridged), h.channels[channel]
 }
 
 // Close ends every listener's sequence, and every one taken later.

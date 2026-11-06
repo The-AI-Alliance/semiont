@@ -4,7 +4,8 @@ package semiont_test
 // refused before it is decoded, wherever the fault is, as every SDK refuses
 // it: over the bus, as a *TransportError coded error that says the payload is
 // not its channel's and names the fault; over HTTP, as one that says the
-// answer is not its declared body.
+// answer is not its declared body. A reply its transport refused fails its
+// request at once, as one whose payload is not its channel's does.
 
 import (
 	"context"
@@ -13,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
@@ -137,5 +139,49 @@ func TestAnAnswerWithAFaultIsRefusedNamingIt(t *testing.T) {
 		}
 		transport.Close()
 		gateway.Close()
+	}
+}
+
+// A reply its transport refused is told at once to the request awaiting the
+// correlation id the refusal carries, which fails with it as it fails for a
+// reply whose payload is not its channel's, in the words a frame's refusal
+// is said in. A refusal that carries no correlation id reaches no request.
+func TestARequestIsToldAtOnceOfAReplyItsTransportRefused(t *testing.T) {
+	// The reply the gateway answers with is lost on its way, and the refusals are delivered by hand.
+	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{Schedule: []semionttest.FaultAction{semionttest.DropReply{}}})
+	defer transport.Close()
+	transport.QueueReply(bus.BrowseResourceRequested.Request().Channel(), json.RawMessage(`{"resource":`+aResource+`,"lastSequence":1}`))
+	resource, err := api.ParseResourceId("res-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	asked := make(chan error, 1)
+	go func() {
+		_, err := semiont.Request(context.Background(), semiont.NewWire(transport), bus.BrowseResourceRequested, api.BrowseResourceRequest{ResourceId: resource}, time.Minute)
+		asked <- err
+	}()
+	deadline := time.Now().Add(time.Second)
+	for len(transport.PendingReplies()) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("the request awaits no reply")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	awaited := transport.PendingReplies()[0]
+	result := bus.BrowseResourceRequested.Result().Channel()
+
+	transport.DeliverRefusal(&semiont.FrameRefusal{Channel: result, Member: "correlationId", Reason: bus.FrameRefusalReasonMalformed})
+	select {
+	case err := <-asked:
+		t.Fatalf("a refusal that carries no correlation id ended the request: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	transport.DeliverRefusal(&semiont.FrameRefusal{Channel: result, Member: "addedByALaterGateway", Reason: bus.FrameRefusalReasonMalformed, Envelope: semiont.Envelope{CorrelationID: awaited}})
+	select {
+	case err := <-asked:
+		refusedAs(t, "a reply its transport refused", err, "a frame on browse:resource-result is not that channel's: its `addedByALaterGateway` is malformed")
+	case <-time.After(5 * time.Second):
+		t.Fatal("the request was not told of the reply its transport refused")
 	}
 }

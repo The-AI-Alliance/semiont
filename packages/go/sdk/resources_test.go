@@ -25,6 +25,7 @@ import (
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/mediatypes"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/semionttest"
@@ -234,14 +235,14 @@ func TestEveryReaderOfAResourceGivesWhatTheTableSays(t *testing.T) {
 	shapes := map[string]bool{}
 	for _, raw := range table.Cases {
 		var stated struct {
-			Why                   string           `json:"why"`
-			Resource              json.RawMessage  `json:"resource"`
-			EntityTypes           []string         `json:"entityTypes"`
-			PrimaryRepresentation json.RawMessage  `json:"primaryRepresentation"`
-			PrimaryMediaType      *string          `json:"primaryMediaType"`
-			Refused               *bool            `json:"refused"`
-			Member                *string          `json:"member"`
-			Reason                *required.Reason `json:"reason"`
+			Why                   string                  `json:"why"`
+			Resource              json.RawMessage         `json:"resource"`
+			EntityTypes           []string                `json:"entityTypes"`
+			PrimaryRepresentation json.RawMessage         `json:"primaryRepresentation"`
+			PrimaryMediaType      *string                 `json:"primaryMediaType"`
+			Refused               *bool                   `json:"refused"`
+			Member                *string                 `json:"member"`
+			Reason                *bus.FrameRefusalReason `json:"reason"`
 		}
 		strictly(t, raw, &stated)
 		// What the SDK holds a resource to before it decodes it.
@@ -251,7 +252,7 @@ func TestEveryReaderOfAResourceGivesWhatTheTableSays(t *testing.T) {
 			if want := (required.Fault{Member: *stated.Member, Reason: *stated.Reason}); !faulty || fault != want {
 				t.Errorf("%s: has the fault %+v (%v), and the table says it is refused for %+v", stated.Why, fault, faulty, want)
 			}
-			if *stated.Member == "representations" && *stated.Reason == required.Malformed {
+			if *stated.Member == "representations" && *stated.Reason == bus.FrameRefusalReasonMalformed {
 				// A resource no reply brought can reach the readers, which refuse it.
 				var resource api.ResourceDescriptor
 				if err := json.Unmarshal(stated.Resource, &resource); err != nil {

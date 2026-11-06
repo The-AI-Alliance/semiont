@@ -270,7 +270,11 @@ async fn answer(archivist: &Archivist, bus: &Bus, frame: Frame) {
 async fn next(frames: &mut Frames, channel: &str) -> Option<Frame> {
     loop {
         match frames.next().await? {
-            Ok(frame) => return Some(frame),
+            Ok(Ok(frame)) => return Some(frame),
+            Ok(Err(refusal)) => logging::error(
+                "A frame refused",
+                json!({ "component": "archivist", "channel": channel, "member": refusal.member, "reason": refusal.reason.as_str() }),
+            ),
             Err(lagged) => logging::error(
                 "Frames missed",
                 json!({ "component": "archivist", "channel": channel, "missed": lagged.0 }),

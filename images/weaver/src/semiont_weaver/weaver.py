@@ -26,7 +26,7 @@ from semiont.channels import WEAVE_APPLIED, WEAVE_REBUILD, WEAVE_REBUILD_FAILED,
 from semiont.errors import SemiontError
 from semiont.identifiers import ResourceId
 from semiont.model import written
-from semiont.transport import Frame, FrameSink, Transport
+from semiont.transport import Frame, FrameRefusal, FrameSink, Transport
 from semiont.types import CommandError, ResourceDescriptor, StoredEventResponse, WeaveApplied
 from semiont_graph.codec import intended_graph_annotation
 from semiont_graph.interface import GraphDatabase
@@ -77,7 +77,10 @@ class _Delivered(FrameSink):
         self._weaver: Final = weaver
 
     @override
-    def deliver(self, frame: Frame) -> None:
+    def deliver(self, frame: Frame | FrameRefusal) -> None:
+        if isinstance(frame, FrameRefusal):
+            # A frame refused is nothing to act on.
+            return
         self._weaver.delivered(frame)
 
 

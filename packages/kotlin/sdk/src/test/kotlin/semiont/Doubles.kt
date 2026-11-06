@@ -12,12 +12,14 @@ import semiont.bus.OPERATIONS
 import semiont.errors.SemiontError
 import semiont.identifiers.ResourceId
 import semiont.transport.Broadcast
+import semiont.transport.Carried
 import semiont.transport.ConnectionState
 import semiont.transport.Content
 import semiont.transport.ContentStream
 import semiont.transport.ContentTransport
 import semiont.transport.Events
 import semiont.transport.Frame
+import semiont.transport.FrameRefusal
 import semiont.transport.FrameSink
 import semiont.transport.GatewayOperations
 import semiont.transport.PendingReply
@@ -43,6 +45,12 @@ import java.util.concurrent.CopyOnWriteArrayList
 internal data class Did(val route: String, val name: String, val sends: JsonObject)
 
 internal fun obj(vararg pairs: Pair<String, JsonElement>) = JsonObject(mapOf(*pairs))
+
+/** This as the frame it is; a test that reads a frame's refusal here fails. */
+internal fun Carried.frame(): Frame = when (this) {
+    is Frame -> this
+    is FrameRefusal -> throw AssertionError("refused: $this")
+}
 
 /**
  * A transport, a content transport and a gateway in one, which keep what each
@@ -82,7 +90,7 @@ internal class Recording : Transport, GatewayOperations, ContentTransport {
     override fun emitFuture(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): CompletableFuture<Long?> =
         throw UnsupportedOperationException("the client emits by its own future")
 
-    override fun frames(channel: String): Events<Frame> = Broadcast<Frame>().listen()
+    override fun frames(channel: String): Events<Carried> = Broadcast<Carried>().listen()
 
     override fun isSubscribed(channel: String): Boolean = true
 

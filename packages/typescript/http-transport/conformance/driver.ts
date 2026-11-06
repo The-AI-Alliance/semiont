@@ -13,6 +13,7 @@ import { createInterface } from 'node:readline';
 import { BehaviorSubject } from 'rxjs';
 import {
   Bus,
+  FrameRefusal,
   SemiontError,
   accessToken,
   baseUrl,
@@ -165,7 +166,13 @@ const operations: Record<string, (args: Arguments, id: number) => Promise<unknow
     const channel = text(args, 'channel');
     opened()
       .frames(channel as keyof EventMap)
-      .subscribe((frame) =>
+      .subscribe((frame) => {
+        // The suite's backend sends only frames BusFrame allows, and the driver's lines have none for a
+        // refusal: a frame the transport refused is its bug, which ends the driver, uncaught.
+        if (frame.payload instanceof FrameRefusal) {
+          const { reason, member } = frame.payload;
+          throw new Error(`the transport refused a frame on ${channel}: ${reason}, at its \`${member}\``);
+        }
         say({
           frame: {
             channel,
@@ -173,8 +180,8 @@ const operations: Record<string, (args: Arguments, id: number) => Promise<unknow
             ...(frame.correlationId === undefined ? {} : { correlationId: frame.correlationId }),
             ...(frame.scope === undefined ? {} : { scope: frame.scope }),
           },
-        }),
-      );
+        });
+      });
   },
 
   'subscribe-resource'(args) {

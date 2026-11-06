@@ -16,16 +16,21 @@
  *   refusal a case scripted (`answer`), reads one whole and closes its
  *   connection with no answer (`leaveUnanswered`), passes one on and closes its
  *   connection with none of the gateway's answer written (`loseAnswer`), and
- *   passes a stream on a few bytes at a time (`rechunk`).
+ *   passes a stream on a few bytes at a time (`rechunk`);
+ * - it writes onto the client's stream a frame the gateway never sends
+ *   (`carry`): a frame BusFrame refuses, or one whose payload is not its
+ *   channel's, as a client meets one from a gateway newer or older than it.
  *
  * Everything else passes through untouched, streams included. The gateway
- * behind it is the real one. `answer` is the one place the proxy speaks for
- * it, and the caller holds what it says to the spec before using it.
+ * behind it is the real one. `answer` and `carry` are the two places the
+ * proxy speaks for it: the caller holds what `answer` says to the spec before
+ * using it, and what `carry` writes is recorded among the events its stream
+ * carried.
  */
 import { createServer, request, type IncomingHttpHeaders, type OutgoingHttpHeaders, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
 
-/** One Server-Sent Event a stream carried, as the gateway wrote it. */
+/** One Server-Sent Event a stream carried, as the gateway wrote it, or as `carry` wrote it in the gateway's place. */
 export interface CarriedEvent {
   event: string;
   id: string | undefined;
@@ -105,18 +110,31 @@ export interface ClientProxy {
   loseAnswer(match: (r: ProxiedRequest) => boolean, times: number): void;
   /** Pass every stream on `bytes` at a time, each piece written on its own. */
   rechunk(bytes: number): void;
+  /**
+   * Write a `bus-event` whose `data` is `data` onto the stream opened last of
+   * those still open, between two of the events the gateway writes, and record
+   * it among the events that stream carried. It carries no `id`.
+   */
+  carry(data: string): void;
   close(): Promise<void>;
 }
 
-/** Reads Server-Sent Events out of a byte stream, whatever the chunks it arrives in. */
-function eventReader(onEvent: (event: string, id: string | undefined, data: string) => void): (chunk: Buffer) => void {
+/** What reads Server-Sent Events out of a byte stream, whatever the chunks it arrives in. */
+interface EventReader {
+  read(chunk: Buffer): void;
+  /** Whether everything read so far ends between two events, so an event written now is one of its own. */
+  between(): boolean;
+}
+
+function eventReader(onEvent: (event: string, id: string | undefined, data: string) => void): EventReader {
   const decoder = new TextDecoder();
   let buffer = '';
   let event = '';
   let id: string | undefined;
   let data: string[] = [];
   let sawData = false;
-  return (chunk) => {
+  const between = (): boolean => buffer === '' && event === '' && id === undefined && !sawData;
+  const read = (chunk: Buffer): void => {
     buffer += decoder.decode(chunk, { stream: true });
     let newline: number;
     while ((newline = buffer.indexOf('\n')) >= 0) {
@@ -141,6 +159,7 @@ function eventReader(onEvent: (event: string, id: string | undefined, data: stri
       }
     }
   };
+  return { read, between };
 }
 
 const mediaType = (headers: IncomingHttpHeaders): string => (headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase();
@@ -158,6 +177,8 @@ export async function startClientProxy(gatewayOrigin: string): Promise<ClientPro
   const unanswering: Array<{ match: (r: ProxiedRequest) => boolean; left: number }> = [];
   const losing: Array<{ match: (r: ProxiedRequest) => boolean; left: number }> = [];
   let pieceBytes: number | undefined;
+  /** Each stream still open, by the request it answers, in the order they opened: what `carry` writes onto. */
+  const open = new Map<ProxiedRequest, (event: Buffer) => void>();
 
   const wake = () => {
     const waiting = waiters;
@@ -219,19 +240,37 @@ export async function startClientProxy(gatewayOrigin: string): Promise<ClientPro
           return;
         }
 
-        const read = eventReader((event, id, data) => {
+        const reader = eventReader((event, id, data) => {
           recorded.events.push({ event, id, data, at: ++clock });
           wake();
         });
         res.socket?.setNoDelay(true);
         let writing = Promise.resolve();
-        answer.on('data', (chunk: Buffer) => {
-          read(chunk);
+        const write = (chunk: Buffer): void => {
           const size = pieceBytes;
           if (size === undefined) res.write(chunk);
           else writing = writing.then(() => inPieces(res, chunk, size));
+        };
+        // Events `carry` wrote while the gateway was midway through one of its own, written once it is done.
+        let waiting: Buffer[] = [];
+        const written = (): void => {
+          for (const event of waiting) {
+            write(event);
+            reader.read(event);
+          }
+          waiting = [];
+        };
+        open.set(recorded, (event) => {
+          waiting.push(event);
+          if (reader.between()) written();
+        });
+        answer.on('data', (chunk: Buffer) => {
+          reader.read(chunk);
+          write(chunk);
+          if (reader.between()) written();
         });
         answer.on('end', () => void writing.then(() => res.end()));
+        res.on('close', () => open.delete(recorded));
       },
     );
     upstream.on('error', () => res.destroy());
@@ -396,6 +435,12 @@ export async function startClientProxy(gatewayOrigin: string): Promise<ClientPro
     },
     rechunk(bytes) {
       pieceBytes = bytes;
+    },
+    carry(data) {
+      const streams = [...open.values()];
+      const last = streams.at(-1);
+      if (last === undefined) throw new Error('no stream is open to carry the frame');
+      last(Buffer.from(`event: bus-event\ndata: ${data}\n\n`));
     },
     close: () =>
       new Promise<void>((resolve) => {

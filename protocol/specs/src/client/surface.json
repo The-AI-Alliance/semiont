@@ -1456,13 +1456,15 @@
     },
     {
       "module": "bus",
-      "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps.",
+      "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps; and what a transport delivers in place of a frame it refuses, and why it refuses it.",
       "where": {
         "csharp": ["packages/csharp/sdk/src/Semiont"],
         "swift": [
-          "packages/swift/sdk/Sources/Semiont/Bus/Bus.swift"
+          "packages/swift/sdk/Sources/Semiont/Bus/Bus.swift",
+          "packages/swift/sdk/Sources/Semiont/Bus/Typed.swift"
         ],
         "typescript": [
+          "packages/typescript/core/src/bus.ts",
           "packages/typescript/core/src/bus-request.ts",
           "packages/typescript/core/src/persisted-events.ts"
         ],
@@ -1501,6 +1503,38 @@
           "kind": "constant",
           "absent": {
             "rust": "Rust tells the record's events by their channels' type, `Recorded`."
+          }
+        },
+        {
+          "member": "FrameRefusal",
+          "kind": "type",
+          "notYetReached": {
+            "csharp": "C#'s transport does not yet refuse a frame; its frame catch-up hands out the refusal."
+          }
+        },
+        {
+          "member": "FrameRefusalReason",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript's refusal states its reason as one of two strings, `lacks` and `malformed`.",
+            "python": "Python's refusal states its reason as a Literal of the two spellings, `lacks` and `malformed`."
+          },
+          "notYetReached": {
+            "csharp": "C# names a fault's reason only inside its reader; its frame catch-up hands it out with the refusal."
+          }
+        },
+        {
+          "member": "Carried",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript's transport delivers a refusal where a frame's payload would be, on the frame's envelope (`BusFrame<P | FrameRefusal>`), as its client's bus does.",
+            "rust": "Rust's transport delivers a frame or its refusal as a `Result<Frame, FrameRefusal>`.",
+            "python": "Python's transport delivers a frame or its refusal as the union `Frame | FrameRefusal`.",
+            "go": "Go's transport delivers a frame or, as its error, its refusal (`iter.Seq2[Frame, error]`).",
+            "swift": "Swift's transport does not yet deliver a frame's refusal; its catch-up says how."
+          },
+          "notYetReached": {
+            "csharp": "C#'s transport does not yet deliver a frame's refusal; its frame catch-up says how."
           }
         }
       ]
@@ -1951,7 +1985,8 @@
           "packages/swift/sdk/Sources/SemiontTesting/Liveness.swift",
           "packages/swift/sdk/Sources/SemiontTesting/ScriptedTransport.swift",
           "packages/swift/sdk/Sources/SemiontTesting/Sessions.swift",
-          "packages/swift/sdk/Sources/SemiontTesting/SharedStorage.swift"
+          "packages/swift/sdk/Sources/SemiontTesting/SharedStorage.swift",
+          "packages/swift/sdk/Sources/SemiontTesting/TestClock.swift"
         ],
         "typescript": [
           "packages/typescript/core/src/liveness-axioms.ts",
@@ -2086,7 +2121,7 @@
     },
     {
       "module": "refusals",
-      "docs": "What every SDK says of the first fault a body has as a component schema, as it refuses it (`it has no `x``, `its `x` is malformed`, `it is malformed`), or nothing when the body has none: for an SDK whose HTTP transport is a package of its own, which reads its answers by it. Held by the table of what each schema requires (packages/codegen/schemas/required-shapes.mjs).",
+      "docs": "The first fault a body has as a component schema, and what every SDK says of it as it refuses it (`it has no `x``, `its `x` is malformed`, `it is malformed`): for an SDK whose HTTP transport is a package of its own, which reads its answers and holds its stream's frames by them. Held by the table of what each schema requires (packages/codegen/schemas/required-shapes.mjs).",
       "where": {
         "typescript": [
           "packages/typescript/core/src/required.ts"
@@ -2115,6 +2150,43 @@
           "member": "faultSaid",
           "kind": "function",
           "absent": {
+            "typescript": "TypeScript's transport finds a body's fault with faultOf and says it with said.",
+            "python": "Its HTTP transport is in the SDK's own package, and reads its answers by the table there.",
+            "go": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
+            "kotlin": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
+            "swift": "Its HTTP transport is in the SDK's own package.",
+            "csharp": "Its HTTP transport is in the SDK's own assembly."
+          }
+        },
+        {
+          "member": "faultOf",
+          "kind": "function",
+          "absent": {
+            "rust": "Rust's transport crate is told a body's fault in words (fault_said), and a refused frame's as its refusal (FrameRefusal::of).",
+            "python": "Its HTTP transport is in the SDK's own package, and reads its answers by the table there.",
+            "go": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
+            "kotlin": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
+            "swift": "Its HTTP transport is in the SDK's own package.",
+            "csharp": "Its HTTP transport is in the SDK's own assembly."
+          }
+        },
+        {
+          "member": "said",
+          "kind": "function",
+          "absent": {
+            "rust": "Rust's transport crate is told a body's fault in words (fault_said), and a refused frame's as its refusal (FrameRefusal::of).",
+            "python": "Its HTTP transport is in the SDK's own package, and reads its answers by the table there.",
+            "go": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
+            "kotlin": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
+            "swift": "Its HTTP transport is in the SDK's own package.",
+            "csharp": "Its HTTP transport is in the SDK's own assembly."
+          }
+        },
+        {
+          "member": "Fault",
+          "kind": "type",
+          "absent": {
+            "rust": "Rust's transport crate is told a body's fault in words (fault_said), and a refused frame's as its refusal (FrameRefusal::of).",
             "python": "Its HTTP transport is in the SDK's own package, and reads its answers by the table there.",
             "go": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
             "kotlin": "Its HTTP transport is in the SDK's own module, and reads its answers by the table there.",
@@ -2178,7 +2250,7 @@
           "renewKept": ["Clock"],
           "ServiceToken": ["Clock"],
           "AgentToken": ["Clock"],
-          "FollowTiming": ["Clock"],
+          "StoragePersister": ["Clock"],
           "sessionFromKept": ["Clock"],
           "HttpSessionFactory": ["Clock"],
           "SemiontBrowserConfig": ["Clock"],
@@ -2247,32 +2319,6 @@
           "describeConnectionFuture": "It runs on a scope of Dispatchers.Default.",
           "sessionFromKeptFuture": "It runs on a scope of Dispatchers.Default, and the session it opens renews by the system clock.",
           "createTestSessionFuture": "It runs on a scope of Dispatchers.Default."
-        },
-        "swift": {
-          "SemiontClient": "Takes no clock: what it makes waits on the continuous clock.",
-          "HttpTransport": "Takes no clock: its stream, retries and deadlines wait through sleepMilliseconds and within, on the continuous clock.",
-          "Cache": "Takes no clock: its save debounce and invalidation window waits on the continuous clock.",
-          "HoverDwell": "Its public initializer passes ContinuousClock() to a package one that takes a clock.",
-          "SearchPipeline": "Its public initializer passes ContinuousClock() to a package one that takes a clock.",
-          "subscribeDiscovery": "Its interval waits on the continuous clock.",
-          "httpDiscovery": "Its deadline waits on the continuous clock.",
-          "retryWithBackoff": "Its pauses wait through sleepMilliseconds, on the continuous clock.",
-          "signInDevice": "The device grant reads ContinuousClock.",
-          "renewKept": "The issuer's deadline waits on the continuous clock.",
-          "ServiceToken": "Its hold reads ContinuousClock, and its renewal waits on it.",
-          "AgentToken": "It keeps the clock of its ServiceToken, which takes none yet.",
-          "FollowTiming": "Its public initializer passes ContinuousClock() to a package one that takes a clock.",
-          "sessionFromKept": "The session it makes renews on the continuous clock.",
-          "HttpSessionFactory": "Its sessions keep the continuous clock.",
-          "SemiontBrowserConfig": "Takes no clock: the sign-in its browser completes waits on the continuous clock.",
-          "SemiontClient.fromHttp": "Takes no clock: the transport it builds waits on the continuous clock.",
-          "signOut": "The revocation's deadline waits on the continuous clock.",
-          "whoAmI": "Its deadline waits on the continuous clock.",
-          "beginAuthorization": "The issuer's deadline waits on the continuous clock.",
-          "completeAuthorization": "The issuer's deadline waits on the continuous clock.",
-          "describeConnection": "The transport it builds waits on the continuous clock.",
-          "ScriptedSessions": "Its sessions keep the continuous clock.",
-          "LivenessSpec": "The liveness check waits on the continuous clock."
         }
       }
     },
@@ -2318,6 +2364,8 @@
         "swift": {
           "HttpTransport": ["RandomNumberGenerator"],
           "retryWithBackoff": ["RandomNumberGenerator"],
+          "renewKept": ["RandomNumberGenerator"],
+          "AgentToken": ["RandomNumberGenerator"],
           "sessionFromKept": ["RandomNumberGenerator"],
           "HttpSessionFactory": ["RandomNumberGenerator"],
           "SemiontBrowserConfig": ["RandomNumberGenerator"],
@@ -2373,17 +2421,6 @@
           "retryWithBackoffFuture": "retryWithBackoff draws its jitter from Random.Default.",
           "sessionFromKeptFuture": "The session it opens draws its renewal retry from Random.Default.",
           "describeConnectionFuture": "The transport it builds draws its emit retry from Random.Default."
-        },
-        "swift": {
-          "HttpTransport": "The stream's reconnect and the emit retry draw Int.random(in:) from the system generator.",
-          "retryWithBackoff": "Its jitter draws Int.random(in:) from the system generator.",
-          "sessionFromKept": "The session it makes draws its renewal retry from the system generator.",
-          "HttpSessionFactory": "Its sessions draw their renewal retry from the system generator.",
-          "SemiontBrowserConfig": "The sign-in its browser completes builds a transport that draws from the system generator.",
-          "SemiontClient.fromHttp": "The transport it builds draws from the system generator.",
-          "describeConnection": "The transport it builds draws its emit retry from the system generator.",
-          "ScriptedSessions": "Its sessions draw their renewal retry from the system generator.",
-          "TestSessionOptions": "The test session draws from the system generator."
         }
       }
     }

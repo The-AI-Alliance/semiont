@@ -82,9 +82,10 @@ private func status(_ session: SemiontSession) -> String {
       let clock = TestClock()
       let reconnectMs = 200
       let session = SemiontSession(
-        kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
-        renew: { try await script.renew($0) }, validate: { try await script.validate($0) },
-        reconnectMs: reconnectMs, clock: clock,
+        kb: target(), client: try await SemiontClient(transport: ProbeTransport(), clock: clock),
+        kept: kept, renew: { try await script.renew($0) },
+        validate: { try await script.validate($0) }, reconnectMs: reconnectMs,
+        random: RandomSource(SystemRandomNumberGenerator()),
         onAuthFailed: { reason in told.withLock { $0.append(reason.rawValue) } })
       defer { session.dispose() }
       let events = session.errors()
@@ -128,7 +129,7 @@ private func status(_ session: SemiontSession) -> String {
         if case .string(let error) = row["error"] { [error] } else { [] }
       #expect(told.withLock { $0 } == expectedTold)
       if !expectedErrors.isEmpty {
-        try await within(testDeadlineMs) {
+        try await withinTestDeadline {
           for await seen in errors where seen.count >= expectedErrors.count { return }
           throw CancellationError()
         }
@@ -140,9 +141,9 @@ private func status(_ session: SemiontSession) -> String {
         let end = try required(expected, "ends").text
         // Move through the first retry window, then leave the clock stopped.
         clock.advance(by: .milliseconds(reconnectMs * 6 / 5))
-        try await within(testDeadlineMs) {
+        try await withinTestDeadline {
           while await script.counts().1 < renewals || status(session) != end {
-            try await sleepMilliseconds(1)
+            try await Task.sleep(for: .milliseconds(1))
           }
         }
         let after = await script.counts()
@@ -153,7 +154,7 @@ private func status(_ session: SemiontSession) -> String {
         #expect(status(session) == end)
       } else if row["kept"] == .bool(false) {
         clock.advance(by: .milliseconds(reconnectMs * 6 / 5))
-        try await sleepMilliseconds(240)
+        try await Task.sleep(for: .milliseconds(240))
         let after = await script.counts()
         #expect(after == counts)
       }
@@ -173,18 +174,18 @@ private func status(_ session: SemiontSession) -> String {
     kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
     renew: { _ in
       calls.withLock { $0 += 1 }
-      try await sleepMilliseconds(80)
+      try await Task.sleep(for: .milliseconds(80))
       return "new-token"
     },
     validate: { _ in
       try UserResponse(
         did: UserId("did:web:test:users:alice"), domain: "test", email: nil, image: nil, name: nil)
-    })
+    }, random: RandomSource(SystemRandomNumberGenerator()))
   defer { session.dispose() }
   await session.start()
   try await session.ready()
   let first = Task { try await session.refresh(token) }
-  try await sleepMilliseconds(10)
+  try await Task.sleep(for: .milliseconds(10))
   first.cancel()
   let second = try await session.refresh(token)
   #expect(second == "new-token")
@@ -196,10 +197,10 @@ private func status(_ session: SemiontSession) -> String {
 @Test func aRefresherWaitsForItsSessionAndCancelsWhenConstructionEnds() async throws {
   let gate = SessionGate()
   let waiting = Task { try await gate.refresh("token") }
-  try await sleepMilliseconds(10)
+  try await Task.sleep(for: .milliseconds(10))
   waiting.cancel()
   await #expect(throws: CancellationError.self) {
-    try await within(testDeadlineMs) { try await waiting.value }
+    try await withinTestDeadline { try await waiting.value }
   }
 }
 @Test func disposingASessionCancelsRenewalAndFinishesItsReaders() async throws {
@@ -212,21 +213,21 @@ private func status(_ session: SemiontSession) -> String {
     kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
     renew: { _ in
       entered.set(true)
-      try await sleepMilliseconds(10_000)
+      try await Task.sleep(for: .milliseconds(10_000))
       return "late-token"
     },
     validate: { _ in
       try UserResponse(
         did: UserId("did:web:kb:users:alice"), domain: "kb", email: nil, image: nil, name: nil)
-    })
+    }, random: RandomSource(SystemRandomNumberGenerator()))
   await session.start()
   try await session.ready()
   let renewing = Task { try await session.refresh(session.token.value) }
-  try await within(testDeadlineMs) { for await value in entered where value { return } }
+  try await withinTestDeadline { for await value in entered where value { return } }
   session.dispose()
   session.dispose()
   await #expect(throws: CancellationError.self) {
-    try await within(testDeadlineMs) { try await renewing.value }
+    try await withinTestDeadline { try await renewing.value }
   }
   #expect(session.token.value == access)
   var reader = session.token.makeAsyncIterator()
@@ -251,7 +252,8 @@ private struct UnwritableSignIn: SignInKept {
   let session = SemiontSession(
     kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
     renew: { _ in throw SignInError(.exchange, "refused", status: 400) },
-    validate: { _ in throw SpecFailure.shape("Must not validate") })
+    validate: { _ in throw SpecFailure.shape("Must not validate") },
+    random: RandomSource(SystemRandomNumberGenerator()))
   defer { session.dispose() }
   await session.start()
   await #expect(throws: RefusedWrite.self) { try await session.ready() }
@@ -267,15 +269,15 @@ private struct UnwritableSignIn: SignInKept {
     validate: { _ in
       try UserResponse(
         did: UserId("did:web:kb:users:alice"), domain: "kb", email: nil, image: nil, name: nil)
-    })
+    }, random: RandomSource(SystemRandomNumberGenerator()))
   defer { session.dispose() }
   await session.start()
   try await session.ready()
   let gate = SessionGate()
   let waiting = Task { try await gate.refresh(access) }
-  try await sleepMilliseconds(10)
+  try await Task.sleep(for: .milliseconds(10))
   await gate.set(session)
-  #expect(try await within(testDeadlineMs) { try await waiting.value } == "renewed")
+  #expect(try await withinTestDeadline { try await waiting.value } == "renewed")
 }
 @Test func startupDoesNotPublishTheIdentityOfATokenReplacedWhileItWasAskedAbout() async throws {
   let old = try jwt(.object(["exp": .number(Date().timeIntervalSince1970 + 3600)]))
@@ -293,13 +295,13 @@ private struct UnwritableSignIn: SignInKept {
       }
       return try UserResponse(
         did: UserId("did:web:kb:users:alice"), domain: "kb", email: nil, image: nil, name: token)
-    })
+    }, random: RandomSource(SystemRandomNumberGenerator()))
   defer {
     session.dispose()
     release.finish(with: true)
   }
   await session.start()
-  try await within(testDeadlineMs) { for await value in asked where value { return } }
+  try await withinTestDeadline { for await value in asked where value { return } }
   #expect(try await session.refresh(old) == "new-token")
   release.set(true)
   try await session.ready()
@@ -335,13 +337,14 @@ private struct UnwritableSignIn: SignInKept {
       return try UserResponse(
         did: UserId("did:web:kb:users:alice"), domain: "kb", email: nil, image: nil, name: token)
     },
+    random: RandomSource(SystemRandomNumberGenerator()),
     onError: { error in
       if let error = error as? SessionError { errors.withLock { $0.append(error.code) } }
     })
   defer { session.dispose() }
   await gate.set(session)
   await session.start()
-  try await within(testDeadlineMs) { try await session.ready() }
+  try await withinTestDeadline { try await session.ready() }
   #expect(asks.withLock { $0 } == 2)
   #expect(session.user.value == nil)
   #expect(errors.withLock { $0 } == ["session.auth-failed"])

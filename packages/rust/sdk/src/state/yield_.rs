@@ -114,9 +114,10 @@ impl YieldStateUnit {
                             shared.outcome.set(Some(result));
                         }
                     }
-                    // An attempt that failed and will be tried again: the
-                    // run is not over.
-                    Ok(JobEvent::Failed(_)) => {}
+                    // An attempt that failed and will be tried again, or a
+                    // frame refused, which names no job: the run is not
+                    // over.
+                    Ok(JobEvent::Failed(_) | JobEvent::Refused { .. }) => {}
                     Err(failure) => {
                         // Why it ended is said before the end itself.
                         let kept = cancelled(&failure);

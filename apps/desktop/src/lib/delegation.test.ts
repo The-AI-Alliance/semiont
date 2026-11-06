@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createTestSession, refuseUnscriptedOperation, stubGateway } from '@semiont/sdk/testing';
-import { jobId, resourceId, userId, type components } from '@semiont/core';
+import { FrameRefusal, jobId, resourceId, userId, type components } from '@semiont/core';
 import {
   buildTask,
   delegate,
@@ -35,6 +35,7 @@ function delegateHarness(ending: 'completes' | 'declines' | 'fails' = 'completes
     transport: { makeResponse: (op) => (op === 'job:create' ? { jobId: JOB } : refuseUnscriptedOperation(op)) },
   });
   transport.on('job:create', (job) => {
+    if (job instanceof FrameRefusal) throw new Error(`the transport was handed a refusal on ${job.channel}`);
     if (job.jobType !== 'mark') return;
     const { resourceId: resource, params } = job;
     setTimeout(() => {

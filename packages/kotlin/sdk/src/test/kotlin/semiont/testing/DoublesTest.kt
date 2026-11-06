@@ -28,6 +28,7 @@ import semiont.errors.BusRequestErrorCode
 import semiont.errors.TransportError
 import semiont.errors.TransportErrorCode
 import semiont.identifiers.ResourceId
+import semiont.transport.Carried
 import semiont.transport.ConnectionState
 import semiont.transport.Content
 import semiont.transport.Frame
@@ -99,7 +100,7 @@ class DoublesTest {
     @Test
     fun aDuplicatedReplyIsDeliveredTwice() = runTest(timeout = 10.seconds) {
         val transport = faulty(schedule = listOf(DuplicateReply), respond = { _, _ -> obj() })
-        val replies = mutableListOf<Frame>()
+        val replies = mutableListOf<Carried>()
         launch { transport.frames("browse:kb-result").collect { replies += it } }
         runCurrent()
         asked(transport)
@@ -131,7 +132,7 @@ class DoublesTest {
     @Test
     fun whatIsOnlySentIsDeliveredToWhoeverListensAndIntoAClientsBus() = runTest(timeout = 10.seconds) {
         val transport = faulty()
-        val heard = mutableListOf<Frame>()
+        val heard = mutableListOf<Carried>()
         launch { transport.frames("beckon:sparkle").collect { heard += it } }
         runCurrent()
         transport.emit("beckon:sparkle", obj("annotationId" to text("ann-1")), null, null)

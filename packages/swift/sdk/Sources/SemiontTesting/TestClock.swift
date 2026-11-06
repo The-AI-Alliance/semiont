@@ -20,6 +20,8 @@ public final class TestClock: Clock {
   private let reading = Mutex(Reading())
   public var now: Instant { reading.withLock { $0.now } }
   public var minimumResolution: Duration { .nanoseconds(1) }
+  /// The instants its sleepers wait for, earliest first.
+  var wakes: [Instant] { reading.withLock { $0.sleeping.values.map(\.0).sorted() } }
 
   public func sleep(until deadline: Instant, tolerance: Duration?) async throws {
     let id = UUID()
