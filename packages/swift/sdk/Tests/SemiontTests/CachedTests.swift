@@ -12,7 +12,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
   let client = try await SemiontClient(transport: transport)
   defer { client.dispose() }
 
-  try await within(testDeadlineMs) {
+  try await withinTestDeadline {
     let query = client.browse.entityTypes()
     #expect(query === client.browse.entityTypes())
     #expect(transport.calls.isEmpty)
@@ -59,7 +59,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
   let client = try await SemiontClient(transport: transport)
   defer { client.dispose() }
 
-  try await within(testDeadlineMs) {
+  try await withinTestDeadline {
     let query = client.browse.entityTypes()
     let first = try await query.fresh()
     #expect(first == ["Old"])
@@ -117,7 +117,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
     client.dispose()
   }
 
-  try await within(testDeadlineMs) {
+  try await withinTestDeadline {
     let query = client.browse.entityTypes()
     var first = query.makeAsyncIterator()
     var second = query.makeAsyncIterator()
@@ -149,7 +149,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
   let client = try await SemiontClient(transport: transport)
   defer { client.dispose() }
 
-  try await within(testDeadlineMs) {
+  try await withinTestDeadline {
     let first = try ResourceId("first")
     let second = try ResourceId("second")
     let firstQuery = client.browse.events(first)
@@ -226,7 +226,7 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
   let client = try await SemiontClient(transport: transport)
   defer { client.dispose() }
 
-  try await within(testDeadlineMs) {
+  try await withinTestDeadline {
     let list = client.browse.annotations(resource)
     let detail = client.browse.annotation(resourceId: resource, annotationId: id)
     #expect(detail === client.browse.annotation(resourceId: resource, annotationId: id))
@@ -290,7 +290,7 @@ func annotationRemovalSurvivesAnEarlierInFlightRead(confirmedByReply: Bool) asyn
     client.dispose()
   }
 
-  try await within(testDeadlineMs) {
+  try await withinTestDeadline {
     let detail = client.browse.annotation(resourceId: resource, annotationId: id)
     var reader = detail.makeAsyncIterator()
     guard case .pending? = await reader.next(), case .ready? = await reader.next() else {
@@ -343,7 +343,7 @@ func annotationRemovalSurvivesAnEarlierInFlightRead(confirmedByReply: Bool) asyn
   let lifetime = Lifetime()
   let started = Watched(false)
   let release = Watched(false)
-  let query = Cached(lifetime: lifetime) {
+  let query = Cached(lifetime: lifetime, clock: ContinuousClock()) {
     started.set(true)
     for await ready in release where ready { break }
     return ["old", "added"]
@@ -353,7 +353,7 @@ func annotationRemovalSurvivesAnEarlierInFlightRead(confirmedByReply: Bool) asyn
     lifetime.end()
   }
 
-  try await within(testDeadlineMs) {
+  try await withinTestDeadline {
     var reader = query.makeAsyncIterator()
     guard case .pending? = await reader.next() else {
       Issue.record("The list should still be loading")

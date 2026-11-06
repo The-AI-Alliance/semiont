@@ -55,6 +55,7 @@ extension HttpTransport {
     let senderID = UUID()
     let timerID = UUID()
     let deadline = timeoutMs ?? timing.busRequestTimeoutMs
+    let clock = self.clock
     let life = lifetime
     let frame: ReceivedFrame = try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { continuation in
@@ -82,7 +83,7 @@ extension HttpTransport {
         life.keep(send, id: senderID)
         let timer = Task { [weak self] in
           defer { life.forget(timerID) }
-          do { try await sleepMilliseconds(deadline) } catch {
+          do { try await sleepMilliseconds(deadline, on: clock) } catch {
             return
           }
           await self?.fail(

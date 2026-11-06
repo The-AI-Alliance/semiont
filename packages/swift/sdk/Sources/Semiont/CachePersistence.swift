@@ -55,19 +55,21 @@ public final class StoragePersister<Key: Codable & Hashable & Sendable>: CacheWo
     var changes: Set<Key> = []
     var pendingBookmarks: [ResourceId: String] = [:]
     var work = 0
-    var saving: Task<Void, Never>?
+    var saving: (id: UUID, task: Task<Void, Never>)?
     var closed = false
   }
 
   private let config: CachePersistence
   private let storageKey: String
+  private let clock: any Clock<Duration>
   private let state: Mutex<State>
 
-  public init(_ config: CachePersistence) {
+  public init(_ config: CachePersistence, clock: any Clock<Duration> = ContinuousClock()) {
     let storageKey = "\(cacheKeyPrefix)\(config.keyPrefix).swift"
     let saved = Self.decode(try? config.storage.get(storageKey))
     self.config = config
     self.storageKey = storageKey
+    self.clock = clock
     self.state = Mutex(State(document: saved, age: saved.entries.values.map(\.age).max() ?? 0))
   }
 
@@ -114,16 +116,24 @@ public final class StoragePersister<Key: Codable & Hashable & Sendable>: CacheWo
       state.age += 1
       state.document.entries[key] = encoded.map { Entry(value: $0, age: state.age) }
       state.changes.insert(key)
-      guard state.saving == nil else { return }
-      state.saving = Task { [weak self] in
-        guard (try? await sleepMilliseconds(Timings.saveDebounceMs)) != nil else { return }
-        self?.save()
-      }
+      state.saving?.task.cancel()
+      let id = UUID()
+      let clock = clock
+      state.saving = (
+        id,
+        Task { [weak self] in
+          guard (try? await sleepMilliseconds(Timings.saveDebounceMs, on: clock)) != nil else {
+            return
+          }
+          self?.save(id)
+        }
+      )
     }
   }
 
-  private func save() {
+  private func save(_ id: UUID) {
     state.withLock { state in
+      guard state.saving?.id == id else { return }
       state.saving = nil
       if !state.closed { flush(&state) }
     }
@@ -132,7 +142,7 @@ public final class StoragePersister<Key: Codable & Hashable & Sendable>: CacheWo
   public func close() {
     state.withLock { state in
       guard !state.closed else { return }
-      state.saving?.cancel()
+      state.saving?.task.cancel()
       state.saving = nil
       flush(&state)
       state.closed = true

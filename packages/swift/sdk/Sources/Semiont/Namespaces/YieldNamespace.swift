@@ -5,6 +5,7 @@ public struct YieldNamespace: Sendable {
   let bus: EventBus
   let lifetime: Lifetime
   let timing: FollowTiming
+  let clock: any Clock<Duration>
   let content: (any ContentTransport)?
 
   public func resource(_ request: PutBinaryRequest) throws -> Upload {
@@ -39,10 +40,11 @@ public struct YieldNamespace: Sendable {
     case .annotation(let focus): resource = focus.sourceResource.id
     }
     let stall = try stallDeadlineMs ?? generationStallDeadline(maxTokens: params.maxTokens)
+    let clock = clock
     return follow(
       create: .yieldJobCreateCommand(YieldJobCreateCommand(params: params)), resource: resource,
       wire: wire, bus: bus, lifetime: lifetime, timing: timing, stallMs: stall,
-      clock: timing.clock, completion: YieldJobCompleteCommand.self)
+      clock: clock, completion: YieldJobCompleteCommand.self)
   }
   public func cloneToken(_ resourceId: ResourceId) async throws -> CloneResourceWithTokenResponse {
     try await wire.request(

@@ -134,7 +134,7 @@ private actor DiscoveryScript: DiscoveryTransport {
     .state(.managed(Managed(kbs: [renamed, second, second]))),
     .state(.absent(Absent(reason: .notFound))),
   ])
-  try await within(testDeadlineMs) {
+  try await withinTestDeadline {
     let updates = subscribeDiscovery(script, interval: .milliseconds(1))
     var iterator = updates.makeAsyncIterator()
     let initial = try #require(await iterator.next())

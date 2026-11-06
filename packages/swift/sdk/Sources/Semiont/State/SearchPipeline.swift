@@ -27,16 +27,9 @@ public final class SearchPipeline<Result: Sendable>: StateUnit {
   private let search: @Sendable (String) -> AsyncStream<[Result]?>
 
   /// A nil answer means the search is still pending.
-  public convenience init(
+  public init(
     initialQuery: String = "", debounce: Duration? = nil,
-    search: @escaping @Sendable (String) -> AsyncStream<[Result]?>
-  ) {
-    self.init(
-      initialQuery: initialQuery, debounce: debounce, clock: ContinuousClock(), search: search)
-  }
-
-  package init(
-    initialQuery: String = "", debounce: Duration? = nil, clock: any Clock<Duration>,
+    clock: any Clock<Duration> = ContinuousClock(),
     search: @escaping @Sendable (String) -> AsyncStream<[Result]?>
   ) {
     query = Watched(initialQuery)

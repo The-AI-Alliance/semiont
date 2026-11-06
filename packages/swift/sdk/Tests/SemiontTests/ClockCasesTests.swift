@@ -208,7 +208,7 @@ private struct Loopback: Sendable {
   let base: String
   let port: Int
   let http: HTTPClient
-  let server: any Channel
+  let server: any NIOCore.Channel
   static func open(_ ledger: Ledger) async throws -> Loopback {
     let server = try await ServerBootstrap(group: MultiThreadedEventLoopGroup.singleton)
       .childChannelInitializer { channel in
@@ -480,7 +480,7 @@ private func renewal(_ given: [String: JSONValue], _ clock: TestClock) async thr
       try UserResponse(
         did: UserId("did:web:example.org:users:alice"), domain: "example.org", email: nil,
         image: nil, name: "Alice")
-    }, clock: clock, random: RandomSource(LowestDraw()))
+    }, random: RandomSource(LowestDraw()))
   await session.start()
   return Subject(
     counted: { renewals.count }, activity: { renewals.count }, act: nil,
@@ -624,7 +624,8 @@ private func jobFollower(_ given: [String: JSONValue], _ clock: TestClock) async
     }
   }
   let client = try await SemiontClient(transport: probe, clock: clock)
-  let delegation = client.mark.delegate(resourceId: try ResourceId("res-1"), params: markParams())
+  let delegation = client.mark.delegate(
+    resourceId: try ResourceId("res-1"), params: try markParams())
   let following = Task { for try await _ in delegation {} }
   let asked = Operations.jobStatusRequested.request.name
   return Subject(
@@ -718,8 +719,8 @@ private final class Played {
 private func play(_ row: [String: JSONValue]) async throws {
   let name = try required(row, "subject").text
   guard let build = subjects[name] else { throw ClockCaseFailure("No subject \(name)") }
-  var given: [String: JSONValue] = [:]
-  if let stated = row["given"] { given = try stated.object }
+  let given: [String: JSONValue]
+  if let stated = row["given"] { given = try stated.object } else { given = [:] }
   let clock = TestClock()
   let subject = try await withinTestDeadline { try await build(given, clock) }
   let played = Played(subject, on: clock)

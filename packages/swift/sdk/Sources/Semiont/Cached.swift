@@ -14,11 +14,11 @@ public final class Cached<Value: Sendable>: AsyncSequence, Sendable {
   init(
     lifetime: Lifetime, hold: (@Sendable () async -> ResourceHold)? = nil,
     kept: KeptValue<Value>? = nil, invalidationWindowMs: Int = Timings.invalidationWindowMs,
-    fetch: @escaping @Sendable () async throws -> Value
+    clock: any Clock<Duration>, fetch: @escaping @Sendable () async throws -> Value
   ) {
     let entry = CacheEntry(
       lifetime: lifetime, hold: hold, kept: kept, invalidationWindowMs: invalidationWindowMs,
-      fetch: fetch)
+      clock: clock, fetch: fetch)
     self.entry = entry
     lifetime.onEnd { [weak entry] in
       Task { await entry?.close() }
@@ -72,6 +72,7 @@ private actor CacheEntry<Value: Sendable> {
   private let hold: (@Sendable () async -> ResourceHold)?
   private let kept: KeptValue<Value>?
   private let invalidationWindowMs: Int
+  private let clock: any Clock<Duration>
   private var rehydrated = false
   private var state: State = .pending
   private var listeners: [UUID: (stream: AsyncStream<State>.Continuation, scope: ResourceHold?)] =
@@ -86,10 +87,11 @@ private actor CacheEntry<Value: Sendable> {
 
   init(
     lifetime: Lifetime, hold: (@Sendable () async -> ResourceHold)?,
-    kept: KeptValue<Value>?, invalidationWindowMs: Int,
+    kept: KeptValue<Value>?, invalidationWindowMs: Int, clock: any Clock<Duration>,
     fetch: @escaping @Sendable () async throws -> Value
   ) {
     self.lifetime = lifetime
+    self.clock = clock
     self.hold = hold
     self.fetch = fetch
     self.kept = kept
@@ -274,8 +276,11 @@ private actor CacheEntry<Value: Sendable> {
   private func openWindow() {
     invalidate()
     windowOpen = true
+    let clock = clock
     lifetime.start {
-      guard (try? await sleepMilliseconds(self.invalidationWindowMs)) != nil else { return }
+      guard (try? await sleepMilliseconds(self.invalidationWindowMs, on: clock)) != nil else {
+        return
+      }
       await self.closeWindow()
     }
   }

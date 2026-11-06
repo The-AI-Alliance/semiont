@@ -87,7 +87,7 @@ private final class StateCase {
     let wire = try StateCaseWire(required(row, "transport").object, clock: clock)
     self.wire = wire
     let client = try await SemiontClient(
-      transport: wire.transport, followTiming: FollowTiming(clock: clock))
+      transport: wire.transport, clock: clock)
     self.client = client
     let channels = try row["listen"]?.array.map { try $0.text } ?? []
     let heard = heard
@@ -157,7 +157,7 @@ private final class StateCase {
       let expected = row["payloads"]
       let count = try row["count"].map(stateCaseInteger) ?? expected?.array.count ?? 0
       let transport = wire.transport
-      let requests = try await within(testDeadlineMs) {
+      let requests = try await withinTestDeadline {
         func sentRequests() -> [Call] {
           transport.calls.filter { $0.via == "request" && $0.name == channel }
         }
@@ -178,7 +178,7 @@ private final class StateCase {
     } else if let expected = row["heard"] {
       let frames = try expected.array
       let heard = heard
-      try await within(testDeadlineMs) {
+      try await withinTestDeadline {
         for await count in heard.count where count >= frames.count { return }
         throw CancellationError()
       }

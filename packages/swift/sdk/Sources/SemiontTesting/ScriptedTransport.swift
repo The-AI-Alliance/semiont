@@ -33,7 +33,7 @@ public final class ScriptedTransport: Transport {
   private let wire = Mutex(State())
   private let schedule: [FaultAction]
   private let timeout: Duration
-  private let clock: any Clock<Duration>
+  let clock: any Clock<Duration>
   private let respond: Respond
 
   public init(

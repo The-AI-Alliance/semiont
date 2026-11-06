@@ -23,18 +23,12 @@ public final class MarkStateUnit: StateUnit {
   private let life = Lifetime()
   private let turns = DelegationTurns()
 
-  public convenience init(client: SemiontClient, resourceId: ResourceId) {
-    self.init(client: client, resourceId: resourceId, clock: ContinuousClock())
-  }
-
-  package init(
-    client: SemiontClient, resourceId: ResourceId, clock: any Clock<Duration>
-  ) {
+  public init(client: SemiontClient, resourceId: ResourceId) {
     mark = client.mark
     bus = client.bus
     self.resourceId = resourceId
     self.silence = .milliseconds(Timings.delegateSilenceMs)
-    self.clock = clock
+    self.clock = client.clock
     let frames = bus.listen([Channels.markRequested.name, Channels.markSubmit.name])
     life.onEnd { frames.dispose() }
     life.start { [weak self] in
