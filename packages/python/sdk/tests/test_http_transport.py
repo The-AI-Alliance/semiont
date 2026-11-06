@@ -108,7 +108,12 @@ def test_a_frame_is_delivered_with_what_is_beside_its_payload_and_what_is_not_a_
         ),
         # What names its readers is told to them in its place.
         FrameRefusal(
-            channel="beckon:focus", member="addedByALaterGateway", reason="malformed", payload={"resourceId": "res-1"}, scope=None
+            channel="beckon:focus",
+            member="addedByALaterGateway",
+            reason="malformed",
+            payload={"resourceId": "res-1"},
+            scope=None,
+            correlation_id=None,
         ),
         Frame(channel="beckon:focus", payload={"resourceId": "res-1", "annotationId": "a-3"}),
     ]

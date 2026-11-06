@@ -148,6 +148,8 @@ class FrameRefusal:
     """The payload as it came, the gateway's stamps and all; None when the frame carries none."""
     scope: ResourceId | None
     """The resource whose scope the frame was delivered on."""
+    correlation_id: str | None
+    """The frame's correlation id, when it carries one BusFrame allows: the request awaiting the reply it names is told of the refusal."""
     status: Literal["refused"] = field(default="refused", init=False)
 
 
@@ -225,12 +227,12 @@ class PendingReply:
     reaches nobody. A task cancelled while it waits leaves the same way.
     """
 
-    def __init__(self, reply: asyncio.Future[Frame | None], forget: Callable[[], None]) -> None:
+    def __init__(self, reply: asyncio.Future[Frame | FrameRefusal | None], forget: Callable[[], None]) -> None:
         self._reply = reply
         self._forget = forget
 
-    async def frame(self) -> Frame | None:
-        """The reply. Nothing when the transport closed before one came."""
+    async def frame(self) -> Frame | FrameRefusal | None:
+        """The reply, or its refusal. Nothing when the transport closed before one came."""
         return await self._reply
 
     def __enter__(self) -> Self:
@@ -244,7 +246,7 @@ class PendingReply:
 @dataclass(frozen=True, slots=True)
 class _Awaited:
     channels: frozenset[str]
-    reply: asyncio.Future[Frame | None]
+    reply: asyncio.Future[Frame | FrameRefusal | None]
 
 
 @final
@@ -263,7 +265,7 @@ class ReplyRouter:
 
     def track(self, correlation_id: str, reply_channels: Collection[str]) -> PendingReply:
         """Await the reply to `correlation_id` on one of `reply_channels`."""
-        reply: asyncio.Future[Frame | None] = asyncio.get_running_loop().create_future()
+        reply: asyncio.Future[Frame | FrameRefusal | None] = asyncio.get_running_loop().create_future()
         if self._closed:
             reply.set_result(None)
         else:
@@ -276,8 +278,8 @@ class ReplyRouter:
 
         return PendingReply(reply, forget)
 
-    def route(self, frame: Frame) -> None:
-        """Hand `frame` to the request that awaits it, if one does."""
+    def route(self, frame: Frame | FrameRefusal) -> None:
+        """Hand `frame`, or its refusal, to the request that awaits it, if one does."""
         if frame.correlation_id is None:
             return
         awaited = self._awaited.get(frame.correlation_id)

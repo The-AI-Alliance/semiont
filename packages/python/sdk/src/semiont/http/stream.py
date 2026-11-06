@@ -129,11 +129,15 @@ def carried(data: str) -> BusFrame | FrameRefusal | Unaddressed:
     if not isinstance(channel, str) or channel == "":
         return Unaddressed(read)
     if scope is None:
-        return FrameRefusal(channel=channel, member=read.member, reason=read.reason, payload=value.get("payload"), scope=None)
+        return FrameRefusal(
+            channel=channel, member=read.member, reason=read.reason, payload=value.get("payload"), scope=None, correlation_id=None
+        )
     held = ResourceId.parse(scope) if isinstance(scope, str) else None
     if held is None:
         return Unaddressed(read)
-    return FrameRefusal(channel=channel, member=read.member, reason=read.reason, payload=value.get("payload"), scope=held)
+    return FrameRefusal(
+        channel=channel, member=read.member, reason=read.reason, payload=value.get("payload"), scope=held, correlation_id=None
+    )
 
 
 _JSON: Final = TypeAdapter[JsonValue](JsonValue)

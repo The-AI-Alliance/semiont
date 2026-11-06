@@ -353,7 +353,7 @@ def test_a_payload_that_is_not_its_channel_s_is_refused_to_its_reader_by_the_way
         bus.destroy()
         # The payload is its reader's, as it came; the way to its fault is named by the shape, never by the payload.
         assert [heard async for heard in read] == [
-            FrameRefusal(channel=channel.name, member=member, reason=reason, payload=payload, scope=None)
+            FrameRefusal(channel=channel.name, member=member, reason=reason, payload=payload, scope=None, correlation_id=None)
         ]
 
     with caplog.at_level(logging.WARNING, logger="semiont.bus"):

@@ -136,6 +136,10 @@ async def _result_of(transport: Transport, operation: AnyOperation, payload: Map
 
     if reply is None:
         raise BusRequestError("bus.closed", f"Bus closed before a reply on {result}")
+    if isinstance(reply, FrameRefusal):
+        raise TransportError(
+            "error", f"a frame on {reply.channel} is not that channel's: {Fault(member=reply.member, reason=reply.reason)}"
+        )
     if reply.channel == result:
         return reply
     raise BusRequestError.answered(reply.payload)
@@ -219,7 +223,12 @@ def heard[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], carri
     if isinstance(read, Fault):
         fault = read.within("payload")
         return FrameRefusal(
-            channel=channel.name, member=fault.member, reason=fault.reason, payload=dict(carried.payload), scope=carried.scope
+            channel=channel.name,
+            member=fault.member,
+            reason=fault.reason,
+            payload=dict(carried.payload),
+            scope=carried.scope,
+            correlation_id=None,
         )
     return read
 

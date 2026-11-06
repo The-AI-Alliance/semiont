@@ -218,8 +218,8 @@ class FaultyTransport(Transport):
         """Change the connection's state, as a wire would. A closed transport's is closed."""
         self._state.set(state)
 
-    def deliver(self, frame: Frame) -> None:
-        """Deliver a frame as if the bus had carried it. A closed transport has nobody to deliver to."""
+    def deliver(self, frame: Frame | FrameRefusal) -> None:
+        """Deliver a frame, or its refusal, as if the bus had carried it. A closed transport has nobody to deliver to."""
         self._router.route(frame)
         self._hub.deliver(frame)
 

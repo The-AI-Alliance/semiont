@@ -125,7 +125,12 @@ def test_by_type_a_frame_is_published_as_its_channel_writes_it_and_read_as_its_c
             Delivered(payload=BeckonHoverEvent(annotation_id=AnnotationId("ann-1"))),
             Delivered(payload=BeckonHoverEvent(annotation_id=None)),
             FrameRefusal(
-                channel="beckon:hover", member="payload.annotationId", reason="malformed", payload={"annotationId": 7}, scope=None
+                channel="beckon:hover",
+                member="payload.annotationId",
+                reason="malformed",
+                payload={"annotationId": 7},
+                scope=None,
+                correlation_id=None,
             ),
             Delivered(payload=BeckonHoverEvent(annotation_id=AnnotationId("ann-2"))),
         ]
@@ -174,7 +179,12 @@ def test_a_frame_its_transport_refused_is_given_where_the_frame_would_have_been_
         carried, raw, among = hub.frames("beckon:hover"), bus.frames_on("beckon:hover"), bus.frames_among(["beckon:hover"])
         typed, scoped = bus.frames(BECKON_HOVER), bus.frames_on("beckon:hover", scope=ONE)
         refused = FrameRefusal(
-            channel="beckon:hover", member="correlationId", reason="malformed", payload={"annotationId": "ann-1"}, scope=ONE
+            channel="beckon:hover",
+            member="correlationId",
+            reason="malformed",
+            payload={"annotationId": "ann-1"},
+            scope=ONE,
+            correlation_id=None,
         )
         hub.deliver(refused)
         hub.close()
@@ -183,7 +193,12 @@ def test_a_frame_its_transport_refused_is_given_where_the_frame_would_have_been_
         assert [frame async for frame in carried] == [refused]
         # Bridged into the client's bus, it is published to everyone, as a frame that came on a scope is.
         unscoped = FrameRefusal(
-            channel="beckon:hover", member="correlationId", reason="malformed", payload={"annotationId": "ann-1"}, scope=None
+            channel="beckon:hover",
+            member="correlationId",
+            reason="malformed",
+            payload={"annotationId": "ann-1"},
+            scope=None,
+            correlation_id=None,
         )
         assert [frame async for frame in raw] == [unscoped]
         assert [frame async for frame in among] == [unscoped]

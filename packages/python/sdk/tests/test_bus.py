@@ -1,12 +1,13 @@
 """The bus typed by channel: what is written for a payload, what a frame is read as, and what a request gives."""
 
+import asyncio
 import logging
 from collections.abc import Mapping
 from operator import methodcaller
 
 import pytest
-from aio import run, soon
-from kb import recorded, refusing
+from aio import run, soon, turns
+from kb import recorded, refusing, silent
 from pydantic import JsonValue, ValidationError
 
 from semiont.bus import Bus, Delivered, decoded, reply_channels_for
@@ -173,11 +174,18 @@ def test_frames_by_type_carry_their_payload_decoded_and_who_emitted_them(caplog:
             # What is not the channel's is told the reader in its place, by the way to its first fault from the frame and
             # with the payload as it came; the frames after it follow.
             refused = await soon(anext(frames))
-            assert refused == FrameRefusal(channel="beckon:focus", member="payload.resourceId", reason="lacks", payload=lacking, scope=None)
+            assert refused == FrameRefusal(
+                channel="beckon:focus", member="payload.resourceId", reason="lacks", payload=lacking, scope=None, correlation_id=None
+            )
             assert refused.status == "refused"
             # One that holds a member of a kind its schema does not allow is malformed there.
             assert await soon(anext(frames)) == FrameRefusal(
-                channel="beckon:focus", member="payload.annotationId", reason="malformed", payload=malformed, scope=None
+                channel="beckon:focus",
+                member="payload.annotationId",
+                reason="malformed",
+                payload=malformed,
+                scope=None,
+                correlation_id=None,
             )
             last = await soon(anext(frames))
             assert isinstance(last, Delivered)
@@ -220,7 +228,12 @@ def test_a_resource_s_channel_is_read_for_a_resource_whose_scope_the_read_holds_
             unsequenced: dict[str, JsonValue] = {**recorded("mark:archived", RESOURCE), "metadata": {}}
             transport.deliver(Frame(channel="mark:archived", payload=unsequenced, scope=RESOURCE))
             assert await soon(anext(mine)) == FrameRefusal(
-                channel="mark:archived", member="payload.metadata.sequenceNumber", reason="lacks", payload=unsequenced, scope=RESOURCE
+                channel="mark:archived",
+                member="payload.metadata.sequenceNumber",
+                reason="lacks",
+                payload=unsequenced,
+                scope=RESOURCE,
+                correlation_id=None,
             )
         # Let go with the read.
         assert transport.holds(RESOURCE) == 0
@@ -280,6 +293,46 @@ def test_a_request_by_type_gives_its_operations_result_as_that_results_type() ->
         with pytest.raises(BusRequestError) as rejected:
             await soon(bus.request(BROWSE_KB_REQUESTED, BrowseKbRequest()))
         assert rejected.value.code == "bus.rejected"
+
+    run(scenario())
+
+
+def test_a_reply_refused_with_the_requests_correlation_id_fails_the_request_at_once_and_one_with_none_reaches_nothing() -> None:
+    async def scenario() -> None:
+        transport = silent()
+        asking = asyncio.ensure_future(Bus(transport).request(BROWSE_KB_REQUESTED, BrowseKbRequest()))
+        await turns()
+        sent = transport.emitted[0]
+
+        transport.deliver(
+            FrameRefusal(
+                channel="browse:kb-result",
+                member="correlationId",
+                reason="malformed",
+                payload={"response": {}},
+                scope=None,
+                correlation_id=None,
+            )
+        )
+        await turns()
+        assert not asking.done()
+
+        transport.deliver(
+            FrameRefusal(
+                channel="browse:kb-result",
+                member="addedByALaterGateway",
+                reason="malformed",
+                payload={"response": {}},
+                scope=None,
+                correlation_id=sent.correlation_id,
+            )
+        )
+        with pytest.raises(TransportError) as refused:
+            await soon(asking)
+        assert (refused.value.code, refused.value.message) == (
+            "error",
+            "a frame on browse:kb-result is not that channel's: its `addedByALaterGateway` is malformed",
+        )
 
     run(scenario())
 

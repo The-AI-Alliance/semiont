@@ -59,7 +59,7 @@ from semiont.types import (
     JobType,
 )
 
-__all__ = ["Delegation", "JobAttemptFailed", "JobCompleted", "JobCreated", "JobEvent", "JobProgressed", "follow"]
+__all__ = ["Delegation", "JobAttemptFailed", "JobCompleted", "JobCreated", "JobEvent", "JobProgressed", "JobRefused", "follow"]
 
 
 @final
@@ -91,6 +91,21 @@ class JobAttemptFailed:
 
 @final
 @dataclass(frozen=True, slots=True)
+class JobRefused:
+    """A frame of some job's progress, completion or failure, refused by its transport or as its channel's.
+
+    It names no job, so it may be this job's or another's, and it is no word
+    of the job: the follower goes on following, and goes on counting its
+    silence. It comes only after `JobCreated`. As JSON its `data` is the
+    refusal's `channel`, `member` and `reason`.
+    """
+
+    data: FrameRefusal
+    kind: Literal["refused"] = field(default="refused", init=False)
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class JobCompleted[C: JobCompleteCommand]:
     """The job completed, with the completion its verb's jobs give. A follower's last value."""
 
@@ -98,7 +113,7 @@ class JobCompleted[C: JobCompleteCommand]:
     kind: Literal["complete"] = field(default="complete", init=False)
 
 
-type JobEvent[C: JobCompleteCommand] = JobCreated | JobProgressed | JobAttemptFailed | JobCompleted[C]
+type JobEvent[C: JobCompleteCommand] = JobCreated | JobProgressed | JobAttemptFailed | JobRefused | JobCompleted[C]
 """What a followed job reports, and how it ends, `C` being the completion its
 verb's jobs give. As JSON it is `{"kind": "progress", "data": …}`, the same
 event in every SDK."""
@@ -131,7 +146,7 @@ class Delegation[C: JobCompleteCommand]:
         match last:
             case JobCompleted(data=completion):
                 return completion
-            case JobCreated() | JobProgressed() | JobAttemptFailed():
+            case JobCreated() | JobProgressed() | JobAttemptFailed() | JobRefused():
                 raise RuntimeError(f"a delegated job ended on a {last.kind} event, not on its completion")
 
     def __await__(self) -> Generator[object, None, C]:
