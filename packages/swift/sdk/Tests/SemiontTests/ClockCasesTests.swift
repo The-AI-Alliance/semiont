@@ -61,19 +61,29 @@ private struct Stillness: Equatable {
 }
 
 /// Lets what is ready run, and what that makes ready, without moving the clock: until neither the
-/// clock's sleepers nor what the subject has done have changed over `settleLooks` looks in a row.
-/// What runs is real work on real threads, the faked network's included, so a settle waits real
-/// time.
-private func waitUntilStill(_ clock: TestClock, _ activity: @Sendable () -> Int) async throws {
+/// clock's sleepers nor what the subject has done have changed over `settleLooks` looks in a row,
+/// and `pending` names nothing. What runs is real work on real threads, the faked network's
+/// included, so a settle waits real time. Stillness alone cannot tell slow work from none: on a
+/// loaded runner a client can take longer than any number of looks to read an answer or to close a
+/// stream, and neither shows in the clock or the network until it is done. What the runner knows
+/// is owed, `pending` names, and the settle waits it out however long it takes, the clock still.
+private func waitUntilStill(
+  _ clock: TestClock, _ activity: @Sendable () -> Int,
+  pending: @Sendable () async -> String?
+) async throws {
   var seen = Stillness(wakes: clock.wakes, activity: activity())
   var still = 0
   var looks = 0
   while still < settleLooks {
     try await Task.sleep(for: settleLook)
     looks += 1
-    guard looks < settleLookLimit else { throw ClockCaseFailure("it did not settle") }
+    let owed = await pending()
+    guard looks < settleLookLimit else {
+      if let owed { throw ClockCaseFailure("it did not settle: \(owed)") }
+      throw ClockCaseFailure("it did not settle")
+    }
     let now = Stillness(wakes: clock.wakes, activity: activity())
-    still = now == seen ? still + 1 : 0
+    still = now == seen && owed == nil ? still + 1 : 0
     seen = now
   }
 }
@@ -89,6 +99,8 @@ private struct Subject: Sendable {
   /// A count that grows with everything the subject does that a settle waits out: what it counts,
   /// and what its network has been asked.
   let activity: @Sendable () -> Int
+  /// What the subject has been handed and has yet to finish, or nil once it has finished it all.
+  let pending: @Sendable () async -> String?
   let act: (@Sendable () async throws -> Void)?
   let close: @Sendable () async throws -> Void
 }
@@ -128,6 +140,7 @@ private enum Reply: Sendable {
 private final class Ledger: Sendable {
   private struct Heard: Sendable {
     var asked: [String: Int] = [:]
+    var held = 0
     var closed = 0
     var events = 0
     var unrouted: [String] = []
@@ -142,7 +155,10 @@ private final class Ledger: Sendable {
       heard.asked[path, default: 0] += 1
       return heard.asked[path, default: 0]
     }
-    if let reply = route(Asked(path: path, origin: origin, nth: nth)) { return reply }
+    if let reply = route(Asked(path: path, origin: origin, nth: nth)) {
+      if case .held = reply { heard.withLock { $0.held += 1 } }
+      return reply
+    }
     heard.withLock { $0.unrouted.append(path) }
     return .json(404, [:], .object(["error": .string("No route for \(path)")]))
   }
@@ -155,6 +171,8 @@ private final class Ledger: Sendable {
   func asked(_ path: String) -> Int { heard.withLock { $0.asked[path, default: 0] } }
   /// How many of the streams it held open their readers have closed.
   var closed: Int { heard.withLock { $0.closed } }
+  /// How many streams it holds open that their readers have not closed.
+  var heldOpen: Int { heard.withLock { $0.held - $0.closed } }
   var events: Int { heard.withLock { $0.events } }
   var unrouted: [String] { heard.withLock { $0.unrouted } }
 }
@@ -239,6 +257,7 @@ private let healthPath = "/api/health"
 private enum StreamAnswer: Sendable { case holds, refuses, never }
 
 private struct Gateway: Sendable {
+  let stream: StreamAnswer
   let ledger: Ledger
   let loopback: Loopback
   let transport: HttpTransport
@@ -265,7 +284,22 @@ private struct Gateway: Sendable {
     let transport = HttpTransport(
       baseUrl: loopback.base, httpClient: loopback.http, token: "a-token", clock: clock,
       random: LowestDraw())
-    return Gateway(ledger: ledger, loopback: loopback, transport: transport)
+    return Gateway(stream: stream, ledger: ledger, loopback: loopback, transport: transport)
+  }
+
+  /// What the client has yet to finish of what passed between it and the gateway, or nil once it
+  /// has finished it all: a stream the gateway answered that the client has not taken in, or a
+  /// stream the client let go whose close the gateway has not seen. A gateway that never answers a
+  /// stream leaves an opening stream nothing to take in.
+  func unfinished() async -> String? {
+    guard stream != .never else { return nil }
+    if await transport.connecting != nil { return "the client is opening a stream" }
+    let streams = await transport.connections.count
+    let held = ledger.heldOpen
+    guard streams == held else {
+      return "the client keeps \(streams) streams and the gateway holds \(held) open"
+    }
+    return nil
   }
 
   func close() async throws {
@@ -283,7 +317,8 @@ private func refusedStream(_ given: [String: JSONValue], _ clock: TestClock) asy
   let gateway = try await Gateway.open(
     .refuses, retryAfterSeconds: givenSeconds(given, "retryAfterSeconds"), clock: clock)
   return Subject(
-    counted: { gateway.ledger.asked(subscribePath) }, activity: { gateway.ledger.events }, act: nil,
+    counted: { gateway.ledger.asked(subscribePath) }, activity: { gateway.ledger.events },
+    pending: { await gateway.unfinished() }, act: nil,
     close: gateway.close)
 }
 
@@ -292,7 +327,8 @@ private func unansweredStream(_ given: [String: JSONValue], _ clock: TestClock) 
 {
   let gateway = try await Gateway.open(.never, clock: clock)
   return Subject(
-    counted: { gateway.ledger.asked(subscribePath) }, activity: { gateway.ledger.events }, act: nil,
+    counted: { gateway.ledger.asked(subscribePath) }, activity: { gateway.ledger.events },
+    pending: { await gateway.unfinished() }, act: nil,
     close: gateway.close)
 }
 
@@ -303,7 +339,8 @@ private func degradedStream(_ given: [String: JSONValue], _ clock: TestClock) as
     .refuses, retryAfterSeconds: givenSeconds(given, "retryAfterSeconds"), clock: clock)
   let (degraded, reader) = tally(gateway.transport.state) { $0 == .degraded }
   return Subject(
-    counted: { degraded.count }, activity: { gateway.ledger.events + degraded.count }, act: nil,
+    counted: { degraded.count }, activity: { gateway.ledger.events + degraded.count },
+    pending: { await gateway.unfinished() }, act: nil,
     close: {
       reader.cancel()
       try await gateway.close()
@@ -316,19 +353,22 @@ private func scopeTaken(_ given: [String: JSONValue], _ clock: TestClock) async 
   let resource = try ResourceId("res-1")
   return Subject(
     counted: { gateway.ledger.asked(subscribePath) }, activity: { gateway.ledger.events },
+    pending: { await gateway.unfinished() },
     act: { holding.keep(await gateway.transport.subscribeToResource(resource)) },
     close: gateway.close)
 }
 
 private func scopeLetGo(_ given: [String: JSONValue], _ clock: TestClock) async throws -> Subject {
   let gateway = try await Gateway.open(.holds, clock: clock)
-  try await waitUntilStill(clock) { gateway.ledger.events }
+  try await waitUntilStill(
+    clock, { gateway.ledger.events }, pending: { await gateway.unfinished() })
   guard gateway.transport.state.value == .open else {
     throw ClockCaseFailure("The stream did not open: it is \(gateway.transport.state.value)")
   }
   let hold = await gateway.transport.subscribeToResource(try ResourceId("res-1"))
   return Subject(
     counted: { gateway.ledger.asked(subscribePath) }, activity: { gateway.ledger.events },
+    pending: { await gateway.unfinished() },
     act: { hold.dispose() }, close: gateway.close)
 }
 
@@ -340,6 +380,7 @@ private func handoffLinger(_ given: [String: JSONValue], _ clock: TestClock) asy
   let resource = try ResourceId("res-1")
   return Subject(
     counted: { gateway.ledger.closed }, activity: { gateway.ledger.events },
+    pending: { await gateway.unfinished() },
     act: { holding.keep(await gateway.transport.subscribeToResource(resource)) },
     close: gateway.close)
 }
@@ -356,6 +397,7 @@ private func unansweredRequest(_ given: [String: JSONValue], _ clock: TestClock)
   }
   return Subject(
     counted: { unanswered.count }, activity: { gateway.ledger.events + unanswered.count },
+    pending: { await gateway.unfinished() },
     act: nil,
     close: {
       asking.cancel()
@@ -372,7 +414,8 @@ private func unansweredEmit(_ given: [String: JSONValue], _ clock: TestClock) as
       channel: "beckon:hover", payload: ["annotationId": .string("ann-1")])
   }
   return Subject(
-    counted: { gateway.ledger.asked(emitPath) }, activity: { gateway.ledger.events }, act: nil,
+    counted: { gateway.ledger.asked(emitPath) }, activity: { gateway.ledger.events },
+    pending: { await gateway.unfinished() }, act: nil,
     close: {
       emitting.cancel()
       try await gateway.close()
@@ -431,7 +474,8 @@ private func deviceGrant(_ given: [String: JSONValue], _ clock: TestClock) async
     }
   }
   return Subject(
-    counted: { ledger.asked(issuerPath + "/token") }, activity: { ledger.events }, act: nil,
+    counted: { ledger.asked(issuerPath + "/token") }, activity: { ledger.events }, pending: { nil },
+    act: nil,
     close: {
       signingIn.cancel()
       try await loopback.close()
@@ -483,7 +527,7 @@ private func renewal(_ given: [String: JSONValue], _ clock: TestClock) async thr
     }, random: RandomSource(LowestDraw()))
   await session.start()
   return Subject(
-    counted: { renewals.count }, activity: { renewals.count }, act: nil,
+    counted: { renewals.count }, activity: { renewals.count }, pending: { nil }, act: nil,
     close: {
       session.dispose()
       client.dispose()
@@ -511,7 +555,7 @@ private func heldJobStall(_ given: [String: JSONValue], _ clock: TestClock) asyn
   guard let job = await jobs.next() else { throw ClockCaseFailure("No job was claimed") }
   let (stalls, reader) = tally(claims.stalled) { $0 != nil }
   return Subject(
-    counted: { stalls.count }, activity: { stalls.count + probe.calls.count },
+    counted: { stalls.count }, activity: { stalls.count + probe.calls.count }, pending: { nil },
     act: { try await job.progress(JobProgress(percentage: 50)) },
     close: {
       reader.cancel()
@@ -544,7 +588,8 @@ private func discovery(_ given: [String: JSONValue], _ clock: TestClock) async t
     for await _ in subscribeDiscovery(document, interval: discoveryInterval, clock: clock) {}
   }
   return Subject(
-    counted: { document.reads.count }, activity: { document.reads.count }, act: nil,
+    counted: { document.reads.count }, activity: { document.reads.count }, pending: { nil },
+    act: nil,
     close: { following.cancel() })
 }
 
@@ -568,7 +613,7 @@ private func invalidationWindow(_ given: [String: JSONValue], _ clock: TestClock
   let added = Counter()
   let asked = Operations.browseEventsRequested.request.name
   return Subject(
-    counted: { requested(probe, asked) }, activity: { probe.calls.count },
+    counted: { requested(probe, asked) }, activity: { probe.calls.count }, pending: { nil },
     act: {
       let sequence = added.add()
       let event = StoredEventResponse(
@@ -608,6 +653,7 @@ private func saveDebounce(_ given: [String: JSONValue], _ clock: TestClock) asyn
   let changes = Counter()
   return Subject(
     counted: { saves.saved.count }, activity: { saves.saved.count + changes.count },
+    pending: { nil },
     act: { await cache.set("a key", value: changes.add()) }, close: { cache.dispose() })
 }
 
@@ -629,7 +675,7 @@ private func jobFollower(_ given: [String: JSONValue], _ clock: TestClock) async
   let following = Task { for try await _ in delegation {} }
   let asked = Operations.jobStatusRequested.request.name
   return Subject(
-    counted: { requested(probe, asked) }, activity: { probe.calls.count },
+    counted: { requested(probe, asked) }, activity: { probe.calls.count }, pending: { nil },
     act: {
       probe.deliver(
         ReceivedFrame(
@@ -677,7 +723,9 @@ private final class Played {
     start = clock.now
   }
 
-  func settle() async throws { try await waitUntilStill(clock, subject.activity) }
+  func settle() async throws {
+    try await waitUntilStill(clock, subject.activity, pending: subject.pending)
+  }
 
   /// Settles, then moves the clock `duration` on: to each instant a sleeper falls due on the way,
   /// in turn, letting what falls due run there.
