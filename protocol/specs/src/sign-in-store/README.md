@@ -2,10 +2,10 @@
 
 One standalone contract: `<stateDir>/tokens.json`, where the semiont launcher
 (Go, `apps/launcher`) keeps the session of each stack a person has signed in
-to, and where an application built on the Go, Rust, Python or Kotlin SDK finds it.
-One sign-in serves the launcher's verbs and that application.
+to, and where an application built on any Semiont SDK finds it. One sign-in
+serves the launcher's verbs and that application.
 
-It is a contract because programs in four languages read and write the
+It is a contract because programs in seven languages read and write the
 file. Like [discovery](../discovery/README.md), its schema refs nothing
 outside this directory.
 
@@ -81,13 +81,25 @@ other's.
 A reader that only reads takes no lock: the rename makes each document
 whole.
 
-Every writer takes the lock: the Go SDK (`packages/go/sdk`, `SignInStore`),
-through which the launcher keeps its sign-ins, the Rust SDK
-(`semiont::sign_in_store`), the Python SDK (`semiont.sign_in_store`) and the
-Kotlin SDK (`semiont.signin.SignInStore`). On
-Windows the lock is on one byte of the lock file, far past anything the file
-holds (`OffsetHigh: 0x40000000`), and a writer that locks the whole file
-holds that byte too. Each generates its entry from `SignIn.json`.
+Every writer takes the lock:
+
+- the Go SDK (`packages/go/sdk`, `SignInStore`), through which the launcher
+  keeps its sign-ins;
+- the Rust SDK (`semiont::sign_in_store`);
+- the Python SDK (`semiont.sign_in_store`);
+- the Kotlin SDK (`semiont.signin.SignInStore`);
+- the Swift SDK (`SignInStore`, `packages/swift/sdk/Sources/Semiont/SignIn`);
+- the C# SDK (`Semiont.SignIn.SignInStore`);
+- the TypeScript SDK (`SignInStore`, `packages/typescript/sdk/src/session/sign-in-store.ts`).
+
+The TypeScript SDK reaches no file itself. It takes the lock, reads, and
+renames through the files its caller gives it (`SignInFiles`), and hands
+them the names, the modes, the access list and the Windows offset this
+contract fixes.
+
+On Windows the lock is on one byte of the lock file, far past anything the
+file holds (`OffsetHigh: 0x40000000`), and a writer that locks the whole file
+holds that byte too. Each writer generates its entry from `SignIn.json`.
 
 ## Renewing it
 

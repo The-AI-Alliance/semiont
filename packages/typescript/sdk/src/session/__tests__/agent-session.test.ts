@@ -150,7 +150,7 @@ describe('startAgentSession', () => {
     );
   });
 
-  it('refresh() asks the issuer for a new grant, pushes it, and asks the gateway nothing', async () => {
+  it('refresh(refused) of the token it holds asks the issuer for a new grant, pushes it, and asks the gateway nothing', async () => {
     // Each token the issuer grants could be held for an hour: a refresh is
     // asked because the gateway refused the one held, so it is a new grant.
     const first = tokenExpiringIn(60 * 60 * 1000, 'first');

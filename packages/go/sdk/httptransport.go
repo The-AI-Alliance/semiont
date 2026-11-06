@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"math/rand/v2"
 	"net/http"
 	"slices"
 	"strings"
@@ -54,6 +55,9 @@ type HTTPTransportConfig struct {
 	HTTP *http.Client
 	// Timing is the timing the transport keeps.
 	Timing Timing
+	// Random is what the jitter of the stream's reconnects and of an emit's
+	// retries is drawn from, as EqualJitter draws it.
+	Random *rand.Rand
 }
 
 // transportShared is what the transport's handle and its stream both hold.
@@ -69,6 +73,7 @@ type transportShared struct {
 	clientID string
 	global   []bus.Channel
 	timing   Timing
+	random   *rand.Rand
 	hub      *FrameHub
 	router   *ReplyRouter
 	failures *failureStream
@@ -101,6 +106,7 @@ func NewHTTPTransport(config HTTPTransportConfig) *HTTPTransport {
 		clientID:  uuid.NewString(),
 		global:    slices.Clone(config.Channels),
 		timing:    config.Timing,
+		random:    config.Random,
 		hub:       NewFrameHub(),
 		router:    NewReplyRouter(),
 		failures:  newFailureStream(),
@@ -273,7 +279,7 @@ func (s *transportShared) emit(ctx context.Context, body api.BusEmitRequest) (in
 	renewed := false
 	for {
 		sent := token
-		answer, err := RetryWithBackoff(ctx, s.timing.EmitRetry,
+		answer, err := RetryWithBackoff(ctx, s.timing.EmitRetry, s.random,
 			func(ctx context.Context) (emitted, error) { return s.emitOnce(ctx, sent, key, encoded) },
 			func(err error) bool {
 				var refused *TransportError
