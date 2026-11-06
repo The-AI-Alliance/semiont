@@ -242,11 +242,18 @@ public class AgentToken @JvmOverloads constructor(gateway: String, private val s
     /** `signIn`, for Java. */
     public fun signInFuture(): CompletableFuture<AgentToken> = CoroutineScope(Dispatchers.Default).futureOf { signIn() }
 
-    /** The gateway refused the token: ask the issuer for another. The new token, or null when the issuer gave none. */
-    override suspend fun refresh(refused: String?): String? = try {
-        renew()
-    } catch (_: SemiontError) {
-        null
+    /**
+     * The gateway refused `refused`: ask the issuer for another. The new token, or null when the issuer gave none.
+     * A token the agent no longer holds was renewed already: the one it holds is given, and the issuer is not asked.
+     */
+    override suspend fun refresh(refused: String?): String? {
+        val held = current.value
+        if (held != refused) return held
+        return try {
+            renew()
+        } catch (_: SemiontError) {
+            null
+        }
     }
 
     private suspend fun renew(): String = service.token(renewed = true).also { current.value = it }
