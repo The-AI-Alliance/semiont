@@ -36,6 +36,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { translated } from '../../../packages/codegen/schemas/openapi-schema.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const TABLE = 'protocol/specs/src/client/state-units.json';
@@ -370,12 +371,15 @@ function heldNotice(name, value, where) {
     }
     const stated = memberSchema(property, at);
     if (stated === undefined) continue;
-    if (stated.type !== 'string') {
+    // The OpenAPI 3.0 schema as JSON Schema: a member that may be null has `null` among its types.
+    const standard = translated(stated);
+    const types = Array.isArray(standard.type) ? standard.type : [standard.type];
+    if (!types.includes('string') || !types.every((type) => type === 'string' || type === 'null')) {
       fail(`${at} is no string, and a notice's members are strings`);
       continue;
     }
     const given = value[member];
-    const allowed = given === null ? stated.nullable === true : typeof given === 'string' && (stated.enum === undefined || stated.enum.includes(given));
+    const allowed = given === null ? types.includes('null') : typeof given === 'string' && (standard.enum === undefined || standard.enum.includes(given));
     if (!allowed) fail(`${where}: ${name}'s ${member} is ${JSON.stringify(given)}, which ${at} does not allow`);
   }
 }
