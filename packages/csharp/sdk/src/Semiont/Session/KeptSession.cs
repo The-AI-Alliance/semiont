@@ -237,7 +237,7 @@ public sealed class KeptSession : IDisposable
                     await changed.Reader.ReadAsync(lifetime.Token).ConfigureAwait(false);
                     continue;
                 }
-                var delay = retrying ? TimeSpan.FromMilliseconds(step / 2 + random.NextDouble() * step / 2) : TimeSpan.FromSeconds(seconds ?? throw new InvalidOperationException("No renewal delay"));
+                var delay = retrying ? Retry.EqualJitter(TimeSpan.FromMilliseconds(step), random) : TimeSpan.FromSeconds(seconds ?? throw new InvalidOperationException("No renewal delay"));
                 using var waiting = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
                 var timer = Task.Delay(delay, clock, waiting.Token);
                 var change = changed.Reader.WaitToReadAsync(waiting.Token).AsTask();

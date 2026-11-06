@@ -54,7 +54,7 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
         {
             await kept.ReadyAsync(cancellation).ConfigureAwait(false);
             var http = new HttpTransport(Gateway.Origin(endpoint), kept.State.Token,
-                ProtocolFacts.Channels("everyone").Concat(ProtocolFacts.OperationReplies()), refresher: kept.RefreshAsync,
+                ProtocolFacts.Channels("everyone").Concat(BusRegistry.ReplyChannelsFor(ProtocolFacts.Requests())), refresher: kept.RefreshAsync,
                 httpClient: httpClient, timeProvider: timeProvider);
             transport = http;
             var user = kept.State.User;

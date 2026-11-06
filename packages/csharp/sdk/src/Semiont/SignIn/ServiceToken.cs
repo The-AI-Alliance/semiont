@@ -58,7 +58,7 @@ public sealed class ServiceToken : IDisposable
             if (asking is { IsCompleted: false }) return asking.WaitAsync(cancellation);
             if (token is not null && token != refused && clock.GetElapsedTime(obtained).TotalSeconds < reuseSeconds)
                 return Task.FromResult(token);
-            asking = Task.Run(() => retry ? issuer.RetryAsync(GrantAsync, CancellationToken.None) : GrantAsync(CancellationToken.None));
+            asking = Task.Run(() => retry ? issuer.GrantByRefreshRuleAsync(GrantAsync, CancellationToken.None) : GrantAsync(CancellationToken.None));
             return asking.WaitAsync(cancellation);
         }
     }

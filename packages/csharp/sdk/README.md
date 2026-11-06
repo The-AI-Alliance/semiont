@@ -109,6 +109,8 @@ The client disposes its transport, and a supplied HTTP client stays caller-owned
 Use a [kept session](#using-a-kept-sign-in) if the client needs to renew credentials.
 
 `Gateway.Origin(endpoint)` validates the host and preserves the explicit port.
+`Gateway.IsValidHostname(host)` is that validation: whether a host is one a knowledge
+base's HTTP endpoint may name.
 `Gateway.GetCurrentUserAsync(origin, token)` asks who a token is with exactly one
 request, without opening a stream, retrying the request, or renewing the token.
 
@@ -354,6 +356,10 @@ another view of the same storage that hears writes from other contexts.
 ## The bus and transport
 
 `client.Wire` accepts generated `BusChannels` and `BusOperations` values.
+`BusRegistry.ReplyChannelsFor(requests)` names the result and failure channels of the
+given operations, each once: the channels of a transport that awaits only those.
+`BusRegistry.Unsubscribed(channel)` is the refusal of a request whose replies cannot
+arrive, and `BusRegistry.PersistedEventTypes` the channels whose events the record keeps.
 A typed request returns the channel's declared reply model. A typed read
 gives a `Heard<T>` value for each frame, with its envelope and trace context.
 Malformed payloads yield a refusal and the read continues. A scoped read
@@ -387,6 +393,12 @@ retry rule belongs to the worker.
 
 Every emit and every upload carries an `Idempotency-Key` the transport makes once,
 and sends unchanged on each of its attempts, including the one after a renewed credential.
+
+`Retry.RetryWithBackoffAsync` does work again until it succeeds, fails in a way its
+`retryable` refuses, or its `RetryPolicy`'s attempts run out, and throws the last failure
+as it was. Each wait is an equal jitter of a cap that doubles from the initial delay to
+the maximum, and never shorter than the wait the failure stated. Its optional
+`TimeProvider` and `Random` default to `TimeProvider.System` and `Random.Shared`.
 
 ## IDs and protocol types
 

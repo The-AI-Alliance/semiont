@@ -12,7 +12,7 @@ public sealed class SemiontClient : IDisposable
 
     public SemiontClient(string baseUrl, string? token = null, HttpClient? httpClient = null,
         TimeProvider? timeProvider = null, Random? random = null, Timing? timing = null, CachePersistence? persistence = null)
-        : this(new HttpTransport(baseUrl, token, ProtocolFacts.Channels("everyone").Concat(ProtocolFacts.OperationReplies()),
+        : this(new HttpTransport(baseUrl, token, ProtocolFacts.Channels("everyone").Concat(BusRegistry.ReplyChannelsFor(ProtocolFacts.Requests())),
             timing: timing, httpClient: httpClient, timeProvider: timeProvider, random: random), persistence)
     {
     }

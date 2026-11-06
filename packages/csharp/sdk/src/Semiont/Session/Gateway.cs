@@ -9,14 +9,13 @@ namespace Semiont.Session;
 
 public static class Gateway
 {
+    public static bool IsValidHostname(string host) => host.Split('.').All(label =>
+        label.Length is >= 1 and <= 63 && char.IsAsciiLetterOrDigit(label[0]) && char.IsAsciiLetterOrDigit(label[^1]) &&
+        label.All(character => char.IsAsciiLetterOrDigit(character) || character == '-'));
+
     public static string Origin(HttpEndpoint endpoint)
     {
-        static bool LetterOrDigit(char value) => value is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9';
-        foreach (var label in endpoint.Host.Split('.'))
-        {
-            if (label.Length is < 1 or > 63 || !LetterOrDigit(label[0]) || !LetterOrDigit(label[^1]) || label.Any(value => !LetterOrDigit(value) && value != '-'))
-                throw new SignInError(ProtocolFacts.SignInError("discovery"), "Invalid knowledge-base hostname");
-        }
+        if (!IsValidHostname(endpoint.Host)) throw new SignInError(ProtocolFacts.SignInError("discovery"), "Invalid knowledge-base hostname");
         // Serialization checks the generated protocol enum and port bounds before forming an origin.
         var wire = JsonSerializer.SerializeToElement(endpoint);
         return wire.GetProperty("protocol").GetString() + "://" + endpoint.Host.ToLowerInvariant() + ":" + endpoint.Port.ToString(CultureInfo.InvariantCulture);

@@ -108,7 +108,7 @@ public sealed partial class HttpTransport : IDisposable
         foreach (var channel in selected)
         {
             if (!IsSubscribed(channel) && !ProtocolFacts.Channels("scoped").Contains(channel, StringComparer.Ordinal))
-                throw BusError("unsubscribed", channel);
+                throw BusRegistry.Unsubscribed(channel);
         }
         return ObserveFrames(selected, resource, cancellation);
     }
@@ -241,7 +241,7 @@ public sealed partial class HttpTransport : IDisposable
             {
                 if (lifetime.IsCancellationRequested) throw new TransportError(ProtocolFacts.Error(0), "The transport is closed");
                 if (attempt >= timing.EmitRetry.Attempts) throw new TransportError(ProtocolFacts.Error(503), "Emit was not answered", inner: error);
-                await Task.Delay(TimeSpan.FromMilliseconds(cap / 2d + random.NextDouble() * cap / 2d), clock, waiting.Token).ConfigureAwait(false);
+                await Task.Delay(Retry.EqualJitter(TimeSpan.FromMilliseconds(cap), random), clock, waiting.Token).ConfigureAwait(false);
                 cap = Math.Min(timing.EmitRetry.MaxDelayMs, checked(cap * 2));
                 continue;
             }
@@ -259,8 +259,9 @@ public sealed partial class HttpTransport : IDisposable
                     if (await RenewAsync(sent, cancellation).ConfigureAwait(false)) { attempt--; continue; }
                 }
                 if (!ProtocolFacts.RetryEmit((int)response.StatusCode) || failure.Code == ProtocolFacts.Error(401) || attempt >= timing.EmitRetry.Attempts) throw failure;
-                var delay = Math.Max(RetryAfter(response), cap / 2d + random.NextDouble() * cap / 2d);
-                await Task.Delay(TimeSpan.FromMilliseconds(delay), clock, waiting.Token).ConfigureAwait(false);
+                var wait = Retry.EqualJitter(TimeSpan.FromMilliseconds(cap), random);
+                var stated = TimeSpan.FromMilliseconds(RetryAfter(response));
+                await Task.Delay(stated > wait ? stated : wait, clock, waiting.Token).ConfigureAwait(false);
                 cap = Math.Min(timing.EmitRetry.MaxDelayMs, checked(cap * 2));
             }
         }
@@ -275,7 +276,8 @@ public sealed partial class HttpTransport : IDisposable
     internal async Task<ReceivedBusFrame> RequestFrameAsync(string operation, JsonElement payload, int? timeoutMs, CancellationToken cancellation)
     {
         var replies = ProtocolFacts.Operation(operation);
-        if (!IsSubscribed(replies.Result) || !IsSubscribed(replies.Failure)) throw BusError("unsubscribed", operation);
+        foreach (var channel in BusRegistry.ReplyChannelsFor(operation))
+            if (!IsSubscribed(channel)) throw BusRegistry.Unsubscribed(channel);
         using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(timeoutMs ?? timing.BusRequestTimeoutMs), clock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, lifetime.Token, cancellation);
         var correlation = Guid.NewGuid().ToString();

@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using Semiont.Http;
 using Semiont.Protocol;
 using Microsoft.Win32.SafeHandles;
 
@@ -51,7 +52,7 @@ internal static partial class NativeStoreLock
                     if (error != 4 && error != (OperatingSystem.IsMacOS() ? 35 : 11)) throw new IOException("Could not lock the sign-in store", new Win32Exception(error));
                 }
                 // Nonblocking OS calls keep cancellation responsive while another process holds the lock.
-                await Task.Delay(TimeSpan.FromMilliseconds(10 + random.NextDouble() * 10), clock, cancellation).ConfigureAwait(false);
+                await Task.Delay(Retry.EqualJitter(TimeSpan.FromMilliseconds(20), random), clock, cancellation).ConfigureAwait(false);
             }
         }
         catch { stream.Dispose(); throw; }
