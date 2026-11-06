@@ -44,9 +44,11 @@ import WorkerCases (workerCases)
 import GatewayCases (gatewayCases)
 import HeldCases (heldCases, heldClockCases)
 import SurfaceCases (surfaceCases)
-import ClockCases (cacheClockCases, httpClockCases, discoveryClockCases)
+import ClockCases (clientClockCases, cacheClockCases, httpClockCases, discoveryClockCases)
 import ResourceCases (resourceCases)
 import FrameCases (frameCases)
+import RefreshCases (refreshCases)
+import TextCases (textCases)
 import qualified SchemaCases
 
 require :: String -> Bool -> IO ()
@@ -350,6 +352,7 @@ main = do
   putStrLn "PASS generated schema samples, null presence, open members, exact numbers and enums"
   resourceCases root
   frameCases root
+  textCases root
   identifierCases root
   putStrLn "PASS shared identifier acceptance/refusal cases"
   channelCases root
@@ -380,6 +383,8 @@ main = do
   busCases command browse event (failureRows ++ [(Nothing, fallback), (Just "__unknown_test_code", fallback)])
   fixtures <- traverse (either (ioError . userError) pure . sample 0) schemas
   surfaceCases root fixtures
+  clientClockCases root fixtures
+  refreshCases fixtures
   heldCases fixtures
   heldClockCases root fixtures
   httpCases root fixtures

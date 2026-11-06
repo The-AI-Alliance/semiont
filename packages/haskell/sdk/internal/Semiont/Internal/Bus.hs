@@ -22,11 +22,12 @@ import Semiont.ErrorCodes hiding (TransportError)
 import qualified Semiont.ErrorCodes as Codes
 import Semiont.Errors
 import Semiont.Internal.Required (Fault(..), FaultReason(..))
+import qualified Semiont.Internal.Generated.OperationFailure as OperationFailure
 import qualified Semiont.Internal.Required as Required
 import qualified Semiont.Internal.StateValue as State
 import qualified Semiont.Internal.Transport as Transport
 import Semiont.Transport.Facts (ConnectionState(..), userField)
-import Semiont.Types (BusFrame(..), BusFramePayload(..), CommandError(..), ResourceId, UserId)
+import Semiont.Types (BusFrame(..), BusFramePayload(..), ResourceId, UserId)
 import Streaming (Of, Stream)
 import qualified Streaming.Prelude as Stream
 
@@ -135,9 +136,15 @@ requestReply refusalMode bus@(Bus options transport) operation input timeoutMs =
               Nothing -> pure Nothing
               Just (String value) -> pure (Just value)
               _ -> rejectReply refusalMode transport (TransportError Codes.TransportError "failure reply has a non-string code" Nothing Nothing)
-            case fromJSON (Object (KM.delete "code" fields)) :: Result CommandError of
-              Error _ -> rejectReply refusalMode transport (TransportError Codes.TransportError "failure reply is not its channel's" Nothing Nothing)
-              Success answered -> throwIO (BusRequestError (busRequestCodeFromWire code) (commandErrorMessage answered) (Just fields))
+            -- Classification owns the optional code, including future values.
+            -- The operation's own schema owns all of its other failure fields.
+            let wireFrame = Transport.wireFrame frame
+                diagnostic = frame { Transport.wireFrame = wireFrame { busFramePayload = BusFramePayload (KM.delete "code" fields) } }
+            case decoded failure diagnostic of
+              Refused refusal -> rejectReply refusalMode transport (TransportError Codes.TransportError
+                ("failure payload is not its channel's: " <> Required.faultSaid (fault refusal)) Nothing Nothing)
+              Heard delivered -> throwIO (BusRequestError (busRequestCodeFromWire code)
+                (OperationFailure.message operation (deliveredPayload delivered)) (Just fields))
   inheritedWork <- propagateContext work
   inheritedWait <- propagateContext (requestWaitUntil options (now + timeoutMs * 1000000))
   outcome <- race inheritedWork (race inheritedWait

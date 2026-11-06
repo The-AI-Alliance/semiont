@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 module Semiont.Internal.HttpActor (runActor) where
 
+import OpenTelemetry.Context.ThreadLocal (getContext)
 import Control.Concurrent.Async (Async, cancel, waitCatchSTM)
 import Control.Concurrent.STM
 import Control.Exception (SomeAsyncException, SomeException(..), catch, finally, fromException, onException, throwIO, try)
@@ -202,15 +203,17 @@ runActor http = do
                   forM_ identity $ \value -> writeTVar seen (trim (queue |> value))
                   pure True
               when claimed $ do
-                saved <- Telemetry.withReceived frame (atomically $ do
-                  closed <- (== Closed) <$> State.current (Transport.state (transport http))
-                  if closed then pure Nothing else do
-                    Transport.receiveSTM (input http) frame
-                    case (busFrameScope frame, identity) of
-                      (Just scope, Just value) | isPosition scope value -> do
-                        modifyTVar' (positions http) (Map.insert scope value)
-                        pure (Just (scope, value))
-                      _ -> pure Nothing)
+                saved <- Telemetry.withReceived frame (do
+                  context <- getContext
+                  atomically $ do
+                    closed <- (== Closed) <$> State.current (Transport.state (transport http))
+                    if closed then pure Nothing else do
+                      Transport.receiveContextSTM (Just context) (input http) frame
+                      case (busFrameScope frame, identity) of
+                        (Just scope, Just value) | isPosition scope value -> do
+                          modifyTVar' (positions http) (Map.insert scope value)
+                          pure (Just (scope, value))
+                        _ -> pure Nothing)
                   `onException` atomically (forM_ identity $ \value -> modifyTVar' seen (Seq.filter (/= value)))
                 forM_ saved (uncurry (httpSavePosition (options http)))
           _ -> pure ()

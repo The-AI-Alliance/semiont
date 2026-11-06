@@ -76,7 +76,6 @@
     {
       "namespace": "browse",
       "docs": "Reads: live queries, one-shot reads, and this viewer's own signals.",
-      "notYetReached": {"haskell": "The Haskell client is still to implement this namespace and its operation lifetimes."},
       "methods": [
         {
           "method": "resource",
@@ -367,7 +366,6 @@
     {
       "namespace": "gather",
       "docs": "Assembling the context a model is given, and what refers to a resource.",
-      "notYetReached": {"haskell": "The Haskell client is still to implement this namespace and its operation lifetimes."},
       "methods": [
         {
           "method": "annotation",
@@ -426,7 +424,6 @@
     {
       "namespace": "match",
       "docs": "Searching: for what a reference could refer to, and for resources by text.",
-      "notYetReached": {"haskell": "The Haskell client is still to implement this namespace and its operation lifetimes."},
       "methods": [
         {
           "method": "search",

@@ -8,8 +8,7 @@ import Data.ByteString.Builder (Builder, byteString, toLazyByteString)
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Text.Encoding (decodeUtf8With)
-import Data.Text.Encoding.Error (lenientDecode)
+import qualified Semiont.Internal.Utf8 as Utf8
 
 data Event = Event
   { eventType :: Text
@@ -47,7 +46,7 @@ feed initial bytes = consume initial bytes []
         in case Bytes.uncons ending of
           Nothing -> (buffered, reverse items)
           Just (terminator, rest) ->
-            let raw = decodeUtf8With lenientDecode (Lazy.toStrict (toLazyByteString (line buffered)))
+            let raw = Utf8.decodeUtf8 (Lazy.toStrict (toLazyByteString (line buffered)))
                 text = if firstLine buffered then maybe raw id (T.stripPrefix "\xfeff" raw) else raw
                 (updated, item) = completeLine buffered { line = mempty, firstLine = False, skipLF = terminator == 13 } text
             in consume updated rest (maybe items (: items) item)

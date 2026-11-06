@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, OverloadedStrings #-}
-module Semiont.Internal.Local (signal, events) where
+module Semiont.Internal.Local (signal, signalWithCorrelation, events) where
 
 import Control.Concurrent.STM (STM, throwSTM)
 import Data.Aeson (Value(..))
@@ -19,9 +19,12 @@ scopeOf NoScope = Nothing
 scopeOf (InScope resource) = Just resource
 
 signal :: Local.EventBus -> Channel scope payload -> payload -> ScopeArg scope -> STM ()
-signal bus channel payload scope = case encodePayload channel payload of
+signal bus channel payload scope = signalWithCorrelation bus channel payload scope Nothing
+
+signalWithCorrelation :: Local.EventBus -> Channel scope payload -> payload -> ScopeArg scope -> Maybe Text -> STM ()
+signalWithCorrelation bus channel payload scope correlation = case encodePayload channel payload of
   Object fields -> case decodePayload channel (Object fields) of
-    Right _ -> Local.localSTM bus (Local.Frame (BusFrame (channelName channel) Nothing (BusFramePayload fields) (scopeOf scope)) Nothing)
+    Right _ -> Local.localSTM bus (Local.Frame (BusFrame (channelName channel) correlation (BusFramePayload fields) (scopeOf scope)) Nothing)
     Left reason -> invalid (T.pack reason)
   _ -> invalid "local payload is not an object"
   where invalid :: Text -> STM ()

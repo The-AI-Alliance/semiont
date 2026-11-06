@@ -5,9 +5,10 @@ import Control.Concurrent.Async (Async, async, cancel, wait, waitCatch)
 import Control.Concurrent.STM
 import Control.Exception (SomeException, bracket, finally, throwIO, toException, try)
 import Control.Monad (forM_, unless, void)
-import Data.Aeson (Value, object, (.=))
+import Data.Aeson (Value, ToJSON(..), object, (.=))
 import Data.IORef
 import qualified Semiont.Cache as Cache
+import qualified Semiont.Internal.Cache as Internal
 import Semiont.Errors (BusRequestError(..))
 import Semiont.ErrorCodes (BusRequestCode(BusRequestClosed))
 import qualified Streaming.Prelude as Stream
@@ -348,5 +349,98 @@ cacheCases = do
     selfCloseCases
     cancellationCases
     structuralKeyCases
+    routingKeyCases
+    atomicMutationCases
+    deferredPatchCases
+    projectedQueryCases
   require "cache contract exceeded its liveness guard" (result == Just ())
   putStrLn "PASS cache B1-B18/B20: lazy reads, deduplication, retry emissions, generation fences, scoped observers, persistence and joined disposal"
+
+data RoutedKey = RoutedKey Int Int deriving (Eq, Show)
+instance ToJSON RoutedKey where toJSON (RoutedKey identity _) = toJSON identity
+
+routingKeyCases :: IO ()
+routingKeyCases = do
+  let options = Cache.CacheOptions (pure 0) (const (atomically retry)) 5 Nothing (const (pure (pure ())))
+      reader (RoutedKey _ route) = pure route
+  bracket (Cache.newCache reader options) Cache.dispose $ \cache -> do
+    let old = Cache.query cache (RoutedKey 1 10)
+        latest = Cache.query cache (RoutedKey 1 20)
+    Cache.fresh old >>= require "cache ignored the original routing hint" . (==10)
+    Cache.fresh latest >>= require "a canonical key retained an obsolete routing hint" . (==20)
+    atomically (Cache.current old) >>= require "canonical keys did not share state" . ((==Just 20) . Cache.readyValue)
+    atomically (Cache.keys cache) >>= require "reading an old query changed the current routing hint" . (==[RoutedKey 1 20])
+    Cache.dispose cache
+    refused <- try (Cache.fresh old) :: IO (Either BusRequestError Int)
+    require "closed routed cache did not refuse a read" (either ((==BusRequestClosed) . busRequestErrorCode) (const False) refused)
+    atomically (Cache.current (Cache.query cache (RoutedKey 2 30))) >>= require "closed key acquired a value" . (not . Cache.isReady)
+    atomically (Cache.keys cache) >>= require "disposed acts changed stored routing metadata" . (==[RoutedKey 1 20])
+
+atomicMutationCases :: IO ()
+atomicMutationCases = bracket harness (\(Harness cache _ _) -> Cache.dispose cache) $ \h@(Harness cache _ _) -> do
+  Cache.set cache 1 10
+  launch <- atomically (Internal.invalidateSTM cache 1)
+  require "frame delivery did not reserve its invalidation atomically" =<< atomically (Cache.persistencePending cache)
+  noRequest h
+  require "atomic invalidation erased its stale value" . (==Just 10) =<< atomically (Cache.get cache 1)
+  launch
+  reply h 1 (Right 20)
+  idle cache
+  require "reserved invalidation never applied its answer" . (==Just 20) =<< atomically (Cache.get cache 1)
+  saving <- atomically (Internal.setSTM cache 1 30)
+  require "write-through did not commit with its frame" . (==Just 30) =<< atomically (Cache.get cache 1)
+  saving
+  ending <- atomically (Internal.removeSTM cache 1 failure)
+  state <- atomically (Cache.current (Cache.query cache 1))
+  require "removal did not commit with its frame" (case state of Cache.Failed _ -> True; _ -> False)
+  ending
+  noRequest h
+
+
+deferredPatchCases :: IO ()
+deferredPatchCases = bracket harness (\(Harness cache _ _) -> Cache.dispose cache) $ \h@(Harness cache _ _) -> do
+  first <- async (Cache.fetch cache 1)
+  Time.settle
+  atomically (Internal.updateSTM cache 1 (+2)) >>= id
+  reply h 1 (Right 10)
+  wait first >>= require "fresh did not receive the event's deferred patch" . (==12)
+  atomically (Cache.get cache 1) >>= require "the cache published an unpatched first snapshot" . (==Just 12)
+  Cache.invalidate cache 1
+  Time.settle
+  atomically (Internal.updateSTM cache 1 (+100)) >>= id
+  -- A ready value is replaced immediately; the older request may finish,
+  -- but it must not overwrite the known event value.
+  reply h 1 (Right 20)
+  Time.settle
+  atomically (Cache.get cache 1) >>= require "an obsolete fetch overwrote a ready patch" . (==Just 112)
+  orphan <- async (Cache.fetch cache 2)
+  Time.settle
+  atomically (Internal.updateSTM cache 2 (+100)) >>= id
+  Cache.invalidate cache 2
+  reply h 2 (Right 1)
+  wait orphan >>= require "an obsolete generation consumed a deferred patch" . (==1)
+  reply h 2 (Right 2)
+  Time.settle
+  atomically (Cache.get cache 2) >>= require "invalidation retained an earlier deferred patch" . (==Just 2)
+
+projectedQueryCases :: IO ()
+projectedQueryCases = bracket harness (\(Harness cache _ _) -> Cache.dispose cache) $ \h@(Harness cache _ _) -> do
+  Cache.set cache 1 10
+  Cache.set cache 2 20
+  let combine (Cache.Ready a) (Cache.Ready b) = Cache.Ready (a+b)
+      combine (Cache.Failed problem) _ = Cache.Failed problem
+      combine _ (Cache.Failed problem) = Cache.Failed problem
+      combine _ _ = Cache.Pending
+      joined = Internal.liftQuery2 combine (+) (Cache.query cache 1) ((+1) <$> Cache.query cache 2)
+  atomically (Cache.current joined) >>= require "query projection lost its value" . ((==Just 31) . Cache.readyValue)
+  notices <- newTQueueIO
+  reader <- async (Cache.watch joined (Stream.mapM_ (atomically . writeTQueue notices)))
+  ready 31 notices
+  noRequest h
+  Cache.set cache 2 21
+  ready 32 notices
+  Cache.set cache 2 21
+  Time.settle
+  atomically (isEmptyTQueue notices) >>= require "joined query emitted an equal value"
+  Cache.dispose cache
+  wait reader

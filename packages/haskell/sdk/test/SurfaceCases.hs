@@ -4,7 +4,8 @@ module SurfaceCases (surfaceCases) where
 import Control.Concurrent.Async (async, wait)
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
-import Control.Exception (bracket)
+import Control.Exception (bracket, try)
+import Semiont.Errors (BusRequestError(..))
 import Control.Monad (forM_, unless, void)
 import Data.Aeson (FromJSON, ToJSON, Value(..), eitherDecodeStrict', toJSON, withObject, (.:))
 import qualified Data.Aeson.Key as Key
@@ -19,8 +20,14 @@ import qualified Data.Text as T
 import qualified Semiont.Auth as Auth
 import qualified Semiont.Beckon as Beckon
 import qualified Semiont.Bind as Bind
+import qualified Semiont.Browse as Browse
+import qualified Semiont.Gather as Gather
+import qualified Semiont.Match as Match
+import qualified Semiont.Cache as Cache
+import qualified Semiont.Running as Running
 import qualified Semiont.Bus as Bus
 import Semiont.Channels
+import qualified Semiont.Channels as Channel
 import qualified Semiont.Client as Client
 import qualified Semiont.Content as Content
 import qualified Semiont.EventBus as Local
@@ -31,6 +38,7 @@ import qualified Semiont.System as System
 import qualified Semiont.Timing.Settings as Timing
 import qualified Semiont.Transport as Transport
 import Semiont.Types
+import qualified Semiont.Types as Types
 import qualified Semiont.Worker as Worker
 import Streaming (Of, Stream)
 import qualified Streaming.Prelude as Stream
@@ -62,8 +70,13 @@ withRig fixtures action = do
   let clock = Bus.BusOptions (pure 0) (\_ -> atomically retry) (atomically $ do modifyTVar' ids (+1); T.pack . show <$> readTVar ids)
       unexpected :: IO value
       unexpected = ioError (userError "unexpected content operation in surface test")
-      contents = Content.ContentTransport (\_ _ _ -> unexpected) (\_ -> unexpected) (\_ _ -> unexpected)
-        (\_ -> unexpected) (\_ -> unexpected) (\_ -> unexpected) (pure ())
+      recordContent name identity = atomically (writeTQueue calls (Called ("content:"<>name) (Object (KM.singleton "resourceId" (toJSON identity)))))
+      contents = Content.ContentTransport (\_ _ _ -> unexpected)
+        (\identity -> recordContent "getBinary" identity >> pure (Content.BinaryContent "text/plain" "surface"))
+        (\identity consume -> recordContent "getBinaryStream" identity >> consume "text/plain" (Stream.yield "surface"))
+        (\identity -> recordContent "getResourceGraph" identity >> fixture fixtures "GetResourceResponse")
+        (\identity -> recordContent "getAnnotations" identity >> fixture fixtures "GetAnnotationsResponse")
+        (\identity -> recordContent "getAnchoredText" identity >> fixture fixtures "AnchoredTextAnswer") (pure ())
       gatewayCall :: FromJSON result => Text -> Value -> Text -> IO result
       gatewayCall name input schema = atomically (writeTQueue calls (Called ("gateway:" <> name) input)) >> fixture fixtures schema
       gateway = Gateway.GatewayOperations
@@ -101,8 +114,17 @@ withRig fixtures action = do
 
 surfaceCases :: FilePath -> Map.Map Text Value -> IO ()
 surfaceCases root fixtures = do
+  searchFailureCase fixtures
   result <- timeout 15000000 $ do
-    table <- readJSON (root </> "protocol/specs/src/client/surface.json")
+    rawTable <- readJSON (root </> "protocol/specs/src/client/surface.json")
+    examples <- field "fixtures" rawTable :: IO (Map.Map Text Value)
+    let expand value = case value of
+          Object fields | KM.size fields==1, Just (String name) <- KM.lookup "$fixture" fields ->
+            maybe (error "missing shared surface example") expand (Map.lookup name examples)
+          Object fields -> Object (fmap expand fields)
+          Array values -> Array (fmap expand values)
+          _ -> value
+        table=expand rawTable
     inventory <- readJSON (root </> "packages/haskell/sdk/public-api.json")
     modules <- field "modules" inventory
     client <- field "Semiont.Client" modules
@@ -135,6 +157,8 @@ runCase fixtures namespace member via row = withRig fixtures $ \rigValue@(Rig cl
       takeMVar ready
       invoke rigValue namespace member args
       frame <- wait listener >>= maybe (ioError (userError "local signal disappeared")) pure
+      correlation <- optional "correlationId" row
+      require "local correlation escaped its envelope" (busFrameCorrelationId (Transport.wireFrame frame) == correlation)
       require "local signal differs from surface table" (Object (busFramePayloadAdditionalProperties (busFramePayload (Transport.wireFrame frame))) == expected)
       atomically (isEmptyTQueue calls) >>= require "local signal escaped to the wire"
     (_, Just channel) -> do
@@ -150,10 +174,12 @@ runCase fixtures namespace member via row = withRig fixtures $ \rigValue@(Rig cl
       request <- optional "request" via
       emit <- optional "emit" via
       gateway <- optional "gateway" via
-      prefix <- case (request,emit,gateway) of
-        (Just channel,_,_) -> pure ("request:" <> channel)
-        (_,Just channel,_) -> pure ("request:" <> channel)
-        (_,_,Just name) -> pure ("gateway:" <> name)
+      content <- optional "content" via
+      prefix <- case (request,emit,gateway,content) of
+        (Just channel,_,_,_) -> pure ("request:" <> channel)
+        (_,Just channel,_,_) -> pure ("request:" <> channel)
+        (_,_,Just name,_) -> pure ("gateway:" <> name)
+        (_,_,_,Just name) -> pure ("content:" <> name)
         _ -> ioError (userError "unhandled surface operation route")
       actual <- atomically (readTQueue calls)
       require ("first effect differs for " ++ T.unpack namespace ++ "." ++ T.unpack member) (actual == Called prefix expected)
@@ -163,18 +189,22 @@ runCase fixtures namespace member via row = withRig fixtures $ \rigValue@(Rig cl
         payload <- field "sends" step
         received <- atomically (readTQueue calls)
         require "surface continuation differs" (received == Called ("request:" <> channel) payload)
+      if namespace=="browse" && member=="engines" then forM_ limitsOperations (\operation -> do
+        let (channel,_,_)=operationChannels operation
+        received <- atomically (readTQueue calls)
+        require "engine limits lost their derived operation" (received==Called ("request:"<>channelName channel) (Object mempty))) else pure ()
       -- A claims reader may be stopped after it has received a job; its
       -- shutdown failure is checked by the worker suite, not this first-effect table.
       unless (namespace == "job" && member == "claim") (atomically (isEmptyTQueue calls) >>= require "surface method performed an unlisted extra effect")
 
 invoke :: Rig -> Text -> Text -> Value -> IO ()
 invoke (Rig client _ clock _) namespace member args = case (namespace,member) of
-  ("frame","addEntityType") -> field "type" args >>= Frame.addEntityType (Client.frame client)
-  ("frame","addEntityTypes") -> field "types" args >>= Frame.addEntityTypes (Client.frame client)
-  ("frame","addTagSchema") -> field "schema" args >>= Frame.addTagSchema (Client.frame client)
+  ("frame","addEntityType") -> field "type" args >>= void . Frame.addEntityType (Client.frame client)
+  ("frame","addEntityTypes") -> field "types" args >>= void . Frame.addEntityTypes (Client.frame client)
+  ("frame","addTagSchema") -> field "schema" args >>= void . Frame.addTagSchema (Client.frame client)
   ("bind","body") -> do
     resource <- field "resourceId" args; annotation <- field "annotationId" args; operations <- field "operations" args
-    Bind.body (Client.bind client) resource annotation operations
+    void $ Bind.body (Client.bind client) resource annotation operations
   ("bind","initiate") -> field "input" args >>= atomically . Bind.initiate (Client.bind client)
   ("bind","reportBodyError") -> field "input" args >>= atomically . Bind.reportBodyError (Client.bind client)
   ("beckon","attention") -> do
@@ -185,6 +215,50 @@ invoke (Rig client _ clock _) namespace member args = case (namespace,member) of
   ("beckon","sparkleAll") -> field "annotationId" args >>= Beckon.sparkleAll (Client.beckon client) >>= counted
   ("beckon","hover") -> field "annotationId" args >>= atomically . Beckon.hover (Client.beckon client)
   ("beckon","sparkle") -> field "annotationId" args >>= atomically . Beckon.sparkle (Client.beckon client)
+  ("browse","resource") -> field "resourceId" args >>= void . Cache.fresh . Browse.resource (Client.browse client)
+  ("browse","resources") -> optional "filters" args >>= void . Cache.fresh . Browse.resources (Client.browse client)
+  ("browse","annotations") -> field "resourceId" args >>= void . Cache.fresh . Browse.annotations (Client.browse client)
+  ("browse","annotation") -> do
+    identity <- field "resourceId" args; mark <- field "annotationId" args
+    void (Cache.fresh (Browse.annotation (Client.browse client) identity mark))
+  ("browse","entityTypes") -> void (Cache.fresh (Browse.entityTypes (Client.browse client)))
+  ("browse","tagSchemas") -> void (Cache.fresh (Browse.tagSchemas (Client.browse client)))
+  ("browse","engines") -> void (Cache.fresh (Browse.engines (Client.browse client)))
+  ("browse","events") -> field "resourceId" args >>= void . Cache.fresh . Browse.events (Client.browse client)
+  ("browse","resourceContent") -> field "resourceId" args >>= void . Browse.resourceContent (Client.browse client)
+  ("browse","resourceGraph") -> field "resourceId" args >>= void . Browse.resourceGraph (Client.browse client)
+  ("browse","resourceAnchoredText") -> field "resourceId" args >>= void . Browse.resourceAnchoredText (Client.browse client)
+  ("browse","resourceRepresentation") -> field "resourceId" args >>= void . Browse.resourceRepresentation (Client.browse client)
+  ("browse","resourceRepresentationStream") -> do
+    identity <- field "resourceId" args
+    Browse.resourceRepresentationStream (Client.browse client) identity (\_ -> Stream.mapM_ (const (pure ())))
+  ("browse","resourceEvents") -> field "resourceId" args >>= void . Browse.resourceEvents (Client.browse client)
+  ("browse","annotationHistory") -> do
+    identity <- field "resourceId" args; mark <- field "annotationId" args
+    void (Browse.annotationHistory (Client.browse client) identity mark)
+  ("browse","files") -> do
+    path <- optional "dirPath" args; sort <- optional "sort" args
+    void (Browse.files (Client.browse client) path sort)
+  ("browse","kb") -> void (Browse.kb (Client.browse client))
+  ("browse","click") -> field "annotationId" args >>= atomically . Browse.click (Client.browse client)
+  ("browse","openResource") -> field "resourceId" args >>= atomically . Browse.openResource (Client.browse client)
+  ("browse","resourceViewed") -> field "resourceId" args >>= Browse.resourceViewed (Client.browse client)
+  ("gather","annotation") -> do
+    identity <- field "resourceId" args; mark <- field "annotationId" args; options <- optional "options" args
+    Gather.annotation (Client.gather client) identity mark options >>= void . Running.await
+  ("gather","resource") -> do
+    identity <- field "resourceId" args; options <- optional "options" args
+    void (Gather.resource (Client.gather client) identity options)
+  ("gather","referencedBy") -> field "resourceId" args >>= void . Cache.fresh . Gather.referencedBy (Client.gather client)
+  ("match","search") -> do
+    identity <- field "resourceId" args; reference <- field "referenceId" args; context <- field "context" args; options <- optional "options" args
+    Match.search (Client.match client) identity reference context options >>= void . Running.await
+  ("match","requestSearch") -> do
+    input <- field "input" args; correlation <- field "correlationId" args
+    atomically (Match.requestSearch (Client.match client) input correlation)
+  ("match","resources") -> do
+    text <- field "search" args; filters <- optional "filters" args
+    void (Cache.fresh (Match.resources (Client.match client) text filters))
   ("job","status") -> field "jobId" args >>= void . Job.status (Client.job client)
   ("job","pollUntilComplete") -> do
     identity <- field "jobId" args
@@ -219,3 +293,29 @@ readEvent client member ready = case member of
       ready
       heard <- Stream.head_ events
       case heard of Just (Bus.Heard delivered) -> pure (toJSON (Bus.deliveredPayload delivered)); _ -> ioError (userError "valid surface event was refused")
+
+
+searchFailureCase :: Map.Map Text Value -> IO ()
+searchFailureCase fixtures = do
+  inputCell <- newEmptyTMVarIO
+  context <- fixture fixtures "GatheredContext"
+  identity <- either (ioError . userError) pure (mkResourceId "search-resource")
+  reference <- either (ioError . userError) pure (mkAnnotationId "search-annotation")
+  let input=MatchSearchRequest context Nothing reference identity Nothing mempty
+      send frame = do
+        source <- atomically (readTMVar inputCell)
+        let refusal=Types.MatchSearchFailed "the search was refused" reference mempty
+        case encodePayload Channel.MatchSearchFailed refusal of
+          Object fields -> Transport.receive source (BusFrame (channelName Channel.MatchSearchFailed) (busFrameCorrelationId frame) (BusFramePayload fields) Nothing)
+          _ -> ioError (userError "search failure is not an object")
+        pure Nothing
+      options=Bus.BusOptions (pure 0) (const (atomically retry)) (pure "search-failure")
+  bracket (Transport.newTransport (Transport.TransportOptions "local://search-failure" (Set.fromList channelNames) send (pure ())))
+    (Transport.dispose . fst) $ \(carrier,source) -> do
+      atomically (putTMVar inputCell source)
+      Transport.setState source Transport.Connecting
+      Transport.setState source Transport.Open
+      outcome <- try (Bus.request (Bus.newBus options carrier) MatchSearchRequestedOperation input (Timing.busRequestTimeoutMs Timing.protocolSettings))
+      case outcome of
+        Left problem -> require "search failure lost its channel's words" (busRequestErrorMessage problem=="the search was refused")
+        Right _ -> ioError (userError "refused search returned a result")

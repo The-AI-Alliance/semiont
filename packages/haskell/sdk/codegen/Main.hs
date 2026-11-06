@@ -331,9 +331,22 @@ busDescriptors original registry = do
     failure <- required "failure" fields >>= find
     forM_ [request, result, failure] $ \(_, _, scope) -> when scope (Left "operation channel unexpectedly needs resource scope")
     pure (request, result, failure)
+  failureMessages <- forM ops $ \((request,_,_),_,(_,typ,_)) -> do
+    schema <- maybe (Left "operation failure schema is missing") Right (Map.lookup typ schemas') >>= normalize schemas' >>= fieldsOf
+    properties <- maybe (Left "operation failure has no properties") fieldsOf (KM.lookup "properties" schema)
+    requiredNames <- arrayAt "required" schema >>= traverse stringValue
+    when ("code" `elem` requiredNames) (Left "failure codes became required: update typed error classification")
+    let messages = [key | key <- ["message","error"], Key.toText key `elem` requiredNames,
+                    Just (Object definition) <- [KM.lookup key properties], textAt "type" definition == Just "string"]
+    message <- case messages of [one] -> Right one; _ -> Left "operation failure has no single required diagnostic string"
+    pure (request,lower typ <> identifier (Key.toText message))
+  let limits = [request | ((request,input,_),(_,output,_),(_,failure,_)) <- ops,
+                output == "InferenceLimitsResult", input == "InferenceLimitsRequest", failure == "CommandError"]
+      namedLimits = [constructor | (name,constructor,_,_,_) <- typed, ":limits-requested" `T.isSuffixOf` name]
+  unless (sort limits == sort namedLimits) (Left "inference limits operations changed shape")
   let header = "-- Generated from protocol/specs/src/bus/registry.json. Do not edit.\n{-# LANGUAGE DataKinds, GADTs, KindSignatures, OverloadedStrings #-}\n"
       code = header <> T.unlines
-        [ "module Semiont.Channels (Scope(..), ScopeArg(..), Channel(..), Operation(..), SomeOperation(..), allOperations, channelName, channelNames, globalChannels, scopedChannels, channelSchema, channelIsScoped, encodePayload, decodePayload, operationChannels, persistedEventTypes) where"
+        [ "module Semiont.Channels (Scope(..), ScopeArg(..), Channel(..), Operation(..), SomeOperation(..), allOperations, limitsOperations, channelName, channelNames, globalChannels, scopedChannels, channelSchema, channelIsScoped, encodePayload, decodePayload, operationChannels, persistedEventTypes) where"
         , "import Data.Aeson (Value(..), toJSON, parseJSON)"
         , "import Data.Aeson.Types (parseEither)"
         , "import Data.Text (Text)"
@@ -364,6 +377,7 @@ busDescriptors original registry = do
         <> T.unlines ["  " <> request <> "Operation :: Operation Types." <> input <> " Types." <> output <> " Types." <> failure | ((request, input, _), (_, output, _), (_, failure, _)) <- ops]
         <> "data SomeOperation where\n  SomeOperation :: Operation input output failure -> SomeOperation\n"
         <> "allOperations :: [SomeOperation]\nallOperations = [" <> T.intercalate ", " ["SomeOperation " <> request <> "Operation" | ((request,_,_),_,_) <- ops] <> "]\n"
+        <> "limitsOperations :: [Operation Types.InferenceLimitsRequest Types.InferenceLimitsResult Types.CommandError]\nlimitsOperations = [" <> T.intercalate ", " [request <> "Operation" | request <- limits] <> "]\n"
         <> "operationChannels :: Operation input output failure -> (Channel 'Global input, Channel 'Global output, Channel 'Global failure)\n"
         <> T.unlines ["operationChannels " <> request <> "Operation = (" <> request <> ", " <> result <> ", " <> failure <> ")" | ((request, _, _), (result, _, _), (failure, _, _)) <- ops]
       roundTrips = header <> T.unlines
@@ -379,7 +393,14 @@ busDescriptors original registry = do
         <> T.unlines ["  " <> literal name <> " -> Right (channelName " <> constructor <> ", channelSchema " <> constructor <> ", channelIsScoped " <> constructor <> ")" | (name, constructor, _, _, _) <- typed]
         <> "  _ -> Left \"unknown channel in metadata dispatcher\"\n"
         <> "operationMetadata :: [(Text, Text, Text)]\noperationMetadata = [" <> T.intercalate ", " ["names " <> request <> "Operation" | ((request, _, _), _, _) <- ops] <> "]\n  where names operation = let (asked, result, failure) = operationChannels operation in (channelName asked, channelName result, channelName failure)\n"
-  pure (schemas', [("src/Semiont/Channels.hs", code), ("test/Semiont/Internal/Generated/ChannelRoundTrip.hs", roundTrips)])
+  let failures = header <> T.unlines
+        [ "module Semiont.Internal.Generated.OperationFailure (message) where"
+        , "import Data.Text (Text)"
+        , "import Semiont.Channels"
+        , "import qualified Semiont.Types as Types"
+        , "message :: Operation input output failure -> failure -> Text"
+        ] <> T.unlines ["message " <> request <> "Operation = Types." <> accessor | (request,accessor) <- failureMessages]
+  pure (schemas', [("generated/Semiont/Internal/Generated/OperationFailure.hs", failures), ("src/Semiont/Channels.hs", code), ("test/Semiont/Internal/Generated/ChannelRoundTrip.hs", roundTrips)])
   where
     required key fields = maybe (Left ("missing bus field: " ++ show key)) Right (textAt key fields)
     arrayAt key fields = case KM.lookup key fields of Just (Array values) -> Right (toList values); _ -> Left ("missing bus array: " ++ show key)
@@ -436,12 +457,33 @@ main = do
     _ -> ioError (userError "ResourceUpload has no required list")
   let metadata = Object (KM.insert "properties" (Object (KM.delete "file" properties))
         (KM.insert "required" (Array (V.filter (/= String "file") requiredUpload)) upload))
+  payloadTypes <- T.filter (`notElem` (" \n\r\t" :: String)) <$> readUTF8 (root </> "packages/typescript/core/src/payload-types.ts")
+  unless ("exporttypeEngineWithLimits=EngineEntry&{limits?:components['schemas']['InferenceLimits']};" `T.isInfixOf` payloadTypes)
+    (ioError (userError "EngineWithLimits changed: update its derived Haskell adapter"))
+  engine <- maybe (ioError (userError "EngineEntry schema missing")) pure (Map.lookup "EngineEntry" schemas)
+    >>= either (ioError . userError) pure . normalize schemas >>= either (ioError . userError) pure . fieldsOf
+  engineProperties <- maybe (ioError (userError "EngineEntry properties missing")) pure (KM.lookup "properties" engine)
+    >>= either (ioError . userError) pure . fieldsOf
+  let engineWithLimits = Object (KM.insert "properties" (Object (KM.insert "limits" (Object (KM.singleton "$ref" (String "InferenceLimits.json"))) engineProperties)) engine)
+  gatherOptions <- maybe (ioError (userError "GatherResourceRequestOptions schema missing")) pure (Map.lookup "GatherResourceRequestOptions" schemas)
+    >>= either (ioError . userError) pure . fieldsOf
+  searchOptions <- maybe (ioError (userError "MatchSearchRequest schema missing")) pure (Map.lookup "MatchSearchRequest" schemas)
+    >>= either (ioError . userError) pure . fieldsOf
+  searchProperties <- maybe (ioError (userError "MatchSearchRequest properties missing")) pure (KM.lookup "properties" searchOptions)
+    >>= either (ioError . userError) pure . fieldsOf
+  forM_ ["resourceId", "referenceId", "context"] $ \name ->
+    unless (KM.member name searchProperties) (ioError (userError "MatchSearchRequest positional input disappeared"))
+  let optionSchemas =
+        [ ("EngineWithLimits",engineWithLimits)
+        , ("GatherResourceOptions",Object (KM.delete "required" gatherOptions))
+        , ("MatchSearchOptions",Object (KM.insert "properties" (Object (foldr KM.delete searchProperties ["resourceId", "referenceId", "context"])) (KM.delete "required" searchOptions)))
+        ]
   (httpSchemas, httpFiles) <- httpFacts root (Object spec) schemas
-  forM_ ("ResourceUploadMetadata" : "TraceCarrier" : map fst httpSchemas) $ \name ->
+  forM_ ("ResourceUploadMetadata" : "TraceCarrier" : map fst (optionSchemas ++ httpSchemas)) $ \name ->
     when (Map.member name schemas) (ioError (userError ("adapter schema name is owned by OpenAPI: " ++ T.unpack name)))
   facts <- generateFacts root
   workerFiles <- workerFacts root member
-  (busSchemas, busFiles) <- either (ioError . userError) pure (busDescriptors (Map.insert "TraceCarrier" carrier (Map.insert "ResourceUploadMetadata" metadata (Map.fromList httpSchemas <> schemas))) registry)
+  (busSchemas, busFiles) <- either (ioError . userError) pure (busDescriptors (Map.insert "TraceCarrier" carrier (Map.insert "ResourceUploadMetadata" metadata (Map.fromList (optionSchemas ++ httpSchemas) <> schemas))) registry)
   (moduleNames, models) <- either (ioError . userError) pure (generate busSchemas (Set.fromList ids))
   template <- readUTF8 (output </> "semiont.cabal.in")
   forM_ ["@VERSION@", "@MODEL_MODULES@"] $ \marker ->

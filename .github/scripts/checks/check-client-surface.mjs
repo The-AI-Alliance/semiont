@@ -1957,12 +1957,15 @@ function haskellSurface() {
         const receiver = returns.split(' -> ')[0];
         if (!receiver.endsWith(`.${type}`)) continue;
         if (members.has(method) && members.get(method).returns !== returns) fail(`Haskell has conflicting declarations of ${namespace}.${method} in ${moduleName}`);
-        // STM is the local signal effect. Callback-scoped event readers retain
+        // Unit actions are signals; request methods return their typed replies.
+        // Callback-scoped event readers retain
         // Stream in their input and return the consumer's IO result.
         const end = returns.slice(returns.lastIndexOf(' -> ') + 4);
-        const shape = /\bSTM \(\)$/.test(end) ? 'signal'
+        const shape = /\b(?:STM|IO) \(\)$/.test(end) ? 'signal'
           : / -> IO \(Maybe Integer\)$/.test(returns) ? 'count'
           : / -> IO Semiont\.Worker\.Claims$/.test(returns) ? 'claims'
+          : / -> Semiont\.Internal\.Cache\.Query\b/.test(returns) ? 'cache'
+          : / -> IO \(Semiont\.Internal\.Running\.Running\b/.test(returns) ? 'stream'
           : returns.includes('Streaming.Internal.Stream (Data.Functor.Of.Of (Semiont.Internal.Bus.Heard ') ? 'events'
           : / -> IO \S/.test(returns) ? 'promise' : undefined;
         members.set(method, { shape, returns });

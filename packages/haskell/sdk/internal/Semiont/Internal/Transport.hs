@@ -4,16 +4,16 @@ module Semiont.Internal.Transport
   ( Transport, TransportInput, TransportOptions(..), Frame(..), EventBus
   , newTransport, baseUrl, emit, frames, stream, on, state, errors, isSubscribed
   , subscribeToResource, trackReply, bridgeInto, dispose
-  , receiveSTM, receive, setState, subscriptions, reportError, withPendingReply
-  , ownAction, raiseTransportError
-  , newEventBus, local, localSTM, events, closeEventBus
+  , receiveSTM, receiveContextSTM, receive, setState, subscriptions, reportError, withPendingReply
+  , ownAction, raiseTransportError, reportFailure
+  , newEventBus, local, localSTM, tapLocal, events, closeEventBus
   ) where
 
 import Control.Concurrent (ThreadId, myThreadId)
 import Control.Concurrent.Async (Async, asyncThreadId, cancel, waitCatch, waitCatchSTM)
 import Control.Concurrent.STM
 import Control.Exception (SomeAsyncException, SomeException, bracket, catch, finally, fromException, mask, mask_, onException, throwIO, try)
-import Control.Monad (unless, void, when)
+import Control.Monad (forM_, unless, void, when)
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (Object, Result(..), Value(..), fromJSON, toJSON)
 import qualified Data.Aeson.Key as Key
@@ -22,6 +22,8 @@ import Data.List (nub)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
+import qualified OpenTelemetry.Context as Context
+import OpenTelemetry.Context.ThreadLocal (getContext)
 import OpenTelemetry.Context.ThreadLocal.Propagation (tracedAsync)
 import qualified Semiont.Internal.Broadcast as Broadcast
 import qualified Semiont.Internal.Delivery as Delivery
@@ -37,7 +39,7 @@ import Streaming (Of, Stream)
 import qualified Streaming.Prelude as Stream
 
 data Frame = Frame { wireFrame :: BusFrame, frameTrace :: Maybe TraceCarrier } deriving (Eq, Show)
-newtype EventBus = EventBus (Delivery.Hub Frame) deriving (Eq)
+data EventBus = EventBus (Delivery.Hub Frame) (TVar (Maybe Context.Context)) deriving (Eq)
 data TransportOptions = TransportOptions
   { transportBaseUrl :: Text
   , receiveChannels :: Set.Set Text
@@ -208,19 +210,27 @@ withPendingReply transport@(Transport runtime) correlation channels action =
       (TransportError Codes.TransportConflict "correlation id is already pending" Nothing Nothing)
 
 newEventBus :: IO EventBus
-newEventBus = atomically $ EventBus <$> Delivery.newHub frameChannel
+newEventBus = atomically $ EventBus <$> Delivery.newHub frameChannel <*> newTVar Nothing
 
 local :: EventBus -> Frame -> IO ()
-local bus = atomically . localSTM bus
+local (EventBus hub held) frame = do
+  context <- getContext
+  atomically $ do
+    writeTVar held (Just context)
+    Delivery.publish hub frame
+    writeTVar held Nothing
+
+tapLocal :: EventBus -> (Frame -> Maybe Context.Context -> STM ()) -> IO (IO ())
+tapLocal (EventBus hub context) action = Delivery.onFrameSTM hub (\frame -> readTVar context >>= action frame)
 
 localSTM :: EventBus -> Frame -> STM ()
-localSTM (EventBus hub) = Delivery.publish hub
+localSTM (EventBus hub _) = Delivery.publish hub
 
 events :: EventBus -> Text -> (Stream (Of Frame) IO () -> IO result) -> IO result
-events (EventBus hub) channel consume = Delivery.withFrames hub channel (consume . fromReader)
+events (EventBus hub _) channel consume = Delivery.withFrames hub channel (consume . fromReader)
 
 closeEventBus :: EventBus -> IO ()
-closeEventBus (EventBus hub) = atomically (Delivery.closeHub hub)
+closeEventBus (EventBus hub _) = atomically (Delivery.closeHub hub)
 
 bridgeInto :: Transport -> EventBus -> IO (IO ())
 bridgeInto (Transport runtime) bus = mask_ $ do
@@ -232,10 +242,15 @@ bridgeInto (Transport runtime) bus = mask_ $ do
   pure (atomically (modifyTVar' (bridges runtime) (Map.delete key)))
 
 receive :: TransportInput -> BusFrame -> IO ()
-receive source = atomically . receiveSTM source
+receive source raw = do
+  context <- getContext
+  atomically (receiveContextSTM (Just context) source raw)
 
 receiveSTM :: TransportInput -> BusFrame -> STM ()
-receiveSTM (TransportInput runtime) raw = do
+receiveSTM = receiveContextSTM Nothing
+
+receiveContextSTM :: Maybe Context.Context -> TransportInput -> BusFrame -> STM ()
+receiveContextSTM context (TransportInput runtime) raw = do
   over <- readTVar (closing runtime)
   unless over $ do
     let payload = busFramePayloadAdditionalProperties (busFramePayload raw)
@@ -244,7 +259,9 @@ receiveSTM (TransportInput runtime) raw = do
           Just value -> case fromJSON value of Success value' -> Just value'; Error _ -> Nothing
         frame = Frame (raw { busFramePayload = BusFramePayload (KM.delete (Key.fromText traceField) payload) }) carrier
     targets <- nub . Map.elems <$> readTVar (bridges runtime)
-    Delivery.deliver (received runtime : [hub | EventBus hub <- targets]) (replies runtime) frame
+    forM_ targets $ \(EventBus _ held) -> writeTVar held context
+    Delivery.deliver (received runtime : [hub | EventBus hub _ <- targets]) (replies runtime) frame
+    forM_ targets $ \(EventBus _ held) -> writeTVar held Nothing
 
 setState :: TransportInput -> ConnectionState -> IO ()
 setState (TransportInput runtime) next = do
@@ -253,6 +270,9 @@ setState (TransportInput runtime) next = do
     unless (next == before || next `elem` connectionTransitions before)
       (throwSTM (TransportError Codes.TransportError "invalid connection-state transition" Nothing Nothing))
     when (next /= before) (State.update (connection runtime) next)
+
+reportFailure :: Transport -> TransportError -> IO ()
+reportFailure (Transport runtime) = reportError (TransportInput runtime)
 
 reportError :: TransportInput -> TransportError -> IO ()
 reportError (TransportInput runtime) problem = atomically $ do

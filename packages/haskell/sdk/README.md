@@ -7,9 +7,10 @@ as the other Semiont SDKs. It currently provides protocol types, checked
 identifiers, a typed bus and common carrier runtime, read-only state,
 scoped operation consumption, retry support, and launcher discovery.
 HTTP/SSE and content adapters and the client facade are available, including
-the Frame, Bind, Beckon, Job, Auth and System namespaces. Claims, held jobs and durable worker
-commits are available. The other namespaces, sign-in, delegation, live queries,
-registry and state units are still being implemented.
+the Frame, Bind, Beckon, Browse, Gather, Match, Job, Auth and System namespaces.
+Live queries, claims, held jobs and durable worker commits are available. Mark,
+Yield, sign-in, delegation, persisted client sessions, registry and state units
+are still being implemented.
 
 [Install](#install) · [Signing in](#signing-in) · [Connect](#connect) ·
 [Delegation](#delegation) · [Live queries](#live-queries) ·
@@ -70,9 +71,9 @@ withConnection options = bracket (fromHttp options) dispose
 
 `Client.newClient` also accepts independently supplied bus/content adapters and
 an optional gateway. Each client constructs and bridges its own local bus.
-Disposal closes the transport and content operations before completing that
-local bus. `Client.wire` is its typed wire bus; `Client.frame`, `Client.auth` and
-`Client.system` expose the currently implemented namespaces.
+Disposal stops refresh and cache work, closes transport and content operations,
+and completes the local bus. `Client.wire` is its typed wire bus; the namespace
+getters include `Client.browse`, `Client.gather` and `Client.match`.
 
 HTTP content supports scoped binary streams, buffered binary reads, metadata,
 annotations and anchored text. Uploads take generated `ResourceUploadMetadata`
@@ -86,8 +87,8 @@ refuses further reads.
 The Haskell client will implement the same namespaces and methods as the
 [client surface](../../../protocol/specs/src/client/surface.json). Typed
 channel and operation descriptors already exist in `Semiont.Channels`;
-Frame, Bind, Beckon, Job, Auth and System namespace methods are available; the remaining namespace
-methods are still being implemented. See the
+Frame, Bind, Beckon, Browse, Gather, Match, Job, Auth and System methods are
+available. Mark and Yield are still being implemented. See the
 [builder guide](../../../docs/builder/README.md) for the shared model.
 
 ## Delegation
@@ -139,9 +140,37 @@ markers are never saved. `persistencePending` remains true while a fetch or
 unsaved content could let a resumption bookmark lead its document. Dispose
 cancels and joins owned work and completes readers.
 
-The Browse, Gather and Match live-query facades, event refresh table, storage
-adapter and gateway live-query conformance driver remain in development.
-Their behavior follows the
+`Browse.resource`, `Browse.annotations`, `Browse.annotation`, `Browse.events`,
+`Browse.resources`, `Browse.entityTypes`, `Browse.tagSchemas`, `Browse.engines`,
+`Gather.referencedBy` and `Match.resources` return live queries. Scoped
+observations hold the resource subscription until their callback returns. The
+shared event refresh table applies before request continuations run, coalesces
+repeated invalidations, writes known annotation values, and refreshes the held
+global queries when a dropped connection reopens. Engines retain their job
+assignments and gain each inference service's limits as those arrive.
+
+```haskell
+module ResourceNames (readResourceName) where
+
+import Data.Text (Text)
+import qualified Semiont.Browse as Browse
+import qualified Semiont.Cache as Cache
+import qualified Semiont.Client as Client
+import Semiont.Types (ResourceId, resourceDescriptorName)
+
+readResourceName :: Client.Client -> ResourceId -> IO Text
+readResourceName client identity =
+  resourceDescriptorName <$> Cache.fresh (Browse.resource (Client.browse client) identity)
+```
+
+`Gather.annotation` and `Match.search` return lazy `Running` operations.
+`Gather.resource` returns a complete `GatheredContext`. Buffered text reads use
+the media registry, MIME charset and byte-order mark rules; PDF text is read
+through `Browse.resourceAnchoredText`, and binary content through
+`Browse.resourceRepresentation` or its scoped stream.
+
+The storage adapter, persisted client sessions and gateway live conformance
+driver remain in development. Query behavior follows the
 [cache contract](../../../protocol/contract/CACHE-SEMANTICS.md).
 
 ## State units

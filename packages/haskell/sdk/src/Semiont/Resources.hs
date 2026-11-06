@@ -1,6 +1,7 @@
-module Semiont.Resources (getPrimaryRepresentation, getPrimaryMediaType, getResourceEntityTypes) where
+module Semiont.Resources (getPrimaryRepresentation, getPrimaryMediaType, getResourceEntityTypes, decodeRepresentation) where
 
 import Data.Text (Text)
+import Semiont.Internal.Text (decodeRepresentation)
 import Semiont.Types
 
 getPrimaryRepresentation :: ResourceDescriptor -> Maybe Representation

@@ -1,11 +1,11 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
-module ClockCases (clockCasesFor, Scenario(..), cacheClockCases, httpClockCases, discoveryClockCases) where
+module ClockCases (clockCasesFor, Scenario(..), cacheClockCases, httpClockCases, discoveryClockCases, clientClockCases) where
 
 import Control.Concurrent.Async (async, cancel)
 import Control.Concurrent.STM
 import Control.Exception (SomeException, bracket, finally, try)
 import Control.Monad (forM_, unless, when)
-import Data.Aeson (Value(..), eitherDecodeStrict', toJSON)
+import Data.Aeson (Value(..), eitherDecodeStrict', toJSON, FromJSON, fromJSON, Result(..))
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString as Bytes
@@ -20,6 +20,10 @@ import qualified Data.UUID.Types as UUID
 import qualified Data.Set as Set
 import Network.HTTP.Client (defaultManagerSettings, managerRawConnection, noProxy)
 import Network.HTTP.Client.Internal (makeConnection)
+import qualified Semiont.Browse as Browse
+import qualified Semiont.Client as Client
+import qualified Semiont.Content as Content
+import qualified Semiont.Bus as Bus
 import qualified Semiont.Cache as Cache
 import qualified Semiont.Channels as Channel
 import qualified Semiont.Discovery as Discovery
@@ -191,3 +195,40 @@ cacheClockCases root = clockCasesFor root ["saveDebounce"] $ \clock _ -> do
   cache <- Cache.newCache (pure :: Int -> IO Int) options
   let action = atomicModifyIORef' values (\n -> (n+1,n+1)) >>= Cache.set cache 1
   pure (Scenario action (readTVarIO saves) (Cache.dispose cache))
+
+
+clientClockCases :: FilePath -> Map.Map Text Value -> IO ()
+clientClockCases root fixtures = clockCasesFor root ["invalidationWindow"] $ \time _ -> do
+  count <- newTVarIO 0
+  ids <- newTVarIO (0::Integer)
+  inputCell <- newEmptyTMVarIO
+  identity <- either (ioError . userError) pure (mkResourceId "clock-resource")
+  let fixture :: FromJSON value => Text -> IO value
+      fixture name = case Map.lookup name fixtures of
+        Nothing -> ioError (userError "missing client clock fixture")
+        Just value -> case fromJSON value of Error message -> ioError (userError message); Success parsed -> pure parsed
+      unexpected :: IO value
+      unexpected = ioError (userError "unexpected content read in invalidation clock case")
+      contents = Content.ContentTransport (\_ _ _ -> unexpected) (\_ -> unexpected) (\_ _ -> unexpected)
+        (\_ -> unexpected) (\_ -> unexpected) (\_ -> unexpected) (pure ())
+      options = Bus.BusOptions (Time.now time) (Time.waitUntil time)
+        (atomically $ do modifyTVar' ids (+1); Text.pack . show <$> readTVar ids)
+      send frame = do
+        unless (busFrameChannel frame==Channel.channelName Channel.BrowseEventsRequested) (ioError (userError "unexpected client clock request"))
+        atomically (modifyTVar' count (+1))
+        response <- fixture "BrowseEventsResult"
+        input <- atomically (readTMVar inputCell)
+        case Channel.encodePayload Channel.BrowseEventsResult response of
+          Object fields -> Transport.receive input (BusFrame (Channel.channelName Channel.BrowseEventsResult) (busFrameCorrelationId frame) (BusFramePayload fields) Nothing)
+          _ -> ioError (userError "events reply is not an object")
+        pure Nothing
+  (carrier,input) <- Transport.newTransport (Transport.TransportOptions "local://clock" (Set.fromList Channel.channelNames) send (pure ()))
+  atomically (putTMVar inputCell input)
+  Transport.setState input Transport.Connecting
+  Transport.setState input Transport.Open
+  client <- Client.newClient carrier contents Nothing options Timing.protocolSettings
+  observer <- async (Cache.watch (Browse.events (Client.browse client) identity) (Stream.mapM_ (const (pure ()))))
+  stored <- fixture "StoredEventResponse"
+  let payload=case toJSON stored { storedEventResponseResourceId=Just identity } of Object fields -> BusFramePayload fields; _ -> error "stored event is not an object"
+      action=Transport.receive input (BusFrame (Channel.channelName Channel.MarkAdded) Nothing payload (Just identity))
+  pure (Scenario action (readTVarIO count) (Client.dispose client `finally` cancel observer))

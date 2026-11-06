@@ -119,7 +119,7 @@ const actualStates = new Set(Object.entries(inventory.modules['Semiont.Transport
   .map(([name]) => name[0].toLowerCase() + name.slice(1)));
 same('Haskell connection states', expectedStates, actualStates);
 
-// Accept future codes; the generated CommandError validates every other field.
+// Accept future codes; each operation's generated failure validates its other fields.
 const busType = /^(?:data|newtype) ([\w.]+)\b/.exec(inventory.modules['Semiont.Bus'].types.Bus.definition);
 if (!busType) throw new Error('GHC declares no implementation of Bus');
 const busPath = busType[1].split('.').slice(0, -1).join('/');
@@ -130,8 +130,22 @@ const readKeys = [...bus.matchAll(/KM\.lookup "(\w+)" fields/g)].map((match) => 
 const commandError = JSON.parse(read('protocol/specs/src/components/schemas/CommandError.json'));
 same('Haskell direct failure fields', new Set(['code']), new Set(readKeys));
 if (commandError.properties.code?.type !== 'string') throw new Error('failure reader needs the new code type');
-if (!bus.includes('fromJSON (Object (KM.delete "code" fields)) :: Result CommandError')) {
-  throw new Error('failure fields besides the forward-compatible code must use the generated CommandError decoder');
+if (!bus.includes('KM.delete "code" fields') || !bus.includes('case decoded failure diagnostic of') || !bus.includes('OperationFailure.message operation (deliveredPayload delivered)')) {
+  throw new Error('failure fields besides the forward-compatible code must use the operation’s own typed decoder and diagnostic');
+}
+const diagnosticOperations = new Map(Object.entries(inventory.modules['Semiont.Channels'].values)
+  .flatMap(([name, signature]) => {
+    const match = /^Semiont\.Channels\.Operation \S+ \S+ (\S+)$/.exec(signature);
+    return match ? [[name, match[1]]] : [];
+  }));
+const diagnostics = [...read('packages/haskell/sdk/generated/Semiont/Internal/Generated/OperationFailure.hs')
+  .matchAll(/^message (\w+) = Types\.(\w+)$/gm)];
+same('Haskell per-operation failure diagnostics', new Set(diagnosticOperations.keys()), new Set(diagnostics.map((match) => match[1])));
+if (diagnostics.length !== diagnosticOperations.size) throw new Error('duplicate operation failure diagnostic');
+for (const [, operation, accessor] of diagnostics) {
+  if (inventory.modules['Semiont.Types'].values[accessor] !== `${diagnosticOperations.get(operation)} -> Data.Text.Internal.Text`) {
+    throw new Error(`${operation} does not read its own typed failure’s text: ${accessor}`);
+  }
 }
 console.log('PASS Haskell transport, typed bus and failure-reader censuses');
 
@@ -141,8 +155,10 @@ if (!cacheState) throw new Error('no reference cache-state vocabulary');
 const expectedCacheStates = new Set([...cacheState.matchAll(/status: '([^']+)'/g)].map((match) => match[1]));
 const cacheModule = inventory.modules['Semiont.Cache'];
 if (!cacheModule) throw new Error('no compiled Haskell cache');
+const cacheType = /^(?:data|newtype) ([\w.]+)\b/.exec(cacheModule.types.CacheState?.definition ?? '')?.[1];
+if (!cacheType) throw new Error('no compiler definition of Haskell cache states');
 const actualCacheStates = new Set(Object.entries(cacheModule.values)
-  .filter(([name, signature]) => /^[A-Z]/.test(name) && /Semiont\.Cache\.CacheState value$/.test(signature))
+  .filter(([name, signature]) => /^[A-Z]/.test(name) && signature.endsWith(`${cacheType} value`))
   .map(([name]) => name[0].toLowerCase() + name.slice(1)));
 same('Haskell three-outcome cache states', expectedCacheStates, actualCacheStates);
 

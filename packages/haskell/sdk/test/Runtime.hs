@@ -148,6 +148,21 @@ runningCases = do
 
 deliveryCases :: IO ()
 deliveryCases = do
+  tapped <- atomically (Delivery.newHub (const "channel"))
+  mutations <- newTVarIO (0::Int)
+  release <- Delivery.onFrameSTM tapped (\_ -> modifyTVar' mutations (+1))
+  atomically (Delivery.publish tapped ())
+  readTVarIO mutations >>= require "frame effect depended on a raw observer" . (==1)
+  release
+  release
+  atomically (Delivery.publish tapped ())
+  readTVarIO mutations >>= require "a detached frame effect ran again" . (==1)
+  _ <- Delivery.onFrameSTM tapped (\_ -> modifyTVar' mutations (+1))
+  atomically (Delivery.closeHub tapped >> Delivery.publish tapped ())
+  late <- Delivery.onFrameSTM tapped (\_ -> modifyTVar' mutations (+1))
+  atomically (Delivery.publish tapped ())
+  late
+  readTVarIO mutations >>= require "a closed frame hub retained an effect" . (==1)
   wire <- atomically (Delivery.newHub busFrameChannel)
   local <- atomically (Delivery.newHub busFrameChannel)
   replies <- atomically (Delivery.newReplies busFrameChannel busFrameCorrelationId)
@@ -162,14 +177,18 @@ deliveryCases = do
       require "tracked reply did not appear in the resumption snapshot" (ids == ["request-1"])
       conflict <- try (Delivery.withReply replies "request-1" replyChannels (const (pure ())))
       require "duplicate correlation replaced a pending request" (conflict == Left Delivery.CorrelationConflict)
+      applied <- newTVarIO False
+      detach <- Delivery.onFrameSTM local (\_ -> writeTVar applied True)
       continuation <- async $ do
         frame <- atomically (Delivery.awaitReply pending)
+        readTVarIO applied >>= require "request continuation outran its frame effects"
         require "request received the wrong frame" (frame == Just reply)
         atomically (Delivery.publish local signal)
       atomically $ do
         Delivery.deliver [wire, local] replies reply
         Delivery.deliver [wire, local] replies (reply { busFrameChannel = Channels.channelName Channels.BeckonFocus })
       wait continuation
+      detach
       atomically (Delivery.closeHub wire >> Delivery.closeHub local)
       seenWire <- atomically (sequence [Broadcast.next wireFrames, Broadcast.next wireFrames])
       seenLocal <- atomically (sequence [Broadcast.next localFrames, Broadcast.next localFrames, Broadcast.next localFrames])

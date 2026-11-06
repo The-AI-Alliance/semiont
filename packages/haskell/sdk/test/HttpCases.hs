@@ -85,9 +85,9 @@ httpCases root fixtures = do
       resource <- either (ioError . userError) pure (mkResourceId "download")
       (do
         atomically (State.current (Client.state client) >>= check . (== Transport.Open))
-        Frame.addEntityType (Client.frame client) "Entity"
-        Frame.addEntityTypes (Client.frame client) ["One", "Two"]
-        Frame.addTagSchema (Client.frame client) (fromFixture "TagSchema")
+        void $ Frame.addEntityType (Client.frame client) "Entity"
+        void $ Frame.addEntityTypes (Client.frame client) ["One", "Two"]
+        void $ Frame.addTagSchema (Client.frame client) (fromFixture "TagSchema")
         propagationKey <- Context.newKey "HTTP propagator caller"
         injectedContexts <- newIORef ([] :: [Maybe Text])
         extractions <- newIORef (0 :: Int)
@@ -104,7 +104,7 @@ httpCases root fixtures = do
         bracket Propagator.getGlobalTextMapPropagator Propagator.setGlobalTextMapPropagator $ \_ -> do
           Propagator.setGlobalTextMapPropagator propagator
           bracket (attachContext (Context.insert propagationKey ("caller" :: Text) callerContext)) detachContext $ \_ ->
-            Frame.addEntityType (Client.frame client) "Propagated"
+            void $ Frame.addEntityType (Client.frame client) "Propagated"
         readIORef injectedContexts >>= require "transport injection lost the caller's context" . (== [Just "caller"])
         readIORef extractions >>= require "transport ignored the host's extractor" . (> 0)
         restoredContext <- getContext
@@ -244,7 +244,7 @@ httpFaults origin http client resource clock waits =
     atomically (writeTVar clock firstWait)
     waitForDeadline waits secondWait
     atomically (writeTVar clock secondWait)
-    wait retrying
+    void (wait retrying)
     attempted <- readState origin
     let asks = filter (\value -> field "path" value == Just (String (Routes.routePath Routes.EmitOnBus))) (values "requests" attempted)
         lastThree = drop (length asks - 3) asks
@@ -307,7 +307,7 @@ credentialCases origin options supplied renewals clock waits = do
       readIORef renewals >>= require "stream renewed more than once in one outage" . (== ["refused"])
       atomically (writeTVar supplied (Just "fresh") >> writeTVar clock secondPoll)
       atomically (State.current (Client.state client) >>= check . (== Transport.Open))
-      Frame.addEntityType (Client.frame client) "Recovered"
+      void $ Frame.addEntityType (Client.frame client) "Recovered"
       require "client base URL changed" (Client.baseUrl client == origin)
 
 recoveryCases :: Text -> Http.HttpOptions -> TVar Integer -> TVar (Set.Set Integer) -> IO ()

@@ -7,10 +7,11 @@
     "cabal.project.freeze": "03bf4afef9abef0686589361407a3296f47d1690d0723f55d2730c5861b1bd14",
     "codegen/Facts.hs": "5e41344fe0e680146801034aa0d37754dcbcb6f84c09b4d0f20debc26e9baaaf",
     "codegen/HttpFacts.hs": "39cf5b1a671802b772c00fe4153f41d17f2712f556e4bca58bbb609a189a82e7",
-    "codegen/Main.hs": "5b3a763f9b98e009a9dca7bf62a30a4d9079a1fbf4805c7678e5647ae39119d4",
+    "codegen/Main.hs": "ae04a6ad4f3358a9cc3d15e14c32bbea9a330d6dc4b5469dd13c64439ec97452",
     "codegen/TransportFacts.hs": "9d801421300ae21ac723a2655dbbdf21eef3824ee62877b1e9f7d14ac113bca7",
     "codegen/WorkerFacts.hs": "33c32e430b31882a2a1000b58fe9b12e70fb300d9af188441847ecf6df7ff476",
     "codegen/WorkerTypes.hs": "7d63b6493f9978dfc5657c222b580519a7251082dfe939158e597efd65a323d2",
+    "generated/Semiont/Internal/Generated/CacheRefresh.hs": "c57278f960b27f988d12e1d95365c527322392c9450464f815e54d0dc2ecdaf5",
     "generated/Semiont/Internal/Generated/Models/Agent.hs": "9f16d6b0adbdad7edec31fcade8037bd4a591b1dee50a64dfe26e48317445abc",
     "generated/Semiont/Internal/Generated/Models/AgentOrganization.hs": "2735d00995d286d640c26b8bb699fd373f25718140ae51501756cb93657ee554",
     "generated/Semiont/Internal/Generated/Models/AgentPerson.hs": "b15baf27004b89b455f9c1784264e28726a0d750fe791a89a50d7f37b98984f2",
@@ -119,6 +120,7 @@
     "generated/Semiont/Internal/Generated/Models/Engine.hs": "4383a24b47805711ffbfbbbb8c02b8c1f562f1f0bdbe5215509a22f148fb6536",
     "generated/Semiont/Internal/Generated/Models/EngineEntry.hs": "96ad2590cf2061484e836f4d56e50bcc50b02099a369b8112e167547d603688d",
     "generated/Semiont/Internal/Generated/Models/EngineLimits.hs": "42bd47c686f98da39e911b90001b1c1cb5ecea668b1ed1c0763a79bd6b2a7c78",
+    "generated/Semiont/Internal/Generated/Models/EngineWithLimits.hs": "e7297eda61d402cad2af5d71841efcad3b6615b81935154e20be0a61c5264405",
     "generated/Semiont/Internal/Generated/Models/EnrichedResourceEvent.hs": "f87f67c06aede71e90e112ac4e93f0c4f29c4d8bea1c4339844b6b2943e057e5",
     "generated/Semiont/Internal/Generated/Models/EntityTagChangedPayload.hs": "9f3ab1d1f6f1ffef6c3411432abbc3c9966727bf8f7305994b39e97eaeb38881",
     "generated/Semiont/Internal/Generated/Models/EntityTypeAddedPayload.hs": "716930f9aaac5575058f794651a9b0ccd9327aaaa4f5096dfbdfd4e439ad83fb",
@@ -143,6 +145,7 @@
     "generated/Semiont/Internal/Generated/Models/GatherReferencedByResult.hs": "16254db237f49843482c980c8bece21739a653c869997d8096280399e1c40d2a",
     "generated/Semiont/Internal/Generated/Models/GatherResourceComplete.hs": "b066333a6a90108205f3e9aefe25da4a446fab30758c65191386a1bb09673b6e",
     "generated/Semiont/Internal/Generated/Models/GatherResourceFailed.hs": "28d266081022520bb4c151e735fbdea038bc937f872e65fe91620f4aaa7a43d3",
+    "generated/Semiont/Internal/Generated/Models/GatherResourceOptions.hs": "d6f2a42b3cb579a8da8a80c7d48ed1c9ff4cd67bc171d9431eadbfbecd3bea01",
     "generated/Semiont/Internal/Generated/Models/GatherResourceRequest.hs": "15ff67e32e5f8c36ffe005a94c7e75593ae735f2171088581f18714ca7ef1282",
     "generated/Semiont/Internal/Generated/Models/GatherResourceRequestOptions.hs": "0eb5f7bdc3ad87d51552b8c96ac6adec221c479e72bfbe931b214e62a3d5cd73",
     "generated/Semiont/Internal/Generated/Models/GatherSummaryRequest.hs": "c89daaa213d5817073262e8537bff711fa2bc2c9ea880c978144f4d116c7930d",
@@ -262,6 +265,7 @@
     "generated/Semiont/Internal/Generated/Models/MatchResourcesResponse.hs": "78b1df28ef7ed4b369cddbd245e4217fe4990c4f45cac5c8f5fcc471af8b71a3",
     "generated/Semiont/Internal/Generated/Models/MatchResourcesResult.hs": "68a2a4e6c07b7d2dcae7ac1ea3e67f96371a4da598285f4b88169dd9621b3878",
     "generated/Semiont/Internal/Generated/Models/MatchSearchFailed.hs": "57868aad1ebdeeaf6611c6572be087004f9ac0dc35977b6f596a6b458762aec1",
+    "generated/Semiont/Internal/Generated/Models/MatchSearchOptions.hs": "2f963b63be1ffe3946d20c232a7e7b240ae9fc0d85b2be31aa90de3e867a82c5",
     "generated/Semiont/Internal/Generated/Models/MatchSearchRequest.hs": "95bd6e98e502af49de5ccc8725f5e1754f865398476919718916813a1be96773",
     "generated/Semiont/Internal/Generated/Models/MatchSearchResult.hs": "952d971f6fc33be791e73b108c6ea74539cec72d24bbc1cb4a2550c83a0827e8",
     "generated/Semiont/Internal/Generated/Models/MediaTokenRequest.hs": "0e684f5ca2afe76de65830eb06a39b87ddb6d78955f0b975d1daac788dee2d72",
@@ -357,53 +361,67 @@
     "generated/Semiont/Internal/Generated/Models/YieldJobResult.hs": "c8e03cbd039d6e98ee7a873b902f6764d20cfb3120f6a7b197a2ba0c2256bddf",
     "generated/Semiont/Internal/Generated/Models/YieldUpdateCommand.hs": "0f8b1ef716fd412f49aa61ef8cda7990ca29481fda32969533663b3bdd448092",
     "generated/Semiont/Internal/Generated/Models/YieldUpdateOk.hs": "743bae600dacc40eb1c9170b0ecc72cb0543a244756b99cc6fd2650f7d0fa3ce",
+    "generated/Semiont/Internal/Generated/OperationFailure.hs": "667ed172bb0ae6f83da47ce0759a7d3607a000853b2ebc7ccf555dc1fe280451",
     "generated/Semiont/Internal/Generated/Required.hs": "e1bb0ac87f5cc0e713b104a0d327f21a6cc7fad05aedaec2c52a50ccf7e8f493",
-    "generated/Semiont/Internal/Generated/Schemas.hs": "98fa6298090fedd6970dde21678f102b43309f58792c94ed0b60291fb3ff7f51",
+    "generated/Semiont/Internal/Generated/Schemas.hs": "bede1454e1e939537e010d5228cbc86123669a5182498f436578e6cb2643eba9",
+    "generated/Semiont/Internal/Generated/Text.hs": "32dab0c856be79fcb287d2bed8cfcdcd35ae6d9ab2a25fe81ff81d96e9215b40",
     "generated/Semiont/Internal/Generated/WorkerChannels.hs": "c48c5494a2ce12d6840296216b086f1cdbd49adad82a8cd9f95d8b6b6f43626b",
     "generated/Semiont/Worker/Types.hs": "a4a8399744a282e795370f24908cf35084ddd55b34ed220d47848ced46ddd76f",
     "internal/Semiont/Internal/Broadcast.hs": "81a79b90958a3dc3dc12bc14989e7ce337eb5ec6c34c3be0ebf5c375d80089d0",
-    "internal/Semiont/Internal/Bus.hs": "058ee9b8d2a9fc16633ef5b6cc862e01936fd4fbb37cf1985d1868891f0f3e0c",
+    "internal/Semiont/Internal/Browse.hs": "26a9dd9af138700b0dde9cc1d70ab5e993714f65350e70e8961a1bde45ee72e9",
+    "internal/Semiont/Internal/Bus.hs": "17cde2d66323bd8e33b0b94c786a2972a57a2f9fc38c7816556ec0ce8dbf8cd9",
+    "internal/Semiont/Internal/Cache.hs": "82015d0c6356a985100d4042f67af47d7b9e0478dbec4037fad2197f3ef8be88",
     "internal/Semiont/Internal/Codec.hs": "fbc8af29dc06bc97706d979907ec37e53ae83273b7efb65283a33e81211c56fa",
-    "internal/Semiont/Internal/Delivery.hs": "2fa0818ab8d07cde41a2650fedea8663592777cf9eb522e2c757859ab569dd84",
+    "internal/Semiont/Internal/Delivery.hs": "f655164136a030ef7e3931f7a842669f82b7b34e98b4482a7fcf9d7a555bdede",
+    "internal/Semiont/Internal/Gather.hs": "6f888e991e891b5e9ef37d78bd4abbb78beeffeaa49ee762c87c08d35d9caacf",
     "internal/Semiont/Internal/Http.hs": "ce989194ce37b39689be27751a9f2506c78af8e70c7953418a56920ff22013ca",
-    "internal/Semiont/Internal/HttpActor.hs": "53487f9b57b44d7b7346d2cad7f0bd1657d3e2e85e0f3748b98b8b29084ad94e",
+    "internal/Semiont/Internal/HttpActor.hs": "1c2c8cbc74df421c7a5efbcaee61feaa9110116f10762c24a405b6253c522b6b",
     "internal/Semiont/Internal/HttpContent.hs": "a4b3da195f69b45d81caed1c13193123d4e0cd94b118d902f0a4822a4be6779e",
     "internal/Semiont/Internal/Lifetime.hs": "691b1d2ea7466a7e4de0987faf4a95e2096b8ea3ef126e781b36a23c40e5f0c7",
-    "internal/Semiont/Internal/Local.hs": "217ad44d8ee7d7a8500c2a1ada04c7923f6adfb561dcb66e3be92d78ce7805c6",
+    "internal/Semiont/Internal/Local.hs": "8dadcd2c0efc43296f06c9b83f8a7d21960fb763186728d18acb08a52daf8bd4",
+    "internal/Semiont/Internal/Match.hs": "1c1385ac588836147d645827239f1468aff680367b1369d2838e660e5627ad16",
+    "internal/Semiont/Internal/Queries.hs": "39d879455fe4ff1f578e988c69d9c1ee8e757e17eb097f3ee57bca846935d12a",
+    "internal/Semiont/Internal/Refresh.hs": "aee1b10f5629db198092b975885c3fa3a04a0fa16091a51751759355aaf4140f",
     "internal/Semiont/Internal/Required.hs": "718cffa5c6aa37838f35ef75cc3ec0cbd3dfe6a229cacd8f3db9648c89499bfc",
     "internal/Semiont/Internal/RetryPolicy.hs": "baf4eba213d5e252a7ec3a62fd4745680f951c264e67f9b4fcfc64176e7a3028",
     "internal/Semiont/Internal/Running.hs": "07479987021cf84e1a1803ba8bffff076514e3669c82f5fd90f14bddc1770482",
     "internal/Semiont/Internal/Schema.hs": "dfb70b5f5dd931ea51d8b77b1999202106ad6e74f34f01c4514afdab7e2fc87d",
-    "internal/Semiont/Internal/Sse.hs": "763dad6ddfaf6e0f676d3dcc533957f6ec54e530da7d5e8d719b5f0ac081f72b",
+    "internal/Semiont/Internal/Sse.hs": "b942c6c4d3436036b89b25b7ab47d9259b725c707245bc70a1dcfdbaa1c2093e",
     "internal/Semiont/Internal/StateValue.hs": "39c7d8e97a6b4f0912f6a5b518997842f87ac4009afdff9e0b7756731205154c",
     "internal/Semiont/Internal/StreamFrame.hs": "799092cfe37a2cf9b353365cac4da8aaf5c433b29fedcad77d10aff0c9825eca",
     "internal/Semiont/Internal/Telemetry.hs": "3e4116285bbb9ed281c0d0c8608f8267213bd68674bafb4acbd1f08a226fa7c0",
-    "internal/Semiont/Internal/Transport.hs": "ef57f7c69e46f3f85e268ad64b3caf363ecde0c3bc890b95c7b541522b2056c6",
+    "internal/Semiont/Internal/Text.hs": "ca42e9918d0d77f0e6a1dc063e6a3aab41a556f044cf49cf2135a56601e0de6f",
+    "internal/Semiont/Internal/Transport.hs": "b5df0e7b83287c269880d6adb5f2fcdfa912f1d714c0ac5d3d367ff64640483a",
+    "internal/Semiont/Internal/Utf8.hs": "d06e96469c355ed9546f4a5d10d6f0070a7098374e9573bde91e99d0e7eb3374",
     "public-api.inputs.json": "150c411495a0d0dc5cb417a4c7063103bc2fcce758c1ec5e88b955f223d6ebfe",
-    "semiont.cabal": "a0ca170b2f38cb72b36312dd4debbf3cd19245536d2471662f090e097dee403a",
-    "semiont.cabal.in": "cfedc78a40c075291c0a1522970c01349de6150101c1340f7af391965668e6fe",
+    "semiont.cabal": "95cbd8a340c9a5fa816d5387accf0ee7d5f0130e70430c64bd606b99ba589a66",
+    "semiont.cabal.in": "0480863b149dba8625188e0fc0c609f151512d5acdb5932943ab74117f8fadc5",
     "src/Semiont/Auth.hs": "1b82d21a297f0b724242094ddb763c0ebf70dffbb2c4d208468dc3c03b9b945d",
     "src/Semiont/Beckon.hs": "c6e90eab2db81fbb73f990c15eb6e818051b2790ffdaf4f7a2ff29fdccc5ecff",
-    "src/Semiont/Bind.hs": "d9b8650a082e92e679d6e69341cb3253aa8a8fd81b6f511fe2a2b1cd5b17745b",
+    "src/Semiont/Bind.hs": "0bd322e0f235169f891401a23bd9977590af90cb8fcaf772e08eb88cd89ffad9",
+    "src/Semiont/Browse.hs": "f86638978cb24a75ae2cda965e776949abaac80caed2313189220f3d5b733219",
     "src/Semiont/Bus.hs": "af8559a5de1495941c6be6b86ace7cb4b579b649e2524b55537cf2905a86ac52",
-    "src/Semiont/Cache.hs": "6b128efcfa074944210e36dda7a7d7567b68ae24d061acb1975f47a85f88e1aa",
-    "src/Semiont/Channels.hs": "ca8734eabedef053f1112251b7936d1dfa607c54f738f6feca9196a250b329a5",
+    "src/Semiont/Cache.hs": "acbc93586b2dac0bf1979fddf3e5871031d98adb441db6f81aeefd40d9ca07d6",
+    "src/Semiont/Channels.hs": "d0c10dfaf1912f28d83a58085371de785f5811a97d44e0d41c0b18b1b4b9d706",
     "src/Semiont/Claims.hs": "c56dd2175b12fd1fc44126e4298f93dcb2ba4b20894e33710434e5d74db3b95d",
-    "src/Semiont/Client.hs": "5451df81a7a60bd5bd1f8513749dbb5fe5b4cab35c84a993f6485abad1620692",
+    "src/Semiont/Client.hs": "39d6d0e3d8016a2c7b2d26fc70e60501eba08e7e550c69b6acc8eccc745d8097",
     "src/Semiont/Content.hs": "95514c7d127c98be19baab81d6ff1604e46c3f24747964dcd2281595aa7f1ab4",
     "src/Semiont/Discovery.hs": "ebfc710854ff3d7c057fe1cc412768752f80da27b2d8213295cb8a1f1518265a",
     "src/Semiont/Discovery/Reasons.hs": "9e1d9a770326b331ee43e8e2e3df33c4d25c5f77203c0341b4238f4d9e0f50e3",
     "src/Semiont/ErrorCodes.hs": "f1759d178779f632947eddab1991a7edcf8b3a08a92f0e8a5f770ea65f312917",
     "src/Semiont/Errors.hs": "9cf57463e3c025e96fa610a9141ec6bf052d16353816d793f911be0427f16b0f",
     "src/Semiont/EventBus.hs": "561b85f3dbdee8f0fcb381d27d708aa6430fef4486bca7fbea75990ce1587a43",
-    "src/Semiont/Frame.hs": "c6fc7a71e1842255ff4a982ee8f802a6d7044a2bfc3ed09bc4798bd24b6a2798",
+    "src/Semiont/Frame.hs": "3dfc9123185457b5d65c633415946b385410be85af5ca537236d7d3aa0327bff",
     "src/Semiont/Gateway.hs": "5e890ffe0811f88d2a8b9dab01e32616d735326ee11ed2151a2d9454499a8c11",
+    "src/Semiont/Gather.hs": "07582a6070af4efa6a31a87ea335f733dbaa31e94b62f53a0aafb7db4d3f2f8d",
     "src/Semiont/HostName.hs": "2eb5a6a767564649e59677a5d578e429df7be46d5636bf01ff9a8820ebb2ef77",
     "src/Semiont/Http.hs": "b987e9f5a4cafc9e0add0ccea5358a84a202f550eda313650ca09be89f3e2571",
     "src/Semiont/Http/Routes.hs": "8a51105331395ac51c90d731a42460acaca0277748f788e8911552fc8d91bae4",
     "src/Semiont/Job.hs": "0b667310b04ac97b5b4a87e3357875fd686427732c56caf3635eca7610a3300f",
     "src/Semiont/JobFilter.hs": "8c8309e1f86d20d211b1ec3020d27bda851e2b08f763e785a4d8e8fe2717dc13",
-    "src/Semiont/Resources.hs": "f293ab10d280bf0bf25fab83a80d3babb21a90471b7aa5c1bf6f841fabe8ddf6",
+    "src/Semiont/Match.hs": "dddadac21df25c1ea1a75db6b733e97cda02e567cb6cbc5d2a704957e91c744e",
+    "src/Semiont/MediaTypes.hs": "d201b27d66cd470692b5b32db39527ca39f140c17b34e04e8b2eede8bfb0684c",
+    "src/Semiont/Resources.hs": "3b92dad6f449a940d117b54a02a348e4471cb76f7b46618beb227c548621914d",
     "src/Semiont/Retry.hs": "c13b609b5f6e29bfea5156e592e4a652462be405b75ef6ad7fd64953022b9bf6",
     "src/Semiont/Running.hs": "168b8478bf820fa7eae3c74c4699b7af7e0baeb929c4b380e966f91e0dd76fe7",
     "src/Semiont/StateValue.hs": "6b95705ae944d67fec37611298a8732fa2caa60078b600dc6016f1ba8c5ca4f9",
@@ -412,7 +430,7 @@
     "src/Semiont/Timing/Settings.hs": "1660c012ca9722ece120115851180de94af5806ba56aa19588563bc1d4a52cd4",
     "src/Semiont/Transport.hs": "b5a0cd3a7d487e79143711a6d0d8b6c325e1d7934707098f58be0a47d323710b",
     "src/Semiont/Transport/Facts.hs": "49b39361ecc6c4128f5e60257f95446856993e774b20abb35f953e1f58159b36",
-    "src/Semiont/Types.hs": "0c172da00db0eddf14e62648181479732e133e1d489a0a9ddbfb39e0bd8cdca9",
+    "src/Semiont/Types.hs": "0fa839a64906348e0272c3300b4ced264c7ed34735169d8a9f8997534e7d67ba",
     "src/Semiont/Types/Presence.hs": "fbdb22094e0b0a8d0671ffc220e5f9462f457333e854859d0cd31b69ac1eeda8",
     "src/Semiont/Worker.hs": "70f13819273f62ec0f708b0a8eeee4bd6a6d029efea36141eece6af3da99c0d5"
   },
@@ -456,10 +474,40 @@
         }
       },
       "values": {
-        "body": "Semiont.Bind.BindNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> [Semiont.Internal.Generated.Models.BindBodyOperation.BindBodyOperation] -> IO ()",
+        "body": "Semiont.Bind.BindNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> [Semiont.Internal.Generated.Models.BindBodyOperation.BindBodyOperation] -> IO Semiont.Internal.Generated.Models.BindBodyUpdated.BindBodyUpdated",
         "initiate": "Semiont.Bind.BindNamespace -> Semiont.Internal.Generated.Models.BindInitiateCommand.BindInitiateCommand -> GHC.Internal.Conc.Sync.STM ()",
         "newBind": "Semiont.Internal.Bus.Bus -> Semiont.Internal.Transport.EventBus -> Semiont.Timing.Settings.Settings -> Semiont.Bind.BindNamespace",
         "reportBodyError": "Semiont.Bind.BindNamespace -> Semiont.Internal.Generated.Models.ResourceErrorEvent.ResourceErrorEvent -> GHC.Internal.Conc.Sync.STM ()"
+      }
+    },
+    "Semiont.Browse": {
+      "types": {
+        "BrowseNamespace": {
+          "definition": "data Semiont.Internal.Browse.BrowseNamespace = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "annotation": "Semiont.Internal.Browse.BrowseNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> Semiont.Internal.Cache.Query Semiont.Internal.Generated.Models.Annotation.Annotation",
+        "annotationHistory": "Semiont.Internal.Browse.BrowseNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> IO Semiont.Internal.Generated.Models.GetAnnotationHistoryResponse.GetAnnotationHistoryResponse",
+        "annotations": "Semiont.Internal.Browse.BrowseNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Semiont.Internal.Cache.Query [Semiont.Internal.Generated.Models.Annotation.Annotation]",
+        "click": "Semiont.Internal.Browse.BrowseNamespace -> Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> GHC.Internal.Conc.Sync.STM ()",
+        "engines": "Semiont.Internal.Browse.BrowseNamespace -> Semiont.Internal.Cache.Query [Semiont.Internal.Generated.Models.EngineWithLimits.EngineWithLimits]",
+        "entityTypes": "Semiont.Internal.Browse.BrowseNamespace -> Semiont.Internal.Cache.Query [Data.Text.Internal.Text]",
+        "events": "Semiont.Internal.Browse.BrowseNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Semiont.Internal.Cache.Query [Semiont.Internal.Generated.Models.AttributedEvent.AttributedEvent]",
+        "files": "Semiont.Internal.Browse.BrowseNamespace -> Maybe Data.Text.Internal.Text -> Maybe Semiont.Internal.Generated.Models.BrowseDirectoryRequest.BrowseDirectoryRequestSort -> IO Semiont.Internal.Generated.Models.BrowseDirectoryResultResponse.BrowseDirectoryResultResponse",
+        "kb": "Semiont.Internal.Browse.BrowseNamespace -> IO Semiont.Internal.Generated.Models.KbDescription.KbDescription",
+        "openResource": "Semiont.Internal.Browse.BrowseNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> GHC.Internal.Conc.Sync.STM ()",
+        "resource": "Semiont.Internal.Browse.BrowseNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Semiont.Internal.Cache.Query Semiont.Internal.Generated.Models.ResourceDescriptor.ResourceDescriptor",
+        "resourceAnchoredText": "Semiont.Internal.Browse.BrowseNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Internal.Generated.Models.AnchoredTextAnswer.AnchoredTextAnswer",
+        "resourceContent": "Semiont.Internal.Browse.BrowseNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Data.Text.Internal.Text",
+        "resourceEvents": "Semiont.Internal.Browse.BrowseNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO [Semiont.Internal.Generated.Models.AttributedEvent.AttributedEvent]",
+        "resourceGraph": "Semiont.Internal.Browse.BrowseNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Internal.Generated.Models.GetResourceResponse.GetResourceResponse",
+        "resourceRepresentation": "Semiont.Internal.Browse.BrowseNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO Semiont.Content.BinaryContent",
+        "resourceRepresentationStream": "Semiont.Internal.Browse.BrowseNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> (Data.Text.Internal.Text -> Streaming.Internal.Stream (Data.Functor.Of.Of Data.ByteString.Internal.Type.ByteString) IO () -> IO result) -> IO result",
+        "resourceViewed": "Semiont.Internal.Browse.BrowseNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> IO ()",
+        "resources": "Semiont.Internal.Browse.BrowseNamespace -> Maybe Semiont.Internal.Generated.Models.BrowseResourcesRequest.BrowseResourcesRequest -> Semiont.Internal.Cache.Query Semiont.Internal.Generated.Models.ListResourcesResponse.ListResourcesResponse",
+        "tagSchemas": "Semiont.Internal.Browse.BrowseNamespace -> Semiont.Internal.Cache.Query [Semiont.Internal.Generated.Models.TagSchema.TagSchema]"
       }
     },
     "Semiont.Bus": {
@@ -524,58 +572,58 @@
     "Semiont.Cache": {
       "types": {
         "Cache": {
-          "definition": "data Semiont.Cache.Cache key value = ...",
+          "definition": "data Semiont.Internal.Cache.Cache key value = ...",
           "kind": "* -> * -> *"
         },
         "CacheOptions": {
-          "definition": "data Semiont.Cache.CacheOptions key value = ...",
+          "definition": "data Semiont.Internal.Cache.CacheOptions key value = ...",
           "kind": "* -> * -> *"
         },
         "CachePersister": {
-          "definition": "data Semiont.Cache.CachePersister key value = ...",
+          "definition": "data Semiont.Internal.Cache.CachePersister key value = ...",
           "kind": "* -> * -> *"
         },
         "CacheState": {
-          "definition": "data Semiont.Cache.CacheState value = ...",
+          "definition": "data Semiont.Internal.Cache.CacheState value = ...",
           "kind": "* -> *"
         },
         "Query": {
-          "definition": "data Semiont.Cache.Query value = ...",
+          "definition": "data Semiont.Internal.Cache.Query value = ...",
           "kind": "* -> *",
           "roles": "nominal"
         }
       },
       "values": {
-        "CacheOptions": "IO Integer -> (Integer -> IO ()) -> Integer -> Maybe (Semiont.Cache.CachePersister key value) -> (key -> IO (IO ())) -> Semiont.Cache.CacheOptions key value",
-        "CachePersister": "IO [(key, value)] -> ([(key, value)] -> IO ()) -> Semiont.Cache.CachePersister key value",
-        "Failed": "GHC.Internal.Exception.Type.SomeException -> Semiont.Cache.CacheState value",
-        "Pending": "Semiont.Cache.CacheState value",
-        "Ready": "value -> Semiont.Cache.CacheState value",
-        "cacheNow": "Semiont.Cache.CacheOptions key value -> IO Integer",
-        "cachePersister": "Semiont.Cache.CacheOptions key value -> Maybe (Semiont.Cache.CachePersister key value)",
-        "cacheSaveDebounceMs": "Semiont.Cache.CacheOptions key value -> Integer",
-        "cacheScope": "Semiont.Cache.CacheOptions key value -> key -> IO (IO ())",
-        "cacheWaitUntil": "Semiont.Cache.CacheOptions key value -> Integer -> IO ()",
-        "current": "Semiont.Cache.Query value -> GHC.Internal.Conc.Sync.STM (Semiont.Cache.CacheState value)",
-        "dispose": "Semiont.Cache.Cache key value -> IO ()",
-        "fetch": "Semiont.Cache.Cache key value -> key -> IO value",
-        "fresh": "Semiont.Cache.Query value -> IO value",
-        "get": "Semiont.Cache.Cache key value -> key -> GHC.Internal.Conc.Sync.STM (Maybe value)",
-        "invalidate": "Semiont.Cache.Cache key value -> key -> IO ()",
-        "invalidateAll": "Semiont.Cache.Cache key value -> IO ()",
-        "isReady": "Semiont.Cache.CacheState value -> Bool",
-        "keys": "Semiont.Cache.Cache key value -> GHC.Internal.Conc.Sync.STM [key]",
-        "known": "Semiont.Cache.Cache key value -> key -> GHC.Internal.Conc.Sync.STM Bool",
-        "load": "Semiont.Cache.CachePersister key value -> IO [(key, value)]",
-        "newCache": "(Data.Aeson.Types.ToJSON.ToJSON key, Eq value) => (key -> IO value) -> Semiont.Cache.CacheOptions key value -> IO (Semiont.Cache.Cache key value)",
-        "observe": "Semiont.Cache.Cache key value -> key -> (Streaming.Internal.Stream (Data.Functor.Of.Of (Semiont.Cache.CacheState value)) IO () -> IO result) -> IO result",
-        "persistencePending": "Semiont.Cache.Cache key value -> GHC.Internal.Conc.Sync.STM Bool",
-        "query": "Semiont.Cache.Cache key value -> key -> Semiont.Cache.Query value",
-        "readyValue": "Semiont.Cache.CacheState value -> Maybe value",
-        "remove": "Semiont.Cache.Cache key value -> key -> GHC.Internal.Exception.Type.SomeException -> IO ()",
-        "save": "Semiont.Cache.CachePersister key value -> [(key, value)] -> IO ()",
-        "set": "Semiont.Cache.Cache key value -> key -> value -> IO ()",
-        "watch": "Semiont.Cache.Query value -> (Streaming.Internal.Stream (Data.Functor.Of.Of (Semiont.Cache.CacheState value)) IO () -> IO result) -> IO result"
+        "CacheOptions": "IO Integer -> (Integer -> IO ()) -> Integer -> Maybe (Semiont.Internal.Cache.CachePersister key value) -> (key -> IO (IO ())) -> Semiont.Internal.Cache.CacheOptions key value",
+        "CachePersister": "IO [(key, value)] -> ([(key, value)] -> IO ()) -> Semiont.Internal.Cache.CachePersister key value",
+        "Failed": "GHC.Internal.Exception.Type.SomeException -> Semiont.Internal.Cache.CacheState value",
+        "Pending": "Semiont.Internal.Cache.CacheState value",
+        "Ready": "value -> Semiont.Internal.Cache.CacheState value",
+        "cacheNow": "Semiont.Internal.Cache.CacheOptions key value -> IO Integer",
+        "cachePersister": "Semiont.Internal.Cache.CacheOptions key value -> Maybe (Semiont.Internal.Cache.CachePersister key value)",
+        "cacheSaveDebounceMs": "Semiont.Internal.Cache.CacheOptions key value -> Integer",
+        "cacheScope": "Semiont.Internal.Cache.CacheOptions key value -> key -> IO (IO ())",
+        "cacheWaitUntil": "Semiont.Internal.Cache.CacheOptions key value -> Integer -> IO ()",
+        "current": "Semiont.Internal.Cache.Query value -> GHC.Internal.Conc.Sync.STM (Semiont.Internal.Cache.CacheState value)",
+        "dispose": "Semiont.Internal.Cache.Cache key value -> IO ()",
+        "fetch": "Semiont.Internal.Cache.Cache key value -> key -> IO value",
+        "fresh": "Semiont.Internal.Cache.Query value -> IO value",
+        "get": "Semiont.Internal.Cache.Cache key value -> key -> GHC.Internal.Conc.Sync.STM (Maybe value)",
+        "invalidate": "Semiont.Internal.Cache.Cache key value -> key -> IO ()",
+        "invalidateAll": "Semiont.Internal.Cache.Cache key value -> IO ()",
+        "isReady": "Semiont.Internal.Cache.CacheState value -> Bool",
+        "keys": "Semiont.Internal.Cache.Cache key value -> GHC.Internal.Conc.Sync.STM [key]",
+        "known": "Semiont.Internal.Cache.Cache key value -> key -> GHC.Internal.Conc.Sync.STM Bool",
+        "load": "Semiont.Internal.Cache.CachePersister key value -> IO [(key, value)]",
+        "newCache": "(Data.Aeson.Types.ToJSON.ToJSON key, Eq value) => (key -> IO value) -> Semiont.Internal.Cache.CacheOptions key value -> IO (Semiont.Internal.Cache.Cache key value)",
+        "observe": "Semiont.Internal.Cache.Cache key value -> key -> (Streaming.Internal.Stream (Data.Functor.Of.Of (Semiont.Internal.Cache.CacheState value)) IO () -> IO result) -> IO result",
+        "persistencePending": "Semiont.Internal.Cache.Cache key value -> GHC.Internal.Conc.Sync.STM Bool",
+        "query": "Semiont.Internal.Cache.Cache key value -> key -> Semiont.Internal.Cache.Query value",
+        "readyValue": "Semiont.Internal.Cache.CacheState value -> Maybe value",
+        "remove": "Semiont.Internal.Cache.Cache key value -> key -> GHC.Internal.Exception.Type.SomeException -> IO ()",
+        "save": "Semiont.Internal.Cache.CachePersister key value -> [(key, value)] -> IO ()",
+        "set": "Semiont.Internal.Cache.Cache key value -> key -> value -> IO ()",
+        "watch": "Semiont.Internal.Cache.Query value -> (Streaming.Internal.Stream (Data.Functor.Of.Of (Semiont.Internal.Cache.CacheState value)) IO () -> IO result) -> IO result"
       }
     },
     "Semiont.Channels": {
@@ -846,6 +894,7 @@
         "decodePayload": "Semiont.Channels.Channel scope payload -> Data.Aeson.Types.Internal.Value -> Either String payload",
         "encodePayload": "Semiont.Channels.Channel scope payload -> payload -> Data.Aeson.Types.Internal.Value",
         "globalChannels": "[Data.Text.Internal.Text]",
+        "limitsOperations": "[Semiont.Channels.Operation Semiont.Internal.Generated.Models.InferenceLimitsRequest.InferenceLimitsRequest Semiont.Internal.Generated.Models.InferenceLimitsResult.InferenceLimitsResult Semiont.Internal.Generated.Models.CommandError.CommandError]",
         "operationChannels": "Semiont.Channels.Operation input output failure -> (Semiont.Channels.Channel Semiont.Channels.Global input, Semiont.Channels.Channel Semiont.Channels.Global output, Semiont.Channels.Channel Semiont.Channels.Global failure)",
         "persistedEventTypes": "[Data.Text.Internal.Text]",
         "scopedChannels": "[Data.Text.Internal.Text]"
@@ -871,12 +920,15 @@
         "baseUrl": "Semiont.Client.Client -> Data.Text.Internal.Text",
         "beckon": "Semiont.Client.Client -> Semiont.Beckon.BeckonNamespace",
         "bind": "Semiont.Client.Client -> Semiont.Bind.BindNamespace",
+        "browse": "Semiont.Client.Client -> Semiont.Internal.Browse.BrowseNamespace",
         "bus": "Semiont.Client.Client -> Semiont.Internal.Transport.EventBus",
         "content": "Semiont.Client.Client -> Semiont.Content.ContentTransport",
         "dispose": "Semiont.Client.Client -> IO ()",
         "frame": "Semiont.Client.Client -> Semiont.Frame.FrameNamespace",
         "fromHttp": "Semiont.Internal.Http.HttpOptions -> IO Semiont.Client.Client",
+        "gather": "Semiont.Client.Client -> Semiont.Internal.Gather.GatherNamespace",
         "job": "Semiont.Client.Client -> Semiont.Job.JobNamespace",
+        "match": "Semiont.Client.Client -> Semiont.Internal.Match.MatchNamespace",
         "newClient": "Semiont.Internal.Transport.Transport -> Semiont.Content.ContentTransport -> Maybe Semiont.Gateway.GatewayOperations -> Semiont.Internal.Bus.BusOptions -> Semiont.Timing.Settings.Settings -> IO Semiont.Client.Client",
         "state": "Semiont.Client.Client -> Semiont.Internal.StateValue.StateValue Semiont.Transport.Facts.ConnectionState",
         "system": "Semiont.Client.Client -> Maybe Semiont.System.SystemNamespace",
@@ -1119,7 +1171,7 @@
     "Semiont.EventBus": {
       "types": {
         "EventBus": {
-          "definition": "newtype Semiont.Internal.Transport.EventBus = ...",
+          "definition": "data Semiont.Internal.Transport.EventBus = ...",
           "kind": "*"
         }
       },
@@ -1138,9 +1190,9 @@
         }
       },
       "values": {
-        "addEntityType": "Semiont.Frame.FrameNamespace -> Data.Text.Internal.Text -> IO ()",
-        "addEntityTypes": "Semiont.Frame.FrameNamespace -> [Data.Text.Internal.Text] -> IO ()",
-        "addTagSchema": "Semiont.Frame.FrameNamespace -> Semiont.Internal.Generated.Models.TagSchema.TagSchema -> IO ()",
+        "addEntityType": "Semiont.Frame.FrameNamespace -> Data.Text.Internal.Text -> IO Semiont.Internal.Generated.Models.EmptyBusPayload.EmptyBusPayload",
+        "addEntityTypes": "Semiont.Frame.FrameNamespace -> [Data.Text.Internal.Text] -> IO [Semiont.Internal.Generated.Models.EmptyBusPayload.EmptyBusPayload]",
+        "addTagSchema": "Semiont.Frame.FrameNamespace -> Semiont.Internal.Generated.Models.TagSchema.TagSchema -> IO Semiont.Internal.Generated.Models.EmptyBusPayload.EmptyBusPayload",
         "newFrame": "Semiont.Internal.Bus.Bus -> Semiont.Timing.Settings.Settings -> Semiont.Frame.FrameNamespace"
       }
     },
@@ -1159,6 +1211,19 @@
         "getProtectedResourceMetadata": "Semiont.Gateway.GatewayOperations -> IO Semiont.Internal.Generated.Models.ProtectedResourceMetadata.ProtectedResourceMetadata",
         "getStatus": "Semiont.Gateway.GatewayOperations -> IO Semiont.Internal.Generated.Models.StatusResponse.StatusResponse",
         "healthCheck": "Semiont.Gateway.GatewayOperations -> IO Semiont.Internal.Generated.Models.HealthResponse.HealthResponse"
+      }
+    },
+    "Semiont.Gather": {
+      "types": {
+        "GatherNamespace": {
+          "definition": "data Semiont.Internal.Gather.GatherNamespace = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "annotation": "Semiont.Internal.Gather.GatherNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> Maybe Semiont.Internal.Generated.Models.GatherAnnotationOptions.GatherAnnotationOptions -> IO (Semiont.Internal.Running.Running Semiont.Internal.Generated.Models.GatherAnnotationComplete.GatherAnnotationComplete Semiont.Internal.Generated.Models.GatherAnnotationComplete.GatherAnnotationComplete)",
+        "referencedBy": "Semiont.Internal.Gather.GatherNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Semiont.Internal.Cache.Query [Semiont.Internal.Generated.Models.GetReferencedByResponseReferencedByItem.GetReferencedByResponseReferencedByItem]",
+        "resource": "Semiont.Internal.Gather.GatherNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Maybe Semiont.Internal.Generated.Models.GatherResourceOptions.GatherResourceOptions -> IO Semiont.Internal.Generated.Models.GatheredContext.GatheredContext"
       }
     },
     "Semiont.HostName": {
@@ -1235,9 +1300,43 @@
         "jobMatchesFilter": "Data.Aeson.Types.ToJSON.ToJSON job => Semiont.Internal.Generated.Models.JobFilter.JobFilter -> job -> Bool"
       }
     },
+    "Semiont.Match": {
+      "types": {
+        "MatchNamespace": {
+          "definition": "data Semiont.Internal.Match.MatchNamespace = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "requestSearch": "Semiont.Internal.Match.MatchNamespace -> Semiont.Internal.Generated.Models.MatchSearchRequest.MatchSearchRequest -> Data.Text.Internal.Text -> GHC.Internal.Conc.Sync.STM ()",
+        "resources": "Semiont.Internal.Match.MatchNamespace -> Data.Text.Internal.Text -> Maybe Semiont.Internal.Generated.Models.BrowseResourcesRequest.BrowseResourcesRequest -> Semiont.Internal.Cache.Query Semiont.Internal.Generated.Models.MatchResourcesResponse.MatchResourcesResponse",
+        "search": "Semiont.Internal.Match.MatchNamespace -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> Semiont.Internal.Generated.Models.GatheredContext.GatheredContext -> Maybe Semiont.Internal.Generated.Models.MatchSearchOptions.MatchSearchOptions -> IO (Semiont.Internal.Running.Running Semiont.Internal.Generated.Models.MatchSearchResult.MatchSearchResult Semiont.Internal.Generated.Models.MatchSearchResult.MatchSearchResult)"
+      }
+    },
+    "Semiont.MediaTypes": {
+      "types": {
+        "TextSource": {
+          "definition": "data Semiont.Internal.Generated.Text.TextSource = ...",
+          "kind": "*"
+        }
+      },
+      "values": {
+        "Decode": "Semiont.Internal.Generated.Text.TextSource",
+        "None": "Semiont.Internal.Generated.Text.TextSource",
+        "PdfTextLayer": "Semiont.Internal.Generated.Text.TextSource",
+        "baseMediaType": "Data.Text.Internal.Text -> Data.Text.Internal.Text",
+        "cloneFormat": "Maybe Data.Text.Internal.Text -> Data.Text.Internal.Text",
+        "derivesTextOf": "Data.Text.Internal.Text -> Bool",
+        "mediaTypeOfExtension": "Data.Text.Internal.Text -> Maybe Data.Text.Internal.Text",
+        "storageFileName": "Data.Text.Internal.Text -> Data.Text.Internal.Text -> Either Data.Text.Internal.Text Data.Text.Internal.Text",
+        "textSourceOf": "Data.Text.Internal.Text -> Semiont.Internal.Generated.Text.TextSource",
+        "yieldsGeometry": "Data.Text.Internal.Text -> Bool"
+      }
+    },
     "Semiont.Resources": {
       "types": {},
       "values": {
+        "decodeRepresentation": "Data.ByteString.Internal.Type.ByteString -> Data.Text.Internal.Text -> IO Data.Text.Internal.Text",
         "getPrimaryMediaType": "Semiont.Internal.Generated.Models.ResourceDescriptor.ResourceDescriptor -> Maybe Data.Text.Internal.Text",
         "getPrimaryRepresentation": "Semiont.Internal.Generated.Models.ResourceDescriptor.ResourceDescriptor -> Maybe Semiont.Internal.Generated.Models.Representation.Representation",
         "getResourceEntityTypes": "Semiont.Internal.Generated.Models.ResourceDescriptor.ResourceDescriptor -> [Data.Text.Internal.Text]"
@@ -2188,6 +2287,10 @@
           "definition": "data Semiont.Internal.Generated.Models.Engine.EngineProvider = ...",
           "kind": "*"
         },
+        "EngineWithLimits": {
+          "definition": "data Semiont.Internal.Generated.Models.EngineWithLimits.EngineWithLimits = ...",
+          "kind": "*"
+        },
         "EnrichedResourceEvent": {
           "definition": "data Semiont.Internal.Generated.Models.EnrichedResourceEvent.EnrichedResourceEvent = ...",
           "kind": "*"
@@ -2346,6 +2449,10 @@
         },
         "GatherResourceFailedCode": {
           "definition": "data Semiont.Internal.Generated.Models.GatherResourceFailed.GatherResourceFailedCode = ...",
+          "kind": "*"
+        },
+        "GatherResourceOptions": {
+          "definition": "data Semiont.Internal.Generated.Models.GatherResourceOptions.GatherResourceOptions = ...",
           "kind": "*"
         },
         "GatherResourceRequest": {
@@ -3126,6 +3233,10 @@
         },
         "MatchSearchFailed": {
           "definition": "data Semiont.Internal.Generated.Models.MatchSearchFailed.MatchSearchFailed = ...",
+          "kind": "*"
+        },
+        "MatchSearchOptions": {
+          "definition": "data Semiont.Internal.Generated.Models.MatchSearchOptions.MatchSearchOptions = ...",
           "kind": "*"
         },
         "MatchSearchRequest": {
@@ -4054,6 +4165,7 @@
         "EngineProviderOpenai": "Semiont.Internal.Generated.Models.Engine.EngineProvider",
         "EngineProviderTogether": "Semiont.Internal.Generated.Models.Engine.EngineProvider",
         "EngineProviderVllm": "Semiont.Internal.Generated.Models.Engine.EngineProvider",
+        "EngineWithLimits": "Semiont.Internal.Generated.Models.Engine.Engine -> Maybe [Semiont.Internal.Generated.Models.JobFilter.JobFilter] -> Maybe Semiont.Internal.Generated.Models.InferenceLimits.InferenceLimits -> Semiont.Internal.Generated.Models.EngineWithLimits.EngineWithLimits",
         "EnrichedResourceEvent": "Maybe Semiont.Internal.Generated.Models.Annotation.Annotation -> Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.EventMetadata.EventMetadata -> Semiont.Internal.Generated.Models.EnrichedResourceEvent.EnrichedResourceEventPayload -> Maybe Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Data.Text.Internal.Text -> Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.UserId.UserId -> Integer -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.EnrichedResourceEvent.EnrichedResourceEvent",
         "EnrichedResourceEventPayload": "Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.EnrichedResourceEvent.EnrichedResourceEventPayload",
         "EntityTagChangedPayload": "Data.Text.Internal.Text -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.EntityTagChangedPayload.EntityTagChangedPayload",
@@ -4117,6 +4229,7 @@
         "GatherResourceFailedCodeNotU2d_found": "Semiont.Internal.Generated.Models.GatherResourceFailed.GatherResourceFailedCode",
         "GatherResourceFailedCodePeerU2d_unavailable": "Semiont.Internal.Generated.Models.GatherResourceFailed.GatherResourceFailedCode",
         "GatherResourceFailedCodeUnauthorized": "Semiont.Internal.Generated.Models.GatherResourceFailed.GatherResourceFailedCode",
+        "GatherResourceOptions": "Maybe Integer -> Maybe [Data.Text.Internal.Text] -> Maybe Bool -> Maybe Bool -> Maybe Integer -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.GatherResourceOptions.GatherResourceOptions",
         "GatherResourceRequest": "Semiont.Internal.Generated.Models.GatherResourceRequestOptions.GatherResourceRequestOptions -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.GatherResourceRequest.GatherResourceRequest",
         "GatherResourceRequestOptions": "Integer -> Maybe [Data.Text.Internal.Text] -> Bool -> Bool -> Integer -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.GatherResourceRequestOptions.GatherResourceRequestOptions",
         "GatherSummaryRequest": "Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.GatherSummaryRequest.GatherSummaryRequest",
@@ -4369,6 +4482,7 @@
         "MatchResourcesResponseMatchKindSemantic": "Semiont.Internal.Generated.Models.MatchResourcesResponse.MatchResourcesResponseMatchKind",
         "MatchResourcesResult": "Semiont.Internal.Generated.Models.MatchResourcesResponse.MatchResourcesResponse -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.MatchResourcesResult.MatchResourcesResult",
         "MatchSearchFailed": "Data.Text.Internal.Text -> Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.MatchSearchFailed.MatchSearchFailed",
+        "MatchSearchOptions": "Maybe Integer -> Maybe Bool -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.MatchSearchOptions.MatchSearchOptions",
         "MatchSearchRequest": "Semiont.Internal.Generated.Models.GatheredContext.GatheredContext -> Maybe Integer -> Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Maybe Bool -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.MatchSearchRequest.MatchSearchRequest",
         "MatchSearchResult": "Semiont.Internal.Generated.Models.AnnotationId.AnnotationId -> [Semiont.Internal.Generated.Models.ScoredResource.ScoredResource] -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.MatchSearchResult.MatchSearchResult",
         "MediaTokenRequest": "Semiont.Internal.Generated.Models.ResourceId.ResourceId -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value -> Semiont.Internal.Generated.Models.MediaTokenRequest.MediaTokenRequest",
@@ -5012,6 +5126,9 @@
         "engineLimitsLimits": "Semiont.Internal.Generated.Models.EngineLimits.EngineLimits -> Semiont.Internal.Generated.Models.InferenceLimits.InferenceLimits",
         "engineModel": "Semiont.Internal.Generated.Models.Engine.Engine -> Data.Text.Internal.Text",
         "engineProvider": "Semiont.Internal.Generated.Models.Engine.Engine -> Semiont.Internal.Generated.Models.Engine.EngineProvider",
+        "engineWithLimitsEngine": "Semiont.Internal.Generated.Models.EngineWithLimits.EngineWithLimits -> Semiont.Internal.Generated.Models.Engine.Engine",
+        "engineWithLimitsJobs": "Semiont.Internal.Generated.Models.EngineWithLimits.EngineWithLimits -> Maybe [Semiont.Internal.Generated.Models.JobFilter.JobFilter]",
+        "engineWithLimitsLimits": "Semiont.Internal.Generated.Models.EngineWithLimits.EngineWithLimits -> Maybe Semiont.Internal.Generated.Models.InferenceLimits.InferenceLimits",
         "enrichedResourceEventAdditionalProperties": "Semiont.Internal.Generated.Models.EnrichedResourceEvent.EnrichedResourceEvent -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
         "enrichedResourceEventAnnotation": "Semiont.Internal.Generated.Models.EnrichedResourceEvent.EnrichedResourceEvent -> Maybe Semiont.Internal.Generated.Models.Annotation.Annotation",
         "enrichedResourceEventId": "Semiont.Internal.Generated.Models.EnrichedResourceEvent.EnrichedResourceEvent -> Data.Text.Internal.Text",
@@ -5119,6 +5236,12 @@
         "gatherResourceFailedDetails": "Semiont.Internal.Generated.Models.GatherResourceFailed.GatherResourceFailed -> Maybe Data.Text.Internal.Text",
         "gatherResourceFailedMessage": "Semiont.Internal.Generated.Models.GatherResourceFailed.GatherResourceFailed -> Data.Text.Internal.Text",
         "gatherResourceFailedResourceId": "Semiont.Internal.Generated.Models.GatherResourceFailed.GatherResourceFailed -> Semiont.Internal.Generated.Models.ResourceId.ResourceId",
+        "gatherResourceOptionsAdditionalProperties": "Semiont.Internal.Generated.Models.GatherResourceOptions.GatherResourceOptions -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "gatherResourceOptionsDepth": "Semiont.Internal.Generated.Models.GatherResourceOptions.GatherResourceOptions -> Maybe Integer",
+        "gatherResourceOptionsExcludeEntityTypes": "Semiont.Internal.Generated.Models.GatherResourceOptions.GatherResourceOptions -> Maybe [Data.Text.Internal.Text]",
+        "gatherResourceOptionsIncludeContent": "Semiont.Internal.Generated.Models.GatherResourceOptions.GatherResourceOptions -> Maybe Bool",
+        "gatherResourceOptionsIncludeSummary": "Semiont.Internal.Generated.Models.GatherResourceOptions.GatherResourceOptions -> Maybe Bool",
+        "gatherResourceOptionsMaxResources": "Semiont.Internal.Generated.Models.GatherResourceOptions.GatherResourceOptions -> Maybe Integer",
         "gatherResourceRequestAdditionalProperties": "Semiont.Internal.Generated.Models.GatherResourceRequest.GatherResourceRequest -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
         "gatherResourceRequestOptions": "Semiont.Internal.Generated.Models.GatherResourceRequest.GatherResourceRequest -> Semiont.Internal.Generated.Models.GatherResourceRequestOptions.GatherResourceRequestOptions",
         "gatherResourceRequestOptionsAdditionalProperties": "Semiont.Internal.Generated.Models.GatherResourceRequestOptions.GatherResourceRequestOptions -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
@@ -5670,6 +5793,9 @@
         "matchSearchFailedAdditionalProperties": "Semiont.Internal.Generated.Models.MatchSearchFailed.MatchSearchFailed -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
         "matchSearchFailedError": "Semiont.Internal.Generated.Models.MatchSearchFailed.MatchSearchFailed -> Data.Text.Internal.Text",
         "matchSearchFailedReferenceId": "Semiont.Internal.Generated.Models.MatchSearchFailed.MatchSearchFailed -> Semiont.Internal.Generated.Models.AnnotationId.AnnotationId",
+        "matchSearchOptionsAdditionalProperties": "Semiont.Internal.Generated.Models.MatchSearchOptions.MatchSearchOptions -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
+        "matchSearchOptionsLimit": "Semiont.Internal.Generated.Models.MatchSearchOptions.MatchSearchOptions -> Maybe Integer",
+        "matchSearchOptionsUseSemanticScoring": "Semiont.Internal.Generated.Models.MatchSearchOptions.MatchSearchOptions -> Maybe Bool",
         "matchSearchRequestAdditionalProperties": "Semiont.Internal.Generated.Models.MatchSearchRequest.MatchSearchRequest -> Data.Aeson.KeyMap.KeyMap Data.Aeson.Types.Internal.Value",
         "matchSearchRequestContext": "Semiont.Internal.Generated.Models.MatchSearchRequest.MatchSearchRequest -> Semiont.Internal.Generated.Models.GatheredContext.GatheredContext",
         "matchSearchRequestLimit": "Semiont.Internal.Generated.Models.MatchSearchRequest.MatchSearchRequest -> Maybe Integer",
