@@ -1,10 +1,7 @@
 {
   "about": "an announcement the worker's transport refuses is still one received: it is stamped as heard, and, since no filter can be compared with what cannot be read, it wakes the worker as a matching one would, a claim when it holds nothing and one more claim when it arrives while a claim is in flight",
   "source": "protocol/contract/WORKER-CONTRACT.md § Claiming, § Liveness; protocol/specs/src/bus/frame-cases.json",
-  "notYetReached": {
-    "swift": "The Swift SDK's stream reader, which is to hold each frame to BusFrame.",
-    "csharp": "The C# SDK's stream reader, which is to hold each frame to BusFrame."
-  },
+  "needs": "bus/frame-cases.json",
   "steps": [
     {"let": {"accepts": [{"jobType": "mark", "params": {"motivation": "highlighting"}}]}},
     {"backend": "listen", "with": {"channels": ["job:claim"]}},

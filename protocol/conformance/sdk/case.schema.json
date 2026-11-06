@@ -32,15 +32,11 @@
       },
       "description": "The signal planes the case runs on. Absent, it runs on both."
     },
-    "notYetReached": {
-   "type": "object",
-   "minProperties": 1,
-   "additionalProperties": {
-    "type": "string",
-    "minLength": 1
-   },
-   "description": "The SDKs, by their names in the implementations file, the case is not run for: each with what it still lacks to be. A case names an SDK here only for what a table of protocol/specs/src/ says the same SDK has not reached."
-  },
+    "needs": {
+      "type": "string",
+      "pattern": "^([a-z0-9-]+/)+([a-z0-9-]+-)?cases\\.json$",
+      "description": "The case table of protocol/specs/src whose behaviour the case needs, by its path there. The case is not run for an SDK that table names under `notYetReached`, and is run for it once the table no longer does."
+    },
   "tier": {
       "enum": [
         "fleet",

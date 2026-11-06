@@ -101,8 +101,8 @@ interface CaseDocument {
   planes?: Plane[];
   /** A live case's tier: what every live layer does, or what one at full parity does. */
   tier?: 'fleet' | 'parity';
-  /** The SDKs the case is not run for, each with what it still lacks to be. */
-  notYetReached?: Record<string, string>;
+  /** The case table of protocol/specs/src whose behaviour the case needs, by its path there. */
+  needs?: string;
   /**
    * Run the client exporting, and hold what it exported to the SDK telemetry
    * table; a worker's is also held to a trace of its own for each job it ran.
@@ -138,6 +138,15 @@ export function casesIn(dir: string): Case[] {
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** Whether `kase` is run for `sdk`: not when the case table it needs says `sdk` has not reached that table's behaviour. */
+export function runFor(kase: Case, sdk: string): boolean {
+  if (kase.needs === undefined) return true;
+  const table: unknown = JSON.parse(readFileSync(join(SPEC_SOURCE, kase.needs), 'utf8'));
+  if (!isObject(table) || !isObject(table['runBy'])) throw new Error(`${kase.name} needs ${kase.needs}, which is no case table`);
+  const yet = table['notYetReached'];
+  return !(isObject(yet) && sdk in yet);
+}
 
 /** The error codes a client may report, from the table every SDK generates its own from. */
 function vocabulary(): Set<string> {

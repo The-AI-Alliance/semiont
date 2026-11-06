@@ -212,17 +212,18 @@ format and runs them with this runner, adding four steps of its own.
   "source": "where the protocol or the spec states it",
   "planes": ["in-process"],
   "telemetry": true,
-  "notYetReached": {"swift": "what the Swift SDK still lacks to pass it"},
+  "needs": "bus/frame-cases.json",
   "steps": [ ... ]
 }
 ```
 
 `planes` is given only when the case holds on one signal plane; absent, it
-runs on both. `notYetReached` names the SDKs the case is not run for, each
-with what it still lacks; a case names one only for what a table of
-[`protocol/specs/src/`](../../specs/src/) says the same SDK has not reached,
-in the same words. `telemetry` runs the client exporting to a receiver, and once
-the driver has exited holds what it exported to
+runs on both. `needs` names the case table of
+[`protocol/specs/src/`](../../specs/src/) whose behaviour the case needs, by
+its path there: the case is not run for an SDK that table names under
+`notYetReached`, and is run for it once the table no longer does.
+`telemetry` runs the client exporting to a receiver, and once the driver has
+exited holds what it exported to
 [`protocol/specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json):
 every row arrived, of its kind, with every attribute not marked `only`, and
 whatever arrived under a row's name carries only that row's attributes. What

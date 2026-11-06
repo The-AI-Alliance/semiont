@@ -2,10 +2,7 @@
   "about": "a frame of a job's lifecycle that the follower's reading refuses is reported, once the job has its id, as a refusal naming the channel, the member and the reason, and the follower goes on following: a later completion ends it",
   "source": "protocol/contract/JOBS.md § Following a job; protocol/specs/src/bus/frame-cases.json",
   "tier": "parity",
-  "notYetReached": {
-    "swift": "The Swift SDK's stream reader, which is to hold each frame to BusFrame.",
-    "csharp": "The C# SDK's stream reader, which is to hold each frame to BusFrame."
-  },
+  "needs": "bus/frame-cases.json",
   "steps": [
     {"backend": "listen", "with": {"channels": ["job:create"]}},
     {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50, "jobSilenceMs": 60000, "jobStatusPollMs": 60000}}},

@@ -2,10 +2,7 @@
   "about": "a job's completion that the follower's reading refuses is reported as a refusal and is not taken for the end, nor for word of the job: the follower, having heard nothing of the job for jobSilenceMs, asks for its status and reports the end the status states",
   "source": "protocol/contract/JOBS.md § Following a job; protocol/specs/src/client/timing.json jobSilenceMs, jobStatusPollMs; protocol/specs/src/bus/frame-cases.json",
   "tier": "parity",
-  "notYetReached": {
-    "swift": "The Swift SDK's stream reader, which is to hold each frame to BusFrame.",
-    "csharp": "The C# SDK's stream reader, which is to hold each frame to BusFrame."
-  },
+  "needs": "bus/frame-cases.json",
   "steps": [
     {"backend": "listen", "with": {"channels": ["job:create", "job:status-requested"]}},
     {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50, "jobSilenceMs": 1500, "jobStatusPollMs": 60000}}},
