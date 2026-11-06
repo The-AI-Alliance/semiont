@@ -374,28 +374,33 @@ def test_a_result_that_is_not_its_operation_s_is_refused_for_what_it_lacks_and_i
 def test_what_a_stream_carries_that_is_no_frame_is_said_by_its_first_fault_and_in_none_of_its_own_words(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    async def scenario() -> None:
+    async def scenario() -> list[SemiontError]:
         async with (
             GatewayServer() as gateway,
             HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=("beckon:focus",), timing=QUICK) as transport,
         ):
             await soon(reached(transport.state, lambda state: state == "open"))
-            frames = transport.frames("beckon:focus")
+            frames, failures = transport.frames("beckon:focus"), transport.failures()
             gateway.send("e-1", {"channel": "beckon:focus", "payload": {"resourceId": "res-1", "token": CARRIED}, "scope": 5})
             gateway.send("e-2", {"payload": {"token": CARRIED}})
             gateway.write(f'id: e-3\nevent: bus-event\ndata: {{"token": "{CARRIED}" not json\n\n')
             gateway.send("e-4", {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}})
             # The stream is read in order: what came before this frame has been read.
             assert (await soon(anext(frames))).payload == {"resourceId": "res-1"}
+            return [await soon(anext(failures)), await soon(anext(failures))]
 
     with caplog.at_level(logging.WARNING, logger="semiont.http"):
-        run(scenario())
+        told = run(scenario())
+    # What names a channel is logged; what names none is told to the failure report.
     assert [record.getMessage() for record in caplog.records] == [
         "the stream carried what is not a frame (id e-1): its `scope` is malformed",
-        "the stream carried what is not a frame (id e-2): it has no `channel`",
-        "the stream carried what is not a frame (id e-3): it is malformed",
+    ]
+    assert [str(failure) for failure in told] == [
+        "the stream carried what is not a frame: it has no `channel`",
+        "the stream carried what is not a frame: it is malformed",
     ]
     assert parts_of(CARRIED, said_by_this_package(caplog)) == []
+    assert parts_of(CARRIED, "\n".join(printed(failure) for failure in told)) == []
 
 
 def test_every_channel_that_carries_one_of_several_shapes_says_what_a_payload_lacks_of_the_shape_it_names() -> None:

@@ -666,8 +666,8 @@ def test_an_agent_that_cannot_be_signed_in_says_so_on_the_way_in() -> None:
         (says({**agent_named("semiont-smelter"), "did": [CARRIED]}), "its `did` is malformed"),
         (says({**agent_named("semiont-smelter"), "name": [CARRIED]}), "its `name` is malformed"),
         (says({}), "it has no `did`"),
-        # A DID of no DID's form: the table says nothing of a DID's form, and the decoder refuses it.
-        (says({**agent_named("semiont-smelter"), "did": CARRIED}), "it is malformed"),
+        # A DID of no DID's form: the table states a DID's form, so the refusal names the `did`.
+        (says({**agent_named("semiont-smelter"), "did": CARRIED}), "its `did` is malformed"),
         (says([{**agent_named("semiont-smelter"), "name": CARRIED}]), "it is malformed"),
         (Answer(body=f"did={CARRIED}".encode()), "it is malformed"),
     ],
