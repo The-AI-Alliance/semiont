@@ -41,10 +41,10 @@ public static class RedirectSignIn
     public static string CodeChallenge(string verifier) => Base64Url(SHA256.HashData(Encoding.UTF8.GetBytes(verifier)));
 
     public static async Task<string> BeginAuthorizationAsync(BeginAuthorizationOptions options, ISessionStorage storage,
-        HttpClient? httpClient = null, CancellationToken cancellation = default)
+        HttpClient? httpClient = null, TimeProvider? timeProvider = null, Random? random = null, CancellationToken cancellation = default)
     {
         RequireHttpAddress(options.RedirectUri);
-        using var issuer = new Issuer(httpClient);
+        using var issuer = new Issuer(httpClient, timeProvider, random);
         var found = await issuer.DiscoverAsync(options.Target, cancellation).ConfigureAwait(false);
         var record = new PendingAuthorization(Base64Url(RandomNumberGenerator.GetBytes(24)), Base64Url(RandomNumberGenerator.GetBytes(48)),
             options.RedirectUri, options.Target, new AuthorizationIssuer(found.Issuer, found.Authorization, found.Token, found.Device, found.Revocation),
@@ -71,7 +71,8 @@ public static class RedirectSignIn
     }
 
     public static async Task<(PendingAuthorization Pending, StoredSession Session)> CompleteAuthorizationAsync(
-        string callbackUrl, ISessionStorage storage, HttpClient? httpClient = null, CancellationToken cancellation = default)
+        string callbackUrl, ISessionStorage storage, HttpClient? httpClient = null, TimeProvider? timeProvider = null, Random? random = null,
+        CancellationToken cancellation = default)
     {
         cancellation.ThrowIfCancellationRequested();
         string? stored = null;
@@ -91,7 +92,7 @@ public static class RedirectSignIn
         if (One("code") is not { Length: > 0 } code) throw Refused("exchange", "The response has no authorization code.");
         RequireHttpAddress(record.Issuer.Token);
 
-        using var issuer = new Issuer(httpClient);
+        using var issuer = new Issuer(httpClient, timeProvider, random);
         var answer = await issuer.AnswerAsync(record.Issuer.Token, new Dictionary<string, string>
         {
             ["grant_type"] = "authorization_code",
@@ -114,13 +115,14 @@ public static class RedirectSignIn
     }
 
     public static async Task<ConnectionIdentity> DescribeConnectionAsync(HttpEndpoint target, string access,
-        HttpClient? httpClient = null, CancellationToken cancellation = default)
+        HttpClient? httpClient = null, TimeProvider? timeProvider = null, Random? random = null, CancellationToken cancellation = default)
     {
         KbDescription description;
         try
         {
             using var client = new SemiontClient(new HttpTransport(Gateway.Origin(target), access,
-                BusRegistry.ReplyChannelsFor(BusOperations.BrowseKbRequested.Request.Name), httpClient: httpClient));
+                BusRegistry.ReplyChannelsFor(BusOperations.BrowseKbRequested.Request.Name), httpClient: httpClient,
+                timeProvider: timeProvider, random: random));
             description = await client.Browse.KbAsync(cancellation).ConfigureAwait(false);
         }
         catch (Exception error) when (error is SemiontError or JsonException)

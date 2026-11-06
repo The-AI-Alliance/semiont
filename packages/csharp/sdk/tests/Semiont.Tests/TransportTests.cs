@@ -820,8 +820,6 @@ public sealed partial class TransportTests
         second.Dispose();
         await clock.WaitForAsync(TimeSpan.FromMilliseconds(50));
         clock.Advance(TimeSpan.FromMilliseconds(50));
-        await clock.WaitForAsync(TimeSpan.FromMilliseconds(100));
-        clock.Advance(TimeSpan.FromMilliseconds(100));
         var removed = await server.Subscriptions.Reader.ReadAsync();
         Assert.Equal(0, removed.GetProperty("scoped").GetArrayLength());
     }
@@ -871,14 +869,17 @@ public sealed partial class TransportTests
     public async Task AStreamEndingReopensWithoutReportingAFailure()
     {
         var clock = new TestClock();
+        var random = new ZeroRandom();
         using var server = new Handler();
         using var client = new HttpClient(server);
-        using var transport = new HttpTransport("http://unit.test", "token", ["beckon:focus"], new Timing { ReconnectMs = 50 }, httpClient: client, timeProvider: clock);
+        using var transport = new HttpTransport("http://unit.test", "token", ["beckon:focus"], new Timing { ReconnectMs = 50 }, httpClient: client,
+            timeProvider: clock, random: random);
         await OpenAsync(transport);
         await server.Subscriptions.Reader.ReadAsync();
         server.Stream.Finish();
-        await clock.WaitForAsync(TimeSpan.FromMilliseconds(50));
-        clock.Advance(TimeSpan.FromMilliseconds(50));
+        var backoff = Retry.EqualJitter(TimeSpan.FromMilliseconds(50), random);
+        await clock.WaitForAsync(backoff);
+        clock.Advance(backoff);
         await server.Subscriptions.Reader.ReadAsync();
         await OpenAsync(transport);
         transport.Dispose();

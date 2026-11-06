@@ -197,7 +197,7 @@ public sealed class Claims
                     if (held is not { Settled: false } job || stallReported || lastClaimed is not { } since ||
                         lastActivity is not { } active) continue;
                     var silence = clock.GetElapsedTime(activeAt).TotalMilliseconds;
-                    if (silence < timing.HeldJobStallMs) continue;
+                    if (silence <= timing.HeldJobStallMs) continue;
                     stallReported = true;
                     stalls.Publish(new HeldJobStall(job.JobId, job.JobType, since, active, (long)silence, timing.HeldJobStallMs));
                 }

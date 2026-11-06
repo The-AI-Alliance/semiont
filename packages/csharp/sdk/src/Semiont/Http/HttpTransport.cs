@@ -27,7 +27,7 @@ public sealed partial class HttpTransport : IDisposable
     private readonly string[] channels;
     private readonly string clientId = Guid.NewGuid().ToString();
     private readonly CancellationTokenSource lifetime = new();
-    private readonly Channel<bool> changed = Channel.CreateUnbounded<bool>();
+    private readonly Channel<Change> changed = Channel.CreateUnbounded<Change>();
     private readonly Broadcast<ConnectionState> states = new(replayLatest: true);
     private readonly Broadcast<SemiontError> failures = new(keepForFirst: true);
     private readonly List<FrameView> listeners = [];
@@ -46,7 +46,7 @@ public sealed partial class HttpTransport : IDisposable
     private bool closed;
     private long receivedSequence;
     private ConnectionState state;
-    private DateTimeOffset? outage;
+    private long outages;
 
     public HttpTransport(string baseUrl, string? token, IEnumerable<string>? channels = null, Timing? timing = null,
         Func<string?, CancellationToken, Task<string?>>? refresher = null, HttpClient? httpClient = null,
@@ -86,7 +86,7 @@ public sealed partial class HttpTransport : IDisposable
             token = value;
             refusedToken = null;
         }
-        if (value is null || State != ConnectionState.Open) changed.Writer.TryWrite(true);
+        if (value is null || State != ConnectionState.Open) changed.Writer.TryWrite(Change.Debounced);
     }
 
     public bool IsSubscribed(string channel) => channels.Contains(channel, StringComparer.Ordinal);
@@ -188,7 +188,7 @@ public sealed partial class HttpTransport : IDisposable
             ObjectDisposedException.ThrowIf(closed, this);
             var retained = holds.TryGetValue(name, out var count);
             holds[name] = count + 1;
-            if (!retained) changed.Writer.TryWrite(true);
+            if (!retained) changed.Writer.TryWrite(Change.Debounced);
         }
         return new Hold(() =>
         {
@@ -318,7 +318,7 @@ public sealed partial class HttpTransport : IDisposable
     {
         CancellationTokenSource? previous = null;
         Task? read = null;
-        var wait = timing.ReconnectMs;
+        var cap = TimeSpan.FromMilliseconds(timing.ReconnectMs);
         try
         {
             while (!lifetime.IsCancellationRequested)
@@ -328,7 +328,7 @@ public sealed partial class HttpTransport : IDisposable
                 if (string.IsNullOrEmpty(sent) || IsRefused(sent))
                 {
                     Transition(ConnectionState.Unauthenticated);
-                    await WaitChangeAsync(timing.ReconnectMs).ConfigureAwait(false);
+                    await WaitChangeAsync(TimeSpan.FromMilliseconds(timing.ReconnectMs)).ConfigureAwait(false);
                     continue;
                 }
                 BusSubscribeRequest body;
@@ -349,7 +349,7 @@ public sealed partial class HttpTransport : IDisposable
                 }
                 if (channels.Length == 0 && body.Scoped.Count == 0)
                 {
-                    await WaitChangeAsync(timing.ReconnectMs).ConfigureAwait(false);
+                    await WaitChangeAsync(TimeSpan.FromMilliseconds(timing.ReconnectMs)).ConfigureAwait(false);
                     continue;
                 }
                 using var request = Request(HttpMethod.Post, "/bus/subscribe", sent);
@@ -363,8 +363,7 @@ public sealed partial class HttpTransport : IDisposable
                     catch (Exception error) when (error is HttpRequestException || error is OperationCanceledException && !lifetime.IsCancellationRequested)
                     {
                         Transition(ConnectionState.Reconnecting);
-                        await WaitChangeAsync(wait).ConfigureAwait(false);
-                        wait = Math.Min(ProtocolFacts.Timing("maxReconnectMs").GetInt32(), checked(wait * 2));
+                        await WaitChangeAsync(Backoff(ref cap)).ConfigureAwait(false);
                         continue;
                     }
                 }
@@ -381,7 +380,9 @@ public sealed partial class HttpTransport : IDisposable
                         else
                         {
                             Transition(ConnectionState.Reconnecting);
-                            await WaitChangeAsync(Math.Max(wait, RetryAfter(response))).ConfigureAwait(false);
+                            var wait = Backoff(ref cap);
+                            var stated = TimeSpan.FromMilliseconds(RetryAfter(response));
+                            await WaitChangeAsync(stated > wait ? stated : wait).ConfigureAwait(false);
                         }
                     }
                     continue;
@@ -392,7 +393,7 @@ public sealed partial class HttpTransport : IDisposable
                 if (retiring is not null) _ = RetireAsync(retiring);
                 previous = current;
                 read = drain;
-                wait = timing.ReconnectMs;
+                cap = TimeSpan.FromMilliseconds(timing.ReconnectMs);
                 Transition(ConnectionState.Open);
                 lock (gate) { attached.TrySetResult(); }
                 using var changing = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
@@ -401,7 +402,8 @@ public sealed partial class HttpTransport : IDisposable
                 changing.Cancel();
                 if (done == change)
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("reconnectDebounceMs").GetInt32()), clock, lifetime.Token).ConfigureAwait(false);
+                    if (await change.ConfigureAwait(false) == Change.Debounced)
+                        await Task.Delay(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("reconnectDebounceMs").GetInt32()), clock, lifetime.Token).ConfigureAwait(false);
                 }
                 else
                 {
@@ -409,7 +411,7 @@ public sealed partial class HttpTransport : IDisposable
                     previous = null;
                     lock (gate) { attached = NewCompletion(); }
                     Transition(ConnectionState.Reconnecting);
-                    await WaitChangeAsync(wait).ConfigureAwait(false);
+                    await WaitChangeAsync(Backoff(ref cap)).ConfigureAwait(false);
                 }
             }
         }
@@ -553,16 +555,34 @@ public sealed partial class HttpTransport : IDisposable
         lock (gate)
         {
             if (closed && value != ConnectionState.Closed) return;
-            if (value == ConnectionState.Reconnecting)
-            {
-                outage ??= clock.GetUtcNow();
-                if ((clock.GetUtcNow() - outage.Value).TotalMilliseconds >= ProtocolFacts.Timing("degradedThresholdMs").GetInt32()) value = ConnectionState.Degraded;
-            }
-            else if (value != ConnectionState.Degraded) outage = null;
+            if (value == ConnectionState.Reconnecting && state == ConnectionState.Degraded) return;
             if (state == value && state != ConnectionState.Connecting) return;
+            if (value == ConnectionState.Reconnecting) _ = DegradeAsync(++outages);
             state = value;
             states.Publish(value);
         }
+    }
+
+    /// <summary>A stream that stays down is degraded once it has been reconnecting for degradedThresholdMs.</summary>
+    private async Task DegradeAsync(long outage)
+    {
+        try { await Task.Delay(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("degradedThresholdMs").GetInt32()), clock, lifetime.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { return; }
+        lock (gate)
+        {
+            if (outage != outages || state != ConnectionState.Reconnecting) return;
+            state = ConnectionState.Degraded;
+            states.Publish(state);
+        }
+    }
+
+    /// <summary>The wait before the stream is opened again after a failure, and the cap doubled toward maxReconnectMs for the next.</summary>
+    private TimeSpan Backoff(ref TimeSpan cap)
+    {
+        var wait = Retry.EqualJitter(cap, random);
+        var limit = TimeSpan.FromMilliseconds(ProtocolFacts.Timing("maxReconnectMs").GetInt32());
+        cap = cap * 2 < limit ? cap * 2 : limit;
+        return wait;
     }
     private async Task ReleaseAfterAsync(string scope)
     {
@@ -571,17 +591,17 @@ public sealed partial class HttpTransport : IDisposable
             await Task.Delay(TimeSpan.FromMilliseconds(timing.LazyRemoveMs), clock, lifetime.Token).ConfigureAwait(false);
             lock (gate)
             {
-                if (holds.TryGetValue(scope, out var count) && count == 0) { holds.Remove(scope); changed.Writer.TryWrite(true); }
+                if (holds.TryGetValue(scope, out var count) && count == 0) { holds.Remove(scope); changed.Writer.TryWrite(Change.AtOnce); }
             }
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
     }
     private async Task RetireAsync(CancellationTokenSource source) { try { await Task.Delay(TimeSpan.FromMilliseconds(timing.LingerMs), clock, lifetime.Token).ConfigureAwait(false); } catch (OperationCanceledException) { } source.Cancel(); source.Dispose(); }
-    private async Task WaitChangeAsync(double ms)
+    private async Task WaitChangeAsync(TimeSpan wait)
     {
         using var waiting = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         var change = changed.Reader.ReadAsync(waiting.Token).AsTask();
-        await Task.WhenAny(change, Task.Delay(TimeSpan.FromMilliseconds(ms), clock, lifetime.Token)).ConfigureAwait(false);
+        await Task.WhenAny(change, Task.Delay(wait, clock, waiting.Token)).ConfigureAwait(false);
         waiting.Cancel();
         lifetime.Token.ThrowIfCancellationRequested();
     }
@@ -601,6 +621,9 @@ public sealed partial class HttpTransport : IDisposable
         }
         owned?.Dispose();
     }
+
+    /// <summary>What reopens the stream: a credential or a scope taken waits out reconnectDebounceMs, a scope let go has already waited lazyRemoveMs.</summary>
+    private enum Change { Debounced, AtOnce }
 
     private sealed record FrameView(HashSet<string> Channels)
     {
