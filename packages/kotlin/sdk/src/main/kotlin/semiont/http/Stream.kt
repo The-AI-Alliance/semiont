@@ -19,9 +19,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonPrimitive
 import semiont.Timings
 import semiont.channels.RESOURCE_SCOPED_CHANNELS
 import semiont.channels.TRACE_FIELD
@@ -369,6 +371,7 @@ internal class Stream(
         val read = when (val line = lineOf(data)) {
             is Line.Allowed -> line.frame
             is Line.Refused -> {
+                router.route(line.refusal)
                 hub.deliver(line.refusal)
                 return
             }
@@ -584,7 +587,16 @@ internal fun lineOf(data: String): Line {
         null, JsonNull -> null
         else -> (held as? JsonPrimitive)?.takeIf { it.isString }?.let { ResourceId.parse(it.content) } ?: return Line.Unaddressed(fault)
     }
-    return Line.Refused(FrameRefusal(channel, fault.member, fault.reason, stated["payload"], null, scope))
+    return Line.Refused(FrameRefusal(channel, fault.member, fault.reason, stated["payload"], correlationIdOf(channel, stated["correlationId"]), scope))
+}
+
+/** The correlation id a frame on `channel` carries as `held`, when BusFrame allows it, whatever the frame's other faults. */
+private fun correlationIdOf(channel: String, held: JsonElement?): String? {
+    // A null where a member may be absent is its absence, as BusFrame reads it.
+    if (held == null || held == JsonNull) return null
+    val alone = JsonObject(mapOf("channel" to JsonPrimitive(channel), "payload" to JsonObject(emptyMap()), "correlationId" to held))
+    if (faultOf(BusFrame.serializer().descriptor, alone) != null) return null
+    return held.jsonPrimitive.content
 }
 
 /** The trace a frame's payload says it was sent under, when it says so. */

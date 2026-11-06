@@ -85,7 +85,7 @@ private class Wire(private val subscribed: Set<String>) : Transport {
 
     fun deliver(carried: Carried) {
         synchronized(channels) { channels[carried.channel] }?.deliver(carried)
-        if (carried is Frame) router.route(carried)
+        router.route(carried)
     }
 
     override fun isSubscribed(channel: String): Boolean = channel in subscribed

@@ -366,12 +366,12 @@ public class ResourceHold internal constructor(release: () -> Unit) : AutoClosea
 }
 
 /** A reply a request awaits. Closing it stops the wait: the transport names the reply no more, and one that comes anyway reaches nobody. */
-public class PendingReply internal constructor(private val reply: CompletableDeferred<Frame?>, private val forget: () -> Unit) : AutoCloseable {
-    /** The reply. Null when the transport closed before one came. */
-    public suspend fun frame(): Frame? = reply.await()
+public class PendingReply internal constructor(private val reply: CompletableDeferred<Carried?>, private val forget: () -> Unit) : AutoCloseable {
+    /** The reply, or in its place the reply's refusal. Null when the transport closed before either came. */
+    public suspend fun frame(): Carried? = reply.await()
 
     /** `frame`, for Java. */
-    public fun frameFuture(): CompletableFuture<Frame?> = CoroutineScope(Dispatchers.Default).futureOf { frame() }
+    public fun frameFuture(): CompletableFuture<Carried?> = CoroutineScope(Dispatchers.Default).futureOf { frame() }
 
     override fun close(): Unit = forget()
 }
@@ -389,14 +389,14 @@ public fun unsubscribed(channel: String): BusRequestError = BusRequestError(
  * while the stream was down is sent again.
  */
 internal class ReplyRouter {
-    private class Awaited(val channels: Set<String>, val reply: CompletableDeferred<Frame?>)
+    private class Awaited(val channels: Set<String>, val reply: CompletableDeferred<Carried?>)
 
     private val awaited = mutableMapOf<String, Awaited>()
     private var closed = false
 
     @Synchronized
     fun track(correlationId: String, replyChannels: Collection<String>): PendingReply {
-        val reply = CompletableDeferred<Frame?>()
+        val reply = CompletableDeferred<Carried?>()
         if (closed) reply.complete(null) else awaited[correlationId] = Awaited(replyChannels.toSet(), reply)
         return PendingReply(reply) {
             synchronized(this) { if (awaited[correlationId]?.reply === reply) awaited.remove(correlationId) }
@@ -404,12 +404,12 @@ internal class ReplyRouter {
     }
 
     @Synchronized
-    fun route(frame: Frame) {
-        val id = frame.correlationId ?: return
+    fun route(carried: Carried) {
+        val id = carried.correlationId ?: return
         val waiting = awaited[id] ?: return
-        if (frame.channel !in waiting.channels) return
+        if (carried.channel !in waiting.channels) return
         awaited.remove(id)
-        waiting.reply.complete(frame)
+        waiting.reply.complete(carried)
     }
 
     /** The correlation ids still awaited, in name order. */
@@ -468,7 +468,7 @@ public interface Transport : AutoCloseable {
     /** Deliver into `bus` everything this transport delivers. The bus is its client's: a transport never makes one. */
     public fun bridgeInto(bus: FrameSink)
 
-    /** Await the reply to `correlationId` on one of `replyChannels`. A request calls this before it emits, so its reply cannot arrive unawaited. */
+    /** Await the reply to `correlationId` on one of `replyChannels`, or its refusal. A request calls this before it emits, so its reply cannot arrive unawaited. */
     public fun trackReply(correlationId: String, replyChannels: Collection<String>): PendingReply
 
     /** Stop: the state becomes `closed`, every reader's events end, and every request still pending fails as closed. Closing twice is closing once. */

@@ -206,13 +206,13 @@ public class Claims internal constructor(
         val watchers = listOf(
             scope.launch {
                 announced.collect { carried ->
-                    val frame = when (carried) {
-                        is Frame -> carried
-                        // A refused frame announces no job.
-                        is FrameRefusal -> return@collect
-                    }
                     synchronized(lock) { lastQueuedEventAt = Instant.now() }
-                    if (filters.any { jobMatchesFilter(it, frame.payload) }) pull()
+                    val wakes = when (carried) {
+                        is Frame -> filters.any { jobMatchesFilter(it, carried.payload) }
+                        // No filter can be compared with what cannot be read: a refused announcement counts as one that matches.
+                        is FrameRefusal -> true
+                    }
+                    if (wakes) pull()
                 }
                 // The stream has ended: nothing more can be claimed.
                 end()

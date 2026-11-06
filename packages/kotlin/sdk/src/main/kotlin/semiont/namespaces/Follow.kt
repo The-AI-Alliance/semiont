@@ -21,6 +21,8 @@ import semiont.JobCompleted
 import semiont.JobCreated
 import semiont.JobEvent
 import semiont.JobProgressed
+import semiont.JobRefused
+import semiont.RefusedFrame
 import semiont.Running
 import semiont.bus.Operations
 import semiont.bus.heard
@@ -176,11 +178,11 @@ private class Follower<C : JobCompleteCommand>(
                     }
                     is Woke.Arrived -> {
                         val carried = woke.carried ?: throw BusRequestError(BusRequestErrorCode.Closed, "The client closed while it was following a job")
-                        when (val said = heardIn(carried)) {
-                            is Delivered -> if (jobId == null) held += said.payload else heard += said.payload
-                            // A refused frame names no job a follower can act on, and how a follower tells of one is not yet ruled.
-                            is FrameRefusal -> Unit
+                        val said: Any = when (val read = heardIn(carried)) {
+                            is Delivered -> read.payload
+                            is FrameRefusal -> read
                         }
+                        if (jobId == null) held += said else heard += said
                     }
                     Woke.Answered -> {
                         val answered = checkNotNull(asking)
@@ -203,6 +205,11 @@ private class Follower<C : JobCompleteCommand>(
                     }
                 }
                 for (said in heard) {
+                    // A refused frame names no job: it may be this job's or another's, and it is no word of the job.
+                    if (said is FrameRefusal) {
+                        report(JobRefused(RefusedFrame(said.channel, said.member, said.reason)))
+                        continue
+                    }
                     if (jobOf(said) != id) continue
                     when (said) {
                         is JobReportProgressCommand -> {

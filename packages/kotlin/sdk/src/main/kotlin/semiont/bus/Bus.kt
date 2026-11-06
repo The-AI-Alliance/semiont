@@ -92,7 +92,7 @@ private fun notTheChannels(channel: String, fault: Fault): String = "a payload o
  * Throws `BusRequestError` when it is answered with a failure, when no reply
  * comes in time, when the transport is closed, and when its stream does not
  * carry the operation's replies; and `TransportError` when the emit itself is
- * refused.
+ * refused, and at once when its reply is.
  */
 public suspend fun request(transport: Transport, operation: Operation<*, *, *>, payload: JsonObject, timeoutMs: Long = Timings.BUS_REQUEST_TIMEOUT_MS): JsonObject =
     resultOf(transport, operation, payload, timeoutMs).payload
@@ -133,9 +133,13 @@ internal suspend fun resultOf(transport: Transport, operation: Operation<*, *, *
     transport.trackReply(correlationId, listOf(result, failure)).use { pending ->
         transport.emit(asked, payload, correlationId = correlationId)
         val came = withTimeoutOrNull(left()) { listOf(pending.frame()) } ?: throw timedOut()
-        val reply = came.single() ?: throw BusRequestError(BusRequestErrorCode.Closed, "Bus closed before a reply on $result")
-        if (reply.channel == result) return reply
-        throw BusRequestError.answered(reply.payload)
+        when (val reply = came.single() ?: throw BusRequestError(BusRequestErrorCode.Closed, "Bus closed before a reply on $result")) {
+            is FrameRefusal -> throw TransportError(TransportErrorCode.Error, "a frame on ${reply.channel} is not that channel's: ${Fault(reply.member, reply.reason)}")
+            is Frame -> {
+                if (reply.channel == result) return reply
+                throw BusRequestError.answered(reply.payload)
+            }
+        }
     }
 }
 
@@ -169,7 +173,7 @@ private fun <P> heard(payload: KSerializer<P>, stamps: Set<String>, carried: Car
     } catch (_: IllegalArgumentException) {
         UNDECODED
     }
-    return FrameRefusal(frame.channel, inPayload(fault.member), fault.reason, frame.payload, null, frame.scope)
+    return FrameRefusal(frame.channel, inPayload(fault.member), fault.reason, frame.payload, frame.correlationId, frame.scope)
 }
 
 /**
