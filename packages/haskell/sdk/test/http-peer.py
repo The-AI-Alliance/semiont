@@ -215,6 +215,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+# Stopping never waits on a handler: one the client left hanging would keep the peer alive.
+server.block_on_close = False
 thread = threading.Thread(target=server.serve_forever, daemon=True)
 thread.start()
 print(server.server_port, flush=True)

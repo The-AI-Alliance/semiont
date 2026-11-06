@@ -95,7 +95,8 @@ httpCases root fixtures = do
     exercised <- timeout 20000000 (exercise peer)
     unless (exercised == Just ()) $ readIORef reached >>= \step ->
       ioError (userError ("real HTTP integration liveness deadline expired at " ++ step))
-  require "real HTTP peer start or stop deadline expired" (result == Just ())
+  step <- readIORef reached
+  require ("real HTTP cases did not end within 60 s; the last step begun was " ++ step) (result == Just ())
   putStrLn "PASS real HTTP/SSE, typed client, content scopes, upload renewal and ownership"
   where
     exercise peer = do
@@ -494,7 +495,7 @@ withPeer root fixtures reached action = bracket
     pure file)
   removeFile $ \file -> bracket
     (do
-      process <- createProcess (proc python [root </> "packages/haskell/sdk/test/http-peer.py", root, file]) { std_in = CreatePipe, std_out = CreatePipe }
+      process <- createProcess (proc python [root </> "packages/haskell/sdk/test/http-peer.py", root, file]) { std_in = CreatePipe, std_out = CreatePipe, std_err = UseHandle stderr }
       case process of
         (Just input, Just output, _, peer) -> pure (input, output, peer)
         _ -> ioError (userError "HTTP peer pipes were not created"))

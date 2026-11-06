@@ -5,11 +5,11 @@ module Semiont.Internal.Http
   , options, lifetime, input, positions, clientId, logger, openScoped, HttpFailure(..), report
   ) where
 
-import Control.Concurrent (myThreadId, throwTo)
+import Control.Concurrent (forkIO, myThreadId, throwTo)
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
 import Control.Concurrent.Async (Async, ExceptionInLinkedThread(..), asyncThreadId, race, cancel, link)
-import Control.Exception (Exception, Handler(..), bracket, catch, catches, mask, throwIO, try)
+import Control.Exception (Exception, Handler(..), SomeException, bracket, catch, catches, mask, onException, throwIO, try)
 import Control.Monad (unless, void, when)
 import qualified Semiont.Internal.Required as Required
 import Data.Aeson (FromJSON, ToJSON, Result(..), Value(String), eitherDecodeStrict', encode, fromJSON, toJSON)
@@ -25,6 +25,7 @@ import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8, decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
 import Network.HTTP.Client
+import Network.HTTP.Client.Internal (Connection(..), ManagerSettings(managerTlsProxyConnection))
 import Network.HTTP.Types (RequestHeaders, statusCode, statusMessage, hAuthorization, hContentType, hRetryAfter)
 import Network.URI (parseURI, uriAuthority, uriUserInfo, uriScheme, uriQuery, uriFragment)
 import OpenTelemetry.Context.ThreadLocal.Propagation (propagateContext, tracedWithAsync)
@@ -47,8 +48,25 @@ import Semiont.Types
 newtype HttpClient = HttpClient Manager
 
 newHttpClient :: ProxyOverride -> ManagerSettings -> IO HttpClient
-newHttpClient proxyPolicy settings = HttpClient <$> newManager (managerSetProxy proxyPolicy settings)
-  { managerRetryableException = const False, managerResponseTimeout = responseTimeoutNone }
+newHttpClient proxyPolicy settings = HttpClient <$> newManager proxied
+  { managerRetryableException = const False, managerResponseTimeout = responseTimeoutNone
+  , managerRawConnection = (\opening address hostName portNumber -> interruptible <$> opening address hostName portNumber)
+      <$> managerRawConnection proxied
+  , managerTlsConnection = (\opening address hostName portNumber -> interruptible <$> opening address hostName portNumber)
+      <$> managerTlsConnection proxied
+  , managerTlsProxyConnection = (\opening connectRequest tunnel proxyName address hostName portNumber ->
+      interruptible <$> opening connectRequest tunnel proxyName address hostName portNumber) <$> managerTlsProxyConnection proxied }
+  where proxied = managerSetProxy proxyPolicy settings
+
+-- On Windows a socket read is a blocking foreign call, and an exception thrown to a thread inside one waits for
+-- the call to return, so a deadline or a cancellation would wait on the peer. Each read runs in a thread of its
+-- own; an exception to the reader closes the connection, which ends the read.
+interruptible :: Connection -> Connection
+interruptible connection = connection { connectionRead = do
+  chunk <- newEmptyMVar
+  _ <- forkIO (try (connectionRead connection) >>= putMVar chunk)
+  received <- takeMVar chunk `onException` connectionClose connection
+  either (\(problem :: SomeException) -> throwIO problem) pure received }
 
 data HttpOptions = HttpOptions
   { httpBaseUrl :: Text
