@@ -11,11 +11,14 @@ use semiont::cached::Observed;
 use semiont::client::{CachePersistence, ClientOptions, ClientTiming, SemiontClient};
 use semiont::errors::SemiontError;
 use semiont::namespaces::ResourceFilters;
+use semiont::refresh::CacheQuery;
+use semiont::session::cache_key;
 use semiont::storage::InMemorySessionStorage;
 use semiont::testing::as_id;
 use semiont::testing::liveness::{LivenessScenario, LivenessSpec, assert_liveness_axioms};
 use semiont::testing::{
-    ContentCall, FaultyTransport, InMemoryContent, TestClientOptions, create_test_client,
+    ContentCall, FaultyTransport, InMemoryContent, SharedStorage, TestClientOptions,
+    create_test_client,
 };
 use semiont::transport::{ConnectionState, Envelope, STREAM_BACKLOG};
 use semiont::types::MatchResourcesResponse;
@@ -1127,12 +1130,14 @@ async fn a_stream_that_reopens_asks_for_the_engines_and_the_key_holders_again() 
 #[tokio::test(start_paused = true)]
 async fn b17_b18_a_returning_client_is_shown_what_the_last_one_had_and_asks_once_more() {
     let storage = Arc::new(InMemorySessionStorage::new());
-    let persistence = || {
+    let kept_for = |kb_id: &str, person_key: &str| {
         Some(CachePersistence {
             storage: storage.clone(),
-            key_prefix: "kb-1".to_owned(),
+            kb_id: kb_id.to_owned(),
+            person_key: person_key.to_owned(),
         })
     };
+    let persistence = || kept_for("kb-1", "a-person-key");
     let transport = FaultyTransport::answering(vec![], answers(&[]));
     let first = client_over(&transport, persistence());
     let _ = first.browse.events(&as_id("res-1")).fresh().await;
@@ -1160,18 +1165,71 @@ async fn b17_b18_a_returning_client_is_shown_what_the_last_one_had_and_asks_once
     let mut history = returning.browse.events(&as_id("res-1")).watch();
     assert_eq!(given(&mut history).await, Some(CacheState::Pending));
 
-    // And another knowledge base's client is shown none of it.
-    let elsewhere = client_over(
-        &FaultyTransport::answering(vec![], answers(&[])),
-        Some(CachePersistence {
+    // And another knowledge base's client is shown none of it, nor another
+    // person's client of the same one.
+    for (kb_id, person_key) in [("kb-2", "a-person-key"), ("kb-1", "another-person-key")] {
+        let elsewhere = client_over(
+            &FaultyTransport::answering(vec![], answers(&[])),
+            kept_for(kb_id, person_key),
+        );
+        assert_eq!(
+            given(&mut elsewhere.browse.resource(&as_id("res-1")).watch()).await,
+            Some(CacheState::Pending),
+            "{kb_id} {person_key}"
+        );
+    }
+}
+
+/// The queries client/refresh.json marks persisted are the ones a client
+/// keeps, each under its own name there, and it keeps no other.
+#[tokio::test(start_paused = true)]
+async fn b17_a_client_keeps_the_queries_the_table_marks_persisted_and_no_other() {
+    let storage = Arc::new(SharedStorage::new());
+    let transport = FaultyTransport::answering(vec![], answers(&[]));
+    let client = create_test_client(TestClientOptions {
+        transport: Some(transport),
+        content: Some(annotated()),
+        client: options(Some(CachePersistence {
             storage: storage.clone(),
-            key_prefix: "kb-2".to_owned(),
-        }),
-    );
-    assert_eq!(
-        given(&mut elsewhere.browse.resource(&as_id("res-1")).watch()).await,
-        Some(CacheState::Pending)
-    );
+            kb_id: "kb-1".to_owned(),
+            person_key: "a-person-key".to_owned(),
+        })),
+        ..TestClientOptions::default()
+    })
+    .client;
+    let resource = as_id("res-1");
+    client.browse.resource(&resource).fresh().await.expect("a resource");
+    client
+        .browse
+        .annotations(&resource)
+        .fresh()
+        .await
+        .expect("its annotations");
+    client
+        .browse
+        .annotation(&resource, &as_id("ann-1"))
+        .fresh()
+        .await
+        .expect("an annotation");
+    client.browse.entity_types().fresh().await.expect("the entity types");
+    client.browse.tag_schemas().fresh().await.expect("the tag schemas");
+    client
+        .browse
+        .resources(ResourceFilters::default())
+        .fresh()
+        .await
+        .expect("a page of resources");
+    client.browse.events(&resource).fresh().await.expect("a history");
+    client.close().await;
+
+    let mut persisted: Vec<String> = CacheQuery::PERSISTED
+        .iter()
+        .map(|query| cache_key("kb-1", "a-person-key", *query))
+        .collect();
+    persisted.sort();
+    let mut kept = storage.keys();
+    kept.sort();
+    assert_eq!(kept, persisted);
 }
 
 // ── Liveness: under any behaviour of the wire, a watcher is told something ──

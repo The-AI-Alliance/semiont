@@ -7,6 +7,7 @@ using Semiont.Discovery;
 using Semiont.Errors;
 using Semiont.Identifiers;
 using Semiont.Registry;
+using Semiont.SignIn;
 using Semiont.Storage;
 using Semiont.State;
 using Semiont.Types;
@@ -36,10 +37,18 @@ public sealed partial class TransportTests
         Assert.Equal(Text(table.RootElement.GetProperty("sessionKeyPrefix"), "prefix") + "kb-1", key);
         Assert.Equal("kb-1", RegistryStorage.KbOfSessionKey(key));
         Assert.Null(RegistryStorage.KbOfSessionKey("unrelated"));
-        Assert.StartsWith(Text(table.RootElement.GetProperty("cacheKeyPrefix"), "prefix"),
-            RegistryStorage.CacheKey("kb-1", UserId.Parse("did:web:example.org:users:alice")), StringComparison.Ordinal);
+        var lastEventIdPrefix = table.RootElement.GetProperty("lastEventIdKeyPrefix");
+        var lastEventIdExample = lastEventIdPrefix.GetProperty("example");
+        var lastEventIdKey = RegistryStorage.LastEventIdKey(Text(lastEventIdExample, "kbId"), PersonKeyOf(lastEventIdExample));
+        Assert.Equal(Text(lastEventIdExample, "key"), lastEventIdKey);
+        Assert.StartsWith(Text(lastEventIdPrefix, "prefix"), lastEventIdKey, StringComparison.Ordinal);
+        var cachePrefix = table.RootElement.GetProperty("cacheKeyPrefix");
+        var cacheExample = cachePrefix.GetProperty("example");
+        var cacheKey = RegistryStorage.CacheKey(Text(cacheExample, "kbId"), PersonKeyOf(cacheExample), Text(cacheExample, "query"));
+        Assert.Equal(Text(cacheExample, "key"), cacheKey);
+        Assert.StartsWith(Text(cachePrefix, "prefix"), cacheKey, StringComparison.Ordinal);
         var store = new MemoryStorage();
-        var session = RegistryTokens() with { RevocationEndpoint = "https://issuer.test/revoke" };
+        var session = RegistryTokens() with { RevocationEndpoint = "https://issuer.test/revoke", PersonKey = PersonKeyOf(cacheExample) };
         RegistryStorage.StoreSession(store, "kb-1", session);
         Assert.Equal(session, RegistryStorage.StoredSession(store, "kb-1"));
         var schema = table.RootElement.GetProperty("storedSession");
@@ -54,6 +63,30 @@ public sealed partial class TransportTests
             store.Set(key, incomplete.ToJsonString());
             Assert.Null(RegistryStorage.StoredSession(store, "kb-1"));
         }
+
+        static string PersonKeyOf(JsonElement example) => RegistryStorage.PersonKey(UserId.Parse(Text(example, "did")));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ASignInRecordsItsPersonOnlyWhileItHoldsTheTokenAndNamesNoOneElse(bool registry)
+    {
+        ISignInKept kept = registry ? RegistryStorage.KeptIn(new MemoryStorage(), "kb-1") : new MemorySignIn();
+        var signIn = RegistryTokens();
+        Assert.False(await kept.RecordPersonKeyAsync(signIn.Access, "jo"));
+        Assert.Null(await kept.HeldAsync());
+        await kept.KeepAsync(signIn);
+        Assert.False(await kept.RecordPersonKeyAsync("another access", "jo"));
+        Assert.Equal(signIn, await kept.HeldAsync());
+        Assert.True(await kept.RecordPersonKeyAsync(signIn.Access, "jo"));
+        var named = signIn with { PersonKey = "jo" };
+        Assert.Equal(named, await kept.HeldAsync());
+        Assert.True(await kept.RecordPersonKeyAsync(signIn.Access, "jo"));
+        Assert.False(await kept.RecordPersonKeyAsync(signIn.Access, "ann"));
+        Assert.Equal(named, await kept.HeldAsync());
+        Assert.Equal("renewed", await kept.RenewedAsync(named, "renewed", "renewed refresh"));
+        Assert.Equal(named with { Access = "renewed", Refresh = "renewed refresh" }, await kept.HeldAsync());
     }
 
     [Fact]
@@ -271,21 +304,32 @@ public sealed partial class TransportTests
 
     private sealed class ExternallyWritableStorage : ISessionStorage
     {
-        private readonly MemoryStorage memory = new();
-        private Action<string, string?>? listener;
-        public string? Get(string key) => memory.Get(key);
-        public void Set(string key, string value) => memory.Set(key, value);
-        public void Delete(string key) => memory.Delete(key);
-        public void Update(string key, Func<string?, string?> change) => memory.Update(key, change);
+        private readonly object gate = new();
+        private readonly Dictionary<string, string> values = new(StringComparer.Ordinal);
+        private readonly List<Action<string, string?>> listeners = [];
+        public string? Get(string key) { lock (gate) return values.GetValueOrDefault(key); }
+        public void Set(string key, string value) => Update(key, _ => value);
+        public void Delete(string key) => Update(key, _ => null);
+        public void Update(string key, Func<string?, string?> change)
+        {
+            lock (gate)
+            {
+                if (change(values.GetValueOrDefault(key)) is { } next) values[key] = next;
+                else values.Remove(key);
+            }
+        }
         public IDisposable Subscribe(Action<string, string?> onChange)
         {
-            listener = onChange;
-            return new Subscription(() => listener = null);
+            lock (gate) listeners.Add(onChange);
+            return new Subscription(() => { lock (gate) listeners.Remove(onChange); });
         }
+        internal string[] Keys() { lock (gate) return values.Keys.ToArray(); }
         internal void WriteFromElsewhere(string key, string? value)
         {
-            memory.Update(key, _ => value);
-            listener?.Invoke(key, value);
+            Update(key, _ => value);
+            Action<string, string?>[] notify;
+            lock (gate) notify = listeners.ToArray();
+            foreach (var listener in notify) listener(key, value);
         }
         private sealed class Subscription(Action close) : IDisposable
         {

@@ -32,7 +32,8 @@ use semiont::identity::agent_did;
 use semiont::roles::{AGENT_KIND, KIND_CLAIM, is_agent};
 use semiont::session::{
     OpenedSession, SemiontBrowser, SemiontBrowserConfig, SemiontSession, SessionEndReason,
-    StoredSession, save_knowledge_bases, session_key, store_session, stored_session,
+    StoredSession, last_event_id_key, person_key, save_knowledge_bases, session_key,
+    store_session, stored_session,
 };
 use semiont::sign_in_store::{FILE_NAME, SignInStore};
 use semiont::storage::{InMemorySessionStorage, SessionStorage};
@@ -230,6 +231,9 @@ async fn revoke(State(staged): State<Arc<Staged>>, body: String) -> Response {
         .into_response()
 }
 
+/// Who the gateway says a person's token is.
+const ALICE: &str = "did:web:example.org:users:alice";
+
 async fn me(State(staged): State<Arc<Staged>>, headers: HeaderMap) -> Response {
     let token = bearer(&headers);
     staged.asked_who.lock().unwrap().push(token.clone());
@@ -269,7 +273,7 @@ async fn me(State(staged): State<Arc<Staged>>, headers: HeaderMap) -> Response {
     json_answer(
         200,
         json!({
-            "did": "did:web:example.org:users:alice", "email": "alice@example.org",
+            "did": ALICE, "email": "alice@example.org",
             "name": "Alice", "image": null, "domain": "example.org",
         }),
     )
@@ -580,6 +584,7 @@ impl World {
             client_id: "semiont-browser".to_owned(),
             token_endpoint: format!("{}/token", self.issuer()),
             revocation_endpoint: Some(format!("{}/revoke", self.issuer())),
+            person_key: None,
         }
     }
 
@@ -970,6 +975,28 @@ async fn a_stored_sessions_renewal_rides_out_an_issuer_that_says_not_now_and_kee
     );
 }
 
+#[tokio::test]
+async fn a_renewal_keeps_the_person_the_stored_session_names() {
+    let world = World::start().await;
+    let storage = Arc::new(InMemorySessionStorage::new());
+    let naming = |access: &str, refresh: &str| StoredSession {
+        person_key: Some(person_key(ALICE)),
+        ..world.stored(access, refresh)
+    };
+    store_session(storage.as_ref(), "kb-a", &naming("a1", "r1")).expect("stored");
+    world.answers([granted("a2", Some("r2"))]);
+
+    let renewed = refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http)
+        .await
+        .expect("renewed");
+
+    assert_eq!(renewed, Some("a2".to_owned()));
+    assert_eq!(
+        stored_session(storage.as_ref(), "kb-a"),
+        Some(naming("a2", "r2"))
+    );
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_refused_grant_is_final_on_its_first_answer() {
     let world = World::on_a_quick_clock().await;
@@ -1157,6 +1184,7 @@ async fn renewed_as_the_row_says(row: &Value, store: &str) -> Vec<String> {
         client_id: "semiont-cli".to_owned(),
         token_endpoint: format!("{}/token", world.issuer()),
         revocation_endpoint: None,
+        person_key: None,
     };
     store_session(another.as_ref(), "local", &session(&row["kept"])).expect("stored");
     let meanwhile = &row["meanwhile"];
@@ -1826,6 +1854,7 @@ async fn a_script_signs_in_by_the_device_grant_and_holds_a_ready_session() {
             client_id: "semiont-cli".to_owned(),
             token_endpoint: format!("{}/token", world.issuer()),
             revocation_endpoint: Some(format!("{}/revoke", world.issuer())),
+            person_key: None,
         })
     );
 
@@ -1909,11 +1938,15 @@ async fn a_registry_brings_up_a_session_that_says_who_it_is_and_renews_an_expire
             .borrow()
             .as_ref()
             .map(|user| user.did.to_string()),
-        Some("did:web:example.org:users:alice".to_owned())
+        Some(ALICE.to_owned())
     );
+    // The renewed sign-in, which records the person the gateway named.
     assert_eq!(
         stored_session(storage.as_ref(), "kb-a"),
-        Some(world.stored(&renewed, "r2"))
+        Some(StoredSession {
+            person_key: Some(person_key(ALICE)),
+            ..world.stored(&renewed, "r2")
+        })
     );
     browser.close().await.expect("closed");
 }
@@ -2051,6 +2084,7 @@ async fn a_registrys_sign_in_registers_the_knowledge_base_under_what_it_says_it_
         Some("did:web:example.org:another".to_owned())
     );
     assert_eq!(*browser.kbs().borrow(), std::slice::from_ref(&outcome.kb));
+    // Its session is up, and has recorded the person the gateway named.
     assert_eq!(
         stored_session(storage.as_ref(), &outcome.kb.id),
         Some(StoredSession {
@@ -2059,6 +2093,7 @@ async fn a_registrys_sign_in_registers_the_knowledge_base_under_what_it_says_it_
             client_id: "semiont-browser".to_owned(),
             token_endpoint: format!("{}/token", world.issuer()),
             revocation_endpoint: Some(format!("{}/revoke", world.issuer())),
+            person_key: Some(person_key(ALICE)),
         })
     );
     assert_eq!(live(&browser).await.kb().id, outcome.kb.id);
@@ -2158,12 +2193,18 @@ async fn a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept(
     );
     let storage = Arc::new(InMemorySessionStorage::new());
     save_knowledge_bases(storage.as_ref(), &[registered(&world, "kb-a", DID_A)]).expect("stored");
-    store_session(storage.as_ref(), "kb-a", &world.stored(&jwt(3600, 1), "r1")).expect("stored");
+    store_session(
+        storage.as_ref(),
+        "kb-a",
+        &StoredSession {
+            person_key: Some(person_key(ALICE)),
+            ..world.stored(&jwt(3600, 1), "r1")
+        },
+    )
+    .expect("stored");
+    let places_key = last_event_id_key("kb-a", &person_key(ALICE));
     storage
-        .set(
-            "semiont.lastEventId.kb-a",
-            &json!({ "res-1": "p-5" }).to_string(),
-        )
+        .set(&places_key, &json!({ "res-1": "p-5" }).to_string())
         .expect("stored");
     let browser = browser(&world, storage.clone());
     let session = live(&browser).await;
@@ -2199,7 +2240,7 @@ async fn a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept(
     }
     let kept = || {
         storage
-            .get("semiont.lastEventId.kb-a")
+            .get(&places_key)
             .and_then(|kept| serde_json::from_str::<Value>(&kept).ok())
     };
     until("the place is kept", || {

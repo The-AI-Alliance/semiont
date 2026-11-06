@@ -1,0 +1,347 @@
+package semiont.registry
+
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.DynamicTest
+import org.junit.jupiter.api.TestFactory
+import semiont.SemiontClient
+import semiont.Spec
+import semiont.cache.CacheState
+import semiont.cache.PERSISTED_QUERIES
+import semiont.http.HttpSessionFactory
+import semiont.http.Realm
+import semiont.http.Said
+import semiont.http.tokenFor
+import semiont.identifiers.ResourceId
+import semiont.session.OpenedSession
+import semiont.session.SessionSignals
+import semiont.storage.MemoryStorage
+import semiont.storage.SessionStorage
+import semiont.testing.ScriptedSessions
+import semiont.testing.SharedStorage
+import semiont.types.HttpEndpoint
+import semiont.types.HttpEndpointProtocol
+import semiont.types.KnowledgeBase
+import semiont.types.ResourceDescriptor
+import semiont.types.UserResponse
+import semiont.types.wireJson
+import java.net.URI
+import java.util.concurrent.ConcurrentHashMap
+
+private val cases = Spec.read("session/persisted-cases.json").jsonObject
+
+private fun JsonObject.text(name: String): String = getValue(name).jsonPrimitive.content
+
+private fun JsonObject.textOrNull(name: String): String? = get(name)?.takeUnless { it is JsonNull }?.jsonPrimitive?.content
+
+private fun rows(part: String): List<JsonObject> = cases.getValue(part).jsonArray.map { it.jsonObject }
+
+private fun storedOf(part: String): Map<String, String> = cases.getValue(part).jsonObject.mapValues { it.value.jsonPrimitive.content }
+
+/** The members of each part's rows the runner reads. */
+private val MEMBERS = mapOf(
+    "keys" to setOf("why", "kbId", "did", "personKey", "lastEventIdKey", "cacheKeys"),
+    "signOut" to setOf("why", "signedIn", "open", "removes"),
+    "startup" to setOf("why", "signedIn", "gateway", "first", "then", "recorded", "place", "untouched"),
+    "crossTab" to setOf("why", "stored", "saved"),
+)
+
+private val people = cases.getValue("people").jsonObject.mapValues { it.value.jsonObject }
+private val JO = people.getValue("jo").text("personKey")
+
+/** The row of `keys` that states jo's keys on kb-a. */
+private val joOnARow: JsonObject = rows("keys").single { it.text("kbId") == KB_A && it.text("personKey") == JO }
+
+/** Every key of jo's on kb-a: the stream's places and each persisted query's. */
+private val JO_ON_A: Set<String> = setOf(joOnARow.text("lastEventIdKey")) + joOnARow.getValue("cacheKeys").jsonObject.values.map { it.jsonPrimitive.content }
+private val JO_RESOURCE_ON_A: String = joOnARow.getValue("cacheKeys").jsonObject.text("resource")
+
+private val whoAmI: JsonObject = cases.getValue("whoAmI").jsonObject
+
+private val prefixes: List<String> = Spec.read("session/stored.json").jsonObject.let { stored ->
+    listOf("lastEventIdKeyPrefix", "cacheKeyPrefix").map { stored.getValue(it).jsonObject.text("prefix") }
+}
+
+private const val WHO = "/api/users/me"
+
+/** What a gateway that cannot be reached answers: a refusal to answer, which a request is not refused again for. */
+private val UNAVAILABLE = Said(503, buildJsonObject { put("error", "the gateway is unavailable") })
+
+/** What the client of jo's, standing in for one closing with a save owed, writes as it closes. */
+private const val WRITTEN_CLOSING = """{"version":1,"writtenAt":1700000000001,"entries":[]}"""
+
+/** A row the runner reads every member of: a member the table gains fails here until the runner reads it. */
+private fun read(row: JsonObject, part: String) {
+    val unread = row.keys - MEMBERS.getValue(part)
+    assertTrue(unread.isEmpty(), "$part has members the runner does not read: $unread")
+}
+
+/** kb-a, at the realm's gateway. */
+private fun Realm.kbA(): KnowledgeBase =
+    KnowledgeBase(KB_A, "KB A", HttpEndpoint(host = "127.0.0.1", port = URI(origin).port.toLong(), protocol = HttpEndpointProtocol.Http), "did:web:kb.example.org")
+
+/** A sign-in kept for the browser client, renewed and revoked at the realm's issuer, naming `personKey`, or nobody for null. */
+private fun Realm.signIn(personKey: String?, access: String = tokenFor("access"), refresh: String = "r1"): StoredSession =
+    StoredSession(access, refresh, "semiont-browser", "$origin/token", "$origin/revoke", personKey)
+
+/** The knowledge base behind the realm's gateway: a read of any resource is answered with that resource named `fresh`, and it cannot say what it is. */
+private fun Realm.answersFresh() {
+    onEmit = { emit ->
+        val correlation = emit["correlationId"]?.jsonPrimitive?.content
+        val payload = emit["payload"]?.jsonObject
+        if (correlation != null && payload != null) {
+            when (emit["channel"]?.jsonPrimitive?.content) {
+                "browse:resource-requested" -> {
+                    val resource = payload.getValue("resourceId").jsonPrimitive.content
+                    reply(
+                        correlation,
+                        "browse:resource-result",
+                        buildJsonObject {
+                            put("resourceId", resource)
+                            put("response", buildJsonObject {
+                                put("resource", buildJsonObject {
+                                    put("@context", "https://schema.org/")
+                                    put("@id", resource)
+                                    put("name", "fresh")
+                                    put("representations", JsonArray(emptyList()))
+                                })
+                                put("lastSequence", 1)
+                            })
+                        },
+                    )
+                }
+                "browse:kb-requested" -> reply(correlation, "browse:kb-failed", buildJsonObject { put("message", "this knowledge base cannot say what it is") })
+            }
+        }
+    }
+}
+
+private fun Realm.reply(correlation: String, channel: String, payload: JsonObject) = send(buildJsonObject {
+    put("channel", channel)
+    put("payload", payload)
+    put("correlationId", correlation)
+})
+
+/** What the first stream to name `scope` said of it; null while none has. */
+private fun Realm.scoped(scope: String): JsonObject? =
+    subscriptions.flatMap { (it["scoped"] as? JsonArray).orEmpty() }.map { it.jsonObject }.firstOrNull { it["scope"]?.jsonPrimitive?.content == scope }
+
+/** A storage in memory that says which keys it holds. No other context writes it. */
+private class ListedStorage : SessionStorage {
+    private val stored = ConcurrentHashMap<String, String>()
+
+    fun keys(): Set<String> = stored.keys.toSet()
+
+    override fun get(key: String): String? = stored[key]
+
+    override fun set(key: String, value: String) {
+        stored[key] = value
+    }
+
+    override fun delete(key: String) {
+        stored.remove(key)
+    }
+
+    override fun update(key: String, change: (String?) -> String?) {
+        stored.compute(key) { _, before -> change(before) }
+    }
+
+    override fun subscribe(onChange: (key: String, value: String?) -> Unit): AutoCloseable? = null
+}
+
+/**
+ * Scripted sessions, each of kb-a's writing under jo's `resource` key on kb-a
+ * as it closes, as a client of jo's closing with a save owed could.
+ */
+private class ClosingWrites(private val scripted: ScriptedSessions, private val storage: SessionStorage) : SessionFactory by scripted {
+    override suspend fun session(options: SessionFactoryOptions): OpenedSession {
+        val opened = scripted.session(options)
+        if (options.kb.id != KB_A) return opened
+        return OpenedSession(opened.session) {
+            opened.close()
+            storage.set(JO_RESOURCE_ON_A, WRITTEN_CLOSING)
+        }
+    }
+}
+
+/** A collector of a resource's query, which holds the resource's scope until it is closed. */
+private class Watching(client: SemiontClient, id: String, scope: CoroutineScope) : AutoCloseable {
+    private val states = Channel<CacheState<ResourceDescriptor>>(Channel.UNLIMITED)
+    private val collecting = scope.launch { client.browse.resource(ResourceId(id)).collect { states.send(it) } }
+
+    /** `kept` when the first state given is what was kept, `fresh` when the first value given is the gateway's answer; otherwise, what was given. */
+    suspend fun given(): String = withTimeout(10_000) {
+        val shown = mutableListOf<CacheState<ResourceDescriptor>>()
+        while (shown.lastOrNull() !is CacheState.Ready) shown += states.receive()
+        val name = (shown.last() as CacheState.Ready).value.name
+        when {
+            name == "kept" && shown.size == 1 -> "kept"
+            name == "fresh" -> "fresh"
+            else -> "$shown"
+        }
+    }
+
+    override fun close(): Unit = collecting.cancel()
+}
+
+/**
+ * What a client keeps of one person, and when it is read, written and deleted
+ * (protocol/specs/src/session/persisted-cases.json): the keys of each person,
+ * what a registry's sign-out deletes, what a registry's session over HTTP reads
+ * and records as it starts, and what it writes once another context has
+ * written its knowledge base's sign-in.
+ */
+class PersistedCasesTest {
+    @TestFactory
+    fun eachPersonsKeysAreTheTables(): List<DynamicTest> = people.map { (name, person) ->
+        DynamicTest.dynamicTest("the key of $name") { assertEquals(person.text("personKey"), personKey(person.text("did"))) }
+    } + rows("keys").map { row ->
+        DynamicTest.dynamicTest(row.text("why")) {
+            read(row, "keys")
+            val kbId = row.text("kbId")
+            val person = personKey(row.text("did"))
+            assertEquals(row.text("personKey"), person)
+            assertEquals(row.text("lastEventIdKey"), lastEventIdKey(kbId, person))
+            val stated = row.getValue("cacheKeys").jsonObject
+            // The queries kept are exactly the row's, in its order.
+            assertEquals(stated.keys.toList(), PERSISTED_QUERIES.map { it.wire })
+            for (query in PERSISTED_QUERIES) assertEquals(stated.text(query.wire), cacheKey(kbId, person, query.wire), query.wire)
+        }
+    }
+
+    @TestFactory
+    fun aSignOutDeletesWhatTheTableSays(): List<DynamicTest> = rows("signOut").map { row ->
+        DynamicTest.dynamicTest(row.text("why")) { signOut(row) }
+    }
+
+    @TestFactory
+    fun aRegistrysSessionStartsAsTheTableSays(): List<DynamicTest> = rows("startup").map { row ->
+        DynamicTest.dynamicTest(row.text("why")) { startup(row) }
+    }
+
+    @TestFactory
+    fun aSignInAnotherContextWritesIsHeededAsTheTableSays(): List<DynamicTest> = rows("crossTab").map { row ->
+        DynamicTest.dynamicTest(row.text("why")) { crossTab(row) }
+    }
+
+    /** kb-b is active unless the row has kb-a open: then kb-a's session, standing in for jo's client, writes as it closes. */
+    private fun signOut(row: JsonObject): Unit = runBlocking {
+        read(row, "signOut")
+        val kept = storedOf("signOutStorage")
+        val storage = MemoryStorage()
+        for ((key, value) in kept) storage.set(key, value)
+        saveKnowledgeBases(storage, listOf(kbOfA(), kbOfB()))
+        val open = row.getValue("open").jsonPrimitive.boolean
+        storage.set(ACTIVE_KEY, if (open) KB_A else KB_B)
+        when (val signedIn = row.text("signedIn")) {
+            "named" -> storeSession(storage, KB_A, tokens("r").copy(personKey = JO))
+            "unnamed" -> storeSession(storage, KB_A, tokens("r"))
+            "none" -> Unit
+            else -> throw AssertionError("signedIn $signedIn is none the runner knows")
+        }
+        val scripted = ScriptedSessions().also { it.saysWho(wireJson.decodeFromJsonElement(UserResponse.serializer(), whoAmI)) }
+        SemiontBrowser(SemiontBrowserConfig(storage, ClosingWrites(scripted, storage))).use { browser ->
+            if (open) assertEquals(KB_A, live(browser).kb.id)
+            browser.signOut(KB_A)
+            val removed = when (val removes = row.text("removes")) {
+                "person" -> JO_ON_A
+                "nothing" -> emptySet()
+                else -> throw AssertionError("removes $removes is none the runner knows")
+            }
+            for (key in removed) assertNull(storage.get(key), key)
+            for ((key, value) in kept) if (key !in removed) assertEquals(value, storage.get(key), key)
+        }
+    }
+
+    /**
+     * The session the registry's factory over HTTP builds, held as the factory
+     * gives it: a registry shows a session only once it is ready, and `first`
+     * is asked before.
+     */
+    private fun startup(row: JsonObject): Unit = runBlocking {
+        read(row, "startup")
+        Realm().use { realm ->
+            realm.answersFresh()
+            realm.hold(WHO)
+            val kept = storedOf("startupStorage")
+            val storage = ListedStorage()
+            for ((key, value) in kept) storage.set(key, value)
+            val signedIn = when (val stated = row.text("signedIn")) {
+                "named" -> JO
+                "unnamed" -> null
+                else -> throw AssertionError("signedIn $stated is none the runner knows")
+            }
+            storeSession(storage, KB_A, realm.signIn(signedIn))
+            SessionSignals().use { signals ->
+                HttpSessionFactory().session(SessionFactoryOptions(realm.kbA(), storage, signals) {}).use { opened ->
+                    eventually("the gateway is asked who the token is") { realm.of(WHO).isNotEmpty() }
+                    assertEquals(row.text("first"), Watching(opened.client, "res-2", this).use { it.given() }, "first")
+                    when (val gateway = row.text("gateway")) {
+                        "names" -> realm.release(WHO, Said(200, whoAmI))
+                        "unreachable" -> {
+                            // A request the gateway could not answer is made once more, and is not answered either.
+                            realm.script(WHO, UNAVAILABLE)
+                            realm.release(WHO, UNAVAILABLE)
+                        }
+                        else -> throw AssertionError("gateway $gateway is none the runner knows")
+                    }
+                    withTimeout(10_000) { opened.session.ready() }
+                    assertEquals(row.textOrNull("recorded"), storedSession(storage, KB_A)?.personKey, "recorded")
+                    Watching(opened.client, "res-1", this).use { watching ->
+                        assertEquals(row.text("then"), watching.given(), "then")
+                        eventually("a stream names res-1") { realm.scoped("res-1") != null }
+                        assertEquals(row.textOrNull("place"), realm.scoped("res-1")?.textOrNull("lastEventId"), "place")
+                    }
+                }
+            }
+            if (row["untouched"]?.jsonPrimitive?.boolean == true) {
+                for ((key, value) in kept) assertEquals(value, storage.get(key), key)
+                assertEquals(kept.keys, storage.keys().filter { key -> prefixes.any { key.startsWith(it) } }.toSet())
+            }
+        }
+    }
+
+    /** kb-a is the registry's active knowledge base; the other context writes its sign-in through a context of its own over the same storage. */
+    private fun crossTab(row: JsonObject): Unit = runBlocking {
+        read(row, "crossTab")
+        Realm().use { realm ->
+            realm.answersFresh()
+            repeat(10) { realm.script(WHO, Said(200, whoAmI)) }
+            val storage = SharedStorage()
+            saveKnowledgeBases(storage, listOf(realm.kbA()))
+            storeSession(storage, KB_A, realm.signIn(JO))
+            SemiontBrowser(SemiontBrowserConfig(storage, HttpSessionFactory())).use { browser ->
+                val client = live(browser).client
+                assertEquals("fresh", Watching(client, "res-1", this).use { it.given() })
+                // The table's state holds only while the client has not yet written what it holds of res-1: its write waits
+                // for a pause, and nothing here waits.
+                assertNull(storage.get(JO_RESOURCE_ON_A), "the client wrote res-1 before the other context wrote its sign-in")
+                val elsewhere = storage.context()
+                when (val stored = row.getValue("stored")) {
+                    is JsonNull -> clearStoredSession(elsewhere, KB_A)
+                    else -> storeSession(elsewhere, KB_A, realm.signIn(stored.jsonObject.textOrNull("personKey"), tokenFor("another"), "r-another"))
+                }
+            }
+            val document = storage.get(JO_RESOURCE_ON_A)?.let { wireJson.parseToJsonElement(it).jsonObject }
+            val saved = document?.getValue("entries")?.jsonArray.orEmpty().map { it.jsonArray }.any { entry ->
+                entry[0].jsonPrimitive.content == "res-1" && entry[1].jsonObject.text("name") == "fresh"
+            }
+            assertEquals(row.getValue("saved").jsonPrimitive.boolean, saved, "saved")
+        }
+    }
+}

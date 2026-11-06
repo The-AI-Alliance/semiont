@@ -1783,6 +1783,42 @@ describe('multi-scope subscription matrix', () => {
     su.dispose();
   });
 
+  it('restored places fill only the scopes holding none, and ride the next connect (B17, kept places given late)', async () => {
+    mockSSEResponse();
+    const su = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['global:ch'],
+    });
+    su.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    const sse2 = mockSSEResponse();
+    su.addChannels(['mark:added'], resourceId('res-A'));
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    sse2.push(sseChunkId(
+      'bus-event',
+      JSON.stringify({ channel: 'mark:added', payload: { seq: 5 }, scope: 'res-A' }),
+      'p-res-A-5',
+    ));
+    await new Promise((r) => setTimeout(r, 20));
+
+    // res-A has a place of its own, delivered on this stream; res-B has none.
+    su.restoreLastEventIds(new Map([
+      [resourceId('res-A'), 'p-res-A-1'],
+      [resourceId('res-B'), 'p-res-B-7'],
+    ]));
+    mockSSEResponse();
+    su.addChannels(['mark:added'], resourceId('res-B'));
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
+
+    const body = bodyOf(2);
+    expect(body.scoped.find((s) => s.scope === 'res-A')?.lastEventId).toBe('p-res-A-5');
+    expect(body.scoped.find((s) => s.scope === 'res-B')?.lastEventId).toBe('p-res-B-7');
+
+    su.dispose();
+  });
+
   // The tracked cids are what a reconnect asks the gateway's reply
   // retention for, so a reply lost in a connection drop still arrives.
   it('trackReply(cid) rides every connect body until released; empty set omits the field', async () => {

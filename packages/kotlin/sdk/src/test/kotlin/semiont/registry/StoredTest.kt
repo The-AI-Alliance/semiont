@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.Spec
 import semiont.signin.HeldSignIn
+import semiont.signin.namingIsRecordedOnTheSignInAskedAbout
 import semiont.storage.MemoryStorage
 import semiont.types.HttpEndpoint
 import semiont.types.HttpEndpointProtocol
@@ -24,6 +25,8 @@ private val table = Spec.read("session/stored.json").jsonObject
 private val session = table.getValue("storedSession").jsonObject
 private val members = session.getValue("properties").jsonObject.keys
 private val required = session.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet()
+
+private fun JsonObject.text(name: String): String = getValue(name).jsonPrimitive.content
 
 /** Each key's constant here, by the name the table gives it. */
 private val KEYS = mapOf(
@@ -37,10 +40,12 @@ private val KEYS = mapOf(
 /**
  * What a registry keeps in its storage, as protocol/specs/src/session/stored.json
  * states it: every key Kotlin writes by hand, the key of a knowledge base's
- * session, the keys of what a session keeps of its stream and its queries, and
- * the members of a stored session. A key or a member the table gains fails
- * here until Kotlin has it. And the registry's readers and writers of what it
- * keeps. AuthorizationTest holds what is kept of a sign-in begun.
+ * session, the keys of what a session keeps of its stream and its queries for
+ * one person, each the table's example, and the members of a stored session. A
+ * key or a member the table gains fails here until Kotlin has it. And the
+ * registry's readers and writers of what it keeps. AuthorizationTest holds
+ * what is kept of a sign-in begun; PersistedCasesTest, when each person's keys
+ * are read, written and deleted.
  */
 class StoredTest {
     @Test
@@ -58,25 +63,25 @@ class StoredTest {
     }
 
     @Test
-    fun whereAKnowledgeBasesStreamWasIsKeptUnderTheTablesPrefixAndItsId() {
-        val prefix = table.getValue("lastEventIdKeyPrefix").jsonObject.getValue("prefix").jsonPrimitive.content
-        assertEquals("${prefix}$KB_A", lastEventIdKey(KB_A))
+    fun whereAKnowledgeBasesStreamWasForOnePersonIsKeptUnderTheKeyOfTheTablesExample() {
+        val example = table.getValue("lastEventIdKeyPrefix").jsonObject.getValue("example").jsonObject
+        assertEquals(example.text("key"), lastEventIdKey(example.text("kbId"), personKey(example.text("did"))))
     }
 
     @Test
-    fun aKeptQueryIsKeptUnderTheTablesPrefixItsPersistencesKeyPrefixAndItsName() {
-        val prefix = table.getValue("cacheKeyPrefix").jsonObject.getValue("prefix").jsonPrimitive.content
-        assertEquals("${prefix}$KB_A.resource", cacheKey(KB_A, "resource"))
+    fun aKeptQueryForOnePersonIsKeptUnderTheKeyOfTheTablesExample() {
+        val example = table.getValue("cacheKeyPrefix").jsonObject.getValue("example").jsonObject
+        assertEquals(example.text("key"), cacheKey(example.text("kbId"), personKey(example.text("did")), example.text("query")))
     }
 
     @Test
     fun aStoredSessionIsWrittenWithTheTablesMembersAndNoOthers() {
         val storage = MemoryStorage()
-        storeSession(storage, KB_A, StoredSession("a", "r", "semiont-browser", "https://issuer.test/token", "https://issuer.test/revoke"))
+        storeSession(storage, KB_A, StoredSession("a", "r", "semiont-browser", "https://issuer.test/token", "https://issuer.test/revoke", "the key of jo"))
         assertEquals(members, Json.parseToJsonElement(checkNotNull(storage.get(sessionKey(KB_A)))).jsonObject.keys)
-        // One with no revocation endpoint is written without it.
+        // One with no revocation endpoint, and whose person the gateway has not named, is written without either.
         storeSession(storage, KB_A, StoredSession("a", "r", "semiont-browser", "https://issuer.test/token"))
-        assertEquals(members - "revocationEndpoint", Json.parseToJsonElement(checkNotNull(storage.get(sessionKey(KB_A)))).jsonObject.keys)
+        assertEquals(members - "revocationEndpoint" - "personKey", Json.parseToJsonElement(checkNotNull(storage.get(sessionKey(KB_A)))).jsonObject.keys)
     }
 
     @TestFactory
@@ -99,6 +104,7 @@ class StoredTest {
         assertNull(storedSession(storage, KB_A))
         storage.set(sessionKey(KB_A), """{"access":"a","refresh":"r","clientId":"semiont-browser","tokenEndpoint":"https://issuer.test/token"}""")
         assertNull(checkNotNull(storedSession(storage, KB_A)).revocationEndpoint)
+        assertNull(checkNotNull(storedSession(storage, KB_A)).personKey)
         clearStoredSession(storage, KB_A)
         assertNull(storage.get(sessionKey(KB_A)))
     }
@@ -107,7 +113,7 @@ class StoredTest {
     fun aRenewalIsKeptAgainstWhatIsStoredThen() = runBlocking {
         val storage = MemoryStorage()
         val kept = keptIn(storage, KB_A)
-        val read = HeldSignIn("a1", "r1", "semiont-browser", "https://issuer.test/token", null)
+        val read = HeldSignIn("a1", "r1", "semiont-browser", "https://issuer.test/token", null, "the key of jo")
 
         // A renewal of nothing stored is not kept, and writes nothing.
         assertNull(kept.renewed(read, "a2", "r2"))
@@ -115,7 +121,8 @@ class StoredTest {
 
         kept.keep(read)
         assertEquals("a2", kept.renewed(read, "a2", "r2"))
-        assertEquals("a2" to "r2", checkNotNull(kept.held()).let { it.access to it.refresh })
+        // The renewal keeps whom the sign-in names.
+        assertEquals(read.copy(access = "a2", refresh = "r2"), kept.held())
 
         // Renewed from what was read before: the renewal stored meanwhile stands.
         assertEquals("a2", kept.renewed(read, "a3", "r3"))
@@ -123,6 +130,14 @@ class StoredTest {
 
         kept.forget()
         assertNull(kept.held())
+    }
+
+    @Test
+    fun whoTheGatewayNamedIsRecordedOnTheStoredSignInItWasAskedAbout() = runBlocking {
+        val storage = MemoryStorage()
+        namingIsRecordedOnTheSignInAskedAbout(keptIn(storage, KB_A))
+        // Recorded in the stored session, under the table's member.
+        assertEquals("the key of ann", checkNotNull(storedSession(storage, KB_A)).personKey)
     }
 
     @Test

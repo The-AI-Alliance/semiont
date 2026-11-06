@@ -584,6 +584,37 @@ def test_b17_a_cache_begins_with_what_was_kept_and_b18_asks_for_it_anew_the_firs
     run(scenario())
 
 
+def test_b17_a_cache_given_what_was_kept_after_it_began_takes_only_the_keys_it_holds_nothing_for_and_b18_asks_for_them_anew() -> None:
+    async def scenario() -> None:
+        cache, service, tasks = world()
+        cache.set("held", 7)
+        # Keeping nothing, it owes nothing.
+        assert not owing(cache)
+
+        persister = Kept({"held": 1, KEY: 2})
+        cache.attach(persister)
+        # What it holds stands; what it holds nothing for is what was kept, and nothing is asked for yet.
+        assert (cache.get("held"), cache.get(KEY)) == (7, 2)
+        assert service.asked == []
+
+        # A kept value is shown at once, and asked for anew the first time it is observed.
+        observing = cache.observe(KEY)
+        assert await now(observing) == Ready(2)
+        assert service.asked == [KEY]
+        # What the cache held before is no kept value: observing it asks nothing.
+        assert await now(cache.observe("held")) == Ready(7)
+        assert service.asked == [KEY]
+        service.answer(0, 5)
+        assert await now(observing) == Ready(5)
+
+        # From now on its values are saved where they are kept.
+        await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.02, step=0.01)
+        assert persister.saves[-1:] == [{"held": 7, KEY: 5}]
+        await tasks.close()
+
+    run(scenario())
+
+
 def test_b18_a_kept_value_whose_revalidation_fails_twice_stays_and_is_not_asked_for_a_third_time() -> None:
     async def scenario() -> None:
         cache, service, tasks = world(Kept({KEY: 1}))

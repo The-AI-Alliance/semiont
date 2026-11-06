@@ -14,10 +14,13 @@ from semiont.http import HttpTransport, Timing
 from semiont.identifiers import ResourceId
 from semiont.resume import CoupledBookmarks
 from semiont.storage import MemoryStorage, SessionStorage
+from semiont.stored import cache_key, last_event_id_key, person_key
 from semiont.watched import Variable, reached
 
-KEY = "semiont.lastEventId.kb-a"
-CACHE = "semiont.cache.kb-a.resource"
+PERSON = person_key("did:web:example.org:users:alice")
+KEY = last_event_id_key("kb-a", PERSON)
+CACHE = cache_key("kb-a", PERSON, "resource")
+ANNOTATIONS = cache_key("kb-a", PERSON, "annotations")
 QUICK = Timing(reconnect_ms=10, lazy_remove_ms=10, linger_ms=10)
 
 
@@ -66,7 +69,7 @@ def test_a_place_waits_for_the_caches_to_be_at_rest() -> None:
     assert storage.get(KEY) is None
 
     at_rest[0] = True
-    caches.set("semiont.cache.kb-a.annotations", "{}")
+    caches.set(ANNOTATIONS, "{}")
     assert places.load() == {RESOURCE: "p-7"}
 
 
@@ -128,6 +131,34 @@ def test_a_stream_begins_each_scope_where_its_bookmarks_say_and_tells_them_each_
     run(scenario())
 
 
+def test_places_restored_once_the_stream_has_begun_are_taken_up_only_for_the_scopes_it_holds_none_for() -> None:
+    async def scenario() -> None:
+        storage = MemoryStorage()
+        storage.set(KEY, '{"res-1": "p-41"}')
+        places = CoupledBookmarks(storage, KEY)
+        async with (
+            GatewayServer() as gateway,
+            HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=(), timing=QUICK, bookmarks=places) as transport,
+        ):
+            await soon(reached(transport.state, lambda state: state == "open"))
+            # The place the stream holds stands; a scope it holds none for takes the one restored.
+            transport.restore_places({RESOURCE: "p-kept", OTHER: "p-3"})
+            with transport.subscribe_to_resource(RESOURCE), transport.subscribe_to_resource(OTHER):
+                assert await soon(places_asked_from(gateway, 2)) == {RESOURCE: "p-41", OTHER: "p-3"}
+
+        # A stream given no bookmarks takes up what is restored to it all the same.
+        async with (
+            GatewayServer() as gateway,
+            HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=(), timing=QUICK) as transport,
+        ):
+            await soon(reached(transport.state, lambda state: state == "open"))
+            transport.restore_places({OTHER: "p-3"})
+            with transport.subscribe_to_resource(OTHER):
+                assert await soon(places_asked_from(gateway, 1)) == {OTHER: "p-3"}
+
+    run(scenario())
+
+
 def test_a_place_is_written_after_the_caches_own_write_so_one_that_fails_leaves_no_place_ahead_of_it() -> None:
     @final
     class Full(SessionStorage):
@@ -169,5 +200,5 @@ def test_a_place_is_written_after_the_caches_own_write_so_one_that_fails_leaves_
         places.storage.set(CACHE, "{}")
     # The cache kept nothing of what the place names, and no place says it did.
     assert storage.get(KEY) is None
-    places.storage.set("semiont.cache.kb-a.annotations", "{}")
+    places.storage.set(ANNOTATIONS, "{}")
     assert places.load() == {RESOURCE: "p-7"}

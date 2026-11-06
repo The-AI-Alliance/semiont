@@ -66,6 +66,7 @@ fn stored(access: &str) -> StoredSession {
         client_id: "semiont-browser".to_owned(),
         token_endpoint: "https://issuer.test/token".to_owned(),
         revocation_endpoint: None,
+        person_key: None,
     }
 }
 

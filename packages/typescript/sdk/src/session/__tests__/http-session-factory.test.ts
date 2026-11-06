@@ -10,11 +10,17 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { filter, firstValueFrom, map, take } from 'rxjs';
+import { resourceId, type ResourceDescriptor } from '@semiont/core';
+import { isReady } from '../../cache';
+import { sessionStoragePersister } from '../../cache-persister';
+import { mockResource } from '../../__tests__/fixtures/resource';
 import { createHttpSessionFactory } from '../http-session-factory';
 import { createSessionSignals } from '../session-signals';
 import type { SemiontSessionError } from '../errors';
-import { getStoredSession } from '../storage';
-import { seedStoredSession, TestStorage, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
+import { cacheKey, getStoredSession, personKey, sessionKey } from '../storage';
+import { fakeGateway } from './fake-gateway';
+import { freshJwt, seedStoredSession, SharedStorage, TestStorage, testSession, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
 
 const KB = {
   id: 'kb-a',
@@ -194,3 +200,43 @@ describe('a session over HTTP, starting on a stored credential', () => {
   });
 });
 
+describe('a session over HTTP whose gateway names its person only after it has started', () => {
+  const ALICE = { did: 'did:web:example.org:users:alice', email: 'alice@example.org', name: 'Alice', image: null, domain: 'example.org' };
+
+  it("records the person on the stored sign-in when a renewal's ask names them, and reads what is kept for them then", async () => {
+    const storage = new SharedStorage();
+    const alice = personKey(ALICE.did);
+    sessionStoragePersister<string, ResourceDescriptor>({ storage, storageKey: cacheKey(KB.id, alice, 'resource'), version: 1 })
+      .save(new Map([['res-1', mockResource('res-1', { name: 'kept' })]]));
+    storage.set(sessionKey(KB.id), JSON.stringify(testSession(freshJwt(), 'r')));
+    let reachable = false;
+    const gateway = fakeGateway({
+      whoIs: async () => {
+        if (!reachable) throw new TypeError('fetch failed');
+        return Response.json(ALICE);
+      },
+      resourceName: 'fresh',
+    });
+
+    const session = createHttpSessionFactory(gateway.fetch)({ kb: KB, storage, signals: createSessionSignals(), onError: () => {} });
+    try {
+      // The start could not ask who the token is: nobody is recorded.
+      await session.ready;
+      expect(getStoredSession(storage, KB.id)?.personKey).toBeUndefined();
+
+      // A refusal renews the token, and the gateway is asked who the renewed one is.
+      reachable = true;
+      await session.refresh(session.token$.getValue());
+      await vi.waitFor(() => expect(getStoredSession(storage, KB.id)?.personKey).toBe(alice));
+
+      const read = await firstValueFrom(
+        session.client.browse.resource(resourceId('res-1')).pipe(filter(isReady), map((state) => state.value.name), take(1)),
+      );
+      expect(read).toBe('kept');
+    } finally {
+      session.dispose();
+      session.client.dispose();
+      gateway.close();
+    }
+  });
+});

@@ -327,6 +327,10 @@ class Meanwhile(SignInKept):
         return await self._kept.renewed(read, access, refresh)
 
     @override
+    async def named(self, access: str, person_key: str) -> bool:
+        return await self._kept.named(access, person_key)
+
+    @override
     async def forget(self) -> None:
         await self._kept.forget()
 

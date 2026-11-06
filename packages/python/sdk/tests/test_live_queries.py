@@ -38,13 +38,17 @@ from semiont.client import CachePersistence, ClientTiming, SemiontClient
 from semiont.errors import BusRequestError
 from semiont.identifiers import ResourceId
 from semiont.namespaces.browse import EngineWithLimits
-from semiont.refresh import CACHE_QUERIES, CacheQuery
+from semiont.refresh import CACHE_QUERIES, PERSISTED_QUERIES, CacheQuery
 from semiont.storage import MemoryStorage
+from semiont.stored import cache_key, person_key
 from semiont.testing import FaultyTransport, StubGateway, create_test_client, refuse_unscripted_operation
 from semiont.testing.liveness import LivenessScenario, LivenessSpec, assert_liveness_axioms
 from semiont.timing import SAVE_DEBOUNCE_MS
 
 type Client = SemiontClient[FaultyTransport]
+
+ALICE = person_key("did:web:example.org:users:alice")
+BOB = person_key("did:web:example.org:users:bob")
 
 _DOCUMENT = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue])
 
@@ -283,10 +287,10 @@ def test_engines_that_fail_are_a_failed_state_whatever_their_holders_report_and_
 def test_a_client_keeps_its_small_queries_and_the_next_client_shows_them_at_once_and_asks_for_them_anew() -> None:
     async def scenario() -> None:
         storage = MemoryStorage()
-        persistence = CachePersistence(storage=storage, key_prefix="kb")
+        persistence = CachePersistence(storage=storage, kb_id="kb", person_key=ALICE)
 
         def kept(name: str) -> JsonObject | None:
-            document = storage.get(f"semiont.cache.kb.{name}")
+            document = storage.get(cache_key("kb", ALICE, name))
             return None if document is None else _DOCUMENT.validate_json(document)
 
         def settled(client: Client) -> bool:
@@ -319,12 +323,13 @@ def test_a_client_keeps_its_small_queries_and_the_next_client_shows_them_at_once
             await turns(20)
             assert settled(client)
 
-        # The five small queries, each a document under the client's prefix; a list, a search and a history are not kept.
-        names = ("resource", "annotations", "annotation-detail", "entity-types", "tag-schemas")
-        documents = {name: kept(name) for name in names}
+        # The queries the refresh table marks persisted, each a document under its name for the knowledge base and the person;
+        # a list, a search and a history are not kept.
+        documents = {name: kept(name) for name in PERSISTED_QUERIES}
         assert all(document is not None and document["version"] == 1 for document in documents.values())
-        for unkept in ("lists", "resources", "events", "referenced-by", "matched-resources", "searches", "engines", "limits"):
-            assert kept(unkept) is None
+        for unkept in CACHE_QUERIES:
+            if unkept not in PERSISTED_QUERIES:
+                assert kept(unkept) is None, unkept
         resource = documents["resource"]
         assert resource is not None
         entries = resource["entries"]
@@ -357,10 +362,11 @@ def test_a_client_keeps_its_small_queries_and_the_next_client_shows_them_at_once
                 await turns(20)
                 assert asked.emitted[-1].payload == {"resourceId": RESOURCE, "annotationId": ANNOTATION}
 
-        # A client of another knowledge base, over the same storage, begins with nothing of this one's.
-        other, _ = world(CachePersistence(storage=storage, key_prefix="another"))
-        async with other, other.browse.resource(RESOURCE) as live:
-            assert await soon(anext(live)) == Pending()
+        # A client of another knowledge base, or for another person, over the same storage, begins with nothing of this one's.
+        for kb_id, person in (("another", ALICE), ("kb", BOB)):
+            other, _ = world(CachePersistence(storage=storage, kb_id=kb_id, person_key=person))
+            async with other, other.browse.resource(RESOURCE) as live:
+                assert await soon(anext(live)) == Pending()
 
     run(scenario())
 
@@ -377,14 +383,10 @@ def test_a_client_that_keeps_nothing_is_always_settled() -> None:
     run(scenario())
 
 
-KEPT = ("resource", "annotations", "annotation", "entityTypes", "tagSchemas")
-"""The queries a client with a storage keeps."""
-
-
 @pytest.mark.parametrize("query", CACHE_QUERIES)
 def test_a_client_is_settled_unless_a_query_it_keeps_is_being_fetched_or_is_owed_to_storage(query: CacheQuery) -> None:
     async def scenario() -> None:
-        client, _ = world(CachePersistence(storage=MemoryStorage(), key_prefix="kb"), answered=False)
+        client, _ = world(CachePersistence(storage=MemoryStorage(), kb_id="kb", person_key=ALICE), answered=False)
         named = {
             "resource": client.browse.resource(RESOURCE),
             "annotations": client.browse.annotations(RESOURCE),
@@ -402,7 +404,7 @@ def test_a_client_is_settled_unless_a_query_it_keeps_is_being_fetched_or_is_owed
             reading = asyncio.ensure_future(named[query].fresh())
             await turns()
             # Fetching what it keeps, it is not at rest; fetching what it does not keep, it is.
-            assert client.persistence_settled == (query not in KEPT)
+            assert client.persistence_settled == (query not in PERSISTED_QUERIES)
             reading.cancel()
 
     run(scenario())

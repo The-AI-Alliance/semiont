@@ -1,0 +1,389 @@
+"""What a client keeps of one person, and when it is read, written and deleted (`protocol/specs/src/session/persisted-cases.json`).
+
+`keys`: the key of every persisted query, and of the stream's places, made of
+a knowledge base and a person. `signOut`: what a registry's sign-out deletes;
+the session of an active knowledge base is a stand-in whose closing writes
+under the person's `resource` key, as a client closing with a save owed
+could. `startup`: a session of the registry's HTTP factory, over a scripted
+gateway that names the person, or cannot be reached, only once the test lets
+it answer. `crossTab`: a registry's session whose stored sign-in another
+context deletes or replaces before the client has written what it holds.
+"""
+
+import asyncio
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Mapping
+from contextlib import asynccontextmanager
+from typing import Final, final, override
+
+import pytest
+from aio import run, soon
+from gateway_server import Answer, GatewayServer
+from issuer import ME, trusting
+from pydantic import JsonValue, TypeAdapter
+from spec import SPEC, JsonObject, objects, read, text
+from tokens import token
+
+from semiont.cache import CacheState, Pending, Ready
+from semiont.http.session import HttpSessionFactory
+from semiont.identifiers import ResourceId
+from semiont.refresh import PERSISTED_QUERIES
+from semiont.registry import (
+    SemiontBrowser,
+    SemiontBrowserConfig,
+    SessionFactory,
+    SessionFactoryOptions,
+    save_knowledge_bases,
+    store_session,
+    stored_session,
+)
+from semiont.session import SemiontSession
+from semiont.session_signals import SessionSignals
+from semiont.storage import MemoryStorage, SessionStorage
+from semiont.stored import ACTIVE_KEY, StoredSession, cache_key, last_event_id_key, person_key, session_key
+from semiont.testing import FaultyTransport, ScriptedSessions, SharedStorage
+from semiont.types import HttpEndpoint, KnowledgeBase, ResourceDescriptor, UserResponse
+from semiont.watched import reached
+
+_JSON: Final = TypeAdapter[JsonValue](JsonValue)
+
+TABLE = read(SPEC / "session/persisted-cases.json")
+STORED = read(SPEC / "session/stored.json")
+KB: Final = "kb-a"
+
+
+def object_of(value: JsonValue, what: str) -> JsonObject:
+    """`value`, which is a JSON object."""
+    assert isinstance(value, dict), f"{what} is not an object"
+    return value
+
+
+def texts(value: JsonValue, what: str) -> dict[str, str]:
+    """`value`, which is an object whose every member is text, in the order it states them."""
+    return {name: text(member, f"{what}'s {name}") for name, member in object_of(value, what).items()}
+
+
+def why(row: JsonObject) -> str:
+    return text(row["why"], "why")
+
+
+PEOPLE = object_of(TABLE["people"], "people")
+JO: Final = text(object_of(PEOPLE["jo"], "jo")["personKey"], "jo's key")
+KEYS = objects(TABLE["keys"], "keys")
+SIGN_OUT = objects(TABLE["signOut"], "signOut")
+SIGN_OUT_STORAGE = texts(TABLE["signOutStorage"], "signOutStorage")
+STARTUP = objects(TABLE["startup"], "startup")
+STARTUP_STORAGE = texts(TABLE["startupStorage"], "startupStorage")
+WHO_AM_I = object_of(TABLE["whoAmI"], "whoAmI")
+CROSS_TAB = objects(TABLE["crossTab"], "crossTab")
+PREFIXES: Final = tuple(text(object_of(STORED[member], member)["prefix"], member) for member in ("lastEventIdKeyPrefix", "cacheKeyPrefix"))
+"""What every key a client keeps of a person begins with."""
+
+
+def kept_of(kb_id: str, person: str) -> set[str]:
+    """Every key of a person on a knowledge base: the stream's, and every persisted query's."""
+    return {last_event_id_key(kb_id, person), *(cache_key(kb_id, person, query) for query in PERSISTED_QUERIES)}
+
+
+def signed_in(person: str | None, n: int = 1) -> StoredSession:
+    """A stored sign-in whose token is good for an hour, told from another by `n`, naming `person`, or nobody."""
+    return StoredSession(
+        access=token(3600, n),
+        refresh=f"refresh-{n}",
+        client_id="semiont-browser",
+        token_endpoint="https://issuer.test/token",
+        person_key=person,
+    )
+
+
+# ── keys ────────────────────────────────────────────────────────────────
+
+
+def test_each_person_s_key_is_the_one_the_table_gives_their_did() -> None:
+    assert len(PEOPLE) >= 2
+    for name, entry in PEOPLE.items():
+        person = object_of(entry, name)
+        assert person_key(text(person["did"], f"{name}'s did")) == text(person["personKey"], f"{name}'s key"), name
+
+
+@pytest.mark.parametrize("row", KEYS, ids=why)
+def test_the_keys_of_a_knowledge_base_and_a_person_are_the_tables(row: JsonObject) -> None:
+    kb_id, person = text(row["kbId"], "kbId"), text(row["personKey"], "personKey")
+    assert person_key(text(row["did"], "did")) == person
+    assert last_event_id_key(kb_id, person) == text(row["lastEventIdKey"], "lastEventIdKey")
+    cache_keys = texts(row["cacheKeys"], "cacheKeys")
+    # The queries kept are exactly those, in the order the refresh table lists them.
+    assert list(PERSISTED_QUERIES) == list(cache_keys)
+    assert {query: cache_key(kb_id, person, query) for query in PERSISTED_QUERIES} == cache_keys
+
+
+# ── signOut ─────────────────────────────────────────────────────────────
+
+CLOSING_WRITE: Final = '{"version":1,"writtenAt":1700000000001,"entries":[]}'
+"""What a stand-in session of kb-a writes under jo's `resource` key as it closes."""
+
+
+def jo() -> UserResponse:
+    return UserResponse.model_validate(WHO_AM_I)
+
+
+@final
+class ClosingWrites(SessionFactory):
+    """Scripted sessions, each of which, when it is kb-a's, writes under jo's `resource` key once it has closed.
+
+    As a client closing with a save owed could: what a sign-out deletes is
+    deleted after that.
+    """
+
+    def __init__(self) -> None:
+        self._sessions: Final = ScriptedSessions()
+        self._sessions.says_who(jo())
+
+    @override
+    @asynccontextmanager
+    async def session(self, options: SessionFactoryOptions) -> AsyncGenerator[SemiontSession[FaultyTransport]]:
+        try:
+            async with self._sessions.session(options) as session:
+                yield session
+        finally:
+            if options.kb.id == KB:
+                options.storage.set(cache_key(KB, JO, "resource"), CLOSING_WRITE)
+
+    @override
+    async def revoke(self, stored: StoredSession) -> None:
+        await self._sessions.revoke(stored)
+
+
+def registered_at(kb_id: str, port: int) -> KnowledgeBase:
+    return KnowledgeBase(
+        id=kb_id,
+        label=kb_id,
+        did=f"did:web:example.org:{kb_id}",
+        endpoint=HttpEndpoint(kind="http", host="localhost", port=port, protocol="http"),
+    )
+
+
+@pytest.mark.parametrize("row", SIGN_OUT, ids=why)
+def test_a_registrys_sign_out_deletes_what_the_table_says(row: JsonObject) -> None:
+    async def scenario() -> None:
+        storage = MemoryStorage()
+        for key, value in SIGN_OUT_STORAGE.items():
+            storage.set(key, value)
+        save_knowledge_bases(storage, [registered_at(KB, 4000), registered_at("kb-b", 4001)])
+        match row["signedIn"]:
+            case "named":
+                store_session(storage, KB, signed_in(JO))
+            case "unnamed":
+                store_session(storage, KB, signed_in(None))
+            case "none":
+                pass
+            case other:
+                raise AssertionError(f"a stored sign-in the table does not state: {other}")
+        active = KB if row["open"] is True else "kb-b"
+        storage.set(ACTIVE_KEY, active)
+        assert row["removes"] in ("person", "nothing")
+        removed = kept_of(KB, JO) if row["removes"] == "person" else set[str]()
+        assert removed <= set(SIGN_OUT_STORAGE)
+
+        async with SemiontBrowser(SemiontBrowserConfig(storage=storage, session_factory=ClosingWrites())) as browser:
+            session = await soon(reached(browser.active_session, lambda session: session is not None))
+            assert session is not None
+            assert session.kb.id == active
+
+            await soon(browser.sign_out(KB))
+
+            assert stored_session(storage, KB) is None
+            assert {key: storage.get(key) for key in SIGN_OUT_STORAGE} == {
+                key: None if key in removed else value for key, value in SIGN_OUT_STORAGE.items()
+            }
+
+    run(scenario())
+
+
+# ── startup ─────────────────────────────────────────────────────────────
+
+
+@final
+class Held(SessionStorage):
+    """A storage in memory whose every key a test reads. No other context writes it."""
+
+    def __init__(self, held: Mapping[str, str]) -> None:
+        self.held: Final[dict[str, str]] = dict(held)
+
+    @override
+    def get(self, key: str) -> str | None:
+        return self.held.get(key)
+
+    @override
+    def set(self, key: str, value: str) -> None:
+        self.held[key] = value
+
+    @override
+    def delete(self, key: str) -> None:
+        self.held.pop(key, None)
+
+    @override
+    def update(self, key: str, change: Callable[[str | None], str | None]) -> None:
+        after = change(self.held.get(key))
+        if after is None:
+            self.held.pop(key, None)
+        else:
+            self.held[key] = after
+
+    @override
+    def subscribe(self, on_change: Callable[[str, str | None], None]) -> Callable[[], None] | None:
+        return None
+
+
+def described(resource: str, name: str) -> JsonObject:
+    return {"@context": "https://schema.org/", "@id": resource, "name": name, "representations": []}
+
+
+def answers_fresh(gateway: GatewayServer) -> None:
+    """Have the gateway answer a read of any resource with that resource named `fresh`."""
+
+    def answer(emit: JsonObject) -> None:
+        payload = emit.get("payload")
+        if emit.get("channel") != "browse:resource-requested" or not isinstance(payload, dict):
+            return
+        resource = described(text(payload["resourceId"], "a resource's id"), "fresh")
+        said: JsonObject = {"response": {"resource": resource, "lastSequence": 1}}
+        gateway.send(None, {"channel": "browse:resource-result", "payload": said, "correlationId": emit["correlationId"]})
+
+    gateway.on_emit = answer
+
+
+def registered(gateway: GatewayServer) -> KnowledgeBase:
+    endpoint = gateway.target(KB).endpoint
+    assert isinstance(endpoint, HttpEndpoint)
+    return KnowledgeBase(id=KB, label="KB A", did="did:web:example.org:kb-a", endpoint=endpoint)
+
+
+async def shown(live: AsyncIterator[CacheState[ResourceDescriptor]]) -> str:
+    """The name of the first value a watcher is shown: `kept`, what the storage kept, or `fresh`, the gateway's answer."""
+    async for state in live:
+        if isinstance(state, Ready):
+            return state.value.name
+        assert isinstance(state, Pending), f"a read of a resource failed: {state}"
+    raise AssertionError("the watcher was shown no value")
+
+
+async def resumed_from(gateway: GatewayServer, scope: str) -> JsonValue:
+    """Where the first subscription that names `scope` asks it to begin: none for the present."""
+    while True:
+        for subscription in gateway.subscriptions:
+            scoped = subscription.get("scoped")
+            if isinstance(scoped, list):
+                for entry in scoped:
+                    if isinstance(entry, dict) and entry.get("scope") == scope:
+                        return entry.get("lastEventId")
+        await asyncio.sleep(0.005)
+
+
+def recorded(storage: SessionStorage) -> JsonValue:
+    """The person's key kb-a's stored sign-in holds, as the storage holds it: none for none."""
+    stored = storage.get(session_key(KB))
+    assert stored is not None, "kb-a's sign-in is not stored"
+    return object_of(_JSON.validate_json(stored), "a stored sign-in").get("personKey")
+
+
+@pytest.mark.parametrize("row", STARTUP, ids=why)
+def test_a_registrys_session_reads_and_records_what_the_table_says(row: JsonObject) -> None:
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            answers_fresh(gateway)
+            answering = asyncio.Event()
+            match row["gateway"]:
+                case "names":
+                    # The first ask is answered when the test says; any after it names the same person.
+                    gateway.answers[ME] = WHO_AM_I
+                    gateway.scripted[("GET", ME)] = [Answer(body=_JSON.dump_json(WHO_AM_I), after=answering)]
+                case "unreachable":
+                    # The ask and its one retry get no answer, and an ask after them finds nobody.
+                    del gateway.answers[ME]
+                    gateway.scripted[("GET", ME)] = [Answer(hang_up=True, after=answering)] * 2
+                case other:
+                    raise AssertionError(f"a gateway the table does not state: {other}")
+            storage = Held(STARTUP_STORAGE)
+            match row["signedIn"]:
+                case "named":
+                    store_session(storage, KB, signed_in(JO))
+                case "unnamed":
+                    store_session(storage, KB, signed_in(None))
+                case other:
+                    raise AssertionError(f"a stored sign-in the table does not state at startup: {other}")
+            options = SessionFactoryOptions(kb=registered(gateway), storage=storage, signals=SessionSignals(), on_error=lambda _: None)
+
+            async with HttpSessionFactory().session(options) as session:
+                client = session.client
+                await soon(reached(client.transport.state, lambda state: state == "open"))
+                await soon(gateway.arrived("GET", ME))
+                # Asked while the gateway has not said who the token is.
+                async with client.browse.resource(ResourceId("res-2")) as live:
+                    assert await soon(shown(live)) == row["first"]
+
+                answering.set()
+                await soon(session.ready())
+                assert recorded(storage) == row["recorded"]
+                # Asked after, of a scope the stream has not held before.
+                async with client.browse.resource(ResourceId("res-1")) as live:
+                    assert await soon(shown(live)) == row["then"]
+                    assert await soon(resumed_from(gateway, "res-1")) == row["place"]
+
+            if "untouched" in row:
+                kept = {key: value for key, value in storage.held.items() if key.startswith(PREFIXES)}
+                assert (kept == STARTUP_STORAGE) is row["untouched"]
+
+    run(scenario())
+
+
+# ── crossTab ────────────────────────────────────────────────────────────
+
+
+def saved(storage: SessionStorage) -> bool:
+    """Whether jo's `resource` key holds res-1 as the client held it."""
+    kept = storage.get(cache_key(KB, JO, "resource"))
+    if kept is None:
+        return False
+    entries = object_of(_JSON.validate_json(kept), "a kept document")["entries"]
+    assert isinstance(entries, list)
+    return any(isinstance(entry, list) and entry[:2] == ["res-1", described("res-1", "fresh")] for entry in entries)
+
+
+@pytest.mark.parametrize("row", CROSS_TAB, ids=why)
+def test_a_session_whose_stored_sign_in_another_context_changes_writes_what_the_table_says(row: JsonObject) -> None:
+    async def scenario() -> bool:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            gateway.answers[ME] = WHO_AM_I
+            answers_fresh(gateway)
+            storage = SharedStorage()
+            elsewhere = storage.context()
+            save_knowledge_bases(storage, [registered(gateway)])
+            store_session(storage, KB, signed_in(JO))
+
+            async with SemiontBrowser(SemiontBrowserConfig(storage=storage, session_factory=HttpSessionFactory())) as browser:
+                session = await soon(reached(browser.active_session, lambda session: session is not None), within=10)
+                assert session is not None
+                client = session.client
+                assert (await soon(client.browse.resource(ResourceId("res-1")).fresh())).name == "fresh"
+                # Held, and not yet written.
+                assert not client.persistence_settled
+
+                stored = row["stored"]
+                if stored is None:
+                    elsewhere.delete(session_key(KB))
+                else:
+                    person = object_of(stored, "stored")["personKey"]
+                    assert person is None or isinstance(person, str)
+                    store_session(elsewhere, KB, signed_in(person, 2))
+            return saved(storage)
+
+    assert run(scenario()) is row["saved"]
+
+
+def test_the_table_was_read() -> None:
+    assert len(KEYS) >= 2
+    assert len(SIGN_OUT) >= 4
+    assert len(STARTUP) >= 3
+    assert len(CROSS_TAB) >= 4

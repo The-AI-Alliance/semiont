@@ -7,17 +7,23 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import semiont.cache.CacheState
 import semiont.errors.SessionError
 import semiont.errors.SessionErrorCode
+import semiont.identifiers.ResourceId
+import semiont.registry.cacheKey
+import semiont.registry.personKey
 import semiont.signin.HeldSignIn
 import semiont.signin.MemorySignIn
 import semiont.signin.SCRIPT_CLIENT_ID
+import semiont.storage.MemoryStorage
 import semiont.types.HttpEndpoint
 import semiont.types.HttpEndpointProtocol
 import semiont.types.KbTarget
@@ -29,7 +35,7 @@ private val alice = Json.parseToJsonElement(
 
 private val refused = buildJsonObject { put("error", "invalid_token") }
 
-/** A session over HTTP from a kept sign-in: opened, renewed through itself, and closed with what it opened. */
+/** A session over HTTP from a kept sign-in: opened, renewed through itself, keeping its caches for the person its gateway names, and closed with what it opened. */
 class SessionFromKeptTest {
     private fun kb(realm: Realm) = KbTarget(id = "local", label = "Local", endpoint = HttpEndpoint(host = "127.0.0.1", port = realm.origin.substringAfterLast(':').toLong(), protocol = HttpEndpointProtocol.Http))
 
@@ -85,6 +91,26 @@ class SessionFromKeptTest {
             sessionFromKept(kb(realm), kept).use { opened ->
                 withTimeout(10_000) { opened.session.token.first { it == renewed } }
                 assertEquals(listOf("refresh-1"), realm.of("/token").map { it.form["refresh_token"] })
+            }
+        }
+    }
+
+    @Test
+    fun aSessionGivenAStorageRecordsWhoTheGatewayNamesOnItsSignInAndThenShowsWhatWasKeptForThem() = runBlocking {
+        Realm().use { realm ->
+            realm.script("/api/users/me", Said(200, alice))
+            val storage = MemoryStorage()
+            storage.set(
+                cacheKey("local", personKey(alice.getValue("did").jsonPrimitive.content), "resource"),
+                """{"version":1,"writtenAt":1700000000000,"entries":[["res-1",{"@context":"https://schema.org/","@id":"res-1","name":"kept","representations":[]},1700000000000]]}""",
+            )
+            // A sign-in whose person no gateway has named yet.
+            val kept = MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, null))
+            sessionFromKept(kb(realm), kept, storage = storage).use { opened ->
+                assertEquals(personKey(alice.getValue("did").jsonPrimitive.content), kept.held()?.personKey)
+                // What was kept for them is shown at once.
+                val shown = withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-1")).first() }
+                assertEquals("kept", (shown as? CacheState.Ready)?.value?.name, "$shown")
             }
         }
     }

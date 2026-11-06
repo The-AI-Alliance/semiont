@@ -107,6 +107,11 @@ export class SharedStorage implements SessionStorage {
     return this.shared.stored.get(key) ?? null;
   }
 
+  /** Every key something is stored under, from whichever context wrote it. */
+  keys(): string[] {
+    return [...this.shared.stored.keys()];
+  }
+
   set(key: string, value: string): void {
     this.shared.stored.set(key, value);
     this.tell(key, value);

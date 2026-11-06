@@ -1,10 +1,14 @@
-"""The tables a client keeps to, as generated: each says what its table says."""
+"""The tables a client keeps to, as generated: each says what its table says.
+
+The stored table's keys are held by the examples it gives, each worked out
+here from a knowledge base's id, a person's did and a query's name.
+"""
 
 from typing import get_args
 
 from spec import SPEC, objects, read, text
 
-from semiont import error_codes, refresh, timing
+from semiont import error_codes, refresh, stored, timing
 from semiont.retry import RetryPolicy
 
 CODES = read(SPEC / "errors/codes.json")
@@ -104,3 +108,26 @@ def test_the_refresh_table_names_every_query_and_every_trigger() -> None:
             and list(held.removes) == row.get("removes", [])
             for held in by_trigger[text(row["on"], "a trigger")]
         )
+
+
+def test_the_persisted_queries_are_those_the_refresh_table_marks_persisted_in_its_order() -> None:
+    queries = objects(read(SPEC / "client/refresh.json")["queries"], "queries")
+    persisted = [text(query["name"], "a query's name") for query in queries if query.get("persisted") is True]
+    assert persisted
+    assert list(refresh.PERSISTED_QUERIES) == persisted
+
+
+def test_each_key_prefix_s_example_in_the_stored_table_is_the_key_made_of_it() -> None:
+    table = read(SPEC / "session/stored.json")
+
+    def example(member: str) -> dict[str, str]:
+        prefixed = table[member]
+        assert isinstance(prefixed, dict)
+        stated = prefixed["example"]
+        assert isinstance(stated, dict)
+        return {name: text(value, f"{member}'s example's {name}") for name, value in stated.items()}
+
+    stream = example("lastEventIdKeyPrefix")
+    assert stored.last_event_id_key(stream["kbId"], stored.person_key(stream["did"])) == stream["key"]
+    query = example("cacheKeyPrefix")
+    assert stored.cache_key(query["kbId"], stored.person_key(query["did"]), query["query"]) == query["key"]

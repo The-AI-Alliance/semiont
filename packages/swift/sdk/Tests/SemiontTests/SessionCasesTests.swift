@@ -242,6 +242,9 @@ private struct UnwritableSignIn: SignInKept {
   func renewed(read: HeldSignIn, access: String, refresh: String) async throws -> String? {
     throw RefusedWrite()
   }
+  func recordPersonKey(_ personKey: String, holding access: String) async throws -> Bool {
+    throw RefusedWrite()
+  }
   func forget() async throws { throw RefusedWrite() }
 }
 @Test func aQuietStartupForgetStillRaisesTheStoresFailure() async throws {

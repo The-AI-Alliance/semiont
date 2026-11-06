@@ -16,10 +16,10 @@ import httpx
 import pytest
 from aio import run, soon
 from gateway_server import Asked, GatewayServer, Recording
-from issuer import CONFIGURATION, ME, METADATA, REFUSED, REVOKE, TOKEN, issuer_of, says, trusting
+from issuer import ALICE, CONFIGURATION, ME, METADATA, REFUSED, REVOKE, TOKEN, issuer_of, says, trusting
 from kb import recorded
 from pydantic import JsonValue, TypeAdapter
-from spec import SPEC, JsonObject, read, strings
+from spec import SPEC, JsonObject, read, strings, text
 from tokens import expired, token
 
 from semiont.cache import Ready
@@ -37,7 +37,7 @@ from semiont.identifiers import ResourceId
 from semiont.registry import SemiontBrowser, SemiontBrowserConfig, save_knowledge_bases, store_session, stored_session
 from semiont.session import SemiontSession
 from semiont.storage import MemoryStorage, SessionStorage
-from semiont.stored import PENDING_AUTHORIZATION_KEY, StoredSession
+from semiont.stored import PENDING_AUTHORIZATION_KEY, StoredSession, last_event_id_key, person_key
 from semiont.transport import Transport
 from semiont.types import HttpEndpoint, KnowledgeBase, LocalEndpoint
 from semiont.watched import reached
@@ -47,8 +47,10 @@ _JSON = TypeAdapter[JsonValue](JsonValue)
 DID_A: Final = "did:web:example.org:kb-a"
 REDIRECT: Final = "http://127.0.0.1:9/callback"
 DESCRIBED: Final[JsonObject] = {"name": "KB A", "domain": "example.org:kb-a", "gitBranch": "main"}
-PLACES: Final = "semiont.lastEventId.kb-a"
-"""Where a session of `kb-a` keeps its stream's place in each scope."""
+ALICE_KEY: Final = person_key(text(ALICE["did"], "Alice's did"))
+"""The key of the person the gateway names for every token."""
+PLACES: Final = last_event_id_key("kb-a", ALICE_KEY)
+"""Where a session of `kb-a` keeps her stream's place in each scope."""
 
 
 @final
@@ -95,14 +97,15 @@ def registered(gateway: GatewayServer, kb_id: str) -> KnowledgeBase:
     return KnowledgeBase(id=kb_id, label="KB A", did=DID_A, endpoint=endpoint_of(gateway))
 
 
-def stored(gateway: GatewayServer, access: str, refresh: str) -> StoredSession:
-    """A session kept for the browser client, renewed and revoked at the gateway's issuer."""
+def stored(gateway: GatewayServer, access: str, refresh: str, person: str | None = None) -> StoredSession:
+    """A session kept for the browser client, renewed and revoked at the gateway's issuer, naming `person`, or nobody."""
     return StoredSession(
         access=access,
         refresh=refresh,
         client_id="semiont-browser",
         token_endpoint=f"{gateway.origin}{TOKEN}",
         revocation_endpoint=f"{gateway.origin}{REVOKE}",
+        person_key=person,
     )
 
 
@@ -177,7 +180,8 @@ def test_a_registry_brings_up_a_session_that_says_who_it_is_and_renews_an_expire
                     "refresh_token": "r1",
                     "client_id": "semiont-browser",
                 }
-                assert stored_session(storage, "kb-a") == stored(gateway, renewed, "r2")
+                # The renewal kept, and the person the gateway named recorded on it.
+                assert stored_session(storage, "kb-a") == stored(gateway, renewed, "r2", ALICE_KEY)
 
     run(scenario())
 
@@ -274,7 +278,7 @@ def test_a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept(
             Describing(gateway)
             storage = MemoryStorage()
             save_knowledge_bases(storage, [registered(gateway, "kb-a")])
-            store_session(storage, "kb-a", stored(gateway, token(3600, 1), "r1"))
+            store_session(storage, "kb-a", stored(gateway, token(3600, 1), "r1", ALICE_KEY))
             storage.set(PLACES, '{"res-1":"p-5"}')
 
             def resumed_from() -> JsonValue:
@@ -335,7 +339,8 @@ def test_a_registrys_sign_in_registers_the_knowledge_base_under_what_it_says_it_
                 assert outcome.expected is not None
                 assert (outcome.expected.did, outcome.expected.name) == ("did:web:example.org:another", "Another")
                 assert [(kb.id, kb.did) for kb in browser.kbs.value] == [(outcome.kb.id, DID_A)]
-                assert stored_session(storage, outcome.kb.id) == stored(gateway, access, "a-refresh-token")
+                # The sign-in was kept naming nobody, and its session recorded the person the gateway named.
+                assert stored_session(storage, outcome.kb.id) == stored(gateway, access, "a-refresh-token", ALICE_KEY)
                 assert (await live(browser)).kb.id == outcome.kb.id
                 # The code was exchanged for the browser client, with the verifier the pending sign-in kept.
                 exchanged = fields(gateway.of("POST", TOKEN)[0])

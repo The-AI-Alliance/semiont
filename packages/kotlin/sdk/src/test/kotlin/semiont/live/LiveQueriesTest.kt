@@ -27,8 +27,10 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.cache.CacheQuery
 import semiont.cache.CacheState
+import semiont.cache.PERSISTED_QUERIES
 import semiont.errors.BusRequestError
 import semiont.namespaces.EngineWithLimits
+import semiont.registry.cacheKey
 import semiont.sameJson
 import semiont.storage.CachePersistence
 import semiont.storage.MemoryStorage
@@ -230,10 +232,10 @@ class LiveQueriesTest {
     @Test
     fun aClientKeepsItsSmallQueriesAndTheNextClientShowsThemAtOnceAndAsksForThemAnew() = runBlocking {
         val storage = MemoryStorage()
-        // The client's write of the annotation's detail lands late, once the test lets it.
-        val late = LateWrite(storage, "semiont.cache.kb.annotation-detail")
-        val persistence = CachePersistence(late, "kb")
-        fun kept(name: String): JsonObject? = storage.get("semiont.cache.kb.$name")?.let { Json.parseToJsonElement(it).jsonObject }
+        // The client's write of the annotation lands late, once the test lets it.
+        val late = LateWrite(storage, cacheKey(KB, PERSON, CacheQuery.Annotation.wire))
+        val persistence = CachePersistence(late, KB, PERSON)
+        fun kept(query: String): JsonObject? = storage.get(cacheKey(KB, PERSON, query))?.let { Json.parseToJsonElement(it).jsonObject }
 
         // On threads and in real time: the late write holds the thread that makes it while the client's other work goes on.
         val world = KbWorld(Dispatchers.Default, TimeSource.Monotonic, persistence = persistence)
@@ -255,26 +257,24 @@ class LiveQueriesTest {
         }
         // A save that has begun is owed no more: the client is settled while its last write has yet to land.
         eventually { client.persistenceSettled }
-        assertNull(kept("annotation-detail"))
+        assertNull(kept(CacheQuery.Annotation.wire))
         late.letGo()
-        eventually { kept("annotation-detail") != null }
+        eventually { kept(CacheQuery.Annotation.wire) != null }
         // An event about an annotation nobody holds changes nothing the client keeps: nothing is owed, and nothing is written.
-        val written = storage.get("semiont.cache.kb.annotation-detail")
+        val written = storage.get(cacheKey(KB, PERSON, CacheQuery.Annotation.wire))
         world.kb.deliver(event(semiont.cache.CacheRefreshTrigger.MarkDeleteOk, of = semiont.identifiers.AnnotationId("ann-nobody-holds")))
         delay(semiont.Timings.SAVE_DEBOUNCE_MS * 4)
         assertTrue(client.persistenceSettled)
-        assertEquals(written, storage.get("semiont.cache.kb.annotation-detail"))
+        assertEquals(written, storage.get(cacheKey(KB, PERSON, CacheQuery.Annotation.wire)))
         world.close()
 
-        // The five small queries, each a document under the client's prefix; a list, a search and a history are not kept.
-        for (name in listOf("resource", "annotations", "annotation-detail", "entity-types", "tag-schemas")) {
-            assertEquals(1L, checkNotNull(kept(name)) { name }.getValue("version").jsonPrimitive.long)
-        }
-        for (unkept in listOf("lists", "resources", "events", "referenced-by", "matched-resources", "searches", "engines", "limits")) assertNull(kept(unkept), unkept)
+        // The queries the refresh table marks persisted, each a document under its name for the person; no other query is kept.
+        for (query in PERSISTED_QUERIES) assertEquals(1L, checkNotNull(kept(query.wire)) { query.wire }.getValue("version").jsonPrimitive.long)
+        for (unkept in CacheQuery.entries - KEPT) assertNull(kept(unkept.wire), unkept.wire)
         // As the wire had it: by the wire's names, and without what the knowledge base never said.
-        val (resource) = checkNotNull(kept("resource")).getValue("entries").jsonArray.map { it.jsonArray }
+        val (resource) = checkNotNull(kept(CacheQuery.Resource.wire)).getValue("entries").jsonArray.map { it.jsonArray }
         assertTrue(sameJson(JsonArray(listOf(JsonPrimitive(RESOURCE.value), descriptor(RESOURCE))), JsonArray(resource.take(2))))
-        val (listed) = checkNotNull(kept("annotations")).getValue("entries").jsonArray.map { it.jsonArray }
+        val (listed) = checkNotNull(kept(CacheQuery.Annotations.wire)).getValue("entries").jsonArray.map { it.jsonArray }
         assertTrue(sameJson(json("""{"annotations":[${annotation(ANNOTATION, RESOURCE)}],"total":1}"""), listed[1]))
 
         // The next client of the same knowledge base, over the same storage: shown at once, with no pending before it, and asked for anew, once.
@@ -291,10 +291,12 @@ class LiveQueriesTest {
         assertEquals(json("""{"resourceId":"${RESOURCE.value}","annotationId":"${ANNOTATION.value}"}"""), again.kb.emitted.last().payload)
         again.close()
 
-        // A client of another knowledge base, over the same storage, begins with nothing of this one's.
-        val other = KbWorld(Dispatchers.Default, TimeSource.Monotonic, answered = false, persistence = CachePersistence(storage, "another"))
-        assertEquals(CacheState.Pending, other.watch(other.client.browse.resource(RESOURCE)).next())
-        other.close()
+        // A client of another knowledge base, or of another person on this one, over the same storage, begins with nothing of this one's.
+        for (another in listOf(CachePersistence(storage, "another", PERSON), CachePersistence(storage, KB, "the key of ann"))) {
+            val other = KbWorld(Dispatchers.Default, TimeSource.Monotonic, answered = false, persistence = another)
+            assertEquals(CacheState.Pending, other.watch(other.client.browse.resource(RESOURCE)).next())
+            other.close()
+        }
     }
 
     @Test
@@ -311,7 +313,7 @@ class LiveQueriesTest {
     fun aClientIsSettledUnlessAQueryItKeepsIsBeingFetchedOrIsOwedToStorage(): List<DynamicTest> = CacheQuery.entries.map { query ->
         DynamicTest.dynamicTest(query.wire) {
             runTest {
-                val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, answered = false, persistence = CachePersistence(MemoryStorage(), "kb"))
+                val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, answered = false, persistence = CachePersistence(MemoryStorage(), KB, PERSON))
                 val client = world.client
                 val named = mapOf(
                     CacheQuery.Resource to client.browse.resource(RESOURCE),
@@ -337,8 +339,12 @@ class LiveQueriesTest {
     }
 }
 
-/** The queries a client with a storage keeps. */
-private val KEPT = setOf(CacheQuery.Resource, CacheQuery.Annotations, CacheQuery.Annotation, CacheQuery.EntityTypes, CacheQuery.TagSchemas)
+/** The queries a client with a storage keeps: those the refresh table marks persisted. */
+private val KEPT = PERSISTED_QUERIES.toSet()
+
+/** The knowledge base, and the person, a client with a storage keeps its queries for. */
+private const val KB = "kb"
+private const val PERSON = "the key of jo"
 
 /** A storage whose write of `key` waits until `letGo`. Every other read and write is the storage's own. */
 private class LateWrite(private val beneath: SessionStorage, private val key: String) : SessionStorage by beneath {

@@ -5,6 +5,8 @@ using System.Threading.Channels;
 using Semiont.Errors;
 using Semiont.Identifiers;
 using Semiont.Http;
+using Semiont.Registry;
+using Semiont.Storage;
 using Semiont.Types;
 using Xunit;
 
@@ -12,6 +14,8 @@ namespace Semiont.Tests;
 
 public sealed partial class TransportTests
 {
+    private static readonly UserId KeptPerson = UserId.Parse("did:web:kb.example.org:users:jo%40example.org");
+
     [Theory]
     [InlineData("browse", "resource")]
     [InlineData("browse", "resources")]
@@ -157,8 +161,8 @@ public sealed partial class TransportTests
         using var http = new HttpClient(server);
         using var transport = new HttpTransport("http://unit.test", "token", [], httpClient: http);
         var clock = new TestClock();
-        string? document = null;
-        using var storage = new LiveCacheStorage(new CachePersistence(() => null, saved => document = saved), clock);
+        var store = new MemoryStorage();
+        using var storage = new LiveCacheStorage(new CachePersistence(store, "kb-a", KeptPerson), clock);
         var answer = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cache = new Cache<ResourceId, int>((_, cancellation) => answer.Task.WaitAsync(cancellation), null,
             clock, TimeSpan.Zero, storage.Changed);
@@ -183,23 +187,36 @@ public sealed partial class TransportTests
         }
         storage.Dispose();
 
-        using var saved = JsonDocument.Parse(Assert.IsType<string>(document));
-        Assert.Equal(settles ? 2 : 1, saved.RootElement.GetProperty("Values")[0].GetProperty("Value").GetInt32());
-        var bookmarks = saved.RootElement.GetProperty("Bookmarks");
-        Assert.Equal(settles, bookmarks.TryGetProperty(resource.Value, out var bookmark));
-        if (settles) Assert.Equal("p-1", bookmark.GetString());
+        var personKey = RegistryStorage.PersonKey(KeptPerson);
+        using var saved = JsonDocument.Parse(Assert.IsType<string>(store.Get(RegistryStorage.CacheKey("kb-a", personKey, "resource"))));
+        Assert.Equal(1, saved.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(clock.GetUtcNow().ToUnixTimeMilliseconds(), saved.RootElement.GetProperty("writtenAt").GetInt64());
+        var entry = Assert.Single(saved.RootElement.GetProperty("entries").EnumerateArray());
+        Assert.Equal(resource.Value, entry[0].GetString());
+        Assert.Equal(settles ? 2 : 1, entry[1].GetInt32());
+        Assert.Equal(clock.GetUtcNow().ToUnixTimeMilliseconds(), entry[2].GetInt64());
+        var places = store.Get(RegistryStorage.LastEventIdKey("kb-a", personKey));
+        if (!settles)
+        {
+            Assert.Null(places);
+            return;
+        }
+        using var placed = JsonDocument.Parse(Assert.IsType<string>(places));
+        Assert.Equal("p-1", placed.RootElement.GetProperty(resource.Value).GetString());
     }
 
     [Theory]
-    [InlineData("""{"Version":99,"Values":[],"Bookmarks":{}}""")]
-    [InlineData("""{"Version":1,"Values":[{"Cache":"resource"}],"Bookmarks":{}}""")]
+    [InlineData("""{"version":99,"writtenAt":1700000000000,"entries":[["res-1",5,1700000000000]]}""")]
+    [InlineData("""{"version":1,"writtenAt":1700000000000,"entries":[["res-1"]]}""")]
     [InlineData("invalid JSON")]
     public async Task InvalidPersistenceStartsEmpty(string document)
     {
         using var server = new Handler();
         using var http = new HttpClient(server);
         using var transport = new HttpTransport("http://unit.test", "token", [], httpClient: http);
-        using var storage = new LiveCacheStorage(new CachePersistence(() => document, _ => { }), TimeProvider.System);
+        var store = new MemoryStorage();
+        store.Set(RegistryStorage.CacheKey("kb-a", RegistryStorage.PersonKey(KeptPerson), "resource"), document);
+        using var storage = new LiveCacheStorage(new CachePersistence(store, "kb-a", KeptPerson), TimeProvider.System);
         using var cache = new Cache<ResourceId, int>((_, _) => Task.FromResult(7));
         storage.Start(transport, [cache.PersistAs("resource")]);
 

@@ -221,6 +221,7 @@ async fn a_test_session_holds_the_token_its_storage_held_and_then_the_one_the_te
             client_id: "semiont-cli".to_owned(),
             token_endpoint: "https://issuer.test/token".to_owned(),
             revocation_endpoint: None,
+            person_key: None,
         },
     )
     .expect("stored");
@@ -318,6 +319,7 @@ impl Asked {
                 client_id: "semiont-browser".to_owned(),
                 token_endpoint: "https://issuer.test/token".to_owned(),
                 revocation_endpoint: None,
+                person_key: None,
             },
         )
         .expect("stored");
@@ -457,6 +459,7 @@ async fn scripted_sessions_can_refuse_to_build_and_keep_what_was_revoked() {
         client_id: "semiont-browser".to_owned(),
         token_endpoint: "https://issuer.test/token".to_owned(),
         revocation_endpoint: Some("https://issuer.test/revoke".to_owned()),
+        person_key: None,
     };
     sessions.revoke(stored.clone()).await;
     assert_eq!(sessions.revoked(), [stored]);

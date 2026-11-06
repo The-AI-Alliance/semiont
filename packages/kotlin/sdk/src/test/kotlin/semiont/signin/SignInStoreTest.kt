@@ -469,4 +469,50 @@ class SignInStoreTest {
         store.entry("local").forget()
         assertEquals(others, store.read())
     }
+
+    // ── Who the gateway named ────────────────────────────────────────────
+
+    @Test
+    fun aSignInKeptInMemoryRecordsWhoTheGatewayNamedOnTheSignInItWasAskedAbout() = runBlocking {
+        namingIsRecordedOnTheSignInAskedAbout(MemorySignIn())
+    }
+}
+
+/**
+ * What keeps a sign-in records who the gateway named on the sign-in whose
+ * token it was asked about, and on no other: not on one that holds another
+ * token, nor over another person it names already. Naming again the person it
+ * names is recorded. A renewal keeps the person; a new sign-in kept in its
+ * place names nobody. `kept` begins with nothing kept.
+ */
+internal suspend fun namingIsRecordedOnTheSignInAskedAbout(kept: SignInKept) {
+    val jo = "the key of jo"
+    val ann = "the key of ann"
+    fun signIn(access: String, refresh: String, personKey: String?) = HeldSignIn(access, refresh, "semiont-browser", "https://issuer.test/token", null, personKey)
+
+    // Nothing kept: nothing is recorded, and nothing is written.
+    assertFalse(kept.named("a1", jo))
+    assertEquals(null, kept.held())
+
+    kept.keep(signIn("a1", "r1", null))
+    // The gateway was asked about a token this sign-in does not hold.
+    assertFalse(kept.named("a0", jo))
+    assertEquals(signIn("a1", "r1", null), kept.held())
+    assertTrue(kept.named("a1", jo))
+    assertEquals(signIn("a1", "r1", jo), kept.held())
+    // Named again, they are recorded already; another person is not written over them.
+    assertTrue(kept.named("a1", jo))
+    assertFalse(kept.named("a1", ann))
+    assertEquals(signIn("a1", "r1", jo), kept.held())
+
+    // A renewal keeps the person.
+    assertEquals("a2", kept.renewed(signIn("a1", "r1", jo), "a2", "r2"))
+    assertEquals(signIn("a2", "r2", jo), kept.held())
+    assertTrue(kept.named("a2", jo))
+
+    // A new sign-in in its place names nobody, until the gateway names its person.
+    kept.keep(signIn("a3", "r3", null))
+    assertEquals(signIn("a3", "r3", null), kept.held())
+    assertTrue(kept.named("a3", ann))
+    assertEquals(signIn("a3", "r3", ann), kept.held())
 }

@@ -41,19 +41,78 @@ import Testing
     try await kept.renewed(read: read, access: "new-access", refresh: "new-refresh") == "new-access"
   )
   #expect(try await kept.renewed(read: read, access: "stale", refresh: "stale") == "new-access")
+
+  // Every member is read, and a renewal changes the tokens alone: the person a sign-in names stays.
+  try storage.set(sessionKey(id), storedText(values))
+  let full = try #require(try storedSession(storage, kbId: id))
+  #expect(try encoded(full) == .object(values))
+  #expect(
+    try await kept.renewed(read: full, access: "renewed-access", refresh: "renewed-refresh")
+      == "renewed-access")
+  let renewed = try #require(try storedSession(storage, kbId: id))
+  let tokens: [String: JSONValue] = [
+    "access": .string("renewed-access"), "refresh": .string("renewed-refresh"),
+  ]
+  let renewedValues = values.merging(tokens) { _, new in new }
+  #expect(try encoded(renewed) == .object(renewedValues))
+
   try clearStoredSession(storage, kbId: id)
   #expect(try await kept.renewed(read: read, access: "stale", refresh: "stale") == nil)
   #expect(try storedSession(storage, kbId: id) == nil)
 }
 
-@Test func aKeptCacheIsKeptUnderTheStoredTablesPrefix() throws {
+@Test func everyKeyKeptForAPersonIsWorkedOutAsTheStoredTablesExample() throws {
   let table = try Spec.read("session/stored.json").object
-  let prefix = try required(required(table, "cacheKeyPrefix").object, "prefix").text
+  let stream = try required(table, "lastEventIdKeyPrefix").object
+  let streamExample = try required(stream, "example").object
+  let streamKey = lastEventIdKey(
+    try required(streamExample, "kbId").text,
+    personKey(try UserId(required(streamExample, "did").text)))
+  let streamPrefix = try required(stream, "prefix").text
+  #expect(streamKey == (try required(streamExample, "key").text))
+  #expect(streamKey.hasPrefix(streamPrefix))
+
+  let cache = try required(table, "cacheKeyPrefix").object
+  let cacheExample = try required(cache, "example").object
+  let query = try #require(KeptQuery(rawValue: try required(cacheExample, "query").text))
+  let queryKey = cacheKey(
+    try required(cacheExample, "kbId").text,
+    personKey(try UserId(required(cacheExample, "did").text)), query)
+  let cachePrefix = try required(cache, "prefix").text
+  #expect(queryKey == (try required(cacheExample, "key").text))
+  #expect(queryKey.hasPrefix(cachePrefix))
+}
+
+@Test func aSignInRecordsItsPersonOnceAndOnlyWhileItHoldsTheTokenAskedAbout() async throws {
+  let hour = Date().timeIntervalSince1970 + 3600
+  let first = try jwt(.object(["exp": .number(hour), "name": .string("first")]))
+  let second = try jwt(.object(["exp": .number(hour), "name": .string("second")]))
+  let jo = personKey(try UserId("did:web:kb.example.org:users:jo%40example.org"))
+  let ann = personKey(try UserId("did:web:kb.example.org:users:ann%40example.org"))
+  let signedIn = HeldSignIn(
+    access: first, clientId: scriptClientID, refresh: "refresh",
+    tokenEndpoint: "http://issuer.test/token")
   let storage = MemorySessionStorage()
-  let persister = StoragePersister<KeptQuery>(CachePersistence(storage: storage, keyPrefix: "kb-a"))
-  persister.store(.annotations(try ResourceId("one")), ["one"])
-  persister.close()
-  #expect(storage.get(prefix + "kb-a.swift") != nil)
+  try storeSession(storage, kbId: "kb-a", session: signedIn)
+  let keepers: [(String, any SignInKept)] = [
+    ("the registry's", keptIn(storage, kbId: "kb-a")), ("one in memory", MemorySignIn(signedIn)),
+  ]
+  for (which, kept) in keepers {
+    #expect(try await kept.recordPersonKey(jo, holding: second) == false, "\(which): moved on")
+    #expect(try await kept.held()?.personKey == nil, "\(which)")
+    #expect(try await kept.recordPersonKey(jo, holding: first), "\(which): recorded")
+    #expect(try await kept.held()?.personKey == jo, "\(which)")
+    #expect(try await kept.held()?.access == first, "\(which): the tokens stay")
+    #expect(try await kept.recordPersonKey(jo, holding: first), "\(which): already recorded")
+    #expect(try await kept.recordPersonKey(ann, holding: first) == false, "\(which): another")
+    #expect(try await kept.held()?.personKey == jo, "\(which): never overwritten")
+    let held = try #require(try await kept.held())
+    #expect(try await kept.renewed(read: held, access: second, refresh: "renewed") == second)
+    #expect(try await kept.held()?.personKey == jo, "\(which): a renewal keeps the person")
+    #expect(try await kept.recordPersonKey(jo, holding: second), "\(which): after the renewal")
+    try await kept.forget()
+    #expect(try await kept.recordPersonKey(jo, holding: second) == false, "\(which): nothing kept")
+  }
 }
 
 @Test func onePlaceRunsEverySharedCase() throws {

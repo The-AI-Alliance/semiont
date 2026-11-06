@@ -20,6 +20,8 @@ import org.junit.jupiter.api.Test
 import semiont.errors.SessionError
 import semiont.http.tokenFor
 import semiont.session.OpenedSession
+import semiont.storage.MemoryStorage
+import semiont.testing.ScriptedSessions
 import semiont.types.KbRead
 import semiont.types.KnowledgeBase
 import semiont.types.NewKnowledgeBase
@@ -102,6 +104,21 @@ class RegistryTest {
             assertNull(browser.activeKbId.value)
             assertNull(sessionOf(browser))
             assertNull(world.storage.get(ACTIVE_KEY))
+        }
+    }
+
+    @Test
+    fun signingInAgainOverASignInThatNamesItsPersonNamesNobodyAndDeletesNothing() = runBlocking {
+        val storage = MemoryStorage()
+        saveKnowledgeBases(storage, listOf(kbOfA()))
+        storeSession(storage, KB_A, tokens("r").copy(personKey = "the key of jo"))
+        val keptForJo = listOf(cacheKey(KB_A, "the key of jo", "resource"), lastEventIdKey(KB_A, "the key of jo"))
+        for (key in keptForJo) storage.set(key, "{}")
+        // Sessions whose gateway cannot say who a token is: nothing names the person of the new sign-in.
+        SemiontBrowser(SemiontBrowserConfig(storage, ScriptedSessions())).use { browser ->
+            browser.signIn(KB_A, tokens("r2"))
+            assertEquals("r2" to null, checkNotNull(storedSession(storage, KB_A)).let { it.refresh to it.personKey })
+            for (key in keptForJo) assertEquals("{}", storage.get(key), key)
         }
     }
 

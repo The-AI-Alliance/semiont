@@ -44,7 +44,7 @@ from semiont.registry import (
     store_session,
     stored_session,
 )
-from semiont.session import HeldSignIn, SemiontSession
+from semiont.session import HeldSignIn, MemorySignIn, SemiontSession, SignInKept
 from semiont.session_signals import KbIdentityConflict, PermissionDenied, SessionEnded, SessionSignals
 from semiont.storage import MemoryStorage, SessionStorage
 from semiont.stored import (
@@ -53,7 +53,10 @@ from semiont.stored import (
     LAST_VIEWED_RESOURCE_BY_KB_KEY,
     OPEN_RESOURCES_BY_KB_KEY,
     StoredSession,
+    cache_key,
     kb_of_session_key,
+    last_event_id_key,
+    person_key,
     session_key,
 )
 from semiont.testing import FaultyTransport, ScriptedSessions, SharedStorage
@@ -65,6 +68,9 @@ KB_A: Final = "kb-a"
 KB_B: Final = "kb-b"
 DID_A: Final = "did:web:example.org:kb-a"
 DID_B: Final = "did:web:example.org:kb-b"
+
+JO: Final = person_key("did:web:example.org:users:jo")
+ANN: Final = person_key("did:web:example.org:users:ann")
 
 KB_REQUESTED: Final = "browse:kb-requested"
 RESOURCE_REQUESTED: Final = "browse:resource-requested"
@@ -174,13 +180,14 @@ def kb_of_b() -> KnowledgeBase:
     return kb(KB_B, "KB B", DID_B, endpoint("example.com", 443))
 
 
-def tokens(refresh: str) -> StoredSession:
+def tokens(refresh: str, person: str | None = None) -> StoredSession:
     return StoredSession(
         access=token(3600, 1),
         refresh=refresh,
         client_id="semiont-browser",
         token_endpoint="https://issuer.test/token",
         revocation_endpoint="https://issuer.test/revoke",
+        person_key=person,
     )
 
 
@@ -361,6 +368,30 @@ def test_a_session_key_names_its_knowledge_base() -> None:
     assert kb_of_session_key(ACTIVE_KEY) is None
 
 
+def written_session(storage: SessionStorage) -> dict[str, JsonValue]:
+    """The session stored for `KB_A`, as the storage holds it."""
+    stored = storage.get(session_key(KB_A))
+    assert stored is not None
+    written = json.loads(stored)
+    assert isinstance(written, dict)
+    return written
+
+
+def test_a_stored_session_names_its_person_by_their_key_and_says_nothing_of_one_it_does_not_name() -> None:
+    storage = MemoryStorage()
+    store_session(storage, KB_A, tokens("r", JO))
+    named = stored_session(storage, KB_A)
+    assert named is not None
+    assert named.person_key == JO
+    assert written_session(storage)["personKey"] == JO
+
+    store_session(storage, KB_A, tokens("r"))
+    unnamed = stored_session(storage, KB_A)
+    assert unnamed is not None
+    assert unnamed.person_key is None
+    assert "personKey" not in written_session(storage)
+
+
 def test_a_renewal_is_kept_against_what_is_stored_then() -> None:
     async def scenario() -> None:
         storage = MemoryStorage()
@@ -372,10 +403,12 @@ def test_a_renewal_is_kept_against_what_is_stored_then() -> None:
         assert stored_session(storage, KB_A) is None
 
         await kept.keep(read)
+        assert await kept.named("a1", JO)
         assert await kept.renewed(read, "a2", "r2") == "a2"
         held = await kept.held()
         assert held is not None
-        assert (held.access, held.refresh) == ("a2", "r2")
+        # A renewal is the same sign-in: it keeps the person it names.
+        assert (held.access, held.refresh, held.person_key) == ("a2", "r2", JO)
 
         # Renewed from what was read before: the renewal stored meanwhile stands.
         assert await kept.renewed(read, "a3", "r3") == "a2"
@@ -385,6 +418,54 @@ def test_a_renewal_is_kept_against_what_is_stored_then() -> None:
 
         await kept.forget()
         assert await kept.held() is None
+
+    run(scenario())
+
+
+def kept_where(where: str) -> tuple[SignInKept, MemoryStorage]:
+    """A sign-in kept in a registry's storage, or in memory, and the storage beneath the first."""
+    storage = MemoryStorage()
+    return (kept_in(storage, KB_A) if where == "kept_in" else MemorySignIn()), storage
+
+
+@pytest.mark.parametrize("where", ["kept_in", "MemorySignIn"])
+def test_the_person_the_gateway_named_is_recorded_on_the_sign_in_it_was_asked_about_and_on_no_other(where: str) -> None:
+    async def scenario() -> None:
+        kept, storage = kept_where(where)
+        signed_in = HeldSignIn(access="a1", refresh="r1", client_id="semiont-browser", token_endpoint="https://issuer.test/token")
+
+        # Nothing kept: nobody is recorded.
+        assert not await kept.named("a1", JO)
+        assert await kept.held() is None
+
+        # A sign-in that holds another access token has moved on: the answer was about a token it no longer holds.
+        await kept.keep(signed_in)
+        assert not await kept.named("a0", JO)
+        held = await kept.held()
+        assert held is not None
+        assert held.person_key is None
+
+        assert await kept.named("a1", JO)
+        held = await kept.held()
+        assert held is not None
+        assert held == HeldSignIn(
+            access="a1", refresh="r1", client_id="semiont-browser", token_endpoint="https://issuer.test/token", person_key=JO
+        )
+        if where == "kept_in":
+            assert written_session(storage)["personKey"] == JO
+        # Recorded already, it is recorded: nothing changes.
+        assert await kept.named("a1", JO)
+        # Another person is never written over the one it names.
+        assert not await kept.named("a1", ANN)
+        held = await kept.held()
+        assert held is not None
+        assert held.person_key == JO
+
+        # A sign-in kept in its place is a new one: it names nobody until a gateway names its person.
+        await kept.keep(HeldSignIn(access="b1", refresh="s1", client_id="semiont-browser", token_endpoint="https://issuer.test/token"))
+        held = await kept.held()
+        assert held is not None
+        assert held.person_key is None
 
     run(scenario())
 
@@ -767,6 +848,30 @@ def test_new_tokens_for_the_active_knowledge_base_replace_its_session() -> None:
             assert first.id != second.id
             assert closed(world.factory.sessions.transports(KB_A)[0])
             assert world.stored_refresh(KB_A) == "renewed"
+
+    run(scenario())
+
+
+def test_new_tokens_name_nobody_and_leave_what_was_kept_for_whoever_the_old_ones_named() -> None:
+    async def scenario() -> None:
+        world = World().with_(kb_of_a())
+        store_session(world.storage, KB_A, tokens("r", JO))
+        kept = {
+            cache_key(KB_A, JO, "resource"): '{"version":1,"writtenAt":1700000000000,"entries":[]}',
+            last_event_id_key(KB_A, JO): '{"res-1":"p-jo"}',
+        }
+        for key, value in kept.items():
+            world.storage.set(key, value)
+        async with world.browser() as browser:
+            await live(browser)
+
+            await browser.sign_in(KB_A, tokens("renewed"))
+            await live(browser)
+
+            stored = stored_session(world.storage, KB_A)
+            assert stored is not None
+            assert (stored.refresh, stored.person_key) == ("renewed", None)
+            assert {key: world.storage.get(key) for key in kept} == kept
 
     run(scenario())
 

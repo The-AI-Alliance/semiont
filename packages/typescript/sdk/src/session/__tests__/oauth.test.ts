@@ -396,6 +396,22 @@ describe('refresh and revocation', () => {
       expect(storage.get(`semiont.session.${KB}`)).toBe(renewedElsewhere);
     });
 
+    it('a renewal keeps the person the stored session names: it is the same sign-in, with new tokens', async () => {
+      const storage = new InMemorySessionStorage();
+      const signIn = {
+        access: 'acc-1',
+        refresh: 'ref-1',
+        clientId: BROWSER_CLIENT_ID,
+        tokenEndpoint: `${ISSUER}/token`,
+        personKey: 'gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I',
+      };
+      storage.set(`semiont.session.${KB}`, JSON.stringify(signIn));
+      fetchMock.mockImplementation(async () => reply({ access_token: 'acc-2', refresh_token: 'ref-2' }));
+
+      expect(await refreshStoredSession(storage, KB, 'acc-1')).toBe('acc-2');
+      expect(JSON.parse(storage.get(`semiont.session.${KB}`) ?? 'null')).toEqual({ ...signIn, access: 'acc-2', refresh: 'ref-2' });
+    });
+
     it('rides out a 503 and returns the renewed token', async () => {
       fetchMock
         .mockImplementationOnce(async () => reply(undefined, 503))

@@ -23,6 +23,7 @@ from semiont.identifiers import AnnotationId, ResourceId
 from semiont.operations import BROWSE_RESOURCE_REQUESTED, GATHER_REQUESTED, GATHER_RESOURCE_REQUESTED, MARK_DELETE, MATCH_SEARCH_REQUESTED
 from semiont.session import HeldSignIn, MemorySignIn, SemiontSession
 from semiont.storage import MemoryStorage
+from semiont.stored import cache_key, person_key
 from semiont.testing import (
     Delay,
     Deliver,
@@ -618,11 +619,12 @@ def test_a_test_client_is_a_real_client_over_the_doubles_it_is_given_or_makes() 
 
         # And its persistence: what the client's small queries hold is kept where the test says.
         storage = MemoryStorage()
-        keeping = create_test_client(persistence=CachePersistence(storage=storage, key_prefix="kb"))
+        alice = person_key("did:web:example.org:users:alice")
+        keeping = create_test_client(persistence=CachePersistence(storage=storage, kb_id="kb", person_key=alice))
         keeping.transport.queue_reply(ASK, [{"resource": DESCRIBED, "lastSequence": 1}])
         async with keeping.client as client:
             await soon(client.browse.resource(RESOURCE).fresh())
-        assert storage.get("semiont.cache.kb.resource") is not None
+        assert storage.get(cache_key("kb", alice, "resource")) is not None
         await keeping.transport.close()
 
     run(scenario())

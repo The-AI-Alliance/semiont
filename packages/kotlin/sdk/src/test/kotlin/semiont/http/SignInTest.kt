@@ -76,9 +76,18 @@ internal class Realm(trustsAnIssuer: Boolean = true) : AutoCloseable {
     @Volatile
     private var stream: OutputStream? = null
 
+    /** The requests of each held path, left unanswered until the path is released. */
+    private val held = HashMap<String, MutableList<HttpExchange>>()
+
     fun script(path: String, vararg said: Said) {
         scripted.getOrPut(path) { ConcurrentLinkedDeque() }.addAll(said)
     }
+
+    /** Leave every request of `path` unanswered until `release`: the realm goes on answering every other. */
+    fun hold(path: String): Unit = synchronized(held) { held[path] = mutableListOf() }
+
+    /** Answer each request of `path` held so far with `said`; one made after is answered as if the path had never been held. */
+    fun release(path: String, said: Said): Unit = synchronized(held) { held.remove(path) }.orEmpty().forEach { answer(it, said) }
 
     /** Write a frame on the stream the client holds, under the event id `id` when it has one. */
     fun send(frame: JsonObject, id: String? = null) {
@@ -107,6 +116,8 @@ internal class Realm(trustsAnIssuer: Boolean = true) : AutoCloseable {
             }
             val path = exchange.requestURI.path
             asked += Asked(exchange.requestMethod, path, exchange.requestHeaders.getFirst("Authorization"), fields)
+            // A held request is answered when its path is released, from the test's thread: the handler returns, and the server's one thread goes on.
+            if (synchronized(held) { held[path]?.add(exchange) } == true) return@createContext
             // What a test scripts for a path is answered before what the realm says of itself.
             val scriptedFirst = scripted[path]?.pollFirst()
             if (scriptedFirst != null) {

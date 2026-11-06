@@ -24,6 +24,7 @@ interface Query {
   per?: string;
   asks?: string;
   reads?: string;
+  persisted?: boolean;
   docs?: string;
 }
 
@@ -75,6 +76,12 @@ const refused = (fault: (table: Table) => void, saying: string): void => {
   expect(run.stderr).toContain(saying);
 };
 
+/** The list of persisted queries a generated module states, for `names`, in their order. */
+const persistedList = (names: readonly string[]): string =>
+  `export const PERSISTED_QUERIES = [${names.map((name) => `'${name}'`).join(', ')}] as const;`;
+
+const persistedOf = (table: Table): string[] => table.queries.filter((query) => query.persisted === true).map((query) => query.name);
+
 describe('the cache-refresh generator', () => {
   it('accepts the committed table, with a row per trigger and two for a split channel', () => {
     const run = generate(() => {});
@@ -85,6 +92,22 @@ describe('the cache-refresh generator', () => {
     expect(generated).toContain("'reopened': [{ reach: 'held', ");
     expect(generated).toContain("'mark:body-updated': [{ when: 'enriched', ");
     expect(generated).toContain("{ when: 'unenriched', ");
+  });
+
+  it('lists the queries the table marks persisted, in its order, and no other', () => {
+    const committed = JSON.parse(readFileSync(TABLE, 'utf8')) as Table;
+    const persisted = persistedOf(committed);
+    expect(persisted.length).toBeGreaterThan(0);
+    expect(readFileSync(generate(() => {}).out, 'utf8')).toContain(persistedList(persisted));
+
+    const unmarked = generate((t) => delete t.queries.find((q) => q.name === persisted[0])!.persisted);
+    expect(unmarked.stderr).toBe('');
+    expect(readFileSync(unmarked.out, 'utf8')).toContain(persistedList(persisted.slice(1)));
+  });
+
+  it('refuses a query persisted other than by `true`, and one that states what a query does not have', () => {
+    refused((t) => (t.queries[0]!.persisted = false), 'the query resource is persisted false: true, or absent');
+    refused((t) => Object.assign(t.queries[0]!, { kept: true }), 'the query resource states kept, which a query does not have');
   });
 
   it('refuses a query stated twice, one with no docs, and one that asks no operation', () => {

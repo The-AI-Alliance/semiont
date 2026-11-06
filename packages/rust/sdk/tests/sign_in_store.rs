@@ -130,6 +130,7 @@ fn script(access: &str, refresh: &str) -> StoredSession {
         client_id: "semiont-cli".to_owned(),
         token_endpoint: "https://issuer.test/realms/semiont/token".to_owned(),
         revocation_endpoint: Some("https://issuer.test/realms/semiont/revoke".to_owned()),
+        person_key: None,
     }
 }
 

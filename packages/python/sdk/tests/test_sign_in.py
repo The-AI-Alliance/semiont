@@ -17,6 +17,7 @@ import pytest
 from aio import hurried, pass_time, run, settle, soon
 from gateway_server import NOT_FOUND, Answer, Asked, GatewayServer, Recording
 from issuer import (
+    ALICE,
     CONFIGURATION,
     DEVICE,
     ME,
@@ -36,7 +37,7 @@ from issuer import (
 from kb import recorded
 from pydantic import JsonValue, TypeAdapter
 from shown import CARRIED, parts_of, printed
-from spec import JsonObject
+from spec import JsonObject, text
 from tokens import expired, token
 
 from semiont.bus import reply_channels_for
@@ -55,14 +56,19 @@ from semiont.http.oauth import (
 from semiont.identifiers import ResourceId, UserId
 from semiont.identity import agent_did
 from semiont.operations import BROWSE_RESOURCE_REQUESTED, MARK_DELETE
+from semiont.refresh import PERSISTED_QUERIES
 from semiont.session import HeldSignIn, MemorySignIn, SessionEndReason, SignInKept
 from semiont.sign_in_store import FILE_NAME, SignInStore
 from semiont.storage import MemoryStorage
+from semiont.stored import cache_key, last_event_id_key, person_key
 from semiont.timing import DEVICE_POLL_MS, DEVICE_SLOW_DOWN_MS, MIN_REFRESH_DELAY_MS
 from semiont.types import HttpEndpoint, KbTarget, LocalEndpoint
 from semiont.watched import Watched, reached
 
 _JSON = TypeAdapter[JsonValue](JsonValue)
+
+ALICE_KEY = person_key(text(ALICE["did"], "Alice's did"))
+"""The key of the person the gateway names for every token: what a session with a storage keeps hers under."""
 
 
 def form(asked: Asked) -> dict[str, str]:
@@ -1044,6 +1050,10 @@ class Slowly(SignInKept):
         return await self._kept.renewed(read, access, refresh)
 
     @override
+    async def named(self, access: str, person_key: str) -> bool:
+        return await self._kept.named(access, person_key)
+
+    @override
     async def forget(self) -> None:
         await self._kept.forget()
 
@@ -1321,8 +1331,8 @@ def test_a_session_with_a_storage_keeps_what_its_queries_hold_and_the_streams_pl
                     # The resource is kept once it has stopped changing. The place is not: a cache is still fetching,
                     # and may not have taken in what the place names.
                     await pass_time(0.2, step=0.01)
-                    assert kept_under("semiont.cache.kb.resource") is not None
-                    assert kept_under("semiont.lastEventId.kb") is None
+                    assert kept_under(cache_key("kb", ALICE_KEY, "resource")) is not None
+                    assert kept_under(last_event_id_key("kb", ALICE_KEY)) is None
                     assert not client.persistence_settled
 
                     # The slow answer comes, and its cache keeps it: every kept cache is at rest, and the place rides that write.
@@ -1333,8 +1343,14 @@ def test_a_session_with_a_storage_keeps_what_its_queries_hold_and_the_streams_pl
                     )
                     await settle()
                     await pass_time(0.2, step=0.01)
-                    assert kept_under("semiont.cache.kb.entity-types") is not None
-                    assert kept_under("semiont.lastEventId.kb") == {"res-1": "p-7"}
+                    assert kept_under(cache_key("kb", ALICE_KEY, "entityTypes")) is not None
+                    assert kept_under(last_event_id_key("kb", ALICE_KEY)) == {"res-1": "p-7"}
+
+            # The sign-in it was given names nobody: once the gateway named the person, the sign-in records her, and what
+            # the session keeps is kept for her.
+            recorded_on = await kept.held()
+            assert recorded_on is not None
+            assert recorded_on.person_key == ALICE_KEY
 
             # The next session of the same knowledge base, over the same storage: what was kept is shown at once,
             # and the resource's scope resumes from the place that was kept.
@@ -1365,5 +1381,39 @@ def test_a_session_with_a_storage_keeps_what_its_queries_hold_and_the_streams_pl
                 await soon(reached(session.client.transport.state, lambda state: state == "open"))
                 async with session.client.browse.resource(resource) as live:
                     assert await soon(anext(live)) == Pending()
+
+    run(scenario())
+
+
+def test_a_session_that_never_asks_who_its_token_is_keeps_nothing_and_names_nobody() -> None:
+    async def scenario() -> None:
+        storage = MemoryStorage()
+        resource = ResourceId("res-1")
+        described: JsonObject = {"@context": "https://schema.org", "@id": "res-1", "name": "A resource", "representations": []}
+
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+
+            def answering(emit: JsonObject) -> None:
+                if emit["channel"] == "browse:resource-requested":
+                    answer: JsonObject = {"response": {"resource": described, "lastSequence": 1}}
+                    gateway.send(None, {"channel": "browse:resource-result", "payload": answer, "correlationId": emit["correlationId"]})
+
+            gateway.on_emit = answering
+            kept = MemorySignIn(held(gateway, access(1)))
+
+            async with session_from_kept(gateway.target("kb"), kept=kept, validate=False, storage=storage) as session:
+                client = session.client
+                await soon(reached(client.transport.state, lambda state: state == "open"))
+                assert (await soon(client.browse.resource(resource).fresh())).name == "A resource"
+                await pass_time(0.2, step=0.01)
+                assert client.persistence_settled
+
+            assert gateway.of("GET", ME) == []
+            unnamed = await kept.held()
+            assert unnamed is not None
+            assert unnamed.person_key is None
+            for key in (last_event_id_key("kb", ALICE_KEY), *(cache_key("kb", ALICE_KEY, query) for query in PERSISTED_QUERIES)):
+                assert storage.get(key) is None, key
 
     run(scenario())
