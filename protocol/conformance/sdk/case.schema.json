@@ -32,7 +32,16 @@
       },
       "description": "The signal planes the case runs on. Absent, it runs on both."
     },
-    "tier": {
+    "notYetReached": {
+   "type": "object",
+   "minProperties": 1,
+   "additionalProperties": {
+    "type": "string",
+    "minLength": 1
+   },
+   "description": "The SDKs, by their names in the implementations file, the case is not run for: each with what it still lacks to be. A case names an SDK here only for what a table of protocol/specs/src/ says the same SDK has not reached."
+  },
+  "tier": {
       "enum": [
         "fleet",
         "parity"
@@ -384,6 +393,7 @@
                 "hold",
                 "release",
                 "rechunk",
+                "carry",
                 "cut",
                 "down",
                 "up",

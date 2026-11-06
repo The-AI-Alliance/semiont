@@ -40,6 +40,7 @@ for (const [sdk, { worker }] of Object.entries(inject('sdkDrivers'))) {
   eachPlane(`a worker written on the ${sdk} SDK`, (world, plane) => {
     for (const kase of corpus) {
       if (kase.planes && !kase.planes.includes(plane)) continue;
+      if (kase.notYetReached && sdk in kase.notYetReached) continue;
       it(`${kase.name}: ${kase.about}`, () => runCase(world(), worker, kase, 'worker'));
     }
   }, exporting);

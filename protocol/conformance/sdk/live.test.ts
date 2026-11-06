@@ -19,6 +19,7 @@ for (const [sdk, { live }] of Object.entries(inject('sdkDrivers'))) {
       if (kase.planes && !kase.planes.includes(plane)) continue;
       // The fleet's cases hold every live layer; the rest, an SDK at full parity.
       if (kase.tier === 'parity' && live.tier !== 'parity') continue;
+      if (kase.notYetReached && sdk in kase.notYetReached) continue;
       it(`${kase.name}: ${kase.about}`, () => runCase(world(), live.command, kase, 'live'));
     }
   });

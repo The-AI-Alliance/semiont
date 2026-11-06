@@ -101,6 +101,8 @@ interface CaseDocument {
   planes?: Plane[];
   /** A live case's tier: what every live layer does, or what one at full parity does. */
   tier?: 'fleet' | 'parity';
+  /** The SDKs the case is not run for, each with what it still lacks to be. */
+  notYetReached?: Record<string, string>;
   /**
    * Run the client exporting, and hold what it exported to the SDK telemetry
    * table; a worker's is also held to a trace of its own for each job it ran.
@@ -739,6 +741,11 @@ class Run {
       case 'rechunk':
         allowed('bytes');
         this.proxy.rechunk(number('bytes'));
+        return;
+      case 'carry':
+        allowed('frame');
+        if (!('frame' in args)) throw new Error('backend carry needs frame');
+        this.proxy.carry(JSON.stringify(args['frame']));
         return;
       case 'cut':
         allowed();
