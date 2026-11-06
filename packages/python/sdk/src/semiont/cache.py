@@ -23,7 +23,9 @@ failed after it.
 
 A cache with a `CachePersister` begins with what was kept and saves its values
 as they change. A value that was kept is shown at once and asked for again the
-first time it is observed: nothing says it is still true.
+first time it is observed: nothing says it is still true. One given its
+persister after it began (`persistable_cache`) takes what was kept only for
+the keys it holds nothing for, alike.
 
 An observer that falls behind is given the latest state, not each one it
 missed: a state is what is true now.
@@ -76,7 +78,7 @@ class CachePersister[K, V](Protocol):
     """Where a cache keeps its values so a later one begins with them."""
 
     def load(self) -> Mapping[K, V] | None:
-        """What was kept, asked once, when the cache is built."""
+        """What was kept, asked once, when the cache is given the persister."""
         ...
 
     def save(self, entries: Mapping[K, V]) -> None:
@@ -141,7 +143,8 @@ class Cache[K: Hashable, V](StateUnit):
     `fetch` asks for a key's value, and whatever it fails with is the key's
     failure. `tasks` runs the fetches. With a `persister`, the cache begins
     with what it kept, and saves its values there once they have stopped
-    changing for `save_debounce_ms`.
+    changing for `save_debounce_ms`. `give_attach_to` is given the act that
+    gives the cache its persister after it is made (`persistable_cache`).
     """
 
     def __init__(
@@ -151,19 +154,45 @@ class Cache[K: Hashable, V](StateUnit):
         tasks: Runs,
         persister: CachePersister[K, V] | None = None,
         save_debounce_ms: int = SAVE_DEBOUNCE_MS,
+        give_attach_to: Callable[[Callable[[CachePersister[K, V]], None]], None] | None = None,
     ) -> None:
         self._fetch: Final = fetch
         self._tasks: Final = tasks
-        self._persister: Final = persister
+        self._persister: CachePersister[K, V] | None = None
         self._save_debounce_ms: Final = save_debounce_ms
         self._disposed = False
         self._fetches = 0
         self._saving: asyncio.TimerHandle | None = None
         """The wait before the next save, while one is owed."""
-        kept = None if persister is None else persister.load()
-        self._keys: Final[dict[K, _Key[V]]] = {key: _Key(Ready(value)) for key, value in (kept or {}).items()}
-        self._kept: Final[set[K]] = set(self._keys)
+        self._keys: Final[dict[K, _Key[V]]] = {}
+        self._kept: Final[set[K]] = set()
         """Keys whose value was kept by an earlier cache and has not been asked for by this one."""
+        if persister is not None:
+            self._attach(persister)
+        if give_attach_to is not None:
+            give_attach_to(self._attach)
+
+    def _attach(self, persister: CachePersister[K, V]) -> None:
+        """Keep the cache's values with `persister` from now on, beginning with what it kept.
+
+        A kept value fills only a key the cache holds nothing for, and is
+        asked for anew the first time it is observed. What the cache holds is
+        saved there from its next change. A cache keeps its values with one
+        persister: a second raises `RuntimeError`. A disposed cache takes none.
+        """
+        if self._disposed:
+            return
+        if self._persister is not None:
+            raise RuntimeError("a cache keeps its values with one persister")
+        self._persister = persister
+        kept = persister.load()
+        if kept is None:
+            return
+        for key, value in kept.items():
+            held = self._keys.get(key)
+            if held is None or not held.known():
+                self._held(key).state.set(Ready(value))
+                self._kept.add(key)
 
     def _held(self, key: K) -> _Key[V]:
         held = self._keys.get(key)
@@ -347,3 +376,21 @@ class Cache[K: Hashable, V](StateUnit):
             held.state.end()
         self._keys.clear()
         self._kept.clear()
+
+
+def persistable_cache[K: Hashable, V](
+    fetch: Callable[[K], Awaitable[V]], *, tasks: Runs, save_debounce_ms: int = SAVE_DEBOUNCE_MS
+) -> tuple[Cache[K, V], Callable[[CachePersister[K, V]], None]]:
+    """A cache with no persister yet, and the act that gives it one once it is made.
+
+    What a client builds the caches it keeps for a person with, when it may
+    learn who they are only after it began. The act keeps the cache's values
+    with the persister it is given from then on, beginning with what that
+    kept: a kept value fills only a key the cache holds nothing for, and is
+    asked for anew the first time it is observed. It is given one persister:
+    a second raises `RuntimeError`. A disposed cache takes none.
+    """
+    given: list[Callable[[CachePersister[K, V]], None]] = []
+    cache = Cache(fetch, tasks=tasks, save_debounce_ms=save_debounce_ms, give_attach_to=given.append)
+    (attach,) = given
+    return cache, attach

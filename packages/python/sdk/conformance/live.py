@@ -25,6 +25,7 @@ from semiont.namespaces.browse import EngineWithLimits
 from semiont.namespaces.follow import Delegation, JobRefused
 from semiont.refresh import CACHE_QUERIES, CacheQuery
 from semiont.storage import MemoryStorage
+from semiont.stored import person_key
 from semiont.transport import ConnectionState
 from semiont.types import GenerationJobParams, JobCompleteCommand, MarkJobParams
 from semiont.watched import Variable
@@ -33,6 +34,10 @@ type _Shown = WireModel | EngineWithLimits | str | Sequence[_Shown]
 """What a live query's value is made of."""
 
 _MARK_PARAMS: Final = TypeAdapter[MarkJobParams](MarkJobParams)
+
+_KB_ID: Final = "conformance"
+_PERSON: Final = person_key("did:web:conformance.example:users:driver")
+"""Whom a client that persists keeps its caches for: the one person every SDK's driver keeps them for."""
 
 
 def _resource(args: Arguments, name: str) -> ResourceId:
@@ -220,7 +225,7 @@ class Live:
             raise Misuse("a client is already open")
         wire, timing = _timings(object_of(args, "timing") if "timing" in args else {})
         transport = HttpTransport(text(args, "baseUrl"), token=Variable[str | None](text(args, "token")), timing=wire)
-        persistence = CachePersistence(storage=self._storage, key_prefix="conformance") if args.get("persist") is True else None
+        persistence = CachePersistence(storage=self._storage, kb_id=_KB_ID, person_key=_PERSON) if args.get("persist") is True else None
         self._transport = await self._held.enter_async_context(transport)
         self._client = await self._held.enter_async_context(
             SemiontClient(transport, transport.content, transport, timing=timing, persistence=persistence)

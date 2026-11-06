@@ -342,6 +342,12 @@ class Stream:
         """The connection's state."""
         return Reading(self._state)
 
+    def attach_bookmarks(self, bookmarks: Bookmarks) -> None:
+        """Keep each scope's place in `bookmarks` from now on; a scope with no place yet begins where they say."""
+        self._bookmarks = bookmarks
+        for scope, event_id in bookmarks.load().items():
+            self._watermarks.setdefault(scope, event_id)
+
     def take_scope(self, resource: ResourceId) -> None:
         """A resource's scope got its first hold."""
         self._reports.put_nowait(_ScopeTaken(resource))

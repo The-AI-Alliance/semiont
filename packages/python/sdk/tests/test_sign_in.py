@@ -1050,8 +1050,8 @@ class Slowly(SignInKept):
         return await self._kept.renewed(read, access, refresh)
 
     @override
-    async def named(self, access: str, person_key: str) -> bool:
-        return await self._kept.named(access, person_key)
+    async def record_person_key(self, access: str, person_key: str) -> bool:
+        return await self._kept.record_person_key(access, person_key)
 
     @override
     async def forget(self) -> None:

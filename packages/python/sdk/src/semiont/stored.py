@@ -10,6 +10,7 @@ from typing import Annotated, Final, final
 
 from pydantic import Field
 
+from semiont._digest import base64url_sha256
 from semiont.model import WireModel
 
 __all__ = [
@@ -57,26 +58,41 @@ def kb_of_session_key(key: str) -> str | None:
     return key.removeprefix(_SESSION_KEY_PREFIX) if key.startswith(_SESSION_KEY_PREFIX) else None
 
 
-# Where a knowledge base's stream was is kept under this followed by the knowledge base's id: a
-# JSON object from a scope, a resource's id, to the id of the last recorded event delivered on
-# it. It is written only with a write of the caches kept beside it, so it never leads them.
+# Where a knowledge base's stream was, for one person, is kept under this followed by the
+# knowledge base's id, a dot and the person's key: the unpadded base64url SHA-256 of the UTF-8
+# of the did the gateway answers for the person's token (components/schemas/UserResponse.json),
+# never the did itself. What is kept is a JSON object from a scope, a resource's id, to the id
+# of the last recorded event delivered on it. It is written only with a write of the caches kept
+# beside it, so it never leads them. Nothing is kept for a token whose person the gateway has
+# not named, and signing out of the knowledge base deletes it.
 _LAST_EVENT_ID_KEY_PREFIX: Final = "semiont.lastEventId."
 
 
-def last_event_id_key(kb_id: str) -> str:
-    """The key a knowledge base's stream's places are kept under."""
-    return f"{_LAST_EVENT_ID_KEY_PREFIX}{kb_id}"
+def person_key(did: str) -> str:
+    """The key of the person whose did the gateway answered: what their caches and stream's places are kept under."""
+    return base64url_sha256(did)
 
 
-# What a client keeps of a query is kept under this followed by its persistence's key prefix, a
-# dot and the query's name. A registry's session takes the knowledge base's id for its key
-# prefix.
+def last_event_id_key(kb_id: str, person_key: str) -> str:
+    """The key a person's stream's places in a knowledge base are kept under."""
+    return f"{_LAST_EVENT_ID_KEY_PREFIX}{kb_id}.{person_key}"
+
+
+# What a client keeps of a query, for one person, is kept under this followed by the knowledge
+# base's id, a dot, the person's key as `lastEventIdKeyPrefix` makes it, a dot and the query's
+# name. The queries kept are those protocol/specs/src/client/refresh.json marks `persisted`,
+# each under its name there, and each as one JSON document, `{"version": 1, "writtenAt": …,
+# "entries": [[key, value, writtenAt], …]}`: an entry's key as JSON, its value, and when the
+# value was last written, in milliseconds since the Unix epoch
+# (protocol/contract/CACHE-SEMANTICS.md, B17). Nothing is kept for a token whose person the
+# gateway has not named, and signing out of the knowledge base deletes the key of every
+# persisted query.
 _CACHE_KEY_PREFIX: Final = "semiont.cache."
 
 
-def cache_key(key_prefix: str, name: str) -> str:
-    """The key the query `name` is kept under, by a persistence whose key prefix is `key_prefix`."""
-    return f"{_CACHE_KEY_PREFIX}{key_prefix}.{name}"
+def cache_key(kb_id: str, person_key: str, query: str) -> str:
+    """The key what a person's client keeps of the query `query` in a knowledge base is kept under."""
+    return f"{_CACHE_KEY_PREFIX}{kb_id}.{person_key}.{query}"
 
 
 @final
@@ -102,3 +118,10 @@ class StoredSession(WireModel, frozen=True):
     # The issuer's revocation endpoint (RFC 7009), where a sign-out tells it to forget the
     # refresh token. Absent when the issuer has none.
     revocation_endpoint: Annotated[str | None, Field(alias="revocationEndpoint")] = None
+
+    # Who the gateway said the sign-in's person is, as the key their caches and stream position
+    # are kept under (`lastEventIdKeyPrefix`), never the did itself. Written once the gateway
+    # names the person, on the sign-in whose token it was asked about; a renewal keeps it, a new
+    # sign-in starts without it, and a sign-out reads it to delete what is kept under it. Absent
+    # for a sign-in whose gateway has not yet named its person.
+    person_key: Annotated[str | None, Field(alias="personKey")] = None

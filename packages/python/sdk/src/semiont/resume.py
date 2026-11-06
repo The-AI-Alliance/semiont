@@ -1,4 +1,4 @@
-"""A stream's place in each scope, kept so the next client of the same knowledge base resumes from it.
+"""A stream's place in each scope, kept so the person's next client of the same knowledge base resumes from it.
 
 What that client kept of a scope is then brought up to date by the events
 recorded since, replayed.
@@ -13,11 +13,10 @@ is only late, which costs a replay.
 
 What is kept under the key and is not places reads as nothing kept.
 
-    places = CoupledBookmarks(storage, f"semiont.lastEventId.{kb_id}")
+    places = CoupledBookmarks(storage, last_event_id_key(kb_id, person))
     transport = HttpTransport(origin, token=token, bookmarks=places)
-    client = SemiontClient(
-        transport, transport.content, transport, persistence=CachePersistence(storage=places.storage, key_prefix=kb_id)
-    )
+    persistence = CachePersistence(storage=places.storage, kb_id=kb_id, person_key=person)
+    client = SemiontClient(transport, transport.content, transport, persistence=persistence)
     places.set_flush_gate(lambda: client.persistence_settled)
 """
 

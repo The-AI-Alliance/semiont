@@ -79,6 +79,7 @@ from typing import Annotated, Final, final
 
 from pydantic import Field
 
+from semiont._digest import base64url_sha256
 from semiont.model import WireModel
 
 __all__ = [
@@ -105,18 +106,23 @@ ${pyComment(lastEventIdPrefix.docs)}
 _LAST_EVENT_ID_KEY_PREFIX: Final = ${pyString(lastEventIdPrefix.prefix)}
 
 
-def last_event_id_key(kb_id: str) -> str:
-    """The key a knowledge base's stream's places are kept under."""
-    return f"{_LAST_EVENT_ID_KEY_PREFIX}{kb_id}"
+def person_key(did: str) -> str:
+    """The key of the person whose did the gateway answered: what their caches and stream's places are kept under."""
+    return base64url_sha256(did)
+
+
+def last_event_id_key(kb_id: str, person_key: str) -> str:
+    """The key a person's stream's places in a knowledge base are kept under."""
+    return f"{_LAST_EVENT_ID_KEY_PREFIX}{kb_id}.{person_key}"
 
 
 ${pyComment(cachePrefix.docs)}
 _CACHE_KEY_PREFIX: Final = ${pyString(cachePrefix.prefix)}
 
 
-def cache_key(key_prefix: str, name: str) -> str:
-    """The key the query \`name\` is kept under, by a persistence whose key prefix is \`key_prefix\`."""
-    return f"{_CACHE_KEY_PREFIX}{key_prefix}.{name}"
+def cache_key(kb_id: str, person_key: str, query: str) -> str:
+    """The key what a person's client keeps of the query \`query\` in a knowledge base is kept under."""
+    return f"{_CACHE_KEY_PREFIX}{kb_id}.{person_key}.{query}"
 
 
 @final

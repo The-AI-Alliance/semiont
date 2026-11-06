@@ -50,7 +50,7 @@ import binascii
 import time
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from types import TracebackType
 from typing import Final, Literal, Protocol, Self, final, override
 
@@ -204,6 +204,10 @@ class HeldSignIn:
     client_id: str
     token_endpoint: str
     revocation_endpoint: str | None = None
+    person_key: str | None = None
+    """Who a gateway said the sign-in's person is, as the key their caches are kept under
+    (`semiont.stored.person_key`); none until a gateway has named them. A renewal keeps it,
+    and a new sign-in begins without it."""
 
 
 class SignInKept(Protocol):
@@ -224,6 +228,19 @@ class SignInKept(Protocol):
         other way meanwhile: that stands, and its access token is the one
         given. Nothing when nothing is kept: a sign-in that was signed out, or
         ended, while it was being renewed is gone, and is not written back.
+        """
+        ...
+
+    async def record_person_key(self, access: str, person_key: str) -> bool:
+        """Record who a gateway said the holder of `access` is, as one step against what is kept now.
+
+        Recorded only on a sign-in that still holds `access`, the token the
+        gateway was asked about, and names nobody else: true then, and when it
+        names `person_key` already. False when nothing is kept, when what is
+        kept moved on to another token, and when it names another person,
+        which is never written over. It is how a session records its person
+        on whatever keeps its sign-in, and keeps nothing for them unless it
+        did.
         """
         ...
 
@@ -253,14 +270,16 @@ class MemorySignIn(SignInKept):
             return None
         if (self._sign_in.access, self._sign_in.refresh) != (read.access, read.refresh):
             return self._sign_in.access
-        self._sign_in = HeldSignIn(
-            access=access,
-            refresh=refresh,
-            client_id=self._sign_in.client_id,
-            token_endpoint=self._sign_in.token_endpoint,
-            revocation_endpoint=self._sign_in.revocation_endpoint,
-        )
+        self._sign_in = replace(self._sign_in, access=access, refresh=refresh)
         return access
+
+    @override
+    async def record_person_key(self, access: str, person_key: str) -> bool:
+        kept = self._sign_in
+        if kept is None or kept.access != access or kept.person_key not in (None, person_key):
+            return False
+        self._sign_in = replace(kept, person_key=person_key)
+        return True
 
     @override
     async def forget(self) -> None:

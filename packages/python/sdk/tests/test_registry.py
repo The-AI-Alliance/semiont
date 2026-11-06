@@ -403,7 +403,7 @@ def test_a_renewal_is_kept_against_what_is_stored_then() -> None:
         assert stored_session(storage, KB_A) is None
 
         await kept.keep(read)
-        assert await kept.named("a1", JO)
+        assert await kept.record_person_key("a1", JO)
         assert await kept.renewed(read, "a2", "r2") == "a2"
         held = await kept.held()
         assert held is not None
@@ -435,17 +435,17 @@ def test_the_person_the_gateway_named_is_recorded_on_the_sign_in_it_was_asked_ab
         signed_in = HeldSignIn(access="a1", refresh="r1", client_id="semiont-browser", token_endpoint="https://issuer.test/token")
 
         # Nothing kept: nobody is recorded.
-        assert not await kept.named("a1", JO)
+        assert not await kept.record_person_key("a1", JO)
         assert await kept.held() is None
 
         # A sign-in that holds another access token has moved on: the answer was about a token it no longer holds.
         await kept.keep(signed_in)
-        assert not await kept.named("a0", JO)
+        assert not await kept.record_person_key("a0", JO)
         held = await kept.held()
         assert held is not None
         assert held.person_key is None
 
-        assert await kept.named("a1", JO)
+        assert await kept.record_person_key("a1", JO)
         held = await kept.held()
         assert held is not None
         assert held == HeldSignIn(
@@ -454,9 +454,9 @@ def test_the_person_the_gateway_named_is_recorded_on_the_sign_in_it_was_asked_ab
         if where == "kept_in":
             assert written_session(storage)["personKey"] == JO
         # Recorded already, it is recorded: nothing changes.
-        assert await kept.named("a1", JO)
+        assert await kept.record_person_key("a1", JO)
         # Another person is never written over the one it names.
-        assert not await kept.named("a1", ANN)
+        assert not await kept.record_person_key("a1", ANN)
         held = await kept.held()
         assert held is not None
         assert held.person_key == JO

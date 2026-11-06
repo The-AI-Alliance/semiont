@@ -146,6 +146,15 @@ class SemiontClient[T: Transport]:
         """
         return self._live.persistence_settled
 
+    def attach_persistence(self, persistence: CachePersistence) -> None:
+        """Keep what the client's queries hold where `persistence` says, from now on: what a client made with it would keep.
+
+        What was kept there is shown for each key a query holds nothing for,
+        and asked for anew the first time it is observed. A session made
+        before it knew who its person is gives it this once the gateway says.
+        """
+        self._live.attach(persistence)
+
     async def close(self) -> None:
         """End the client.
 

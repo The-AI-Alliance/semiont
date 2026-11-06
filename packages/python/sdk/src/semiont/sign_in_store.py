@@ -455,5 +455,13 @@ class _Entry(SignInKept):
         return await asyncio.to_thread(self._renewed, read, access, refresh)
 
     @override
+    async def record_person_key(self, access: str, person_key: str) -> bool:
+        """Never recorded: the store's entry (`protocol/specs/src/sign-in-store/SignIn.json`) has no person.
+
+        So a session over it keeps nothing for one.
+        """
+        return False
+
+    @override
     async def forget(self) -> None:
         await asyncio.to_thread(self._forget)

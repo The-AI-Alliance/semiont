@@ -52,11 +52,11 @@ from semiont.identifiers import UserId
 from semiont.identity import kb_did
 from semiont.oauth_clients import BROWSER_CLIENT_ID, SCRIPT_CLIENT_ID
 from semiont.operations import BROWSE_KB_REQUESTED
-from semiont.registry import SemiontBrowser, SessionFactory, SessionFactoryOptions, SignedIn, SignInOutcome, kept_in
+from semiont.registry import SemiontBrowser, SessionFactory, SessionFactoryOptions, SignedIn, SignInOutcome, kept_in, stored_session
 from semiont.resume import CoupledBookmarks
 from semiont.session import HeldSignIn, SemiontSession, SessionEndReason, SignInKept, Validate
 from semiont.storage import SessionStorage
-from semiont.stored import StoredSession, last_event_id_key
+from semiont.stored import StoredSession, last_event_id_key, person_key
 from semiont.types import HttpEndpoint, KbDescription, KbTarget, LocalEndpoint, UserResponse
 from semiont.watched import Variable
 
@@ -127,6 +127,99 @@ def _asking(base_url: str, http: httpx.AsyncClient | None) -> Validate:
     return ask
 
 
+@final
+class _TheirsOnly(SessionStorage):
+    """A registry's storage, written only while the knowledge base's stored sign-in names the person.
+
+    Once it does not, because it was signed out or replaced by a sign-in that
+    names nobody or someone else, here or in another context, nothing is
+    written again: what was still to be written is dropped. A renewal names
+    the same person, and changes nothing.
+    """
+
+    def __init__(self, storage: SessionStorage, kb_id: str, person: str) -> None:
+        self._storage: Final = storage
+        self._kb_id: Final = kb_id
+        self._person: Final = person
+        self._moved_on = False
+
+    def _theirs(self) -> bool:
+        if not self._moved_on:
+            stored = stored_session(self._storage, self._kb_id)
+            self._moved_on = stored is None or stored.person_key != self._person
+        return not self._moved_on
+
+    @override
+    def get(self, key: str) -> str | None:
+        return self._storage.get(key)
+
+    @override
+    def set(self, key: str, value: str) -> None:
+        if self._theirs():
+            self._storage.set(key, value)
+
+    @override
+    def delete(self, key: str) -> None:
+        if self._theirs():
+            self._storage.delete(key)
+
+    @override
+    def update(self, key: str, change: Callable[[str | None], str | None]) -> None:
+        if self._theirs():
+            self._storage.update(key, change)
+
+    @override
+    def subscribe(self, on_change: Callable[[str, str | None], None]) -> Callable[[], None] | None:
+        return self._storage.subscribe(on_change)
+
+
+@final
+class _Keeping:
+    """What a session's client keeps in `storage` for the person its token is, from when it knows who they are.
+
+    With `checked`, the sign-in is kept in `storage` too, and every write
+    first finds it still naming the person (`_TheirsOnly`).
+    """
+
+    def __init__(
+        self, kb_id: str, storage: SessionStorage, transport: HttpTransport, client: SemiontClient[HttpTransport], *, checked: bool
+    ) -> None:
+        self._kb_id: Final = kb_id
+        self._storage: Final = storage
+        self._transport: Final = transport
+        self._client: Final = client
+        self._checked: Final = checked
+        self._person: str | None = None
+
+    def attach(self, person: str) -> None:
+        """Keep what the client holds for `person` from now on: their caches begin with what was kept, and the stream with its places."""
+        self._person = person
+        beneath = _TheirsOnly(self._storage, self._kb_id, person) if self._checked else self._storage
+        # The stream's place rides the caches' writes, and only when every cache is
+        # at rest: a place kept ahead of a cache still taking in the event it names
+        # would have the next session skip that event.
+        places = CoupledBookmarks(beneath, last_event_id_key(self._kb_id, person))
+        places.set_flush_gate(lambda: self._client.persistence_settled)
+        self._client.attach_persistence(CachePersistence(storage=places.storage, kb_id=self._kb_id, person_key=person))
+        self._transport.attach_bookmarks(places)
+
+    def recording(self, kept: SignInKept, ask: Validate) -> Validate:
+        """`ask`, after which the person the gateway names is recorded on the sign-in in `kept`, and kept for once it is."""
+
+        async def validate(token: str) -> UserResponse:
+            user = await ask(token)
+            if self._person is None:
+                person = person_key(user.did)
+                # Recorded only on a sign-in that still holds the token asked
+                # about: an answer of who an older token was names nobody of a
+                # sign-in that has moved on.
+                if await kept.record_person_key(token, person) and self._person is None:
+                    self.attach(person)
+            return user
+
+        return validate
+
+
 def _gateway_of(kb: KbTarget) -> str:
     """The origin of the gateway `kb` is reached at, for a session.
 
@@ -168,10 +261,13 @@ async def session_from_kept(
     gateway is asked who the token is; `channels` are the global channels the
     transport's stream names.
 
-    With a `storage`, what the client's small queries hold is kept there
-    under the knowledge base's id, and the stream's place in each scope with
-    it: the next session over the same storage shows what was kept at once,
-    and is sent what was recorded since.
+    With a `storage`, what the client's persisted queries hold is kept there
+    for the person the gateway says the token is, once `kept` has recorded
+    them, and the stream's place in each scope with it: their next session
+    over the same storage shows what was kept at once, and is sent what was
+    recorded since. A sign-in that names its person already begins with what
+    was kept for them. A session that does not `validate` keeps nothing, and
+    neither does one whose `kept` records nobody (a `SignInStore`'s).
 
     With `http`, every request of the session, of the gateway and of the
     issuer, is made with that client, which its caller built and closes
@@ -182,7 +278,15 @@ async def session_from_kept(
     no host's name.
     """
     async with _session_started(
-        kb, kept=kept, validate=validate, channels=channels, storage=storage, on_auth_failed=on_auth_failed, on_error=on_error, http=http
+        kb,
+        kept=kept,
+        validate=validate,
+        channels=channels,
+        storage=storage,
+        kept_beside=False,
+        on_auth_failed=on_auth_failed,
+        on_error=on_error,
+        http=http,
     ) as session:
         await session.ready()
         yield session
@@ -196,36 +300,37 @@ async def _session_started(
     validate: bool,
     channels: Sequence[str],
     storage: SessionStorage | None,
+    kept_beside: bool,
     on_auth_failed: Callable[[SessionEndReason], None] | None,
     on_error: Callable[[SessionError], None] | None,
     http: httpx.AsyncClient | None,
 ) -> AsyncGenerator[SemiontSession[HttpTransport]]:
-    """`session_from_kept`'s session as soon as it has started, before it is ready: what a registry holds, and waits on itself."""
+    """`session_from_kept`'s session as soon as it has started, before it is ready: what a registry holds, and waits on itself.
+
+    `kept_beside` is whether `kept` keeps the sign-in in `storage`, as a
+    registry does: then nothing is written there once it names someone else.
+    """
     base_url = _gateway_of(kb)
+    # Read before anything is built: the client begins with what was kept for the person the sign-in names.
+    named = await kept.held() if storage is not None and validate else None
     token = Variable[str | None](None)
     renewing = _Renewing(kept, token, http)
-    # The stream's place rides the caches' writes, and only when every cache is
-    # at rest: a place kept ahead of a cache still taking in the event it names
-    # would have the next session skip that event.
-    places = None if storage is None else CoupledBookmarks(storage, last_event_id_key(kb.id))
-    transport = HttpTransport(
-        base_url, token=token, refresher=lambda refused: session.refresh(refused), channels=channels, bookmarks=places, http=http
-    )
-    client = SemiontClient(
-        transport,
-        transport.content,
-        transport,
-        persistence=None if places is None else CachePersistence(storage=places.storage, key_prefix=kb.id),
-    )
-    if places is not None:
-        places.set_flush_gate(lambda: client.persistence_settled)
+    transport = HttpTransport(base_url, token=token, refresher=lambda refused: session.refresh(refused), channels=channels, http=http)
+    client = SemiontClient(transport, transport.content, transport)
+    asking = _asking(base_url, http) if validate else None
+    # A session that never asks who its token is never learns whose its caches would be, and keeps nothing.
+    if storage is not None and asking is not None:
+        keeping = _Keeping(kb.id, storage, transport, client, checked=kept_beside)
+        if named is not None and named.person_key is not None:
+            keeping.attach(named.person_key)
+        asking = keeping.recording(kept, asking)
     session: SemiontSession[HttpTransport] = SemiontSession(
         kb=kb,
         client=client,
         token=token,
         kept=kept,
         refresh=renewing,
-        validate=_asking(base_url, http) if validate else None,
+        validate=asking,
         on_auth_failed=on_auth_failed,
         on_error=on_error,
     )
@@ -306,11 +411,14 @@ class HttpSessionFactory(SessionFactory):
     """Builds the session of each knowledge base a registry activates, over its gateway.
 
     The session's caches, and the stream's place in each scope, are kept in
-    the registry's storage, under the knowledge base's id, and its token is
-    renewed at the issuer its stored session names. Each session renews its
-    own: a knowledge base's old session and its new one, during a sign-in,
-    are closed in turn. With `http`, every request of each session, and each
-    revocation, is made with that client, which its caller built and closes.
+    the registry's storage for the person its stored session names, once the
+    gateway has named them, and only while it names them: once it is signed
+    out or replaced, here or in another context, nothing more is written. Its
+    token is renewed at the issuer its stored session names. Each session
+    renews its own: a knowledge base's old session and its new one, during a
+    sign-in, are closed in turn. With `http`, every request of each session,
+    and each revocation, is made with that client, which its caller built and
+    closes.
     """
 
     def __init__(self, *, http: httpx.AsyncClient | None = None) -> None:
@@ -325,6 +433,7 @@ class HttpSessionFactory(SessionFactory):
             validate=True,
             channels=BRIDGED_CHANNELS,
             storage=options.storage,
+            kept_beside=True,
             on_auth_failed=options.signals.notify_session_ended,
             on_error=options.on_error,
             http=self._http,

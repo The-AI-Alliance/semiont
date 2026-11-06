@@ -65,6 +65,7 @@ from semiont.events import Broadcast, Events
 from semiont.identifiers import ResourceId
 from semiont.identity import kb_did
 from semiont.model import WireModel, written
+from semiont.refresh import PERSISTED_QUERIES
 from semiont.resources import primary_media_type
 from semiont.session import HeldSignIn, SemiontSession, SignInKept, is_token_expired
 from semiont.session_signals import KbIdentityConflict, SessionSignals
@@ -75,6 +76,8 @@ from semiont.stored import (
     LAST_VIEWED_RESOURCE_BY_KB_KEY,
     OPEN_RESOURCES_BY_KB_KEY,
     StoredSession,
+    cache_key,
+    last_event_id_key,
     session_key,
 )
 from semiont.transport import Transport
@@ -198,6 +201,21 @@ class _KeptIn(SignInKept):
         return current[0] if current else None
 
     @override
+    async def record_person_key(self, access: str, person_key: str) -> bool:
+        recorded = False
+
+        def record(stored: str | None) -> str | None:
+            nonlocal recorded
+            session = None if stored is None else _session_in(stored)
+            if session is None or session.access != access or session.person_key not in (None, person_key):
+                return stored
+            recorded = True
+            return session.model_copy(update={"person_key": person_key}).model_dump_json(by_alias=True, exclude_none=True)
+
+        self._storage.update(session_key(self._kb_id), record)
+        return recorded
+
+    @override
     async def forget(self) -> None:
         clear_stored_session(self._storage, self._kb_id)
 
@@ -216,6 +234,7 @@ def _held(stored: StoredSession) -> HeldSignIn:
         client_id=stored.client_id,
         token_endpoint=stored.token_endpoint,
         revocation_endpoint=stored.revocation_endpoint,
+        person_key=stored.person_key,
     )
 
 
@@ -226,6 +245,7 @@ def _stored(held: HeldSignIn) -> StoredSession:
         client_id=held.client_id,
         token_endpoint=held.token_endpoint,
         revocation_endpoint=held.revocation_endpoint,
+        person_key=held.person_key,
     )
 
 
@@ -713,7 +733,10 @@ class SemiontBrowser:
     async def sign_out(self, kb_id: str) -> None:
         """Sign out of a knowledge base: its tokens are forgotten, and the issuer is told so its refresh token is good for nothing.
 
-        If it is active, its session is closed.
+        If it is active, its session is closed. Then what its client kept for
+        the person the sign-in named is deleted: every persisted query's
+        document, and the stream's places. A sign-in that named nobody deletes
+        nothing.
         """
         if self._closing.is_set():
             return
@@ -729,6 +752,11 @@ class SemiontBrowser:
             taken = self._take_session()
             if taken is not None:
                 await taken.close()
+        # After the client has closed: whatever its closing wrote is deleted too.
+        if stored is not None and stored.person_key is not None:
+            for query in PERSISTED_QUERIES:
+                self._storage.delete(cache_key(kb_id, stored.person_key, query))
+            self._storage.delete(last_event_id_key(kb_id, stored.person_key))
 
     # ── What is open ────────────────────────────────────────────────────
 

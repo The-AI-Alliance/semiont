@@ -5,13 +5,13 @@ queries over it, and the client's refresher (`semiont.namespaces.refresher`)
 keeps it true.
 """
 
-from collections.abc import Hashable
+from collections.abc import Awaitable, Callable, Hashable
 from dataclasses import dataclass
 from typing import Final, NamedTuple, final
 
 from pydantic import TypeAdapter
 
-from semiont.cache import Cache
+from semiont.cache import Cache, persistable_cache
 from semiont.cached import Cached, Source
 from semiont.errors import BusRequestError, SemiontError
 from semiont.identifiers import AnnotationId, ResourceId
@@ -72,20 +72,44 @@ LIMITS_HOLDERS: Final = tuple(_HOLDERS)
 _RESOURCE_ID: Final = TypeAdapter(ResourceId)
 _ANNOTATION_ID: Final = TypeAdapter(AnnotationId)
 _NAME: Final = TypeAdapter(str)
+_DESCRIPTOR: Final = TypeAdapter(ResourceDescriptor)
+_ANNOTATIONS: Final = TypeAdapter(GetAnnotationsResponse)
+_ANNOTATION: Final = TypeAdapter(Annotation)
+_ENTITY_TYPES: Final = TypeAdapter[list[str]](list[str])
+_TAG_SCHEMAS: Final = TypeAdapter[list[TagSchema]](list[TagSchema])
 
 
 @final
 @dataclass(frozen=True, slots=True, kw_only=True)
 class CachePersistence:
-    """Where a client keeps what its queries hold, so the next client of the same knowledge base shows it at once.
+    """Where a client keeps what its queries hold for one person, so their next client of the same knowledge base shows it at once.
 
-    The small queries are kept: a resource's description, its annotations,
-    one annotation, the entity types, the tag schemas. Each is a document in
-    `storage`, under `semiont.cache.<key_prefix>.<query>`.
+    The queries `semiont.refresh.PERSISTED_QUERIES` names are kept: a
+    resource's description, its annotations, one annotation, the entity
+    types, the tag schemas. Each is a document in `storage`, under
+    `semiont.stored.cache_key(kb_id, person_key, query)`.
     """
 
     storage: SessionStorage
-    key_prefix: str
+    kb_id: str
+    person_key: str
+    """The person's key (`semiont.stored.person_key`), never their did."""
+
+
+def _kept[K: Hashable, V](
+    persistence: CachePersistence, query: CacheQuery, key: TypeAdapter[K], value: TypeAdapter[V]
+) -> StoragePersister[K, V]:
+    """What keeps the cache of `query` where `persistence` says."""
+    kept_under = cache_key(persistence.kb_id, persistence.person_key, query)
+    return StoragePersister(persistence.storage, kept_under, key=key, value=value, version=_KEPT_VERSION, max_bytes=MAX_STORED_BYTES_COUNT)
+
+
+def _persisted[K: Hashable, V](
+    fetch: Callable[[K], Awaitable[V]], tasks: Links, query: CacheQuery, key: TypeAdapter[K], value: TypeAdapter[V]
+) -> tuple[Cache[K, V], Callable[[CachePersistence], None]]:
+    """The cache of `query`, and what keeps it where a persistence says once the client knows where."""
+    cache, attach = persistable_cache(fetch, tasks=tasks)
+    return cache, lambda persistence: attach(_kept(persistence, query, key, value))
 
 
 class ResourceFilters(NamedTuple):
@@ -126,35 +150,37 @@ class Live:
     def __init__(self, links: Links, content: ContentTransport, persistence: CachePersistence | None) -> None:
         self._links: Final = links
         self._content: Final = content
-        self._persistence: Final = persistence
         self._kept_true = False
         self._disposed = False
         self.annotation_of: Final[dict[AnnotationId, ResourceId]] = {}
         """The resource each annotation that was asked for is of: an annotation
         is kept by its own id, and a request for it names its resource too."""
 
-        self.resource: Final = Cache(
-            self._resource, tasks=links, persister=self._kept("resource", _RESOURCE_ID, TypeAdapter(ResourceDescriptor))
-        )
+        resource, keep_resource = _persisted(self._resource, links, "resource", _RESOURCE_ID, _DESCRIPTOR)
+        annotations, keep_annotations = _persisted(self._annotations, links, "annotations", _RESOURCE_ID, _ANNOTATIONS)
+        annotation, keep_annotation = _persisted(self._annotation, links, "annotation", _ANNOTATION_ID, _ANNOTATION)
+        entity_types, keep_entity_types = _persisted(self._entity_types, links, "entityTypes", _NAME, _ENTITY_TYPES)
+        tag_schemas, keep_tag_schemas = _persisted(self._tag_schemas, links, "tagSchemas", _NAME, _TAG_SCHEMAS)
+        self._keepers: Final = (keep_resource, keep_annotations, keep_annotation, keep_entity_types, keep_tag_schemas)
+        self.resource: Final = resource
         self.lists: Final = Cache(self._list, tasks=links)
-        self.annotations: Final = Cache(
-            self._annotations, tasks=links, persister=self._kept("annotations", _RESOURCE_ID, TypeAdapter(GetAnnotationsResponse))
-        )
-        self.annotation: Final = Cache(
-            self._annotation, tasks=links, persister=self._kept("annotation-detail", _ANNOTATION_ID, TypeAdapter(Annotation))
-        )
-        self.entity_types: Final = Cache(
-            self._entity_types, tasks=links, persister=self._kept("entity-types", _NAME, TypeAdapter[list[str]](list[str]))
-        )
-        self.tag_schemas: Final = Cache(
-            self._tag_schemas, tasks=links, persister=self._kept("tag-schemas", _NAME, TypeAdapter[list[TagSchema]](list[TagSchema]))
-        )
+        self.annotations: Final = annotations
+        self.annotation: Final = annotation
+        self.entity_types: Final = entity_types
+        self.tag_schemas: Final = tag_schemas
         self.engines: Final = Cache(self._engines, tasks=links)
         self.limits: Final = Cache(self._limits, tasks=links)
         """Each key holder's report of its engines' limits, by the operation that asks it."""
         self.events: Final = Cache(self.events_of, tasks=links)
         self.referenced_by: Final = Cache(self._referenced_by, tasks=links)
         self.searches: Final = Cache(self._search, tasks=links)
+        if persistence is not None:
+            self.attach(persistence)
+
+    def attach(self, persistence: CachePersistence) -> None:
+        """Keep each persisted query's cache where `persistence` says, from now on, beginning with what was kept there."""
+        for keep in self._keepers:
+            keep(persistence)
 
     def query[T](self, source: Source[T]) -> Cached[T]:
         """A live query of this client, answered from `source`."""
@@ -171,15 +197,6 @@ class Live:
         """
         if not self._kept_true and not self._disposed:
             raise RuntimeError("a live query is watched inside its client's `async with`: before it, nothing keeps the query true")
-
-    def _kept[K: Hashable, V](self, name: str, key: TypeAdapter[K], value: TypeAdapter[V]) -> StoragePersister[K, V] | None:
-        """What keeps the cache named `name`, when the client keeps its caches."""
-        if self._persistence is None:
-            return None
-        kept_under = cache_key(self._persistence.key_prefix, name)
-        return StoragePersister(
-            self._persistence.storage, kept_under, key=key, value=value, version=_KEPT_VERSION, max_bytes=MAX_STORED_BYTES_COUNT
-        )
 
     # ── What each cache asks ────────────────────────────────────────────
 
