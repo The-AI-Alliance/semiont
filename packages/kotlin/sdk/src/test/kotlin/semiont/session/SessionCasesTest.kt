@@ -157,7 +157,7 @@ class SessionCasesTest {
                         "replaced" -> token(3600, -1)
                         else -> error("the gateway refused a token the table calls $said")
                     }
-                    val given = session.refreshOf(refused)
+                    val given = session.refresh(refused)
                     assertEquals(row.getValue("given").jsonPrimitive.content.toBooleanStrict(), given != null, "whether refresh gives a token")
                     if (given != null) assertEquals(session.token.value, given)
                     isAsStated(row, world, session, 1)
