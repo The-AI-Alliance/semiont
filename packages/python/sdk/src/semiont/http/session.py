@@ -131,10 +131,11 @@ def _asking(base_url: str, http: httpx.AsyncClient | None) -> Validate:
 class _TheirsOnly(SessionStorage):
     """A registry's storage, written only while the knowledge base's stored sign-in names the person.
 
-    Once it does not, because it was signed out or replaced by a sign-in that
-    names nobody or someone else, here or in another context, nothing is
-    written again: what was still to be written is dropped. A renewal names
-    the same person, and changes nothing.
+    Once it does not, because the saved sign-in was forgotten, which deletes
+    what was kept for the person, or replaced by a sign-in that names nobody
+    or someone else, here or in another context, nothing is written again:
+    what was still to be written is dropped, and nothing deleted is put back.
+    A renewal names the same person, and changes nothing.
     """
 
     def __init__(self, storage: SessionStorage, kb_id: str, person: str) -> None:
@@ -267,7 +268,11 @@ async def session_from_kept(
     over the same storage shows what was kept at once, and is sent what was
     recorded since. A sign-in that names its person already begins with what
     was kept for them. A session that does not `validate` keeps nothing, and
-    neither does one whose `kept` records nobody (a `SignInStore`'s).
+    neither does one whose `kept` records nobody (a `SignInStore`'s). A
+    `kept` that keeps the sign-in in `storage` itself, for `kb`
+    (`semiont.registry.kept_in`), is a registry's: forgetting it deletes what
+    was kept for its person, and once it is forgotten or replaced the session
+    writes nothing more there, as a registry's session does.
 
     With `http`, every request of the session, of the gateway and of the
     issuer, is made with that client, which its caller built and closes
@@ -283,7 +288,6 @@ async def session_from_kept(
         validate=validate,
         channels=channels,
         storage=storage,
-        kept_beside=False,
         on_auth_failed=on_auth_failed,
         on_error=on_error,
         http=http,
@@ -300,15 +304,15 @@ async def _session_started(
     validate: bool,
     channels: Sequence[str],
     storage: SessionStorage | None,
-    kept_beside: bool,
     on_auth_failed: Callable[[SessionEndReason], None] | None,
     on_error: Callable[[SessionError], None] | None,
     http: httpx.AsyncClient | None,
 ) -> AsyncGenerator[SemiontSession[HttpTransport]]:
     """`session_from_kept`'s session as soon as it has started, before it is ready: what a registry holds, and waits on itself.
 
-    `kept_beside` is whether `kept` keeps the sign-in in `storage`, as a
-    registry does: then nothing is written there once it names someone else.
+    A `kept` that keeps the sign-in in `storage` itself (`kept_in`), as a
+    registry's does, is forgotten there: then nothing is written there once
+    it no longer names the person, so what forgetting it deleted stays deleted.
     """
     base_url = _gateway_of(kb)
     # Read before anything is built: the client begins with what was kept for the person the sign-in names.
@@ -320,7 +324,7 @@ async def _session_started(
     asking = _asking(base_url, http) if validate else None
     # A session that never asks who its token is never learns whose its caches would be, and keeps nothing.
     if storage is not None and asking is not None:
-        keeping = _Keeping(kb.id, storage, transport, client, checked=kept_beside)
+        keeping = _Keeping(kb.id, storage, transport, client, checked=kept == kept_in(storage, kb.id))
         if named is not None and named.person_key is not None:
             keeping.attach(named.person_key)
         asking = keeping.recording(kept, asking)
@@ -378,7 +382,9 @@ async def sign_out(kept: SignInKept, *, http: httpx.AsyncClient | None = None) -
     The issuer is told with `http`, when one is given (`issuer_client`). The
     sign-in is forgotten whatever the issuer answers: a person who signs out
     is signed out here, and an issuer that could not be told forgets the token
-    when it expires.
+    when it expires. Forgetting a saved sign-in that `semiont.registry.kept_in`
+    keeps deletes what was kept for the person it named too; one kept anywhere
+    else deletes nothing.
     """
     held = await kept.held()
     if held is None:
@@ -412,13 +418,13 @@ class HttpSessionFactory(SessionFactory):
 
     The session's caches, and the stream's place in each scope, are kept in
     the registry's storage for the person its stored session names, once the
-    gateway has named them, and only while it names them: once it is signed
-    out or replaced, here or in another context, nothing more is written. Its
-    token is renewed at the issuer its stored session names. Each session
-    renews its own: a knowledge base's old session and its new one, during a
-    sign-in, are closed in turn. With `http`, every request of each session,
-    and each revocation, is made with that client, which its caller built and
-    closes.
+    gateway has named them, and only while it names them: once that saved
+    sign-in is forgotten, which deletes what was kept for them, or replaced,
+    here or in another context, nothing more is written. Its token is renewed
+    at the issuer its stored session names. Each session renews its own: a
+    knowledge base's old session and its new one, during a sign-in, are
+    closed in turn. With `http`, every request of each session, and each
+    revocation, is made with that client, which its caller built and closes.
     """
 
     def __init__(self, *, http: httpx.AsyncClient | None = None) -> None:
@@ -433,7 +439,6 @@ class HttpSessionFactory(SessionFactory):
             validate=True,
             channels=BRIDGED_CHANNELS,
             storage=options.storage,
-            kept_beside=True,
             on_auth_failed=options.signals.notify_session_ended,
             on_error=options.on_error,
             http=self._http,

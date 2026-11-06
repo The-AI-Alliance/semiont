@@ -48,8 +48,8 @@ brought up, and on the way out the registry is closed, as `close` does.
 import asyncio
 import time
 import uuid
-from collections.abc import Callable, Coroutine, Iterable, Mapping, Sequence
-from contextlib import AbstractAsyncContextManager, AsyncExitStack
+from collections.abc import Callable, Coroutine, Iterable, Iterator, Mapping, Sequence
+from contextlib import AbstractAsyncContextManager, AsyncExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from types import TracebackType
@@ -134,8 +134,38 @@ def store_session(storage: SessionStorage, kb_id: str, session: StoredSession) -
 
 
 def clear_stored_session(storage: SessionStorage, kb_id: str) -> None:
-    """Forget a knowledge base's session."""
-    storage.delete(session_key(kb_id))
+    """Forget a knowledge base's saved sign-in, and with it what a client kept for the person it named (`_forgetting`)."""
+    with _forgetting(storage, kb_id):
+        pass
+
+
+def _forget_kept(storage: SessionStorage, kb_id: str, person_key: str) -> None:
+    """Delete what a client kept for one person on one knowledge base: every persisted query's document, and the stream's places."""
+    for query in PERSISTED_QUERIES:
+        storage.delete(cache_key(kb_id, person_key, query))
+    storage.delete(last_event_id_key(kb_id, person_key))
+
+
+@contextmanager
+def _forgetting(storage: SessionStorage, kb_id: str) -> Iterator[StoredSession | None]:
+    """Forget a knowledge base's saved sign-in, however it is forgotten: it is taken as one step, and given to the block.
+
+    Once the block is done, what a client kept for the person it named is
+    deleted, so a client the block closed has had its last write deleted too.
+    A sign-in that named nobody, or nothing saved, deletes nothing. A client
+    still open writes nothing once its sign-in is gone
+    (`semiont.http.session`), so a block may be empty.
+    """
+    read: list[StoredSession | None] = []
+
+    def take(stored: str | None) -> None:
+        read.append(None if stored is None else _session_in(stored))
+
+    storage.update(session_key(kb_id), take)
+    (forgotten,) = read
+    yield forgotten
+    if forgotten is not None and forgotten.person_key is not None:
+        _forget_kept(storage, kb_id, forgotten.person_key)
 
 
 def load_knowledge_bases(storage: SessionStorage) -> list[KnowledgeBase]:
@@ -173,6 +203,11 @@ class _KeptIn(SignInKept):
     def __init__(self, storage: SessionStorage, kb_id: str) -> None:
         self._storage: Final = storage
         self._kb_id: Final = kb_id
+
+    @override
+    def __eq__(self, other: object) -> bool:
+        """The same sign-in: a knowledge base's, kept in the same storage."""
+        return isinstance(other, _KeptIn) and other._storage is self._storage and other._kb_id == self._kb_id
 
     @override
     async def held(self) -> HeldSignIn | None:
@@ -253,7 +288,11 @@ def kept_in(storage: SessionStorage, kb_id: str) -> SignInKept:
     """A knowledge base's sign-in as a session keeps it, in a registry's storage, under `session_key(kb_id)`.
 
     A renewal is written as one step against what is stored then, so one made
-    meanwhile by another session or context stands.
+    meanwhile by another session or context stands. Forgetting it, as a
+    session whose sign-in expired or was refused does, is forgetting a saved
+    sign-in (`clear_stored_session`): what was kept for the person it named is
+    deleted too. A session over it with the same storage
+    (`semiont.http.session`) writes nothing there once it is forgotten.
     """
     return _KeptIn(storage, kb_id)
 
@@ -639,16 +678,19 @@ class SemiontBrowser:
         return added
 
     async def remove_kb(self, kb_id: str) -> None:
-        """Forget a knowledge base: its entry, its tokens, what was open in it and where the person was.
+        """Forget a knowledge base: its entry, its saved sign-in, what was open in it and where the person was.
 
-        If it was active, the first of the others becomes active.
+        If it was active, its session is closed and the first of the others
+        becomes active. Then, as forgetting a saved sign-in does, what its
+        client kept for the person the sign-in named is deleted: after the
+        close, so what the client wrote as it closed goes too.
         """
-        clear_stored_session(self._storage, kb_id)
-        self._forget_kept_of(kb_id)
-        rest = tuple(kb for kb in self._kbs.value if kb.id != kb_id)
-        self._put_kbs(rest)
-        if self._active_kb_id.value == kb_id:
-            await self._set_active_kb(rest[0].id if rest else None)
+        with _forgetting(self._storage, kb_id):
+            self._forget_open_of(kb_id)
+            rest = tuple(kb for kb in self._kbs.value if kb.id != kb_id)
+            self._put_kbs(rest)
+            if self._active_kb_id.value == kb_id:
+                await self._set_active_kb(rest[0].id if rest else None)
 
     def update_kb(self, kb_id: str, *, label: str | None = None, last_read: KbRead | None = None) -> None:
         """Write what a knowledge base last said of itself onto its entry: a label, and a last read, each unless it is none.
@@ -731,32 +773,26 @@ class SemiontBrowser:
         return SignInOutcome(kb=added, expected=expected)
 
     async def sign_out(self, kb_id: str) -> None:
-        """Sign out of a knowledge base: its tokens are forgotten, and the issuer is told so its refresh token is good for nothing.
+        """Sign out of a knowledge base: its saved sign-in is forgotten, and the issuer is told so its refresh token is good for nothing.
 
-        If it is active, its session is closed. Then what its client kept for
-        the person the sign-in named is deleted: every persisted query's
-        document, and the stream's places. A sign-in that named nobody deletes
-        nothing.
+        If it is active, its session is closed. Then, as forgetting a saved
+        sign-in does, what its client kept for the person the sign-in named is
+        deleted: after the close, so what the client wrote as it closed goes
+        too.
         """
         if self._closing.is_set():
             return
-        stored = stored_session(self._storage, kb_id)
-        clear_stored_session(self._storage, kb_id)
-        if stored is not None:
-            # The sign-out is the local act: an issuer that cannot be reached
-            # does not keep anyone in a session they asked to end.
-            self._spawn(self._factory.revoke(stored))
-        # Said again, so whoever shows each knowledge base's status reads it anew.
-        self._kbs.raise_(self._kbs.value)
-        if self._active_kb_id.value == kb_id:
-            taken = self._take_session()
-            if taken is not None:
-                await taken.close()
-        # After the client has closed: whatever its closing wrote is deleted too.
-        if stored is not None and stored.person_key is not None:
-            for query in PERSISTED_QUERIES:
-                self._storage.delete(cache_key(kb_id, stored.person_key, query))
-            self._storage.delete(last_event_id_key(kb_id, stored.person_key))
+        with _forgetting(self._storage, kb_id) as stored:
+            if stored is not None:
+                # The sign-out is the local act: an issuer that cannot be reached
+                # does not keep anyone in a session they asked to end.
+                self._spawn(self._factory.revoke(stored))
+            # Said again, so whoever shows each knowledge base's status reads it anew.
+            self._kbs.raise_(self._kbs.value)
+            if self._active_kb_id.value == kb_id:
+                taken = self._take_session()
+                if taken is not None:
+                    await taken.close()
 
     # ── What is open ────────────────────────────────────────────────────
 
@@ -1078,7 +1114,7 @@ class SemiontBrowser:
         self._viewed_by_kb = committed[0]
         self._project()
 
-    def _forget_kept_of(self, kb_id: str) -> None:
+    def _forget_open_of(self, kb_id: str) -> None:
         """Forget what was open in a knowledge base, and where the person was."""
         committed: list[dict[str, list[OpenResource]]] = []
 
