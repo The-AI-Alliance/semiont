@@ -1444,7 +1444,8 @@ mod registry_cases {
     use serde_json::Value;
 
     /// protocol/specs/src/session/registry-cases.json: when every SDK's
-    /// registry takes two endpoints for one place.
+    /// registry takes two endpoints for one place, and the order it shows the
+    /// resources open in a knowledge base in.
     const REGISTRY_CASES: &str = include_str!("../../specs/session/registry-cases.json");
 
     #[test]
@@ -1460,6 +1461,35 @@ mod registry_cases {
             let same = case["samePlace"].as_bool().expect("a case says samePlace");
             assert_eq!(same_place(&one, &other), same, "{why}");
             assert_eq!(same_place(&other, &one), same, "{why}, the other way round");
+        }
+    }
+
+    #[test]
+    fn open_resources_are_shown_in_the_order_the_shared_table_states() {
+        let table: Value = serde_json::from_str(REGISTRY_CASES).expect("the table is JSON");
+        let cases = table["openResourceOrder"]
+            .as_array()
+            .expect("the table has an order of open resources");
+        assert!(!cases.is_empty());
+        for case in cases {
+            let why = case["why"].as_str().expect("a case says why");
+            let open: Vec<OpenResource> = match serde_json::from_value(case["open"].clone()) {
+                Ok(open) => open,
+                Err(error) => {
+                    panic!(
+                        "{why}: the open resources do not read as a registry keeps them: {error}"
+                    )
+                }
+            };
+            let shown: Vec<&str> = case["shown"]
+                .as_array()
+                .expect("a case says what is shown")
+                .iter()
+                .map(|id| id.as_str().expect("an id"))
+                .collect();
+            let sorted = sort_open_resources(open);
+            let ids: Vec<&str> = sorted.iter().map(|resource| resource.id.as_str()).collect();
+            assert_eq!(ids, shown, "{why}");
         }
     }
 }

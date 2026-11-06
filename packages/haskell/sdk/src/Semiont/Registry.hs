@@ -378,12 +378,12 @@ changeOpenOf owner identity transform=do
 
 addOpenResource :: SemiontBrowser -> ResourceId -> Text -> Maybe Text -> Maybe Text -> IO ()
 addOpenResource owner resource name media uri=Lifetime.run (lifetime owner) $ do
-  now <- fromInteger . floor . (*1000) <$> registryWallNow (configuration owner)
+  now <- floor . (*1000) <$> registryWallNow (configuration owner)
   changeOpen owner $ \tabs -> case find ((==resource) . openResourceId) tabs of
     Just _ -> [if openResourceId tab/=resource then tab else tab {openResourceName=name
       ,openResourceMediaType=case media of Nothing->openResourceMediaType tab; Just value->Just value
       ,openResourceStorageUri=case uri of Nothing->openResourceStorageUri tab; Just value->Just value} | tab<-tabs]
-    Nothing -> tabs++[OpenResource resource media name now (Just (maximum (0:[1+value | tab<-tabs,Just value<-[openResourceOrder tab]]))) uri mempty]
+    Nothing -> tabs++[OpenResource resource media name now (maximum (0:[1+openResourceOrder tab | tab<-tabs])) uri mempty]
 removeOpenResource :: SemiontBrowser -> ResourceId -> IO ()
 removeOpenResource owner resource=Lifetime.run (lifetime owner) (changeOpen owner (filter ((/=resource) . openResourceId)))
 updateOpenResourceName :: SemiontBrowser -> ResourceId -> Text -> IO ()
@@ -394,7 +394,7 @@ reorderOpenResources owner from to=Lifetime.run (lifetime owner) $ changeOpen ow
     let sorted=sortOpenResources tabs
         moved=sorted!!from
         rest=take from sorted++drop (from+1) sorted
-    in zipWith (\order tab->tab {openResourceOrder=Just (fromIntegral order)}) [0::Integer ..] (take to rest++[moved]++drop to rest)
+    in zipWith (\order tab->tab {openResourceOrder=order}) [0..] (take to rest++[moved]++drop to rest)
 setLastViewedResource :: SemiontBrowser -> ResourceId -> IO ()
 setLastViewedResource owner resource=Lifetime.run (lifetime owner) $ do
   key <- atomically (currentKey owner)

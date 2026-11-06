@@ -2,7 +2,7 @@
 -- that a resource is gone; only an affirmative not-found verdict removes it.
 module Semiont.Registry.Resources (OpenResource(..), TabCheck(..), TabVerdict(..), applyTabChecks, sortOpenResources) where
 
-import Data.List (sortBy)
+import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import Semiont.Types
 
@@ -17,8 +17,4 @@ applyTabChecks opened checks=concatMap apply opened
       Nothing -> [resource]
 
 sortOpenResources :: [OpenResource] -> [OpenResource]
-sortOpenResources=sortBy compareResources
-  where
-    compareResources one other=case (openResourceOrder one,openResourceOrder other) of
-      (Just left,Just right) -> compare left right
-      _ -> compare (openResourceOpenedAt one) (openResourceOpenedAt other)
+sortOpenResources=sortOn (\resource->(openResourceOrder resource,openResourceOpenedAt resource))

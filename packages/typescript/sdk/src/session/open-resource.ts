@@ -8,25 +8,34 @@
  * is a function of a list and nothing else — ordering, and the keep/drop
  * policy for revalidation — so both are testable without constructing a
  * browser.
+ *
+ * Its stored shape is protocol/specs/src/session/stored.json's `openResource`,
+ * held by __tests__/stored-table.test.ts.
  */
 
-export interface OpenResource {
-  /** Unique identifier for the resource */
-  id: string;
+import type { ResourceId } from '@semiont/core';
 
-  /** Display name of the resource */
+export interface OpenResource {
+  /** The resource. */
+  id: ResourceId;
+
+  /** The name the resource is shown by. */
   name: string;
 
-  /** Timestamp when the resource was opened */
+  /** When the resource was opened, in milliseconds since the Unix epoch. Opening it again while it is open changes neither this nor its place. */
   openedAt: number;
 
-  /** Order/position for manual sorting. Optional: a stored entry may have none. */
-  order?: number;
+  /**
+   * Its place among those open in the knowledge base, from 0. One opened is
+   * given the place after the last taken; a move gives each its place in the
+   * new order.
+   */
+  order: number;
 
-  /** Media type for icon display (e.g., 'application/pdf', 'text/plain') */
+  /** Its media type, which its icon is chosen by. Absent when it is not known. */
   mediaType?: string;
 
-  /** Working-tree URI (e.g. "file://docs/overview.md") — used as tooltip in navigation */
+  /** Where it is in the knowledge base's working tree, as a URI (e.g. "file://docs/overview.md"). Absent when it is not known. */
   storageUri?: string;
 }
 
@@ -55,7 +64,7 @@ export type TabCheck =
  */
 export function applyTabChecks(
   list: readonly OpenResource[],
-  checks: ReadonlyMap<string, TabCheck>,
+  checks: ReadonlyMap<ResourceId, TabCheck>,
 ): OpenResource[] {
   const kept: OpenResource[] = [];
   for (const tab of list) {
@@ -77,13 +86,7 @@ export function applyTabChecks(
   return kept;
 }
 
-/**
- * Manual order where both entries have one, open time otherwise: `order`
- * is optional, and a mixed list falls back to `openedAt`.
- */
+/** By place, and two in one place by when each was opened, earliest first. */
 export function sortOpenResources(resources: OpenResource[]): OpenResource[] {
-  return [...resources].sort((a, b) => {
-    if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
-    return a.openedAt - b.openedAt;
-  });
+  return [...resources].sort((a, b) => (a.order === b.order ? a.openedAt - b.openedAt : a.order - b.order));
 }

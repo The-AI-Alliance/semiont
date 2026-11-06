@@ -1,4 +1,5 @@
 import Foundation
+import SemiontTesting
 import Testing
 
 @testable import Semiont
@@ -68,6 +69,72 @@ import Testing
     #expect(JSONValue.bool(samePlace(one, other)) == same, "\(why)")
     #expect(JSONValue.bool(samePlace(other, one)) == same, "\(why), the other way round")
   }
+}
+
+@Test func openResourcesAreShownInTheSharedOrder() throws {
+  let rows = try required(Spec.read("session/registry-cases.json").object, "openResourceOrder")
+    .array
+  #expect(!rows.isEmpty)
+  for value in rows {
+    let row = try value.object
+    let why = try required(row, "why").text
+    let open = try #require(
+      try decodedStorage([OpenResource].self, storedText(required(row, "open"))), "\(why)")
+    let shown = try required(row, "shown").array.map { try $0.text }
+    #expect(sortOpenResources(open).map(\.id.value) == shown, "\(why)")
+  }
+}
+
+@Test func anOpenResourceIsKeptAsTheStoredTableStatesIt() async throws {
+  let schema = try required(Spec.read("session/stored.json").object, "openResource").object
+  let members = Set(try required(schema, "properties").object.keys)
+  let requiredMembers = try required(schema, "required").array.map { try $0.text }
+  let storage = MemorySessionStorage()
+  let factory = ScriptedSessions { _, channel, _ in
+    guard channel == Channels.browseKbRequested.name else {
+      throw BusRequestError(.busRejected, "Unread")
+    }
+    return try wirePayload(
+      BrowseKbResult(response: KbDescription(domain: "example.org", name: "KB")))
+  }
+  let browser = try await newSemiontBrowser(
+    SemiontBrowserConfig(storage: storage, sessionFactory: factory))
+  do {
+    let token = try jwt(.object(["exp": .number(Date().timeIntervalSince1970 + 3600)]))
+    let signedIn = try await browser.signedIn(
+      SignedIn(
+        endpoint: .httpEndpoint(HttpEndpoint(host: "localhost", port: 4000, protocol: .http)),
+        description: KbDescription(domain: "example.org", name: "KB"),
+        session: HeldSignIn(
+          access: token, clientId: "browser", refresh: "refresh", tokenEndpoint: "issuer")))
+    let kbId = signedIn.kb.id
+    try await withinTestDeadline {
+      for await opened in browser.activeSession where opened?.session.kb.id == kbId { break }
+    }
+    try await browser.addOpenResource(
+      try ResourceId("full"), name: "Full", mediaType: "text/markdown",
+      storageUri: "file://docs/full.md")
+    try await browser.addOpenResource(try ResourceId("bare"), name: "Bare")
+
+    let text = try #require(storage.get(openResourcesByKbKey))
+    let kept = try required(
+      JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)).object, kbId
+    ).array.map { try $0.object }
+    let full = try #require(kept.first { $0["id"] == JSONValue.string("full") })
+    let bare = try #require(kept.first { $0["id"] == JSONValue.string("bare") })
+    #expect(Set(full.keys) == members)
+    #expect(Set(bare.keys) == Set(requiredMembers))
+    #expect(try decodedStorage(OpenResource.self, storedText(full)) != nil)
+    for absent in requiredMembers {
+      #expect(
+        try decodedStorage(OpenResource.self, storedText(full.filter { $0.key != absent })) == nil,
+        "without \(absent)")
+    }
+  } catch {
+    try? await browser.close()
+    throw error
+  }
+  try await browser.close()
 }
 
 @Test func discoveryMatchesTheSharedReasonsAndRejectsAnInvalidMember() async throws {

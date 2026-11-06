@@ -38,6 +38,12 @@ registryCases root fixtures = do
       expected <- decode (member "samePlace" row)
       require "registry did not match knowledge bases by their whole origin" (Identity.samePlace one other==expected)
     _ -> ioError (userError "Registry authority has no cases")
+  case member "openResourceOrder" table of
+    Array rows -> forM_ (toList rows) $ \row -> do
+      open <- decode (member "open" row)
+      shown <- decode (member "shown" row)
+      require "registry did not show open resources by place, then by when each was opened" (map openResourceId (Resources.sortOpenResources open)==shown)
+    _ -> ioError (userError "Registry authority has no open-resource order")
   storage <- Storage.newMemoryStorage
   kb <- fixture fixtures "KnowledgeBase"
   let value=case toJSON kb of
@@ -54,14 +60,12 @@ registryCases root fixtures = do
   other <- either (ioError . userError) pure (mkResourceId "two")
   third <- either (ioError . userError) pure (mkResourceId "three")
   let tab identity name at order=OpenResource identity (Just "text/plain") name at order Nothing mempty
-      one=tab resource "old" 1 (Just 1)
-      two=tab other "unknown" 2 (Just 2)
-      three=tab third "gone" 3 (Just 3)
+      one=tab resource "old" 1 1
+      two=tab other "unknown" 2 2
+      three=tab third "gone" 3 3
       ready=TabCheckBranch2 (TabCheckBranch2Value TabCheckBranch2ValueKindReady Nothing "new" mempty)
       gone=TabCheckBranch1 (TabCheckBranch1Value TabCheckBranch1ValueKindGone mempty)
       checks=Map.fromList [(resource,ready),(third,gone)]
   require "resource checks lost unknown/unseen tabs, or failed to refresh an affirmed one"
     (Resources.applyTabChecks [one,two,three] checks==[one {openResourceName="new"},two])
-  require "open-resource sorting ignored manual order" (Resources.sortOpenResources [two,one]==[one,two])
-  require "open-resource sorting invented a missing order" (Resources.sortOpenResources [two {openResourceOrder=Nothing},one]==[one,two {openResourceOrder=Nothing}])
-  putStrLn "PASS every registry whole-origin case, projected stored entries and open-resource verdicts"
+  putStrLn "PASS every registry whole-origin case and open-resource order, projected stored entries and open-resource verdicts"

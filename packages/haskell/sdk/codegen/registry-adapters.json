@@ -1,33 +1,4 @@
 {
-  "OpenResource": {
-    "title": "OpenResource",
-    "type": "object",
-    "properties": {
-      "id": {
-        "$ref": "ResourceId.json"
-      },
-      "name": {
-        "type": "string"
-      },
-      "openedAt": {
-        "type": "number"
-      },
-      "order": {
-        "type": "number"
-      },
-      "mediaType": {
-        "type": "string"
-      },
-      "storageUri": {
-        "type": "string"
-      }
-    },
-    "required": [
-      "id",
-      "name",
-      "openedAt"
-    ]
-  },
   "ConnectionIdentity": {
     "title": "ConnectionIdentity",
     "type": "object",

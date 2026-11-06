@@ -480,6 +480,7 @@ main = do
         ]
   storedTable <- readJSON (root </> "protocol/specs/src/session/stored.json") >>= either (ioError . userError) pure . fieldsOf
   stored <- maybe (ioError (userError "stored-session authority missing")) pure (KM.lookup "storedSession" storedTable)
+  openResource <- maybe (ioError (userError "open-resource authority missing")) pure (KM.lookup "openResource" storedTable)
   pending <- maybe (ioError (userError "pending-authorization authority missing")) pure (KM.lookup "pendingAuthorization" storedTable)
     >>= either (ioError . userError) pure . fieldsOf
   pendingProperties <- maybe (ioError (userError "pending-authorization properties missing")) pure (KM.lookup "properties" pending)
@@ -492,7 +493,7 @@ main = do
   let adapterNames=concatMap KM.keys [sessionAdapters,annotationAdapters,registryAdapters]
   unless (length adapterNames==length (nub adapterNames)) (ioError (userError "duplicate SDK-owned adapter name"))
   let storedSchemas =
-        [(Key.toText name,value) | (name,value) <- KM.toList (sessionAdapters <> annotationAdapters <> registryAdapters)] ++ [ ("SignIn",signIn), ("StoredSession",stored)
+        [(Key.toText name,value) | (name,value) <- KM.toList (sessionAdapters <> annotationAdapters <> registryAdapters)] ++ [ ("SignIn",signIn), ("StoredSession",stored), ("OpenResource",openResource)
         , ("IssuerEndpoints",issuer)
         , ("PendingAuthorization",Object (KM.insert "properties" (Object (KM.insert "issuer"
             (Object (KM.singleton "$ref" (String "IssuerEndpoints.json"))) pendingProperties)) pending))

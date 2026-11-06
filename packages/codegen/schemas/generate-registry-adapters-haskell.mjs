@@ -11,7 +11,7 @@ const fail=message=>{throw Error(message);};
 const load=name=>ts.createSourceFile(name,readFileSync(resolve(ROOT,'packages/typescript/sdk/src/session',name),'utf8'),ts.ScriptTarget.Latest,true);
 const sources=['connect.ts','semiont-browser.ts','open-resource.ts'].map(load);
 const schemas={};
-const references=new Set(['KnowledgeBase','KbDescription','KbEndpoint','StoredSession','ResourceId']);
+const references=new Set(['KnowledgeBase','KbDescription','KbEndpoint','StoredSession']);
 const propertyType=node=>{
  if(node.kind===ts.SyntaxKind.StringKeyword)return {type:'string'};
  if(node.kind===ts.SyntaxKind.NumberKeyword)return {type:'number'};
@@ -37,7 +37,7 @@ const declaration=name=>{
  if(matches.length!==1)fail('no single registry declaration '+name);
  return matches[0];
 };
-for(const name of ['OpenResource','ConnectionIdentity','SignInOutcome','KbReadVerdict','TabCheck']){
+for(const name of ['ConnectionIdentity','SignInOutcome','KbReadVerdict','TabCheck']){
  const node=declaration(name);
  if(node.typeParameters||node.heritageClauses)fail('unread registry heritage');
  let schema;
@@ -59,8 +59,7 @@ schemas.Expected={title:'Expected',...outcome};
 schemas.SignInOutcome.properties.expected={$ref:'Expected.json'};
 // The public source names raw ids as strings. Native adapters refine them by
 // the shared identifier schemas, preserving all accepted strings on the wire.
-if(schemas.OpenResource.properties.id.type!=='string'||schemas.ConnectionIdentity.properties.did.type!=='string')fail('registry identifiers changed type');
-schemas.OpenResource.properties.id={$ref:'ResourceId.json'};
+if(schemas.ConnectionIdentity.properties.did.type!=='string')fail('registry identifiers changed type');
 schemas.ConnectionIdentity.properties.did={$ref:'UserId.json'};
 // TypeScript completes sign-in inline. The reusable SignedIn record is
 // Python's dataclass, so read that declaration rather than restating it.
