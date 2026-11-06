@@ -110,9 +110,9 @@ async def _result_of(transport: Transport, operation: AnyOperation, payload: Map
     # One deadline, taken at the call, over the whole request: the wait for
     # the stream, the emit with its retries and the waits between them, and
     # the wait for the reply. What is in flight when it falls due is given up.
-    deadline = asyncio.get_running_loop().time() + timeout_ms / 1000
+    due = asyncio.timeout_at(asyncio.get_running_loop().time() + timeout_ms / 1000)
     try:
-        async with asyncio.timeout_at(deadline):
+        async with due:
             # No request before its reply can arrive: wait for the stream to
             # be open. Only `open` delivers. A closed bus fails at once, and
             # does not spend the deadline.
@@ -131,6 +131,9 @@ async def _result_of(transport: Transport, operation: AnyOperation, payload: Map
                 await transport.emit(asked, payload, correlation_id=correlation_id)
                 reply = await pending.frame()
     except TimeoutError:
+        # Only this request's own deadline times it out.
+        if not due.expired():
+            raise
         raise BusRequestError("bus.timeout", f"Bus request timed out after {timeout_ms}ms on {result}") from None
 
     if reply is None:
