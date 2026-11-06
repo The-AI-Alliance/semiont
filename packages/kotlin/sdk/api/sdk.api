@@ -591,6 +591,7 @@ public final class semiont/errors/JobError : semiont/errors/SemiontError {
 public abstract class semiont/errors/SemiontError : java/lang/Exception {
 	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public abstract fun getCode ()Ljava/lang/String;
+	public fun getMessage ()Ljava/lang/String;
 	public fun getRetryAfterMs ()Ljava/lang/Long;
 }
 

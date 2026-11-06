@@ -272,8 +272,8 @@ class BusTest {
         val error = assertThrows(TransportError::class.java) { runBlocking { Bus(wire).request(ADD, added("Person"), timeoutMs = 5_000) } }
         assertEquals(TransportErrorCode.Error, error.reason)
         // What it says names the channel, and none of what the payload held.
-        assertTrue(error.message!!.contains("frame:entity-type-add-ok"), error.message)
-        assertTrue(!error.message!!.contains("unasked") && !error.message!!.contains(ALICE), error.message)
+        assertTrue(error.message.contains("frame:entity-type-add-ok"), error.message)
+        assertTrue(!error.message.contains("unasked") && !error.message.contains(ALICE), error.message)
     }
 
     @Test

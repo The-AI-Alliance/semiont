@@ -271,7 +271,7 @@ class ClaimsTest {
         val claims = w.client.job.claim(EVERYTHING)
         val refused = assertThrows<BusRequestError> { claims.next() }
         assertEquals(BusRequestErrorCode.Unsubscribed, refused.reason)
-        assertTrue(refused.message!!.contains(Channels.JOB_CLAIMED.name), refused.message)
+        assertTrue(refused.message.contains(Channels.JOB_CLAIMED.name), refused.message)
         assertEquals(emptyList<JsonObject>(), w.desk.sent("job:claim"))
         w.over()
     }

@@ -335,14 +335,14 @@ public class Claims internal constructor(
             resultOf(transport, Operations.JOB_CLAIM, asked, jobClaimTimeoutMs)
         } catch (refused: BusRequestError) {
             if (refused.reason == BusRequestErrorCode.NonePending) return Answer.NonePending
-            return Answer.Refused(ClaimRefusal(refused.reason, refused.message ?: ""))
+            return Answer.Refused(ClaimRefusal(refused.reason, refused.message))
         } catch (failed: SemiontError) {
-            return Answer.Refused(ClaimRefusal(null, failed.message ?: ""))
+            return Answer.Refused(ClaimRefusal(null, failed.message))
         }
         val claimed = try {
             decoded(Operations.JOB_CLAIM.result, reply.payload).response
         } catch (unread: TransportError) {
-            return Answer.Refused(ClaimRefusal(null, unread.message ?: ""))
+            return Answer.Refused(ClaimRefusal(null, unread.message))
         }
         val signal = Variable(false)
         synchronized(lock) { cancelling = signal }

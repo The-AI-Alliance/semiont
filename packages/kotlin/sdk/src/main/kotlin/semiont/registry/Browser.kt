@@ -144,7 +144,7 @@ private fun readNow(description: KbDescription): KbRead = KbRead(AT.format(Insta
 
 /** A factory's refusal as the failure a registry says: the factory's own when it is a session's. */
 private fun constructFailed(refused: SemiontError, kbId: String): SessionError =
-    refused as? SessionError ?: SessionError(SessionErrorCode.ConstructFailed, refused.message ?: refused.code, kbId)
+    refused as? SessionError ?: SessionError(SessionErrorCode.ConstructFailed, refused.message, kbId)
 
 /** One open resource's verdict. Asking for it freshly also puts what it answered in the client's cache, where a viewer reads it. */
 private suspend fun checked(session: SemiontSession, resourceId: ResourceId): TabCheck = try {

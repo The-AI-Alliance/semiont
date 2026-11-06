@@ -9,7 +9,10 @@ import semiont.identifiers.JobId
 import semiont.types.FailureClass
 
 /** A failure of the SDK's, under a code of protocol/specs/src/errors/codes.json. */
-public sealed class SemiontError(message: String) : Exception(message) {
+public sealed class SemiontError(
+    /** What failed, as it is said. */
+    override val message: String,
+) : Exception(message) {
     /** The code, as every SDK spells it. */
     public abstract val code: String
 

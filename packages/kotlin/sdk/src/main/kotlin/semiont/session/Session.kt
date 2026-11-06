@@ -293,11 +293,11 @@ public class SemiontSession internal constructor(
                 return
             } catch (refusal: TransportError) {
                 if (refusal.reason != TransportErrorCode.Unauthorized) {
-                    onError?.invoke(SessionError(SessionErrorCode.AuthFailed, refusal.message ?: "", kb.id))
+                    onError?.invoke(SessionError(SessionErrorCode.AuthFailed, refusal.message, kb.id))
                     return
                 }
             } catch (other: SemiontError) {
-                onError?.invoke(SessionError(SessionErrorCode.AuthFailed, other.message ?: "", kb.id))
+                onError?.invoke(SessionError(SessionErrorCode.AuthFailed, other.message, kb.id))
                 return
             }
             if (closing) return
