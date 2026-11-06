@@ -246,7 +246,8 @@ export class SemiontSession implements StateUnit {
    * Run the initial mount-time validation. If a stored access token is
    * present and unexpired, call the configured `validate` with it to
    * confirm it still works and populate `user$`. If expired, try
-   * refresh first: the issuer's refusal forgets the stored session, and a
+   * refresh first: the issuer's refusal forgets the saved sign-in, with what
+   * was kept for its person, and a
    * renewal that got no answer keeps it, says why as `session.auth-failed`,
    * and leaves it to be renewed when a request is refused. When validate's
    * token is refused (a 401, or a 429
@@ -267,7 +268,7 @@ export class SemiontSession implements StateUnit {
       const { token, failure, refused } = await this.tryRefresh();
       if (!token) {
         if (failure === undefined || refused) {
-          // There was no session to end: the stored session is forgotten, and nothing is said.
+          // There was no session to end: the saved sign-in is forgotten, with what was kept for its person, and nothing is said.
           clearStoredSession(this.storage, this.kb.id);
         } else {
           // The issuer did not refuse it: the stored session is kept, and renewed on the reconnect backoff or when a request is refused.
@@ -346,9 +347,9 @@ export class SemiontSession implements StateUnit {
   }
 
   /**
-   * The session is over: its credential is forgotten, and the person and the
-   * application are each told why. The one teardown, whichever way the
-   * session ended.
+   * The session is over: its saved sign-in is forgotten, with what was kept
+   * for the person it named, and the person and the application are each
+   * told why. The one teardown, whichever way the session ended.
    */
   private signedOut(told: SessionEndReason, code: SemiontSessionErrorCode, why: string): void {
     this.clearRefreshTimer();

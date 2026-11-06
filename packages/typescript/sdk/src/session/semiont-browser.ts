@@ -27,7 +27,6 @@ import {
   BusRequestError,
   EventBus,
   FrameRefusal,
-  PERSISTED_QUERIES,
   getPrimaryRepresentation,
   kbDid,
   resourceId,
@@ -36,17 +35,16 @@ import {
 } from '@semiont/core';
 import {
   ACTIVE_KEY,
-  cacheKey,
-  clearStoredSession,
+  forgetKept,
   generateKbId,
   getStoredSession,
   isJwtExpired,
-  lastEventIdKey,
   loadKnowledgeBases,
   OPEN_RESOURCES_BY_KB_KEY,
   LAST_VIEWED_RESOURCE_BY_KB_KEY,
   saveKnowledgeBases,
   setStoredSession,
+  takeStoredSession,
   type StoredSession,
 } from './storage';
 import {
@@ -424,10 +422,10 @@ export class SemiontBrowser {
   }
 
   removeKb(id: string): void {
-    clearStoredSession(this.storage, id);
+    this.forgetSignIn(id);
     // Removal of the connection is the one deliberate act that forgets the
     // working set.
-    this.forgetKeptOf(id);
+    this.forgetOpenOf(id);
     const next = this.kbs$.getValue().filter((kb) => kb.id !== id);
     this.putKbs(next);
     if (this.activeKbId$.getValue() === id) {
@@ -640,16 +638,14 @@ export class SemiontBrowser {
   }
 
   /**
-   * Sign out of a KB: forget the stored tokens and, best-effort, revoke the
-   * refresh token at the issuer that issued it. If the KB is active,
-   * dispose its session + signals and emit null for both. Then delete what
-   * was kept for the person the sign-in named, their caches and the
-   * stream's places, after the session's closing writes.
+   * Sign out of a KB: forget its saved sign-in, with what was kept for the
+   * person it named, and, best-effort, revoke the refresh token at the issuer
+   * that issued it. If the KB is active, its session + signals are disposed
+   * and null is emitted for both.
    */
   async signOut(id: string): Promise<void> {
     if (this.disposed) return;
-    const stored = getStoredSession(this.storage, id);
-    clearStoredSession(this.storage, id);
+    const stored = this.forgetSignIn(id);
     if (stored?.revocationEndpoint) {
       // The local act is the sign-out; an unreachable issuer must not trap
       // the user in a session they asked to end.
@@ -658,7 +654,16 @@ export class SemiontBrowser {
 
     // Bump the kbs$ list so downstream status-derivations re-run.
     this.kbs$.next([...this.kbs$.getValue()]);
+  }
 
+  /**
+   * Forget a KB's saved sign-in, for a sign-out or a removal: it is taken,
+   * the KB's session is closed if it is the active one, and only then is
+   * what was kept for the person it named deleted, so nothing its client
+   * writes as it closes is left. What was saved is given back.
+   */
+  private forgetSignIn(id: string): StoredSession | null {
+    const stored = takeStoredSession(this.storage, id);
     if (this.activeKbId$.getValue() === id) {
       const prevSession = this.activeSession$.getValue();
       const prevSignals = this.activeSignals$.getValue();
@@ -666,11 +671,8 @@ export class SemiontBrowser {
       this.activeSignals$.next(null);
       this.endSession(prevSession, prevSignals);
     }
-
-    if (stored?.personKey !== undefined) {
-      for (const query of PERSISTED_QUERIES) this.storage.delete(cacheKey(id, stored.personKey, query));
-      this.storage.delete(lastEventIdKey(id, stored.personKey));
-    }
+    if (stored !== null && stored.personKey !== undefined) forgetKept(this.storage, id, stored.personKey);
+    return stored;
   }
 
   // ── Open resources (per-KB; the visible list is a projection) ─────────
@@ -879,7 +881,7 @@ export class SemiontBrowser {
   }
 
   /** Forget what was open in a KB, and where the person was in it. */
-  private forgetKeptOf(kbId: string): void {
+  private forgetOpenOf(kbId: string): void {
     this.openByKb = changeKept(this.storage, OPEN_RESOURCES_BY_KB_KEY, openResourcesByKbOf, ({ [kbId]: _forgotten, ...rest }) => rest);
     this.refreshOpenResources();
     this.mutateLastViewed(({ [kbId]: _forgotten, ...rest }) => rest);

@@ -14,7 +14,7 @@
  * whatever the passed-in `SessionStorage` does.
  */
 
-import { MIN_REFRESH_DELAY_MS, REFRESH_BEFORE_EXP_MS, isObject, isString, uuidV4 } from '@semiont/core';
+import { MIN_REFRESH_DELAY_MS, PERSISTED_QUERIES, REFRESH_BEFORE_EXP_MS, isObject, isString, uuidV4 } from '@semiont/core';
 
 import type { HttpEndpoint, KbRead, KnowledgeBase, PersistedQuery } from '@semiont/core';
 import type { SessionStorage } from './session-storage';
@@ -168,6 +168,16 @@ export function cacheKey(kbId: string, personKey: string, query: PersistedQuery)
   return `${CACHE_PREFIX}${kbId}.${personKey}.${query}`;
 }
 
+/**
+ * Delete what was kept for one person on one knowledge base: every persisted
+ * query's values and the stream's places. What forgetting a saved sign-in
+ * that named them does, however it is forgotten.
+ */
+export function forgetKept(storage: SessionStorage, kbId: string, personKey: string): void {
+  for (const query of PERSISTED_QUERIES) storage.delete(cacheKey(kbId, personKey, query));
+  storage.delete(lastEventIdKey(kbId, personKey));
+}
+
 // ---------- Per-KB session storage ----------
 
 export function getStoredSession(storage: SessionStorage, kbId: string): StoredSession | null {
@@ -203,8 +213,30 @@ export function setStoredSession(storage: SessionStorage, kbId: string, session:
   storage.set(sessionKey(kbId), JSON.stringify(session));
 }
 
+/**
+ * Forget a knowledge base's saved sign-in as one step, and give back what it
+ * was; null when nothing was saved. What was kept for the person it named is
+ * the caller's to delete with {@link forgetKept}, once nothing open can write
+ * it back.
+ */
+export function takeStoredSession(storage: SessionStorage, kbId: string): StoredSession | null {
+  let taken: StoredSession | null = null;
+  storage.update(sessionKey(kbId), (raw) => {
+    taken = storedSessionIn(raw);
+    return null;
+  });
+  return taken;
+}
+
+/**
+ * Forget a knowledge base's saved sign-in, and with it what was kept for the
+ * person it named. A forgetting whose client may still write as it closes, a
+ * registry's sign-out or removal, takes the sign-in instead, and deletes once
+ * the client has closed.
+ */
 export function clearStoredSession(storage: SessionStorage, kbId: string): void {
-  storage.delete(sessionKey(kbId));
+  const forgotten = takeStoredSession(storage, kbId);
+  if (forgotten !== null && forgotten.personKey !== undefined) forgetKept(storage, kbId, forgotten.personKey);
 }
 
 /**

@@ -34,10 +34,12 @@ export interface CachePersistence {
 
 /**
  * A store that writes for one person only while a knowledge base's stored
- * sign-in names them. Once it does not (another context signed out, or
- * signed in afresh), it writes nothing more for its life: what was about to
- * be written, a debounced save or a stream's place, belongs to a sign-in
- * that is gone. A renewal keeps the person, so writes go on through it.
+ * sign-in names them. Once it does not (the saved sign-in was forgotten,
+ * here or in another context, or another sign-in replaced it), it writes
+ * nothing more for its life: what was about to be written, a debounced save
+ * or a stream's place, belongs to a sign-in that is gone, and must not put
+ * back what forgetting it deleted. A renewal keeps the person, so writes go
+ * on through it.
  */
 export function whileSignedIn(storage: SessionStorage, kbId: string, personKey: string): SessionStorage {
   let signedOut = false;
