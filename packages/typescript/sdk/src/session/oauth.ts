@@ -33,7 +33,7 @@ import type { HttpEndpoint } from '@semiont/core';
 import { fetchOf } from '../fetch-of';
 import type { SessionStorage } from './session-storage';
 import { sha256 } from './sha256';
-import { getStoredSession, kbGatewayUrl, sessionKey, storedSessionIn } from './storage';
+import { getStoredSession, isJwtExpired, kbGatewayUrl, sessionKey, storedSessionIn } from './storage';
 
 // All of `crypto` this module may use: what a browser gives every page.
 // `crypto.subtle` and `crypto.randomUUID` exist only in a secure context, and
@@ -374,11 +374,24 @@ export async function refreshAtIssuer(
  * before terminating — an invisible zombie session would be worse than a
  * visible re-login, so this only ever delays the re-login, never replaces it.
  *
+ * `holding` is the access token the renewer holds: the one the gateway
+ * refused, or the one due; null for none. A stored one that is another and
+ * has not expired was renewed elsewhere meanwhile, by another context or
+ * another program: it is given as it is, and the refresh token, which the
+ * issuer may have replaced, is not spent
+ * (protocol/specs/src/sign-in-store/README.md, Renewing it).
+ *
  * The issuer is asked with `fetch`, or the runtime's own.
  */
-export async function refreshStoredSession(storage: SessionStorage, kbId: string, fetch?: typeof globalThis.fetch): Promise<string | null> {
+export async function refreshStoredSession(
+  storage: SessionStorage,
+  kbId: string,
+  holding: string | null,
+  fetch?: typeof globalThis.fetch,
+): Promise<string | null> {
   const stored = getStoredSession(storage, kbId);
   if (!stored) return null;
+  if (stored.access !== holding && !isJwtExpired(stored.access)) return stored.access;
 
   let attempts = 0;
   try {

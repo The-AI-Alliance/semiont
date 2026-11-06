@@ -41,15 +41,16 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
     const endpoint = kb.endpoint;
 
     /**
-     * Renew the KB's access token at the issuer the stored session names.
-     * Concurrent calls for the same KB dedup through `inFlightRefreshes`,
-     * so simultaneous 401s trigger only one refresh grant.
+     * Renew `holding`, the KB's access token the session holds, at the
+     * issuer the stored session names. Concurrent calls for the same KB
+     * dedup through `inFlightRefreshes`, so simultaneous 401s trigger only
+     * one refresh grant.
      */
-    const performRefresh = async (): Promise<string | null> => {
+    const performRefresh = async (holding: string | null): Promise<string | null> => {
       const existing = inFlightRefreshes.get(kb.id);
       if (existing) return existing;
 
-      const promise = refreshStoredSession(storage, kb.id, fetch);
+      const promise = refreshStoredSession(storage, kb.id, holding, fetch);
 
       inFlightRefreshes.set(kb.id, promise);
       try {

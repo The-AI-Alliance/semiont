@@ -241,6 +241,18 @@ func AsMe(ctx context.Context, kb api.KbTarget, home string) error {
   certificates trusted and the proxy are that client's: one whose
   `*http.Transport` has a `TLSClientConfig` with its own `RootCAs` trusts those.
   The examples give `http.DefaultClient`, Go's own.
+- **Every wait is package `time`'s, and every jitter is drawn from the
+  `*rand.Rand` the application gives**. A test run in a `testing/synctest`
+  bubble moves every wait, the SDK's deadlines among them: it keeps them
+  itself, and never asks them of an `http.Client`'s `Timeout`. The jitter of
+  each backoff is drawn from the `Random` of `HTTPTransportConfig`,
+  `SessionConfig`, `ResumeConfig`, `SessionFromKeptConfig`, `Issuer`,
+  `AgentConfig` and `registry.HttpSessionFactory`, and the source
+  `DescribeConnection`, `RetryWithBackoff`, `EqualJitter` and
+  `semionttest.NewScriptedSessions` take; with none, math/rand/v2's own. One
+  source may be given to all of them, since the SDK draws from it one draw at a
+  time; an application that draws from it too does so while nothing it gave it
+  to runs.
 
 ## Eight verbs
 

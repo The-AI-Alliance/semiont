@@ -13,7 +13,8 @@
  *
  * Auth is parameterized via callbacks passed at construction:
  *
- *   - `refresh()` — invoked on 401 / proactive re-auth. Returns the
+ *   - `refresh(holding)` — invoked on 401 / proactive re-auth, and given
+ *     the token the session holds. Returns the
  *     new access token, or null on failure. The frontend passes a
  *     closure that runs the refresh grant at the issuer; a service
  *     passes one that asks its issuer for a new grant to its account.
@@ -107,11 +108,13 @@ export interface SemiontSessionConfig {
    */
   token$: BehaviorSubject<AccessToken | null>;
   /**
-   * Re-authenticate after expiry / 401. Returns a new access token
-   * (no "Bearer " prefix) on success, or null if recovery is
-   * impossible. Omit for transports where tokens don't apply.
+   * Re-authenticate after expiry / 401. `holding` is the token the
+   * session holds, the one the gateway refused or the one due; null when
+   * it holds none. Returns a new access token (no "Bearer " prefix) on
+   * success, or null if recovery is impossible. Omit for transports
+   * where tokens don't apply.
    */
-  refresh?: () => Promise<string | null>;
+  refresh?: (holding: string | null) => Promise<string | null>;
   /**
    * Validate the stored token at startup and populate `user$`. Omit
    * for service-principal sessions (worker, CLI tools) where there
@@ -185,7 +188,7 @@ export class SemiontSession implements StateUnit {
   readonly #heldToken$: BehaviorSubject<AccessToken | null>;
   readonly #heldUser$: BehaviorSubject<UserInfo | null>;
   private readonly storage: SessionStorage;
-  private readonly doRefresh?: () => Promise<string | null>;
+  private readonly doRefresh?: (holding: string | null) => Promise<string | null>;
   private readonly doValidate?: (token: AccessToken) => Promise<UserInfo | null>;
   private readonly onAuthFailed: (reason: SessionEndReason) => void;
   private readonly onError: (err: SemiontSessionError) => void;
@@ -357,8 +360,8 @@ export class SemiontSession implements StateUnit {
   }
 
   /**
-   * Call the configured refresh callback, converting a THROW into a "no
-   * token" answer that says why.
+   * Call the configured refresh callback with the token the session holds,
+   * converting a THROW into a "no token" answer that says why.
    *
    * The callback makes an HTTP call, so it can reject as easily as it can
    * resolve null — a network blip, DNS failure, or gateway 5xx. A throw that
@@ -376,7 +379,7 @@ export class SemiontSession implements StateUnit {
   private async tryRefresh(): Promise<{ token: string | null; failure?: string; refused: boolean }> {
     if (!this.doRefresh) return { token: null, refused: false };
     try {
-      return { token: await this.doRefresh(), refused: false };
+      return { token: await this.doRefresh(this.#heldToken$.getValue()), refused: false };
     } catch (err) {
       return { token: null, failure: err instanceof Error ? err.message : String(err), refused: refusedByTheIssuer(err) };
     }
@@ -610,7 +613,7 @@ export class SemiontSession implements StateUnit {
     baseUrl: BaseUrl | string;
     token?: AccessToken | string | null;
     fetch?: typeof fetch;
-    refresh?: () => Promise<string | null>;
+    refresh?: (holding: string | null) => Promise<string | null>;
     validate?: (token: AccessToken) => Promise<UserInfo | null>;
     onAuthFailed?: (reason: SessionEndReason) => void;
     onError?: (err: SemiontSessionError) => void;
@@ -661,6 +664,37 @@ export class SemiontSession implements StateUnit {
     onError?: (err: SemiontSessionError) => void;
   }): Promise<OpenedSession> {
     setStoredSession(opts.storage, opts.kb.id, opts.session);
+    return SemiontSession.overStored(opts, opts.session.access);
+  }
+
+  /**
+   * A session over the session `storage` keeps for `kb`: the sign-in
+   * `semiont login` keeps, when `storage` is a `SignInStore` and `kb.id` the
+   * stack's key. Null when nothing is kept. It starts with the kept access
+   * token, renewed first when it has expired, and each renewal is written
+   * back to `storage`; the session's `ready` has resolved when this returns.
+   * Gives it with the client it was built with, as `fromHttp` does. The
+   * gateway and the issuer are asked with `fetch`, or the runtime's own.
+   */
+  static async fromStoredSession(opts: {
+    kb: KbTarget;
+    storage: SessionStorage;
+    baseUrl: BaseUrl | string;
+    fetch?: typeof fetch;
+    validate?: (token: AccessToken) => Promise<UserInfo | null>;
+    onAuthFailed?: (reason: SessionEndReason) => void;
+    onError?: (err: SemiontSessionError) => void;
+  }): Promise<OpenedSession | null> {
+    const stored = getStoredSession(opts.storage, opts.kb.id);
+    if (stored === null) return null;
+    return SemiontSession.overStored(opts, stored.access);
+  }
+
+  /** A ready session over what `opts.storage` keeps for `opts.kb`, starting with `access`, renewed as it is kept. */
+  private static async overStored(
+    opts: Parameters<typeof SemiontSession.fromStoredSession>[0],
+    access: string,
+  ): Promise<OpenedSession> {
     // One renewal at a time. A stream refused and a request refused at the
     // same moment each ask for one, and an issuer that rotates refresh tokens
     // refuses the second grant, which would end a session that was fine.
@@ -669,9 +703,9 @@ export class SemiontSession implements StateUnit {
       kb: opts.kb,
       storage: opts.storage,
       baseUrl: opts.baseUrl,
-      token: opts.session.access,
-      refresh: () => {
-        renewing ??= refreshStoredSession(opts.storage, opts.kb.id, opts.fetch).finally(() => { renewing = null; });
+      token: access,
+      refresh: (holding) => {
+        renewing ??= refreshStoredSession(opts.storage, opts.kb.id, holding, opts.fetch).finally(() => { renewing = null; });
         return renewing;
       },
       ...(opts.fetch ? { fetch: opts.fetch } : {}),

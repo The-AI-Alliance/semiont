@@ -245,7 +245,9 @@ export {
   defaultProtocol,
   isValidHostname,
   kbGatewayUrl,
+  getStoredSession,
   setStoredSession,
+  clearStoredSession,
   // One refresh policy for every holder of a gateway token: when a token
   // expires is the token's own claim, and how long before that to renew is
   // a single number. Sidecars outside this package schedule from both.
@@ -253,6 +255,8 @@ export {
   refreshDelayMs,
   type StoredSession,
 } from './session/storage';
+// The sign-ins `semiont login` keeps, over the files a caller gives.
+export { SignInStore, stateDir, type SignInFiles, type System } from './session/sign-in-store';
 
 // State units — flow state machines and their RxJS substrate.
 // None presume a UI: they're consumed by browser apps, terminals,
