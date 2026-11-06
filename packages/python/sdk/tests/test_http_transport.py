@@ -64,13 +64,13 @@ async def opened(transport: HttpTransport) -> None:
 
 
 def test_a_frame_is_delivered_with_what_is_beside_its_payload_and_what_is_not_a_frame_is_not(caplog: pytest.LogCaptureFixture) -> None:
-    async def scenario() -> list[Frame]:
+    async def scenario() -> tuple[list[Frame], list[SemiontError]]:
         async with (
             GatewayServer() as gateway,
             HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=CHANNELS, timing=QUICK) as transport,
         ):
             await opened(transport)
-            frames = transport.frames("beckon:focus")
+            frames, failures = transport.frames("beckon:focus"), transport.failures()
             gateway.write("event: ping\ndata:\n\n")
             gateway.send(
                 "e-1",
@@ -92,23 +92,34 @@ def test_a_frame_is_delivered_with_what_is_beside_its_payload_and_what_is_not_a_
                 },
             )
             gateway.send("e-5", {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}, "addedByALaterGateway": True})
+            gateway.send("e-6", {"payload": {"resourceId": "res-1"}})
+            gateway.send("e-7", {"channel": 7, "payload": {"resourceId": "res-1"}})
+            gateway.send("e-8", {"channel": "beckon:focus", "payload": {"resourceId": "res-1", "annotationId": "a-3"}})
             delivered = [await soon(anext(frames)), await soon(anext(frames)), await soon(anext(frames))]
+            told = [await soon(anext(failures)), await soon(anext(failures)), await soon(anext(failures))]
+            assert transport.state.value == "open", "the stream goes on"
         assert [frame async for frame in frames] == []
-        return delivered
+        return delivered, told
 
     with caplog.at_level(logging.WARNING, logger="semiont.http"):
-        delivered = run(scenario())
+        delivered, told = run(scenario())
     assert delivered == [
         Frame(channel="beckon:focus", payload={"resourceId": "res-1", "annotationId": "a-1", "_userId": "did:web:example.org:users:a"}),
         Frame(
             channel="beckon:focus", payload={"resourceId": "res-1", "annotationId": "a-2"}, scope=ResourceId("res-1"), correlation_id="c"
         ),
-        # A frame a later gateway adds a field to is still a frame.
-        Frame(channel="beckon:focus", payload={"resourceId": "res-1"}),
+        Frame(channel="beckon:focus", payload={"resourceId": "res-1", "annotationId": "a-3"}),
     ]
-    assert [record.getMessage().split(":")[0] for record in caplog.records] == [
-        "the stream carried what is not a frame (id e-2)",
-        "the stream carried what is not a frame (id e-3)",
+    # What names no channel names no reader, and is told to the failure report.
+    assert [(failure.code, failure.status, str(failure)) for failure in told] == [
+        ("error", None, "the stream carried what is not a frame: it is malformed"),
+        ("error", None, "the stream carried what is not a frame: it has no `channel`"),
+        ("error", None, "the stream carried what is not a frame: its `channel` is malformed"),
+    ]
+    assert all(isinstance(failure, TransportError) for failure in told)
+    assert [record.getMessage() for record in caplog.records] == [
+        "the stream carried what is not a frame (id e-2): its `scope` is malformed",
+        "the stream carried what is not a frame (id e-5): its `addedByALaterGateway` is malformed",
     ]
 
 

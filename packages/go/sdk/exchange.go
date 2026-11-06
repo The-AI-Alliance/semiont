@@ -221,13 +221,15 @@ func answer[T any](ctx context.Context, s *transportShared, spec request) (T, er
 		}
 		return out, s.failures.report(unanswered(spec.method, spec.path, spec.deadline))
 	}
-	if err := json.Unmarshal(raw, &out); err != nil {
-		failure := &TransportError{Code: TransportErrorCodeError, Message: fmt.Sprintf("%s %s answered what is not its declared body: %v", spec.method, spec.path, err), status: got.response.StatusCode, hasStatus: true}
-		return out, s.failures.report(failure)
+	notItsBody := func(fault required.Fault) error {
+		failure := &TransportError{Code: TransportErrorCodeError, Message: fmt.Sprintf("%s %s answered what is not its declared body: %s", spec.method, spec.path, fault), status: got.response.StatusCode, hasStatus: true}
+		return s.failures.report(failure)
 	}
-	if lacks, ok := required.Lacking(raw, reflect.TypeFor[T]()); ok {
-		failure := &TransportError{Code: TransportErrorCodeError, Message: fmt.Sprintf("%s %s answered what is not its declared body: it has no `%s`", spec.method, spec.path, lacks), status: got.response.StatusCode, hasStatus: true}
-		return out, s.failures.report(failure)
+	if fault, faulty := required.FaultOf(raw, reflect.TypeFor[T]()); faulty {
+		return out, notItsBody(fault)
+	}
+	if json.Unmarshal(raw, &out) != nil {
+		return out, notItsBody(required.Undecoded)
 	}
 	return out, nil
 }

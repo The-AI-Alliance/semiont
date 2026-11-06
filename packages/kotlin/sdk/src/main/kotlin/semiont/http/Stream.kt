@@ -4,6 +4,9 @@ package semiont.http
 
 import semiont.bus.Logged
 import semiont.bus.BusLog
+import semiont.bus.Fault
+import semiont.bus.UNDECODED
+import semiont.bus.faultOf
 import semiont.telemetry.Telemetry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -16,11 +19,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
 import semiont.Timings
 import semiont.channels.RESOURCE_SCOPED_CHANNELS
 import semiont.channels.TRACE_FIELD
@@ -35,6 +36,7 @@ import semiont.transport.ConnectionState
 import semiont.transport.Frame
 import semiont.transport.ReplyRouter
 import semiont.transport.TraceContext
+import semiont.types.BusFrame
 import semiont.types.BusSubscribeRequest
 import semiont.types.BusSubscribeRequestScopedItem
 import semiont.types.wireJson
@@ -353,18 +355,20 @@ internal class Stream(
     private fun framed(conn: Int, id: String?, data: String) {
         if (conn !in connections) return
         if (id != null && !seen.remember(id)) return
-        val carried = try {
-            wireJson.parseToJsonElement(data).jsonObject
-        } catch (_: SerializationException) {
-            return
-        } catch (_: IllegalArgumentException) {
-            return
+        val read = when (val carried = carried(data)) {
+            is Carried.Read -> carried.frame
+            is Carried.Refused -> {
+                // What names no channel names no reader: it is told to the failure report.
+                if (carried.channel == null) {
+                    failures.deliver(TransportError(TransportErrorCode.Error, "the stream carried what is not a frame: ${carried.fault}"))
+                }
+                return
+            }
         }
-        val channel = (carried["channel"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return
-        var payload = carried["payload"] as? JsonObject ?: return
-        val correlationId = (carried["correlationId"] as? JsonPrimitive)?.contentOrNull
-        val scopeText = (carried["scope"] as? JsonPrimitive)?.contentOrNull
-        val scope = scopeText?.let { ResourceId.parse(it) ?: return }
+        val channel = read.channel
+        var payload = read.payload
+        val correlationId = read.correlationId
+        val scope = read.scope
         BusLog.line(Logged.RECV, channel, payload, scope, correlationId)
         // What closing a retired connection at once would have lost.
         if (conn in superseded) BusLog.note("LINGER", channel, "delivered on superseded connection")
@@ -531,6 +535,37 @@ internal class Stream(
         reports.send(Ended(conn))
     }
 }
+
+/** What the stream carried, read as a frame: a frame, or the first fault that keeps it from being one. */
+internal sealed interface Carried {
+    /** A frame BusFrame allows. */
+    data class Read(val frame: BusFrame) : Carried
+
+    /**
+     * What BusFrame does not allow: its first fault, and the channel it names when BusFrame allows its `channel`.
+     * One that names no channel names no reader.
+     */
+    data class Refused(val fault: Fault, val channel: String?) : Carried
+}
+
+/** `data` read as a frame, held to BusFrame by the table: a frame carries what BusFrame names, and nothing more. */
+internal fun carried(data: String): Carried {
+    val element = try {
+        wireJson.parseToJsonElement(data)
+    } catch (_: IllegalArgumentException) {
+        return Carried.Refused(UNDECODED, null)
+    }
+    val fault = faultOf(BusFrame.serializer().descriptor, element) ?: try {
+        return Carried.Read(wireJson.decodeFromJsonElement(BusFrame.serializer(), element))
+    } catch (_: IllegalArgumentException) {
+        UNDECODED
+    }
+    return Carried.Refused(fault, channelOf(element))
+}
+
+/** The channel `element` names: its `channel`, when that is a text of at least one character. */
+private fun channelOf(element: JsonElement): String? =
+    ((element as? JsonObject)?.get("channel") as? JsonPrimitive)?.takeIf { it.isString && it.content.isNotEmpty() }?.content
 
 /** The trace a frame's payload says it was sent under, when it says so. */
 private fun sentUnder(carried: kotlinx.serialization.json.JsonElement?): TraceContext? {

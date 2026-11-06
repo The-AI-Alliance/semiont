@@ -10,14 +10,15 @@ use serde_json::Value;
 
 /// The members of a case this runner reads. A case with any other fails: a
 /// member nothing reads holds nothing.
-const MEMBERS: [&str; 7] = [
+const MEMBERS: [&str; 8] = [
     "why",
     "resource",
     "primaryRepresentation",
     "primaryMediaType",
     "entityTypes",
     "refused",
-    "lacks",
+    "member",
+    "reason",
 ];
 
 fn table() -> Value {
@@ -38,7 +39,7 @@ fn stated<T: DeserializeOwned>(case: &Value, member: &str) -> Option<T> {
 fn every_reader_gives_what_the_table_says_for_every_resource() {
     let table = table();
     let (mut one, mut listed, mut none) = (0, 0, 0);
-    let (mut typed, mut untyped, mut refused, mut lacking) = (0, 0, 0, 0);
+    let (mut typed, mut untyped, mut lacking, mut malformed) = (0, 0, 0, 0);
     for case in table["cases"].as_array().expect("cases") {
         let why = case["why"].as_str().expect("why");
         for member in case.as_object().expect("a case is an object").keys() {
@@ -50,16 +51,17 @@ fn every_reader_gives_what_the_table_says_for_every_resource() {
         // A resource the schema does not allow is no ResourceDescriptor:
         // decoding it refuses it, before any reader could read it.
         if case.get("refused") == Some(&Value::Bool(true)) {
-            refused += 1;
-            // The way to the member it lacks, as Go and TypeScript name it.
-            // Decoding refuses it here as it refuses every refused case, and
-            // serde's refusal names no way.
-            if let Some(lacks) = case.get("lacks") {
-                assert!(
-                    lacks.as_str().is_some_and(|way| !way.is_empty()),
-                    "{why}: its lacks is no way to a member"
-                );
-                lacking += 1;
+            // Its first fault, as every SDK names it before it decodes the
+            // resource: src/resources.rs holds the crate's walk to it.
+            // Decoding refuses it here as it refuses every refused case.
+            assert!(
+                case.get("member").is_some_and(Value::is_string),
+                "{why}: it states no member"
+            );
+            match case.get("reason").and_then(Value::as_str) {
+                Some("lacks") => lacking += 1,
+                Some("malformed") => malformed += 1,
+                _ => panic!("{why}: it states no reason"),
             }
             assert!(
                 serde_json::from_value::<ResourceDescriptor>(case["resource"].clone()).is_err(),
@@ -110,9 +112,8 @@ fn every_reader_gives_what_the_table_says_for_every_resource() {
         typed > 0 && untyped > 0,
         "the table lacks a case of a resource with entity types, or of one with none"
     );
-    assert!(refused > 0, "the table lacks a case of a refused resource");
     assert!(
-        lacking > 0 && lacking < refused,
-        "the table lacks a refused case that lacks a member, or one that lacks none"
+        lacking > 0 && malformed > 0,
+        "the table lacks a refused case that lacks a member, or one that is malformed"
     );
 }

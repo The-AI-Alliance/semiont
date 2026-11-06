@@ -70,7 +70,7 @@ describe('EventBus scoping', () => {
     // either way — which is what this test is about.
     const events: unknown[] = [];
     resourceScope.on('mark:create-ok').subscribe(e => {
-      if (e instanceof FrameRefusal) throw new Error(`refused: ${e.channel} lacks ${e.lacks}`);
+      if (e instanceof FrameRefusal) throw new Error(`refused: ${e.channel} ${e.reason} ${e.member}`);
       expect(e.response.annotationId).toBeDefined();
       events.push(e);
     });

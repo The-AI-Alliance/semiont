@@ -8,7 +8,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { Bus, FrameRefusal, type Delivered, type Heard } from '../bus';
+import { asDeclared, Bus, FrameRefusal, type Delivered, type Heard } from '../bus';
 import { FaultyTransport } from '../faulty-transport';
 import { EventBus } from '../event-bus';
 import type { EventMap } from '../bus-protocol';
@@ -43,7 +43,7 @@ function collect<T>(observable: Observable<T>): { seen: T[]; stop: () => void } 
 
 /** `heard` as the frame it is; a test that reads a refusal here fails. */
 function delivered<T>(heard: Heard<T>): Delivered<T> {
-  if (heard.status === 'refused') throw new Error(`refused: ${heard.channel} lacks ${heard.lacks}`);
+  if (heard.status === 'refused') throw new Error(`refused: ${heard.channel}, its \`${heard.member}\` ${heard.reason}`);
   return heard;
 }
 
@@ -102,11 +102,12 @@ describe('Bus.frames: a channel of no scope', () => {
 });
 
 /**
- * A payload that lacks a member its channel's schema requires is not that
- * channel's: a typed read gives, in place of its frame, a `FrameRefusal` that
- * names the channel and the way to the member it lacks, with the payload as
- * it came, and goes on, as every SDK's typed read does. A transport's bridge
- * publishes the refusal on the bus it feeds, in place of the payload.
+ * A payload with a fault as its channel's is not that channel's: a typed read
+ * gives, in place of its frame, a `FrameRefusal` that names the channel, the
+ * way to the member the fault is at and why (`lacks` or `malformed`), with the
+ * payload as it came, and goes on, as every SDK's typed read does. A
+ * transport's bridge publishes the refusal on the bus it feeds, in place of
+ * the payload.
  */
 describe('Bus.frames: a payload that is not its channel\'s', () => {
   const failed: EventMap['job:fail'] = { resourceId: RID, jobId: jobId('job-1'), jobType: 'mark', error: 'the model did not answer' };
@@ -130,7 +131,7 @@ describe('Bus.frames: a payload that is not its channel\'s', () => {
       const [refused, next] = seen;
       expect(seen).toHaveLength(2);
       expect(refused).toBeInstanceOf(FrameRefusal);
-      expect(refused).toStrictEqual(new FrameRefusal('job:fail', 'jobId', lacking));
+      expect(refused).toStrictEqual(new FrameRefusal('job:fail', 'jobId', 'lacks', lacking));
       expect(refused?.status).toBe('refused');
       expect(next !== undefined && delivered(next).payload).toEqual(failed);
       // The reader is told, and nothing is said in its place.
@@ -151,12 +152,26 @@ describe('Bus.frames: a payload that is not its channel\'s', () => {
       void transport.emit('job:fail', lacking);
       void transport.emit('job:fail', failed);
 
-      expect(seen).toStrictEqual([new FrameRefusal('job:fail', 'jobId', lacking), failed]);
+      expect(seen).toStrictEqual([new FrameRefusal('job:fail', 'jobId', 'lacks', lacking), failed]);
       expect(warned).not.toHaveBeenCalled();
       bridged.destroy();
     } finally {
       warned.mockRestore();
     }
+  });
+
+  it('is told the reader by the way to a member of a kind its schema does not allow, and by the first of two faults', () => {
+    const transport = new FaultyTransport();
+    const { seen } = collect(new Bus(transport).frames('job:fail'));
+    // What a peer might send: what the payload's type says it cannot be.
+    const numbered = { ...failed };
+    Reflect.set(numbered, 'error', 1998);
+    const twice = withNoJobId();
+    Reflect.set(twice, 'error', 1998);
+    void transport.emit('job:fail', numbered);
+    void transport.emit('job:fail', twice);
+
+    expect(seen).toStrictEqual([new FrameRefusal('job:fail', 'error', 'malformed', numbered), new FrameRefusal('job:fail', 'jobId', 'lacks', twice)]);
   });
 });
 
@@ -209,5 +224,15 @@ describe('Bus.emit', () => {
 
     expect(count).toBe(1);
     expect(seen.map((frame) => frame.correlationId)).toEqual(['c-2']);
+  });
+});
+
+describe('asDeclared', () => {
+  it('holds a payload to its shape without the stamps its type does not declare, which a closed object does not name', () => {
+    const gap = { scope: resourceId('res-1'), lastSeenId: 'e-1', reason: 'scope-mismatch' as const };
+    const stamped = { ...gap, _userId: 'did:web:example.org:users:a', _roles: ['admin'] };
+    expect(asDeclared('bus:resume-gap', stamped)).toStrictEqual(gap);
+    const more = { ...gap, more: 1 };
+    expect(asDeclared('bus:resume-gap', more)).toStrictEqual(new FrameRefusal('bus:resume-gap', 'more', 'malformed', more));
   });
 });

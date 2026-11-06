@@ -14,9 +14,8 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createActorStateUnit } from '../actor-state-unit';
-import type { APIError } from '../api-error';
 import { mockConn, mockFetch } from './helpers/mock-conn';
-import { annotationId } from '@semiont/core';
+import { annotationId, type SemiontError } from '@semiont/core';
 
 const baseUrl = 'http://localhost:4000';
 
@@ -201,7 +200,7 @@ describe('a refused credential is renewed, never waited out', () => {
     let token = 'tok';
     const refresher = vi.fn(async () => { token = 'fresh-tok'; return 'fresh-tok'; });
     const actor = createActorStateUnit({ baseUrl, token: () => token, channels: ['beckon:hover'], tokenRefresher: refresher });
-    const reported: APIError[] = [];
+    const reported: SemiontError[] = [];
     actor.errors$.subscribe((error) => reported.push(error));
     const states: string[] = [];
     actor.state$.subscribe((state) => states.push(state));

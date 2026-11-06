@@ -130,7 +130,7 @@ internal inline fun <reified T> wire(watched: Watched<T?>): State<T?> =
 
 /** A state holding a failure, or none. */
 internal fun failure(watched: Watched<SemiontError?>): State<SemiontError?> =
-    State(watched) { held -> if (held == null) Held.Wire(JsonNull) else Held.Failure(held.code, held.message ?: "") }
+    State(watched) { held -> if (held == null) Held.Wire(JsonNull) else Held.Failure(held.code, held.message) }
 
 /** One unit a case made: its states by member, its methods by member, and its end. */
 internal class Made(private val unit: StateUnit, private val states: Map<String, State<*>>, private val methods: Map<String, (JsonObject) -> Unit>) {

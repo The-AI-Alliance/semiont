@@ -307,7 +307,7 @@ class SurfaceTest {
                     client.bus.emit(name, sends, null, null)
                     val delivered = when (val heard = withTimeout(5_000) { reading.first() }) {
                         is Delivered<*> -> heard
-                        is FrameRefusal -> throw AssertionError("a payload on ${heard.channel} was refused: it lacks ${heard.lacks}")
+                        is FrameRefusal -> throw AssertionError("a payload on ${heard.channel} was refused: its `${heard.member}` ${heard.reason.wire}")
                     }
                     // What the reader handed over is what the case's payload is as its channel's type.
                     assertEquals(decoded(channelNamed(name), sends), delivered.payload)

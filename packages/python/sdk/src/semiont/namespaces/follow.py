@@ -33,13 +33,14 @@ from collections.abc import AsyncIterator, Callable, Generator
 from dataclasses import dataclass, field
 from typing import Final, Literal, final
 
-from pydantic import TypeAdapter, ValidationError
+from pydantic import JsonValue, TypeAdapter, ValidationError
 
-from semiont._lacks import lacks
+from semiont._required import UNDECODED, fault_of
 from semiont.bus import decoded
 from semiont.channels import JOB_COMPLETE, JOB_FAIL, JOB_REPORT_PROGRESS
 from semiont.errors import BusRequestError, JobError, SemiontError, TransportError
 from semiont.identifiers import JobId, ResourceId
+from semiont.model import written
 from semiont.namespaces.links import Links
 from semiont.operations import JOB_CANCEL_REQUESTED, JOB_CREATE, JOB_STATUS_REQUESTED
 from semiont.running import Running
@@ -166,16 +167,18 @@ def _learned[C: JobCompleteCommand](completion: type[C], delegated: JobType, sta
     state the resource the job is about. What it states is given to the
     verb's own shape to read: nothing here says which result is which verb's.
     """
-    stated: dict[str, object] = {"resourceId": resource_id, "jobId": status.job_id, "jobType": status.type}
+    stated: dict[str, JsonValue] = {"resourceId": resource_id, "jobId": status.job_id, "jobType": status.type}
     # A job completed without a result is stored with an empty one: an object that holds nothing.
     if not (status.result is None or isinstance(status.result, dict)):
-        stated["result"] = status.result
-    try:
-        return TypeAdapter(completion).validate_python(stated)
-    except ValidationError as error:
-        lacking = lacks((completion,), error, f"a completed {delegated} job")
+        stated["result"] = written(status.result)
+    fault = fault_of(completion, stated)
+    if fault is None:
+        try:
+            return TypeAdapter(completion).validate_python(stated)
+        except ValidationError:
+            fault = UNDECODED
     # Raised from nothing: the decoder's failure shows the result, and what a failure is raised from is printed with it.
-    raise TransportError("error", f"The status of job {status.job_id} is not a completed {delegated} job's: {lacking}")
+    raise TransportError("error", f"The status of job {status.job_id} is not a completed {delegated} job's: {fault}")
 
 
 def follow[C: JobCompleteCommand](

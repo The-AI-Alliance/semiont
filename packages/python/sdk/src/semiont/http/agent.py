@@ -18,7 +18,7 @@ tries again: a process holding a token that still works does not stop working
 over one bad round trip.
 
 A failure names the issuer and the client, and never the secret or the key. Nor does one
-say any part of a token: an answer that is refused is said by what it lacks,
+say any part of a token: an answer that is refused is said by its first fault,
 in none of its own words.
 """
 
@@ -33,10 +33,9 @@ import httpx
 from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
-from pydantic import ValidationError
 
-from semiont._lacks import lacks
 from semiont._reading import Reading
+from semiont._required import Fault, read_as
 from semiont.errors import SemiontError, SignInError, TransportError
 from semiont.http._client_assertion import JWT_BEARER, client_assertion
 from semiont.http._withheld import why_unanswered
@@ -345,9 +344,7 @@ class AgentToken:
                 response.content,
                 retry_after_ms(response.headers.get("retry-after")),
             )
-        try:
-            return UserResponse.model_validate_json(response.content).did
-        except ValidationError as error:
-            lacking = lacks((UserResponse,), error, "a principal")
-        # Raised from nothing: the decoder's failure shows the answer, and what a failure is raised from is printed with it.
-        raise TransportError("error", f"{url} did not answer who the agent is: {lacking}", status=status)
+        principal = read_as(UserResponse, response.content, UserResponse.model_validate_json)
+        if isinstance(principal, Fault):
+            raise TransportError("error", f"{url} did not answer who the agent is: {principal}", status=status)
+        return principal.did

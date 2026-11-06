@@ -391,7 +391,7 @@ class SignInStoreTest {
             runBlocking { kept.keep(held(jwt(buildJsonObject { put("email", "alice@example.org") }))) }
         }
         assertEquals("exchange", refused.code)
-        assertTrue(refused.message!!.contains("names no issuer"), refused.message)
+        assertTrue(refused.message.contains("names no issuer"), refused.message)
         assertFalse(Files.exists(path))
     }
 

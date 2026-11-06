@@ -22,7 +22,6 @@ from pydantic import TypeAdapter
 
 from semiont import telemetry
 from semiont._bus_log import bus_log
-from semiont._lacks import shapes_of
 from semiont.errors import TransportError
 from semiont.http._withheld import why_unanswered
 from semiont.http.exchange import Exchange
@@ -263,6 +262,4 @@ class HttpContentTransport(ContentTransport):
     async def get_anchored_text(self, resource_id: ResourceId) -> AnchoredTextAnswer:
         bus_log("GET", "content", {"resourceId": resource_id, "anchoredText": True})
         with telemetry.getting_anchored_text(resource_id):
-            return await self._exchange.answer_one_of(
-                _ANCHORED_TEXT, shapes_of(AnchoredTextAnswer), "GET", f"{_path_of(resource_id)}/anchored-text"
-            )
+            return await self._exchange.answer_one_of(_ANCHORED_TEXT, AnchoredTextAnswer, "GET", f"{_path_of(resource_id)}/anchored-text")

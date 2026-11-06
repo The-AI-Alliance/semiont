@@ -1,9 +1,9 @@
 package semiont_test
 
-// A reply that lacks a member its schema requires is refused as it is
-// decoded, wherever the member is missing, as Rust, Python and Kotlin refuse
+// A reply with a fault, a member it lacks or one that is malformed, is
+// refused before it is decoded, wherever the fault is, as every SDK refuses
 // it: over the bus, as a *TransportError coded error that says the payload is
-// not its channel's and names the member; over HTTP, as one that says the
+// not its channel's and names the fault; over HTTP, as one that says the
 // answer is not its declared body.
 
 import (
@@ -29,7 +29,7 @@ func refusedAs(t *testing.T, why string, err error, said string) {
 	t.Helper()
 	var refused *semiont.TransportError
 	if !errors.As(err, &refused) {
-		t.Errorf("%s: read, or failed as %v, and it lacks a member its schema requires", why, err)
+		t.Errorf("%s: read, or failed as %v, and it has a fault", why, err)
 		return
 	}
 	if refused.Code != semiont.TransportErrorCodeError || refused.Message != said {
@@ -51,38 +51,45 @@ func asked(t *testing.T, response string) (api.BrowseResourceResult, error) {
 	return semiont.Request(context.Background(), semiont.NewWire(transport), bus.BrowseResourceRequested, api.BrowseResourceRequest{ResourceId: resource}, semiont.DefaultTiming().BusRequestTimeout)
 }
 
-func TestAReplyThatLacksAMemberItsSchemaRequiresIsRefusedNamingIt(t *testing.T) {
-	for _, c := range []struct{ why, response, lacks string }{
-		{"no resource", `{"lastSequence":1}`, "response.resource"},
-		{"a resource that is null", `{"resource":null,"lastSequence":1}`, "response.resource"},
-		{"a resource with no name", `{"resource":{"@context":"https://schema.org/","@id":"res-1","representations":[]},"lastSequence":1}`, "response.resource.name"},
-		{"a resource with no representations", `{"resource":{"@context":"https://schema.org/","@id":"res-1","name":"A resource"},"lastSequence":1}`, "response.resource.representations"},
+func TestAReplyWithAFaultIsRefusedNamingIt(t *testing.T) {
+	for _, c := range []struct{ why, response, said string }{
+		{"no resource", `{"lastSequence":1}`, "it has no `response.resource`"},
+		{"a resource that is null", `{"resource":null,"lastSequence":1}`, "it has no `response.resource`"},
+		{"a resource with no name", `{"resource":{"@context":"https://schema.org/","@id":"res-1","representations":[]},"lastSequence":1}`, "it has no `response.resource.name`"},
+		{"a resource with no representations", `{"resource":{"@context":"https://schema.org/","@id":"res-1","name":"A resource"},"lastSequence":1}`, "it has no `response.resource.representations`"},
 		{
 			"a representation listed with no media type",
 			`{"resource":{"@context":"https://schema.org/","@id":"res-1","name":"A resource","representations":[{"mediaType":"text/plain"},{"storageUri":"file://a.txt"}]},"lastSequence":1}`,
-			"response.resource.representations.mediaType",
+			"it has no `response.resource.representations.mediaType`",
 		},
 		{
 			"one representation, with no media type",
 			`{"resource":{"@context":"https://schema.org/","@id":"res-1","name":"A resource","representations":{"storageUri":"file://a.txt"}},"lastSequence":1}`,
-			"response.resource.representations.mediaType",
+			"it has no `response.resource.representations.mediaType`",
 		},
 		{
 			"an agent of the type the discriminator names, without what that type requires",
 			`{"resource":{"@context":"https://schema.org/","@id":"res-1","name":"A resource","representations":[],"wasAttributedTo":{"@type":"Organization"}},"lastSequence":1}`,
-			"response.resource.wasAttributedTo.name",
+			"it has no `response.resource.wasAttributedTo.name`",
 		},
+		{
+			"representations that are neither one representation nor a list of them",
+			`{"resource":{"@context":"https://schema.org/","@id":"res-1","name":"A resource","representations":"text/plain"},"lastSequence":1}`,
+			"its `response.resource.representations` is malformed",
+		},
+		{"a name that is a number", `{"resource":{"@context":"https://schema.org/","@id":"res-1","name":1998,"representations":[]},"lastSequence":1}`, "its `response.resource.name` is malformed"},
+		{"a sequence that is not a whole number", `{"resource":` + aResource + `,"lastSequence":1.5}`, "its `response.lastSequence` is malformed"},
 	} {
 		_, err := asked(t, c.response)
-		refusedAs(t, c.why, err, "a payload on browse:resource-result is not that channel's: it has no `"+c.lacks+"`")
+		refusedAs(t, c.why, err, "a payload on browse:resource-result is not that channel's: "+c.said)
 	}
 }
 
 func TestAReplyThatCarriesWhatItsSchemaRequiresIsRead(t *testing.T) {
 	for _, response := range []string{
 		`{"resource":` + aResource + `,"lastSequence":1}`,
-		// A member it may leave out, and a member of a kind no variant of a
-		// union is, are no member it lacks.
+		// A member it may leave out, and a list where one agent or a list of
+		// them may be, are no fault.
 		`{"resource":{"@context":"https://schema.org/","@id":"res-1","name":"A resource","representations":[],"wasAttributedTo":[{"@type":"Person"}]},"lastSequence":1}`,
 	} {
 		read, err := asked(t, response)
@@ -109,20 +116,26 @@ func TestAWrappedResponseIsHeldToItsSchemaFromTheResponse(t *testing.T) {
 	refusedAs(t, "no response", err, "a payload on job:cancel-ok is not that channel's: it has no `response`")
 }
 
-func TestAnAnswerThatLacksAMemberItsSchemaRequiresIsRefusedNamingIt(t *testing.T) {
-	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"did":"did:web:example.org:users:alice","email":null,"name":null,"image":null}`))
-	}))
-	defer gateway.Close()
-	transport := semiont.NewHTTPTransport(semiont.HTTPTransportConfig{BaseURL: gateway.URL, Token: semiont.NewVariable(""), HTTP: &http.Client{}, Timing: semiont.DefaultTiming()})
-	defer transport.Close()
-	_, err := transport.GetCurrentUser(context.Background())
-	refusedAs(t, "a user with no domain", err, "GET /api/users/me answered what is not its declared body: it has no `domain`")
-	var refused *semiont.TransportError
-	if errors.As(err, &refused) {
-		if status, ok := refused.Status(); !ok || status != http.StatusOK {
-			t.Errorf("the refusal states status %d (%v), not the answer's", status, ok)
+func TestAnAnswerWithAFaultIsRefusedNamingIt(t *testing.T) {
+	for _, c := range []struct{ why, answer, said string }{
+		{"a user with no domain", `{"did":"did:web:example.org:users:alice","email":null,"name":null,"image":null}`, "it has no `domain`"},
+		{"a user whose image is a number", `{"did":"did:web:example.org:users:alice","domain":"example.org","email":null,"name":null,"image":7}`, "its `image` is malformed"},
+		{"a user that is no object", `"alice"`, "it is malformed"},
+	} {
+		gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(c.answer))
+		}))
+		transport := semiont.NewHTTPTransport(semiont.HTTPTransportConfig{BaseURL: gateway.URL, Token: semiont.NewVariable(""), HTTP: &http.Client{}, Timing: semiont.DefaultTiming()})
+		_, err := transport.GetCurrentUser(context.Background())
+		refusedAs(t, c.why, err, "GET /api/users/me answered what is not its declared body: "+c.said)
+		var refused *semiont.TransportError
+		if errors.As(err, &refused) {
+			if status, ok := refused.Status(); !ok || status != http.StatusOK {
+				t.Errorf("%s: the refusal states status %d (%v), not the answer's", c.why, status, ok)
+			}
 		}
+		transport.Close()
+		gateway.Close()
 	}
 }

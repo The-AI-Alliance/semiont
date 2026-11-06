@@ -64,7 +64,7 @@ class DoublesTest {
     fun aRequestNothingWasScriptedForIsRefusedByNameAndIsStillOnRecord() = runTest(timeout = 10.seconds) {
         val transport = faulty()
         val refused = assertThrows<TransportError> { asked(transport) }
-        assertTrue(refused.message!!.contains("\"browse:kb-requested\""), refused.message)
+        assertTrue(refused.message.contains("\"browse:kb-requested\""), refused.message)
         assertEquals(listOf("browse:kb-requested"), transport.requestLog.map { it.channel })
         transport.close()
     }
@@ -154,7 +154,7 @@ class DoublesTest {
         val states = mutableListOf<ConnectionState>()
         launch { transport.state.collect { states += it } }
         val failures = mutableListOf<String>()
-        launch { transport.failures().collect { failures += it.message!! } }
+        launch { transport.failures().collect { failures += it.message } }
         runCurrent()
         transport.setState(ConnectionState.Reconnecting)
         transport.fail(TransportError(TransportErrorCode.Unavailable, "the gateway is down"))
@@ -218,7 +218,7 @@ class DoublesTest {
     fun aStubGatewayAnswersOnlyWhatItWasToldToAndRecordsEveryCall() = runTest(timeout = 10.seconds) {
         val gateway = StubGateway()
         val refused = assertThrows<TransportError> { gateway.getMediaToken(RESOURCE) }
-        assertTrue(refused.message!!.contains("getMediaToken"), refused.message)
+        assertTrue(refused.message.contains("getMediaToken"), refused.message)
         val health = wireJson.decodeFromJsonElement(semiont.types.HealthResponse.serializer(), obj("status" to text("ok"), "message" to text("all well"), "timestamp" to text("2026-01-01T00:00:00.000Z"), "version" to text("1")))
         gateway.health(health)
         assertSame(health, gateway.healthCheck())

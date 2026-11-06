@@ -174,8 +174,9 @@ export interface ClaimOptions {
  * A claim that was refused for a reason other than "nothing pending".
  *
  * `code` is the `BusRequestError` code the reply was promoted to, or `null`
- * when the refusal was the worker's own: a reply that lacks a member its
- * schema requires, or names no job type either verb has. Never a
+ * when the refusal was the worker's own: a reply with a fault as its schema's
+ * (a member it lacks, or one its schema does not allow, a job type that is
+ * neither verb among them). Never a
  * manufactured bus code. `bus.none-pending` never appears: an empty queue is
  * not a fault. `bus.unauthorized` means this credential cannot claim, and
  * will not be able to later.
@@ -548,19 +549,17 @@ function heldJob(
   claimed: ClaimedJob,
   holder: Holder,
   arrivedIn: ReadonlyMap<string, TraceCarrier | undefined>,
-): HeldJobOf<'mark', MarkJobResult> | HeldJobOf<'yield', YieldJobResult> | undefined {
+): HeldJobOf<'mark', MarkJobResult> | HeldJobOf<'yield', YieldJobResult> {
   const trace = arrivedIn.get(claimed.metadata.id);
   switch (claimed.metadata.type) {
     case 'mark':
       return new HeldJobOf('mark', claimed, holder, trace, (said, result: MarkJobResult) => ({ ...said, result }));
     case 'yield':
       return new HeldJobOf('yield', claimed, holder, trace, (said, result: YieldJobResult) => ({ ...said, result }));
-    default:
-      return undefined;
   }
 }
 
-type AnyHeldJob = NonNullable<ReturnType<typeof heldJob>>;
+type AnyHeldJob = ReturnType<typeof heldJob>;
 
 /** The error of a job failed because its worker stopped, and not because the work failed. */
 const STOPPED_WHILE_HELD = 'The worker stopped while it held the job';
@@ -752,9 +751,9 @@ class ClaimLoop implements Holder {
 
   private async claimNext(): Promise<ClaimOutcome> {
     // A claim names fields of the job description, never a job id. A reply
-    // that lacks a member its schema requires, a job id or parameters among
-    // them, is refused by the request (WORKER-CONTRACT C9), as every SDK
-    // refuses it; one whose job type is neither verb's is refused here.
+    // with a fault as its schema's (no job id, no parameters, a job type that
+    // is neither verb) is refused by the request (WORKER-CONTRACT C9), as
+    // every SDK refuses it.
     let claimed: ClaimedJob;
     try {
       claimed = await this.wire.request('job:claim', { accepts: this.accepts }, this.jobClaimTimeoutMs);
@@ -765,8 +764,7 @@ class ClaimLoop implements Holder {
       }
       return { refused: { code: null, message: error instanceof Error ? error.message : String(error) } };
     }
-    const job = heldJob(claimed, this, this.arrivedIn);
-    return job ? { job } : { refused: { code: null, message: "a payload on job:claimed is not that channel's: it names no job type" } };
+    return { job: heldJob(claimed, this, this.arrivedIn) };
   }
 
   private lookForStall(): void {

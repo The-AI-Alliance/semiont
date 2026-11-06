@@ -32,12 +32,12 @@ from dataclasses import dataclass
 from typing import Final, Protocol, final
 
 import httpx
-from pydantic import JsonValue, ValidationError
+from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont import telemetry
 from semiont._bus_log import bus_log, bus_note
-from semiont._lacks import lacks
 from semiont._reading import Reading
+from semiont._required import Fault, read_as
 from semiont.channels import RESOURCE_SCOPED_CHANNELS, TRACE_FIELD
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast
@@ -102,12 +102,41 @@ def backoff_cap_ms(reconnect_ms: int, failures: int) -> int:
 
 
 @final
-class _Carried(BusFrame, frozen=True, extra="ignore"):
-    """A frame as a stream carries it, read by what it means.
+@dataclass(frozen=True, slots=True)
+class Refused:
+    """What BusFrame does not allow: its first fault, and the channel it names when BusFrame allows its `channel`.
 
-    One a later gateway adds a field to is still a frame. One whose channel,
-    payload or scope is not what a frame's is, is not.
+    One that names no channel names no reader.
     """
+
+    fault: Fault
+    channel: str | None
+
+
+def carried(data: str) -> BusFrame | Refused:
+    """`data` read as a frame, or why it is not one.
+
+    A frame carries what BusFrame names and nothing more.
+    """
+    read = read_as(BusFrame, data, BusFrame.model_validate_json)
+    if isinstance(read, Fault):
+        return Refused(read, _channel_of(data))
+    return read
+
+
+_JSON: Final = TypeAdapter[JsonValue](JsonValue)
+
+
+def _channel_of(data: str) -> str | None:
+    """The channel `data` names: the `channel` of a JSON object, when it is a text of at least one character."""
+    try:
+        value = _JSON.validate_json(data)
+    except ValidationError:
+        return None
+    if not isinstance(value, dict):
+        return None
+    channel = value.get("channel")
+    return channel if isinstance(channel, str) and channel != "" else None
 
 
 @final
@@ -522,27 +551,30 @@ class Stream:
             return
         if event_id is not None and not self._seen.remember(event_id):
             return
-        try:
-            carried = _Carried.model_validate_json(data)
-        except ValidationError as error:
-            # What is not a frame is not delivered, and is said so.
-            _LOG.warning("the stream carried what is not a frame (id %s): %s", event_id, lacks((_Carried,), error, "a frame"))
+        read = carried(data)
+        if isinstance(read, Refused):
+            if read.channel is None:
+                # What names no channel names no reader: it is told to the failure report.
+                self._failures.deliver(TransportError("error", f"the stream carried what is not a frame: {read.fault}"))
+            else:
+                # What is not a frame is not delivered, and is said so.
+                _LOG.warning("the stream carried what is not a frame (id %s): %s", event_id, read.fault)
             return
-        bus_log("RECV", carried.channel, carried.payload, scope=carried.scope, correlation_id=carried.correlation_id)
+        bus_log("RECV", read.channel, read.payload, scope=read.scope, correlation_id=read.correlation_id)
         if conn in self._superseded:
             # What closing a retired connection at once would have lost.
-            bus_note("LINGER", carried.channel, "delivered on superseded connection")
-        payload = carried.payload
+            bus_note("LINGER", read.channel, "delivered on superseded connection")
+        payload = read.payload
         sent_under: TraceContext | None = None
         if TRACE_FIELD in payload:
             sent_under = _sent_under(payload[TRACE_FIELD])
             payload = {name: value for name, value in payload.items() if name != TRACE_FIELD}
         frame = Frame(
-            channel=carried.channel,
+            channel=read.channel,
             payload=payload,
-            correlation_id=carried.correlation_id,
-            scope=carried.scope,
-            trace=telemetry.received(carried.channel, carried.scope, sent_under),
+            correlation_id=read.correlation_id,
+            scope=read.scope,
+            trace=telemetry.received(read.channel, read.scope, sent_under),
         )
         self._router.route(frame)
         # A scope's position is the last recorded event delivered on it: only

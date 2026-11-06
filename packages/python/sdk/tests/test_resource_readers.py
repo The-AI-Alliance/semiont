@@ -6,6 +6,7 @@ import pytest
 from pydantic import BaseModel, Field, ValidationError
 from spec import SPEC, JsonObject
 
+from semiont._required import Fault, fault_of
 from semiont.model import written
 from semiont.resources import primary_media_type, primary_representation, resource_entity_types
 from semiont.types import Representation, ResourceDescriptor
@@ -24,13 +25,14 @@ class Case(BaseModel, frozen=True, extra="forbid"):
 
 
 class Refused(BaseModel, frozen=True, extra="forbid"):
-    """A resource the schema does not allow: no ResourceDescriptor, so decoding it refuses it."""
+    """A resource the schema does not allow: no ResourceDescriptor, so reading it refuses it, for its first fault."""
 
     why: str
     resource: JsonObject
     refused: Literal[True]
-    lacks: str | None = None
-    """The way to the member it lacks, where it lacks one: the names of the members it is within, and its own, joined by dots."""
+    member: str
+    """The way to the member its first fault is at: the names of the members it is within, and its own, joined by dots."""
+    reason: Literal["lacks", "malformed"]
 
 
 class Table(BaseModel, frozen=True):
@@ -51,8 +53,8 @@ def test_the_table_has_a_resource_of_each_shape() -> None:
     assert any(isinstance(representations, list) and not representations for representations in stated)
     assert any(case.entity_types for case in READ)
     assert any(not case.entity_types for case in READ)
-    assert any(case.lacks is not None for case in REFUSED)
-    assert any(case.lacks is None for case in REFUSED)
+    assert any(case.reason == "lacks" for case in REFUSED)
+    assert any(case.reason == "malformed" for case in REFUSED)
 
 
 @pytest.mark.parametrize("case", READ, ids=lambda case: case.why)
@@ -64,8 +66,12 @@ def test_every_reader_gives_what_the_table_says(case: Case) -> None:
 
 
 @pytest.mark.parametrize("case", REFUSED, ids=lambda case: case.why)
-def test_a_resource_the_schema_does_not_allow_is_refused_when_it_is_decoded(case: Refused) -> None:
-    # The refusal names the member it lacks, where it lacks one, and the representations otherwise.
-    named = "representations" if case.lacks is None else case.lacks.rsplit(".", 1)[-1]
-    with pytest.raises(ValidationError, match=named):
+def test_a_resource_the_schema_does_not_allow_is_refused_for_the_fault_the_table_states(case: Refused) -> None:
+    assert fault_of(ResourceDescriptor, case.resource) == Fault(member=case.member, reason=case.reason)
+    with pytest.raises(ValidationError):
         ResourceDescriptor.model_validate(case.resource)
+
+
+@pytest.mark.parametrize("case", READ, ids=lambda case: case.why)
+def test_a_resource_the_schema_allows_has_no_fault(case: Case) -> None:
+    assert fault_of(ResourceDescriptor, written(case.resource)) is None

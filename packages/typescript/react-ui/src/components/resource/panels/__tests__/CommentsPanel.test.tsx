@@ -28,7 +28,7 @@ function createEventTracker() {
       panelEvents.forEach((eventName) => {
         eventBus.on(eventName).subscribe((payload) => {
           // Nothing bridges into this test's bus: a refusal on it is the test's own fault.
-          if (payload instanceof FrameRefusal) throw new Error(`refused: ${payload.channel} lacks ${payload.lacks}`);
+          if (payload instanceof FrameRefusal) throw new Error(`refused: ${payload.channel} ${payload.reason} ${payload.member}`);
           events.push({ event: eventName, payload });
         });
       });

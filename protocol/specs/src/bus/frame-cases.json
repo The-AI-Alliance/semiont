@@ -1,0 +1,64 @@
+{
+  "$comment": "What a stream's reader takes for a frame, as every SDK's reader must. A frame is the JSON object the `data` line of a `bus-event` message carries, and it carries what BusFrame (protocol/specs/src/components/schemas/BusFrame.json) names and nothing more: its `channel` and its `payload`, and its `correlationId` and its `scope` when it has them. THE RULE. A reader holds every frame to BusFrame before it delivers it. A frame BusFrame allows is delivered, with its channel, payload, correlationId and scope as it states them. A frame BusFrame does not allow is refused, and the stream goes on to what else it carries. It is refused for its first fault, found as every SDK finds a value's first fault (packages/codegen/schemas/required-shapes.mjs): a member it lacks (`lacks`), or a member that is not what BusFrame allows (`malformed`), a member BusFrame does not name among them; a `data` line that is no JSON object is itself `malformed`. WHO IS TOLD (`told`). A refused frame whose `channel` is one BusFrame allows (a text of at least one character) is told to that channel's readers (`readers`), as a refused payload is; no SDK's stream tells them yet, and each runner holds only that its reader finds the channel they read. Any other refused frame, one that is no JSON object, carries no `channel` or carries one that is not a text of at least one character, names no reader, and is told to the transport's failure report (`failure-report`): as `error`, with no status, saying `the stream carried what is not a frame: ` and then its first fault in the words every SDK says one in. A CASE is a `frame` that is delivered; or a `frame`, or for a line that is no JSON its `data`, `refused`: true, its first fault, its `member` (the way to it: the names of the members it is within, and its own, joined by dots; empty for the frame itself) and its `reason`, and who is `told`.",
+  "runBy": {
+    "rust": ["packages/rust/http-transport/src/actor.rs"],
+    "python": ["packages/python/sdk/tests/test_frame_cases.py"],
+    "go": ["packages/go/sdk/frame_cases_test.go"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/FrameCasesTest.kt"]
+  },
+  "notYetReached": {
+    "typescript": "TypeScript's stream reader (packages/typescript/http-transport/src/transport/actor-state-unit.ts) tells its failure report of a line that names no channel, but holds a frame that names its channel to nothing: it delivers one that lacks a member BusFrame requires or carries one BusFrame does not name. It is to hold each frame to BusFrame, as the other readers do.",
+    "swift": "The Swift SDK's stream reader, which is to hold each frame to BusFrame.",
+    "csharp": "The C# SDK's stream reader, which is to hold each frame to BusFrame."
+  },
+  "cases": [
+    {
+      "why": "a frame that carries its channel and its payload is delivered",
+      "frame": {"channel": "beckon:focus", "payload": {"resourceId": "res-1", "annotationId": "a-1"}}
+    },
+    {
+      "why": "a frame that carries every member BusFrame names is delivered with each",
+      "frame": {"channel": "browse:resource-result", "correlationId": "c-1", "payload": {"response": {}}, "scope": "res-1"}
+    },
+    {
+      "why": "a frame that carries no channel is refused, naming the channel, and names no reader",
+      "frame": {"payload": {"resourceId": "res-1"}},
+      "refused": true,
+      "member": "channel",
+      "reason": "lacks",
+      "told": "failure-report"
+    },
+    {
+      "why": "a frame whose channel is not a text is refused, naming the channel, and names no reader",
+      "frame": {"channel": 7, "payload": {"resourceId": "res-1"}},
+      "refused": true,
+      "member": "channel",
+      "reason": "malformed",
+      "told": "failure-report"
+    },
+    {
+      "why": "a line that is no JSON is refused as malformed, and names no reader",
+      "data": "{\"channel\": \"beckon:focus\", \"payload\": {",
+      "refused": true,
+      "member": "",
+      "reason": "malformed",
+      "told": "failure-report"
+    },
+    {
+      "why": "a frame that carries a member BusFrame does not name is refused, naming the member, and told to its channel's readers",
+      "frame": {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}, "addedByALaterGateway": true},
+      "refused": true,
+      "member": "addedByALaterGateway",
+      "reason": "malformed",
+      "told": "readers"
+    },
+    {
+      "why": "a frame whose scope is no resource's id is refused, naming the scope, and told to its channel's readers",
+      "frame": {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}, "scope": "not an id"},
+      "refused": true,
+      "member": "scope",
+      "reason": "malformed",
+      "told": "readers"
+    }
+  ]
+}

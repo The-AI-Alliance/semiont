@@ -12,6 +12,7 @@ OUTPUTS = {
     "go": "packages/go/sdk/api/client_gen.go",
     "stack-go": "packages/go/launcher/stack/types_gen.go",
     "mcp-tools-go": "packages/go/launcher/verbs/mcp_tools_gen.go",
+    "required": "packages/rust/sdk/src/required-schemas.json",
     "discovery-go": "packages/go/launcher/discovery_types_gen.go",
     "encoding-cases": "protocol/specs/src/text/encoding-cases.json",
     "model-catalogue": "packages/python/inference/tests/catalogue/model-catalogue.json",
