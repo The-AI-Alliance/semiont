@@ -63,8 +63,8 @@ The sign-in gives an `OpenedSession`: the session, and the client it was built w
 only uses its client, so the two end together.
 
 Already hold tokens? `SemiontSession.fromIssuedSession(...)` takes the access and refresh pair.
-`SemiontSession.fromHttp(...)` takes a bare access token and the `refresh` that renews it. Each
-gives an `OpenedSession` too.
+`SemiontSession.fromHttp(...)` takes a bare access token and the `refresh` that renews it, which
+is given the token the session holds. Each gives an `OpenedSession` too.
 `SemiontClient.fromHttp({ baseUrl, token })` takes a bare token and never renews it, which suits
 a one-shot script that finishes inside one token's life.
 

@@ -95,10 +95,11 @@ describe('SemiontSession.fromHttp', () => {
       await session.ready;
 
       // Drive a refresh. With no stored token there's nothing to refresh,
-      // but the configured callback is what we want to assert wired.
+      // but the configured callback is what we want to assert wired, given
+      // the token the session holds: none.
       const result = await session.refresh(session.token$.getValue());
       expect(result).toBeNull();
-      expect(refresh).toHaveBeenCalled();
+      expect(refresh).toHaveBeenCalledWith(null);
     } finally {
       opened.dispose();
     }

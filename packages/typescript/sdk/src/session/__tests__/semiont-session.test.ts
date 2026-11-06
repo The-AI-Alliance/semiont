@@ -55,7 +55,7 @@ const ALICE: UserInfo = {
 };
 
 let storage: TestStorage;
-let refresh: SemiontSessionConfig['refresh'] & ReturnType<typeof vi.fn>;
+let refresh: NonNullable<SemiontSessionConfig['refresh']> & ReturnType<typeof vi.fn>;
 let validate: NonNullable<SemiontSessionConfig['validate']> & ReturnType<typeof vi.fn>;
 
 /** Shortcut: new session with the default test callbacks. */
@@ -77,7 +77,7 @@ function newSession(overrides?: Partial<SemiontSessionConfig>): SemiontSession {
 beforeEach(() => {
   storage = new TestStorage();
   mockDispose.mockReset();
-  refresh = vi.fn<() => Promise<string | null>>(async () => null) as typeof refresh;
+  refresh = vi.fn<NonNullable<SemiontSessionConfig['refresh']>>(async () => null) as typeof refresh;
   validate = vi.fn<NonNullable<SemiontSessionConfig['validate']>>(async () => ALICE) as typeof validate;
 });
 
