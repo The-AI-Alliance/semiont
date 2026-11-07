@@ -1,6 +1,6 @@
 module github.com/The-AI-Alliance/semiont/packages/go/sdk
 
-go 1.27
+go 1.27.0
 
 // Pinned to the patch, not the minor: `go 1.27` alone lets CI resolve to
 // whatever 1.27.x it happens to have, and a stdlib CVE fixed in a later patch
