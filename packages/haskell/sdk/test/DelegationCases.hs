@@ -238,7 +238,7 @@ delegationCases samples = do
   putStrLn "PASS lazy delegation, ordered early reports, retry recovery, status fallback, typed endings, stall cancellation and joined disposal"
 
 -- Runs client/clock-cases.json through the shared controlled-clock step runner.
-followerClockCases :: FilePath -> Map.Map Text Value -> IO ()
+followerClockCases :: FilePath -> Map.Map Text Value -> IO [Text]
 followerClockCases root samples = clockCasesFor root ["jobFollower"] $ \clock _ -> do
   rig <- newRig samples clock
   operation <- markRun rig
