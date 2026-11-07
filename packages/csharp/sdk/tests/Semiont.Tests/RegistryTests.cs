@@ -257,7 +257,8 @@ public sealed partial class TransportTests
         var store = new MemoryStorage();
         var kb = RegistryKb("one", "one.test");
         RegistryStorage.SaveKnowledgeBases(store, [kb]);
-        RegistryStorage.StoreSession(store, kb.Id, RegistryTokens());
+        // A stored token with no expiry is renewed before its session starts, and these sessions script no renewal.
+        RegistryStorage.StoreSession(store, kb.Id, RegistryTokens() with { Access = TokenTests.Jwt(new { exp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 3600 }) });
         var resource = SourceResource();
         var tab = new OpenResource(resource.Id, "Old tab", 0, 0);
         store.Set(RegistryStorage.OpenResourcesByKbKey, RegistryStorage.Write(new Dictionary<string, OpenResource[]> { [kb.Id] = [tab] }));
