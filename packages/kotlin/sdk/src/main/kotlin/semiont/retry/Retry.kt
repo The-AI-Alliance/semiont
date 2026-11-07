@@ -10,6 +10,7 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.function.Predicate
 import java.util.function.Supplier
+import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
 
 /**
@@ -69,18 +70,19 @@ public fun retryAfterMs(header: String?): Long? {
     return if (wholeSeconds.matches(stated)) stated.toLong() * 1000 else null
 }
 
-/** Half of `capMs`, and a random share of the other half: callers backing off on one schedule do not come back at one instant, and the wait never exceeds the cap. */
-public fun equalJitter(capMs: Long): Long = capMs / 2 + (Random.nextDouble() * (capMs / 2)).toLong()
+/** Half of `capMs`, and a share of the other half drawn from `random`: callers backing off on one schedule do not come back at one instant, and the wait never exceeds the cap. */
+@JvmOverloads
+public fun equalJitter(capMs: Long, random: Random = Random.Default): Long = capMs / 2 + (random.nextDouble() * (capMs / 2)).toLong()
 
 /**
  * Run `attempt` until it succeeds, `policy`'s attempts are spent, or it fails
  * in a way `retryable` does not accept; the last failure is thrown as it was.
- * The wait before each further attempt is the policy's jittered backoff, and
- * never less than the wait the failure itself stated (a refusal's
- * `Retry-After`). Cancelled, it gives up: no further attempt is made, and a
- * wait in progress ends.
+ * The wait before each further attempt is the policy's backoff, jittered by
+ * `random`, and never less than the wait the failure itself stated (a
+ * refusal's `Retry-After`). Cancelled, it gives up: no further attempt is
+ * made, and a wait in progress ends.
  */
-public suspend fun <T> retryWithBackoff(policy: RetryPolicy, retryable: (SemiontError) -> Boolean, attempt: suspend () -> T): T {
+public suspend fun <T> retryWithBackoff(policy: RetryPolicy, retryable: (SemiontError) -> Boolean, random: Random = Random.Default, attempt: suspend () -> T): T {
     var capMs = policy.initialDelayMs
     var made = 1
     while (true) {
@@ -88,13 +90,19 @@ public suspend fun <T> retryWithBackoff(policy: RetryPolicy, retryable: (Semiont
             return attempt()
         } catch (error: SemiontError) {
             if (made >= policy.attempts || !retryable(error)) throw error
-            delay(maxOf(equalJitter(capMs), error.retryAfterMs ?: 0))
+            delay(maxOf(equalJitter(capMs, random), error.retryAfterMs ?: 0))
         }
         capMs = minOf(capMs * 2, policy.maxDelayMs)
         made += 1
     }
 }
 
-/** `retryWithBackoff`, for Java: cancelling the future gives up. */
-public fun <T> retryWithBackoffFuture(policy: RetryPolicy, retryable: Predicate<SemiontError>, attempt: Supplier<CompletionStage<T>>): CompletableFuture<T> =
-    CoroutineScope(Dispatchers.Default).futureOf { retryWithBackoff(policy, retryable::test) { attempt.get().await() } }
+/** `retryWithBackoff`, for Java, on `context`: cancelling the future gives up. */
+@JvmOverloads
+public fun <T> retryWithBackoffFuture(
+    policy: RetryPolicy,
+    retryable: Predicate<SemiontError>,
+    attempt: Supplier<CompletionStage<T>>,
+    context: CoroutineContext = Dispatchers.Default,
+    random: Random = Random.Default,
+): CompletableFuture<T> = CoroutineScope(context).futureOf { retryWithBackoff(policy, retryable::test, random) { attempt.get().await() } }

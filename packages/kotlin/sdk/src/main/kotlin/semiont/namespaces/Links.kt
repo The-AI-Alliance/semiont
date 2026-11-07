@@ -1,6 +1,7 @@
 package semiont.namespaces
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -20,12 +21,12 @@ import kotlin.time.TimeSource
 /**
  * What every namespace reaches the knowledge base through: the client's
  * transport, the bus over it, the client's own bus, the waits it keeps, the
- * work it runs, on `context`'s dispatcher, and `clock`, the time that
- * dispatcher's waits keep.
+ * work it runs, on `context`'s dispatcher and under the job `context` has
+ * when it has one, and `clock`, the time that dispatcher's waits keep.
  */
 internal class Links(val transport: Transport, val wire: Bus, val own: EventBus, val timing: ClientTiming, context: CoroutineContext, val clock: TimeSource) {
     /** The client's work: what is running when the client closes ends with it. */
-    val scope = CoroutineScope(SupervisorJob() + context)
+    val scope = CoroutineScope(context + SupervisorJob(context[Job]))
 
     /** A request of `operation`, within the client's deadline. */
     suspend fun <Q, R, F> request(operation: Operation<Q, R, F>, payload: Q): R = wire.request(operation, payload, timing.busRequestMs)

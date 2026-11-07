@@ -1,6 +1,11 @@
+@file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+
 package semiont.session
 
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -20,6 +25,7 @@ import semiont.types.KbTarget
 import semiont.types.UserResponse
 import semiont.types.wireJson
 import java.util.Base64
+import kotlin.random.Random
 
 internal fun jwt(claims: JsonObject): String {
     val encoded = Base64.getUrlEncoder().withoutPadding()
@@ -92,13 +98,16 @@ internal class SessionWorld(kept: String? = null, renewals: List<Any?> = emptyLi
         }
     }
 
-    /** A session over a client of its own, that renews and asks as given: as this world scripts, unless told otherwise. */
-    fun session(
+    /** A session over a client of its own, on the test's dispatcher and clock, that renews and asks as given: as this world scripts, unless told otherwise. */
+    suspend fun session(
         renew: (suspend () -> String?)? = { refresh() },
         asking: (suspend (String) -> UserResponse)? = { validate(it) },
     ): SemiontSession {
         val recording = Recording()
-        return SemiontSession(TARGET, SemiontClient(recording, recording, recording), token, kept, renew, asking, { told += it }, { errors += it })
+        val test = currentCoroutineContext()
+        val scheduler = checkNotNull(test[TestCoroutineScheduler]) { "a session world's session is made under runTest" }
+        val client = SemiontClient(recording, recording, recording, context = test.minusKey(Job), clock = scheduler.timeSource)
+        return SemiontSession(TARGET, client, token, kept, renew, asking, { told += it }, { errors += it }, Random(0))
     }
 
     suspend fun isKept(): Boolean = kept.held() != null

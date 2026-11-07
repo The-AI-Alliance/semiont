@@ -12,6 +12,8 @@ import semiont.types.HttpEndpoint
 import semiont.types.HttpEndpointProtocol
 import semiont.types.KbTarget
 import java.util.concurrent.CompletableFuture
+import kotlin.coroutines.CoroutineContext
+import kotlin.random.Random
 
 /** The knowledge base a test session is with, unless a test says another: `test-kb` at `http://localhost:4000`. */
 private fun testKb(): KbTarget = KbTarget(id = "test-kb", label = "Test KB", endpoint = HttpEndpoint(host = "localhost", port = 4000, protocol = HttpEndpointProtocol.Http))
@@ -19,7 +21,8 @@ private fun testKb(): KbTarget = KbTarget(id = "test-kb", label = "Test KB", end
 /**
  * What a test session is built over. What a test leaves out is made: a
  * `TestClient` of doubles that answer nothing, `test-kb` at
- * `http://localhost:4000`, and a `MemorySignIn` that holds none.
+ * `http://localhost:4000`, a `MemorySignIn` that holds none, and the system's
+ * random source. The session keeps its client's context and clock.
  */
 public class TestSessionOptions @JvmOverloads constructor(
     /** The test client the session is over. */
@@ -28,6 +31,8 @@ public class TestSessionOptions @JvmOverloads constructor(
     public val kb: KbTarget = testKb(),
     /** Where the session's sign-in is kept: a sign-in kept there is the session's at its start. */
     public val kept: SignInKept = MemorySignIn(),
+    /** What the session's jitter is drawn from. */
+    public val random: Random = Random.Default,
 )
 
 /** A session, and what it was built over. The token the session holds is the test's to set. */
@@ -57,11 +62,12 @@ public class TestSession internal constructor(
 public suspend fun createTestSession(options: TestSessionOptions): TestSession {
     val made = options.client
     val tokens = MutableStateFlow<String?>(null)
-    val session = SemiontSession(options.kb, made.client, tokens, options.kept, null, null, null, null)
+    val session = SemiontSession(options.kb, made.client, tokens, options.kept, null, null, null, null, options.random)
     session.start()
     return TestSession(session, made.client, made.transport, made.content, made.gateway, options.kept, tokens)
 }
 
-/** `createTestSession`, for Java. */
-public fun createTestSessionFuture(options: TestSessionOptions): CompletableFuture<TestSession> =
-    CoroutineScope(Dispatchers.Default).futureOf { createTestSession(options) }
+/** `createTestSession`, for Java, on `context`. */
+@JvmOverloads
+public fun createTestSessionFuture(options: TestSessionOptions, context: CoroutineContext = Dispatchers.Default): CompletableFuture<TestSession> =
+    CoroutineScope(context).futureOf { createTestSession(options) }

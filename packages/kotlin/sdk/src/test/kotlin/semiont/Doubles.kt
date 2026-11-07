@@ -1,5 +1,6 @@
 package semiont
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,7 +61,7 @@ internal fun Carried.frame(): Frame = when (this) {
  */
 internal class Recording : Transport, GatewayOperations, ContentTransport {
     val did = CopyOnWriteArrayList<Did>()
-    private val router = ReplyRouter()
+    private val router = ReplyRouter(Dispatchers.Unconfined)
     private val answers = ConcurrentHashMap<String, JsonElement>()
 
     /** A resource's bytes, served to whoever reads any resource's: nothing is served when it is none. */

@@ -231,7 +231,7 @@ class DoublesTest {
         val transport = faulty()
         val content = InMemoryContent()
         val gateway = StubGateway()
-        val made = TestClient(transport, content, gateway, semiont.ClientTiming(), null, StandardTestDispatcher(testScheduler), testScheduler.timeSource)
+        val made = TestClient(StandardTestDispatcher(testScheduler), testScheduler.timeSource, transport, content, gateway)
         assertSame(transport, made.client.transport)
         assertSame(transport, made.transport)
         assertSame(content, made.content)
