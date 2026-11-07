@@ -57,7 +57,9 @@ async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
                     &searching.client,
                     &types::MatchSearchFailed {
                         reference_id,
-                        error: error.to_string(),
+                        message: error.to_string(),
+                        code: None,
+                        details: None,
                     },
                     under,
                 ),

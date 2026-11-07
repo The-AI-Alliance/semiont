@@ -3,7 +3,7 @@
 //! § Requests).
 
 use semiont::bus::{Bus, Operation, operation};
-use semiont::errors::SemiontError;
+use semiont::errors::{SemiontError, TransportErrorCode};
 use semiont::testing::{FaultAction, FaultyTransport};
 use semiont::transport::{ConnectionState, Frame, STREAM_BACKLOG, Transport};
 use serde_json::{Map, Value, json};
@@ -100,6 +100,50 @@ async fn a_failure_reply_fails_under_the_code_its_own_code_becomes() {
         };
         assert_eq!(error.message, "refused");
         assert_eq!(error.failure, Some(payload));
+    }
+}
+
+// A failure is held to its channel's schema as a result is: one with no
+// words, or with a code that is no text, is not its channel's, and is refused
+// as `error`, naming its first fault. It is given no words.
+#[tokio::test(start_paused = true)]
+async fn a_failure_reply_that_is_not_its_channels_is_refused_naming_its_fault() {
+    for (payload, said) in [
+        (json!({}), "it has no `message`"),
+        (json!({ "code": "not-found" }), "it has no `message`"),
+        (
+            json!({ "message": "refused", "code": 7 }),
+            "its `code` is malformed",
+        ),
+    ] {
+        let (bus, transport) = bus(vec![FaultAction::DropReply]);
+        transport.queue_reply(read().request, [None]);
+        let asked = tokio::spawn({
+            let bus = bus.clone();
+            async move { bus.request_of(read(), asking("r1"), WITHIN).await }
+        });
+        tokio::time::sleep(Duration::from_millis(1)).await;
+        let correlation_id = transport.request_log()[0].correlation_id.clone();
+        transport.deliver(Frame {
+            channel: read().failure.to_owned(),
+            payload: payload.as_object().cloned().expect("an object"),
+            correlation_id,
+            scope: None,
+            trace: None,
+        });
+        let error = asked.await.expect("the request ran").expect_err("it fails");
+        let SemiontError::Transport(refusal) = error else {
+            panic!("a failure that is not its channel's is refused, not read: {error:?}");
+        };
+        assert_eq!(refusal.code, TransportErrorCode::Error);
+        assert_eq!(
+            refusal.message,
+            format!(
+                "a payload on {} is not that channel's: {said}",
+                read().failure
+            )
+        );
+        assert!(transport.pending_replies().is_empty());
     }
 }
 

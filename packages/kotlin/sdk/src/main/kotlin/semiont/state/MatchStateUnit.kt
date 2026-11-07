@@ -47,7 +47,7 @@ public class MatchStateUnit(private val client: SemiontClient) : StateUnit {
         val found = try {
             running.await()
         } catch (failure: SemiontError) {
-            client.bus.publish(Channels.MATCH_SEARCH_FAILED, MatchSearchFailed(referenceId = request.referenceId, error = failure.message), null, correlationId)
+            client.bus.publish(Channels.MATCH_SEARCH_FAILED, MatchSearchFailed(referenceId = request.referenceId, message = failure.message), null, correlationId)
             return
         }
         client.bus.publish(Channels.MATCH_SEARCH_RESULTS, found, null, correlationId)

@@ -86,7 +86,7 @@ runCases root = do
               else if channel == String (channelName Channel.BrowseResourceResult)
                 then Bus.frames bus Channel.BrowseResourceResult NoScope inspect
                 else ioError (userError "unread typed channel in frame cases")
-            forM_ (KM.lookup "request" fields) $ \expected -> do
+            forM_ (KM.lookup "request" fields) $ \expected -> Transport.errors transport $ \observations -> do
               resource <- either (ioError . userError) pure (mkResourceId "res-1")
               let action = try (Bus.request bus BrowseResourceRequestedOperation (BrowseResourceRequest resource mempty) 100)
                     :: IO (Either SomeException BrowseResourceResult)
@@ -104,3 +104,9 @@ runCases root = do
                   (String "waits",Left problem) | Just failure <- fromException problem ->
                     require "a reply without a readable correlation id reached the request" (busRequestErrorCode failure == Code.BusRequestTimeout)
                   _ -> ioError (userError "unread request outcome in frame cases")
+              -- A refusal told to its readers is told to no failure report: the report's first
+              -- observation is a marker reported after the request settled.
+              let marker = TransportError Code.TransportError "reported after the request settled" Nothing Nothing
+              Transport.reportError input marker
+              noticed <- Stream.toList_ (Stream.take 1 observations)
+              require "a refused reply reached the transport's failure report" (noticed == [marker])

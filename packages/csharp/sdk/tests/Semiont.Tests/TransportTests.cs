@@ -375,6 +375,26 @@ public sealed partial class TransportTests
         Assert.False(emit.Body.TryGetProperty("scope", out _));
     }
 
+    // A failure is held to its channel's schema as a result is: one with no words, or with a code that is no text, is
+    // not its channel's, and is refused naming its first fault. One whose code the wire does not list keeps its words.
+    [Theory]
+    [InlineData("{\"message\":\"still starting\",\"code\":\"peer-unavailable\"}", "bus.peer-unavailable", "still starting")]
+    [InlineData("{\"message\":\"a code from a later peer\",\"code\":\"not-a-code-yet\"}", "bus.rejected", "a code from a later peer")]
+    [InlineData("{\"code\":\"not-found\"}", "error", "a payload on browse:resource-failed is not that channel's: it has no `message`")]
+    [InlineData("{\"message\":\"refused\",\"code\":7}", "error", "a payload on browse:resource-failed is not that channel's: its `code` is malformed")]
+    public async Task AFailureIsReadByItsChannelsSchema(string failure, string code, string message)
+    {
+        using var server = new Handler();
+        using var client = new HttpClient(server);
+        using var transport = new HttpTransport("http://unit.test", "secret", ["browse:resource-result", "browse:resource-failed"], httpClient: client);
+        await OpenAsync(transport);
+        server.Answer = body => server.Stream.Push("event: bus-event\ndata: {\"channel\":\"browse:resource-failed\",\"correlationId\":" + body.GetProperty("correlationId").GetRawText() + ",\"payload\":" + failure + "}\n\n");
+        var error = await Assert.ThrowsAnyAsync<SemiontError>(() => transport.RequestAsync("browse:resource-requested", JsonSerializer.SerializeToElement(new { resourceId = "r1" })));
+        Assert.IsType(code == "error" ? typeof(TransportError) : typeof(BusRequestError), error);
+        Assert.Equal(code, error.Code);
+        Assert.Equal(message, error.Message);
+    }
+
     [Fact]
     public async Task ThePublicClockOwnsRequestDeadlines()
     {

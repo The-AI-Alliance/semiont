@@ -95,18 +95,17 @@ class BusRequestError(SemiontError):
         return self._code
 
     @classmethod
-    def answered(cls, failure: Mapping[str, JsonValue]) -> "BusRequestError":
-        """The failure a peer answered with, under the code its own code becomes.
+    def answered(cls, said: str, failure: Mapping[str, JsonValue]) -> "BusRequestError":
+        """The failure a peer answered with, in its words `said`, under the code its own code becomes.
 
         A failure that states no code, or one this vocabulary does not name,
         is `UNRECOGNIZED_FAILURE_CODE`: the peer may be newer than this build.
         """
         stated = failure.get("code")
-        said = failure.get("message")
         code = (
             BUS_REQUEST_CODE_BY_WIRE_CODE.get(stated, UNRECOGNIZED_FAILURE_CODE) if isinstance(stated, str) else UNRECOGNIZED_FAILURE_CODE
         )
-        return cls(code, said if isinstance(said, str) else "Bus request rejected", failure=failure)
+        return cls(code, said, failure=failure)
 
 
 @final

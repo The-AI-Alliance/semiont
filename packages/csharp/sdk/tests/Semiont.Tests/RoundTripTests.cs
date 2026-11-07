@@ -47,6 +47,7 @@ public sealed class RoundTripTests
                     var type = Assembly.Load("Semiont").GetType("Semiont.Types." + schema);
                     Assert.NotNull(type);
                     var expectedRefusal = Path.GetFileName(file) == "failure-codes.json" && payload["code"]?.ToString() == "not-invented-yet" ||
+                        Path.GetFileName(file) == "failure-codes.json" && JsonNode.DeepEquals(payload, JsonNode.Parse("{\"code\":\"not-found\"}")) ||
                         Path.GetFileName(file) == "malformed-reply.json" && JsonNode.DeepEquals(payload, JsonNode.Parse("{\"response\":{\"status\":\"running\",\"params\":{\"resourceId\":\"r1\"}}}"));
                     try
                     {
@@ -79,7 +80,7 @@ public sealed class RoundTripTests
             }
         }
         Assert.True(failures.Count == 0, string.Join("\n", failures));
-        Assert.Equal(2, refused);
+        Assert.Equal(3, refused);
         Assert.True(held >= 150, "Only " + held + " corpus payloads were checked");
     }
 

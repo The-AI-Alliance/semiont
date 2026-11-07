@@ -364,7 +364,6 @@ public sealed class SemiontBrowser : IAsyncDisposable
                 if (expected is not null) current.Signals.NotifyKbIdentityConflict(new KbIdentityConflict(expected.Did, observed));
                 return;
             }
-            if (verdict.Kind != KbReadKind.Recorded) return;
             waiting = ReadTabs(current.KbId).Select(tab => tab.Id).Distinct().ToArray();
         }
 

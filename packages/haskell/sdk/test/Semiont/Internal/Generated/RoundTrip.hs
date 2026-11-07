@@ -431,6 +431,7 @@ roundTrip name value = case name of
   "MatchResourcesResponseMatchKind" -> toJSON <$> (parseEither parseJSON value :: Either String MatchResourcesResponseMatchKind)
   "MatchResourcesResult" -> toJSON <$> (parseEither parseJSON value :: Either String MatchResourcesResult)
   "MatchSearchFailed" -> toJSON <$> (parseEither parseJSON value :: Either String MatchSearchFailed)
+  "MatchSearchFailedCode" -> toJSON <$> (parseEither parseJSON value :: Either String MatchSearchFailedCode)
   "MatchSearchOptions" -> toJSON <$> (parseEither parseJSON value :: Either String MatchSearchOptions)
   "MatchSearchRequest" -> toJSON <$> (parseEither parseJSON value :: Either String MatchSearchRequest)
   "MatchSearchResult" -> toJSON <$> (parseEither parseJSON value :: Either String MatchSearchResult)

@@ -30,6 +30,7 @@ import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
 import { BusRequestError, classifyFailureCode, type BusReply } from './bus-request';
 import { SemiontError } from './errors';
 import { faultOfShape, said, within, type Fault, type Shape } from './required';
+import type { components } from './types';
 import { BUS_REQUEST_TIMEOUT_MS } from './generated/client-timing';
 import { isResourceScopedChannel, type ResourceScopedChannel, type UnscopedChannel } from './bridged-channels';
 import { uuidV4 } from './id-generation';
@@ -326,8 +327,10 @@ export class Bus {
    * A result reply is a frame whose envelope carries the request's
    * `correlationId` and whose payload is `{ response: T }` (data) or `{}`
    * (void); the request matches on the envelope and reads `payload.response`.
-   * A result that lacks a member its schema requires (`CHANNEL_PAYLOADS`)
-   * rejects, as a `SemiontError` coded `error` naming the member. So does a
+   * A result or a failure that lacks a member its schema requires
+   * (`CHANNEL_PAYLOADS`) rejects, as a `SemiontError` coded `error` naming
+   * the member; a failure's code is held to no list, and one the wire does
+   * not declare is `bus.rejected`, in the failure's words. So does a
    * reply its transport refused that carries the request's `correlationId`,
    * at once, naming the frame's fault.
    *
@@ -366,9 +369,9 @@ export class Bus {
 
     // Matched on the ENVELOPE. The payload is read only for what it means —
     // the response, or the failure's message and code — never for routing. A
-    // result with a fault as its schema's is refused, as every other SDK
-    // refuses it, and so is a reply its transport refused, which carries the
-    // correlation id in its refusal.
+    // result or a failure with a fault as its schema's is refused, as every
+    // other SDK refuses it, and so is a reply its transport refused, which
+    // carries the correlation id in its refusal.
     const refused$ = merge(bus.frames(resultChannel as keyof EventMap), bus.frames(failureChannel as keyof EventMap)).pipe(
       map(({ payload }) => payload),
       filter((payload): payload is FrameRefusal => payload instanceof FrameRefusal && payload.correlationId === correlationId),
@@ -398,15 +401,28 @@ export class Bus {
       bus.frames(failureChannel as keyof EventMap).pipe(
         filter(isDelivered),
         filter((frame) => frame.correlationId === correlationId),
-        map(({ payload: p }) => p as Record<string, unknown>),
-        map((e) => ({
-          ok: false as const,
-          error: new BusRequestError((e.message as string) ?? 'Bus request rejected', classifyFailureCode(e.code), {
-            channel: failureChannel,
-            correlationId,
-            payload: e,
-          }),
-        })),
+        map(({ payload: e }) => {
+          const read = readAs(failureChannel as keyof EventMap, e);
+          if ('fault' in read) {
+            return {
+              ok: false as const,
+              error: new SemiontError(notTheChannels(failureChannel, read.fault), 'error', {
+                channel: failureChannel,
+                correlationId,
+              }),
+            };
+          }
+          // Every failure channel carries a CommandError, or one that extends it.
+          const failure = read.payload as components['schemas']['CommandError'];
+          return {
+            ok: false as const,
+            error: new BusRequestError(failure.message, classifyFailureCode(failure.code), {
+              channel: failureChannel,
+              correlationId,
+              payload: e,
+            }),
+          };
+        }),
       ),
     ).pipe(
       take(1),

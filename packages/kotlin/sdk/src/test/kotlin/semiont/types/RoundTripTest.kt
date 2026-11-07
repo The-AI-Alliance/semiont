@@ -42,6 +42,8 @@ class RoundTripTest {
     private val refused: Map<Pair<String, String>, String> = mapOf(
         ("failure-codes.json" to """{"message":"a code from the future","code":"not-invented-yet"}""") to
             "a failure's code no client knows, which the case expects every client to reject",
+        ("failure-codes.json" to """{"code":"not-found"}""") to
+            "a failure with no words, which the case expects every client to refuse",
         ("malformed-reply.json" to """{"response":{"status":"running","params":{"resourceId":"r1"}}}""") to
             "a reply missing what its schema requires, which the case expects a client to refuse",
     )

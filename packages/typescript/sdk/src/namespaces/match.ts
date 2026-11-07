@@ -1,6 +1,6 @@
 import type { AnnotationId, CacheQuery, ResourceDescriptor, ResourceId, GatheredContext, EventBus, components } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
-import { Bus, BusRequestError, isObject } from '@semiont/core';
+import { Bus } from '@semiont/core';
 import { CacheObservable, StreamObservable } from '../awaitable';
 import { createCache, type Cache } from '../cache';
 import { CacheRefresher } from '../cache-refresh';
@@ -12,15 +12,6 @@ import type { MatchNamespace as IMatchNamespace, MatchSearchProgress, MatchedRes
  */
 export const MATCH_QUERIES = ['matchedResources'] as const satisfies readonly CacheQuery[];
 type MatchQuery = (typeof MATCH_QUERIES)[number];
-
-/** A search's failure says what went wrong under `error`, where every other operation's says it under `message`. */
-function searchFailure(error: unknown): unknown {
-  if (!(error instanceof BusRequestError)) return error;
-  const failure = error.details?.['payload'];
-  return isObject(failure) && typeof failure['error'] === 'string'
-    ? new BusRequestError(failure['error'], error.code, error.details)
-    : error;
-}
 
 export class MatchNamespace implements IMatchNamespace {
   /** One per search and set of filters asked for. In memory only. */
@@ -127,7 +118,7 @@ export class MatchNamespace implements IMatchNamespace {
           (error: unknown) => {
             // Abandoned by its reader, who is gone: there is nobody to tell.
             if (subscriber.closed) return;
-            subscriber.error(searchFailure(error));
+            subscriber.error(error);
           },
         );
       return () => abandoned.abort();

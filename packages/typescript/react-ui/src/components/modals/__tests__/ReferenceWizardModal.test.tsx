@@ -564,7 +564,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     expect(screen.getByRole('button', { name: T.searching })).toBeDisabled();
 
     client.bus.emit('match:search-failed', { referenceId: annotationId('ann-1'),
-      error: '/bus/emit 400: Bus emit validation failed', }, { correlationId: 'c-1' });
+      message: '/bus/emit 400: Bus emit validation failed', }, { correlationId: 'c-1' });
 
     // Still on configure-search, failure visible, retry available.
     expect(await screen.findByText(new RegExp(T.searchFailed))).toBeInTheDocument();
@@ -580,7 +580,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     await userEvent.click(screen.getByRole('button', { name: T.search }));
 
     client.bus.emit('match:search-failed', { referenceId: annotationId('someone-elses-annotation'),
-      error: 'not ours', }, { correlationId: 'c-2' });
+      message: 'not ours', }, { correlationId: 'c-2' });
 
     expect(screen.getByRole('button', { name: T.searching })).toBeDisabled();
     expect(screen.queryByText(new RegExp(T.searchFailed))).not.toBeInTheDocument();
@@ -590,7 +590,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     const { client } = renderWizard();
     await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
     await userEvent.click(screen.getByRole('button', { name: T.search }));
-    client.bus.emit('match:search-failed', { referenceId: annotationId('ann-1'), error: 'boom', }, { correlationId: 'c-1' });
+    client.bus.emit('match:search-failed', { referenceId: annotationId('ann-1'), message: 'boom', }, { correlationId: 'c-1' });
     expect(await screen.findByText(new RegExp(T.searchFailed))).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: T.search }));

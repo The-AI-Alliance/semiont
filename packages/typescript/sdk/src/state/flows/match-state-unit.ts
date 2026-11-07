@@ -18,7 +18,7 @@ export function createMatchStateUnit(client: SemiontClient): MatchStateUnit {
     ).subscribe({
       next: (result) => client.bus.emit('match:search-results', result, { correlationId }),
       error: (err) => client.bus.emit('match:search-failed', { referenceId: event.referenceId,
-        error: err instanceof Error ? err.message : String(err), }, { correlationId }),
+        message: err instanceof Error ? err.message : String(err), }, { correlationId }),
     });
     subs.push(searchSub);
   }));
