@@ -603,9 +603,17 @@ func runPersistedCrossTab(t *testing.T, table persistedCases) {
 			}
 
 			other := shared.Context()
-			if row.Stored == nil {
+			switch {
+			case row.Stored == nil:
 				must(t, other.Delete(registry.SessionKey(kbA)))
-			} else {
+			case row.Stored.PersonKey != nil && *row.Stored.PersonKey == jo:
+				renewing := registry.KeptIn(other, kbA)
+				read, _, err := renewing.Held(ctx)
+				must(t, err)
+				if _, renewed, err := renewing.Renewed(ctx, read, jwt(2*time.Hour), "r-other"); err != nil || !renewed {
+					t.Fatalf("the other context's renewal was not kept: %v, %v", renewed, err)
+				}
+			default:
 				signIn := s.stored(jwt(2*time.Hour), "r-other")
 				signIn.PersonKey = row.Stored.PersonKey
 				must(t, registry.StoreSession(other, kbA, signIn))

@@ -315,7 +315,7 @@ func (b *SemiontBrowser) AddKb(input api.NewKnowledgeBase, session StoredSession
 // saved sign-in deletes its person's entries, once the client has closed, so
 // nothing its closing writes is left.
 func (b *SemiontBrowser) RemoveKb(id string) error {
-	stored, _, err := takeStoredSession(b.storage, id)
+	stored, _, err := swapStoredSession(b.storage, id, nil)
 	if err != nil {
 		return err
 	}
@@ -376,13 +376,19 @@ func (b *SemiontBrowser) KbSessionStatus(kbID string) KbSessionStatus {
 // returns once its session is up, or once it is known there will be none.
 func (b *SemiontBrowser) SetActiveKb(id string) error { return b.setActiveKb(id) }
 
-// SignIn keeps new tokens for a registered knowledge base and brings its
-// session up on them. A session it already had is closed and replaced.
+// SignIn keeps a new sign-in for a registered knowledge base in place of the
+// one stored, and brings its session up on it. A session it already had is
+// closed and replaced. Then, before the new one is built, what its sessions
+// kept of the person the replaced sign-in named is deleted (forgetKept): a new
+// sign-in names nobody until its gateway names them, so keeping one forgets
+// the saved sign-in it replaces, once the client has closed, so nothing its
+// closing writes is left.
 func (b *SemiontBrowser) SignIn(id string, session StoredSession) error {
 	if b.closed.Load() {
 		return nil
 	}
-	if err := StoreSession(b.storage, id, session); err != nil {
+	replaced, _, err := swapStoredSession(b.storage, id, &session)
+	if err != nil {
 		return err
 	}
 	// A session it already has is on the old tokens: it is closed, and the
@@ -391,6 +397,9 @@ func (b *SemiontBrowser) SignIn(id string, session StoredSession) error {
 		if taken := b.takeSession(); taken != nil {
 			taken.close()
 		}
+	}
+	if err := forgetKept(b.storage, id, replaced.PersonKey); err != nil {
+		return err
 	}
 	return b.setActiveKb(id)
 }
@@ -453,7 +462,7 @@ func (b *SemiontBrowser) SignOut(id string) error {
 	if b.closed.Load() {
 		return nil
 	}
-	stored, ok, err := takeStoredSession(b.storage, id)
+	stored, ok, err := swapStoredSession(b.storage, id, nil)
 	if err != nil {
 		return err
 	}

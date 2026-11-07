@@ -54,7 +54,8 @@ type StoredSession struct {
 	// PersonKey is who the gateway said the sign-in's person is, as the key
 	// what is kept of them is kept under (semiont.PersonKey): nil until it
 	// has said. A renewal keeps it; a new sign-in has none; forgetting the
-	// saved sign-in, however it is forgotten, deletes what is kept under it.
+	// saved sign-in, however it is forgotten, a new sign-in kept in its place
+	// among the ways, deletes what is kept under it.
 	PersonKey *string `json:"personKey,omitempty"`
 }
 
@@ -91,21 +92,31 @@ func StoredSessionOf(storage semiont.SessionStorage, kbID string) (StoredSession
 	return readStoredSession(stored)
 }
 
-// StoreSession stores a knowledge base's session, in place of what was
-// stored; the error when the storage could not.
+// StoreSession stores a new sign-in for a knowledge base in place of the one
+// stored, then forgets what its sessions kept of the person the replaced one
+// named (forgetKept): a new sign-in names nobody until its gateway names
+// them, whoever they turn out to be, so keeping one forgets the saved sign-in
+// it replaces. The error when the storage could not.
 func StoreSession(storage semiont.SessionStorage, kbID string, session StoredSession) error {
-	return storage.Set(SessionKey(kbID), session.written())
+	return replaceStoredSession(storage, kbID, &session)
 }
 
 // ClearStoredSession forgets a knowledge base's stored session, then what its
 // sessions kept of the person it named (forgetKept): forgetting a saved
 // sign-in deletes its person's entries. The error when the storage could not.
 func ClearStoredSession(storage semiont.SessionStorage, kbID string) error {
-	stored, _, err := takeStoredSession(storage, kbID)
+	return replaceStoredSession(storage, kbID, nil)
+}
+
+// replaceStoredSession puts next in place of a knowledge base's stored
+// session, or nothing for nil, then forgets what was kept of the person the
+// one it replaced named (forgetKept).
+func replaceStoredSession(storage semiont.SessionStorage, kbID string, next *StoredSession) error {
+	replaced, _, err := swapStoredSession(storage, kbID, next)
 	if err != nil {
 		return err
 	}
-	return forgetKept(storage, kbID, stored.PersonKey)
+	return forgetKept(storage, kbID, replaced.PersonKey)
 }
 
 // LoadKnowledgeBases is the registered knowledge bases. Each entry is read on
@@ -166,7 +177,9 @@ func SaveKnowledgeBases(storage semiont.SessionStorage, kbs []api.KnowledgeBase)
 // KeptIn is a knowledge base's sign-in as a session keeps it, in a registry's
 // storage, under SessionKey(kbID). A renewal is written as one step against
 // what is stored then, so one made meanwhile by another session or context
-// stands.
+// stands, and keeps the person the sign-in names. Keeping a new sign-in, and
+// forgetting the sign-in, forget what was kept of the person the one stored
+// named (StoreSession, ClearStoredSession).
 func KeptIn(storage semiont.SessionStorage, kbID string) semiont.SignInKept {
 	return keptIn{storage: storage, kbID: kbID}
 }
@@ -232,18 +245,22 @@ func (k keptIn) Forget(context.Context) error {
 	return ClearStoredSession(k.storage, k.kbID)
 }
 
-// takeStoredSession forgets a knowledge base's stored session as one step
-// with reading it: what it was, and false when nothing was stored.
-func takeStoredSession(storage semiont.SessionStorage, kbID string) (StoredSession, bool, error) {
-	var taken StoredSession
+// swapStoredSession puts next in place of a knowledge base's stored session,
+// or nothing for nil, as one step with reading what was stored: the session
+// it replaced, and false when nothing was.
+func swapStoredSession(storage semiont.SessionStorage, kbID string, next *StoredSession) (StoredSession, bool, error) {
+	var replaced StoredSession
 	var was bool
 	err := storage.Update(SessionKey(kbID), func(stored string, has bool) (string, bool) {
 		if has {
-			taken, was = readStoredSession(stored)
+			replaced, was = readStoredSession(stored)
 		}
-		return "", false
+		if next == nil {
+			return "", false
+		}
+		return next.written(), true
 	})
-	return taken, was, err
+	return replaced, was, err
 }
 
 // forgetKept deletes what a session's client kept, in a knowledge base's

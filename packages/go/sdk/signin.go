@@ -181,10 +181,12 @@ type SessionFromKeptConfig struct {
 	// as the session is made; when it names nobody, nothing is kept until the
 	// gateway names them and the sign-in records it
 	// (SignInKept.RecordPersonKey). Each is written only while the kept
-	// sign-in names that person: once a write finds it forgotten, or naming
-	// nobody or another person, the session writes nothing more there, so
-	// nothing it writes puts back what forgetting the sign-in deleted. Nil, or
-	// a session that does not ask who its token is, keeps nothing.
+	// sign-in names that person, checked and written as one step: once a write
+	// finds it forgotten, or naming nobody or another person, the session
+	// writes nothing more there, so nothing it writes puts back what
+	// forgetting the sign-in deleted. The session's own forget of its sign-in
+	// (its expiry, its refusal) waits for a write being made. Nil, or a
+	// session that does not ask who its token is, keeps nothing.
 	Storage SessionStorage
 	// OnAuthFailed and OnError are the session's (SessionConfig).
 	OnAuthFailed func(SessionEndReason)
@@ -222,11 +224,13 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 		Kb: config.Kb, Client: client, Kept: config.Kept, Token: token, HTTP: config.HTTP, Timing: config.Timing, Random: config.Random,
 		AskWhoTokenIs: config.AskWhoTokenIs, OnAuthFailed: config.OnAuthFailed, OnError: config.OnError,
 	}, baseURL)
+	var keeps *keptFor
 	if keepsForAPerson {
-		keeps := &keptFor{storage: config.Storage, kbID: config.Kb.Id, kept: config.Kept, client: client, transport: transport}
+		keeps = &keptFor{SignInKept: config.Kept, storage: config.Storage, kbID: config.Kb.Id, client: client, transport: transport}
 		if has && held.PersonKey != nil {
 			keeps.attach(*held.PersonKey)
 		}
+		sessionConfig.Kept = keeps
 		sessionConfig.Validate = keeps.recording(sessionConfig.Validate)
 	}
 	session, err = StartSession(ctx, sessionConfig)
@@ -242,6 +246,12 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 		session.Close()
 		client.Close()
 		transport.Close()
+		if keepsForAPerson {
+			// A save whose wait was over as the client closed may still be
+			// being written: it lands before end returns, so whoever ended
+			// the session may delete what was kept of its person then.
+			keeps.stop()
+		}
 	}
 	if err := session.Ready(ctx); err != nil {
 		end()
@@ -251,16 +261,23 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 }
 
 // keptFor is what a session's client keeps in a storage for the person the
-// session's gateway names: nothing until it is attached for them.
+// session's gateway names: nothing until it is attached for them. It is the
+// session's sign-in too, kept where it is kept, so that the session's forget
+// of it stops what the client keeps first (Forget).
 type keptFor struct {
+	SignInKept
 	storage   SessionStorage
 	kbID      string
-	kept      SignInKept
 	client    *Client
 	transport *HTTPTransport
 
-	mu       sync.Mutex
-	attached bool
+	mu sync.Mutex
+	// keeping is where the client keeps the person's things: nil until it is
+	// attached.
+	keeping *whileNamed
+	// stopped holds once the session has forgotten its sign-in, or ended:
+	// nothing is attached after that.
+	stopped bool
 }
 
 // attach has the client keep its caches, and the transport its stream's
@@ -270,40 +287,67 @@ type keptFor struct {
 // a cache still taking in the event it names would have the next session
 // skip that event.
 func (k *keptFor) attach(personKey string) {
-	places := NewCoupledBookmarks(&whileNamed{SessionStorage: k.storage, kept: k.kept, personKey: personKey}, LastEventIDKey(k.kbID, personKey))
+	k.keeping = &whileNamed{SessionStorage: k.storage, kept: k.SignInKept, personKey: personKey}
+	places := NewCoupledBookmarks(k.keeping, LastEventIDKey(k.kbID, personKey))
 	places.SetFlushGate(k.client.PersistenceSettled)
 	k.transport.keepPlaces(places)
 	k.client.live.attach(&CachePersistence{Storage: places.Storage(), KbID: k.kbID, PersonKey: personKey})
-	k.attached = true
+}
+
+// Forget is the session forgetting its sign-in (its expiry, its refusal).
+// What the client keeps is stopped first: a write that passed its check lands
+// before the sign-in, and what was kept of its person, is forgotten, and none
+// is made after.
+func (k *keptFor) Forget(ctx context.Context) error {
+	k.stop()
+	return k.SignInKept.Forget(ctx)
+}
+
+// stop has the client keep nothing more, once a write being made is made:
+// every write after it is dropped, under the lock each write is checked and
+// made under, and nothing is attached after it.
+func (k *keptFor) stop() {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.stopped = true
+	if k.keeping != nil {
+		k.keeping.drop()
+	}
 }
 
 // whileNamed is the storage a session keeps one person's things in, written
-// only while its kept sign-in names that person (HeldSignIn.PersonKey). Once a
-// write finds the sign-in forgotten, or naming nobody or another person, that
-// write and every one after it are dropped: what the session had not written
-// of the person is discarded.
+// only while its kept sign-in names that person (HeldSignIn.PersonKey). Each
+// write is checked and made as one step. Once a write finds the sign-in
+// forgotten, or naming nobody or another person, or the session has dropped
+// it, that write and every one after it are dropped: what the session had not
+// written of the person is discarded.
 type whileNamed struct {
 	SessionStorage
 	kept      SignInKept
 	personKey string
 
+	// mu is held across each write's check and the write, and by drop.
 	mu      sync.Mutex
 	dropped bool
 }
 
-// writes reports whether a write is made. A sign-in that cannot be read is
-// not known to name the person.
+// writes reports whether a write is made, with mu held. A sign-in that cannot
+// be read is not known to name the person: why is said where a value not kept
+// is said (unsaved), once, as nothing is asked again.
 func (w *whileNamed) writes() bool {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	if !w.dropped {
 		held, has, err := w.kept.Held(context.Background())
+		if err != nil {
+			slog.Warn("semiont: the sign-in could not be read before a write, so nothing more is kept for its person", "error", err)
+		}
 		w.dropped = err != nil || !has || held.PersonKey == nil || *held.PersonKey != w.personKey
 	}
 	return !w.dropped
 }
 
 func (w *whileNamed) Set(key, value string) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if !w.writes() {
 		return nil
 	}
@@ -311,10 +355,19 @@ func (w *whileNamed) Set(key, value string) error {
 }
 
 func (w *whileNamed) Update(key string, change func(stored string, has bool) (string, bool)) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if !w.writes() {
 		return nil
 	}
 	return w.SessionStorage.Update(key, change)
+}
+
+// drop has every write from now on dropped, once a write being made is made.
+func (w *whileNamed) drop() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.dropped = true
 }
 
 // recording is validate, and, once the gateway has said who a token is, the
@@ -333,17 +386,17 @@ func (k *keptFor) recording(validate func(ctx context.Context, token string) (ap
 // named records user, who the gateway said token is, on the sign-in, while it
 // still holds token and names nobody else, and attaches what is kept for them
 // once it names them. A sign-in that has moved on, or names another person,
-// attaches nothing.
+// or whose session has forgotten it or ended, attaches nothing.
 func (k *keptFor) named(ctx context.Context, token string, user api.UserResponse) {
 	personKey := PersonKey(user.Did.String())
-	recorded, err := k.kept.RecordPersonKey(ctx, token, personKey)
+	recorded, err := k.RecordPersonKey(ctx, token, personKey)
 	if err != nil {
 		slog.Warn("semiont: who the gateway named was not recorded on the sign-in", "error", err)
 		return
 	}
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	if recorded && !k.attached {
+	if recorded && k.keeping == nil && !k.stopped {
 		k.attach(personKey)
 	}
 }
