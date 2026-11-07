@@ -179,12 +179,16 @@ private func status(_ session: SemiontSession) -> String {
     HeldSignIn(access: token, clientId: scriptClientID, refresh: "refresh", tokenEndpoint: "issuer")
   )
   let calls = Mutex(0)
+  let renewing = Watched(false)
+  let answered = Watched(false)
   let session = SemiontSession(
     kb: target(), client: try await SemiontClient(transport: ProbeTransport()), kept: kept,
     forget: { await kept.forget() },
     renew: { _ in
       calls.withLock { $0 += 1 }
-      try await Task.sleep(for: .milliseconds(80))
+      renewing.set(true)
+      for await given in answered where given { break }
+      try Task.checkCancellation()
       return "new-token"
     },
     validate: { _ in
@@ -195,12 +199,16 @@ private func status(_ session: SemiontSession) -> String {
   await session.start()
   try await session.ready()
   let first = Task { try await session.refresh(token) }
-  try await Task.sleep(for: .milliseconds(10))
+  try await withinTestDeadline { for await entered in renewing where entered { return } }
   first.cancel()
-  let second = try await session.refresh(token)
-  #expect(second == "new-token")
+  await #expect(throws: CancellationError.self) {
+    try await withinTestDeadline { try await first.value }
+  }
+  // The renewal is held until answered, so its only waiter has gone before it can end.
+  let second = Task { try await session.refresh(token) }
+  answered.set(true)
+  #expect(try await withinTestDeadline { try await second.value } == "new-token")
   #expect(calls.withLock { $0 } == 1)
-  await #expect(throws: CancellationError.self) { try await first.value }
   #expect(try await session.refresh(token) == "new-token")
   #expect(calls.withLock { $0 } == 1)
 }

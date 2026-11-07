@@ -9,6 +9,7 @@ import Synchronization
 import Testing
 
 @testable import Semiont
+@testable import SemiontTesting
 
 private enum Answer: Sendable { case noHeaders, noBody, refusalWithoutBody, idleStream }
 private final class Endpoint: ChannelInboundHandler {
@@ -113,10 +114,13 @@ private func server<Value: Sendable>(
 }
 @Test func streamOpeningDeadlineBoundsHeadersAndNotAnIdleOpenStream() async throws {
   try await server(.answering(.noHeaders)) { base, http in
+    let clock = TestClock()
     let transport = HttpTransport(
       baseUrl: base, httpClient: http, token: "token", channels: ["beckon:focus"],
-      timing: TransportTiming(reconnectMs: 500, streamOpenMs: 20))
+      timing: TransportTiming(reconnectMs: 500, streamOpenMs: 20), clock: clock)
     defer { transport.dispose() }
+    try await sleeping(clock, until: clock.now.advanced(by: .milliseconds(20)))
+    clock.advance(by: .milliseconds(20))
     let state = try await withinTestDeadline {
       for await state in transport.state where state == .reconnecting { return state }
       throw CancellationError()
@@ -124,23 +128,37 @@ private func server<Value: Sendable>(
     #expect(state == .reconnecting)
   }
   try await server(.answering(.idleStream)) { base, http in
+    let clock = TestClock()
     let transport = HttpTransport(
       baseUrl: base, httpClient: http, token: "token", channels: ["beckon:focus"],
-      timing: TransportTiming(streamOpenMs: 20))
+      timing: TransportTiming(streamOpenMs: 20), clock: clock)
     defer { transport.dispose() }
+    let opening = clock.now.advanced(by: .milliseconds(20))
     try await withinTestDeadline { try await transport.waitUntilOpen() }
-    try await Task.sleep(for: .milliseconds(80))
+    #expect(!clock.wakes.contains(opening), "the open stream still waits on its opening deadline")
+    clock.advance(by: .milliseconds(80))
     #expect(transport.state.value == .open)
+  }
+}
+/// Until a request's body read waits for `deadline`: the clock is never moved before it, so the
+/// read asks the instant its headers' wait asked.
+private func bodyDeadlineAsked(_ clock: AskedClock, at deadline: TestClock.Instant) async throws {
+  try await withinTestDeadline {
+    while clock.asked(deadline) < 2 { try await Task.sleep(for: .milliseconds(1)) }
   }
 }
 @Test func refusalBodyDeadlinePreservesTheStatus() async throws {
   try await server(.answering(.refusalWithoutBody)) { base, http in
+    let clock = AskedClock()
     let transport = HttpTransport(
       baseUrl: base, httpClient: http, token: "token", channels: [],
-      timing: TransportTiming(httpRequestMs: 100))
+      timing: TransportTiming(httpRequestMs: 100), clock: clock)
     defer { transport.dispose() }
+    let asking = Task { try await transport.getCurrentUser() }
+    try await bodyDeadlineAsked(clock, at: clock.now.advanced(by: .milliseconds(100)))
+    clock.clock.advance(by: .milliseconds(100))
     do {
-      _ = try await withinTestDeadline { try await transport.getCurrentUser() }
+      _ = try await withinTestDeadline { try await asking.value }
       Issue.record("A 401 succeeded")
     } catch let failure as TransportError {
       #expect(failure.status == 401)
@@ -150,23 +168,29 @@ private func server<Value: Sendable>(
 }
 @Test func aReadDeadlineIncludesTheBody() async throws {
   try await server(.answering(.noBody)) { base, http in
+    let clock = AskedClock()
     let transport = HttpTransport(
       baseUrl: base, httpClient: http, token: "token", channels: [],
-      timing: TransportTiming(httpRequestMs: 20))
+      timing: TransportTiming(httpRequestMs: 20), clock: clock)
     defer { transport.dispose() }
+    let reading = Task { try await transport.getBinary(ResourceId("resource")) }
+    try await bodyDeadlineAsked(clock, at: clock.now.advanced(by: .milliseconds(20)))
+    clock.clock.advance(by: .milliseconds(20))
     do {
-      _ = try await withinTestDeadline { try await transport.getBinary(ResourceId("resource")) }
+      _ = try await withinTestDeadline { try await reading.value }
       Issue.record("An unfinished read succeeded")
     } catch let failure as TransportError { #expect(failure.reason == .unavailable) }
   }
 }
 @Test func disposalCancelsInFlightGatewayOperations() async throws {
   try await server(.answering(.noHeaders)) { base, http in
+    let clock = TestClock()
     let transport = HttpTransport(
       baseUrl: base, httpClient: http, token: "token", channels: [],
-      timing: TransportTiming(httpRequestMs: 5000))
+      timing: TransportTiming(httpRequestMs: 5000), clock: clock)
     let request = Task { try await transport.getCurrentUser() }
-    try await Task.sleep(for: .milliseconds(20))
+    // In flight: its deadline waits on a clock that never reaches it.
+    try await sleeping(clock, until: clock.now.advanced(by: .milliseconds(5000)))
     transport.dispose()
     do {
       _ = try await withinTestDeadline { try await request.value }

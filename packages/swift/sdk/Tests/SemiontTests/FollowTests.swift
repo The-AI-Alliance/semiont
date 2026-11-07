@@ -251,7 +251,7 @@ func sleeping(_ clock: TestClock, until due: TestClock.Instant) async throws {
   #expect(names.value == ["created", "refused job:report-progress payload.jobId lacks"])
 }
 /// A test clock that keeps each instant it is asked to sleep until.
-private final class Asked: Clock {
+final class AskedClock: Clock {
   let clock = TestClock()
   private let instants = Mutex<[TestClock.Instant]>([])
   var now: TestClock.Instant { clock.now }
@@ -266,7 +266,7 @@ private final class Asked: Clock {
   }
 }
 @Test func aRefusedFrameStartsNoMarkUnitsQuietAgain() async throws {
-  let clock = Asked()
+  let clock = AskedClock()
   let probe = ProbeTransport()
   let client = try await SemiontClient(
     transport: probe, followTiming: FollowTiming(silenceMs: 600_000, statusPollMs: 600_000),
@@ -488,30 +488,41 @@ private final class Asked: Clock {
   try await withinTestDeadline { for await ready in cancelled where ready { return } }
 }
 @Test func progressRestartsAGenerationStallDeadline() async throws {
+  let clock = TestClock()
   let probe = ProbeTransport()
   let client = try await SemiontClient(
-    transport: probe, followTiming: FollowTiming(silenceMs: 60000, statusPollMs: 60000))
+    transport: probe, followTiming: FollowTiming(silenceMs: 60000, statusPollMs: 60000),
+    clock: clock)
   defer { client.dispose() }
-  let began = Watched(false)
-  probe.handle { _, _ in
-    began.set(true)
-    return try jobCreatedFixture()
-  }
+  probe.handle { _, _ in try jobCreatedFixture() }
   let params = try GenerationJobParams(
     context: contextFixture(), storageUri: "file://notes.md", title: "Notes")
-  let following = try client.yield.delegate(params: params, stallDeadlineMs: 2_000)
-  let collector = Task { try await following.completed() }
-  try await withinTestDeadline { for await ready in began where ready { return } }
-  // Progress for 2.5 s, longer than the deadline, so the job lives only by its restarting. Each
-  // gap leaves the deadline 1.75 s to spare, more than a busy runner pauses a test's tasks.
-  for _ in 0..<10 {
-    try await Task.sleep(for: .milliseconds(250))
+  let stallMs = 2_000
+  let following = try client.yield.delegate(params: params, stallDeadlineMs: stallMs)
+  let created = Watched(false)
+  let collector = Task {
+    for try await event in following {
+      if case .created = event { created.set(true) }
+      if case .complete(let value) = event { return value }
+    }
+    throw SpecFailure.shape("Missing completion")
+  }
+  try await withinTestDeadline { for await ready in created where ready { return } }
+  // The deadline was set when the following began, at the clock's start. Each progress comes a
+  // millisecond before the deadline the last one set, so the job outlives its first deadline only
+  // because each progress restarts it.
+  var deadline = clock.now.advanced(by: .milliseconds(stallMs))
+  for _ in 0..<3 {
+    try await sleeping(clock, until: deadline)
+    clock.advance(by: clock.now.duration(to: deadline) - .milliseconds(1))
     try report(
       Channels.jobReportProgress,
       JobReportProgressCommand(
         jobId: JobId("job-1"), jobType: .yield, percentage: 10, resourceId: ResourceId("res-1")),
       on: client.bus)
+    deadline = clock.now.advanced(by: .milliseconds(stallMs))
   }
+  try await sleeping(clock, until: deadline)
   try report(
     Channels.jobComplete,
     JobCompleteCommand.yieldJobCompleteCommand(
@@ -594,19 +605,32 @@ private struct UnexpectedStatusFailure: Error {}
 }
 @Test(arguments: [false, true])
 func jobPollingDeadlineBoundsRequestsAndIntervals(unanswered: Bool) async throws {
+  let clock = AskedClock()
   let probe = ProbeTransport()
-  let client = try await SemiontClient(transport: probe)
+  let client = try await SemiontClient(transport: probe, clock: clock)
   defer { client.dispose() }
+  let requestBegan = Watched(false)
   let requestEnded = Watched(false)
   probe.handle { _, _ in
+    requestBegan.set(true)
     defer { requestEnded.set(true) }
     if unanswered { try await Task.sleep(for: .milliseconds(60000)) }
     return try wirePayload(JobStatusResult(response: statusFixture(status: .pending)))
   }
-  do {
-    _ = try await withinTestDeadline {
-      try await client.job.pollUntilComplete(JobId("job-1"), intervalMs: 60000, timeoutMs: 2000)
+  let deadline = clock.now.advanced(by: .milliseconds(2000))
+  let polling = Task {
+    try await client.job.pollUntilComplete(JobId("job-1"), intervalMs: 60000, timeoutMs: 2000)
+  }
+  // The request's bound sleeps until the deadline; answered, so does the interval after it.
+  let waits = unanswered ? 1 : 2
+  try await withinTestDeadline {
+    while !requestBegan.value || clock.asked(deadline) < waits {
+      try await Task.sleep(for: .milliseconds(1))
     }
+  }
+  clock.clock.advance(by: .milliseconds(2000))
+  do {
+    _ = try await withinTestDeadline { try await polling.value }
     Issue.record("Unanswered polling succeeded")
   } catch let error as BusRequestError { #expect(error.reason == .busTimeout) }
   #expect(requestEnded.value)
