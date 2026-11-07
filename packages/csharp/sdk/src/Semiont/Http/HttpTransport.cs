@@ -39,6 +39,12 @@ public sealed partial class HttpTransport : IDisposable
     private readonly Queue<string> remembered = [];
     private readonly HashSet<string> seen = [];
     private readonly SemaphoreSlim sendOrder = new(1, 1);
+    // The schema each operation's failure channel is read as, by its channel. The required-shape table is read here, as
+    // the transport is made and as the protocol's other tables are, so a table that cannot be read, or that does not
+    // state a failure's schema, fails the transport's making and not its first failure.
+    private readonly Dictionary<string, string> failureSchemas = ProtocolFacts.Operations()
+        .Select(operation => operation.Failure).Distinct(StringComparer.Ordinal)
+        .ToDictionary(failure => failure, failure => Required.Stated(ProtocolFacts.PayloadSchema(failure)), StringComparer.Ordinal);
     private Task<string?>? renewing;
     private string? renewingToken;
     private TaskCompletionSource attached = NewCompletion();
@@ -311,9 +317,9 @@ public sealed partial class HttpTransport : IDisposable
     /// failure is held to its channel's schema as a result is: one with a fault is refused, naming the fault. One the
     /// schema passes is a <see cref="BusRequestError"/> in its own words, under the code its own code becomes; the schema
     /// holds the code to no list.</summary>
-    private static SemiontError Answered(string channel, JsonElement failure)
+    private SemiontError Answered(string channel, JsonElement failure)
     {
-        if (Required.FaultOf(ProtocolFacts.PayloadSchema(channel), failure) is { } fault)
+        if (Required.FaultOf(failureSchemas[channel], failure) is { } fault)
             return new TransportError(ProtocolFacts.Error(0), $"a payload on {channel} is not that channel's: {fault.Said}");
         var code = failure.TryGetProperty("code", out var field) ? field.GetString() : null;
         return new BusRequestError(ProtocolFacts.Failure(code), failure.GetProperty("message").GetString()

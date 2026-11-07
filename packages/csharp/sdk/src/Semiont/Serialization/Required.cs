@@ -36,6 +36,13 @@ internal static partial class Required
     /// rules every SDK reads the table by; null when it has none.</summary>
     internal static Fault? FaultOf(string schema, JsonElement value) => FaultAt(Component(schema), value, "");
 
+    /// <summary><paramref name="schema"/>, once the table is read and found to state it.</summary>
+    internal static string Stated(string schema)
+    {
+        Component(schema);
+        return schema;
+    }
+
     private enum Kind { Object, Array, String, Integer, Number, Boolean, Null }
 
     /// <summary>One step of a pattern: at least <c>Min</c> of a text's next code points, and at most <c>Max</c> (null:
