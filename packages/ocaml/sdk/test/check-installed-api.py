@@ -20,7 +20,7 @@ with tempfile.TemporaryDirectory() as directory:
     def compile_consumer(name, source):
         path = directory / (name + '.ml')
         path.write_text(source)
-        return subprocess.run([*compiler, '-I', str(interface),
+        return subprocess.run([*compiler, '-color', 'never', '-I', str(interface),
                                '-c', str(path)], cwd=root, text=True, capture_output=True)
 
     valid = compile_consumer('valid', '''

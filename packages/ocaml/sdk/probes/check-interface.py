@@ -51,7 +51,7 @@ with tempfile.TemporaryDirectory() as directory:
     interface = directory / 'probe_surface.mli'
     def build(contents):
         interface.write_text(contents)
-        checked('dune', 'exec', '--', 'ocamlc', '-c', str(interface))
+        checked('dune', 'exec', '--', 'ocamlc', '-color', 'never', '-c', str(interface))
         return inspect(interface.with_suffix('.cmi'), [directory])
 
     baseline = build(source)
@@ -79,7 +79,7 @@ with tempfile.TemporaryDirectory() as directory:
     def consume(name, contents):
         path = directory / (name + '.ml')
         path.write_text(contents)
-        return run('dune', 'exec', '--', 'ocamlc', '-I', str(directory), '-c', str(path))
+        return run('dune', 'exec', '--', 'ocamlc', '-color', 'never', '-I', str(directory), '-c', str(path))
 
     valid = consume('valid', '''
 open Probe_surface.Nested
