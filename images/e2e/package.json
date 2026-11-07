@@ -1,6 +1,6 @@
 {
   "name": "@semiont/tests-e2e",
-  "version": "0.7.2",
+  "version": "0.0.0",
   "private": true,
   "description": "End-to-end smoke tests. Runs against a locally-running gateway and frontend; see README.md.",
   "scripts": {
