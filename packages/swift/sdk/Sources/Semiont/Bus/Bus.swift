@@ -1,7 +1,8 @@
 import Foundation
 
-/// The typed bus over a transport. A request it sends waits for its reply on its clock, for
-/// `busRequestTimeoutMs` unless its caller gives another deadline, whatever the transport.
+/// The typed bus over a transport. A request it sends has, from the call, its emit included,
+/// `busRequestTimeoutMs` on its clock to be answered, unless its caller gives another deadline,
+/// whatever the transport.
 public struct Bus: Sendable {
   private let transport: any Transport
   private let busRequestTimeoutMs: Int
