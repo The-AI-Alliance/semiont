@@ -31,14 +31,21 @@ Go:
 go get github.com/The-AI-Alliance/semiont/packages/go/sdk
 ```
 
-Kotlin and Java: the SDK is not published yet. [Its README](../../packages/kotlin/sdk/README.md#installing) builds its jar from source.
+Kotlin and Java:
 
-.NET uses a [project reference and runnable C# examples](../../packages/csharp/sdk/README.md) until the NuGet package is published.
+The SDK is not published yet. [Its README](../../packages/kotlin/sdk/README.md#installing) builds its jar from source.
 
-Swift uses a [local Swift package from a Semiont checkout](../../packages/swift/sdk/README.md#install).
+C# and .NET:
 
-Haskell uses a [local Cabal package](../../packages/haskell/sdk/README.md#install)
-from a Semiont checkout until it is published.
+Use a [project reference](../../packages/csharp/sdk/README.md#install) until the NuGet package is published. Its README has runnable C# examples.
+
+Swift:
+
+Use the [local Swift package in a Semiont checkout](../../packages/swift/sdk/README.md#install).
+
+Haskell:
+
+Use the [local Cabal package in a Semiont checkout](../../packages/haskell/sdk/README.md#install) until it is published.
 
 **Then go to the [Developer Guide](./DEVELOPER-GUIDE.md).** It is the way in: short recipes in the order you will need them. You connect, read, ingest a document, enrich it, gather context around it, generate from it, react to what other participants do, and test what you built.
 
@@ -50,7 +57,7 @@ The client needs a knowledge base to talk to. The [Quick Start](./QUICK-START.md
 
 - **One wire, eight verbs.** Everything a participant does travels over one event bus, as one of eight verbs: four that write (**yield · mark · bind · frame**), three that read (**browse · match · gather**), and one that directs attention (**beckon**). They are the client's namespaces in every SDK.
 - **The SDK is the boundary.** Your code never calls the gateway's HTTP API directly. Something the SDK lacks is a gap to raise, not a reason to reach around it.
-- **One contract.** TypeScript, Rust, Python, Go, Kotlin, C# and Swift have the same namespaces and methods, and are held to one [conformance suite](../../protocol/conformance/sdk/README.md) against a real gateway. What you learn in one carries to the others.
+- **One contract.** TypeScript, Rust, Python, Go, Kotlin, C#, Swift and Haskell have the same namespaces and methods, and are held to one [conformance suite](../../protocol/conformance/sdk/README.md) against a real gateway. What you learn in one carries to the others.
 - **People and AI agents are the same kind of participant.** They use the same client and the same verbs, and every annotation records who made it.
 - **Data is live.** A read is a query that stays current as others write. Work a model does is a job you start and watch.
 
@@ -82,7 +89,7 @@ Read in this order. Most people need only the first three.
 | [Quick Start](./QUICK-START.md) | A knowledge base running on your machine, to build against |
 | [Introduction](./INTRODUCTION.md) | The ideas, once: one wire, annotations as data, AI work as jobs, live data, and where your code sits |
 | **[Developer Guide](./DEVELOPER-GUIDE.md)** | **How to build: the recipes, with the exact lines** |
-| [Signing in](./SIGN-IN.md) | Each way a program signs in, by who is signing in, in TypeScript, Python, Rust, Go, Kotlin, C# and Swift |
+| [Signing in](./SIGN-IN.md) | Each way a program signs in, by who is signing in, in TypeScript, Python, Rust, Go, Kotlin, C#, Swift and Haskell |
 | [Connecting an AI application](./AI-APPLICATIONS.md) | `semiont mcp`: the knowledge bases you have signed in to, as tools in Claude and any other MCP client |
 | [Usage](./Usage.md) | The reference: every method of every namespace, its options, what it returns, and the errors |
 | [Reactive model](./REACTIVE-MODEL.md) | The return shapes the SDKs share and why each method uses its shape |

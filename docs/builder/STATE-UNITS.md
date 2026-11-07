@@ -2,7 +2,7 @@
 
 A **state unit** is a piece of state that changes over time, held behind a surface its consumers read but cannot write, with one commitment: `dispose`. Every SDK is built from them, holds its units to the same axioms, and runs one table of what each of the SDK's units does.
 
-The pattern is the same in every language. What differs is what a language reads state with: RxJS Observables in TypeScript, `tokio::sync::watch` receivers and streams in Rust, a `Watched[T]` read with `async for` in Python, a `Watched[T]` ranged over with `for` in Go, a `Watched<T>` collected as a `Flow` in Kotlin, and a `StateValue<T>` read with `await foreach` in C#. This doc states the pattern first, then each language's form of it.
+The pattern is the same in every language. What differs is what a language reads state with: RxJS Observables in TypeScript, `tokio::sync::watch` receivers and streams in Rust, a `Watched[T]` read with `async for` in Python, a `Watched[T]` ranged over with `for` in Go, a `Watched<T>` collected as a `Flow` in Kotlin, a `StateValue<T>` read with `await foreach` in C#, and a `StateValue` read in STM with `current` or in a scope with `watch` in Haskell. This doc states the pattern first, then each language's form of it.
 
 ## What state units do
 
