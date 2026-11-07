@@ -2,6 +2,11 @@ open Eio.Std
 
 let check = Alcotest.(check bool)
 let read_body body = Eio.Buf_read.(take_all (of_flow ~max_size:65536 body))
+let pem file = In_channel.with_open_bin file In_channel.input_all
+
+let value = function
+  | Ok value -> value
+  | Error (`Msg message) -> failwith message
 
 let request flow =
   let input = Eio.Buf_read.of_flow ~max_size:65536 flow in
@@ -122,7 +127,7 @@ let borrowed_connection () =
   Alcotest.(check int)
     "closing request scopes preserves the host-owned connection" 1 !accepted
 
-type stall = Headers | Body
+type stall = Headers | Body | Handshake
 
 let controlled_deadline stall () =
   Eio_main.run @@ fun env ->
@@ -151,20 +156,46 @@ let controlled_deadline stall () =
     Fiber.fork_promise ~sw (fun () ->
         Switch.run @@ fun sw ->
         let flow, _ = Eio.Net.accept ~sw socket in
-        ignore (request flow);
         (match stall with
-        | Headers -> ()
+        | Handshake ->
+            let bytes = Eio.Flow.single_read flow (Cstruct.create 4096) in
+            check "peer received a real TLS ClientHello" true (bytes > 0)
+        | Headers -> ignore (request flow)
         | Body ->
+            ignore (request flow);
             Eio.Flow.copy_string "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\na"
               flow);
         Promise.resolve receive ();
-        try
-          ignore (Eio.Flow.single_read flow (Cstruct.create 1));
-          false
-        with End_of_file -> true)
+        let rec closed () =
+          try
+            ignore (Eio.Flow.single_read flow (Cstruct.create 4096));
+            match stall with Handshake -> closed () | Headers | Body -> false
+          with End_of_file -> true
+        in
+        closed ())
   in
   let connects = ref 0 in
-  let http = client env address connects in
+  let http =
+    match stall with
+    | Headers | Body -> client env address connects
+    | Handshake ->
+        let certificate =
+          value (X509.Certificate.decode_pem (pem "peer-cert.pem"))
+        in
+        let time () = Ptime.of_float_s (Eio.Time.now (Eio.Stdenv.clock env)) in
+        let authenticator =
+          X509.Authenticator.chain_of_trust ~time [ certificate ]
+        in
+        let config = value (Tls.Config.client ~authenticator ()) in
+        Cohttp_eio.Client.make_generic (fun ~sw _ ->
+            incr connects;
+            let raw = Eio.Net.connect ~sw (Eio.Stdenv.net env) address in
+            (Tls_eio.client_of_flow config
+               ~host:
+                 (Domain_name.host_exn (Domain_name.of_string_exn "localhost"))
+               raw
+              :> [ Eio.Flow.two_way_ty | Eio.Resource.close_ty ] Eio.Resource.t))
+  in
   let done_ =
     Fiber.fork_promise ~sw (fun () ->
         try
@@ -174,7 +205,11 @@ let controlled_deadline stall () =
                   let _, body =
                     Cohttp_eio.Client.get http ~sw
                       (Uri.of_string
-                         (Printf.sprintf "http://localhost:%d/stall" port))
+                         (Printf.sprintf "%s://localhost:%d/stall"
+                            (match stall with
+                            | Handshake -> "https"
+                            | Headers | Body -> "http")
+                            port))
                   in
                   Promise.resolve read ();
                   ignore (read_body body)));
@@ -185,7 +220,7 @@ let controlled_deadline stall () =
   check "timer is registered at the requested deadline" true
     (Mtime.equal due expected);
   Promise.await received;
-  (match stall with Headers -> () | Body -> Promise.await reading);
+  (match stall with Headers | Handshake -> () | Body -> Promise.await reading);
   let before = Mtime.of_uint64_ns (Int64.pred (Mtime.to_uint64_ns expected)) in
   let boundary =
     Fiber.fork_promise ~sw (fun () -> Eio.Time.Mono.sleep_until base before)
@@ -279,12 +314,6 @@ let replayable_upload () =
     "body factory is reopened for each explicit attempt" 2 !opens;
   Alcotest.(check int) "no hidden attempt" 2 !connects
 
-let pem file = In_channel.with_open_bin file In_channel.input_all
-
-let value = function
-  | Ok value -> value
-  | Error (`Msg message) -> failwith message
-
 let tls ~trusted ~host () =
   Eio_main.run @@ fun env ->
   let certificate = value (X509.Certificate.decode_pem (pem "peer-cert.pem")) in
@@ -352,6 +381,8 @@ let () =
             (controlled_deadline Headers);
           Alcotest.test_case "controlled body deadline" `Quick
             (controlled_deadline Body);
+          Alcotest.test_case "controlled TLS attachment deadline" `Quick
+            (controlled_deadline Handshake);
         ] );
       ( "tls",
         [
