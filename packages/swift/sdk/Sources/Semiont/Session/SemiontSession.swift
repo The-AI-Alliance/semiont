@@ -12,6 +12,8 @@ public actor SemiontSession: StateUnit {
   nonisolated let lifetime = Lifetime()
   private nonisolated let failures = Broadcast<any Error>()
   let kept: any SignInKept
+  /// Forgets the sign-in `kept` holds.
+  private let forget: @Sendable () async throws -> Void
   private let renew: @Sendable (String?) async throws -> String?
   private let validate: @Sendable (String) async throws -> UserResponse
   private let publish: @Sendable (String?) async -> Void
@@ -29,6 +31,7 @@ public actor SemiontSession: StateUnit {
   private var scheduled: UUID?
   package init(
     kb: KbTarget, client: SemiontClient, kept: any SignInKept,
+    forget: @escaping @Sendable () async throws -> Void,
     renew: @escaping @Sendable (String?) async throws -> String?,
     validate: @escaping @Sendable (String) async throws -> UserResponse,
     publish: @escaping @Sendable (String?) async -> Void = { _ in },
@@ -40,6 +43,7 @@ public actor SemiontSession: StateUnit {
     self.client = client
     self.streamState = client.state
     self.kept = kept
+    self.forget = forget
     self.renew = renew
     self.validate = validate
     self.publish = publish
@@ -147,7 +151,7 @@ public actor SemiontSession: StateUnit {
         }
         if try await kept.held() != nil {
           if startup {
-            try await client.forgetSignIn(kept)
+            try await forget()
             await setToken(nil)
           } else {
             try await signedOut(.expired, code: .sessionRefreshExhausted)
@@ -163,7 +167,7 @@ public actor SemiontSession: StateUnit {
           !RetryContext.refresh.retryable(status: status, method: "POST", keyed: false)
         {
           if startup {
-            try await client.forgetSignIn(kept)
+            try await forget()
           } else {
             try await signedOut(.expired, code: .sessionRefreshExhausted)
           }
@@ -190,7 +194,7 @@ public actor SemiontSession: StateUnit {
     }
     await setToken(nil)
     if !lifetime.ended { user.set(nil) }
-    do { try await client.forgetSignIn(kept) } catch { report(error) }
+    do { try await forget() } catch { report(error) }
     guard !lifetime.ended else { return }
     onAuthFailed?(reason)
     report(SessionError(code, "Session ended: " + reason.rawValue, kbId: kb.id))

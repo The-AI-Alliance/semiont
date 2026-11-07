@@ -44,10 +44,11 @@ public struct TestSession: Sendable {
 public func createTestSession(_ options: TestSessionOptions) async throws -> TestSession {
   let client = try await SemiontClient(
     transport: options.transport, clock: options.transport.clock)
+  let kept = options.kept
   let session = SemiontSession(
-    kb: options.kb, client: client, kept: options.kept, renew: options.renew,
-    validate: options.validate, random: options.random, onAuthFailed: options.onAuthFailed,
-    onError: options.onError)
+    kb: options.kb, client: client, kept: kept, forget: { try await kept.forget() },
+    renew: options.renew, validate: options.validate, random: options.random,
+    onAuthFailed: options.onAuthFailed, onError: options.onError)
   await session.start()
   return TestSession(
     opened: OpenedSession(session: session), transport: options.transport, kept: options.kept)

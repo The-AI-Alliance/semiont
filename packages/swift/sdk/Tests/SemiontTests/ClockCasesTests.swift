@@ -519,7 +519,7 @@ private func renewal(_ given: [String: JSONValue], _ clock: TestClock) async thr
       tokenEndpoint: "http://issuer.test/realms/semiont/token"))
   let client = try await SemiontClient(transport: ScriptedTransport(clock: clock), clock: clock)
   let session = SemiontSession(
-    kb: alphaKb, client: client, kept: kept,
+    kb: alphaKb, client: client, kept: kept, forget: { await kept.forget() },
     renew: { _ in
       renewals.add()
       return try token()

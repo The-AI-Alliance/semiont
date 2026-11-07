@@ -159,7 +159,7 @@ final class KeptQueries: CacheWork {
   }
 
   private let storage: any SessionStorage
-  private let kbId: String
+  fileprivate let kbId: String
   private let writer: any KeptWriter
   private let clock: any Clock<Duration>
   private let state = Mutex(State())
@@ -220,12 +220,6 @@ final class KeptQueries: CacheWork {
   /// Waits until every write begun so far has landed: once it is closed, until its last.
   func closed() async { await writer.closed() }
 
-  /// Runs `forget`, the session's forgetting of its saved sign-in, once every write begun before it
-  /// has landed, and writes nothing more.
-  func forgetting(_ forget: @escaping @Sendable () async throws -> Void) async throws {
-    try await writer.forgetting(self, forget)
-  }
-
   private func saved(_ id: UUID) {
     guard state.withLock({ $0.timer.fire(id) }) else { return }
     writer.save(self)
@@ -235,6 +229,9 @@ final class KeptQueries: CacheWork {
 
   /// What is not yet written, taken to be written; nil when there is none, or it writes no more.
   fileprivate func take() -> Writing? { state.withLock { Self.taken(&$0) } }
+
+  /// Whether it writes nothing more.
+  fileprivate var ended: Bool { state.withLock { $0.ended } }
 
   /// Writes what is not yet written at once, while nothing it holds changes.
   fileprivate func writeNow() {
@@ -274,8 +271,8 @@ final class KeptQueries: CacheWork {
     state.withLock { Self.restore(&$0, unwritten) }
   }
 
-  /// Its sign-in no longer names its person: what is not yet written goes, and nothing is written
-  /// again.
+  /// Its sign-in is not known to name its person: what is not yet written goes, and nothing is
+  /// written again.
   fileprivate func drop() {
     state.withLock { state in
       state.timer.stop()
@@ -351,11 +348,6 @@ protocol KeptWriter: Sendable {
   func close(_ keeping: KeptQueries)
   /// Waits until every write it has begun has landed.
   func closed() async
-  /// Runs `forget`, the forgetting of the session's saved sign-in, so that nothing `keeping` writes
-  /// lands after it; `keeping` writes nothing more.
-  func forgetting(
-    _ keeping: KeptQueries, _ forget: @escaping @Sendable () async throws -> Void
-  ) async throws
 }
 
 /// The writer of a client an app wires itself: it writes as it is given, at once, so a client has
@@ -365,26 +357,22 @@ struct WritesAsGiven: KeptWriter {
   func save(_ keeping: KeptQueries) { keeping.writeNow() }
   func close(_ keeping: KeptQueries) { keeping.closeNow() }
   func closed() async {}
-  func forgetting(
-    _ keeping: KeptQueries, _ forget: @escaping @Sendable () async throws -> Void
-  ) async throws {
-    keeping.drop()
-    try await forget()
-  }
 }
 
 /// The writer of the client of a session an SDK's builder makes. It writes in steps that run one at
 /// a time (``SerialSteps``): each asks what holds the session's sign-in whether it still names the
 /// person kept for, and writes only while it does, with no other step between; the session's
-/// forgetting of its sign-in is a step too, so no save lands after what forgetting deletes, within
-/// one process. A sign-in that is gone, names nobody or someone else, or cannot be read drops what
-/// is not yet written, and nothing is written again; a sign-in that cannot be read is reported.
+/// forgetting of its sign-in is a step too, after which nothing is written, so no save lands after
+/// what forgetting deletes, within one process. A sign-in that is gone, or names nobody or someone
+/// else, drops what is not yet written, and nothing is written again. So does one that cannot be
+/// read, which is reported once, as a ``SessionError`` of `session.keep-failed`.
 final class WritesWhileNamed: KeptWriter {
   private let kept: any SignInKept
-  private let report: @Sendable (any Error) async -> Void
+  private let report: @Sendable (SessionError) async -> Void
   private let steps = SerialSteps()
+  private let forgotten = Mutex(false)
 
-  init(kept: any SignInKept, report: @escaping @Sendable (any Error) async -> Void) {
+  init(kept: any SignInKept, report: @escaping @Sendable (SessionError) async -> Void) {
     self.kept = kept
     self.report = report
   }
@@ -407,22 +395,29 @@ final class WritesWhileNamed: KeptWriter {
 
   func closed() async { await steps.drained() }
 
-  func forgetting(
-    _ keeping: KeptQueries, _ forget: @escaping @Sendable () async throws -> Void
-  ) async throws {
-    try await steps.then {
-      keeping.drop()
+  /// Runs `forget`, the session's forgetting of its sign-in, once every write begun before it has
+  /// landed; nothing is written after it.
+  func forgetting(_ forget: @escaping @Sendable () async throws -> Void) async throws {
+    try await steps.then { [self] in
+      forgotten.withLock { $0 = true }
       try await forget()
     }.value
   }
 
+  /// Writes `writing`, taken before this step began, unless it was dropped since.
   private func write(_ writing: KeptQueries.Writing, of keeping: KeptQueries) async {
+    guard !keeping.ended else { return }
+    guard !forgotten.withLock({ $0 }) else { return keeping.drop() }
     let named: String?
     do {
       named = try await kept.held()?.personKey
     } catch {
       keeping.drop()
-      await report(error)
+      await report(
+        SessionError(
+          .sessionKeepFailed,
+          "The kept sign-in could not be read before a save: " + String(describing: error),
+          kbId: keeping.kbId))
       return
     }
     guard named == writing.person else { return keeping.drop() }

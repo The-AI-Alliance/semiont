@@ -22,10 +22,11 @@ actor SessionGate {
 /// client keeps its persisted queries' answers there for the person the gateway says the token
 /// is, once `kept` records them (``SignInKept/recordPersonKey(holding:_:)``), and from the start
 /// when it names them already. Before each write it asks `kept` whether the sign-in still names
-/// that person, and once it does not (forgotten, or another sign-in kept in its place) the client
-/// writes nothing more. Over the sign-in a registry keeps there (``keptIn(_:kbId:)``), forgetting
-/// the saved sign-in deletes what was kept of its person, and nothing the client was writing lands
-/// after the session's own forgetting of it.
+/// that person, and once it does not (forgotten, or another sign-in kept in its place), or `kept`
+/// cannot say, the client writes nothing more; that `kept` could not say is reported once, as a
+/// ``SessionError`` of `session.keep-failed`. Over the sign-in a registry keeps there
+/// (``keptIn(_:kbId:)``), forgetting the saved sign-in deletes what was kept of its person, and
+/// nothing the client was writing lands after the session's own forgetting of it.
 public func sessionFromKept(
   kb: KbTarget, kept: any SignInKept, httpClient: HTTPClient,
   onAuthFailed: (@Sendable (SessionEndReason) -> Void)? = nil,
@@ -48,10 +49,9 @@ public func sessionFromKept(
       isTokenExpired($0.access, now: Date().timeIntervalSince1970) ? nil : $0.access
     }, clock: clock, random: draws, refresher: { try await gate.refresh($0) })
   let failures = transport.failures()
+  let writer = WritesWhileNamed(kept: kept, report: { await gate.report($0) })
   let persistence = storage.map {
-    CachePersistence(
-      storage: $0, kbId: kb.id, person: found?.personKey,
-      writer: WritesWhileNamed(kept: kept, report: { await gate.report($0) }))
+    CachePersistence(storage: $0, kbId: kb.id, person: found?.personKey, writer: writer)
   }
   let client: SemiontClient
   do {
@@ -64,6 +64,7 @@ public func sessionFromKept(
   }
   let session = SemiontSession(
     kb: kb, client: client, kept: kept,
+    forget: { try await writer.forgetting { try await kept.forget() } },
     renew: {
       try await renewKept(kept, holding: $0, httpClient: httpClient, clock: clock, random: draws)
     },
