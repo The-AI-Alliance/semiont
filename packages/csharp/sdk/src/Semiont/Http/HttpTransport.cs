@@ -171,9 +171,6 @@ public sealed partial class HttpTransport : IDisposable
         }
     }
 
-    /// <summary>Tells the client's error observers of a failure in work the client does beside its requests.</summary>
-    internal void Report(SemiontError error) => failures.Publish(error);
-
     internal void RestoreWatermarks(IReadOnlyDictionary<string, string> saved)
     {
         lock (gate)

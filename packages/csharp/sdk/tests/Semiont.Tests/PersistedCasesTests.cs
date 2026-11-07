@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading.Channels;
 using Semiont.Errors;
 using Semiont.Identifiers;
 using Semiont.Protocol;
@@ -242,6 +243,47 @@ public sealed partial class TransportTests
             storage.Release();
             await opened.DisposeAsync();
         }
+        foreach (var key in PersonKeys(joKeys)) Assert.True(storage.Get(key) is null, key + " holds " + storage.Get(key));
+    }
+
+    [Fact]
+    public async Task ASignInThatCannotBeReadAsTheClientSavesEndsItsKeepingAndTellsTheSessionOnce()
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var jo = Text(root.GetProperty("people").GetProperty("jo"), "personKey");
+        var joKeys = PersonKeysRow(root, CaseKb, jo);
+        var clock = new TestClock();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        var storage = new UnreadableSignInStorage(RegistryStorage.SessionKey(CaseKb));
+        RegistryStorage.StoreSession(storage, CaseKb, RegistryTokens() with { Access = TokenTests.Jwt(new { exp = now + 3600 }), PersonKey = jo });
+        using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), TokenTests.Jwt(new { exp = now + 7200 }));
+        gateway.Name(true);
+        using var signals = new SessionSignals();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var errors = Channel.CreateUnbounded<SessionError>();
+        var opened = await new HttpSessionFactory(gateway.Http, clock)
+            .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals, error => errors.Writer.TryWrite(error)), deadline.Token);
+        try
+        {
+            var session = opened.Session ?? throw new InvalidOperationException("The registry's session holds no sign-in.");
+            Assert.Equal("fresh", (await opened.Client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(deadline.Token)).Name);
+            storage.Unreadable();
+            await clock.WaitForAsync(SaveDebounce);
+            clock.Advance(SaveDebounce);
+            var told = await errors.Reader.ReadAsync(deadline.Token);
+            Assert.Equal("session.keep-failed", told.Code);
+            Assert.Contains(CaseKb, told.Message, StringComparison.Ordinal);
+            Assert.IsType<IOException>(told.InnerException);
+            Assert.Equal("fresh", (await opened.Client.Browse.Resource(ResourceId.Parse("res-2")).FreshAsync(deadline.Token)).Name);
+            await clock.WaitForAsync(SaveDebounce);
+            clock.Advance(SaveDebounce);
+            Assert.True(session.Token.Value is not null, "the session goes on");
+        }
+        finally { await opened.DisposeAsync(); }
+        var later = new List<SessionError>();
+        while (errors.Reader.TryRead(out var error)) later.Add(error);
+        Assert.DoesNotContain(later, error => error.Code == "session.keep-failed");
         foreach (var key in PersonKeys(joKeys)) Assert.True(storage.Get(key) is null, key + " holds " + storage.Get(key));
     }
 
@@ -552,5 +594,21 @@ public sealed partial class TransportTests
         public void Update(string key, Func<string?, string?> change) => values.Update(key, change);
         public IDisposable? Subscribe(Action<string, string?> onChange) => null;
         public void Dispose() => released.Dispose();
+    }
+
+    /// <summary>A storage whose reads of one key fail once the test says so.</summary>
+    private sealed class UnreadableSignInStorage(string unreadable) : ISessionStorage
+    {
+        private readonly MemoryStorage values = new();
+        private volatile bool failing;
+        internal void Unreadable() => failing = true;
+
+        public string? Get(string key) =>
+            failing && key == unreadable ? throw new IOException("The saved sign-in cannot be read.") : values.Get(key);
+
+        public void Set(string key, string value) => values.Set(key, value);
+        public void Delete(string key) => values.Delete(key);
+        public void Update(string key, Func<string?, string?> change) => values.Update(key, change);
+        public IDisposable? Subscribe(Action<string, string?> onChange) => null;
     }
 }

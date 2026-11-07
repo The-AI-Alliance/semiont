@@ -22,7 +22,7 @@ public sealed class KeptSession : IDisposable
     private readonly SemaphoreSlim operations = new(1, 1);
     private readonly object gate = new();
     private readonly Broadcast<SessionState> states = new(replayLatest: true);
-    private readonly Broadcast<SessionError> errors = new(keepForFirst: true);
+    private readonly Broadcast<SessionError> errors;
     private readonly Channel<bool> changed = Channel.CreateUnbounded<bool>();
     private readonly Task ready;
     private Task<string?>? renewal;
@@ -33,20 +33,22 @@ public sealed class KeptSession : IDisposable
 
     public KeptSession(HttpEndpoint endpoint, ISignInKept kept, HttpClient? httpClient = null,
         TimeProvider? timeProvider = null, Random? random = null)
-        : this(endpoint, kept, httpClient, timeProvider, random, static (_, _, _) => Task.CompletedTask) { }
+        : this(endpoint, kept, httpClient, timeProvider, random, new Broadcast<SessionError>(keepForFirst: true), static (_, _, _) => Task.CompletedTask) { }
 
     /// <summary>
+    /// <paramref name="errors"/> is the session's error channel, which its client's persistence also reports to;
     /// <paramref name="answered"/> is given each token the gateway names a person for, and that person, before the
     /// session holds the answer.
     /// </summary>
     internal KeptSession(HttpEndpoint endpoint, ISignInKept kept, HttpClient? httpClient, TimeProvider? timeProvider, Random? random,
-        Func<string, UserResponse, CancellationToken, Task> answered)
+        Broadcast<SessionError> errors, Func<string, UserResponse, CancellationToken, Task> answered)
     {
         string origin;
         try { origin = Gateway.Origin(endpoint); }
         catch (Exception error) when (error is SignInError or System.Text.Json.JsonException)
         { throw new SessionError(ProtocolFacts.SessionError("construct-failed"), "The knowledge-base endpoint is invalid", error); }
         this.kept = kept;
+        this.errors = errors;
         clock = timeProvider ?? TimeProvider.System;
         this.random = random ?? Random.Shared;
         issuer = new Issuer(httpClient, clock, this.random);
@@ -65,6 +67,7 @@ public sealed class KeptSession : IDisposable
         Func<string, CancellationToken, Task<UserResponse>> validate, TimeProvider clock, Random random, bool offline = false)
     {
         this.kept = kept;
+        errors = new(keepForFirst: true);
         this.offline = offline;
         this.renew = renew;
         this.validate = validate;

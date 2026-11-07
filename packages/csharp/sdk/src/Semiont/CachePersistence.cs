@@ -34,26 +34,29 @@ public sealed class CachePersistence
         ArgumentException.ThrowIfNullOrEmpty(personKey);
         Storage = storage;
         KbId = kbId;
+        Writer = new WritesAsGiven();
         this.personKey = personKey;
     }
 
-    private CachePersistence(ISessionStorage storage, string kbId)
+    private CachePersistence(ISessionStorage storage, string kbId, Action<SessionError> sessionErrors)
     {
         ArgumentNullException.ThrowIfNull(storage);
         Storage = storage;
         KbId = kbId;
-        FollowsSignIn = true;
+        Writer = new WritesWhileNamed(storage, kbId, sessionErrors);
     }
 
     /// <summary>
-    /// A registry session's: it keeps nothing until the knowledge base's sign-in records its person, and writes only
-    /// while the sign-in stored beside it still names them.
+    /// A registry session's: it keeps nothing until the knowledge base's sign-in records its person, writes only while
+    /// the sign-in stored beside it still names them, and tells <paramref name="sessionErrors"/>, the session's error
+    /// channel, when it cannot read that sign-in.
     /// </summary>
-    internal static CachePersistence ForSignIn(ISessionStorage storage, string kbId) => new(storage, kbId);
+    internal static CachePersistence ForSignIn(ISessionStorage storage, string kbId, Action<SessionError> sessionErrors) =>
+        new(storage, kbId, sessionErrors);
 
     internal ISessionStorage Storage { get; }
     internal string KbId { get; }
-    internal bool FollowsSignIn { get; }
+    internal ICacheWriter Writer { get; }
 
     /// <summary>Begins keeping for <paramref name="person"/>, unless a person is already kept for.</summary>
     internal void Attach(string person)
@@ -95,6 +98,40 @@ public sealed class CachePersistence
             }
         }
         live.Forget(() => RegistryStorage.ClearStoredSession(Storage, KbId));
+    }
+}
+
+/// <summary>
+/// Whether a client's persistence writes what it keeps for a person, asked under the lock its saves are written under,
+/// before each write; once it answers no, the client writes nothing more.
+/// </summary>
+internal interface ICacheWriter
+{
+    public bool Writes(string personKey);
+}
+
+/// <summary>A persistence given its person: it writes whatever sign-in is kept.</summary>
+internal sealed class WritesAsGiven : ICacheWriter
+{
+    public bool Writes(string personKey) => true;
+}
+
+/// <summary>
+/// A registry session's: it writes only while the sign-in stored beside it names the person. A stored sign-in it cannot
+/// read is not known to name them, and the session is told why through <paramref name="sessionErrors"/>.
+/// </summary>
+internal sealed class WritesWhileNamed(ISessionStorage storage, string kbId, Action<SessionError> sessionErrors) : ICacheWriter
+{
+    public bool Writes(string personKey)
+    {
+        try { return RegistryStorage.StoredSession(storage, kbId) is { } stored && stored.PersonKey == personKey; }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            sessionErrors(new SessionError(ProtocolFacts.SessionError("keep-failed"),
+                "The sign-in saved for knowledge base " + kbId + " could not be read before its client saved, so the client keeps nothing more.",
+                error));
+            return false;
+        }
     }
 }
 
@@ -282,7 +319,7 @@ internal sealed class LiveCacheStorage(CachePersistence persistence, TimeProvide
             Collect(documents, requireIdle: false);
         }
 
-        if (persistence.FollowsSignIn && !SignInNames(kept))
+        if (!persistence.Writer.Writes(kept))
         {
             Abandon();
             return true;
@@ -321,19 +358,6 @@ internal sealed class LiveCacheStorage(CachePersistence persistence, TimeProvide
         for (var index = 0; index < caches.Length; index++)
             if (!caches[index].Collect(documents[index], requireIdle)) return false;
         return true;
-    }
-
-    // A saved sign-in that cannot be read is not known to name the person: the client keeps nothing more, and says why.
-    private bool SignInNames(string kept)
-    {
-        try { return RegistryStorage.StoredSession(persistence.Storage, persistence.KbId) is { } stored && stored.PersonKey == kept; }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            var reporting = transport ?? throw new InvalidOperationException("The persistence writes before it has started.");
-            reporting.Report(new TransportError(ProtocolFacts.Error(0),
-                "The saved sign-in could not be read, so the client keeps nothing more of what it holds.", inner: error));
-            return false;
-        }
     }
 
     private void Abandon()

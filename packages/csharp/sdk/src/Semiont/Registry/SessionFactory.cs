@@ -52,10 +52,11 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
     {
         if (options.Kb.Endpoint is not KbEndpoint.HttpEndpointCase(var endpoint))
             throw new SessionError(ProtocolFacts.SessionError("construct-failed"), "This factory requires an HTTP endpoint.");
-        var persistence = CachePersistence.ForSignIn(options.Storage, options.Kb.Id);
+        var errors = new Broadcast<SessionError>(keepForFirst: true);
+        var persistence = CachePersistence.ForSignIn(options.Storage, options.Kb.Id, errors.Publish);
         var signIn = RegistryStorage.KeptFor(persistence);
         if (RegistryStorage.StoredSession(options.Storage, options.Kb.Id) is { PersonKey: { } named }) persistence.Attach(named);
-        var kept = new KeptSession(endpoint, signIn, httpClient, timeProvider, random, answered: async (token, user, recording) =>
+        var kept = new KeptSession(endpoint, signIn, httpClient, timeProvider, random, errors, answered: async (token, user, recording) =>
         {
             var person = RegistryStorage.PersonKey(user.Did);
             if (await signIn.RecordPersonKeyAsync(token, person, recording).ConfigureAwait(false)) persistence.Attach(person);
