@@ -362,6 +362,68 @@ let tls ~trusted ~host () =
   if result = `Accepted then
     check "server also completed the authenticated handshake" true (peer = Ok ())
 
+let payload_wire () =
+  let module B = Semiont.Bus_registry in
+  let module W = Semiont.Wire_stream in
+  Eio_main.run @@ fun env ->
+  with_listener env @@ fun sw socket address port ->
+  let url = Uri.of_string (Printf.sprintf "http://localhost:%d/bus" port) in
+  let body =
+    Result.get_ok
+      (W.encode_emit B.Channels.browse_resource_requested ~client_id:"client"
+         ~correlation_id:"request" {|{"resourceId":"res-1"}|})
+  in
+  let frame id data =
+    Printf.sprintf "event: %s\r\nid: %s\r\ndata: %s\r\n\r\n" B.stream_event id
+      data
+  in
+  let stream =
+    ": heartbeat\r\n\r\n"
+    ^ frame "bad-frame"
+        {|{"channel":"mark:archive-ok","correlationId":"request","payload":null,"scope":null}|}
+    ^ frame "bad-payload"
+        {|{"channel":"mark:archive-ok","payload":{"unexpected":true}}|}
+    ^ frame "good"
+        {|{"channel":"mark:archive-ok","correlationId":"request","payload":{}}|}
+  in
+  let server =
+    Fiber.fork_promise ~sw (fun () ->
+        let flow, _ = Eio.Net.accept ~sw socket in
+        let _, _, input = request flow in
+        Alcotest.(check string)
+          "emitted JSON reaches peer" body
+          (Eio.Buf_read.take (String.length body) input);
+        Eio.Flow.copy_string
+          (Printf.sprintf "HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s"
+             (String.length stream) stream)
+          flow)
+  in
+  let http = client env address (ref 0) in
+  let _, response =
+    Cohttp_eio.Client.post http ~sw ~body:(Cohttp_eio.Body.of_string body) url
+  in
+  let input = Eio.Buf_read.of_flow ~max_size:65536 response in
+  (match W.read input with
+  | Some
+      (Error
+         (W.Invalid_frame (Some route, Semiont.Models.Invalid_payload fault)))
+    ->
+      Alcotest.(check (option string))
+        "refusal keeps correlation" (Some "request") route.correlation_id;
+      Alcotest.(check string) "frame fault names payload" "payload" fault.member
+  | _ -> Alcotest.fail "expected routed frame refusal");
+  (match W.read input with
+  | Some (Ok (W.Frame { payload = Error (B.Invalid_payload fault); _ })) ->
+      Alcotest.(check string)
+        "payload fault names field" "unexpected" fault.member
+  | _ -> Alcotest.fail "expected channel payload refusal");
+  (match W.read input with
+  | Some (Ok (W.Frame { id = Some "good"; payload = Ok payload; _ })) ->
+      Alcotest.(check string) "next frame still decodes" "{}" (B.encode payload)
+  | _ -> Alcotest.fail "expected decoded payload");
+  check "end of response" true (Option.is_none (W.read input));
+  Promise.await_exn server
+
 let () =
   Mirage_crypto_rng_unix.use_default ();
   Alcotest.run "OCaml native transport substrate"
@@ -370,6 +432,8 @@ let () =
         [
           Alcotest.test_case "explicit connection and redirect policy" `Quick
             explicit_connection_policy;
+          Alcotest.test_case "wire codecs over loopback HTTP" `Quick
+            payload_wire;
           Alcotest.test_case "no hidden retry" `Quick no_hidden_retry;
           Alcotest.test_case "request scopes preserve a borrowed connection"
             `Quick borrowed_connection;

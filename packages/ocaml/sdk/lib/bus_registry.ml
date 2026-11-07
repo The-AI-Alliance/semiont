@@ -42,6 +42,7 @@ let result value = value.result
 let failure value = value.failure
 let reply_names value = value.reply_names
 let trace_field = "_trace"
+let stream_event = "bus-event"
 module Channels = struct
   let yield_created = { name = "yield:created"; payload = Recorded { envelope = "StoredEventResponse"; payload = "ResourceCreatedPayload" }; delivery = Some Passing; emittable = false; audience = Some Everyone; in_process = false }
   let yield_cloned = { name = "yield:cloned"; payload = Recorded { envelope = "StoredEventResponse"; payload = "ResourceClonedPayload" }; delivery = Some Passing; emittable = false; audience = Some Everyone; in_process = false }

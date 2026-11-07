@@ -19,6 +19,8 @@ const refuse = (message) => { throw new Error(message); };
 const { shapes } = readRequiredShapes(root, refuse);
 const schemaOf = (name) => JSON.parse(readFileSync(resolve(root, `protocol/specs/src/components/schemas/${name}.json`), 'utf8'));
 const replies = replyNames(registry, schemaOf);
+const events = schemaOf('BusEventMessage').properties.event.enum;
+if (events.length !== 1 || typeof events[0] !== 'string') refuse('BusEventMessage needs one event name');
 const delivery = deliveryClasses(registry);
 const audiences = new Map(['everyone', 'scoped', 'declared'].flatMap((audience) =>
   registry.audience[audience].map((channel) => [channel, audience])));
@@ -78,7 +80,7 @@ const api = [
   "val result : ('request, 'result, 'failure) operation -> 'result channel",
   "val failure : ('request, 'result, 'failure) operation -> 'failure channel",
   "val reply_names : ('request, 'result, 'failure) operation -> string list",
-  'val trace_field : string', 'val channels : packed_channel list', 'val operations : packed_operation list',
+  'val trace_field : string', 'val stream_event : string', 'val channels : packed_channel list', 'val operations : packed_operation list',
 ];
 const impl = [
   "type 'a channel = { name : string; payload : payload; delivery : delivery option; emittable : bool; audience : audience option; in_process : bool }",
@@ -101,6 +103,7 @@ const impl = [
   '  Schema_codec.decode shape source',
   ...['name', 'payload', 'delivery', 'emittable', 'audience', 'in_process', 'operation_effect', 'request', 'result', 'failure', 'reply_names'].map((field) => `let ${field} value = value.${field}`),
   `let trace_field = ${ocamlString(registry.trace.field)}`,
+  `let stream_event = ${ocamlString(events[0])}`,
 ];
 const upper = (value) => value[0].toUpperCase() + value.slice(1);
 const someConstructor = (value) => value === undefined ? 'None' : `Some ${upper(value)}`;

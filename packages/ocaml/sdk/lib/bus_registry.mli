@@ -33,6 +33,7 @@ val result : ('request, 'result, 'failure) operation -> 'result channel
 val failure : ('request, 'result, 'failure) operation -> 'failure channel
 val reply_names : ('request, 'result, 'failure) operation -> string list
 val trace_field : string
+val stream_event : string
 val channels : packed_channel list
 val operations : packed_operation list
 module Channels : sig

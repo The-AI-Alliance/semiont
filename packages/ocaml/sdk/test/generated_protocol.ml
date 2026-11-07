@@ -115,6 +115,45 @@ let component_codecs () =
   | Error (M.Invalid_payload { member = "start"; reason = `Malformed }) -> ()
   | _ -> Alcotest.fail "expected a union branch fault at start"
 
+let record_views () =
+  let module M = Semiont.Models in
+  let module R = Semiont.Records in
+  let module T = Semiont.Types in
+  let frame =
+    Result.get_ok
+      (M.decode M.bus_frame
+         {|{"channel":"mark:archive-ok","correlationId":null,"payload":{}}|})
+    |> R.Bus_frame.of_model
+  in
+  Alcotest.(check bool)
+    "null remains distinct from absence" true
+    (frame.correlation_id = T.Null && frame.scope = T.Absent);
+  let endpoint =
+    Result.get_ok
+      (M.decode M.kb_endpoint
+         {|{"kind":"http","host":"example.org","port":443,"protocol":"https","hint":null}|})
+    |> R.Kb_endpoint.of_model
+  in
+  (match endpoint with
+  | Some (R.Kb_endpoint.Http view) ->
+      Alcotest.(check string) "typed union selects HTTP" "example.org" view.host;
+      Alcotest.(check bool)
+        "open property retained" true
+        (view.extra = [ ("hint", `Null) ])
+  | _ -> Alcotest.fail "expected HTTP endpoint variant");
+  let outcome =
+    Result.get_ok
+      (M.decode M.extraction_outcome
+         {|{"kind":"extracted","method":"text-passthrough","text":"sample","items":[]}|})
+    |> R.Extraction_outcome.of_model
+  in
+  match outcome with
+  | Some (R.Extraction_outcome.Extracted view) ->
+      Alcotest.(check string) "composed record inherits text" "sample" view.text;
+      Alcotest.(check string)
+        "composed record keeps branch method" "text-passthrough" view.method_
+  | _ -> Alcotest.fail "expected extracted variant"
+
 let () =
   Alcotest.run "generated protocol"
     [
@@ -126,5 +165,8 @@ let () =
           Alcotest.test_case "payload codecs" `Quick payload_codecs;
         ] );
       ( "components",
-        [ Alcotest.test_case "component codecs" `Quick component_codecs ] );
+        [
+          Alcotest.test_case "component codecs" `Quick component_codecs;
+          Alcotest.test_case "record and variant views" `Quick record_views;
+        ] );
     ]
