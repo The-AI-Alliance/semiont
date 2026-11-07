@@ -52,8 +52,8 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
     {
         if (options.Kb.Endpoint is not KbEndpoint.HttpEndpointCase(var endpoint))
             throw new SessionError(ProtocolFacts.SessionError("construct-failed"), "This factory requires an HTTP endpoint.");
-        var signIn = RegistryStorage.KeptIn(options.Storage, options.Kb.Id);
         var persistence = CachePersistence.ForSignIn(options.Storage, options.Kb.Id);
+        var signIn = RegistryStorage.KeptFor(persistence);
         if (RegistryStorage.StoredSession(options.Storage, options.Kb.Id) is { PersonKey: { } named }) persistence.Attach(named);
         var kept = new KeptSession(endpoint, signIn, httpClient, timeProvider, random, answered: async (token, user, recording) =>
         {

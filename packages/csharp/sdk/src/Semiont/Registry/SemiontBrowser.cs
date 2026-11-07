@@ -96,8 +96,11 @@ public sealed class SemiontBrowser : IAsyncDisposable
                 ? Registry.KbSessionStatus.Expired : Registry.KbSessionStatus.Authenticated;
     }
 
-    public Task SetActiveKbAsync(string? kbId, CancellationToken cancellation = default) =>
-        Select(kbId, replace: false, background: false, cancellation);
+    public Task SetActiveKbAsync(string? kbId, CancellationToken cancellation = default)
+    {
+        cancellation.ThrowIfCancellationRequested();
+        return Select(kbId, replace: false, background: false, cancellation);
+    }
 
     public async Task<KnowledgeBase> AddKbAsync(NewKnowledgeBase kb, StoredSession session, CancellationToken cancellation = default)
     {
@@ -121,12 +124,11 @@ public sealed class SemiontBrowser : IAsyncDisposable
         lock (gate)
         {
             RequireOpen();
-            var removed = TakeStoredSession(Storage, kbId);
+            var forgotten = SwapStoredSession(Storage, kbId, null);
             ForgetTabs(kbId);
             ChangeKbs(items => items.Where(kb => kb.Id != kbId).ToArray());
-            var closing = state.ActiveKbId == kbId
-                ? Select(state.Kbs.FirstOrDefault()?.Id, replace: false, background: false, cancellation) : Task.CompletedTask;
-            return removed is { PersonKey: { } person } ? ForgetKeptAfterAsync(closing, kbId, person) : closing;
+            return ForgetAfterClosing(kbId, forgotten,
+                forget => Select(state.Kbs.FirstOrDefault()?.Id, replace: false, background: false, cancellation, forget: forget));
         }
     }
 
@@ -147,8 +149,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
         {
             RequireOpen();
             RequireKb(kbId);
-            StoreSession(Storage, kbId, session);
-            return Select(kbId, replace: true, background: false, cancellation);
+            return SignInReplacing(kbId, session, cancellation);
         }
     }
 
@@ -176,8 +177,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
                 return existing is null ? [.. items, landed] : items.Select(kb => kb.Id == landed.Id ? landed : kb).ToArray();
             });
             var outcome = result ?? throw new InvalidOperationException("Storage did not apply the knowledge-base update.");
-            StoreSession(Storage, outcome.Kb.Id, signedIn.Session);
-            activate = Select(outcome.Kb.Id, replace: true, background: false, cancellation);
+            activate = SignInReplacing(outcome.Kb.Id, signedIn.Session, cancellation);
         }
         await activate.ConfigureAwait(false);
         return result ?? throw new InvalidOperationException("The sign-in was not stored.");
@@ -189,7 +189,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
         lock (gate)
         {
             RequireOpen();
-            var removed = TakeStoredSession(Storage, kbId);
+            var removed = SwapStoredSession(Storage, kbId, null);
             if (removed is { } stored)
                 _ = RunOwned(async () =>
                 {
@@ -197,19 +197,27 @@ public sealed class SemiontBrowser : IAsyncDisposable
                     catch (SignInError) { /* Revocation is best effort after local sign-out. */ }
                 }, background: true);
             Publish(state);
-            var closing = state.ActiveKbId == kbId
-                ? Select(kbId, replace: true, background: false, cancellation, openSession: false)
-                : Task.CompletedTask;
-            return removed is { PersonKey: { } person } ? ForgetKeptAfterAsync(closing, kbId, person) : closing;
+            return ForgetAfterClosing(kbId, removed,
+                forget => Select(kbId, replace: true, background: false, cancellation, openSession: false, forget: forget));
         }
     }
 
-    // Forgetting a saved sign-in deletes what is kept for its person only once the client has closed, so nothing its
-    // close writes is left.
-    private async Task ForgetKeptAfterAsync(Task closing, string kbId, string personKey)
+    // A new sign-in replaces the stored one at once, and forgets the person that one named once the knowledge base's
+    // client has closed, before the new sign-in's session opens.
+    private Task SignInReplacing(string kbId, StoredSession session, CancellationToken cancellation)
     {
-        try { await closing.ConfigureAwait(false); }
-        finally { ForgetKept(Storage, kbId, personKey); }
+        var replaced = SwapStoredSession(Storage, kbId, session);
+        return Select(kbId, replace: true, background: false, cancellation, forget: () => ForgetKept(Storage, kbId, replaced));
+    }
+
+    // Forgetting a saved sign-in deletes what is kept for its person only once the knowledge base's client has closed, so
+    // nothing its close writes is left: an active knowledge base's in the selection that closes it, any other's at once.
+    private Task ForgetAfterClosing(string kbId, StoredSession? forgotten, Func<Action, Task> closing)
+    {
+        void Forget() => ForgetKept(Storage, kbId, forgotten);
+        if (state.ActiveKbId == kbId) return closing(Forget);
+        Forget();
+        return Task.CompletedTask;
     }
 
     public void AddOpenResource(ResourceId resource, string name, string? mediaType = null, string? storageUri = null) =>
@@ -256,9 +264,12 @@ public sealed class SemiontBrowser : IAsyncDisposable
         return await ReadKbAsync(current, cancellation).ConfigureAwait(false);
     }
 
-    private Task Select(string? id, bool replace, bool background, CancellationToken cancellation, bool openSession = true)
+    /// <summary>
+    /// <paramref name="forget"/> runs once the session the selection removes has closed, superseded or not. Callers check
+    /// <paramref name="cancellation"/> before they change anything, so a sign-in swapped out is always forgotten.
+    /// </summary>
+    private Task Select(string? id, bool replace, bool background, CancellationToken cancellation, bool openSession = true, Action? forget = null)
     {
-        cancellation.ThrowIfCancellationRequested();
         lock (gate)
         {
             RequireOpen();
@@ -275,7 +286,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
             requested?.Cancel();
             var previous = live;
             live = null;
-            var selection = new Activation(id, openSession, CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token, cancellation));
+            var selection = new Activation(id, openSession, CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token, cancellation), forget);
             requested = selection;
             Publish(state with
             {
@@ -303,8 +314,9 @@ public sealed class SemiontBrowser : IAsyncDisposable
         OpenedSession? opened = null;
         try
         {
-            // Even a superseded transition owns the session it removed.
-            if (previous is not null) await previous.DisposeAsync().ConfigureAwait(false);
+            // Even a superseded transition owns the session it removed, and what is forgotten once that has closed.
+            try { if (previous is not null) await previous.DisposeAsync().ConfigureAwait(false); }
+            finally { selection.Forget?.Invoke(); }
             token.ThrowIfCancellationRequested();
             if (!selection.OpenSession || selection.KbId is not { } id) return;
             KnowledgeBase? kb;
@@ -613,7 +625,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
         _ => false,
     };
 
-    private sealed record Activation(string? KbId, bool OpenSession, CancellationTokenSource Source)
+    private sealed record Activation(string? KbId, bool OpenSession, CancellationTokenSource Source, Action? Forget)
     {
         internal void Cancel() => _ = Source.CancelAsync();
     }

@@ -42,34 +42,53 @@ public static class RegistryStorage
     public static string SessionKey(string kbId) => Prefix + kbId;
     public static string? KbOfSessionKey(string key) => key.StartsWith(Prefix, StringComparison.Ordinal) ? key[Prefix.Length..] : null;
     public static StoredSession? StoredSession(ISessionStorage storage, string kbId) => Read<StoredSession>(storage.Get(SessionKey(kbId)));
-    public static void StoreSession(ISessionStorage storage, string kbId, StoredSession session) => storage.Set(SessionKey(kbId), Write(session));
+
+    /// <summary>
+    /// Saves a new sign-in for <paramref name="kbId"/> in place of the stored one, forgetting what is kept for the person
+    /// the replaced one named: a new sign-in names nobody until its gateway names them, even when they are that person.
+    /// </summary>
+    public static void StoreSession(ISessionStorage storage, string kbId, StoredSession session) =>
+        ForgetKept(storage, kbId, SwapStoredSession(storage, kbId, session));
 
     /// <summary>Forgets <paramref name="kbId"/>'s stored sign-in, and with it what is kept for the person it names.</summary>
-    public static void ClearStoredSession(ISessionStorage storage, string kbId)
-    {
-        if (TakeStoredSession(storage, kbId) is { PersonKey: { } person }) ForgetKept(storage, kbId, person);
-    }
+    public static void ClearStoredSession(ISessionStorage storage, string kbId) => ForgetKept(storage, kbId, SwapStoredSession(storage, kbId, null));
 
-    internal static StoredSession? TakeStoredSession(ISessionStorage storage, string kbId)
+    /// <summary>
+    /// Puts <paramref name="replacement"/> in place of <paramref name="kbId"/>'s stored sign-in as one step, storing
+    /// nothing for none, and gives back the sign-in it replaced.
+    /// </summary>
+    internal static StoredSession? SwapStoredSession(ISessionStorage storage, string kbId, StoredSession? replacement)
     {
-        StoredSession? taken = null;
-        storage.Update(SessionKey(kbId), value => { taken = Read<StoredSession>(value); return null; });
-        return taken;
+        StoredSession? replaced = null;
+        storage.Update(SessionKey(kbId), value =>
+        {
+            replaced = Read<StoredSession>(value);
+            return replacement is null ? null : Write(replacement);
+        });
+        return replaced;
     }
 
     /// <summary>
-    /// Deletes what is kept for one person on one knowledge base, as forgetting a saved sign-in that names them does:
-    /// the key of every persisted query and the stream's.
+    /// Deletes what is kept on one knowledge base for the person a forgotten saved sign-in named, as forgetting it does:
+    /// the key of every persisted query and the stream's. A sign-in that named nobody, or none, deletes nothing.
     /// </summary>
-    internal static void ForgetKept(ISessionStorage storage, string kbId, string personKey)
+    internal static void ForgetKept(ISessionStorage storage, string kbId, StoredSession? forgotten)
     {
+        if (forgotten is not { PersonKey: { } personKey }) return;
         foreach (var query in LiveQueries.PersistedQueries) storage.Delete(CacheKey(kbId, personKey, query));
         storage.Delete(LastEventIdKey(kbId, personKey));
     }
 
     public static IReadOnlyList<KnowledgeBase> LoadKnowledgeBases(ISessionStorage storage) => ReadKnowledgeBases(storage.Get(KnowledgeBasesKey));
     public static void SaveKnowledgeBases(ISessionStorage storage, IReadOnlyList<KnowledgeBase> kbs) => storage.Set(KnowledgeBasesKey, Write(kbs));
-    public static ISignInKept KeptIn(ISessionStorage storage, string kbId) => new RegistrySignIn(storage, kbId);
+    public static ISignInKept KeptIn(ISessionStorage storage, string kbId) => new RegistrySignIn(storage, kbId, () => ClearStoredSession(storage, kbId));
+
+    /// <summary>
+    /// What holds a registry session's sign-in in the storage its client keeps in: forgetting it waits for a save of the
+    /// client's persistence already being written, and ends its saves.
+    /// </summary>
+    internal static ISignInKept KeptFor(CachePersistence persistence) =>
+        new RegistrySignIn(persistence.Storage, persistence.KbId, persistence.Forget);
 
     internal static IReadOnlyList<KnowledgeBase> ReadKnowledgeBases(string? json)
     {
@@ -92,7 +111,8 @@ public static class RegistryStorage
 
     internal static string Write<T>(T value) => JsonSerializer.Serialize(value, Json);
 
-    private sealed class RegistrySignIn(ISessionStorage storage, string kbId) : ISignInKept
+    /// <summary><paramref name="forget"/> forgets the stored sign-in and what is kept for the person it names.</summary>
+    private sealed class RegistrySignIn(ISessionStorage storage, string kbId, Action forget) : ISignInKept
     {
         public Task<StoredSession?> HeldAsync(CancellationToken cancellation = default)
         {
@@ -110,7 +130,7 @@ public static class RegistryStorage
         public Task ForgetAsync(CancellationToken cancellation = default)
         {
             cancellation.ThrowIfCancellationRequested();
-            ClearStoredSession(storage, kbId);
+            forget();
             return Task.CompletedTask;
         }
 

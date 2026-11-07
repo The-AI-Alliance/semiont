@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
+using Semiont.Errors;
 using Semiont.Http;
 using Semiont.Identifiers;
 using Semiont.Protocol;
@@ -74,6 +75,26 @@ public sealed class CachePersistence
             started = live;
             return personKey;
         }
+    }
+
+    /// <summary>
+    /// Forgets the knowledge base's saved sign-in, and what is kept for the person it names, under the lock the client's
+    /// saves are checked and written under: a save already past the check lands before the delete, and none follows it.
+    /// </summary>
+    internal void Forget()
+    {
+        LiveCacheStorage? live;
+        lock (gate)
+        {
+            live = started;
+            // A client not yet started has no save to wait for, and starts only once the sign-in is forgotten.
+            if (live is null)
+            {
+                RegistryStorage.ClearStoredSession(Storage, KbId);
+                return;
+            }
+        }
+        live.Forget(() => RegistryStorage.ClearStoredSession(Storage, KbId));
     }
 }
 
@@ -149,6 +170,16 @@ internal sealed class LiveCacheStorage(CachePersistence persistence, TimeProvide
     {
         Interlocked.Exchange(ref dirty, 1);
         saves.Writer.TryWrite(true);
+    }
+
+    /// <summary>Runs <paramref name="forget"/> once no save is being written, and writes nothing after it.</summary>
+    internal void Forget(Action forget)
+    {
+        lock (gate)
+        {
+            Abandon();
+            forget();
+        }
     }
 
     internal void Apply(ReceivedBusFrame frame, Action apply)
@@ -251,14 +282,13 @@ internal sealed class LiveCacheStorage(CachePersistence persistence, TimeProvide
             Collect(documents, requireIdle: false);
         }
 
+        if (persistence.FollowsSignIn && !SignInNames(kept))
+        {
+            Abandon();
+            return true;
+        }
         try
         {
-            if (persistence.FollowsSignIn && !SignInNames(kept))
-            {
-                abandoned = true;
-                pendingPlaces.Clear();
-                return true;
-            }
             var now = clock.GetUtcNow().ToUnixTimeMilliseconds();
             var wrote = false;
             for (var index = 0; index < caches.Length; index++)
@@ -293,8 +323,24 @@ internal sealed class LiveCacheStorage(CachePersistence persistence, TimeProvide
         return true;
     }
 
-    private bool SignInNames(string kept) =>
-        RegistryStorage.StoredSession(persistence.Storage, persistence.KbId) is { } stored && stored.PersonKey == kept;
+    // A saved sign-in that cannot be read is not known to name the person: the client keeps nothing more, and says why.
+    private bool SignInNames(string kept)
+    {
+        try { return RegistryStorage.StoredSession(persistence.Storage, persistence.KbId) is { } stored && stored.PersonKey == kept; }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            var reporting = transport ?? throw new InvalidOperationException("The persistence writes before it has started.");
+            reporting.Report(new TransportError(ProtocolFacts.Error(0),
+                "The saved sign-in could not be read, so the client keeps nothing more of what it holds.", inner: error));
+            return false;
+        }
+    }
+
+    private void Abandon()
+    {
+        abandoned = true;
+        pendingPlaces.Clear();
+    }
 
     // An entry keeps when it was written while its value is unchanged, so eviction drops the entries longest without a new one.
     private static Dictionary<string, Stamp> Stamped(Dictionary<string, Stamp> prior, List<SavedCacheValue> values, long now)
