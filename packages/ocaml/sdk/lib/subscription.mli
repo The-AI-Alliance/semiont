@@ -25,6 +25,22 @@ type snapshot = {
 }
 
 type open_error = Retry | No_credential
+type credential_error = Connect_failed | Credential_refused of int
+
+val authenticated :
+  credential:(unit -> string option) ->
+  renew:(refused:string -> string option) ->
+  on_refused:(int -> unit) ->
+  (sw:Eio.Switch.t ->
+  snapshot ->
+  bearer:string ->
+  (Eio.Buf_read.t, credential_error) result) ->
+  sw:Eio.Switch.t ->
+  snapshot ->
+  (Eio.Buf_read.t, open_error) result
+(** Adapt an HTTP opener that reports refused credentials. [renew] is called
+    once with the refused bearer and updates [credential] when it succeeds. A
+    repeated refusal is reported and that bearer is held back until replaced. *)
 
 val encode_subscription : snapshot -> (string, Models.decode_error) result
 
@@ -40,6 +56,10 @@ val start :
   t
 (** The opener returns a subscription response body owned by its switch. A
     retryable refusal or connection error is reported as [Retry]. *)
+
+val hold_scope : t -> scope -> unit -> unit
+(** Hold the listed channels on a resource. The returned function releases that
+    hold once. A replacement opens before the current stream is retired. *)
 
 val state : t -> state
 val close : t -> unit

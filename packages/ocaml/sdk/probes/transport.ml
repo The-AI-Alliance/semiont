@@ -550,6 +550,212 @@ let subscription_replay () =
   Promise.resolve release_peer ();
   Promise.await_exn server
 
+let scope_handoff () =
+  let module B = Semiont.Bus_registry in
+  let module S = Semiont.Subscription in
+  Eio_main.run @@ fun env ->
+  Switch.run @@ fun sw ->
+  let base = Eio_mock.Clock.Mono.make () in
+  let timers = Eio.Stream.create 64 in
+  let module Timer = struct
+    type t = unit
+    type time = Mtime.t
+
+    let now () = Eio.Time.Mono.now base
+
+    let sleep_until () due =
+      Eio.Stream.add timers (Mtime.to_uint64_ns due);
+      Eio.Time.Mono.sleep_until base due
+  end in
+  let monotonic = Eio.Resource.T ((), Eio.Time.Pi.clock (module Timer)) in
+  let clock =
+    Semiont.Clock.make ~monotonic ~wall:(Eio.Stdenv.clock env)
+      ~jitter:(Random.State.make [| 0 |])
+  in
+  let module Source = struct
+    type t = string Eio.Stream.t
+
+    let read_methods = []
+
+    let single_read chunks buffer =
+      let chunk = Eio.Stream.take chunks in
+      let length = String.length chunk in
+      if length > Cstruct.length buffer then failwith "probe frame too large";
+      Cstruct.blit_from_string chunk 0 buffer 0 length;
+      length
+  end in
+  let openings = Eio.Stream.create 4 in
+  let events = Eio.Stream.create 8 in
+  let closed = ref [] in
+  let opened = ref 0 in
+  let first_read = Promise.create () in
+  let connect ~sw snapshot =
+    incr opened;
+    let index = !opened in
+    let chunks = Eio.Stream.create 8 in
+    let resume, ready = Promise.create () in
+    Eio.Switch.on_release sw (fun () -> closed := index :: !closed);
+    Eio.Stream.add openings (snapshot, chunks, ready);
+    Promise.await resume;
+    let source = Eio.Resource.T (chunks, Eio.Flow.Pi.source (module Source)) in
+    if index = 1 then Promise.resolve (snd first_read) ();
+    Ok (Eio.Buf_read.of_flow ~max_size:65536 source)
+  in
+  let subscription =
+    S.start ~sw ~clock ~client_id:"client"
+      ~global:[ B.Channel B.Channels.mark_archive_ok ]
+      ~scopes:[] ~connect
+      ~on_event:(fun event -> Eio.Stream.add events event)
+      ()
+  in
+  let _, original, open_original = Eio.Stream.take openings in
+  Promise.resolve open_original ();
+  Promise.await (fst first_read);
+  let publish chunks id =
+    Eio.Stream.add chunks
+      (Printf.sprintf "event: %s\nid: %s\ndata: %s\n\n" B.stream_event id
+         {|{"channel":"mark:archive-ok","payload":{}}|})
+  in
+  let read id =
+    match Eio.Stream.take events with
+    | Ok (Semiont.Wire_stream.Frame { id = Some actual; _ }) ->
+        Alcotest.(check string) "event delivered once" id actual
+    | _ -> Alcotest.fail "expected event"
+  in
+  publish original "first";
+  read "first";
+  let scope =
+    {
+      S.resource =
+        Result.get_ok (Semiont.Identifiers.Resource_id.of_string "res-1");
+      channels = [ B.Channel B.Channels.mark_removed ];
+    }
+  in
+  let release = S.hold_scope subscription scope in
+  let release_second = S.hold_scope subscription scope in
+  release ();
+  let nanos ms = Int64.mul (Int64.of_int ms) 1_000_000L in
+  let rec await_timer due =
+    if Eio.Stream.take timers <> due then await_timer due
+  in
+  let tick due =
+    let time = Mtime.of_uint64_ns due in
+    let barrier =
+      Fiber.fork_promise ~sw (fun () -> Eio.Time.Mono.sleep_until base time)
+    in
+    Eio_mock.Clock.Mono.set_time base time;
+    Promise.await_exn barrier
+  in
+  let handoff_at = nanos Subscription_timing.reconnect_debounce_ms in
+  await_timer handoff_at;
+  tick (Int64.pred handoff_at);
+  Alcotest.(check int) "addition is debounced" 1 !opened;
+  tick handoff_at;
+  let replacement, successor, open_successor = Eio.Stream.take openings in
+  check "remaining hold is included" true (List.length replacement.scoped = 1);
+  publish original "while-opening";
+  read "while-opening";
+  check "handoff stays open" true (S.state subscription = S.Open);
+  Promise.resolve open_successor ();
+  let retire_at = Int64.add handoff_at (nanos Subscription_timing.linger_ms) in
+  await_timer retire_at;
+  publish original "overlap";
+  read "overlap";
+  publish successor "overlap";
+  publish successor "successor";
+  read "successor";
+  let positioned id =
+    Eio.Stream.add successor
+      (Printf.sprintf "event: %s\nid: %s\ndata: %s\n\n" B.stream_event id
+         {|{"channel":"mark:removed","scope":"res-1","payload":{"id":"event","type":"mark:removed","timestamp":"2026-11-07","userId":"did:web:example:alice","version":1,"payload":{"annotationId":"a-1"},"metadata":{"sequenceNumber":10}}}|})
+  in
+  positioned "p-res-1-10";
+  read "p-res-1-10";
+  positioned "p-res-1-9";
+  read "p-res-1-9";
+  tick (Int64.pred retire_at);
+  check "old body still open before linger" true (not (List.mem 1 !closed));
+  tick retire_at;
+  let removal_at =
+    Int64.add retire_at (nanos Subscription_timing.lazy_remove_ms)
+  in
+  release_second ();
+  release_second ();
+  await_timer removal_at;
+  tick (Int64.pred removal_at);
+  Alcotest.(check int) "removal waits for lazy removal" 2 !opened;
+  tick removal_at;
+  let final, _, open_final = Eio.Stream.take openings in
+  check "last release removes scope" true (final.scoped = []);
+  check "old body closes at handoff" true (List.mem 1 !closed);
+  Promise.resolve open_final ();
+  let release_again = S.hold_scope subscription scope in
+  let rejoin_at =
+    Int64.add removal_at (nanos Subscription_timing.reconnect_debounce_ms)
+  in
+  await_timer rejoin_at;
+  tick rejoin_at;
+  let rejoined, _, open_rejoined = Eio.Stream.take openings in
+  check "scope resumes at its highest position" true
+    (List.map snd rejoined.scoped = [ Some "p-res-1-10" ]);
+  Promise.resolve open_rejoined ();
+  release_again ();
+  S.close subscription;
+  S.await_closed subscription;
+  Alcotest.(check (list int))
+    "every body released" [ 1; 2; 3; 4 ]
+    (List.sort Int.compare !closed)
+
+let credential_renewal () =
+  let module S = Semiont.Subscription in
+  Eio_main.run @@ fun _ ->
+  Switch.run @@ fun sw ->
+  let current = ref (Some "first") in
+  let attempted = ref [] in
+  let refusals = ref [] in
+  let renewals = ref [] in
+  let dropped = ref false in
+  let connect ~sw:_ _ ~bearer =
+    attempted := bearer :: !attempted;
+    match bearer with
+    | "first" -> Error (S.Credential_refused 401)
+    | "second" when not !dropped ->
+        dropped := true;
+        Error S.Connect_failed
+    | "second" -> Error (S.Credential_refused 429)
+    | _ -> Ok (Eio.Buf_read.of_string "")
+  in
+  let open_stream =
+    S.authenticated
+      ~credential:(fun () -> !current)
+      ~renew:(fun ~refused ->
+        renewals := refused :: !renewals;
+        current := Some "second";
+        !current)
+      ~on_refused:(fun status -> refusals := status :: !refusals)
+      connect
+  in
+  let snapshot =
+    { S.client_id = "client"; global = []; scoped = []; pending_replies = [] }
+  in
+  check "transient drop retries with the same replacement" true
+    (open_stream ~sw snapshot = Error S.Retry);
+  check "second refusal stops immediately" true
+    (open_stream ~sw snapshot = Error S.No_credential);
+  check "refused bearer is not sent again" true
+    (open_stream ~sw snapshot = Error S.No_credential);
+  Alcotest.(check (list string))
+    "retry keeps the replacement"
+    [ "second"; "second"; "first" ]
+    !attempted;
+  Alcotest.(check (list string))
+    "renewal names the refused token" [ "first" ] !renewals;
+  Alcotest.(check (list int))
+    "both refused statuses reported" [ 429; 401 ] !refusals;
+  current := Some "new";
+  check "a different credential can connect" true
+    (Result.is_ok (open_stream ~sw snapshot))
+
 let () =
   Mirage_crypto_rng_unix.use_default ();
   Alcotest.run "OCaml native transport substrate"
@@ -562,6 +768,10 @@ let () =
             payload_wire;
           Alcotest.test_case "controlled reconnect replays pending replies"
             `Quick subscription_replay;
+          Alcotest.test_case "scope holds hand off and linger" `Quick
+            scope_handoff;
+          Alcotest.test_case "credential renewal stops on second refusal" `Quick
+            credential_renewal;
           Alcotest.test_case "no hidden retry" `Quick no_hidden_retry;
           Alcotest.test_case "request scopes preserve a borrowed connection"
             `Quick borrowed_connection;

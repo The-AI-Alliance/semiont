@@ -22,6 +22,38 @@ type snapshot = {
 }
 
 type open_error = Retry | No_credential
+type credential_error = Connect_failed | Credential_refused of int
+
+let authenticated ~credential ~renew ~on_refused connect =
+  let refused = ref [] in
+  let replacement = ref None in
+  let rec attempt ~sw snapshot bearer may_renew =
+    match connect ~sw snapshot ~bearer with
+    | Ok reader ->
+        refused := [];
+        replacement := None;
+        Ok reader
+    | Error Connect_failed -> Error Retry
+    | Error (Credential_refused status) -> (
+        refused := bearer :: !refused;
+        on_refused status;
+        if not may_renew then Error No_credential
+        else
+          match renew ~refused:bearer with
+          | Some bearer when not (List.mem bearer !refused) ->
+              replacement := Some bearer;
+              attempt ~sw snapshot bearer false
+          | _ -> Error No_credential)
+  in
+  fun ~sw snapshot ->
+    match credential () with
+    | Some bearer when not (List.mem bearer !refused) ->
+        let fresh = !replacement <> Some bearer in
+        if fresh then (
+          refused := [];
+          replacement := None);
+        attempt ~sw snapshot bearer fresh
+    | _ -> Error No_credential
 
 type ('result, 'failure) reply =
   | Result of 'result Bus_registry.decoded
@@ -39,7 +71,9 @@ type t = {
   clock : Clock.t;
   client_id : string;
   global : Bus_registry.packed_channel list;
-  scopes : scope list;
+  scopes : (string, (unit ref * scope) list) Hashtbl.t;
+  mutable scope_change : Mtime.t option;
+  mutable scopes_changed : unit Promise.t * unit Promise.u;
   connect : sw:Switch.t -> snapshot -> (Eio.Buf_read.t, open_error) result;
   on_event : (Wire_stream.frame, Wire_stream.refusal) result -> unit;
   positions : (string, string) Hashtbl.t;
@@ -91,15 +125,26 @@ let encode_subscription snapshot =
   Result.map Models.encode
     (Models.decode Models.bus_subscribe_request (Yojson.Raw.to_string raw))
 
+let scope_channels holds =
+  List.concat_map (fun (_, scope) -> scope.channels) holds
+  |> List.sort_uniq
+       (fun (Bus_registry.Channel left) (Bus_registry.Channel right) ->
+         String.compare (Bus_registry.name left) (Bus_registry.name right))
+
 let snapshot t =
   {
     client_id = t.client_id;
     global = t.global;
     scoped =
-      List.map
-        (fun scope ->
-          (scope, Hashtbl.find_opt t.positions (scope_key scope.resource)))
-        t.scopes;
+      Hashtbl.to_seq t.scopes |> List.of_seq
+      |> List.sort (fun (left, _) (right, _) -> String.compare left right)
+      |> List.filter_map (fun (key, holds) ->
+          match holds with
+          | [] -> None
+          | (_, scope) :: _ ->
+              Some
+                ( { scope with channels = scope_channels holds },
+                  Hashtbl.find_opt t.positions key ));
     pending_replies =
       Hashtbl.to_seq_keys t.pending |> List.of_seq |> List.sort String.compare;
   }
@@ -129,10 +174,72 @@ let after start milliseconds =
 let deadline t milliseconds = after (Clock.monotonic_now t.clock) milliseconds
 let sleep t milliseconds = Clock.sleep_until t.clock (deadline t milliseconds)
 
+let schedule_scope_change t ~addition =
+  let delay =
+    if addition then Client_timing.reconnect_debounce_ms
+    else Client_timing.lazy_remove_ms
+  in
+  let due = deadline t (float delay) in
+  let due =
+    match t.scope_change with
+    | Some old when (not addition) && Mtime.compare old due < 0 -> old
+    | _ -> due
+  in
+  t.scope_change <- Some due;
+  let _, wake = t.scopes_changed in
+  t.scopes_changed <- Promise.create ();
+  Promise.resolve wake ()
+
+let hold_scope t scope =
+  let key = scope_key scope.resource in
+  let current () = Option.value (Hashtbl.find_opt t.scopes key) ~default:[] in
+  let token = ref () in
+  let add = current () in
+  let held = (token, scope) :: add in
+  let changed left right =
+    names (scope_channels left) <> names (scope_channels right)
+  in
+  if t.state <> Closed && not (Promise.is_resolved t.closing) then (
+    Hashtbl.replace t.scopes key held;
+    if changed add held then schedule_scope_change t ~addition:true);
+  fun () ->
+    let held = current () in
+    let remaining = List.filter (fun (id, _) -> id != token) held in
+    (match remaining with
+    | [] -> Hashtbl.remove t.scopes key
+    | _ -> Hashtbl.replace t.scopes key remaining);
+    if t.state <> Closed && changed held remaining then
+      schedule_scope_change t ~addition:false
+
 let route = function
   | Ok (Wire_stream.Frame { route; _ }) -> Some route
   | Error (Wire_stream.Invalid_frame (route, _)) -> route
   | Error (Wire_stream.Unknown_channel _) -> None
+
+let position id =
+  match String.rindex_opt id '-' with
+  | Some separator ->
+      let digits =
+        String.sub id (separator + 1) (String.length id - separator - 1)
+      in
+      if
+        digits <> ""
+        && String.for_all (function '0' .. '9' -> true | _ -> false) digits
+      then Some (Z.of_string digits)
+      else None
+  | None -> None
+
+let advance_position t scope id =
+  let key = scope_key scope in
+  match position id with
+  | None -> ()
+  | Some next ->
+      let previous = Option.bind (Hashtbl.find_opt t.positions key) position in
+      if
+        Option.fold ~none:true
+          ~some:(fun previous -> Z.gt next previous)
+          previous
+      then Hashtbl.replace t.positions key id
 
 let first_delivery t = function
   | Ok (Wire_stream.Frame { id = Some id; route; channel; payload; _ }) ->
@@ -144,7 +251,7 @@ let first_delivery t = function
           Hashtbl.remove t.seen (Queue.take t.recent);
         (match (Bus_registry.delivery channel, route.scope, payload) with
         | Some Bus_registry.Positioned, Some scope, Ok _ ->
-            Hashtbl.replace t.positions (scope_key scope) id
+            advance_position t scope id
         | _ -> ());
         true)
   | _ -> true
@@ -172,12 +279,77 @@ let read_stream t input =
   in
   loop ()
 
-let open_stream t sw =
+let open_stream t sw snapshot =
   Fiber.first
-    (fun () -> try t.connect ~sw (snapshot t) with Eio.Io _ -> Error Retry)
+    (fun () -> try t.connect ~sw snapshot with Eio.Io _ -> Error Retry)
     (fun () ->
       sleep t (float Client_timing.stream_open_timeout_ms);
       Error Retry)
+
+let scope_signature snapshot =
+  List.map
+    (fun (scope, _) -> (scope_key scope.resource, names scope.channels))
+    snapshot.scoped
+
+type stream = {
+  scopes : (string * string list) list;
+  ready : (unit, open_error) result Promise.t;
+  ended : unit Promise.t;
+  read : unit -> unit;
+  stop : unit -> unit;
+}
+
+let spawn_stream t lifetime =
+  t.scope_change <- None;
+  let requested = snapshot t in
+  let ready, opened = Promise.create () in
+  let begin_read, read_now = Promise.create () in
+  let stopping, stop_now = Promise.create () in
+  let ended, mark_ended = Promise.create () in
+  let resolve promise resolver =
+    if not (Promise.is_resolved promise) then Promise.resolve resolver ()
+  in
+  Fiber.fork_daemon ~sw:lifetime (fun () ->
+      Fun.protect
+        ~finally:(fun () -> Promise.resolve mark_ended ())
+        (fun () ->
+          Fiber.first
+            (fun () ->
+              Switch.run @@ fun sw ->
+              match open_stream t sw requested with
+              | Error error -> Promise.resolve opened (Error error)
+              | Ok input ->
+                  Promise.resolve opened (Ok ());
+                  Promise.await begin_read;
+                  read_stream t input)
+            (fun () -> Promise.await stopping));
+      `Stop_daemon);
+  {
+    scopes = scope_signature requested;
+    ready;
+    ended;
+    read = (fun () -> resolve begin_read read_now);
+    stop = (fun () -> resolve stopping stop_now);
+  }
+
+let rec await_scope_change t =
+  let changed = fst t.scopes_changed in
+  match t.scope_change with
+  | None ->
+      Promise.await changed;
+      await_scope_change t
+  | Some due -> (
+      match
+        Fiber.first
+          (fun () ->
+            Clock.sleep_until t.clock due;
+            `Due)
+          (fun () ->
+            Promise.await changed;
+            `Changed)
+      with
+      | `Due -> if t.scope_change <> Some due then await_scope_change t
+      | `Changed -> await_scope_change t)
 
 let run t =
   Switch.run @@ fun lifetime ->
@@ -202,36 +374,81 @@ let run t =
             (fun () -> Promise.await restored);
           `Stop_daemon))
   in
-  let rec loop step =
-    let outcome =
-      Switch.run @@ fun sw ->
-      match open_stream t sw with
-      | Error error -> `Refused error
-      | Ok input ->
-          end_outage ();
-          set_state t Open;
-          read_stream t input;
-          `Dropped
-    in
-    if not (Promise.is_resolved t.closing) then
-      match outcome with
-      | `Refused No_credential ->
-          end_outage ();
-          set_state t Unauthenticated;
-          sleep t (float Client_timing.reconnect_ms);
-          set_state t Connecting;
-          loop Client_timing.reconnect_ms
-      | `Dropped | `Refused Retry ->
-          begin_outage ();
-          let step =
-            if outcome = `Dropped then Client_timing.reconnect_ms else step
-          in
-          let delay = float step *. (0.5 +. (Clock.jitter t.clock *. 0.5)) in
-          sleep t delay;
-          loop (min (step * 2) Client_timing.max_reconnect_ms)
+  let activate stream =
+    end_outage ();
+    set_state t Open;
+    stream.read ()
+  in
+  let backoff step =
+    let delay = float step *. (0.5 +. (Clock.jitter t.clock *. 0.5)) in
+    sleep t delay;
+    min (step * 2) Client_timing.max_reconnect_ms
+  in
+  let rec connect step =
+    let stream = spawn_stream t lifetime in
+    settle step stream
+  and settle step stream =
+    match Promise.await stream.ready with
+    | Ok () ->
+        activate stream;
+        serve stream
+    | Error No_credential ->
+        end_outage ();
+        set_state t Unauthenticated;
+        sleep t (float Client_timing.reconnect_ms);
+        set_state t Connecting;
+        connect Client_timing.reconnect_ms
+    | Error Retry ->
+        begin_outage ();
+        connect (backoff step)
+  and serve active =
+    match
+      Fiber.first
+        (fun () ->
+          Promise.await active.ended;
+          `Dropped)
+        (fun () ->
+          await_scope_change t;
+          `Replace)
+    with
+    | `Dropped ->
+        begin_outage ();
+        connect (backoff Client_timing.reconnect_ms)
+    | `Replace ->
+        if active.scopes = scope_signature (snapshot t) then (
+          t.scope_change <- None;
+          serve active)
+        else replace active
+  and replace active =
+    let candidate = spawn_stream t lifetime in
+    match
+      Fiber.first
+        (fun () ->
+          ignore (Promise.await candidate.ready);
+          `Ready)
+        (fun () ->
+          Promise.await active.ended;
+          `Dropped)
+    with
+    | `Dropped ->
+        begin_outage ();
+        settle Client_timing.reconnect_ms candidate
+    | `Ready -> (
+        match Promise.await candidate.ready with
+        | Error _ ->
+            if Option.is_none t.scope_change then
+              schedule_scope_change t ~addition:false;
+            serve active
+        | Ok () ->
+            activate candidate;
+            Fiber.fork_daemon ~sw:lifetime (fun () ->
+                sleep t (float Client_timing.linger_ms);
+                active.stop ();
+                `Stop_daemon);
+            serve candidate)
   in
   set_state t Connecting;
-  loop Client_timing.reconnect_ms
+  connect Client_timing.reconnect_ms
 
 let start ~sw ~clock ~client_id ~global ~scopes ~connect ~on_event () =
   let closing, close_now = Promise.create () in
@@ -241,7 +458,9 @@ let start ~sw ~clock ~client_id ~global ~scopes ~connect ~on_event () =
       clock;
       client_id;
       global;
-      scopes;
+      scopes = Hashtbl.create 8;
+      scope_change = None;
+      scopes_changed = Promise.create ();
       connect;
       on_event;
       positions = Hashtbl.create 8;
@@ -255,6 +474,12 @@ let start ~sw ~clock ~client_id ~global ~scopes ~connect ~on_event () =
       changed = Promise.create ();
     }
   in
+  List.iter
+    (fun scope ->
+      let key = scope_key scope.resource in
+      let holds = Option.value (Hashtbl.find_opt t.scopes key) ~default:[] in
+      Hashtbl.replace t.scopes key ((ref (), scope) :: holds))
+    scopes;
   Fiber.fork_daemon ~sw (fun () ->
       Fun.protect
         ~finally:(fun () ->

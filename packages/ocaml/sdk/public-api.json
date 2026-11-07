@@ -134,8 +134,8 @@
     "lib/semiont.mli": "aac955481b7a08f5a436faa93525ad084960257c2ea8b38839e02da9d42b6408",
     "lib/strict_json.ml": "19a2f3c4c5a828e0fe55cd36eb25b685e965f0b79c21cd57cc4a17c53d0112d6",
     "lib/strict_json.mli": "818f38488855a5ce525bbf7fa483feb6aad993670115a63065029201999b50a7",
-    "lib/subscription.ml": "84a47184694ba7d7751d5e1dd92b92e05e7d70b7640b03d7a4475e46533c964f",
-    "lib/subscription.mli": "ae84e84040267de55da412ecacb8aabd0b553e65367fbf2f3d223d4081840266",
+    "lib/subscription.ml": "dcec7d03213abbc5963d88b907c44adcb3a4273f048299df634078787cac8592",
+    "lib/subscription.mli": "241d0f56c6643f0a49eda2eea07e5bb02f7a0425c28c75d30cf93da7916141ef",
     "lib/types.ml": "5921efffb7596beb176e09960cdfa080ec954349ec2ce9d7e54bc7f638c808fe",
     "lib/types.mli": "97149245ffc84db1b741d7156a08017eff6f941179e9e6df950f212da8d60d76",
     "lib/wire_stream.ml": "3d3bfb920d6fc1ec36f520313c5f856d2d517a649991daedc0501dc53e7ba37c",
@@ -11855,6 +11855,33 @@
       ]
     },
     {
+      "kind": "type",
+      "path": "Semiont.Subscription.credential_error",
+      "declaration": "type credential_error = Connect_failed | Credential_refused of int",
+      "representation": "variant",
+      "constructors": [
+        "Connect_failed",
+        "Credential_refused"
+      ],
+      "variants": [
+        {
+          "name": "Connect_failed",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Credential_refused",
+          "fields": [],
+          "unit": false
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Subscription.authenticated",
+      "declaration": "val authenticated :\n  credential:(unit -> string option) ->\n  renew:(refused:string -> string option) ->\n  on_refused:(int -> unit) ->\n  (sw:Eio.Switch.t ->\n   snapshot -> bearer:string -> (Eio.Buf_read.t, credential_error) result) ->\n  sw:Eio.Switch.t -> snapshot -> (Eio.Buf_read.t, open_error) result"
+    },
+    {
       "kind": "value",
       "path": "Semiont.Subscription.encode_subscription",
       "declaration": "val encode_subscription :\n  snapshot -> (string, Semiont__.Models.decode_error) result"
@@ -11863,6 +11890,11 @@
       "kind": "value",
       "path": "Semiont.Subscription.start",
       "declaration": "val start :\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  client_id:string ->\n  global:Semiont__.Bus_registry.packed_channel list ->\n  scopes:scope list ->\n  connect:(sw:Eio.Switch.t -> snapshot -> (Eio.Buf_read.t, open_error) result) ->\n  on_event:((Semiont__.Wire_stream.frame, Semiont__.Wire_stream.refusal)\n            result -> unit) ->\n  unit -> t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Subscription.hold_scope",
+      "declaration": "val hold_scope : t -> scope -> unit -> unit"
     },
     {
       "kind": "value",
