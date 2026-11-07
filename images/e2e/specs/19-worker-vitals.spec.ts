@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { MARK_MOTIVATIONS, type JobFilter } from '@semiont/core';
+import { MARK_MOTIVATIONS, kbDid, type components, type JobFilter } from '@semiont/core';
+import { validators, formatErrors } from '@semiont/core/openapi';
 import { GATEWAY_URL } from '../playwright.config';
 import { signInSession } from '../fixtures/sdk-session';
 
@@ -14,23 +15,20 @@ import { signInSession } from '../fixtures/sdk-session';
  * HEALTHCHECK, compose `service_healthy`, `semiont start` waits, and any
  * operator's `curl :24100/health`) live outside the Worker service, so its
  * own tests of the body it builds can't catch a break in what a running
- * stack serves. The payload shape is deliberately re-declared here: it is
- * the consumer's reading of protocol/contract/WORKER-SERVICE.md H1, and a shape
- * taken from the producer would make the check tautological.
+ * stack serves. The body is checked against the protocol's `WorkerHealth`
+ * schema, through the validator generated from it: the spec owns the shape,
+ * the worker serves it, and only a running stack shows what it serves.
  *
  * What it pins:
  *
- * 1. **Freshness gate.** `engines[]` must be present AT ALL. A stack whose
- *    worker predates it serves another body — an environment verdict
- *    ("rebuild the stack"), not a feature verdict, and the error below says so.
- * 2. **Payload contract.** `status: 'ok'`; `did`, the one agent the worker
- *    is (`…:agents:<subject>`); and every engine entry carries which it is
- *    (`provider`/`model`, and `jobs`: the jobs the worker does with it, each
- *    named as a claim names it) plus vitals (`lastQueuedEventAt`/
- *    `lastClaimAt`/`lastFinishedAt`/`lastActivityAt` as ISO timestamps or
- *    honest nulls, `activeJob`, `jobsCompleted`). No secret material (the
- *    vitals are built beside the resolved inference config, which holds API
- *    keys).
+ * 1. **The schema.** Every `/health` body is a `WorkerHealth`. Its objects are
+ *    closed, so none of the inference config the vitals are built beside (API
+ *    keys, endpoints) can reach the wire.
+ * 2. **This knowledge base's entry.** A worker serves several knowledge bases,
+ *    one entry each. The entry whose `domain` is the one `browse.kb()` names is
+ *    `working`, names the one agent the worker is there
+ *    (`did:web:<domain>:agents:<subject>`), lists each engine once, and each
+ *    engine's jobs are jobs a claim can name.
  * 3. **The lifecycle.** One real delegated job advances the vitals of the
  *    engine it is done with: `jobsCompleted` increments, `lastClaimAt`/
  *    `lastFinishedAt` populate with claim ≤ finish, and `activeJob` returns to
@@ -57,6 +55,8 @@ const WORKER_HEALTH_URL = (() => {
   return `${u.protocol}//${u.hostname}:24100/health`;
 })();
 
+type EngineHealth = components['schemas']['WorkerEngineHealth'];
+
 /** A job as a claim names it, in words: `mark.<motivation>`, or `yield`. */
 const named = (filter: JobFilter): string =>
   filter.jobType === 'mark' ? `mark.${filter.params.motivation}` : filter.jobType;
@@ -64,108 +64,61 @@ const named = (filter: JobFilter): string =>
 /** Every job a claim can name: a `mark` job of each motivation, and a `yield` job. */
 const JOBS = [...MARK_MOTIVATIONS.map((motivation) => `mark.${motivation}`), 'yield'];
 
-/**
- * Consumer-side re-declaration of the `/health` contract
- * (protocol/contract/WORKER-SERVICE.md H1, over what a worker can say of itself,
- * WORKER-CONTRACT V1). Every field is runtime-asserted below; the type
- * exists so the assertions read cleanly, not as the check itself.
- */
-interface EngineVitals {
-  provider: string;
-  model: string;
-  jobs: JobFilter[];
-  lastQueuedEventAt: string | null;
-  lastClaimAt: string | null;
-  lastFinishedAt: string | null;
-  lastActivityAt: string | null;
-  activeJob: { jobId: string; type: string; since: string } | null;
-  jobsCompleted: number;
-}
-interface HealthPayload {
-  status?: unknown;
-  did?: unknown;
-  engines?: EngineVitals[];
-}
-
 /** An engine, as a key: `<provider> <model>`. */
-const engineKey = (engine: EngineVitals): string => `${engine.provider} ${engine.model}`;
+const engineKey = ({ engine }: EngineHealth): string => `${engine.provider} ${engine.model}`;
 
-async function fetchHealth(): Promise<HealthPayload> {
+/** A vitals timestamp as epoch ms; the schema has already held it to `date-time`. */
+const epoch = (at: string | null): number | null => (at === null ? null : Date.parse(at));
+
+async function fetchHealth(): Promise<components['schemas']['WorkerHealth']> {
   const res = await fetch(WORKER_HEALTH_URL);
   expect(res.ok, `GET ${WORKER_HEALTH_URL} → HTTP ${res.status}`).toBe(true);
-  return (await res.json()) as HealthPayload;
+  const body: unknown = await res.json();
+  if (!validators.WorkerHealth(body)) {
+    throw new Error(`GET ${WORKER_HEALTH_URL} is not a WorkerHealth: ${formatErrors(validators.WorkerHealth.errors)}`);
+  }
+  return body;
 }
 
-/** Assert a vitals timestamp is null or a parseable ISO instant; return its epoch ms (or null). */
-function epochOrNull(value: string | null, label: string): number | null {
-  if (value === null) return null;
-  const ms = Date.parse(value);
-  expect(Number.isNaN(ms), `${label} is a parseable timestamp — got "${value}"`).toBe(false);
-  return ms;
+/** The worker's entry for the knowledge base at `domain`, which is working, so it names its agent and engines. */
+async function workingEntry(domain: string): Promise<{ did: string; engines: EngineHealth[] }> {
+  const { knowledgeBases } = await fetchHealth();
+  const entry = knowledgeBases.find((kb) => kb.domain === domain);
+  if (entry?.state !== 'working' || entry.did === undefined || entry.engines === undefined) {
+    throw new Error(`${WORKER_HEALTH_URL} does not say the worker is working at ${domain}: ${JSON.stringify(entry)}`);
+  }
+  return { did: entry.did, engines: entry.engines };
 }
 
 test.describe('worker vitals (/health)', () => {
   test('payload is the vitals contract and one real delegated job advances the lifecycle', { tag: ['@model'] }, async () => {
     test.setTimeout(120_000);
 
-    // ── 1. Freshness gate: the payload must exist on this stack ──
-    const baseline = await fetchHealth();
-    if (!Array.isArray(baseline.engines)) {
-      throw new Error(
-        `STACK FRESHNESS GATE: ${WORKER_HEALTH_URL} has no engines[] — the running ` +
-          `semiont-worker predates it. Rebuild/redeploy before judging vitals.`,
-      );
-    }
-
-    // ── 2. Payload contract ──
-    expect(baseline.status, 'status').toBe('ok');
-    expect(baseline.did, 'the worker is one agent').toMatch(/^did:web:.+:agents:[^:]+$/);
-    expect(baseline.engines.length, 'the Inference document gives ≥1 job an engine').toBeGreaterThan(0);
-    expect(new Set(baseline.engines.map(engineKey)).size, 'each engine is listed once').toBe(baseline.engines.length);
-
-    for (const e of baseline.engines) {
-      const id = `engine ${engineKey(e)}`;
-      expect(e.provider, `${id}: structured provider`).toBeTruthy();
-      expect(e.model, `${id}: structured model`).toBeTruthy();
-      expect(Array.isArray(e.jobs) && e.jobs.length > 0, `${id}: is used for ≥1 job`).toBe(true);
-      for (const filter of e.jobs) {
-        expect(JOBS, `${id}: "${named(filter)}" is a job a claim can name`).toContain(named(filter));
-      }
-
-      epochOrNull(e.lastQueuedEventAt, `${id}: lastQueuedEventAt`);
-      epochOrNull(e.lastClaimAt, `${id}: lastClaimAt`);
-      epochOrNull(e.lastFinishedAt, `${id}: lastFinishedAt`);
-      epochOrNull(e.lastActivityAt, `${id}: lastActivityAt`);
-      expect(
-        typeof e.jobsCompleted === 'number' && e.jobsCompleted >= 0,
-        `${id}: jobsCompleted is a non-negative counter`,
-      ).toBe(true);
-      if (e.activeJob !== null) {
-        expect(e.activeJob.jobId, `${id}: activeJob carries jobId`).toBeTruthy();
-        expect(e.activeJob.type, `${id}: activeJob carries type`).toBeTruthy();
-        epochOrNull(e.activeJob.since, `${id}: activeJob.since`);
-      }
-    }
-
-    // No secret material: the vitals are assembled beside the resolved
-    // inference config (apiKey/endpoint) — none of it may reach the wire.
-    expect(
-      JSON.stringify(baseline).includes('apiKey'),
-      '/health must not leak inference config secrets',
-    ).toBe(false);
-
-    // ── 3. Baseline for the lifecycle leg ──
-    const highlighter = baseline.engines.find((e) => e.jobs.some((filter) => named(filter) === 'mark.highlighting'));
-    expect(highlighter, 'some engine is used for highlighting (which one is spec 18)').toBeTruthy();
-    const highlighterKey = engineKey(highlighter!);
-    const baseCompleted = highlighter!.jobsCompleted;
-    const baseFinished = epochOrNull(highlighter!.lastFinishedAt, 'baseline lastFinishedAt');
-    const baseByEngine = new Map(baseline.engines.map((e) => [engineKey(e), e.jobsCompleted]));
-
-    // ── 4. One real delegated job (self-seeded, spec-18 pattern) ──
     const opened = await signInSession();
     const client = opened.session.client;
     try {
+      // ── 1–2. The schema, and this knowledge base's entry ──
+      const { domain } = await client.browse.kb();
+      const baseline = await workingEntry(domain);
+
+      expect(baseline.did, 'the worker is one agent').toMatch(/:agents:[^:]+$/);
+      expect(baseline.did.startsWith(`${kbDid(domain)}:agents:`), `${baseline.did} is an agent of ${kbDid(domain)}`).toBe(true);
+      expect(new Set(baseline.engines.map(engineKey)).size, 'each engine is listed once').toBe(baseline.engines.length);
+      for (const e of baseline.engines) {
+        for (const filter of e.jobs) {
+          expect(JOBS, `engine ${engineKey(e)}: "${named(filter)}" is a job a claim can name`).toContain(named(filter));
+        }
+      }
+
+      // ── 3. Baseline for the lifecycle leg ──
+      const highlighter = baseline.engines.find((e) => e.jobs.some((filter) => named(filter) === 'mark.highlighting'));
+      expect(highlighter, 'some engine is used for highlighting (which one is spec 18)').toBeTruthy();
+      const highlighterKey = engineKey(highlighter!);
+      const baseCompleted = highlighter!.jobsCompleted;
+      const baseFinished = epoch(highlighter!.lastFinishedAt);
+      const baseByEngine = new Map(baseline.engines.map((e) => [engineKey(e), e.jobsCompleted]));
+
+      // ── 4. One real delegated job (self-seeded, spec-18 pattern) ──
       const rid = (
         await client.yield.resource({
           name: 'Worker Vitals Lifecycle',
@@ -185,52 +138,51 @@ test.describe('worker vitals (/health)', () => {
       // Awaited, a delegation resolves on the job's completion. A mark job's
       // result is its counts or a decline; the counts say it did its work.
       expect(done.result !== undefined && 'found' in done.result, 'the highlighting job reports its counts').toBe(true);
+
+      // ── 5. The vitals advanced. Poll: job:complete on the bus and the
+      // adapter's own bookkeeping are near-simultaneous, not ordered. ──
+      await expect
+        .poll(
+          async () => {
+            const e = (await workingEntry(domain)).engines.find((x) => engineKey(x) === highlighterKey);
+            return e !== undefined && e.jobsCompleted > baseCompleted && e.activeJob === null;
+          },
+          {
+            timeout: 30_000,
+            message: `engine ${highlighterKey}: jobsCompleted must pass ${baseCompleted} and activeJob return to null`,
+          },
+        )
+        .toBe(true);
+
+      const after = await workingEntry(domain);
+      const e = after.engines.find((x) => engineKey(x) === highlighterKey)!;
+
+      const claimed = epoch(e.lastClaimAt);
+      const finished = epoch(e.lastFinishedAt);
+      expect(claimed, 'the job was claimed for the engine (lastClaimAt set)').not.toBeNull();
+      expect(finished, 'the job was finished with the engine (lastFinishedAt set)').not.toBeNull();
+      expect(finished!, 'claim precedes finish on the worker’s own clock').toBeGreaterThanOrEqual(claimed!);
+      if (baseFinished !== null) {
+        expect(finished!, 'lastFinishedAt advanced past the pre-job value').toBeGreaterThan(baseFinished);
+      }
+      expect(e.lastActivityAt, 'activity freshness populated by the pass').not.toBeNull();
+      expect(
+        e.lastQueuedEventAt,
+        'the claim implies the job:queued announcement was seen (SSE push, no polling)',
+      ).not.toBeNull();
+
+      // ── 6. Monotonicity across every engine ──
+      for (const x of after.engines) {
+        const before = baseByEngine.get(engineKey(x));
+        if (before !== undefined) {
+          expect(
+            x.jobsCompleted,
+            `engine ${engineKey(x)}: jobsCompleted is monotonic (process-lifetime counter)`,
+          ).toBeGreaterThanOrEqual(before);
+        }
+      }
     } finally {
       opened.dispose();
-    }
-
-    // ── 5. The vitals advanced. Poll: job:complete on the bus and the
-    // adapter's own bookkeeping are near-simultaneous, not ordered. ──
-    await expect
-      .poll(
-        async () => {
-          const p = await fetchHealth();
-          const e = p.engines?.find((x) => engineKey(x) === highlighterKey);
-          return e !== undefined && e.jobsCompleted > baseCompleted && e.activeJob === null;
-        },
-        {
-          timeout: 30_000,
-          message: `engine ${highlighterKey}: jobsCompleted must pass ${baseCompleted} and activeJob return to null`,
-        },
-      )
-      .toBe(true);
-
-    const after = await fetchHealth();
-    const e = after.engines!.find((x) => engineKey(x) === highlighterKey)!;
-
-    const claimed = epochOrNull(e.lastClaimAt, 'post-job lastClaimAt');
-    const finished = epochOrNull(e.lastFinishedAt, 'post-job lastFinishedAt');
-    expect(claimed, 'the job was claimed for the engine (lastClaimAt set)').not.toBeNull();
-    expect(finished, 'the job was finished with the engine (lastFinishedAt set)').not.toBeNull();
-    expect(finished!, 'claim precedes finish on the worker’s own clock').toBeGreaterThanOrEqual(claimed!);
-    if (baseFinished !== null) {
-      expect(finished!, 'lastFinishedAt advanced past the pre-job value').toBeGreaterThan(baseFinished);
-    }
-    expect(e.lastActivityAt, 'activity freshness populated by the pass').not.toBeNull();
-    expect(
-      e.lastQueuedEventAt,
-      'the claim implies the job:queued announcement was seen (SSE push, no polling)',
-    ).not.toBeNull();
-
-    // ── 6. Monotonicity across every engine ──
-    for (const x of after.engines!) {
-      const before = baseByEngine.get(engineKey(x));
-      if (before !== undefined) {
-        expect(
-          x.jobsCompleted,
-          `engine ${engineKey(x)}: jobsCompleted is monotonic (process-lifetime counter)`,
-        ).toBeGreaterThanOrEqual(before);
-      }
     }
   });
 });
