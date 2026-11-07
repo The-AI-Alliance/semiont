@@ -96,11 +96,12 @@ export class EventBus {
   /**
    * Observers per (channel, scope). One Subject carries every scope of a
    * channel, so `subject.observers.length` counts subscribers of OTHER scopes
-   * too — and `emit`'s count is load-bearing: the gateway turns zero into a
-   * synthesized `peer-unavailable`. A subject per scope would be accurate by
-   * accident; one stream has to keep the tally on purpose.
+   * too, who never receive the frame. The unobserved-reply check asks who
+   * receives it, so one stream has to keep the tally on purpose.
    */
   private observerCounts: Map<string, number> = new Map();
+  /** Readers of every scope of a channel (`channelStream`): each receives every frame on it. */
+  private everyScopeCounts: Map<keyof EventMap, number> = new Map();
 
   constructor() {
     this.subjects = new Map();
@@ -108,26 +109,25 @@ export class EventBus {
   }
 
   /**
-   * The one write path. An envelope is optional per FIELD, never per frame:
-   * an announcement simply carries no correlationId. A transport's bridge
-   * writes a `FrameRefusal` here in place of a payload that is not its
-   * channel's.
+   * The one write path, a resource scope's included (`ScopedEventBus.emit`
+   * writes here with its scope on the envelope). An envelope is optional per
+   * FIELD, never per frame: an announcement simply carries no correlationId.
+   * A transport's bridge writes a `FrameRefusal` here in place of a payload
+   * that is not its channel's.
+   *
+   * Returns the observers of the frame's own scope at dispatch, counted
+   * before delivery: a subscriber that unsubscribes in its own handler was
+   * still reached.
    */
   emit<K extends keyof EventMap>(channel: K, payload: EventMap[K] | FrameRefusal, envelope: BusEnvelope = {}): number {
     const stream = this.channel(channel);
+    const observers = this.observersOf(channel, envelope.scope);
     // Observability rides the ONE write path, so it is installed once rather
     // than wrapped around `next` per channel and per holder.
     if (busLogEnabled()) busLog('EMIT', String(channel), payload as object, envelope.scope, envelope.correlationId);
     if (warnUnobservedRepliesEnabled()) {
-      warnIfUnobservedReply(String(channel), envelope.correlationId, stream.observers.length);
+      warnIfUnobservedReply(String(channel), envelope.correlationId, observers);
     }
-    // The observer count AT DISPATCH, matching `ITransport.emit` on the wire
-    // and feeding the plane's `IngestReceipt.observers`. Zero is the signal
-    // the gateway turns into a synthesized `peer-unavailable` rather than
-    // letting a caller wait out its timeout, so it is load-bearing, not
-    // telemetry. Counted before delivery: a subscriber that unsubscribes in
-    // its own handler was still reached.
-    const observers = this.observersOf(channel, undefined);
     stream.next({ ...envelope, payload });
     return observers;
   }
@@ -168,9 +168,9 @@ export class EventBus {
     });
   }
 
-  /** @internal — observers of one (channel, scope) view, for `emit`. */
-  observersOf(channel: keyof EventMap, scope: ResourceId | undefined): number {
-    return this.observerCounts.get(`${scope ?? ''}\u0000${String(channel)}`) ?? 0;
+  /** Observers that receive a frame of `scope` on `channel`: that scope's view, and every reader of all scopes. */
+  private observersOf(channel: keyof EventMap, scope: ResourceId | undefined): number {
+    return (this.observerCounts.get(`${scope ?? ''}\u0000${String(channel)}`) ?? 0) + (this.everyScopeCounts.get(channel) ?? 0);
   }
 
   /** Every frame on a channel, scoped or not. Internal to the scoped view. */
@@ -184,9 +184,21 @@ export class EventBus {
     return this.subjects.get(channel)!;
   }
 
-  /** @internal — the scoped view reads and writes the same per-channel stream. */
-  channelStream<K extends keyof EventMap>(channel: K): Subject<BusFrame<EventMap[K] | FrameRefusal>> {
-    return this.channel(channel);
+  /**
+   * @internal — every frame on a channel, whatever its scope, for a reader
+   * that delivers all scopes (`FaultyTransport`). Counted as an observer of
+   * every scope.
+   */
+  channelStream<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K] | FrameRefusal>> {
+    const stream = this.channel(channel).asObservable();
+    return new Observable<BusFrame<EventMap[K] | FrameRefusal>>((subscriber) => {
+      this.everyScopeCounts.set(channel, (this.everyScopeCounts.get(channel) ?? 0) + 1);
+      const inner = stream.subscribe(subscriber);
+      return () => {
+        this.everyScopeCounts.set(channel, (this.everyScopeCounts.get(channel) ?? 1) - 1);
+        inner.unsubscribe();
+      };
+    });
   }
 
   /**
@@ -252,13 +264,12 @@ export class ScopedEventBus {
     private resourceId: ResourceId
   ) {}
 
-  /** Emit into this scope. The scope is a FIELD on the frame, not a prefix
-   *  on the channel name — one channel, one stream, and a reader can see the
-   *  scope rather than having to parse it out of a key. */
+  /** Emit into this scope, through the parent's one write path. The scope is
+   *  a FIELD on the frame, not a prefix on the channel name — one channel,
+   *  one stream, and a reader can see the scope rather than having to parse
+   *  it out of a key. */
   emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope: BusEnvelope = {}): number {
-    const observers = this.parent.observersOf(channel, this.resourceId);
-    this.parent.channelStream(channel).next({ ...envelope, scope: this.resourceId, payload });
-    return observers;
+    return this.parent.emit(channel, payload, { ...envelope, scope: this.resourceId });
   }
 
   /** The payload view for this scope, derived from `frames` as it is globally. */

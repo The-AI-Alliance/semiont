@@ -69,6 +69,18 @@ describe('EventBus busLog integration', () => {
 
     expect(seen).toEqual([{ annotationId: 'ann-1' }]);
   });
+
+  it('logs an emit into a resource scope, with its scope, as it logs a global one', () => {
+    (globalThis as { __SEMIONT_BUS_LOG__?: boolean }).__SEMIONT_BUS_LOG__ = true;
+
+    const bus = new EventBus();
+    bus.scope(RID).emit('beckon:hover', { annotationId: annotationId('ann-1') });
+
+    expect(debugSpy).toHaveBeenCalledTimes(1);
+    const line = debugSpy.mock.calls[0]?.[0] as string;
+    expect(line).toContain('[bus EMIT] beckon:hover');
+    expect(line).toContain('scope=res-1');
+  });
 });
 
 /**
@@ -134,6 +146,32 @@ describe('EventBus dropped-reply detection', () => {
   it('does NOT warn for a non-reply emit (no correlationId) with no observers', () => {
     const bus = new EventBus();
     bus.emit('match:search-results', { referenceId: annotationId('ann-1'), response: [] });
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('WARNs for a global reply whose only observer reads a resource scope, which never receives it', () => {
+    const bus = new EventBus();
+    bus.scope(RID).on('nav:push').subscribe(() => {});
+    bus.emit('nav:push', { path: '/know' }, { correlationId: 'deadbeef-6' });
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0]?.[0] as string).toContain('[bus DROP] nav:push');
+  });
+
+  it('WARNs for a reply emitted into a resource scope nobody reads, though the channel is read globally', () => {
+    const bus = new EventBus();
+    bus.on('panel:toggle').subscribe(() => {});
+    bus.scope(RID).emit('panel:toggle', { panel: 'info' }, { correlationId: 'deadbeef-7' });
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0]?.[0] as string).toContain('[bus DROP] panel:toggle');
+  });
+
+  it('does NOT warn for a reply emitted into a resource scope that is read there', () => {
+    const bus = new EventBus();
+    bus.scope(RID).on('settings:theme-changed').subscribe(() => {});
+    bus.scope(RID).emit('settings:theme-changed', { theme: 'dark' }, { correlationId: 'deadbeef-8' });
 
     expect(warnSpy).not.toHaveBeenCalled();
   });
