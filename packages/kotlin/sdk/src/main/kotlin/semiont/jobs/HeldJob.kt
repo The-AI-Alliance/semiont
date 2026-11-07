@@ -243,7 +243,7 @@ public sealed class HeldJob(
 
     /** One of a commit's requests, waiting as long as a commit waits. What it is answered with is not read: that the record answered establishes it. */
     private suspend fun answered(operation: Operation<*, *, *>, payload: JsonObject) {
-        resultOf(holder.transport, operation, payload, holder.markCommitTimeoutMs)
+        resultOf(holder.transport, operation, payload, holder.markCommitTimeoutMs, holder.clock)
     }
 
     /** Remember `evidence` if it is weaker than what is remembered; of two equally weak, the first seen is kept. */

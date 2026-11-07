@@ -1,7 +1,12 @@
 package semiont.testing
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import java.util.Random
 import java.util.concurrent.CompletableFuture
+import kotlin.coroutines.CoroutineContext
 
 /** How many times its reckoned bound a case is given: the room a scheduler's jitter takes. */
 private const val SLACK = 4
@@ -29,7 +34,11 @@ public class LivenessScenario @JvmOverloads constructor(
  * it: the timeout times one more than `retryBudget`, how often a logical
  * request may be sent again, and the schedule's delays, all of it four times
  * over. `respond` answers what nothing queued an answer for, as
- * `FaultyTransport`'s does.
+ * `FaultyTransport`'s does. The transport is made on `context`, and each case
+ * blocks its caller's thread while it waits out its bound there. A wait on a
+ * clock the caller controls ends only when the caller moves it, so on a test
+ * dispatcher, whose time moves only when its test advances it, a case never
+ * ends: give it a dispatcher that keeps the system's time.
  */
 public class LivenessSpec @JvmOverloads constructor(
     public val setup: (FaultyTransport) -> LivenessScenario,
@@ -37,6 +46,7 @@ public class LivenessSpec @JvmOverloads constructor(
     public val retryBudget: Int,
     public val schedules: List<List<FaultAction>>,
     public val respond: Respond = REFUSE_UNSCRIPTED,
+    public val context: CoroutineContext = Dispatchers.Default,
 )
 
 /** A wire behaviour, each as likely as the others: a delay is of 5 ms at most. */
@@ -87,19 +97,19 @@ private fun livenessViolation(
  *   no more often than its retry budget allows; and one whose last attempt was
  *   faulted is either sent again or surfaced, never swallowed.
  *
- * Each case runs on the real clock for the whole of its bound, however soon
- * everything has spoken, so a request sent again after that is counted: a
- * composition is given small timeouts. Throws an `AssertionError` naming the
+ * Each case runs for the whole of its bound on the spec's context, however
+ * soon everything has spoken, so a request sent again after that is counted:
+ * a composition is given small timeouts. Throws an `AssertionError` naming the
  * first axiom broken, how, and under which schedule.
  */
 public fun assertLivenessAxioms(spec: LivenessSpec) {
     for (schedule in spec.schedules) {
         val delays = schedule.filterIsInstance<Delay>().sumOf { it.ms }
         val boundMs = (spec.timeoutMs * (1 + spec.retryBudget) + delays) * SLACK
-        val transport = FaultyTransport(schedule, spec.respond)
+        val transport = FaultyTransport(schedule, spec.respond, null, spec.context)
         val violation = try {
             spec.setup(transport).use { scenario ->
-                Thread.sleep(boundMs)
+                runBlocking(spec.context.minusKey(Job)) { delay(boundMs) }
                 val notified = scenario.outputs.map { it.isDone }
                 val settled = scenario.settlements.map { it.isDone }
                 // What is still waiting is stopped before the composition is ended. What one threw is no axiom's business.

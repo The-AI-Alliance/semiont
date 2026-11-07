@@ -52,7 +52,8 @@ import java.io.IOException
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import java.time.Duration
+import kotlin.random.Random
+import kotlin.time.TimeSource
 
 /** The frames, and frames' refusals, of every channel anybody listens to, a broadcast per channel, and the buses each is bridged into. */
 internal class FrameHub {
@@ -123,7 +124,8 @@ internal fun backoffCapMs(reconnectMs: Long, failures: Int): Long {
  * and the state stays `open`. While both are read a frame is delivered once:
  * the ids of the last frames delivered are remembered. Connections only read;
  * what they read comes back to this coroutine, in order, so the state has one
- * writer.
+ * writer. Its waits are `scope`'s, every interval is measured by `clock`, and
+ * each backoff's jitter is drawn from `random`.
  */
 internal class Stream(
     private val baseUrl: String,
@@ -138,6 +140,8 @@ internal class Stream(
     private val failures: Broadcast<SemiontError>,
     private val scope: CoroutineScope,
     private var bookmarks: Bookmarks?,
+    clock: TimeSource,
+    private val random: Random,
 ) {
     private sealed interface Report
 
@@ -191,7 +195,9 @@ internal class Stream(
     private var lazyAt: Long? = null
     private var degradedAt: Long? = null
 
-    private fun now(): Long = System.nanoTime() / 1_000_000
+    private val origin = clock.markNow()
+
+    private fun now(): Long = origin.elapsedNow().inWholeMilliseconds
 
     fun takeScope(resource: ResourceId) {
         reports.trySend(ScopeTaken(resource))
@@ -290,7 +296,7 @@ internal class Stream(
     private fun backoffMs(): Long {
         val cap = backoffCapMs(timing.reconnectMs, failedConnects)
         failedConnects += 1
-        return equalJitter(cap)
+        return equalJitter(cap, random)
     }
 
     private fun abort(conn: Int) {
@@ -524,9 +530,13 @@ internal class Stream(
                 .header("Authorization", "Bearer $token")
                 .header("Content-Type", "application/json")
                 .header("Accept", "text/event-stream")
-                .timeout(Duration.ofMillis(timing.streamOpenMs))
                 .build()
-            val response = http.exchange(request, HttpResponse.BodyHandlers.ofPublisher())
+            val response = withTimeoutOrNull(timing.streamOpenMs) { http.exchange(request, HttpResponse.BodyHandlers.ofPublisher()) }
+            if (response == null) {
+                // No answer by the deadline: the stream's end, as no answer at all is.
+                reports.send(Ended(conn))
+                return
+            }
             val status = response.statusCode()
             if (status !in 200..299) {
                 // A refusal's body is read within the request deadline, as any other answer is: one not read by then says nothing.

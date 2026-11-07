@@ -21,7 +21,11 @@ public data class HeldSignIn(
     public val personKey: String?,
 )
 
-/** Where one knowledge base's sign-in is kept. Each suspending member has its twin for Java, which returns a future. */
+/**
+ * Where one knowledge base's sign-in is kept. Each suspending member has its
+ * twin for Java, which returns a future: run where the member runs it, a store
+ * that keeps a context running it there.
+ */
 public interface SignInKept {
     /** The sign-in as it is kept now, when there is one. */
     public suspend fun held(): HeldSignIn?
@@ -53,21 +57,21 @@ public interface SignInKept {
     public suspend fun recordPersonKey(access: String, personKey: String): Boolean
 
     /** `held`, for Java. */
-    public fun heldFuture(): CompletableFuture<HeldSignIn?> = CoroutineScope(Dispatchers.Default).futureOf { held() }
+    public fun heldFuture(): CompletableFuture<HeldSignIn?> = CoroutineScope(Dispatchers.Unconfined).futureOf { held() }
 
     /** `keep`, for Java. */
-    public fun keepFuture(signIn: HeldSignIn): CompletableFuture<Unit> = CoroutineScope(Dispatchers.Default).futureOf { keep(signIn) }
+    public fun keepFuture(signIn: HeldSignIn): CompletableFuture<Unit> = CoroutineScope(Dispatchers.Unconfined).futureOf { keep(signIn) }
 
     /** `renewed`, for Java. */
     public fun renewedFuture(read: HeldSignIn, access: String, refresh: String): CompletableFuture<String?> =
-        CoroutineScope(Dispatchers.Default).futureOf { renewed(read, access, refresh) }
+        CoroutineScope(Dispatchers.Unconfined).futureOf { renewed(read, access, refresh) }
 
     /** `forget`, for Java. */
-    public fun forgetFuture(): CompletableFuture<Unit> = CoroutineScope(Dispatchers.Default).futureOf { forget() }
+    public fun forgetFuture(): CompletableFuture<Unit> = CoroutineScope(Dispatchers.Unconfined).futureOf { forget() }
 
     /** `recordPersonKey`, for Java. */
     public fun recordPersonKeyFuture(access: String, personKey: String): CompletableFuture<Boolean> =
-        CoroutineScope(Dispatchers.Default).futureOf { recordPersonKey(access, personKey) }
+        CoroutineScope(Dispatchers.Unconfined).futureOf { recordPersonKey(access, personKey) }
 }
 
 /** A sign-in kept for as long as the process lives, and no longer. */

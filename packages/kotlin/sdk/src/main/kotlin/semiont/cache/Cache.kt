@@ -26,6 +26,7 @@ import semiont.transport.Events
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.function.Function
+import kotlin.coroutines.CoroutineContext
 
 /** Where a cache keeps its values, so a later one begins with them. */
 public interface CachePersister<K : Any, V : Any> {
@@ -39,8 +40,8 @@ public interface CachePersister<K : Any, V : Any> {
 /** What a read of a closed client fails as: what a request of a closed bus does. */
 internal fun closed(): BusRequestError = BusRequestError(BusRequestErrorCode.Closed, "The client is closed")
 
-/** Where the fetches of a cache a host makes run: on the default dispatcher, one failing leaving the others be. */
-private fun ownScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+/** Where the fetches of a cache a host makes run: on `context`, under the job it has when it has one, one failing leaving the others be. */
+private fun ownScope(context: CoroutineContext): CoroutineScope = CoroutineScope(context + SupervisorJob(context[Job]))
 
 /** One key: its state, which every observer of it holds, and the fetch in flight for it, by its number. */
 private class Key<V : Any>(state: CacheState<V>) {
@@ -68,7 +69,7 @@ private class Key<V : Any>(state: CacheState<V>) {
  *
  * `ask` asks for a key's value, and whatever it fails with is the key's failure;
  * its fetches run in `scope`: the client's, for a cache the client makes, and one of the
- * cache's own on the default dispatcher, for one a host makes. With a
+ * cache's own on the context it is given, for one a host makes. With a
  * `persister`, the cache begins with what was kept, shows a kept value at once
  * and asks for it again the first time it is observed, and saves its values
  * once they have stopped changing for `saveDebounceMs`. One a client gives its
@@ -80,12 +81,13 @@ public class Cache<K : Any, V : Any> internal constructor(
     persister: CachePersister<K, V>? = null,
     private val saveDebounceMs: Long = Timings.SAVE_DEBOUNCE_MS,
 ) : StateUnit {
-    /** A cache of a host's own, whose fetches ask `fetch` and run on the default dispatcher. */
+    /** A cache of a host's own, whose fetches ask `fetch` and run, and whose save debounce waits, on `context`. */
     public constructor(
         fetch: suspend (K) -> V,
         persister: CachePersister<K, V>? = null,
         saveDebounceMs: Long = Timings.SAVE_DEBOUNCE_MS,
-    ) : this(fetch, ownScope(), persister, saveDebounceMs)
+        context: CoroutineContext = Dispatchers.Default,
+    ) : this(fetch, ownScope(context), persister, saveDebounceMs)
 
     /** A cache of a host's own, for Java: `fetch` gives a key's value as the stage it returns completes. */
     @JvmOverloads
@@ -93,7 +95,8 @@ public class Cache<K : Any, V : Any> internal constructor(
         fetch: Function<K, CompletionStage<V>>,
         persister: CachePersister<K, V>? = null,
         saveDebounceMs: Long = Timings.SAVE_DEBOUNCE_MS,
-    ) : this({ key: K -> fetch.apply(key).await() }, ownScope(), persister, saveDebounceMs)
+        context: CoroutineContext = Dispatchers.Default,
+    ) : this({ key: K -> fetch.apply(key).await() }, ownScope(context), persister, saveDebounceMs)
 
     private val lock = Any()
     private var keeping: CachePersister<K, V>? = null

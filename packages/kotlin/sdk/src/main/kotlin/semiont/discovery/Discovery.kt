@@ -75,8 +75,8 @@ public interface DiscoveryTransport {
     /** Read the document once. */
     public suspend fun read(): DiscoveryRead
 
-    /** `read`, for Java. */
-    public fun readFuture(): CompletableFuture<DiscoveryRead> = CoroutineScope(Dispatchers.Default).futureOf { read() }
+    /** `read`, for Java: run where `read` runs it, a transport that keeps a context running it there. */
+    public fun readFuture(): CompletableFuture<DiscoveryRead> = CoroutineScope(Dispatchers.Unconfined).futureOf { read() }
 }
 
 /**

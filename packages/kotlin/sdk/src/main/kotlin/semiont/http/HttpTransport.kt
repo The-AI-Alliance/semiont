@@ -8,10 +8,12 @@ import semiont.telemetry.futureOf
 import semiont.telemetry.Telemetry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonObject
 import semiont.Timings
@@ -51,10 +53,11 @@ import java.io.IOException
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import java.net.http.HttpTimeoutException
-import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import kotlin.coroutines.CoroutineContext
+import kotlin.random.Random
+import kotlin.time.TimeSource
 
 /** The timing a transport keeps: protocol/specs/src/client/timing.json's, unless a caller that must not wait it out says otherwise. */
 public data class Timing @JvmOverloads constructor(
@@ -79,7 +82,9 @@ public data class Timing @JvmOverloads constructor(
  * life left it; with none, at the present. Every request, its stream's among
  * them, is made with `http`, and trusts what that client trusts; given none,
  * it makes its own, which keeps the JDK's default proxy selector and trust
- * store.
+ * store. Its work runs on `context`, under the job `context` has when it has
+ * one; every deadline and interval it keeps is measured by `clock`; and every
+ * backoff's jitter is drawn from `random`.
  */
 public class HttpTransport @JvmOverloads constructor(
     baseUrl: String,
@@ -90,19 +95,22 @@ public class HttpTransport @JvmOverloads constructor(
     private val refresher: TokenRefresher? = null,
     bookmarks: Bookmarks? = null,
     private val http: HttpClient = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build(),
+    internal val context: CoroutineContext = Dispatchers.Default,
+    internal val clock: TimeSource = TimeSource.Monotonic,
+    internal val random: Random = Random.Default,
 ) : Transport, GatewayOperations {
     override val baseUrl: String = baseUrl.trimEnd('/')
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(context + SupervisorJob(context[Job]))
     private val clientId = UUID.randomUUID().toString()
     private val failureStream = Broadcast<SemiontError>(keepForFirst = true)
     private val hub = FrameHub()
-    private val router = ReplyRouter()
+    private val router = ReplyRouter(context)
 
     @Volatile
     private var closing = false
     internal val exchange = Exchange(this.baseUrl, http, token, refresher, failureStream, timing.httpRequestMs) { closing }
-    private val stream = Stream(this.baseUrl, http, token, refresher, clientId, channels, timing, hub, router, failureStream, scope, bookmarks)
+    private val stream = Stream(this.baseUrl, http, token, refresher, clientId, channels, timing, hub, router, failureStream, scope, bookmarks, clock, random)
     private val holds = mutableMapOf<String, Int>()
 
     override val state: Watched<ConnectionState> = Watched(stream.state) { it == ConnectionState.Closed }
@@ -135,20 +143,21 @@ public class HttpTransport @JvmOverloads constructor(
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .header("Content-Type", "application/json")
                 .header("Idempotency-Key", key)
-                .timeout(Duration.ofMillis(Timings.EMIT_TIMEOUT_MS))
                 .build()
             val failure = try {
-                val response = http.exchange(request, HttpResponse.BodyHandlers.ofByteArray())
-                val status = response.statusCode()
-                if (status in 200..299) return accepted(response.body())
-                val stated = retryAfterMs(response.headers().firstValue("retry-after").orElse(null))
-                val message = when (val words = said(response.body())) {
-                    null -> "/bus/emit $status"
-                    else -> "/bus/emit $status: $words"
+                when (val response = withTimeoutOrNull(Timings.EMIT_TIMEOUT_MS) { http.exchange(request, HttpResponse.BodyHandlers.ofByteArray()) }) {
+                    null -> TransportError.withoutResponse("/bus/emit got no answer within ${Timings.EMIT_TIMEOUT_MS}ms")
+                    else -> {
+                        val status = response.statusCode()
+                        if (status in 200..299) return accepted(response.body())
+                        val stated = retryAfterMs(response.headers().firstValue("retry-after").orElse(null))
+                        val message = when (val words = said(response.body())) {
+                            null -> "/bus/emit $status"
+                            else -> "/bus/emit $status: $words"
+                        }
+                        refusal(message, status, response.body(), stated)
+                    }
                 }
-                refusal(message, status, response.body(), stated)
-            } catch (_: HttpTimeoutException) {
-                TransportError.withoutResponse("/bus/emit got no answer within ${Timings.EMIT_TIMEOUT_MS}ms")
             } catch (error: IOException) {
                 TransportError.withoutResponse("/bus/emit got no answer: ${error.message ?: error::class.simpleName}")
             }
@@ -169,7 +178,7 @@ public class HttpTransport @JvmOverloads constructor(
             // A limit, a gateway that says it will recover, or no answer at all: made again inside the budget.
             val again = failure.status == null || BOOT.retryable(RetryFacts(failure.status, "POST", keyed = true))
             if (!again || made >= timing.emitRetry.attempts || closing) throw exchange.failed(failure)
-            delay(maxOf(equalJitter(capMs), failure.retryAfterMs ?: 0))
+            delay(maxOf(equalJitter(capMs, random), failure.retryAfterMs ?: 0))
             capMs = minOf(capMs * 2, timing.emitRetry.maxDelayMs)
             made += 1
         }

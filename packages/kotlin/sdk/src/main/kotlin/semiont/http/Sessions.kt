@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
@@ -13,6 +14,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import semiont.Timings
+import semiont.transport.Broadcast
 import semiont.SemiontClient
 import semiont.channels.BRIDGED_CHANNELS
 import semiont.errors.SessionError
@@ -44,17 +48,31 @@ import java.net.http.HttpClient
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.function.Consumer
+import kotlin.coroutines.CoroutineContext
+import kotlin.random.Random
+import kotlin.time.TimeSource
 
-/** A kept sign-in's renewals at its issuer, one at a time: a renewal asked for while one is under way is that one, and whoever stops waiting does not stop it. */
-private class Renewing(private val kept: SignInKept, private val token: StateFlow<String?>, private val http: HttpClient) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+/**
+ * A kept sign-in's renewals at its issuer, one at a time: a renewal asked for
+ * while one is under way is that one, and whoever stops waiting does not stop
+ * it. A renewal runs on `context`, and each retry's jitter is drawn from
+ * `random`.
+ */
+private class Renewing(
+    private val kept: SignInKept,
+    private val token: StateFlow<String?>,
+    private val http: HttpClient,
+    context: CoroutineContext,
+    private val random: Random,
+) {
+    private val scope = CoroutineScope(context + SupervisorJob(context[Job]))
     private var underWay: Deferred<String?>? = null
 
     suspend operator fun invoke(): String? {
         val renewal = synchronized(this) {
             underWay ?: scope.async {
                 try {
-                    renewKept(kept, token.value, http)
+                    renewKept(kept, token.value, http, random)
                 } finally {
                     synchronized(this@Renewing) { underWay = null }
                 }
@@ -69,7 +87,8 @@ private class Renewing(private val kept: SignInKept, private val token: StateFlo
 
 /** Ask the gateway who a token is: one request, by a caller that holds nothing else. No stream is opened for it, and nothing renews the token: a refusal is the answer. */
 private fun asking(baseUrl: String, http: HttpClient): suspend (String) -> UserResponse = { token ->
-    HttpTransport(baseUrl, MutableStateFlow(token), emptyList(), http = http).use { it.getCurrentUser() }
+    Exchange(baseUrl.trimEnd('/'), http, MutableStateFlow(token), null, Broadcast(), Timings.HTTP_REQUEST_TIMEOUT_MS) { false }
+        .answer(UserResponse.serializer(), "GET", "/api/users/me")
 }
 
 /**
@@ -84,11 +103,11 @@ private fun asking(baseUrl: String, http: HttpClient): suspend (String) -> UserR
  * nothing. The session's own forgetting of its sign-in (`forgetting`) stops
  * the writes first (`stop`), once the write under way has landed, so none
  * lands after what it deletes; a registry that closes the session before it
- * deletes stops them too.
+ * deletes stops them too. A write that waits for its turn waits on `context`.
  */
-private class WhileNamed(private val kept: SignInKept, private val kbId: String, private val onError: ((SessionError) -> Unit)?) {
+private class WhileNamed(private val kept: SignInKept, private val kbId: String, private val onError: ((SessionError) -> Unit)?, context: CoroutineContext) {
     private val turn = Mutex()
-    private val writing = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val writing = CoroutineScope(context + SupervisorJob(context[Job]))
 
     // Read and written only while `turn` is held.
     private var dropped = false
@@ -173,7 +192,8 @@ private fun gatewayOf(kb: KbTarget): String {
  * start when the kept sign-in names them already, and otherwise once the
  * gateway has named them and that is recorded on the sign-in the gateway was
  * asked about. A session that never asks who its token is keeps nothing.
- * The gateway and the issuer are asked with `http`.
+ * The gateway and the issuer are asked with `http`. What it builds runs on
+ * `context`, keeps `clock`, and draws its jitter from `random`.
  */
 internal suspend fun sessionStarted(
     kb: KbTarget,
@@ -184,12 +204,15 @@ internal suspend fun sessionStarted(
     onAuthFailed: ((SessionEndReason) -> Unit)?,
     onError: ((SessionError) -> Unit)?,
     http: HttpClient,
+    context: CoroutineContext,
+    clock: TimeSource,
+    random: Random,
 ): OpenedSession {
     val baseUrl = gatewayOf(kb)
     val token = MutableStateFlow<String?>(null)
-    val renewing = Renewing(kept, token, http)
+    val renewing = Renewing(kept, token, http, context, random)
     val keeping = storage?.takeIf { validate }
-    val named = WhileNamed(kept, kb.id, onError)
+    val named = WhileNamed(kept, kb.id, onError, context)
     val atStart = keeping?.let { into -> kept.held()?.personKey?.let { person -> KeptFor(into, kb.id, person, named) } }
     // The transport's refresher is made before the session that answers it: it waits for that session,
     // and closing the transport ends the wait (SDK-FOLLOW-UPS item 16).
@@ -203,9 +226,12 @@ internal suspend fun sessionStarted(
         },
         bookmarks = atStart?.places,
         http = http,
+        context = context,
+        clock = clock,
+        random = random,
     )
     val content = HttpContentTransport(transport)
-    val client = SemiontClient(transport, content, transport, persistence = atStart?.persistence)
+    val client = SemiontClient(transport, content, transport, persistence = atStart?.persistence, context = context, clock = clock)
     // The stream's place rides the caches' writes, and only when every cache is at rest and no event's refetch is owed:
     // a place kept ahead of a cache still taking in the event it names would have the next session skip that event.
     atStart?.places?.let(client::keepPlacesIn)
@@ -224,7 +250,7 @@ internal suspend fun sessionStarted(
         }
         user
     }
-    val session = SemiontSession(kb, client, token, named.forgetting, { renewing() }, if (validate) whoIs else null, onAuthFailed, onError)
+    val session = SemiontSession(kb, client, token, named.forgetting, { renewing() }, if (validate) whoIs else null, onAuthFailed, onError, random)
     made.complete(session)
     val built = AutoCloseable {
         renewing.close()
@@ -261,7 +287,9 @@ internal suspend fun sessionStarted(
  * written. Where `kept` is the knowledge base's sign-in as `keptIn` keeps it
  * in this `storage`, forgetting it, or keeping a new sign-in in its place,
  * deletes what was kept for them, and the client puts none of it back.
- * The gateway and the issuer are asked with `http`. Throws `SessionError`
+ * The gateway and the issuer are asked with `http`. The session, its client,
+ * its renewals and its writes of what it keeps run on `context`, keep
+ * `clock`, and draw their jitter from `random`. Throws `SessionError`
  * (`session.construct-failed`), before anything is asked, for a knowledge
  * base that is not reached over HTTP or whose host is no host's name.
  */
@@ -274,8 +302,11 @@ public suspend fun sessionFromKept(
     onAuthFailed: ((SessionEndReason) -> Unit)? = null,
     onError: ((SessionError) -> Unit)? = null,
     http: HttpClient = ownHttp,
+    context: CoroutineContext = Dispatchers.Default,
+    clock: TimeSource = TimeSource.Monotonic,
+    random: Random = Random.Default,
 ): OpenedSession {
-    val opened = sessionStarted(kb, kept, validate, channels, storage, onAuthFailed, onError, http)
+    val opened = sessionStarted(kb, kept, validate, channels, storage, onAuthFailed, onError, http, context, clock, random)
     try {
         opened.session.ready()
     } catch (failure: Throwable) {
@@ -285,7 +316,7 @@ public suspend fun sessionFromKept(
     return opened
 }
 
-/** `sessionFromKept`, for Java. */
+/** `sessionFromKept`, for Java, on `context`. */
 @JvmOverloads
 public fun sessionFromKeptFuture(
     kb: KbTarget,
@@ -296,8 +327,11 @@ public fun sessionFromKeptFuture(
     onAuthFailed: Consumer<SessionEndReason>?,
     onError: Consumer<SessionError>?,
     http: HttpClient = ownHttp,
-): CompletableFuture<OpenedSession> = CoroutineScope(Dispatchers.Default).futureOf {
-    sessionFromKept(kb, kept, validate, channels, storage, onAuthFailed?.let { told -> { told.accept(it) } }, onError?.let { told -> { told.accept(it) } }, http)
+    context: CoroutineContext = Dispatchers.Default,
+    clock: TimeSource = TimeSource.Monotonic,
+    random: Random = Random.Default,
+): CompletableFuture<OpenedSession> = CoroutineScope(context).futureOf {
+    sessionFromKept(kb, kept, validate, channels, storage, onAuthFailed?.let { told -> { told.accept(it) } }, onError?.let { told -> { told.accept(it) } }, http, context, clock, random)
 }
 
 // ── A registry's sessions, over HTTP ───────────────────────────────────
@@ -309,9 +343,16 @@ public fun sessionFromKeptFuture(
  * is, while the stored sign-in names them, and its token is renewed at the
  * issuer its stored session names. Each session renews its own: a knowledge
  * base's old session and its new one, during a sign-in, are closed in turn.
- * Every gateway and issuer is asked with `http`.
+ * Every gateway and issuer is asked with `http`. Its sessions run on
+ * `context`, keep `clock`, and draw their jitter from `random`, and so do its
+ * futures.
  */
-public class HttpSessionFactory @JvmOverloads constructor(private val http: HttpClient = ownHttp) : SessionFactory {
+public class HttpSessionFactory @JvmOverloads constructor(
+    private val http: HttpClient = ownHttp,
+    private val context: CoroutineContext = Dispatchers.Default,
+    private val clock: TimeSource = TimeSource.Monotonic,
+    private val random: Random = Random.Default,
+) : SessionFactory {
     override suspend fun session(options: SessionFactoryOptions): OpenedSession {
         val kb = options.kb
         return sessionStarted(
@@ -323,8 +364,15 @@ public class HttpSessionFactory @JvmOverloads constructor(private val http: Http
             options.signals::notifySessionEnded,
             options.onError,
             http,
+            context,
+            clock,
+            random,
         )
     }
+
+    override fun sessionFuture(options: SessionFactoryOptions): CompletableFuture<OpenedSession> = CoroutineScope(context).futureOf { session(options) }
+
+    override fun revokeFuture(stored: StoredSession): CompletableFuture<Unit> = CoroutineScope(context).futureOf { revoke(stored) }
 
     override suspend fun revoke(stored: StoredSession) {
         val endpoint = stored.revocationEndpoint ?: return
@@ -341,15 +389,16 @@ public class HttpSessionFactory @JvmOverloads constructor(private val http: Http
 /**
  * Begin a sign-in for a registry: find the issuer the target trusts, remember
  * the pending sign-in in the registry's storage, and give the address to send
- * the person to. The target and its issuer are asked with `http`.
+ * the person to. The target and its issuer are asked with `http`, on the
+ * browser's context.
  */
 public suspend fun beginSignIn(browser: SemiontBrowser, options: BeginAuthorizationOptions, http: HttpClient = ownHttp): String =
-    beginAuthorization(options, browser.storage, http)
+    withContext(browser.context) { beginAuthorization(options, browser.storage, http) }
 
-/** `beginSignIn`, for Java. */
+/** `beginSignIn`, for Java, on the browser's context. */
 @JvmOverloads
 public fun beginSignInFuture(browser: SemiontBrowser, options: BeginAuthorizationOptions, http: HttpClient = ownHttp): CompletableFuture<String> =
-    CoroutineScope(Dispatchers.Default).futureOf { beginSignIn(browser, options, http) }
+    browser.future { beginSignIn(browser, options, http) }
 
 /**
  * Finish a sign-in from the address the issuer sent the person back to:
@@ -358,12 +407,13 @@ public fun beginSignInFuture(browser: SemiontBrowser, options: BeginAuthorizatio
  * (`SemiontBrowser.signedIn`). Throws `SignInError` when the grant failed, and
  * `IdentityUnverifiableError` when it succeeded and the knowledge base could
  * not say who it is: then nothing is registered, and nothing is stored. The
- * issuer and the knowledge base are asked with `http`.
+ * issuer and the knowledge base are asked with `http`, on the browser's
+ * context, by its clock and random source.
  */
-public suspend fun completeSignIn(browser: SemiontBrowser, callbackUrl: String, http: HttpClient = ownHttp): SignInOutcome {
+public suspend fun completeSignIn(browser: SemiontBrowser, callbackUrl: String, http: HttpClient = ownHttp): SignInOutcome = withContext(browser.context) {
     val (pending, tokens) = completeAuthorization(callbackUrl, browser.storage, http)
-    val identity = describeConnection(pending.target, tokens.access, http)
-    return browser.signedIn(
+    val identity = describeConnection(pending.target, tokens.access, http, browser.clock, browser.random)
+    browser.signedIn(
         SignedIn(
             endpoint = pending.target,
             description = identity.description,
@@ -375,7 +425,7 @@ public suspend fun completeSignIn(browser: SemiontBrowser, callbackUrl: String, 
     )
 }
 
-/** `completeSignIn`, for Java. */
+/** `completeSignIn`, for Java, on the browser's context. */
 @JvmOverloads
 public fun completeSignInFuture(browser: SemiontBrowser, callbackUrl: String, http: HttpClient = ownHttp): CompletableFuture<SignInOutcome> =
-    CoroutineScope(Dispatchers.Default).futureOf { completeSignIn(browser, callbackUrl, http) }
+    browser.future { completeSignIn(browser, callbackUrl, http) }

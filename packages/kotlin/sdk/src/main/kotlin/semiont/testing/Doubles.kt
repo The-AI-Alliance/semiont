@@ -62,7 +62,8 @@ private fun notFound(what: String, resourceId: ResourceId): TransportError =
  * A read of a resource nobody stored fails as `not-found`, as a gateway's
  * would, so a test that forgot to seed its content fails where it forgot,
  * not on bytes the double made up; a read of an anchored text nobody seeded
- * fails the same way.
+ * fails the same way. Nothing it does waits: a future of it runs on the
+ * thread that asks.
  */
 public class InMemoryContent : ContentTransport {
     private val stored = mutableMapOf<ResourceId, Content>()
@@ -70,7 +71,7 @@ public class InMemoryContent : ContentTransport {
     private val annotations = mutableMapOf<ResourceId, GetAnnotationsResponse>()
     private val anchoredTexts = mutableMapOf<ResourceId, AnchoredTextAnswer>()
     private val made = mutableListOf<ContentCall>()
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 
     /** Store `content` as the bytes of `resourceId`. */
     @JvmExposeBoxed
@@ -148,7 +149,8 @@ public class InMemoryContent : ContentTransport {
  * A `GatewayOperations` for tests that answers only what it was told to. An
  * operation nobody scripted is refused, naming it: a double that answered it
  * with a value of its own making would hand its caller a success nobody
- * decided on. Every call is recorded, answered or not.
+ * decided on. Every call is recorded, answered or not. Nothing it does
+ * waits: a future of it runs on the thread that asks.
  */
 public class StubGateway : GatewayOperations {
     private var currentUser: UserResponse? = null
@@ -157,7 +159,7 @@ public class StubGateway : GatewayOperations {
     private var health: HealthResponse? = null
     private var status: StatusResponse? = null
     private val made = mutableListOf<String>()
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 
     /** What `getCurrentUser` answers. */
     public fun currentUser(answer: UserResponse): Unit = synchronized(this) { currentUser = answer }

@@ -1,5 +1,7 @@
 package semiont.testing
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.JsonElement
@@ -17,7 +19,12 @@ import semiont.registry.keptIn
 import semiont.session.OpenedSession
 import semiont.session.SemiontSession
 import semiont.types.KbTarget
+import semiont.telemetry.futureOf
 import semiont.types.UserResponse
+import java.util.concurrent.CompletableFuture
+import kotlin.coroutines.CoroutineContext
+import kotlin.random.Random
+import kotlin.time.TimeSource
 
 /** What a knowledge base's gateway answers a request with, given the knowledge base's id, the operation and the payload: the response, none for a reply that carries none, or a refusal thrown. */
 public fun interface Answer {
@@ -52,9 +59,16 @@ private sealed interface Renewal {
  * scripted: an unscripted request names its operation and its knowledge base,
  * an unscripted renewal is a renewal that got no answer (so the session renews
  * again on the reconnect backoff, and fails again until a renewal is scripted),
- * and a gateway nobody scripted a user for cannot say who a token is.
+ * and a gateway nobody scripted a user for cannot say who a token is. Its
+ * sessions, their clients and their transports run on `context`, keep
+ * `clock`, and draw their jitter from `random`, and so do its futures.
  */
-public class ScriptedSessions @JvmOverloads constructor(private val answer: Answer = REFUSE_UNSCRIPTED_KB) : SessionFactory {
+public class ScriptedSessions @JvmOverloads constructor(
+    private val answer: Answer = REFUSE_UNSCRIPTED_KB,
+    private val context: CoroutineContext = Dispatchers.Default,
+    private val clock: TimeSource = TimeSource.Monotonic,
+    private val random: Random = Random.Default,
+) : SessionFactory {
     private val renewals = ArrayDeque<Renewal>()
     private val built = mutableListOf<Pair<String, FaultyTransport>>()
     private val revokedSessions = mutableListOf<StoredSession>()
@@ -112,10 +126,10 @@ public class ScriptedSessions @JvmOverloads constructor(private val answer: Answ
     override suspend fun session(options: SessionFactoryOptions): OpenedSession {
         val kbId = options.kb.id
         refusesToBuild?.let { throw SessionError(SessionErrorCode.ConstructFailed, it, kbId) }
-        val transport = FaultyTransport(respond = { operation, payload -> answer.answer(kbId, operation, payload) })
+        val transport = FaultyTransport(respond = { operation, payload -> answer.answer(kbId, operation, payload) }, context = context)
         transport.refuseWhen { operation, payload -> refusing?.refuse(kbId, operation, payload) }
         synchronized(built) { built += kbId to transport }
-        val client = TestClient(transport).client
+        val client = TestClient(context, clock, transport).client
         val saidWho = user
         val wait = answersAfterMs
         val session = SemiontSession(
@@ -140,6 +154,7 @@ public class ScriptedSessions @JvmOverloads constructor(private val answer: Answ
             },
             options.signals::notifySessionEnded,
             options.onError,
+            random,
         )
         session.start()
         // Its client keeps nothing, so no write is ever under way to wait for.
@@ -149,4 +164,8 @@ public class ScriptedSessions @JvmOverloads constructor(private val answer: Answ
     override suspend fun revoke(stored: StoredSession) {
         synchronized(revokedSessions) { revokedSessions += stored }
     }
+
+    override fun sessionFuture(options: SessionFactoryOptions): CompletableFuture<OpenedSession> = CoroutineScope(context).futureOf { session(options) }
+
+    override fun revokeFuture(stored: StoredSession): CompletableFuture<Unit> = CoroutineScope(context).futureOf { revoke(stored) }
 }

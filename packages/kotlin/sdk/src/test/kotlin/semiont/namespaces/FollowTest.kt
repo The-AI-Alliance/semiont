@@ -92,7 +92,7 @@ private class Queue(createdIds: List<String>) : Transport {
     private val created = ArrayDeque(createdIds)
     private val statuses = ArrayDeque<JsonObject>()
     var refusesCreation = false
-    private val router = ReplyRouter()
+    private val router = ReplyRouter(Dispatchers.Unconfined)
     private val now = MutableStateFlow(ConnectionState.Open)
 
     fun statuses(vararg answers: JsonObject) = synchronized(statuses) { statuses.addAll(answers) }

@@ -33,26 +33,18 @@ import kotlin.time.TimeSource
  * resource's scope. Closing it ends what it runs and its own bus; it never
  * closes its transport, which is whoever made it's to close.
  */
-public class SemiontClient internal constructor(
+public class SemiontClient @JvmOverloads constructor(
     public val transport: Transport,
     content: ContentTransport,
     gateway: GatewayOperations,
-    public val timing: ClientTiming,
-    persistence: CachePersistence?,
-    /** Where the client's work runs. */
-    context: CoroutineContext,
+    public val timing: ClientTiming = ClientTiming(),
+    /** Where the client keeps what its queries hold, so the next client of the same knowledge base shows it at once: nowhere, when none. */
+    persistence: CachePersistence? = null,
+    /** Where the client's work runs, under the job it has when it has one. */
+    context: CoroutineContext = Dispatchers.Default,
     /** The time `context`'s waits keep. */
-    clock: TimeSource,
+    clock: TimeSource = TimeSource.Monotonic,
 ) : AutoCloseable {
-    @JvmOverloads
-    public constructor(
-        transport: Transport,
-        content: ContentTransport,
-        gateway: GatewayOperations,
-        timing: ClientTiming = ClientTiming(),
-        /** Where the client keeps what its queries hold, so the next client of the same knowledge base shows it at once: nowhere, when none. */
-        persistence: CachePersistence? = null,
-    ) : this(transport, content, gateway, timing, persistence, Dispatchers.Default, TimeSource.Monotonic)
 
     /** The client's own bus: every frame the transport delivered, and every signal the client's parts gave each other. */
     public val bus: EventBus = EventBus()
@@ -67,7 +59,7 @@ public class SemiontClient internal constructor(
     private val refresher: Refresher
 
     init {
-        wire = Bus(transport)
+        wire = Bus(transport, context, clock)
         links = Links(transport, wire, bus, timing, context, clock)
         transport.bridgeInto(bus)
         live = Live(links, content, persistence)
