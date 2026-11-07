@@ -10,6 +10,7 @@
     "go": ["packages/go/sdk/annotations/builders_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/AnnotationBuildersTest.kt"]
   },
+  "notYetReached": { "ocaml": "P7 runs the annotation and offset helpers against the shared cases." },
   "unstated": {
     "cases": ["created"],
     "resources": ["created"]

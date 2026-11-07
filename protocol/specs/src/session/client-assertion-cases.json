@@ -13,6 +13,7 @@
     "go": ["packages/go/sdk/clientassertion_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/ClientAssertionCasesTest.kt"]
   },
+  "notYetReached": { "ocaml": "P4 and P6 run the session and registry cases through their public APIs." },
   "form": ["grant_type", "client_assertion_type", "client_assertion"],
   "grantType": "client_credentials",
   "assertionType": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",

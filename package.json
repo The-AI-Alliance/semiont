@@ -10,6 +10,8 @@
     "docs/checks/doc-snippets"
   ],
   "scripts": {
+    "generate:ocaml": "node packages/codegen/ocaml/generate-identifiers.mjs && node packages/codegen/ocaml/generate-support.mjs && node packages/codegen/ocaml/generate-client-timing.mjs && node packages/codegen/ocaml/generate-enums.mjs && node packages/codegen/ocaml/generate-bus.mjs && node packages/codegen/ocaml/generate-selectors.mjs && node packages/codegen/ocaml/generate-shapes.mjs && node packages/codegen/ocaml/generate-records.mjs",
+    "generate:ocaml:check": "node packages/codegen/ocaml/generate-identifiers.mjs --check && node packages/codegen/ocaml/generate-support.mjs --check && node packages/codegen/ocaml/generate-client-timing.mjs --check && node packages/codegen/ocaml/generate-enums.mjs --check && node packages/codegen/ocaml/generate-bus.mjs --check && node packages/codegen/ocaml/generate-selectors.mjs --check && node packages/codegen/ocaml/generate-shapes.mjs --check && node packages/codegen/ocaml/generate-records.mjs --check",
     "dev": "npm run dev --workspaces",
     "build": "npm run build:packages && npm run build:browser",
     "build:packages": "node packages/typescript/scripts/build-packages.js",
@@ -115,6 +117,7 @@
     "lint:client-surface": "node .github/scripts/checks/check-client-surface.mjs",
     "lint:haskell-complete": "node .github/scripts/checks/check-client-surface.mjs --complete-sdk=haskell",
     "lint:haskell-api": "node .github/scripts/checks/check-haskell-api.mjs",
+    "lint:ocaml-api": "node .github/scripts/checks/check-ocaml-api.mjs",
     "lint:haskell-transport": "node .github/scripts/checks/check-haskell-transport.mjs",
     "lint:state-unit-census": "node .github/scripts/checks/check-state-unit-census.mjs",
     "lint:state-unit-cases": "node .github/scripts/checks/check-state-unit-cases.mjs",

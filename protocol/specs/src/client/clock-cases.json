@@ -10,6 +10,7 @@
     "typescript": ["packages/typescript/sdk/src/__tests__/clock-cases.test.ts"],
     "go": ["packages/go/sdk/clock_cases_test.go"]
   },
+  "notYetReached": { "ocaml": "P7 runs every clock subject through the public client composition." },
   "cases": [
     {
       "subject": "refusedStream",

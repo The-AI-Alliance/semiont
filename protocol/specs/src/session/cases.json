@@ -11,6 +11,13 @@
     "launcher": ["packages/go/launcher/verbs/session_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/session/SessionCasesTest.kt"]
   },
+  "notYetReached": {
+    "ocaml": {
+      "why": "P4 runs startup and refusal through the gateway and issuer session.",
+      "runBy": ["packages/ocaml/sdk/test/session_renewal.ml"],
+      "sections": ["refreshSchedule", "tokenExpiry"]
+    }
+  },
   "told": {
     "title": "SessionEndReason",
     "type": "string",

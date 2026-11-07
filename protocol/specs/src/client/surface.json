@@ -38,6 +38,7 @@
   "namespaces": [
     {
       "namespace": "frame",
+      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "The knowledge base's vocabulary: what kinds of things exist.",
       "methods": [
         {
@@ -75,6 +76,7 @@
     },
     {
       "namespace": "browse",
+      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "Reads: live queries, one-shot reads, and this viewer's own signals.",
       "methods": [
         {
@@ -215,6 +217,7 @@
     },
     {
       "namespace": "mark",
+      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "Annotations: their creation and removal, a resource's own metadata, and the annotating of a resource delegated as a job.",
       "methods": [
         {
@@ -325,6 +328,7 @@
     },
     {
       "namespace": "bind",
+      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "Linking a reference to what it refers to.",
       "methods": [
         {
@@ -364,6 +368,7 @@
     },
     {
       "namespace": "gather",
+      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "Assembling the context a model is given, and what refers to a resource.",
       "methods": [
         {
@@ -422,6 +427,7 @@
     },
     {
       "namespace": "match",
+      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "Searching: for what a reference could refer to, and for resources by text.",
       "methods": [
         {
@@ -474,6 +480,7 @@
     },
     {
       "namespace": "yield",
+      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "Creating resources: by upload, by a generation delegated as a job, by cloning.",
       "methods": [
         {
@@ -553,6 +560,7 @@
     },
     {
       "namespace": "beckon",
+      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "Attention: driving the other participants' viewers, and this viewer's own signals.",
       "methods": [
         {
@@ -601,6 +609,7 @@
     },
     {
       "namespace": "job",
+      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "Jobs: their lifecycle as it is announced, their status, their cancellation, and, for a worker, the claiming of them.",
       "methods": [
         {
@@ -672,6 +681,7 @@
     },
     {
       "namespace": "auth",
+      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "The gateway's view of who is signed in. Present when the client was given a gateway.",
       "methods": [
         {
@@ -696,6 +706,7 @@
     },
     {
       "namespace": "system",
+      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "What the knowledge base says about itself. Present when the client was given a gateway.",
       "methods": [
         {
@@ -716,6 +727,7 @@
   "worker": [
     {
       "handed": "claims",
+      "notYetReached": { "ocaml": "P5 builds the typed claims and held-job modules." },
       "docs": "What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust and Kotlin (`next`), ranged over in Go.",
       "members": [
         {
@@ -750,6 +762,7 @@
     },
     {
       "handed": "heldJob",
+      "notYetReached": { "ocaml": "P5 builds the typed claims and held-job modules." },
       "docs": "A job a worker holds, from its claim until it settles it. A held job is its verb's, `mark` or `yield`. A member with `takes` is one a held job has as its verb's, and it takes what that verb's entry names; every other member is the same for both verbs, and a job held as either verb's has it without its verb being asked.",
       "members": [
         { "member": "jobId" },
@@ -783,6 +796,7 @@
   "stateUnits": [
     {
       "unit": "mark",
+      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "The composing and delegating of annotations on one resource: the annotation being composed, the delegated job's motivation, its progress and what that progress is of, why the last job ended without completing, and the job's id. A request and a submission reach it as the signals the mark namespace publishes, which name its resource; a delegation, the cancelling of the annotation being composed and the dismissing of a job's progress are asked of the unit itself, so none reaches a unit of another resource.",
       "made": {"csharp": "MarkStateUnit", "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit", "go": "MarkStateUnit", "kotlin": "MarkStateUnit", "swift": "MarkStateUnit", "haskell": "MarkStateUnit"},
       "madeBy": {"typescript": "createMarkStateUnit", "go": "NewMarkStateUnit", "haskell": "newMarkStateUnit"},
@@ -800,6 +814,7 @@
     },
     {
       "unit": "yield",
+      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "A generation: whether a run is under way, its progress, what the finished run produced, why the last run ended without a result, and the job's id. It is moved by its own methods.",
       "made": {"csharp": "YieldStateUnit", "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit", "go": "YieldStateUnit", "kotlin": "YieldStateUnit", "swift": "YieldStateUnit", "haskell": "YieldStateUnit"},
       "madeBy": {"typescript": "createYieldStateUnit", "go": "NewYieldStateUnit", "haskell": "newYieldStateUnit"},
@@ -815,6 +830,7 @@
     },
     {
       "unit": "gather",
+      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "The context gathered around one resource: for the annotation last asked about and for the resource last asked about, the context, whether it is loading and why it failed. Each gather is asked of the unit itself, so none reaches a unit of another resource.",
       "made": {"csharp": "GatherStateUnit", "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit", "go": "GatherStateUnit", "kotlin": "GatherStateUnit", "swift": "GatherStateUnit", "haskell": "GatherStateUnit"},
       "madeBy": {"typescript": "createGatherStateUnit", "go": "NewGatherStateUnit", "haskell": "newGatherStateUnit"},
@@ -832,6 +848,7 @@
     },
     {
       "unit": "match",
+      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "Matching, run for whoever asks on the client's own bus: a search asked for by a signal is run and answered under the asker's correlation id. It holds no state: what it found is what it said.",
       "made": {"csharp": "MatchStateUnit", "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit", "go": "MatchStateUnit", "kotlin": "MatchStateUnit", "swift": "MatchStateUnit", "haskell": "MatchStateUnit"},
       "madeBy": {"typescript": "createMatchStateUnit", "go": "NewMatchStateUnit", "haskell": "newMatchStateUnit"},
@@ -839,6 +856,7 @@
     },
     {
       "unit": "beckon",
+      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "Attention on one resource: the annotation this participant hovers, a sparkle for one the moment it is hovered, and a focus, naming the unit's resource, for one clicked here or by another participant.",
       "made": {"csharp": "BeckonStateUnit", "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit", "kotlin": "BeckonStateUnit", "swift": "BeckonStateUnit", "haskell": "BeckonStateUnit"},
       "madeBy": {"typescript": "createBeckonStateUnit", "go": "NewBeckonStateUnit", "haskell": "newBeckonStateUnit"},
@@ -849,6 +867,7 @@
     },
     {
       "unit": "hoverDwell",
+      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "A pointer's rest: an annotation is said to be hovered once the pointer has rested on it for a delay, and none at once when it leaves.",
       "made": {"csharp": "HoverDwell", "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell", "go": "HoverDwell", "kotlin": "HoverDwell", "swift": "HoverDwell", "haskell": "HoverDwell"},
       "madeBy": {"typescript": "createHoverDwell", "go": "NewHoverDwell", "haskell": "newHoverDwell"},
@@ -859,6 +878,7 @@
     },
     {
       "unit": "search",
+      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "A search that follows a query as it is typed: the query as last set, and the results of the query it last settled on, once that query has stayed the same for a debounce.",
       "made": {"csharp": "SearchPipeline", "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline", "go": "SearchPipeline", "kotlin": "SearchPipeline", "swift": "SearchPipeline", "haskell": "SearchPipeline"},
       "madeBy": {"typescript": "createSearchPipeline", "go": "NewSearchPipeline", "haskell": "newSearchPipeline"},
@@ -870,6 +890,7 @@
     },
     {
       "unit": "sessionSignals",
+      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it.",
       "made": {"csharp": "SessionSignals", "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals", "kotlin": "SessionSignals", "swift": "SessionSignals", "haskell": "SessionSignals"},
       "madeBy": {"typescript": "createSessionSignals", "go": "NewSessionSignals", "haskell": "newSessionSignals"},
@@ -887,6 +908,7 @@
     },
     {
       "unit": "cache",
+      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "Values the knowledge base answers with, kept by key and held as state: each key's state (pending, ready with its value, or failed), fetched when first observed and again when invalidated, and set, removed or invalidated by its methods. What it does is held by the cache's own tables (protocol/specs/src/client/refresh.json and the cache's rules in each SDK), not by the behaviour table.",
       "made": {"csharp": "Cache", "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache", "kotlin": "Cache", "swift": "Cache", "haskell": "Cache"},
       "madeBy": {"typescript": "createCache", "go": "NewCache", "haskell": "newCache"},
@@ -937,6 +959,7 @@
     },
     {
       "unit": "session",
+      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. What it does is held by the session's own table (protocol/specs/src/session/cases.json), not by the behaviour table.",
       "made": {"csharp": "SemiontSession", "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession", "swift": "SemiontSession", "haskell": "Session"},
       "madeBy": {"go": "StartSession", "kotlin": "sessionFromKept", "swift": "sessionFromKept", "haskell": "newSession"},
@@ -968,6 +991,7 @@
   ],
   "wire": {
     "docs": "The typed bus over a client's transport, which a client hands out as `wire`: what it emits goes over the wire, and what it reads is what the wire delivers. A read gives each frame with its envelope, who emitted it and the trace it was sent under. A channel of a resource's scope is read for one resource, and the read holds that resource's scope while it is read. The client's own in-process signals are on its own bus, never here. It hands out no transport: a client's transport is the client's `transport`, and only there.",
+    "notYetReached": { "ocaml": "P3 implements the typed bus and P5 exposes it on the client." },
     "made": {
       "haskell": "Bus",
       "csharp": "Bus",
@@ -1030,7 +1054,8 @@
   },
   "storage": {
     "docs": "Where a client keeps what must outlive it: text under a key, in a store the application supplies (a file, a browser's storage, a platform's store), so nothing above it knows where it runs. A client's sessions, its registry of knowledge bases and its kept caches keep what they keep there. More than one context can write one store, two windows or two processes: what is written from what was read goes through `update`, which a store makes one step, so one writer's change is never lost under another's; and `subscribe` hears what another context writes, and is null where no other context writes.",
-    "made": {"haskell": "SessionStorage", "csharp": "ISessionStorage", "typescript": "SessionStorage", "rust": "SessionStorage", "python": "SessionStorage", "go": "SessionStorage", "kotlin": "SessionStorage", "swift": "SessionStorage"},
+    "notYetReached": { "ocaml": "P6 implements the public session storage interface." },
+    "made": {"ocaml": "Storage", "haskell": "SessionStorage", "csharp": "ISessionStorage", "typescript": "SessionStorage", "rust": "SessionStorage", "python": "SessionStorage", "go": "SessionStorage", "kotlin": "SessionStorage", "swift": "SessionStorage"},
     "members": [
       { "member": "get" },
       { "member": "set" },
@@ -1042,6 +1067,7 @@
   "modules": [
     {
       "module": "annotations",
+      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "The readers of an annotation, its builders, and the reconciling of a quote: what a program that reads or makes annotations is given, so that none parses or builds one by hand. Held by protocol/specs/src/annotations's tables.",
       "where": {
         "haskell": ["packages/haskell/sdk/src/Semiont/Annotations.hs"],
@@ -1270,6 +1296,7 @@
     },
     {
       "module": "jobFilter",
+      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by protocol/specs/src/jobs/filter-cases.json.",
       "where": {
         "csharp": [
@@ -1307,6 +1334,7 @@
     },
     {
       "module": "claims",
+      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "What a worker's stream names, and whether a failed job is run again: the channels claiming reads (the replies of `job:claim`, and the announcements and cancellations a worker hears), the channels committing reads (the replies of `mark:commit`, and of the question whether a batch is recorded), and whether a failed attempt is retried, which a held job reports on `job:fail`. Held by protocol/specs/src/jobs/retry-cases.json.",
       "where": {
         "csharp": [
@@ -1348,6 +1376,7 @@
     },
     {
       "module": "retry",
+      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "Doing work again by a backoff, until it succeeds, it fails as nothing can mend, or the attempts run out.",
       "where": {
         "csharp": ["packages/csharp/sdk/src/Semiont/Http"],
@@ -1380,6 +1409,7 @@
     },
     {
       "module": "hostName",
+      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "Whether a host is one a knowledge base's HTTP endpoint may name. Held by protocol/specs/src/session/gateway-url-cases.json.",
       "where": {
         "csharp": ["packages/csharp/sdk/src/Semiont/Session"],
@@ -1413,6 +1443,7 @@
     },
     {
       "module": "tokens",
+      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "What a session reads of an access token: a claim it names as text, when it expires, whether it has, and when to renew it. Held by protocol/specs/src/session/cases.json.",
       "where": {
         "haskell": ["packages/haskell/sdk/src/Semiont/Tokens.hs"],
@@ -1474,6 +1505,7 @@
     },
     {
       "module": "storagePersister",
+      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "Where a client keeps its queries' values: a session storage, under one key, kept within a size.",
       "where": {
         "haskell": ["packages/haskell/sdk/src/Semiont/StoragePersister.hs"],
@@ -1510,6 +1542,7 @@
     },
     {
       "module": "bus",
+      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps; and what a transport delivers in place of a frame it refuses, and why it refuses it.",
       "where": {
         "csharp": ["packages/csharp/sdk/src/Semiont"],
@@ -1587,6 +1620,7 @@
     },
     {
       "module": "registry",
+      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered.",
       "where": {
         "csharp": ["packages/csharp/sdk/src/Semiont/Registry"],
@@ -1815,6 +1849,7 @@
     },
     {
       "module": "sessionNotices",
+      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "What a session's signals raise: that a session ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. protocol/specs/src/client/state-units.json's `notices` states each one.",
       "where": {
         "haskell": ["packages/haskell/sdk/src/Semiont/State/SessionSignals.hs"],
@@ -1834,6 +1869,7 @@
     },
     {
       "module": "redirectSignIn",
+      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is.",
       "where": {
         "csharp": ["packages/csharp/sdk/src/Semiont/Authorization"],
@@ -1913,6 +1949,7 @@
     },
     {
       "module": "serviceToken",
+      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "A service account's token, which a process holds for its own account at the issuer a knowledge base trusts: the issuer's token endpoint discovered once, through the HTTP client the token was made with, one client-credentials grant at a time, the token held until it is due for renewal, and the `Authorization` header's value it gives (`authorization`).",
       "where": {
         "haskell": ["packages/haskell/sdk/src/Semiont/ServiceToken.hs"],
@@ -1945,6 +1982,7 @@
     },
     {
       "module": "signInStore",
+      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "The sign-ins `semiont login` keeps, as protocol/specs/src/sign-in-store states them: the store, whose every change holds the lock every writer takes, and where the launcher's state home is on each system. Held by sign-in-store/cases.json.",
       "where": {
         "csharp": ["packages/csharp/sdk/src/Semiont/SignIn"],
@@ -2039,6 +2077,7 @@
     },
     {
       "module": "discovery",
+      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read.",
       "where": {
         "csharp": ["packages/csharp/sdk/src/Semiont/Discovery"],
@@ -2149,6 +2188,7 @@
     },
     {
       "module": "testing",
+      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "What a consumer's tests hold a composition and a registry to: the liveness axioms, that under any behaviour of the wire something is eventually said and every event is delivered exactly once; a real session over test doubles; a factory of scripted sessions for a registry; and a storage several contexts share.",
       "where": {
         "swift": [
@@ -2293,6 +2333,7 @@
     },
     {
       "module": "refusals",
+      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "The first fault a body has as a component schema, and what every SDK says of it as it refuses it (`it has no `x``, `its `x` is malformed`, `it is malformed`): for an SDK whose HTTP transport is a package of its own, which reads its answers and holds its stream's frames by them. Held by the table of what each schema requires (packages/codegen/schemas/required-shapes.mjs).",
       "where": {
         "typescript": [
@@ -2385,6 +2426,7 @@
         "go": "testing/synctest: every wait is package time's, on goroutines the caller's call starts."
       },
       "takes": {
+        "ocaml": { "Clock.make": ["Eio.Time.Mono.t", "Eio.Time.clock"], "Subscription.start": ["Clock.t"], "Session.start": ["Clock.t"], "Http_wire.make": ["Clock.t"] },
         "kotlin": {
           "SemiontClient": ["CoroutineContext", "TimeSource"],
           "TestClient": ["CoroutineContext", "TimeSource"],
@@ -2483,6 +2525,7 @@
         "python": "The random module, which a test seeds or patches: every jitter draws random.random()."
       },
       "takes": {
+        "ocaml": { "Clock.make": ["Random.State.t"], "Subscription.start": ["Clock.t"], "Session.start": ["Clock.t"], "Http_wire.make": ["Clock.t"] },
         "rust": {
           "HttpTransportConfig": ["Rng"],
           "SemiontSessionConfig": ["Rng"],

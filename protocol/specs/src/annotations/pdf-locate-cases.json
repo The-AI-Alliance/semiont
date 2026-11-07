@@ -11,6 +11,7 @@
     "worker": ["images/worker/tests/test_claim_cases.py"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/PdfLocateTest.kt"]
   },
+  "notYetReached": { "ocaml": "P7 runs the annotation and offset helpers against the shared cases." },
   "cases": [
     {
       "why": "a span that is exactly one item is that item's box; its neighbours, one ending before the span starts and one starting after it ends, are not overlapped",

@@ -1,0 +1,4 @@
+(version base)
+
+(depends
+ (all_platforms (ocaml)))

@@ -20,6 +20,7 @@
       "packages/kotlin/sdk/src/test/kotlin/semiont/identity/IdentityTest.kt"
     ]
   },
+  "notYetReached": { "ocaml": "P2 runs generated principal readers against the shared cases." },
   "absent": {
     "typescript": "No TypeScript code names a principal: the gateway, in Rust, mints every DID it acts for."
   },

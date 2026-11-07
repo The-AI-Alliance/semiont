@@ -293,7 +293,7 @@ const CSHARP_SDK = 'packages/csharp/sdk/src/Semiont';
 const CSHARP_NAMESPACES = `${CSHARP_SDK}/Namespaces`;
 const SCHEMAS = 'protocol/specs/src/components/schemas';
 /** Each SDK as a message names it. */
-const LANGUAGES = { typescript: 'TypeScript', rust: 'Rust', python: 'Python', go: 'Go', kotlin: 'Kotlin', swift: 'Swift', csharp: 'C#', haskell: 'Haskell' };
+const LANGUAGES = { typescript: 'TypeScript', rust: 'Rust', python: 'Python', go: 'Go', kotlin: 'Kotlin', swift: 'Swift', csharp: 'C#', haskell: 'Haskell', ocaml: 'OCaml' };
 
 const failures = [];
 const fail = (message) => failures.push(message);
@@ -2053,8 +2053,69 @@ function haskellSurface() {
   return result;
 }
 
+const OCAML_API = 'packages/ocaml/sdk/public-api.json';
+const ocamlEntries = JSON.parse(read(OCAML_API)).entries;
+
+function ocamlChildren(path) {
+  const prefix = `${path}.`;
+  return ocamlEntries.filter((entry) => entry.path.startsWith(prefix) && !entry.path.slice(prefix.length).includes('.'));
+}
+
+const ocamlName = (path) => path.split('.').at(-1);
+const ocamlCamel = (name) => name.replace(/_$/, '').replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+
+/** Split a compiler-printed signature without splitting callback arguments. */
+function ocamlSignature(declaration) {
+  const signature = squeezed(declaration.slice(declaration.indexOf(':') + 1));
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < signature.length; i++) {
+    if ('([{'.includes(signature[i])) depth++;
+    if (')]}'.includes(signature[i])) depth--;
+    if (depth === 0 && signature.startsWith(' -> ', i)) {
+      parts.push(signature.slice(start, i).replace(/^\??\w+:/, ''));
+      i += 3;
+      start = i + 1;
+    }
+  }
+  return { takes: parts, returns: signature.slice(start) };
+}
+
+function ocamlMembers(path) {
+  const members = new Map();
+  for (const entry of ocamlChildren(path).filter(({ kind }) => kind === 'value')) {
+    const { takes, returns } = ocamlSignature(entry.declaration);
+    members.set(ocamlCamel(ocamlName(entry.path)), { takes: takes.map((type) => ({ type })), returns });
+  }
+  return members;
+}
+
+function ocamlModule(path) {
+  if (!ocamlEntries.some((entry) => entry.kind === 'module' && entry.path === path)) return undefined;
+  return { where: `${path} from ${OCAML_API}`, members: ocamlMembers(path) };
+}
+
+/** Read namespaces reachable as modules under the installed OCaml Client. */
+function ocamlSurface() {
+  const namespaces = new Map();
+  for (const { kind, path } of ocamlChildren('Semiont.Client')) {
+    if (kind !== 'module') continue;
+    const members = ocamlMembers(path);
+    for (const method of members.values()) {
+      // Eio calls return directly. The outer result distinguishes ordinary
+      // requests from signals. Other return families are added with their API.
+      if (method.returns === 'unit') method.shape = 'signal';
+      else if (/\bresult$/.test(method.returns)) method.shape = 'promise';
+    }
+    namespaces.set(ocamlCamel(ocamlName(path).toLowerCase()), members);
+  }
+  return namespaces;
+}
+
 /** Each SDK whose namespaces this reads: where they are, and their reader. */
 const NAMESPACES = {
+  ocaml: { where: OCAML_API, surface: ocamlSurface },
   haskell: { where: 'packages/haskell/sdk/src/Semiont/Client.hs', surface: haskellSurface },
   typescript: { where: TS_INTERFACES, surface: typescriptSurface },
   rust: { where: RUST_NAMESPACES, surface: rustSurface },
@@ -2087,7 +2148,7 @@ const VERBS = JSON.parse(read(`${SCHEMAS}/JobType.json`)).enum;
 const HANDED = ['claims', 'heldJob'];
 
 /** Each SDK whose worker's surface this reads, and its reader. */
-const WORKERS = { haskell: haskellWorker, typescript: typescriptWorker, rust: rustWorker, python: pythonWorker, go: goWorker, kotlin: kotlinWorker, swift: swiftWorker, csharp: csharpWorker };
+const WORKERS = { ocaml: ocamlWorker, haskell: haskellWorker, typescript: typescriptWorker, rust: rustWorker, python: pythonWorker, go: goWorker, kotlin: kotlinWorker, swift: swiftWorker, csharp: csharpWorker };
 const WORKER_SDKS = Object.keys(WORKERS);
 
 /** handed → member → row */
@@ -2247,6 +2308,14 @@ function unreadable(file) {
     fail(`${file}: ${what}: this lint cannot read what a worker is handed there, and holds that SDK to none of it`);
   };
   return { said, cannot };
+}
+
+function ocamlWorker() {
+  const where = 'Semiont.Worker';
+  const claims = ocamlModule(`${where}.Claims`);
+  const either = ocamlModule(`${where}.Held_job`);
+  const jobs = Object.fromEntries(VERBS.map((verb) => [verb, ocamlModule(`${where}.Held_job.${verb[0].toUpperCase() + verb.slice(1)}`)]));
+  return { where, claims, either, jobs, spelled: ocamlCamel };
 }
 
 function haskellWorker() {
@@ -2512,11 +2581,15 @@ function goWorker() {
 
 /** Hold what `sdk` declares for one thing a worker is handed to the table's rows for it. `verb` is given for a held job of one verb. */
 function heldTo(sdk, where, what, declared, members, verb, spelled) {
-  const its = `${sdk}'s ${what} (${declared.of} in ${where})`;
+  const its = `${sdk}'s ${what} (${declared?.of ?? verb ?? what} in ${where})`;
   const row = `the \`${what}\` rows of \`worker\` in ${TABLE}`;
+  if (!declared) {
+    if (!yetToReach(handedRows.get(what), sdk)) fail(`${its} is missing`);
+    return;
+  }
   const has = declared.members;
   if (yetToReach(handedRows.get(what), sdk)) {
-    if (has.size > 0) fail(`${its} has ${[...has.keys()].join(', ')}, and ${TABLE} says ${sdk} has yet to reach worker.${what} (\`notYetReached\`): take ${sdk} out of its \`notYetReached\`, or say which members it still lacks on each member instead`);
+    if (has.size > 0 || sdk === 'ocaml') fail(`${its} exports a worker surface, and ${TABLE} says ${sdk} has yet to reach worker.${what} (\`notYetReached\`): take ${sdk} out of its \`notYetReached\`, or say which members it still lacks on each member instead`);
     return;
   }
   for (const [member, stated] of members) {
@@ -2576,7 +2649,21 @@ for (const [sdk, readWorker] of Object.entries(WORKERS)) {
  * unit's `dispose`, which every unit has, being a StateUnit, and is no
  * member, and its reader of how a unit is made from outside it (`makeable`).
  */
+function ocamlUnit(made) {
+  const declared = ocamlModule(`Semiont.State_units.${made}`);
+  if (!declared) return undefined;
+  const isUnit = declared.members.get('dispose')?.returns === 'unit';
+  return { ...declared, isUnit };
+}
+
 const UNITS = {
+  ocaml: {
+    read: ocamlUnit, sources: OCAML_API, dispose: 'dispose',
+    declared: () => ocamlChildren('Semiont.State_units').filter(({ kind }) => kind === 'module')
+      .map(({ path }) => ({ name: ocamlName(path), file: OCAML_API })),
+    makeable: (made, declared, maker) =>
+      declared.members.get(ocamlCamel(maker ?? 'make'))?.returns === 't' ? undefined : 'which does not publicly return the unit type t',
+  },
   haskell: { read: haskellUnit, sources: 'packages/haskell/sdk/src', declared: haskellUnits, dispose: 'dispose', makeable: haskellMakeable },
   typescript: { read: typescriptUnit, sources: TS_SDK, declared: typescriptUnits, dispose: 'dispose', makeable: typescriptMakeable },
   rust: { read: rustUnit, sources: RUST_SDK, declared: rustUnits, dispose: 'dispose', makeable: rustMakeable },
@@ -3163,6 +3250,14 @@ function haskellReceiver(made, where) {
 }
 
 const WIRES = {
+  ocaml: {
+    read: (made) => ocamlModule(`Semiont.${made}`),
+    sources: OCAML_API,
+    handedOut: { file: OCAML_API, says: (made) => ({ test: () => {
+      const wire = ocamlMembers('Semiont.Client').get('wire');
+      return wire !== undefined && new RegExp(`^(?:Semiont[.])?${made}[.]t$`).test(wire.returns);
+    } }) },
+  },
   haskell: {
     read: haskellReceiver,
     sources: 'packages/haskell/sdk/src/Semiont/Bus.hs',
@@ -3250,6 +3345,7 @@ else {
  * of the root package, and Rust's a trait.
  */
 const STORAGES = {
+  ocaml: { read: (made) => ocamlModule(`Semiont.${made}`), sources: OCAML_API },
   haskell: { read: haskellReceiver, sources: 'packages/haskell/sdk/src/Semiont/SessionStorage.hs' },
   typescript: { read: typescriptUnit, sources: TS_SDK },
   rust: { read: rustTrait, sources: RUST_SDK },
@@ -3329,6 +3425,7 @@ const snakeCase = (name) => name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerC
 /** A member's name as `sdk` spells a member of `kind`. */
 function spelledAs(sdk, kind, name) {
   if (sdk === 'haskell') return name;
+  if (sdk === 'ocaml') return snakeCase(name);
   if (sdk === 'swift' || kind === 'type') return name;
   if (sdk === 'csharp') return capitalized(name);
   if (kind === 'constant') return sdk === 'go' ? capitalized(name) : snakeCase(name).toUpperCase();
@@ -3411,7 +3508,17 @@ function haskellExports(files) {
   });
 }
 
-const EXPORTS = { typescript: typescriptExports, rust: rustExports, python: pythonExports, go: goExports, kotlin: kotlinExports, swift: swiftExports, csharp: csharpExports, haskell: haskellExports };
+function ocamlExports(files) {
+  return files.flatMap((file) => ocamlChildren(ocamlModulePath(file))
+    .filter(({ kind }) => kind === 'value' || kind === 'type')
+    .map(({ path }) => ocamlName(path)));
+}
+
+function ocamlModulePath(file) {
+  return `Semiont.${capitalized(basename(file).replace(/[.]mli?$/, ''))}`;
+}
+
+const EXPORTS = { ocaml: ocamlExports, typescript: typescriptExports, rust: rustExports, python: pythonExports, go: goExports, kotlin: kotlinExports, swift: swiftExports, csharp: csharpExports, haskell: haskellExports };
 const MODULE_SDKS = Object.keys(EXPORTS);
 
 /** module → row */
@@ -3454,7 +3561,12 @@ for (const module of moduleRows ?? []) {
   for (const sdk of MODULE_SDKS) {
     const where = module.where?.[sdk];
     const waiting = module.notYetReached?.[sdk];
-    if (waiting !== undefined && where === undefined) continue;
+    if (waiting !== undefined && where === undefined) {
+      if (sdk === 'ocaml' && ocamlModule(`Semiont.${capitalized(snakeCase(module.module))}`)) {
+        fail(`${row} says OCaml has yet to reach the module, but it is in the installed API`);
+      }
+      continue;
+    }
     if (!Array.isArray(where) || where.length === 0) {
       fail(`${row} does not say where ${sdk} keeps the module (\`where\`)`);
       continue;
@@ -3835,7 +3947,19 @@ function csharpRecords(name, directories) {
 }
 
 /** Each SDK whose records this reads: its reader, what it holds an enum and a union as, and how it spells a field. */
+function ocamlRecords(name, files) {
+  return files.flatMap((file) => ocamlChildren(ocamlModulePath(file))
+    .filter(({ kind, path }) => kind === 'type' && ocamlName(path) === name)
+    .map((entry) => {
+      const where = `${entry.path} from ${OCAML_API}`;
+      if (entry.representation === 'record') return { where, held: 'record', fields: entry.fields };
+      if (entry.representation === 'variant') return { where, held: 'variants', variants: entry.variants };
+      return unreadableRecord(where, 'is neither a record nor a variant');
+    }));
+}
+
 const RECORD_READERS = {
+  ocaml: { read: ocamlRecords, enumAs: 'variants', unionAs: 'variants', spell: snakeCase },
   typescript: { read: typescriptRecords, enumAs: 'values', unionAs: 'union', spell: (member) => member },
   rust: { read: rustRecords, enumAs: 'variants', unionAs: 'variants', spell: snakeCase },
   python: { read: pythonRecords, enumAs: 'values', unionAs: 'record', spell: snakeCase },
@@ -4112,7 +4236,7 @@ for (const [type, shape] of recordShapes) {
     const where = module.where?.[sdk];
     // The modules section fails on a `where` that is not said, or does not exist.
     if (!Array.isArray(where) || where.length === 0 || missingPaths(sdk, where).length > 0) continue;
-    const spelled = member.named?.[sdk] === undefined ? type : member.named[sdk];
+    const spelled = member.named?.[sdk] ?? (sdk === 'ocaml' ? snakeCase(type) : type);
     const found = RECORD_READERS[sdk].read(spelled, where);
     if (found.length === 0) {
       fail(`${LANGUAGES[sdk]} declares no ${spelled} in ${where.join(', ')}, which ${row} lists: declare it there, or say in the member's \`absent\` why ${sdk} has none`);
@@ -4166,11 +4290,12 @@ for (const [type, shape] of recordShapes) {
  * source is read with its testing module (the `testing` row of `modules`),
  * its tests and its conformance drivers left out.
  */
-const CLOCK_SDKS = ['typescript', 'rust', 'python', 'go', 'kotlin', 'swift', 'csharp', 'haskell'];
+const CLOCK_SDKS = ['typescript', 'rust', 'python', 'go', 'kotlin', 'swift', 'csharp', 'haskell', 'ocaml'];
 const CLOCK_ROW_KEYS = ['source', 'docs', 'typeWords', 'outside', 'takes', 'notYetReached'];
 
 /** Where each SDK's makers and parameters are read, beside its testing module. */
 const CLOCK_SOURCES = {
+  ocaml: ['packages/ocaml/sdk/lib'],
   haskell: ['packages/haskell/sdk/src', 'packages/haskell/sdk/internal'],
   typescript: [TS_SDK, TS_CORE, 'packages/typescript/http-transport/src'],
   rust: [RUST_SDK, 'packages/rust/http-transport/src'],
@@ -4180,7 +4305,7 @@ const CLOCK_SOURCES = {
   swift: [SWIFT_SDK],
   csharp: [CSHARP_SDK],
 };
-const CLOCK_EXTENSIONS = { haskell: '.hs', typescript: '.ts', rust: '.rs', python: '.py', go: '.go', kotlin: '.kt', swift: '.swift', csharp: '.cs' };
+const CLOCK_EXTENSIONS = { ocaml: '.ml', haskell: '.hs', typescript: '.ts', rust: '.rs', python: '.py', go: '.go', kotlin: '.kt', swift: '.swift', csharp: '.cs' };
 
 /** The directories of `sdk`'s testing module, as the `testing` row of `modules` says where it is. */
 function testingDirectories(sdk) {
@@ -4236,6 +4361,16 @@ function swiftParameters(header) {
  * declares no public type or function of that name.
  */
 const CLOCK_MAKERS = {
+  ocaml(files) {
+    for (const file of files) {
+      const ambient = /\b(?:Unix\s*\.\s*(?:gettimeofday|clock_gettime|time|sleepf?|select)|Random\s*\.\s*(?:self_init|init|bits|int|float|bool|full_int|int32|int64|nativeint)|Eio\s*\.\s*Stdenv\s*\.\s*(?:mono_clock|clock))\b/;
+      if (ambient.test(read(file))) fail(`${file} uses ambient time or randomness: take the caller's Clock instead`);
+    }
+    return (maker) => {
+      const entry = ocamlEntries.find(({ kind, path }) => kind === 'value' && path === `Semiont.${maker}`);
+      return entry && [{ where: entry.path, takes: ocamlSignature(entry.declaration).takes.map((type) => ({ type })) }];
+    };
+  },
   haskell() {
     const inventory = JSON.parse(read('packages/haskell/sdk/public-api.json'));
     return (maker) => {

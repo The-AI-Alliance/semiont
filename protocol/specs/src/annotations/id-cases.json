@@ -11,6 +11,7 @@
     "go": ["packages/go/sdk/annotations/id_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/AnnotationIdsTest.kt"]
   },
+  "notYetReached": { "ocaml": "P7 runs the annotation and offset helpers against the shared cases." },
   "cases": [
     {
       "why": "an annotation with no body, a highlight: three members go into its id",

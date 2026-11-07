@@ -1,0 +1,37 @@
+(version 0.29.0)
+
+(build
+ (all_platforms
+  ((action
+    (progn
+     (when %{pkg-self:dev} (run dune subst))
+     (run dune build -p %{pkg-self:name} -j %{jobs} @install))))))
+
+(depends
+ (all_platforms
+  (ocaml
+   base
+   cmdliner
+   dune
+   dune-build-info
+   either
+   fix
+   fpath
+   menhir
+   menhirLib
+   menhirSdk
+   ocaml-version
+   ocp-indent
+   stdio
+   uuseg
+   uutf
+   csexp
+   astring
+   camlp-streams)))
+
+(source
+ (fetch
+  (url
+   https://github.com/ocaml-ppx/ocamlformat/releases/download/0.29.0/ocamlformat-0.29.0.tbz)
+  (checksum
+   sha512=b4ae6fda3c28e91dc12411b577df7b216e9b1afe5887bcb9e89c158e1313dc92183c29ffb256f47f5c9384af3ac8c505ec76849b26ae950b82c9b4c21a460819)))
