@@ -12,3 +12,8 @@
  (name enums_cases)
  (modules enums_cases)
  (libraries semiont alcotest))
+
+(test
+ (name generated_protocol)
+ (modules generated_protocol)
+ (libraries semiont yojson alcotest))

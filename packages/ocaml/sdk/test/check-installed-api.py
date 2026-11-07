@@ -27,6 +27,8 @@ with tempfile.TemporaryDirectory() as directory:
 module I = Semiont.Identifiers
 let resource : I.Resource_id.t = Result.get_ok (I.Resource_id.of_string "resource-1")
 let text = I.Resource_id.to_string resource
+module B = Semiont.Bus_registry
+let reply : _ B.channel = B.result B.Operations.browse_resource_requested
 let user : I.User_id.t = Result.get_ok (I.User_id.of_string "did:web:example:alice")
 ''')
     if valid.returncode:
@@ -38,6 +40,13 @@ let user : I.User_id.t = Result.get_ok (I.User_id.of_string "did:web:example:ali
 let annotation = Result.get_ok (Semiont.Identifiers.Annotation_id.of_string "a")
 let resource : Semiont.Identifiers.Resource_id.t = annotation
 ''', 'Annotation_id.t'),
+        ('wrong_operation_channel', '''
+module B = Semiont.Bus_registry
+let same_payload (left : 'a B.channel) (right : 'a B.channel) = ()
+let () =
+  same_payload (B.request B.Operations.browse_resource_requested)
+    (B.result B.Operations.browse_resource_requested)
+''', 'channel'),
         ('private_pattern', 'let matches = Semiont.Pattern.matches', 'Unbound module'),
         ('private_compilation_unit', 'let matches = Semiont__Pattern.matches', 'Unbound module'),
     ]:

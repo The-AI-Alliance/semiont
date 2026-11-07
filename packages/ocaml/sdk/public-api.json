@@ -109,6 +109,8 @@
     "dune.lock/x509.1.2.0.pkg": "57d1481d367b6687543ebab5b194f2b4ce6eb4509d70354cbfbac22a1744fb8e",
     "dune.lock/yojson.3.0.0.pkg": "d1536ef266187c4f3c66bbcef7998bac8497c175450463e075b552e0e99dc3a3",
     "dune.lock/zarith.1.14.pkg": "fd76eda421de026914a0de1c4d81d4140fd0d685f596dfe5aae1a5b83f06b75c",
+    "lib/bus_registry.ml": "d2d7a0131297380aeecdb15932e4f805ce0b14f90f7a66be56dc0f563d99806b",
+    "lib/bus_registry.mli": "93be2575c2e0dfd60ed6f52206f66a1193c96dcac8c3fda63092bf72cb2dfb9f",
     "lib/client_timing.ml": "ba5f3459d482317eb1ea394460a7aa0773bdd39acd2547dcec4e9efb25560d9f",
     "lib/client_timing.mli": "cb433bda9c37944c0dd973b950f25c229b727fef820d144b66915c26e3c4c7a5",
     "lib/clock.ml": "7fbcd81067a62d56842bf1f5b50e64e35f0efb056796a6926b1b732e52cca8b6",
@@ -119,8 +121,10 @@
     "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
     "lib/identifiers.mli": "bba7e132069a1c36758c9d1bfebd936ecb815b6d05dae2b55f03a5de72f2c20d",
     "lib/pattern.ml": "a41d5ebb9ebc0eee59522a4d883e2a5281202c4fbebb0a2040b267961bf677ad",
-    "lib/semiont.ml": "afed3c4d05482258b3e3978efadded383131c79947a0f76f4e3fead7da737829",
-    "lib/semiont.mli": "f73a9ee3acd7529f04297f15e9ec30bf7b694844771716d0513455d5919051a0",
+    "lib/selector.ml": "28f250d3a6ed926ba94317cf595d39742124587c527ebcf02c6f6c043c50a7e8",
+    "lib/selector.mli": "1c3c9f74ea5c90d0154547e5c3f249f4f7fcfd05f5fc97bc89ad7976a7b02716",
+    "lib/semiont.ml": "40881ba9a8a50e7d67589620f772fab166558b810a1d30ed37ed786c7e67e314",
+    "lib/semiont.mli": "be4fc2b11f3a5197eb44c9d09732d2f8d21323c417487d5a3ffa8a9a629c5e6f",
     "lib/types.ml": "5921efffb7596beb176e09960cdfa080ec954349ec2ce9d7e54bc7f638c808fe",
     "lib/types.mli": "97149245ffc84db1b741d7156a08017eff6f941179e9e6df950f212da8d60d76",
     "probes/api_inventory.ml": "97b819335b2d6d55f2f4a7c73422ad4df34ca5e459fe4df300f01a0ff5efb36a",
@@ -1117,6 +1121,1531 @@
       "kind": "value",
       "path": "Semiont.Enums.Supported_media_type.of_string",
       "declaration": "val of_string : string -> t option"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Bus_registry",
+      "declaration": "module Bus_registry = Semiont__.Bus_registry",
+      "alias": "Semiont__.Bus_registry"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Bus_registry.component",
+      "declaration": "type 'schema component",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Bus_registry.envelope",
+      "declaration": "type 'schema envelope",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Bus_registry.recorded",
+      "declaration": "type 'schemas recorded",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Bus_registry.empty",
+      "declaration": "type empty",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Bus_registry.void",
+      "declaration": "type void",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Bus_registry.delivery",
+      "declaration": "type delivery = Positioned | Correlated | Passing",
+      "representation": "variant",
+      "constructors": [
+        "Positioned",
+        "Correlated",
+        "Passing"
+      ],
+      "variants": [
+        {
+          "name": "Positioned",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Correlated",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Passing",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Bus_registry.audience",
+      "declaration": "type audience = Everyone | Scoped | Declared",
+      "representation": "variant",
+      "constructors": [
+        "Everyone",
+        "Scoped",
+        "Declared"
+      ],
+      "variants": [
+        {
+          "name": "Everyone",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Scoped",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Declared",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Bus_registry.operation_effect",
+      "declaration": "type operation_effect = Reads | Writes",
+      "representation": "variant",
+      "constructors": [
+        "Reads",
+        "Writes"
+      ],
+      "variants": [
+        {
+          "name": "Reads",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Writes",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Bus_registry.payload",
+      "declaration": "type payload =\n    Component of string\n  | Envelope of string\n  | Recorded of { envelope : string; payload : string; }\n  | Empty\n  | Void",
+      "representation": "variant",
+      "constructors": [
+        "Component",
+        "Envelope",
+        "Recorded",
+        "Empty",
+        "Void"
+      ],
+      "variants": [
+        {
+          "name": "Component",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Envelope",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Recorded",
+          "fields": [
+            "envelope",
+            "payload"
+          ],
+          "unit": false
+        },
+        {
+          "name": "Empty",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Void",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Bus_registry.channel",
+      "declaration": "type 'a channel",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Bus_registry.operation",
+      "declaration": "type ('request, 'result, 'failure) operation",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Bus_registry.packed_channel",
+      "declaration": "type packed_channel = Channel : 'a channel -> packed_channel",
+      "representation": "variant",
+      "constructors": [
+        "Channel"
+      ],
+      "variants": [
+        {
+          "name": "Channel",
+          "fields": [],
+          "unit": false
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Bus_registry.packed_operation",
+      "declaration": "type packed_operation =\n    Operation : ('request, 'result, 'failure) operation -> packed_operation",
+      "representation": "variant",
+      "constructors": [
+        "Operation"
+      ],
+      "variants": [
+        {
+          "name": "Operation",
+          "fields": [],
+          "unit": false
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.name",
+      "declaration": "val name : 'a channel -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.payload",
+      "declaration": "val payload : 'a channel -> payload"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.delivery",
+      "declaration": "val delivery : 'a channel -> delivery option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.emittable",
+      "declaration": "val emittable : 'a channel -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.audience",
+      "declaration": "val audience : 'a channel -> audience option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.in_process",
+      "declaration": "val in_process : 'a channel -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.operation_effect",
+      "declaration": "val operation_effect :\n  ('request, 'result, 'failure) operation -> operation_effect option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.request",
+      "declaration": "val request : ('request, 'result, 'failure) operation -> 'request channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.result",
+      "declaration": "val result : ('request, 'result, 'failure) operation -> 'result channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.failure",
+      "declaration": "val failure : ('request, 'result, 'failure) operation -> 'failure channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.reply_names",
+      "declaration": "val reply_names : ('request, 'result, 'failure) operation -> string list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.trace_field",
+      "declaration": "val trace_field : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.channels",
+      "declaration": "val channels : packed_channel list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.operations",
+      "declaration": "val operations : packed_operation list"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Bus_registry.Channels",
+      "declaration": "module Channels :\n  sig\n    val yield_created :\n      ([ `StoredEventResponse ] * [ `ResourceCreatedPayload ]) recorded\n      channel\n    val yield_cloned :\n      ([ `StoredEventResponse ] * [ `ResourceClonedPayload ]) recorded\n      channel\n    val yield_updated :\n      ([ `StoredEventResponse ] * [ `ResourceUpdatedPayload ]) recorded\n      channel\n    val yield_moved :\n      ([ `StoredEventResponse ] * [ `ResourceMovedPayload ]) recorded channel\n    val yield_representation_added :\n      ([ `StoredEventResponse ] * [ `RepresentationAddedPayload ]) recorded\n      channel\n    val yield_representation_removed :\n      ([ `StoredEventResponse ] * [ `RepresentationRemovedPayload ]) recorded\n      channel\n    val yield_create : [ `YieldCreateCommand ] component channel\n    val yield_clone_persist : [ `YieldClonePersistCommand ] component channel\n    val yield_update : [ `YieldUpdateCommand ] component channel\n    val yield_clone : void channel\n    val yield_clone_token_requested :\n      [ `YieldCloneTokenRequest ] component channel\n    val yield_clone_resource_requested :\n      [ `YieldCloneResourceRequest ] component channel\n    val yield_clone_create : [ `YieldCloneCreateCommand ] component channel\n    val yield_create_ok : [ `YieldCreateOk ] component channel\n    val yield_create_failed : [ `CommandError ] component channel\n    val yield_clone_persist_ok : [ `YieldClonePersistOk ] component channel\n    val yield_clone_persist_failed : [ `CommandError ] component channel\n    val yield_update_ok : [ `YieldUpdateOk ] component channel\n    val yield_update_failed : [ `CommandError ] component channel\n    val yield_clone_token_generated :\n      [ `CloneResourceWithTokenResponse ] envelope channel\n    val yield_clone_token_failed : [ `CommandError ] component channel\n    val yield_clone_resource_result :\n      [ `GetResourceByTokenResponse ] envelope channel\n    val yield_clone_resource_failed : [ `CommandError ] component channel\n    val yield_clone_created : [ `YieldCloneCreated ] component channel\n    val yield_clone_create_failed : [ `CommandError ] component channel\n    val mark_added :\n      ([ `EnrichedResourceEvent ] * [ `AnnotationAddedPayload ]) recorded\n      channel\n    val mark_removed :\n      ([ `StoredEventResponse ] * [ `AnnotationRemovedPayload ]) recorded\n      channel\n    val mark_body_updated :\n      ([ `EnrichedResourceEvent ] * [ `AnnotationBodyUpdatedPayload ])\n      recorded channel\n    val mark_entity_tag_added :\n      ([ `StoredEventResponse ] * [ `EntityTagChangedPayload ]) recorded\n      channel\n    val mark_entity_tag_removed :\n      ([ `StoredEventResponse ] * [ `EntityTagChangedPayload ]) recorded\n      channel\n    val mark_archived :\n      ([ `StoredEventResponse ] * [ `ResourceArchivedPayload ]) recorded\n      channel\n    val mark_unarchived :\n      ([ `StoredEventResponse ] * [ `ResourceUnarchivedPayload ]) recorded\n      channel\n    val mark_create_request : [ `MarkCreateRequest ] component channel\n    val mark_delete : [ `MarkDeleteCommand ] component channel\n    val mark_update_body : [ `MarkUpdateBodyCommand ] component channel\n    val mark_archive : [ `MarkArchiveCommand ] component channel\n    val mark_unarchive : [ `MarkUnarchiveCommand ] component channel\n    val mark_update_entity_types :\n      [ `MarkUpdateEntityTypesCommand ] component channel\n    val mark_create_ok : [ `MarkCreateOk ] component channel\n    val mark_create_failed : [ `CommandError ] component channel\n    val mark_commit : [ `MarkCommitCommand ] component channel\n    val mark_commit_ok : [ `MarkCommitOk ] component channel\n    val mark_commit_failed : [ `CommandError ] component channel\n    val mark_delete_ok : [ `MarkDeleteOk ] component channel\n    val mark_delete_failed : [ `CommandError ] component channel\n    val mark_archive_ok : empty channel\n    val mark_archive_failed : [ `CommandError ] component channel\n    val mark_unarchive_ok : empty channel\n    val mark_unarchive_failed : [ `CommandError ] component channel\n    val mark_update_entity_types_ok : empty channel\n    val mark_update_entity_types_failed : [ `CommandError ] component channel\n    val mark_body_update_failed : [ `CommandError ] component channel\n    val mark_requested : [ `MarkRequestedEvent ] component channel\n    val mark_submit : [ `MarkSubmitEvent ] component channel\n    val mark_delegate_timeout :\n      [ `MarkDelegateTimeoutEvent ] component channel\n    val mark_create_error : [ `ResourceErrorEvent ] component channel\n    val mark_delete_error : [ `ResourceErrorEvent ] component channel\n    val bind_body_error : [ `ResourceErrorEvent ] component channel\n    val frame_entity_type_added :\n      ([ `StoredEventResponse ] * [ `EntityTypeAddedPayload ]) recorded\n      channel\n    val frame_tag_schema_added :\n      ([ `StoredEventResponse ] * [ `TagSchemaAddedPayload ]) recorded\n      channel\n    val frame_add_entity_type :\n      [ `FrameAddEntityTypeCommand ] component channel\n    val frame_add_tag_schema :\n      [ `FrameAddTagSchemaCommand ] component channel\n    val frame_entity_type_add_ok : empty channel\n    val frame_entity_type_add_failed : [ `CommandError ] component channel\n    val frame_tag_schema_add_ok : empty channel\n    val frame_tag_schema_add_failed : [ `CommandError ] component channel\n    val principal_profiled :\n      ([ `StoredEventResponse ] * [ `PrincipalProfiledPayload ]) recorded\n      channel\n    val principal_profile : [ `PrincipalProfileCommand ] component channel\n    val bind_initiate : [ `BindInitiateCommand ] component channel\n    val bind_update_body : [ `BindUpdateBodyCommand ] component channel\n    val bind_body_updated : [ `BindBodyUpdated ] component channel\n    val bind_body_update_failed : [ `CommandError ] component channel\n    val match_search_requested : [ `MatchSearchRequest ] component channel\n    val match_search_results : [ `MatchSearchResult ] component channel\n    val match_search_failed : [ `MatchSearchFailed ] component channel\n    val match_resources_requested :\n      [ `MatchResourcesRequest ] component channel\n    val match_resources_result : [ `MatchResourcesResult ] component channel\n    val match_resources_failed : [ `CommandError ] component channel\n    val match_limits_requested :\n      [ `InferenceLimitsRequest ] component channel\n    val match_limits_result : [ `InferenceLimitsResult ] component channel\n    val match_limits_failed : [ `CommandError ] component channel\n    val gather_requested : [ `GatherAnnotationRequest ] component channel\n    val gather_complete : [ `GatherAnnotationComplete ] component channel\n    val gather_failed : [ `GatherFailed ] component channel\n    val gather_resource_requested :\n      [ `GatherResourceRequest ] component channel\n    val gather_resource_complete :\n      [ `GatherResourceComplete ] component channel\n    val gather_resource_failed : [ `GatherResourceFailed ] component channel\n    val gather_summary_requested :\n      [ `GatherSummaryRequest ] component channel\n    val gather_summary_result :\n      [ `ContextualSummaryResponse ] envelope channel\n    val gather_summary_failed : [ `CommandError ] component channel\n    val gather_referenced_by_requested :\n      [ `GatherReferencedByRequest ] component channel\n    val gather_referenced_by_result :\n      [ `GatherReferencedByResult ] component channel\n    val gather_referenced_by_failed : [ `CommandError ] component channel\n    val gather_limits_requested :\n      [ `InferenceLimitsRequest ] component channel\n    val gather_limits_result : [ `InferenceLimitsResult ] component channel\n    val gather_limits_failed : [ `CommandError ] component channel\n    val browse_resource_requested :\n      [ `BrowseResourceRequest ] component channel\n    val browse_resource_result : [ `BrowseResourceResult ] component channel\n    val browse_resource_failed : [ `CommandError ] component channel\n    val browse_resources_requested :\n      [ `BrowseResourcesRequest ] component channel\n    val browse_resources_result :\n      [ `BrowseResourcesResult ] component channel\n    val browse_resources_failed : [ `CommandError ] component channel\n    val browse_annotation_requested :\n      [ `BrowseAnnotationRequest ] component channel\n    val browse_annotation_result :\n      [ `BrowseAnnotationResult ] component channel\n    val browse_annotation_failed : [ `CommandError ] component channel\n    val browse_events_requested : [ `BrowseEventsRequest ] component channel\n    val browse_events_result : [ `BrowseEventsResult ] component channel\n    val browse_events_failed : [ `CommandError ] component channel\n    val browse_annotation_history_requested :\n      [ `BrowseAnnotationHistoryRequest ] component channel\n    val browse_annotation_history_result :\n      [ `BrowseAnnotationHistoryResult ] component channel\n    val browse_annotation_history_failed :\n      [ `CommandError ] component channel\n    val browse_entity_types_requested :\n      [ `BrowseEntityTypesRequest ] component channel\n    val browse_entity_types_result :\n      [ `BrowseEntityTypesResult ] component channel\n    val browse_entity_types_failed : [ `CommandError ] component channel\n    val browse_tag_schemas_requested :\n      [ `BrowseTagSchemasRequest ] component channel\n    val browse_tag_schemas_result :\n      [ `BrowseTagSchemasResult ] component channel\n    val browse_tag_schemas_failed : [ `CommandError ] component channel\n    val browse_engines_requested :\n      [ `BrowseEnginesRequest ] component channel\n    val browse_engines_result : [ `BrowseEnginesResult ] component channel\n    val browse_engines_failed : [ `CommandError ] component channel\n    val browse_profiles_requested :\n      [ `BrowseProfilesRequest ] component channel\n    val browse_profiles_result : [ `BrowseProfilesResult ] component channel\n    val browse_profiles_failed : [ `CommandError ] component channel\n    val browse_kb_requested : [ `BrowseKbRequest ] component channel\n    val browse_kb_result : [ `BrowseKbResult ] component channel\n    val browse_kb_failed : [ `CommandError ] component channel\n    val browse_directory_requested :\n      [ `BrowseDirectoryRequest ] component channel\n    val browse_directory_result :\n      [ `BrowseDirectoryResult ] component channel\n    val browse_directory_failed :\n      [ `BrowseDirectoryFailed ] component channel\n    val browse_click : [ `BrowseClickEvent ] component channel\n    val browse_resource_open : [ `BrowseResourceOpenEvent ] component channel\n    val browse_resource_viewed :\n      [ `BrowseResourceViewedEvent ] component channel\n    val browse_entity_type_clicked :\n      [ `BrowseEntityTypeClickedEvent ] component channel\n    val panel_toggle : [ `BrowsePanelToggleEvent ] component channel\n    val panel_open : [ `BrowsePanelOpenEvent ] component channel\n    val panel_close : void channel\n    val shell_sidebar_toggle : void channel\n    val tabs_close : [ `BrowseResourceCloseEvent ] component channel\n    val tabs_reorder : [ `BrowseResourceReorderEvent ] component channel\n    val nav_link_clicked : [ `BrowseLinkClickedEvent ] component channel\n    val nav_push : [ `BrowseRouterPushEvent ] component channel\n    val nav_external : [ `BrowseExternalNavigateEvent ] component channel\n    val beckon_hover : [ `BeckonHoverEvent ] component channel\n    val beckon_focus : [ `BeckonFocusEvent ] component channel\n    val beckon_sparkle : [ `BeckonSparkleEvent ] component channel\n    val job_started :\n      ([ `StoredEventResponse ] * [ `JobStartedPayload ]) recorded channel\n    val job_assigned :\n      ([ `StoredEventResponse ] * [ `JobAssignedPayload ]) recorded channel\n    val job_completed :\n      ([ `StoredEventResponse ] * [ `JobCompletedPayload ]) recorded channel\n    val job_failed :\n      ([ `StoredEventResponse ] * [ `JobFailedPayload ]) recorded channel\n    val job_start : [ `JobStartCommand ] component channel\n    val job_assign : [ `JobAssignCommand ] component channel\n    val job_report_progress : [ `JobReportProgressCommand ] component channel\n    val job_complete : [ `JobCompleteCommand ] component channel\n    val job_fail : [ `JobFailCommand ] component channel\n    val job_checkpoint : [ `JobCheckpointCommand ] component channel\n    val job_queued : [ `JobQueuedEvent ] component channel\n    val job_cancel_requested : [ `JobCancelRequest ] component channel\n    val job_cancel : [ `JobCancelCommand ] component channel\n    val job_limits_requested : [ `InferenceLimitsRequest ] component channel\n    val job_limits_result : [ `InferenceLimitsResult ] component channel\n    val job_limits_failed : [ `CommandError ] component channel\n    val job_status_requested : [ `JobStatusRequest ] component channel\n    val job_create : [ `JobCreateCommand ] component channel\n    val job_claim : [ `JobClaimCommand ] component channel\n    val job_status_result : [ `JobStatusResult ] component channel\n    val job_status_failed : [ `CommandError ] component channel\n    val job_created : [ `JobCreatedResult ] component channel\n    val job_create_failed : [ `CommandError ] component channel\n    val job_claimed : [ `JobClaimedResult ] component channel\n    val job_claim_failed : [ `CommandError ] component channel\n    val job_cancel_ok : [ `JobCancelResult ] envelope channel\n    val job_cancel_failed : [ `CommandError ] component channel\n    val weave_applied : [ `WeaveApplied ] component channel\n    val smelt_settled : [ `SmeltSettled ] component channel\n    val weave_rebuild : [ `WeaveRebuildCommand ] component channel\n    val weave_rebuild_ok : empty channel\n    val weave_rebuild_failed : [ `CommandError ] component channel\n    val smelt_rebuild_anchors :\n      [ `SmeltRebuildAnchorsCommand ] component channel\n    val smelt_rebuild_anchors_ok : empty channel\n    val smelt_rebuild_anchors_failed : [ `CommandError ] component channel\n    val settings_theme_changed :\n      [ `SettingsThemeChangedEvent ] component channel\n    val settings_line_numbers_toggled : void channel\n    val settings_locale_changed :\n      [ `SettingsLocaleChangedEvent ] component channel\n    val settings_hover_delay_changed :\n      [ `SettingsHoverDelayChangedEvent ] component channel\n    val bus_resume_gap : [ `BusResumeGap ] component channel\n    val session_joined : [ `SessionJoinedEvent ] component channel\n    val session_left : [ `SessionLeftEvent ] component channel\n  end"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_created",
+      "declaration": "val yield_created :\n  ([ `StoredEventResponse ] * [ `ResourceCreatedPayload ]) recorded channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_cloned",
+      "declaration": "val yield_cloned :\n  ([ `StoredEventResponse ] * [ `ResourceClonedPayload ]) recorded channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_updated",
+      "declaration": "val yield_updated :\n  ([ `StoredEventResponse ] * [ `ResourceUpdatedPayload ]) recorded channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_moved",
+      "declaration": "val yield_moved :\n  ([ `StoredEventResponse ] * [ `ResourceMovedPayload ]) recorded channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_representation_added",
+      "declaration": "val yield_representation_added :\n  ([ `StoredEventResponse ] * [ `RepresentationAddedPayload ]) recorded\n  channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_representation_removed",
+      "declaration": "val yield_representation_removed :\n  ([ `StoredEventResponse ] * [ `RepresentationRemovedPayload ]) recorded\n  channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_create",
+      "declaration": "val yield_create : [ `YieldCreateCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_clone_persist",
+      "declaration": "val yield_clone_persist : [ `YieldClonePersistCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_update",
+      "declaration": "val yield_update : [ `YieldUpdateCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_clone",
+      "declaration": "val yield_clone : void channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_clone_token_requested",
+      "declaration": "val yield_clone_token_requested :\n  [ `YieldCloneTokenRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_clone_resource_requested",
+      "declaration": "val yield_clone_resource_requested :\n  [ `YieldCloneResourceRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_clone_create",
+      "declaration": "val yield_clone_create : [ `YieldCloneCreateCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_create_ok",
+      "declaration": "val yield_create_ok : [ `YieldCreateOk ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_create_failed",
+      "declaration": "val yield_create_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_clone_persist_ok",
+      "declaration": "val yield_clone_persist_ok : [ `YieldClonePersistOk ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_clone_persist_failed",
+      "declaration": "val yield_clone_persist_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_update_ok",
+      "declaration": "val yield_update_ok : [ `YieldUpdateOk ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_update_failed",
+      "declaration": "val yield_update_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_clone_token_generated",
+      "declaration": "val yield_clone_token_generated :\n  [ `CloneResourceWithTokenResponse ] envelope channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_clone_token_failed",
+      "declaration": "val yield_clone_token_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_clone_resource_result",
+      "declaration": "val yield_clone_resource_result :\n  [ `GetResourceByTokenResponse ] envelope channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_clone_resource_failed",
+      "declaration": "val yield_clone_resource_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_clone_created",
+      "declaration": "val yield_clone_created : [ `YieldCloneCreated ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.yield_clone_create_failed",
+      "declaration": "val yield_clone_create_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_added",
+      "declaration": "val mark_added :\n  ([ `EnrichedResourceEvent ] * [ `AnnotationAddedPayload ]) recorded channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_removed",
+      "declaration": "val mark_removed :\n  ([ `StoredEventResponse ] * [ `AnnotationRemovedPayload ]) recorded channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_body_updated",
+      "declaration": "val mark_body_updated :\n  ([ `EnrichedResourceEvent ] * [ `AnnotationBodyUpdatedPayload ]) recorded\n  channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_entity_tag_added",
+      "declaration": "val mark_entity_tag_added :\n  ([ `StoredEventResponse ] * [ `EntityTagChangedPayload ]) recorded channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_entity_tag_removed",
+      "declaration": "val mark_entity_tag_removed :\n  ([ `StoredEventResponse ] * [ `EntityTagChangedPayload ]) recorded channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_archived",
+      "declaration": "val mark_archived :\n  ([ `StoredEventResponse ] * [ `ResourceArchivedPayload ]) recorded channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_unarchived",
+      "declaration": "val mark_unarchived :\n  ([ `StoredEventResponse ] * [ `ResourceUnarchivedPayload ]) recorded\n  channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_create_request",
+      "declaration": "val mark_create_request : [ `MarkCreateRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_delete",
+      "declaration": "val mark_delete : [ `MarkDeleteCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_update_body",
+      "declaration": "val mark_update_body : [ `MarkUpdateBodyCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_archive",
+      "declaration": "val mark_archive : [ `MarkArchiveCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_unarchive",
+      "declaration": "val mark_unarchive : [ `MarkUnarchiveCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_update_entity_types",
+      "declaration": "val mark_update_entity_types :\n  [ `MarkUpdateEntityTypesCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_create_ok",
+      "declaration": "val mark_create_ok : [ `MarkCreateOk ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_create_failed",
+      "declaration": "val mark_create_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_commit",
+      "declaration": "val mark_commit : [ `MarkCommitCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_commit_ok",
+      "declaration": "val mark_commit_ok : [ `MarkCommitOk ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_commit_failed",
+      "declaration": "val mark_commit_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_delete_ok",
+      "declaration": "val mark_delete_ok : [ `MarkDeleteOk ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_delete_failed",
+      "declaration": "val mark_delete_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_archive_ok",
+      "declaration": "val mark_archive_ok : empty channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_archive_failed",
+      "declaration": "val mark_archive_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_unarchive_ok",
+      "declaration": "val mark_unarchive_ok : empty channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_unarchive_failed",
+      "declaration": "val mark_unarchive_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_update_entity_types_ok",
+      "declaration": "val mark_update_entity_types_ok : empty channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_update_entity_types_failed",
+      "declaration": "val mark_update_entity_types_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_body_update_failed",
+      "declaration": "val mark_body_update_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_requested",
+      "declaration": "val mark_requested : [ `MarkRequestedEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_submit",
+      "declaration": "val mark_submit : [ `MarkSubmitEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_delegate_timeout",
+      "declaration": "val mark_delegate_timeout : [ `MarkDelegateTimeoutEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_create_error",
+      "declaration": "val mark_create_error : [ `ResourceErrorEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.mark_delete_error",
+      "declaration": "val mark_delete_error : [ `ResourceErrorEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.bind_body_error",
+      "declaration": "val bind_body_error : [ `ResourceErrorEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.frame_entity_type_added",
+      "declaration": "val frame_entity_type_added :\n  ([ `StoredEventResponse ] * [ `EntityTypeAddedPayload ]) recorded channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.frame_tag_schema_added",
+      "declaration": "val frame_tag_schema_added :\n  ([ `StoredEventResponse ] * [ `TagSchemaAddedPayload ]) recorded channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.frame_add_entity_type",
+      "declaration": "val frame_add_entity_type : [ `FrameAddEntityTypeCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.frame_add_tag_schema",
+      "declaration": "val frame_add_tag_schema : [ `FrameAddTagSchemaCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.frame_entity_type_add_ok",
+      "declaration": "val frame_entity_type_add_ok : empty channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.frame_entity_type_add_failed",
+      "declaration": "val frame_entity_type_add_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.frame_tag_schema_add_ok",
+      "declaration": "val frame_tag_schema_add_ok : empty channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.frame_tag_schema_add_failed",
+      "declaration": "val frame_tag_schema_add_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.principal_profiled",
+      "declaration": "val principal_profiled :\n  ([ `StoredEventResponse ] * [ `PrincipalProfiledPayload ]) recorded channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.principal_profile",
+      "declaration": "val principal_profile : [ `PrincipalProfileCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.bind_initiate",
+      "declaration": "val bind_initiate : [ `BindInitiateCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.bind_update_body",
+      "declaration": "val bind_update_body : [ `BindUpdateBodyCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.bind_body_updated",
+      "declaration": "val bind_body_updated : [ `BindBodyUpdated ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.bind_body_update_failed",
+      "declaration": "val bind_body_update_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.match_search_requested",
+      "declaration": "val match_search_requested : [ `MatchSearchRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.match_search_results",
+      "declaration": "val match_search_results : [ `MatchSearchResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.match_search_failed",
+      "declaration": "val match_search_failed : [ `MatchSearchFailed ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.match_resources_requested",
+      "declaration": "val match_resources_requested : [ `MatchResourcesRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.match_resources_result",
+      "declaration": "val match_resources_result : [ `MatchResourcesResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.match_resources_failed",
+      "declaration": "val match_resources_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.match_limits_requested",
+      "declaration": "val match_limits_requested : [ `InferenceLimitsRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.match_limits_result",
+      "declaration": "val match_limits_result : [ `InferenceLimitsResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.match_limits_failed",
+      "declaration": "val match_limits_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.gather_requested",
+      "declaration": "val gather_requested : [ `GatherAnnotationRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.gather_complete",
+      "declaration": "val gather_complete : [ `GatherAnnotationComplete ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.gather_failed",
+      "declaration": "val gather_failed : [ `GatherFailed ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.gather_resource_requested",
+      "declaration": "val gather_resource_requested : [ `GatherResourceRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.gather_resource_complete",
+      "declaration": "val gather_resource_complete : [ `GatherResourceComplete ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.gather_resource_failed",
+      "declaration": "val gather_resource_failed : [ `GatherResourceFailed ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.gather_summary_requested",
+      "declaration": "val gather_summary_requested : [ `GatherSummaryRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.gather_summary_result",
+      "declaration": "val gather_summary_result : [ `ContextualSummaryResponse ] envelope channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.gather_summary_failed",
+      "declaration": "val gather_summary_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.gather_referenced_by_requested",
+      "declaration": "val gather_referenced_by_requested :\n  [ `GatherReferencedByRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.gather_referenced_by_result",
+      "declaration": "val gather_referenced_by_result :\n  [ `GatherReferencedByResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.gather_referenced_by_failed",
+      "declaration": "val gather_referenced_by_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.gather_limits_requested",
+      "declaration": "val gather_limits_requested : [ `InferenceLimitsRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.gather_limits_result",
+      "declaration": "val gather_limits_result : [ `InferenceLimitsResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.gather_limits_failed",
+      "declaration": "val gather_limits_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_resource_requested",
+      "declaration": "val browse_resource_requested : [ `BrowseResourceRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_resource_result",
+      "declaration": "val browse_resource_result : [ `BrowseResourceResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_resource_failed",
+      "declaration": "val browse_resource_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_resources_requested",
+      "declaration": "val browse_resources_requested :\n  [ `BrowseResourcesRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_resources_result",
+      "declaration": "val browse_resources_result : [ `BrowseResourcesResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_resources_failed",
+      "declaration": "val browse_resources_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_annotation_requested",
+      "declaration": "val browse_annotation_requested :\n  [ `BrowseAnnotationRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_annotation_result",
+      "declaration": "val browse_annotation_result : [ `BrowseAnnotationResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_annotation_failed",
+      "declaration": "val browse_annotation_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_events_requested",
+      "declaration": "val browse_events_requested : [ `BrowseEventsRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_events_result",
+      "declaration": "val browse_events_result : [ `BrowseEventsResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_events_failed",
+      "declaration": "val browse_events_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_annotation_history_requested",
+      "declaration": "val browse_annotation_history_requested :\n  [ `BrowseAnnotationHistoryRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_annotation_history_result",
+      "declaration": "val browse_annotation_history_result :\n  [ `BrowseAnnotationHistoryResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_annotation_history_failed",
+      "declaration": "val browse_annotation_history_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_entity_types_requested",
+      "declaration": "val browse_entity_types_requested :\n  [ `BrowseEntityTypesRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_entity_types_result",
+      "declaration": "val browse_entity_types_result :\n  [ `BrowseEntityTypesResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_entity_types_failed",
+      "declaration": "val browse_entity_types_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_tag_schemas_requested",
+      "declaration": "val browse_tag_schemas_requested :\n  [ `BrowseTagSchemasRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_tag_schemas_result",
+      "declaration": "val browse_tag_schemas_result : [ `BrowseTagSchemasResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_tag_schemas_failed",
+      "declaration": "val browse_tag_schemas_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_engines_requested",
+      "declaration": "val browse_engines_requested : [ `BrowseEnginesRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_engines_result",
+      "declaration": "val browse_engines_result : [ `BrowseEnginesResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_engines_failed",
+      "declaration": "val browse_engines_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_profiles_requested",
+      "declaration": "val browse_profiles_requested : [ `BrowseProfilesRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_profiles_result",
+      "declaration": "val browse_profiles_result : [ `BrowseProfilesResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_profiles_failed",
+      "declaration": "val browse_profiles_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_kb_requested",
+      "declaration": "val browse_kb_requested : [ `BrowseKbRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_kb_result",
+      "declaration": "val browse_kb_result : [ `BrowseKbResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_kb_failed",
+      "declaration": "val browse_kb_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_directory_requested",
+      "declaration": "val browse_directory_requested :\n  [ `BrowseDirectoryRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_directory_result",
+      "declaration": "val browse_directory_result : [ `BrowseDirectoryResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_directory_failed",
+      "declaration": "val browse_directory_failed : [ `BrowseDirectoryFailed ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_click",
+      "declaration": "val browse_click : [ `BrowseClickEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_resource_open",
+      "declaration": "val browse_resource_open : [ `BrowseResourceOpenEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_resource_viewed",
+      "declaration": "val browse_resource_viewed : [ `BrowseResourceViewedEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.browse_entity_type_clicked",
+      "declaration": "val browse_entity_type_clicked :\n  [ `BrowseEntityTypeClickedEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.panel_toggle",
+      "declaration": "val panel_toggle : [ `BrowsePanelToggleEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.panel_open",
+      "declaration": "val panel_open : [ `BrowsePanelOpenEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.panel_close",
+      "declaration": "val panel_close : void channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.shell_sidebar_toggle",
+      "declaration": "val shell_sidebar_toggle : void channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.tabs_close",
+      "declaration": "val tabs_close : [ `BrowseResourceCloseEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.tabs_reorder",
+      "declaration": "val tabs_reorder : [ `BrowseResourceReorderEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.nav_link_clicked",
+      "declaration": "val nav_link_clicked : [ `BrowseLinkClickedEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.nav_push",
+      "declaration": "val nav_push : [ `BrowseRouterPushEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.nav_external",
+      "declaration": "val nav_external : [ `BrowseExternalNavigateEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.beckon_hover",
+      "declaration": "val beckon_hover : [ `BeckonHoverEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.beckon_focus",
+      "declaration": "val beckon_focus : [ `BeckonFocusEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.beckon_sparkle",
+      "declaration": "val beckon_sparkle : [ `BeckonSparkleEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_started",
+      "declaration": "val job_started :\n  ([ `StoredEventResponse ] * [ `JobStartedPayload ]) recorded channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_assigned",
+      "declaration": "val job_assigned :\n  ([ `StoredEventResponse ] * [ `JobAssignedPayload ]) recorded channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_completed",
+      "declaration": "val job_completed :\n  ([ `StoredEventResponse ] * [ `JobCompletedPayload ]) recorded channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_failed",
+      "declaration": "val job_failed :\n  ([ `StoredEventResponse ] * [ `JobFailedPayload ]) recorded channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_start",
+      "declaration": "val job_start : [ `JobStartCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_assign",
+      "declaration": "val job_assign : [ `JobAssignCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_report_progress",
+      "declaration": "val job_report_progress : [ `JobReportProgressCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_complete",
+      "declaration": "val job_complete : [ `JobCompleteCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_fail",
+      "declaration": "val job_fail : [ `JobFailCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_checkpoint",
+      "declaration": "val job_checkpoint : [ `JobCheckpointCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_queued",
+      "declaration": "val job_queued : [ `JobQueuedEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_cancel_requested",
+      "declaration": "val job_cancel_requested : [ `JobCancelRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_cancel",
+      "declaration": "val job_cancel : [ `JobCancelCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_limits_requested",
+      "declaration": "val job_limits_requested : [ `InferenceLimitsRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_limits_result",
+      "declaration": "val job_limits_result : [ `InferenceLimitsResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_limits_failed",
+      "declaration": "val job_limits_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_status_requested",
+      "declaration": "val job_status_requested : [ `JobStatusRequest ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_create",
+      "declaration": "val job_create : [ `JobCreateCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_claim",
+      "declaration": "val job_claim : [ `JobClaimCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_status_result",
+      "declaration": "val job_status_result : [ `JobStatusResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_status_failed",
+      "declaration": "val job_status_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_created",
+      "declaration": "val job_created : [ `JobCreatedResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_create_failed",
+      "declaration": "val job_create_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_claimed",
+      "declaration": "val job_claimed : [ `JobClaimedResult ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_claim_failed",
+      "declaration": "val job_claim_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_cancel_ok",
+      "declaration": "val job_cancel_ok : [ `JobCancelResult ] envelope channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.job_cancel_failed",
+      "declaration": "val job_cancel_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.weave_applied",
+      "declaration": "val weave_applied : [ `WeaveApplied ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.smelt_settled",
+      "declaration": "val smelt_settled : [ `SmeltSettled ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.weave_rebuild",
+      "declaration": "val weave_rebuild : [ `WeaveRebuildCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.weave_rebuild_ok",
+      "declaration": "val weave_rebuild_ok : empty channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.weave_rebuild_failed",
+      "declaration": "val weave_rebuild_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.smelt_rebuild_anchors",
+      "declaration": "val smelt_rebuild_anchors : [ `SmeltRebuildAnchorsCommand ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.smelt_rebuild_anchors_ok",
+      "declaration": "val smelt_rebuild_anchors_ok : empty channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.smelt_rebuild_anchors_failed",
+      "declaration": "val smelt_rebuild_anchors_failed : [ `CommandError ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.settings_theme_changed",
+      "declaration": "val settings_theme_changed : [ `SettingsThemeChangedEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.settings_line_numbers_toggled",
+      "declaration": "val settings_line_numbers_toggled : void channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.settings_locale_changed",
+      "declaration": "val settings_locale_changed :\n  [ `SettingsLocaleChangedEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.settings_hover_delay_changed",
+      "declaration": "val settings_hover_delay_changed :\n  [ `SettingsHoverDelayChangedEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.bus_resume_gap",
+      "declaration": "val bus_resume_gap : [ `BusResumeGap ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.session_joined",
+      "declaration": "val session_joined : [ `SessionJoinedEvent ] component channel"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Channels.session_left",
+      "declaration": "val session_left : [ `SessionLeftEvent ] component channel"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Bus_registry.Operations",
+      "declaration": "module Operations :\n  sig\n    val bind_update_body :\n      ([ `BindUpdateBodyCommand ] component, [ `BindBodyUpdated ] component,\n       [ `CommandError ] component)\n      operation\n    val browse_resource_requested :\n      ([ `BrowseResourceRequest ] component,\n       [ `BrowseResourceResult ] component, [ `CommandError ] component)\n      operation\n    val browse_resources_requested :\n      ([ `BrowseResourcesRequest ] component,\n       [ `BrowseResourcesResult ] component, [ `CommandError ] component)\n      operation\n    val browse_annotation_requested :\n      ([ `BrowseAnnotationRequest ] component,\n       [ `BrowseAnnotationResult ] component, [ `CommandError ] component)\n      operation\n    val browse_annotation_history_requested :\n      ([ `BrowseAnnotationHistoryRequest ] component,\n       [ `BrowseAnnotationHistoryResult ] component,\n       [ `CommandError ] component)\n      operation\n    val browse_events_requested :\n      ([ `BrowseEventsRequest ] component, [ `BrowseEventsResult ] component,\n       [ `CommandError ] component)\n      operation\n    val browse_entity_types_requested :\n      ([ `BrowseEntityTypesRequest ] component,\n       [ `BrowseEntityTypesResult ] component, [ `CommandError ] component)\n      operation\n    val browse_tag_schemas_requested :\n      ([ `BrowseTagSchemasRequest ] component,\n       [ `BrowseTagSchemasResult ] component, [ `CommandError ] component)\n      operation\n    val browse_engines_requested :\n      ([ `BrowseEnginesRequest ] component,\n       [ `BrowseEnginesResult ] component, [ `CommandError ] component)\n      operation\n    val browse_profiles_requested :\n      ([ `BrowseProfilesRequest ] component,\n       [ `BrowseProfilesResult ] component, [ `CommandError ] component)\n      operation\n    val browse_kb_requested :\n      ([ `BrowseKbRequest ] component, [ `BrowseKbResult ] component,\n       [ `CommandError ] component)\n      operation\n    val browse_directory_requested :\n      ([ `BrowseDirectoryRequest ] component,\n       [ `BrowseDirectoryResult ] component,\n       [ `BrowseDirectoryFailed ] component)\n      operation\n    val frame_add_entity_type :\n      ([ `FrameAddEntityTypeCommand ] component, empty,\n       [ `CommandError ] component)\n      operation\n    val frame_add_tag_schema :\n      ([ `FrameAddTagSchemaCommand ] component, empty,\n       [ `CommandError ] component)\n      operation\n    val gather_requested :\n      ([ `GatherAnnotationRequest ] component,\n       [ `GatherAnnotationComplete ] component, [ `GatherFailed ] component)\n      operation\n    val gather_resource_requested :\n      ([ `GatherResourceRequest ] component,\n       [ `GatherResourceComplete ] component,\n       [ `GatherResourceFailed ] component)\n      operation\n    val gather_summary_requested :\n      ([ `GatherSummaryRequest ] component,\n       [ `ContextualSummaryResponse ] envelope, [ `CommandError ] component)\n      operation\n    val gather_referenced_by_requested :\n      ([ `GatherReferencedByRequest ] component,\n       [ `GatherReferencedByResult ] component, [ `CommandError ] component)\n      operation\n    val gather_limits_requested :\n      ([ `InferenceLimitsRequest ] component,\n       [ `InferenceLimitsResult ] component, [ `CommandError ] component)\n      operation\n    val job_create :\n      ([ `JobCreateCommand ] component, [ `JobCreatedResult ] component,\n       [ `CommandError ] component)\n      operation\n    val job_status_requested :\n      ([ `JobStatusRequest ] component, [ `JobStatusResult ] component,\n       [ `CommandError ] component)\n      operation\n    val job_limits_requested :\n      ([ `InferenceLimitsRequest ] component,\n       [ `InferenceLimitsResult ] component, [ `CommandError ] component)\n      operation\n    val job_cancel_requested :\n      ([ `JobCancelRequest ] component, [ `JobCancelResult ] envelope,\n       [ `CommandError ] component)\n      operation\n    val job_claim :\n      ([ `JobClaimCommand ] component, [ `JobClaimedResult ] component,\n       [ `CommandError ] component)\n      operation\n    val mark_create_request :\n      ([ `MarkCreateRequest ] component, [ `MarkCreateOk ] component,\n       [ `CommandError ] component)\n      operation\n    val mark_commit :\n      ([ `MarkCommitCommand ] component, [ `MarkCommitOk ] component,\n       [ `CommandError ] component)\n      operation\n    val mark_delete :\n      ([ `MarkDeleteCommand ] component, [ `MarkDeleteOk ] component,\n       [ `CommandError ] component)\n      operation\n    val mark_archive :\n      ([ `MarkArchiveCommand ] component, empty, [ `CommandError ] component)\n      operation\n    val mark_unarchive :\n      ([ `MarkUnarchiveCommand ] component, empty,\n       [ `CommandError ] component)\n      operation\n    val mark_update_entity_types :\n      ([ `MarkUpdateEntityTypesCommand ] component, empty,\n       [ `CommandError ] component)\n      operation\n    val match_search_requested :\n      ([ `MatchSearchRequest ] component, [ `MatchSearchResult ] component,\n       [ `MatchSearchFailed ] component)\n      operation\n    val match_resources_requested :\n      ([ `MatchResourcesRequest ] component,\n       [ `MatchResourcesResult ] component, [ `CommandError ] component)\n      operation\n    val match_limits_requested :\n      ([ `InferenceLimitsRequest ] component,\n       [ `InferenceLimitsResult ] component, [ `CommandError ] component)\n      operation\n    val weave_rebuild :\n      ([ `WeaveRebuildCommand ] component, empty,\n       [ `CommandError ] component)\n      operation\n    val smelt_rebuild_anchors :\n      ([ `SmeltRebuildAnchorsCommand ] component, empty,\n       [ `CommandError ] component)\n      operation\n    val yield_create :\n      ([ `YieldCreateCommand ] component, [ `YieldCreateOk ] component,\n       [ `CommandError ] component)\n      operation\n    val yield_clone_persist :\n      ([ `YieldClonePersistCommand ] component,\n       [ `YieldClonePersistOk ] component, [ `CommandError ] component)\n      operation\n    val yield_update :\n      ([ `YieldUpdateCommand ] component, [ `YieldUpdateOk ] component,\n       [ `CommandError ] component)\n      operation\n    val yield_clone_create :\n      ([ `YieldCloneCreateCommand ] component,\n       [ `YieldCloneCreated ] component, [ `CommandError ] component)\n      operation\n    val yield_clone_resource_requested :\n      ([ `YieldCloneResourceRequest ] component,\n       [ `GetResourceByTokenResponse ] envelope, [ `CommandError ] component)\n      operation\n    val yield_clone_token_requested :\n      ([ `YieldCloneTokenRequest ] component,\n       [ `CloneResourceWithTokenResponse ] envelope,\n       [ `CommandError ] component)\n      operation\n  end"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.bind_update_body",
+      "declaration": "val bind_update_body :\n  ([ `BindUpdateBodyCommand ] component, [ `BindBodyUpdated ] component,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.browse_resource_requested",
+      "declaration": "val browse_resource_requested :\n  ([ `BrowseResourceRequest ] component, [ `BrowseResourceResult ] component,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.browse_resources_requested",
+      "declaration": "val browse_resources_requested :\n  ([ `BrowseResourcesRequest ] component,\n   [ `BrowseResourcesResult ] component, [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.browse_annotation_requested",
+      "declaration": "val browse_annotation_requested :\n  ([ `BrowseAnnotationRequest ] component,\n   [ `BrowseAnnotationResult ] component, [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.browse_annotation_history_requested",
+      "declaration": "val browse_annotation_history_requested :\n  ([ `BrowseAnnotationHistoryRequest ] component,\n   [ `BrowseAnnotationHistoryResult ] component, [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.browse_events_requested",
+      "declaration": "val browse_events_requested :\n  ([ `BrowseEventsRequest ] component, [ `BrowseEventsResult ] component,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.browse_entity_types_requested",
+      "declaration": "val browse_entity_types_requested :\n  ([ `BrowseEntityTypesRequest ] component,\n   [ `BrowseEntityTypesResult ] component, [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.browse_tag_schemas_requested",
+      "declaration": "val browse_tag_schemas_requested :\n  ([ `BrowseTagSchemasRequest ] component,\n   [ `BrowseTagSchemasResult ] component, [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.browse_engines_requested",
+      "declaration": "val browse_engines_requested :\n  ([ `BrowseEnginesRequest ] component, [ `BrowseEnginesResult ] component,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.browse_profiles_requested",
+      "declaration": "val browse_profiles_requested :\n  ([ `BrowseProfilesRequest ] component, [ `BrowseProfilesResult ] component,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.browse_kb_requested",
+      "declaration": "val browse_kb_requested :\n  ([ `BrowseKbRequest ] component, [ `BrowseKbResult ] component,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.browse_directory_requested",
+      "declaration": "val browse_directory_requested :\n  ([ `BrowseDirectoryRequest ] component,\n   [ `BrowseDirectoryResult ] component,\n   [ `BrowseDirectoryFailed ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.frame_add_entity_type",
+      "declaration": "val frame_add_entity_type :\n  ([ `FrameAddEntityTypeCommand ] component, empty,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.frame_add_tag_schema",
+      "declaration": "val frame_add_tag_schema :\n  ([ `FrameAddTagSchemaCommand ] component, empty,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.gather_requested",
+      "declaration": "val gather_requested :\n  ([ `GatherAnnotationRequest ] component,\n   [ `GatherAnnotationComplete ] component, [ `GatherFailed ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.gather_resource_requested",
+      "declaration": "val gather_resource_requested :\n  ([ `GatherResourceRequest ] component,\n   [ `GatherResourceComplete ] component,\n   [ `GatherResourceFailed ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.gather_summary_requested",
+      "declaration": "val gather_summary_requested :\n  ([ `GatherSummaryRequest ] component,\n   [ `ContextualSummaryResponse ] envelope, [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.gather_referenced_by_requested",
+      "declaration": "val gather_referenced_by_requested :\n  ([ `GatherReferencedByRequest ] component,\n   [ `GatherReferencedByResult ] component, [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.gather_limits_requested",
+      "declaration": "val gather_limits_requested :\n  ([ `InferenceLimitsRequest ] component,\n   [ `InferenceLimitsResult ] component, [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.job_create",
+      "declaration": "val job_create :\n  ([ `JobCreateCommand ] component, [ `JobCreatedResult ] component,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.job_status_requested",
+      "declaration": "val job_status_requested :\n  ([ `JobStatusRequest ] component, [ `JobStatusResult ] component,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.job_limits_requested",
+      "declaration": "val job_limits_requested :\n  ([ `InferenceLimitsRequest ] component,\n   [ `InferenceLimitsResult ] component, [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.job_cancel_requested",
+      "declaration": "val job_cancel_requested :\n  ([ `JobCancelRequest ] component, [ `JobCancelResult ] envelope,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.job_claim",
+      "declaration": "val job_claim :\n  ([ `JobClaimCommand ] component, [ `JobClaimedResult ] component,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.mark_create_request",
+      "declaration": "val mark_create_request :\n  ([ `MarkCreateRequest ] component, [ `MarkCreateOk ] component,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.mark_commit",
+      "declaration": "val mark_commit :\n  ([ `MarkCommitCommand ] component, [ `MarkCommitOk ] component,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.mark_delete",
+      "declaration": "val mark_delete :\n  ([ `MarkDeleteCommand ] component, [ `MarkDeleteOk ] component,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.mark_archive",
+      "declaration": "val mark_archive :\n  ([ `MarkArchiveCommand ] component, empty, [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.mark_unarchive",
+      "declaration": "val mark_unarchive :\n  ([ `MarkUnarchiveCommand ] component, empty, [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.mark_update_entity_types",
+      "declaration": "val mark_update_entity_types :\n  ([ `MarkUpdateEntityTypesCommand ] component, empty,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.match_search_requested",
+      "declaration": "val match_search_requested :\n  ([ `MatchSearchRequest ] component, [ `MatchSearchResult ] component,\n   [ `MatchSearchFailed ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.match_resources_requested",
+      "declaration": "val match_resources_requested :\n  ([ `MatchResourcesRequest ] component, [ `MatchResourcesResult ] component,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.match_limits_requested",
+      "declaration": "val match_limits_requested :\n  ([ `InferenceLimitsRequest ] component,\n   [ `InferenceLimitsResult ] component, [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.weave_rebuild",
+      "declaration": "val weave_rebuild :\n  ([ `WeaveRebuildCommand ] component, empty, [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.smelt_rebuild_anchors",
+      "declaration": "val smelt_rebuild_anchors :\n  ([ `SmeltRebuildAnchorsCommand ] component, empty,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.yield_create",
+      "declaration": "val yield_create :\n  ([ `YieldCreateCommand ] component, [ `YieldCreateOk ] component,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.yield_clone_persist",
+      "declaration": "val yield_clone_persist :\n  ([ `YieldClonePersistCommand ] component,\n   [ `YieldClonePersistOk ] component, [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.yield_update",
+      "declaration": "val yield_update :\n  ([ `YieldUpdateCommand ] component, [ `YieldUpdateOk ] component,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.yield_clone_create",
+      "declaration": "val yield_clone_create :\n  ([ `YieldCloneCreateCommand ] component, [ `YieldCloneCreated ] component,\n   [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.yield_clone_resource_requested",
+      "declaration": "val yield_clone_resource_requested :\n  ([ `YieldCloneResourceRequest ] component,\n   [ `GetResourceByTokenResponse ] envelope, [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.Operations.yield_clone_token_requested",
+      "declaration": "val yield_clone_token_requested :\n  ([ `YieldCloneTokenRequest ] component,\n   [ `CloneResourceWithTokenResponse ] envelope, [ `CommandError ] component)\n  operation"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Selector",
+      "declaration": "module Selector = Semiont__.Selector",
+      "alias": "Semiont__.Selector"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Selector.text_position_selector",
+      "declaration": "type text_position_selector = {\n  start : Z.t;\n  end_ : Z.t;\n  extra : (string * Yojson.Safe.t) list;\n}",
+      "representation": "record",
+      "fields": [
+        "start",
+        "end_",
+        "extra"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Selector.text_quote_selector",
+      "declaration": "type text_quote_selector = {\n  exact : string;\n  prefix : string option;\n  suffix : string option;\n  extra : (string * Yojson.Safe.t) list;\n}",
+      "representation": "record",
+      "fields": [
+        "exact",
+        "prefix",
+        "suffix",
+        "extra"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Selector.svg_selector",
+      "declaration": "type svg_selector = {\n  value : string;\n  extra : (string * Yojson.Safe.t) list;\n}",
+      "representation": "record",
+      "fields": [
+        "value",
+        "extra"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Selector.fragment_selector",
+      "declaration": "type fragment_selector = {\n  value : string;\n  conforms_to : string option;\n  extra : (string * Yojson.Safe.t) list;\n}",
+      "representation": "record",
+      "fields": [
+        "value",
+        "conforms_to",
+        "extra"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Selector.t",
+      "declaration": "type t =\n    TextPositionSelector of text_position_selector\n  | TextQuoteSelector of text_quote_selector\n  | SvgSelector of svg_selector\n  | FragmentSelector of fragment_selector",
+      "representation": "variant",
+      "constructors": [
+        "TextPositionSelector",
+        "TextQuoteSelector",
+        "SvgSelector",
+        "FragmentSelector"
+      ],
+      "variants": [
+        {
+          "name": "TextPositionSelector",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "TextQuoteSelector",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "SvgSelector",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "FragmentSelector",
+          "fields": [],
+          "unit": false
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Selector.fault",
+      "declaration": "type fault = { member : string; reason : [ `Lacks | `Malformed ]; }",
+      "representation": "record",
+      "fields": [
+        "member",
+        "reason"
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Selector.of_json",
+      "declaration": "val of_json : Yojson.Safe.t -> (t, fault) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Selector.to_json",
+      "declaration": "val to_json : t -> Yojson.Safe.t"
     }
   ]
 }
