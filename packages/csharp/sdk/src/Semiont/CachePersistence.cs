@@ -60,13 +60,14 @@ internal sealed class LiveCacheStorage(CachePersistence storage, TimeProvider cl
         saves.Writer.TryWrite(true);
     }
 
-    internal void Apply(ReceivedBusFrame frame, Action apply)
+    internal void Apply(Carried carried, Action apply)
     {
         lock (gate)
         {
             if (closed) return;
             apply();
-            if (frame.Frame.Scope is ResourceId resource && IsBookmark(frame.EventId))
+            // A refused frame is no position on its scope: the stream's watermark does not pass it.
+            if (carried is ReceivedBusFrame { Frame.Scope: ResourceId resource } frame && IsBookmark(frame.EventId))
             {
                 // The event's invalidations are in flight before its position can be saved.
                 pendingBookmarks[resource.Value] = frame.EventId;

@@ -62,7 +62,7 @@ read by people. On the paid tier it is not, and it is kept fifty-five days
 to detect abuse, which nothing of this API turns off.
 
 **What the library does on its own, and what is done about each**
-(`google-genai`, read at 2.33.0, so that a new release of it is read for the
+(`google-genai`, read at 2.34.0, so that a new release of it is read for the
 same):
 
 - It turns to Vertex AI where `GOOGLE_GENAI_USE_VERTEXAI` or

@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Flow;
+import kotlin.time.TimeSource;
+import kotlinx.coroutines.Dispatchers;
 import kotlinx.serialization.json.Json;
 import kotlinx.serialization.json.JsonElementKt;
 import kotlinx.serialization.json.JsonObject;
@@ -71,7 +73,7 @@ final class NamespacesTest {
     private final FaultyTransport transport = new FaultyTransport();
     private final InMemoryContent content = new InMemoryContent();
     private final StubGateway gateway = new StubGateway();
-    private final SemiontClient client = new TestClient(transport, content, gateway).getClient();
+    private final SemiontClient client = new TestClient(Dispatchers.getDefault(), TimeSource.Monotonic.INSTANCE, transport, content, gateway).getClient();
 
     @AfterEach
     void close() {

@@ -13,15 +13,11 @@ import kotlinx.serialization.json.jsonObject
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import semiont.ClientTiming
 import semiont.http.HttpTransport
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
-import semiont.testing.FaultyTransport
 import semiont.testing.GetAnnotations
 import semiont.testing.InMemoryContent
-import semiont.testing.REFUSE_UNSCRIPTED
-import semiont.testing.StubGateway
 import semiont.testing.TestClient
 import semiont.transport.Frame
 import semiont.types.GetAnnotationsResponse
@@ -83,9 +79,8 @@ class ReadmeTest {
 
     @Test
     fun gatheringThenDelegatingFollowsTheJobToItsCompletion() = runTest(timeout = 10.seconds) {
-        val clock = StandardTestDispatcher(testScheduler)
-        val transport = FaultyTransport(emptyList(), REFUSE_UNSCRIPTED, null, clock)
-        val made = TestClient(transport, InMemoryContent(), StubGateway(), ClientTiming(), null, clock, testScheduler.timeSource)
+        val made = TestClient(StandardTestDispatcher(testScheduler), testScheduler.timeSource)
+        val transport = made.transport
         transport.queueReply("gather:requested", listOf(CONTEXT))
         transport.queueReply("job:create", listOf(Json.parseToJsonElement("""{"jobId": "job-1"}""")))
         val running = async { gatherThenDelegate(made.client, ResourceId("res-1"), AnnotationId("ann-1")) }
@@ -103,16 +98,14 @@ class ReadmeTest {
 
     @Test
     fun watchingLiveShowsEachStateOfTheQuery() = runTest(timeout = 10.seconds) {
-        val clock = StandardTestDispatcher(testScheduler)
-        val transport = FaultyTransport(emptyList(), REFUSE_UNSCRIPTED, null, clock)
         val content = InMemoryContent()
         content.seedAnnotations(ResourceId("res-1"), wireJson.decodeFromJsonElement(GetAnnotationsResponse.serializer(), Json.parseToJsonElement("""{"annotations": [], "total": 0}""")))
-        val made = TestClient(transport, content, StubGateway(), ClientTiming(), null, clock, testScheduler.timeSource)
+        val made = TestClient(StandardTestDispatcher(testScheduler), testScheduler.timeSource, content = content)
         val watching = launch { watchingLive(made.client, ResourceId("res-1")) }
         runCurrent()
         assertEquals(listOf(GetAnnotations(ResourceId("res-1"))), content.calls)
         watching.cancel()
         made.client.close()
-        transport.close()
+        made.transport.close()
     }
 }

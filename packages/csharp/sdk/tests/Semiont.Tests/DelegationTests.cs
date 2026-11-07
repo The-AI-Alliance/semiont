@@ -2,6 +2,7 @@ using System.Text.Json;
 using Semiont.Errors;
 using Semiont.Identifiers;
 using Semiont.Protocol;
+using Semiont.State;
 using Semiont.Types;
 using Xunit;
 
@@ -279,8 +280,111 @@ public sealed partial class TransportTests
         Assert.Equal(ProtocolFacts.Error(0), error.Code);
     }
 
+    [Fact]
+    public async Task RefusedLifecycleFramesAreReportedInArrivalOrderOnceTheJobIsNamedAndTheFollowingGoesOn()
+    {
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        using var client = new SemiontClient("http://unit.test", "token", http);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await OpenAsync(client.Transport);
+        server.Answer = sent =>
+        {
+            PushRawFrame(server, BusChannels.JobReportProgress.Name, new { resourceId = "res-1", jobType = "mark", percentage = 10 });
+            AnswerCreate(server, sent);
+            PushRawFrame(server, BusChannels.JobComplete.Name, new { jobId = "job-1", resourceId = "res-1", jobType = "summary" });
+            PushJobFrame(server, BusChannels.JobReportProgress, Progress(DelegatedJob, JobType.Mark, 30));
+            PushJobFrame(server, BusChannels.JobComplete, new JobCompleteCommand.MarkJobCompleteCommandCase(new MarkJobCompleteCommand
+            {
+                JobId = DelegatedJob,
+                ResourceId = DelegatedResource,
+            }));
+        };
+        await using var reader = client.Mark.Delegate(DelegatedResource, Highlighting()).GetAsyncEnumerator(deadline.Token);
+
+        Assert.True(await reader.MoveNextAsync());
+        Assert.Equal(DelegatedJob, Assert.IsType<JobEvent<MarkJobCompleteCommand>.Created>(reader.Current).Value.JobId);
+        // A refused frame names no job: the one that came before the job had its id is reported once it has one.
+        Assert.True(await reader.MoveNextAsync());
+        Assert.Equal(new JobEvent<MarkJobCompleteCommand>.Refused(BusChannels.JobReportProgress.Name, "payload.jobId", FrameRefusalReason.Lacks), reader.Current);
+        Assert.True(await reader.MoveNextAsync());
+        Assert.Equal(new JobEvent<MarkJobCompleteCommand>.Refused(BusChannels.JobComplete.Name, "payload.jobType", FrameRefusalReason.Malformed), reader.Current);
+        Assert.True(await reader.MoveNextAsync());
+        Assert.Equal(30, Assert.IsType<JobEvent<MarkJobCompleteCommand>.Progress>(reader.Current).Value.Percentage);
+        Assert.True(await reader.MoveNextAsync());
+        Assert.Equal(DelegatedJob, Assert.IsType<JobEvent<MarkJobCompleteCommand>.Complete>(reader.Current).Value.JobId);
+        Assert.False(await reader.MoveNextAsync());
+    }
+
+    [Fact]
+    public async Task ARefusedCompletionIsNoWordOfTheJobAndItsSilenceEndsInAStatusRequestAsItWould()
+    {
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        var clock = new TestClock();
+        using var client = new SemiontClient("http://unit.test", "token", http, clock);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await OpenAsync(client.Transport);
+        await using var reader = client.Mark.Delegate(DelegatedResource, Highlighting()).GetAsyncEnumerator(deadline.Token);
+        var created = reader.MoveNextAsync().AsTask();
+        await AcceptDelegationAsync(server, deadline.Token);
+        Assert.True(await created);
+        Assert.IsType<JobEvent<MarkJobCompleteCommand>.Created>(reader.Current);
+
+        await clock.WaitForAsync(JobSilence);
+        clock.Advance(JobSilence - TimeSpan.FromMilliseconds(1));
+        PushRawFrame(server, BusChannels.JobComplete.Name, new { resourceId = "res-1", jobType = "mark" });
+        Assert.True(await reader.MoveNextAsync());
+        Assert.Equal(new JobEvent<MarkJobCompleteCommand>.Refused(BusChannels.JobComplete.Name, "payload.jobId", FrameRefusalReason.Lacks), reader.Current);
+
+        // The refusal is not taken for the end, nor for word of the job: what is left of its silence is waited out.
+        await clock.WaitForAsync(TimeSpan.FromMilliseconds(1));
+        clock.Advance(TimeSpan.FromMilliseconds(1));
+        var status = await ReadJobRequestAsync(server, BusOperations.JobStatusRequested.Request.Name, deadline.Token);
+        Reply(server, status, BusOperations.JobStatusRequested.Result.Name, JobStatus(DelegatedJob, JobStatusResponseStatus.Complete));
+        Assert.True(await reader.MoveNextAsync());
+        Assert.Equal(DelegatedJob, Assert.IsType<JobEvent<MarkJobCompleteCommand>.Complete>(reader.Current).Value.JobId);
+        Assert.False(await reader.MoveNextAsync());
+    }
+
+    [Fact]
+    public async Task AMarkUnitsSilenceGoesOnBeingCountedThroughARefusedFrame()
+    {
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        var clock = new TestClock();
+        using var client = new SemiontClient("http://unit.test", "token", http, clock);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await OpenAsync(client.Transport);
+        var silence = TimeSpan.FromMilliseconds(ProtocolFacts.Timing("delegateSilenceMs").GetInt32());
+        using var unit = new MarkStateUnit(client, DelegatedResource);
+        await using var timeouts = client.Bus.Frames(BusChannels.MarkDelegateTimeout, cancellation: deadline.Token).GetAsyncEnumerator();
+        var timedOut = timeouts.MoveNextAsync().AsTask();
+
+        unit.RequestDelegate(Highlighting());
+        await AcceptDelegationAsync(server, deadline.Token);
+        // One silence is counted from the delegation, and counted again from the job's first word, its id.
+        await clock.WaitForAsync(silence);
+        await clock.WaitForAsync(silence);
+        Assert.Equal(DelegatedJob, unit.JobId.Value);
+        clock.Advance(silence - TimeSpan.FromMilliseconds(1));
+        PushRawFrame(server, BusChannels.JobReportProgress.Name, new { resourceId = "res-1", jobType = "mark", percentage = 10 });
+
+        // A refused frame is no word of the job: what is left of the silence is waited out, and it ends in its time.
+        await clock.WaitForAsync(TimeSpan.FromMilliseconds(1));
+        clock.Advance(TimeSpan.FromMilliseconds(1));
+        Assert.True(await timedOut);
+        var timeout = Assert.IsType<Heard<MarkDelegateTimeoutEvent>.Delivered>(timeouts.Current).Payload;
+        Assert.Equal((DelegatedResource, Motivation.Highlighting), (timeout.ResourceId, timeout.Motivation));
+        Assert.Equal(0, unit.Progress.Value?.Percentage);
+    }
+
     private static void PushJobFrame<T>(Handler server, BusChannel<T> channel, T payload) where T : class =>
         server.Stream.Push("event: bus-event\ndata: " + JsonSerializer.Serialize(new { channel = channel.Name, payload }) + "\n\n");
+
+    /// <summary>A frame of <paramref name="channel"/> whose payload is not the channel's.</summary>
+    private static void PushRawFrame(Handler server, string channel, object payload) =>
+        server.Stream.Push("event: bus-event\ndata: " + JsonSerializer.Serialize(new { channel, payload }) + "\n\n");
 
     private static JobReportProgressCommand Progress(JobId id, JobType type, double percentage) => new()
     {

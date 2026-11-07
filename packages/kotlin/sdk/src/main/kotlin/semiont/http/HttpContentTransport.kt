@@ -13,7 +13,7 @@ import semiont.telemetry.futureOf
 import semiont.telemetry.callersTrace
 import semiont.telemetry.Telemetry
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
@@ -139,10 +139,10 @@ private fun asked(resourceId: ResourceId, part: String?): JsonObject = JsonObjec
     },
 )
 
-/** Content over the gateway an `HttpTransport` speaks to. */
+/** Content over the gateway an `HttpTransport` speaks to: its work runs on the transport's context. */
 public class HttpContentTransport(private val transport: HttpTransport) : ContentTransport {
     private val exchange = transport.exchange
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(transport.context + SupervisorJob(transport.context[Job]))
 
     override fun putBinary(request: PutBinaryRequest): Upload {
         val form = Form(request)

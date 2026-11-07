@@ -458,9 +458,11 @@ private final class Asked: Clock {
   }
 }
 @Test func generationStallCancelsTheNamedJobAndEndsAsStalled() async throws {
+  let clock = TestClock()
   let probe = ProbeTransport()
   let client = try await SemiontClient(
-    transport: probe, followTiming: FollowTiming(silenceMs: 1000, statusPollMs: 1000))
+    transport: probe, followTiming: FollowTiming(silenceMs: 1000, statusPollMs: 1000),
+    clock: clock)
   defer { client.dispose() }
   let cancelled = Watched(false)
   probe.handle { name, _ in
@@ -471,10 +473,13 @@ private final class Asked: Clock {
   }
   let params = try GenerationJobParams(
     context: contextFixture(), storageUri: "file://notes.md", title: "Notes")
+  let (names, reading) = named(try client.yield.delegate(params: params, stallDeadlineMs: 100))
+  try await withinTestDeadline { for await heard in names where heard == ["created"] { return } }
+  // The deadline was set when the following began, at the clock's start.
+  try await sleeping(clock, until: clock.now.advanced(by: .milliseconds(100)))
+  clock.advance(by: .milliseconds(100))
   do {
-    _ = try await withinTestDeadline {
-      try await client.yield.delegate(params: params, stallDeadlineMs: 100).completed()
-    }
+    try await withinTestDeadline { try await reading.value }
     Issue.record("A silent job completed")
   } catch let error as JobError {
     #expect(error.reason == .jobStalled)

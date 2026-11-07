@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import kotlin.time.TimeSource;
+import kotlinx.coroutines.Dispatchers;
 import kotlinx.serialization.json.Json;
 import kotlinx.serialization.json.JsonElementKt;
 import kotlinx.serialization.json.JsonObject;
@@ -41,8 +43,8 @@ final class ReadmeTest {
 
     @Test
     void gatheringThenDelegatingWaitsForTheJobsCompletion() throws Exception {
-        FaultyTransport transport = new FaultyTransport();
-        TestClient made = new TestClient(transport);
+        TestClient made = new TestClient();
+        FaultyTransport transport = made.getTransport();
         transport.queueReply("gather:requested", List.of(json(CONTEXT)));
         transport.queueReply("job:create", List.of(json("{\"jobId\":\"job-1\"}")));
         CompletableFuture<YieldJobCompleteCommand> done =
@@ -76,7 +78,7 @@ final class ReadmeTest {
         FaultyTransport transport = new FaultyTransport();
         InMemoryContent content = new InMemoryContent();
         content.seedAnnotations(new ResourceId("res-1"), GetAnnotationsResponse.builder(List.of(), 0).build());
-        TestClient made = new TestClient(transport, content);
+        TestClient made = new TestClient(Dispatchers.getDefault(), TimeSource.Monotonic.INSTANCE, transport, content);
         Programs.watchingLive(made.getClient(), new ResourceId("res-1"));
         long until = System.currentTimeMillis() + 10_000;
         while (content.getCalls().isEmpty()) {

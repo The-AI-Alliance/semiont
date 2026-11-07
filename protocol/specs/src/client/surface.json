@@ -1595,10 +1595,7 @@
         },
         {
           "member": "FrameRefusal",
-          "kind": "type",
-          "notYetReached": {
-            "csharp": "C#'s transport does not yet refuse a frame; its frame catch-up hands out the refusal."
-          }
+          "kind": "type"
         },
         {
           "member": "FrameRefusalReason",
@@ -1607,9 +1604,6 @@
           "absent": {
             "typescript": "TypeScript's refusal states its reason as one of two strings, `lacks` and `malformed`.",
             "python": "Python's refusal states its reason as a Literal of the two spellings, `lacks` and `malformed`."
-          },
-          "notYetReached": {
-            "csharp": "C# names a fault's reason only inside its reader; its frame catch-up hands it out with the refusal."
           }
         },
         {
@@ -1620,9 +1614,6 @@
             "rust": "Rust's transport delivers a frame or its refusal as a `Result<Frame, FrameRefusal>`.",
             "python": "Python's transport delivers a frame or its refusal as the union `Frame | FrameRefusal`.",
             "go": "Go's transport delivers a frame or, as its error, its refusal (`iter.Seq2[Frame, error]`)."
-          },
-          "notYetReached": {
-            "csharp": "C#'s transport does not yet deliver a frame's refusal; its frame catch-up says how."
           }
         }
       ]
@@ -2445,10 +2436,14 @@
           "HoverDwell": ["CoroutineContext"],
           "SearchPipeline": ["CoroutineContext"],
           "Cache": ["CoroutineContext"],
+          "httpDiscovery": ["CoroutineContext"],
           "FaultyTransport": ["CoroutineContext"],
-          "ServiceToken": ["TimeSource"],
+          "ServiceToken": ["CoroutineContext", "TimeSource"],
           "AgentToken": ["CoroutineContext"],
           "signInDevice": ["TimeSource"],
+          "describeConnection": ["TimeSource"],
+          "TestSessionOptions": ["CoroutineContext", "TimeSource"],
+          "LivenessSpec": ["CoroutineContext"],
           "sessionFromKept": ["CoroutineContext", "TimeSource"],
           "HttpSessionFactory": ["CoroutineContext", "TimeSource"],
           "SemiontBrowserConfig": ["CoroutineContext", "TimeSource"],
@@ -2460,7 +2455,7 @@
           "signOutFuture": ["CoroutineContext"],
           "beginAuthorizationFuture": ["CoroutineContext"],
           "completeAuthorizationFuture": ["CoroutineContext"],
-          "describeConnectionFuture": ["CoroutineContext"],
+          "describeConnectionFuture": ["CoroutineContext", "TimeSource"],
           "sessionFromKeptFuture": ["CoroutineContext", "TimeSource"],
           "createTestSessionFuture": ["CoroutineContext"]
         },
@@ -2519,36 +2514,6 @@
           "RetryWithBackoffAsync": ["TimeProvider"]
         },
         "haskell": {"newClient": ["BusOptions"], "fromHttp": ["HttpOptions"], "newHttpTransport": ["HttpOptions"], "HttpOptions": ["RetryOptions"], "newCache": ["CacheOptions"], "newClaims": ["WorkerOptions"], "WorkerOptions": ["BusOptions"], "newBus": ["BusOptions"], "newJob": ["BusOptions"], "subscribeDiscovery": ["DiscoveryOptions"], "retryWithBackoff": ["RetryOptions"], "newSession": ["RetryOptions"], "fromIssuedSession": ["HttpOptions"], "signInDevice": ["HttpOptions"], "IssuerOptions": ["RetryOptions"], "newServiceTokenSecret": ["IssuerOptions"], "newServiceTokenKey": ["IssuerOptions"], "signInAgent": ["HttpOptions"], "fromKeptSession": ["HttpOptions"], "pollUntilComplete": ["JobNamespace"], "httpDiscovery": ["RetryOptions"], "newSignInStore": ["SignInStoreOptions"], "SignInStoreOptions": ["RetryOptions"], "newHttpSessionFactory": ["HttpOptions"], "SemiontBrowserConfig": ["HttpOptions"], "describeConnection": ["HttpOptions"], "newHoverDwell": ["RetryOptions"], "newSearchPipeline": ["RetryOptions"], "newMarkStateUnit": ["RetryOptions"], "newFaultyTransport": ["RetryOptions"], "newScriptedSessions": ["RetryOptions"], "createTestSession": ["TestSessionOptions"], "TestSessionOptions": ["RetryOptions"], "assertLivenessAxioms": ["LivenessSpec"], "LivenessSpec": ["RetryOptions"]}
-      },
-      "notYetReached": {
-        "kotlin": {
-          "SemiontClient": "Its public constructor takes neither: its internal one takes both, and is to be the public one.",
-          "TestClient": "Its public constructor takes neither: its internal one takes both, and is to be the public one.",
-          "HttpTransport": "Takes neither: its scope is Dispatchers.Default, and its stream reads System.nanoTime().",
-          "Bus": "Takes neither: its scope is Dispatchers.Default, and its request deadline reads System.nanoTime().",
-          "request": "Its deadline reads System.nanoTime().",
-          "HoverDwell": "Its public constructor waits on Dispatchers.Default: its internal one takes a context, and is to be the public one.",
-          "SearchPipeline": "Its public constructor waits on Dispatchers.Default: its internal one takes a context, and is to be the public one.",
-          "Cache": "Its public constructors make their own scope on Dispatchers.Default.",
-          "FaultyTransport": "Its public constructor waits on Dispatchers.Default: its internal one takes a context, and is to be the public one.",
-          "ServiceToken": "Its hold reads System.nanoTime(), and its request deadline is the JDK client's.",
-          "AgentToken": "Its renewal retries on a scope of Dispatchers.Default.",
-          "signInDevice": "The device grant's expiry reads System.nanoTime(), and its request deadlines are the JDK client's.",
-          "sessionFromKept": "The session it makes renews on a scope of Dispatchers.Default, by the system clock.",
-          "HttpSessionFactory": "Its sessions are made on Dispatchers.Default, by the system clock.",
-          "SemiontBrowserConfig": "The browser's scope is Dispatchers.Default, and the sign-in it completes keeps the system clock.",
-          "ScriptedSessions": "Its sessions keep Dispatchers.Default and the system clock.",
-          "requestFuture": "It runs on a scope of Dispatchers.Default, and its deadline reads System.nanoTime().",
-          "retryWithBackoffFuture": "It runs on a scope of Dispatchers.Default.",
-          "renewKeptFuture": "It runs on a scope of Dispatchers.Default.",
-          "signInDeviceFuture": "It runs on a scope of Dispatchers.Default, and the device grant's expiry reads System.nanoTime().",
-          "signOutFuture": "It runs on a scope of Dispatchers.Default.",
-          "beginAuthorizationFuture": "It runs on a scope of Dispatchers.Default.",
-          "completeAuthorizationFuture": "It runs on a scope of Dispatchers.Default.",
-          "describeConnectionFuture": "It runs on a scope of Dispatchers.Default.",
-          "sessionFromKeptFuture": "It runs on a scope of Dispatchers.Default, and the session it opens renews by the system clock.",
-          "createTestSessionFuture": "It runs on a scope of Dispatchers.Default."
-        }
       }
     },
     {
@@ -2602,7 +2567,10 @@
           "retryWithBackoff": ["Random"],
           "equalJitter": ["Random"],
           "describeConnection": ["Random"],
+          "renewKept": ["Random"],
+          "TestSessionOptions": ["Random"],
           "retryWithBackoffFuture": ["Random"],
+          "renewKeptFuture": ["Random"],
           "sessionFromKeptFuture": ["Random"],
           "describeConnectionFuture": ["Random"]
         },
@@ -2636,22 +2604,6 @@
           "RetryWithBackoffAsync": ["Random"]
         },
         "haskell": {"newHttpTransport": ["HttpOptions"], "HttpOptions": ["RetryOptions"], "fromHttp": ["HttpOptions"], "retryWithBackoff": ["RetryOptions"], "newSession": ["RetryOptions"], "fromIssuedSession": ["HttpOptions"], "signInDevice": ["HttpOptions"], "IssuerOptions": ["RetryOptions"], "newServiceTokenSecret": ["IssuerOptions"], "newServiceTokenKey": ["IssuerOptions"], "signInAgent": ["HttpOptions"], "fromKeptSession": ["HttpOptions"], "newHttpSessionFactory": ["HttpOptions"], "SemiontBrowserConfig": ["HttpOptions"], "describeConnection": ["HttpOptions"]}
-      },
-      "notYetReached": {
-        "kotlin": {
-          "HttpTransport": "The stream's reconnect and the emit retry draw from Random.Default.",
-          "AgentToken": "Its renewal retry draws from Random.Default.",
-          "sessionFromKept": "The session it makes draws its renewal retry from Random.Default.",
-          "HttpSessionFactory": "Its sessions draw their renewal retry from Random.Default.",
-          "ScriptedSessions": "Its sessions draw their renewal retry from Random.Default.",
-          "retryWithBackoff": "Its jitter draws from Random.Default.",
-          "SemiontBrowserConfig": "The sign-in its browser completes builds a transport that draws from Random.Default.",
-          "equalJitter": "It draws from Random.Default.",
-          "describeConnection": "The transport it builds draws its emit retry from Random.Default.",
-          "retryWithBackoffFuture": "retryWithBackoff draws its jitter from Random.Default.",
-          "sessionFromKeptFuture": "The session it opens draws its renewal retry from Random.Default.",
-          "describeConnectionFuture": "The transport it builds draws its emit retry from Random.Default."
-        }
       }
     }
   ]

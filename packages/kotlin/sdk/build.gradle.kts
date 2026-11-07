@@ -138,6 +138,17 @@ tasks.jacocoTestReport {
  * (Java) appear nowhere: every warning is an error, so a suppression is the
  * one way an unchecked cast gets in. The SDK reads no environment variable
  * but the bus log's, `SEMIONT_BUS_LOG`. The Java tests are Java.
+ *
+ * Every wait the SDK makes, every interval it measures and every jitter it
+ * draws keeps the context, clock and random source its caller gives
+ * (protocol/specs/src/client/clock-cases.json): the system's are a maker's
+ * defaults and nothing else. So the SDK, its testing module too, reads no
+ * monotonic clock but a given `TimeSource`, sleeps no thread, hands no
+ * request's deadline to the JDK's timer, and names the default dispatcher,
+ * the monotonic time source and the default random source only as a
+ * parameter's default. The wall clock, which a token's expiry is read
+ * against, the sign-in store's `Dispatchers.IO` and file lock, and the
+ * cryptographic randomness of a secret are no waits it keeps.
  */
 abstract class Census : DefaultTask() {
     @get:InputFiles
@@ -150,6 +161,16 @@ abstract class Census : DefaultTask() {
     @TaskAction
     fun census() {
         val failures = mutableListOf<String>()
+        // A parameter's default, which a caller replaces: the one place the system's context, clock and random source are named.
+        val defaults = Regex(""":\s*(?:CoroutineContext\s*=\s*Dispatchers\.Default|TimeSource\s*=\s*TimeSource\.Monotonic|Random\s*=\s*Random\.Default)(?=\s*[,)])""")
+        val offTheCallersClock = listOf(
+            Regex("""\bSystem\s*\.\s*nanoTime\b""") to "reads the monotonic clock: measure with the TimeSource it was given",
+            Regex("""\bThread\s*\.\s*sleep\b""") to "sleeps its thread: wait with delay, on the context it was given",
+            Regex("""\.\s*timeout\s*\(""") to "hands a request's deadline to the JDK's timer: keep it with withTimeout, on the context it was given",
+            Regex("""\bDispatchers\s*\.\s*Default\b""") to "runs on the default dispatcher: run on the context it was given, which is the default only as a parameter's default",
+            Regex("""\bTimeSource\s*\.\s*Monotonic\b""") to "measures on the monotonic time source: measure with the TimeSource it was given, which is that only as a parameter's default",
+            Regex("""\bRandom\s*\.\s*(?:Default\b|next)""") to "draws from the default random source: draw from the Random it was given, which is that only as a parameter's default",
+        )
         val read = sources.files.sorted()
         for (file in read) {
             val path = file.relativeTo(sources.dir).invariantSeparatorsPath
@@ -165,6 +186,10 @@ abstract class Census : DefaultTask() {
                             failures += "$at reads the environment (${read.value}): the SDK reads SEMIONT_BUS_LOG and nothing else, and is handed the rest by the application"
                         }
                     }
+                    val said = defaults.replace(line, "")
+                    for ((form, why) in offTheCallersClock) {
+                        form.find(said)?.let { failures += "$at ${it.value.trim()} $why" }
+                    }
                 }
             }
             if (path.startsWith("javaTest/") && !path.endsWith(".java")) {
@@ -173,7 +198,7 @@ abstract class Census : DefaultTask() {
         }
         if (failures.isNotEmpty()) throw GradleException("census — ${failures.size} problem(s):\n  " + failures.joinToString("\n  "))
         report.get().asFile.writeText("${read.size} files read\n")
-        logger.lifecycle("census: ${read.size} files under src/, none suppressing a warning, and the SDK reading no environment variable but SEMIONT_BUS_LOG")
+        logger.lifecycle("census: ${read.size} files under src/, none suppressing a warning, and the SDK reading no environment variable but SEMIONT_BUS_LOG and keeping no time but its caller's")
     }
 }
 

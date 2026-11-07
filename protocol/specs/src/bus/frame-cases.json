@@ -7,12 +7,10 @@
     "python": ["packages/python/sdk/tests/test_frame_cases.py"],
     "go": ["packages/go/sdk/frame_cases_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/FrameCasesTest.kt"],
-    "swift": ["packages/swift/sdk/Tests/SemiontTests/FrameCasesTests.swift"]
+    "swift": ["packages/swift/sdk/Tests/SemiontTests/FrameCasesTests.swift"],
+    "csharp": ["packages/csharp/sdk/tests/Semiont.Tests/FrameCasesTests.cs"]
   },
-  "notYetReached": {
-    "ocaml": "P3 runs the frame and log codecs through the typed bus.",
-    "csharp": "The C# SDK's stream reader, which is to hold each frame to BusFrame."
-  },
+  "notYetReached": { "ocaml": "P3 runs the frame and log codecs through the typed bus." },
   "cases": [
     {
       "why": "a frame that carries its channel and its payload is delivered",

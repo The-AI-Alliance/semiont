@@ -21,6 +21,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 import java.util.concurrent.CompletableFuture
+import kotlin.coroutines.CoroutineContext
 
 private val base64Url = Base64.getUrlEncoder().withoutPadding()
 
@@ -107,10 +108,14 @@ public suspend fun beginAuthorization(options: BeginAuthorizationOptions, pendin
     return "${issuer.authorization}$joiner$asked"
 }
 
-/** `beginAuthorization`, for Java. */
+/** `beginAuthorization`, for Java, on `context`. */
 @JvmOverloads
-public fun beginAuthorizationFuture(options: BeginAuthorizationOptions, pending: SessionStorage, http: HttpClient = ownHttp): CompletableFuture<String> =
-    CoroutineScope(Dispatchers.Default).futureOf { beginAuthorization(options, pending, http) }
+public fun beginAuthorizationFuture(
+    options: BeginAuthorizationOptions,
+    pending: SessionStorage,
+    http: HttpClient = ownHttp,
+    context: CoroutineContext = Dispatchers.Default,
+): CompletableFuture<String> = CoroutineScope(context).futureOf { beginAuthorization(options, pending, http) }
 
 /** The pending sign-in, taken out of `pending` as one step; null when none is there, or what is there is not one. */
 private fun taken(pending: SessionStorage): PendingAuthorization? {
@@ -179,7 +184,11 @@ public suspend fun completeAuthorization(callbackUrl: String, pending: SessionSt
     return record to IssuedTokens(access, refresh)
 }
 
-/** `completeAuthorization`, for Java. */
+/** `completeAuthorization`, for Java, on `context`. */
 @JvmOverloads
-public fun completeAuthorizationFuture(callbackUrl: String, pending: SessionStorage, http: HttpClient = ownHttp): CompletableFuture<Pair<PendingAuthorization, IssuedTokens>> =
-    CoroutineScope(Dispatchers.Default).futureOf { completeAuthorization(callbackUrl, pending, http) }
+public fun completeAuthorizationFuture(
+    callbackUrl: String,
+    pending: SessionStorage,
+    http: HttpClient = ownHttp,
+    context: CoroutineContext = Dispatchers.Default,
+): CompletableFuture<Pair<PendingAuthorization, IssuedTokens>> = CoroutineScope(context).futureOf { completeAuthorization(callbackUrl, pending, http) }

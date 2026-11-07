@@ -184,7 +184,10 @@ def test_a_member_is_known_by_the_name_the_document_gives_it_and_by_no_other(tmp
     # The SDK's shapes are built in Python by Python's names. A document is held to the wire's.
     renamed = {("knowledge_bases" if name == "knowledgeBases" else name): value for name, value in DOCUMENT.items()}
     reasons = refusal_of(tmp_path, renamed).split("\n")[1:]
-    assert reasons == ["  Missing required property: knowledgeBases"]
+    assert sorted(reasons) == [
+        "  Missing required property: knowledgeBases",
+        "  root: unknown property knowledge_bases",
+    ]
 
 
 @pytest.mark.parametrize(

@@ -59,6 +59,8 @@ private sealed interface Answer {
 internal class Holder(
     val transport: Transport,
     val wire: Bus,
+    /** The client's clock, which a request's deadline is measured on. */
+    val clock: TimeSource,
     /** The client's work, where a held job's Java calls and the failure of one let go of run: neither ends with the claiming. */
     val scope: CoroutineScope,
     /** How long each of a commit's requests waits to be answered. */
@@ -99,7 +101,7 @@ public class Claims internal constructor(
     /** Each filter as the wire carries it: what an announcement is compared with. */
     private val filters: List<JsonObject> = accepts.map { wireJson.encodeToJsonElement(serializer<JobFilter>(), it).jsonObject }
     private val client = parent
-    private val holder = Holder(transport, Bus(transport), parent, markCommitTimeoutMs, ::active, ::releasedJob)
+    private val holder = Holder(transport, Bus(transport, parent.coroutineContext, clock), clock, parent, markCommitTimeoutMs, ::active, ::releasedJob)
     private val handed = Channel<HeldJob>(Channel.UNLIMITED)
     private val refusals = Broadcast<ClaimRefusal>(keepForFirst = true)
     private val stall = Variable<HeldJobStall?>(null)
@@ -344,7 +346,7 @@ public class Claims internal constructor(
     private suspend fun claimNext(): Answer {
         val asked = wireJson.encodeToJsonElement(JobClaimCommand.serializer(), JobClaimCommand(accepts = accepts)).jsonObject
         val reply = try {
-            resultOf(transport, Operations.JOB_CLAIM, asked, jobClaimTimeoutMs)
+            resultOf(transport, Operations.JOB_CLAIM, asked, jobClaimTimeoutMs, clock)
         } catch (refused: BusRequestError) {
             if (refused.reason == BusRequestErrorCode.NonePending) return Answer.NonePending
             return Answer.Refused(ClaimRefusal(refused.reason, refused.message))
