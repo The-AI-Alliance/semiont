@@ -20,4 +20,4 @@ container run --rm --memory 4g --volume "$root:/work" \
   --mount type=volume,source=semiont-ocaml-sdk-build,target=/work/packages/ocaml/sdk/_build \
   --mount type=volume,source=semiont-ocaml-sdk-downloads,target=/home/opam/.cache/dune \
   --workdir /work/packages/ocaml/sdk semiont-ocaml-development bash -c \
-  'dune build @all @opam && python3 test/check-format.py && dune runtest && python3 test/check-installed-api.py && python3 probes/check-interface.py'
+  'dune build @all @opam && python3 test/check-format.py && dune runtest && python3 test/check-installed-api.py && python3 probes/check-interface.py && python3 api.py && python3 probes/check-api-controls.py'

@@ -29,6 +29,8 @@ container run --rm --memory 4g --volume "$input:/input:ro" \
     dune install --pkg=disabled --prefix /installed
     python3 test/check-installed-api.py --installed /installed/lib/semiont
     python3 probes/check-interface.py
+    python3 api.py
+    python3 probes/check-api-controls.py
     _build/default/probes/api_inventory.exe /installed/lib/semiont/semiont.cmi /installed/lib/semiont > /tmp/installed-interface.json
     python3 -c "import json; x=json.load(open(\"/tmp/installed-interface.json\")); assert x[\"entries\"]; print(\"isolated source package: installed compiler interface is readable\")"
   '

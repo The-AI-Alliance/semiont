@@ -44,3 +44,15 @@ bash packages/ocaml/check-source-package.sh
 CI runs the substrate tests natively on Linux and macOS. The shared client
 surface, conformance drivers and SDK feature implementation remain in progress;
 a green substrate job is not a claim that the complete SDK is ready.
+
+P1 records the installed compiler interface in `sdk/public-api.json`. The
+first-stage `lint:ocaml-api` census verifies its source fingerprints. Native CI
+rebuilds the library and compares compiler exports, including public roots,
+aliases, constructors, records and type equalities. Deliberate stale-input and
+snapshot mutations must fail while preserving the checked files.
+
+After an intentional public-interface or compiler-input change, regenerate the
+snapshot with `python3 api.py --write` in the OCaml container. The recipe in
+`sdk/public-api.inputs.json` includes the library, lock directory, Dune files
+and compiler-extraction tools. Full shared-client-surface integration continues
+in P1.

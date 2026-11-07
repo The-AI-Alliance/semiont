@@ -120,6 +120,7 @@ jobs:
           npm run lint:transport-contract || fail=1
           npm run lint:client-surface || fail=1
           npm run lint:haskell-api || fail=1
+          npm run lint:ocaml-api || fail=1
           npm run lint:haskell-transport || fail=1
           npm run lint:state-unit-census || fail=1
           npm run lint:state-unit-cases || fail=1
@@ -2553,6 +2554,8 @@ jobs:
           opam exec -- dune runtest
           opam exec -- python3 test/check-installed-api.py
           opam exec -- python3 probes/check-interface.py
+          opam exec -- python3 api.py
+          opam exec -- python3 probes/check-api-controls.py
 
   test-sdk-haskell-native:
     name: Haskell SDK (${{ matrix.os }})

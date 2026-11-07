@@ -1,0 +1,274 @@
+{
+  "compiler": "5.5.2",
+  "inputs": {
+    ".ocamlformat": "a389416000f8e8466aad27a9209661717699f30fd6fd6f8e36342f646e086354",
+    "api.py": "ef9bb4c0ce8ca1c4c6be8a8c2ab584d7a965b3bae517a1c1216b60a1c55daad3",
+    "dune-project": "45f09d70f94297cf8b71cfa49820a854867e8dff394de31d59445ba091a1df8c",
+    "dune-workspace": "92e610fd0fcb46d183ea095446dd9c1046c152ad5a25ae8e919ede8cc8c00093",
+    "dune.lock/alcotest.1.9.1.pkg": "73922332861e22a3d354aad41ab3e58b637b4bf6ddb04f65bbef1ddca728e34d",
+    "dune.lock/ambient-context-eio.0.2.pkg": "78fd6f543af740d9ea110059e4f27eb4b5fe66e4b1a74b30f4eec66788c9c36a",
+    "dune.lock/ambient-context.0.2.pkg": "e920dec2a08ef6fc257aa5787806d3d4562604579a2381a522bbee04571d74c9",
+    "dune.lock/angstrom.0.16.1.pkg": "307c2f47215ebe9649c08b2a672584c176e3380e988bbe5e9ccb03d48c331b96",
+    "dune.lock/asn1-combinators.0.3.3.pkg": "88a88f26ba7a1e4801443ca4d6b87053961dcf074137819c66e118098642475b",
+    "dune.lock/astring.0.8.5.pkg": "ebb30ed3187c86f70f4ef99d905f81af1a14832c07c8a86e1b83ca8ba15b5e7d",
+    "dune.lock/base-domains.base.pkg": "f1f6fc31db56c8aac884ac5bb6251955297ba56112a765f0fe271966682c7b57",
+    "dune.lock/base-threads.base.pkg": "4104e7dfca350cc463bd7236ccc1f0193a620c5d29d4256f441ad6cf53a0b652",
+    "dune.lock/base-unix.base.pkg": "4104e7dfca350cc463bd7236ccc1f0193a620c5d29d4256f441ad6cf53a0b652",
+    "dune.lock/base.v0.17.3.pkg": "ec54b9b71f1aa33eeda025926e233a47e293f23db057d019022e0af6a75f512f",
+    "dune.lock/base64.3.5.2.pkg": "19b4706bfcb7f310349887878b64c4edab99fe2fbf23c5c4b29e4bde67ac8b0f",
+    "dune.lock/bigstringaf.0.10.0.pkg": "12faef77bbefcb4003cf7b624febcd3e3c1427bff8e3a3e4c94651c3854927d9",
+    "dune.lock/camlp-streams.5.0.1.pkg": "cc87031ad187c719ee36e4c3956633e87b8ef7c0df6aaa262d205af9570c68d9",
+    "dune.lock/cmdliner.2.1.1.pkg": "4b67c4f4ee38a905fc8c6a66f90046bc5430b26343b2c56b98c7b13e532fec37",
+    "dune.lock/cohttp-eio.6.3.0.pkg": "41990858058d1092aad621c4fba65a5e73dafe4f9b6c7ca4899b88b13dccee1b",
+    "dune.lock/cohttp.6.3.0.pkg": "21ab8c7cdc0106fe90164969fdf34b2d9b3d30d71ca7b748f1f1cfaf8d6b1492",
+    "dune.lock/compiler-cloning.enabled.pkg": "a8ca1a9ea364e755c48f4971fb7bbb7e070f37643b65ff1aaa564032c61de6e9",
+    "dune.lock/conf-gmp-powm-sec.4.pkg": "1a0e95774aab8f6d8a69af48c5e095e60fc138b174b9d2b1d490f078a1b71430",
+    "dune.lock/conf-gmp.5.pkg": "61af4ea4603aebe430bd051d5705d9d509cb34a7768302ce7728e83646f36406",
+    "dune.lock/conf-pkg-config.5.pkg": "6c4c5ff47c983e104238c56853c365dff9889e5b9fb34dafabe9c7ad56a8c3f0",
+    "dune.lock/csexp.1.5.2.pkg": "e82b8e4d20fc5d2beff67432fbdeaaa8c2c281a19caf11f19ece26904bbdec44",
+    "dune.lock/cstruct.6.3.0.pkg": "0f44d31845b0b6e742fb16af5da84370b7d737576358565316b675f0a7e87ec8",
+    "dune.lock/decimal.1.0.2.pkg": "1ecec0fbf20376da8667ae979bcadaaa7009c2cf42faed898800e1e4937da647",
+    "dune.lock/digestif.1.4.1.pkg": "829b3a3b7fc71909d3a066703ac3ba220f758cacfdb68e195f1f5f3dd41fb701",
+    "dune.lock/domain-local-await.1.0.1.pkg": "754754b0d9e81af0aa6891caf9d12fc976e7f6fd569e79a953f3b36a483e1e88",
+    "dune.lock/domain-name.0.5.0.pkg": "dba74c0972308f8b62b619e317892f42a3db5b83b9a5a3fa65349f31556da329",
+    "dune.lock/dune-build-info.3.24.2.pkg": "156d9a53b4ee7e3aa6f9a409dd56cb3609388358f91b5c0fb27d85a2d260a5d4",
+    "dune.lock/dune-configurator.3.24.2.pkg": "04afcaca1d700d4100c4d4370ad25aa3f431773e4792a021947de9a33f16e601",
+    "dune.lock/duration.0.3.1.pkg": "e34cec1c0857dea8b8bf50864b178303bacec975407675d0f6c1632343b9d9eb",
+    "dune.lock/eio.1.6.pkg": "17bbf4fdcf1b00ab27d8d36ff974f46cd308dbc79049970c3b9275327fffb240",
+    "dune.lock/eio_linux.1.6.pkg": "cf860035f6005cf62a26700be0b57259f1b9cc0884b11bb34eee40579177b00b",
+    "dune.lock/eio_main.1.6.pkg": "beb24e257853625fea6b06902e183793456bc7ce5818194e17d20af34dfb0b67",
+    "dune.lock/eio_posix.1.6.pkg": "91e5cb8d2106c20cd720155b2c26ddb2de6f81c4421435513f3ebfc8e0492026",
+    "dune.lock/either.1.0.0.pkg": "f6a0d16b563d95eeb66ad214ed16b89ed4e94d6387666ea575e5a6a47cef1d9e",
+    "dune.lock/eqaf.0.10.pkg": "71a5982cc24da187fc4bd9d9389c0372f681d7b6395480623158bd91be338179",
+    "dune.lock/fix.20250919.pkg": "583b531218d22235a019c49cb6e0a0e1af82b71fd27dbeb367f06a18d86ec269",
+    "dune.lock/fmt.0.11.0.pkg": "2fd6d6e969ddfeec08b704606fca7bef9af9b971b023e36a3010ff8a2326cdd1",
+    "dune.lock/fpath.0.7.3.pkg": "ecaa396bc147bc264925c105ecac0c47a38ceca3e2934266f0d2a1c822ee1fed",
+    "dune.lock/gmap.0.3.0.pkg": "57c51719ddc9bc7a3f1910a1e3d7bb25f9cbec2ddc04dd6e52ceae45c6f2b641",
+    "dune.lock/hmap.0.8.1.pkg": "5f933ed0af396119e58caf1c2c328f4e5c4485f750eb6463b446bc5ef9258b34",
+    "dune.lock/http.6.3.0.pkg": "1dcfa53ccd75d9a05efe15658770c22374a17f53783a938569adb3a0ee827787",
+    "dune.lock/iomux.0.4.pkg": "d139c9404b8fa7c34eea329e939f83fe4f15faf039aa0325cb0e8852af2c01fe",
+    "dune.lock/ipaddr.5.6.2.pkg": "f451a2ce111b990e7fb37f3d792f9cee278af9fd010c041c80c98fc41539b66f",
+    "dune.lock/kdf.1.1.2.pkg": "d4639b3daa24b7ec9dc0d903a8ebbfa27e8c4e6aa7834cc1b07cd9efff5c5906",
+    "dune.lock/lock.dune": "e60ba73f3d72f7473876174b5f6680f61e53d3e1849357bd18cd133c932d39d0",
+    "dune.lock/logs.0.10.0.pkg": "31c8fe5814797a85b22673c2fc3d337d1ef59173ee8cfd86c6060cf3012f5d04",
+    "dune.lock/lwt-dllist.1.1.0.pkg": "72cb6b9b6d506bf02178e3a0c2c0ee6fb529d8fddc9f4c339e273baa2fa3ec65",
+    "dune.lock/macaddr.5.6.2.pkg": "5eb4292c994af7d587b64ad9459851d0adcf02c19b958e0a4c7182090ad182f3",
+    "dune.lock/menhir.20260209.pkg": "edd74c9d239d546bb2119e0f637fa895fecd9ba3e9fa2c3c0be31af8a84569d1",
+    "dune.lock/menhirCST.20260209.pkg": "9400e7305ae390e3e2edea5968557314fad935932c6e9d63169789b2f06dbd1d",
+    "dune.lock/menhirGLR.20260209.pkg": "9400e7305ae390e3e2edea5968557314fad935932c6e9d63169789b2f06dbd1d",
+    "dune.lock/menhirLib.20260209.pkg": "9400e7305ae390e3e2edea5968557314fad935932c6e9d63169789b2f06dbd1d",
+    "dune.lock/menhirSdk.20260209.pkg": "9400e7305ae390e3e2edea5968557314fad935932c6e9d63169789b2f06dbd1d",
+    "dune.lock/mirage-crypto-ec.2.4.1.pkg": "3fe83aefa2cea067868bea108d4d6c009a44c22c106bb02223c180ef2f4ee6f4",
+    "dune.lock/mirage-crypto-pk.2.4.1.pkg": "1bea08d2cb26371834622ba888470be4f433f6d985d538a33fb47759a01613b7",
+    "dune.lock/mirage-crypto-rng.2.4.1.pkg": "36e3a25662d6871e4d866617d9b22eb3e4472ad1647b82a0b6adf8c826b88859",
+    "dune.lock/mirage-crypto.2.4.1.pkg": "171005ea5d25f2247c79a7d6a6d5f23524e0bc9e283ff8bb4debba702edb24d9",
+    "dune.lock/mtime.2.2.0.pkg": "22be1478775c4804c1c6c17d7c8c3255da39f16828b0aec1dd36fc157e3e90cd",
+    "dune.lock/ocaml-base-compiler.5.5.2.pkg": "09bd1c13914f8a385ee1714b3321a9fbcb44a46c830c901b62b52f85dcd218dc",
+    "dune.lock/ocaml-compiler-libs.v0.17.0.pkg": "6bbd3f807c164506e60c1c476a1fc3f64ff1dce3c85fed499374ee60eff2c283",
+    "dune.lock/ocaml-compiler.5.5.2.pkg": "a735e08727f125b2815a47654330527c6943d594d78b078b1fe086be9ec85a51",
+    "dune.lock/ocaml-syntax-shims.1.0.0.pkg": "556fdcff8759dbaabddd4843a65455b7dbf765c42a77a8b85595ccf1da86d0fa",
+    "dune.lock/ocaml-version.4.1.5.pkg": "6db5a645208cf17602278785e2a5aa7d0f2d9640205779e7f61012dbca8ee57f",
+    "dune.lock/ocaml.5.5.2.pkg": "a3f3522064806306f8b5836fb02d5e1b0bad6f90fdd6455fed9539fbfdc31c3f",
+    "dune.lock/ocaml_intrinsics_kernel.v0.17.3.pkg": "216087aa79f7e594f769a742a55157e4b2c0be452238206cc8d311ef91178eae",
+    "dune.lock/ocamlbuild.0.16.1+dune.pkg": "fb7ec0442a8b8671c28a87fdfb52c2e5dd1564159f67f14c9d66b0f602195ddd",
+    "dune.lock/ocamlfind.1.9.8+dune.pkg": "029d97d9cdbd50eea5c2df6f931ab8e3c7d866b8e4e12e8565fe485cdcb48cc1",
+    "dune.lock/ocamlformat-lib.0.29.0.pkg": "aa491241a1dc20e3af9a158fc1fe2527b41cca119ab249378a1341291e917030",
+    "dune.lock/ocamlformat.0.29.0.pkg": "168aa78a16e99586ac705daae845eb71a81c2ecb453643a0495681def449e37d",
+    "dune.lock/ocp-indent.1.10.0.pkg": "4ee2acbb8403cf40fee1f3a520cb533cb3d821b8407538f8ba80f9b714e50c9d",
+    "dune.lock/ohex.0.2.0.pkg": "31ecddf90c10e44967f6d17725ad05175bf2c0fdc54289ffc5e588f984933cdd",
+    "dune.lock/opentelemetry.0.92.pkg": "4a8bc2d59eedc12f052bee7ae8d666122805463eb7732742088b0d3693cbea73",
+    "dune.lock/optint.0.3.0.pkg": "6655292658dc06c81d64ace5539fe1b9e5a015a67d243db709b8bf683e9f25b1",
+    "dune.lock/ounit2.2.2.7.pkg": "c275aa4c93cbd5cd60cd8f8b828083041fb58a2588138fef174feacfde9a0701",
+    "dune.lock/pbrt.4.1.pkg": "2a4e6c68693beea11d902194b725f04f7716ea563918636d59917f203a0bec6c",
+    "dune.lock/pbrt_yojson.4.1.pkg": "6642a50b70887242c2de45d81bb4aa27c7ecdb6ad32facbb1d8b31022e79d90e",
+    "dune.lock/ppx_derivers.1.2.1.pkg": "12bf62e84bcbb6e346ec65b21e8f0809779e234871229759da43b4526c3e77ae",
+    "dune.lock/ppx_sexp_conv.v0.17.1.pkg": "d923e7e4b61f88bc79a027d444f57d9cbc9fa1923895d1ccf8fdf92649b2f23d",
+    "dune.lock/ppxlib.0.39.0.pkg": "2ec68132fc8ea8e9d4daa91967528ca79a3e2c7b807db2ebd86fad0dfa419bd2",
+    "dune.lock/ppxlib_jane.v0.17.4.pkg": "fcc07028d9715ea2b2cc4bfb9c9123d5ad70b146aaf6bbabc9f41bdc1014b280",
+    "dune.lock/psq.0.2.1.pkg": "476f41ec72331e5e2f5e9b85aaa8a16c8f94be2fb4411e9461375b6495ca41cd",
+    "dune.lock/ptime.1.2.0.pkg": "efc6c31948ac5c7aed1e75923107aaa62d919aeb663d10eae227558b10c4ee61",
+    "dune.lock/qcheck-core.0.91.pkg": "0dc605143a928d2b547bcd044e19a502a3237aea3d8b6b709fc26e22d02b1964",
+    "dune.lock/qcheck-ounit.0.91.pkg": "9e7c753d135a63ccd1cfc7c7dc6dd15d48eea6aa174dd9d385b04d758ed8d059",
+    "dune.lock/qcheck.0.91.pkg": "ff0cbabe7ff7297f53f1b5782d0657d4e1c9331c30ed428a4b29751667ade58c",
+    "dune.lock/re.1.14.0.pkg": "1f03594800bda7c2849249d3a1de54d471f7e7581498a63fd9ce6763c9d64dca",
+    "dune.lock/seq.base.pkg": "e7c0c38f5f9543a6a13234f21fa29e4b9d4140ee7d0abfdb6264fbd19def811c",
+    "dune.lock/sexplib0.v0.17.0.pkg": "b773601bdc688f73a1252d68f7187a3ff997a25deb4dac9a90ad29032708a5d7",
+    "dune.lock/stdio.v0.17.0.pkg": "02a3c432c6359e8a16ca37be439c113b0b951da70868a4de5b9eaa7f1e015679",
+    "dune.lock/stdlib-shims.0.3.0.pkg": "cfd55aed76cce55b8145cf519bb4ab303f481cd83f4d5873bc68583535950ade",
+    "dune.lock/stringext.1.6.0.pkg": "331047b41223d24bff1ab2665c048eb9b50c02182cd1860beb05c20e69963b66",
+    "dune.lock/thread-table.1.0.0.pkg": "70899d87635075dbe6d6c46108b11b52ddf4d6f61317383321cbbaf73b2dd795",
+    "dune.lock/tls-eio.2.1.5.pkg": "dd097a476846bc38d1c5caa41dc15e3170951caeb79f2c9e2295cc8b265091c7",
+    "dune.lock/tls.2.1.5.pkg": "bd652a68cb562d6b20da4d20307f34bffbb50c03c9684c1498f1b89feec9867e",
+    "dune.lock/topkg.1.1.1.pkg": "fdd3d82aa7b4e92694524ca74707135b294402855238a59977455eefe8b2ec78",
+    "dune.lock/uri-sexp.4.4.0.pkg": "0a29f51bbc95afb335598b7c105a9ddae7d336265b02456ef37abe276dd33240",
+    "dune.lock/uri.4.4.0.pkg": "26c08c2fb617ee2e2e6aca5c0a08015da8f9a1fd942ac164952aac26e3a631bb",
+    "dune.lock/uring.2.15.0.pkg": "6c2d8c8c6bab74af39a709e43c877a90834379d62e7999c7d84973c857a6f4c7",
+    "dune.lock/uucp.18.0.0.pkg": "a0d698f28f00e8b27b94935d751933b735de24187541ab10a2faf0656d6f2f05",
+    "dune.lock/uuseg.18.0.0.pkg": "6f1f89c4340810a62e3f1229c7dae6d6807d959bc8a2ea6dea860f0673a132d3",
+    "dune.lock/uutf.1.0.4.pkg": "d39955c5edb88ba160e8ae6ecd8b254a8f18af6743e6bbf969e08b493a7da49d",
+    "dune.lock/x509.1.2.0.pkg": "57d1481d367b6687543ebab5b194f2b4ce6eb4509d70354cbfbac22a1744fb8e",
+    "dune.lock/yojson.3.0.0.pkg": "d1536ef266187c4f3c66bbcef7998bac8497c175450463e075b552e0e99dc3a3",
+    "dune.lock/zarith.1.14.pkg": "fd76eda421de026914a0de1c4d81d4140fd0d685f596dfe5aae1a5b83f06b75c",
+    "lib/dune": "eed5b42a243d3dde4d436decc1aa16a25424323cdc9e54ce8092b81b9249d3f9",
+    "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
+    "lib/identifiers.mli": "bba7e132069a1c36758c9d1bfebd936ecb815b6d05dae2b55f03a5de72f2c20d",
+    "lib/pattern.ml": "a41d5ebb9ebc0eee59522a4d883e2a5281202c4fbebb0a2040b267961bf677ad",
+    "lib/semiont.ml": "061a1223699cb8299e2e4753a647f9aeb9a469e8caa596e3fc6d88448a9246dc",
+    "lib/semiont.mli": "baf8c85aca19cd7163c8611bca1b81d7a65ff01a6116f17d56984652b2af2cc4",
+    "lib/types.ml": "5921efffb7596beb176e09960cdfa080ec954349ec2ce9d7e54bc7f638c808fe",
+    "lib/types.mli": "97149245ffc84db1b741d7156a08017eff6f941179e9e6df950f212da8d60d76",
+    "probes/api_inventory.ml": "1b93b9964b99c5d333e39903e31bc429dbf4ed7a3df0ba2b0d40d9b098f0230b",
+    "probes/dune": "f9ab9c7d4c9a89b38ca775129b2b291217845ef2affa277385a4c2d336e44cfb",
+    "public-api.inputs.json": "16a156e808e8dfd7df61837746b0e4b8ce44e38a40f5a1b647baec0af1bfcca9",
+    "semiont.opam": "a5f3e7a7e1b1e98783797caa3bd9f9c9dff8e7a631803e45c1062ed263485223"
+  },
+  "entries": [
+    {
+      "kind": "module",
+      "path": "Semiont.Types",
+      "declaration": "module Types = Semiont__.Types",
+      "alias": "Semiont__.Types"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Types.presence",
+      "declaration": "type 'a presence = Absent | Null | Present of 'a",
+      "representation": "variant",
+      "constructors": [
+        "Absent",
+        "Null",
+        "Present"
+      ]
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Identifiers",
+      "declaration": "module Identifiers = Semiont__.Identifiers",
+      "alias": "Semiont__.Identifiers"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Identifiers.Resource_id",
+      "declaration": "module Resource_id :\n  sig\n    type t\n    val of_string : string -> (t, string) result\n    val to_string : t -> string\n    val compare : t -> t -> int\n    val equal : t -> t -> bool\n  end"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Identifiers.Resource_id.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identifiers.Resource_id.of_string",
+      "declaration": "val of_string : string -> (t, string) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identifiers.Resource_id.to_string",
+      "declaration": "val to_string : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identifiers.Resource_id.compare",
+      "declaration": "val compare : t -> t -> int"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identifiers.Resource_id.equal",
+      "declaration": "val equal : t -> t -> bool"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Identifiers.Annotation_id",
+      "declaration": "module Annotation_id :\n  sig\n    type t\n    val of_string : string -> (t, string) result\n    val to_string : t -> string\n    val compare : t -> t -> int\n    val equal : t -> t -> bool\n  end"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Identifiers.Annotation_id.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identifiers.Annotation_id.of_string",
+      "declaration": "val of_string : string -> (t, string) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identifiers.Annotation_id.to_string",
+      "declaration": "val to_string : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identifiers.Annotation_id.compare",
+      "declaration": "val compare : t -> t -> int"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identifiers.Annotation_id.equal",
+      "declaration": "val equal : t -> t -> bool"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Identifiers.Job_id",
+      "declaration": "module Job_id :\n  sig\n    type t\n    val of_string : string -> (t, string) result\n    val to_string : t -> string\n    val compare : t -> t -> int\n    val equal : t -> t -> bool\n  end"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Identifiers.Job_id.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identifiers.Job_id.of_string",
+      "declaration": "val of_string : string -> (t, string) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identifiers.Job_id.to_string",
+      "declaration": "val to_string : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identifiers.Job_id.compare",
+      "declaration": "val compare : t -> t -> int"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identifiers.Job_id.equal",
+      "declaration": "val equal : t -> t -> bool"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Identifiers.User_id",
+      "declaration": "module User_id :\n  sig\n    type t\n    val of_string : string -> (t, string) result\n    val to_string : t -> string\n    val compare : t -> t -> int\n    val equal : t -> t -> bool\n  end"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Identifiers.User_id.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identifiers.User_id.of_string",
+      "declaration": "val of_string : string -> (t, string) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identifiers.User_id.to_string",
+      "declaration": "val to_string : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identifiers.User_id.compare",
+      "declaration": "val compare : t -> t -> int"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identifiers.User_id.equal",
+      "declaration": "val equal : t -> t -> bool"
+    }
+  ]
+}
