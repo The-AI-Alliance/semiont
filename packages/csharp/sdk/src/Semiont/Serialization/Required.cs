@@ -32,6 +32,10 @@ internal static partial class Required
     /// rules every SDK reads the table by; null when it has none.</summary>
     internal static Fault? FaultOf(string schema, JsonElement value) => FaultAt(Component(schema), value, "");
 
+    /// <summary>Whether <paramref name="id"/> is a persisted event's id: components/schemas/PersistedEventId.json, its
+    /// pattern and not its prefix alone. Only such an id is a place a scope resumes from.</summary>
+    internal static bool IsPersistedEventId(JsonElement id) => FaultOf("PersistedEventId", id) is null;
+
     private enum Kind { Object, Array, String, Integer, Number, Boolean, Null }
 
     /// <summary>One step of a pattern: at least <c>Min</c> of a text's next code points, and at most <c>Max</c> (null:

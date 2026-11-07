@@ -6,6 +6,7 @@ using Semiont.Identifiers;
 using Semiont.Protocol;
 using Semiont.Registry;
 using Semiont.Serialization;
+using Semiont.SignIn;
 using Semiont.Storage;
 using Semiont.Types;
 
@@ -25,8 +26,8 @@ public sealed class CachePersistence
     /// <summary>
     /// Keeps what a client holds in the knowledge base <paramref name="kbId"/> for the person whose key is
     /// <paramref name="personKey"/> (<see cref="RegistryStorage.PersonKey"/> of their did), read as the client is made.
-    /// It writes whatever sign-in is kept; a session that keeps only while the knowledge base's saved sign-in names the
-    /// person, and whose forgetting leaves nothing written after, is one <see cref="Registry.HttpSessionFactory"/> opens.
+    /// It writes whatever sign-in is kept; a session that keeps only while its sign-in names the person is one
+    /// <see cref="Registry.HttpSessionFactory"/> opens, or <see cref="Session.SemiontSession.FromKeptAsync"/> makes.
     /// </summary>
     public CachePersistence(ISessionStorage storage, string kbId, string personKey)
     {
@@ -38,21 +39,18 @@ public sealed class CachePersistence
         this.personKey = personKey;
     }
 
-    private CachePersistence(ISessionStorage storage, string kbId, Action<SessionError> sessionErrors)
+    /// <summary>
+    /// A session's that its SDK builds: it keeps nothing until the gateway names the person, writes only while
+    /// <paramref name="kept"/>, what holds the session's sign-in, still names them, and tells
+    /// <paramref name="sessionErrors"/>, the session's error channel, once when it cannot read that sign-in.
+    /// </summary>
+    internal CachePersistence(ISessionStorage storage, string kbId, ISignInKept kept, Action<SessionError> sessionErrors)
     {
         ArgumentNullException.ThrowIfNull(storage);
         Storage = storage;
         KbId = kbId;
-        Writer = new WritesWhileNamed(storage, kbId, sessionErrors);
+        Writer = new WritesWhileNamed(kept, kbId, sessionErrors);
     }
-
-    /// <summary>
-    /// A registry session's: it keeps nothing until the knowledge base's sign-in records its person, writes only while
-    /// the sign-in stored beside it still names them, and tells <paramref name="sessionErrors"/>, the session's error
-    /// channel, when it cannot read that sign-in.
-    /// </summary>
-    internal static CachePersistence ForSignIn(ISessionStorage storage, string kbId, Action<SessionError> sessionErrors) =>
-        new(storage, kbId, sessionErrors);
 
     internal ISessionStorage Storage { get; }
     internal string KbId { get; }
@@ -82,7 +80,7 @@ public sealed class CachePersistence
 
     /// <summary>
     /// Forgets the knowledge base's saved sign-in, and what is kept for the person it names, under the lock the client's
-    /// saves are checked and written under: a save already past the check lands before the delete, and none follows it.
+    /// saves are written under: a save already writing lands before the delete, and none follows it.
     /// </summary>
     internal void Forget()
     {
@@ -102,34 +100,37 @@ public sealed class CachePersistence
 }
 
 /// <summary>
-/// Whether a client's persistence writes what it keeps for a person, asked under the lock its saves are written under,
-/// before each write; once it answers no, the client writes nothing more.
+/// Whether a client's persistence writes what it keeps for a person, asked before each write; once it answers no, the
+/// client writes nothing more.
 /// </summary>
 internal interface ICacheWriter
 {
-    public bool Writes(string personKey);
+    public ValueTask<bool> WritesAsync(string personKey);
 }
 
 /// <summary>A persistence given its person: it writes whatever sign-in is kept.</summary>
 internal sealed class WritesAsGiven : ICacheWriter
 {
-    public bool Writes(string personKey) => true;
+    public ValueTask<bool> WritesAsync(string personKey) => ValueTask.FromResult(true);
 }
 
 /// <summary>
-/// A registry session's: it writes only while the sign-in stored beside it names the person. A stored sign-in it cannot
-/// read is not known to name them, and the session is told why through <paramref name="sessionErrors"/>.
+/// A session's: it writes only while what holds its sign-in, <paramref name="kept"/>, names the person. A sign-in it
+/// cannot read is not known to name them, and the session is told why through <paramref name="sessionErrors"/>, once.
 /// </summary>
-internal sealed class WritesWhileNamed(ISessionStorage storage, string kbId, Action<SessionError> sessionErrors) : ICacheWriter
+internal sealed class WritesWhileNamed(ISignInKept kept, string kbId, Action<SessionError> sessionErrors) : ICacheWriter
 {
-    public bool Writes(string personKey)
+    private int told;
+
+    public async ValueTask<bool> WritesAsync(string personKey)
     {
-        try { return RegistryStorage.StoredSession(storage, kbId) is { } stored && stored.PersonKey == personKey; }
+        try { return await kept.HeldAsync().ConfigureAwait(false) is { } held && held.PersonKey == personKey; }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            sessionErrors(new SessionError(ProtocolFacts.SessionError("keep-failed"),
-                "The sign-in saved for knowledge base " + kbId + " could not be read before its client saved, so the client keeps nothing more.",
-                error));
+            if (Interlocked.Exchange(ref told, 1) == 0)
+                sessionErrors(new SessionError(ProtocolFacts.SessionError("keep-failed"),
+                    "The sign-in kept for knowledge base " + kbId + " could not be read before its client saved, so the client keeps nothing more.",
+                    error));
             return false;
         }
     }
@@ -142,9 +143,6 @@ internal static class KeptTable
     private static readonly JsonElement Refresh = JsonSerializer.Deserialize<JsonElement>(ProtocolTables.CacheRefresh);
     internal static readonly string WholeKey = Text(Stored.GetProperty("wholeKey"), "key");
     internal static readonly long Version = Stored.GetProperty("cacheDocument").GetProperty("properties").GetProperty("version").GetProperty("const").GetInt64();
-
-    /// <summary>Whether <paramref name="id"/> is a recorded event's id: components/schemas/PersistedEventId.json.</summary>
-    internal static bool IsPersistedEventId(JsonElement id) => Required.FaultOf("PersistedEventId", id) is null;
 
     /// <summary>What client/refresh.json says a query is per: a resource, an annotation, or nothing (null).</summary>
     internal static string? Per(string query)
@@ -186,18 +184,18 @@ internal interface IKeptQuery
     public bool Owed { get; }
     public void Owe();
 
-    /// <summary>Begins the wait before the next save again, if a save is owed.</summary>
-    public void Resume();
-
     /// <summary>Drops the save owed: what was not written never is.</summary>
     public void Discard();
 
     /// <summary>Reads the document under <paramref name="documentKey"/> into the keys its cache does not hold.</summary>
     public void Load(string documentKey);
 
-    /// <summary>Writes the query's document under <paramref name="documentKey"/> if it owes one, and says whether it
-    /// did.</summary>
-    public bool Save(string documentKey);
+    /// <summary>The document the save owed writes, its stamps taken as of now; null when no save is owed.</summary>
+    public string? Take();
+
+    /// <summary>Writes <paramref name="document"/> under <paramref name="documentKey"/>, and says whether the storage
+    /// kept it. A write it refuses leaves the save owed.</summary>
+    public bool Put(string documentKey, string document);
     public void Close();
 }
 
@@ -218,8 +216,12 @@ internal sealed class LiveCacheStorage(CachePersistence persistence, TimeProvide
 
     internal TimeProvider Clock => clock;
 
-    /// <summary>What a kept query's cache calls at each change of a value: its save waits for the changes to stop.</summary>
-    internal Action Changed(string query) => () => kept[query].Owe();
+    /// <summary>What a kept query's cache calls at each change of a value: its save waits for the changes to stop. Nothing
+    /// is owed before the person is named: what a cache holds then is written with its next change.</summary>
+    internal Action Changed(string query) => () =>
+    {
+        if (Volatile.Read(ref person) is not null) kept[query].Owe();
+    };
 
     internal IKeptQuery Keep<TKey, T>(string query, Cache<TKey, T> cache, KeptKey<TKey, T> key) where TKey : notnull
     {
@@ -245,7 +247,7 @@ internal sealed class LiveCacheStorage(CachePersistence persistence, TimeProvide
 
     /// <summary>
     /// Reads what is kept for <paramref name="named"/> into the keys no cache holds, gives the stream's places kept for
-    /// them, and saves for them from then on, beginning with what the caches came to owe before.
+    /// them, and saves for them from each change on. Attaching writes nothing.
     /// </summary>
     internal void Attach(string named)
     {
@@ -253,10 +255,9 @@ internal sealed class LiveCacheStorage(CachePersistence persistence, TimeProvide
         {
             if (closed || abandoned || person is not null) return;
             var restoring = placesKept ?? throw new InvalidOperationException("The persistence keeps for a person before it has started.");
-            person = named;
+            Volatile.Write(ref person, named);
             foreach (var query in kept.Values) query.Load(DocumentKey(named, query));
             restoring(ReadPlaces(named));
-            foreach (var query in kept.Values) query.Resume();
         }
     }
 
@@ -279,35 +280,44 @@ internal sealed class LiveCacheStorage(CachePersistence persistence, TimeProvide
             // A refused frame is no position on its scope, and the event's invalidations are under way before its
             // place is noted.
             if (person is not null && !abandoned && carried is ReceivedBusFrame { Frame.Scope: ResourceId resource } frame &&
-                frame.EventId is { } id && KeptTable.IsPersistedEventId(JsonSerializer.SerializeToElement(id)))
+                frame.EventId is { } id && Required.IsPersistedEventId(JsonSerializer.SerializeToElement(id)))
                 pendingPlaces[resource.Value] = id;
         }
     }
 
-    internal void Saved(IKeptQuery query)
-    {
-        lock (gate)
-        {
-            if (!closed) Write(query);
-        }
-    }
+    /// <summary>What a kept query's wait calls once it has passed.</summary>
+    internal void Saved(IKeptQuery query) => _ = SaveAsync(query);
 
     /// <summary>Writes the query's document, and the noted places in the same call while no kept query is pending and
-    /// the refresher owes no refetch: once a person is kept for, and only while the persistence writes for them. A save
-    /// owed before the person is known waits for them.</summary>
-    private void Write(IKeptQuery query)
+    /// the refresher owes no refetch: only while the persistence writes for its person, asked first. Once it does not,
+    /// nothing more is written.</summary>
+    private async Task SaveAsync(IKeptQuery query)
     {
-        if (person is not { } named) return;
-        if (abandoned || !Writes(named)) query.Discard();
-        else if (query.Save(DocumentKey(named, query)) && kept.Values.All(each => !each.Pending) && !refetchOwed()) WritePlaces(named);
-    }
-
-    /// <summary>Whether the persistence still writes for <paramref name="named"/>; once it does not, nothing more is.</summary>
-    private bool Writes(string named)
-    {
-        if (persistence.Writer.Writes(named)) return true;
-        Abandon();
-        return false;
+        string named;
+        lock (gate)
+        {
+            if (closed || person is not { } keptFor) return;
+            if (abandoned)
+            {
+                query.Discard();
+                return;
+            }
+            named = keptFor;
+        }
+        var writes = await persistence.Writer.WritesAsync(named).ConfigureAwait(false);
+        lock (gate)
+        {
+            // A disposal meanwhile flushes the save this one owes.
+            if (closed) return;
+            if (abandoned || !writes)
+            {
+                Abandon();
+                return;
+            }
+            if (query.Take() is { } document && query.Put(DocumentKey(named, query), document) &&
+                kept.Values.All(each => !each.Pending) && !refetchOwed())
+                WritePlaces(named);
+        }
     }
 
     private void Abandon()
@@ -332,7 +342,7 @@ internal sealed class LiveCacheStorage(CachePersistence persistence, TimeProvide
         var places = new Dictionary<string, string>(StringComparer.Ordinal);
         if (Parse(Get(RegistryStorage.LastEventIdKey(persistence.KbId, named))) is not { ValueKind: JsonValueKind.Object } read) return places;
         foreach (var place in read.EnumerateObject())
-            if (ResourceId.TryParse(place.Name, out _) && KeptTable.IsPersistedEventId(place.Value) && place.Value.GetString() is { } id)
+            if (ResourceId.TryParse(place.Name, out _) && Required.IsPersistedEventId(place.Value) && place.Value.GetString() is { } id)
                 places[place.Name] = id;
         return places;
     }
@@ -365,22 +375,38 @@ internal sealed class LiveCacheStorage(CachePersistence persistence, TimeProvide
 
     /// <summary>Flushes what each kept query owes. The gate is read once, first: disposal drops a fetch in flight and a
     /// refetch owed, so either holds the places back, while a save owed is this flush. Apply notes nothing once closed,
-    /// so the places written are those noted before the reading.</summary>
+    /// so the places written are those noted before the reading. The documents are taken before the caches close, and
+    /// written once the persistence says it writes for the person: before this returns, unless asking waits on what
+    /// holds the sign-in.</summary>
     public void Dispose()
     {
+        string? named;
+        bool settled;
+        var owed = new List<(IKeptQuery Query, string Document)>();
         lock (gate)
         {
             if (closed) return;
             closed = true;
-            var settled = kept.Values.All(query => !query.Fetching) && !refetchOwed();
-            if (person is { } named && !abandoned && kept.Values.Any(query => query.Owed) && Writes(named))
-            {
-                var wrote = false;
-                foreach (var query in kept.Values) wrote |= query.Save(DocumentKey(named, query));
-                if (wrote && settled) WritePlaces(named);
-            }
+            settled = kept.Values.All(query => !query.Fetching) && !refetchOwed();
+            named = abandoned ? null : person;
+            if (named is not null)
+                foreach (var query in kept.Values)
+                    if (query.Take() is { } document) owed.Add((query, document));
         }
         foreach (var query in kept.Values) query.Close();
+        if (named is not null && owed.Count > 0) _ = FlushAsync(named, owed, settled);
+    }
+
+    private async Task FlushAsync(string named, List<(IKeptQuery Query, string Document)> owed, bool settled)
+    {
+        if (!await persistence.Writer.WritesAsync(named).ConfigureAwait(false)) return;
+        lock (gate)
+        {
+            if (abandoned) return;
+            var wrote = false;
+            foreach (var (query, document) in owed) wrote |= query.Put(DocumentKey(named, query), document);
+            if (wrote && settled) WritePlaces(named);
+        }
     }
 }
 
@@ -426,11 +452,6 @@ internal sealed class KeptQuery<TKey, T> : IKeptQuery where TKey : notnull
             owed = true;
             Wait();
         }
-    }
-
-    public void Resume()
-    {
-        lock (owing) if (owed) Wait();
     }
 
     public void Discard()
@@ -493,11 +514,11 @@ internal sealed class KeptQuery<TKey, T> : IKeptQuery where TKey : notnull
         return at is >= 0 and < long.MaxValue ? (long)at : null;
     }
 
-    public bool Save(string documentKey)
+    public string? Take()
     {
         lock (owing)
         {
-            if (!owed) return false;
+            if (!owed) return null;
             owed = false;
         }
         var now = storage.Clock.GetUtcNow().ToUnixTimeMilliseconds();
@@ -510,14 +531,18 @@ internal sealed class KeptQuery<TKey, T> : IKeptQuery where TKey : notnull
         }
         var oldestFirst = held.OrderBy(entry => entry.Stamp.At).ToArray();
         var fitting = oldestFirst[Evicted(oldestFirst)..];
-        if (!storage.Set(documentKey, Encoding.UTF8.GetString(Encode(fitting))))
-        {
-            // A failed write keeps its value owed: the next save writes it, and the places wait for it.
-            lock (owing) owed = true;
-            return false;
-        }
+        // A value's stamp is when it was received, whether or not the storage keeps this write.
         stamps = fitting.ToDictionary(entry => entry.Id, entry => entry.Stamp);
-        return true;
+        return Encoding.UTF8.GetString(Encode(fitting));
+    }
+
+    public bool Put(string documentKey, string document)
+    {
+        if (storage.Set(documentKey, document)) return true;
+        // A refused write keeps its save owed, with no wait of its own: the next change, or disposal's flush, writes it
+        // again, and the places wait for it.
+        lock (owing) owed = true;
+        return false;
     }
 
     /// <summary>How many of the oldest entries must go for the document to fit in maxStoredBytesCount.</summary>

@@ -53,7 +53,8 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
         if (options.Kb.Endpoint is not KbEndpoint.HttpEndpointCase(var endpoint))
             throw new SessionError(ProtocolFacts.SessionError("construct-failed"), "This factory requires an HTTP endpoint.");
         var errors = new Broadcast<SessionError>(keepForFirst: true);
-        var persistence = CachePersistence.ForSignIn(options.Storage, options.Kb.Id, errors.Publish);
+        // The client writes only while the sign-in stored beside it names its person, read through what holds it there.
+        var persistence = new CachePersistence(options.Storage, options.Kb.Id, RegistryStorage.KeptIn(options.Storage, options.Kb.Id), errors.Publish);
         var signIn = RegistryStorage.KeptFor(persistence);
         if (RegistryStorage.StoredSession(options.Storage, options.Kb.Id) is { PersonKey: { } named }) persistence.Attach(named);
         var kept = new KeptSession(endpoint, signIn, httpClient, timeProvider, random, errors, answered: async (token, user, recording) =>
@@ -75,8 +76,9 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
             var watching = Task.WhenAll(FollowErrorsAsync(), FollowPermissionAsync());
             return new OpenedSession(client, async () =>
             {
-                try { session.Dispose(); }
-                finally { client.Dispose(); }
+                // The client first: what its closing save tells reaches the session's errors while they are open.
+                try { client.Dispose(); }
+                finally { session.Dispose(); }
                 await watching.ConfigureAwait(false);
             }, session);
 

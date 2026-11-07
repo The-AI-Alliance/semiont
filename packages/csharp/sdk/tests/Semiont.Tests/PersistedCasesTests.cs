@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using Semiont.Errors;
+using Semiont.Http;
 using Semiont.Identifiers;
 using Semiont.Protocol;
 using Semiont.Registry;
@@ -22,8 +23,8 @@ namespace Semiont.Tests;
 // renewal makes, and every startup row runs again with the start's ask answered, where nothing is asked before.
 // For the same reason a token found `expired` is forgotten by the start's refused renewal, before the factory
 // makes the client; an `unexpired` one is refused once the client is open and holds a value it has not written.
-// C# builds no keeping session over a memory sign-in, so `holder` changes the registry's sign-in through
-// RegistryStorage.KeptIn, what holds it in the storage the client keeps in.
+// C#'s keeping session over a memory sign-in is the one SemiontSession.FromKeptAsync makes, so `holder` runs over
+// one, its sign-in held apart from the storage its client keeps in.
 public sealed partial class TransportTests
 {
     private const string PersistedCases = "session/persisted-cases.json";
@@ -133,18 +134,17 @@ public sealed partial class TransportTests
             var clock = new TestClock();
             var now = clock.GetUtcNow().ToUnixTimeSeconds();
             var storage = new MemoryStorage();
-            RegistryStorage.StoreSession(storage, CaseKb, RegistryTokens() with { Access = TokenTests.Jwt(new { exp = now + 3600 }), PersonKey = jo });
+            var holder = new MemorySignIn(RegistryTokens() with { Access = TokenTests.Jwt(new { exp = now + 3600 }), PersonKey = jo });
             using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), TokenTests.Jwt(new { exp = now + 7200 }));
             gateway.Name(true);
-            using var signals = new SessionSignals();
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            var opened = await new HttpSessionFactory(gateway.Http, clock)
-                .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals, _ => { }), deadline.Token);
-            try
+            await using (var opened = await SemiontSession.FromKeptAsync(Target(RegistryKb(CaseKb, "kb-a.test")), holder, storage, gateway.Http, clock,
+                cancellation: deadline.Token))
             {
-                Assert.Equal("fresh", (await opened.Client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(deadline.Token)).Name);
+                var session = Assert.IsType<SemiontSession>(opened.Session);
+                await session.ReadyAsync(deadline.Token);
+                Assert.Equal("fresh", (await session.Client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(deadline.Token)).Name);
                 Assert.True(storage.Get(joResource) is null, why + ": the client has not yet written what it holds");
-                var holder = RegistryStorage.KeptIn(storage, CaseKb);
                 var stored = row.GetProperty("stored");
                 var access = TokenTests.Jwt(new { exp = now + 5400 });
                 if (stored.ValueKind == JsonValueKind.Null) await holder.ForgetAsync(deadline.Token);
@@ -164,7 +164,6 @@ public sealed partial class TransportTests
                     }, deadline.Token);
                 }
             }
-            finally { await opened.DisposeAsync(); }
             Assert.True(HoldsFresh(storage.Get(joResource), "res-1") == row.GetProperty("saved").GetBoolean(), why);
         }
     }
@@ -331,7 +330,7 @@ public sealed partial class TransportTests
         finally { await opened.DisposeAsync(); }
     }
 
-    // A script's session over a kept sign-in (C#'s sessionFromKept: SemiontSession.FromKept) takes a storage for the
+    // A script's session over a kept sign-in (C#'s sessionFromKept: SemiontSession.FromKeptAsync) takes a storage for the
     // caches, and its client keeps its persisted queries there for the person its gateway names, under the keys
     // stored.json gives that knowledge base and that person.
     [Fact]
@@ -349,8 +348,9 @@ public sealed partial class TransportTests
         gateway.Name(true);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var kb = RegistryKb(CaseKb, "kb-a.test");
-        using (var session = SemiontSession.FromKept(Target(kb), signIn, storage, gateway.Http, clock))
+        await using (var opened = await SemiontSession.FromKeptAsync(Target(kb), signIn, storage, gateway.Http, clock, cancellation: deadline.Token))
         {
+            var session = Assert.IsType<SemiontSession>(opened.Session);
             await session.ReadyAsync(deadline.Token);
             Assert.Equal("fresh", (await session.Client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(deadline.Token)).Name);
             await clock.WaitForAsync(SaveDebounce);
@@ -358,6 +358,63 @@ public sealed partial class TransportTests
             await UntilAsync(() => storage.Get(joResource) is not null, deadline.Token);
         }
         Assert.True(HoldsFresh(storage.Get(joResource), "res-1"), "the session kept res-1 for jo: " + storage.Get(joResource));
+    }
+
+    // A session from a kept sign-in that already names its person is made knowing them (CACHE-SEMANTICS B17 item 1):
+    // what is kept for them is in its client's caches from the start. This is the `startup` row whose sign-in names
+    // its person, read first while the gateway has not named anyone, as that row's registry run reads it.
+    [Fact]
+    public async Task ASessionFromASignInThatNamesItsPersonHoldsWhatIsKeptForThemFromTheStart()
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var row = root.GetProperty("startup").EnumerateArray().Single(each => Text(each, "signedIn") == "named");
+        var why = Text(row, "why");
+        var storage = new MemoryStorage();
+        foreach (var entry in root.GetProperty("startupStorage").EnumerateObject())
+            storage.Set(entry.Name, entry.Value.GetString() ?? throw new InvalidOperationException("Nothing kept under " + entry.Name));
+        var clock = new TestClock();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        var holder = new MemorySignIn(RegistryTokens() with
+        {
+            Access = TokenTests.Jwt(new { exp = now + 3600 }),
+            PersonKey = Text(root.GetProperty("people").GetProperty("jo"), "personKey"),
+        });
+        using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), TokenTests.Jwt(new { exp = now + 7200 }));
+        gateway.Name(false);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var opened = await SemiontSession.FromKeptAsync(Target(RegistryKb(CaseKb, "kb-a.test")), holder, storage, gateway.Http, clock,
+            cancellation: deadline.Token);
+        var session = Assert.IsType<SemiontSession>(opened.Session);
+        await session.ReadyAsync(deadline.Token);
+        await using var first = session.Client.Browse.Resource(ResourceId.Parse("res-2")).GetAsyncEnumerator(deadline.Token);
+        Assert.True(await KeptOrFreshAsync(first) == Text(row, "first"), why + ": res-2, asked first");
+    }
+
+    // A session only uses its client, so it never ends it: whoever made the client and the session ends both, as ending
+    // the opened session FromKeptAsync gives does.
+    [Fact]
+    public async Task DisposingASessionLeavesItsClientOpen()
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var clock = new TestClock();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), TokenTests.Jwt(new { exp = now + 7200 }));
+        gateway.Name(true);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var opened = await SemiontSession.FromKeptAsync(Target(RegistryKb(CaseKb, "kb-a.test")),
+            new MemorySignIn(RegistryTokens() with { Access = TokenTests.Jwt(new { exp = now + 3600 }) }), httpClient: gateway.Http,
+            timeProvider: clock, cancellation: deadline.Token);
+        try
+        {
+            var session = Assert.IsType<SemiontSession>(opened.Session);
+            await session.ReadyAsync(deadline.Token);
+            session.Dispose();
+            Assert.True(opened.Client.State != ConnectionState.Closed, "the session's disposal ended its client");
+        }
+        finally { await opened.DisposeAsync(); }
+        Assert.Equal(ConnectionState.Closed, opened.Client.State);
     }
 
     // The keep check reads the sign-in through what keeps it (ISignInKept.HeldAsync), as every SDK's does. One it cannot
@@ -378,7 +435,8 @@ public sealed partial class TransportTests
         gateway.Name(true);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var kb = RegistryKb(CaseKb, "kb-a.test");
-        var session = SemiontSession.FromKept(Target(kb), signIn, storage, gateway.Http, clock);
+        var opened = await SemiontSession.FromKeptAsync(Target(kb), signIn, storage, gateway.Http, clock, cancellation: deadline.Token);
+        var session = Assert.IsType<SemiontSession>(opened.Session);
         await session.ReadyAsync(deadline.Token);
         await using var errors = session.Errors(deadline.Token).GetAsyncEnumerator();
         var told = errors.MoveNextAsync().AsTask();
@@ -394,15 +452,66 @@ public sealed partial class TransportTests
         await clock.WaitForAsync(SaveDebounce);
         clock.Advance(SaveDebounce);
         Assert.True(session.Token.Value is not null, "the session goes on");
-        // Disposing the session closes its client too, whose closing save meets the same unreadable sign-in.
+        // Ending the opened session ends its client first, whose closing save meets the same unreadable sign-in while the
+        // session's errors are still open.
         var later = errors.MoveNextAsync().AsTask();
-        session.Dispose();
+        await opened.DisposeAsync();
         while (await later.WaitAsync(deadline.Token))
         {
             Assert.True(errors.Current.Code != "session.keep-failed", "the session was told twice that it keeps nothing more");
             later = errors.MoveNextAsync().AsTask();
         }
         foreach (var key in PersonKeys(joKeys)) Assert.True(storage.Get(key) is null, key + " holds " + storage.Get(key));
+    }
+
+    public static IEnumerable<object[]> ResumeFromCases()
+    {
+        using var table = ReadSpec(PersistedCases);
+        foreach (var row in table.RootElement.GetProperty("resumeFrom").EnumerateArray()) yield return [Text(row, "why")];
+    }
+
+    // `resumeFrom`: kb-a's client, kept for jo, holds res-1; the stream delivers the row's frames on res-1's scope, and
+    // another scope taken then reopens it, naming the place res-1 resumes from.
+    [Theory]
+    [MemberData(nameof(ResumeFromCases))]
+    public async Task AScopeResumesFromItsLastPersistedEventId(string why)
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var row = root.GetProperty("resumeFrom").EnumerateArray().Single(entry => Text(entry, "why") == why);
+        var jo = Text(root.GetProperty("people").GetProperty("jo"), "personKey");
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var storage = new MemoryStorage();
+        RegistryStorage.StoreSession(storage, CaseKb, RegistryTokens() with { Access = TokenTests.Jwt(new { exp = now + 3600 }), PersonKey = jo });
+        using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), TokenTests.Jwt(new { exp = now + 7200 }));
+        gateway.Name(true);
+        using var signals = new SessionSignals();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var opened = await new HttpSessionFactory(gateway.Http)
+            .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals, _ => { }), deadline.Token);
+        try
+        {
+            var client = opened.Client;
+            await using var held = client.Browse.Resource(ResourceId.Parse("res-1")).GetAsyncEnumerator(deadline.Token);
+            Assert.Equal("fresh", await KeptOrFreshAsync(held));
+            Assert.True(await PlaceAsync(gateway.Server, "res-1", deadline.Token) is null, why + ": nothing is kept for res-1's scope before");
+            await using (var heard = client.Transport.Frames(BusChannels.MarkArchived.Name, deadline.Token).GetAsyncEnumerator())
+            {
+                foreach (var frame in row.GetProperty("frames").EnumerateArray())
+                {
+                    var id = frame.GetString() ?? throw new InvalidOperationException(why + ": a frame names no id");
+                    var arrived = heard.MoveNextAsync().AsTask();
+                    gateway.Server.Stream.Push("event: bus-event\nid: " + id + "\ndata: {\"channel\":\"" + BusChannels.MarkArchived.Name +
+                        "\",\"scope\":\"res-1\",\"payload\":{}}\n\n");
+                    Assert.True(await arrived.WaitAsync(deadline.Token), why + ": the stream ended before " + id);
+                    Assert.Equal(id, Assert.IsType<ReceivedBusFrame>(heard.Current).EventId);
+                }
+            }
+            await using var other = client.Browse.Resource(ResourceId.Parse("res-2")).GetAsyncEnumerator(deadline.Token);
+            Assert.Equal("fresh", await KeptOrFreshAsync(other));
+            Assert.True(await PlaceAsync(gateway.Server, "res-1", deadline.Token) == NullableText(row, "resumes"), why);
+        }
+        finally { await opened.DisposeAsync(); }
     }
 
     private static KbTarget Target(KnowledgeBase kb) => new() { Id = kb.Id, Label = kb.Label, Endpoint = kb.Endpoint };

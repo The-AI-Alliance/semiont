@@ -28,6 +28,7 @@ internal sealed class LiveQueries : IDisposable
     private readonly ILookup<string, JsonElement> refresh;
     private readonly IRefreshedCache[] caches;
     private readonly LiveCacheStorage? persistence;
+    private IReadOnlyList<EngineLimits> reportedLimits = [];
 
     internal Cache<ResourceId, ResourceDescriptor> ResourcesById { get; }
     internal Cache<Filters, ListResourcesResponse> Resources { get; }
@@ -38,7 +39,11 @@ internal sealed class LiveQueries : IDisposable
     internal Cache<Search, MatchResourcesResponse> MatchedResources { get; }
     internal CacheEntry<IReadOnlyList<string>> EntityTypes { get; }
     internal CacheEntry<IReadOnlyList<TagSchema>> TagSchemas { get; }
-    internal CacheEntry<IReadOnlyList<EngineWithLimits>> Engines { get; }
+    internal CacheEntry<IReadOnlyList<EngineEntry>> Engines { get; }
+
+    /// <summary>The engines as the live query shows them: each joined, as it is shown, with the limits last reported for
+    /// it.</summary>
+    internal Cached<IReadOnlyList<EngineWithLimits>> EnginesWithLimits { get; }
 
     internal LiveQueries(Bus wire, EventBus bus, HttpTransport transport, HttpContentTransport content, CachePersistence? storage)
     {
@@ -77,6 +82,7 @@ internal sealed class LiveQueries : IDisposable
         TagSchemas = tags;
         var engines = Singleton(token => LoadEnginesAsync(wire, token), out var listed);
         Engines = listed;
+        EnginesWithLimits = new CachedPart<IReadOnlyList<EngineEntry>, IReadOnlyList<EngineWithLimits>>(listed, WithLimits);
 
         caches = [ResourcesById, Resources, Annotations, Annotation, Events, ReferencedBy, MatchedResources, entityTypes, tagSchemas, engines];
         queries = new(StringComparer.Ordinal)
@@ -125,17 +131,16 @@ internal sealed class LiveQueries : IDisposable
 
     private bool RefetchOwed() => caches.Any(cache => cache.RefetchOwed);
 
-    private static async Task<IReadOnlyList<EngineWithLimits>> LoadEnginesAsync(Bus wire, CancellationToken cancellation)
+    /// <summary>The engines the knowledge base names, once the services that hold the inference credentials have reported
+    /// their limits too; those reports are kept beside them, to be joined as the engines are shown.</summary>
+    private async Task<IReadOnlyList<EngineEntry>> LoadEnginesAsync(Bus wire, CancellationToken cancellation)
     {
         var inventory = wire.RequestAsync(BusOperations.BrowseEnginesRequested, new BrowseEnginesRequest(), cancellation: cancellation);
         var reportsTask = Task.WhenAll(BusOperations.Limits.Select(ReadLimitsAsync));
         await Task.WhenAll(inventory, reportsTask).ConfigureAwait(false);
         var result = await inventory.ConfigureAwait(false);
-        var reports = await reportsTask.ConfigureAwait(false);
-        var limits = new Dictionary<Engine, InferenceLimits>();
-        foreach (var report in reports)
-            foreach (var entry in report) limits[entry.Engine] = entry.Limits;
-        return result.Response.Engines.Select(entry => new EngineWithLimits(entry, limits.GetValueOrDefault(entry.Engine))).ToArray();
+        Volatile.Write(ref reportedLimits, (await reportsTask.ConfigureAwait(false)).SelectMany(report => report).ToArray());
+        return result.Response.Engines;
 
         async Task<IReadOnlyList<EngineLimits>> ReadLimitsAsync(BusOperation<InferenceLimitsRequest, InferenceLimitsResult, CommandError> operation)
         {
@@ -146,6 +151,14 @@ internal sealed class LiveQueries : IDisposable
             }
             catch (SemiontError) { return []; }
         }
+    }
+
+    /// <summary>Each engine with the limits last reported for it; an engine no report names shows none.</summary>
+    private IReadOnlyList<EngineWithLimits> WithLimits(IReadOnlyList<EngineEntry> engines)
+    {
+        var limits = new Dictionary<Engine, InferenceLimits>();
+        foreach (var entry in Volatile.Read(ref reportedLimits)) limits[entry.Engine] = entry.Limits;
+        return engines.Select(entry => new EngineWithLimits(entry, limits.GetValueOrDefault(entry.Engine))).ToArray();
     }
 
     private static bool ResourceMatches(ResourceId resource, Subject subject) => subject.Resource == resource;

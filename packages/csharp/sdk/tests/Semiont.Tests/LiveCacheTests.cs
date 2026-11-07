@@ -155,10 +155,6 @@ public sealed partial class TransportTests
         }
     }
 
-    /// <summary>The one query whose `value` in client/refresh.json waits on a ruling: its row is held to the value it
-    /// names today, so a change to that row fails here until this query joins the others.</summary>
-    private const string ValueAwaitingARuling = "engines";
-
     // client/refresh.json's `value` owns what each live query's cache holds for a key: the generated type of the
     // component it names, or of the member within one, is the type of the query's values here.
     [Fact]
@@ -175,11 +171,10 @@ public sealed partial class TransportTests
             ["matchedResources"] = nameof(LiveQueries.MatchedResources),
             ["entityTypes"] = nameof(LiveQueries.EntityTypes),
             ["tagSchemas"] = nameof(LiveQueries.TagSchemas),
+            ["engines"] = nameof(LiveQueries.Engines),
         };
         using var table = ReadSpec("client/refresh.json");
-        var awaiting = table.RootElement.GetProperty("queries").EnumerateArray().Single(row => Text(row, "name") == ValueAwaitingARuling);
-        Assert.Equal("../components/schemas/BrowseEnginesResult.json#/properties/response/properties/engines", Text(awaiting.GetProperty("value"), "$ref"));
-        var rows = table.RootElement.GetProperty("queries").EnumerateArray().Where(row => Text(row, "name") != ValueAwaitingARuling).ToArray();
+        var rows = table.RootElement.GetProperty("queries").EnumerateArray().ToArray();
         Assert.Equal(rows.Select(row => Text(row, "name")).Order(StringComparer.Ordinal), held.Keys.Order(StringComparer.Ordinal));
         foreach (var row in rows)
         {
@@ -286,42 +281,6 @@ public sealed partial class TransportTests
         await clock.WaitForAsync(LiveCacheStorage.Debounce);
         clock.Advance(LiveCacheStorage.Debounce);
         Assert.Equal("""{"res-1":"p-res-1-5"}""", storage.Get(placesKey));
-    }
-
-    // A scope's place is the last recorded event delivered on it, and an id is a recorded event's only as
-    // components/schemas/PersistedEventId.json says: one with that id's prefix that the schema refuses is no place.
-    [Fact]
-    public async Task OnlyAPersistedEventIdBecomesAScopesPlace()
-    {
-        var clock = new TestClock();
-        using var server = new Handler();
-        using var http = new HttpClient(server);
-        using var transport = new HttpTransport("http://unit.test", "token", [BusChannels.MarkArchived.Name], new Timing { LingerMs = 0 },
-            httpClient: http, timeProvider: clock);
-        await OpenAsync(transport);
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await server.Subscriptions.Reader.ReadAsync(deadline.Token);
-        using var held = transport.SubscribeToResource(ResourceId.Parse("res-1"));
-        await clock.WaitForAsync(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("reconnectDebounceMs").GetInt32()));
-        clock.Advance(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("reconnectDebounceMs").GetInt32()));
-        await server.Subscriptions.Reader.ReadAsync(deadline.Token);
-
-        await using (var heard = transport.Frames(BusChannels.MarkArchived.Name, deadline.Token).GetAsyncEnumerator())
-        {
-            foreach (var id in new[] { "p-res-1-3", "p-unnumbered" })
-            {
-                var arrived = heard.MoveNextAsync().AsTask();
-                server.Stream.Push("event: bus-event\nid: " + id + "\ndata: {\"channel\":\"mark:archived\",\"scope\":\"res-1\",\"payload\":{}}\n\n");
-                Assert.True(await arrived);
-                Assert.Equal(id, Assert.IsType<ReceivedBusFrame>(heard.Current).EventId);
-            }
-        }
-
-        // A scope taken reopens the stream, which names each scope's place.
-        using var other = transport.SubscribeToResource(ResourceId.Parse("res-2"));
-        await clock.WaitForAsync(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("reconnectDebounceMs").GetInt32()));
-        clock.Advance(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("reconnectDebounceMs").GetInt32()));
-        Assert.Equal("p-res-1-3", await PlaceAsync(server, "res-1", deadline.Token));
     }
 
     [Theory]

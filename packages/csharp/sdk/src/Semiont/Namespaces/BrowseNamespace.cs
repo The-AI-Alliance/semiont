@@ -35,7 +35,7 @@ public sealed class BrowseNamespace
 
     public Cached<IReadOnlyList<string>> EntityTypes() => live.EntityTypes;
     public Cached<IReadOnlyList<TagSchema>> TagSchemas() => live.TagSchemas;
-    public Cached<IReadOnlyList<EngineWithLimits>> Engines() => live.Engines;
+    public Cached<IReadOnlyList<EngineWithLimits>> Engines() => live.EnginesWithLimits;
     public Cached<IReadOnlyList<AttributedEvent>> Events(ResourceId resourceId) => live.Events.Observe(resourceId);
 
     public async Task<string> ResourceContentAsync(ResourceId resourceId, CancellationToken cancellation = default)

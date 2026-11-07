@@ -7,9 +7,9 @@ using Semiont.Types;
 
 namespace Semiont.Session;
 
-public sealed record SessionState(string? Token, UserResponse? User);
+internal sealed record SessionState(string? Token, UserResponse? User);
 
-public sealed class KeptSession : IDisposable
+internal sealed class KeptSession : IDisposable
 {
     private readonly ISignInKept kept;
     private readonly TimeProvider clock;
@@ -30,10 +30,6 @@ public sealed class KeptSession : IDisposable
     private volatile bool unanswered;
     private volatile bool ended;
     private int disposed;
-
-    public KeptSession(HttpEndpoint endpoint, ISignInKept kept, HttpClient? httpClient = null,
-        TimeProvider? timeProvider = null, Random? random = null)
-        : this(endpoint, kept, httpClient, timeProvider, random, new Broadcast<SessionError>(keepForFirst: true), static (_, _, _) => Task.CompletedTask) { }
 
     /// <summary>
     /// <paramref name="errors"/> is the session's error channel, which its client's persistence also reports to;

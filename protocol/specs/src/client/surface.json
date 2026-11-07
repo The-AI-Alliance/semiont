@@ -951,7 +951,7 @@
       "unit": "session",
       "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. Its `errors` are its one stream of what went wrong: its own errors (a SessionError: its sign-in could not be checked or renewed, the gateway refused a token just issued, what it keeps could not be kept) and its transport's failures, each said once, one raised by the flush of its disposal among them, since the stream ends only after that flush; a session takes no callback for them. What it does is held by the session's own table (protocol/specs/src/session/cases.json), not by the behaviour table.",
       "made": {"csharp": "SemiontSession", "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession", "swift": "SemiontSession", "haskell": "Session"},
-      "madeBy": {"go": "StartSession", "kotlin": "sessionFromKept", "swift": "sessionFromKept", "haskell": "newSession"},
+      "madeBy": {"go": "StartSession", "kotlin": "sessionFromKept", "swift": "sessionFromKept", "csharp": "FromKeptAsync", "haskell": "newSession"},
       "members": [
         { "member": "id" },
         { "member": "kb" },
@@ -2105,7 +2105,7 @@
           "named": { "haskell": "fromKeptSession" },
           "absent": {
             "typescript": "TypeScript's is SemiontSession.fromKept, a static method of the session.",
-            "csharp": "C#'s is SemiontSession.FromKept, a static method of the session."
+            "csharp": "C#'s is SemiontSession.FromKeptAsync, a static method of the session."
           }
         },
         {
@@ -2540,7 +2540,7 @@
           "Issuer": ["TimeProvider"],
           "ServiceToken": ["TimeProvider"],
           "AgentToken": ["TimeProvider"],
-          "KeptSession": ["TimeProvider"],
+          "FromKeptAsync": ["TimeProvider"],
           "SignInStore": ["TimeProvider"],
           "Cache": ["TimeProvider"],
           "HoverDwell": ["TimeProvider"],
@@ -2634,7 +2634,7 @@
           "HttpTransport": ["Random"],
           "Issuer": ["Random"],
           "ServiceToken": ["Random"],
-          "KeptSession": ["Random"],
+          "FromKeptAsync": ["Random"],
           "SignInStore": ["Random"],
           "HttpSessionFactory": ["Random"],
           "SemiontBrowserConfig": ["Random"],

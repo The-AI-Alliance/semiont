@@ -1,6 +1,10 @@
 using Semiont.Errors;
 using Semiont.Http;
+using Semiont.Protocol;
+using Semiont.Registry;
+using Semiont.SignIn;
 using Semiont.State;
+using Semiont.Storage;
 using Semiont.Types;
 
 namespace Semiont.Session;
@@ -19,7 +23,56 @@ public sealed class SemiontSession : IStateUnit
     public StateValue<ConnectionState> StreamState { get; }
     public double? ExpiresAt => Token.Value is { } token ? Tokens.TokenExpiry(token) : null;
 
-    public SemiontSession(KbTarget kb, SemiontClient client, KeptSession kept)
+    /// <summary>
+    /// A script's session over a kept sign-in, with the client it is made over. It renews through
+    /// <paramref name="kept"/>, and its client's transport carries the token the session holds. Given a
+    /// <paramref name="storage"/>, the client keeps the queries protocol/specs/src/client/refresh.json marks persisted
+    /// there, for the person <paramref name="kept"/> names as the session is made, whose kept documents its caches hold
+    /// from the start, or else for the person the gateway names once that is recorded on <paramref name="kept"/>; it
+    /// writes only while <paramref name="kept"/> still names them. A sign-in it cannot read ends that keeping, and is
+    /// told on <see cref="Errors"/> as session.keep-failed. Ending the opened session ends the client, and then the
+    /// session, so what the client's closing save tells reaches the session's errors.
+    /// </summary>
+    public static async Task<OpenedSession> FromKeptAsync(KbTarget kb, ISignInKept kept, ISessionStorage? storage = null,
+        HttpClient? httpClient = null, TimeProvider? timeProvider = null, Random? random = null, CancellationToken cancellation = default)
+    {
+        ArgumentNullException.ThrowIfNull(kb);
+        ArgumentNullException.ThrowIfNull(kept);
+        if (kb.Endpoint is not KbEndpoint.HttpEndpointCase(var endpoint))
+            throw new SessionError(ProtocolFacts.SessionError("construct-failed"), "A session from a kept sign-in requires an HTTP endpoint.");
+        var errors = new Broadcast<SessionError>(keepForFirst: true);
+        var persistence = storage is null ? null : new CachePersistence(storage, kb.Id, kept, errors.Publish);
+        if (persistence is not null && await kept.HeldAsync(cancellation).ConfigureAwait(false) is { PersonKey: { } named })
+            persistence.Attach(named);
+        var credentials = new KeptSession(endpoint, kept, httpClient, timeProvider, random, errors, answered: async (token, user, recording) =>
+        {
+            if (persistence is null) return;
+            var person = RegistryStorage.PersonKey(user.Did);
+            if (await kept.RecordPersonKeyAsync(token, person, recording).ConfigureAwait(false)) persistence.Attach(person);
+        });
+        HttpTransport? transport = null;
+        try
+        {
+            transport = new HttpTransport(Gateway.Origin(endpoint), credentials.State.Token, BusRegistry.FullClientChannels,
+                refresher: credentials.RefreshAsync, httpClient: httpClient, timeProvider: timeProvider, random: random);
+            var client = new SemiontClient(transport, persistence);
+            var session = new SemiontSession(kb, client, credentials);
+            return new OpenedSession(client, () =>
+            {
+                try { client.Dispose(); }
+                finally { session.Dispose(); }
+                return ValueTask.CompletedTask;
+            }, session);
+        }
+        catch
+        {
+            credentials.Dispose();
+            transport?.Dispose();
+            throw;
+        }
+    }
+
+    internal SemiontSession(KbTarget kb, SemiontClient client, KeptSession kept)
     {
         Kb = kb;
         Client = client;

@@ -3,6 +3,7 @@ using System.Net;
 using System.Threading.Channels;
 using Microsoft.Extensions.Time.Testing;
 using Semiont.Errors;
+using Semiont.Http;
 using Semiont.Protocol;
 using Semiont.Session;
 using Semiont.SignIn;
@@ -38,7 +39,8 @@ public sealed class SessionTests
             TokenEndpoint = "https://issuer.example/token",
         });
         var endpoint = JsonSerializer.Deserialize<HttpEndpoint>("{\"kind\":\"http\",\"host\":\"kb.example\",\"port\":443,\"protocol\":\"https\"}") ?? throw new InvalidOperationException("No endpoint");
-        using (var session = new KeptSession(endpoint, kept, client, clock, new ZeroRandom()))
+        using (var session = new KeptSession(endpoint, kept, client, clock, new ZeroRandom(), new Broadcast<SessionError>(keepForFirst: true),
+            static (_, _, _) => Task.CompletedTask))
         {
             await session.ReadyAsync();
             Assert.Equal(token, session.State.Token);
@@ -56,7 +58,11 @@ public sealed class SessionTests
     public void AnInvalidGatewayIsRefusedBeforeTheSessionStarts()
     {
         var endpoint = JsonSerializer.Deserialize<HttpEndpoint>("{\"kind\":\"http\",\"host\":\"kb.example/path\",\"port\":443,\"protocol\":\"https\"}") ?? throw new InvalidOperationException("No endpoint");
-        var error = Assert.Throws<SessionError>(() => { using var session = new KeptSession(endpoint, new MemorySignIn()); });
+        var error = Assert.Throws<SessionError>(() =>
+        {
+            using var session = new KeptSession(endpoint, new MemorySignIn(), null, new TestClock(), new ZeroRandom(),
+                new Broadcast<SessionError>(keepForFirst: true), static (_, _, _) => Task.CompletedTask);
+        });
         Assert.Equal("session.construct-failed", error.Code);
     }
 
