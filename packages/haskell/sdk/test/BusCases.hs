@@ -24,6 +24,7 @@ import qualified Semiont.Timing as Timing
 import qualified Semiont.Transport as Transport
 import Semiont.Transport.Facts (traceField, userField)
 import Semiont.Types
+import Streaming (Of, Stream)
 import qualified Streaming.Prelude as Stream
 import System.Timeout (timeout)
 
@@ -36,6 +37,15 @@ body _ = error "test payload is not an object"
 
 ready :: Transport.TransportInput -> IO ()
 ready input = Transport.setState input Transport.Connecting >> Transport.setState input Transport.Open
+
+-- The failure report's first observation is a marker reported after a request settled, so the
+-- request's refusal was never published to it.
+unreported :: Transport.TransportInput -> Stream (Of TransportError) IO () -> IO ()
+unreported input observations = do
+  let marker = TransportError Code.TransportError "reported after the request settled" Nothing Nothing
+  Transport.reportError input marker
+  noticed <- Stream.toList_ (Stream.take 1 observations)
+  require "a refused reply was published to the transport's failure report" (noticed == [marker])
 
 rig :: (BusFrame -> IO (Maybe Integer)) -> IO () -> (Transport.Transport -> Transport.TransportInput -> IO result) -> IO result
 rig send shutdown action = bracket
@@ -86,6 +96,7 @@ requestFailures command browse failureRows = do
           (busRequestErrorCode problem == expected && busRequestErrorMessage problem == "peer refused" && busRequestFailure problem == Just payload)
         Right _ -> ioError (userError "failure reply became a successful result")) failureRows
   -- A failure that is not its channel's is refused, naming its first fault, and is never given words.
+  -- It is told to the request awaiting it, and the transport's failure report carries nothing.
   mapM_ (\(payload, said) -> do
     inputCell <- newEmptyTMVarIO
     let send frame = do
@@ -98,16 +109,18 @@ requestFailures command browse failureRows = do
       clock <- newTVarIO 0
       waits <- newTQueueIO
       options <- requestOptions clock waits
-      outcome <- try (Bus.request (Bus.newBus options transport) operation command Timing.busRequestTimeoutMs) :: IO (Either TransportError EmptyBusPayload)
-      case outcome of
-        Left problem -> require ("a failure that is not its channel's was not refused as " ++ Text.unpack said)
-          (transportErrorCode problem == Code.TransportError
-            && transportErrorMessage problem == "a payload on " <> channelName failure <> " is not that channel's: " <> said)
-        Right _ -> ioError (userError "a failure that is not its channel's became a successful result"))
+      Transport.errors transport $ \observations -> do
+        outcome <- try (Bus.request (Bus.newBus options transport) operation command Timing.busRequestTimeoutMs) :: IO (Either TransportError EmptyBusPayload)
+        case outcome of
+          Left problem -> require ("a failure that is not its channel's was not refused as " ++ Text.unpack said)
+            (transportErrorCode problem == Code.TransportError
+              && transportErrorMessage problem == "a payload on " <> channelName failure <> " is not that channel's: " <> said)
+          Right _ -> ioError (userError "a failure that is not its channel's became a successful result")
+        unreported input observations)
     [ (KM.empty, "it has no `message`")
     , (KM.fromList [("code", String "not-found")], "it has no `message`")
     , (KM.fromList [("message", String "peer refused"), ("code", Number 7)], "its `code` is malformed") ]
-  -- A malformed result is an error at the typed boundary and is observed once.
+  -- A malformed result is an error at the typed boundary, told to the request awaiting it alone.
   inputCell <- newEmptyTMVarIO
   let (_, result, _) = operationChannels BrowseResourceRequestedOperation
       send frame = do
@@ -123,11 +136,9 @@ requestFailures command browse failureRows = do
     Transport.errors transport $ \observations -> do
       outcome <- try (Bus.request (Bus.newBus options transport) BrowseResourceRequestedOperation browse Timing.busRequestTimeoutMs) :: IO (Either TransportError BrowseResourceResult)
       case outcome of
-        Left problem -> do
-          require "malformed result did not name its missing member" (transportErrorCode problem == Code.TransportError && Text.isInfixOf "it has no `response`" (transportErrorMessage problem))
-          noticed <- Stream.toList_ (Stream.take 1 observations)
-          require "typed request failure was not observed before it was thrown" (noticed == [problem])
+        Left problem -> require "malformed result did not name its missing member" (transportErrorCode problem == Code.TransportError && Text.isInfixOf "it has no `response`" (transportErrorMessage problem))
         Right _ -> ioError (userError "malformed result was accepted")
+      unreported input observations
   bracket (Transport.newTransport (Transport.TransportOptions "local://unsubscribed" Set.empty
     (const (ioError (userError "unsubscribed request emitted"))) (pure ())))
     (Transport.dispose . fst) $ \(transport, _) -> do

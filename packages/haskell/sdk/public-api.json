@@ -417,7 +417,7 @@
     "internal/Semiont/Internal/Annotations/Spans.hs": "d86841d8cdcbc37b924adb99aa4c30d3dff3a3d2650cb58b38025ff44a947776",
     "internal/Semiont/Internal/Broadcast.hs": "81a79b90958a3dc3dc12bc14989e7ce337eb5ec6c34c3be0ebf5c375d80089d0",
     "internal/Semiont/Internal/Browse.hs": "155591b2cc26947ae193e43e473b13fab60da9ed64dcd66071dc0f7eb9292064",
-    "internal/Semiont/Internal/Bus.hs": "8d23207933536a2061bf1d20d809d34ef5fa5ddac56f6010f6d5d6aa97c8679e",
+    "internal/Semiont/Internal/Bus.hs": "92ec3be67c1f3300dcc64fb1a1319d60d175c558f342c70e4cbcf800384d014e",
     "internal/Semiont/Internal/BusLog.hs": "a3c294fa18c035cbc564e82866054a2c7af67b1f4b182c4ec7812f1716e85e11",
     "internal/Semiont/Internal/Cache.hs": "49face8ef120545a0a7d8a17528c52c6791b047f06eb41e28ace4564957270b5",
     "internal/Semiont/Internal/Codec.hs": "fbc8af29dc06bc97706d979907ec37e53ae83273b7efb65283a33e81211c56fa",
