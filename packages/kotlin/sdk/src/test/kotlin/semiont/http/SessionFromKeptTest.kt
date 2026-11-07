@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import semiont.cache.CacheState
+import semiont.cache.PERSISTED_QUERIES
 import semiont.errors.SessionError
 import semiont.errors.SessionErrorCode
 import semiont.identifiers.ResourceId
@@ -22,16 +23,21 @@ import semiont.registry.StoredSession
 import semiont.registry.answersFresh
 import semiont.registry.cacheKey
 import semiont.registry.keptIn
+import semiont.registry.lastEventIdKey
 import semiont.registry.personKey
 import semiont.registry.storeSession
 import semiont.signin.HeldSignIn
 import semiont.signin.MemorySignIn
 import semiont.signin.SCRIPT_CLIENT_ID
+import semiont.signin.SignInKept
 import semiont.storage.MemoryStorage
 import semiont.types.HttpEndpoint
 import semiont.types.HttpEndpointProtocol
 import semiont.types.KbTarget
 import semiont.types.LocalEndpoint
+import java.io.IOException
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
 
 private val alice = Json.parseToJsonElement(
     """{"did":"did:web:example.org:users:alice","email":"alice@example.org","name":"Alice","image":null,"domain":"example.org","isAdmin":false,"isModerator":false,"termsAcceptedAt":null}""",
@@ -43,6 +49,23 @@ private val refused = buildJsonObject { put("error", "invalid_token") }
 private val ALICE_KEY = personKey(alice.getValue("did").jsonPrimitive.content)
 private val KEPT_FOR_ALICE = cacheKey("local", ALICE_KEY, "resource") to
     """{"version":1,"writtenAt":1700000000000,"entries":[["res-1",{"@context":"https://schema.org/","@id":"res-1","name":"kept","representations":[]},1700000000000]]}"""
+
+/** `beneath`, whose sign-in cannot be read while `unreadable` holds. */
+private class Unreadable(private val beneath: SignInKept) : SignInKept by beneath {
+    @Volatile
+    var unreadable = false
+
+    /** How often it was asked while it could not be read. */
+    val refused = AtomicInteger()
+
+    override suspend fun held(): HeldSignIn? {
+        if (unreadable) {
+            refused.incrementAndGet()
+            throw IOException("the sign-in cannot be read")
+        }
+        return beneath.held()
+    }
+}
 
 /** A session over HTTP from a kept sign-in: opened, renewed through itself, keeping its caches for the person its gateway names, and closed with what it opened. */
 class SessionFromKeptTest {
@@ -139,6 +162,32 @@ class SessionFromKeptTest {
                 kept.forget()
             }
             assertNull(storage.get(KEPT_FOR_ALICE.first))
+        }
+    }
+
+    @Test
+    fun aSignInThatCannotBeReadAsTheClientSavesStopsItsKeepingAndTheSessionIsToldOnce() = runBlocking {
+        Realm().use { realm ->
+            realm.answersFresh()
+            realm.script("/api/users/me", Said(200, alice))
+            val storage = MemoryStorage()
+            val kept = Unreadable(MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, ALICE_KEY)))
+            val told = CopyOnWriteArrayList<SessionError>()
+            sessionFromKept(kb(realm), kept, storage = storage, onError = { told += it }).use { opened ->
+                kept.unreadable = true
+                withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-1")).first { it is CacheState.Ready } }
+                withTimeout(5_000) {
+                    while (told.isEmpty()) delay(5)
+                }
+                // Readable again, it is not asked again: the client keeps nothing more for the rest of its life.
+                kept.unreadable = false
+                withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-2")).first { it is CacheState.Ready } }
+                delay(semiont.Timings.SAVE_DEBOUNCE_MS * 4)
+            }
+            assertEquals(listOf(SessionErrorCode.KeepFailed), told.map { it.reason })
+            assertEquals("local", told.single().kbId)
+            assertEquals(1, kept.refused.get())
+            for (key in PERSISTED_QUERIES.map { cacheKey("local", ALICE_KEY, it.wire) } + lastEventIdKey("local", ALICE_KEY)) assertNull(storage.get(key), key)
         }
     }
 

@@ -77,7 +77,8 @@ private fun asking(baseUrl: String, http: HttpClient): suspend (String) -> UserR
  * one step with its check: made only while the sign-in `kept` holds names
  * that person, read through `kept` before each write, whatever holds it. Once
  * it does not (the saved sign-in forgotten, however it was, or another sign-in
- * kept in its place, here or in another context), what was owed is dropped,
+ * kept in its place, here or in another context, or it cannot be read, which
+ * the session is told), what was owed is dropped,
  * and nothing more is written for the rest of the client's life, so nothing
  * forgetting deleted is put back. A renewal keeps the person, and changes
  * nothing. The session's own forgetting of its sign-in (`forgetting`) stops
@@ -85,12 +86,25 @@ private fun asking(baseUrl: String, http: HttpClient): suspend (String) -> UserR
  * lands after what it deletes; a registry that closes the session before it
  * deletes stops them too.
  */
-private class WhileNamed(private val kept: SignInKept) {
+private class WhileNamed(private val kept: SignInKept, private val kbId: String, private val onError: ((SessionError) -> Unit)?) {
     private val turn = Mutex()
     private val writing = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     // Read and written only while `turn` is held.
     private var dropped = false
+
+    /**
+     * Whether `kept`'s sign-in names the person whose key is `personKey`. One
+     * that cannot be read is not known to: the session is told so
+     * (`session.keep-failed`), once, as nothing is asked or written after.
+     * Called while `turn` is held.
+     */
+    private suspend fun names(personKey: String): Boolean = try {
+        kept.held()?.personKey == personKey
+    } catch (unread: Exception) {
+        onError?.invoke(SessionError(SessionErrorCode.KeepFailed, "The sign-in could not be read before the client saved what it keeps: $unread", kbId))
+        false
+    }
 
     /** `beneath`, written only while `kept`'s sign-in names the person whose key is `personKey`. */
     fun over(beneath: SessionStorage, personKey: String): SessionStorage = object : SessionStorage {
@@ -100,16 +114,7 @@ private class WhileNamed(private val kept: SignInKept) {
         private fun write(change: () -> Unit) {
             writing.launch(start = CoroutineStart.UNDISPATCHED) {
                 turn.withLock {
-                    if (!dropped) {
-                        // A sign-in that cannot be read names nobody: nothing more is written, and the failure goes on.
-                        val held = try {
-                            kept.held()
-                        } catch (unread: Exception) {
-                            dropped = true
-                            throw unread
-                        }
-                        if (held?.personKey != personKey) dropped = true
-                    }
+                    if (!dropped && !names(personKey)) dropped = true
                     if (!dropped) change()
                 }
             }
@@ -184,7 +189,7 @@ internal suspend fun sessionStarted(
     val token = MutableStateFlow<String?>(null)
     val renewing = Renewing(kept, token, http)
     val keeping = storage?.takeIf { validate }
-    val named = WhileNamed(kept)
+    val named = WhileNamed(kept, kb.id, onError)
     val atStart = keeping?.let { into -> kept.held()?.personKey?.let { person -> KeptFor(into, kb.id, person, named) } }
     // The transport's refresher is made before the session that answers it: it waits for that session,
     // and closing the transport ends the wait (SDK-FOLLOW-UPS item 16).
