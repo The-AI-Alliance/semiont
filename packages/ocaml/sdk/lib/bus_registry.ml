@@ -20,16 +20,16 @@ type packed_channel = Channel : 'a channel -> packed_channel
 type packed_operation = Operation : ('request, 'result, 'failure) operation -> packed_operation
 let json value = value
 let encode value = Yojson.Raw.to_string value
-let decode channel source =
+let channel_shape channel =
   let open Schema_shape in
-  let shape = match channel.payload with
+  match channel.payload with
     | Component name -> reference name
     | Recorded { envelope; payload } ->
         { any with all_of = [reference envelope; object_ ~members:["payload", reference payload] ()] }
     | Envelope name -> object_ ~required:["response"] ~members:["response", reference name] ~closed:["response"] ()
     | Empty | Void -> object_ ~closed:[] ()
-  in
-  Schema_codec.decode shape source
+let decode channel = Schema_codec.decode (channel_shape channel)
+let decode_received channel = Schema_codec.decode_received (channel_shape channel)
 let name value = value.name
 let payload value = value.payload
 let delivery value = value.delivery

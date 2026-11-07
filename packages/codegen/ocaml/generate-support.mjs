@@ -3,6 +3,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeOrCheck } from '../lib/committed-source.mjs';
 import { ocamlString } from '../lib/ocaml-source.mjs';
+import { readCacheRefresh } from "../schemas/cache-refresh-table.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/LICENSE'),
@@ -87,4 +88,28 @@ const attributeRows = [...new Set([...telemetry.spans, ...telemetry.metrics]
 writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/telemetry_facts.ml'),
   [`(* Generated from ${telemetrySource}. Do not edit. *)`, '', '[@@@ocamlformat "disable"]', '',
     ...spanRows, ...metricRows, ...attributeRows, ''].join('\n'),
+  process.argv.includes('--check'));
+
+const refreshSource = 'client/refresh.json';
+const refreshTable = readCacheRefresh(root, resolve(specRoot, refreshSource), (message) => {
+  throw new Error(`${refreshSource}: ${message}`);
+});
+const strings = (values) => `[${values.map(ocamlString).join('; ')}]`;
+const way = (value) => value === undefined ? '[]' : strings(value.split('.'));
+const refreshRows = refreshTable.refresh.map((row) => {
+  const when = row.when === undefined ? 'None' : `Some ${ocamlString(row.when)}`;
+  return `  (${ocamlString(row.on)}, ${when}, ${row.reach === 'held'}, ${way(row.names?.resource)}, ${way(row.names?.annotation)}, ${way(row.carries)}, ${strings(row.refetches ?? [])});`;
+});
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/live_facts.ml'),
+  [`(* Generated from ${refreshSource}. Do not edit. *)`, '', '[@@@ocamlformat "disable"]', '',
+    'let queries = [', ...refreshTable.queries.flatMap(({ name, asks }) =>
+      asks === undefined ? [] : [`  (${ocamlString(name)}, ${ocamlString(asks)});`]),
+    ']', 'let refresh = [', ...refreshRows, ']', ''].join('\n'),
+  process.argv.includes('--check'));
+
+const filterSource = 'jobs/filter-cases.json';
+const filterCases = readSpec(filterSource).cases;
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/probes/job_filter_cases.ml'),
+  `(* Generated from ${filterSource}. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n\n` +
+  `let cases = ${ocamlString(JSON.stringify(filterCases))}\n`,
   process.argv.includes('--check'));

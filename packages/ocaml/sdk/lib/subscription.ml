@@ -580,7 +580,8 @@ let request t ?(timeout_ms = t.timing.bus_request_timeout_ms) ~correlation_id
             | Error fault -> Error (Invalid_reply fault)
             | Ok payload ->
                 Result.map wrap
-                  (Bus_registry.decode channel (Bus_registry.encode payload))
+                  (Bus_registry.decode_received channel
+                     (Bus_registry.encode payload))
                 |> Result.map_error (fun fault -> Invalid_reply fault)
           in
           let receive event =

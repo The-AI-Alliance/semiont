@@ -2426,7 +2426,7 @@
         "go": "testing/synctest: every wait is package time's, on goroutines the caller's call starts."
       },
       "takes": {
-        "ocaml": { "Clock.make": ["Eio.Time.Mono.t", "Eio.Time.clock"], "Subscription.start": ["Clock.t"], "Session.start": ["Clock.t"], "Http_wire.make": ["Clock.t"] },
+        "ocaml": { "Clock.make": ["Eio.Time.Mono.t", "Eio.Time.clock"], "Subscription.start": ["Clock.t"], "Session.start": ["Clock.t"], "Http_wire.make": ["Clock.t"], "Live_query.make": ["Clock.t"] },
         "kotlin": {
           "SemiontClient": ["CoroutineContext", "TimeSource"],
           "TestClient": ["CoroutineContext", "TimeSource"],
@@ -2525,7 +2525,7 @@
         "python": "The random module, which a test seeds or patches: every jitter draws random.random()."
       },
       "takes": {
-        "ocaml": { "Clock.make": ["Random.State.t"], "Subscription.start": ["Clock.t"], "Session.start": ["Clock.t"], "Http_wire.make": ["Clock.t"] },
+        "ocaml": { "Clock.make": ["Random.State.t"], "Subscription.start": ["Clock.t"], "Session.start": ["Clock.t"], "Http_wire.make": ["Clock.t"], "Live_query.make": ["Clock.t"] },
         "rust": {
           "HttpTransportConfig": ["Rng"],
           "SemiontSessionConfig": ["Rng"],

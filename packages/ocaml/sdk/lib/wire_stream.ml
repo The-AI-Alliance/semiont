@@ -4,11 +4,14 @@ type route = {
   scope : Identifiers.Resource_id.t option;
 }
 
+type trace = { parent : string; state : string option }
+
 type frame =
   | Frame : {
       id : string option;
       route : route;
       channel : 'a Bus_registry.channel;
+      trace : trace option;
       payload : ('a Bus_registry.decoded, Bus_registry.decode_error) result;
     }
       -> frame
@@ -53,6 +56,22 @@ let recover_route source =
       | _ -> None)
   | _ -> None
 
+let take_trace = function
+  | `Assoc fields ->
+      let trace =
+        match List.assoc_opt Bus_registry.trace_field fields with
+        | Some (`Assoc carrier) ->
+            let get key = Option.bind (List.assoc_opt key carrier) string in
+            Option.map
+              (fun parent -> { parent; state = get "tracestate" })
+              (get "traceparent")
+        | _ -> None
+      in
+      ( `Assoc
+          (List.filter (fun (key, _) -> key <> Bus_registry.trace_field) fields),
+        trace )
+  | raw -> (raw, None)
+
 let decode id source =
   match Models.decode Models.bus_frame source with
   | Error fault -> Error (Invalid_frame (recover_route source, fault))
@@ -68,10 +87,11 @@ let decode id source =
       match Hashtbl.find_opt channels route.channel with
       | None -> Error (Unknown_channel route)
       | Some (Bus_registry.Channel channel) ->
+          let raw, trace = take_trace fields.payload in
           let payload =
-            Bus_registry.decode channel (Yojson.Raw.to_string fields.payload)
+            Bus_registry.decode_received channel (Yojson.Raw.to_string raw)
           in
-          Ok (Frame { id; route; channel; payload }))
+          Ok (Frame { id; route; channel; trace; payload }))
 
 let field line =
   match String.index_opt line ':' with

@@ -4,6 +4,8 @@ module S = Semiont.Subscription
 module Session = Semiont.Session
 module J = Yojson.Safe.Util
 module H = Semiont.Http_wire
+module L = Semiont.Live_query
+module W = Semiont.Worker
 
 exception Misuse of string
 
@@ -32,7 +34,7 @@ let operation name =
   | Some operation -> operation
   | None -> raise (Misuse ("unknown operation " ^ name))
 
-let resource value =
+let resource_of_name value =
   match Semiont.Identifiers.Resource_id.of_string value with
   | Ok value -> value
   | Error _ -> raise (Misuse "invalid resource ID")
@@ -72,9 +74,34 @@ type client = {
   session : Session.t;
   client_id : string;
   http : H.t;
+  clock : Semiont.Clock.t;
+  invalidation_window_ms : int option;
 }
 
-let run env =
+type mode = Wire | Worker | Live
+
+let live_operations = L.operations
+
+let scoped_channels =
+  List.filter
+    (fun (B.Channel channel) -> B.audience channel = Some B.Scoped)
+    B.channels
+
+let live_channels =
+  L.channels
+  @ List.concat_map
+      (fun (_, B.Operation operation) ->
+        [ B.Channel (B.result operation); B.Channel (B.failure operation) ])
+      live_operations
+  |> List.sort_uniq (fun (B.Channel left) (B.Channel right) ->
+      String.compare (B.name left) (B.name right))
+
+let query_key value =
+  ( string "query" value,
+    optional J.to_string "resource" value,
+    optional J.to_string "annotation" value )
+
+let run mode env =
   Switch.run @@ fun sw ->
   let output = Eio.Stdenv.stdout env in
   let input = Eio.Buf_read.of_flow ~max_size:1_048_576 (Eio.Stdenv.stdin env) in
@@ -109,6 +136,15 @@ let run env =
         (Some sink, flush)
   in
   let client = ref None in
+  let live = ref None in
+  let observers = Hashtbl.create 8 in
+  let held = ref None in
+  let accepts = ref None in
+  let claiming = ref false in
+  let claim_again = ref false in
+  let stopping = ref false in
+  let claim_timeout = ref None in
+  let kick = ref (fun () -> ()) in
   let listens = Hashtbl.create 8 in
   let holds = Hashtbl.create 8 in
   let active = Hashtbl.create 8 in
@@ -117,7 +153,7 @@ let run env =
     | Some value -> value
     | None -> raise (Misuse "open first")
   in
-  let on_event = function
+  let report_frame = function
     | Ok (Semiont.Wire_stream.Frame { route; payload = Ok payload; _ })
       when Hashtbl.mem listens route.channel ->
         let fields =
@@ -135,6 +171,45 @@ let run env =
           |> List.filter_map Fun.id
         in
         output_json (`Assoc [ ("frame", `Assoc fields) ])
+    | _ -> ()
+  in
+  let on_event event =
+    report_frame event;
+    match (mode, event) with
+    | Worker, Ok (Semiont.Wire_stream.Frame { route; payload; _ })
+      when route.channel = B.name B.Channels.job_queued -> (
+        match payload with
+        | Error _ -> !kick ()
+        | Ok payload ->
+            let announcement = Yojson.Safe.from_string (B.encode payload) in
+            if
+              Option.fold ~none:false
+                ~some:(fun filters -> W.accepts ~filters ~announcement)
+                !accepts
+            then !kick ())
+    | Worker, Error (Semiont.Wire_stream.Invalid_frame (Some route, _))
+      when route.channel = B.name B.Channels.job_queued ->
+        !kick ()
+    | Worker, Ok (Semiont.Wire_stream.Frame { route; payload = Ok payload; _ })
+      when route.channel = B.name B.Channels.job_cancel_requested ->
+        let json = Yojson.Safe.from_string (B.encode payload) in
+        Option.iter
+          (fun job ->
+            if optional J.to_string "jobId" json = Some (W.id job) then
+              output_json (`Assoc [ ("signalled", text (W.id job)) ]))
+          !held
+    | Live, Ok (Semiont.Wire_stream.Frame { route; payload; _ }) ->
+        let payload =
+          Result.to_option payload
+          |> Option.map (fun value -> Yojson.Safe.from_string (B.encode value))
+        in
+        Option.iter
+          (fun cache -> L.refetch cache ~on:route.channel ~payload)
+          !live
+    | Live, Error (Semiont.Wire_stream.Invalid_frame (Some route, _)) ->
+        Option.iter
+          (fun cache -> L.refetch cache ~on:route.channel ~payload:None)
+          !live
     | _ -> ()
   in
   let open_client input =
@@ -256,18 +331,41 @@ let run env =
     in
     let client_id = uuid env in
     let global =
-      field "channels" input |> J.to_list
-      |> List.map (fun name -> channel (J.to_string name))
+      match mode with
+      | Worker -> W.channels
+      | Live -> live_channels
+      | Wire ->
+          field "channels" input |> J.to_list
+          |> List.map (fun value -> channel (J.to_string value))
     in
+    claim_timeout := optional J.to_int "jobClaimTimeoutMs" timing;
     let subscription =
       S.start ?telemetry ~timing:subscription_timing ~sw ~clock ~client_id
         ~global ~scopes:[] ~connect ~on_event ()
     in
-    client := Some { subscription; session; client_id; http };
+    client :=
+      Some
+        {
+          subscription;
+          session;
+          client_id;
+          http;
+          clock;
+          invalidation_window_ms =
+            optional J.to_int "invalidationWindowMs" timing;
+        };
     Fiber.fork_daemon ~sw (fun () ->
+        let seen_open = ref false in
         let rec report previous =
           let current = S.await_state_change subscription ~from:previous in
           output_json (`Assoc [ ("state", text (state current)) ]);
+          if current = S.Open then (
+            if mode = Worker then !kick ();
+            if !seen_open then
+              Option.iter
+                (fun cache -> L.refetch cache ~on:"reopened" ~payload:None)
+                !live;
+            seen_open := true);
           if current <> S.Closed then report current
         in
         report S.Initial;
@@ -279,7 +377,138 @@ let run env =
       (Yojson.Safe.to_string payload)
     |> Yojson.Safe.from_string
   in
-  let close () =
+  let request client operation payload =
+    let correlation_id = uuid env in
+    let send () =
+      ignore (emit client ~correlation_id (B.request operation) payload)
+    in
+    match S.request client.subscription ~correlation_id operation ~send with
+    | Ok (S.Result payload) ->
+        Ok (Yojson.Safe.from_string (B.encode payload) |> field "response")
+    | Ok (S.Failure payload) -> Error (H.bus_failure payload)
+    | Error S.Timeout -> Error "bus.timeout"
+    | Error S.Transport_closed -> Error "bus.closed"
+    | Error S.Unsubscribed -> Error "bus.unsubscribed"
+    | Error S.Unrecognized_failure -> Error "bus.rejected"
+    | Error _ -> Error "error"
+  in
+  let make_live () =
+    let client = get_client () in
+    let load (name, resource, annotation) =
+      match List.assoc_opt name live_operations with
+      | None when name = "annotations" -> (
+          match resource with
+          | None -> Error "error"
+          | Some id -> (
+              try
+                Ok
+                  (Yojson.Safe.from_string
+                     (H.annotations client.http (resource_of_name id))
+                  |> field "annotations")
+              with H.Failed failure -> Error failure.code))
+      | None -> Error "error"
+      | Some (B.Operation operation) ->
+          let field name = Option.map (fun value -> (name, text value)) in
+          let payload =
+            `Assoc
+              (List.filter_map Fun.id
+                 [
+                   field "resourceId" resource; field "annotationId" annotation;
+                 ])
+          in
+          let response =
+            try request client operation payload
+            with H.Failed failure -> Error failure.code
+          in
+          Result.map
+            (fun json ->
+              match name with
+              | "resource" -> J.member "resource" json
+              | "annotation" -> J.member "annotation" json
+              | "events" -> J.member "events" json
+              | _ -> json)
+            response
+    in
+    let hold (_, id, _) =
+      match id with
+      | None -> Fun.id
+      | Some id ->
+          S.hold_scope client.subscription
+            { resource = resource_of_name id; channels = scoped_channels }
+    in
+    L.make ?window_ms:client.invalidation_window_ms ~sw ~clock:client.clock
+      ~load ~hold ()
+  in
+  let live_cache () =
+    match !live with
+    | Some cache -> cache
+    | None ->
+        let cache = make_live () in
+        live := Some cache;
+        cache
+  in
+  let state_json = function
+    | L.Pending -> `Assoc [ ("status", text "pending") ]
+    | L.Ready value -> `Assoc [ ("status", text "ready"); ("value", value) ]
+    | L.Failed code ->
+        `Assoc [ ("status", text "failed"); ("error", error code) ]
+  in
+  let rec claim () =
+    match (!accepts, !held) with
+    | Some accepts, None
+      when (not !stopping) && S.state (get_client ()).subscription = S.Open ->
+        if !claiming then claim_again := true
+        else (
+          claiming := true;
+          let client = get_client () in
+          Fiber.fork ~sw (fun () ->
+              let result =
+                try
+                  W.claim client.subscription client.http
+                    ~client_id:client.client_id ~correlation_id:(uuid env)
+                    ?timeout_ms:!claim_timeout ~accepts ()
+                with H.Failed failure -> W.Refused (Some failure.code)
+              in
+              claiming := false;
+              let again = !claim_again in
+              claim_again := false;
+              if not !stopping then
+                match result with
+                | W.Held job ->
+                    held := Some job;
+                    output_json (`Assoc [ ("claimed", W.view job) ])
+                | W.Empty -> if again then claim ()
+                | W.Refused code ->
+                    let fields =
+                      ( "detail",
+                        text (Option.value code ~default:"invalid claim reply")
+                      )
+                      :: Option.to_list
+                           (Option.map (fun code -> ("code", text code)) code)
+                    in
+                    output_json (`Assoc [ ("refused", `Assoc fields) ]);
+                    if again then claim ()))
+    | _ -> ()
+  in
+  kick := claim;
+  let job () =
+    match !held with Some job -> job | None -> raise (Misuse "no held job")
+  in
+  let settle action =
+    action (job ());
+    held := None;
+    claim ()
+  in
+  let close ?(settle_worker = false) () =
+    stopping := true;
+    Option.iter L.close !live;
+    if settle_worker then
+      Option.iter
+        (fun job ->
+          W.fail job ~error:"worker stopped" ~failure_class:None ~completed:None
+            ~cursors:None)
+        !held;
+    held := None;
     Option.iter
       (fun client ->
         S.close client.subscription;
@@ -297,9 +526,81 @@ let run env =
         open_client input;
         done_
     | "close" ->
-        close ();
+        close ~settle_worker:true ();
         done_
     | "sync" -> done_
+    | "claim" when mode = Worker ->
+        accepts := Some (field "accepts" input);
+        claim ();
+        done_
+    | "start" when mode = Worker ->
+        W.start (job ());
+        done_
+    | "progress" when mode = Worker ->
+        W.progress (job ())
+          ~percentage:(J.to_int (field "percentage" input))
+          ~message:(optional Fun.id "message" input);
+        done_
+    | "checkpoint" when mode = Worker ->
+        W.checkpoint (job ())
+          ~completed:(field "completedUnits" input)
+          ~cursors:(field "unitCursors" input);
+        done_
+    | "complete" when mode = Worker ->
+        settle (fun job -> W.complete job (field "result" input));
+        done_
+    | "cancel" when mode = Worker ->
+        settle (fun job ->
+            W.cancel job ~completed:(optional Fun.id "completedUnits" input));
+        done_
+    | "fail" when mode = Worker ->
+        let failure_class =
+          Option.bind
+            (optional J.to_string "failureClass" input)
+            Semiont.Enums.Failure_class.of_string
+        in
+        settle (fun job ->
+            W.fail job ~error:(string "error" input) ~failure_class
+              ~completed:(optional Fun.id "completedUnits" input)
+              ~cursors:(optional Fun.id "unitCursors" input));
+        done_
+    | "observe" when mode = Live ->
+        let observer = string "observer" input in
+        if Hashtbl.mem observers observer then
+          raise (Misuse "duplicate observer");
+        let release =
+          L.observe (live_cache ())
+            (query_key (field "query" input))
+            ~on_state:(fun state ->
+              output_json
+                (`Assoc
+                   [
+                     ( "emission",
+                       `Assoc
+                         [
+                           ("observer", text observer);
+                           ("state", state_json state);
+                         ] );
+                   ]))
+            ~on_close:(fun () ->
+              output_json (`Assoc [ ("completed", text observer) ]))
+        in
+        Hashtbl.add observers observer release;
+        done_
+    | "unobserve" when mode = Live ->
+        let observer = string "observer" input in
+        Option.iter
+          (fun release -> release ())
+          (Hashtbl.find_opt observers observer);
+        Hashtbl.remove observers observer;
+        done_
+    | "fresh" when mode = Live -> (
+        match L.fresh (live_cache ()) (query_key (field "query" input)) with
+        | Ok value -> ok (`Assoc [ ("value", value) ])
+        | Error code -> ("error", error code))
+    | "invalidate" when mode = Live ->
+        L.invalidate (live_cache ()) (query_key (field "query" input));
+        done_
     | "listen" ->
         Hashtbl.replace listens (string "channel" input) ();
         done_
@@ -316,7 +617,7 @@ let run env =
         in
         let release =
           S.hold_scope (get_client ()).subscription
-            { resource = resource name; channels }
+            { resource = resource_of_name name; channels }
         in
         Hashtbl.replace holds name
           (release :: Option.value (Hashtbl.find_opt holds name) ~default:[]);
@@ -335,7 +636,7 @@ let run env =
           (emit (get_client ())
              ?scope:
                (optional
-                  (fun value -> resource (J.to_string value))
+                  (fun value -> resource_of_name (J.to_string value))
                   "scope" input)
              ?correlation_id:(optional J.to_string "correlationId" input)
              channel (field "payload" input))
@@ -377,24 +678,25 @@ let run env =
         ok
           (Yojson.Safe.from_string
              (H.media_token (get_client ()).http
-                (resource (string "resource" input))))
+                (resource_of_name (string "resource" input))))
     | "graph" ->
         ok
           (Yojson.Safe.from_string
-             (H.graph (get_client ()).http (resource (string "resource" input))))
+             (H.graph (get_client ()).http
+                (resource_of_name (string "resource" input))))
     | "annotations" ->
         ok
           (Yojson.Safe.from_string
              (H.annotations (get_client ()).http
-                (resource (string "resource" input))))
+                (resource_of_name (string "resource" input))))
     | "anchored-text" ->
         ok
           (Yojson.Safe.from_string
              (H.anchored_text (get_client ()).http
-                (resource (string "resource" input))))
+                (resource_of_name (string "resource" input))))
     | ("get" | "get-stream") as op ->
         H.with_content (get_client ()).http ~streaming:(op = "get-stream")
-          (resource (string "resource" input))
+          (resource_of_name (string "resource" input))
           (fun ~content_type stream ->
             ok
               (`Assoc
@@ -464,4 +766,11 @@ let run env =
   in
   loop ()
 
-let () = Eio_main.run run
+let () =
+  let mode =
+    match Array.to_list Sys.argv with
+    | [ _; "--worker" ] -> Worker
+    | [ _; "--live" ] -> Live
+    | _ -> Wire
+  in
+  Eio_main.run (run mode)

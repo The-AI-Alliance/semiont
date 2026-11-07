@@ -109,13 +109,13 @@
     "dune.lock/x509.1.2.0.pkg": "57d1481d367b6687543ebab5b194f2b4ce6eb4509d70354cbfbac22a1744fb8e",
     "dune.lock/yojson.3.0.0.pkg": "d1536ef266187c4f3c66bbcef7998bac8497c175450463e075b552e0e99dc3a3",
     "dune.lock/zarith.1.14.pkg": "fd76eda421de026914a0de1c4d81d4140fd0d685f596dfe5aae1a5b83f06b75c",
-    "lib/bus_registry.ml": "56e730312403f17a77dc9b50da420bb65af844cd926143c3b1e3e54411c7009c",
-    "lib/bus_registry.mli": "7834332f59f8aed76e69abb20894f4217447b37e3877472151d3f7f5058aaff3",
+    "lib/bus_registry.ml": "42bdf47ae5c6bb0fc73b7f87fe4efe09c71b69247fcfa6cc8120eb4c44d8508a",
+    "lib/bus_registry.mli": "e75fd6ce95deeda1d3364659c1ac01c0c507fe226cf18ff97f903a321663d1ff",
     "lib/client_timing.ml": "ba5f3459d482317eb1ea394460a7aa0773bdd39acd2547dcec4e9efb25560d9f",
     "lib/client_timing.mli": "cb433bda9c37944c0dd973b950f25c229b727fef820d144b66915c26e3c4c7a5",
     "lib/clock.ml": "7fbcd81067a62d56842bf1f5b50e64e35f0efb056796a6926b1b732e52cca8b6",
     "lib/clock.mli": "9eec4a9bf79a437a5b331cc40dacd46905f70367ccae882650bce067932078b2",
-    "lib/dune": "24485c8dc552174a457a63b4431a727c28338ad4f5f64b6fbb1ff3144bd5aab0",
+    "lib/dune": "38f00134f7e01bc6adc27bec3191fe82d4c49e89c3b8482ed4a62abc4b165fcb",
     "lib/enums.ml": "e2a188bb4fd853313782622b84257a43be1c0e89472fc2323ab9c89ff1aa1232",
     "lib/enums.mli": "1c28ee0ac1ca50a86fe00ce3fe5c6ed5b015045b5cd14c8b48d46fa4b937daaf",
     "lib/http_facts.ml": "3bce75ca4edacc1682410d6c9f6faf5584fe027ff8f058c91a63f0fa59be7784",
@@ -123,31 +123,36 @@
     "lib/http_wire.mli": "c7e4d662ca05106cab45201182ac3da6f63887d97dfc74a5b89c5eea69963d50",
     "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
     "lib/identifiers.mli": "bba7e132069a1c36758c9d1bfebd936ecb815b6d05dae2b55f03a5de72f2c20d",
+    "lib/live_facts.ml": "75668f85380c149d291ff7930ef931867ebe5963e224280f0bd2469fecb1a766",
+    "lib/live_query.ml": "2cbae9cabe5ab899c83c1cebd84c1af4177bc4b747ff023f559deddf44c5d230",
+    "lib/live_query.mli": "b8ef2a4e457cc11ed363881ed136acbd4b79f4a7c3d940f71cdbc9179d1058a6",
     "lib/models.ml": "a36b2528fa00802a9e6482da3564a96c31300a8447921557f90770774d7e588c",
     "lib/models.mli": "bc54c8ce9935e9e195877b7ed8d7a6afc85ea7e3a5662139acc669c8f4f02b63",
     "lib/pattern.ml": "a41d5ebb9ebc0eee59522a4d883e2a5281202c4fbebb0a2040b267961bf677ad",
     "lib/records.ml": "708f8a26fc1b0e70509f8c5e0ff1c1c6f41d21ee1046c05f243cfdc99861722d",
     "lib/records.mli": "514f4148625dc18f131fa0bccb855db4aec56e1cea6d90cfd0efad12b9784782",
-    "lib/schema_codec.ml": "dc4b332b431a97b35c0f159224044f62df3ff3dc6501742efa17a4e19eff3345",
+    "lib/schema_codec.ml": "138a6240b6eb8810cfb608c1cb2b29717ef66fbbeb887ca57ca925cb84acb4f8",
     "lib/schema_shape.ml": "f035fcc70aa623f06257cb2c5051483c90c3869a70b618dcf66f27170673e0d4",
     "lib/schema_shapes.ml": "12f163c8f930d2cb1559aa93de7f8d5fd58583827059852e6aebdf9b03629bea",
     "lib/selector.ml": "28f250d3a6ed926ba94317cf595d39742124587c527ebcf02c6f6c043c50a7e8",
     "lib/selector.mli": "1c3c9f74ea5c90d0154547e5c3f249f4f7fcfd05f5fc97bc89ad7976a7b02716",
-    "lib/semiont.ml": "7b7e03bfd40d27ab716998a5bb9c2d1f069e85c4a5906f258c8a561191d4c8e4",
-    "lib/semiont.mli": "7ac6ffeb080510950d1a43e0881564a55959dec57787281bbbc6f5333853483a",
+    "lib/semiont.ml": "1d690cd4840bc2037dc00925283dd6a017a450c4e6795a8fa839475be18aa4fd",
+    "lib/semiont.mli": "a0d13aa276a1f5c0f8d7e421d910f44f7681758ae05c7eec0217ece173303d04",
     "lib/session.ml": "9f01d7546c52be09408419522c7b95d5b067b6c08d3bbfd78202a3495f9afc31",
     "lib/session.mli": "5202a41238b363ab84685b83c2419073b416a56373e3ff0a5bc5acc81d212656",
     "lib/strict_json.ml": "19a2f3c4c5a828e0fe55cd36eb25b685e965f0b79c21cd57cc4a17c53d0112d6",
     "lib/strict_json.mli": "818f38488855a5ce525bbf7fa483feb6aad993670115a63065029201999b50a7",
-    "lib/subscription.ml": "f4675e7c53060037c9082ee4c01d33d23b1568c7ccb9c59799819bad573de74a",
+    "lib/subscription.ml": "8eced92104ad990dcc8ff7ee9392d7a8481d6c53a56084472a7aac7411ecaa1f",
     "lib/subscription.mli": "fbc556cf060c63b46e07c7f6c14464457524d00e2c30600f34b7d30f1bbf9f46",
     "lib/telemetry.ml": "0a0e894fce2dc08882480282df978fb3919f88ab146eba570d70e1e6c4b6b6e4",
     "lib/telemetry.mli": "ceca1720a28361d5f9852d66224cf52a15137ad29d44522e968532f1e3a31c65",
     "lib/telemetry_facts.ml": "8b2c6d1ee7d75fc70b98cd0668d902fab6bf6463a302cbc8411cb6cc565cd484",
     "lib/types.ml": "5921efffb7596beb176e09960cdfa080ec954349ec2ce9d7e54bc7f638c808fe",
     "lib/types.mli": "97149245ffc84db1b741d7156a08017eff6f941179e9e6df950f212da8d60d76",
-    "lib/wire_stream.ml": "3d3bfb920d6fc1ec36f520313c5f856d2d517a649991daedc0501dc53e7ba37c",
-    "lib/wire_stream.mli": "645c74a149403f6f73ff86e00f60937a5edca97689a5267dd0f85d9a62f501c0",
+    "lib/wire_stream.ml": "0037504f44777900cfe2fde9d97b16e5c04b629aaacf7757dca0ebecb9df6c52",
+    "lib/wire_stream.mli": "b6217d5b0f374382b404eb61408b40b94c70e055d61729c88cb0cf3884397034",
+    "lib/worker.ml": "2b98e250c9b67c7f4569fbe86a4c6ab88480536cbef5991e0d62bb3a94fee4a7",
+    "lib/worker.mli": "b66a3ee36f58793c631d7e32d4b088b8d6828e54150b69baee47811eb163209d",
     "probes/api_inventory.ml": "97b819335b2d6d55f2f4a7c73422ad4df34ca5e459fe4df300f01a0ff5efb36a",
     "probes/dune": "4b82a53ae47205f7a5bfc5ac215aa840814c53ff15e0c58bc1974d913fea043b",
     "public-api.inputs.json": "16a156e808e8dfd7df61837746b0e4b8ce44e38a40f5a1b647baec0af1bfcca9",
@@ -1396,6 +1401,11 @@
       "kind": "value",
       "path": "Semiont.Bus_registry.decode",
       "declaration": "val decode : 'a channel -> string -> ('a decoded, decode_error) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.decode_received",
+      "declaration": "val decode_received :\n  'a channel -> string -> ('a decoded, decode_error) result"
     },
     {
       "kind": "value",
@@ -11675,8 +11685,18 @@
     },
     {
       "kind": "type",
+      "path": "Semiont.Wire_stream.trace",
+      "declaration": "type trace = { parent : string; state : string option; }",
+      "representation": "record",
+      "fields": [
+        "parent",
+        "state"
+      ]
+    },
+    {
+      "kind": "type",
       "path": "Semiont.Wire_stream.frame",
-      "declaration": "type frame =\n    Frame : { id : string option; route : route;\n      channel : 'a Semiont__.Bus_registry.channel;\n      payload :\n        ('a Semiont__.Bus_registry.decoded,\n         Semiont__.Bus_registry.decode_error)\n        result;\n    } -> frame",
+      "declaration": "type frame =\n    Frame : { id : string option; route : route;\n      channel : 'a Semiont__.Bus_registry.channel; trace : trace option;\n      payload :\n        ('a Semiont__.Bus_registry.decoded,\n         Semiont__.Bus_registry.decode_error)\n        result;\n    } -> frame",
       "representation": "variant",
       "constructors": [
         "Frame"
@@ -11688,6 +11708,7 @@
             "id",
             "route",
             "channel",
+            "trace",
             "payload"
           ],
           "unit": false
@@ -12331,6 +12352,187 @@
       "kind": "value",
       "path": "Semiont.Telemetry.around",
       "declaration": "val around :\n  t option ->\n  clock:Semiont__.Clock.t ->\n  string * kind -> (string * attribute) list -> (unit -> 'a) -> 'a"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Live_query",
+      "declaration": "module Live_query = Semiont__.Live_query",
+      "alias": "Semiont__.Live_query"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Live_query.t",
+      "declaration": "type ('key, 'value) t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Live_query.state",
+      "declaration": "type 'value state = Pending | Ready of 'value | Failed of string",
+      "representation": "variant",
+      "constructors": [
+        "Pending",
+        "Ready",
+        "Failed"
+      ],
+      "variants": [
+        {
+          "name": "Pending",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Ready",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Failed",
+          "fields": [],
+          "unit": false
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Live_query.make",
+      "declaration": "val make :\n  ?window_ms:int ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  load:('key -> ('value, string) result) ->\n  hold:('key -> unit -> unit) -> unit -> ('key, 'value) t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Live_query.observe",
+      "declaration": "val observe :\n  ('key, 'value) t ->\n  'key ->\n  on_state:('value state -> unit) -> on_close:(unit -> unit) -> unit -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Live_query.fresh",
+      "declaration": "val fresh : ('key, 'value) t -> 'key -> ('value, string) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Live_query.invalidate",
+      "declaration": "val invalidate : ('key, 'value) t -> 'key -> unit"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Live_query.key",
+      "declaration": "type key = string * string option * string option",
+      "representation": "abstract"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Live_query.channels",
+      "declaration": "val channels : Semiont__.Bus_registry.packed_channel list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Live_query.operations",
+      "declaration": "val operations : (string * Semiont__.Bus_registry.packed_operation) list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Live_query.refetch",
+      "declaration": "val refetch :\n  (key, Yojson.Safe.t) t -> on:string -> payload:Yojson.Safe.t option -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Live_query.close",
+      "declaration": "val close : ('key, 'value) t -> unit"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Worker",
+      "declaration": "module Worker = Semiont__.Worker",
+      "alias": "Semiont__.Worker"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Worker.held",
+      "declaration": "type held",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Worker.claim",
+      "declaration": "type claim = Held of held | Empty | Refused of string option",
+      "representation": "variant",
+      "constructors": [
+        "Held",
+        "Empty",
+        "Refused"
+      ],
+      "variants": [
+        {
+          "name": "Held",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Empty",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Refused",
+          "fields": [],
+          "unit": false
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.channels",
+      "declaration": "val channels : Semiont__.Bus_registry.packed_channel list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.accepts",
+      "declaration": "val accepts : filters:Yojson.Safe.t -> announcement:Yojson.Safe.t -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.claim",
+      "declaration": "val claim :\n  Semiont__.Subscription.t ->\n  Semiont__.Http_wire.t ->\n  client_id:string ->\n  correlation_id:string ->\n  ?timeout_ms:int -> accepts:Yojson.Safe.t -> unit -> claim"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.view",
+      "declaration": "val view : held -> Yojson.Safe.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.id",
+      "declaration": "val id : held -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.start",
+      "declaration": "val start : held -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.progress",
+      "declaration": "val progress : held -> percentage:int -> message:Yojson.Safe.t option -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.checkpoint",
+      "declaration": "val checkpoint :\n  held -> completed:Yojson.Safe.t -> cursors:Yojson.Safe.t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.complete",
+      "declaration": "val complete : held -> Yojson.Safe.t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.cancel",
+      "declaration": "val cancel : held -> completed:Yojson.Safe.t option -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.fail",
+      "declaration": "val fail :\n  held ->\n  error:string ->\n  failure_class:Semiont__.Enums.Failure_class.t option ->\n  completed:Yojson.Safe.t option -> cursors:Yojson.Safe.t option -> unit"
     }
   ]
 }

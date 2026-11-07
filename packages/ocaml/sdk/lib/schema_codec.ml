@@ -227,3 +227,39 @@ let decode shape source =
       match validate "" shape value with
       | Ok () -> Ok value
       | Error fault -> Error (Invalid_payload fault))
+
+(* The HTTP gateway stamps these verified identity facts after it validates
+   the channel payload. Preserve the original received payload for consumers. *)
+let decode_received shape source =
+  match Strict_json.parse source with
+  | Error message -> Error (Invalid_json message)
+  | Ok (`Assoc fields as raw) -> (
+      let auth = function "_userId" | "_roles" -> true | _ -> false in
+      let identity, payload =
+        List.partition (fun (key, _) -> auth key) fields
+      in
+      let identity_shape =
+        object_
+          ~members:
+            [
+              ("_userId", reference "UserId");
+              ( "_roles",
+                {
+                  any with
+                  kinds = Some [ Array ];
+                  items = Some { any with kinds = Some [ String ] };
+                } );
+            ]
+          ()
+      in
+      let result =
+        let* () = validate "" shape (`Assoc payload) in
+        validate "" identity_shape (`Assoc identity)
+      in
+      match result with
+      | Ok () -> Ok raw
+      | Error fault -> Error (Invalid_payload fault))
+  | Ok value -> (
+      match validate "" shape value with
+      | Ok () -> Ok value
+      | Error fault -> Error (Invalid_payload fault))

@@ -6,11 +6,14 @@ type route = {
   scope : Identifiers.Resource_id.t option;
 }
 
+type trace = { parent : string; state : string option }
+
 type frame =
   | Frame : {
       id : string option;
       route : route;
       channel : 'a Bus_registry.channel;
+      trace : trace option;
       payload : ('a Bus_registry.decoded, Bus_registry.decode_error) result;
     }
       -> frame

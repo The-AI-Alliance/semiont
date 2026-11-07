@@ -28,3 +28,13 @@
  (targets session_cases.ml)
  (deps ../probes/session_cases.ml)
  (action (copy %{deps} %{targets})))
+
+(test
+ (name worker_filters)
+ (modules worker_filters job_filter_cases)
+ (libraries semiont yojson alcotest))
+
+(rule
+ (targets job_filter_cases.ml)
+ (deps ../probes/job_filter_cases.ml)
+ (action (copy %{deps} %{targets})))

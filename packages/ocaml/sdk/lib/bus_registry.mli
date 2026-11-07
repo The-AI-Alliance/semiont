@@ -21,6 +21,7 @@ type ('request, 'result, 'failure) operation
 type packed_channel = Channel : 'a channel -> packed_channel
 type packed_operation = Operation : ('request, 'result, 'failure) operation -> packed_operation
 val decode : 'a channel -> string -> ('a decoded, decode_error) result
+val decode_received : 'a channel -> string -> ('a decoded, decode_error) result
 val name : 'a channel -> string
 val payload : 'a channel -> payload
 val delivery : 'a channel -> delivery option
