@@ -110,7 +110,7 @@
     ]
   },
   "session": {
-    "docs": "Why a session itself is unusable. Per-request failures stay with their caller.",
+    "docs": "Why a session itself is unusable, or has stopped keeping what its client holds. Per-request failures stay with their caller.",
     "codes": [
       {
         "code": "session.construct-failed",
@@ -127,6 +127,10 @@
       {
         "code": "session.credential-refused",
         "docs": "The gateway refused a token the issuer had just issued. The two disagree about who may sign in, and renewing again cannot change the answer: the session is over, and signing in again is what is left."
+      },
+      {
+        "code": "session.keep-failed",
+        "docs": "The sign-in the session holds could not be read before its client saved what it keeps, so it is not known to name the person that is kept for: the client keeps nothing more for the rest of its life. The session itself goes on."
       }
     ]
   },

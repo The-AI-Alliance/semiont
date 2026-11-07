@@ -156,8 +156,8 @@ const (
 	JobErrorCodeStalled JobErrorCode = "job.stalled"
 )
 
-// Why a session itself is unusable. Per-request failures stay with their
-// caller.
+// Why a session itself is unusable, or has stopped keeping what its client
+// holds. Per-request failures stay with their caller.
 type SessionErrorCode string
 
 const (
@@ -174,6 +174,11 @@ const (
 	// about who may sign in, and renewing again cannot change the answer: the
 	// session is over, and signing in again is what is left.
 	SessionErrorCodeCredentialRefused SessionErrorCode = "session.credential-refused"
+	// The sign-in the session holds could not be read before its client saved
+	// what it keeps, so it is not known to name the person that is kept for: the
+	// client keeps nothing more for the rest of its life. The session itself
+	// goes on.
+	SessionErrorCodeKeepFailed SessionErrorCode = "session.keep-failed"
 )
 
 // Why a person could not be signed in at the issuer a knowledge base trusts,
