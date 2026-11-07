@@ -10523,12 +10523,12 @@ func TestStartServiceDryRunWorker(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("want exit 0, got %d", code)
 	}
-	mustContain(t, "stdout", stdout,
+	mustContain(t, "stdout", s.norm(stdout),
 		"semiont start --service worker --dry-run",
 		"container stop semiont-worker",
 		"container image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
 		"# write <data-home>/shared/worker-knowledge-bases.json: the worker's list, example.github.io:test-kb (local)",
-		"--volume <state-home>/shared/worker.json:/etc/semiont/worker.json:ro",
+		asThisSystemRuns("--volume <state-home>/shared/worker.json:/etc/semiont/worker.json:ro"),
 		"wait: http://<host-addr>:24100/health (30s)",
 	)
 	if strings.Contains(stdout, "semiont-example.github.io-test-kb-neo4j") {
