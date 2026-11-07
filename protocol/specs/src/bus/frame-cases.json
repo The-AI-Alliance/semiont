@@ -7,10 +7,8 @@
     "python": ["packages/python/sdk/tests/test_frame_cases.py"],
     "go": ["packages/go/sdk/frame_cases_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/FrameCasesTest.kt"],
-    "swift": ["packages/swift/sdk/Tests/SemiontTests/FrameCasesTests.swift"]
-  },
-  "notYetReached": {
-    "csharp": "The C# SDK's stream reader, which is to hold each frame to BusFrame."
+    "swift": ["packages/swift/sdk/Tests/SemiontTests/FrameCasesTests.swift"],
+    "csharp": ["packages/csharp/sdk/tests/Semiont.Tests/FrameCasesTests.cs"]
   },
   "cases": [
     {

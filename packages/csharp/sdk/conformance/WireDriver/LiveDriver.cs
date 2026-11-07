@@ -148,6 +148,7 @@ internal sealed class LiveDriver : IDisposable
                     JobEvent<T>.Created(var data) => Event("created", data),
                     JobEvent<T>.Progress(var data) => Event("progress", data),
                     JobEvent<T>.Failed(var data) => Event("failed", data),
+                    JobEvent<T>.Refused(var channel, var member, var reason) => Event("refused", new { channel, member, reason }),
                     JobEvent<T>.Complete(var data) => Event("complete", data),
                 };
                 Emit(observer, new { status = "ready", value });

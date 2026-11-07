@@ -270,15 +270,16 @@ internal sealed class LiveCacheStorage(CachePersistence persistence, TimeProvide
         }
     }
 
-    internal void Apply(ReceivedBusFrame frame, Action apply)
+    internal void Apply(Carried carried, Action apply)
     {
         lock (gate)
         {
             if (closed) return;
             apply();
-            // The event's invalidations are under way before its place is noted.
-            if (person is not null && !abandoned && frame.Frame.Scope is ResourceId resource && frame.EventId is { } id &&
-                KeptTable.IsPersistedEventId(JsonSerializer.SerializeToElement(id)))
+            // A refused frame is no position on its scope, and the event's invalidations are under way before its
+            // place is noted.
+            if (person is not null && !abandoned && carried is ReceivedBusFrame { Frame.Scope: ResourceId resource } frame &&
+                frame.EventId is { } id && KeptTable.IsPersistedEventId(JsonSerializer.SerializeToElement(id)))
                 pendingPlaces[resource.Value] = id;
         }
     }

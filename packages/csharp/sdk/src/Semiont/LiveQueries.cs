@@ -218,37 +218,41 @@ internal sealed class LiveQueries : IDisposable
 
     private async Task ReadEventsAsync()
     {
-        await foreach (var received in events.Reader.ReadAllAsync().ConfigureAwait(false))
+        await foreach (var carried in events.Reader.ReadAllAsync().ConfigureAwait(false))
         {
-            if (persistence is null) ApplyFrame(received.Frame);
-            else persistence.Apply(received, () => ApplyFrame(received.Frame));
+            if (persistence is null) Apply(carried);
+            else persistence.Apply(carried, () => Apply(carried));
         }
     }
 
-    private void ApplyFrame(BusFrame frame)
+    private void Apply(Carried carried)
     {
-        if (!refresh.Contains(frame.Channel)) return;
-        Subject subject;
-        try { subject = SubjectOf(frame); }
-        catch (JsonException)
+        if (!refresh.Contains(carried.Channel)) return;
+        // A frame that cannot be read could be of anything held.
+        if (SubjectOf(carried) is not { } subject)
         {
             Refresh(Unreadable, new Subject());
             return;
         }
-        Refresh(frame.Channel, subject);
+        Refresh(carried.Channel, subject);
     }
 
-    /// <summary>What a frame on one of the table's channels names, by the ways of its row. Throws JsonException where its
-    /// channel's reading refuses it, or a member a way passes through or ends at is present and not what the way names.</summary>
-    private Subject SubjectOf(BusFrame frame)
+    /// <summary>What a frame on one of the table's channels names, by the ways of its row. None for a frame refused, one
+    /// whose payload its channel's typed read refuses, or one where a member a way passes through or ends at is present
+    /// and not what the way names.</summary>
+    private Subject? SubjectOf(Carried carried)
     {
-        BusChannels.Readings[frame.Channel](frame.Payload);
-        var row = RowOf(frame.Channel, frame.Payload);
-        return new Subject(
-            Resource: MemberAt(frame.Payload, Named(row, "resource"))?.Deserialize<ResourceId>(),
-            Annotation: MemberAt(frame.Payload, Named(row, "annotation"))?.Deserialize<AnnotationId>(),
-            Written: MemberAt(frame.Payload, OptionalText(row, "carries"))?.Deserialize<Annotation>(),
-            When: OptionalText(row, "when"));
+        if (carried is not ReceivedBusFrame { Frame.Payload: var payload } || !BusChannels.Readings[carried.Channel](carried)) return null;
+        try
+        {
+            var row = RowOf(carried.Channel, payload);
+            return new Subject(
+                Resource: MemberAt(payload, Named(row, "resource"))?.Deserialize<ResourceId>(),
+                Annotation: MemberAt(payload, Named(row, "annotation"))?.Deserialize<AnnotationId>(),
+                Written: MemberAt(payload, OptionalText(row, "carries"))?.Deserialize<Annotation>(),
+                When: OptionalText(row, "when"));
+        }
+        catch (JsonException) { return null; }
     }
 
     /// <summary>A channel's row: of a split channel, the enriched one where the member it carries is present and not

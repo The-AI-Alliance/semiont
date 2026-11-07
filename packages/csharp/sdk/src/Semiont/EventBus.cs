@@ -13,7 +13,7 @@ namespace Semiont;
 public sealed class EventBus : IDisposable
 {
     private readonly object gate = new();
-    private readonly Dictionary<string, HashSet<ChannelWriter<ReceivedBusFrame>>> channels = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, HashSet<ChannelWriter<Carried>>> channels = new(StringComparer.Ordinal);
     private bool closed;
 
     public void Emit<T>(BusChannel<T> channel, T payload, ResourceId? scope = null,
@@ -44,16 +44,16 @@ public sealed class EventBus : IDisposable
         return Bus.DecodeFrames<T>(ReadFrames(channel.Name, cancellation), resource, cancellation);
     }
 
-    private async IAsyncEnumerable<ReceivedBusFrame> ReadFrames(string channel, [EnumeratorCancellation] CancellationToken cancellation)
+    private async IAsyncEnumerable<Carried> ReadFrames(string channel, [EnumeratorCancellation] CancellationToken cancellation)
     {
         using var subscription = Listen([channel]);
-        await foreach (var frame in subscription.Reader.ReadAllAsync(cancellation).ConfigureAwait(false))
-            yield return frame;
+        await foreach (var carried in subscription.Reader.ReadAllAsync(cancellation).ConfigureAwait(false))
+            yield return carried;
     }
 
     internal Subscription Listen(string[] selected)
     {
-        var source = Channel.CreateUnbounded<ReceivedBusFrame>(new UnboundedChannelOptions { SingleReader = true });
+        var source = Channel.CreateUnbounded<Carried>(new UnboundedChannelOptions { SingleReader = true });
         lock (gate)
         {
             if (closed) source.Writer.TryComplete();
@@ -81,22 +81,22 @@ public sealed class EventBus : IDisposable
         });
     }
 
-    internal sealed class Subscription(ChannelReader<ReceivedBusFrame> reader, Action close) : IDisposable
+    internal sealed class Subscription(ChannelReader<Carried> reader, Action close) : IDisposable
     {
         private Action? release = close;
-        internal ChannelReader<ReceivedBusFrame> Reader { get; } = reader;
+        internal ChannelReader<Carried> Reader { get; } = reader;
         public void Dispose() => Interlocked.Exchange(ref release, null)?.Invoke();
     }
 
-    internal void Receive(ReceivedBusFrame frame)
+    internal void Receive(Carried carried)
     {
-        lock (gate) Publish(frame);
+        lock (gate) Publish(carried);
     }
 
-    private void Publish(ReceivedBusFrame frame)
+    private void Publish(Carried carried)
     {
-        if (channels.TryGetValue(frame.Frame.Channel, out var listeners))
-            foreach (var listener in listeners) listener.TryWrite(frame);
+        if (channels.TryGetValue(carried.Channel, out var listeners))
+            foreach (var listener in listeners) listener.TryWrite(carried);
     }
 
     public void Dispose()
