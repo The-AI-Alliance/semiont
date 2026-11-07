@@ -152,7 +152,10 @@ class SignInError(SemiontError):
 
 @final
 class SessionError(SemiontError):
-    """A failure that makes a session itself unusable. A request's own failure stays with its caller."""
+    """A failure of a session itself: one that makes it unusable, or one that ends what its client keeps (`session.keep-failed`).
+
+    A request's own failure stays with its caller.
+    """
 
     def __init__(self, code: SemiontSessionErrorCode, message: str, *, kb_id: str) -> None:
         super().__init__(message)

@@ -900,7 +900,18 @@
         { "member": "invalidateAll" },
         { "member": "remove" },
         { "member": "set" },
-        { "member": "persistencePending" }
+        { "member": "persistencePending" },
+        {
+          "member": "attach",
+          "absent": {
+            "typescript": "TypeScript's client gives a cache what keeps its values through createPersistableCache, which the SDK does not export.",
+            "rust": "Rust's is pub(crate): the client that makes a cache gives it what keeps its values.",
+            "go": "Go's is unexported: the client that makes a cache gives it what keeps its values.",
+            "kotlin": "Kotlin's is internal: the client that makes a cache gives it what keeps its values.",
+            "swift": "A Swift cache is given what keeps its values when it is made.",
+            "csharp": "A C# cache keeps nothing itself: its client's CachePersistence keeps what its caches hold."
+          }
+        }
       ]
     },
     {

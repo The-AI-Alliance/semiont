@@ -11,7 +11,7 @@ from typing import Final, NamedTuple, final
 
 from pydantic import TypeAdapter
 
-from semiont.cache import Cache, persistable_cache
+from semiont.cache import Cache
 from semiont.cached import Cached, Source
 from semiont.errors import BusRequestError, SemiontError
 from semiont.identifiers import AnnotationId, ResourceId
@@ -108,8 +108,8 @@ def _persisted[K: Hashable, V](
     fetch: Callable[[K], Awaitable[V]], tasks: Links, query: CacheQuery, key: TypeAdapter[K], value: TypeAdapter[V]
 ) -> tuple[Cache[K, V], Callable[[CachePersistence], None]]:
     """The cache of `query`, and what keeps it where a persistence says once the client knows where."""
-    cache, attach = persistable_cache(fetch, tasks=tasks)
-    return cache, lambda persistence: attach(_kept(persistence, query, key, value))
+    cache = Cache(fetch, tasks=tasks)
+    return cache, lambda persistence: cache.attach(_kept(persistence, query, key, value))
 
 
 class ResourceFilters(NamedTuple):

@@ -17,7 +17,7 @@ shows nobody anything. What it needs of its surroundings it is given:
   refused to renew it (`expired`), or the gateway refused a token the issuer
   had just issued (`refused`). A reason is not a sentence: what a person reads is the
   host's to say. `on_error` is told of every failure that makes the session
-  unusable.
+  unusable, and of the client keeping nothing more (`session.keep-failed`).
 
 **How a token is held** is one rule for every SDK
 (`protocol/specs/src/session/cases.json`, which this package's tests run): when a

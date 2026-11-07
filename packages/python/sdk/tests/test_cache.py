@@ -13,7 +13,7 @@ from typing import final, override
 import pytest
 from aio import pass_time, run, soon, turns
 
-from semiont.cache import Cache, CachePersister, CacheState, Failed, Pending, Ready, Runs, persistable_cache
+from semiont.cache import Cache, CachePersister, CacheState, Failed, Pending, Ready, Runs
 from semiont.errors import BusRequestError, SemiontError
 from semiont.testing.axioms import AxiomSubject, Fresh, assert_state_unit_axioms
 from semiont.timing import SAVE_DEBOUNCE_MS
@@ -587,13 +587,13 @@ def test_b17_a_cache_begins_with_what_was_kept_and_b18_asks_for_it_anew_the_firs
 def test_b17_a_cache_given_what_was_kept_after_it_began_takes_only_the_keys_it_holds_nothing_for_and_b18_asks_for_them_anew() -> None:
     async def scenario() -> None:
         service, tasks = Service(), Tasks()
-        cache, attach = persistable_cache(service.fetch, tasks=tasks)
+        cache = Cache(service.fetch, tasks=tasks)
         cache.set("held", 7)
         # Keeping nothing, it owes nothing.
         assert not owing(cache)
 
         persister = Kept({"held": 1, KEY: 2})
-        attach(persister)
+        cache.attach(persister)
         # What it holds stands; what it holds nothing for is what was kept, and nothing is asked for yet.
         assert (cache.get("held"), cache.get(KEY)) == (7, 2)
         assert service.asked == []

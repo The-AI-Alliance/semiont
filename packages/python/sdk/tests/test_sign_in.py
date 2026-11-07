@@ -1026,20 +1026,14 @@ def test_a_session_whose_issuer_will_not_renew_it_is_over_and_its_sign_in_is_for
     run(scenario())
 
 
-@final
-class Slowly(SignInKept):
-    """A kept sign-in that is read at once the first time, and after that only once it is released."""
+class InMemory(SignInKept):
+    """A sign-in kept as `MemorySignIn` keeps one, for a test's own kind to read as it reads it."""
 
     def __init__(self, sign_in: HeldSignIn) -> None:
-        self._kept = MemorySignIn(sign_in)
-        self.release = asyncio.Event()
-        self.reads = 0
+        self._kept: Final = MemorySignIn(sign_in)
 
     @override
     async def held(self) -> HeldSignIn | None:
-        self.reads += 1
-        if self.reads > 1:
-            await self.release.wait()
         return await self._kept.held()
 
     @override
@@ -1057,6 +1051,23 @@ class Slowly(SignInKept):
     @override
     async def forget(self) -> None:
         await self._kept.forget()
+
+
+@final
+class Slowly(InMemory):
+    """A kept sign-in that is read at once the first time, and after that only once it is released."""
+
+    def __init__(self, sign_in: HeldSignIn) -> None:
+        super().__init__(sign_in)
+        self.release = asyncio.Event()
+        self.reads = 0
+
+    @override
+    async def held(self) -> HeldSignIn | None:
+        self.reads += 1
+        if self.reads > 1:
+            await self.release.wait()
+        return await super().held()
 
 
 def test_renewals_asked_for_together_spend_one_refresh_token() -> None:
@@ -1462,5 +1473,74 @@ def test_a_session_over_a_registrys_kept_sign_in_puts_back_nothing_that_forgetti
             # Its client closed owing a write, and wrote nothing.
             for key in (last_event_id_key("kb", ALICE_KEY), *(cache_key("kb", ALICE_KEY, query) for query in PERSISTED_QUERIES)):
                 assert storage.get(key) is None, key
+
+    run(scenario())
+
+
+@final
+class Unreadable(InMemory):
+    """A kept sign-in that is read as any is until `failing` is set, and after that cannot be read."""
+
+    def __init__(self, sign_in: HeldSignIn) -> None:
+        super().__init__(sign_in)
+        self.failing = False
+
+    @override
+    async def held(self) -> HeldSignIn | None:
+        if self.failing:
+            raise OSError("the sign-in could not be read")
+        return await super().held()
+
+
+def test_a_session_whose_sign_in_cannot_be_read_when_its_client_saves_keeps_nothing_more_and_says_so_once() -> None:
+    async def scenario() -> None:
+        storage = MemoryStorage()
+        errors: list[SessionError] = []
+        kept_keys = (last_event_id_key("kb", ALICE_KEY), *(cache_key("kb", ALICE_KEY, query) for query in PERSISTED_QUERIES))
+
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+
+            def answering(emit: JsonObject) -> None:
+                payload = emit.get("payload")
+                if emit["channel"] == "browse:resource-requested" and isinstance(payload, dict):
+                    described: JsonObject = {
+                        "@context": "https://schema.org",
+                        "@id": payload["resourceId"],
+                        "name": "A resource",
+                        "representations": [],
+                    }
+                    answer: JsonObject = {"response": {"resource": described, "lastSequence": 1}}
+                    gateway.send(None, {"channel": "browse:resource-result", "payload": answer, "correlationId": emit["correlationId"]})
+
+            gateway.on_emit = answering
+            kept = Unreadable(held(gateway, access(1)))
+
+            async with session_from_kept(gateway.target("kb"), kept=kept, storage=storage, on_error=errors.append) as session:
+                client = session.client
+                # Ready once the gateway has named the person: what the client holds is kept for her from then on.
+                await soon(session.ready())
+                await soon(client.browse.resource(ResourceId("res-1")).fresh())
+                # Held, and not yet written.
+                assert not client.persistence_settled
+
+                kept.failing = True
+                await pass_time(0.2, step=0.01)
+                for key in kept_keys:
+                    assert storage.get(key) is None, key
+                assert [(error.code, error.kb_id) for error in errors] == [("session.keep-failed", "kb")]
+
+                # A sign-in that can be read again does not bring the keeping back.
+                kept.failing = False
+                await soon(client.browse.resource(ResourceId("res-2")).fresh())
+                await pass_time(0.2, step=0.01)
+                for key in kept_keys:
+                    assert storage.get(key) is None, key
+                assert len(errors) == 1
+
+            # Closing raises nothing, writes nothing, and says nothing more.
+            for key in kept_keys:
+                assert storage.get(key) is None, key
+            assert len(errors) == 1
 
     run(scenario())

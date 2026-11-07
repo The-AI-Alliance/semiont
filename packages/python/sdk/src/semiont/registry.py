@@ -415,7 +415,7 @@ class SessionFactoryOptions:
     signals: SessionSignals
     """Where the session says it is over, for a host to show."""
     on_error: Callable[[SessionError], None]
-    """Told each failure that makes the session unusable."""
+    """Told each failure that makes the session unusable, and of its client keeping nothing more (`session.keep-failed`)."""
 
 
 class SessionFactory(Protocol):
@@ -649,7 +649,7 @@ class SemiontBrowser:
         return Reading(self._last_viewed)
 
     def errors(self) -> Events[SessionError]:
-        """The failures that made a session unusable, from now on, until the registry is closed."""
+        """The failures that made a session unusable or ended what its client keeps, from now on, until the registry is closed."""
         return self._failures.listen()
 
     @property

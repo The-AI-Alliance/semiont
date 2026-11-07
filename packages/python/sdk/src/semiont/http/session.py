@@ -138,16 +138,21 @@ class _WhileNamed(SessionStorage):
     can reach, or replaced by a sign-in that names nobody or someone else,
     what is owed is dropped and nothing is written again. A renewal names the
     same person, and changes nothing. A sign-in that cannot be read counts as
-    one that no longer names the person, and so does a write the storage
-    refuses: what failed is raised by `close`. What is owed reads as written.
+    one that no longer names the person, and `unreadable` is told of it once,
+    as it happens. A write the storage refuses loses that save, and writing
+    goes on: the first refused is raised by `close`. What is owed reads as
+    written.
     """
 
-    def __init__(self, storage: SessionStorage, kept: SignInKept, person: str) -> None:
+    def __init__(self, storage: SessionStorage, kept: SignInKept, person: str, unreadable: Callable[[Exception], None]) -> None:
         self._storage: Final = storage
         self._kept: Final = kept
         self._person: Final = person
+        self._unreadable: Final = unreadable
         self._owed: list[tuple[str, str | None]] = []
         """Each write not yet made, in order: a key, and its value, or nothing for its removal."""
+        self._refused: Exception | None = None
+        """The first write the storage refused, which `close` raises."""
         self._owing: Final = asyncio.Event()
         self._closing = False
         self._dropped = False
@@ -180,7 +185,7 @@ class _WhileNamed(SessionStorage):
             self._owing.set()
 
     async def _write(self) -> None:
-        """Make what is owed whenever something is, until closing, until the sign-in no longer names the person, or until a failure.
+        """Make what is owed whenever something is, until closing, or until the sign-in no longer names the person or cannot be read.
 
         However it ends, what is owed is dropped and nothing is written again.
         """
@@ -189,31 +194,51 @@ class _WhileNamed(SessionStorage):
                 await self._owing.wait()
                 self._owing.clear()
                 if self._owed:
-                    held = await self._kept.held()
+                    try:
+                        held = await self._kept.held()
+                    except Exception as unread:
+                        self._unreadable(unread)
+                        return
                     # Nothing is awaited from here to the last write: where `held` answers without waiting,
                     # as this SDK's holders do, no forgetting falls between its answer and the writes.
                     owed, self._owed = self._owed, []
                     if held is None or held.person_key != self._person:
                         return
-                    for key, value in owed:
-                        if value is None:
-                            self._storage.delete(key)
-                        else:
-                            self._storage.set(key, value)
+                    self._make(owed)
                 if self._closing:
                     return
         finally:
             self._dropped = True
             self._owed.clear()
 
+    def _make(self, owed: list[tuple[str, str | None]]) -> None:
+        """Make each write in turn, up to one the storage refuses.
+
+        A refusal ends the turn, so a place never lands without the cache
+        document it rides with. What it lost is written by the next save,
+        which writes its document whole; a place it lost is only late.
+        """
+        for key, value in owed:
+            try:
+                if value is None:
+                    self._storage.delete(key)
+                else:
+                    self._storage.set(key, value)
+            except Exception as refused:
+                if self._refused is None:
+                    self._refused = refused
+                return
+
     async def close(self) -> None:
         """Make what is owed, as every write is made, and then nothing more.
 
-        Raises what the writing failed with: a sign-in that could not be read, or a write the storage refused.
+        Raises the first write the storage refused, when one was.
         """
         self._closing = True
         self._owing.set()
         await self._writer
+        if self._refused is not None:
+            raise self._refused
 
 
 @final
@@ -224,20 +249,27 @@ class _Keeping:
     """
 
     def __init__(
-        self, kb_id: str, storage: SessionStorage, kept: SignInKept, transport: HttpTransport, client: SemiontClient[HttpTransport]
+        self,
+        kb_id: str,
+        storage: SessionStorage,
+        kept: SignInKept,
+        transport: HttpTransport,
+        client: SemiontClient[HttpTransport],
+        on_error: Callable[[SessionError], None] | None,
     ) -> None:
         self._kb_id: Final = kb_id
         self._storage: Final = storage
         self._kept: Final = kept
         self._transport: Final = transport
         self._client: Final = client
+        self._on_error: Final = on_error
         self._person: str | None = None
         self._beneath: _WhileNamed | None = None
 
     def attach(self, person: str) -> None:
         """Keep what the client holds for `person` from now on: their caches begin with what was kept, and the stream with its places."""
         self._person = person
-        beneath = self._beneath = _WhileNamed(self._storage, self._kept, person)
+        beneath = self._beneath = _WhileNamed(self._storage, self._kept, person, self._unreadable)
         # The stream's place rides the caches' writes, and only when every cache is
         # at rest: a place kept ahead of a cache still taking in the event it names
         # would have the next session skip that event.
@@ -262,10 +294,22 @@ class _Keeping:
 
         return validate
 
+    def _unreadable(self, unread: Exception) -> None:
+        """Tell the session's host that its client keeps nothing more: the sign-in could not be read before a save."""
+        if self._on_error is None:
+            return
+        failed = SessionError(
+            "session.keep-failed",
+            f"The sign-in could not be read before what the client keeps was saved, so it keeps nothing more: {unread}",
+            kb_id=self._kb_id,
+        )
+        failed.__cause__ = unread
+        self._on_error(failed)
+
     async def close(self) -> None:
         """Make what the client still owes once it has closed, as every write is made: only while the sign-in names its person.
 
-        Raises what that writing failed with (`_WhileNamed.close`).
+        Raises the first write the storage refused (`_WhileNamed.close`).
         """
         if self._beneath is not None:
             await self._beneath.close()
@@ -325,9 +369,10 @@ async def session_from_kept(
     a saved sign-in deletes what was kept for its person only where what holds
     it keeps it in `storage` itself, for `kb` (`semiont.registry.kept_in`), as
     a registry's does; a `MemorySignIn` cannot reach the storage, and deletes
-    nothing. A sign-in that cannot be read before a write, or a write the
-    storage refuses, ends what the session keeps, and is raised on the way
-    out.
+    nothing. A sign-in that cannot be read before a write ends what the
+    client keeps, and `on_error` is told once (`session.keep-failed`). A write
+    the storage refuses loses that save, and writing goes on: the first
+    refused is raised on the way out.
 
     With `http`, every request of the session, of the gateway and of the
     issuer, is made with that client, which its caller built and closes
@@ -367,7 +412,7 @@ async def _session_started(
 
     What its client still owes once it has closed is made as every write is,
     only while `kept` names the person, so what forgetting the sign-in deleted
-    stays deleted. What that writing failed with is raised on the way out: a
+    stays deleted. A write the storage refused is raised on the way out: a
     registry raises it from its `close`, as it does every failure of what it
     runs.
     """
@@ -382,7 +427,7 @@ async def _session_started(
     keeping: _Keeping | None = None
     # A session that never asks who its token is never learns whose its caches would be, and keeps nothing.
     if storage is not None and asking is not None:
-        keeping = _Keeping(kb.id, storage, kept, transport, client)
+        keeping = _Keeping(kb.id, storage, kept, transport, client, on_error)
         if named is not None and named.person_key is not None:
             keeping.attach(named.person_key)
         asking = keeping.recording(asking)
