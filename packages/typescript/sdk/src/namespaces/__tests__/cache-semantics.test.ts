@@ -16,7 +16,8 @@ import type { components, StoredEvent, EventOfType, EventMetadata, UserId, Resou
 import type { ConnectionState } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
 import { isReady, readyValue, type CacheState } from '../../cache';
-import { coupledLastEventId, type CachePersistence } from '../../cache-persister';
+import { coupledLastEventId } from '../../cache-persister';
+import { SemiontClient } from '../../client';
 import { InMemorySessionStorage } from '../../session/session-storage';
 import { cacheKey, lastEventIdKey, personKey } from '../../session/storage';
 import type { IContentTransport } from '@semiont/core';
@@ -166,11 +167,10 @@ interface HarnessOptions {
   silentChannels?: string[];
   /** Threaded to BrowseNamespace so timeout tests run on short real time. */
   busTimeoutMs?: number;
-  /** Threaded to BrowseNamespace: its kept caches persist through this storage, for its knowledge base and person. */
-  cachePersistence?: CachePersistence;
 }
 
-function createHarness(opts: HarnessOptions = {}) {
+/** The harness's wire: its transport, whose replies the options parameterize, and its content transport. */
+function createWire(opts: HarnessOptions) {
   const transportBus = new EventBus();
   const state = {
     resourceName: opts.resourceName ?? ((id: string) => `Resource ${id}`),
@@ -272,10 +272,14 @@ function createHarness(opts: HarnessOptions = {}) {
     dispose: vi.fn(),
   };
 
+  return { transport, content, emitSpy, getAnnotations, state };
+}
+
+function createHarness(opts: HarnessOptions = {}) {
+  const { transport, content, emitSpy, getAnnotations, state } = createWire(opts);
   const eventBus = new EventBus();
   const browse = new BrowseNamespace(transport, eventBus, content, {
     ...(opts.busTimeoutMs !== undefined ? { busTimeoutMs: opts.busTimeoutMs } : {}),
-    ...(opts.cachePersistence !== undefined ? { cachePersistence: opts.cachePersistence } : {}),
   });
 
   return { browse, eventBus, emitSpy, getAnnotations, state };
@@ -969,13 +973,20 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
     /** The person the persisted harness keeps for, on kb-1. */
     const PERSON = personKey('did:web:example.org:users:jo');
 
-    /** A harness whose kept caches persist through storage coupled to the stream's places, gated as the session factory gates them. */
-    function persistedHarness(options: Omit<HarnessOptions, 'cachePersistence'>) {
+    /**
+     * A client over the harness's wire whose kept caches persist through storage carrying the stream's
+     * places, the places coupled to the client as the session factory couples them.
+     */
+    function persistedHarness(options: HarnessOptions) {
       const storage = new InMemorySessionStorage();
-      const coupled = coupledLastEventId(storage, lastEventIdKey('kb-1', PERSON));
-      const harness = createHarness({ ...options, cachePersistence: { storage: coupled.storage, kbId: 'kb-1', personKey: PERSON } });
-      coupled.setFlushGate(() => harness.browse.persistenceSettled());
-      return { ...harness, storage, saveLastEventId: coupled.saveLastEventId };
+      const places = coupledLastEventId(storage, lastEventIdKey('kb-1', PERSON));
+      const { transport, content, state } = createWire(options);
+      const client = new SemiontClient(transport, content, undefined, {
+        cachePersistence: { storage: places.storage, kbId: 'kb-1', personKey: PERSON },
+        ...(options.busTimeoutMs !== undefined ? { busTimeoutMs: options.busTimeoutMs } : {}),
+      });
+      places.coupleTo(client);
+      return { client, state, storage, saveLastEventId: places.saveLastEventId };
     }
 
     /** The total of the resource's annotations its kept document holds. */
@@ -989,16 +1000,16 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
     it("a window holding an owed invalidation at disposal leaves the places unwritten, and the caches' documents are still flushed (B17-Q)", async () => {
       vi.useFakeTimers();
       try {
-        const { browse, eventBus, state, storage, saveLastEventId } = persistedHarness({});
-        const sub = browse.annotations(RID).subscribe(() => {});
-        await firstDefined(browse.annotations(RID));
+        const { client, state, storage, saveLastEventId } = persistedHarness({});
+        const sub = client.browse.annotations(RID).subscribe(() => {});
+        await firstDefined(client.browse.annotations(RID));
         state.annotationCount = 2;
-        eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-a'));
-        eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-b'));
+        client.bus.emit('mark:added', fakeMarkAdded(RID, 'ann-a'));
+        client.bus.emit('mark:added', fakeMarkAdded(RID, 'ann-b'));
         saveLastEventId(RID, 'p-res-1-2');
         await vi.advanceTimersByTimeAsync(0);
         sub.unsubscribe();
-        browse.dispose();
+        client.dispose();
         expect(keptTotal(storage), 'the save the annotations owed is flushed').toBe(2);
         expect(storage.get(lastEventIdKey('kb-1', PERSON)), 'the places wait for the refetch disposal drops').toBeNull();
       } finally {
@@ -1009,15 +1020,15 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
     it('with nothing owed at disposal, the documents flushed then carry the places (B17-Q)', async () => {
       vi.useFakeTimers();
       try {
-        const { browse, eventBus, state, storage, saveLastEventId } = persistedHarness({});
-        const sub = browse.annotations(RID).subscribe(() => {});
-        await firstDefined(browse.annotations(RID));
+        const { client, state, storage, saveLastEventId } = persistedHarness({});
+        const sub = client.browse.annotations(RID).subscribe(() => {});
+        await firstDefined(client.browse.annotations(RID));
         state.annotationCount = 2;
-        eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-a'));
+        client.bus.emit('mark:added', fakeMarkAdded(RID, 'ann-a'));
         saveLastEventId(RID, 'p-res-1-2');
         await vi.advanceTimersByTimeAsync(0);
         sub.unsubscribe();
-        browse.dispose();
+        client.dispose();
         expect(keptTotal(storage), 'the save the annotations owed is flushed').toBe(2);
         const places = storage.get(lastEventIdKey('kb-1', PERSON));
         if (places === null) throw new Error('The places were not written');
@@ -1030,18 +1041,18 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
     it("a fetch in flight in a kept cache disposed first leaves the places unwritten when the next cache's document is flushed (B17-Q)", async () => {
       vi.useFakeTimers();
       try {
-        const { browse, eventBus, state, storage, saveLastEventId } = persistedHarness({ silentChannels: ['browse:resource-requested'] });
-        const annotationsSub = browse.annotations(RID).subscribe(() => {});
-        await firstDefined(browse.annotations(RID));
+        const { client, state, storage, saveLastEventId } = persistedHarness({ silentChannels: ['browse:resource-requested'] });
+        const annotationsSub = client.browse.annotations(RID).subscribe(() => {});
+        await firstDefined(client.browse.annotations(RID));
         // The resource cache is disposed before the annotations: its fetch is never answered.
-        const resourceSub = browse.resource(RID).subscribe(() => {});
+        const resourceSub = client.browse.resource(RID).subscribe(() => {});
         state.annotationCount = 2;
-        eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-a'));
+        client.bus.emit('mark:added', fakeMarkAdded(RID, 'ann-a'));
         saveLastEventId(RID, 'p-res-1-2');
         await vi.advanceTimersByTimeAsync(0);
         resourceSub.unsubscribe();
         annotationsSub.unsubscribe();
-        browse.dispose();
+        client.dispose();
         expect(keptTotal(storage), 'the save the annotations owed is flushed').toBe(2);
         expect(storage.get(lastEventIdKey('kb-1', PERSON)), 'the places wait for the fetch disposal drops').toBeNull();
       } finally {

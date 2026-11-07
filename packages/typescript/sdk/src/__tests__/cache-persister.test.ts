@@ -10,8 +10,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { coupledLastEventId, sessionStoragePersister, type EntryDecoder } from '../cache-persister';
 import type { SessionStorage } from '../session/session-storage';
+import { personKey } from '../session/storage';
 import { TestStorage } from '../session/__tests__/test-storage-helpers';
-import { isObject, isString, resourceId } from '@semiont/core';
+import { createTestClient, inMemoryContent } from '../testing';
+import { isObject, isString, resourceId, type components } from '@semiont/core';
+
+type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
 
 const KEY = 'semiont.cache.kb-1.resource';
 
@@ -139,11 +143,20 @@ describe('coupledLastEventId (B17 — the bookmark rides the cache flush)', () =
     expect(JSON.parse(storage.get(ID_KEY)!)).toEqual({ 'res-1': 'p-res-1-47' });
   });
 
-  it('a cache-document update flushes the pending ids as a set does, when the flush gate allows it', () => {
+  it('a cache-document update flushes the pending ids as a set does, once the client the places are coupled to is at rest', async () => {
     const { storage, writes } = recordingStorage();
     const coupled = coupledLastEventId(storage, ID_KEY);
-    let quiet = false;
-    coupled.setFlushGate(() => quiet);
+    const refusals: Array<(reason: Error) => void> = [];
+    const { client } = createTestClient({
+      content: {
+        ...inMemoryContent(),
+        getAnnotations: () => new Promise<GetAnnotationsResponse>((_, reject) => { refusals.push(reject); }),
+      },
+      cachePersistence: { storage: coupled.storage, kbId: 'kb-1', personKey: personKey('did:web:example.org:users:jo') },
+    });
+    coupled.coupleTo(client);
+    // A kept cache's fetch is in flight: the client is not at rest.
+    const asked = client.browse.annotations(resourceId('res-1')).fresh();
 
     coupled.saveLastEventId(resourceId('res-1'), 'p-res-1-47');
     coupled.storage.update('semiont.cache.kb-1.resource', () => '{"doc":1}');
@@ -152,12 +165,15 @@ describe('coupledLastEventId (B17 — the bookmark rides the cache flush)', () =
     expect(writes.map(([k]) => k)).toEqual(['semiont.cache.kb-1.resource']);
     expect(storage.get(ID_KEY)).toBeNull();
 
-    quiet = true;
+    // The fetch fails, and nothing is in flight or owed: the client is at rest, having written nothing.
+    refusals.forEach((refuse) => refuse(new Error('the gateway refused the read')));
+    await expect(asked).rejects.toThrow('the gateway refused the read');
     coupled.storage.update('semiont.cache.kb-1.resource', () => '{"doc":2}');
 
     // Document first, ids second.
     expect(writes.map(([k]) => k)).toEqual(['semiont.cache.kb-1.resource', 'semiont.cache.kb-1.resource', ID_KEY]);
     expect(JSON.parse(storage.get(ID_KEY)!)).toEqual({ 'res-1': 'p-res-1-47' });
+    client.dispose();
   });
 
   it('with no pending ids, a document write is just a document write', () => {

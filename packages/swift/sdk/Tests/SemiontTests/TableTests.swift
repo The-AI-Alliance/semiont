@@ -58,6 +58,96 @@ private func asJSON<Value: Encodable>(_ value: Value) throws -> JSONValue {
   #expect(Set(cacheRefreshChannels.keys.map(\.rawValue)) == triggers.intersection(channels))
 }
 
+/// The live queries whose `value` in client/refresh.json waits on a ruling, so the census below
+/// does not hold them yet.
+private let valuesAwaitingARuling: Set<String> = ["engines"]
+
+/// What a live query's cache holds, as client/refresh.json's `value` names it: a component, and
+/// the members within it that the value is, outermost first.
+private struct HeldValue: Equatable, CustomStringConvertible {
+  let component: String
+  let members: [String]
+
+  var description: String { ([component] + members).joined(separator: ".") }
+}
+
+/// What `value`'s reference names: the component of its file, and each member its pointer
+/// passes, `#/properties/a/properties/b` passing a, then b.
+private func heldValue(_ value: JSONValue) throws -> HeldValue {
+  let reference = try required(value.object, "$ref").text
+  let parts = reference.split(separator: "#", omittingEmptySubsequences: false).map(String.init)
+  guard parts.count <= 2 else { throw SpecFailure.shape("\(reference) is no reference") }
+  let component = URL(fileURLWithPath: parts[0]).deletingPathExtension().lastPathComponent
+  guard parts.count == 2 else { return HeldValue(component: component, members: []) }
+  let way = parts[1].split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+  guard way.first == "", way.count % 2 == 1 else {
+    throw SpecFailure.shape("\(reference) is no way through members")
+  }
+  var members: [String] = []
+  for index in stride(from: 1, to: way.count, by: 2) {
+    guard way[index] == "properties" else {
+      throw SpecFailure.shape("\(reference) passes \(way[index]), which is no member")
+    }
+    members.append(way[index + 1])
+  }
+  return HeldValue(component: component, members: members)
+}
+
+/// The component `component`, held by the cache at `cache`: the compiler holds the cache to it.
+private func held<Key, Value>(
+  _ cache: KeyPath<LiveQueries, Cache<Key, Value>>, _ component: Value.Type
+) -> HeldValue {
+  HeldValue(component: String(describing: component), members: [])
+}
+
+/// The member `name` of the component `Root`, which `member` reads, held by the cache at
+/// `cache`: the compiler holds the cache to the member's type.
+private func held<Key, Root, Value>(
+  _ cache: KeyPath<LiveQueries, Cache<Key, Value>>, _ member: KeyPath<Root, Value>,
+  _ name: String
+) -> HeldValue {
+  HeldValue(component: String(describing: Root.self), members: [name])
+}
+
+/// The member `name` of the component `Root`, which `member` reads, held by the query at
+/// `query`: the compiler holds the query to the member's type.
+private func held<Root, Value>(
+  _ query: KeyPath<LiveQueries, Cached<Value>>, _ member: KeyPath<Root, Value>, _ name: String
+) -> HeldValue {
+  HeldValue(component: String(describing: Root.self), members: [name])
+}
+
+@Test func everyLiveQueryHoldsTheValueTheRefreshTableNames() throws {
+  // Each live query, by its name in client/refresh.json, and what its cache holds.
+  let census: [String: HeldValue] = [
+    "resource": held(\LiveQueries.resources, ResourceDescriptor.self),
+    "annotations": held(\LiveQueries.annotations, GetAnnotationsResponse.self),
+    "annotation": held(\LiveQueries.details, Annotation.self),
+    "events": held(\LiveQueries.events, \GetEventsResponse.events, "events"),
+    "referencedBy": held(
+      \LiveQueries.referencedBy, \GetReferencedByResponse.referencedBy, "referencedBy"),
+    "resources": held(\LiveQueries.listedResources, ListResourcesResponse.self),
+    "matchedResources": held(\LiveQueries.matchedResources, MatchResourcesResponse.self),
+    "entityTypes": held(
+      \LiveQueries.entityTypes, \GetEntityTypesResponse.entityTypes, "entityTypes"),
+    "tagSchemas": held(\LiveQueries.tagSchemas, \GetTagSchemasResponse.tagSchemas, "tagSchemas"),
+  ]
+  var stated: [String: HeldValue] = [:]
+  for raw in try required(Spec.read("client/refresh.json").object, "queries").array {
+    let row = try raw.object
+    stated[try required(row, "name").text] = try heldValue(required(row, "value"))
+  }
+  #expect(
+    valuesAwaitingARuling.isSubset(of: Set(stated.keys)),
+    "A value waiting on a ruling is a query's of client/refresh.json")
+  #expect(
+    Set(census.keys) == Set(stated.keys).subtracting(valuesAwaitingARuling),
+    "Every live query's value is held here, but one waiting on a ruling")
+  for (name, value) in census {
+    #expect(stated[name] == value, "\(name)'s cache holds \(value)")
+  }
+}
+
 @Test func transportErrorClassifierUsesTheSpec() throws {
   let family = try required(Spec.read("errors/codes.json").object, "transport").object
   let codes = try required(family, "codes").array.map { try $0.object }

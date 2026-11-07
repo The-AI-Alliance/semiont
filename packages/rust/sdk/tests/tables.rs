@@ -228,12 +228,13 @@ fn members_of(object: &Value) -> Vec<String> {
 }
 
 /// What a session keeps of one person: each prefix the table states, and
-/// the key its example works out, are the ones Rust makes, and each of the
-/// table's `keptQueries` is kept under its prefix, the knowledge base's id,
-/// the person's key and the query's name.
+/// the key its example works out, are the ones Rust makes, and each query
+/// client/refresh.json marks `persisted` is kept under its prefix, the
+/// knowledge base's id, the person's key and the query's name.
 #[test]
 fn what_is_kept_of_a_person_is_kept_under_the_tables_keys() {
     let stored = table(include_str!("../specs/session/stored.json"));
+    let refresh = table(include_str!("../specs/client/refresh.json"));
 
     let places = &stored["lastEventIdKeyPrefix"];
     assert_eq!(
@@ -250,12 +251,15 @@ fn what_is_kept_of_a_person_is_kept_under_the_tables_keys() {
     );
 
     let caches = &stored["cacheKeyPrefix"];
-    let kept = stored["keptQueries"]
+    let kept: Vec<&Value> = refresh["queries"]
         .as_array()
-        .expect("the table states the kept queries");
-    assert!(!kept.is_empty(), "the table keeps no query");
+        .expect("client/refresh.json states its queries")
+        .iter()
+        .filter(|row| row["persisted"] == Value::Bool(true))
+        .collect();
+    assert!(!kept.is_empty(), "client/refresh.json persists no query");
     for row in kept {
-        let name = text(row, "query");
+        let name = text(row, "name");
         assert_eq!(
             cache_key("kb-a", "a-person-key", query_named(&name)),
             format!("{}kb-a.a-person-key.{name}", text(caches, "prefix")),

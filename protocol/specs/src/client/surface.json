@@ -949,7 +949,7 @@
     },
     {
       "unit": "session",
-      "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. What it does is held by the session's own table (protocol/specs/src/session/cases.json), not by the behaviour table.",
+      "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. Its `errors` are its one stream of what went wrong: its own errors (a SessionError: its sign-in could not be checked or renewed, the gateway refused a token just issued, what it keeps could not be kept) and its transport's failures, each said once, one raised by the flush of its disposal among them, since the stream ends only after that flush; a session takes no callback for them. What it does is held by the session's own table (protocol/specs/src/session/cases.json), not by the behaviour table.",
       "made": {"csharp": "SemiontSession", "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession", "swift": "SemiontSession", "haskell": "Session"},
       "madeBy": {"go": "StartSession", "kotlin": "sessionFromKept", "swift": "sessionFromKept", "haskell": "newSession"},
       "members": [
@@ -2042,6 +2042,86 @@
             "csharp": "C# reads, writes and locks the file itself, through .NET and the C library.",
             "haskell": "Haskell reads, writes and locks the file itself, through its directory and file libraries and the C library."
           }
+        }
+      ]
+    },
+    {
+      "module": "keptSignIn",
+      "docs": "A sign-in a session holds and renews wherever it is kept (a registry's storage, through the registry's keptIn; the sign-ins `semiont login` keeps; memory; a host's own), and what a script does with one: signs a person in to it by the device grant, opens a session over it, renews it at the issuer, and signs out of it. docs/builder/SIGN-IN.md says which to use when.",
+      "where": {
+        "typescript": [
+          "packages/typescript/sdk/src/session/sign-in-kept.ts",
+          "packages/typescript/sdk/src/session/oauth.ts"
+        ],
+        "rust": [
+          "packages/rust/sdk/src/session/kept.rs",
+          "packages/rust/http-transport/src/session.rs",
+          "packages/rust/http-transport/src/oauth.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/session.py",
+          "packages/python/sdk/src/semiont/http/session.py",
+          "packages/python/sdk/src/semiont/http/oauth.py"
+        ],
+        "go": ["packages/go/sdk"],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/signin",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http"
+        ],
+        "swift": [
+          "packages/swift/sdk/Sources/Semiont/SignIn/Kept.swift",
+          "packages/swift/sdk/Sources/Semiont/SignIn/Issuer.swift",
+          "packages/swift/sdk/Sources/Semiont/Session/SessionFromKept.swift"
+        ],
+        "csharp": ["packages/csharp/sdk/src/Semiont/SignIn"],
+        "haskell": [
+          "packages/haskell/sdk/src/Semiont/SignIn.hs",
+          "packages/haskell/sdk/src/Semiont/Session.hs"
+        ]
+      },
+      "members": [
+        {
+          "member": "SignInKept",
+          "kind": "type",
+          "named": { "csharp": "ISignInKept", "haskell": "KeptSignIn" }
+        },
+        {
+          "member": "MemorySignIn",
+          "kind": "type",
+          "absent": { "haskell": "Haskell makes one with newMemorySignIn, a KeptSignIn held in memory, and names no type for it." }
+        },
+        {
+          "member": "signInDevice",
+          "kind": "function",
+          "named": { "go": "SignInWithDevice" },
+          "absent": {
+            "typescript": "TypeScript's is SemiontSession.signInDevice, a static method of the session.",
+            "csharp": "C#'s is Issuer.SignInDeviceAsync, a method of the issuer."
+          }
+        },
+        {
+          "member": "sessionFromKept",
+          "kind": "function",
+          "named": { "haskell": "fromKeptSession" },
+          "absent": {
+            "typescript": "TypeScript's is SemiontSession.fromKept, a static method of the session.",
+            "csharp": "C#'s is SemiontSession.FromKept, a static method of the session."
+          }
+        },
+        {
+          "member": "renewKept",
+          "kind": "function",
+          "absent": {
+            "go": "Go's is Issuer.RenewKept, a method of the issuer.",
+            "csharp": "C#'s is Issuer.RenewAsync, a method of the issuer."
+          },
+          "notYetReached": { "rust": "Rust's renew_kept is to be public, as every other SDK's renewal of a kept sign-in is." }
+        },
+        {
+          "member": "signOut",
+          "kind": "function",
+          "absent": { "csharp": "C#'s is Issuer.SignOutAsync, a method of the issuer." },
+          "notYetReached": { "haskell": "A sign-out of a KeptSignIn at its issuer: Haskell's signOut is its registry's, of a knowledge base it holds." }
         }
       ]
     },

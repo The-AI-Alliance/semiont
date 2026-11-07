@@ -197,7 +197,8 @@ impl SessionStorage for Carrying {
 mod tests {
     use super::*;
     use crate::storage::InMemorySessionStorage;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use crate::testing::{FaultAction, FaultyTransport, TestClientOptions, create_test_client};
+    use std::time::Duration;
 
     const KEY: &str = "semiont.lastEventId.kb-a";
 
@@ -245,14 +246,27 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_place_waits_for_the_caches_to_be_at_rest() {
+    /// Coupled to a client, a place waits for the client to be at rest: no
+    /// kept cache fetching or owing a save, and no refetch owed.
+    #[tokio::test(start_paused = true)]
+    async fn a_place_waits_for_the_client_it_is_coupled_to_to_be_at_rest() {
         let storage = Arc::new(InMemorySessionStorage::new());
         let bookmarks = CoupledBookmarks::new(storage.clone(), KEY);
         let caches = bookmarks.storage();
-        let at_rest = Arc::new(AtomicBool::new(false));
-        let gate = at_rest.clone();
-        bookmarks.set_flush_gate(move || gate.load(Ordering::SeqCst));
+        // A client whose entity types are answered ten seconds after they
+        // are asked for.
+        let client = create_test_client(TestClientOptions {
+            transport: Some(FaultyTransport::answering(
+                vec![FaultAction::Delay(Duration::from_secs(10))],
+                |_, _| Ok(Some(serde_json::json!({ "entityTypes": [] }))),
+            )),
+            ..TestClientOptions::default()
+        })
+        .client;
+        bookmarks.couple_to(&client);
+        let _watching = client.browse.entity_types().watch();
+        tokio::time::sleep(Duration::from_millis(1)).await;
+        assert!(!client.persistence_settled(), "a kept cache is fetching");
 
         bookmarks.save(&"res-1".parse().unwrap(), "p-res-1-7");
         caches
@@ -262,7 +276,8 @@ mod tests {
         // still taking the event in.
         assert_eq!(storage.get(KEY), None);
 
-        at_rest.store(true, Ordering::SeqCst);
+        tokio::time::sleep(Duration::from_secs(11)).await;
+        assert!(client.persistence_settled(), "the answer is in");
         caches
             .set("semiont.cache.kb-a.annotations", "{}")
             .expect("written");

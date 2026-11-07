@@ -432,3 +432,188 @@ impl Drop for Refresher {
         self.dispose();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    /// The queries whose `value` in client/refresh.json waits on a ruling:
+    /// the census below holds them to nothing until it is made.
+    const WAITING: &[&str] = &["engines"];
+
+    /// The last part of a path: `ResourceDescriptor` of
+    /// `semiont::types::ResourceDescriptor`.
+    fn last_part(path: &str) -> &str {
+        path.rsplit_once("::").map_or(path, |(_, last)| last)
+    }
+
+    /// A type's name with every path in it dropped:
+    /// `Vec<AttributedEvent>`.
+    fn unpathed(name: &str) -> String {
+        let mut unpathed = String::new();
+        let mut path = String::new();
+        for c in name.chars() {
+            if c.is_alphanumeric() || c == '_' || c == ':' {
+                path.push(c);
+            } else {
+                unpathed.push_str(last_part(&path));
+                path.clear();
+                unpathed.push(c);
+            }
+        }
+        unpathed.push_str(last_part(&path));
+        unpathed
+    }
+
+    /// The name of what the cache `of` reaches holds for a key.
+    fn held<S, K: CacheKey, V: CacheValue>(_of: for<'a> fn(&'a S) -> &'a Cache<K, V>) -> String {
+        unpathed(std::any::type_name::<V>())
+    }
+
+    /// What the cache that answers `query` holds for a key, by its Rust
+    /// type's name: the cache each arm of `Refresher::refetch` names.
+    fn value_of(query: CacheQuery) -> String {
+        match query {
+            CacheQuery::Resource => held::<browse::Live, _, _>(|live| &live.resource),
+            CacheQuery::Annotations => held::<browse::Live, _, _>(|live| &live.annotations),
+            CacheQuery::Annotation => held::<browse::Live, _, _>(|live| &live.annotation),
+            CacheQuery::Events => held::<browse::Live, _, _>(|live| &live.events),
+            CacheQuery::ReferencedBy => {
+                held::<Refresher, _, _>(|refresher| &refresher.referenced_by)
+            }
+            CacheQuery::Resources => held::<browse::Live, _, _>(|live| &live.lists),
+            CacheQuery::MatchedResources => {
+                held::<Refresher, _, _>(|refresher| &refresher.searches)
+            }
+            CacheQuery::EntityTypes => held::<browse::Live, _, _>(|live| &live.entity_types),
+            CacheQuery::TagSchemas => held::<browse::Live, _, _>(|live| &live.tag_schemas),
+            CacheQuery::Engines => held::<browse::Live, _, _>(|live| &live.engines),
+        }
+    }
+
+    /// The Rust type `schema`, read in the directory `within`, is held as,
+    /// by name: a component by its name, an array as a `Vec` of its items,
+    /// text as a `String`.
+    fn named_by(schema: &Value, within: &Path) -> String {
+        if let Some(reference) = schema["$ref"].as_str() {
+            return referenced(reference, within);
+        }
+        match schema["type"].as_str() {
+            Some("array") => format!("Vec<{}>", named_by(&schema["items"], within)),
+            Some("string") => "String".to_owned(),
+            other => {
+                panic!("a schema of type {other:?}, which this census does not read: {schema}")
+            }
+        }
+    }
+
+    /// The Rust type `reference`, a `$ref` from a schema in `within`, names:
+    /// the component its file is, or the member of it its pointer names.
+    fn referenced(reference: &str, within: &Path) -> String {
+        let (file, pointer) = match reference.split_once('#') {
+            Some((file, pointer)) => (file, Some(pointer)),
+            None => (reference, None),
+        };
+        let path = within.join(file);
+        let Some(pointer) = pointer else {
+            return path
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+                .unwrap_or_else(|| panic!("{reference} names no component"))
+                .to_owned();
+        };
+        let text = std::fs::read_to_string(&path)
+            .unwrap_or_else(|unread| panic!("{}: {unread}", path.display()));
+        let component: Value = serde_json::from_str(&text)
+            .unwrap_or_else(|refused| panic!("{}: {refused}", path.display()));
+        let member = component
+            .pointer(pointer)
+            .unwrap_or_else(|| panic!("{reference} names no member"));
+        let directory = path
+            .parent()
+            .unwrap_or_else(|| panic!("{} is in no directory", path.display()));
+        named_by(member, directory)
+    }
+
+    /// client/refresh.json's `value` owns what each query's cache holds: the
+    /// cache that answers each query holds the type its `value` names. A
+    /// query the table gains fails here, as `value_of` does not compile
+    /// until it names the query's cache; a value that names another
+    /// component, or another member, than the type the cache holds fails
+    /// here too.
+    #[test]
+    fn each_querys_cache_holds_what_its_value_in_the_refresh_table_names() {
+        let table: Value = serde_json::from_str(include_str!("../../specs/client/refresh.json"))
+            .expect("the refresh table is JSON");
+        let within = Path::new(env!("CARGO_MANIFEST_DIR")).join("specs/client");
+        let rows = table["queries"]
+            .as_array()
+            .expect("the refresh table has queries");
+        let named: Vec<&str> = rows
+            .iter()
+            .map(|row| row["name"].as_str().expect("a query has a name"))
+            .collect();
+        let ours: Vec<&str> = CacheQuery::ALL.iter().map(|query| query.name()).collect();
+        assert_eq!(ours, named, "the queries");
+        for waiting in WAITING {
+            assert!(
+                named.contains(waiting),
+                "{waiting} waits on a ruling, and is no query of the table"
+            );
+        }
+
+        let mut wrong = Vec::new();
+        for (row, query) in rows.iter().zip(CacheQuery::ALL) {
+            if WAITING.contains(&query.name()) {
+                continue;
+            }
+            let value = named_by(&row["value"], &within);
+            let cached = value_of(*query);
+            if cached != value {
+                wrong.push(format!(
+                    "{}'s cache holds {cached}, and its value is {value}",
+                    query.name()
+                ));
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+
+    /// A refetch a closing window runs is owed until its fetch is in flight
+    /// (B17): from the window giving it up until the refetch has started,
+    /// whoever reads what is owed (a kept cache's write reading the gate, a
+    /// client's close) is told it is owed, or waits until it has started.
+    /// The refetch here reads it as it starts.
+    #[tokio::test(start_paused = true)]
+    async fn a_refetch_a_closing_window_runs_is_owed_until_it_has_started() {
+        let lasting = Duration::from_millis(100);
+        let windows = Arc::new(Windows {
+            lasting,
+            open: Mutex::new(Some(HashMap::new())),
+        });
+        windows.run("annotations/res-1".to_owned(), Box::new(|| {}));
+        let told: Arc<Mutex<Option<bool>>> = Arc::default();
+        let (reading, telling) = (Arc::downgrade(&windows), told.clone());
+        windows.run(
+            "annotations/res-1".to_owned(),
+            Box::new(move || {
+                let windows = reading
+                    .upgrade()
+                    .expect("the windows outlive the refetch they run");
+                // Held while the refetch starts, the lock keeps a reader
+                // waiting until it has.
+                let free = windows.open.try_lock().is_ok();
+                *locked(&telling) = Some(!free || windows.owes());
+            }),
+        );
+        assert!(windows.owes(), "the open window owes the second refetch");
+
+        tokio::time::sleep(lasting * 2).await;
+        assert_eq!(
+            *locked(&told),
+            Some(true),
+            "the refetch the closing window ran was not owed as it started"
+        );
+    }
+}

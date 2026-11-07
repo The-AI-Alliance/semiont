@@ -10,7 +10,8 @@
  * connect, recording what each connect asked for; and answers a read of a
  * resource with that resource, named as the test says. A reply is said on
  * every stream open when it is made, and again on a connect that names it
- * pending, as a gateway keeps a reply for whoever asked.
+ * pending, as a gateway keeps a reply for whoever asked. An event the test
+ * delivers is said on every stream open, with its id.
  */
 
 import type { components } from '@semiont/core';
@@ -27,6 +28,8 @@ export interface FakeGateway {
   readonly fetch: typeof globalThis.fetch;
   /** Every stream connect, in the order they came. */
   readonly connects: readonly StreamConnect[];
+  /** Say `frame` on every stream the gateway holds open, under the event id `id`. */
+  deliver(frame: { channel: string; scope: string; payload: unknown }, id: string): void;
   /** End every stream the gateway holds open. */
   close(): void;
 }
@@ -125,6 +128,10 @@ export function fakeGateway({ whoIs, issuer, resourceName }: FakeGatewayOptions)
   return {
     fetch,
     connects,
+    deliver: (frame, id) => {
+      const event = encoder.encode(`event: bus-event\nid: ${id}\ndata: ${JSON.stringify(frame)}\n\n`);
+      for (const controller of open) controller.enqueue(event);
+    },
     close: () => {
       for (const controller of open) controller.close();
       open.clear();

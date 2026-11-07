@@ -319,8 +319,8 @@ class PersistedCasesTest {
             assertEquals(row.text("lastEventIdKey"), lastEventIdKey(kbId, person))
             val stated = row.getValue("cacheKeys").jsonObject
             // The queries kept are exactly the row's, in its order.
-            assertEquals(stated.keys.toList(), PERSISTED_QUERIES.map { it.wire })
-            for (query in PERSISTED_QUERIES) assertEquals(stated.text(query.wire), cacheKey(kbId, person, query.wire), query.wire)
+            assertEquals(stated.keys.toList(), PERSISTED_QUERIES.map { it.query.wire })
+            for (query in PERSISTED_QUERIES.map { it.query.wire }) assertEquals(stated.text(query), cacheKey(kbId, person, query), query)
         }
     }
 

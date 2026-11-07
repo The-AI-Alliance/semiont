@@ -102,9 +102,10 @@ type LastEventIds = dict[ResourceId, PersistedEventId]
 
 # What a client keeps of a query, for one person, is kept under this followed by the knowledge
 # base's id, a dot, the person's key as `lastEventIdKeyPrefix` makes it, a dot and the query's
-# name: one `cacheDocument` for each of `keptQueries`. Nothing is kept for a token whose person
-# the gateway has not named, and forgetting the knowledge base's stored sign-in, however it is
-# forgotten, deletes the key of every kept query.
+# name: one `cacheDocument` for each query protocol/specs/src/client/refresh.json marks
+# `persisted`. Nothing is kept for a token whose person the gateway has not named, and
+# forgetting the knowledge base's stored sign-in, however it is forgotten, deletes the key of
+# every kept query.
 _CACHE_KEY_PREFIX: Final = "semiont.cache."
 
 # The queries a client keeps across a restart, each by its name in

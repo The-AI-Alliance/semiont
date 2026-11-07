@@ -64,6 +64,24 @@ import { IdentityUnverifiableError } from '../connect';
 import { mockResource } from '../../__tests__/fixtures/resource';
 import { BusRequestError, resourceId } from '@semiont/core';
 import type { SemiontError } from '@semiont/core';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+/** A case of protocol/specs/src/session/open-resource-cases.json. */
+interface OpenResourceCase {
+  why: string;
+  kb: 'itself' | 'unanswered';
+  open: string[];
+  resources: Record<string, 'ready' | 'gone' | 'unanswered'>;
+  asked: string[];
+  stillOpen: string[];
+}
+
+const openResourceCases = (
+  JSON.parse(
+    readFileSync(fileURLToPath(new URL('../../../../../../protocol/specs/src/session/open-resource-cases.json', import.meta.url)), 'utf8'),
+  ) as { cases: OpenResourceCase[] }
+).cases;
 
 /** An issuer's JSON answer, as `fetch` would hand it back. */
 function issuerReply(json: unknown, status = 200): Response {
@@ -540,6 +558,38 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     expect(mockResourceFresh.mock.calls.map((c) => c[0])).toEqual(['a1', 'b1']);
 
     await browser.dispose();
+  });
+
+  /**
+   * protocol/specs/src/session/open-resource-cases.json: what the registry asks of the knowledge base, and
+   * what stays open, when a session with it becomes active. The knowledge base answers as the case says:
+   * `itself`, as its entry; `unanswered`, nothing, which a client hears as a timeout. Each open resource
+   * the same: `ready`, its description; `gone`, `bus.not-found`; `unanswered`, a timeout.
+   */
+  describe('the open-resource case table (session/open-resource-cases.json)', () => {
+    const unanswered = () => new BusRequestError('no answer in this test', 'bus.timeout');
+
+    it.each(openResourceCases)('$why', async (stated) => {
+      seedTabs(...stated.open);
+      mockKb = stated.kb === 'itself'
+        ? async () => ({ name: KB_A.label, domain: 'example.github.io:kb-a' })
+        : async () => { throw unanswered(); };
+      mockResourceFresh.mockImplementation(async (id: string) => {
+        const answer = stated.resources[id];
+        if (answer === 'ready') return mockResource(id, { name: `name-${id}` });
+        if (answer === 'gone') throw notFound();
+        if (answer === 'unanswered') throw unanswered();
+        throw new Error(`the case says nothing of what the knowledge base answers for ${id}`);
+      });
+
+      const browser = await makeConnectedBrowser();
+      await settled();
+
+      expect(new Set(mockResourceFresh.mock.calls.map(([id]) => id)), 'asked').toEqual(new Set(stated.asked));
+      expect(new Set(browser.openResources$.getValue().map((r) => r.id)), 'still open').toEqual(new Set(stated.stillOpen));
+
+      await browser.dispose();
+    });
   });
 
   it('a removal survives a sibling context\'s concurrent write, and the sibling tab survives too', async () => {

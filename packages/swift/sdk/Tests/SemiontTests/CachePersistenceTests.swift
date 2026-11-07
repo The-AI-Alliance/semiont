@@ -1,5 +1,6 @@
 import Foundation
 import SemiontTesting
+import Synchronization
 import Testing
 
 @testable import Semiont
@@ -174,6 +175,203 @@ private func saved(
   await keeping.closed()
   #expect(storage.get(cacheKey("kb", jo, .resource))?.contains(#""res-1""#) == true)
   #expect(storedPlaces(storage.get(lastEventIdKey("kb", jo))) == [resource: "p-res-1-8"])
+}
+
+@Test func aDisposalThatOwesNoSaveWritesNoPlaces() async throws {
+  let storage = MemorySessionStorage()
+  let jo = try joKey()
+  let placesKey = lastEventIdKey("kb", jo)
+  let documentKey = cacheKey("kb", jo, .resource)
+  let resource = try ResourceId("res-1")
+  let clock = TestClock()
+  let keeping = KeptQueries(
+    CachePersistence(storage: storage, kbId: "kb", personKey: jo), clock: clock)
+  #expect(keeping.attach(jo) == [:])
+  keeping.heard("p-res-1-6", in: resource)
+  keeping.store(.resource, resource, try keptDescriptor("one"))
+  try await saved(storage, documentKey, on: clock) { $0.contains(#""one""#) }
+  #expect(storedPlaces(storage.get(placesKey)) == [resource: "p-res-1-6"])
+  keeping.heard("p-res-1-7", in: resource)
+  keeping.close()
+  #expect(storage.get(documentKey)?.contains(#""one""#) == true)
+  #expect(
+    storedPlaces(storage.get(placesKey)) == [resource: "p-res-1-6"],
+    "A place is written only in the same call as a write of a kept cache")
+}
+
+@Test func keepingThatStartsOverAKeyWhoseFetchFailedLeavesWhatWasKept() async throws {
+  let storage = MemorySessionStorage()
+  let jo = try joKey()
+  let resource = try ResourceId("res-1")
+  let documentKey = cacheKey("kb", jo, .resource)
+  let earlier = KeptQueries(
+    CachePersistence(storage: storage, kbId: "kb", personKey: jo), clock: ContinuousClock())
+  #expect(earlier.attach(jo) == [:])
+  earlier.store(.resource, resource, try keptDescriptor("kept"))
+  earlier.close()
+  let kept = try #require(storage.get(documentKey))
+
+  // The key's fetch fails before the gateway names the person.
+  let probe = ProbeTransport()
+  probe.setFailure(BusRequestError(.busRejected, "The knowledge base refused"))
+  let client = try await SemiontClient(
+    transport: probe,
+    persistence: CachePersistence(
+      storage: storage, kbId: "kb", person: nil, writer: WritesAsGiven()))
+  let reading = client.browse.live.resources.observe(resource)
+  try await withinTestDeadline {
+    for await state in reading {
+      if case .failed = state { return }
+    }
+    throw SpecFailure.shape("The query ended before its fetch failed")
+  }
+  await client.attach(jo)
+  client.dispose()
+  #expect(storage.get(documentKey) == kept, "A failed fetch leaves what was kept as it was")
+}
+
+// B17 item 1: what a cache held before its client kept anything is written with its next change.
+@Test func attachingWritesNothingThoughTheCachesHoldValues() async throws {
+  let storage = MemorySessionStorage()
+  let jo = try joKey()
+  let resource = try ResourceId("res-1")
+  let documentKey = cacheKey("kb", jo, .resource)
+  let earlier = KeptQueries(
+    CachePersistence(storage: storage, kbId: "kb", personKey: jo), clock: ContinuousClock())
+  #expect(earlier.attach(jo) == [:])
+  earlier.store(.resource, resource, try keptDescriptor("res-1"))
+  earlier.close()
+  let kept = try #require(storage.get(documentKey))
+
+  // The caches hold answers before the gateway names the person.
+  let fresh = try decoded(
+    ResourceDescriptor.self,
+    .object([
+      "@context": .string("https://schema.org/"), "@id": .string("res-1"),
+      "name": .string("fresh"), "representations": .array([]),
+    ]))
+  let probe = ProbeTransport()
+  probe.handle { operation, _ in
+    guard operation == Operations.browseResourceRequested.request.name else {
+      throw SpecFailure.shape("Unscripted request: \(operation)")
+    }
+    return try wirePayload(
+      BrowseResourceResult(
+        response: BrowseResourceResultResponse(lastSequence: 1, resource: fresh)))
+  }
+  let client = try await SemiontClient(
+    transport: probe,
+    persistence: CachePersistence(
+      storage: storage, kbId: "kb", person: nil, writer: WritesAsGiven()))
+  _ = try await client.browse.live.resources.fetch(resource)
+  await client.browse.live.entityTypes.replace(.ready(["Person"]))
+  await client.attach(jo)
+  client.dispose()
+  #expect(storage.get(documentKey) == kept, "Attaching writes nothing over what was kept")
+  #expect(
+    storage.get(cacheKey("kb", jo, .entityTypes)) == nil, "Attaching writes nothing new")
+}
+
+@Test func aStandaloneCacheSkipsAKeptEntryWhoseValueIsNotItsType() async throws {
+  let storage = MemorySessionStorage()
+  let key = "typed"
+  storage.set(key, #"{"version":1,"entries":[["good",1,1],["bad","one",2]]}"#)
+  let cache = Cache<String, Int>(
+    persister: StoragePersister(storage: storage, storageKey: key)
+  ) { key in
+    throw BusRequestError(.busClosed, "A cache that is only read and set fetched \(key)")
+  }
+  #expect(await cache.get("good") == 1, "The other entries load")
+  #expect(await cache.get("bad") == nil)
+  await cache.set("new", value: 2)
+  cache.dispose()
+  let entries = try required(storedJSON(storage.get(key)).object, "entries").array
+  #expect(
+    Set(try entries.map { try $0.array[0].text }) == ["good", "new"],
+    "An entry whose value is not the cache's is dropped, and written no more")
+}
+
+/// A `mark:archived` event of `resource` whose id is `id`, as the stream delivers it.
+private func archived(_ resource: ResourceId, id: String) throws -> ReceivedFrame {
+  let event = StoredEventResponse(
+    id: id, metadata: EventMetadata(sequenceNumber: 1), payload: [:], resourceId: resource,
+    timestamp: "2026-11-07T00:00:00.000Z", type: Channels.markArchived.name,
+    userId: try UserId("did:web:example.org:users:alice"), version: 1)
+  return ReceivedFrame(
+    channel: Channels.markArchived.name, eventId: id, payload: try wirePayload(event),
+    scope: resource)
+}
+
+/// Delivers a frame no query is refreshed by, and waits until `client` has bridged it: so each
+/// frame delivered before it has been applied, and its place noted.
+private func drained(_ probe: ProbeTransport, _ client: SemiontClient) async throws {
+  let marks = client.bus.listen(["test:drained"])
+  probe.deliver(.frame(ReceivedFrame(channel: "test:drained", payload: [:])))
+  try await withinTestDeadline {
+    for try await _ in marks { return }
+    throw SpecFailure.shape("The bus ended before the frame came")
+  }
+}
+
+// B17 item 2: an id is noted only once the refresher has taken its event. A guard: the client's
+// pump applies each frame before it notes the frame's id, and has no queue between the transport
+// and the refresher in which a frame could wait with its id noted.
+@Test func aPlaceIsNotedOnceTheRefresherHasTakenItsEventAndItsFetchHoldsItBack() async throws {
+  let storage = MemorySessionStorage()
+  let jo = try joKey()
+  let placesKey = lastEventIdKey("kb", jo)
+  let clock = TestClock()
+  let held = try ResourceId("res-1")
+  let unheld = try ResourceId("res-2")
+  let asked = Mutex(0)
+  let (refetched, reached) = AsyncStream<Void>.makeStream()
+  let (answered, answer) = AsyncStream<Void>.makeStream()
+  let probe = ProbeTransport()
+  probe.handle { operation, _ in
+    guard operation == Operations.browseResourceRequested.request.name else {
+      throw SpecFailure.shape("Unscripted request: \(operation)")
+    }
+    // The first ask is answered at once; one asked again waits until the test answers it.
+    let count = asked.withLock { count in
+      count += 1
+      return count
+    }
+    if count > 1 {
+      reached.yield()
+      for await _ in answered { break }
+    }
+    return try wirePayload(
+      BrowseResourceResult(
+        response: BrowseResourceResultResponse(
+          lastSequence: 1, resource: try keptDescriptor("res-1"))))
+  }
+  let client = try await SemiontClient(
+    transport: probe, persistence: CachePersistence(storage: storage, kbId: "kb", personKey: jo),
+    clock: clock)
+  defer {
+    answer.finish()
+    client.dispose()
+  }
+  _ = try await client.browse.live.resources.fetch(held)
+
+  // A place noted while nothing is unsettled is written with the next save.
+  probe.deliver(.frame(try archived(unheld, id: "p-res-2-1")))
+  try await drained(probe, client)
+  try await saved(storage, cacheKey("kb", jo, .resource), on: clock) { _ in true }
+  #expect(storedPlaces(storage.get(placesKey)) == [unheld: "p-res-2-1"])
+
+  // The refresher has taken this event: the refetch it started is in flight, and its id noted.
+  probe.deliver(.frame(try archived(held, id: "p-res-1-7")))
+  try await withinTestDeadline {
+    for await _ in refetched { return }
+    throw SpecFailure.shape("The refresher did not ask again")
+  }
+  try await drained(probe, client)
+  await client.browse.live.entityTypes.replace(.ready(["Person"]))
+  try await saved(storage, cacheKey("kb", jo, .entityTypes), on: clock) { _ in true }
+  #expect(
+    storedPlaces(storage.get(placesKey)) == [unheld: "p-res-2-1"],
+    "A fetch in flight holds back the place of the event that started it")
 }
 
 @Test func aRefetchAWindowOwesUnsettlesTheClientUntilItRuns() async throws {

@@ -3,10 +3,12 @@
  * states it: every key this SDK writes by hand, the key of a knowledge base's
  * session, the keys of what a session keeps of its stream and its queries for
  * one person, each as the table's example works it out, the members of a
- * stored session, the members of a resource open in a knowledge base, the
- * queries kept across a restart, the key of one per nothing, and the members
- * and the version of a kept query's document. A key or a member the table
- * gains, or a change in what it requires, fails here until this SDK has it.
+ * stored session, the members of a resource open in a knowledge base, the key
+ * of a kept query per nothing, and the members and the version of a kept
+ * query's document. The queries kept across a restart are those
+ * protocol/specs/src/client/refresh.json marks `persisted`, read there at test
+ * time. A key or a member the table gains, or a change in what it requires,
+ * fails here until this SDK has it.
  * oauth.test.ts holds a pending sign-in's members; persisted-cases.test.ts
  * every key a person's client keeps; cache-cases.test.ts what a load keeps of
  * a document and of `lastEventIds`.
@@ -19,7 +21,7 @@ import { fileURLToPath } from 'url';
 import { filter, firstValueFrom } from 'rxjs';
 import { PERSISTED_QUERIES, isObject, resourceId } from '@semiont/core';
 import { validators } from '@semiont/core/openapi';
-import { KEPT_QUERIES, WHOLE_KEY, coupledLastEventId, keptPersister } from '../../cache-persister';
+import { KEPT_QUERIES, WHOLE_KEY, coupledLastEventId, keptPersister, type KeptQuery } from '../../cache-persister';
 import { createTestSession } from '../../testing';
 import { PENDING_AUTHORIZATION_KEY } from '../oauth';
 import { SemiontBrowser } from '../semiont-browser';
@@ -52,7 +54,6 @@ interface StoredTable {
   cacheKeyPrefix: { prefix: string; example: Example & { query: string } };
   storedSession: { properties: Record<string, unknown>; required: string[] };
   openResource: { properties: Record<string, unknown>; required: string[] };
-  keptQueries: { query: string }[];
   wholeKey: { key: string };
   cacheDocument: { properties: { version: { const: number } } & Record<string, unknown> };
   lastEventIds: { propertyNames: { $ref: string }; additionalProperties: { $ref: string } };
@@ -61,9 +62,32 @@ interface StoredTable {
 /** The person what the tests keep is kept for. */
 const PERSON = personKey('did:web:example.org:users:jo');
 
-const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../../protocol/specs/src/session/stored.json');
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../../../..');
+const TABLE = join(ROOT, 'protocol/specs/src/session/stored.json');
 const table = JSON.parse(readFileSync(TABLE, 'utf-8')) as StoredTable;
 const members = Object.keys(table.storedSession.properties);
+
+/** A kept query as packages/codegen/schemas/kept-queries.mjs reads it from refresh.json: what its entries are keyed by. */
+interface Kept {
+  query: string;
+  key: string;
+}
+
+type ReadKeptQueries = (root: string, refuse: (message: string) => never) => { kept: Kept[]; wholeKey: string };
+
+const { readKeptQueries, WHOLE }: { readKeptQueries: ReadKeptQueries; WHOLE: string } = await import(
+  join(ROOT, 'packages/codegen/schemas/kept-queries.mjs')
+);
+
+/** The queries refresh.json marks `persisted`, in its order. */
+const { kept } = readKeptQueries(ROOT, (message) => {
+  throw new Error(message);
+});
+
+/** A key of each kind a kept query's entries are keyed by: a resource's id, an annotation's id, or the whole key. */
+const KEY_OF_KIND: Record<string, string> = { ResourceId: 'res-1', AnnotationId: 'ann-1', [WHOLE]: table.wholeKey.key };
+
+const isKept = (name: string): name is KeptQuery => Object.hasOwn(KEPT_QUERIES, name);
 
 /** Each key's constant here, by the name the table gives it. */
 const KEYS: Record<string, string> = {
@@ -194,8 +218,17 @@ describe('what a registry keeps, as protocol/specs/src/session/stored.json state
     expect(Object.keys(bare).sort()).toEqual([...table.openResource.required].sort());
   });
 
-  it("the queries kept across a restart are the table's, and none other", () => {
-    expect(Object.keys(KEPT_QUERIES).sort()).toEqual(table.keptQueries.map(({ query }) => query).sort());
+  it('the queries kept across a restart are those refresh.json marks persisted, and none other: one list', () => {
+    const persisted = kept.map(({ query }) => query);
+    expect(Object.keys(KEPT_QUERIES), 'what this SDK reads back').toEqual(persisted);
+    expect([...PERSISTED_QUERIES], 'what this SDK keys and deletes').toEqual(persisted);
+  });
+
+  it.each(kept)("$query: an entry keyed as refresh.json's per says ($key) is one it reads back", ({ query, key }) => {
+    const sample = KEY_OF_KIND[key];
+    if (sample === undefined) throw new Error(`${query} is keyed by ${key}, which this test has no key of`);
+    if (!isKept(query)) throw new Error(`refresh.json keeps ${query}, and this SDK keeps no ${query}`);
+    expect(KEPT_QUERIES[query].key(sample), `${query} keeps an entry under ${JSON.stringify(sample)}`).toBe(true);
   });
 
   it("a kept query per nothing keeps its one entry under the table's whole key", () => {

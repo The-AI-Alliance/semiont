@@ -1,5 +1,6 @@
 import Foundation
 import SemiontTesting
+import Synchronization
 import Testing
 
 @testable import Semiont
@@ -198,21 +199,29 @@ private func hold(_ query: CacheQuery, in live: LiveQueries) async throws {
   }
 }
 
-@Test func aClientKeepsTheStoredTablesQueriesUnderItsPrefix() async throws {
+@Test func aClientKeepsThePersistedQueriesUnderItsPrefix() async throws {
   let table = try Spec.read("session/stored.json").object
   let prefix = try required(required(table, "cacheKeyPrefix").object, "prefix").text
-  let kept = Set(
-    try required(table, "keptQueries").array.map { try required($0.object, "query").text })
   let whole = try required(required(table, "wholeKey").object, "key").text
   let version = try required(
     required(required(required(table, "cacheDocument").object, "properties").object, "version")
       .object, "const")
-  var perNothing: Set<String> = []
+  // Each query client/refresh.json marks persisted, and the key its entry is kept under, by the
+  // query's `per`: the resource `hold` holds, the annotation it holds, or the whole key.
+  var kept: [String: JSONValue] = [:]
   for row in try required(Spec.read("client/refresh.json").object, "queries").array {
     let row = try row.object
-    if row["per"] == nil { perNothing.insert(try required(row, "name").text) }
+    guard row["persisted"] == .bool(true) else { continue }
+    let name = try required(row, "name").text
+    switch try row["per"]?.text {
+    case nil: kept[name] = .string(whole)
+    case "resource"?: kept[name] = .string("res-1")
+    case "annotation"?: kept[name] = .string("ann-1")
+    case .some(let per):
+      throw SpecFailure.shape("\(name) is persisted per \(per), which keeps nothing")
+    }
   }
-  #expect(!kept.isDisjoint(with: perNothing), "A query per nothing is kept")
+  #expect(kept.values.contains(.string(whole)), "A query per nothing is kept")
 
   let storage = MemorySessionStorage()
   let jo = personKey(try UserId("did:web:kb.example.org:users:jo%40example.org"))
@@ -224,14 +233,13 @@ private func hold(_ query: CacheQuery, in live: LiveQueries) async throws {
   for query in CacheQuery.allCases {
     let name = query.rawValue
     let text = storage.get(prefix + "kb-a." + jo + "." + name)
-    #expect((text != nil) == kept.contains(name), "\(name) is kept as session/stored.json keeps it")
-    guard let text else { continue }
+    #expect(
+      (text != nil) == (kept[name] != nil), "\(name) is kept as client/refresh.json marks it")
+    guard let text, let key = kept[name] else { continue }
     let document = try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)).object
     #expect(try required(document, "version") == version, "\(name)'s document's version")
     let keys = try required(document, "entries").array.map { try $0.array[0] }
-    if perNothing.contains(name) {
-      #expect(keys == [.string(whole)], "\(name) keeps its one entry under the whole key")
-    }
+    #expect(keys == [key], "\(name) keeps its one entry under the key its `per` gives")
   }
 }
 
@@ -343,6 +351,104 @@ private func hold(_ query: CacheQuery, in live: LiveQueries) async throws {
     throw error
   }
   try await browser.close()
+}
+
+/// Opens `resources` in a knowledge base a registry over `storage` signs in to, then closes that
+/// registry, so that the next one over `storage` activates a session with them open; gives the
+/// knowledge base's id. The knowledge base answers as its entry, and nothing else.
+private func openedBeforeActivation(
+  _ resources: [ResourceId], in storage: MemorySessionStorage
+) async throws -> String {
+  let opening = ScriptedSessions { _, channel, _ in
+    guard channel == Channels.browseKbRequested.name else {
+      throw BusRequestError(.busRejected, "Unread")
+    }
+    return try wirePayload(
+      BrowseKbResult(response: KbDescription(domain: "example.org", name: "KB")))
+  }
+  let browser = try await newSemiontBrowser(
+    SemiontBrowserConfig(storage: storage, sessionFactory: opening))
+  do {
+    let token = try jwt(.object(["exp": .number(Date().timeIntervalSince1970 + 3600)]))
+    let signedIn = try await browser.signedIn(
+      SignedIn(
+        endpoint: .httpEndpoint(HttpEndpoint(host: "localhost", port: 4000, protocol: .http)),
+        description: KbDescription(domain: "example.org", name: "KB"),
+        session: HeldSignIn(
+          access: token, clientId: "browser", refresh: "refresh", tokenEndpoint: "issuer")))
+    let kbId = signedIn.kb.id
+    try await withinTestDeadline {
+      for await opened in browser.activeSession where opened?.session.kb.id == kbId { break }
+    }
+    for resource in resources { try await browser.addOpenResource(resource, name: resource.value) }
+    try await browser.close()
+    return kbId
+  } catch {
+    try? await browser.close()
+    throw error
+  }
+}
+
+@Test func activatingASessionChecksEveryOpenResourceAsTheOpenResourceCasesSay() async throws {
+  let cases = try required(Spec.read("session/open-resource-cases.json").object, "cases").array
+  #expect(!cases.isEmpty, "session/open-resource-cases.json holds cases")
+  for value in cases {
+    let row = try value.object
+    let why = try required(row, "why").text
+    let kb = try required(row, "kb").text
+    let open = try required(row, "open").array.map { try ResourceId($0.text) }
+    let answers = try required(row, "resources").object.mapValues { try $0.text }
+    let asked = try Set(required(row, "asked").array.map { try $0.text })
+    let stillOpen = try Set(required(row, "stillOpen").array.map { try $0.text })
+    let storage = MemorySessionStorage()
+    let kbId = try await openedBeforeActivation(open, in: storage)
+
+    let requested = Mutex<Set<String>>([])
+    let answering = ScriptedSessions { _, channel, payload in
+      switch channel {
+      case Channels.browseKbRequested.name:
+        guard kb == "itself" else {
+          throw BusRequestError(.busTimeout, "The knowledge base did not answer")
+        }
+        return try wirePayload(
+          BrowseKbResult(response: KbDescription(domain: "example.org", name: "KB")))
+      case Channels.browseResourceRequested.name:
+        let id = try required(payload, "resourceId").text
+        requested.withLock { _ = $0.insert(id) }
+        switch answers[id] {
+        case "ready"?:
+          return try wirePayload(
+            BrowseResourceResult(
+              response: BrowseResourceResultResponse(
+                lastSequence: 1, resource: try keptDescriptor(id))))
+        case "gone"?: throw BusRequestError(.busNotFound, "Gone")
+        case "unanswered"?:
+          throw BusRequestError(.busTimeout, "The knowledge base did not answer")
+        default: throw SpecFailure.shape("\(why): \(id) is no resource the case answers for")
+        }
+      default: throw BusRequestError(.busRejected, "Unread")
+      }
+    }
+    // The checks' outcome is the first write of the open resources once the session activates.
+    let written = try #require(storage.subscribe(openResourcesByKbKey))
+    let browser = try await newSemiontBrowser(
+      SemiontBrowserConfig(storage: storage, sessionFactory: answering))
+    do {
+      let checked = try await withinTestDeadline {
+        for await text in written { return text }
+        throw SpecFailure.shape("\(why): the open resources were never written")
+      }
+      let kept = try #require(
+        decodedStorage([String: [OpenResource]].self, checked)?[kbId],
+        "\(why): the knowledge base's open resources are written")
+      #expect(Set(kept.map(\.id.value)) == stillOpen, "\(why): still open")
+      #expect(requested.withLock { $0 } == asked, "\(why): asked for")
+    } catch {
+      try? await browser.close()
+      throw error
+    }
+    try await browser.close()
+  }
 }
 
 @Test func discoveryMatchesTheSharedReasonsAndRejectsAnInvalidMember() async throws {

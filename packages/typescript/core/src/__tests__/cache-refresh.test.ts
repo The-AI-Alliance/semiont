@@ -25,6 +25,7 @@ interface Query {
   asks?: string;
   reads?: string;
   persisted?: boolean;
+  value?: Record<string, string>;
   docs?: string;
 }
 
@@ -72,6 +73,12 @@ const row = (table: Table, on: string, when?: string): Row => {
   return found;
 };
 
+const query = (table: Table, name: string): Query => {
+  const found = table.queries.find((q) => q.name === name);
+  if (!found) throw new Error(`the committed table has no query ${name}`);
+  return found;
+};
+
 const refused = (fault: (table: Table) => void, saying: string): void => {
   const run = generate(fault);
   expect(run.status, run.stderr).toBe(1);
@@ -112,6 +119,32 @@ describe('the cache-refresh generator', () => {
   it('refuses a query persisted other than by `true`, and one that states what a query does not have', () => {
     refused((t) => (t.queries[0]!.persisted = false), 'the query resource is persisted false: true, or absent');
     refused((t) => Object.assign(t.queries[0]!, { kept: true }), 'the query resource states kept, which a query does not have');
+  });
+
+  it('refuses a query with no value, one that is no $ref to a component or a member within one, and one naming what is not there', () => {
+    refused((t) => delete t.queries[0]!.value, 'the query resource has no value');
+    refused((t) => (t.queries[0]!.value = { $ref: '../components/schemas/ResourceDescriptor.json', type: 'object' }), "the value of the query resource is {");
+    refused((t) => (t.queries[0]!.value = { $ref: '../components/schemas/ResourceDescriptor.json#/items' }), "the value of the query resource is {");
+    refused((t) => (t.queries[0]!.value = { $ref: '../components/schemas/Nowhere.json' }), "the value of the query resource names Nowhere, which is no component");
+    refused((t) => (query(t, 'events').value = { $ref: '../components/schemas/GetEventsResponse.json#/properties/happenings' }), "the value of the query events: GetEventsResponse has no member happenings");
+    refused(
+      (t) => (query(t, 'engines').value = { $ref: '../components/schemas/BrowseEnginesResult.json#/properties/response/properties/engineList' }),
+      "the value of the query engines: BrowseEnginesResult.response has no member engineList",
+    );
+  });
+
+  it('takes a value that is a member within a component a member refers to', () => {
+    const run = generate((t) => (query(t, 'events').value = { $ref: '../components/schemas/BrowseEventsResult.json#/properties/response/properties/events' }));
+    expect(run.stderr).toBe('');
+    expect(run.status).toBe(0);
+  });
+
+  it('refuses a persisted query per filters, and one whose value is a member that is not all its component requires', () => {
+    refused((t) => (query(t, 'resources').persisted = true), 'the query resources is persisted, and a query per filters is not kept');
+    refused(
+      (t) => (query(t, 'events').persisted = true),
+      'the query events is persisted, and GetEventsResponse requires ["events","total","resourceId"], so events alone is not one of it',
+    );
   });
 
   it('refuses a query stated twice, one with no docs, and one that asks no operation', () => {

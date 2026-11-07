@@ -6,6 +6,8 @@ using Semiont.Errors;
 using Semiont.Identifiers;
 using Semiont.Protocol;
 using Semiont.Registry;
+using Semiont.Session;
+using Semiont.SignIn;
 using Semiont.State;
 using Semiont.Storage;
 using Semiont.Types;
@@ -285,6 +287,129 @@ public sealed partial class TransportTests
         while (errors.Reader.TryRead(out var error)) later.Add(error);
         Assert.DoesNotContain(later, error => error.Code == "session.keep-failed");
         foreach (var key in PersonKeys(joKeys)) Assert.True(storage.Get(key) is null, key + " holds " + storage.Get(key));
+    }
+
+    // B17 item 1: nothing is owed before the gateway names the person, and attaching writes nothing. What the client held
+    // before then is written with its next change, whose save writes the whole document.
+    [Fact]
+    public async Task AttachingWritesNothingAndTheNextChangeWritesTheWholeDocument()
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var jo = Text(root.GetProperty("people").GetProperty("jo"), "personKey");
+        var joResource = Text(PersonKeysRow(root, CaseKb, jo).GetProperty("cacheKeys"), "resource");
+        var clock = new TestClock();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        var access = TokenTests.Jwt(new { exp = now + 3600 });
+        var storage = new MemoryStorage();
+        RegistryStorage.StoreSession(storage, CaseKb, RegistryTokens() with { Access = access });
+        using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), TokenTests.Jwt(new { exp = now + 7200 }));
+        using var signals = new SessionSignals();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var opened = await new HttpSessionFactory(gateway.Http, clock)
+            .OpenAsync(new SessionFactoryOptions(RegistryKb(CaseKb, "kb-a.test"), storage, signals, _ => { }), deadline.Token);
+        try
+        {
+            var client = opened.Client;
+            Assert.Equal("fresh", (await client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(deadline.Token)).Name);
+            clock.Advance(SaveDebounce);
+            gateway.Name(true);
+            gateway.Refuse(access);
+            // A refused request is sent again only once its renewal's ask who the token is has been answered.
+            await client.Transport.GetStatusAsync(deadline.Token);
+            Assert.True(RegistryStorage.StoredSession(storage, CaseKb)?.PersonKey == jo, "the gateway named jo");
+            clock.Advance(SaveDebounce);
+            Assert.True(storage.Get(joResource) is null, "attaching wrote what the client held before jo was named: " + storage.Get(joResource));
+
+            Assert.Equal("fresh", (await client.Browse.Resource(ResourceId.Parse("res-2")).FreshAsync(deadline.Token)).Name);
+            await clock.WaitForAsync(SaveDebounce);
+            clock.Advance(SaveDebounce);
+            await UntilAsync(() => storage.Get(joResource) is not null, deadline.Token);
+            var written = storage.Get(joResource);
+            Assert.True(HoldsFresh(written, "res-1") && HoldsFresh(written, "res-2"), "the next change's save writes the whole document: " + written);
+        }
+        finally { await opened.DisposeAsync(); }
+    }
+
+    // A script's session over a kept sign-in (C#'s sessionFromKept: SemiontSession.FromKept) takes a storage for the
+    // caches, and its client keeps its persisted queries there for the person its gateway names, under the keys
+    // stored.json gives that knowledge base and that person.
+    [Fact]
+    public async Task ASessionFromAKeptSignInKeepsItsPersistedQueriesInTheStorageItIsGiven()
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var jo = Text(root.GetProperty("people").GetProperty("jo"), "personKey");
+        var joResource = Text(PersonKeysRow(root, CaseKb, jo).GetProperty("cacheKeys"), "resource");
+        var clock = new TestClock();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        var signIn = new MemorySignIn(RegistryTokens() with { Access = TokenTests.Jwt(new { exp = now + 3600 }) });
+        var storage = new MemoryStorage();
+        using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), TokenTests.Jwt(new { exp = now + 7200 }));
+        gateway.Name(true);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var kb = RegistryKb(CaseKb, "kb-a.test");
+        using (var session = SemiontSession.FromKept(Target(kb), signIn, storage, gateway.Http, clock))
+        {
+            await session.ReadyAsync(deadline.Token);
+            Assert.Equal("fresh", (await session.Client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(deadline.Token)).Name);
+            await clock.WaitForAsync(SaveDebounce);
+            clock.Advance(SaveDebounce);
+            await UntilAsync(() => storage.Get(joResource) is not null, deadline.Token);
+        }
+        Assert.True(HoldsFresh(storage.Get(joResource), "res-1"), "the session kept res-1 for jo: " + storage.Get(joResource));
+    }
+
+    // The keep check reads the sign-in through what keeps it (ISignInKept.HeldAsync), as every SDK's does. One it cannot
+    // read there ends the client's keeping, and the session says so once, on its errors stream, as session.keep-failed;
+    // the session goes on.
+    [Fact]
+    public async Task ASignInItsKeeperCannotReadAsTheClientSavesEndsItsKeepingAndTellsTheSessionsErrorsOnce()
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var jo = Text(root.GetProperty("people").GetProperty("jo"), "personKey");
+        var joKeys = PersonKeysRow(root, CaseKb, jo);
+        var clock = new TestClock();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        var signIn = new SignInUnreadableOnceTold(new MemorySignIn(RegistryTokens() with { Access = TokenTests.Jwt(new { exp = now + 3600 }) }));
+        var storage = new MemoryStorage();
+        using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), TokenTests.Jwt(new { exp = now + 7200 }));
+        gateway.Name(true);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var kb = RegistryKb(CaseKb, "kb-a.test");
+        var session = SemiontSession.FromKept(Target(kb), signIn, storage, gateway.Http, clock);
+        await session.ReadyAsync(deadline.Token);
+        await using var errors = session.Errors(deadline.Token).GetAsyncEnumerator();
+        var told = errors.MoveNextAsync().AsTask();
+        Assert.Equal("fresh", (await session.Client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(deadline.Token)).Name);
+        signIn.Unreadable();
+        await clock.WaitForAsync(SaveDebounce);
+        clock.Advance(SaveDebounce);
+        Assert.True(await told.WaitAsync(deadline.Token), "the session's errors ended before it was told");
+        Assert.Equal("session.keep-failed", errors.Current.Code);
+        Assert.Contains(CaseKb, errors.Current.Message, StringComparison.Ordinal);
+        Assert.IsType<IOException>(errors.Current.InnerException);
+        Assert.Equal("fresh", (await session.Client.Browse.Resource(ResourceId.Parse("res-2")).FreshAsync(deadline.Token)).Name);
+        await clock.WaitForAsync(SaveDebounce);
+        clock.Advance(SaveDebounce);
+        Assert.True(session.Token.Value is not null, "the session goes on");
+        // Disposing the session closes its client too, whose closing save meets the same unreadable sign-in.
+        var later = errors.MoveNextAsync().AsTask();
+        session.Dispose();
+        while (await later.WaitAsync(deadline.Token))
+        {
+            Assert.True(errors.Current.Code != "session.keep-failed", "the session was told twice that it keeps nothing more");
+            later = errors.MoveNextAsync().AsTask();
+        }
+        foreach (var key in PersonKeys(joKeys)) Assert.True(storage.Get(key) is null, key + " holds " + storage.Get(key));
+    }
+
+    private static KbTarget Target(KnowledgeBase kb) => new() { Id = kb.Id, Label = kb.Label, Endpoint = kb.Endpoint };
+
+    private static async Task UntilAsync(Func<bool> condition, CancellationToken cancellation)
+    {
+        while (!condition()) await Task.Delay(1, cancellation);
     }
 
     private static async Task ForgetCaseAsync(JsonElement root, JsonElement row)
@@ -593,6 +718,23 @@ public sealed partial class TransportTests
         public void Update(string key, Func<string?, string?> change) => values.Update(key, change);
         public IDisposable? Subscribe(Action<string, string?> onChange) => null;
         public void Dispose() => released.Dispose();
+    }
+
+    /// <summary>A sign-in kept in memory whose keeper cannot read it once the test says so.</summary>
+    private sealed class SignInUnreadableOnceTold(MemorySignIn kept) : ISignInKept
+    {
+        private volatile bool failing;
+        internal void Unreadable() => failing = true;
+
+        public Task<StoredSession?> HeldAsync(CancellationToken cancellation = default) =>
+            failing ? Task.FromException<StoredSession?>(new IOException("The kept sign-in cannot be read.")) : kept.HeldAsync(cancellation);
+
+        public Task KeepAsync(StoredSession signIn, CancellationToken cancellation = default) => kept.KeepAsync(signIn, cancellation);
+        public Task<string?> RenewedAsync(StoredSession read, string access, string refresh, CancellationToken cancellation = default) =>
+            kept.RenewedAsync(read, access, refresh, cancellation);
+        public Task ForgetAsync(CancellationToken cancellation = default) => kept.ForgetAsync(cancellation);
+        public Task<bool> RecordPersonKeyAsync(string access, string personKey, CancellationToken cancellation = default) =>
+            kept.RecordPersonKeyAsync(access, personKey, cancellation);
     }
 
     /// <summary>A storage whose reads of one key fail once the test says so.</summary>

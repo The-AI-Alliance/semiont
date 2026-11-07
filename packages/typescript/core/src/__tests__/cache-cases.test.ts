@@ -1,12 +1,14 @@
 /**
- * The cache case table states the spec's rule: protocol/specs/src/session/cache-cases.json, held to
- * protocol/specs/src/session/stored.json's `keptQueries`, `wholeKey`, `cacheDocument` and `lastEventIds`.
+ * The cache case table states the spec's rule: protocol/specs/src/session/cache-cases.json, held to the
+ * queries protocol/specs/src/client/refresh.json marks `persisted` and to
+ * protocol/specs/src/session/stored.json's `wholeKey`, `cacheDocument` and `lastEventIds`.
  *
  * Every SDK runs the table against its own persister, so a case whose expectation is not the spec's
  * would hold all eight to a wrong rule. Here each expectation is derived from the spec alone: a
- * document's structure by stored.json's own `cacheDocument`, each key and value by the schema its kept
- * query names. A load keeps exactly the entries whose key and value both hold, of a document whose
- * structure holds; a load of places keeps exactly the pairs of a resource's id and a PersistedEventId.
+ * document's structure by stored.json's own `cacheDocument`, each key by the query's `per` and each
+ * value by its `value` in refresh.json. A load keeps exactly the entries whose key and value both hold,
+ * of a document whose structure holds; a load of places keeps exactly the pairs of a resource's id and
+ * a PersistedEventId. A refused write writes, once the storage takes it, what a write does.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -19,7 +21,8 @@ interface Kept {
   query: string;
   key: string;
   component: string;
-  member: string | undefined;
+  /** The members within the component the value is, outermost first; none when it is the component. */
+  members: string[];
 }
 
 type ReadKeptQueries = (root: string, refuse: (message: string) => never) => { kept: Kept[]; wholeKey: string; version: number };
@@ -54,7 +57,7 @@ interface Places extends Stored {
 }
 
 const read = (path: string): unknown => JSON.parse(readFileSync(`${ROOT}/${path}`, 'utf8'));
-const table = read('protocol/specs/src/session/cache-cases.json') as { cases: Load[]; writes: Write[]; places: Places[] };
+const table = read('protocol/specs/src/session/cache-cases.json') as { cases: Load[]; writes: Write[]; refusedWrites: Write[]; places: Places[] };
 const stored = read('protocol/specs/src/session/stored.json') as { cacheDocument: object };
 
 const { kept, wholeKey } = readKeptQueries(ROOT, (message) => {
@@ -72,8 +75,9 @@ const holds = (component: string, value: unknown): boolean => {
 };
 
 const keyHolds = (query: Kept, key: unknown): boolean => (query.key === WHOLE ? key === wholeKey : holds(query.key, key));
+/** A value held as its component holding it alone, member within member. */
 const valueHolds = (query: Kept, value: unknown): boolean =>
-  holds(query.component, query.member === undefined ? value : { [query.member]: value });
+  holds(query.component, query.members.reduceRight<unknown>((inner, member) => ({ [member]: inner }), value));
 
 const structureHolds = new Ajv2020({ strict: false }).compile(stored.cacheDocument);
 
@@ -111,7 +115,7 @@ function placesLoaded(source: string): Record<string, string> {
 const asMap = (entries: Entry[]): Map<string, unknown> => new Map(entries.map(([key, value]) => [JSON.stringify(key), value]));
 
 describe('the cache case table (protocol/specs/src/session/cache-cases.json)', () => {
-  it('keeps every query stored.json keeps, and no other', () => {
+  it('keeps every query refresh.json marks persisted, and no other', () => {
     expect(new Set(table.cases.map((stated) => stated.query))).toEqual(new Set(keptBy.keys()));
     expect(new Set(table.writes.map((stated) => stated.query))).toEqual(new Set(keptBy.keys()));
   });
@@ -122,7 +126,7 @@ describe('the cache case table (protocol/specs/src/session/cache-cases.json)', (
     expect(asMap(stated.kept)).toEqual(asMap(loaded(query, text(stated))));
   });
 
-  it.each(table.writes)('$name: writes what it holds, each key and value the query\'s', (stated) => {
+  it.each([...table.writes, ...table.refusedWrites])('$name: writes what it holds, each key and value the query\'s', (stated) => {
     const query = keptBy.get(stated.query);
     if (query === undefined) throw new Error(`${stated.name}: ${stated.query} is no kept query`);
     for (const [key, value] of stated.held) {

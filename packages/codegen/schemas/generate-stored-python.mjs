@@ -47,7 +47,7 @@ const table = JSON.parse(readFileSync(TABLE, 'utf8'));
 const stated = (value) => typeof value === 'string' && value !== '';
 
 for (const member of Object.keys(table)) {
-  if (!['$comment', 'keys', 'sessionKeyPrefix', 'lastEventIdKeyPrefix', 'cacheKeyPrefix', 'keptQueries', 'wholeKey', 'storedSession', 'pendingAuthorization', 'openResource', 'cacheDocument', 'lastEventIds'].includes(member)) refuse(`states \`${member}\`, which this generator does not render`);
+  if (!['$comment', 'keys', 'sessionKeyPrefix', 'lastEventIdKeyPrefix', 'cacheKeyPrefix', 'wholeKey', 'storedSession', 'pendingAuthorization', 'openResource', 'cacheDocument', 'lastEventIds'].includes(member)) refuse(`states \`${member}\`, which this generator does not render`);
 }
 if (!Array.isArray(table.keys) || table.keys.length === 0) refuse('states no `keys`');
 const seen = new Set();
@@ -148,8 +148,8 @@ const identifiers = [...new Set([...openResource.fields.flatMap(({ kind }) => (k
 const components = [...new Set(named.filter((name) => !kinds.has(name)))].sort();
 
 /** What a kept query's entries are keyed by, and what each keeps. */
-const keptAs = ({ key, component, member }) => {
-  const value = member === undefined ? component : `${component}'s \`${member}\``;
+const keptAs = ({ key, component, members }) => {
+  const value = members.length === 0 ? component : `${component}'s \`${members.join('.')}\``;
   return `Keyed by ${key === WHOLE ? 'WHOLE_KEY alone' : key}; its value is ${value}.`;
 };
 

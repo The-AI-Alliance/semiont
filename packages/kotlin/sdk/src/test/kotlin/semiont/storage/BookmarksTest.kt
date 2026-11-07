@@ -1,19 +1,35 @@
+@file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+
 package semiont.storage
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
+import semiont.ClientTiming
+import semiont.SemiontClient
+import semiont.Timings
 import semiont.frame
 import semiont.http.HttpTransport
 import semiont.http.StreamGateway
 import semiont.http.Timing
 import semiont.http.firstOf
 import semiont.identifiers.ResourceId
+import semiont.live.KbContent
+import semiont.live.KbWorld
+import semiont.live.recorded
 import semiont.registry.cacheKey
 import semiont.registry.lastEventIdKey
 import semiont.testing.SharedStorage
@@ -84,18 +100,63 @@ class BookmarksTest {
     }
 
     @Test
-    fun aPlaceWaitsForTheCachesToBeAtRest() {
+    fun aPlaceWaitsForTheCachesOfTheClientItIsCoupledToToBeAtRest() = runTest {
         val storage = MemoryStorage()
         val places = CoupledBookmarks(storage, KEY)
-        var atRest = false
-        places.flushGate = { atRest }
+        // A client that keeps its caches beside the places, over a knowledge base that answers only when the test does.
+        val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, answered = false, persistence = CachePersistence(places.storage, "kb-a", PERSON))
+        places.coupleTo(world.client)
+        // A query the client keeps is being fetched: the client is not at rest.
+        val reading = async { world.client.browse.resource(RESOURCE).fresh() }
+        delay(100)
+        assertFalse(world.client.persistenceSettled)
         places.save(RESOURCE, "p-res-1-7")
-        places.storage.set(CACHE, "{}")
+        places.storage.set(ANNOTATIONS, "{}")
         // Late, which is safe: the cache that was written may not be the one still taking the event in.
         assertNull(storage.get(KEY))
-        atRest = true
-        places.storage.set(ANNOTATIONS, "{}")
+        // Answered, the resource is saved once its value has stopped changing, and that save, made at rest, carries the place.
+        world.kb.answer(world.kb.askedFor("browse:resource-requested").single())
+        reading.await()
+        delay(Timings.SAVE_DEBOUNCE_MS * 2)
+        assertNotNull(storage.get(CACHE))
         assertEquals(mapOf(RESOURCE to "p-res-1-7"), places.load())
+        world.close()
+    }
+
+    @Test
+    fun aPlaceIsNotedOnlyOnceTheRefresherHasTakenItsEvent() = runBlocking {
+        val storage = MemoryStorage()
+        // What an earlier client kept of res-1's annotations: the client holds them, so an event of res-1 asks for them again.
+        storage.set(ANNOTATIONS, """{"version":1,"entries":[["res-1",{"annotations":[],"total":0},1700000000000]]}""")
+        val places = CoupledBookmarks(storage, KEY)
+        // The client's work, its refresher's among it, runs only when the test runs this scheduler.
+        val held = TestCoroutineScheduler()
+        val content = KbContent(answered = false)
+        StreamGateway().use { gateway ->
+            HttpTransport(gateway.origin, MutableStateFlow("t"), emptyList(), QUICK, null, places).use { transport ->
+                val client = SemiontClient(transport, content, transport, ClientTiming(), CachePersistence(places.storage, "kb-a", PERSON), StandardTestDispatcher(held), held.timeSource)
+                places.coupleTo(client)
+                val heard = transport.frames("mark:added")
+                transport.subscribeToResource(RESOURCE).use {
+                    assertEquals(mapOf("res-1" to null), gateway.placesAskedFrom(1))
+                    val event = JsonObject(mapOf("channel" to JsonPrimitive("mark:added"), "payload" to recorded("mark:added", RESOURCE), "scope" to JsonPrimitive("res-1")))
+                    gateway.send("p-res-1-9", event.toString())
+                    // Delivered to the client, and queued for its refresher, which has not taken it.
+                    withTimeout(5_000) { heard.firstOf(1) }
+                    assertEquals(emptyList<ResourceId>(), content.reads)
+                    // A cache written meanwhile writes no place of an event whose effects are not under way.
+                    places.storage.set(CACHE, "{}")
+                    assertNull(storage.get(KEY), "the place of an event the refresher had not taken was written")
+                    // Taken: its refetch of the annotations is in flight, and holds the place back.
+                    held.runCurrent()
+                    assertEquals(listOf(RESOURCE), content.reads)
+                    assertFalse(client.persistenceSettled)
+                    places.storage.set(CACHE, "{}")
+                    assertNull(storage.get(KEY), "the place of an event whose refetch is in flight was written")
+                }
+                client.close()
+            }
+        }
     }
 
     @Test

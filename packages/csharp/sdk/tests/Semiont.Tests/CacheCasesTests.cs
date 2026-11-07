@@ -30,14 +30,16 @@ public sealed class CacheCasesTests
 
     public static IEnumerable<object[]> Loads() => Names("cases");
     public static IEnumerable<object[]> Writes() => Names("writes");
+    public static IEnumerable<object[]> RefusedWrites() => Names("refusedWrites");
     public static IEnumerable<object[]> Places() => Names("places");
 
     [Fact]
-    public void ThisRunnerKeepsEveryQueryStoredJsonNames()
+    public void ThisRunnerKeepsEveryQueryRefreshJsonMarksPersisted()
     {
-        using var stored = JsonDocument.Parse(File.ReadAllText(Path.Join(AppContext.BaseDirectory, "specs", "session/stored.json")));
-        var named = stored.RootElement.GetProperty("keptQueries").EnumerateArray().Select(row => Text(row, "query"));
-        Assert.Equal(named.Order(StringComparer.Ordinal), Kept.Keys.Order(StringComparer.Ordinal));
+        using var refresh = JsonDocument.Parse(File.ReadAllText(Path.Join(AppContext.BaseDirectory, "specs", "client/refresh.json")));
+        var persisted = refresh.RootElement.GetProperty("queries").EnumerateArray()
+            .Where(row => row.TryGetProperty("persisted", out var marked) && marked.GetBoolean()).Select(row => Text(row, "name"));
+        Assert.Equal(persisted.Order(StringComparer.Ordinal), Kept.Keys.Order(StringComparer.Ordinal));
     }
 
     [Theory]
@@ -61,8 +63,33 @@ public sealed class CacheCasesTests
         var store = new MemoryStorage();
         using (var kept = Kept[query](store)) kept.Hold(row.GetProperty("held"));
 
-        var written = row.GetProperty("written");
-        using var document = JsonDocument.Parse(Assert.IsType<string>(store.Get(RegistryStorage.CacheKey(Kb, Person, query))));
+        SameDocument(name, row.GetProperty("written"), store.Get(RegistryStorage.CacheKey(Kb, Person, query)));
+    }
+
+    [Theory]
+    [MemberData(nameof(RefusedWrites))]
+    public void ARefusedWriteStaysOwedAndDisposalsFlushWritesWhatItsCaseSays(string name)
+    {
+        var row = Row("refusedWrites", name);
+        var query = Text(row, "query");
+        var store = new MemoryStorage();
+        var refusing = new RefusesTheFirstWrite(store, RegistryStorage.CacheKey(Kb, Person, query));
+        using (var kept = Kept[query](refusing))
+        {
+            kept.Hold(row.GetProperty("held"));
+            kept.Save();
+            Assert.True(refusing.Refused, name + ": the storage refused the save's write");
+            Assert.True(kept.Owes, name + ": the cache still owes its save after the storage refused it");
+        }
+
+        SameDocument(name, row.GetProperty("written"), store.Get(RegistryStorage.CacheKey(Kb, Person, query)));
+    }
+
+    /// <summary>The document <paramref name="text"/> is <paramref name="written"/>: its entries compared as a map, each
+    /// stamp an integer of at least 0.</summary>
+    private static void SameDocument(string name, JsonElement written, string? text)
+    {
+        using var document = JsonDocument.Parse(Assert.IsType<string>(text));
         var saved = document.RootElement;
         Assert.Equal(Members(written), Members(saved));
         Assert.True(JsonElement.DeepEquals(written.GetProperty("version"), saved.GetProperty("version")), name + ": version");
@@ -130,19 +157,25 @@ public sealed class CacheCasesTests
 
         /// <summary>Gives the query's cache each entry's value under its key, as answers do.</summary>
         public void Hold(JsonElement entries);
+
+        /// <summary>Lets the wait before a save pass, so the cache saves what it owes.</summary>
+        public void Save();
+
+        /// <summary>Whether the cache still owes a save.</summary>
+        public bool Owes { get; }
     }
 
     /// <summary>One kept query's cache and the persistence that keeps it, as a session wires them; disposing it saves
     /// what it owes.</summary>
     private sealed class KeptCase<TKey, T> : IKeptCase where TKey : notnull
     {
+        private readonly FakeTimeProvider clock = new();
         private readonly LiveCacheStorage storage;
         private readonly Cache<TKey, T> cache;
         private readonly KeptKey<TKey, T> key;
 
         internal KeptCase(string query, ISessionStorage store, KeptKey<TKey, T> key)
         {
-            var clock = new FakeTimeProvider();
             this.key = key;
             storage = new LiveCacheStorage(new CachePersistence(store, Kb, Person), clock, () => false);
             cache = new Cache<TKey, T>((held, _) => throw new InvalidOperationException("A kept case fetched " + held), null, clock, TimeSpan.Zero,
@@ -168,10 +201,36 @@ public sealed class CacheCasesTests
             }
         }
 
+        public void Save() => clock.Advance(LiveCacheStorage.Debounce);
+
+        public bool Owes => cache.PersistencePending;
+
         public void Dispose()
         {
             storage.Dispose();
             cache.Dispose();
         }
+    }
+
+    /// <summary>A storage in memory that refuses the first write of <paramref name="refused"/>, as a host's storage
+    /// that cannot write does.</summary>
+    private sealed class RefusesTheFirstWrite(MemoryStorage store, string refused) : ISessionStorage
+    {
+        internal bool Refused { get; private set; }
+        public string? Get(string key) => store.Get(key);
+
+        public void Set(string key, string value)
+        {
+            if (key == refused && !Refused)
+            {
+                Refused = true;
+                throw new IOException("The storage refused the write of " + key);
+            }
+            store.Set(key, value);
+        }
+
+        public void Delete(string key) => store.Delete(key);
+        public void Update(string key, Func<string?, string?> change) => store.Update(key, change);
+        public IDisposable? Subscribe(Action<string, string?> onChange) => store.Subscribe(onChange);
     }
 }

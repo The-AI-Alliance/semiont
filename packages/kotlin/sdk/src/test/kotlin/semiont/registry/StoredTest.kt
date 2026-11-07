@@ -2,14 +2,13 @@ package semiont.registry
 
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.SerializationException
-import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.serializer
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -18,9 +17,12 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.Spec
+import semiont.cache.CacheQuery
 import semiont.cache.PERSISTED_QUERIES
+import semiont.descriptorOf
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
+import semiont.schemaOf
 import semiont.signin.HeldSignIn
 import semiont.signin.namingIsRecordedOnTheSignInAskedAbout
 import semiont.storage.CachePersistence
@@ -38,21 +40,17 @@ private val required = session.getValue("required").jsonArray.map { it.jsonPrimi
 private val openResource = table.getValue("openResource").jsonObject
 private val openMembers = openResource.getValue("properties").jsonObject.keys
 private val openRequired = openResource.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet()
-private val keptQueries = table.getValue("keptQueries").jsonArray.map { it.jsonObject }
 private val wholeKey = table.getValue("wholeKey").jsonObject.getValue("key").jsonPrimitive.content
 private val cacheDocument = table.getValue("cacheDocument").jsonObject
 private val lastEventIds = table.getValue("lastEventIds").jsonObject
 
-/** The component schema a `$ref` of the table names. */
-private fun schemaOf(ref: JsonObject): String = ref.getValue("\$ref").jsonPrimitive.content.substringBefore('#').substringAfterLast('/').removeSuffix(".json")
+/** The rows client/refresh.json marks `persisted`, in its order: the queries a session keeps. */
+private val persistedRows = Spec.read("client/refresh.json").jsonObject.getValue("queries").jsonArray.map { it.jsonObject }
+    .filter { it["persisted"] == JsonPrimitive(true) }
 
-/** What a `$ref` of the table names, as Kotlin decodes it: a component schema's type, or the type of one member of one. */
-private fun descriptorOf(ref: JsonObject): SerialDescriptor {
-    val component = serializer(Class.forName("semiont.types.${schemaOf(ref)}")).descriptor
-    val pointer = ref.getValue("\$ref").jsonPrimitive.content.substringAfter('#', "")
-    if (pointer.isEmpty()) return component
-    return component.getElementDescriptor(component.getElementIndex(pointer.removePrefix("/properties/")))
-}
+/** Save one entry through `kept`'s persister in `persistence`: `key` and `value` as the wire has them. */
+private fun <K : Any, V : Any> saveOne(kept: KeptQuery<K, V>, persistence: CachePersistence, key: JsonElement, value: JsonElement): Unit =
+    kept.persister(persistence).save(mapOf(wireJson.decodeFromJsonElement(kept.key, key) to wireJson.decodeFromJsonElement(kept.value, value)))
 
 private fun JsonObject.text(name: String): String = getValue(name).jsonPrimitive.content
 
@@ -81,11 +79,14 @@ private fun writtenOpen(): List<JsonObject> = runBlocking {
  * states it: every key Kotlin writes by hand, the key of a knowledge base's
  * session, the keys of what a session keeps of its stream and its queries for
  * one person, each the table's example, the members of a stored session, and
- * those of an open resource; and the queries a session keeps, what each is
- * keyed by and keeps, the document each is kept as, and what is kept of its
- * stream. A key or a member the table gains, or a change to what it requires,
- * fails here until Kotlin has it. And the registry's readers and writers of
- * what it keeps. AuthorizationTest holds what is kept of a sign-in begun;
+ * those of an open resource; and the queries a session keeps (the rows
+ * protocol/specs/src/client/refresh.json marks `persisted`), what each is
+ * keyed by (its row's `per`) and keeps (its row's `value`), the document each
+ * is kept as, and what is kept of its stream. A key or a member the table
+ * gains, a query the refresh table comes to persist, or a change to what
+ * either requires, fails here until Kotlin has it. And the registry's
+ * readers and writers of what it keeps. AuthorizationTest holds what is kept
+ * of a sign-in begun; QueryValuesTest, what every live query's cache holds;
  * PersistedCasesTest, when each person's keys are read, written and deleted;
  * and CacheCasesTest, what a session keeps of its queries and its stream,
  * case by case.
@@ -118,21 +119,21 @@ class StoredTest {
     }
 
     @Test
-    fun theQueriesASessionKeepsAreTheTablesEachByItsNameAndKeepingWhatTheTableSays() {
-        assertEquals(keptQueries.map { it.getValue("query").jsonPrimitive.content }.toSet(), KEPT_QUERIES.map { it.query.wire }.toSet())
-        for (stated in keptQueries) {
-            val kept = KEPT_QUERIES.single { it.query.wire == stated.getValue("query").jsonPrimitive.content }
-            assertEquals(descriptorOf(stated.getValue("value").jsonObject), kept.value.descriptor, kept.query.wire)
+    fun theQueriesASessionKeepsAreTheRowsTheRefreshTableMarksPersistedInItsOrderEachKeepingItsValue() {
+        assertEquals(persistedRows.map { it.text("name") }, PERSISTED_QUERIES.map { it.query.wire })
+        for (row in persistedRows) {
+            val kept = PERSISTED_QUERIES.single { it.query.wire == row.text("name") }
+            assertEquals(descriptorOf(row.getValue("value").jsonObject), kept.value.descriptor, kept.query.wire)
         }
     }
 
     @TestFactory
-    fun eachKeptQueryIsKeyedByWhatTheRefreshTableSaysItIsPer(): List<DynamicTest> {
-        val per = Spec.read("client/refresh.json").jsonObject.getValue("queries").jsonArray.map { it.jsonObject }
-            .associate { it.getValue("name").jsonPrimitive.content to it["per"]?.jsonPrimitive?.content }
-        return KEPT_QUERIES.map { kept ->
-            DynamicTest.dynamicTest(kept.query.wire) {
-                when (val of = per.getValue(kept.query.wire)) {
+    fun eachKeptQueryIsKeyedByWhatTheRefreshTableSaysItIsPer(): List<DynamicTest> =
+        persistedRows.map { row ->
+            DynamicTest.dynamicTest(row.text("name")) {
+                val kept = PERSISTED_QUERIES.single { it.query.wire == row.text("name") }
+                // A row states no `per` for a query the knowledge base has one of.
+                when (val of = row["per"]?.jsonPrimitive?.content) {
                     "resource" -> assertEquals(ResourceId.serializer().descriptor, kept.key.descriptor)
                     "annotation" -> assertEquals(AnnotationId.serializer().descriptor, kept.key.descriptor)
                     // A query per nothing keeps its one entry under the table's whole key, and under no other.
@@ -145,18 +146,19 @@ class StoredTest {
                 }
             }
         }
-    }
 
     @Test
     fun aKeptQuerysDocumentIsWrittenWithTheTablesMembersAndNoOthers() {
         val version = cacheDocument.getValue("properties").jsonObject.getValue("version").jsonObject.getValue("const").jsonPrimitive.content.toLong()
         assertEquals(version, CACHE_DOCUMENT_VERSION)
         val storage = MemoryStorage()
-        val resource = ResourceId("r1")
-        KEPT_RESOURCE.persister(CachePersistence(storage, KB_A, "the key of jo")).save(
-            mapOf(resource to wireJson.decodeFromString(KEPT_RESOURCE.value, """{"@context":"https://schema.org/","@id":"r1","name":"One","representations":[]}""")),
+        saveOne(
+            PERSISTED_QUERIES.single { it.query == CacheQuery.Resource },
+            CachePersistence(storage, KB_A, "the key of jo"),
+            JsonPrimitive("r1"),
+            Json.parseToJsonElement("""{"@context":"https://schema.org/","@id":"r1","name":"One","representations":[]}"""),
         )
-        val written = Json.parseToJsonElement(checkNotNull(storage.get(cacheKey(KB_A, "the key of jo", KEPT_RESOURCE.query.wire)))).jsonObject
+        val written = Json.parseToJsonElement(checkNotNull(storage.get(cacheKey(KB_A, "the key of jo", CacheQuery.Resource.wire)))).jsonObject
         assertEquals(cacheDocument.getValue("properties").jsonObject.keys, written.keys)
         assertEquals(version, written.getValue("version").jsonPrimitive.content.toLong())
         val items = cacheDocument.getValue("properties").jsonObject.getValue("entries").jsonObject.getValue("items").jsonObject
@@ -170,7 +172,7 @@ class StoredTest {
         val storage = MemoryStorage()
         val places = CoupledBookmarks(storage, lastEventIdKey(KB_A, "the key of jo"))
         places.save(ResourceId("r1"), "p-r1-7")
-        places.storage.set(cacheKey(KB_A, "the key of jo", KEPT_RESOURCE.query.wire), "{}")
+        places.storage.set(cacheKey(KB_A, "the key of jo", CacheQuery.Resource.wire), "{}")
         assertEquals(Json.parseToJsonElement("""{"r1":"p-r1-7"}"""), Json.parseToJsonElement(checkNotNull(storage.get(lastEventIdKey(KB_A, "the key of jo")))))
     }
 
@@ -248,7 +250,7 @@ class StoredTest {
     fun keepingANewSignInInPlaceOfOneThatNamesItsPersonDeletesWhatWasKeptForThemAndNoOtherPersons() = runBlocking {
         val storage = MemoryStorage()
         val kept = keptIn(storage, KB_A)
-        val keptForJo = PERSISTED_QUERIES.map { cacheKey(KB_A, "the key of jo", it.wire) } + lastEventIdKey(KB_A, "the key of jo")
+        val keptForJo = PERSISTED_QUERIES.map { cacheKey(KB_A, "the key of jo", it.query.wire) } + lastEventIdKey(KB_A, "the key of jo")
         val keptForOthers = listOf(cacheKey(KB_A, "the key of ann", "resource"), cacheKey(KB_B, "the key of jo", "resource"), lastEventIdKey(KB_B, "the key of jo"))
         fun signIn(access: String, refresh: String, personKey: String?) = HeldSignIn(access, refresh, "semiont-browser", "https://issuer.test/token", null, personKey)
 

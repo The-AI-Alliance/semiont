@@ -5,6 +5,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -19,6 +22,8 @@ import semiont.cache.PERSISTED_QUERIES
 import semiont.errors.SessionError
 import semiont.errors.SessionErrorCode
 import semiont.identifiers.ResourceId
+import semiont.live.RESOURCE
+import semiont.live.recorded
 import semiont.registry.StoredSession
 import semiont.registry.answersFresh
 import semiont.registry.cacheKey
@@ -31,6 +36,7 @@ import semiont.signin.MemorySignIn
 import semiont.signin.SCRIPT_CLIENT_ID
 import semiont.signin.SignInKept
 import semiont.storage.MemoryStorage
+import semiont.storage.SessionStorage
 import semiont.types.HttpEndpoint
 import semiont.types.HttpEndpointProtocol
 import semiont.types.KbTarget
@@ -66,6 +72,28 @@ private class Unreadable(private val beneath: SignInKept) : SignInKept by beneat
         return beneath.held()
     }
 }
+
+/** A storage that refuses its first write of `refused`, keeping nothing of it, and takes every other write as `beneath` does. */
+private class RefusingTheFirstWriteOf(private val beneath: SessionStorage, private val refused: String) : SessionStorage by beneath {
+    /** How many writes it has refused: one, once it has. */
+    val refusals = AtomicInteger()
+
+    private fun refuses(key: String): Boolean = key == refused && refusals.compareAndSet(0, 1)
+
+    override fun set(key: String, value: String) {
+        if (refuses(key)) throw IOException("the storage refuses the write of $refused")
+        beneath.set(key, value)
+    }
+
+    override fun update(key: String, change: (String?) -> String?) {
+        if (refuses(key)) throw IOException("the storage refuses the write of $refused")
+        beneath.update(key, change)
+    }
+}
+
+/** Whether a stream's subscription holds the scope of `resource`: one that names no scopes holds none. */
+private fun holdsTheScopeOf(subscription: JsonObject, resource: String): Boolean =
+    (subscription["scoped"] as? JsonArray)?.any { it.jsonObject.getValue("scope").jsonPrimitive.content == resource } == true
 
 /** A session over HTTP from a kept sign-in: opened, renewed through itself, keeping its caches for the person its gateway names, and closed with what it opened. */
 class SessionFromKeptTest {
@@ -166,6 +194,37 @@ class SessionFromKeptTest {
     }
 
     @Test
+    fun aWriteOfWhatTheClientKeepsThatTheStorageRefusesHasNoPlaceWrittenAfterIt() = runBlocking {
+        Realm().use { realm ->
+            realm.answersFresh()
+            realm.script("/api/users/me", Said(200, alice))
+            val places = lastEventIdKey("local", ALICE_KEY)
+            val storage = RefusingTheFirstWriteOf(MemoryStorage(), KEPT_FOR_ALICE.first)
+            val kept = MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, ALICE_KEY))
+            sessionFromKept(kb(realm), kept, storage = storage).use { opened ->
+                val transport = opened.client.transport
+                val heard = transport.frames("mark:added")
+                transport.subscribeToResource(ResourceId("res-1")).use {
+                    withTimeout(5_000) {
+                        while (realm.subscriptions.none { holdsTheScopeOf(it, "res-1") }) delay(5)
+                    }
+                    // A recorded event of res-1, which asks again for nothing the client holds: its id is the scope's place.
+                    realm.send(JsonObject(mapOf("channel" to JsonPrimitive("mark:added"), "payload" to recorded("mark:added", RESOURCE), "scope" to JsonPrimitive("res-1"))), "p-res-1-9")
+                    withTimeout(5_000) { heard.firstOf(1) }
+                    // Then res-1 is read, and the save its answer owes is refused.
+                    withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-1")).first { it is CacheState.Ready } }
+                    withTimeout(5_000) {
+                        while (storage.refusals.get() == 0) delay(5)
+                    }
+                    delay(semiont.Timings.SAVE_DEBOUNCE_MS * 4)
+                    // The cache kept nothing of what the place names, so no place says it did.
+                    assertNull(storage.get(places), "a place was written after the write of res-1 was refused")
+                }
+            }
+        }
+    }
+
+    @Test
     fun aSignInThatCannotBeReadAsTheClientSavesStopsItsKeepingAndTheSessionIsToldOnce() = runBlocking {
         Realm().use { realm ->
             realm.answersFresh()
@@ -187,7 +246,7 @@ class SessionFromKeptTest {
             assertEquals(listOf(SessionErrorCode.KeepFailed), told.map { it.reason })
             assertEquals("local", told.single().kbId)
             assertEquals(1, kept.refused.get())
-            for (key in PERSISTED_QUERIES.map { cacheKey("local", ALICE_KEY, it.wire) } + lastEventIdKey("local", ALICE_KEY)) assertNull(storage.get(key), key)
+            for (key in PERSISTED_QUERIES.map { cacheKey("local", ALICE_KEY, it.query.wire) } + lastEventIdKey("local", ALICE_KEY)) assertNull(storage.get(key), key)
         }
     }
 

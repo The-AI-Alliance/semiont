@@ -5,13 +5,17 @@ package semiont
 // client's own live queries, which keep their caches for one person over a
 // storage in memory, under the keys protocol/specs/src/session/stored.json
 // gives: what a load keeps of a document stored there, what a save writes,
-// and what a load of the places keeps.
+// what a save the storage refused leaves owed, and what a load of the places
+// keeps.
 
 import (
 	"encoding/json"
+	"errors"
 	"maps"
+	"reflect"
 	"slices"
 	"strconv"
+	"sync/atomic"
 	"testing"
 )
 
@@ -41,6 +45,15 @@ func (c storedCase) text(t *testing.T) string {
 	return ""
 }
 
+// cacheWrite is a save of a query's cache: held is what it holds once its
+// answers came, and written the document the save writes.
+type cacheWrite struct {
+	Name    string              `json:"name"`
+	Query   CacheQuery          `json:"query"`
+	Held    [][]json.RawMessage `json:"held"`
+	Written json.RawMessage     `json:"written"`
+}
+
 type cacheCases struct {
 	Cases []struct {
 		storedCase
@@ -48,13 +61,9 @@ type cacheCases struct {
 		Query CacheQuery          `json:"query"`
 		Kept  [][]json.RawMessage `json:"kept"`
 	} `json:"cases"`
-	Writes []struct {
-		Name    string              `json:"name"`
-		Query   CacheQuery          `json:"query"`
-		Held    [][]json.RawMessage `json:"held"`
-		Written json.RawMessage     `json:"written"`
-	} `json:"writes"`
-	Places []struct {
+	Writes        []cacheWrite `json:"writes"`
+	RefusedWrites []cacheWrite `json:"refusedWrites"`
+	Places        []struct {
 		storedCase
 		Name string            `json:"name"`
 		Kept map[string]string `json:"kept"`
@@ -64,30 +73,34 @@ type cacheCases struct {
 func readCacheCases(t *testing.T) cacheCases {
 	t.Helper()
 	table := readSpec[cacheCases](t, "session", "cache-cases.json")
-	if len(table.Cases) == 0 || len(table.Writes) == 0 || len(table.Places) == 0 {
-		t.Fatal("the table states no cases, writes or places: it was not read")
+	if len(table.Cases) == 0 || len(table.Writes) == 0 || len(table.RefusedWrites) == 0 || len(table.Places) == 0 {
+		t.Fatal("the table states no cases, writes, refused writes or places: it was not read")
 	}
 	return table
 }
 
-// keptCache is one kept query's cache, its keys and values as JSON text.
-type keptCache interface {
+// queryCache is one live query's cache, its keys and values as JSON text.
+type queryCache interface {
 	// hold makes value key's, as an event that carries it does.
 	hold(t *testing.T, key, value json.RawMessage)
 	// held is every key's value, by the key's JSON text.
 	held(t *testing.T) map[string]string
+	// keyType is the type of the cache's keys.
+	keyType() reflect.Type
+	// valueType is the type of the cache's values.
+	valueType() reflect.Type
 }
 
-type keptCacheOf[K comparable, V any] struct{ cache *Cache[K, V] }
+type queryCacheOf[K comparable, V any] struct{ cache *Cache[K, V] }
 
-func keptIn[K comparable, V any](cache *Cache[K, V]) keptCache { return keptCacheOf[K, V]{cache} }
+func cacheOf[K comparable, V any](cache *Cache[K, V]) queryCache { return queryCacheOf[K, V]{cache} }
 
-func (c keptCacheOf[K, V]) hold(t *testing.T, key, value json.RawMessage) {
+func (c queryCacheOf[K, V]) hold(t *testing.T, key, value json.RawMessage) {
 	t.Helper()
 	c.cache.Set(readJSON[K](t, string(key)), readJSON[V](t, string(value)))
 }
 
-func (c keptCacheOf[K, V]) held(t *testing.T) map[string]string {
+func (c queryCacheOf[K, V]) held(t *testing.T) map[string]string {
 	t.Helper()
 	held := map[string]string{}
 	for _, key := range c.cache.Keys() {
@@ -100,21 +113,35 @@ func (c keptCacheOf[K, V]) held(t *testing.T) map[string]string {
 	return held
 }
 
-// keptCaches is the cache of each kept query, as a client's live queries
-// hold it.
-var keptCaches = map[CacheQuery]func(v *live) keptCache{
-	CacheQueryResource:    func(v *live) keptCache { return keptIn(v.resource) },
-	CacheQueryAnnotations: func(v *live) keptCache { return keptIn(v.annotations) },
-	CacheQueryAnnotation:  func(v *live) keptCache { return keptIn(v.annotation) },
-	CacheQueryEntityTypes: func(v *live) keptCache { return keptIn(v.entityTypes) },
-	CacheQueryTagSchemas:  func(v *live) keptCache { return keptIn(v.tagSchemas) },
+func (queryCacheOf[K, V]) keyType() reflect.Type { return reflect.TypeFor[K]() }
+
+func (queryCacheOf[K, V]) valueType() reflect.Type { return reflect.TypeFor[V]() }
+
+// queryCaches is the cache of each live query, as a client's live queries
+// hold it. refresh_values_test.go holds it to every query of
+// protocol/specs/src/client/refresh.json.
+var queryCaches = map[CacheQuery]func(v *live) queryCache{
+	CacheQueryResource:         func(v *live) queryCache { return cacheOf(v.resource) },
+	CacheQueryAnnotations:      func(v *live) queryCache { return cacheOf(v.annotations) },
+	CacheQueryAnnotation:       func(v *live) queryCache { return cacheOf(v.annotation) },
+	CacheQueryEvents:           func(v *live) queryCache { return cacheOf(v.events) },
+	CacheQueryReferencedBy:     func(v *live) queryCache { return cacheOf(v.referencedBy) },
+	CacheQueryResources:        func(v *live) queryCache { return cacheOf(v.lists) },
+	CacheQueryMatchedResources: func(v *live) queryCache { return cacheOf(v.searches) },
+	CacheQueryEntityTypes:      func(v *live) queryCache { return cacheOf(v.entityTypes) },
+	CacheQueryTagSchemas:       func(v *live) queryCache { return cacheOf(v.tagSchemas) },
+	CacheQueryEngines:          func(v *live) queryCache { return cacheOf(v.engines) },
 }
 
-func keptCacheFor(t *testing.T, query CacheQuery) func(v *live) keptCache {
+// keptCacheFor is the cache of query, which the refresh table must persist.
+func keptCacheFor(t *testing.T, query CacheQuery) func(v *live) queryCache {
 	t.Helper()
-	cache, ok := keptCaches[query]
+	if !slices.Contains(PersistedCacheQueries, query) {
+		t.Fatalf("the case names %s, which the refresh table does not persist", query)
+	}
+	cache, ok := queryCaches[query]
 	if !ok {
-		t.Fatalf("the case names %s, which a client does not keep", query)
+		t.Fatalf("the case names %s, which is no live query", query)
 	}
 	return cache
 }
@@ -154,57 +181,115 @@ func sameEntries(t *testing.T, got, want map[string]string) bool {
 func TestALoadKeepsWhatTheCaseTableSays(t *testing.T) {
 	for _, c := range readCacheCases(t).Cases {
 		t.Run(c.Name, func(t *testing.T) {
-			cacheOf := keptCacheFor(t, c.Query)
+			cacheIn := keptCacheFor(t, c.Query)
 			storage := NewMemoryStorage()
 			if err := storage.Set(CacheKey(casesKb, casesPerson, c.Query), c.text(t)); err != nil {
 				t.Fatal(err)
 			}
 			v := casesLive(storage)
 			defer v.dispose()
-			if got, want := cacheOf(v).held(t), entriesAs(c.Kept); !sameEntries(t, got, want) {
+			if got, want := cacheIn(v).held(t), entriesAs(c.Kept); !sameEntries(t, got, want) {
 				t.Fatalf("kept %v, want %v", got, want)
 			}
 		})
 	}
 }
 
+// writtenAsStated fails unless the document under key is the one stated: its
+// members and version as stated, its entries compared as a map, and each
+// entry's stamp an integer of at least 0.
+func writtenAsStated(t *testing.T, storage SessionStorage, key string, stated json.RawMessage) {
+	t.Helper()
+	text, ok := storage.Get(key)
+	if !ok {
+		t.Fatal("nothing was written under the query's key")
+	}
+	written := readJSON[map[string]json.RawMessage](t, text)
+	members := readJSON[map[string]json.RawMessage](t, string(stated))
+	if got, want := slices.Sorted(maps.Keys(written)), slices.Sorted(maps.Keys(members)); !slices.Equal(got, want) {
+		t.Fatalf("the document is written with %v, want %v", got, want)
+	}
+	if !sameJSON(t, string(written["version"]), string(members["version"])) {
+		t.Fatalf("the document is of version %s, want %s", written["version"], members["version"])
+	}
+	var stamped [][]json.RawMessage
+	for _, entry := range readJSON[[][]json.RawMessage](t, string(written["entries"])) {
+		if len(entry) != 3 {
+			t.Fatalf("an entry is written as %s, not a key, a value and a stamp", entry)
+		}
+		if at, err := strconv.ParseInt(string(entry[2]), 10, 64); err != nil || at < 0 {
+			t.Fatalf("an entry is stamped %s, not a whole number of at least 0", entry[2])
+		}
+		stamped = append(stamped, entry[:2])
+	}
+	if got, want := entriesAs(stamped), entriesAs(readJSON[[][]json.RawMessage](t, string(members["entries"]))); !sameEntries(t, got, want) {
+		t.Fatalf("written %v, want %v", got, want)
+	}
+}
+
 func TestASaveWritesWhatTheCaseTableSays(t *testing.T) {
 	for _, c := range readCacheCases(t).Writes {
 		t.Run(c.Name, func(t *testing.T) {
-			cacheOf := keptCacheFor(t, c.Query)
+			cacheIn := keptCacheFor(t, c.Query)
 			storage := NewMemoryStorage()
 			v := casesLive(storage)
-			cache := cacheOf(v)
+			cache := cacheIn(v)
 			for _, entry := range c.Held {
 				cache.hold(t, entry[0], entry[1])
 			}
 			// Disposing saves what is owed.
 			v.dispose()
-			text, ok := storage.Get(CacheKey(casesKb, casesPerson, c.Query))
-			if !ok {
-				t.Fatal("nothing was written under the query's key")
+			writtenAsStated(t, storage, CacheKey(casesKb, casesPerson, c.Query), c.Written)
+		})
+	}
+}
+
+// refusingFirst is a storage in memory that refuses the first write under
+// key, and takes every write after it.
+type refusingFirst struct {
+	*MemoryStorage
+	key     string
+	refused atomic.Bool
+}
+
+// refuses is whether a write under key is the one refused.
+func (s *refusingFirst) refuses(key string) bool {
+	return key == s.key && s.refused.CompareAndSwap(false, true)
+}
+
+func (s *refusingFirst) Set(key, value string) error {
+	if s.refuses(key) {
+		return errors.New("the storage refuses the first write of the query's document")
+	}
+	return s.MemoryStorage.Set(key, value)
+}
+
+func (s *refusingFirst) Update(key string, change func(stored string, has bool) (string, bool)) error {
+	if s.refuses(key) {
+		return errors.New("the storage refuses the first write of the query's document")
+	}
+	return s.MemoryStorage.Update(key, change)
+}
+
+// A write the storage refuses leaves the save owed (B17): the cache is not
+// settled after it, and disposal's flush writes what it holds.
+func TestARefusedWriteStaysOwedAsTheCaseTableSays(t *testing.T) {
+	for _, c := range readCacheCases(t).RefusedWrites {
+		t.Run(c.Name, func(t *testing.T) {
+			cacheIn := keptCacheFor(t, c.Query)
+			key := CacheKey(casesKb, casesPerson, c.Query)
+			storage := &refusingFirst{MemoryStorage: NewMemoryStorage(), key: key}
+			v := casesLive(storage)
+			cache := cacheIn(v)
+			for _, entry := range c.Held {
+				cache.hold(t, entry[0], entry[1])
 			}
-			written := readJSON[map[string]json.RawMessage](t, text)
-			stated := readJSON[map[string]json.RawMessage](t, string(c.Written))
-			if got, want := slices.Sorted(maps.Keys(written)), slices.Sorted(maps.Keys(stated)); !slices.Equal(got, want) {
-				t.Fatalf("the document is written with %v, want %v", got, want)
-			}
-			if !sameJSON(t, string(written["version"]), string(stated["version"])) {
-				t.Fatalf("the document is of version %s, want %s", written["version"], stated["version"])
-			}
-			var stamped [][]json.RawMessage
-			for _, entry := range readJSON[[][]json.RawMessage](t, string(written["entries"])) {
-				if len(entry) != 3 {
-					t.Fatalf("an entry is written as %s, not a key, a value and a stamp", entry)
-				}
-				if at, err := strconv.ParseInt(string(entry[2]), 10, 64); err != nil || at < 0 {
-					t.Fatalf("an entry is stamped %s, not a whole number of at least 0", entry[2])
-				}
-				stamped = append(stamped, entry[:2])
-			}
-			if got, want := entriesAs(stamped), entriesAs(readJSON[[][]json.RawMessage](t, string(stated["entries"]))); !sameEntries(t, got, want) {
-				t.Fatalf("written %v, want %v", got, want)
-			}
+			// The save owed once the values stop changing is made, and refused.
+			eventually(t, "the storage refused the save", storage.refused.Load)
+			eventually(t, "the cache owes its save after the refusal", func() bool { return !v.persistenceSettled() })
+			// Disposing makes the save owed, and the storage takes it.
+			v.dispose()
+			writtenAsStated(t, storage, key, c.Written)
 		})
 	}
 }

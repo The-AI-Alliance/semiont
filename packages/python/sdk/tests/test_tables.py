@@ -4,13 +4,16 @@ The stored table's keys are held by the examples it gives, each worked out
 here from a knowledge base's id, a person's did and a query's name.
 """
 
-from typing import get_args
+from pathlib import PurePosixPath
+from typing import Final, get_args
 
-from pydantic import JsonValue
+from pydantic import BaseModel, JsonValue
 from spec import SPEC, objects, read, text
 
 from semiont import error_codes, refresh, stored, timing
+from semiont import types as wire
 from semiont.channels import CHANNELS
+from semiont.namespaces import live
 from semiont.retry import RetryPolicy
 
 CODES = read(SPEC / "errors/codes.json")
@@ -125,11 +128,47 @@ def way(names: refresh.CacheRefreshWay | None) -> str | None:
     return None if names is None else ".".join(names)
 
 
-def test_the_persisted_queries_are_those_the_refresh_table_marks_persisted_in_its_order() -> None:
+def test_the_kept_queries_are_one_list_and_it_is_those_the_refresh_table_marks_persisted_in_its_order() -> None:
     queries = objects(read(SPEC / "client/refresh.json")["queries"], "queries")
     persisted = [text(query["name"], "a query's name") for query in queries if query.get("persisted") is True]
     assert persisted
-    assert list(refresh.PERSISTED_QUERIES) == persisted
+    assert list(stored.KEPT_QUERIES) == persisted
+    assert list(get_args(stored.KeptQuery.__value__)) == persisted
+    # One list: the refresh table's module keeps no second one.
+    assert not hasattr(refresh, "PERSISTED_QUERIES")
+
+
+WAITING: Final = frozenset({"engines"})
+"""The queries whose `value` waits on a ruling: the census holds no type to theirs yet."""
+
+
+def held_type(reference: str) -> object:
+    """The type a query's `value` names in `semiont.types`: a component's model, or a member of one (`#/properties/…`) by its wire name."""
+    component, _, pointer = reference.partition("#")
+    named: object = getattr(wire, PurePosixPath(component).stem)
+    steps = pointer.split("/")[1:]
+    assert len(steps) % 2 == 0, reference
+    for keyword, member in zip(steps[::2], steps[1::2], strict=True):
+        assert keyword == "properties", reference
+        assert isinstance(named, type), reference
+        assert issubclass(named, BaseModel), reference
+        (field,) = [field for name, field in named.model_fields.items() if (name if field.alias is None else field.alias) == member]
+        named = field.annotation
+    return named
+
+
+def test_each_query_s_cache_holds_the_type_the_refresh_table_s_value_names() -> None:
+    rows = {text(row["name"], "a query's name"): row for row in objects(read(SPEC / "client/refresh.json")["queries"], "queries")}
+    # Every query has a value type, each the type alias its cache and its persister are typed with,
+    # and a query the table gains has none until one is given it.
+    assert list(live.CACHE_VALUES) == list(rows)
+    assert set(rows) >= WAITING
+    for name, held in live.CACHE_VALUES.items():
+        if name in WAITING:
+            continue
+        value = rows[name]["value"]
+        assert isinstance(value, dict), name
+        assert held.__value__ == held_type(text(value["$ref"], f"{name}'s value")), name
 
 
 def test_each_key_prefix_s_example_in_the_stored_table_is_the_key_made_of_it() -> None:

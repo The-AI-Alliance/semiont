@@ -1250,12 +1250,13 @@ async fn held_by(kept: &dyn SignInKept) -> Option<StoredSession> {
 }
 
 /// A script's session of "a-script" over the sign-in `kept` holds, which
-/// asks who its token is.
+/// asks who its token is and keeps no caches.
 fn from_kept(world: &World, kept: Arc<MemorySignIn>) -> SessionFromKept {
     SessionFromKept {
         kb: world.kb("a-script"),
         kept,
         validate: true,
+        storage: None,
         on_auth_failed: None,
         on_error: None,
         http: world.http.clone(),
@@ -1289,6 +1290,54 @@ async fn a_session_over_a_kept_sign_in_is_ready_and_says_who_it_is() {
         Some("alice@example.org".to_owned())
     );
     opened.close().await;
+}
+
+/// A script's session given a storage keeps its caches there, as a
+/// registry's session does, for the person the gateway names: what a query
+/// client/refresh.json marks persisted held is written under its key for
+/// the knowledge base and that person, by the time the session's client
+/// has closed (protocol/contract/CACHE-SEMANTICS.md B17).
+#[tokio::test]
+async fn a_scripts_session_given_a_storage_keeps_its_caches_there_for_the_person_named() {
+    let world = World::start().await;
+    world.staged.answers.lock().unwrap().insert(
+        "browse:entity-types-requested".to_owned(),
+        (
+            "browse:entity-types-result".to_owned(),
+            json!({ "response": { "entityTypes": ["Person", "Place"] } }),
+        ),
+    );
+    let kept = kept_holding(&world, &jwt(3600, 1)).await;
+    let storage: Arc<dyn SessionStorage> = Arc::new(InMemorySessionStorage::new());
+
+    let opened = session_from_kept(SessionFromKept {
+        storage: Some(storage.clone()),
+        ..from_kept(&world, kept)
+    })
+    .await
+    .expect("a session");
+    let entity_types = opened
+        .session()
+        .client()
+        .browse
+        .entity_types()
+        .fresh()
+        .await
+        .expect("the entity types");
+    assert_eq!(entity_types, ["Person", "Place"]);
+    opened.close().await;
+
+    let key = cache_key("a-script", &person_key(ALICE), CacheQuery::EntityTypes);
+    let document: Value = serde_json::from_str(
+        &storage
+            .get(&key)
+            .unwrap_or_else(|| panic!("nothing is kept under {key}")),
+    )
+    .expect("the document is JSON");
+    let entries = document["entries"].as_array().expect("its entries");
+    assert_eq!(entries.len(), 1, "{document}");
+    assert_eq!(entries[0][0], json!("_"), "{document}");
+    assert_eq!(entries[0][1], json!(["Person", "Place"]), "{document}");
 }
 
 /// With nothing kept, the session is signed out: it has no token, nobody is

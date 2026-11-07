@@ -1,10 +1,13 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
+using System.Reflection;
 using System.Text.Json;
 using System.Threading.Channels;
 using Semiont.Errors;
 using Semiont.Identifiers;
 using Semiont.Http;
+using Semiont.Protocol;
 using Semiont.Registry;
 using Semiont.Storage;
 using Semiont.Types;
@@ -150,6 +153,175 @@ public sealed partial class TransportTests
             using var reader = ReadSpec("annotations/reader-cases.json");
             return reader.RootElement.GetProperty("cases")[0].GetProperty("annotation").Clone();
         }
+    }
+
+    /// <summary>The one query whose `value` in client/refresh.json waits on a ruling: its row is held to the value it
+    /// names today, so a change to that row fails here until this query joins the others.</summary>
+    private const string ValueAwaitingARuling = "engines";
+
+    // client/refresh.json's `value` owns what each live query's cache holds for a key: the generated type of the
+    // component it names, or of the member within one, is the type of the query's values here.
+    [Fact]
+    public void EveryLiveQueryHoldsTheValueItsRefreshRowNames()
+    {
+        var held = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["resource"] = nameof(LiveQueries.ResourcesById),
+            ["annotations"] = nameof(LiveQueries.Annotations),
+            ["annotation"] = nameof(LiveQueries.Annotation),
+            ["events"] = nameof(LiveQueries.Events),
+            ["referencedBy"] = nameof(LiveQueries.ReferencedBy),
+            ["resources"] = nameof(LiveQueries.Resources),
+            ["matchedResources"] = nameof(LiveQueries.MatchedResources),
+            ["entityTypes"] = nameof(LiveQueries.EntityTypes),
+            ["tagSchemas"] = nameof(LiveQueries.TagSchemas),
+        };
+        using var table = ReadSpec("client/refresh.json");
+        var awaiting = table.RootElement.GetProperty("queries").EnumerateArray().Single(row => Text(row, "name") == ValueAwaitingARuling);
+        Assert.Equal("../components/schemas/BrowseEnginesResult.json#/properties/response/properties/engines", Text(awaiting.GetProperty("value"), "$ref"));
+        var rows = table.RootElement.GetProperty("queries").EnumerateArray().Where(row => Text(row, "name") != ValueAwaitingARuling).ToArray();
+        Assert.Equal(rows.Select(row => Text(row, "name")).Order(StringComparer.Ordinal), held.Keys.Order(StringComparer.Ordinal));
+        foreach (var row in rows)
+        {
+            var name = Text(row, "name");
+            var query = typeof(LiveQueries).GetProperty(held[name], BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                ?? throw new InvalidOperationException("The live queries have no " + held[name]);
+            var value = query.PropertyType.GetGenericArguments()[^1];
+            var named = Text(row.GetProperty("value"), "$ref");
+            Assert.True(GeneratedType(named) == value, name + " holds " + value + ", and its row names " + named);
+        }
+
+        // The generated type of a component, or of the member within one that the reference's pointer names.
+        static Type GeneratedType(string reference)
+        {
+            var parts = reference.Split('#');
+            var type = typeof(ResourceDescriptor).Assembly.GetType("Semiont.Types." + Path.GetFileNameWithoutExtension(parts[0]), throwOnError: true)
+                ?? throw new InvalidOperationException("No generated type for " + reference);
+            if (parts.Length == 1) return type;
+            var steps = parts[1].Split('/', StringSplitOptions.RemoveEmptyEntries);
+            for (var at = 0; at < steps.Length; at += 2)
+            {
+                if (steps[at] != "properties" || at + 1 == steps.Length) throw new InvalidOperationException(reference + " names no member");
+                type = type.GetProperty(steps[at + 1], BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase)?.PropertyType
+                    ?? throw new InvalidOperationException(type + " has no member " + steps[at + 1]);
+            }
+            return type;
+        }
+    }
+
+    // B17 item 2: an event's place is noted only once the refresher has taken the event. Here the event arrives while a
+    // save holds the persistence, so the refresher cannot yet take it: the save writes no place for it. Once the refresher
+    // has taken it, its refetch in flight holds the place back from a save; once that refetch has settled, a save writes it.
+    [Fact]
+    public async Task APlaceIsNotedOnlyOnceTheRefresherHasTakenItsEvent()
+    {
+        var clock = new TestClock();
+        var resourceKey = RegistryStorage.CacheKey("kb-1", KeptPersonKey, "resource");
+        var typesKey = RegistryStorage.CacheKey("kb-1", KeptPersonKey, "entityTypes");
+        var placesKey = RegistryStorage.LastEventIdKey("kb-1", KeptPersonKey);
+        using var storage = new HeldWriteStorage(resourceKey);
+        using var server = new Handler();
+        var refetches = Channel.CreateUnbounded<JsonElement>();
+        var asks = new ConcurrentDictionary<string, int>(StringComparer.Ordinal);
+        server.Answer = sent =>
+        {
+            if (Text(sent, "channel") == BusOperations.BrowseEntityTypesRequested.Request.Name)
+            {
+                Reply(server, sent, BusOperations.BrowseEntityTypesRequested.Result.Name, new { response = new { entityTypes = new[] { "Person" } } });
+                return;
+            }
+            Assert.Equal(BusOperations.BrowseResourceRequested.Request.Name, Text(sent, "channel"));
+            var id = Text(sent.GetProperty("payload"), "resourceId");
+            // The first ask is answered at once; a refetch waits for the test.
+            if (asks.AddOrUpdate(id, 1, (_, count) => count + 1) > 1) refetches.Writer.TryWrite(sent);
+            else Reply(server, sent, BusOperations.BrowseResourceRequested.Result.Name, new { response = new { resource = Described(id, "fresh"), lastSequence = 1 } });
+        };
+        using var http = new HttpClient(server);
+        using var client = new SemiontClient("http://unit.test", "token", http, clock, persistence: new CachePersistence(storage, "kb-1", KeptPersonKey));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await OpenAsync(client.Transport);
+        var resource = ResourceId.Parse("res-1");
+        Assert.Equal("fresh", (await client.Browse.Resource(resource).FreshAsync(deadline.Token)).Name);
+
+        await clock.WaitForAsync(LiveCacheStorage.Debounce);
+        // The debounce's save runs on the thread that passes it, and is held there, holding the persistence.
+        var saving = Task.Run(() => clock.Advance(LiveCacheStorage.Debounce), deadline.Token);
+        await storage.Writing.Task.WaitAsync(deadline.Token);
+        await using (var heard = client.Transport.Frames(BusChannels.MarkArchived.Name, deadline.Token).GetAsyncEnumerator())
+        {
+            var arrived = heard.MoveNextAsync().AsTask();
+            server.Stream.Push("event: bus-event\nid: p-res-1-5\ndata: " + JsonSerializer.Serialize(new
+            {
+                channel = BusChannels.MarkArchived.Name,
+                scope = resource.Value,
+                payload = new
+                {
+                    id = "evt-res-1-5",
+                    type = BusChannels.MarkArchived.Name,
+                    timestamp = "1970-01-01T00:00:00.000Z",
+                    userId = "did:web:record.example:users:someone",
+                    resourceId = resource.Value,
+                    version = 1,
+                    payload = new { },
+                    metadata = new { sequenceNumber = 5 },
+                },
+            }) + "\n\n");
+            Assert.True(await arrived);
+        }
+        storage.Release();
+        await saving.WaitAsync(deadline.Token);
+        Assert.True(HoldsFresh(storage.Get(resourceKey), "res-1"), "the held save wrote the resource");
+        Assert.True(storage.Get(placesKey) is null, "a save the event arrived during wrote its place: " + storage.Get(placesKey));
+
+        var refetch = await refetches.Reader.ReadAsync(deadline.Token);
+        Assert.Equal(["Person"], await client.Browse.EntityTypes().FreshAsync(deadline.Token));
+        await clock.WaitForAsync(LiveCacheStorage.Debounce);
+        clock.Advance(LiveCacheStorage.Debounce);
+        Assert.True(storage.Get(typesKey) is not null, "a kept query saved while the refetch was in flight");
+        Assert.True(storage.Get(placesKey) is null, "a save during the event's refetch wrote its place: " + storage.Get(placesKey));
+
+        var refetched = client.Browse.Resource(resource).FreshAsync(deadline.Token);
+        Reply(server, refetch, BusOperations.BrowseResourceRequested.Result.Name, new { response = new { resource = Described("res-1", "archived"), lastSequence = 2 } });
+        Assert.Equal("archived", (await refetched).Name);
+        await clock.WaitForAsync(LiveCacheStorage.Debounce);
+        clock.Advance(LiveCacheStorage.Debounce);
+        Assert.Equal("""{"res-1":"p-res-1-5"}""", storage.Get(placesKey));
+    }
+
+    // A scope's place is the last recorded event delivered on it, and an id is a recorded event's only as
+    // components/schemas/PersistedEventId.json says: one with that id's prefix that the schema refuses is no place.
+    [Fact]
+    public async Task OnlyAPersistedEventIdBecomesAScopesPlace()
+    {
+        var clock = new TestClock();
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        using var transport = new HttpTransport("http://unit.test", "token", [BusChannels.MarkArchived.Name], new Timing { LingerMs = 0 },
+            httpClient: http, timeProvider: clock);
+        await OpenAsync(transport);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await server.Subscriptions.Reader.ReadAsync(deadline.Token);
+        using var held = transport.SubscribeToResource(ResourceId.Parse("res-1"));
+        await clock.WaitForAsync(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("reconnectDebounceMs").GetInt32()));
+        clock.Advance(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("reconnectDebounceMs").GetInt32()));
+        await server.Subscriptions.Reader.ReadAsync(deadline.Token);
+
+        await using (var heard = transport.Frames(BusChannels.MarkArchived.Name, deadline.Token).GetAsyncEnumerator())
+        {
+            foreach (var id in new[] { "p-res-1-3", "p-unnumbered" })
+            {
+                var arrived = heard.MoveNextAsync().AsTask();
+                server.Stream.Push("event: bus-event\nid: " + id + "\ndata: {\"channel\":\"mark:archived\",\"scope\":\"res-1\",\"payload\":{}}\n\n");
+                Assert.True(await arrived);
+                Assert.Equal(id, Assert.IsType<ReceivedBusFrame>(heard.Current).EventId);
+            }
+        }
+
+        // A scope taken reopens the stream, which names each scope's place.
+        using var other = transport.SubscribeToResource(ResourceId.Parse("res-2"));
+        await clock.WaitForAsync(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("reconnectDebounceMs").GetInt32()));
+        clock.Advance(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("reconnectDebounceMs").GetInt32()));
+        Assert.Equal("p-res-1-3", await PlaceAsync(server, "res-1", deadline.Token));
     }
 
     [Theory]

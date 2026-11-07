@@ -14,13 +14,16 @@
  */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
+import { filter, firstValueFrom, map, take } from 'rxjs';
 import { HttpTransport } from '@semiont/http-transport';
-import { PERSISTED_QUERIES } from '@semiont/core';
+import { PERSISTED_QUERIES, resourceId } from '@semiont/core';
 
+import { isReady } from '../../cache';
 import { SemiontSession } from '../semiont-session';
 import { refreshStoredSession } from '../oauth';
 import { MemorySignIn } from '../sign-in-kept';
 import { cacheKey, getStoredSession, lastEventIdKey, personKey, setStoredSession } from '../storage';
+import { fakeGateway, renews } from './fake-gateway';
 import { TestStorage, freshJwt, storageKey, testSession, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
 
 const KB = {
@@ -237,6 +240,30 @@ describe('SemiontSession.fromKept', () => {
     } finally {
       opened.dispose();
     }
+  });
+
+  test("over a storage, keeps its persisted queries' documents there, for the person the kept sign-in names", async () => {
+    const jo = { did: 'did:web:example.org:users:jo', email: 'jo@example.org', name: 'Jo', image: null, domain: 'example.org' };
+    const person = personKey(jo.did);
+    const kept = new MemorySignIn({ ...testSession(freshJwt(), 'refresh-tok'), personKey: person });
+    const gateway = fakeGateway({ whoIs: async () => Response.json(jo), issuer: renews, resourceName: 'kept' });
+
+    const opened = await SemiontSession.fromKept({ kb: KB, kept, storage, fetch: gateway.fetch });
+    try {
+      const name = await firstValueFrom(
+        opened.session.client.browse.resource(resourceId('res-1')).pipe(filter(isReady), map((state) => state.value.name), take(1)),
+      );
+      expect(name).toBe('kept');
+    } finally {
+      // Closing flushes the save the resource's cache owes.
+      opened.dispose();
+      gateway.close();
+    }
+
+    const document = storage.get(cacheKey(KB.id, person, 'resource'));
+    if (document === null) throw new Error("The resource's document was not kept in the storage");
+    const { entries } = JSON.parse(document) as { entries: [string, { name: string }, number][] };
+    expect(entries.map(([key, value]) => [key, value.name])).toEqual([['res-1', 'kept']]);
   });
 });
 

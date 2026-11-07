@@ -32,7 +32,6 @@ from tokens import expired, token
 from semiont.cache import CacheState, Pending, Ready
 from semiont.http.session import HttpSessionFactory, session_from_kept
 from semiont.identifiers import ResourceId
-from semiont.refresh import PERSISTED_QUERIES
 from semiont.registry import (
     SemiontBrowser,
     SemiontBrowserConfig,
@@ -120,7 +119,7 @@ def test_the_keys_of_a_knowledge_base_and_a_person_are_the_tables(row: JsonObjec
     assert last_event_id_key(kb_id, person) == text(row["lastEventIdKey"], "lastEventIdKey")
     cache_keys = texts(row["cacheKeys"], "cacheKeys")
     # The queries kept are exactly those, in the order the refresh table lists them.
-    assert list(PERSISTED_QUERIES) == list(cache_keys)
+    assert list(KEPT_QUERIES) == list(cache_keys)
     assert {query: cache_key(kb_id, person, query) for query in KEPT_QUERIES} == cache_keys
 
 

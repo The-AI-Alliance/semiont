@@ -274,7 +274,7 @@ class LiveQueriesTest {
         world.close()
 
         // The queries the refresh table marks persisted, each a document under its name for the person; no other query is kept.
-        for (query in PERSISTED_QUERIES) assertEquals(1L, checkNotNull(kept(query.wire)) { query.wire }.getValue("version").jsonPrimitive.long)
+        for (query in KEPT) assertEquals(1L, checkNotNull(kept(query.wire)) { query.wire }.getValue("version").jsonPrimitive.long)
         for (unkept in CacheQuery.entries - KEPT) assertNull(kept(unkept.wire), unkept.wire)
         // As the wire had it: by the wire's names, and without what the knowledge base never said.
         val (resource) = checkNotNull(kept(CacheQuery.Resource.wire)).getValue("entries").jsonArray.map { it.jsonArray }
@@ -385,7 +385,7 @@ class LiveQueriesTest {
                 val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, windowMs = 400, persistence = CachePersistence(places.storage, KB, PERSON))
                 val client = world.client
                 // As a session wires them.
-                client.keepPlacesIn(places)
+                places.coupleTo(client)
                 world.watch(client.browse.resource(RESOURCE)).ready()
                 delay(semiont.Timings.SAVE_DEBOUNCE_MS * 2)
                 // An event of the resource: its refetch runs at once and opens the key's window, and one more inside it is owed.
@@ -407,7 +407,7 @@ class LiveQueriesTest {
 }
 
 /** The queries a client with a storage keeps: those the refresh table marks persisted. */
-private val KEPT = PERSISTED_QUERIES.toSet()
+private val KEPT = PERSISTED_QUERIES.map { it.query }.toSet()
 
 /** The knowledge base, and the person, a client with a storage keeps its queries for. */
 private const val KB = "kb"

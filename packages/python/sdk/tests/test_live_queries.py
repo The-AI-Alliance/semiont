@@ -466,7 +466,7 @@ def test_a_close_keeps_the_place_only_when_nothing_was_in_flight_or_owed_as_it_b
         places = CoupledBookmarks(storage, places_key)
         persistence = CachePersistence(storage=places.storage, kb_id="kb", person_key=ALICE)
         client: Client = SemiontClient(transport, knowing_content(), StubGateway(), persistence=persistence)
-        places.set_flush_gate(lambda: client.persistence_settled)
+        places.couple_to(client)
         return client, places
 
     async def owing_a_refetch() -> None:

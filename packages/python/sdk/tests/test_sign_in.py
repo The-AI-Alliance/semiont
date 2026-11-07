@@ -38,6 +38,7 @@ from kb import recorded
 from pydantic import JsonValue, TypeAdapter
 from shown import CARRIED, parts_of, printed
 from spec import JsonObject, text
+from storages import RefusingFirst
 from tokens import expired, token
 
 from semiont.bus import reply_channels_for
@@ -1472,6 +1473,49 @@ def test_a_session_over_a_registrys_kept_sign_in_puts_back_nothing_that_forgetti
             # Its client closed owing a write, and wrote nothing.
             for key in (last_event_id_key("kb", ALICE_KEY), *(cache_key("kb", ALICE_KEY, query) for query in KEPT_QUERIES)):
                 assert storage.get(key) is None, key
+
+    run(scenario())
+
+
+def test_a_write_a_sessions_storage_refuses_is_still_owed_and_its_close_makes_it() -> None:
+    async def scenario() -> None:
+        kept_types = cache_key("kb", ALICE_KEY, "entityTypes")
+        storage = RefusingFirst(kept_types)
+
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+
+            def answering(emit: JsonObject) -> None:
+                if emit["channel"] == "browse:entity-types-requested":
+                    answer: JsonObject = {"response": {"entityTypes": ["Person", "Place"]}}
+                    gateway.send(None, {"channel": "browse:entity-types-result", "payload": answer, "correlationId": emit["correlationId"]})
+
+            gateway.on_emit = answering
+            kept = MemorySignIn(held(gateway, access(1)))
+
+            async with session_from_kept(gateway.target("kb"), kept=kept, storage=storage) as session:
+                client = session.client
+                await soon(reached(client.transport.state, lambda state: state == "open"))
+                # Ready once the gateway has named the person: what the client holds is kept for her from then on.
+                await soon(session.ready())
+                assert await soon(client.browse.entity_types().fresh()) == ["Person", "Place"]
+
+                # The entity types stop changing, and the session writes what their cache saves: the storage refuses it.
+                await pass_time(0.2, step=0.01)
+                assert storage.refusals == 1
+                assert storage.get(kept_types) is None
+                # Nothing of it was kept, so the client still owes it, and is not at rest.
+                assert not client.persistence_settled
+
+            # The close's flush makes the write the storage refused, and the storage takes it: nothing failed, and the
+            # close raised nothing.
+            stored = storage.get(kept_types)
+            assert stored is not None
+            document = _JSON.validate_json(stored)
+            assert isinstance(document, dict)
+            entries = document["entries"]
+            assert isinstance(entries, list)
+            assert [entry[:2] for entry in entries if isinstance(entry, list)] == [["_", ["Person", "Place"]]]
 
     run(scenario())
 

@@ -368,11 +368,13 @@ to starve.
 
 A client given a `SessionStorage` keeps, for one person on one knowledge
 base, the queries
+[`protocol/specs/src/client/refresh.json`](../specs/src/client/refresh.json)
+marks `persisted` across a restart, each in one `cacheDocument` under
 [`protocol/specs/src/session/stored.json`](../specs/src/session/stored.json)'s
-`keptQueries` names across a restart, each in one `cacheDocument` under
-`cacheKeyPrefix`, and where its stream was as `lastEventIds` under
-`lastEventIdKeyPrefix`. Every SDK writes and reads them alike, so a client in
-any SDK finds what one in another kept over the same storage;
+`cacheKeyPrefix`, its values what the query's `value` says its cache holds,
+and where its stream was as `lastEventIds` under `lastEventIdKeyPrefix`.
+Every SDK writes and reads them alike, so a client in any SDK finds what
+one in another kept over the same storage;
 [`protocol/specs/src/session/cache-cases.json`](../specs/src/session/cache-cases.json)
 holds all eight to it, case by case.
 
@@ -386,7 +388,10 @@ holds all eight to it, case by case.
    kept caches attach: what was kept fills only the keys the cache does
    not already hold, each marked as restored (B18), saves begin, and the
    transport takes the kept places only for the scopes it holds none for.
-   A client whose session never asks who its token is keeps nothing.
+   Nothing is owed before then, and attaching writes nothing: what a cache
+   held before it is written with its next change, whose save writes the
+   whole document. A client whose session never asks who its token is
+   keeps nothing.
 2. **Rehydrated data is stale-until-reconciled**, and reconciliation is
    **two independent layers** — neither sufficient alone:
    - *Replay*, when it is available: the transport reconnects with each
@@ -400,11 +405,14 @@ holds all eight to it, case by case.
      refresher owes no refetch** (a B19 window that holds an invalidation it
      has not yet run). So the place may lag the kept caches (harmless:
      replay re-invalidates idempotently) but can never lead them and
-     silently skip a reconciling event. The transport notes an id only AFTER
-     the event has been applied to subscribers, so an id is never written
-     before its effects are under way. A place's own write is never a reason
-     to write a cache. At disposal the gate is read once, before any kept
-     cache or the refresher is disposed: a fetch then in flight, or a
+     silently skip a reconciling event. An id is noted only AFTER the event
+     has been applied: the refresher has taken it, so the fetch it starts is
+     in flight, or the refetch it holds back is owed. An id noted while its
+     event is only queued for the refresher could be written by a save that
+     comes first, and lead the caches. Likewise a refetch a closing window
+     runs is owed until its fetch is in flight. A place's own write is never
+     a reason to write a cache. At disposal the gate is read once, before
+     any kept cache or the refresher is disposed: a fetch then in flight, or a
      refetch then owed, holds the places back from the disposal's flush,
      since disposal drops it; a save then owed does not, since the flush is
      that save. The places that flush may write are those noted before the
@@ -428,8 +436,11 @@ holds all eight to it, case by case.
    on what holds the sign-in, `dispose()` begins the flush, and whatever
    follows the close, a registry's delete among them, waits until the
    client has closed. Nothing may save after disposal (B16 extends to the
-   persister). Each entry's stamp is when its value was received, in
-   milliseconds since the epoch, kept while the value comes again unchanged
+   persister). A write the storage refuses leaves its save owed, so the
+   places stay held back: the cache's next change, or disposal's flush,
+   writes the document again. Each entry's stamp is when its value was
+   received, in milliseconds since the epoch, kept while the value comes
+   again unchanged
    (its JSON text the text it was kept with); a document larger than
    `maxStoredBytesCount` loses the entries received longest ago until it
    fits. Places are kept under their own key, and never go to make a
@@ -463,7 +474,7 @@ holds all eight to it, case by case.
    does not name its person, here or in another context, discards what it
    has not written and writes nothing more; a renewal changes nothing. A
    sign-in it cannot read counts as one that does not name its person, and
-   the session says so once, on its error channel, as `session.keep-failed`
+   the session says so once, on its errors stream, as `session.keep-failed`
    ([`codes.json`](../specs/src/errors/codes.json)); the session itself goes
    on. A client an application builds itself, with a cache persistence it
    makes, writes unchecked.

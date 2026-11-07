@@ -179,18 +179,33 @@ func TestAPlaceThatIsNotAResourcesIdAndAPersistedEventsIdIsSkipped(t *testing.T)
 	}
 }
 
-// recordingGateway records each subscription it is sent, and gives the
-// newest stream what a test sends.
+// recordingGateway records each subscription and each emit it is sent,
+// answers no emit, and gives the newest stream what a test sends.
 type recordingGateway struct {
 	*httptest.Server
 	mu            sync.Mutex
 	subscriptions []api.BusSubscribeRequest
+	emits         []api.BusEmitRequest
 	streams       []chan string
 }
 
 func newRecordingGateway(t *testing.T) *recordingGateway {
 	g := &recordingGateway{}
 	g.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/bus/emit" {
+			var emit api.BusEmitRequest
+			if err := json.NewDecoder(r.Body).Decode(&emit); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			g.mu.Lock()
+			g.emits = append(g.emits, emit)
+			g.mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
 		if r.URL.Path != "/bus/subscribe" {
 			http.NotFound(w, r)
 			return
@@ -275,6 +290,151 @@ func (g *recordingGateway) transport(bookmarks Bookmarks) *HTTPTransport {
 		Timing:    timing,
 		Bookmarks: bookmarks,
 	})
+}
+
+// emittedOn is the emits the gateway was sent on channel, in order.
+func (g *recordingGateway) emittedOn(channel bus.Channel) []api.BusEmitRequest {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	var on []api.BusEmitRequest
+	for _, emit := range g.emits {
+		if emit.Channel == string(channel) {
+			on = append(on, emit)
+		}
+	}
+	return on
+}
+
+// heldBridge is a transport whose frames reach the client's bus only once the
+// test lets them: what the stream delivered waits here, in order, where the
+// client's refresher cannot take it.
+type heldBridge struct {
+	*HTTPTransport
+	mu      sync.Mutex
+	sink    FrameSink
+	holding bool
+	held    []func(FrameSink)
+}
+
+var _ FrameSink = (*heldBridge)(nil)
+
+// holdingFrames is transport, holding every frame it delivers until release.
+func holdingFrames(transport *HTTPTransport) *heldBridge {
+	return &heldBridge{HTTPTransport: transport, holding: true}
+}
+
+func (h *heldBridge) BridgeInto(sink FrameSink) {
+	h.mu.Lock()
+	h.sink = sink
+	h.mu.Unlock()
+	h.HTTPTransport.BridgeInto(h)
+}
+
+func (h *heldBridge) Deliver(frame Frame) {
+	h.pass(func(sink FrameSink) { sink.Deliver(frame) })
+}
+
+func (h *heldBridge) DeliverRefusal(refusal *FrameRefusal) {
+	h.pass(func(sink FrameSink) { sink.DeliverRefusal(refusal) })
+}
+
+// pass hands one delivery to the client's bus, or holds it.
+func (h *heldBridge) pass(deliver func(FrameSink)) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.holding {
+		h.held = append(h.held, deliver)
+		return
+	}
+	deliver(h.sink)
+}
+
+// holds is how many deliveries are held.
+func (h *heldBridge) holds() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.held)
+}
+
+// release hands what was held to the client's bus, in order, and each
+// delivery after it at once.
+func (h *heldBridge) release() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.holding = false
+	for _, deliver := range h.held {
+		deliver(h.sink)
+	}
+	h.held = nil
+}
+
+// A place is noted only once the refresher has taken its event (B17). While
+// the event waits to be taken, no cache has begun to take it in, so another
+// cache's write carries no place for it; once it is taken, the refetch it
+// starts holds the place back while it is in flight; and once what the
+// refetch answered is kept, the place is written.
+func TestAPlaceIsNotWrittenBeforeTheRefresherHasTakenItsEvent(t *testing.T) {
+	resource := mustResource(t, "res-1")
+	storage := NewMemoryStorage()
+	kept := NewCoupledBookmarks(storage, keptPlacesKey)
+	gateway := newRecordingGateway(t)
+	transport := holdingFrames(gateway.transport(kept))
+	defer transport.Close()
+	client := NewClient(ClientConfig{Transport: transport, Timing: DefaultTiming(), Persistence: &CachePersistence{Storage: kept.Storage(), KbID: "kb-a", PersonKey: keptPerson}})
+	kept.CoupleTo(client)
+	defer client.Close()
+	write := func() {
+		t.Helper()
+		if err := kept.Storage().Set(keptAnnotationsKey, "{}"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// The client holds the resource, and has kept it; the stream holds its scope.
+	client.live.resource.Set(resource, readJSON[api.ResourceDescriptor](t, `{"@context":"https://schema.org","@id":"res-1","name":"One","representations":[]}`))
+	until(t, "the resource kept", client.PersistenceSettled)
+	defer transport.SubscribeToResource(resource)()
+	until(t, "a subscription of the resource's scope", func() bool { _, ok := gateway.asked(1); return ok })
+
+	// A recorded event of the resource, then a passing frame no row of the
+	// refresh table reads: once the second is held, the stream has done all it
+	// does with the first.
+	gateway.send("p-res-1-42", map[string]any{"channel": "yield:updated", "scope": "res-1", "payload": map[string]any{
+		"id": "evt-1", "type": "yield:updated", "timestamp": "2026-10-06T00:00:00.000Z", "userId": "did:web:example.org:users:alice",
+		"version": 1, "resourceId": "res-1", "payload": map[string]any{}, "metadata": map[string]any{"sequenceNumber": 1},
+	}})
+	gateway.send("e-1", map[string]any{"channel": "beckon:hover", "payload": map[string]any{}})
+	until(t, "both frames held", func() bool { return transport.holds() == 2 })
+
+	// Not yet taken: nothing is fetching and nothing is owed, and the place is
+	// not written.
+	if !client.PersistenceSettled() {
+		t.Fatal("the client is not at rest while the event waits to be taken")
+	}
+	write()
+	if place, written := kept.Load()[resource]; written {
+		t.Fatalf("the place %s was written before the refresher took its event", place)
+	}
+
+	// Taken: the refetch it starts is in flight, unanswered, and the place is
+	// held back.
+	transport.release()
+	asked := bus.BrowseResourceRequested.Request().Channel()
+	until(t, "the refetch asked", func() bool { return len(gateway.emittedOn(asked)) == 1 })
+	write()
+	if place, written := kept.Load()[resource]; written {
+		t.Fatalf("the place %s was written while the refetch its event started was in flight", place)
+	}
+
+	// Answered and kept: the place is written with the resource's save.
+	refetch := gateway.emittedOn(asked)[0]
+	if refetch.CorrelationId == nil {
+		t.Fatal("the refetch was asked with no correlation id")
+	}
+	gateway.send("e-2", map[string]any{"channel": string(bus.BrowseResourceRequested.Result().Channel()), "correlationId": *refetch.CorrelationId, "payload": map[string]any{
+		"response": map[string]any{"resource": map[string]any{"@context": "https://schema.org", "@id": "res-1", "name": "One, updated", "representations": []any{}}, "lastSequence": 2},
+	}})
+	until(t, "the place written once the refetch was kept", func() bool { return kept.Load()[resource] == "p-res-1-42" })
 }
 
 func TestAStreamBeginsEachScopeWhereItsBookmarksSayAndTellsThemEachRecordedEventItDelivered(t *testing.T) {

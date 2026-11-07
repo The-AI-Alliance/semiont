@@ -30,8 +30,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fc from 'fast-check';
 import { InMemorySessionStorage } from '../session/session-storage';
-import { resourceId } from '@semiont/core';
-import { BOOKMARK_KEY, DEBOUNCE_MS, KEY, bookmarkSeq, buildRig, persistedAUpTo } from './helpers/persisted-cache-rig';
+import { SAVE_DEBOUNCE_MS, resourceId } from '@semiont/core';
+import { BOOKMARK_KEY, bookmarkSeq, buildRig, persistedAUpTo } from './helpers/persisted-cache-rig';
 
 /**
  * `arrive`        — the seam as it is: the bus handler invalidates, THEN the
@@ -59,15 +59,15 @@ describe('A1/A4 — reload fidelity across event arrival', () => {
 
     let rig = buildRig(storage, true);
     // Warm A so a persisted document exists ("the resource was already open").
-    rig.cacheA.observe(KEY).subscribe({ next: () => {}, error: () => {} });
+    rig.observeA();
     rig.resolvers.shift()!({ upTo: serverSeq });
-    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
 
     for (const cmd of commands) {
       switch (cmd) {
         case 'arrive':
           serverSeq += 1;
-          rig.cacheA.invalidate(KEY);              // apply first…
+          rig.invalidateA();                       // apply first…
           rig.saveLastEventId(resourceId('r1'), `p-r1-${serverSeq}`); // …stash second (the seam's order)
           break;
         case 'receiveLegacy':
@@ -76,18 +76,18 @@ describe('A1/A4 — reload fidelity across event arrival', () => {
           rig.saveLastEventId(resourceId('r1'), `p-r1-${serverSeq}`);
           break;
         case 'applyLegacy':
-          if (unapplied > 0) { unapplied -= 1; rig.cacheA.invalidate(KEY); }
+          if (unapplied > 0) { unapplied -= 1; rig.invalidateA(); }
           break;
         case 'complete':
           rig.resolvers.shift()?.({ upTo: serverSeq });
           await vi.advanceTimersByTimeAsync(0);
           break;
         case 'writeB':
-          rig.cacheB.set('et', { upTo: serverSeq });
-          await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+          rig.changeB();
+          await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
           break;
         case 'settleA':
-          await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+          await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
           break;
       }
     }
@@ -99,7 +99,7 @@ describe('A1/A4 — reload fidelity across event arrival', () => {
     // storage and resumes.
     vi.clearAllTimers();
     rig = buildRig(storage, true);
-    rig.cacheA.observe(KEY).subscribe({ next: () => {}, error: () => {} });
+    rig.observeA();
     // Replay exists ONLY when a bookmark was persisted. The transport sends
     // `Last-Event-ID` only if it loaded one (`actor-state-unit.ts`: "fresh
     // connections send no header"), and a connect without it gets a
@@ -110,12 +110,12 @@ describe('A1/A4 — reload fidelity across event arrival', () => {
     // no lastEventId key at all.
     const resumeFrom = storage.get(BOOKMARK_KEY) !== null ? bookmarkSeq(storage) + 1 : null;
     if (resumeFrom !== null) {
-      for (let seq = resumeFrom; seq <= serverSeq; seq++) rig.cacheA.invalidate(KEY);
+      for (let seq = resumeFrom; seq <= serverSeq; seq++) rig.invalidateA();
     }
     while (rig.resolvers.length > 0) rig.resolvers.shift()!({ upTo: serverSeq });
-    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
 
-    const rendered = rig.cacheA.get(KEY)?.upTo ?? 0;
+    const rendered = rig.renderedA();
     rig.dispose();
     return { c1Held, renderedEqualsServer: rendered === serverSeq, rendered, serverSeq };
   }
@@ -203,10 +203,10 @@ describe('A1/A4 — reload fidelity across event arrival', () => {
     // Cold baseline: same server truth, empty storage, must fetch.
     const coldStorage = new InMemorySessionStorage();
     const cold = buildRig(coldStorage, true);
-    cold.cacheA.observe(KEY).subscribe({ next: () => {}, error: () => {} });
+    cold.observeA();
     while (cold.resolvers.length > 0) cold.resolvers.shift()!({ upTo: warm.serverSeq });
-    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
-    const coldRendered = cold.cacheA.get(KEY)?.upTo ?? 0;
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
+    const coldRendered = cold.renderedA();
     cold.dispose();
 
     expect(coldRendered, 'cold client is the baseline and must see server truth').toBe(warm.serverSeq);

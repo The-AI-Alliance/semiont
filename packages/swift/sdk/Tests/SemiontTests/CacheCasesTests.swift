@@ -1,11 +1,13 @@
 import Foundation
 import SemiontTesting
+import Synchronization
 import Testing
 
 @testable import Semiont
 
 /// The shared cases of what a client keeps, each run through a client's own persisters over a
-/// storage in memory, under the keys session/stored.json gives.
+/// storage in memory, under the keys session/stored.json gives, for each query
+/// client/refresh.json marks `persisted`.
 private func sharedCases(_ member: String) throws -> [[String: JSONValue]] {
   let cases = try required(Spec.read("session/cache-cases.json").object, member).array.map {
     try $0.object
@@ -35,17 +37,17 @@ private struct StoredKeys {
     whole = try required(required(stored, "wholeKey").object, "key").text
   }
 
-  func document(_ query: CacheQuery) -> String { "\(documents).\(query.rawValue)" }
+  func document(_ query: KeptQuery) -> String { "\(documents).\(query.rawValue)" }
 }
 
 private func caseName(_ row: [String: JSONValue]) throws -> String {
   try required(row, "name").text
 }
 
-private func caseQuery(_ row: [String: JSONValue]) throws -> CacheQuery {
+private func caseQuery(_ row: [String: JSONValue]) throws -> KeptQuery {
   let name = try required(row, "query").text
-  guard let query = CacheQuery(rawValue: name) else {
-    throw SpecFailure.shape("\(name) is no query of client/refresh.json")
+  guard let query = KeptQuery(rawValue: name) else {
+    throw SpecFailure.shape("\(name) is no query client/refresh.json marks persisted")
   }
   return query
 }
@@ -68,17 +70,19 @@ private func entryMap(_ entries: JSONValue) throws -> [String: JSONValue] {
 }
 
 private func keepingClient(
-  over storage: MemorySessionStorage, keys: StoredKeys
+  over storage: any SessionStorage, keys: StoredKeys,
+  clock: any Clock<Duration> = ContinuousClock()
 ) async throws -> SemiontClient {
   try await SemiontClient(
     transport: ProbeTransport(),
-    persistence: CachePersistence(storage: storage, kbId: kbId, personKey: keys.person))
+    persistence: CachePersistence(storage: storage, kbId: kbId, personKey: keys.person),
+    clock: clock)
 }
 
 /// What a new client over `storage` holds of `query`: each key as its document writes it, and
 /// the value.
 private func loaded(
-  _ query: CacheQuery, from storage: MemorySessionStorage, keys: StoredKeys, _ name: String
+  _ query: KeptQuery, from storage: MemorySessionStorage, keys: StoredKeys, _ name: String
 ) async throws -> [String: JSONValue] {
   let client = try await keepingClient(over: storage, keys: keys)
   defer { client.dispose() }
@@ -105,15 +109,13 @@ private func loaded(
     if let value = await live.entityTypes.snapshot() { held[keys.whole] = try encoded(value) }
   case .tagSchemas:
     if let value = await live.tagSchemas.snapshot() { held[keys.whole] = try encoded(value) }
-  case .events, .referencedBy, .resources, .matchedResources, .engines:
-    throw SpecFailure.shape("\(query) is not kept")
   }
   return held
 }
 
 /// Hold `value` as `key`'s in `query`'s cache, as its answer would.
 private func hold(
-  _ query: CacheQuery, _ key: JSONValue, _ value: JSONValue, in live: LiveQueries,
+  _ query: KeptQuery, _ key: JSONValue, _ value: JSONValue, in live: LiveQueries,
   keys: StoredKeys
 ) async throws {
   switch query {
@@ -135,9 +137,74 @@ private func hold(
   case .tagSchemas:
     #expect(try key.text == keys.whole)
     await live.tagSchemas.replace(.ready(try decoded(KeptTagSchemas.self, value)))
-  case .events, .referencedBy, .resources, .matchedResources, .engines:
-    throw SpecFailure.shape("\(query) is not kept")
   }
+}
+
+/// Hold each of a case's `held` pairs in its query's cache.
+private func holdAll(
+  _ row: [String: JSONValue], _ query: KeptQuery, in live: LiveQueries, keys: StoredKeys,
+  _ name: String
+) async throws {
+  for pair in try required(row, "held").array {
+    let parts = try pair.array
+    guard parts.count == 2 else { throw SpecFailure.shape("\(name): a held key and value") }
+    try await hold(query, parts[0], parts[1], in: live, keys: keys)
+  }
+}
+
+/// Whether `text`, the document a save wrote, is a case's `written`: its entries compared as a
+/// map, and each stamp a whole number of at least 0.
+private func expectWritten(_ text: String, _ row: [String: JSONValue], _ name: String) throws {
+  let document = try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)).object
+  let written = try required(row, "written").object
+  #expect(Set(document.keys) == Set(written.keys), "\(name)")
+  #expect(try required(document, "version") == required(written, "version"), "\(name)")
+  let entries = try required(document, "entries")
+  #expect(try entryMap(entries) == entryMap(required(written, "entries")), "\(name)")
+  for entry in try entries.array {
+    let parts = try entry.array
+    guard parts.count == 3, case .number(let stamp) = parts[2] else {
+      Issue.record("\(name): an entry is a key, a value and a stamp")
+      continue
+    }
+    #expect(
+      stamp >= 0 && stamp.rounded() == stamp, "\(name): a stamp is a whole number of at least 0")
+  }
+}
+
+private struct StorageRefusal: Error {}
+
+/// A storage in memory that refuses the first write under `refusedKey`, and takes every other.
+private final class RefusingFirstWrite: SessionStorage {
+  private let kept = MemorySessionStorage()
+  private let refusedKey: String
+  private let refusal = Mutex(false)
+
+  init(_ refusedKey: String) { self.refusedKey = refusedKey }
+
+  /// Whether it has refused that write.
+  var refused: Bool { refusal.withLock { $0 } }
+
+  func get(_ key: String) throws -> String? { kept.get(key) }
+
+  func set(_ key: String, _ value: String) throws {
+    let refuse =
+      key == refusedKey
+      && refusal.withLock { done in
+        defer { done = true }
+        return !done
+      }
+    if refuse { throw StorageRefusal() }
+    kept.set(key, value)
+  }
+
+  func delete(_ key: String) throws { kept.delete(key) }
+
+  func update(_ key: String, _ change: @Sendable (String?) throws -> String?) throws {
+    try kept.update(key, change)
+  }
+
+  func subscribe(_ key: String) -> AsyncStream<String?>? { kept.subscribe(key) }
 }
 
 @Test func aLoadKeepsWhatEverySharedCaseKeeps() async throws {
@@ -159,28 +226,34 @@ private func hold(
     let query = try caseQuery(row)
     let storage = MemorySessionStorage()
     let client = try await keepingClient(over: storage, keys: keys)
-    for pair in try required(row, "held").array {
-      let parts = try pair.array
-      guard parts.count == 2 else { throw SpecFailure.shape("\(name): a held key and value") }
-      try await hold(query, parts[0], parts[1], in: client.browse.live, keys: keys)
-    }
+    try await holdAll(row, query, in: client.browse.live, keys: keys, name)
     client.dispose()
     let text = try #require(storage.get(keys.document(query)), "\(name): a document is written")
-    let document = try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)).object
-    let written = try required(row, "written").object
-    #expect(Set(document.keys) == Set(written.keys), "\(name)")
-    #expect(try required(document, "version") == required(written, "version"), "\(name)")
-    let entries = try required(document, "entries")
-    #expect(try entryMap(entries) == entryMap(required(written, "entries")), "\(name)")
-    for entry in try entries.array {
-      let parts = try entry.array
-      guard parts.count == 3, case .number(let stamp) = parts[2] else {
-        Issue.record("\(name): an entry is a key, a value and a stamp")
-        continue
+    try expectWritten(text, row, name)
+  }
+}
+
+@Test func aRefusedSaveStaysOwedAndDisposalWritesWhatEverySharedCaseWrites() async throws {
+  let keys = try StoredKeys()
+  for row in try sharedCases("refusedWrites") {
+    let name = try caseName(row)
+    let query = try caseQuery(row)
+    let storage = RefusingFirstWrite(keys.document(query))
+    let clock = TestClock()
+    let client = try await keepingClient(over: storage, keys: keys, clock: clock)
+    try await holdAll(row, query, in: client.browse.live, keys: keys, name)
+    try await withinTestDeadline {
+      while !storage.refused {
+        clock.advance(by: .milliseconds(Timings.saveDebounceMs))
+        await Task.yield()
       }
-      #expect(
-        stamp >= 0 && stamp.rounded() == stamp, "\(name): a stamp is a whole number of at least 0")
     }
+    #expect(try storage.get(keys.document(query)) == nil, "\(name): the refusal wrote nothing")
+    #expect(client.keeping?.pending == true, "\(name): the save is owed after the refusal")
+    client.dispose()
+    let text = try #require(
+      try storage.get(keys.document(query)), "\(name): disposal's flush writes the document")
+    try expectWritten(text, row, name)
   }
 }
 

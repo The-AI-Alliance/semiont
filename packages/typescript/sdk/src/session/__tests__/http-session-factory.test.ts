@@ -14,6 +14,7 @@ import { filter, firstValueFrom, map, take } from 'rxjs';
 import { PERSISTED_QUERIES, resourceId } from '@semiont/core';
 import { isReady } from '../../cache';
 import { keptPersister } from '../../cache-persister';
+import { mockAnnotation } from '../../__tests__/fixtures/annotation';
 import { mockResource } from '../../__tests__/fixtures/resource';
 import { createHttpSessionFactory } from '../http-session-factory';
 import { createSessionSignals } from '../session-signals';
@@ -293,5 +294,105 @@ describe('a session over HTTP whose stored sign-in cannot be read as its client 
     expect(errors).toHaveLength(1);
     expect(errors[0]?.code).toBe('session.keep-failed');
     expect(errors[0]?.kbId).toBe(KB.id);
+  });
+});
+
+/**
+ * B17 item 2: a place is noted only after the refresher has taken its event. Here the transport applies a
+ * frame, so the refresher takes it and starts the fetch it asks for, before it notes the frame's id, in one
+ * turn of the stream's read: no write of a kept cache can come between the event's delivery and the
+ * refresher taking it (that order is pinned at the stream, in
+ * http-transport's actor-state-unit.test.ts, "stashes an id only AFTER the event has been applied"). So the
+ * first write that can carry the place comes once the event is taken, and the fetch then in flight holds
+ * the place back from it.
+ */
+describe('a session over HTTP: the place of an event the refresher has taken, and its fetch in flight', () => {
+  const ALICE = { did: 'did:web:example.org:users:alice', email: 'alice@example.org', name: 'Alice', image: null, domain: 'example.org' };
+  const RID = resourceId('res-1');
+
+  /** A storage that counts the writes under each key. */
+  class CountingStorage extends TestStorage {
+    readonly writes = new Map<string, number>();
+
+    override set(key: string, value: string): void {
+      this.writes.set(key, this.writesOf(key) + 1);
+      super.set(key, value);
+    }
+
+    writesOf(key: string): number {
+      return this.writes.get(key) ?? 0;
+    }
+  }
+
+  it("a kept cache's write while the event's refetch is in flight carries no place, and the refetch's own save carries it", async () => {
+    const storage = new CountingStorage();
+    const alice = personKey(ALICE.did);
+    storage.set(sessionKey(KB.id), JSON.stringify({ ...testSession(freshJwt(), 'r'), personKey: alice }));
+    const gateway = fakeGateway({ whoIs: async () => Response.json(ALICE), issuer: renews, resourceName: 'named' });
+    /** Each read of the resource's annotations, answered when the test says. */
+    const annotationReads: Array<(answer: Response) => void> = [];
+    const fetch: typeof globalThis.fetch = async (input, init) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      if (request.method === 'GET' && new URL(request.url).pathname === `/resources/${RID}/annotations`) {
+        return new Promise<Response>((answer) => { annotationReads.push(answer); });
+      }
+      return gateway.fetch(input, init);
+    };
+    const annotations = (count: number): Response => {
+      const held = Array.from({ length: count }, (_, i) => mockAnnotation(`ann-${i + 1}`));
+      return Response.json({ annotations: held, total: held.length });
+    };
+    const placesKey = lastEventIdKey(KB.id, alice);
+    const resourceKey = cacheKey(KB.id, alice, 'resource');
+
+    const session = createHttpSessionFactory(fetch)({ kb: KB, storage, signals: createSessionSignals(), onError: () => {} });
+    try {
+      await session.ready;
+      const { browse } = session.client;
+      const subscriptions = [browse.annotations(RID).subscribe(() => {}), browse.resource(RID).subscribe(() => {})];
+      await vi.waitFor(() => expect(annotationReads).toHaveLength(1));
+      annotationReads.shift()!(annotations(0));
+      await vi.waitFor(() => {
+        expect(storage.get(cacheKey(KB.id, alice, 'annotations'))).not.toBeNull();
+        expect(storage.get(resourceKey)).not.toBeNull();
+      });
+      await vi.waitFor(() => expect(gateway.connects.some(({ scoped }) => scoped?.some(({ scope }) => scope === RID))).toBe(true));
+
+      // The event is delivered; the refresher takes it, and the refetch it asks for is in flight.
+      gateway.deliver(
+        {
+          channel: 'mark:added',
+          scope: RID,
+          payload: {
+            id: 'evt-ann-1',
+            type: 'mark:added',
+            timestamp: '2026-01-01T00:00:00Z',
+            userId: ALICE.did,
+            resourceId: RID,
+            version: 1,
+            payload: { annotation: mockAnnotation('ann-1') },
+            metadata: { sequenceNumber: 2 },
+          },
+        },
+        'p-res-1-2',
+      );
+      await vi.waitFor(() => expect(annotationReads).toHaveLength(1));
+
+      // Another kept cache writes its document meanwhile: the fetch in flight holds the place back.
+      const resourceWrites = storage.writesOf(resourceKey);
+      browse.invalidateResourceDetail(RID);
+      await vi.waitFor(() => expect(storage.writesOf(resourceKey)).toBeGreaterThan(resourceWrites));
+      expect(storage.get(placesKey), 'the place waits for the refetch in flight').toBeNull();
+
+      // The refetch is answered, and its save carries the place.
+      annotationReads.shift()!(annotations(1));
+      await vi.waitFor(() => expect(storage.get(placesKey)).not.toBeNull());
+      expect(JSON.parse(storage.get(placesKey)!)).toEqual({ [RID]: 'p-res-1-2' });
+      for (const subscription of subscriptions) subscription.unsubscribe();
+    } finally {
+      session.dispose();
+      session.client.dispose();
+      gateway.close();
+    }
   });
 });

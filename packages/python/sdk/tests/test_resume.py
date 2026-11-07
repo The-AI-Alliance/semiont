@@ -5,16 +5,21 @@ from collections.abc import Callable
 from typing import final, override
 
 import pytest
-from aio import run, settle, soon
+from aio import pass_time, run, settle, soon, turns
 from gateway_server import GatewayServer
-from kb import OTHER, RESOURCE
+from kb import OTHER, RESOURCE, answer, asked_for, descriptor, knowing, knowing_content, recorded
 from pydantic import JsonValue
+from spec import JsonObject
 
+from semiont.cache import Ready
+from semiont.client import CachePersistence, SemiontClient
 from semiont.http import HttpTransport, Timing
 from semiont.identifiers import ResourceId
 from semiont.resume import CoupledBookmarks
 from semiont.storage import MemoryStorage, SessionStorage
 from semiont.stored import cache_key, last_event_id_key, person_key
+from semiont.testing import DropReply, FaultyTransport, StubGateway
+from semiont.timing import SAVE_DEBOUNCE_MS
 from semiont.watched import Variable, reached
 
 PERSON = person_key("did:web:example.org:users:alice")
@@ -59,21 +64,39 @@ def test_a_place_is_written_with_the_next_write_of_a_cache_and_not_before() -> N
     assert storage.get(CACHE) is None
 
 
-def test_a_place_waits_for_the_caches_to_be_at_rest() -> None:
-    storage = MemoryStorage()
-    places = CoupledBookmarks(storage, KEY)
-    caches = places.storage
-    at_rest = [False]
-    places.set_flush_gate(lambda: at_rest[0])
+def test_a_place_waits_for_the_client_it_is_coupled_to_to_be_at_rest() -> None:
+    async def scenario() -> None:
+        storage = MemoryStorage()
+        places = CoupledBookmarks(storage, KEY)
+        # The resource's answer is lost: its fetch is in flight until the test answers it.
+        transport = FaultyTransport([DropReply()], make_response=knowing)
+        persistence = CachePersistence(storage=places.storage, kb_id="kb-a", person_key=PERSON)
+        client = SemiontClient(transport, knowing_content(), StubGateway(), persistence=persistence)
+        places.couple_to(client)
 
-    places.save(RESOURCE, "p-res-1-7")
-    caches.set(CACHE, "{}")
-    # Late, which is safe: the cache that was written may not be the one still taking the event in.
-    assert storage.get(KEY) is None
+        def settled() -> bool:
+            return client.persistence_settled
 
-    at_rest[0] = True
-    caches.set(ANNOTATIONS, "{}")
-    assert places.load() == {RESOURCE: "p-res-1-7"}
+        async with client, client.browse.resource(RESOURCE) as live:
+            await turns()
+            (asked,) = asked_for(transport, "browse:resource-requested")
+            assert not settled()
+
+            places.save(RESOURCE, "p-res-1-7")
+            places.storage.set(ANNOTATIONS, "{}")
+            # Late, which is safe: the cache that was written is not the one still taking the event in.
+            assert storage.get(KEY) is None
+
+            # The answer comes, and the resource's cache keeps it: the client is at rest, and the place rides that write.
+            answer(transport, asked, {"resource": descriptor(RESOURCE), "lastSequence": 1})
+            while not isinstance(await soon(anext(live)), Ready):
+                pass
+            await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.02, step=0.01)
+            assert settled()
+            assert storage.get(CACHE) is not None
+            assert places.load() == {RESOURCE: "p-res-1-7"}
+
+    run(scenario())
 
 
 def test_what_is_kept_under_the_key_and_is_not_places_is_nothing_kept() -> None:
@@ -172,6 +195,77 @@ def test_bookmarks_given_once_the_stream_has_begun_keep_its_places_and_begin_onl
                 await settle()
                 kept.storage.set(CACHE, "{}")
                 assert kept.load() == {OTHER: "p-res-2-4"}
+
+    run(scenario())
+
+
+def test_a_place_is_noted_only_once_the_refresher_has_taken_its_event() -> None:
+    """B17: a place noted while its event is only queued for the refresher could ride a save that comes first, and lead the caches."""
+
+    async def scenario() -> None:
+        storage = MemoryStorage()
+        places = CoupledBookmarks(storage, KEY)
+        asked: list[JsonObject] = []
+        asked_again = asyncio.Event()
+
+        async with (
+            GatewayServer() as gateway,
+            HttpTransport(gateway.origin, token=Variable[str | None]("t"), timing=QUICK, bookmarks=places) as transport,
+        ):
+
+            def describe(emit: JsonObject, name: str) -> None:
+                described: JsonObject = {"response": {"resource": descriptor(RESOURCE, name), "lastSequence": 1}}
+                gateway.send(None, {"channel": "browse:resource-result", "payload": described, "correlationId": emit["correlationId"]})
+
+            def answering(emit: JsonObject) -> None:
+                # The service that answers for the resource answers its first read at once. A read asked again waits for the test.
+                if emit["channel"] == "browse:resource-requested":
+                    asked.append(emit)
+                    if len(asked) == 1:
+                        describe(emit, "A resource")
+                    else:
+                        asked_again.set()
+
+            gateway.on_emit = answering
+            persistence = CachePersistence(storage=places.storage, kb_id="kb-a", person_key=PERSON)
+            client = SemiontClient(transport, transport.content, transport, persistence=persistence)
+            places.couple_to(client)
+            # A reader of the client's own bus that listens from before its refresher does: each event is given to it
+            # first, and while it reads one, the refresher's copy is still queued.
+            ahead = client.bus.frames_among(["mark:archived"])
+
+            def settled() -> bool:
+                return client.persistence_settled
+
+            await soon(reached(transport.state, lambda state: state == "open"))
+            async with client, client.browse.resource(RESOURCE) as live:
+                while not isinstance(await soon(anext(live)), Ready):
+                    pass
+                # The stream holds the resource's scope, on a connection that replaced the first, which is gone.
+                await soon(places_asked_from(gateway, 1))
+                await settle()
+                await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.02, step=0.01)
+                document = storage.get(CACHE)
+                assert document is not None
+                assert settled()
+
+                gateway.send("p-res-1-7", {"channel": "mark:archived", "payload": recorded("mark:archived", "res-1"), "scope": "res-1"})
+                await soon(anext(ahead))
+                # The event has been delivered, and the refresher has not taken it. A kept cache writes now, and no place rides it.
+                places.storage.set(CACHE, document)
+                assert storage.get(KEY) is None
+
+                # The refresher takes it, and asks again for the resource: that fetch, in flight, holds the place back.
+                await soon(asked_again.wait())
+                assert not settled()
+                places.storage.set(CACHE, document)
+                assert storage.get(KEY) is None
+
+                # The answer comes, and the resource's cache keeps it: every kept cache is at rest, and the place rides that write.
+                describe(asked[1], "A resource, archived")
+                await settle()
+                await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.02, step=0.01)
+                assert places.load() == {RESOURCE: "p-res-1-7"}
 
     run(scenario())
 

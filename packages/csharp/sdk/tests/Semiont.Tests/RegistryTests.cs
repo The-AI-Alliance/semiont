@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -5,6 +6,7 @@ using System.Text.Json.Nodes;
 using Semiont.Authorization;
 using Semiont.Discovery;
 using Semiont.Errors;
+using Semiont.Http;
 using Semiont.Identifiers;
 using Semiont.Registry;
 using Semiont.SignIn;
@@ -47,8 +49,11 @@ public sealed partial class TransportTests
         var cacheKey = RegistryStorage.CacheKey(Text(cacheExample, "kbId"), PersonKeyOf(cacheExample), Text(cacheExample, "query"));
         Assert.Equal(Text(cacheExample, "key"), cacheKey);
         Assert.StartsWith(Text(cachePrefix, "prefix"), cacheKey, StringComparison.Ordinal);
-        var kept = table.RootElement.GetProperty("keptQueries").EnumerateArray().Select(row => Text(row, "query")).ToArray();
-        Assert.Equal(kept, LiveQueries.PersistedQueries);
+        // The one kept list: the queries client/refresh.json marks persisted.
+        using var refresh = ReadSpec("client/refresh.json");
+        var persisted = refresh.RootElement.GetProperty("queries").EnumerateArray()
+            .Where(row => row.TryGetProperty("persisted", out var marked) && marked.GetBoolean()).Select(row => Text(row, "name")).ToArray();
+        Assert.Equal(persisted, LiveQueries.PersistedQueries);
         Assert.Equal(Text(table.RootElement.GetProperty("wholeKey"), "key"), KeptTable.WholeKey);
         var document = table.RootElement.GetProperty("cacheDocument");
         Assert.Equal(document.GetProperty("properties").GetProperty("version").GetProperty("const").GetInt64(), KeptTable.Version);
@@ -172,6 +177,99 @@ public sealed partial class TransportTests
             var sorted = OpenResources.SortOpenResources(open).Select(tab => tab.Id.Value).ToArray();
             Assert.True(shown.SequenceEqual(sorted), Text(row, "why") + ": shown " + string.Join(", ", sorted));
         }
+    }
+
+    public static IEnumerable<object[]> OpenResourceCases()
+    {
+        using var table = ReadSpec("session/open-resource-cases.json");
+        foreach (var row in table.RootElement.GetProperty("cases").EnumerateArray()) yield return [Text(row, "why")];
+    }
+
+    /// <summary>
+    /// A registry over a knowledge base that answers as the case says, with the case's resources open in it before its
+    /// session is active: once it is active, the resources the registry asked for and those still open are the case's.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(OpenResourceCases))]
+    public async Task OpenResourcesAreCheckedOnActivationAsTheirCaseSays(string why)
+    {
+        using var table = ReadSpec("session/open-resource-cases.json");
+        var row = table.RootElement.GetProperty("cases").EnumerateArray().Single(entry => Text(entry, "why") == why).Clone();
+        var store = new MemoryStorage();
+        var kb = RegistryKb("checked", "checked.test");
+        RegistryStorage.SaveKnowledgeBases(store, [kb]);
+        store.Set(RegistryStorage.OpenResourcesByKbKey, RegistryStorage.Write(new Dictionary<string, OpenResource[]>
+        {
+            [kb.Id] = Ids(row.GetProperty("open")).Select((id, order) => new OpenResource(ResourceId.Parse(id), id, 0, order)).ToArray(),
+        }));
+        var asked = new ConcurrentDictionary<string, bool>(StringComparer.Ordinal);
+        var factory = new RegistryFactory((options, _) => Task.FromResult(OpenCaseSession(options.Kb, row, asked)));
+        await using var browser = new SemiontBrowser(new SemiontBrowserConfig(store, factory));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await browser.SetActiveKbAsync(kb.Id, deadline.Token);
+        var expectedAsked = Ids(row.GetProperty("asked")).ToHashSet(StringComparer.Ordinal);
+        var stillOpen = Ids(row.GetProperty("stillOpen")).ToHashSet(StringComparer.Ordinal);
+        bool Checked(BrowserState state) => expectedAsked.SetEquals(asked.Keys) && stillOpen.SetEquals(state.OpenResources.Select(tab => tab.Id.Value));
+        try
+        {
+            await foreach (var state in browser.States(deadline.Token))
+                if (Checked(state)) return;
+        }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested) { }
+        Assert.Fail(why + ": the registry asked for " + string.Join(", ", asked.Keys.Order(StringComparer.Ordinal)) + ", and "
+            + string.Join(", ", browser.State.OpenResources.Select(tab => tab.Id.Value).Order(StringComparer.Ordinal)) + " stayed open");
+
+        static string[] Ids(JsonElement ids) => ids.EnumerateArray().Select(id => Assert.IsType<string>(id.GetString())).ToArray();
+    }
+
+    /// <summary>
+    /// A session with <paramref name="kb"/> that answers as <paramref name="row"/> says: asked to describe itself, as its
+    /// entry (`itself`) or not at all (`unanswered`); asked for a resource, with its description (`ready`), as gone
+    /// (`gone`, bus.not-found) or not at all (`unanswered`). A request left unanswered fails at its short timeout. Each
+    /// resource asked for is noted in <paramref name="asked"/>.
+    /// </summary>
+    private static OpenedSession OpenCaseSession(KnowledgeBase kb, JsonElement row, ConcurrentDictionary<string, bool> asked)
+    {
+        var server = new Handler();
+        var http = new HttpClient(server);
+        var resources = row.GetProperty("resources");
+        server.Answer = sent =>
+        {
+            if (Text(sent, "channel") == BusOperations.BrowseKbRequested.Request.Name)
+            {
+                switch (Text(row, "kb"))
+                {
+                    case "itself":
+                        Reply(server, sent, BusOperations.BrowseKbRequested.Result.Name,
+                            new { response = new { domain = kb.Did["did:web:".Length..], name = kb.Label } });
+                        return;
+                    case "unanswered": return;
+                    case var answer: throw new InvalidOperationException("No knowledge base answers " + answer);
+                }
+            }
+            Assert.Equal(BusOperations.BrowseResourceRequested.Request.Name, Text(sent, "channel"));
+            var id = Text(sent.GetProperty("payload"), "resourceId");
+            asked[id] = true;
+            switch (Text(resources, id))
+            {
+                case "ready":
+                    Reply(server, sent, BusOperations.BrowseResourceRequested.Result.Name,
+                        new { response = new { resource = Described(id, id), lastSequence = 1 } });
+                    return;
+                case "gone":
+                    Reply(server, sent, BusOperations.BrowseResourceRequested.Failure.Name, new { message = id + " is gone", code = "not-found" });
+                    return;
+                case "unanswered": return;
+                case var answer: throw new InvalidOperationException("No resource answers " + answer);
+            }
+        };
+        var client = new SemiontClient("https://kb.test", "token", http, timing: new Timing { BusRequestTimeoutMs = 200 });
+        return new OpenedSession(client, () =>
+        {
+            client.Dispose();
+            http.Dispose();
+            return ValueTask.CompletedTask;
+        });
     }
 
     [Fact]

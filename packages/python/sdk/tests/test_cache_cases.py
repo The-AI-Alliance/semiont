@@ -4,25 +4,28 @@ Every SDK's persister runs that table. Each case runs through the persister
 a client keeps the case's query with (`KeptPersisters`), over a storage in
 memory, under the key `semiont.stored` gives it. What a load keeps is read
 back by that persister's own save, so each value is compared as the document
-writes it.
+writes it. A refused write runs through the cache that saves with that
+persister, over a storage that refuses its first write.
 """
 
 from collections.abc import Hashable
-from typing import Final, assert_never
+from typing import Final, Protocol, assert_never
 
 import pytest
-from aio import run
+from aio import pass_time, run
 from kb import NothingRuns, nothing_fetched
 from pydantic import BaseModel, Field, JsonValue, TypeAdapter
 from spec import SPEC
+from storages import RefusingFirst
 
 from semiont.cache import Cache
 from semiont.client import CachePersistence
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.namespaces.live import KeptPersisters
 from semiont.resume import CoupledBookmarks
-from semiont.storage import MemoryStorage, StoragePersister
+from semiont.storage import MemoryStorage, SessionStorage, StoragePersister
 from semiont.stored import KeptQuery, WholeKey, cache_key, last_event_id_key, person_key
+from semiont.timing import SAVE_DEBOUNCE_MS
 from semiont.types import Annotation, GetAnnotationsResponse, ResourceDescriptor, TagSchema
 
 type Entry = tuple[JsonValue, JsonValue]
@@ -78,6 +81,7 @@ class Table(BaseModel, frozen=True, extra="forbid"):
     run_by: dict[str, list[str]] = Field(alias="runBy")
     cases: list[Stored | StoredText]
     writes: list[Write]
+    refused_writes: list[Write] = Field(alias="refusedWrites")
     places: list[StoredPlaces | StoredPlacesText]
 
 
@@ -99,11 +103,11 @@ def by_key(entries: list[Entry]) -> dict[str, JsonValue]:
     return {_JSON.dump_json(key).decode(): value for key, value in entries}
 
 
-def persisters(storage: MemoryStorage) -> KeptPersisters:
+def persisters(storage: SessionStorage) -> KeptPersisters:
     return KeptPersisters(CachePersistence(storage=storage, kb_id=KB, person_key=PERSON))
 
 
-def written_under(storage: MemoryStorage, query: KeptQuery) -> dict[str, JsonValue]:
+def written_under(storage: SessionStorage, query: KeptQuery) -> dict[str, JsonValue]:
     """The document kept under `query`'s key, each of its stamps held to be one."""
     stored = storage.get(cache_key(KB, PERSON, query))
     assert stored is not None, f"nothing is kept under {query}'s key"
@@ -154,28 +158,39 @@ def kept_of(query: KeptQuery, storage: MemoryStorage) -> dict[str, JsonValue]:
             assert_never(query)
 
 
-def hold[K: Hashable, V](persister: StoragePersister[K, V], key: TypeAdapter[K], value: TypeAdapter[V], held: list[Entry]) -> None:
-    """A cache that keeps its values with `persister` holds `held`, and ends: what it owed is saved."""
+class Owing(Protocol):
+    """A cache that keeps its values, as a case reads it: whether it still owes what it holds, and its end."""
+
+    @property
+    def persistence_pending(self) -> bool: ...
+
+    def dispose(self) -> None: ...
+
+
+def holding[K: Hashable, V](
+    persister: StoragePersister[K, V], key: TypeAdapter[K], value: TypeAdapter[V], held: list[Entry]
+) -> Cache[K, V]:
+    """A cache that keeps its values with `persister`, holding `held`: it owes their save."""
     cache = Cache[K, V](nothing_fetched, tasks=NothingRuns(), persister=persister)
     for each_key, each_value in held:
         cache.set(key.validate_python(each_key), value.validate_python(each_value))
-    cache.dispose()
+    return cache
 
 
-def held_by(query: KeptQuery, storage: MemoryStorage, held: list[Entry]) -> None:
-    """The client's cache of `query`, kept in `storage`, holds `held`, and ends."""
+def held_by(query: KeptQuery, storage: SessionStorage, held: list[Entry]) -> Owing:
+    """The client's cache of `query`, kept in `storage`, holding `held`."""
     kept = persisters(storage)
     match query:
         case "resource":
-            hold(kept.resource, _RESOURCE_ID, TypeAdapter(ResourceDescriptor), held)
+            return holding(kept.resource, _RESOURCE_ID, TypeAdapter(ResourceDescriptor), held)
         case "annotations":
-            hold(kept.annotations, _RESOURCE_ID, TypeAdapter(GetAnnotationsResponse), held)
+            return holding(kept.annotations, _RESOURCE_ID, TypeAdapter(GetAnnotationsResponse), held)
         case "annotation":
-            hold(kept.annotation, _ANNOTATION_ID, TypeAdapter(Annotation), held)
+            return holding(kept.annotation, _ANNOTATION_ID, TypeAdapter(Annotation), held)
         case "entityTypes":
-            hold(kept.entity_types, _WHOLE_KEY, TypeAdapter[list[str]](list[str]), held)
+            return holding(kept.entity_types, _WHOLE_KEY, TypeAdapter[list[str]](list[str]), held)
         case "tagSchemas":
-            hold(kept.tag_schemas, _WHOLE_KEY, TypeAdapter[list[TagSchema]](list[TagSchema]), held)
+            return holding(kept.tag_schemas, _WHOLE_KEY, TypeAdapter[list[TagSchema]](list[TagSchema]), held)
         case _:
             assert_never(query)
 
@@ -194,7 +209,30 @@ def test_a_save_writes_what_the_shared_table_states(case: Write) -> None:
     storage = MemoryStorage()
 
     async def scenario() -> None:
-        held_by(case.query, storage, case.held)
+        # It ends: what it owed is saved.
+        held_by(case.query, storage, case.held).dispose()
+
+    run(scenario())
+    written = written_under(storage, case.query)
+    assert set(written) == set(case.written.model_dump())
+    assert written["version"] == case.written.version
+    assert entries_of(written) == by_key(case.written.entries)
+
+
+@pytest.mark.parametrize("case", TABLE.refused_writes, ids=lambda case: case.name)
+def test_a_save_the_storage_refuses_stays_owed_and_disposal_writes_what_the_shared_table_states(case: Write) -> None:
+    storage = RefusingFirst(cache_key(KB, PERSON, case.query))
+
+    async def scenario() -> None:
+        cache = held_by(case.query, storage, case.held)
+        # Its values stop changing, and it saves them: the storage refuses the write.
+        await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.01, step=0.01)
+        assert storage.refusals == 1
+        assert storage.get(cache_key(KB, PERSON, case.query)) is None
+        # Nothing it holds was kept, so it still owes their save.
+        assert cache.persistence_pending
+        # Disposal's flush is that save, and the storage takes it.
+        cache.dispose()
 
     run(scenario())
     written = written_under(storage, case.query)

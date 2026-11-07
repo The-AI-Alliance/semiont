@@ -26,7 +26,7 @@ use semiont::types::{
     UserResponse,
 };
 use serde_json::{Value, json};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
@@ -1387,6 +1387,78 @@ async fn no_answer_and_a_refusal_to_say_are_no_verdict_and_void_nothing() {
             browser.read_active_kb().await.expect("asked"),
             KbReadVerdict::NoVerdict
         );
+    }
+}
+
+/// The ids a case lists under `member`, as a set.
+fn ids(case: &Value, member: &str) -> BTreeSet<String> {
+    case[member]
+        .as_array()
+        .unwrap_or_else(|| panic!("a case lists no {member}: {case}"))
+        .iter()
+        .map(|id| {
+            id.as_str()
+                .unwrap_or_else(|| panic!("{member} lists {id}, which is no id"))
+                .to_owned()
+        })
+        .collect()
+}
+
+/// protocol/specs/src/session/open-resource-cases.json: with resources open
+/// in a knowledge base before its session is active, the registry asks for
+/// each of them as the session arrives, whatever the knowledge base says of
+/// itself, and closes only those it says are gone.
+#[tokio::test(start_paused = true)]
+async fn open_resource_cases() {
+    let table: Value =
+        serde_json::from_str(include_str!("../specs/session/open-resource-cases.json"))
+            .expect("the table is JSON");
+    let cases = table["cases"]
+        .as_array()
+        .expect("open-resource-cases.json has cases");
+    assert!(!cases.is_empty(), "open-resource-cases.json has no case");
+    for case in cases {
+        let why = case["why"].as_str().expect("a case says why");
+        let world = World::with(&[kb_a()]);
+        let open_before: Vec<String> = ids(case, "open").into_iter().collect();
+        let open_before: Vec<&str> = open_before.iter().map(String::as_str).collect();
+        opened(&world, A, &open_before);
+        match case["kb"].as_str() {
+            // The did of the entry it was asked as, DID_A.
+            Some("itself") => world
+                .factory
+                .describes(A, description("KB A", "example.org:kb-a", None)),
+            Some("unanswered") => {}
+            other => panic!("{why}: the knowledge base answers {other:?}"),
+        }
+        let resources = case["resources"]
+            .as_object()
+            .unwrap_or_else(|| panic!("{why}: no resources"));
+        for (id, answers) in resources {
+            let mut behind = world.factory.behind();
+            match answers.as_str() {
+                Some("ready") => {}
+                Some("gone") => {
+                    behind.gone.insert(id.clone());
+                }
+                Some("unanswered") => {
+                    behind.failing.insert(id.clone());
+                }
+                other => panic!("{why}: {id} is answered {other:?}"),
+            }
+        }
+        let browser = world.browser();
+        live(&browser).await;
+
+        let asked: BTreeSet<String> = world.factory.asked_about(A).into_iter().collect();
+        assert_eq!(asked, ids(case, "asked"), "{why}: the resources asked for");
+        let still_open: BTreeSet<String> = open(&browser).into_iter().collect();
+        assert_eq!(
+            still_open,
+            ids(case, "stillOpen"),
+            "{why}: the resources still open"
+        );
+        browser.close().await.expect("closed");
     }
 }
 

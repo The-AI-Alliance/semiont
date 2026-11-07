@@ -21,7 +21,7 @@ from typing import Final, final, override
 import pytest
 from aio import hurried, run, soon, turns
 from pydantic import JsonValue
-from spec import JsonObject
+from spec import SPEC, JsonObject, objects, read, strings, text
 from tokens import expired, token
 
 from semiont.errors import TransportError
@@ -1426,6 +1426,49 @@ def test_with_no_session_there_is_nothing_to_ask() -> None:
     async def scenario() -> None:
         async with World().browser() as browser:
             assert await browser.read_active_kb() == KbReadVerdict(kind="no-verdict")
+
+    run(scenario())
+
+
+OPEN_RESOURCE_CASES: Final = objects(read(SPEC / "session/open-resource-cases.json")["cases"], "cases")
+"""What a session's arrival does with the resources open in its knowledge base, case by case."""
+
+
+def why(case: JsonObject) -> str:
+    return text(case["why"], "why")
+
+
+@pytest.mark.parametrize("case", OPEN_RESOURCE_CASES, ids=why)
+def test_the_resources_open_as_a_session_becomes_active_are_checked_as_the_shared_table_states(case: JsonObject) -> None:
+    async def scenario() -> None:
+        world = World().with_(kb_of_a())
+        # What the knowledge base says when it is asked who it is. One that is told nothing to say does not answer.
+        match case["kb"]:
+            case "itself":
+                world.factory.says(KB_A, description("KB A", "example.org:kb-a"))
+            case "unanswered":
+                pass
+            case said:
+                raise AssertionError(f"the table's knowledge base answers {said!r}, which this runner does not know")
+        # What it says of each open resource. A read it gives no answer to fails, and is no refusal.
+        answers = case["resources"]
+        assert isinstance(answers, dict)
+        for resource, answer in answers.items():
+            match answer:
+                case "ready":
+                    pass
+                case "gone":
+                    world.factory.behind.gone.add(resource)
+                case "unanswered":
+                    world.factory.behind.failing.add(resource)
+                case said:
+                    raise AssertionError(f"the table's knowledge base answers {said!r} of {resource}, which this runner does not know")
+        world.opened(KB_A, *strings(case["open"], "open"))
+        async with world.browser() as browser:
+            await live(browser)
+
+            assert set(world.factory.asked_about(KB_A)) == set(strings(case["asked"], "asked"))
+            assert set(shown(browser)) == set(strings(case["stillOpen"], "stillOpen"))
 
     run(scenario())
 
