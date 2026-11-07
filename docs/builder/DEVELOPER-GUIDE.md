@@ -165,9 +165,10 @@ for (const ann of annotations) {
 | What kind it is | `isHighlight`, `isReference`, `isAssessment`, `isComment`, `isTag` |
 | What it says | `getEntityTypes`, `getCommentText`, `getTagCategory`, `getTagSchemaId` |
 
-The Rust, Python, Go and Kotlin SDKs have the same readers (`semiont::annotations`,
-`semiont.annotations`, the Go package `annotations`, Kotlin's `semiont.annotations`), and one
-table, [`reader-cases.json`](../../protocol/specs/src/annotations/reader-cases.json), holds all five to
+The other SDKs have the same readers (Rust's `semiont::annotations`, Python's `semiont.annotations`,
+the Go package `annotations`, Kotlin's `semiont.annotations`, C#'s `Semiont.Annotations`,
+Swift's `Semiont` module and Haskell's `Semiont.Annotations`), and one
+table, [`reader-cases.json`](../../protocol/specs/src/annotations/reader-cases.json), holds them all to
 the same answer for the same annotation.
 
 Live subscriptions are how you get real-time updates: **freshness follows observation** —
@@ -405,10 +406,11 @@ A span that is not the text's is refused: `annotationOfSpan` throws a `SpanRefus
 whose `code` names the refusal. `reconcile` is one way to find a model's words, with its own
 tolerance for a misquote; a span found another way is built the same.
 
-The Rust, Python, Go and Kotlin SDKs have the same three (`semiont::annotations`,
-`semiont.annotations`, the Go package `annotations`, Kotlin's `semiont.annotations`), and two
+The other SDKs have the same three (Rust's `semiont::annotations`, Python's `semiont.annotations`,
+the Go package `annotations`, Kotlin's `semiont.annotations`, C#'s `Semiont.Annotations`,
+Swift's `Semiont` module and Haskell's `Semiont.Annotations`), and two
 tables, [`reconcile-cases.json`](../../protocol/specs/src/annotations/reconcile-cases.json) and
-[`builder-cases.json`](../../protocol/specs/src/annotations/builder-cases.json), hold all five to
+[`builder-cases.json`](../../protocol/specs/src/annotations/builder-cases.json), hold them all to
 the same answer.
 
 ## 10. Find link candidates (semantic search)
