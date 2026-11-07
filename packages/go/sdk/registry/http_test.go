@@ -231,6 +231,28 @@ func (s *stage) resumedFrom(scope string) (from *string, named bool) {
 	return nil, false
 }
 
+// resumedWith is the place the first stream that named with resumed scope
+// from, nil for none; named is false while no stream has named with, or the
+// first that did named no scope.
+func (s *stage) resumedWith(scope, with string) (from *string, named bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, subscription := range s.subscriptions {
+		if subscription.Scoped == nil {
+			continue
+		}
+		places := map[string]*string{}
+		for _, scoped := range *subscription.Scoped {
+			places[scoped.Scope.String()] = scoped.LastEventId
+		}
+		if _, withIt := places[with]; withIt {
+			from, named = places[scope]
+			return from, named
+		}
+	}
+	return nil, false
+}
+
 func (s *stage) grant(access, refresh string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

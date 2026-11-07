@@ -91,22 +91,34 @@ func (k *cacheKey[V]) known() bool {
 // met, and never retries.
 //
 // A cache with a persister begins with what was kept and saves its values
-// saveWait after they last changed. A value that was kept is shown at once and
-// asked for again the first time it is observed: nothing says it is still
-// true. An observer that falls behind is given the latest state, not each one
-// it missed.
+// saveWait after they last changed. A save the persister refuses leaves the
+// save owed: the next change, or the cache's closing, makes it again; a
+// closing waits for a save being made, so one refused meanwhile is made by
+// the closing. A value
+// that was kept is shown at once and asked for again the first time it is
+// observed: nothing says it is still true. An observer that falls behind is
+// given the latest state, not each one it missed.
 type Cache[K comparable, V any] struct {
 	fetch     func(ctx context.Context, key K) (V, error)
 	run       func(work func(ctx context.Context))
 	persister CachePersister[K, V]
 	saveWait  time.Duration
+	// saves is held by each save from the moment it takes the values until
+	// the persister has answered, and by Close throughout: one save at a
+	// time. Taken before mu, never while mu is held.
+	saves sync.Mutex
 
 	mu      sync.Mutex
 	keys    map[K]*cacheKey[V]
 	kept    map[K]bool
 	fetches int
-	saving  *time.Timer
-	closed  bool
+	// saving makes the save owed once the values stop changing; nil while
+	// none is waiting.
+	saving *time.Timer
+	// owed is whether the values have changed since a save last took them,
+	// or the persister refused the save that did: a save is owed.
+	owed   bool
+	closed bool
 }
 
 var _ StateUnit = (*Cache[string, string])(nil)
@@ -171,33 +183,46 @@ func (c *Cache[K, V]) values() map[K]V {
 	return values
 }
 
-// oweASave saves the values once they have stopped changing. Called with mu
-// held.
+// oweASave owes a save, and makes it once the values have stopped changing.
+// While the save is being made nothing is owed, so the write it makes reads
+// this cache as at rest; a save the persister refuses is owed again, and is
+// made by the next change or by the cache's closing, never by a timer of its
+// own. Close waits for a save being made, so it reads a refusal's owing.
+// Called with mu held.
 func (c *Cache[K, V]) oweASave() {
 	if c.persister == nil {
 		return
 	}
+	c.owed = true
 	if c.saving != nil {
 		c.saving.Stop()
 	}
 	persister := c.persister
 	c.saving = time.AfterFunc(c.saveWait, func() {
+		c.saves.Lock()
+		defer c.saves.Unlock()
 		c.mu.Lock()
 		if c.closed {
 			c.mu.Unlock()
 			return
 		}
 		c.saving = nil
+		c.owed = false
 		values := c.values()
 		c.mu.Unlock()
 		if err := persister.Save(values); err != nil {
 			unsaved(err)
+			// Close is waiting for saves, if it has begun: it has not yet read
+			// what is owed.
+			c.mu.Lock()
+			c.owed = true
+			c.mu.Unlock()
 		}
 	})
 }
 
 // unsaved says that the cache's values were not kept. Keeping them is a
-// convenience: the cache goes on as it was, and its next save tries again.
+// convenience: the cache goes on as it was, and the save stays owed.
 func unsaved(err error) {
 	slog.Warn("semiont: the cache's values were not kept", "error", err)
 }
@@ -389,7 +414,7 @@ func (c *Cache[K, V]) Keys() []K {
 func (c *Cache[K, V]) PersistencePending() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.persister != nil && (c.saving != nil || c.anyInFlight())
+	return c.persister != nil && (c.owed || c.anyInFlight())
 }
 
 // keptFetching reports whether a cache that keeps its values has a fetch in
@@ -460,19 +485,25 @@ func (c *Cache[K, V]) Set(key K, value V) {
 	c.oweASave()
 }
 
-// Close ends the cache: a save that was owed is made now, every
-// observer's states end, and nothing is fetched or written after. Closing
-// twice is closing once.
+// Close ends the cache: once a save being made has been answered, a save
+// that is owed, a refused one among them, is made now, every observer's
+// states end, and nothing is fetched or written after. Closing twice is
+// closing once.
 func (c *Cache[K, V]) Close() {
+	c.saves.Lock()
+	defer c.saves.Unlock()
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
 		return
 	}
-	var owed map[K]V
 	if c.saving != nil {
 		c.saving.Stop()
 		c.saving = nil
+	}
+	var owed map[K]V
+	if c.owed {
+		c.owed = false
 		owed = c.values()
 	}
 	persister := c.persister

@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
@@ -80,9 +79,6 @@ type Client struct {
 	links     *links
 	live      *live
 	refresher *refresher
-	// places is the places coupled to what the client keeps
-	// (CoupledBookmarks.CoupleTo); nil while none is.
-	places atomic.Pointer[CoupledBookmarks]
 }
 
 // NewClient is a client over config's transport, content and gateway.
@@ -139,7 +135,7 @@ func (c *Client) PersistenceSettled() bool {
 // either holds the places back from the saves Close makes. A save owed does
 // not: Close makes it.
 func (c *Client) Close() {
-	if places := c.places.Load(); places != nil {
+	if places := c.refresher.places.Load(); places != nil {
 		places.seal(func() bool { return !c.refresher.windows.owing() && !c.live.keptFetching() })
 	}
 	c.refresher.dispose()

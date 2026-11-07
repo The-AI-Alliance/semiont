@@ -437,7 +437,9 @@ func TestAPlaceIsNotWrittenBeforeTheRefresherHasTakenItsEvent(t *testing.T) {
 	until(t, "the place written once the refetch was kept", func() bool { return kept.Load()[resource] == "p-res-1-42" })
 }
 
-func TestAStreamBeginsEachScopeWhereItsBookmarksSayAndTellsThemEachRecordedEventItDelivered(t *testing.T) {
+// A stream begins each scope where its bookmarks say, and notes no place in
+// them itself: the client's refresher does, once it has taken the event (B17).
+func TestAStreamBeginsEachScopeWhereItsBookmarksSayAndNotesNoPlaceInThem(t *testing.T) {
 	resource, other := mustResource(t, "res-1"), mustResource(t, "res-2")
 	storage := NewMemoryStorage()
 	storage.Set(keptPlacesKey, `{"res-1":"p-res-1-41"}`)
@@ -470,7 +472,7 @@ func TestAStreamBeginsEachScopeWhereItsBookmarksSayAndTellsThemEachRecordedEvent
 		t.Fatalf("the scopes begin at %v", begins)
 	}
 
-	// A recorded event's id is its scope's place, once it has been delivered. A passing frame's is no place.
+	// A recorded event delivered, and a passing frame: the stream notes neither.
 	gateway.send("p-res-1-42", map[string]any{"channel": "mark:added", "payload": map[string]any{"n": 1}, "scope": "res-1"})
 	gateway.send("e-9", map[string]any{"channel": "mark:added", "payload": map[string]any{"n": 2}, "scope": "res-2"})
 	for _, want := range []string{`{"n":1}`, `{"n":2}`} {
@@ -483,17 +485,9 @@ func TestAStreamBeginsEachScopeWhereItsBookmarksSayAndTellsThemEachRecordedEvent
 			t.Fatalf("timed out waiting for %s", want)
 		}
 	}
-	until(t, "the place reached", func() bool {
-		kept.mu.Lock()
-		defer kept.mu.Unlock()
-		return kept.pending[resource] == "p-res-1-42"
-	})
-	if stored, _ := storage.Get(keptPlacesKey); stored != `{"res-1":"p-res-1-41"}` {
-		t.Fatalf("a place was written before a cache's write: %s", stored)
-	}
 	kept.Storage().Set(keptCacheKey, "{}")
-	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-res-1-42"}); !maps.Equal(got, want) {
-		t.Fatalf("places kept %v, want %v", got, want)
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-res-1-41"}); !maps.Equal(got, want) {
+		t.Fatalf("places kept %v, want %v: the stream noted a place", got, want)
 	}
 }
 
@@ -509,8 +503,7 @@ func TestAStreamWithNoBookmarksBeginsEveryScopeAtThePresent(t *testing.T) {
 }
 
 // Places kept elsewhere, given to a stream that has begun, are taken up only
-// for the scopes it holds no place in; and the stream keeps its places there
-// from then on.
+// for the scopes it holds no place in.
 func TestPlacesGivenToAStreamAreTakenUpOnlyForTheScopesItHoldsNoPlaceIn(t *testing.T) {
 	resource, other := mustResource(t, "res-1"), mustResource(t, "res-2")
 	storage := NewMemoryStorage()
@@ -521,7 +514,7 @@ func TestPlacesGivenToAStreamAreTakenUpOnlyForTheScopesItHoldsNoPlaceIn(t *testi
 	gateway := newRecordingGateway(t)
 	transport := gateway.transport(NewCoupledBookmarks(storage, keptPlacesKey))
 	defer transport.Close()
-	transport.keepPlaces(NewCoupledBookmarks(elsewhere, keptPlacesKey))
+	transport.takeUpPlaces(NewCoupledBookmarks(elsewhere, keptPlacesKey))
 	defer transport.SubscribeToResource(resource)()
 	defer transport.SubscribeToResource(other)()
 	until(t, "a subscription of both scopes", func() bool { _, ok := gateway.asked(2); return ok })
@@ -533,17 +526,10 @@ func TestPlacesGivenToAStreamAreTakenUpOnlyForTheScopesItHoldsNoPlaceIn(t *testi
 	bare := newRecordingGateway(t)
 	unkept := bare.transport(nil)
 	defer unkept.Close()
-	kept := NewCoupledBookmarks(elsewhere, keptPlacesKey)
-	unkept.keepPlaces(kept)
+	unkept.takeUpPlaces(NewCoupledBookmarks(elsewhere, keptPlacesKey))
 	defer unkept.SubscribeToResource(other)()
 	until(t, "a subscription of the scope", func() bool { _, ok := bare.asked(1); return ok })
 	if begins, _ := bare.asked(1); !maps.Equal(begins, map[string]string{"res-2": "p-res-2-3"}) {
 		t.Fatalf("the scope begins at %v", begins)
 	}
-	bare.send("p-res-2-4", map[string]any{"channel": "mark:added", "payload": map[string]any{"n": 1}, "scope": "res-2"})
-	until(t, "the place reached is kept", func() bool {
-		kept.mu.Lock()
-		defer kept.mu.Unlock()
-		return kept.pending[other] == "p-res-2-4"
-	})
 }

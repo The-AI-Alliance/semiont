@@ -92,17 +92,22 @@ type live struct {
 	askedMu      sync.Mutex
 	enginesAsked chan struct{}
 
-	resource     *Cache[api.ResourceId, api.ResourceDescriptor]
-	lists        *Cache[filterKey, api.ListResourcesResponse]
-	annotations  *Cache[api.ResourceId, api.GetAnnotationsResponse]
-	annotation   *Cache[api.AnnotationId, api.Annotation]
-	entityTypes  *Cache[whole, []string]
-	tagSchemas   *Cache[whole, []api.TagSchema]
-	engines      *Cache[whole, []api.EngineEntry]
-	limits       *Cache[bus.Channel, []api.EngineLimits]
-	events       *Cache[api.ResourceId, []api.AttributedEvent]
-	referencedBy *Cache[api.ResourceId, []api.GetReferencedByResponseReferencedByItem]
-	searches     *Cache[searchKey, api.MatchResourcesResponse]
+	// Each live query's cache, named as the query is, holding the value the
+	// refresh table's `value` names (refresh_gen.go).
+	resource         *Cache[api.ResourceId, resourceValue]
+	resources        *Cache[filterKey, resourcesValue]
+	annotations      *Cache[api.ResourceId, annotationsValue]
+	annotation       *Cache[api.AnnotationId, annotationValue]
+	entityTypes      *Cache[whole, entityTypesValue]
+	tagSchemas       *Cache[whole, tagSchemasValue]
+	engines          *Cache[whole, enginesValue]
+	events           *Cache[api.ResourceId, eventsValue]
+	referencedBy     *Cache[api.ResourceId, referencedByValue]
+	matchedResources *Cache[searchKey, matchedResourcesValue]
+
+	// limits is what each inference key holder reports, joined with the
+	// engines when they are shown.
+	limits *Cache[bus.Channel, []api.EngineLimits]
 }
 
 // newLive is a client's caches, keeping nothing until they are attached to a
@@ -114,7 +119,7 @@ func newLive(l *links, content ContentTransport) *live {
 		answer, err := ask(ctx, l, bus.BrowseResourceRequested, api.BrowseResourceRequest{ResourceId: id})
 		return answer.Response.Resource, err
 	}, l.run, nil, save)
-	v.lists = NewCache(func(ctx context.Context, key filterKey) (api.ListResourcesResponse, error) {
+	v.resources = NewCache(func(ctx context.Context, key filterKey) (api.ListResourcesResponse, error) {
 		limit, offset, archived, entityType := key.request()
 		answer, err := ask(ctx, l, bus.BrowseResourcesRequested, api.BrowseResourcesRequest{Limit: &limit, Offset: &offset, Archived: archived, EntityType: entityType})
 		return answer.Response, err
@@ -155,33 +160,12 @@ func newLive(l *links, content ContentTransport) *live {
 		answer, err := ask(ctx, l, bus.GatherReferencedByRequested, api.GatherReferencedByRequest{ResourceId: id})
 		return answer.Response.ReferencedBy, err
 	}, l.run, nil, 0)
-	v.searches = NewCache(func(ctx context.Context, key searchKey) (api.MatchResourcesResponse, error) {
+	v.matchedResources = NewCache(func(ctx context.Context, key searchKey) (api.MatchResourcesResponse, error) {
 		limit, offset, archived, entityType := key.filters.request()
 		answer, err := ask(ctx, l, bus.MatchResourcesRequested, api.MatchResourcesRequest{Search: key.search, Limit: &limit, Offset: &offset, Archived: archived, EntityType: entityType})
 		return answer.Response, err
 	}, l.run, nil, 0)
 	return v
-}
-
-// attach has the caches of the queries the refresh table persists keep their
-// values in persistence from now on, each beginning with what it kept.
-func (v *live) attach(persistence *CachePersistence) {
-	for _, query := range PersistedCacheQueries {
-		switch query {
-		case CacheQueryResource:
-			keepIn(v.resource, persistence, query, v.links.timing)
-		case CacheQueryAnnotations:
-			keepIn(v.annotations, persistence, query, v.links.timing)
-		case CacheQueryAnnotation:
-			keepIn(v.annotation, persistence, query, v.links.timing)
-		case CacheQueryEntityTypes:
-			keepIn(v.entityTypes, persistence, query, v.links.timing)
-		case CacheQueryTagSchemas:
-			keepIn(v.tagSchemas, persistence, query, v.links.timing)
-		default:
-			panic(fmt.Sprintf("the refresh table persists %s, which the client does not keep", query))
-		}
-	}
 }
 
 // keepIn attaches cache to a persister of what it holds, under query's key.
@@ -470,7 +454,7 @@ type liveCache interface {
 
 // caches is every cache of the client's.
 func (v *live) caches() []liveCache {
-	return []liveCache{v.resource, v.lists, v.annotations, v.annotation, v.entityTypes, v.tagSchemas, v.engines, v.limits, v.events, v.referencedBy, v.searches}
+	return []liveCache{v.resource, v.resources, v.annotations, v.annotation, v.entityTypes, v.tagSchemas, v.engines, v.limits, v.events, v.referencedBy, v.matchedResources}
 }
 
 // persistenceSettled reports whether every cache the client keeps is at

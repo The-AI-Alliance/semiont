@@ -90,5 +90,5 @@ func (n *MatchNamespace) RequestSearch(input api.MatchSearchRequest, correlation
 // those filters admits. The text is matched lexically and, when nothing
 // matches, by meaning: the answer's MatchKind says which it is.
 func (n *MatchNamespace) Resources(search string, filters ResourceFilters) *Cached[api.MatchResourcesResponse] {
-	return keyed(n.links, n.live.searches, searchKey{search: search, filters: keyOf(filters)}, itself[api.MatchResourcesResponse], api.ResourceId{})
+	return keyed(n.links, n.live.matchedResources, searchKey{search: search, filters: keyOf(filters)}, itself[api.MatchResourcesResponse], api.ResourceId{})
 }

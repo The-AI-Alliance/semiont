@@ -40,6 +40,17 @@ type Frame struct {
 	// Trace is the trace the work done for the frame continues (Continuing);
 	// the zero TraceContext when it was sent under none.
 	Trace TraceContext
+	// place is the place a recorded event delivered on its scope reaches,
+	// kept when the frame is bridged into a client's bus for everyone; the
+	// zero eventPlace for any other frame.
+	place eventPlace
+}
+
+// eventPlace is a scope's place: the scope a recorded event was delivered
+// on, and the event's id, a PersistedEventId.
+type eventPlace struct {
+	scope api.ResourceId
+	id    string
 }
 
 // FrameRefusal is what a channel's readers are given in place of a frame

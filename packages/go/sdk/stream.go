@@ -50,8 +50,9 @@ const (
 	commandAddScope commandKind = iota
 	// commandRemoveScope is a resource's scope losing its last hold.
 	commandRemoveScope
-	// commandKeepPlaces is bookmarks to keep the stream's places in.
-	commandKeepPlaces
+	// commandTakeUpPlaces is bookmarks whose places begin each scope the
+	// stream holds no place in.
+	commandTakeUpPlaces
 	// commandClose ends the stream.
 	commandClose
 )
@@ -154,10 +155,7 @@ type stream struct {
 	// from the bookmarks' places. A scope keeps its position after it is let
 	// go: taken again, it resumes from there.
 	watermarks map[api.ResourceId]string
-	// bookmarks is where each recorded event delivered is kept as its scope's
-	// place; nil while there is nowhere.
-	bookmarks Bookmarks
-	seen      seenIDs
+	seen       seenIDs
 
 	nextConn    uint64
 	connections map[uint64]*connection
@@ -206,7 +204,6 @@ func newStream(shared *transportShared, state *Variable[ConnectionState], bookma
 		cancel:      cancel,
 		scoped:      map[api.ResourceId][]string{},
 		watermarks:  watermarks,
-		bookmarks:   bookmarks,
 		seen:        seenIDs{ids: map[string]struct{}{}, capacity: shared.timing.SeenEventIdsCount},
 		connections: map[uint64]*connection{},
 		superseded:  map[uint64]struct{}{},
@@ -502,15 +499,13 @@ func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
 	s.shared.router.Route(frame)
 	// A scope's position is the last recorded event delivered on it: only a
 	// recorded event's id is one, and it always comes on its scope.
-	recorded := hasID && !frame.Scope.IsZero() && persisted(id)
-	if recorded {
+	if hasID && !frame.Scope.IsZero() && persisted(id) {
 		s.watermarks[frame.Scope] = id
+		// The place the event reaches rides with it: the client's refresher
+		// notes it once it has taken the event (B17), never the stream.
+		frame.place = eventPlace{scope: frame.Scope, id: id}
 	}
 	s.shared.hub.Deliver(frame)
-	// Kept only once the event has been given to those it changes: a place is never ahead of what was taken in.
-	if recorded && s.bookmarks != nil {
-		s.bookmarks.Save(frame.Scope, id)
-	}
 }
 
 func (s *stream) refused(conn uint64, err *TransportError) {
@@ -618,8 +613,7 @@ func (s *stream) command(c command) {
 		s.lazyAt = nil
 		at := time.Now().Add(s.shared.timing.ReconnectDebounce)
 		s.debounceAt = &at
-	case commandKeepPlaces:
-		s.bookmarks = c.bookmarks
+	case commandTakeUpPlaces:
 		for scope, place := range c.bookmarks.Load() {
 			if _, held := s.watermarks[scope]; !held {
 				s.watermarks[scope] = place

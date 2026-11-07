@@ -12,7 +12,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
@@ -98,11 +100,15 @@ func (w *windows) dispose() {
 	clear(w.open)
 }
 
-// refresher applies the refresh table to a client's caches.
+// refresher applies the refresh table to a client's caches, and notes the
+// place each recorded event it takes reaches.
 type refresher struct {
 	links   *links
 	live    *live
 	windows *windows
+	// places is the places coupled to what the client keeps
+	// (CoupledBookmarks.CoupleTo); nil while none is.
+	places atomic.Pointer[CoupledBookmarks]
 }
 
 var _ cacheActs = (*refresher)(nil)
@@ -111,11 +117,18 @@ func newRefresher(l *links, v *live) *refresher {
 	return &refresher{links: l, live: v, windows: &windows{lasting: l.timing.InvalidationWindow, open: map[string]*window{}}}
 }
 
-// start listens, from now on, until the client closes.
+// start listens, from now on, until the client closes: to the table's
+// channels, and to every channel a resource's scope carries, whose recorded
+// events reach a place.
 func (r *refresher) start() {
-	channels := make([]bus.Channel, 0, len(CacheRefreshChannels))
+	channels := make([]bus.Channel, 0, len(CacheRefreshChannels)+len(bus.ResourceScopedChannels))
 	for _, trigger := range CacheRefreshChannels {
 		channels = append(channels, bus.Channel(trigger))
+	}
+	for _, scoped := range bus.ResourceScopedChannels {
+		if !slices.Contains(channels, scoped) {
+			channels = append(channels, scoped)
+		}
 	}
 	// Listening before the work that reads has started: nothing said meanwhile is missed.
 	events, leave := r.links.own.listenAmong(channels...)
@@ -128,7 +141,7 @@ func (r *refresher) start() {
 			case <-events.ready:
 				arrivals, closed := events.drain()
 				for _, one := range arrivals {
-					r.heard(one)
+					r.took(one)
 				}
 				if closed {
 					return
@@ -153,6 +166,20 @@ func (r *refresher) start() {
 			}
 		}
 	})
+}
+
+// took takes one arrival: the row of its channel, when the table has one, is
+// applied first, so a refetch its event asks for is in flight or owed; only
+// then is the place its event reaches noted (B17). A refused frame's arrival
+// holds no frame, and so reaches no place.
+func (r *refresher) took(one arrival) {
+	frame, _ := one.told()
+	if _, refreshes := cacheRefreshReadings[CacheRefreshTrigger(frame.Channel)]; refreshes {
+		r.heard(one)
+	}
+	if places := r.places.Load(); places != nil && !one.frame.place.scope.IsZero() {
+		places.Save(one.frame.place.scope, one.frame.place.id)
+	}
 }
 
 // heard applies the row of a frame's channel to what its event names. A frame
@@ -334,11 +361,11 @@ func (r *refresher) refetchAnnotation(reach CacheRefreshReach, subject cacheSubj
 
 // An event does not say which lists it changes, nor which searches would now find its resource.
 func (r *refresher) refetchResources(CacheRefreshReach, cacheSubject) {
-	r.windows.run(string(CacheQueryResources), r.live.lists.InvalidateAll)
+	r.windows.run(string(CacheQueryResources), r.live.resources.InvalidateAll)
 }
 
 func (r *refresher) refetchMatchedResources(CacheRefreshReach, cacheSubject) {
-	r.windows.run(string(CacheQueryMatchedResources), r.live.searches.InvalidateAll)
+	r.windows.run(string(CacheQueryMatchedResources), r.live.matchedResources.InvalidateAll)
 }
 
 func (r *refresher) refetchEntityTypes(CacheRefreshReach, cacheSubject) {

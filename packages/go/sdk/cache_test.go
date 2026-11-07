@@ -849,6 +849,69 @@ func TestB17DisposingMakesASaveThatWasOwedAtOnceAndNoneIsMadeAfter(t *testing.T)
 	}
 }
 
+// stalledRefusal keeps what it is given, but its first save waits until the
+// test lets it go, and is then refused.
+type stalledRefusal struct {
+	keptBack
+	began, release chan struct{}
+	stalled        bool
+}
+
+func (s *stalledRefusal) Save(entries map[string]int) error {
+	s.mu.Lock()
+	first := !s.stalled
+	s.stalled = true
+	s.mu.Unlock()
+	if first {
+		close(s.began)
+		<-s.release
+		return errors.New("the storage refuses the save being written")
+	}
+	return s.keptBack.Save(entries)
+}
+
+// A save the persister refuses while the cache's Close waits for it stays
+// owed, and Close makes it (B17): Close does not return while a save is being
+// made, and reads what is owed once it has been answered.
+func TestB17ASaveRefusedWhileCloseWaitsForItIsMadeByClose(t *testing.T) {
+	persister := &stalledRefusal{began: make(chan struct{}), release: make(chan struct{})}
+	service := &answering{}
+	ctx, cancel := context.WithCancel(context.Background())
+	runner := &workers{ctx: ctx, cancel: cancel}
+	t.Cleanup(func() {
+		cancel()
+		runner.wg.Wait()
+	})
+	c := NewCache[string, int](service.fetch, runner.run, persister, time.Millisecond)
+	c.Set("a", 1)
+	select {
+	case <-persister.began:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the save was never made")
+	}
+
+	closed := make(chan struct{})
+	go func() {
+		c.Close()
+		close(closed)
+	}()
+	settledFor()
+	select {
+	case <-closed:
+		t.Fatal("Close returned while a save was being made")
+	default:
+	}
+	close(persister.release)
+	select {
+	case <-closed:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Close never returned once the save was refused")
+	}
+	if saves := persister.saved(); len(saves) != 1 || !reflect.DeepEqual(saves[0], map[string]int{"a": 1}) {
+		t.Fatalf("Close saved %v, want the refused save made again", saves)
+	}
+}
+
 // A cache that kept nothing, attached to what another life kept, shows what
 // was kept of each key it holds nothing of, asked for anew when it is first
 // observed, and leaves every key it holds as it is; it saves from then on.

@@ -47,9 +47,11 @@ type HTTPTransportConfig struct {
 	Refresher TokenRefresher
 	// Channels is the global channels the stream names.
 	Channels []bus.Channel
-	// Bookmarks is where the stream's place in each scope is kept: with
+	// Bookmarks is where the stream's place in each scope was kept: with
 	// them, each scope's stream begins where they say the client's last life
-	// left it; nil, at the present.
+	// left it; nil, at the present. The places reached from now on are noted
+	// by the client's refresher, on the places coupled to the client
+	// (CoupledBookmarks.CoupleTo), never by the transport.
 	Bookmarks Bookmarks
 	// HTTP is what the requests are made with.
 	HTTP *http.Client
@@ -128,10 +130,10 @@ func (t *HTTPTransport) BaseURL() string { return t.shared.baseURL }
 // ClientID is the address this client's correlated replies are routed to.
 func (t *HTTPTransport) ClientID() string { return t.shared.clientID }
 
-// keepPlaces has the stream keep its place in each scope in bookmarks from
-// now on, and begin each scope it holds no place in where bookmarks say.
-func (t *HTTPTransport) keepPlaces(bookmarks Bookmarks) {
-	t.send(command{kind: commandKeepPlaces, bookmarks: bookmarks})
+// takeUpPlaces has the stream begin each scope it holds no place in where
+// bookmarks say.
+func (t *HTTPTransport) takeUpPlaces(bookmarks Bookmarks) {
+	t.send(command{kind: commandTakeUpPlaces, bookmarks: bookmarks})
 }
 
 // send gives the stream a command; nothing, once the stream has stopped.

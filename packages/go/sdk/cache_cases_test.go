@@ -87,13 +87,14 @@ type queryCache interface {
 	held(t *testing.T) map[string]string
 	// keyType is the type of the cache's keys.
 	keyType() reflect.Type
-	// valueType is the type of the cache's values.
-	valueType() reflect.Type
 }
 
 type queryCacheOf[K comparable, V any] struct{ cache *Cache[K, V] }
 
-func cacheOf[K comparable, V any](cache *Cache[K, V]) queryCache { return queryCacheOf[K, V]{cache} }
+// cacheOf is cache, whose values are a V: given the type refresh_gen.go
+// generates from the query's `value`, a cache that holds another does not
+// compile.
+func cacheOf[V any, K comparable](cache *Cache[K, V]) queryCache { return queryCacheOf[K, V]{cache} }
 
 func (c queryCacheOf[K, V]) hold(t *testing.T, key, value json.RawMessage) {
 	t.Helper()
@@ -115,22 +116,21 @@ func (c queryCacheOf[K, V]) held(t *testing.T) map[string]string {
 
 func (queryCacheOf[K, V]) keyType() reflect.Type { return reflect.TypeFor[K]() }
 
-func (queryCacheOf[K, V]) valueType() reflect.Type { return reflect.TypeFor[V]() }
-
 // queryCaches is the cache of each live query, as a client's live queries
-// hold it. refresh_values_test.go holds it to every query of
+// hold it, holding the value refresh_gen.go generates for the query.
+// refresh_values_test.go holds it to every query of
 // protocol/specs/src/client/refresh.json.
 var queryCaches = map[CacheQuery]func(v *live) queryCache{
-	CacheQueryResource:         func(v *live) queryCache { return cacheOf(v.resource) },
-	CacheQueryAnnotations:      func(v *live) queryCache { return cacheOf(v.annotations) },
-	CacheQueryAnnotation:       func(v *live) queryCache { return cacheOf(v.annotation) },
-	CacheQueryEvents:           func(v *live) queryCache { return cacheOf(v.events) },
-	CacheQueryReferencedBy:     func(v *live) queryCache { return cacheOf(v.referencedBy) },
-	CacheQueryResources:        func(v *live) queryCache { return cacheOf(v.lists) },
-	CacheQueryMatchedResources: func(v *live) queryCache { return cacheOf(v.searches) },
-	CacheQueryEntityTypes:      func(v *live) queryCache { return cacheOf(v.entityTypes) },
-	CacheQueryTagSchemas:       func(v *live) queryCache { return cacheOf(v.tagSchemas) },
-	CacheQueryEngines:          func(v *live) queryCache { return cacheOf(v.engines) },
+	CacheQueryResource:         func(v *live) queryCache { return cacheOf[resourceValue](v.resource) },
+	CacheQueryAnnotations:      func(v *live) queryCache { return cacheOf[annotationsValue](v.annotations) },
+	CacheQueryAnnotation:       func(v *live) queryCache { return cacheOf[annotationValue](v.annotation) },
+	CacheQueryEvents:           func(v *live) queryCache { return cacheOf[eventsValue](v.events) },
+	CacheQueryReferencedBy:     func(v *live) queryCache { return cacheOf[referencedByValue](v.referencedBy) },
+	CacheQueryResources:        func(v *live) queryCache { return cacheOf[resourcesValue](v.resources) },
+	CacheQueryMatchedResources: func(v *live) queryCache { return cacheOf[matchedResourcesValue](v.matchedResources) },
+	CacheQueryEntityTypes:      func(v *live) queryCache { return cacheOf[entityTypesValue](v.entityTypes) },
+	CacheQueryTagSchemas:       func(v *live) queryCache { return cacheOf[tagSchemasValue](v.tagSchemas) },
+	CacheQueryEngines:          func(v *live) queryCache { return cacheOf[enginesValue](v.engines) },
 }
 
 // keptCacheFor is the cache of query, which the refresh table must persist.

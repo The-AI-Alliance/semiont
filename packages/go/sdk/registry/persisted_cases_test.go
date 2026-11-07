@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -43,10 +44,11 @@ type forgetRow struct {
 }
 
 type persistedCases struct {
-	Comment string              `json:"$comment"`
-	RunBy   map[string][]string `json:"runBy"`
-	People  map[string]person   `json:"people"`
-	Keys    []struct {
+	Comment       string              `json:"$comment"`
+	NotYetReached map[string]string   `json:"notYetReached"`
+	RunBy         map[string][]string `json:"runBy"`
+	People        map[string]person   `json:"people"`
+	Keys          []struct {
 		Why            string `json:"why"`
 		KbID           string `json:"kbId"`
 		Did            string `json:"did"`
@@ -69,8 +71,14 @@ type persistedCases struct {
 		Place     *string `json:"place"`
 		Untouched *bool   `json:"untouched"`
 	} `json:"startup"`
-	CrossTab []changedSignInRow `json:"crossTab"`
-	Holder   []changedSignInRow `json:"holder"`
+	CrossTab   []changedSignInRow `json:"crossTab"`
+	Holder     []changedSignInRow `json:"holder"`
+	ResumeFrom []struct {
+		Why string `json:"why"`
+		// Frames is the id of each event delivered on res-1's scope, in order.
+		Frames  []string `json:"frames"`
+		Resumes *string  `json:"resumes"`
+	} `json:"resumeFrom"`
 }
 
 // changedSignInRow is a row of crossTab or holder: what kb-a's stored sign-in
@@ -94,7 +102,7 @@ func readPersistedCases(t *testing.T) persistedCases {
 	decoder.DisallowUnknownFields()
 	var table persistedCases
 	must(t, decoder.Decode(&table))
-	if len(table.People) == 0 || len(table.Keys) == 0 || len(table.Forget) == 0 || len(table.Startup) == 0 || len(table.CrossTab) == 0 || len(table.Holder) == 0 {
+	if len(table.People) == 0 || len(table.Keys) == 0 || len(table.Forget) == 0 || len(table.Startup) == 0 || len(table.CrossTab) == 0 || len(table.Holder) == 0 || len(table.ResumeFrom) == 0 {
 		t.Fatal("a part of the persisted cases has no rows")
 	}
 	return table
@@ -193,6 +201,7 @@ func TestThePersistedCases(t *testing.T) {
 	t.Run("startup", func(t *testing.T) { runPersistedStartup(t, table) })
 	t.Run("crossTab", func(t *testing.T) { runPersistedCrossTab(t, table) })
 	t.Run("holder", func(t *testing.T) { runPersistedHolder(t, table) })
+	t.Run("resumeFrom", func(t *testing.T) { runPersistedResumeFrom(t, table) })
 }
 
 func runPersistedKeys(t *testing.T, table persistedCases) {
@@ -694,6 +703,64 @@ func runPersistedHolder(t *testing.T, table persistedCases) {
 			value, has := kept[id("res-1")]
 			if saved := has && same(t, value, held); saved != row.Saved {
 				t.Errorf("saved: %v; the table's is %v", saved, row.Saved)
+			}
+		})
+	}
+}
+
+// runPersistedResumeFrom has kb-a's client, kept for jo, hold res-1's scope
+// while the stream delivers each of a row's events on it, then hold res-2's
+// too: the subscription that names res-2 says where res-1's scope resumes.
+func runPersistedResumeFrom(t *testing.T, table persistedCases) {
+	jo := personOf(t, table, "jo").PersonKey
+	for _, row := range table.ResumeFrom {
+		t.Run(row.Why, func(t *testing.T) {
+			s := newStage(t)
+			s.mu.Lock()
+			s.who = table.WhoAmI
+			s.mu.Unlock()
+			storage := semiont.NewMemoryStorage()
+			must(t, registry.SaveKnowledgeBases(storage, []api.KnowledgeBase{s.registered(t, kbA)}))
+			must(t, registry.StoreSession(storage, kbA, naming(s.stored(jwt(time.Hour), "r1"), jo)))
+			session := liveOver(t, s.browser(t, storage))
+			client := session.Client()
+
+			// Watched for as long as the row runs, so each scope is held.
+			watching, stopWatching := context.WithCancel(context.Background())
+			defer stopWatching()
+			hold := func(resource string) {
+				go func() {
+					for range client.Browse.Resource(id(resource)).States(watching) {
+					}
+				}()
+			}
+			hold("res-1")
+			until(t, "the stream names res-1's scope", func() bool { _, named := s.resumedFrom("res-1"); return named })
+
+			frames, err := client.Transport.Frames(watching, bus.MarkArchived.Channel())
+			must(t, err)
+			delivered := make(chan struct{}, len(row.Frames))
+			go func() {
+				for range frames {
+					delivered <- struct{}{}
+				}
+			}()
+			for n, eventID := range row.Frames {
+				s.send(eventID, fmt.Sprintf(`{"channel":"mark:archived","scope":"res-1","payload":{"id":"0e2f8c0a-4a34-4a8e-9b47-0d6d5a3f8a11","type":"mark:archived","timestamp":"2026-10-27T12:00:00.000Z","userId":%q,"resourceId":"res-1","version":1,"metadata":{"sequenceNumber":%d},"payload":{}}}`,
+					personOf(t, table, "jo").Did, n+1))
+			}
+			for range row.Frames {
+				select {
+				case <-delivered:
+				case <-time.After(10 * time.Second):
+					t.Fatal("the stream never delivered every event")
+				}
+			}
+
+			hold("res-2")
+			until(t, "the stream names res-2's scope with res-1's", func() bool { _, named := s.resumedWith("res-1", "res-2"); return named })
+			if from, _ := s.resumedWith("res-1", "res-2"); !reflect.DeepEqual(from, row.Resumes) {
+				t.Errorf("the stream resumes res-1's scope from %v; the table's is %v", from, row.Resumes)
 			}
 		})
 	}

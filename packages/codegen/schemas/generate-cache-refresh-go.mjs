@@ -6,11 +6,15 @@
 //   packages/go/sdk/refresh_gen.go
 //
 // Beside the table it writes the queries a client keeps in its storage, the
-// triggers that are channels, how each of them reads a frame (by its typed
-// value in package bus, so the payload type is the bus's), and the interface
-// the client's refresher implements: what each act does to each query. A query
-// a row comes to act on is a method the refresher lacks, so Go does not
-// compile until it is answered.
+// type of the value each query's cache holds (from its `value`, as a type of
+// package api), the triggers that are channels, how each of them reads a
+// frame (by its typed value in package bus, so the payload type is the bus's),
+// and the interface the client's refresher implements: what each act does to
+// each query. A query a row comes to act on is a method the refresher lacks,
+// so Go does not compile until it is answered. And it writes how the client
+// keeps the queries the table persists: each is the cache of the client's live
+// queries named as the query is, so one the table comes to persist is a cache
+// the client lacks until it has one.
 //
 // The reading of the table, and the account it is held to, are
 // cache-refresh-table.mjs's, shared with every SDK's generator of the table.
@@ -34,7 +38,11 @@ function refuse(message) {
   process.exit(1);
 }
 
-const { queries, refresh, whens, channelTriggers, ACTS } = readCacheRefresh(ROOT, TABLE, refuse);
+const { queries, values, refresh, whens, channelTriggers, ACTS } = readCacheRefresh(ROOT, TABLE, refuse);
+const SCHEMAS = resolve(ROOT, 'protocol/specs/src/components/schemas');
+const component = (name) => JSON.parse(readFileSync(resolve(SCHEMAS, `${name}.json`), 'utf8'));
+/** The component a schema's `$ref` names, `./Name.json` or `Name.json`; undefined for a schema that is no `$ref`. */
+const referred = (schema) => /^(?:\.\/)?([A-Za-z0-9]+)\.json$/.exec(schema.$ref ?? '')?.[1];
 // A channel a resource's scope carries is a bus.Scoped value, and every other a bus.Global one.
 const scoped = new Set(JSON.parse(readFileSync(resolve(ROOT, 'protocol/specs/src/bus/registry.json'), 'utf8')).audience.scoped);
 
@@ -65,6 +73,31 @@ const triggers = [...whens.keys()];
 const triggerConsts = aligned(triggers.map((on) => [triggerConst(on), `CacheRefreshTrigger = ${quoted(on)}`]));
 
 const list = (names) => `[]CacheQuery{${names.map(queryConst).join(', ')}}`;
+const persisted = queries.filter((query) => query.persisted === true).map((query) => query.name);
+
+/** The Go type of a member's schema: a type of package api, a list of them, or a list of strings. */
+const goTypeOf = (schema, label) => {
+  const named = referred(schema);
+  if (named !== undefined) return `api.${named}`;
+  if (schema.type === 'array' && schema.items !== undefined) return `[]${goTypeOf(schema.items, label)}`;
+  if (schema.type === 'string') return 'string';
+  refuse(`${label} is of ${JSON.stringify(schema)}, which this generator writes no Go type for`);
+};
+/** The Go type of the value a query's cache holds: its `value`'s component, or the member within it. */
+const valueType = (name) => {
+  const { component: named, members } = values.get(name);
+  if (members.length === 0) return `api.${named}`;
+  let holder = component(named);
+  for (const member of members.slice(0, -1)) {
+    const inner = holder.properties[member];
+    const next = referred(inner);
+    holder = next === undefined ? inner : component(next);
+  }
+  return goTypeOf(holder.properties[members.at(-1)], `the value of the query ${name}`);
+};
+const valueTypes = aligned(queries.map((query) => [`${query.name}Value`, `= ${valueType(query.name)}`]));
+// Each query the table persists is kept by the client's cache named as it is.
+const keeps = persisted.map((name) => `\tkeepIn(v.${name}, persistence, ${queryConst(name)}, v.links.timing)`);
 /** `payload.annotationId` → `CacheRefreshWay{"payload", "annotationId"}`. */
 const way = (dotted) => `CacheRefreshWay{${dotted.split('.').map(quoted).join(', ')}}`;
 const rowOf = (row) => {
@@ -111,7 +144,10 @@ const text = `// Code generated from protocol/specs/src/client/refresh.json — 
 
 package semiont
 
-import "github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+import (
+\t"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+\t"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+)
 
 // CacheQuery is a live query a client's cache answers.
 type CacheQuery string
@@ -126,7 +162,13 @@ var CacheQueries = ${list(queries.map((query) => query.name))}
 
 // PersistedCacheQueries is every live query a client keeps in its storage,
 // in the table's order: each under its name (CacheKey).
-var PersistedCacheQueries = ${list(queries.filter((query) => query.persisted === true).map((query) => query.name))}
+var PersistedCacheQueries = ${list(persisted)}
+
+// The type of the value each live query's cache holds for a key: the table's
+// \`value\`, a component or a member within one.
+type (
+${valueTypes.join('\n')}
+)
 
 // CacheRefreshTrigger is what refreshes a client's cache: a channel of the
 // bus, the stream open again after a drop, or an event on one of the table's
@@ -224,6 +266,12 @@ ${actCases('removes')}
 ${actCases('refetches')}
 \t\t}
 \t}
+}
+
+// attach has the caches of the queries the table persists keep their values
+// in persistence from now on, each beginning with what it kept.
+func (v *live) attach(persistence *CachePersistence) {
+${keeps.join('\n')}
 }
 `;
 
