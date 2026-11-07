@@ -17,9 +17,10 @@ from semiont.channels import BROWSE_CLICK, BROWSE_RESOURCE_OPEN, BROWSE_RESOURCE
 from semiont.errors import SemiontError
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.namespaces.links import Links
-from semiont.namespaces.live import LIMITS_HOLDERS, WHOLE, Live, ResourceFilters
+from semiont.namespaces.live import LIMITS_HOLDERS, Live, ResourceFilters
 from semiont.operations import BROWSE_ANNOTATION_HISTORY_REQUESTED, BROWSE_DIRECTORY_REQUESTED, BROWSE_KB_REQUESTED
 from semiont.resources import decode_representation
+from semiont.stored import WHOLE_KEY
 from semiont.transport import Content, ContentStream, ContentTransport, ResourceHold
 from semiont.types import (
     AnchoredTextAnswer,
@@ -150,7 +151,7 @@ class _EnginesWithLimits(Source[list[EngineWithLimits]]):
         try:
             async with asyncio.TaskGroup() as asking:
                 # The engines are asked for first; each key holder's limits after them.
-                engines = asking.create_task(self._live.engines.fetch(WHOLE))
+                engines = asking.create_task(self._live.engines.fetch(WHOLE_KEY))
                 reports = [asking.create_task(self._live.limits.fetch(holder)) for holder in LIMITS_HOLDERS]
         except* SemiontError as failed:
             # The engines' failure, or the client's closing: a holder that fails reports none, and fails nothing.
@@ -159,7 +160,7 @@ class _EnginesWithLimits(Source[list[EngineWithLimits]]):
 
     @override
     def watch(self) -> AsyncIterator[CacheState[list[EngineWithLimits]]]:
-        engines = self._live.engines.observe(WHOLE)
+        engines = self._live.engines.observe(WHOLE_KEY)
         return _Joined(engines, [self._live.limits.observe(holder) for holder in LIMITS_HOLDERS])
 
     @override
@@ -214,11 +215,11 @@ class BrowseNamespace:
 
     def entity_types(self) -> Cached[list[str]]:
         """The knowledge base's entity types."""
-        return self._live.query(Keyed(self._live.entity_types, WHOLE, itself))
+        return self._live.query(Keyed(self._live.entity_types, WHOLE_KEY, itself))
 
     def tag_schemas(self) -> Cached[list[TagSchema]]:
         """The knowledge base's tag schemas."""
-        return self._live.query(Keyed(self._live.tag_schemas, WHOLE, itself))
+        return self._live.query(Keyed(self._live.tag_schemas, WHOLE_KEY, itself))
 
     def engines(self) -> Cached[list[EngineWithLimits]]:
         """The knowledge base's engines.

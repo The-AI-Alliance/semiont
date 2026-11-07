@@ -271,8 +271,8 @@ class _Keeping:
         self._person = person
         beneath = self._beneath = _WhileNamed(self._storage, self._kept, person, self._unreadable)
         # The stream's place rides the caches' writes, and only when every cache is
-        # at rest: a place kept ahead of a cache still taking in the event it names
-        # would have the next session skip that event.
+        # at rest and the refresher owes no refetch: a place kept ahead of a cache
+        # still taking in the event it names would have the next session skip that event.
         places = CoupledBookmarks(beneath, last_event_id_key(self._kb_id, person))
         places.set_flush_gate(lambda: self._client.persistence_settled)
         self._client.attach_persistence(CachePersistence(storage=places.storage, kb_id=self._kb_id, person_key=person))

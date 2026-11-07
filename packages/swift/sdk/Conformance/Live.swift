@@ -107,6 +107,7 @@ actor LiveDriver {
   private func open(_ args: [String: JSONValue]) async throws {
     guard closed else { throw Misuse(description: "A client is already open") }
     var transportTiming = TransportTiming()
+    var busRequest: Int?
     var window: Int?
     var silence: Int?
     var statusPoll: Int?
@@ -119,7 +120,7 @@ actor LiveDriver {
         case "reconnectMs": transportTiming.reconnectMs = value
         case "lazyRemoveMs": transportTiming.lazyRemoveMs = value
         case "lingerMs": transportTiming.lingerMs = value
-        case "busRequestTimeoutMs": transportTiming.busRequestTimeoutMs = value
+        case "busRequestTimeoutMs": busRequest = value
         case "invalidationWindowMs": window = value
         case "jobSilenceMs": silence = value
         case "jobStatusPollMs": statusPoll = value
@@ -139,7 +140,7 @@ actor LiveDriver {
       client = try await SemiontClient(
         transport: transport, gateway: transport,
         followTiming: FollowTiming(silenceMs: silence, statusPollMs: statusPoll),
-        persistence: persistence, invalidationWindowMs: window)
+        persistence: persistence, invalidationWindowMs: window, busRequestTimeoutMs: busRequest)
     } catch {
       transport.dispose()
       throw error

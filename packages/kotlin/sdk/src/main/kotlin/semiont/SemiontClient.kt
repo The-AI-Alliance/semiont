@@ -14,6 +14,7 @@ import semiont.namespaces.Links
 import semiont.namespaces.Live
 import semiont.namespaces.Refresher
 import semiont.storage.CachePersistence
+import semiont.storage.CoupledBookmarks
 import semiont.namespaces.MarkNamespace
 import semiont.namespaces.MatchNamespace
 import semiont.namespaces.SystemNamespace
@@ -74,8 +75,22 @@ public class SemiontClient internal constructor(
         refresher.start()
     }
 
-    /** Whether every query the client keeps is at rest: none is being fetched, and none is owed to storage. A client that keeps nothing is always so. */
-    public val persistenceSettled: Boolean get() = live.persistenceSettled
+    /** Where the stream's places are kept beside what the client keeps: nowhere, unless `keepPlacesIn` says. */
+    @Volatile
+    private var places: CoupledBookmarks? = null
+
+    /**
+     * Whether the stream's place may be kept beside what the client keeps: no
+     * query it keeps is being fetched or is owed to storage, and no event's
+     * refetch is owed (protocol/contract/CACHE-SEMANTICS.md, B17 and B19).
+     */
+    public val persistenceSettled: Boolean get() = live.persistenceSettled && !refresher.owesARefetch
+
+    /** Keep the stream's places in `places`, written beside what the client keeps while it is settled, and as it closes. */
+    internal fun keepPlacesIn(places: CoupledBookmarks) {
+        places.flushGate = { persistenceSettled }
+        this.places = places
+    }
 
     /** Keep what the client's queries hold in `persistence` from now on: what a client made keeping nothing is given once the person it is for is known. */
     internal fun attach(persistence: CachePersistence): Unit = live.attach(persistence)
@@ -119,6 +134,9 @@ public class SemiontClient internal constructor(
      * Closing twice is closing once.
      */
     override fun close() {
+        // Read once, before anything is closed, in one step with the places closing may write: closing drops a fetch in
+        // flight and a refetch owed, so either holds them back; a save owed does not, since closing's flush is the save.
+        places?.freeze { live.keptFetchesSettled && !refresher.owesARefetch }
         refresher.dispose()
         live.dispose()
         bus.destroy()

@@ -106,7 +106,7 @@ class StorageTest {
         val before = System.currentTimeMillis()
         persister(storage).save(mapOf(RESOURCE to described(RESOURCE)))
         val document = storage.document()
-        assertEquals(setOf("version", "writtenAt", "entries"), document.keys)
+        assertEquals(setOf("version", "entries"), document.keys)
         assertEquals(1L, document.getValue("version").jsonPrimitive.long)
         val (entry) = document.entries()
         assertEquals(listOf(Json.parseToJsonElement("\"res-1\""), descriptor(RESOURCE)), entry.take(2))
@@ -115,7 +115,7 @@ class StorageTest {
     }
 
     @Test
-    fun anEntryKeepsTheTimeItsValueWasLastWritten() {
+    fun anEntryKeepsTheTimeItsValueWasReceived() {
         val storage = MemoryStorage()
         val keeping = persister(storage)
         val other = ResourceId("res-2")
@@ -134,7 +134,7 @@ class StorageTest {
         keeping.save(mapOf(other to described(other, "Renamed")))
         assertEquals(setOf("res-2"), times().keys)
         assertTrue(times().getValue("res-2") > second)
-        // The next life's persister knows when each was written from the document, not from having written it.
+        // The next life's persister knows when each was received from the document, not from having written it.
         val renamedAt = times().getValue("res-2")
         val later = persister(storage)
         assertEquals(mapOf(other to described(other, "Renamed")), later.load())
@@ -145,44 +145,51 @@ class StorageTest {
     }
 
     @TestFactory
-    fun aDocumentOfAnotherVersionOrThatDoesNotParseReadsAsNothingKept(): List<DynamicTest> = listOf(
-        "not json",
-        "[1, 2]",
-        """{"version": 2, "writtenAt": 1, "entries": []}""",
-        """{"version": "1", "writtenAt": 1, "entries": []}""",
-        """{"writtenAt": 1, "entries": []}""",
-        """{"version": 1, "writtenAt": 1}""",
-        """{"version": 1, "writtenAt": 1, "entries": {"res-1": {}}}""",
-    ).map { stored ->
-        DynamicTest.dynamicTest(stored) {
-            val storage = MemoryStorage()
-            storage.set(KEY, stored)
-            assertNull(persister(storage).load())
-            // And a persister of another version reads this one's as nothing kept.
-            storage.set(KEY, """{"version": 1, "writtenAt": 1, "entries": []}""")
-            assertEquals(emptyMap<ResourceId, ResourceDescriptor>(), persister(storage).load())
-            assertNull(persister(storage, version = 2).load())
+    fun aDocumentThatIsNotOneOfThisVersionReadsAsNothingKept(): List<DynamicTest> {
+        val kept = """["res-1", ${descriptor(RESOURCE)}, 5]"""
+        fun beside(entry: String) = """{"version": 1, "entries": [$kept, $entry]}"""
+        return listOf(
+            "not json",
+            "[1, 2]",
+            """{"version": 2, "entries": []}""",
+            """{"version": "1", "entries": []}""",
+            """{"entries": []}""",
+            """{"version": 1}""",
+            """{"version": 1, "entries": {"res-1": {}}}""",
+            // An entry that is not a key, a value and a whole number of at least 0 is no entry, and the document no document.
+            beside("""["res-4", {"@context": "https://schema.org", "@id": "res-4", "name": "n", "representations": []}]"""),
+            beside("""["res-5", {"@context": "https://schema.org", "@id": "res-5", "name": "n", "representations": []}, "when"]"""),
+            beside("""["res-6", {"@context": "https://schema.org", "@id": "res-6", "name": "n", "representations": []}, true]"""),
+            beside("""["res-7", {"@context": "https://schema.org", "@id": "res-7", "name": "n", "representations": []}, -1]"""),
+            beside("""["res-8", {"@context": "https://schema.org", "@id": "res-8", "name": "n", "representations": []}, 5.5]"""),
+            beside("\"res-9\""),
+        ).map { stored ->
+            DynamicTest.dynamicTest(stored) {
+                val storage = MemoryStorage()
+                storage.set(KEY, stored)
+                assertNull(persister(storage).load())
+                // And a persister of another version reads this one's as nothing kept.
+                storage.set(KEY, """{"version": 1, "entries": []}""")
+                assertEquals(emptyMap<ResourceId, ResourceDescriptor>(), persister(storage).load())
+                assertNull(persister(storage, version = 2).load())
+            }
         }
     }
 
     @Test
-    fun anEntryThatIsNotThisCachesShapeIsOneItNeverKept() {
+    fun anEntryWhoseKeyOrValueIsNotThisCachesIsSkippedAndTheRestAreKept() {
         val storage = MemoryStorage()
         val entries = listOf(
             """["not an id", {"@context": "https://schema.org", "@id": "res-9", "name": "n", "representations": []}, 5]""",
             """["res-3", {"name": "a description with no id"}, 5]""",
-            """["res-4", {"@context": "https://schema.org", "@id": "res-4", "name": "n", "representations": []}]""",
-            """["res-5", {"@context": "https://schema.org", "@id": "res-5", "name": "n", "representations": []}, "when"]""",
-            """["res-6", {"@context": "https://schema.org", "@id": "res-6", "name": "n", "representations": []}, true]""",
-            "\"res-7\"",
             """["res-1", ${descriptor(RESOURCE)}, 5]""",
         )
-        storage.set(KEY, """{"version": 1, "writtenAt": 9, "entries": [${entries.joinToString(", ")}]}""")
+        storage.set(KEY, """{"version": 1, "entries": [${entries.joinToString(", ")}]}""")
         assertEquals(mapOf(RESOURCE to described(RESOURCE)), persister(storage).load())
     }
 
     @Test
-    fun aDocumentTooLargeLosesTheEntriesThatHaveGoneLongestWithoutANewValueUntilItFits() {
+    fun aDocumentTooLargeLosesTheEntriesReceivedLongestAgoUntilItFits() {
         val ids = (1..4).map { ResourceId("res-$it") }
         val values = ids.associateWith { described(it) }
         fun kept(storage: SessionStorage) = storage.document().entries().map { it[0].jsonPrimitive.content }

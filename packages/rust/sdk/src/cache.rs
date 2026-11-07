@@ -33,6 +33,7 @@
 //! again. Once a cache is disposed no save of it is still being written.
 
 use crate::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
+use crate::locked;
 use crate::state_unit::StateUnit;
 use crate::storage::SessionStorage;
 use crate::transport::BoxFuture;
@@ -364,6 +365,15 @@ where
     }
 }
 
+/// What a cache is doing that what it has saved may not yet hold.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Persistence {
+    /// A fetch for some key is in flight.
+    pub(crate) fetching: bool,
+    /// A save is owed.
+    pub(crate) saving: bool,
+}
+
 /// See the module's documentation. A `Cache` is a handle: its clones are the
 /// same cache.
 pub struct Cache<K: CacheKey, V: CacheValue> {
@@ -617,8 +627,17 @@ where
     /// Whether what the cache holds may be ahead of what it has saved: a
     /// fetch is in flight, or a save is owed.
     pub fn persistence_pending(&self) -> bool {
+        let persistence = self.persistence();
+        persistence.fetching || persistence.saving
+    }
+
+    /// Whether a fetch is in flight, and whether a save is owed.
+    pub(crate) fn persistence(&self) -> Persistence {
         let state = self.inner.state();
-        state.saving.is_some() || state.keys.values().any(|held| held.in_flight.is_some())
+        Persistence {
+            fetching: state.keys.values().any(|held| held.in_flight.is_some()),
+            saving: state.saving.is_some(),
+        }
     }
 }
 
@@ -654,31 +673,35 @@ where
 
 // ── Keeping a cache in a `SessionStorage` ───────────────────────────────
 
+/// The version of the document a `StoragePersister` writes:
+/// protocol/specs/src/session/stored.json's `cacheDocument`. A document of
+/// another reads as nothing kept.
+const VERSION: u64 = 1;
+
 /// One entry as it is stored: the key, the value, and when the value was
-/// last written, in milliseconds since the epoch.
+/// received, in milliseconds since the epoch.
 type Stored = (Value, Value, u64);
 
-#[derive(Serialize, serde::Deserialize)]
-struct Document {
+#[derive(Serialize)]
+struct Document<'a> {
     version: u64,
-    #[serde(rename = "writtenAt")]
-    written_at: u64,
-    entries: Vec<Stored>,
+    entries: &'a [Stored],
 }
 
 /// A `CachePersister` over a `SessionStorage`: the cache's values as one
-/// document under one key, `{version, writtenAt, entries}`.
+/// document under one key, stored.json's `cacheDocument`:
+/// `{"version": 1, "entries": [[key, value, stamp], …]}`.
 ///
-/// A document of another version, or one that does not parse, reads as
-/// nothing kept. A document larger than `max_bytes` loses its entries that
-/// have gone longest without a new value, until it fits.
+/// A document whose structure is not that one reads as nothing kept, and an
+/// entry whose key or value is not this cache's is skipped. A document
+/// larger than `max_bytes` loses the entries received longest ago, until it
+/// fits.
 pub struct StoragePersister<K, V> {
     storage: Arc<dyn SessionStorage>,
     storage_key: String,
-    version: u64,
     max_bytes: usize,
-    /// Each key's value as last written, and when: an entry whose value has
-    /// not changed keeps its time.
+    /// Each key's value as last written, and when it was received: an entry
+    /// whose value has not changed keeps its time.
     written: Mutex<HashMap<String, (String, u64)>>,
     of: PhantomData<fn() -> (K, V)>,
 }
@@ -687,13 +710,11 @@ impl<K, V> StoragePersister<K, V> {
     pub fn new(
         storage: Arc<dyn SessionStorage>,
         storage_key: impl Into<String>,
-        version: u64,
         max_bytes: usize,
     ) -> StoragePersister<K, V> {
         StoragePersister {
             storage,
             storage_key: storage_key.into(),
-            version,
             max_bytes,
             written: Mutex::new(HashMap::new()),
             of: PhantomData,
@@ -701,35 +722,44 @@ impl<K, V> StoragePersister<K, V> {
     }
 }
 
-fn document(raw: Option<&str>, version: u64) -> Option<Document> {
-    let document: Document = serde_json::from_str(raw?).ok()?;
-    (document.version == version).then_some(document)
+/// The whole number of at least 0 a JSON value is, however it is written:
+/// an integer is a number with no fractional part, so `1.0` and `1e3` are
+/// ones. Any other value is none.
+fn whole(value: &Value) -> Option<u64> {
+    let Value::Number(number) = value else {
+        return None;
+    };
+    match number.as_u64() {
+        Some(whole) => Some(whole),
+        None => number
+            .as_f64()
+            .filter(|number| number.fract() == 0.0 && (0.0..u64::MAX as f64).contains(number))
+            .map(|number| number as u64),
+    }
 }
 
-fn remembered(written: &Mutex<HashMap<String, (String, u64)>>, document: &Document) {
-    *written
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner()) = document
-        .entries
-        .iter()
-        .map(|(key, value, at)| (key.to_string(), (value.to_string(), *at)))
-        .collect();
-}
-
-fn entries<K, V>(document: Document) -> HashMap<K, V>
-where
-    K: DeserializeOwned + Eq + Hash,
-    V: DeserializeOwned,
-{
-    // An entry that is not this cache's shape is one it never kept.
-    document
-        .entries
+/// The entries of a stored document whose structure is a `cacheDocument`'s:
+/// an object of this version whose `entries` are each a key, a value and a
+/// whole number of at least 0. Any other is none. A member it does not state
+/// is no part of it.
+fn entries(stored: &str) -> Option<Vec<Stored>> {
+    let Value::Object(mut document) = serde_json::from_str(stored).ok()? else {
+        return None;
+    };
+    if document.get("version").and_then(whole) != Some(VERSION) {
+        return None;
+    }
+    let Value::Array(entries) = document.remove("entries")? else {
+        return None;
+    };
+    entries
         .into_iter()
-        .filter_map(|(key, value, _)| {
-            Some((
-                serde_json::from_value(key).ok()?,
-                serde_json::from_value(value).ok()?,
-            ))
+        .map(|entry| match entry {
+            Value::Array(entry) => match <[Value; 3]>::try_from(entry) {
+                Ok([key, value, at]) => whole(&at).map(|at| (key, value, at)),
+                _ => None,
+            },
+            _ => None,
         })
         .collect()
 }
@@ -740,9 +770,24 @@ where
     V: Serialize + DeserializeOwned + 'static,
 {
     fn load(&self) -> Option<HashMap<K, V>> {
-        let document = document(self.storage.get(&self.storage_key).as_deref(), self.version)?;
-        remembered(&self.written, &document);
-        Some(entries(document))
+        let entries = entries(&self.storage.get(&self.storage_key)?)?;
+        let mut kept = HashMap::new();
+        let mut written = HashMap::new();
+        for (key, value, at) in entries {
+            let (key_text, value_text) = (key.to_string(), value.to_string());
+            // An entry whose key or value is not this cache's is one it
+            // never kept.
+            let (Ok(key), Ok(value)) = (
+                serde_json::from_value::<K>(key),
+                serde_json::from_value::<V>(value),
+            ) else {
+                continue;
+            };
+            written.insert(key_text, (value_text, at));
+            kept.insert(key, value);
+        }
+        *locked(&self.written) = written;
+        Some(kept)
     }
 
     fn save(
@@ -754,16 +799,10 @@ where
             .map_or(0, |since| {
                 u64::try_from(since.as_millis()).unwrap_or(u64::MAX)
             });
-        let mut written = self
-            .written
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut written = locked(&self.written);
         let mut stored: Vec<Stored> = Vec::new();
         for (key, value) in entries {
-            let (Ok(key), Ok(value)) = (serde_json::to_value(key), serde_json::to_value(value))
-            else {
-                continue;
-            };
+            let (key, value) = (serde_json::to_value(key)?, serde_json::to_value(value)?);
             let as_text = value.to_string();
             let at = match written.get(&key.to_string()) {
                 Some((as_written, at)) if *as_written == as_text => *at,
@@ -773,18 +812,16 @@ where
         }
         let serialized = |entries: &[Stored]| {
             serde_json::to_string(&Document {
-                version: self.version,
-                written_at: now,
-                entries: entries.to_vec(),
+                version: VERSION,
+                entries,
             })
-            .unwrap_or_default()
         };
-        let mut text = serialized(&stored);
+        let mut text = serialized(&stored)?;
         if text.len() > self.max_bytes {
             stored.sort_by_key(|(_, _, at)| *at);
             while !stored.is_empty() && text.len() > self.max_bytes {
                 stored.remove(0);
-                text = serialized(&stored);
+                text = serialized(&stored)?;
             }
         }
         *written = stored

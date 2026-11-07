@@ -310,7 +310,7 @@ public sealed partial class TransportTests
                 case (MarkStateUnit one, "requestDelegate"): one.RequestDelegate(Read<MarkJobParams>(args, "params")); break;
                 case (MarkStateUnit one, "cancelPending"): one.CancelPending(); break;
                 case (MarkStateUnit one, "dismissProgress"): one.DismissProgress(); break;
-                case (SessionSignals one, "notifySessionEnded"): one.NotifySessionEnded(Text(args, "reason")); break;
+                case (SessionSignals one, "notifySessionEnded"): one.NotifySessionEnded(Read<SessionEndReason>(args, "reason")); break;
                 case (SessionSignals one, "notifyPermissionDenied"): one.NotifyPermissionDenied(args.GetProperty("detail").GetString()); break;
                 case (SessionSignals one, "notifyKbIdentityConflict"): one.NotifyKbIdentityConflict(Read<KbIdentityConflict>(args, "conflict")); break;
                 case (SessionSignals one, "acknowledgeSessionEnded"): one.AcknowledgeSessionEnded(); break;

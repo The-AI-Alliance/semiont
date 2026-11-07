@@ -25,45 +25,77 @@ public struct CachePersistence: Sendable {
   }
 }
 
-/// The reads a persisted query has in flight: while any is, what it holds may be older than an
-/// event already heard (B17-Q).
-protocol CacheWork: Sendable {
-  func begin()
-  func end()
+/// The key of a kept query per nothing: `wholeKey`, and no other.
+struct WholeKey: Codable, Hashable, Sendable {
+  init() {}
+
+  init(from decoder: any Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    guard try container.decode(String.self) == wholeKey else {
+      throw DecodingError.dataCorruptedError(
+        in: container, debugDescription: "A query per nothing keeps its entry under \(wholeKey)")
+    }
+  }
+
+  func encode(to encoder: any Encoder) throws {
+    var container = encoder.singleValueContainer()
+    try container.encode(wholeKey)
+  }
 }
+
+/// A count of what is unsettled: settled when every begin has had its end.
+final class Unsettled: Sendable {
+  private let count = Mutex(0)
+
+  func begin() { count.withLock { $0 += 1 } }
+  func end() { count.withLock { $0 -= 1 } }
+  var settled: Bool { count.withLock { $0 == 0 } }
+}
+
+/// Whether `id` is a recorded event's: the one decider of what a stream's place may be.
+func isPersistedEventId(_ id: String) -> Bool { faultOf(keptPlace, .string(id)) == nil }
 
 /// How one entry of a persisted query reads, and writes, what is kept of it.
 struct KeptValue<Value: Sendable>: Sendable {
-  let book: any CacheWork
+  /// A fetch of its cache under way, and a refetch a window of B19 owes: while any is, what it
+  /// holds may be older than an event already heard (B17).
+  let underway: Unsettled
   let load: @Sendable () -> Value?
-  let store: @Sendable (Value?) -> Void
+  let store: @Sendable (Value) -> Void
+  /// Keeps nothing of its key, whose value is gone.
+  let forget: @Sendable () -> Void
 
   init<Key>(book: StoragePersister<Key>, key: Key) where Value: Codable {
-    self.book = book
-    self.load = { book.load(key, as: Value.self) }
-    self.store = { book.store(key, $0) }
+    underway = book.underway
+    load = { book.load(key, as: Value.self) }
+    store = { book.store(key, $0) }
+    forget = { book.store(key, Value?.none) }
   }
 
   init<Key: Encodable & Sendable>(keeping: KeptQueries, query: KeptQuery, key: Key)
   where Value: Codable {
-    self.book = keeping
-    self.load = { keeping.load(query, key, as: Value.self) }
-    self.store = { keeping.store(query, key, $0) }
+    underway = keeping.underway
+    load = { keeping.load(query, key, as: Value.self) }
+    store = { keeping.store(query, key, $0) }
+    forget = { keeping.store(query, key, Value?.none) }
   }
 }
 
-/// One query's values, kept in `storage` under `storageKey` as one document, the shape
-/// protocol/specs/src/session/stored.json's `cacheKeyPrefix` gives: a new value is written
-/// `saveDebounceMs` after the last, by `clock`, and what is not yet written when it is closed.
-public final class StoragePersister<Key: Codable & Hashable & Sendable>: CacheWork {
+/// One cache's values, kept in `storage` under `storageKey` as one document, the form
+/// protocol/specs/src/session/stored.json's `cacheDocument` gives: a new value is written
+/// `saveDebounceMs` after the last, by `clock`, and what is not yet written when it is closed. It
+/// knows its keys' type alone, so it skips an entry kept under a key that is not a `Key`, and a
+/// value that is not its cache's reads as nothing.
+public final class StoragePersister<Key: Codable & Hashable & Sendable>: Sendable {
   private struct State: Sendable {
     var document: KeptDocument
-    var changed = false
+    var owed = false
     var timer = SaveTimer()
-    var work = 0
     var closed = false
   }
 
+  /// A fetch of its cache under way, and a refetch a window of B19 owes.
+  let underway = Unsettled()
   private let storage: any SessionStorage
   private let storageKey: String
   private let clock: any Clock<Duration>
@@ -77,7 +109,10 @@ public final class StoragePersister<Key: Codable & Hashable & Sendable>: CacheWo
     self.storageKey = storageKey
     self.clock = clock
     // A document that cannot be read is nothing kept.
-    state = Mutex(State(document: KeptDocument(try? storage.get(storageKey))))
+    state = Mutex(
+      State(
+        document: KeptDocument(
+          try? storage.get(storageKey), keys: Key.self, values: JSONValue.self)))
   }
 
   public var keys: [Key] { state.withLock { $0.document }.keys(as: Key.self) }
@@ -86,18 +121,19 @@ public final class StoragePersister<Key: Codable & Hashable & Sendable>: CacheWo
     state.withLock { $0.document }.value(key, as: type)
   }
 
-  func begin() { state.withLock { if !$0.closed { $0.work += 1 } } }
-  func end() { state.withLock { if !$0.closed { $0.work -= 1 } } }
+  /// Whether what it holds may be newer than what is written: a save owed, or a fetch of its
+  /// cache under way.
+  public var pending: Bool {
+    let (closed, owed) = state.withLock { ($0.closed, $0.owed) }
+    return !closed && (owed || !underway.settled)
+  }
 
-  /// Whether what it holds may be newer than what is written: a read in flight, or a write not
-  /// yet made.
-  public var pending: Bool { state.withLock { !$0.closed && ($0.work != 0 || $0.changed) } }
-
+  /// Keeps `value` as `key`'s, and nothing of `key` when it is nil.
   public func store<Value: Encodable>(_ key: Key, _ value: Value?) {
     state.withLock { state in
       guard !state.closed else { return }
       state.document.set(key, value, at: millisecondsNow())
-      state.changed = true
+      state.owed = true
       state.timer.restart(on: clock) { [weak self] id in self?.saved(id) }
     }
   }
@@ -120,44 +156,48 @@ public final class StoragePersister<Key: Codable & Hashable & Sendable>: CacheWo
   }
 
   private func flush(_ state: inout State) {
-    guard state.changed else { return }
+    guard state.owed else { return }
     do {
-      try storage.set(storageKey, state.document.text(at: millisecondsNow()))
-      state.changed = false
+      try storage.set(storageKey, state.document.text())
+      state.owed = false
     } catch {
-      // Keeping is optional: what was not written is written with the next save, or the close.
+      // Keeping is optional: the save stays owed, for the next change or the close.
     }
   }
 }
 
 /// What a client keeps of one person on one knowledge base: each persisted query's document, and
 /// the stream's places, under that person's keys. It reads and writes nothing until it is attached
-/// for a person, and its writer (``KeptWriter``) says how and when it writes.
-final class KeptQueries: CacheWork {
+/// for a person, and its writer (``KeptWriter``) says how and when it writes. Each document is
+/// saved `saveDebounceMs` after its own last change.
+final class KeptQueries: Sendable {
   private struct Attached: Sendable {
     let person: String
     var documents: [KeptQuery: KeptDocument]
-    var changed: Set<KeptQuery> = []
+    /// The documents that owe a save: changed since they were last written.
+    var owed: Set<KeptQuery> = []
     var places: [ResourceId: String] = [:]
   }
 
   private struct State: Sendable {
     var attached: Attached?
-    var work = 0
-    var timer = SaveTimer()
+    var saves: [KeptQuery: SaveTimer] = [:]
     /// It takes no new value: its client is closing.
     var closed = false
     /// It writes nothing more: it has closed, or its sign-in no longer names its person.
     var ended = false
   }
 
-  /// What one write puts in storage: each changed document's text, and the stream's places.
+  /// What one write puts in storage: each document's text, and the stream's places.
   fileprivate struct Writing: Sendable {
     let person: String
     let documents: [(KeptQuery, String)]
-    let places: [ResourceId: String]
+    var places: [ResourceId: String]
   }
 
+  /// A kept cache's fetch under way, and a refetch a window of B19 owes, of any of its client's
+  /// caches.
+  let underway = Unsettled()
   private let storage: any SessionStorage
   fileprivate let kbId: String
   private let writer: any KeptWriter
@@ -179,7 +219,7 @@ final class KeptQueries: CacheWork {
       // A document that cannot be read is nothing kept.
       let documents = Dictionary(
         uniqueKeysWithValues: KeptQuery.allCases.map { query in
-          (query, KeptDocument(try? storage.get(cacheKey(kbId, person, query))))
+          (query, query.document(try? storage.get(cacheKey(kbId, person, query))))
         })
       state.attached = Attached(person: person, documents: documents)
       return storedPlaces(try? storage.get(lastEventIdKey(kbId, person)))
@@ -197,22 +237,24 @@ final class KeptQueries: CacheWork {
     state.withLock { $0.attached?.documents[query] }?.value(key, as: type)
   }
 
+  /// Keeps `value` as `key`'s in `query`'s document, and nothing of `key` when it is nil.
   func store<Key: Encodable, Value: Encodable>(_ query: KeptQuery, _ key: Key, _ value: Value?) {
     state.withLock { state in
       guard state.attached != nil, !state.closed else { return }
       state.attached?.documents[query]?.set(key, value, at: millisecondsNow())
-      state.attached?.changed.insert(query)
-      state.timer.restart(on: clock) { [weak self] id in self?.saved(id) }
+      state.attached?.owed.insert(query)
+      state.saves[query, default: SaveTimer()].restart(on: clock) { [weak self] id in
+        self?.saved(query, id)
+      }
     }
   }
 
   func heard(_ id: String, in scope: ResourceId) {
-    guard id.hasPrefix("p-") else { return }
-    state.withLock { $0.attached?.places[scope] = id }
+    guard isPersistedEventId(id) else { return }
+    state.withLock { state in
+      if !state.closed { state.attached?.places[scope] = id }
+    }
   }
-
-  func begin() { state.withLock { $0.work += 1 } }
-  func end() { state.withLock { $0.work -= 1 } }
 
   /// Takes no new value, and writes what is not yet written as its writer writes.
   func close() { writer.close(self) }
@@ -220,23 +262,26 @@ final class KeptQueries: CacheWork {
   /// Waits until every write begun so far has landed: once it is closed, until its last.
   func closed() async { await writer.closed() }
 
-  private func saved(_ id: UUID) {
-    guard state.withLock({ $0.timer.fire(id) }) else { return }
-    writer.save(self)
+  private func saved(_ query: KeptQuery, _ id: UUID) {
+    guard state.withLock({ $0.saves[query]?.fire(id) == true }) else { return }
+    writer.save(self, query)
   }
 
   // What its writers do with it.
 
-  /// What is not yet written, taken to be written; nil when there is none, or it writes no more.
-  fileprivate func take() -> Writing? { state.withLock { Self.taken(&$0) } }
+  /// What `query`'s document has not yet written, taken to be written; nil when there is none, or
+  /// it writes no more.
+  fileprivate func take(_ query: KeptQuery) -> Writing? {
+    state.withLock { taken(&$0, of: [query]) }
+  }
 
   /// Whether it writes nothing more.
   fileprivate var ended: Bool { state.withLock { $0.ended } }
 
-  /// Writes what is not yet written at once, while nothing it holds changes.
-  fileprivate func writeNow() {
+  /// Writes what `query`'s document has not yet written at once, while nothing it holds changes.
+  fileprivate func writeNow(_ query: KeptQuery) {
     state.withLock { state in
-      guard let writing = Self.taken(&state), let unwritten = put(writing) else { return }
+      guard let writing = taken(&state, of: [query]), let unwritten = put(writing) else { return }
       Self.restore(&state, unwritten)
     }
   }
@@ -246,9 +291,9 @@ final class KeptQueries: CacheWork {
     state.withLock { state in
       guard !state.closed else { return }
       state.closed = true
-      state.timer.stop()
+      Self.stopSaves(&state)
       // What the close cannot write is kept no more.
-      if let writing = Self.taken(&state) { put(writing) }
+      if let writing = taken(&state, of: Set(KeptQuery.allCases)) { put(writing) }
       state.attached = nil
       state.ended = true
     }
@@ -260,13 +305,21 @@ final class KeptQueries: CacheWork {
     state.withLock { state in
       guard !state.closed else { return (false, nil) }
       state.closed = true
-      state.timer.stop()
-      return (true, Self.taken(&state))
+      Self.stopSaves(&state)
+      return (true, taken(&state, of: Set(KeptQuery.allCases)))
     }
   }
 
-  /// Writes `writing`, taken before, and keeps what it could not write to be written again.
+  /// Writes `writing`, taken before, and keeps what it could not write to be written again. A
+  /// document a write since could not put still owes its save, and holds the places back (B17).
   fileprivate func write(_ writing: Writing) {
+    var writing = writing
+    let owing = state.withLock { state in
+      guard state.attached?.owed.isEmpty == false else { return false }
+      state.attached?.places.merge(writing.places) { heard, _ in heard }
+      return true
+    }
+    if owing { writing.places = [:] }
     guard let unwritten = put(writing) else { return }
     state.withLock { Self.restore(&$0, unwritten) }
   }
@@ -275,7 +328,7 @@ final class KeptQueries: CacheWork {
   /// written again.
   fileprivate func drop() {
     state.withLock { state in
-      state.timer.stop()
+      Self.stopSaves(&state)
       state.attached = nil
       state.ended = true
     }
@@ -313,28 +366,47 @@ final class KeptQueries: CacheWork {
     }
   }
 
-  /// What a write did not put in storage is not yet written again; a place heard since stays.
+  /// What a write did not put in storage owes its save again; a place heard since stays.
   private static func restore(_ state: inout State, _ unwritten: Writing) {
-    state.attached?.changed.formUnion(unwritten.documents.map { $0.0 })
+    state.attached?.owed.formUnion(unwritten.documents.map { $0.0 })
     state.attached?.places.merge(unwritten.places) { heard, _ in heard }
   }
 
-  /// What is not yet written, taken to be written: each changed document's text and, while no
-  /// persisted query has a read in flight, the stream's places, so they may lag the documents and
-  /// never lead them (B17-Q).
-  private static func taken(_ state: inout State) -> Writing? {
-    guard !state.ended, var attached = state.attached, !attached.changed.isEmpty else { return nil }
-    let now = millisecondsNow()
+  private static func stopSaves(_ state: inout State) {
+    for query in KeptQuery.allCases { state.saves[query]?.stop() }
+  }
+
+  /// What `queries`' documents have not yet written, taken to be written, and the stream's places
+  /// while the gate is open (B17): no kept cache's fetch under way, no refetch owed, and no other
+  /// document owing a save. So the places may lag the documents and never lead them; a close
+  /// takes every document, its flush being every save owed.
+  private func taken(_ state: inout State, of queries: Set<KeptQuery>) -> Writing? {
+    guard !state.ended, var attached = state.attached else { return nil }
+    let due = attached.owed.intersection(queries)
+    guard !due.isEmpty else { return nil }
     var documents: [(KeptQuery, String)] = []
-    for query in KeptQuery.allCases where attached.changed.contains(query) {
-      guard let text = attached.documents[query]?.text(at: now) else { continue }
+    for query in KeptQuery.allCases where due.contains(query) {
+      guard let text = attached.documents[query]?.text() else { continue }
       documents.append((query, text))
     }
-    attached.changed.removeAll()
+    attached.owed.subtract(due)
     var places: [ResourceId: String] = [:]
-    if state.work == 0 { swap(&places, &attached.places) }
+    if attached.owed.isEmpty, underway.settled { swap(&places, &attached.places) }
     state.attached = attached
     return Writing(person: attached.person, documents: documents, places: places)
+  }
+}
+
+extension KeptQuery {
+  /// What `text` keeps of this query: each entry whose key and value are the query's.
+  fileprivate func document(_ text: String?) -> KeptDocument {
+    switch self {
+    case .resource: KeptDocument(text, keys: ResourceId.self, values: KeptResource.self)
+    case .annotations: KeptDocument(text, keys: ResourceId.self, values: KeptAnnotations.self)
+    case .annotation: KeptDocument(text, keys: AnnotationId.self, values: KeptAnnotation.self)
+    case .entityTypes: KeptDocument(text, keys: WholeKey.self, values: KeptEntityTypes.self)
+    case .tagSchemas: KeptDocument(text, keys: WholeKey.self, values: KeptTagSchemas.self)
+    }
   }
 }
 
@@ -342,8 +414,8 @@ final class KeptQueries: CacheWork {
 /// with a ``CachePersistence``, ``WritesWhileNamed`` for the client of a session an SDK's builder
 /// makes.
 protocol KeptWriter: Sendable {
-  /// Writes what `keeping` has not yet written, its save being due.
-  func save(_ keeping: KeptQueries)
+  /// Writes what `query`'s document of `keeping` has not yet written, its save being due.
+  func save(_ keeping: KeptQueries, _ query: KeptQuery)
   /// Writes what `keeping` has not yet written as its client closes; it keeps nothing after.
   func close(_ keeping: KeptQueries)
   /// Waits until every write it has begun has landed.
@@ -354,7 +426,7 @@ protocol KeptWriter: Sendable {
 /// written everything when its closing returns. It asks no sign-in anything: no session of the
 /// SDK's holds one for that client.
 struct WritesAsGiven: KeptWriter {
-  func save(_ keeping: KeptQueries) { keeping.writeNow() }
+  func save(_ keeping: KeptQueries, _ query: KeptQuery) { keeping.writeNow(query) }
   func close(_ keeping: KeptQueries) { keeping.closeNow() }
   func closed() async {}
 }
@@ -377,9 +449,9 @@ final class WritesWhileNamed: KeptWriter {
     self.report = report
   }
 
-  func save(_ keeping: KeptQueries) {
+  func save(_ keeping: KeptQueries, _ query: KeptQuery) {
     steps.then { [weak keeping, self] in
-      guard let keeping, let writing = keeping.take() else { return }
+      guard let keeping, let writing = keeping.take(query) else { return }
       await write(writing, of: keeping)
     }
   }
@@ -450,38 +522,49 @@ final class SerialSteps: Sendable {
   func drained() async { await last.withLock { $0 }?.value }
 }
 
-/// The stream places `text` keeps: a JSON object from a resource's id to the id of the last
-/// recorded event delivered on it.
-private func storedPlaces(_ text: String?) -> [ResourceId: String] {
-  guard let stored = decodedStorage([String: String].self, text) else { return [:] }
+/// The stream places `text` keeps (protocol/specs/src/session/stored.json `lastEventIds`): each
+/// pair that is a resource's id and a persisted event's id, and none of a value that is no object.
+func storedPlaces(_ text: String?) -> [ResourceId: String] {
+  guard case .object(let pairs)? = decodedStorage(JSONValue.self, text) else { return [:] }
   var places: [ResourceId: String] = [:]
-  for (scope, id) in stored {
-    if let resource = ResourceId.parse(scope) { places[resource] = id }
+  for (scope, place) in pairs {
+    guard let resource = ResourceId.parse(scope), case .string(let id) = place,
+      isPersistedEventId(id)
+    else { continue }
+    places[resource] = id
   }
   return places
 }
 
-/// One query's kept values, as the document its key holds:
-/// `{"version":1,"writtenAt":<ms>,"entries":[[<key>,<value>,<ms>],…]}`, each key and value as
-/// JSON, and each value with when it last changed.
+/// One cache's kept values, as the document its key holds (protocol/specs/src/session/stored.json
+/// `cacheDocument`): `{"version":1,"entries":[[<key>,<value>,<stamp>],…]}`, each key and value as
+/// JSON, and each value with when it was received.
 struct KeptDocument: Sendable {
-  private static let version = 1
-  private var entries: [String: (value: String, writtenAt: Int64)] = [:]
+  private var entries: [String: (value: String, stamp: Int64)] = [:]
 
-  /// What `text` keeps: nothing when there is none, or it is of another version, or it does not
-  /// parse.
-  init(_ text: String?) {
+  /// What `text` keeps of a cache whose keys are `Key`s and values `Value`s: nothing when there is
+  /// none or its structure is not a cache document's (not JSON, not an object, of another version,
+  /// its entries no list, or an entry not a key, a value and a whole-number stamp of at least 0),
+  /// and otherwise each entry whose key is a `Key` and value a `Value`. A number is read by its
+  /// value, however it is written.
+  init<Key: Codable, Value: Codable>(_ text: String?, keys: Key.Type, values: Value.Type) {
     guard case .object(let document)? = decodedStorage(JSONValue.self, text),
-      document["version"] == .number(Double(Self.version)),
-      case .array(let stored)? = document["entries"]
+      document["version"] == .number(Double(cacheDocumentVersion)),
+      case .array(let listed)? = document["entries"]
     else { return }
-    for entry in stored {
-      // An entry of another shape is not kept.
-      guard case .array(let parts) = entry, parts.count == 3,
-        case .number(let stamp) = parts[2], let writtenAt = Int64(exactly: stamp),
-        let key = try? keptText(parts[0]), let value = try? keptText(parts[1])
+    var rows: [(key: JSONValue, value: JSONValue, stamp: Int64)] = []
+    for entry in listed {
+      guard case .array(let parts) = entry, parts.count == 3, case .number(let at) = parts[2],
+        let stamp = Int64(exactly: at), stamp >= 0
+      else { return }
+      rows.append((parts[0], parts[1], stamp))
+    }
+    for row in rows {
+      guard let key = try? decodedKept(keys, row.key),
+        let value = try? decodedKept(values, row.value),
+        let keyText = try? keptText(key), let valueText = try? keptText(value)
       else { continue }
-      entries[key] = (value, writtenAt)
+      entries[keyText] = (valueText, row.stamp)
     }
   }
 
@@ -496,6 +579,8 @@ struct KeptDocument: Sendable {
     return try? JSONDecoder().decode(type, from: Data(entry.value.utf8))
   }
 
+  /// Keeps `value` as `key`'s, received `now`, and nothing of `key` when it is nil. A value received
+  /// again unchanged, its JSON text the text it was kept with, keeps the time it was first received.
   mutating func set<Key: Encodable, Value: Encodable>(_ key: Key, _ value: Value?, at now: Int64) {
     guard let key = try? keptText(key) else { return }
     guard let value else {
@@ -506,13 +591,13 @@ struct KeptDocument: Sendable {
     entries[key] = (text, now)
   }
 
-  /// The document as written at `now`: the values longest unchanged go, and are kept no more,
-  /// until it fits within `maxStoredBytesCount`.
-  mutating func text(at now: Int64) -> String {
-    let head = "{\"version\":\(Self.version),\"writtenAt\":\(now),\"entries\":["
+  /// The document as written: the values received longest ago go, and are kept no more, until it
+  /// fits within `maxStoredBytesCount`.
+  mutating func text() -> String {
+    let head = "{\"version\":\(cacheDocumentVersion),\"entries\":["
     let tail = "]}"
-    let written = entries.sorted { ($0.value.writtenAt, $0.key) < ($1.value.writtenAt, $1.key) }
-      .map { (key: $0.key, text: "[\($0.key),\($0.value.value),\($0.value.writtenAt)]") }
+    let written = entries.sorted { ($0.value.stamp, $0.key) < ($1.value.stamp, $1.key) }
+      .map { (key: $0.key, text: "[\($0.key),\($0.value.value),\($0.value.stamp)]") }
     var size =
       head.utf8.count + tail.utf8.count + written.reduce(0) { $0 + $1.text.utf8.count }
       + max(written.count - 1, 0)
@@ -532,6 +617,10 @@ private func keptText(_ value: some Encodable) throws -> String {
   let encoder = JSONEncoder()
   encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
   return String(decoding: try encoder.encode(value), as: UTF8.self)
+}
+
+private func decodedKept<Kept: Decodable>(_ type: Kept.Type, _ value: JSONValue) throws -> Kept {
+  try JSONDecoder().decode(type, from: JSONEncoder().encode(value))
 }
 
 private func millisecondsNow() -> Int64 { Int64(Date().timeIntervalSince1970 * 1000) }

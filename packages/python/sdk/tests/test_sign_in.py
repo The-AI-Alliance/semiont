@@ -56,12 +56,11 @@ from semiont.http.oauth import (
 from semiont.identifiers import ResourceId, UserId
 from semiont.identity import agent_did
 from semiont.operations import BROWSE_RESOURCE_REQUESTED, MARK_DELETE
-from semiont.refresh import PERSISTED_QUERIES
 from semiont.registry import kept_in
 from semiont.session import HeldSignIn, MemorySignIn, SessionEndReason, SignInKept
 from semiont.sign_in_store import FILE_NAME, SignInStore
 from semiont.storage import MemoryStorage
-from semiont.stored import cache_key, last_event_id_key, person_key
+from semiont.stored import KEPT_QUERIES, cache_key, last_event_id_key, person_key
 from semiont.timing import DEVICE_POLL_MS, DEVICE_SLOW_DOWN_MS, MIN_REFRESH_DELAY_MS
 from semiont.types import HttpEndpoint, KbTarget, LocalEndpoint
 from semiont.watched import Watched, reached
@@ -1337,7 +1336,7 @@ def test_a_session_with_a_storage_keeps_what_its_queries_hold_and_the_streams_pl
                     await soon(gateway.arrived("POST", "/bus/emit", 2))
                     # The stream reaches a place in the resource's scope.
                     heard = client.transport.frames("mark:added")
-                    gateway.send("p-7", {"channel": "mark:added", "payload": recorded("mark:added", "res-1"), "scope": "res-1"})
+                    gateway.send("p-res-1-7", {"channel": "mark:added", "payload": recorded("mark:added", "res-1"), "scope": "res-1"})
                     await soon(anext(heard))
 
                     # The resource is kept once it has stopped changing. The place is not: a cache is still fetching,
@@ -1356,7 +1355,7 @@ def test_a_session_with_a_storage_keeps_what_its_queries_hold_and_the_streams_pl
                     await settle()
                     await pass_time(0.2, step=0.01)
                     assert kept_under(cache_key("kb", ALICE_KEY, "entityTypes")) is not None
-                    assert kept_under(last_event_id_key("kb", ALICE_KEY)) == {"res-1": "p-7"}
+                    assert kept_under(last_event_id_key("kb", ALICE_KEY)) == {"res-1": "p-res-1-7"}
 
             # The sign-in it was given names nobody: once the gateway named the person, the sign-in records her, and what
             # the session keeps is kept for her.
@@ -1386,7 +1385,7 @@ def test_a_session_with_a_storage_keeps_what_its_queries_hold_and_the_streams_pl
                     assert isinstance(scoped, list)
                     (entry,) = scoped
                     assert isinstance(entry, dict)
-                    assert (entry["scope"], entry["lastEventId"]) == ("res-1", "p-7")
+                    assert (entry["scope"], entry["lastEventId"]) == ("res-1", "p-res-1-7")
 
             # A session of another knowledge base, over the same storage, begins with neither.
             async with session_from_kept(gateway.target("another"), kept=kept, storage=storage) as session:
@@ -1425,7 +1424,7 @@ def test_a_session_that_never_asks_who_its_token_is_keeps_nothing_and_names_nobo
             unnamed = await kept.held()
             assert unnamed is not None
             assert unnamed.person_key is None
-            for key in (last_event_id_key("kb", ALICE_KEY), *(cache_key("kb", ALICE_KEY, query) for query in PERSISTED_QUERIES)):
+            for key in (last_event_id_key("kb", ALICE_KEY), *(cache_key("kb", ALICE_KEY, query) for query in KEPT_QUERIES)):
                 assert storage.get(key) is None, key
 
     run(scenario())
@@ -1471,7 +1470,7 @@ def test_a_session_over_a_registrys_kept_sign_in_puts_back_nothing_that_forgetti
                 assert storage.get(kept_resources) is None
 
             # Its client closed owing a write, and wrote nothing.
-            for key in (last_event_id_key("kb", ALICE_KEY), *(cache_key("kb", ALICE_KEY, query) for query in PERSISTED_QUERIES)):
+            for key in (last_event_id_key("kb", ALICE_KEY), *(cache_key("kb", ALICE_KEY, query) for query in KEPT_QUERIES)):
                 assert storage.get(key) is None, key
 
     run(scenario())
@@ -1496,7 +1495,7 @@ def test_a_session_whose_sign_in_cannot_be_read_when_its_client_saves_keeps_noth
     async def scenario() -> None:
         storage = MemoryStorage()
         errors: list[SessionError] = []
-        kept_keys = (last_event_id_key("kb", ALICE_KEY), *(cache_key("kb", ALICE_KEY, query) for query in PERSISTED_QUERIES))
+        kept_keys = (last_event_id_key("kb", ALICE_KEY), *(cache_key("kb", ALICE_KEY, query) for query in KEPT_QUERIES))
 
         async with GatewayServer() as gateway:
             trusting(gateway)

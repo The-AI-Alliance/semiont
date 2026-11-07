@@ -286,13 +286,13 @@ type keptFor struct {
 // attach has the client keep its caches, and the transport its stream's
 // places, for the person whose key is personKey: each begins with what was
 // kept for them, and keeps what it holds from now on. The places ride the
-// caches' writes, and only when every cache is at rest: a place kept ahead of
-// a cache still taking in the event it names would have the next session
-// skip that event.
+// caches' writes, and only when what the client keeps is at rest
+// (CoupledBookmarks.CoupleTo): a place kept ahead of a cache still taking in
+// the event it names would have the next session skip that event.
 func (k *keptFor) attach(personKey string) {
 	k.keeping = &whileNamed{SessionStorage: k.storage, kept: k.SignInKept, personKey: personKey, unreadable: k.unreadable}
 	places := NewCoupledBookmarks(k.keeping, LastEventIDKey(k.kbID, personKey))
-	places.SetFlushGate(k.client.PersistenceSettled)
+	places.CoupleTo(k.client)
 	k.transport.keepPlaces(places)
 	k.client.live.attach(&CachePersistence{Storage: places.Storage(), KbID: k.kbID, PersonKey: personKey})
 }

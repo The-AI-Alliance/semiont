@@ -281,6 +281,25 @@ complete all its readers. The client passed to a unit remains caller-owned.
 The C# SDK runs the shared behavior cases and exposes L1 through L3 for
 consumer tests in `Semiont.Testing`. See the [testing toolkit](../../packages/csharp/sdk/README.md#testing-a-composition).
 
+## In Haskell
+
+The [Haskell SDK](../../packages/haskell/sdk/README.md#state-units) exposes opaque
+units in `Semiont.State.Mark`, `Yield`, `Gather`, `Match`, `Beckon`,
+`HoverDwell`, `Search`, and `SessionSignals`; the cache and session complete the
+ten units. Read a unit's `StateValue` with `current` in STM, or scope a stream
+of observations with `watch`. Consumers receive no state writer.
+
+Construct units beside the client they borrow and use `bracket` with their
+`dispose`. Disposal joins owned work, completes observations and leaves the
+client to its owner. Hover and search use the caller's absolute clock/wait
+actions; mark also takes timing settings for its silence notices. A search
+cancels and joins its previous source when the next query settles. Session
+notices are separate from the session's credential state, so a host can
+acknowledge one without changing a token.
+
+All shared state-unit cases execute on controlled time; the GHC export census
+checks each unit's receiver methods and public constructor in both directions.
+
 ## How these rules are enforced
 
 The structural contract — `dispose()` exists — is the only part the **type system** catches. Everything else is enforced by an executable axiom suite plus CI compliance scripts (the runtime twin of this doc), with a residue of review-only conventions. The executable spec IS the harness — `assertStateUnitAxioms` from `@semiont/core/testing/axioms`, invoked once from each state unit's test file; its property definitions are the authoritative statements of the axioms below.
@@ -327,6 +346,7 @@ The MVVM "view-model" name presumes a View — a ViewModel is a Model adapted in
 - [CACHE-SEMANTICS.md](../../protocol/contract/CACHE-SEMANTICS.md) — the `Cache<K,V>` primitive backing live queries, itself a state unit specialized for keyed multicast caches.
 - [Usage.md](./Usage.md) — per-namespace tour with concrete examples; many namespace methods return state-unit Observables or trigger state-unit reactions internally.
 - [The Rust SDK's README](../../packages/rust/sdk/README.md) — the Rust units, and the table that maps each TypeScript shape to its Rust form.
+- [The Haskell SDK's README](../../packages/haskell/sdk/README.md#state-units) — native state observations, controlled waits and joined disposal.
 - [The Python SDK's README](../../packages/python/sdk/README.md#state-units) — the Python units, and a program that watches one.
 - [The Go SDK's README](../../packages/go/sdk/README.md#state-units) — the Go units, and a program that watches one.
 - [The Swift SDK’s README](../../packages/swift/sdk/README.md#registry-and-state-units) — Swift state units and disposal.

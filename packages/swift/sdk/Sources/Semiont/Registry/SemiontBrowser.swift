@@ -422,7 +422,7 @@ public actor SemiontBrowser {
     activation = idOfTask
   }
 
-  private func sessionFailed(_ error: any Error) {
+  private func sessionFailed(_ error: SessionError) {
     guard !closed else { return }
     record(error)
   }
@@ -575,7 +575,7 @@ public actor SemiontBrowser {
           (resource.id, await checkOpenResource(opened.client, id: resource.id))
         }
       }
-      for _ in 0..<min(4, resources.count) { startNext() }
+      for _ in 0..<min(Timings.checksAtOnceCount, resources.count) { startNext() }
       for await (id, check) in group {
         checks[id] = check
         startNext()

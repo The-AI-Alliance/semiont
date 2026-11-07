@@ -46,7 +46,7 @@ from semiont.registry import (
 from semiont.session import HeldSignIn, MemorySignIn, SemiontSession
 from semiont.session_signals import SessionSignals
 from semiont.storage import MemoryStorage, SessionStorage
-from semiont.stored import ACTIVE_KEY, StoredSession, cache_key, last_event_id_key, person_key, session_key
+from semiont.stored import ACTIVE_KEY, KEPT_QUERIES, StoredSession, cache_key, last_event_id_key, person_key, session_key
 from semiont.testing import FaultyTransport, ScriptedSessions, SharedStorage
 from semiont.types import HttpEndpoint, KnowledgeBase, ResourceDescriptor, UserResponse
 from semiont.watched import reached
@@ -88,8 +88,8 @@ PREFIXES: Final = tuple(text(object_of(STORED[member], member)["prefix"], member
 
 
 def kept_of(kb_id: str, person: str) -> set[str]:
-    """Every key of a person on a knowledge base: the stream's, and every persisted query's."""
-    return {last_event_id_key(kb_id, person), *(cache_key(kb_id, person, query) for query in PERSISTED_QUERIES)}
+    """Every key of a person on a knowledge base: the stream's, and every kept query's."""
+    return {last_event_id_key(kb_id, person), *(cache_key(kb_id, person, query) for query in KEPT_QUERIES)}
 
 
 def signed_in(person: str | None, n: int = 1) -> StoredSession:
@@ -121,7 +121,7 @@ def test_the_keys_of_a_knowledge_base_and_a_person_are_the_tables(row: JsonObjec
     cache_keys = texts(row["cacheKeys"], "cacheKeys")
     # The queries kept are exactly those, in the order the refresh table lists them.
     assert list(PERSISTED_QUERIES) == list(cache_keys)
-    assert {query: cache_key(kb_id, person, query) for query in PERSISTED_QUERIES} == cache_keys
+    assert {query: cache_key(kb_id, person, query) for query in KEPT_QUERIES} == cache_keys
 
 
 # ── forget ──────────────────────────────────────────────────────────────

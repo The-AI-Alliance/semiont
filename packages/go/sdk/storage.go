@@ -10,9 +10,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"reflect"
+	"math"
 	"sort"
-	"strconv"
 	"sync"
 	"time"
 
@@ -99,7 +98,8 @@ func (m *MemoryStorage) Subscribe(func(key, value string, has bool)) (func(), bo
 // CachePersistence is where a client keeps what its queries hold for one
 // person, so the next client of the same knowledge base, for the same person,
 // shows it at once. The queries PersistedCacheQueries names are kept, each a
-// document in Storage under CacheKey(KbID, PersonKey, query).
+// document in Storage under CacheKey(KbID, PersonKey, query), which a client
+// of any SDK reads and writes alike.
 type CachePersistence struct {
 	Storage SessionStorage
 	KbID    string
@@ -124,10 +124,14 @@ func LastEventIDKey(kbID, personKey string) string {
 	return "semiont.lastEventId." + kbID + "." + personKey
 }
 
-// keptVersion is the version of what the kept caches hold. A document of
-// another version reads as nothing kept, so this changes when a kept value's
-// shape does.
+// keptVersion is the version of a kept document, as
+// protocol/specs/src/session/stored.json's `cacheDocument` states it. A
+// document of another version reads as nothing kept.
 const keptVersion = 1
+
+// wholeKey is the key a kept query of one value keeps its entry under, as
+// protocol/specs/src/session/stored.json states it.
+const wholeKey = "_"
 
 // keptEntry is a kept entry as it was last written: its value's text, and when.
 type keptEntry struct {
@@ -136,11 +140,12 @@ type keptEntry struct {
 }
 
 // StoragePersister keeps one cache's values in storage, as one document under
-// one key: {version, writtenAt, entries}, each entry a key, its value, and
-// when that value was last written. A document of another version, or one
-// that does not parse, reads as nothing kept. A document larger than maxBytes
-// loses the entries that have gone longest without a new value, until it
-// fits.
+// one key: {version, entries}, each entry a key, its value, and when that
+// value was received. A document whose structure is not
+// protocol/specs/src/session/stored.json's `cacheDocument` reads as nothing
+// kept; an entry whose key is no K, or whose value is no V, is skipped. A
+// document larger than maxBytes loses the entries that have gone longest
+// without a new value, until it fits.
 type StoragePersister[K comparable, V any] struct {
 	storage  SessionStorage
 	key      string
@@ -165,41 +170,80 @@ func (p *StoragePersister[K, V]) Load() map[K]V {
 	if !ok {
 		return nil
 	}
-	var document struct {
-		Version *int              `json:"version"`
-		Entries []json.RawMessage `json:"entries"`
-	}
-	if json.Unmarshal([]byte(raw), &document) != nil || document.Version == nil || *document.Version != keptVersion || document.Entries == nil {
+	entries, ok := documentEntries(raw)
+	if !ok {
 		return nil
 	}
 	kept := map[K]V{}
 	seen := map[string]keptEntry{}
-	for _, entry := range document.Entries {
-		var parts []json.RawMessage
-		if json.Unmarshal(entry, &parts) != nil || len(parts) != 3 {
-			continue
-		}
-		at, err := strconv.ParseInt(string(parts[2]), 10, 64)
-		if err != nil {
-			continue
-		}
-		// An entry that is not this cache's shape is one it never kept: an
-		// object lacking a member its type requires among them.
-		var key K
-		var value V
-		if json.Unmarshal(parts[0], &key) != nil || json.Unmarshal(parts[1], &value) != nil {
-			continue
-		}
-		if shape := reflect.TypeFor[V](); shape.Kind() == reflect.Struct && !required.Carries(parts[1], shape) {
+	for _, entry := range entries {
+		key, keyRead := keyAs[K](entry.key)
+		value, valueRead := required.ReadAs[V](entry.value)
+		if !keyRead || !valueRead {
 			continue
 		}
 		kept[key] = value
-		seen[compact(parts[0])] = keptEntry{value: compact(parts[1]), at: at}
+		seen[compact(entry.key)] = keptEntry{value: compact(entry.value), at: entry.at}
 	}
 	p.mu.Lock()
 	p.written = seen
 	p.mu.Unlock()
 	return kept
+}
+
+// storedEntry is an entry of a kept document as it is stored: its key's text,
+// its value's, and when the value was received.
+type storedEntry struct {
+	key, value json.RawMessage
+	at         int64
+}
+
+// documentEntries is the entries of the kept document raw; false when its
+// structure is not `cacheDocument`'s: it is no JSON object, its version is
+// not the number keptVersion, its entries are no list, or an entry is not a
+// key, a value and a stamp that is a whole number of at least 0. A number is
+// its value, however it is written: 1.0 is the version and 1e3 a stamp.
+func documentEntries(raw string) ([]storedEntry, bool) {
+	var document struct {
+		Version *float64          `json:"version"`
+		Entries []json.RawMessage `json:"entries"`
+	}
+	if json.Unmarshal([]byte(raw), &document) != nil || document.Version == nil || *document.Version != keptVersion || document.Entries == nil {
+		return nil, false
+	}
+	entries := make([]storedEntry, 0, len(document.Entries))
+	for _, entry := range document.Entries {
+		var parts []json.RawMessage
+		if json.Unmarshal(entry, &parts) != nil || len(parts) != 3 {
+			return nil, false
+		}
+		at, ok := stampOf(parts[2])
+		if !ok {
+			return nil, false
+		}
+		entries = append(entries, storedEntry{key: parts[0], value: parts[1], at: at})
+	}
+	return entries, true
+}
+
+// stampOf is text read as a stamp, and whether it is one: a number with no
+// fractional part, at least 0, that an int64 holds.
+func stampOf(text json.RawMessage) (int64, bool) {
+	var at *float64
+	if json.Unmarshal(text, &at) != nil || at == nil || *at < 0 || *at != math.Trunc(*at) || *at >= math.MaxInt64 {
+		return 0, false
+	}
+	return int64(*at), true
+}
+
+// keyAs is text read as a key of K, and whether it is one. Null is none: Go's
+// decoding leaves an id it is given null as its zero value, which is no id.
+func keyAs[K any](text json.RawMessage) (K, bool) {
+	var key K
+	if string(text) == "null" || json.Unmarshal(text, &key) != nil {
+		return key, false
+	}
+	return key, true
 }
 
 func (p *StoragePersister[K, V]) Save(entries map[K]V) error {
@@ -225,7 +269,7 @@ func (p *StoragePersister[K, V]) Save(entries map[K]V) error {
 	}
 	document := func() string {
 		var b bytes.Buffer
-		fmt.Fprintf(&b, `{"version":%d,"writtenAt":%d,"entries":[`, keptVersion, now)
+		fmt.Fprintf(&b, `{"version":%d,"entries":[`, keptVersion)
 		for i, entry := range kept {
 			if i > 0 {
 				b.WriteByte(',')

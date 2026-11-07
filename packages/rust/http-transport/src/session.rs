@@ -24,6 +24,7 @@ use crate::transport::{
 };
 use futures::FutureExt;
 use futures::future::Shared;
+use rand_core::Rng;
 use semiont::bus::reply_channels_for;
 use semiont::channels::{BrowseKbRequested, Channel};
 use semiont::client::{CachePersistence, ClientOptions, SemiontClient};
@@ -40,7 +41,7 @@ use semiont::session::{
 };
 use semiont::storage::{SessionStorage, StorageChange, StorageSubscription};
 use semiont::transport::BoxFuture;
-use semiont::types::{HttpEndpoint, KbDescription, KbEndpoint, KbTarget, ResourceId};
+use semiont::types::{HttpEndpoint, KbDescription, KbEndpoint, KbTarget, ResourceId, UserId};
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -64,6 +65,9 @@ pub struct HttpSession {
     pub client: ClientOptions,
     /// Where the stream's place is kept across the session's lives.
     pub bookmarks: Option<Arc<dyn Bookmarks>>,
+    /// What the jitter of the transport's backoffs and of the session's
+    /// renewal retry is drawn from; the system's source when none is given.
+    pub random: Option<Arc<Mutex<dyn Rng + Send>>>,
 }
 
 /// Asks the session to renew: the transport is built first, and holds this,
@@ -110,6 +114,7 @@ fn built_over_http(
         http: options.http,
         timing: Timing::default(),
         bookmarks: options.bookmarks,
+        random: options.random.clone(),
     }));
     let content = Arc::new(HttpContentTransport::new(&transport));
     let client = Arc::new(SemiontClient::new(
@@ -128,6 +133,7 @@ fn built_over_http(
         validate: options.validate,
         on_auth_failed: options.on_auth_failed,
         on_error: options.on_error,
+        random: options.random,
     });
     renewer.send_replace(Some(session.renewer()));
     session
@@ -143,26 +149,34 @@ type Renewing = Arc<Mutex<HashMap<String, Renewal>>>;
 /// (`renew_kept`). A renewal asked for while one is under way is that one: a
 /// stream refused and a request refused at the same moment spend one refresh
 /// token, not two, of which an issuer that rotates them would refuse the
-/// second. It goes by the token the first of them holds.
+/// second. It goes by the token the first of them holds, and its retries
+/// draw their jitter from `random`.
 fn renewing_kept(
     kept: Arc<dyn SignInKept>,
     kb_id: String,
     http: reqwest::Client,
     renewing: Renewing,
+    random: Option<Arc<Mutex<dyn Rng + Send>>>,
 ) -> Refresh {
     Arc::new(move |holding: Option<String>| {
         let renewal = locked(&renewing)
             .entry(kb_id.clone())
             .or_insert_with(|| {
-                let (kept, kb_id, http, renewing) =
-                    (kept.clone(), kb_id.clone(), http.clone(), renewing.clone());
+                let (kept, kb_id, http, renewing, random) = (
+                    kept.clone(),
+                    kb_id.clone(),
+                    http.clone(),
+                    renewing.clone(),
+                    random.clone(),
+                );
                 let once: BoxFuture<
                     'static,
                     Result<Option<String>, Arc<dyn std::error::Error + Send + Sync>>,
                 > = Box::pin(async move {
-                    let renewed = renew_kept(kept.as_ref(), holding.as_deref(), &http)
-                        .await
-                        .map_err(Arc::from);
+                    let renewed =
+                        renew_kept(kept.as_ref(), holding.as_deref(), &http, random.as_deref())
+                            .await
+                            .map_err(Arc::from);
                     locked(&renewing).remove(&kb_id);
                     renewed
                 });
@@ -174,8 +188,9 @@ fn renewing_kept(
 }
 
 /// Ask the gateway who `token` is: one request, by a caller that holds
-/// nothing else. No stream is opened for it, and nothing renews the token:
-/// a refusal is the answer.
+/// nothing else. No stream is opened for it, nothing is emitted, and nothing
+/// renews the token: a refusal is the answer. So nothing backs off, and no
+/// jitter is drawn.
 fn asking_the_gateway(base_url: String, http: reqwest::Client) -> Validate {
     Arc::new(move |token| {
         let asking = crate::transport::Shared::new(HttpTransportConfig {
@@ -186,6 +201,7 @@ fn asking_the_gateway(base_url: String, http: reqwest::Client) -> Validate {
             http: http.clone(),
             timing: Timing::default(),
             bookmarks: None,
+            random: None,
         });
         Box::pin(async move { Ok(asking.current_user().await?) })
     })
@@ -229,6 +245,8 @@ pub struct SessionFromKept {
     pub on_auth_failed: Option<OnAuthFailed>,
     pub on_error: Option<OnSessionError>,
     pub http: reqwest::Client,
+    /// What the session's jitter is drawn from (`HttpSession::random`).
+    pub random: Option<Arc<Mutex<dyn Rng + Send>>>,
 }
 
 /// A session over the sign-in `kept` holds, with the client it was built
@@ -247,6 +265,7 @@ pub async fn session_from_kept(options: SessionFromKept) -> Result<OpenedSession
             options.kb.id.clone(),
             options.http.clone(),
             Renewing::default(),
+            options.random.clone(),
         )),
         validate: options
             .validate
@@ -260,6 +279,7 @@ pub async fn session_from_kept(options: SessionFromKept) -> Result<OpenedSession
         http: options.http,
         client: ClientOptions::default(),
         bookmarks: None,
+        random: options.random,
     });
     opened.session().ready().await;
     Ok(opened)
@@ -269,9 +289,10 @@ pub async fn session_from_kept(options: SessionFromKept) -> Result<OpenedSession
 /// sign-in in `kept`, in place of whatever it kept: a session is then built
 /// from it (`session_from_kept`). The issuer the knowledge base trusts mints
 /// a code, `on_code` shows the person where to approve it, and the tokens
-/// come back here: no password passes through this process. A failure is a
-/// `SignInError`, or the sign-in kept's own error when it would not keep
-/// the tokens.
+/// come back here: no password passes through this process. The token
+/// endpoint is asked at the issuer's interval, so no jitter is drawn. A
+/// failure is a `SignInError`, or the sign-in kept's own error when it would
+/// not keep the tokens.
 pub async fn sign_in_device(
     kb: &KbTarget,
     kept: &dyn SignInKept,
@@ -504,8 +525,9 @@ impl Keeping {
             return;
         }
         // The stream's place rides the caches' writes, and only when every
-        // cache is at rest: a place kept ahead of a cache still taking in
-        // the event it names would have the next life skip that event.
+        // cache is at rest and no refetch is owed: a place kept ahead of a
+        // cache still taking in the event it names would have the next life
+        // skip that event.
         let settled = Arc::downgrade(&client);
         kept.set_flush_gate(move || {
             settled
@@ -513,7 +535,7 @@ impl Keeping {
                 .is_some_and(|client| client.persistence_settled())
         });
         client.attach_persistence(&CachePersistence {
-            storage: kept.storage(),
+            places: kept.clone(),
             kb_id: self.kb_id.clone(),
             person_key: person_key.to_owned(),
         });
@@ -545,17 +567,23 @@ fn asking_and_keeping(asking: Validate, keeping: Arc<Keeping>) -> Validate {
 /// (`kept_in`). What the session's client keeps of its person is kept in
 /// the registry's storage too (`Keeping`). The renewals under way are the
 /// factory's, so a knowledge base's old session and its new one, during a
-/// sign-in, do not each renew.
+/// sign-in, do not each renew. Every session it builds draws its jitter from
+/// the factory's `random`, the system's source when it is `None`.
 pub struct HttpSessionFactory {
     http: reqwest::Client,
     renewing: Renewing,
+    random: Option<Arc<Mutex<dyn Rng + Send>>>,
 }
 
 impl HttpSessionFactory {
-    pub fn new(http: reqwest::Client) -> HttpSessionFactory {
+    pub fn new(
+        http: reqwest::Client,
+        random: Option<Arc<Mutex<dyn Rng + Send>>>,
+    ) -> HttpSessionFactory {
         HttpSessionFactory {
             http,
             renewing: Arc::default(),
+            random,
         }
     }
 }
@@ -571,6 +599,7 @@ impl SessionFactory for HttpSessionFactory {
             kb.id.clone(),
             self.http.clone(),
             self.renewing.clone(),
+            self.random.clone(),
         );
 
         let keeping = Arc::new(Keeping {
@@ -604,6 +633,7 @@ impl SessionFactory for HttpSessionFactory {
                 http: self.http.clone(),
                 client: ClientOptions::default(),
                 bookmarks: Some(keeping.places.clone()),
+                random: self.random.clone(),
             },
             |transport, client| {
                 let _ = keeping
@@ -628,18 +658,20 @@ impl SessionFactory for HttpSessionFactory {
 /// Who the knowledge base at an address says it is.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConnectionIdentity {
-    pub did: String,
+    pub did: UserId,
     pub description: KbDescription,
 }
 
 /// Ask the knowledge base at `target` what it is, with a token just issued.
 /// It describes itself only to a caller that is signed in, so this is asked
 /// after the sign-in and never assumed from the address a person typed or
-/// the row they clicked.
+/// the row they clicked. The client it asks with draws its jitter from
+/// `random`, the system's source when it is `None`.
 pub async fn describe_connection(
     target: &HttpEndpoint,
     access: &str,
     http: &reqwest::Client,
+    random: Option<Arc<Mutex<dyn Rng + Send>>>,
 ) -> Result<ConnectionIdentity, IdentityUnverifiable> {
     let unverifiable = |reason, detail: String| IdentityUnverifiable { reason, detail };
     let base_url = target
@@ -659,6 +691,7 @@ pub async fn describe_connection(
         http: http.clone(),
         timing: Timing::default(),
         bookmarks: None,
+        random,
     }));
     let client = SemiontClient::new(
         transport.clone(),
@@ -668,21 +701,30 @@ pub async fn describe_connection(
     );
     let answered = client.browse.kb().await;
     client.close().await;
-    match answered {
-        Ok(description) => Ok(ConnectionIdentity {
-            did: semiont::identity::kb_did(&description.domain),
-            description,
-        }),
+    let description = match answered {
+        Ok(description) => description,
         // A refusal is the knowledge base answering that it cannot say what
         // it is. Anything else is not having reached it.
-        Err(SemiontError::Bus(refusal)) if refusal.code == BusRequestErrorCode::Rejected => Err(
-            unverifiable(IdentityUnverifiableReason::NotReported, refusal.to_string()),
-        ),
-        Err(other) => Err(unverifiable(
-            IdentityUnverifiableReason::Unreachable,
-            other.to_string(),
-        )),
-    }
+        Err(SemiontError::Bus(refusal)) if refusal.code == BusRequestErrorCode::Rejected => {
+            return Err(unverifiable(
+                IdentityUnverifiableReason::NotReported,
+                refusal.to_string(),
+            ));
+        }
+        Err(other) => {
+            return Err(unverifiable(
+                IdentityUnverifiableReason::Unreachable,
+                other.to_string(),
+            ));
+        }
+    };
+    // A domain no did can hold says nothing of who this is.
+    let did = semiont::identity::kb_did(&description.domain)
+        .parse::<UserId>()
+        .map_err(|invalid| {
+            unverifiable(IdentityUnverifiableReason::NotReported, invalid.to_string())
+        })?;
+    Ok(ConnectionIdentity { did, description })
 }
 
 // ── A registry's sign-in through the issuer ─────────────────────────────
@@ -705,15 +747,17 @@ pub async fn begin_sign_in(
 /// answered (`SemiontBrowser::signed_in`). A knowledge base that cannot say
 /// who it is is not registered, and nothing is stored. A failure is a
 /// `SignInError` when the grant failed, an `IdentityUnverifiable` when the
-/// knowledge base could not say who it is, or the storage's own error.
+/// knowledge base could not say who it is, or the storage's own error. The
+/// knowledge base is asked as `describe_connection` asks, with `random`.
 pub async fn complete_sign_in(
     browser: &SemiontBrowser,
     callback_url: &str,
     http: &reqwest::Client,
+    random: Option<Arc<Mutex<dyn Rng + Send>>>,
 ) -> Result<SignInOutcome, Box<dyn std::error::Error + Send + Sync>> {
     let (pending, tokens) =
         complete_authorization(callback_url, browser.storage().as_ref(), http).await?;
-    let identity = describe_connection(&pending.target, &tokens.access, http).await?;
+    let identity = describe_connection(&pending.target, &tokens.access, http, random).await?;
     browser
         .signed_in(SignedIn {
             endpoint: KbEndpoint::HttpEndpoint(pending.target),
@@ -760,6 +804,7 @@ mod tests {
             validate: None,
             on_auth_failed: None,
             on_error: None,
+            random: None,
         })
     }
 

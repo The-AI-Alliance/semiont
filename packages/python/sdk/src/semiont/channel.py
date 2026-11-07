@@ -36,6 +36,9 @@ class AnyChannel(Protocol):
     @property
     def members(self) -> tuple[type[WireModel], ...]: ...
 
+    @property
+    def stamps(self) -> frozenset[str]: ...
+
     def decode(self, value: JsonValue) -> WireModel: ...
 
 

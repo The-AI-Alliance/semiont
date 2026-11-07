@@ -65,7 +65,7 @@ const text = `// Code generated from protocol/specs/src/text/encoding-cases.json
 
 package semiont
 
-${goComment(`labelsOfEncodings is every label of the Encoding Standard, ${labels.length} of them, each with the encoding it names. A label is matched in lower case, with no white space around it. An encoding that is neither in singleByteEncodings nor in refusedEncodings is one no table here decodes: UTF-8, UTF-16BE, UTF-16LE, or one of the standard's legacy multi-byte encodings.`)}
+${goComment(`labelsOfEncodings is every label of the Encoding Standard, ${labels.length} of them, each with the encoding it names. A label is matched in lower case, with no white space around it. An encoding that is neither in singleByteEncodings nor in refusedEncodings is UTF-8, UTF-16BE or UTF-16LE, which no table here decodes.`)}
 var labelsOfEncodings = []struct{ label, encoding string }{
 ${labels.map((label) => `\t{${goAscii(label)}, ${goAscii(encodingOf.get(label))}},`).join('\n')}
 }

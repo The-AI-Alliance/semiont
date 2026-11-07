@@ -27,7 +27,8 @@ public sealed class BrowseNamespace
     public Cached<ListResourcesResponse> Resources(long limit = 100, long offset = 0, bool? archived = null, string? entityType = null) =>
         live.Resources.Observe(new LiveQueries.Filters(limit, offset, archived, entityType));
 
-    public Cached<IReadOnlyList<Annotation>> Annotations(ResourceId resourceId) => live.Annotations.Observe(resourceId);
+    public Cached<IReadOnlyList<Annotation>> Annotations(ResourceId resourceId) =>
+        new CachedPart<GetAnnotationsResponse, IReadOnlyList<Annotation>>(live.Annotations.Observe(resourceId), answer => answer.Annotations);
 
     public Cached<Annotation> Annotation(ResourceId resourceId, AnnotationId annotationId) =>
         live.Annotation.Observe(new LiveQueries.AnnotationKey(resourceId, annotationId));

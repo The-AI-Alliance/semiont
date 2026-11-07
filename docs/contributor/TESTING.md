@@ -350,8 +350,8 @@ The Rust binaries the conformance suites start are built once, by `build-rust`, 
 | `gateway-conformance` | Runs the conformance suite's `gateway` project against the binaries `build-rust` built |
 | `dispatcher-conformance` | Runs the `dispatcher` project |
 | `archivist-conformance` | Runs the `archivist` project |
-| `sdk-conformance` | Builds `@semiont/sdk`, installs the Python SDK's locked environment, builds the Kotlin SDK's drivers, and runs the `sdk` project |
-| `worker-conformance` | Builds the packages, installs the Python SDK's locked environment, builds the Kotlin SDK's drivers, and runs the `worker` project |
+| `sdk-conformance` | One leg per SDK [`semiont.implementations.json`](../../protocol/conformance/semiont.implementations.json) names, read by `census`: each builds `@semiont/sdk`, sets up its SDK's toolchain and drivers, and runs the `sdk` project on that SDK alone |
+| `worker-conformance` | One leg per SDK, as `sdk-conformance` has: each builds the packages, sets up its SDK's toolchain and worker driver, and runs the `worker` project on that SDK alone |
 | `worker-service-conformance` | Builds `@semiont/core`, makes the Worker service's locked environment with every provider's library, and runs the `worker-service` project |
 | `weaver-conformance` | Builds `@semiont/core`, makes the Weaver's Python environment, starts the neo4j the launcher runs, and runs the `weaver` project |
 | `smelter-conformance` | Builds `@semiont/core`, starts the Qdrant the launcher runs, installs the `tesseract` program, makes the Smelter's Python environment, and runs the `smelter` project |

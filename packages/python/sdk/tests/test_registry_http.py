@@ -279,7 +279,7 @@ def test_a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept(
             storage = MemoryStorage()
             save_knowledge_bases(storage, [registered(gateway, "kb-a")])
             store_session(storage, "kb-a", stored(gateway, token(3600, 1), "r1", ALICE_KEY))
-            storage.set(PLACES, '{"res-1":"p-5"}')
+            storage.set(PLACES, '{"res-1":"p-res-1-5"}')
 
             def resumed_from() -> JsonValue:
                 for subscription in gateway.subscriptions:
@@ -301,12 +301,12 @@ def test_a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept(
                     while not isinstance(await soon(anext(watched)), Ready):
                         pass
                     await until("the stream names the scope", lambda: resumed_from() is not None)
-                    assert resumed_from() == "p-5"
+                    assert resumed_from() == "p-res-1-5"
 
                     # A recorded event of the scope moves the place, and the place is kept once the caches have taken the
                     # event in and written what they hold: an archived resource is asked for again, and its description written.
-                    gateway.send("p-9", {"channel": "mark:archived", "scope": "res-1", "payload": recorded("mark:archived", "res-1")})
-                    await until("the place is kept", lambda: kept_places() == {"res-1": "p-9"})
+                    gateway.send("p-res-1-9", {"channel": "mark:archived", "scope": "res-1", "payload": recorded("mark:archived", "res-1")})
+                    await until("the place is kept", lambda: kept_places() == {"res-1": "p-res-1-9"})
 
     run(scenario())
 

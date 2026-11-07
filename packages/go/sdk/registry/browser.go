@@ -57,12 +57,8 @@ import (
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
-
-// checksAtOnce is how many open resources are checked at once when a session
-// comes up: a connection that has just opened is not handed every check
-// together.
-const checksAtOnce = 4
 
 // failuresBacklog is how many failures a reader of Errors that has fallen
 // behind is kept; it misses those after.
@@ -662,10 +658,14 @@ func kbReadOf(description api.KbDescription, at time.Time) api.KbRead {
 }
 
 // openByKbOf is what is stored of each knowledge base's open resources; none
-// for what does not read as that.
+// for what does not read as that. One entry that is no open resource, or that
+// lacks a member one requires, makes none of it read.
 func openByKbOf(stored string, has bool) map[string][]OpenResource {
-	open := map[string][]OpenResource{}
-	if has && json.Unmarshal([]byte(stored), &open) != nil {
+	if !has {
+		return map[string][]OpenResource{}
+	}
+	open, ok := required.ReadAs[map[string][]OpenResource]([]byte(stored))
+	if !ok {
 		return map[string][]OpenResource{}
 	}
 	return open
@@ -1013,8 +1013,8 @@ func (b *SemiontBrowser) writtenElsewhere(key, value string, has bool) {
 	}
 	switch key {
 	case OpenResourcesByKbKey:
-		var open map[string][]OpenResource
-		if json.Unmarshal([]byte(value), &open) != nil {
+		open, ok := required.ReadAs[map[string][]OpenResource]([]byte(value))
+		if !ok {
 			return
 		}
 		b.mu.Lock()
@@ -1078,7 +1078,7 @@ func (b *SemiontBrowser) validateOpenResources(session *semiont.Session) error {
 	var mu sync.Mutex
 	checks := map[api.ResourceId]TabCheck{}
 	var lanes sync.WaitGroup
-	for range checksAtOnce {
+	for range semiont.DefaultTiming().ChecksAtOnceCount {
 		lanes.Go(func() {
 			for id := range ids {
 				check := checkOpenResource(b.alive, session, id)

@@ -134,15 +134,19 @@ ends the sequences.
 
 Pass `CachePersistence(storage:kbId:personKey:)` (the key from `personKey(_:)`)
 as the client's `persistence` option to keep resource details, annotations, and
-vocabulary in application-provided `SessionStorage` for one person, one key per
-query. The first observation shows the saved value while asking for a current
-one. The HTTP transport resumes saved resource scopes from bookmarks committed
-with the cache. Disposal flushes pending settled values. A registry's session
-keeps for the person once its stored sign-in names them, and forgetting that
-sign-in, however it is forgotten, signing in again included, deletes what was
-kept. A session the SDK builds, `sessionFromKept` with a storage too, writes
-only while the sign-in it holds names its person; a client you construct with a
-`CachePersistence` of your own writes unchecked.
+vocabulary in application-provided `SessionStorage` for one person. Each kept
+query is one document under `semiont.cache.<kbId>.<personKey>.<query>`, in the
+form every Semiont SDK reads, so a client in another language finds what this
+one kept. The first observation shows the saved value while asking for a
+current one. Where the stream was is kept under
+`semiont.lastEventId.<kbId>.<personKey>`, and the HTTP transport resumes each
+resource scope from it; it is written beside a cache's document only while
+nothing kept is still being fetched or saved. Disposal flushes pending settled
+values. A registry's session keeps for the person once its stored sign-in names
+them, and forgetting that sign-in, however it is forgotten, signing in again
+included, deletes what was kept. A session the SDK builds, `sessionFromKept`
+with a storage too, writes only while the sign-in it holds names its person; a
+client you construct with a `CachePersistence` of your own writes unchecked.
 
 ## Signing in and managing a session
 
@@ -161,8 +165,8 @@ launcher’s directory from values the application supplies; it reads no environ
 `sessionFromKept` returns an `OpenedSession`, which owns the session and its HTTP
 transport. Dispose that owner before shutting down the HTTP client. The session’s
 `ready()` raises startup task failures; `errors()` reports session, transport and
-storage failures. Pass `onError` to hear diagnostics from the start of construction,
-including before the factory returns. Startup is bounded, overlapping refusals share one renewal, and a failed
+storage failures. Pass `onError` to hear the session’s own `SessionError`s from the start of
+construction, including before the factory returns. Startup is bounded, overlapping refusals share one renewal, and a failed
 network renewal keeps the stored sign-in for another attempt. The transport tells the session the token refused:
 a refusal of a token the session has already replaced is given the token it holds, and renews nothing. Session token and
 user state are read-only, and their sequences finish on disposal.
@@ -249,6 +253,10 @@ transport, and `ScriptedSessions` with `SharedStorage` for registry tests.
 `assertLivenessAxioms` checks outputs, settlements, and retry budgets over
 repeatable fault schedules. `assertExactlyOnceDelivery` checks event order
 and count across interleaved writes and connection transitions.
+`ScriptedTransport` keeps no deadline: a dropped reply never comes, and the
+client's bus fails the request at its own. A `LivenessSpec`'s `timeout` is the
+time its composition gives a bus request, so its `setup` builds the client with
+that many milliseconds as its `busRequestTimeoutMs`.
 
 Every maker that waits takes a `clock:` (any `Clock` whose duration is
 `Duration`, `ContinuousClock()` when none is given), and every maker that backs
@@ -276,7 +284,12 @@ history, resource lists, engines with limits, entity types and tag schemas.
 Match offers live resource search results, and Gather offers live incoming
 references.
 
-`client.wire` sends typed generated `Channels` and `Operations`. `frames` on a
+`client.wire` sends typed generated `Channels` and `Operations`. A request
+waits for its reply for `busRequestTimeoutMs` (`SemiontClient(busRequestTimeoutMs:)`,
+the timing table's value when none is given), or for the `timeoutMs:` its caller
+gives, on the client's clock and over any transport, and then fails as
+`busTimeout`. A worker's claim waits its `claimTimeoutMs`, and a held job's
+commit its `commitTimeoutMs`, the same way. `frames` on a
 `ScopedChannel` requires a resource and holds that resource only while the read
 is alive. Breaking, cancellation, completion or disposal releases the hold.
 A `Typed` sequence gives `Heard.delivered` with its original `ReceivedFrame`,
@@ -293,7 +306,9 @@ wire frames are bridged into it. Every listener starts when asked for and keeps
 every subsequent event. `dispose()` cancels the bridge, disposes the transport
 once and finishes listeners. Custom transports can supply read-only state via
 `Watched(initial, updates:)`, events via `Events`, and scoped release via
-`ResourceHold` without a concurrency escape.
+`ResourceHold` without a concurrency escape. A transport's
+`request(operation:payload:)` keeps no deadline: the bus that asks keeps it, and
+gives a request up by cancelling its task, which the transport ends.
 
 The HTTP transport uses the caller's AsyncHTTPClient `HTTPClient` for every request. Its default proxy setting is `nil`; it does not read proxy environment variables. Callers configure trust and proxies on that client and shut it down after disposing the transport. The SDK reads only `SEMIONT_BUS_LOG`.
 

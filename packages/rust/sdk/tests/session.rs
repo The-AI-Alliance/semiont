@@ -218,6 +218,7 @@ impl World {
             on_error: Some(Arc::new(move |error| {
                 errors.lock().expect("errors").push(error);
             })),
+            random: None,
         }
     }
 

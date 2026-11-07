@@ -360,17 +360,15 @@ public sealed class ClockCasesTests
     private static Task<Subject> SaveDebounceAsync(JsonElement given, Case play)
     {
         var saves = new Saves();
-        var http = play.Keep(new HttpClient(new Gateway(StreamAnswer.Holds, null)) { Timeout = Timeout.InfiniteTimeSpan });
-        var transport = play.Keep(new HttpTransport(GatewayUrl, "a-token", [], httpClient: http, timeProvider: play.Clock, random: play.Random));
         var person = Registry.RegistryStorage.PersonKey(UserId.Parse("did:web:example.org:users:alice"));
-        var storage = play.Keep(new LiveCacheStorage(new CachePersistence(saves, "kb-a", person), play.Clock));
-        var cache = play.Keep(new Cache<string, int>((key, _) => throw new CaseFailed($"a cache that is only written fetched {key}"), null,
-            play.Clock, TimeSpan.FromMilliseconds(ProtocolFacts.Timing("invalidationWindowMs").GetInt32()), storage.Changed, () => storage.Pending));
-        storage.Start(transport, [cache.PersistAs("values")]);
+        var storage = play.Keep(new LiveCacheStorage(new CachePersistence(saves, "kb-a", person), play.Clock, () => false));
+        var cache = play.Keep(new Cache<ResourceId, ResourceDescriptor>((key, _) => throw new CaseFailed($"a cache that is only written fetched {key}"), null,
+            play.Clock, TimeSpan.FromMilliseconds(ProtocolFacts.Timing("invalidationWindowMs").GetInt32()), storage.Changed("resource")));
+        storage.Start([storage.Keep("resource", cache, KeptKeys.ByResource<ResourceDescriptor>())], _ => { });
         var changes = 0;
         return Task.FromResult(new Subject(() => saves.Count, () =>
         {
-            cache.Set("a key", ++changes);
+            cache.Set(Resource, Read<ResourceDescriptor>($$"""{"@context":"https://schema.org/","@id":"res-1","name":"{{++changes}}","representations":[]}"""));
             return Task.CompletedTask;
         }));
     }

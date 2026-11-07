@@ -552,7 +552,7 @@ func TestARegistrysSessionResumesItsStreamFromThePlaceItsStorageKept(t *testing.
 	// The sign-in names nobody yet: the place is restored once the gateway
 	// names the person it was kept for.
 	places := semiont.LastEventIDKey("kb-a", alicesKey)
-	must(t, storage.Set(places, `{"res-1":"p-5"}`))
+	must(t, storage.Set(places, `{"res-1":"p-res-1-5"}`))
 	browser := s.browser(t, storage)
 	session := liveOver(t, browser)
 
@@ -564,17 +564,17 @@ func TestARegistrysSessionResumesItsStreamFromThePlaceItsStorageKept(t *testing.
 		}
 	}()
 	until(t, "the stream names the scope", func() bool { _, named := s.resumedFrom("res-1"); return named })
-	if from, _ := s.resumedFrom("res-1"); from == nil || *from != "p-5" {
+	if from, _ := s.resumedFrom("res-1"); from == nil || *from != "p-res-1-5" {
 		t.Errorf("the stream resumes the scope from %v", from)
 	}
 
 	// A recorded event of the scope moves the place, and the place is kept
 	// once the caches have taken the event in and written what they hold:
 	// an archived resource is asked for again, and its description written.
-	s.send("p-9", `{"channel":"mark:archived","scope":"res-1","payload":{"id":"0e2f8c0a-4a34-4a8e-9b47-0d6d5a3f8a11","type":"mark:archived","timestamp":"2026-10-27T12:00:00.000Z","userId":"did:web:example.org:users:alice","resourceId":"res-1","version":1,"metadata":{"sequenceNumber":9},"payload":{}}}`)
+	s.send("p-res-1-9", `{"channel":"mark:archived","scope":"res-1","payload":{"id":"0e2f8c0a-4a34-4a8e-9b47-0d6d5a3f8a11","type":"mark:archived","timestamp":"2026-10-27T12:00:00.000Z","userId":"did:web:example.org:users:alice","resourceId":"res-1","version":1,"metadata":{"sequenceNumber":9},"payload":{}}}`)
 	until(t, "the place is kept", func() bool {
 		kept, _ := storage.Get(places)
 		var held map[string]string
-		return json.Unmarshal([]byte(kept), &held) == nil && reflect.DeepEqual(held, map[string]string{"res-1": "p-9"})
+		return json.Unmarshal([]byte(kept), &held) == nil && reflect.DeepEqual(held, map[string]string{"res-1": "p-res-1-9"})
 	})
 }

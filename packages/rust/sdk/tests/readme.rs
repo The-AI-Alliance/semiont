@@ -632,9 +632,10 @@ async fn the_application_renders_the_annotation_being_composed_in_the_active_kno
     .expect("stored");
     let clients: Arc<Mutex<Vec<Arc<SemiontClient>>>> = Arc::default();
     let factory = Keeping {
-        sessions: ScriptedSessions::answering(|_, operation, payload| {
-            a_knowledge_base(operation, payload)
-        }),
+        sessions: ScriptedSessions::answering(
+            |_, operation, payload| a_knowledge_base(operation, payload),
+            None,
+        ),
         clients: clients.clone(),
     };
     let (rendered, mut renders) = mpsc::unbounded_channel();

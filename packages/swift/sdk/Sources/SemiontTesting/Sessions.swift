@@ -9,7 +9,7 @@ public struct TestSessionOptions: Sendable {
   public let validate: @Sendable (String) async throws -> UserResponse
   public let renew: @Sendable (String?) async throws -> String?
   public let onAuthFailed: (@Sendable (SessionEndReason) -> Void)?
-  public let onError: (@Sendable (any Error) -> Void)?
+  public let onError: (@Sendable (SessionError) -> Void)?
 
   public init(
     kb: KbTarget, kept: any SignInKept = MemorySignIn(),
@@ -22,7 +22,7 @@ public struct TestSessionOptions: Sendable {
     },
     renew: @escaping @Sendable (String?) async throws -> String? = { _ in nil },
     onAuthFailed: (@Sendable (SessionEndReason) -> Void)? = nil,
-    onError: (@Sendable (any Error) -> Void)? = nil
+    onError: (@Sendable (SessionError) -> Void)? = nil
   ) {
     self.kb = kb
     self.kept = kept

@@ -36,9 +36,18 @@ from semiont.channels import BRIDGED_CHANNELS, CHANNELS, RESOURCE_SCOPED_CHANNEL
 from semiont.client import ClientTiming, SemiontClient
 from semiont.errors import BusRequestError
 from semiont.identifiers import AnnotationId
-from semiont.refresh import CACHE_QUERIES, CACHE_REFRESH, CacheQuery, CacheRefresh, CacheRefreshReach, CacheRefreshTrigger
+from semiont.refresh import (
+    CACHE_QUERIES,
+    CACHE_REFRESH,
+    CACHE_REFRESH_CHANNELS,
+    CacheQuery,
+    CacheRefresh,
+    CacheRefreshReach,
+    CacheRefreshTrigger,
+    CacheRefreshWhen,
+)
 from semiont.testing import ContentCall, FaultyTransport, GetAnnotations, InMemoryContent, StubGateway
-from semiont.transport import Frame
+from semiont.transport import Frame, FrameRefusal
 from semiont.types import Annotation
 
 type Client = SemiontClient[FaultyTransport]
@@ -85,7 +94,9 @@ def read_named(call: ContentCall) -> str:
     return "getAnnotations"
 
 
-async def asked_after(transport: FaultyTransport, content: InMemoryContent | SilentContent, cause: Frame | None) -> Counter[str]:
+async def asked_after(
+    transport: FaultyTransport, content: InMemoryContent | SilentContent, cause: Frame | FrameRefusal | None
+) -> Counter[str]:
     """How often each operation is asked, and each read of `content` made, once `cause` is delivered: or, with none, once the stream
     has dropped and reopened."""
     before, read_before = len(transport.emitted), len(content.calls)
@@ -121,6 +132,20 @@ def expected(queries: Sequence[CacheQuery], reach: CacheRefreshReach) -> Counter
 
 ROWS = [(trigger, row) for trigger, rows in CACHE_REFRESH.items() for row in rows]
 
+UNREADABLE = Frame(channel="mark:added", payload={"not": "a recorded event"})
+"""An event on a channel of the table that its reading refuses."""
+
+
+def cause_of(trigger: CacheRefreshTrigger, when: CacheRefreshWhen | None) -> Frame | None:
+    """What makes `trigger` happen: an event, or, for the stream's reopening, none, since `asked_after` drops and reopens it."""
+    match trigger:
+        case "reopened":
+            return None
+        case "unreadable":
+            return UNREADABLE
+        case _:
+            return event(trigger, when)
+
 
 @pytest.mark.parametrize(("trigger", "row"), ROWS, ids=[f"{trigger}{'' if row.when is None else ' ' + row.when}" for trigger, row in ROWS])
 def test_each_row_of_the_refresh_table_does_what_it_states_to_what_is_held(trigger: CacheRefreshTrigger, row: CacheRefresh) -> None:
@@ -132,8 +157,7 @@ def test_each_row_of_the_refresh_table_does_what_it_states_to_what_is_held(trigg
             one = await watched(held, client.browse.annotation(RESOURCE, ANNOTATION))
             listed = await watched(held, client.browse.annotations(RESOURCE))
 
-            cause = None if trigger == "reopened" else event(trigger, row.when)
-            assert await asked_after(transport, content, cause) == expected(row.refetches, row.reach)
+            assert await asked_after(transport, content, cause_of(trigger, row.when)) == expected(row.refetches, row.reach)
 
             written = Annotation.model_validate(annotation(ANNOTATION, RESOURCE, modified="2026-10-06T01:00:00.000Z"))
             if "annotation" in row.writes:
@@ -152,11 +176,10 @@ def test_each_row_of_the_refresh_table_does_what_it_states_to_what_is_held(trigg
     run(scenario())
 
 
-def test_every_trigger_but_the_reopening_is_a_channel_a_client_hears() -> None:
-    events = [trigger for trigger in CACHE_REFRESH if trigger != "reopened"]
-    assert events
-    for trigger in events:
-        assert trigger in CHANNELS
+def test_the_triggers_that_are_channels_are_channels_a_client_hears() -> None:
+    assert CACHE_REFRESH_CHANNELS
+    assert list(CACHE_REFRESH_CHANNELS) == [trigger for trigger in CACHE_REFRESH if trigger in CHANNELS]
+    for trigger in CACHE_REFRESH_CHANNELS:
         assert trigger in BRIDGED_CHANNELS or trigger in RESOURCE_SCOPED_CHANNELS, trigger
     assert set(ASKS) == set(CACHE_QUERIES)
 
@@ -232,9 +255,8 @@ def test_b20_an_event_asks_again_only_for_what_the_cache_holds() -> None:
         client, transport, _ = world(window_ms=0)
         async with client, AsyncExitStack() as held:
             # Nothing is held: no event of any kind asks for anything.
-            for trigger in CACHE_REFRESH:
-                if trigger != "reopened":
-                    transport.deliver(event(trigger))
+            for trigger in CACHE_REFRESH_CHANNELS:
+                transport.deliver(event(trigger))
             transport.set_state("reconnecting")
             await turns()
             transport.set_state("open")
@@ -281,18 +303,53 @@ def test_b20_a_key_that_is_failed_or_being_fetched_is_held() -> None:
     run(scenario())
 
 
-def test_an_event_that_cannot_be_read_asks_again_for_everything_held() -> None:
+UNREADABLES: dict[str, Frame | FrameRefusal] = {
+    "its channel's reading refuses it": UNREADABLE,
+    "its transport refused it": FrameRefusal(
+        channel="mark:added", member="payload", reason="malformed", payload="not an event", scope=None, correlation_id=None
+    ),
+    "the annotation it names is no id": Frame(
+        channel="mark:removed", payload=recorded("mark:removed", RESOURCE, {"annotationId": "not an id"}), scope=RESOURCE
+    ),
+    "the annotation it names is no text": Frame(
+        channel="mark:body-updated", payload=recorded("mark:body-updated", RESOURCE, {"annotationId": 7}), scope=RESOURCE
+    ),
+}
+
+
+@pytest.mark.parametrize("unreadable", list(UNREADABLES.values()), ids=list(UNREADABLES))
+def test_an_event_that_cannot_be_read_asks_again_for_everything_held(unreadable: Frame | FrameRefusal) -> None:
     async def scenario() -> None:
         client, transport, content = world()
         async with client, AsyncExitStack() as held:
             for query in everything(client):
                 await watched(held, query)
             # Something changed and nothing says what.
-            unreadable = Frame(channel="mark:added", payload={"not": "a recorded event"})
-            assert await asked_after(transport, content, unreadable) == expected(CACHE_QUERIES, "held")
+            (row,) = CACHE_REFRESH["unreadable"]
+            assert await asked_after(transport, content, unreadable) == expected(row.refetches, row.reach)
             # And a frame on a channel that is no trigger asks for nothing.
             focused = Frame(channel="beckon:focus", payload={"resourceId": RESOURCE, "annotationId": ANNOTATION})
             assert await asked_after(transport, content, focused) == Counter()
+
+    run(scenario())
+
+
+def test_an_event_that_leaves_out_a_member_its_row_names_names_none_there() -> None:
+    async def scenario() -> None:
+        client, transport, content = world()
+        async with client, AsyncExitStack() as held:
+            for query in everything(client):
+                await watched(held, query)
+            one = await watched(held, client.browse.annotation(RESOURCE, ANNOTATION))
+            # A removal that does not say which annotation: what it names of its resource is asked for again, and no annotation ends.
+            unnamed = Frame(channel="mark:removed", payload=recorded("mark:removed", RESOURCE), scope=RESOURCE)
+            (row,) = CACHE_REFRESH["mark:removed"]
+            assert await asked_after(transport, content, unnamed) == expected(row.refetches, row.reach)
+            # The next it is told is the annotation an event carries, and not that it is gone.
+            transport.deliver(event("mark:body-updated", "enriched"))
+            assert await soon(anext(one)) == Ready(
+                Annotation.model_validate(annotation(ANNOTATION, RESOURCE, modified="2026-10-06T01:00:00.000Z"))
+            )
 
     run(scenario())
 

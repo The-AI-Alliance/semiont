@@ -17,7 +17,7 @@ public actor SemiontSession: StateUnit {
   private let renew: @Sendable (String?) async throws -> String?
   private let validate: @Sendable (String) async throws -> UserResponse
   private let publish: @Sendable (String?) async -> Void
-  private nonisolated let onError: (@Sendable (any Error) -> Void)?
+  private nonisolated let onError: (@Sendable (SessionError) -> Void)?
   private let onAuthFailed: (@Sendable (SessionEndReason) -> Void)?
   private let reconnectMs: Int
   private let random: RandomSource
@@ -37,7 +37,7 @@ public actor SemiontSession: StateUnit {
     publish: @escaping @Sendable (String?) async -> Void = { _ in },
     reconnectMs: Int = Timings.reconnectMs, random: RandomSource,
     onAuthFailed: (@Sendable (SessionEndReason) -> Void)? = nil,
-    onError: (@Sendable (any Error) -> Void)? = nil
+    onError: (@Sendable (SessionError) -> Void)? = nil
   ) {
     self.kb = kb
     self.client = client
@@ -69,10 +69,11 @@ public actor SemiontSession: StateUnit {
   }
   deinit { lifetime.end() }
   public nonisolated func dispose() { lifetime.end() }
-  nonisolated func report(_ error: any Error) {
+  nonisolated func failed(_ error: SessionError) {
     failures.yield(error)
     onError?(error)
   }
+  nonisolated func relay(_ error: any Error) { failures.yield(error) }
   public nonisolated func errors() -> Events<any Error> { failures.listen() }
   public nonisolated func expiresAt() -> Double? { token.value.flatMap(tokenExpiry) }
   package func start() {
@@ -173,7 +174,7 @@ public actor SemiontSession: StateUnit {
           }
         } else {
           unanswered = true
-          report(
+          failed(
             SessionError(
               startup ? .sessionAuthFailed : .sessionRefreshExhausted,
               "The issuer did not renew the token", kbId: kb.id))
@@ -194,10 +195,13 @@ public actor SemiontSession: StateUnit {
     }
     await setToken(nil)
     if !lifetime.ended { user.set(nil) }
-    do { try await forget() } catch { report(error) }
+    var why = "Session ended: " + reason.rawValue
+    do { try await forget() } catch {
+      why += "; and the sign-in could not be forgotten: \(error)"
+    }
     guard !lifetime.ended else { return }
     onAuthFailed?(reason)
-    report(SessionError(code, "Session ended: " + reason.rawValue, kbId: kb.id))
+    failed(SessionError(code, why, kbId: kb.id))
   }
   private func begin() async throws {
     guard let found = try await kept.held() else { return }
@@ -240,14 +244,14 @@ public actor SemiontSession: StateUnit {
         justIssued = true
       } catch {
         if Task.isCancelled { throw CancellationError() }
-        report(
+        failed(
           SessionError(
             .sessionAuthFailed, "The gateway did not confirm the credential", kbId: kb.id))
         return
       }
     }
     if !lifetime.ended {
-      report(SessionError(.sessionAuthFailed, "The credential changed during startup", kbId: kb.id))
+      failed(SessionError(.sessionAuthFailed, "The credential changed during startup", kbId: kb.id))
     }
   }
   private func schedule() {
@@ -275,7 +279,7 @@ public actor SemiontSession: StateUnit {
         try await wait()
         guard !life.ended, let self else { return }
         try await self.due()
-      } catch is CancellationError {} catch { self?.report(error) }
+      } catch is CancellationError {} catch { self?.relay(error) }
     }
     scheduled = id
     life.keep(task, id: id)

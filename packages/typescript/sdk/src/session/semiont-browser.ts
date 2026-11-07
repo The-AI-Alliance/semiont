@@ -25,13 +25,14 @@
 import { BehaviorSubject, Subject, map, type Observable } from 'rxjs';
 import {
   BusRequestError,
+  CHECKS_AT_ONCE_COUNT,
   EventBus,
   FrameRefusal,
   getPrimaryRepresentation,
   kbDid,
-  resourceId,
   type EventMap,
   type KbDescription,
+  type ResourceId,
 } from '@semiont/core';
 import {
   ACTIVE_KEY,
@@ -715,11 +716,11 @@ export class SemiontBrowser {
     const ids = (openResourcesByKbOf(this.storage.get(OPEN_RESOURCES_BY_KB_KEY))[kbId] ?? []).map((tab) => tab.id);
     if (ids.length === 0) return;
 
-    const checks = new Map<string, TabCheck>();
+    const checks = new Map<ResourceId, TabCheck>();
     // Bounded concurrency. Tab counts are small, so a fixed lane count
     // beats any cleverer scheduler; the point is to not open N requests at
     // once on a connection that just came up.
-    const lanes = Array.from({ length: Math.min(4, ids.length) }, async () => {
+    const lanes = Array.from({ length: Math.min(CHECKS_AT_ONCE_COUNT, ids.length) }, async () => {
       for (;;) {
         const id = ids.shift();
         if (id === undefined) return;
@@ -730,7 +731,7 @@ export class SemiontBrowser {
 
     // Logged, not surfaced — and aggregated, because an activation while
     // the archivist is down would otherwise emit one line per tab.
-    const inconclusive = [...checks.values()].filter((c) => c.kind === 'unknown').length;
+    const inconclusive = [...checks.values()].filter((c) => c.verdict === 'unknown').length;
     if (inconclusive > 0) {
       // eslint-disable-next-line no-console
       console.debug(
@@ -830,18 +831,18 @@ export class SemiontBrowser {
    * Only `bus.not-found` removes. It is a verdict from the event
    * store, which is the system of record; everything else is a symptom.
    */
-  private async checkOpenResource(session: SemiontSession, id: string): Promise<TabCheck> {
+  private async checkOpenResource(session: SemiontSession, id: ResourceId): Promise<TabCheck> {
     try {
-      const descriptor = await session.client.browse.resource(resourceId(id)).fresh();
+      const descriptor = await session.client.browse.resource(id).fresh();
       const name = descriptor.name;
       const mediaType = getPrimaryRepresentation(descriptor)?.mediaType;
-      return { kind: 'ready', name, ...(mediaType ? { mediaType } : {}) };
+      return { verdict: 'ready', name, ...(mediaType ? { mediaType } : {}) };
     } catch (error) {
       if (error instanceof BusRequestError && error.code === 'bus.not-found') {
-        return { kind: 'gone' };
+        return { verdict: 'gone' };
       }
       // Anything else: the tab stays. A transport fault is not a verdict.
-      return { kind: 'unknown' };
+      return { verdict: 'unknown' };
     }
   }
 
@@ -882,7 +883,7 @@ export class SemiontBrowser {
   }
 
   addOpenResource(
-    id: string,
+    id: ResourceId,
     name: string,
     mediaType?: string,
     storageUri?: string,
@@ -906,21 +907,20 @@ export class SemiontBrowser {
         id,
         name,
         openedAt: Date.now(),
-        // max+1, not length: after removals, length can collide with a
-        // surviving order (e.g. [0,2] + add), leaving placement to sort
-        // stability.
-        order: existing.reduce((m, r) => Math.max(m, r.order ?? -1), -1) + 1,
+        // max+1, not the count: after a close, the count can be a place
+        // still taken (e.g. [0,2] + add), and a place is never given twice.
+        order: existing.reduce((m, r) => Math.max(m, r.order), -1) + 1,
         ...(mediaType !== undefined ? { mediaType } : {}),
         ...(storageUri !== undefined ? { storageUri } : {}),
       }];
     });
   }
 
-  removeOpenResource(id: string): void {
+  removeOpenResource(id: ResourceId): void {
     this.mutateOpenResources((existing) => existing.filter((r) => r.id !== id));
   }
 
-  updateOpenResourceName(id: string, name: string): void {
+  updateOpenResourceName(id: ResourceId, name: string): void {
     this.mutateOpenResources((existing) =>
       existing.map((r) => (r.id === id ? { ...r, name } : r)),
     );

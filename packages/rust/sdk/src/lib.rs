@@ -70,7 +70,7 @@ use std::sync::{Mutex, MutexGuard};
 
 /// What `mutex` guards. A holder that panicked left it as it was, and it is
 /// read as it is: nothing here is left half-written across a panic.
-pub(crate) fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(crate) fn locked<T: ?Sized>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())

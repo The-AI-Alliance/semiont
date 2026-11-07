@@ -712,6 +712,7 @@ impl SessionFactory for ClosingSessions {
             validate: None,
             on_auth_failed: None,
             on_error: Some(options.on_error),
+            random: None,
         }))
     }
 
@@ -798,7 +799,7 @@ async fn forgotten_by_the_session(
     save_knowledge_bases(storage.as_ref(), &[gateway.kb()]).expect("stored");
     let browser = SemiontBrowser::new(SemiontBrowserConfig {
         storage: storage.clone(),
-        session_factory: Arc::new(HttpSessionFactory::new(gateway.http.clone())),
+        session_factory: Arc::new(HttpSessionFactory::new(gateway.http.clone(), None)),
     })
     .expect("a browser");
     let ended = settled(|| stored_session(storage.as_ref(), KB).is_none()).await;
@@ -901,7 +902,7 @@ async fn started(cases: &Value, row: &Value) -> Vec<String> {
     store_session(storage.as_ref(), KB, &sign_in(1, named)).expect("stored");
     let recorded_now = || stored_session(storage.as_ref(), KB).and_then(|stored| stored.person_key);
 
-    let session = HttpSessionFactory::new(gateway.http.clone())
+    let session = HttpSessionFactory::new(gateway.http.clone(), None)
         .session(SessionFactoryOptions {
             kb: gateway.kb(),
             storage: storage.clone(),
@@ -1055,7 +1056,7 @@ async fn across(cases: &Value, row: &Value, changed: Changed) -> Vec<String> {
     store_session(storage.as_ref(), KB, &sign_in(1, Some(&jo))).expect("stored");
     let browser = SemiontBrowser::new(SemiontBrowserConfig {
         storage: storage.clone(),
-        session_factory: Arc::new(HttpSessionFactory::new(gateway.http.clone())),
+        session_factory: Arc::new(HttpSessionFactory::new(gateway.http.clone(), None)),
     })
     .expect("a browser");
     let session = live(&browser).await;
@@ -1220,7 +1221,7 @@ async fn a_save_being_written_as_the_session_forgets_its_sign_in_is_not_left_aft
     )
     .expect("stored");
     let session = Arc::new(
-        HttpSessionFactory::new(gateway.http.clone())
+        HttpSessionFactory::new(gateway.http.clone(), None)
             .session(SessionFactoryOptions {
                 kb: gateway.kb(),
                 storage: storage.clone(),

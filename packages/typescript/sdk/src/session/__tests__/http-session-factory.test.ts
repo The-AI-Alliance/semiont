@@ -11,9 +11,9 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { filter, firstValueFrom, map, take } from 'rxjs';
-import { PERSISTED_QUERIES, resourceId, type ResourceDescriptor } from '@semiont/core';
+import { PERSISTED_QUERIES, resourceId } from '@semiont/core';
 import { isReady } from '../../cache';
-import { sessionStoragePersister } from '../../cache-persister';
+import { keptPersister } from '../../cache-persister';
 import { mockResource } from '../../__tests__/fixtures/resource';
 import { createHttpSessionFactory } from '../http-session-factory';
 import { createSessionSignals } from '../session-signals';
@@ -206,8 +206,8 @@ describe('a session over HTTP whose gateway names its person only after it has s
   it("records the person on the stored sign-in when a renewal's ask names them, and reads what is kept for them then", async () => {
     const storage = new SharedStorage();
     const alice = personKey(ALICE.did);
-    sessionStoragePersister<string, ResourceDescriptor>({ storage, storageKey: cacheKey(KB.id, alice, 'resource'), version: 1 })
-      .save(new Map([['res-1', mockResource('res-1', { name: 'kept' })]]));
+    keptPersister('resource', { storage, kbId: KB.id, personKey: alice })
+      .save(new Map([[resourceId('res-1'), mockResource('res-1', { name: 'kept' })]]));
     storage.set(sessionKey(KB.id), JSON.stringify(testSession(freshJwt(), 'r')));
     let reachable = false;
     const gateway = fakeGateway({

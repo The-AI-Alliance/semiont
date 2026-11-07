@@ -26,11 +26,9 @@ from tokens import expired, token
 
 from semiont.errors import TransportError
 from semiont.identifiers import ResourceId
-from semiont.refresh import PERSISTED_QUERIES
 from semiont.registry import (
     Expected,
     KbReadVerdict,
-    OpenResource,
     SemiontBrowser,
     SemiontBrowserConfig,
     SessionFactory,
@@ -50,9 +48,11 @@ from semiont.session_signals import KbIdentityConflict, PermissionDenied, Sessio
 from semiont.storage import MemoryStorage, SessionStorage
 from semiont.stored import (
     ACTIVE_KEY,
+    KEPT_QUERIES,
     KNOWLEDGE_BASES_KEY,
     LAST_VIEWED_RESOURCE_BY_KB_KEY,
     OPEN_RESOURCES_BY_KB_KEY,
+    OpenResource,
     StoredSession,
     cache_key,
     kb_of_session_key,
@@ -426,7 +426,7 @@ def test_a_renewal_is_kept_against_what_is_stored_then() -> None:
 def test_a_new_sign_in_kept_in_a_registrys_storage_forgets_what_was_kept_for_the_person_the_one_it_replaces_named() -> None:
     async def scenario() -> None:
         storage = MemoryStorage()
-        theirs = [last_event_id_key(KB_A, JO), *(cache_key(KB_A, JO, query) for query in PERSISTED_QUERIES)]
+        theirs = [last_event_id_key(KB_A, JO), *(cache_key(KB_A, JO, query) for query in KEPT_QUERIES)]
         others = [
             last_event_id_key(KB_A, ANN),
             cache_key(KB_A, ANN, "resource"),

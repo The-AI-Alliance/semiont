@@ -7,6 +7,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
@@ -20,19 +21,23 @@ import kotlinx.serialization.json.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.cache.CacheQuery
+import semiont.cache.CacheRefreshTrigger
 import semiont.cache.CacheState
 import semiont.cache.PERSISTED_QUERIES
 import semiont.errors.BusRequestError
 import semiont.namespaces.EngineWithLimits
 import semiont.registry.cacheKey
+import semiont.registry.lastEventIdKey
 import semiont.sameJson
 import semiont.storage.CachePersistence
+import semiont.storage.CoupledBookmarks
 import semiont.storage.MemoryStorage
 import semiont.storage.SessionStorage
 import semiont.transport.Frame
@@ -300,7 +305,7 @@ class LiveQueriesTest {
     }
 
     @Test
-    fun aClientThatKeepsNothingIsAlwaysSettled() = runTest {
+    fun aClientThatKeepsNothingIsSettledWhileItFetches() = runTest {
         val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource)
         val reading = async { world.client.browse.resource(RESOURCE).fresh() }
         assertTrue(world.client.persistenceSettled)
@@ -334,6 +339,68 @@ class LiveQueriesTest {
                 assertEquals(query !in KEPT, client.persistenceSettled)
                 reading.cancel()
                 world.close()
+            }
+        }
+    }
+
+    @Test
+    fun aClientIsNotSettledWhileAnEventsRefetchIsOwed() = runTest {
+        val window = 400L
+        val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, windowMs = window, persistence = CachePersistence(MemoryStorage(), KB, PERSON))
+        val client = world.client
+        fun asked() = world.kb.askedFor("browse:events-requested").size
+        // A query the client does not keep, held: an event's refetch of it is owed as any is.
+        world.watch(client.browse.events(RESOURCE)).ready()
+        // The first event's refetch runs at once, and opens the key's window: nothing is owed.
+        world.kb.deliver(event(CacheRefreshTrigger.MarkAdded))
+        eventually { asked() == 2 }
+        assertTrue(client.persistenceSettled)
+        // One more inside the window is owed until the window closes.
+        world.kb.deliver(event(CacheRefreshTrigger.MarkAdded))
+        delay(100)
+        assertEquals(2, asked())
+        assertFalse(client.persistenceSettled)
+        eventually { asked() == 3 }
+        assertTrue(client.persistenceSettled)
+        world.close()
+    }
+
+    @TestFactory
+    fun closingWritesWhatIsOwedAndKeepsWhereTheStreamWasOnlyIfNoRefetchWasOwedWhenItBegan(): List<DynamicTest> = listOf(false, true).map { owed ->
+        DynamicTest.dynamicTest(if (owed) "a refetch owed" else "nothing owed") {
+            runTest {
+                val storage = MemoryStorage()
+                val document = cacheKey(KB, PERSON, CacheQuery.Resource.wire)
+                // The stream goes on while the client closes: a place it notes then, once the client has read what
+                // closing drops and before closing's write of the document, is of an event whose refetch closing drops.
+                var closing = false
+                lateinit var places: CoupledBookmarks
+                val noting = object : SessionStorage by storage {
+                    override fun set(key: String, value: String) {
+                        if (closing && key == document) places.save(RESOURCE, "p-res-1-8")
+                        storage.set(key, value)
+                    }
+                }
+                places = CoupledBookmarks(noting, lastEventIdKey(KB, PERSON))
+                val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, windowMs = 400, persistence = CachePersistence(places.storage, KB, PERSON))
+                val client = world.client
+                // As a session wires them.
+                client.keepPlacesIn(places)
+                world.watch(client.browse.resource(RESOURCE)).ready()
+                delay(semiont.Timings.SAVE_DEBOUNCE_MS * 2)
+                // An event of the resource: its refetch runs at once and opens the key's window, and one more inside it is owed.
+                world.kb.deliver(event(CacheRefreshTrigger.YieldUpdated))
+                if (owed) world.kb.deliver(event(CacheRefreshTrigger.YieldUpdated))
+                runCurrent()
+                assertEquals(2, world.kb.askedFor("browse:resource-requested").size)
+                places.save(RESOURCE, "p-res-1-7")
+                storage.delete(document)
+                closing = true
+                world.close()
+                // The save the refetch's answer owed is made either way; the place noted before closing is kept only when
+                // no refetch was owed, and the one noted as it closed never.
+                assertNotNull(storage.get(document))
+                assertEquals(if (owed) emptyMap() else mapOf(RESOURCE to "p-res-1-7"), CoupledBookmarks(storage, lastEventIdKey(KB, PERSON)).load())
             }
         }
     }

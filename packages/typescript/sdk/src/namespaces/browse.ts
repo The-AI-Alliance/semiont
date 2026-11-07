@@ -19,18 +19,10 @@ import type {
 } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
 import { Bus, BusRequestError, LIMITS_OPERATIONS } from '@semiont/core';
-import { PERSISTED_QUERIES, type CacheQuery, type CacheRefresh, type PersistedQuery } from '@semiont/core';
+import { PERSISTED_QUERIES, type CacheQuery, type CacheRefresh } from '@semiont/core';
 import { CacheRefresher, ScopedSources, type QueryActs, type RefreshSubject } from '../cache-refresh';
 import { createCache, createPersistableCache, type CacheState, type Cache, type PersistableCache } from '../cache';
-import { sessionStoragePersister, type CachePersistence } from '../cache-persister';
-import { cacheKey } from '../session/storage';
-
-/**
- * B17 — serialized-shape version shared by every persisted browse cache.
- * Bump when any persisted value shape changes; stale documents then read
- * as empty and refetch.
- */
-const CACHE_PERSISTENCE_VERSION = 1;
+import { WHOLE_KEY, keptPersister, type CachePersistence, type KeptKey, type KeptQuery, type KeptValue, type WholeKey } from '../cache-persister';
 import type {
   BrowseNamespace as IBrowseNamespace,
   AnnotationHistoryResponse,
@@ -39,15 +31,6 @@ import type {
 } from './types';
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
-
-/** Sentinel key for the singleton entity-types cache. */
-const ENTITY_TYPES_KEY = '_';
-
-/** Sentinel key for the singleton tag-schemas cache. */
-const TAG_SCHEMAS_KEY = '_';
-
-/** Sentinel key for the singleton engines cache. */
-const ENGINES_KEY = '_';
 
 type EngineLimits = components['schemas']['EngineLimits'];
 
@@ -90,9 +73,9 @@ export class BrowseNamespace implements IBrowseNamespace {
    */
   private readonly annotationDetailCache: Cache<AnnotationId, Annotation>;
   private readonly annotationResources = new Map<AnnotationId, ResourceId>();
-  private readonly entityTypesCache: Cache<string, string[]>;
-  private readonly tagSchemasCache: Cache<string, TagSchema[]>;
-  private readonly enginesCache: Cache<string, EngineEntry[]>;
+  private readonly entityTypesCache: Cache<WholeKey, string[]>;
+  private readonly tagSchemasCache: Cache<WholeKey, TagSchema[]>;
+  private readonly enginesCache: Cache<WholeKey, EngineEntry[]>;
   /** Each key holder's limits report, by the operation it answers. */
   private readonly limitsCache: Cache<LimitsOperation, EngineLimits[]>;
   /** The engines, joined with the limits reports as each arrives. */
@@ -155,7 +138,7 @@ export class BrowseNamespace implements IBrowseNamespace {
    * protocol/specs/src/client/refresh.json: given where, it starts keeping
    * them and hands back the cache.
    */
-  private readonly keepers: Record<PersistedQuery, (persistence: CachePersistence, query: PersistedQuery) => { persistencePending(): boolean }>;
+  private readonly keepers: { [Q in KeptQuery]: (persistence: CachePersistence) => Cache<KeptKey<Q>, KeptValue<Q>> };
 
   private readonly wire: Bus;
 
@@ -229,7 +212,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     });
     this.annotationDetailCache = annotation.cache;
 
-    const entityTypes = createPersistableCache<string, string[]>(async () => {
+    const entityTypes = createPersistableCache<WholeKey, string[]>(async () => {
       const result = await this.wire.request(
         'browse:entity-types-requested',
         {},
@@ -239,7 +222,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     });
     this.entityTypesCache = entityTypes.cache;
 
-    const tagSchemas = createPersistableCache<string, TagSchema[]>(async () => {
+    const tagSchemas = createPersistableCache<WholeKey, TagSchema[]>(async () => {
       const result = await this.wire.request(
         'browse:tag-schemas-requested',
         {},
@@ -249,24 +232,20 @@ export class BrowseNamespace implements IBrowseNamespace {
     });
     this.tagSchemasCache = tagSchemas.cache;
 
-    const keeping = <K, V>(made: PersistableCache<K, V>) => (persistence: CachePersistence, query: PersistedQuery): Cache<K, V> => {
-      made.attach(sessionStoragePersister<K, V>({
-        storage: persistence.storage,
-        storageKey: cacheKey(persistence.kbId, persistence.personKey, query),
-        version: CACHE_PERSISTENCE_VERSION,
-      }));
+    const keeping = <Q extends KeptQuery>(query: Q, made: PersistableCache<KeptKey<Q>, KeptValue<Q>>) => (persistence: CachePersistence): Cache<KeptKey<Q>, KeptValue<Q>> => {
+      made.attach(keptPersister(query, persistence));
       return made.cache;
     };
     this.keepers = {
-      resource: keeping(resource),
-      annotations: keeping(annotations),
-      annotation: keeping(annotation),
-      entityTypes: keeping(entityTypes),
-      tagSchemas: keeping(tagSchemas),
+      resource: keeping('resource', resource),
+      annotations: keeping('annotations', annotations),
+      annotation: keeping('annotation', annotation),
+      entityTypes: keeping('entityTypes', entityTypes),
+      tagSchemas: keeping('tagSchemas', tagSchemas),
     };
     if (options?.cachePersistence) this.attachPersistence(options.cachePersistence);
 
-    this.enginesCache = createCache<string, EngineEntry[]>(async () => {
+    this.enginesCache = createCache<WholeKey, EngineEntry[]>(async () => {
       const result = await this.wire.request(
         'browse:engines-requested',
         {},
@@ -285,7 +264,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       this.wire.request(operation, {}, this.busTimeoutMs).then((result) => result.limits, () => []));
 
     this.engines$ = combineLatest([
-      this.enginesCache.observe(ENGINES_KEY),
+      this.enginesCache.observe(WHOLE_KEY),
       ...LIMITS_OPERATIONS.map((operation) => this.limitsCache.observe(operation)),
     ]).pipe(map(([engines, ...reports]): CacheState<EngineWithLimits[]> =>
       engines.status === 'ready'
@@ -341,11 +320,11 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   entityTypes(): CacheObservable<string[]> {
-    return CacheObservable.from(this.entityTypesCache.observe(ENTITY_TYPES_KEY), () => this.entityTypesCache.fetch(ENTITY_TYPES_KEY));
+    return CacheObservable.from(this.entityTypesCache.observe(WHOLE_KEY), () => this.entityTypesCache.fetch(WHOLE_KEY));
   }
 
   tagSchemas(): CacheObservable<TagSchema[]> {
-    return CacheObservable.from(this.tagSchemasCache.observe(TAG_SCHEMAS_KEY), () => this.tagSchemasCache.fetch(TAG_SCHEMAS_KEY));
+    return CacheObservable.from(this.tagSchemasCache.observe(WHOLE_KEY), () => this.tagSchemasCache.fetch(WHOLE_KEY));
   }
 
   /**
@@ -359,7 +338,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   engines(): CacheObservable<EngineWithLimits[]> {
     return CacheObservable.from(this.engines$, async () => {
       const [engines, ...reports] = await Promise.all([
-        this.enginesCache.fetch(ENGINES_KEY),
+        this.enginesCache.fetch(WHOLE_KEY),
         ...LIMITS_OPERATIONS.map((operation) => this.limitsCache.fetch(operation)),
       ]);
       return joinLimits(engines, reports.flat());
@@ -516,26 +495,27 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   invalidateEntityTypes(): void {
-    this.entityTypesCache.invalidate(ENTITY_TYPES_KEY);
+    this.entityTypesCache.invalidate(WHOLE_KEY);
   }
 
   invalidateTagSchemas(): void {
-    this.tagSchemasCache.invalidate(TAG_SCHEMAS_KEY);
+    this.tagSchemasCache.invalidate(WHOLE_KEY);
   }
 
   invalidateEngines(): void {
-    this.enginesCache.invalidate(ENGINES_KEY);
+    this.enginesCache.invalidate(WHOLE_KEY);
     for (const operation of LIMITS_OPERATIONS) this.limitsCache.invalidate(operation);
   }
 
   /**
-   * B17-Q (C1) — true when every persisted cache is quiet: no fetch in
-   * flight, no debounced save pending. The session factory wires this as the
-   * resumption-bookmark flush gate, making the persisted bookmark unable to
-   * lead the persisted content.
+   * B17-Q (C1) — true when every persisted cache is quiet (no fetch in
+   * flight, no debounced save pending) and the refresher owes no refetch (no
+   * B19 window holds an invalidation it has not yet run). The session factory
+   * wires this as the resumption-bookmark flush gate, making the persisted
+   * bookmark unable to lead the persisted content.
    */
   persistenceSettled(): boolean {
-    return this.persistedCaches.every((cache) => !cache.persistencePending());
+    return !this.refresher.owesRefetch() && this.persistedCaches.every((cache) => !cache.persistencePending());
   }
 
   /**
@@ -546,7 +526,7 @@ export class BrowseNamespace implements IBrowseNamespace {
    * the client was made. Once per namespace: a second call throws.
    */
   attachPersistence(persistence: CachePersistence): void {
-    for (const query of PERSISTED_QUERIES) this.persistedCaches.push(this.keepers[query](persistence, query));
+    for (const query of PERSISTED_QUERIES) this.persistedCaches.push(this.keepers[query](persistence));
   }
 
   invalidateResourceEvents(resourceId: ResourceId): void {
@@ -584,9 +564,14 @@ export class BrowseNamespace implements IBrowseNamespace {
    * subscribers detach cleanly; a fetch/retry chain straddling disposal
    * dies quietly in the cache's own disposed guard. Idempotent. Called by
    * `SemiontClient.dispose()`.
+   *
+   * The flushes read the gate as it stood before anything was disposed
+   * (B17-Q): the caches go before the refresher, so they still see the
+   * refetches its windows owe, and a cache whose disposal dropped a fetch
+   * keeps reporting it. Once disposed, a cache is inert to anything the
+   * refresher does before it goes (B16).
    */
   dispose(): void {
-    this.refresher.dispose();
     this.resourceCache.dispose();
     this.resourceListCache.dispose();
     this.annotationListCache.dispose();
@@ -596,6 +581,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.enginesCache.dispose();
     this.limitsCache.dispose();
     this.resourceEventsCache.dispose();
+    this.refresher.dispose();
     this.annotationResources.clear();
     this.resourceListFilters.clear();
     this.annotationListObs.clear();
@@ -638,9 +624,9 @@ export class BrowseNamespace implements IBrowseNamespace {
       events: { refetch: (subject, reach) => resources(this.resourceEventsCache, subject, reach).forEach(this.refetchKey.events) },
       // Its keys are the lists the cache knows: `invalidateAll` reaches no other.
       resources: { refetch: () => this.refresher.windowed('resource-lists', () => this.invalidateResourceLists()) },
-      entityTypes: { refetch: () => this.refresher.held(this.entityTypesCache, ENTITY_TYPES_KEY, 'entity-types', () => this.invalidateEntityTypes()) },
-      tagSchemas: { refetch: () => this.refresher.held(this.tagSchemasCache, TAG_SCHEMAS_KEY, 'tag-schemas', () => this.invalidateTagSchemas()) },
-      engines: { refetch: () => this.refresher.held(this.enginesCache, ENGINES_KEY, 'engines', () => this.invalidateEngines()) },
+      entityTypes: { refetch: () => this.refresher.held(this.entityTypesCache, WHOLE_KEY, 'entityTypes', () => this.invalidateEntityTypes()) },
+      tagSchemas: { refetch: () => this.refresher.held(this.tagSchemasCache, WHOLE_KEY, 'tagSchemas', () => this.invalidateTagSchemas()) },
+      engines: { refetch: () => this.refresher.held(this.enginesCache, WHOLE_KEY, 'engines', () => this.invalidateEngines()) },
     };
   }
 

@@ -31,6 +31,7 @@ import semiont.errors.SemiontError
 import semiont.errors.TransportError
 import semiont.errors.TransportErrorCode
 import semiont.identifiers.ResourceId
+import semiont.registry.isPersistedEventId
 import semiont.retry.equalJitter
 import semiont.retry.retryAfterMs
 import semiont.transport.Broadcast
@@ -405,8 +406,8 @@ internal class Stream(
         }
         val frame = Frame(channel, payload, correlationId, scope, Telemetry.received(channel, scope, sentUnder))
         router.route(frame)
-        // A scope's position is the last recorded event delivered on it: only a recorded event's id (`p-…`) is one.
-        if (id != null && scope != null && id.startsWith("p-")) {
+        // A scope's position is the last recorded event delivered on it: only a recorded event's id, a PersistedEventId, is one.
+        if (id != null && scope != null && isPersistedEventId(id)) {
             watermarks[scope.value] = id
             bookmarks?.save(scope, id)
         }

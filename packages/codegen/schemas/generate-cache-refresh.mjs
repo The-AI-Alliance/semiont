@@ -31,12 +31,16 @@ function refuse(message) {
   process.exit(1);
 }
 
-const { queries, refresh, whens, WHEN } = readCacheRefresh(TABLE, resolve(ROOT, 'protocol/specs/src/bus/registry.json'), resolve(ROOT, 'protocol/specs/src/openapi.json'), refuse);
+const { queries, refresh, whens, channelTriggers, WHEN } = readCacheRefresh(ROOT, TABLE, refuse);
 
 const list = (values) => `[${values.map((v) => `'${v}'`).join(', ')}]`;
 const doc = (text) => `/** ${text.replaceAll('*/', '*\\/')} */`;
-const rowOf = ({ when, reach = 'subject', refetches = [], writes = [], removes = [] }) =>
-  `{ ${when === undefined ? '' : `when: '${when}', `}reach: '${reach}', refetches: ${list(refetches)}, writes: ${list(writes)}, removes: ${list(removes)} }`;
+/** A way to a member, as the names it is made of. */
+const way = (dotted) => list(dotted.split('.'));
+const rowOf = ({ when, reach = 'subject', names = {}, carries, refetches = [], writes = [], removes = [] }) => {
+  const named = Object.entries(names).map(([slot, dotted]) => `${slot}: ${way(dotted)}`);
+  return `{ ${when === undefined ? '' : `when: '${when}', `}reach: '${reach}', names: {${named.length === 0 ? '' : ` ${named.join(', ')} `}}, ${carries === undefined ? '' : `carries: ${way(carries)}, `}refetches: ${list(refetches)}, writes: ${list(writes)}, removes: ${list(removes)} }`;
+};
 
 const triggers = [...whens.keys()];
 const entries = triggers.map((on) => {
@@ -63,11 +67,18 @@ export type PersistedQuery = (typeof PERSISTED_QUERIES)[number];
 /** Which of a split channel's two kinds of event a row is for. */
 export type CacheRefreshWhen = ${WHEN.map((when) => `'${when}'`).join(' | ')};
 
+/** A way to a member of an event: the names of the members it is within, and its own. */
+export type CacheRefreshWay = readonly string[];
+
 /** What one trigger does to the cache. */
 export interface CacheRefresh {
   readonly when?: CacheRefreshWhen;
   /** \`subject\`: the keys the event names. \`held\`: every key the client holds. */
   readonly reach: 'subject' | 'held';
+  /** Where in the event the keys a \`subject\` row reaches are: the way to the resource it names (a ResourceId), and to the annotation (an AnnotationId). */
+  readonly names: { readonly resource?: CacheRefreshWay; readonly annotation?: CacheRefreshWay };
+  /** The way to the value the row writes (an Annotation). On a split channel, its presence is what makes an event enriched. */
+  readonly carries?: CacheRefreshWay;
   /** Asked for again, the value shown meanwhile. */
   readonly refetches: readonly CacheQuery[];
   /** Written with the value the event carries. */
@@ -76,12 +87,16 @@ export interface CacheRefresh {
   readonly removes: readonly CacheQuery[];
 }
 
-/** What each trigger does: a channel's events, or \`reopened\`, the stream open again after a drop. */
+/** What each trigger does: a channel's events; \`reopened\`, the stream open again after a drop; or \`unreadable\`, an event on one of these channels that cannot be read. */
 export const CACHE_REFRESH = {
 ${entries.join('\n')}
 } as const satisfies Record<string, readonly CacheRefresh[]>;
 
 export type CacheRefreshTrigger = keyof typeof CACHE_REFRESH;
+
+/** The triggers that are channels of the bus. */
+export const CACHE_REFRESH_CHANNELS = ${list(channelTriggers)} as const;
+export type CacheRefreshChannel = (typeof CACHE_REFRESH_CHANNELS)[number];
 `,
 );
 

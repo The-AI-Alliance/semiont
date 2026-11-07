@@ -1,14 +1,14 @@
 """What keeps a client's queries true: `protocol/specs/src/client/refresh.json` (`semiont.refresh`), applied to the client's caches.
 
-Each event on the bus, and the reopening of a dropped stream, asks again for
-the queries its row names, writes the ones whose new value the event carries,
-and ends the ones whose entity is gone.
+Each event on the bus, the reopening of a dropped stream, and an event that
+cannot be read, asks again for the queries its row names, writes the ones
+whose new value the event carries, and ends the ones whose entity is gone.
 
-A client has one refresher. It states what each event names (its resource,
-its annotation, the value it carries) and, for each query of the table, which
-cache answers it. Both are a `match` over the table's own names, so a trigger
-or a query added to the table does not pass a type checker until it is
-answered here.
+A client has one refresher. What an event names (its resource, its
+annotation, the value it carries) is read by the ways its row states. Which
+cache answers each query of the table is a `match` over the table's own
+names, so a query added to the table does not pass a type checker until it
+is answered here.
 
 An event acts only on a key its cache holds, and the refetches one key is
 asked for inside a window are one refetch (`protocol/contract/CACHE-SEMANTICS.md`
@@ -19,42 +19,38 @@ import asyncio
 from collections.abc import Callable, Hashable, Mapping
 from typing import Final, assert_never, final
 
-from pydantic import JsonValue, ValidationError
+from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont.bus import decoded
 from semiont.cache import Cache
-from semiont.channel import Channel, ScopedChannel
-from semiont.channels import (
-    BUS_RESUME_GAP,
-    FRAME_ENTITY_TYPE_ADDED,
-    FRAME_TAG_SCHEMA_ADDED,
-    MARK_ADDED,
-    MARK_ARCHIVED,
-    MARK_BODY_UPDATED,
-    MARK_DELETE_OK,
-    MARK_ENTITY_TAG_ADDED,
-    MARK_ENTITY_TAG_REMOVED,
-    MARK_REMOVED,
-    MARK_UNARCHIVED,
-    YIELD_CLONED,
-    YIELD_CREATED,
-    YIELD_MOVED,
-    YIELD_UPDATED,
-)
+from semiont.channels import CHANNELS
 from semiont.events import Events
 from semiont.identifiers import AnnotationId, ResourceId
-from semiont.model import WireModel
 from semiont.namespaces.links import Links
-from semiont.namespaces.live import WHOLE, Live, Subject
-from semiont.refresh import CACHE_QUERIES, CACHE_REFRESH, CacheQuery, CacheRefreshReach, CacheRefreshTrigger
+from semiont.namespaces.live import Live, Subject
+from semiont.refresh import (
+    CACHE_REFRESH,
+    CACHE_REFRESH_CHANNELS,
+    CacheQuery,
+    CacheRefreshChannel,
+    CacheRefreshReach,
+    CacheRefreshTrigger,
+    CacheRefreshWay,
+    CacheRefreshWhen,
+)
+from semiont.stored import WHOLE_KEY
 from semiont.transport import ConnectionState, Frame, FrameRefusal
-from semiont.types import StoredEventResponse
+from semiont.types import Annotation
 from semiont.watched import Watched
 
 __all__ = ["Refresher"]
 
-# The triggers that are events, by the channel each is.
-_EVENTS: Final[Mapping[str, CacheRefreshTrigger]] = {trigger: trigger for trigger in CACHE_REFRESH if trigger != "reopened"}
+# The table's channels, by the name a frame gives its own.
+_CHANNELS: Final[Mapping[str, CacheRefreshChannel]] = {channel: channel for channel in CACHE_REFRESH_CHANNELS}
+
+_RESOURCE_ID: Final = TypeAdapter(ResourceId)
+_ANNOTATION_ID: Final = TypeAdapter(AnnotationId)
+_ANNOTATION: Final = TypeAdapter(Annotation)
 
 
 @final
@@ -79,6 +75,8 @@ class _Windows:
     def __init__(self, lasting_ms: int) -> None:
         self._lasting: Final = lasting_ms / 1000
         self._open: Final[dict[str, _Window]] = {}
+        self._dropped_owed = False
+        """Whether disposing dropped a refetch a window owed: it is owed for good."""
 
     def run(self, key: str, refetch: Callable[[], None]) -> None:
         """Ask again for `key`, by `refetch`: what asks for one key is the same whichever event asked."""
@@ -89,6 +87,11 @@ class _Windows:
         self._open[key] = _Window(refetch, asyncio.get_running_loop().call_later(self._lasting, self._close, key))
         refetch()
 
+    @property
+    def owed(self) -> bool:
+        """Whether a window holds a refetch it has not yet run, or disposing dropped one."""
+        return self._dropped_owed or any(window.owed for window in self._open.values())
+
     def _close(self, key: str) -> None:
         window = self._open.pop(key)
         if window.owed:
@@ -96,70 +99,82 @@ class _Windows:
 
     def dispose(self) -> None:
         """Every window closes, and what each owed is dropped."""
+        self._dropped_owed = self.owed
         for window in self._open.values():
             window.closing.cancel()
         self._open.clear()
 
 
-def _annotation_named(payload: Mapping[str, JsonValue]) -> AnnotationId | None:
-    named = payload.get("annotationId")
-    return AnnotationId.parse(named) if isinstance(named, str) else None
+@final
+class _Unreadable(Exception):
+    """An event a member of which its row names is present and is not what it names."""
 
 
-def _recorded(
-    channel: Channel[StoredEventResponse] | ScopedChannel[StoredEventResponse, WireModel], payload: Mapping[str, JsonValue]
-) -> Subject:
-    return Subject(resource=decoded(channel, payload).resource_id)
+def _member_at(payload: Mapping[str, JsonValue], way: CacheRefreshWay) -> JsonValue:
+    """The member `way` ends at in `payload`: None where it, or a member it passes through, is absent or null.
 
-
-def _named(trigger: CacheRefreshTrigger, payload: Mapping[str, JsonValue]) -> Subject:
-    """What an event names. Each arm states it for its trigger, and a trigger with no arm does not pass a type checker.
-
-    Raises `ValidationError` for a payload that is not its channel's.
+    Raises `_Unreadable` where a member it passes through is present and is no object.
     """
-    match trigger:
-        case "reopened":
-            # No event: the stream's reopening names nothing.
-            return Subject()
-        case "bus:resume-gap":
-            return Subject(resource=decoded(BUS_RESUME_GAP, payload).scope)
-        case "mark:added":
-            return Subject(resource=decoded(MARK_ADDED, payload).resource_id)
-        case "mark:removed":
-            removed = decoded(MARK_REMOVED, payload)
-            return Subject(resource=removed.resource_id, annotation=_annotation_named(removed.payload))
-        case "mark:delete-ok":
-            return Subject(annotation=decoded(MARK_DELETE_OK, payload).response.annotation_id)
-        case "mark:body-updated":
-            updated = decoded(MARK_BODY_UPDATED, payload)
-            if updated.annotation is not None:
-                return Subject(when="enriched", resource=updated.resource_id, annotation=updated.annotation.id, written=updated.annotation)
-            return Subject(when="unenriched", resource=updated.resource_id, annotation=_annotation_named(updated.payload))
-        case "mark:entity-tag-added":
-            return _recorded(MARK_ENTITY_TAG_ADDED, payload)
-        case "mark:entity-tag-removed":
-            return _recorded(MARK_ENTITY_TAG_REMOVED, payload)
-        case "mark:archived":
-            return _recorded(MARK_ARCHIVED, payload)
-        case "mark:unarchived":
-            return _recorded(MARK_UNARCHIVED, payload)
-        # What is heard by every client: its resource is the one it records, not a scope the client holds.
-        case "yield:created":
-            return _recorded(YIELD_CREATED, payload)
-        case "yield:updated":
-            return _recorded(YIELD_UPDATED, payload)
-        case "yield:cloned":
-            return _recorded(YIELD_CLONED, payload)
-        case "yield:moved":
-            return _recorded(YIELD_MOVED, payload)
-        case "frame:entity-type-added":
-            decoded(FRAME_ENTITY_TYPE_ADDED, payload)
-            return Subject()
-        case "frame:tag-schema-added":
-            decoded(FRAME_TAG_SCHEMA_ADDED, payload)
-            return Subject()
-        case _:
-            assert_never(trigger)
+    first, *through = way
+    member = payload.get(first)
+    for name in through:
+        if member is None:
+            return None
+        if not isinstance(member, dict):
+            raise _Unreadable
+        member = member.get(name)
+    return member
+
+
+def _read[T](payload: Mapping[str, JsonValue], way: CacheRefreshWay | None, kind: TypeAdapter[T]) -> T | None:
+    """What `way` names in `payload`, as a `kind`: None where the row states no way, or the way names none.
+
+    Raises `_Unreadable` as `_member_at` does, and `ValidationError` where
+    the member the way ends at is not a `kind`.
+    """
+    if way is None:
+        return None
+    member = _member_at(payload, way)
+    return None if member is None else kind.validate_python(member)
+
+
+def _named(channel: CacheRefreshChannel, payload: Mapping[str, JsonValue]) -> Subject:
+    """What an event on `channel` names, by the ways of its row.
+
+    A split channel's event is enriched when the member its enriched row
+    carries is present and not null, which is read there as what the row
+    carries. Raises `_Unreadable` or `ValidationError` for an event that
+    cannot be read.
+    """
+    rows = CACHE_REFRESH[channel]
+    enriched = next((row for row in rows if row.when == "enriched"), None)
+    if enriched is None:
+        (row,) = rows
+    else:
+        when: CacheRefreshWhen = "unenriched" if _read(payload, enriched.carries, _ANNOTATION) is None else "enriched"
+        (row,) = (split for split in rows if split.when == when)
+    return Subject(
+        when=row.when,
+        resource=_read(payload, row.names_resource, _RESOURCE_ID),
+        annotation=_read(payload, row.names_annotation, _ANNOTATION_ID),
+        written=_read(payload, row.carries, _ANNOTATION),
+    )
+
+
+def _subject_of(frame: Frame | FrameRefusal) -> tuple[CacheRefreshTrigger, Subject]:
+    """The trigger a frame on one of the table's channels is, and what it names.
+
+    It is `unreadable`, naming nothing, when the channel's reading refuses
+    the frame or a member its row names is present and is not what it names.
+    """
+    if isinstance(frame, FrameRefusal):
+        return "unreadable", Subject()
+    channel = _CHANNELS[frame.channel]
+    try:
+        decoded(CHANNELS[channel], frame.payload)
+        return channel, _named(channel, frame.payload)
+    except (ValidationError, _Unreadable):
+        return "unreadable", Subject()
 
 
 @final
@@ -174,24 +189,13 @@ class Refresher:
     def start(self) -> None:
         """Listen, from now on. A client starts it once: when it is held."""
         # Listening before the task that reads has had its first turn: nothing said meanwhile is missed.
-        self._links.run(self._listen(self._links.own.frames_among(tuple(_EVENTS))))
+        self._links.run(self._listen(self._links.own.frames_among(CACHE_REFRESH_CHANNELS)))
         self._links.run(self._reopenings(self._links.transport.state))
 
     async def _listen(self, events: Events[Frame | FrameRefusal]) -> None:
+        # Its reader is given the frames of the table's channels and no others.
         async for frame in events:
-            if isinstance(frame, FrameRefusal):
-                # An event refused: something changed and nothing says what.
-                self._everything_held()
-                continue
-            # Its reader is given the frames of these channels and no others.
-            trigger = _EVENTS[frame.channel]
-            try:
-                subject = _named(trigger, frame.payload)
-            except ValidationError:
-                # An event that cannot be read: something changed and nothing
-                # says what. Everything held is asked for again, as after a gap.
-                self._everything_held()
-                continue
+            trigger, subject = _subject_of(frame)
             self._refresh(trigger, subject)
 
     async def _reopenings(self, state: Watched[ConnectionState]) -> None:
@@ -212,20 +216,19 @@ class Refresher:
             else:
                 left = opened
 
+    @property
+    def owes_a_refetch(self) -> bool:
+        """Whether a window (B19) holds a refetch it has not yet run: a cache it would ask again for is not yet asked."""
+        return self._windows.owed
+
     def _refresh(self, trigger: CacheRefreshTrigger, subject: Subject) -> None:
-        row = next((row for row in CACHE_REFRESH[trigger] if row.when == subject.when), None)
-        if row is None:
-            return
+        (row,) = (candidate for candidate in CACHE_REFRESH[trigger] if candidate.when == subject.when)
         for query in row.writes:
             self._live.write(query, subject)
         for query in row.removes:
             self._live.remove(query, subject)
         for query in row.refetches:
             self._refetch(query, subject, row.reach)
-
-    def _everything_held(self) -> None:
-        for query in CACHE_QUERIES:
-            self._refetch(query, Subject(), "held")
 
     def _again[K: Hashable, V](self, cache: Cache[K, V], key: K, window: str) -> None:
         """Ask again for one key, when the cache holds it (B20), through the key's window (B19)."""
@@ -276,11 +279,11 @@ class Refresher:
             case "matchedResources":
                 self._windows.run("matched-resources", live.searches.invalidate_all)
             case "entityTypes":
-                self._again(live.entity_types, WHOLE, "entity-types")
+                self._again(live.entity_types, WHOLE_KEY, "entity-types")
             case "tagSchemas":
-                self._again(live.tag_schemas, WHOLE, "tag-schemas")
+                self._again(live.tag_schemas, WHOLE_KEY, "tag-schemas")
             case "engines":
-                if live.engines.known(WHOLE):
+                if live.engines.known(WHOLE_KEY):
                     self._windows.run("engines", live.invalidate_engines)
             case _:
                 assert_never(query)

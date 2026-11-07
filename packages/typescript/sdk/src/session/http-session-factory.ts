@@ -114,7 +114,8 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
     const client = new SemiontClient(transport, content, transport, keeping === null ? {} : { cachePersistence: keeping.persistence });
     // B17-Q (C1): the bookmark flush waits for persisted-cache quiescence —
     // a bystander document write must not carry an id whose event some other
-    // cache is still absorbing (mid-refetch or mid-debounce). Wired after
+    // cache is still absorbing (mid-refetch, mid-debounce, or a refetch the
+    // refresher's window owes). Wired after
     // construction because the gate reads the client's own caches.
     const settled = (): boolean => client.browse.persistenceSettled();
     if (keeping !== null) keeping.setFlushGate(settled);

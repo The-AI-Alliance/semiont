@@ -7,6 +7,7 @@ public final class Cache<Key: Hashable & Sendable, Value: Sendable>: StateUnit {
   private let holdFor: (@Sendable (Key) async -> ResourceHold)?
   private let lifetime: Lifetime
   private let kept: (@Sendable (Key) -> KeptValue<Value>?)?
+  private let owed: Unsettled?
   private let invalidationWindowMs: Int
   private let clock: any Clock<Duration>
   private let persistenceWork: (@Sendable () -> Bool)?
@@ -15,8 +16,8 @@ public final class Cache<Key: Hashable & Sendable, Value: Sendable>: StateUnit {
   init(
     lifetime: Lifetime, ownsLifetime: Bool = false,
     hold: (@Sendable (Key) async -> ResourceHold)? = nil,
-    kept: (@Sendable (Key) -> KeptValue<Value>?)? = nil, invalidationWindowMs: Int,
-    clock: any Clock<Duration>,
+    kept: (@Sendable (Key) -> KeptValue<Value>?)? = nil, owed: Unsettled?,
+    invalidationWindowMs: Int, clock: any Clock<Duration>,
     persistencePending: (@Sendable () -> Bool)? = nil,
     fetch: @escaping @Sendable (Key) async throws -> Value
   ) {
@@ -24,6 +25,7 @@ public final class Cache<Key: Hashable & Sendable, Value: Sendable>: StateUnit {
     self.holdFor = hold
     self.lifetime = lifetime
     self.kept = kept
+    self.owed = owed
     self.invalidationWindowMs = invalidationWindowMs
     self.clock = clock
     self.persistenceWork = persistencePending
@@ -38,8 +40,8 @@ public final class Cache<Key: Hashable & Sendable, Value: Sendable>: StateUnit {
     fetch: @escaping @Sendable (Key) async throws -> Value
   ) {
     self.init(
-      lifetime: Lifetime(), ownsLifetime: true, invalidationWindowMs: Timings.invalidationWindowMs,
-      clock: clock, fetch: fetch)
+      lifetime: Lifetime(), ownsLifetime: true, owed: nil,
+      invalidationWindowMs: Timings.invalidationWindowMs, clock: clock, fetch: fetch)
   }
 
   /// A cache whose values `persister` keeps: it starts with every value kept, each asked for again
@@ -52,7 +54,7 @@ public final class Cache<Key: Hashable & Sendable, Value: Sendable>: StateUnit {
     life.onEnd { persister.close() }
     self.init(
       lifetime: life, ownsLifetime: true, kept: { KeptValue(book: persister, key: $0) },
-      invalidationWindowMs: Timings.invalidationWindowMs, clock: clock,
+      owed: persister.underway, invalidationWindowMs: Timings.invalidationWindowMs, clock: clock,
       persistencePending: { persister.pending }, fetch: fetch)
     for key in persister.keys { _ = observe(key) }
   }
@@ -69,7 +71,7 @@ public final class Cache<Key: Hashable & Sendable, Value: Sendable>: StateUnit {
     return entries.withLock { entries in
       if let query = entries[key] { return query }
       let query = Cached(
-        lifetime: lifetime, hold: hold, kept: kept?(key),
+        lifetime: lifetime, hold: hold, kept: kept?(key), owed: owed,
         invalidationWindowMs: invalidationWindowMs,
         clock: clock
       ) {

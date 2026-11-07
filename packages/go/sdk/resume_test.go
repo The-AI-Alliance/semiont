@@ -44,9 +44,9 @@ func TestAPlaceIsWrittenWithTheNextWriteOfACacheAndNotBefore(t *testing.T) {
 	}
 
 	resource, other := mustResource(t, "res-1"), mustResource(t, "res-2")
-	kept.Save(resource, "p-7")
-	kept.Save(resource, "p-8")
-	kept.Save(other, "p-3")
+	kept.Save(resource, "p-res-1-7")
+	kept.Save(resource, "p-res-1-8")
+	kept.Save(other, "p-res-2-3")
 	if _, ok := storage.Get(keptPlacesKey); ok {
 		t.Fatal("a place was written when it was reached")
 	}
@@ -68,20 +68,20 @@ func TestAPlaceIsWrittenWithTheNextWriteOfACacheAndNotBefore(t *testing.T) {
 	if read, _ := caches.Get(keptCacheKey); read != "{}" {
 		t.Fatalf("the cache reads back %q", read)
 	}
-	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-8", "res-2": "p-3"}); !maps.Equal(got, want) {
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-res-1-8", "res-2": "p-res-2-3"}); !maps.Equal(got, want) {
 		t.Fatalf("places kept %v, want %v", got, want)
 	}
 
 	// A later place of one scope leaves the other's as it was.
-	kept.Save(other, "p-4")
+	kept.Save(other, "p-res-2-4")
 	caches.Set(keptCacheKey, "{}")
-	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-8", "res-2": "p-4"}); !maps.Equal(got, want) {
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-res-1-8", "res-2": "p-res-2-4"}); !maps.Equal(got, want) {
 		t.Fatalf("places kept %v, want %v", got, want)
 	}
 	// With nothing reached since, a cache's write writes no places: what another client kept meanwhile stays.
-	storage.Set(keptPlacesKey, `{"res-9": "p-1"}`)
+	storage.Set(keptPlacesKey, `{"res-9": "p-res-9-1"}`)
 	caches.Set(keptCacheKey, "{}")
-	if got, want := kept.Load(), placesOf(t, map[string]string{"res-9": "p-1"}); !maps.Equal(got, want) {
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-9": "p-res-9-1"}); !maps.Equal(got, want) {
 		t.Fatalf("places kept %v, want %v", got, want)
 	}
 	if err := caches.Delete(keptCacheKey); err != nil {
@@ -107,7 +107,7 @@ func TestAPlaceIsWrittenAfterTheCachesOwnWriteSoOneThatFailsLeavesNoPlaceAheadOf
 	storage := full{NewMemoryStorage()}
 	kept := NewCoupledBookmarks(storage, keptPlacesKey)
 	caches := kept.Storage()
-	kept.Save(mustResource(t, "res-1"), "p-7")
+	kept.Save(mustResource(t, "res-1"), "p-res-1-7")
 	if err := caches.Set(keptCacheKey, "{}"); err == nil || err.Error() != "the storage is full" {
 		t.Fatalf("the cache's failed write said %v", err)
 	}
@@ -118,7 +118,7 @@ func TestAPlaceIsWrittenAfterTheCachesOwnWriteSoOneThatFailsLeavesNoPlaceAheadOf
 	if err := caches.Set(keptAnnotationsKey, "{}"); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-7"}); !maps.Equal(got, want) {
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-res-1-7"}); !maps.Equal(got, want) {
 		t.Fatalf("places kept %v, want %v", got, want)
 	}
 }
@@ -128,9 +128,9 @@ func TestAPlaceWaitsForTheCachesToBeAtRest(t *testing.T) {
 	kept := NewCoupledBookmarks(storage, keptPlacesKey)
 	caches := kept.Storage()
 	atRest := false
-	kept.SetFlushGate(func() bool { return atRest })
+	kept.gatedBy(func() bool { return atRest })
 
-	kept.Save(mustResource(t, "res-1"), "p-7")
+	kept.Save(mustResource(t, "res-1"), "p-res-1-7")
 	caches.Set(keptCacheKey, "{}")
 	// Late, which is safe: the cache that was written may not be the one still taking the event in.
 	if _, ok := storage.Get(keptPlacesKey); ok {
@@ -139,14 +139,14 @@ func TestAPlaceWaitsForTheCachesToBeAtRest(t *testing.T) {
 
 	atRest = true
 	caches.Set(keptAnnotationsKey, "{}")
-	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-7"}); !maps.Equal(got, want) {
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-res-1-7"}); !maps.Equal(got, want) {
 		t.Fatalf("places kept %v, want %v", got, want)
 	}
 }
 
-func TestWhatIsKeptUnderTheKeyAndIsNotPlacesIsNothingKept(t *testing.T) {
+func TestWhatIsKeptUnderTheKeyAndIsNoObjectIsNoPlaces(t *testing.T) {
 	storage := NewMemoryStorage()
-	for _, stored := range []string{"not json", "[1, 2]", `{"res-1": 7}`, `{"not an id": "p-1"}`, "null"} {
+	for _, stored := range []string{"not json", "[1, 2]", `"p-res-1-1"`, "null"} {
 		storage.Set(keptPlacesKey, stored)
 		if got := NewCoupledBookmarks(storage, keptPlacesKey).Load(); len(got) != 0 {
 			t.Errorf("%s reads as places %v", stored, got)
@@ -154,9 +154,27 @@ func TestWhatIsKeptUnderTheKeyAndIsNotPlacesIsNothingKept(t *testing.T) {
 	}
 	// And is written over by the first places that are.
 	kept := NewCoupledBookmarks(storage, keptPlacesKey)
-	kept.Save(mustResource(t, "res-1"), "p-1")
+	kept.Save(mustResource(t, "res-1"), "p-res-1-1")
 	kept.Storage().Set(keptCacheKey, "{}")
-	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-1"}); !maps.Equal(got, want) {
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-res-1-1"}); !maps.Equal(got, want) {
+		t.Fatalf("places kept %v, want %v", got, want)
+	}
+}
+
+// A pair that is not a resource's id and a PersistedEventId is no place,
+// and the places beside it are kept; one reached is written only if it is a
+// PersistedEventId.
+func TestAPlaceThatIsNotAResourcesIdAndAPersistedEventsIdIsSkipped(t *testing.T) {
+	storage := NewMemoryStorage()
+	storage.Set(keptPlacesKey, `{"res-1": 7, "not an id": "p-x-1", "res-3": "p-7", "res-4": "e-res-4-1", "res-2": "p-res-2-3"}`)
+	kept := NewCoupledBookmarks(storage, keptPlacesKey)
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-2": "p-res-2-3"}); !maps.Equal(got, want) {
+		t.Fatalf("places kept %v, want %v", got, want)
+	}
+	kept.Save(mustResource(t, "res-5"), "p-5")
+	kept.Save(mustResource(t, "res-6"), "p-res-6-2")
+	kept.Storage().Set(keptCacheKey, "{}")
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-2": "p-res-2-3", "res-6": "p-res-6-2"}); !maps.Equal(got, want) {
 		t.Fatalf("places kept %v, want %v", got, want)
 	}
 }
@@ -262,7 +280,7 @@ func (g *recordingGateway) transport(bookmarks Bookmarks) *HTTPTransport {
 func TestAStreamBeginsEachScopeWhereItsBookmarksSayAndTellsThemEachRecordedEventItDelivered(t *testing.T) {
 	resource, other := mustResource(t, "res-1"), mustResource(t, "res-2")
 	storage := NewMemoryStorage()
-	storage.Set(keptPlacesKey, `{"res-1":"p-41"}`)
+	storage.Set(keptPlacesKey, `{"res-1":"p-res-1-41"}`)
 	kept := NewCoupledBookmarks(storage, keptPlacesKey)
 	gateway := newRecordingGateway(t)
 	transport := gateway.transport(kept)
@@ -288,12 +306,12 @@ func TestAStreamBeginsEachScopeWhereItsBookmarksSayAndTellsThemEachRecordedEvent
 
 	// The scope it kept a place in resumes from it; the other begins at the present.
 	until(t, "a subscription of both scopes", func() bool { _, ok := gateway.asked(2); return ok })
-	if begins, _ := gateway.asked(2); !maps.Equal(begins, map[string]string{"res-1": "p-41", "res-2": ""}) {
+	if begins, _ := gateway.asked(2); !maps.Equal(begins, map[string]string{"res-1": "p-res-1-41", "res-2": ""}) {
 		t.Fatalf("the scopes begin at %v", begins)
 	}
 
 	// A recorded event's id is its scope's place, once it has been delivered. A passing frame's is no place.
-	gateway.send("p-42", map[string]any{"channel": "mark:added", "payload": map[string]any{"n": 1}, "scope": "res-1"})
+	gateway.send("p-res-1-42", map[string]any{"channel": "mark:added", "payload": map[string]any{"n": 1}, "scope": "res-1"})
 	gateway.send("e-9", map[string]any{"channel": "mark:added", "payload": map[string]any{"n": 2}, "scope": "res-2"})
 	for _, want := range []string{`{"n":1}`, `{"n":2}`} {
 		select {
@@ -308,13 +326,13 @@ func TestAStreamBeginsEachScopeWhereItsBookmarksSayAndTellsThemEachRecordedEvent
 	until(t, "the place reached", func() bool {
 		kept.mu.Lock()
 		defer kept.mu.Unlock()
-		return kept.pending[resource] == "p-42"
+		return kept.pending[resource] == "p-res-1-42"
 	})
-	if stored, _ := storage.Get(keptPlacesKey); stored != `{"res-1":"p-41"}` {
+	if stored, _ := storage.Get(keptPlacesKey); stored != `{"res-1":"p-res-1-41"}` {
 		t.Fatalf("a place was written before a cache's write: %s", stored)
 	}
 	kept.Storage().Set(keptCacheKey, "{}")
-	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-42"}); !maps.Equal(got, want) {
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-res-1-42"}); !maps.Equal(got, want) {
 		t.Fatalf("places kept %v, want %v", got, want)
 	}
 }
@@ -336,9 +354,9 @@ func TestAStreamWithNoBookmarksBeginsEveryScopeAtThePresent(t *testing.T) {
 func TestPlacesGivenToAStreamAreTakenUpOnlyForTheScopesItHoldsNoPlaceIn(t *testing.T) {
 	resource, other := mustResource(t, "res-1"), mustResource(t, "res-2")
 	storage := NewMemoryStorage()
-	storage.Set(keptPlacesKey, `{"res-1":"p-41"}`)
+	storage.Set(keptPlacesKey, `{"res-1":"p-res-1-41"}`)
 	elsewhere := NewMemoryStorage()
-	elsewhere.Set(keptPlacesKey, `{"res-1":"p-kept","res-2":"p-3"}`)
+	elsewhere.Set(keptPlacesKey, `{"res-1":"p-res-1-99","res-2":"p-res-2-3"}`)
 
 	gateway := newRecordingGateway(t)
 	transport := gateway.transport(NewCoupledBookmarks(storage, keptPlacesKey))
@@ -347,7 +365,7 @@ func TestPlacesGivenToAStreamAreTakenUpOnlyForTheScopesItHoldsNoPlaceIn(t *testi
 	defer transport.SubscribeToResource(resource)()
 	defer transport.SubscribeToResource(other)()
 	until(t, "a subscription of both scopes", func() bool { _, ok := gateway.asked(2); return ok })
-	if begins, _ := gateway.asked(2); !maps.Equal(begins, map[string]string{"res-1": "p-41", "res-2": "p-3"}) {
+	if begins, _ := gateway.asked(2); !maps.Equal(begins, map[string]string{"res-1": "p-res-1-41", "res-2": "p-res-2-3"}) {
 		t.Fatalf("the scopes begin at %v", begins)
 	}
 
@@ -359,13 +377,13 @@ func TestPlacesGivenToAStreamAreTakenUpOnlyForTheScopesItHoldsNoPlaceIn(t *testi
 	unkept.keepPlaces(kept)
 	defer unkept.SubscribeToResource(other)()
 	until(t, "a subscription of the scope", func() bool { _, ok := bare.asked(1); return ok })
-	if begins, _ := bare.asked(1); !maps.Equal(begins, map[string]string{"res-2": "p-3"}) {
+	if begins, _ := bare.asked(1); !maps.Equal(begins, map[string]string{"res-2": "p-res-2-3"}) {
 		t.Fatalf("the scope begins at %v", begins)
 	}
-	bare.send("p-4", map[string]any{"channel": "mark:added", "payload": map[string]any{"n": 1}, "scope": "res-2"})
+	bare.send("p-res-2-4", map[string]any{"channel": "mark:added", "payload": map[string]any{"n": 1}, "scope": "res-2"})
 	until(t, "the place reached is kept", func() bool {
 		kept.mu.Lock()
 		defer kept.mu.Unlock()
-		return kept.pending[other] == "p-4"
+		return kept.pending[other] == "p-res-2-4"
 	})
 }

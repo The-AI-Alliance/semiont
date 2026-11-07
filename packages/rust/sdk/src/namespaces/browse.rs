@@ -12,7 +12,9 @@
 
 use super::refresher::Subject;
 use crate::bus::{LIMITS_OPERATIONS, Operation, operation};
-use crate::cache::{Cache, CacheKey, CachePersister, CacheState, CacheValue, StoragePersister};
+use crate::cache::{
+    Cache, CacheKey, CachePersister, CacheState, CacheValue, Persistence, StoragePersister,
+};
 use crate::cached::{Cached, Keyed, Observed, Source};
 use crate::channels::{
     BrowseAnnotationHistoryRequested, BrowseAnnotationRequested, BrowseClick,
@@ -41,8 +43,8 @@ use crate::types::{
 };
 use crate::types::{AnnotationId, ResourceId};
 use futures_core::Stream;
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::de::{DeserializeOwned, Error as _, Unexpected};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Map;
 use std::collections::HashMap;
 use std::pin::Pin;
@@ -55,13 +57,36 @@ use tokio_stream::wrappers::WatchStream;
 /// protocol/specs/src/client/surface.json hold each to it.
 const LIST_LIMIT: u64 = 100;
 
-/// The key of a query the knowledge base has one of.
-pub(super) const WHOLE: &str = "_";
+/// The key of a query the knowledge base has one of. A kept one keeps its one
+/// entry under it, written as protocol/specs/src/session/stored.json's
+/// `wholeKey`; read from anything else, it is refused, so an entry under
+/// another key is one the query never kept.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct WholeKey;
 
-/// The version of what the persisted caches hold. A document of another
-/// version reads as nothing kept, so this changes when a kept value's shape
-/// does.
-const PERSISTED_VERSION: u64 = 1;
+impl WholeKey {
+    const WRITTEN: &'static str = "_";
+}
+
+impl Serialize for WholeKey {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(WholeKey::WRITTEN)
+    }
+}
+
+impl<'de> Deserialize<'de> for WholeKey {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<WholeKey, D::Error> {
+        let key = String::deserialize(deserializer)?;
+        if key == WholeKey::WRITTEN {
+            Ok(WholeKey)
+        } else {
+            Err(D::Error::invalid_value(
+                Unexpected::Str(&key),
+                &"the whole key",
+            ))
+        }
+    }
+}
 
 /// Which resources a list, or a search, is of. Each field that is stated
 /// narrows it.
@@ -164,9 +189,9 @@ pub(super) struct Live {
     /// The resource each annotation that was asked for is of: an annotation
     /// is kept by its own id, and a request for it names its resource too.
     pub(super) annotation_of: Arc<Mutex<HashMap<AnnotationId, ResourceId>>>,
-    pub(super) entity_types: Cache<String, Vec<String>>,
-    pub(super) tag_schemas: Cache<String, Vec<TagSchema>>,
-    pub(super) engines: Cache<String, Vec<EngineEntry>>,
+    pub(super) entity_types: Cache<WholeKey, Vec<String>>,
+    pub(super) tag_schemas: Cache<WholeKey, Vec<TagSchema>>,
+    pub(super) engines: Cache<WholeKey, Vec<EngineEntry>>,
     /// Each key holder's report of its engines' limits, by the operation
     /// that asks it.
     pub(super) limits: Cache<&'static str, Vec<EngineLimits>>,
@@ -216,7 +241,8 @@ where
 }
 
 /// Where `persistence` keeps the persisted query `query`, written under
-/// `writes`.
+/// `writes` through the places' storage, so that each write carries the
+/// stream's places.
 fn persister<K, V>(
     persistence: &CachePersistence,
     writes: &Arc<Writes>,
@@ -228,17 +254,17 @@ where
 {
     Arc::new(Through {
         persister: StoragePersister::new(
-            persistence.storage.clone(),
+            persistence.places.storage(),
             cache_key(&persistence.kb_id, &persistence.person_key, query),
-            PERSISTED_VERSION,
             MAX_STORED_BYTES_COUNT,
         ),
         writes: writes.clone(),
     })
 }
 
-/// The cache of a persisted query: kept in the client's persistence, when it
-/// was built with one, and written under `writes`.
+/// The cache of a persisted query, one protocol/specs/src/session/stored.json
+/// names as `keptQueries`: kept in the client's persistence, when it was
+/// built with one, and written under `writes`.
 fn kept<K, V, F, Fut>(
     persistence: Option<&CachePersistence>,
     writes: &Arc<Writes>,
@@ -341,7 +367,7 @@ impl Live {
         });
         let entity_types = kept(persistence, &writes, CacheQuery::EntityTypes, {
             let links = asking(links);
-            move |_: String| {
+            move |_: WholeKey| {
                 let links = links.clone();
                 async move {
                     let answer = links
@@ -353,7 +379,7 @@ impl Live {
         });
         let tag_schemas = kept(persistence, &writes, CacheQuery::TagSchemas, {
             let links = asking(links);
-            move |_: String| {
+            move |_: WholeKey| {
                 let links = links.clone();
                 async move {
                     let answer = links
@@ -365,7 +391,7 @@ impl Live {
         });
         let engines = Cache::new({
             let links = asking(links);
-            move |_: String| {
+            move |_: WholeKey| {
                 let links = links.clone();
                 async move {
                     let answer = links
@@ -502,10 +528,10 @@ impl Drop for Live {
 
 /// The engines are out of date, and so is what each key holder reported.
 pub(super) fn invalidate_engines(
-    engines: &Cache<String, Vec<EngineEntry>>,
+    engines: &Cache<WholeKey, Vec<EngineEntry>>,
     limits: &Cache<&'static str, Vec<EngineLimits>>,
 ) {
-    engines.invalidate(&WHOLE.to_owned());
+    engines.invalidate(&WholeKey);
     for holder in LIMITS_OPERATIONS {
         limits.invalidate(holder);
     }
@@ -515,7 +541,7 @@ pub(super) fn invalidate_engines(
 
 /// The engines with each key holder's limits joined on.
 struct Engines {
-    engines: Cache<String, Vec<EngineEntry>>,
+    engines: Cache<WholeKey, Vec<EngineEntry>>,
     limits: Cache<&'static str, Vec<EngineLimits>>,
 }
 
@@ -572,7 +598,7 @@ impl Source<Vec<EngineWithLimits>> for Engines {
         }
         // The engines are asked for first; each key holder's limits after them.
         let mut asked: Vec<BoxFuture<'static, Answer>> = vec![Box::pin({
-            let engines = self.engines.fetch(&WHOLE.to_owned());
+            let engines = self.engines.fetch(&WholeKey);
             async move { Answer::Engines(engines.await) }
         })];
         for holder in LIMITS_OPERATIONS {
@@ -597,7 +623,7 @@ impl Source<Vec<EngineWithLimits>> for Engines {
     fn watch(&self) -> Observed<Vec<EngineWithLimits>> {
         Observed::new(
             Joined {
-                engines: self.engines.observe(&WHOLE.to_owned()),
+                engines: self.engines.observe(&WholeKey),
                 reports: LIMITS_OPERATIONS
                     .iter()
                     .map(|holder| self.limits.observe(holder))
@@ -633,14 +659,29 @@ impl BrowseNamespace {
         }
     }
 
-    /// Whether every cache the client's storage keeps is at rest.
-    pub(crate) fn persistence_settled(&self) -> bool {
+    /// What each cache the client's storage keeps is doing.
+    fn kept(&self) -> [Persistence; 5] {
         let live = &self.live;
-        !(live.resource.persistence_pending()
-            || live.annotations.persistence_pending()
-            || live.annotation.persistence_pending()
-            || live.entity_types.persistence_pending()
-            || live.tag_schemas.persistence_pending())
+        [
+            live.resource.persistence(),
+            live.annotations.persistence(),
+            live.annotation.persistence(),
+            live.entity_types.persistence(),
+            live.tag_schemas.persistence(),
+        ]
+    }
+
+    /// Whether every cache the client's storage keeps is at rest: none is
+    /// fetching, and none owes a save.
+    pub(crate) fn persistence_settled(&self) -> bool {
+        self.kept()
+            .iter()
+            .all(|kept| !kept.fetching && !kept.saving)
+    }
+
+    /// Whether a cache the client's storage keeps has a fetch in flight.
+    pub(crate) fn kept_fetching(&self) -> bool {
+        self.kept().iter().any(|kept| kept.fetching)
     }
 
     /// See `SemiontClient::attach_persistence`.
@@ -681,13 +722,13 @@ impl BrowseNamespace {
     }
 
     /// A query of the knowledge base as a whole.
-    fn of_the_whole<V>(&self, cache: &Cache<String, V>) -> Cached<V>
+    fn of_the_whole<V>(&self, cache: &Cache<WholeKey, V>) -> Cached<V>
     where
         V: CacheValue,
     {
         Cached::of(Keyed {
             cache: cache.clone(),
-            key: WHOLE.to_owned(),
+            key: WholeKey,
             view: |value| value,
             scope: None,
         })

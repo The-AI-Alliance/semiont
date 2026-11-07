@@ -11,10 +11,11 @@ step, so one writer's change is never lost under another's; and a store that
 hears what another context writes says so to whoever `subscribe`s.
 
 `StoragePersister` keeps one cache's values there, as one document under one
-key: `{version, writtenAt, entries}`, each entry a key, its value, and when
-that value was last written. A document of another version, or one that does
-not parse, reads as nothing kept. A document larger than it may be loses the
-entries that have gone longest without a new value, until it fits.
+key (`cacheDocument` of `protocol/specs/src/session/stored.json`):
+`{version, entries}`, each entry a key, its value, and when that value was
+received. A document whose structure is not that one reads as nothing kept,
+and an entry whose key or value is not the cache's is skipped. A document
+larger than it may be loses the entries received longest ago, until it fits.
 """
 
 import time
@@ -24,6 +25,7 @@ from typing import Final, Protocol, final, override
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont.cache import CachePersister
+from semiont.stored import CACHE_DOCUMENT_VERSION
 
 __all__ = ["MemoryStorage", "SessionStorage", "StoragePersister"]
 
@@ -95,54 +97,90 @@ class MemoryStorage(SessionStorage):
         return None
 
 
-_DOCUMENT: Final = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue])
 _JSON: Final = TypeAdapter[JsonValue](JsonValue)
+
+
+def _whole(number: JsonValue) -> int | None:
+    """`number` as the whole number it is, however it is written (`1000`, `1000.0`, `1e3`).
+
+    Nothing when it is no number, or has a fraction. A bool is no number.
+    """
+    match number:
+        case bool():
+            return None
+        case int():
+            return number
+        case float() if number.is_integer():
+            return int(number)
+        case _:
+            return None
+
+
+def _entries(raw: str) -> list[tuple[JsonValue, JsonValue, int]] | None:
+    """The entries of a document: each its key, its value, and when the value was received.
+
+    Nothing when the document's structure is not `cacheDocument`'s.
+    """
+    try:
+        document = _JSON.validate_json(raw)
+    except ValidationError:
+        return None
+    if not isinstance(document, dict):
+        return None
+    version, stored = document.get("version"), document.get("entries")
+    if _whole(version) != CACHE_DOCUMENT_VERSION or not isinstance(stored, list):
+        return None
+    entries: list[tuple[JsonValue, JsonValue, int]] = []
+    for entry in stored:
+        if not isinstance(entry, list) or len(entry) != 3:
+            return None
+        key, value, written = entry
+        stamp = _whole(written)
+        if stamp is None or stamp < 0:
+            return None
+        entries.append((key, value, stamp))
+    return entries
 
 
 @final
 class StoragePersister[K: Hashable, V](CachePersister[K, V]):
     """A cache's values in `storage`, under `storage_key`.
 
-    `key` and `value` say how each is read and written, `version` which
-    documents are this cache's to read, and `max_bytes` how large the
-    document may be.
+    `key` and `value` say how each is read and written, and `max_bytes` how
+    large the document may be.
     """
 
-    def __init__(
-        self, storage: SessionStorage, storage_key: str, *, key: TypeAdapter[K], value: TypeAdapter[V], version: int, max_bytes: int
-    ) -> None:
+    def __init__(self, storage: SessionStorage, storage_key: str, *, key: TypeAdapter[K], value: TypeAdapter[V], max_bytes: int) -> None:
         self._storage: Final = storage
         self._storage_key: Final = storage_key
         self._key: Final = key
         self._value: Final = value
-        self._version: Final = version
         self._max_bytes: Final = max_bytes
         self._written: dict[str, tuple[str, int]] = {}
-        """Each key's value as last written, and when: an entry whose value has not changed keeps its time."""
+        """Each key's value as last written, and when it was received: an entry whose value has not changed keeps its time."""
+
+    def _texts(self, key: K, value: V) -> tuple[str, str]:
+        """An entry's key and value as the document writes them."""
+        key_text = _JSON.dump_json(self._key.dump_python(key, mode="json")).decode()
+        return key_text, _JSON.dump_json(self._value.dump_python(value, mode="json", exclude_unset=True)).decode()
 
     @override
     def load(self) -> Mapping[K, V] | None:
         raw = self._storage.get(self._storage_key)
-        if raw is None:
-            return None
-        try:
-            document = _DOCUMENT.validate_json(raw)
-        except ValidationError:
-            return None
-        stored = document.get("entries")
-        if document.get("version") != self._version or not isinstance(stored, list):
+        entries = None if raw is None else _entries(raw)
+        if entries is None:
             return None
         kept: dict[K, V] = {}
         written: dict[str, tuple[str, int]] = {}
-        for entry in stored:
-            if not isinstance(entry, list) or len(entry) != 3 or isinstance(entry[2], bool) or not isinstance(entry[2], int):
-                continue
+        for stored_key, stored_value, stamp in entries:
             try:
                 # An entry that is not this cache's shape is one it never kept.
-                kept[self._key.validate_python(entry[0])] = self._value.validate_python(entry[1])
+                key, value = self._key.validate_python(stored_key), self._value.validate_python(stored_value)
             except ValidationError:
                 continue
-            written[_JSON.dump_json(entry[0]).decode()] = (_JSON.dump_json(entry[1]).decode(), entry[2])
+            kept[key] = value
+            key_text, value_text = self._texts(key, value)
+            written[key_text] = (value_text, stamp)
         self._written = written
         return kept
 
@@ -151,14 +189,13 @@ class StoragePersister[K: Hashable, V](CachePersister[K, V]):
         now = int(time.time() * 1000)
         stored: list[tuple[str, str, int]] = []
         for key, value in entries.items():
-            key_text = _JSON.dump_json(self._key.dump_python(key, mode="json")).decode()
-            value_text = _JSON.dump_json(self._value.dump_python(value, mode="json", exclude_unset=True)).decode()
+            key_text, value_text = self._texts(key, value)
             before = self._written.get(key_text)
             stored.append((key_text, value_text, before[1] if before is not None and before[0] == value_text else now))
 
         def document() -> bytes:
             kept = ",".join(f"[{key_text},{value_text},{at}]" for key_text, value_text, at in stored)
-            return f'{{"version":{self._version},"writtenAt":{now},"entries":[{kept}]}}'.encode()
+            return f'{{"version":{CACHE_DOCUMENT_VERSION},"entries":[{kept}]}}'.encode()
 
         text = document()
         if len(text) > self._max_bytes:

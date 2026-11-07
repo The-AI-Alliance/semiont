@@ -151,14 +151,18 @@ internal static partial class Required
     };
 
     /// <summary>A number as JSON states it, where one too great for a double is infinite.</summary>
-    private static double NumberOf(JsonElement value) => double.Parse(value.GetRawText(), NumberStyles.Float, CultureInfo.InvariantCulture);
+    internal static double NumberOf(JsonElement value) => double.Parse(value.GetRawText(), NumberStyles.Float, CultureInfo.InvariantCulture);
 
     /// <summary>Whether <paramref name="kinds"/> allow <paramref name="value"/>: none allow any, and an integer is a
     /// number with no fractional part.</summary>
-    private static bool Allows(IReadOnlyList<Kind>? kinds, JsonElement value)
+    private static bool Allows(IReadOnlyList<Kind>? kinds, JsonElement value) =>
+        kinds is null || kinds.Contains(KindOf(value)) || kinds.Contains(Kind.Integer) && IsInteger(value);
+
+    /// <summary>Whether <paramref name="value"/> is an integer: a number with no fractional part, however it is
+    /// written.</summary>
+    internal static bool IsInteger(JsonElement value)
     {
-        if (kinds is null || kinds.Contains(KindOf(value))) return true;
-        if (value.ValueKind != JsonValueKind.Number || !kinds.Contains(Kind.Integer)) return false;
+        if (value.ValueKind != JsonValueKind.Number) return false;
         var number = NumberOf(value);
         return double.IsFinite(number) && Math.Truncate(number) == number;
     }

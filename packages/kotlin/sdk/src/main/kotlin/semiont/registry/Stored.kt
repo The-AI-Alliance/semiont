@@ -1,14 +1,37 @@
 package semiont.registry
 
 import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonIgnoreUnknownKeys
+import kotlinx.serialization.json.JsonPrimitive
+import semiont.Timings
+import semiont.bus.faultOfSchema
+import semiont.cache.CacheQuery
 import semiont.cache.PERSISTED_QUERIES
 import semiont.http.codeChallenge
+import semiont.identifiers.AnnotationId
+import semiont.identifiers.ResourceId
+import semiont.storage.CachePersistence
 import semiont.storage.SessionStorage
+import semiont.storage.StoragePersister
+import semiont.types.Annotation
+import semiont.types.GetAnnotationsResponse
+import semiont.types.ResourceDescriptor
+import semiont.types.TagSchema
 
-// What a registry of knowledge bases keeps in a SessionStorage, as protocol/specs/src/session/stored.json states it.
-// StoredTest fails when this differs from the table.
+// What a registry of knowledge bases keeps in a SessionStorage, and what its sessions keep there of their queries and
+// their stream, as protocol/specs/src/session/stored.json states it. StoredTest fails when this differs from the table,
+// and CacheCasesTest when what a session keeps differs from session/cache-cases.json.
 
 /** The registered knowledge bases: a JSON list of `KnowledgeBase`. */
 public const val KNOWLEDGE_BASES_KEY: String = "semiont.knowledgeBases"
@@ -45,8 +68,14 @@ public fun kbOfSessionKey(key: String): String? = if (key.startsWith(SESSION_KEY
  */
 public fun personKey(did: String): String = codeChallenge(did)
 
-/** The key the stream's places in each scope of knowledge base `kbId` are kept under, for the person whose key is `personKey`. */
+/** The key the stream's places in each scope of knowledge base `kbId` are kept under, as `lastEventIds`, for the person whose key is `personKey`. */
 internal fun lastEventIdKey(kbId: String, personKey: String): String = "semiont.lastEventId.$kbId.$personKey"
+
+/** The schema each place `lastEventIds` keeps is a value of. */
+internal const val PLACE_SCHEMA: String = "PersistedEventId"
+
+/** Whether `id` is a PersistedEventId: the id of a recorded event, and the one kind of id that is a stream's place. */
+internal fun isPersistedEventId(id: String): Boolean = faultOfSchema(PLACE_SCHEMA, JsonPrimitive(id)) == null
 
 /** The key the query `query` of knowledge base `kbId` is kept under, for the person whose key is `personKey`. */
 internal fun cacheKey(kbId: String, personKey: String, query: String): String = "semiont.cache.$kbId.$personKey.$query"
@@ -61,6 +90,42 @@ internal fun forgetKept(storage: SessionStorage, kbId: String, personKey: String
     PERSISTED_QUERIES.forEach { storage.delete(cacheKey(kbId, personKey, it.wire)) }
     storage.delete(lastEventIdKey(kbId, personKey))
 }
+
+/** The form of a kept query's document, `cacheDocument`: `{version, entries}`, each entry a key, a value and its stamp. */
+internal const val CACHE_DOCUMENT_VERSION: Long = 1
+
+/** The key of a query per nothing: the one entry a kept one keeps is kept under it. */
+internal const val WHOLE_KEY: String = "_"
+
+/** The key of a kept query per nothing, as its document writes it: `WHOLE_KEY`, and no other text. */
+private object WholeKeySerializer : KSerializer<String> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("semiont.registry.WholeKey", PrimitiveKind.STRING)
+
+    override fun serialize(encoder: Encoder, value: String): Unit = encoder.encodeString(value)
+
+    override fun deserialize(decoder: Decoder): String {
+        val json = decoder as? JsonDecoder ?: throw SerializationException("the key of a query per nothing is read from JSON alone")
+        val key = json.decodeJsonElement()
+        if (key !is JsonPrimitive || !key.isString || key.content != WHOLE_KEY) throw SerializationException("$key is not the key of a query per nothing")
+        return key.content
+    }
+}
+
+/** A query a client keeps across a restart (`keptQueries`): its name in client/refresh.json, and what its entries' keys and values are. */
+internal class KeptQuery<K : Any, V : Any>(val query: CacheQuery, val key: KSerializer<K>, val value: KSerializer<V>) {
+    /** What keeps the query's cache in `persistence`: one document, under the query's name, for the persistence's person. */
+    fun persister(persistence: CachePersistence): StoragePersister<K, V> =
+        StoragePersister(persistence.storage, cacheKey(persistence.kbId, persistence.personKey, query.wire), key, value, CACHE_DOCUMENT_VERSION, Timings.MAX_STORED_BYTES_COUNT)
+}
+
+internal val KEPT_RESOURCE = KeptQuery(CacheQuery.Resource, ResourceId.serializer(), ResourceDescriptor.serializer())
+internal val KEPT_ANNOTATIONS = KeptQuery(CacheQuery.Annotations, ResourceId.serializer(), GetAnnotationsResponse.serializer())
+internal val KEPT_ANNOTATION = KeptQuery(CacheQuery.Annotation, AnnotationId.serializer(), Annotation.serializer())
+internal val KEPT_ENTITY_TYPES = KeptQuery(CacheQuery.EntityTypes, WholeKeySerializer, ListSerializer(String.serializer()))
+internal val KEPT_TAG_SCHEMAS = KeptQuery(CacheQuery.TagSchemas, WholeKeySerializer, ListSerializer(TagSchema.serializer()))
+
+/** Every query a client keeps. */
+internal val KEPT_QUERIES: List<KeptQuery<*, *>> = listOf(KEPT_RESOURCE, KEPT_ANNOTATIONS, KEPT_ANNOTATION, KEPT_ENTITY_TYPES, KEPT_TAG_SCHEMAS)
 
 /**
  * What is kept of a sign-in: the tokens an issuer issued, the client they

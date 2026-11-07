@@ -218,7 +218,7 @@ async fn a_renewal_rides_out_an_issuer_that_says_not_now_and_keeps_the_rotation(
         granted("a2", Some("r2")),
     ]);
 
-    let renewed = renew_kept(kept.as_ref(), Some("a1"), &issuer.http)
+    let renewed = renew_kept(kept.as_ref(), Some("a1"), &issuer.http, None)
         .await
         .expect("renewed");
 
@@ -240,7 +240,7 @@ async fn a_renewal_keeps_the_person_the_sign_in_names() {
     let kept = kept_holding(naming("a1", "r1")).await;
     issuer.answers([granted("a2", Some("r2"))]);
 
-    let renewed = renew_kept(kept.as_ref(), Some("a1"), &issuer.http)
+    let renewed = renew_kept(kept.as_ref(), Some("a1"), &issuer.http, None)
         .await
         .expect("renewed");
 
@@ -254,7 +254,7 @@ async fn a_renewal_keeps_the_person_the_sign_in_names() {
 async fn with_nothing_kept_a_renewal_gives_nothing_and_asks_nobody() {
     let issuer = Issuer::start().await;
 
-    let renewed = renew_kept(&MemorySignIn::new(), Some("a1"), &issuer.http)
+    let renewed = renew_kept(&MemorySignIn::new(), Some("a1"), &issuer.http, None)
         .await
         .expect("no failure");
 
@@ -274,7 +274,7 @@ async fn a_refused_grant_is_final_on_its_first_answer() {
         let before = issuer.forms().len();
         issuer.answers([refusal.clone(), granted("never", None)]);
 
-        let refused = renew_kept(kept.as_ref(), Some("a1"), &issuer.http)
+        let refused = renew_kept(kept.as_ref(), Some("a1"), &issuer.http, None)
             .await
             .map_err(sign_in_error)
             .expect_err("the grant is refused");
@@ -301,7 +301,7 @@ async fn a_renewal_that_is_never_answered_gives_up_and_says_how_hard_it_tried() 
     let kept = kept_holding(issuer.stored("a1", "r1")).await;
     issuer.answers((0..10).map(|_| (503, Value::Null)));
 
-    let refused = renew_kept(kept.as_ref(), Some("a1"), &issuer.http)
+    let refused = renew_kept(kept.as_ref(), Some("a1"), &issuer.http, None)
         .await
         .map_err(sign_in_error)
         .expect_err("the budget is spent");
@@ -318,7 +318,7 @@ async fn a_renewal_that_is_never_answered_gives_up_and_says_how_hard_it_tried() 
         ..issuer.stored("a1", "r1")
     })
     .await;
-    let unanswered = renew_kept(nowhere.as_ref(), Some("a1"), &issuer.http)
+    let unanswered = renew_kept(nowhere.as_ref(), Some("a1"), &issuer.http, None)
         .await
         .map_err(sign_in_error)
         .expect_err("nothing is there");
@@ -340,7 +340,7 @@ async fn a_renewal_the_issuer_never_answers_is_tried_inside_the_budget_and_then_
 
     let refused = tokio::time::timeout(
         Duration::from_secs(600),
-        renew_kept(kept.as_ref(), Some("a1"), &issuer.http),
+        renew_kept(kept.as_ref(), Some("a1"), &issuer.http, None),
     )
     .await
     .expect("it ends")
@@ -606,7 +606,7 @@ async fn renewed_as_the_row_says(row: &Value, store: &str) -> Vec<String> {
     };
     let holding = row["holding"].as_str().map(&token);
 
-    let given = renew_kept(renewing.as_ref(), holding.as_deref(), &issuer.http).await;
+    let given = renew_kept(renewing.as_ref(), holding.as_deref(), &issuer.http, None).await;
 
     let left = renewer.held().await.expect("what is kept is read");
     judged(&issuer, row, given, left)

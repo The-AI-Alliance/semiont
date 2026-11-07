@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Generate the Python SDK's cache-refresh table from protocol/specs/src/client/refresh.json:
-// which live queries each event on the bus, and the reopening of a dropped
-// stream, asks again for, writes, or removes; and which of them a client keeps
-// for its person across its lives.
+// which live queries each event on the bus, the reopening of a dropped
+// stream, and an event that cannot be read, asks again for, writes, or
+// removes; where in each event its row finds what it names; and which of
+// them a client keeps for its person across its lives.
 //
 //   packages/python/sdk/src/semiont/refresh.py
 //
@@ -34,13 +35,18 @@ function refuse(message) {
   process.exit(1);
 }
 
-const { queries, refresh, whens, WHEN, ACTS } = readCacheRefresh(TABLE, resolve(ROOT, 'protocol/specs/src/bus/registry.json'), resolve(ROOT, 'protocol/specs/src/openapi.json'), refuse);
+const { queries, refresh, whens, channelTriggers, WHEN, ACTS } = readCacheRefresh(ROOT, TABLE, refuse);
 
 /** A tuple of strings, as Python writes one: `("a",)`, never `("a")`. */
 const tuple = (values) => (values.length === 0 ? '()' : `(${values.map(pyString).join(', ')}${values.length === 1 ? ',' : ''})`);
 
+/** A way to a member, as the names it is made of. */
+const way = (dotted) => tuple(dotted.split('.'));
+
 const rowOf = (row) => {
   const said = [`reach=${pyString(row.reach ?? 'subject')}`];
+  const ways = { names_resource: row.names?.resource, names_annotation: row.names?.annotation, carries: row.carries };
+  for (const [field, dotted] of Object.entries(ways)) if (dotted !== undefined) said.push(`${field}=${way(dotted)}`);
   for (const act of ACTS) if ((row[act] ?? []).length > 0) said.push(`${act}=${tuple(row[act])}`);
   if (row.when !== undefined) said.push(`when=${pyString(row.when)}`);
   return `CacheRefresh(${said.join(', ')})`;
@@ -60,9 +66,10 @@ const text = `${pyBanner('protocol/specs/src/client/refresh.json', 'packages/cod
 """What a Semiont client asks again for, and when.
 
 A client's live queries answer from a cache. This table says what each event
-on the bus, and the reopening of a dropped stream, does to it: which queries
-are asked for again, which are written with what the event carries, and which
-are gone.
+on the bus, the reopening of a dropped stream, and an event that cannot be
+read, does to it: which queries are asked for again, which are written with
+what the event carries, and which are gone. And it says where in an event its
+row finds the resource and the annotation it names, and the value it carries.
 """
 
 from collections.abc import Mapping
@@ -73,11 +80,14 @@ from typing import Final, Literal, final
 __all__ = [
     "CACHE_QUERIES",
     "CACHE_REFRESH",
+    "CACHE_REFRESH_CHANNELS",
     "PERSISTED_QUERIES",
     "CacheQuery",
     "CacheRefresh",
+    "CacheRefreshChannel",
     "CacheRefreshReach",
     "CacheRefreshTrigger",
+    "CacheRefreshWay",
     "CacheRefreshWhen",
 ]
 
@@ -103,11 +113,25 @@ type CacheRefreshWhen = Literal[${WHEN.map(pyString).join(', ')}]
 # \`subject\`: the keys the event names. \`held\`: every key the client holds.
 type CacheRefreshReach = Literal["subject", "held"]
 
-# What each trigger is: a channel whose events are it, or \`reopened\`, the
-# stream open again after a drop.
+# What each trigger is: a channel whose events are it; \`reopened\`, the
+# stream open again after a drop; or \`unreadable\`, an event on one of the
+# table's channels that cannot be read.
 type CacheRefreshTrigger = Literal[
 ${literal(triggers)}
 ]
+
+# The triggers that are channels of the bus.
+type CacheRefreshChannel = Literal[
+${literal(channelTriggers)}
+]
+
+CACHE_REFRESH_CHANNELS: Final[tuple[CacheRefreshChannel, ...]] = (
+${literal(channelTriggers)}
+)
+
+# A way to a member of an event (the frame's payload): the names of the
+# members it is within, and its own.
+type CacheRefreshWay = tuple[str, ...]
 
 
 @final
@@ -116,6 +140,12 @@ class CacheRefresh:
     """What one trigger does to the cache."""
 
     reach: CacheRefreshReach
+    names_resource: CacheRefreshWay | None = None
+    """The way to the resource a \`subject\` row reaches (a ResourceId)."""
+    names_annotation: CacheRefreshWay | None = None
+    """The way to the annotation a \`subject\` row reaches (an AnnotationId)."""
+    carries: CacheRefreshWay | None = None
+    """The way to the value the row writes (an Annotation). On a split channel, its presence is what makes an event enriched."""
     refetches: tuple[CacheQuery, ...] = ()
     """Asked for again, the value shown meanwhile."""
     writes: tuple[CacheQuery, ...] = ()

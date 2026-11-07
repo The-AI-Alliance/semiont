@@ -206,9 +206,9 @@ internal suspend fun sessionStarted(
     )
     val content = HttpContentTransport(transport)
     val client = SemiontClient(transport, content, transport, persistence = atStart?.persistence)
-    // The stream's place rides the caches' writes, and only when every cache is at rest: a place kept ahead of a
-    // cache still taking in the event it names would have the next session skip that event.
-    atStart?.places?.flushGate = { client.persistenceSettled }
+    // The stream's place rides the caches' writes, and only when every cache is at rest and no event's refetch is owed:
+    // a place kept ahead of a cache still taking in the event it names would have the next session skip that event.
+    atStart?.places?.let(client::keepPlacesIn)
     val attached = AtomicBoolean(atStart != null)
     val ask = asking(baseUrl, http)
     // Who the gateway says a token is: by a session that keeps, recorded on the sign-in that holds that token, and only
@@ -218,7 +218,7 @@ internal suspend fun sessionStarted(
         val person = personKey(user.did.value)
         if (keeping != null && kept.recordPersonKey(asked, person) && attached.compareAndSet(false, true)) {
             val late = KeptFor(keeping, kb.id, person, named)
-            late.places.flushGate = { client.persistenceSettled }
+            client.keepPlacesIn(late.places)
             client.attach(late.persistence)
             transport.keepPlaces(late.places)
         }

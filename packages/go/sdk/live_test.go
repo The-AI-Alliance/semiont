@@ -798,6 +798,28 @@ func TestEnginesThatFailAreAFailedStateWhateverTheirHoldersReportAndAReadOfThemF
 // queries for.
 var keptForAlice = semiont.PersonKey("did:web:example.org:users:alice")
 
+// wholeKeyOf is the key protocol/specs/src/session/stored.json says a kept
+// query of one value keeps its entry under, as JSON.
+func wholeKeyOf(t *testing.T) json.RawMessage {
+	t.Helper()
+	var table struct {
+		WholeKey struct {
+			Key string `json:"key"`
+		} `json:"wholeKey"`
+	}
+	if err := json.Unmarshal(readSpec(t, "session", "stored.json"), &table); err != nil {
+		t.Fatal(err)
+	}
+	if table.WholeKey.Key == "" {
+		t.Fatal("the table states no whole key: it was not read")
+	}
+	key, err := json.Marshal(table.WholeKey.Key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return key
+}
+
 // keptOf is the one entry of the document a client keeps of query for Alice
 // on kb: its key, and its value.
 func keptOf(t *testing.T, storage semiont.SessionStorage, query semiont.CacheQuery) (key, value json.RawMessage) {
@@ -868,6 +890,10 @@ func TestAClientKeepsItsSmallQueriesAndTheNextClientShowsThemAtOnceAndAsksForThe
 	listed := `{"annotations":[` + annotating("ann-1", "res-1", "") + `],"total":1}`
 	if key, value := keptOf(t, storage, semiont.CacheQueryAnnotations); !sameJSON(t, key, []byte(`"res-1"`)) || !sameJSON(t, value, []byte(listed)) {
 		t.Fatalf("the annotations are kept as %s: %s", key, value)
+	}
+	wholeKey := wholeKeyOf(t)
+	if key, _ := keptOf(t, storage, semiont.CacheQueryEntityTypes); !sameJSON(t, key, wholeKey) {
+		t.Fatalf("the entity types are kept under %s; the table's key is %s", key, wholeKey)
 	}
 
 	// The next client of the same knowledge base, over the same storage.
@@ -942,4 +968,110 @@ func TestAClientIsSettledUnlessAQueryItKeepsIsBeingFetchedOrIsOwedToStorage(t *t
 			}
 		})
 	}
+}
+
+// An event a B19 window owes has not been taken in: while the refresher owes
+// a refetch, the client is not settled, though no cache is fetching or owes a
+// save.
+func TestAClientIsNotSettledWhileItsRefresherOwesARefetch(t *testing.T) {
+	const window = time.Second
+	w := newLiveWorld(t, liveSetup{window: window, saveWait: 10 * time.Millisecond, persistence: &semiont.CachePersistence{Storage: semiont.NewMemoryStorage(), KbID: "kb", PersonKey: keptForAlice}})
+	c := w.client
+	resources := bus.BrowseResourceRequested.Request().Channel()
+	asked := func() int { return len(requestsOn(w.transport, resources)) }
+	updated := func() { w.transport.Deliver(eventOf(t, semiont.CacheRefreshYieldUpdated, "", "res-1", "ann-1")) }
+	untilReady(t, watch(t, c.Browse.Resource(resourceOf(t, "res-1"))))
+	waitUntil(t, "the client settled", 2*time.Second, c.PersistenceSettled)
+
+	// The first refetch runs at once, and opens the window.
+	updated()
+	waitUntil(t, "the first refetch", time.Second, func() bool { return asked() == 2 })
+	waitUntil(t, "the first refetch kept", time.Second, c.PersistenceSettled)
+	// The next is owed to the window.
+	updated()
+	time.Sleep(settling)
+	if asked() != 2 {
+		t.Fatalf("asked %d resources inside the window, want 2", asked())
+	}
+	if c.PersistenceSettled() {
+		t.Fatal("a client whose refresher owes a refetch is settled")
+	}
+	// The window closed: what it owed ran, and was kept.
+	waitUntil(t, "what the window owed", 2*window, func() bool { return asked() == 3 })
+	waitUntil(t, "the client settled", time.Second, c.PersistenceSettled)
+}
+
+// notingStorage is storage where a write under key first calls note.
+type notingStorage struct {
+	semiont.SessionStorage
+	key  string
+	note func()
+}
+
+func (s *notingStorage) Set(key, value string) error {
+	if key == s.key {
+		s.note()
+	}
+	return s.SessionStorage.Set(key, value)
+}
+
+// Close reads once, before it disposes anything, whether what is kept is at
+// rest (B17). A refetch then owed holds the places back from the saves Close
+// makes; a save then owed does not, since Close makes it. The places those
+// saves may write are those noted before the reading.
+func TestCloseReadsWhetherWhatIsKeptIsAtRestBeforeItDisposesAnything(t *testing.T) {
+	const placesKey = "places"
+	// Long enough that Close comes before either ends.
+	const window, saveWait = 5 * time.Second, 5 * time.Second
+	closed := func(t *testing.T, owing bool) semiont.SessionStorage {
+		storage := semiont.NewMemoryStorage()
+		underneath := &notingStorage{SessionStorage: storage, key: semiont.CacheKey("kb", keptForAlice, semiont.CacheQueryResource)}
+		places := semiont.NewCoupledBookmarks(underneath, placesKey)
+		// A place noted after Close read the gate: as Close saves the resources.
+		noted := false
+		underneath.note = func() {
+			places.Save(resourceOf(t, "res-2"), "p-res-2-3")
+			noted = true
+		}
+		w := newLiveWorld(t, liveSetup{window: window, saveWait: saveWait, persistence: &semiont.CachePersistence{Storage: places.Storage(), KbID: "kb", PersonKey: keptForAlice}})
+		places.CoupleTo(w.client)
+		resources := bus.BrowseResourceRequested.Request().Channel()
+		updated := func() { w.transport.Deliver(eventOf(t, semiont.CacheRefreshYieldUpdated, "", "res-1", "ann-1")) }
+		watched := watch(t, w.client.Browse.Resource(resourceOf(t, "res-1")))
+		untilReady(t, watched)
+		if owing {
+			// The first refetch runs at once, and opens the window; its answer is
+			// the watcher's next value, so nothing is in flight after it.
+			updated()
+			untilReady(t, watched)
+			// The next is owed to the window.
+			updated()
+			time.Sleep(settling)
+			if asked := len(requestsOn(w.transport, resources)); asked != 2 {
+				t.Fatalf("asked %d resources, want 2: the second refetch is not owed", asked)
+			}
+		}
+		places.Save(resourceOf(t, "res-1"), "p-res-1-7")
+		w.client.Close()
+		if !noted {
+			t.Fatal("Close saved no resource")
+		}
+		return storage
+	}
+
+	t.Run("a refetch owed holds the places back", func(t *testing.T) {
+		storage := closed(t, true)
+		keptOf(t, storage, semiont.CacheQueryResource)
+		if kept, ok := storage.Get(placesKey); ok {
+			t.Fatalf("the places were written while a refetch was owed: %s", kept)
+		}
+	})
+	t.Run("with nothing in flight or owed the places noted before are written", func(t *testing.T) {
+		storage := closed(t, false)
+		keptOf(t, storage, semiont.CacheQueryResource)
+		kept, ok := storage.Get(placesKey)
+		if !ok || !sameJSON(t, []byte(kept), []byte(`{"res-1":"p-res-1-7"}`)) {
+			t.Fatalf("the places kept are %q, %v: only res-1's was noted before Close read the gate", kept, ok)
+		}
+	})
 }

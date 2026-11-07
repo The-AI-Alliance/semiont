@@ -409,13 +409,24 @@ internal fun encodingsFile(table: JsonObject): String = buildString {
     append("internal val REFUSED: Set<String> = setOf(${refused.joinToString(", ") { escaped(it) }})\n")
 }
 
+/** The members a row of the refresh table states. */
+private val REFRESH_ROW_MEMBERS = setOf("on", "when", "reach", "names", "carries", "docs", "refetches", "writes", "removes")
+
 /**
  * What a client asks again for, and when (client/refresh.json): the live
- * queries, those a client with a storage keeps, the triggers, and each
- * trigger's rows. A row reaches `subject` unless it says otherwise. A row that
- * names a query the table lacks, a trigger that is neither `reopened` nor a
- * channel of the registry, or a query whose `persisted` is anything but true,
- * is refused.
+ * queries, those a client with a storage keeps, the triggers, each trigger's
+ * rows with the ways to what its events name and carry (each split into the
+ * names of its members), and the triggers that are channels, each with its
+ * channel's reading. A row reaches `subject` unless it says otherwise.
+ * Refused: a query whose `persisted` is anything but true; a row that states
+ * a member a row does not have, names a query the table lacks or a slot other
+ * than `resource` and `annotation`, names a subject and reaches what is held,
+ * or is enriched and carries no value or unenriched and carries one; a
+ * trigger that is neither a channel of the registry nor `reopened` nor
+ * `unreadable`, or is no channel and reaches a subject or carries a value; and
+ * a table without `reopened` or `unreadable`.
+ * packages/codegen/schemas/cache-refresh-table.mjs holds each way to its
+ * channel's schema.
  */
 internal fun cacheRefreshFile(table: JsonObject, registry: JsonObject): String = buildString {
     val queries = table["queries"].list("the refresh table's queries").map { it.obj("a query") }
@@ -438,8 +449,9 @@ internal fun cacheRefreshFile(table: JsonObject, registry: JsonObject): String =
     append("internal val PERSISTED_QUERIES: List<CacheQuery> = ${persisted.joinToString(", ", "listOf(", ")") { "CacheQuery.${variantOf(it["name"].text("a query's name"))}" }}\n\n")
     val rows = table["refresh"].list("the refresh table's rows").map { it.obj("a row") }
     val triggers = rows.map { it["on"].text("a row's trigger") }.distinct()
-    for (trigger in triggers) if (trigger != "reopened" && trigger !in channels) refuse("$trigger is no channel of the registry")
-    append("/** What each trigger is: a channel whose events are it, or `reopened`, the stream open again after a drop. */\n")
+    for (trigger in triggers) if (trigger != "reopened" && trigger != "unreadable" && trigger !in channels) refuse("$trigger is no channel of the registry")
+    for (trigger in listOf("reopened", "unreadable")) if (trigger !in triggers) refuse("the refresh table has no row for $trigger")
+    append("/** What each trigger is: a channel whose events are it; `reopened`, the stream open again after a drop; or `unreadable`, an event on one of the table's channels that cannot be read. */\n")
     append("internal enum class CacheRefreshTrigger(\n    /** The trigger as the table names it. */\n    val wire: String,\n) {\n")
     for (trigger in triggers) append("    ${variantOf(trigger)}(${literal(trigger)}),\n")
     append("}\n\n")
@@ -447,18 +459,28 @@ internal fun cacheRefreshFile(table: JsonObject, registry: JsonObject): String =
     append("internal enum class CacheRefreshReach { Subject, Held }\n\n")
     append("/** Which of a split channel's two kinds of event a row is for. */\n")
     append("internal enum class CacheRefreshWhen { Enriched, Unenriched }\n\n")
-    append("/** What one trigger does to the cache: what it asks for again, what it writes with the value the event carries, and what it says is gone. */\n")
-    append("internal data class CacheRefresh(\n    val reach: CacheRefreshReach,\n    val refetches: List<CacheQuery>,\n    val writes: List<CacheQuery>,\n    val removes: List<CacheQuery>,\n    val whenIs: CacheRefreshWhen?,\n)\n\n")
+    append("/** Where in an event (the frame's payload) a `Subject` row finds the resource it names (a ResourceId) and the annotation (an AnnotationId): each a way, the names of the members it is within and its own; null where the row names none. */\n")
+    append("internal data class CacheRefreshNames(\n    val resource: List<String>?,\n    val annotation: List<String>?,\n)\n\n")
+    append("/** What one trigger does to the cache: what it asks for again, what it writes with the value the event carries (an Annotation, at the way `carries`), and what it says is gone. */\n")
+    append("internal data class CacheRefresh(\n    val reach: CacheRefreshReach,\n    val names: CacheRefreshNames,\n    val carries: List<String>?,\n    val refetches: List<CacheQuery>,\n    val writes: List<CacheQuery>,\n    val removes: List<CacheQuery>,\n    val whenIs: CacheRefreshWhen?,\n)\n\n")
     fun queriesOf(row: JsonObject, key: String, trigger: String): String {
         val named = (row[key] as? JsonArray)?.map { it.text("a query $trigger $key") } ?: emptyList()
         for (name in named) if (name !in names) refuse("$trigger $key $name, which is no query of the table")
         return named.joinToString(", ", "listOf(", ")") { "CacheQuery.${variantOf(it)}" }
+    }
+    fun wayOf(way: JsonElement?, what: String): String {
+        if (way == null) return "null"
+        val dotted = way.text(what)
+        if (!Regex("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*").matches(dotted)) refuse("$what is $dotted, which is no way: the names of the members it is within and its own, joined by dots")
+        return dotted.split('.').joinToString(", ", "listOf(", ")") { literal(it) }
     }
     append("/** Each trigger's rows: one, or one for each kind of event of a split channel. */\n")
     append("internal val CACHE_REFRESH: Map<CacheRefreshTrigger, List<CacheRefresh>> = mapOf(\n")
     for (trigger in triggers) {
         append("    CacheRefreshTrigger.${variantOf(trigger)} to listOf(\n")
         for (row in rows.filter { it["on"].text("a row's trigger") == trigger }) {
+            val unknown = row.keys - REFRESH_ROW_MEMBERS
+            if (unknown.isNotEmpty()) refuse("$trigger states $unknown, which a row does not have")
             val reach = when (val stated = (row["reach"] as? JsonPrimitive)?.content ?: "subject") {
                 "subject" -> "Subject"
                 "held" -> "Held"
@@ -470,9 +492,28 @@ internal fun cacheRefreshFile(table: JsonObject, registry: JsonObject): String =
                 "unenriched" -> "CacheRefreshWhen.Unenriched"
                 else -> refuse("$trigger is for $stated events, which are neither enriched nor unenriched")
             }
-            append("        CacheRefresh(CacheRefreshReach.$reach, ${queriesOf(row, "refetches", trigger)}, ${queriesOf(row, "writes", trigger)}, ${queriesOf(row, "removes", trigger)}, $whenIs),\n")
+            if (trigger !in channels && reach != "Held") refuse("$trigger is no event, so it names no subject and reaches what is held")
+            val named = row["names"]?.obj("$trigger's names")
+            if (named != null) {
+                val slots = named.keys - setOf("resource", "annotation")
+                if (slots.isNotEmpty()) refuse("$trigger names $slots: a row names a resource and an annotation")
+                if (reach != "Subject") refuse("$trigger names a subject, and reaches what is held")
+            }
+            if (trigger !in channels && "carries" in row) refuse("$trigger is no event, so it carries no value")
+            if (whenIs != "null" && ("carries" in row) != (whenIs == "CacheRefreshWhen.Enriched")) refuse("$trigger: an enriched row carries the value that makes it enriched, and an unenriched one carries none")
+            val ways = "CacheRefreshNames(${wayOf(named?.get("resource"), "$trigger's names.resource")}, ${wayOf(named?.get("annotation"), "$trigger's names.annotation")})"
+            val carries = wayOf(row["carries"], "$trigger's carries")
+            append("        CacheRefresh(CacheRefreshReach.$reach, $ways, $carries, ${queriesOf(row, "refetches", trigger)}, ${queriesOf(row, "writes", trigger)}, ${queriesOf(row, "removes", trigger)}, $whenIs),\n")
         }
         append("    ),\n")
+    }
+    append(")\n\n")
+    append("/** A trigger that is a channel of the bus, and that channel's reading of a payload on it, which throws `TransportError` for a payload that is not the channel's. */\n")
+    append("internal class CacheRefreshChannel(\n    val trigger: CacheRefreshTrigger,\n    val read: (JsonObject) -> Unit,\n)\n\n")
+    append("/** The triggers that are channels of the bus, by the channel's name, in the table's order. */\n")
+    append("internal val CACHE_REFRESH_CHANNELS: Map<String, CacheRefreshChannel> = mapOf(\n")
+    for (trigger in triggers.filter { it in channels }) {
+        append("    ${literal(trigger)} to CacheRefreshChannel(CacheRefreshTrigger.${variantOf(trigger)}) { decoded(Channels.${constantName(trigger)}, it) },\n")
     }
     append(")\n")
 }

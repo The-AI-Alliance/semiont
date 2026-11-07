@@ -16,6 +16,7 @@ from semiont.retry import RetryPolicy
 __all__ = [
     "ANCHORED_TEXT_REASK_MS",
     "BUS_REQUEST_TIMEOUT_MS",
+    "CHECKS_AT_ONCE_COUNT",
     "DEGRADED_THRESHOLD_MS",
     "DELEGATE_SILENCE_MS",
     "DEVICE_POLL_FLOOR_MS",
@@ -272,6 +273,10 @@ SEARCH_DEBOUNCE_MS: Final = 250
 # is a few seconds behind at worst, and the document is not read without pause.
 DISCOVERY_INTERVAL_MS: Final = 5000
 
+# How many of the resources open in a knowledge base a registry checks against it at once when
+# its session comes up. A connection that has just opened is not handed every check together.
+CHECKS_AT_ONCE_COUNT: Final = 4
+
 # Every entry's name, as the table states it.
 TIMING_NAMES: Final[tuple[str, ...]] = (
     "busRequestTimeoutMs",
@@ -311,4 +316,5 @@ TIMING_NAMES: Final[tuple[str, ...]] = (
     "hoverDelayMs",
     "searchDebounceMs",
     "discoveryIntervalMs",
+    "checksAtOnceCount",
 )

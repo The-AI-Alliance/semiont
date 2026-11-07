@@ -23,7 +23,7 @@ public struct BrowseNamespace: Sendable {
   }
 
   public func annotations(_ resourceId: ResourceId) -> Cached<[Annotation]> {
-    live.annotations.observe(resourceId)
+    live.annotationList(resourceId)
   }
   public func annotation(resourceId: ResourceId, annotationId: AnnotationId) -> Cached<Annotation> {
     live.annotation(resourceId: resourceId, annotationId: annotationId)

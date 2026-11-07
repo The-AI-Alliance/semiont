@@ -57,6 +57,7 @@ actor HeldWork<Result: Sendable>: WorkerLease {
   private let transport: any Transport
   private weak var owner: Claims?
   private let timing: WorkerTiming
+  private let clock: any Clock<Duration>
   private let span: Mutex<(any Span)?>
   private let workingTrace: [String: String]
   private var begun = false
@@ -66,7 +67,7 @@ actor HeldWork<Result: Sendable>: WorkerLease {
 
   init(
     record: JobRunning, trace: [String: String]?, transport: any Transport, owner: Claims,
-    timing: WorkerTiming
+    timing: WorkerTiming, clock: any Clock<Duration>
   ) {
     let metadata = record.metadata
     jobId = metadata.id
@@ -82,6 +83,7 @@ actor HeldWork<Result: Sendable>: WorkerLease {
     self.transport = transport
     self.owner = owner
     self.timing = timing
+    self.clock = clock
     let span = Self.startSpan(jobId: metadata.id, jobType: metadata.type, trace: trace)
     workingTrace = traceCarrier(span)
     self.span = Mutex(span)
@@ -207,17 +209,18 @@ actor HeldWork<Result: Sendable>: WorkerLease {
     try requireUnsettled()
     guard let last = annotations.last else { return }
     do {
-      _ = try await workerRequest(
-        transport, Operations.markCommit,
-        MarkCommitCommand(annotations: annotations, jobId: jobId, resourceId: resourceId),
-        timeoutMs: timing.commitTimeoutMs, parent: workingTrace)
+      _ = try await resultOf(
+        Operations.markCommit.request.name,
+        wirePayload(
+          MarkCommitCommand(annotations: annotations, jobId: jobId, resourceId: resourceId)),
+        over: transport, timeoutMs: timing.commitTimeoutMs, clock: clock, parent: workingTrace)
       observed(.acknowledged)
     } catch let timeout as BusRequestError where timeout.reason == .busTimeout {
       do {
-        _ = try await workerRequest(
-          transport, Operations.browseAnnotationRequested,
-          BrowseAnnotationRequest(annotationId: last.id, resourceId: resourceId),
-          timeoutMs: timing.commitTimeoutMs, parent: workingTrace)
+        _ = try await resultOf(
+          Operations.browseAnnotationRequested.request.name,
+          wirePayload(BrowseAnnotationRequest(annotationId: last.id, resourceId: resourceId)),
+          over: transport, timeoutMs: timing.commitTimeoutMs, clock: clock, parent: workingTrace)
         observed(.probeConfirmed)
       } catch {
         let reason = (error as? BusRequestError)?.reason

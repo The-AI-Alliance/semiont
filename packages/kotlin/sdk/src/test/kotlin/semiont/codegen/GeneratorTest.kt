@@ -94,7 +94,9 @@ class GeneratorTest {
         assertTrue(said.contains("x:done") && said.contains("scope"), said)
     }
 
-    private fun refreshTable(queries: String): JsonObject = definitions("""{"queries":$queries,"refresh":[]}""")
+    /** A refresh table of `queries`, with the rows every table has: `reopened`'s and `unreadable`'s. */
+    private fun refreshTable(queries: String): JsonObject =
+        definitions("""{"queries":$queries,"refresh":[{"on":"reopened","reach":"held"},{"on":"unreadable","reach":"held"}]}""")
 
     @Test
     fun theQueriesAClientKeepsAreThoseTheTableMarksPersistedInItsOrder() {

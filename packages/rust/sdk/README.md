@@ -46,7 +46,7 @@ machine.
 
 | Feature | What it adds |
 |---|---|
-| `charsets` | A resource's text in every encoding the Encoding Standard has, read as a browser reads it: by [the rule every Semiont reader keeps](../../../protocol/contract/W3C-SELECTORS.md#the-text-of-a-resource). Without the feature, `browse.resource_content` reads UTF-8 alone, by the same rule, and refuses by name any other charset and bytes that begin with UTF-16's mark. With it or without, a resource whose text is not its bytes is refused by its media type: a PDF, whose text is `browse.resource_anchored_text`'s, and an image, which has none. `browse.resource_representation` gives the bytes either way. |
+| `charsets` | A resource's text in every encoding of the Encoding Standard that every reader decodes, read as a browser reads it: by [the rule every Semiont reader keeps](../../../protocol/contract/W3C-SELECTORS.md#the-text-of-a-resource), which refuses the standard's seven legacy multi-byte encodings by name. Without the feature, `browse.resource_content` reads UTF-8 alone, by the same rule, and refuses by name any other charset and bytes that begin with UTF-16's mark. With it or without, a resource whose text is not its bytes is refused by its media type: a PDF, whose text is `browse.resource_anchored_text`'s, and an image, which has none. `browse.resource_representation` gives the bytes either way. |
 | `testing` | Doubles and harnesses for the tests of code built on the client. See [Testing your code](#testing-your-code). |
 
 Every type and method is documented on [docs.rs](https://docs.rs/semiont).

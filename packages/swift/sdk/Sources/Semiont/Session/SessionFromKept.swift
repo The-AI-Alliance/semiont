@@ -16,7 +16,8 @@ actor SessionGate {
     }
     throw CancellationError()
   }
-  func report(_ error: any Error) { session?.report(error) }
+  func failed(_ error: SessionError) { session?.failed(error) }
+  func relay(_ error: any Error) { session?.relay(error) }
 }
 /// A session with the knowledge base `kb`, over the sign-in `kept` holds. Given a `storage`, its
 /// client keeps its persisted queries' answers there for the person the gateway says the token
@@ -30,7 +31,7 @@ actor SessionGate {
 public func sessionFromKept(
   kb: KbTarget, kept: any SignInKept, httpClient: HTTPClient,
   onAuthFailed: (@Sendable (SessionEndReason) -> Void)? = nil,
-  onError: (@Sendable (any Error) -> Void)? = nil, storage: (any SessionStorage)? = nil,
+  onError: (@Sendable (SessionError) -> Void)? = nil, storage: (any SessionStorage)? = nil,
   clock: any Clock<Duration> = ContinuousClock(),
   random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator()
 ) async throws -> OpenedSession {
@@ -49,7 +50,7 @@ public func sessionFromKept(
       isTokenExpired($0.access, now: Date().timeIntervalSince1970) ? nil : $0.access
     }, clock: clock, random: draws, refresher: { try await gate.refresh($0) })
   let failures = transport.failures()
-  let writer = WritesWhileNamed(kept: kept, report: { await gate.report($0) })
+  let writer = WritesWhileNamed(kept: kept, report: { await gate.failed($0) })
   let persistence = storage.map {
     CachePersistence(storage: $0, kbId: kb.id, person: found?.personKey, writer: writer)
   }
@@ -77,7 +78,7 @@ public func sessionFromKept(
       do {
         if try await kept.recordPersonKey(holding: token, person) { await client.attach(person) }
       } catch {
-        await gate.report(error)
+        await gate.relay(error)
       }
       return user
     },
@@ -87,8 +88,8 @@ public func sessionFromKept(
   let life = session.lifetime
   let forwarding = Task { [weak session] in
     defer { life.forget(id) }
-    do { for try await error in failures { session?.report(error) } } catch {
-      if !Task.isCancelled { session?.report(error) }
+    do { for try await error in failures { session?.relay(error) } } catch {
+      if !Task.isCancelled { session?.relay(error) }
     }
   }
   life.keep(forwarding, id: id)

@@ -364,7 +364,9 @@ internal fun event(trigger: CacheRefreshTrigger, whenIs: CacheRefreshWhen? = nul
     val named = json("""{"annotationId":"${of.value}"}""")
     return when (trigger) {
         CacheRefreshTrigger.Reopened -> throw AssertionError("a reopening is no event")
-        CacheRefreshTrigger.BusResumeGap -> Frame(name, json("""{"scope":"${resource.value}","lastSeenId":"p-1","reason":"retention-exceeded"}"""))
+        // Its channel's reading takes it, and the annotation id its row names is present and is no AnnotationId.
+        CacheRefreshTrigger.Unreadable -> Frame("mark:removed", recorded("mark:removed", resource, json("""{"annotationId":"not an annotation id"}""")), null, resource)
+        CacheRefreshTrigger.BusResumeGap -> Frame(name, json("""{"scope":"${resource.value}","lastSeenId":"p-${resource.value}-1","reason":"retention-exceeded"}"""))
         CacheRefreshTrigger.MarkDeleteOk -> Frame(name, json("""{"response":{"annotationId":"${of.value}"}}"""), "cid-delete")
         CacheRefreshTrigger.MarkRemoved -> Frame(name, recorded(name, resource, named), null, resource)
         CacheRefreshTrigger.MarkBodyUpdated -> {

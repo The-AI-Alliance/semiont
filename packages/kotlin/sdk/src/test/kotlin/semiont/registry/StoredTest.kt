@@ -1,31 +1,58 @@
 package semiont.registry
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.serializer
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.Spec
 import semiont.cache.PERSISTED_QUERIES
+import semiont.identifiers.AnnotationId
+import semiont.identifiers.ResourceId
 import semiont.signin.HeldSignIn
 import semiont.signin.namingIsRecordedOnTheSignInAskedAbout
+import semiont.storage.CachePersistence
+import semiont.storage.CoupledBookmarks
 import semiont.storage.MemoryStorage
 import semiont.types.HttpEndpoint
 import semiont.types.HttpEndpointProtocol
 import semiont.types.KnowledgeBase
+import semiont.types.wireJson
 
 private val table = Spec.read("session/stored.json").jsonObject
 private val session = table.getValue("storedSession").jsonObject
 private val members = session.getValue("properties").jsonObject.keys
 private val required = session.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet()
+private val openResource = table.getValue("openResource").jsonObject
+private val openMembers = openResource.getValue("properties").jsonObject.keys
+private val openRequired = openResource.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet()
+private val keptQueries = table.getValue("keptQueries").jsonArray.map { it.jsonObject }
+private val wholeKey = table.getValue("wholeKey").jsonObject.getValue("key").jsonPrimitive.content
+private val cacheDocument = table.getValue("cacheDocument").jsonObject
+private val lastEventIds = table.getValue("lastEventIds").jsonObject
+
+/** The component schema a `$ref` of the table names. */
+private fun schemaOf(ref: JsonObject): String = ref.getValue("\$ref").jsonPrimitive.content.substringBefore('#').substringAfterLast('/').removeSuffix(".json")
+
+/** What a `$ref` of the table names, as Kotlin decodes it: a component schema's type, or the type of one member of one. */
+private fun descriptorOf(ref: JsonObject): SerialDescriptor {
+    val component = serializer(Class.forName("semiont.types.${schemaOf(ref)}")).descriptor
+    val pointer = ref.getValue("\$ref").jsonPrimitive.content.substringAfter('#', "")
+    if (pointer.isEmpty()) return component
+    return component.getElementDescriptor(component.getElementIndex(pointer.removePrefix("/properties/")))
+}
 
 private fun JsonObject.text(name: String): String = getValue(name).jsonPrimitive.content
 
@@ -38,15 +65,30 @@ private val KEYS = mapOf(
     "pendingAuthorizationKey" to PENDING_AUTHORIZATION_KEY,
 )
 
+/** What the registry writes of two resources it opens: one with a media type and a storage URI, then one with neither. */
+private fun writtenOpen(): List<JsonObject> = runBlocking {
+    val world = World().with(kbOfA())
+    world.browser().use { browser ->
+        live(browser)
+        browser.addOpenResource(ResourceId("r1"), "One", "text/plain", "file://docs/one.md")
+        browser.addOpenResource(ResourceId("r2"), "Two")
+    }
+    checkNotNull(world.stored(OPEN_RESOURCES_BY_KB_KEY)).jsonObject.getValue(KB_A).jsonArray.map { it.jsonObject }
+}
+
 /**
  * What a registry keeps in its storage, as protocol/specs/src/session/stored.json
  * states it: every key Kotlin writes by hand, the key of a knowledge base's
  * session, the keys of what a session keeps of its stream and its queries for
- * one person, each the table's example, and the members of a stored session. A
- * key or a member the table gains fails here until Kotlin has it. And the
- * registry's readers and writers of what it keeps. AuthorizationTest holds
- * what is kept of a sign-in begun; PersistedCasesTest, when each person's keys
- * are read, written and deleted.
+ * one person, each the table's example, the members of a stored session, and
+ * those of an open resource; and the queries a session keeps, what each is
+ * keyed by and keeps, the document each is kept as, and what is kept of its
+ * stream. A key or a member the table gains, or a change to what it requires,
+ * fails here until Kotlin has it. And the registry's readers and writers of
+ * what it keeps. AuthorizationTest holds what is kept of a sign-in begun;
+ * PersistedCasesTest, when each person's keys are read, written and deleted;
+ * and CacheCasesTest, what a session keeps of its queries and its stream,
+ * case by case.
  */
 class StoredTest {
     @Test
@@ -76,6 +118,63 @@ class StoredTest {
     }
 
     @Test
+    fun theQueriesASessionKeepsAreTheTablesEachByItsNameAndKeepingWhatTheTableSays() {
+        assertEquals(keptQueries.map { it.getValue("query").jsonPrimitive.content }.toSet(), KEPT_QUERIES.map { it.query.wire }.toSet())
+        for (stated in keptQueries) {
+            val kept = KEPT_QUERIES.single { it.query.wire == stated.getValue("query").jsonPrimitive.content }
+            assertEquals(descriptorOf(stated.getValue("value").jsonObject), kept.value.descriptor, kept.query.wire)
+        }
+    }
+
+    @TestFactory
+    fun eachKeptQueryIsKeyedByWhatTheRefreshTableSaysItIsPer(): List<DynamicTest> {
+        val per = Spec.read("client/refresh.json").jsonObject.getValue("queries").jsonArray.map { it.jsonObject }
+            .associate { it.getValue("name").jsonPrimitive.content to it["per"]?.jsonPrimitive?.content }
+        return KEPT_QUERIES.map { kept ->
+            DynamicTest.dynamicTest(kept.query.wire) {
+                when (val of = per.getValue(kept.query.wire)) {
+                    "resource" -> assertEquals(ResourceId.serializer().descriptor, kept.key.descriptor)
+                    "annotation" -> assertEquals(AnnotationId.serializer().descriptor, kept.key.descriptor)
+                    // A query per nothing keeps its one entry under the table's whole key, and under no other.
+                    null -> {
+                        assertEquals(wholeKey, WHOLE_KEY)
+                        assertEquals(wholeKey, wireJson.decodeFromJsonElement(kept.key, JsonPrimitive(wholeKey)))
+                        assertThrows(SerializationException::class.java) { wireJson.decodeFromJsonElement(kept.key, JsonPrimitive("$wholeKey$wholeKey")) }
+                    }
+                    else -> throw AssertionError("${kept.query.wire} is kept, and is per $of, which no kept query is")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun aKeptQuerysDocumentIsWrittenWithTheTablesMembersAndNoOthers() {
+        val version = cacheDocument.getValue("properties").jsonObject.getValue("version").jsonObject.getValue("const").jsonPrimitive.content.toLong()
+        assertEquals(version, CACHE_DOCUMENT_VERSION)
+        val storage = MemoryStorage()
+        val resource = ResourceId("r1")
+        KEPT_RESOURCE.persister(CachePersistence(storage, KB_A, "the key of jo")).save(
+            mapOf(resource to wireJson.decodeFromString(KEPT_RESOURCE.value, """{"@context":"https://schema.org/","@id":"r1","name":"One","representations":[]}""")),
+        )
+        val written = Json.parseToJsonElement(checkNotNull(storage.get(cacheKey(KB_A, "the key of jo", KEPT_RESOURCE.query.wire)))).jsonObject
+        assertEquals(cacheDocument.getValue("properties").jsonObject.keys, written.keys)
+        assertEquals(version, written.getValue("version").jsonPrimitive.content.toLong())
+        val items = cacheDocument.getValue("properties").jsonObject.getValue("entries").jsonObject.getValue("items").jsonObject
+        assertEquals(items.getValue("prefixItems").jsonArray.size, written.getValue("entries").jsonArray.single().jsonArray.size)
+    }
+
+    @Test
+    fun whereAStreamWasIsKeptAsTheTableSaysFromEachScopeToItsPlace() {
+        assertEquals(ResourceId.serializer().descriptor.serialName.substringAfterLast('.'), schemaOf(lastEventIds.getValue("propertyNames").jsonObject))
+        assertEquals(PLACE_SCHEMA, schemaOf(lastEventIds.getValue("additionalProperties").jsonObject))
+        val storage = MemoryStorage()
+        val places = CoupledBookmarks(storage, lastEventIdKey(KB_A, "the key of jo"))
+        places.save(ResourceId("r1"), "p-r1-7")
+        places.storage.set(cacheKey(KB_A, "the key of jo", KEPT_RESOURCE.query.wire), "{}")
+        assertEquals(Json.parseToJsonElement("""{"r1":"p-r1-7"}"""), Json.parseToJsonElement(checkNotNull(storage.get(lastEventIdKey(KB_A, "the key of jo")))))
+    }
+
+    @Test
     fun aStoredSessionIsWrittenWithTheTablesMembersAndNoOthers() {
         val storage = MemoryStorage()
         storeSession(storage, KB_A, StoredSession("a", "r", "semiont-browser", "https://issuer.test/token", "https://issuer.test/revoke", "the key of jo"))
@@ -92,6 +191,29 @@ class StoredTest {
             storage.set(sessionKey(KB_A), JsonObject((members - member).associateWith { JsonPrimitive("the $it") }).toString())
             val read = storedSession(storage, KB_A)
             if (member in required) assertNull(read) else assertNotNull(read)
+        }
+    }
+
+    @Test
+    fun anOpenResourceIsWrittenWithTheTablesMembersAndNoOthers() {
+        val (full, bare) = writtenOpen()
+        assertEquals(openMembers, full.keys)
+        // One with no media type and no storage URI is written with what the table requires alone.
+        assertEquals(openRequired, bare.keys)
+    }
+
+    @TestFactory
+    fun aStoredOpenResourceWithoutAMemberIsOneOnlyIfTheTableDoesNotRequireIt(): List<DynamicTest> {
+        val full = writtenOpen().first()
+        return openMembers.map { member ->
+            DynamicTest.dynamicTest(member) {
+                val lacking = JsonObject(full - member)
+                if (member in openRequired) {
+                    assertThrows(SerializationException::class.java) { wireJson.decodeFromJsonElement(OpenResource.serializer(), lacking) }
+                } else {
+                    wireJson.decodeFromJsonElement(OpenResource.serializer(), lacking)
+                }
+            }
         }
     }
 

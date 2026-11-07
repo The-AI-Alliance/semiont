@@ -118,6 +118,7 @@ let opened = session_from_kept(SessionFromKept {
     on_auth_failed: None,
     on_error: None,
     http,
+    random: None,
 })
 .await?;
 
@@ -156,6 +157,7 @@ let opened = session_from_kept(SessionFromKept {
     on_auth_failed: None,
     on_error: None,
     http,
+    random: None,
 })
 .await?;
 ```
@@ -182,6 +184,7 @@ let agent = AgentToken::sign_in(
     gateway,
     ServiceToken::new(credential, http.clone()),
     http.clone(),
+    None,
 )
 .await?;
 let client = client(
@@ -193,6 +196,7 @@ let client = client(
         http,
         timing: Timing::default(),
         bookmarks: None,
+        random: None,
     },
     ClientOptions::default(),
 );
@@ -217,6 +221,7 @@ while let Some(event) = completed.next().await {
 | `http` | The application's `reqwest::Client`. |
 | `timing` | The deadlines. `Timing::default()` is the ones every Semiont SDK keeps. |
 | `bookmarks` | Where the stream's place is kept across restarts. With none, the stream begins each life at the present. |
+| `random` | What the jitter of the stream's reconnects and of each emit's retries is drawn from. With none, the system's source. |
 
 **A worker** is a daemon whose agent claims jobs from the knowledge base's
 queue. Its stream names `JOB_CLAIM_CHANNELS`, and the client's `job.claim`
@@ -239,6 +244,7 @@ let agent = AgentToken::sign_in(
     gateway,
     ServiceToken::new(Credential::Key(Box::new(credential)), http.clone()),
     http.clone(),
+    None,
 )
 .await?;
 println!("working as {}", agent.did());
@@ -266,6 +272,7 @@ let client = client(
         http,
         timing: Timing::default(),
         bookmarks: None,
+        random: None,
     },
     ClientOptions::default(),
 );
@@ -375,7 +382,7 @@ to this machine. `open` shows the person the URL.
 // The registry an application holds, with its sessions over HTTP.
 let browser = SemiontBrowser::new(SemiontBrowserConfig {
     storage,
-    session_factory: Arc::new(HttpSessionFactory::new(http.clone())),
+    session_factory: Arc::new(HttpSessionFactory::new(http.clone(), None)),
 })?;
 
 // A person signs in at the issuer the knowledge base trusts, in their
@@ -397,7 +404,7 @@ open(&url);
 let callback = redirect.callback().await?;
 
 // The knowledge base that answered is registered, signed in and active.
-let signed_in = complete_sign_in(&browser, &callback, &http).await?;
+let signed_in = complete_sign_in(&browser, &callback, &http, None).await?;
 ```
 
 The issuer sends a person back only to an address its registration of the

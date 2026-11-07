@@ -8,3 +8,4 @@ required
 discovery-go
 encoding-cases
 model-catalogue
+haskell

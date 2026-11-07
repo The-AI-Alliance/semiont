@@ -176,7 +176,6 @@ package struct TableGenerator {
       ("media-types/registry.json", "mediaTypes", "mediaTypes"),
       ("text/encoding-cases.json", "cases", "encodings"),
       ("client/refresh.json", "queries", "cacheQueries"),
-      ("client/refresh.json", "refresh", "cacheRefresh"),
       ("bus/registry.json", "audience", "busAudience"),
       ("bus/log-cases.json", "names", "credentialNames"),
     ] {
@@ -196,6 +195,7 @@ package struct TableGenerator {
     out +=
       "internal let traceField = \(literal(try required(required(registry, "trace").object, "field").text))\n"
     out += try channels(registry)
+    out += try keptTable()
     return out
   }
   func errorClassifiers(_ errors: Schema) throws -> String {
@@ -508,55 +508,208 @@ package struct TableGenerator {
     out += shapeTable(
       "requiredSchemas", try schemaShapes.mapValues { try shapeLiteral($0) })
     out += shapeTable("requiredPayloadShapes", payloadShapes)
+    out += try cacheRefreshTable(channels: Set(rows.keys))
+    return out
+  }
+  /// client/refresh.json as typed rows: what each trigger does, and the ways into its event's
+  /// payload, each split into the names of the members it is within and its own. A trigger is a
+  /// channel of the registry, `reopened` or `unreadable`; which are channels is the registry's.
+  func cacheRefreshTable(channels: Set<String>) throws -> String {
     let refresh = try table("client/refresh.json")
-    let queries = try required(refresh, "queries").array.map { try $0.object }
-    let queryNames = try queries.map { try required($0, "name").text }
-    guard Set(queryNames).count == queryNames.count else {
+    let queries = try required(refresh, "queries").array.map {
+      try required($0.object, "name").text
+    }
+    guard Set(queries).count == queries.count else {
       throw GenerationRefused(description: "duplicate cache query")
     }
+    let reaches = ["subject", "held"]
+    let kinds = ["enriched", "unenriched"]
+    let acts = ["refetches", "writes", "removes"]
+    let columns = ["on", "when", "reach", "names", "carries", "docs"] + acts
+    var triggers: [String] = []
+    var literals: [String] = []
     for raw in try required(refresh, "refresh").array {
       let row = try raw.object
+      for key in row.keys.sorted() where !columns.contains(key) {
+        throw GenerationRefused(description: "a refresh row states \(key), which is not read")
+      }
       let trigger = try required(row, "on").text
-      guard trigger == "reopened" || rows[trigger] != nil else {
+      guard ["reopened", "unreadable"].contains(trigger) || channels.contains(trigger) else {
         throw GenerationRefused(description: "unknown cache refresh trigger \(trigger)")
       }
-      for key in ["refetches", "writes", "removes"] {
-        if let value = row[key] {
-          for name in try value.array.map({ try $0.text }) where !queryNames.contains(name) {
-            throw GenerationRefused(description: "unknown cache query \(name)")
-          }
-        }
-      }
-      if let reach = row["reach"], !["subject", "held"].contains(try reach.text) {
+      if !triggers.contains(trigger) { triggers.append(trigger) }
+      // The table's own reading: an absent reach is `subject`, absent names name nothing, and an
+      // absent list of queries lists none.
+      let reach = try row["reach"]?.text ?? "subject"
+      guard reaches.contains(reach) else {
         throw GenerationRefused(description: "unknown refresh reach")
       }
-      if let when = row["when"], !["enriched", "unenriched"].contains(try when.text) {
+      let when = try row["when"]?.text
+      if let when, !kinds.contains(when) {
         throw GenerationRefused(description: "unknown refresh condition")
       }
+      let names = try row["names"]?.object ?? [:]
+      for slot in names.keys.sorted() where !["resource", "annotation"].contains(slot) {
+        throw GenerationRefused(description: "a refresh row names a \(slot)")
+      }
+      var arguments = [
+        "on: .\(escaped(enumCase(trigger)))",
+        "when: \(when.map { ".\(escaped(enumCase($0)))" } ?? "nil")",
+        "reach: .\(escaped(enumCase(reach)))",
+        "resource: \(try wayLiteral(names["resource"]))",
+        "annotation: \(try wayLiteral(names["annotation"]))",
+        "carries: \(try wayLiteral(row["carries"]))",
+      ]
+      for key in acts {
+        let listed = try row[key]?.array.map { try $0.text } ?? []
+        for name in listed where !queries.contains(name) {
+          throw GenerationRefused(description: "unknown cache query \(name)")
+        }
+        let cases = listed.map { ".\(escaped(enumCase($0)))" }
+        arguments.append("\(key): [\(cases.joined(separator: ", "))]")
+      }
+      literals.append("  CacheRefreshRow(\(arguments.joined(separator: ", "))),\n")
     }
-    let persisted = try queries.filter { query in
+    var out = ""
+    for (name, values) in [
+      ("CacheQuery", queries), ("CacheRefreshTrigger", triggers), ("CacheRefreshWhen", kinds),
+      ("CacheRefreshReach", reaches),
+    ] {
+      out +=
+        try models.enumeration(name, values.map(JSONValue.string), ["type": .string("string")])
+        .replacingOccurrences(of: "public ", with: "internal ") + "\n"
+    }
+    out += "internal protocol CacheQueryHandlers {\n"
+    for query in queries { out += "  func \(escaped(memberName(query)))()\n" }
+    out += "}\n"
+    out +=
+      """
+      /// What one trigger does to the cache. `resource` and `annotation` are the ways into its
+      /// event's payload to the keys a `subject` row reaches, and `carries` the way to the value
+      /// it writes: each the names of the members it is within, and its own.
+      internal struct CacheRefreshRow: Sendable {
+        let on: CacheRefreshTrigger
+        let when: CacheRefreshWhen?
+        let reach: CacheRefreshReach
+        let resource: [String]?
+        let annotation: [String]?
+        let carries: [String]?
+        let refetches: [CacheQuery]
+        let writes: [CacheQuery]
+        let removes: [CacheQuery]
+      }
+      internal let cacheRefresh: [CacheRefreshRow] = [
+      """ + "\n" + literals.joined() + "]\n"
+    out += "/// The triggers that are channels of the bus, with the stamps each payload declares.\n"
+    out += "internal let cacheRefreshChannels: [CacheRefreshTrigger: Set<String>] = [\n"
+    for trigger in triggers where channels.contains(trigger) {
+      out += "  .\(escaped(enumCase(trigger))): Channels.\(escaped(memberName(trigger))).stamps,\n"
+    }
+    return out + "]\n"
+  }
+  /// What a client keeps, as Sources/Semiont/CachePersistence.swift reads it: the queries
+  /// client/refresh.json marks `persisted`, the type session/stored.json's `keptQueries` says each
+  /// keeps, the key of a query per nothing, the version of a kept document, and the schema a kept
+  /// place is held to. `keptQueries` naming other queries than the persisted ones, or in another
+  /// order, and a document or a place of another shape than the one the persistence reads, refuse
+  /// generation.
+  func keptTable() throws -> String {
+    let stored = try table("session/stored.json")
+    let persisted = try required(table("client/refresh.json"), "queries").array.map {
+      try $0.object
+    }.filter { query in
       guard let value = query["persisted"] else { return false }
       guard value == .bool(true) else {
         throw GenerationRefused(description: "a cache query is persisted true, or not at all")
       }
       return true
-    }
-    out +=
-      try models.enumeration(
-        "CacheQuery", queryNames.map(JSONValue.string), ["type": .string("string")]
-      ).replacingOccurrences(of: "public ", with: "internal ") + "\n"
-    out += "/// The live queries whose answers a client keeps across its lives, for the person\n"
+    }.map { try required($0, "name").text }
+    var out = "/// The live queries whose answers a client keeps across its lives, for the person\n"
     out += "/// signed in.\n"
     out +=
       try models.enumeration(
-        "KeptQuery", persisted.map { try required($0, "name") }, ["type": .string("string")]
+        "KeptQuery", persisted.map(JSONValue.string), ["type": .string("string")]
       ).replacingOccurrences(of: "public ", with: "internal ") + "\n"
-    out += "internal protocol CacheQueryHandlers {\n"
-    for query in queries {
-      let name = try required(query, "name").text
-      out += "  func \(escaped(memberName(name)))()\n"
+    var kept: [String] = []
+    for raw in try required(stored, "keptQueries").array {
+      let row = try raw.object
+      for key in row.keys.sorted() where !["query", "value"].contains(key) {
+        throw GenerationRefused(description: "a kept query states \(key), which is not read")
+      }
+      let query = try required(row, "query").text
+      kept.append(query)
+      let value = try storedType(required(row, "value").object, of: query)
+      out += "internal typealias Kept\(pascal(query)) = \(value)\n"
     }
-    out += "}\n"
-    return out
+    guard kept == persisted else {
+      throw GenerationRefused(
+        description:
+          "session/stored.json's keptQueries are not the queries client/refresh.json marks persisted, in its order"
+      )
+    }
+    let whole = try required(required(stored, "wholeKey").object, "key").text
+    out += "internal let wholeKey = \(literal(whole))\n"
+    let version = try cacheDocumentVersion(required(stored, "cacheDocument").object)
+    out += "internal let cacheDocumentVersion = \(version)\n"
+    let places = try required(stored, "lastEventIds").object
+    let scope = try storedType(required(places, "propertyNames").object, of: "lastEventIds")
+    guard scope == "ResourceId" else {
+      throw GenerationRefused(description: "places are kept by \(scope), which no scope is")
+    }
+    let place = componentName(
+      try required(required(places, "additionalProperties").object, "$ref").text)
+    guard try requiredShapes()[place] != nil else {
+      throw GenerationRefused(description: "places are held to \(place), which no shape states")
+    }
+    return out + "internal let keptPlace = \(literal(place))\n"
+  }
+  /// The type a schema of session/stored.json refers to: a component schema, or one member of one.
+  func storedType(_ schema: Schema, of owner: String) throws -> String {
+    guard schema.count == 1, let ref = schema["$ref"] else {
+      throw GenerationRefused(description: "\(owner) is no reference to a component schema")
+    }
+    let parts = try ref.text.split(separator: "#", omittingEmptySubsequences: false)
+    let name = componentName(String(parts[0]))
+    guard parts.count == 2 else { return try models.named(name) }
+    let way = parts[1].split(separator: "/", omittingEmptySubsequences: false)
+    guard way.count == 3, way[0].isEmpty, way[1] == "properties",
+      let member = try required(models.schema(name), "properties").object[String(way[2])]
+    else {
+      throw GenerationRefused(description: "\(owner) refers to no member of \(name)")
+    }
+    return try models.type(name, String(way[2]), member.object)
+  }
+  func componentName(_ path: String) -> String {
+    URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+  }
+  /// The version of a kept document, whose every entry is a key, a value and a stamp that is a
+  /// whole number of at least 0.
+  func cacheDocumentVersion(_ document: Schema) throws -> Int {
+    let properties = try required(document, "properties").object
+    let members = try required(document, "required").array.map { try $0.text }
+    let items = try required(required(properties, "entries").object, "items").object
+    let parts = try required(items, "prefixItems").array
+    guard Set(properties.keys) == ["version", "entries"], Set(members) == Set(properties.keys),
+      parts.count == 3, items["minItems"] == .number(3), items["maxItems"] == .number(3),
+      try parts[2].object["type"] == .string("integer"),
+      try parts[2].object["minimum"] == .number(0),
+      case .number(let version) = try required(required(properties, "version").object, "const"),
+      let integer = Int(exactly: version)
+    else {
+      throw GenerationRefused(
+        description:
+          "session/stored.json's cacheDocument is not the document Sources/Semiont/CachePersistence.swift reads"
+      )
+    }
+    return integer
+  }
+  /// A way into an event's payload, as the names it is made of; nil where the row states none.
+  func wayLiteral(_ raw: JSONValue?) throws -> String {
+    guard let raw else { return "nil" }
+    let names = try raw.text.split(separator: ".", omittingEmptySubsequences: false)
+    guard names.allSatisfy({ !$0.isEmpty }) else {
+      throw GenerationRefused(description: "\(raw) is no way to a member")
+    }
+    return "[\(names.map { literal(String($0)) }.joined(separator: ", "))]"
   }
 }

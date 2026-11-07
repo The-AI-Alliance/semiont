@@ -54,6 +54,7 @@ use crate::locked;
 use crate::resources::primary_media_type;
 use crate::state::{Held, Tasks};
 use crate::storage::{SessionStorage, StorageSubscription};
+use crate::timing::CHECKS_AT_ONCE_COUNT;
 use crate::transport::{Events, STREAM_BACKLOG};
 use crate::types::{
     KbDescription, KbEndpoint, KbRead, KnowledgeBase, NewKnowledgeBase, ResourceId,
@@ -64,10 +65,6 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{broadcast, watch};
 use tokio::task::JoinSet;
-
-/// How many open resources are checked at once when a session comes up: a
-/// connection that has just opened is not handed every check together.
-const CHECKS_AT_ONCE: usize = 4;
 
 pub struct SemiontBrowserConfig {
     /// Where everything the browser keeps is kept.
@@ -1067,7 +1064,7 @@ impl Inner {
         }
         let waiting = Arc::new(Mutex::new(ids));
         let mut lanes = JoinSet::new();
-        for _ in 0..CHECKS_AT_ONCE {
+        for _ in 0..CHECKS_AT_ONCE_COUNT {
             let (waiting, session) = (waiting.clone(), session.clone());
             lanes.spawn(async move {
                 let mut checked = Vec::new();
@@ -1262,26 +1259,29 @@ mod tests {
             let said: Arc<Mutex<HashMap<String, Says>>> = Arc::default();
             let answered: Arc<Mutex<Vec<(String, String)>>> = Arc::default();
             let (answering, refusing, recording) = (said.clone(), said.clone(), answered.clone());
-            let sessions = ScriptedSessions::answering(move |kb_id, operation, payload| {
-                locked(&recording).push((kb_id.to_owned(), operation.to_owned()));
-                match operation {
-                    "browse:kb-requested" => locked(&answering)
-                        .get(kb_id)
-                        .map(|says| Some(says.description.clone()))
-                        .ok_or_else(|| "the knowledge base does not answer".to_owned()),
-                    "browse:resource-requested" => {
-                        let id = asked_about(payload);
-                        Ok(Some(json!({
-                            "resource": {
-                                "@context": "https://schema.org", "@id": id,
-                                "name": format!("name-{id}"), "representations": [],
-                            },
-                            "lastSequence": 1,
-                        })))
+            let sessions = ScriptedSessions::answering(
+                move |kb_id, operation, payload| {
+                    locked(&recording).push((kb_id.to_owned(), operation.to_owned()));
+                    match operation {
+                        "browse:kb-requested" => locked(&answering)
+                            .get(kb_id)
+                            .map(|says| Some(says.description.clone()))
+                            .ok_or_else(|| "the knowledge base does not answer".to_owned()),
+                        "browse:resource-requested" => {
+                            let id = asked_about(payload);
+                            Ok(Some(json!({
+                                "resource": {
+                                    "@context": "https://schema.org", "@id": id,
+                                    "name": format!("name-{id}"), "representations": [],
+                                },
+                                "lastSequence": 1,
+                            })))
+                        }
+                        other => Err(format!("{other} is not answered here")),
                     }
-                    other => Err(format!("{other} is not answered here")),
-                }
-            });
+                },
+                None,
+            );
             sessions.refuse_when(move |kb_id, operation, payload| {
                 let gone = locked(&refusing)
                     .get(kb_id)
@@ -1460,7 +1460,8 @@ mod registry_cases {
     use serde_json::Value;
 
     /// protocol/specs/src/session/registry-cases.json: when every SDK's
-    /// registry takes two endpoints for one place.
+    /// registry takes two endpoints for one place, and the order it shows the
+    /// resources open in a knowledge base in.
     const REGISTRY_CASES: &str = include_str!("../../specs/session/registry-cases.json");
 
     #[test]
@@ -1476,6 +1477,35 @@ mod registry_cases {
             let same = case["samePlace"].as_bool().expect("a case says samePlace");
             assert_eq!(same_place(&one, &other), same, "{why}");
             assert_eq!(same_place(&other, &one), same, "{why}, the other way round");
+        }
+    }
+
+    #[test]
+    fn open_resources_are_shown_in_the_order_the_shared_table_states() {
+        let table: Value = serde_json::from_str(REGISTRY_CASES).expect("the table is JSON");
+        let cases = table["openResourceOrder"]
+            .as_array()
+            .expect("the table has an order of open resources");
+        assert!(!cases.is_empty());
+        for case in cases {
+            let why = case["why"].as_str().expect("a case says why");
+            let open: Vec<OpenResource> = match serde_json::from_value(case["open"].clone()) {
+                Ok(open) => open,
+                Err(error) => {
+                    panic!(
+                        "{why}: the open resources do not read as a registry keeps them: {error}"
+                    )
+                }
+            };
+            let shown: Vec<&str> = case["shown"]
+                .as_array()
+                .expect("a case says what is shown")
+                .iter()
+                .map(|id| id.as_str().expect("an id"))
+                .collect();
+            let sorted = sort_open_resources(open);
+            let ids: Vec<&str> = sorted.iter().map(|resource| resource.id.as_str()).collect();
+            assert_eq!(ids, shown, "{why}");
         }
     }
 }

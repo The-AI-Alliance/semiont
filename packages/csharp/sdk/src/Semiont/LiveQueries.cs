@@ -19,42 +19,43 @@ internal sealed class LiveQueries : IDisposable
     private static readonly JsonDocument Table = JsonDocument.Parse(ProtocolTables.CacheRefresh);
     internal static readonly IReadOnlyList<string> PersistedQueries = Array.AsReadOnly(Table.RootElement.GetProperty("queries").EnumerateArray()
         .Where(row => row.TryGetProperty("persisted", out var persisted) && persisted.GetBoolean()).Select(row => Text(row, "name")).ToArray());
+    private static readonly string[] RowMembers = ["on", "when", "reach", "names", "carries", "refetches", "writes", "removes", "docs"];
+    private static readonly string[] NamedSlots = ["resource", "annotation"];
     private const string Reopened = "reopened";
+    private const string Unreadable = "unreadable";
     private readonly EventBus.Subscription events;
     private readonly Dictionary<string, Query> queries;
-    private readonly Dictionary<string, Func<JsonElement, Subject>> subjects;
     private readonly ILookup<string, JsonElement> refresh;
-    private readonly IDisposable[] caches;
+    private readonly IRefreshedCache[] caches;
     private readonly LiveCacheStorage? persistence;
 
     internal Cache<ResourceId, ResourceDescriptor> ResourcesById { get; }
     internal Cache<Filters, ListResourcesResponse> Resources { get; }
-    internal Cache<ResourceId, IReadOnlyList<Annotation>> Annotations { get; }
+    internal Cache<ResourceId, GetAnnotationsResponse> Annotations { get; }
     internal Cache<AnnotationKey, Annotation> Annotation { get; }
     internal Cache<ResourceId, IReadOnlyList<AttributedEvent>> Events { get; }
     internal Cache<ResourceId, IReadOnlyList<GetReferencedByResponseReferencedByItem>> ReferencedBy { get; }
     internal Cache<Search, MatchResourcesResponse> MatchedResources { get; }
-    internal Cached<IReadOnlyList<string>> EntityTypes { get; }
-    internal Cached<IReadOnlyList<TagSchema>> TagSchemas { get; }
-    internal Cached<IReadOnlyList<EngineWithLimits>> Engines { get; }
+    internal CacheEntry<IReadOnlyList<string>> EntityTypes { get; }
+    internal CacheEntry<IReadOnlyList<TagSchema>> TagSchemas { get; }
+    internal CacheEntry<IReadOnlyList<EngineWithLimits>> Engines { get; }
 
     internal LiveQueries(Bus wire, EventBus bus, HttpTransport transport, HttpContentTransport content, CachePersistence? storage)
     {
         var clock = transport.Clock;
-        persistence = storage is null ? null : new LiveCacheStorage(storage, clock);
-        Action? changed = persistence is { } persisted ? persisted.Changed : null;
-        Func<bool>? pending = persistence is { } storageState ? () => storageState.Pending : null;
+        persistence = storage is null ? null : new LiveCacheStorage(storage, clock, RefetchOwed);
         var window = TimeSpan.FromMilliseconds(transport.Settings.InvalidationWindowMs);
         ResourcesById = new(async (id, token) => (await wire.RequestAsync(BusOperations.BrowseResourceRequested,
-            new BrowseResourceRequest { ResourceId = id }, cancellation: token).ConfigureAwait(false)).Response.Resource, transport.SubscribeToResource, clock, window, changed, pending);
+            new BrowseResourceRequest { ResourceId = id }, cancellation: token).ConfigureAwait(false)).Response.Resource, transport.SubscribeToResource, clock, window,
+            persistence?.Changed("resource"));
         Resources = new(async (filters, token) => (await wire.RequestAsync(BusOperations.BrowseResourcesRequested,
             new BrowseResourcesRequest { Limit = filters.Limit, Offset = filters.Offset, Archived = filters.Archived, EntityType = filters.EntityType },
             cancellation: token).ConfigureAwait(false)).Response, null, clock, window);
-        Annotations = new(async (id, token) => (await content.GetAnnotationsAsync(id, token).ConfigureAwait(false)).Annotations,
-            transport.SubscribeToResource, clock, window, changed, pending);
+        Annotations = new(content.GetAnnotationsAsync, transport.SubscribeToResource, clock, window, persistence?.Changed("annotations"));
         Annotation = new(async (key, token) => (await wire.RequestAsync(BusOperations.BrowseAnnotationRequested,
             new BrowseAnnotationRequest { ResourceId = key.Resource, AnnotationId = key.Annotation }, cancellation: token)
-            .ConfigureAwait(false)).Response.Annotation, key => transport.SubscribeToResource(key.Resource), clock, window, changed, pending);
+            .ConfigureAwait(false)).Response.Annotation, key => transport.SubscribeToResource(key.Resource), clock, window,
+            persistence?.Changed("annotation"));
         Events = new(async (id, token) => (await wire.RequestAsync(BusOperations.BrowseEventsRequested,
             new BrowseEventsRequest { ResourceId = id }, cancellation: token).ConfigureAwait(false)).Response.Events, transport.SubscribeToResource, clock, window);
         ReferencedBy = new(async (id, token) => (await wire.RequestAsync(BusOperations.GatherReferencedByRequested,
@@ -69,10 +70,10 @@ internal sealed class LiveQueries : IDisposable
         }, cancellation: token).ConfigureAwait(false)).Response, null, clock, window);
 
         var entityTypes = Singleton<IReadOnlyList<string>>(async token => (await wire.RequestAsync(BusOperations.BrowseEntityTypesRequested,
-            new BrowseEntityTypesRequest(), cancellation: token).ConfigureAwait(false)).Response.EntityTypes, out var types, changed);
+            new BrowseEntityTypesRequest(), cancellation: token).ConfigureAwait(false)).Response.EntityTypes, out var types, persistence?.Changed("entityTypes"));
         EntityTypes = types;
         var tagSchemas = Singleton<IReadOnlyList<TagSchema>>(async token => (await wire.RequestAsync(BusOperations.BrowseTagSchemasRequested,
-            new BrowseTagSchemasRequest(), cancellation: token).ConfigureAwait(false)).Response.TagSchemas, out var tags, changed);
+            new BrowseTagSchemasRequest(), cancellation: token).ConfigureAwait(false)).Response.TagSchemas, out var tags, persistence?.Changed("tagSchemas"));
         TagSchemas = tags;
         var engines = Singleton(token => LoadEnginesAsync(wire, token), out var listed);
         Engines = listed;
@@ -92,52 +93,37 @@ internal sealed class LiveQueries : IDisposable
             ["engines"] = new((_, _) => Engines.Refresh()),
         };
 
-        subjects = new(StringComparer.Ordinal);
-        Add(BusChannels.BusResumeGap, value => new(Resource: value.Scope));
-        Add(BusChannels.MarkAdded, value => new(Resource: value.ResourceId));
-        Add(BusChannels.MarkRemoved, value => new(Resource: value.ResourceId, Annotation: AnnotationNamed(value.Payload)));
-        Add(BusChannels.MarkDeleteOk, value => new(Annotation: value.Response.AnnotationId));
-        Add(BusChannels.MarkBodyUpdated, value => value.Annotation is { } annotation
-            ? new(Resource: value.ResourceId, Annotation: annotation.Id, Written: annotation, When: "enriched")
-            : new(Resource: value.ResourceId, Annotation: AnnotationNamed(value.Payload), When: "unenriched"));
-        Add(BusChannels.MarkEntityTagAdded, Stored);
-        Add(BusChannels.MarkEntityTagRemoved, Stored);
-        Add(BusChannels.MarkArchived, Stored);
-        Add(BusChannels.MarkUnarchived, Stored);
-        Add(BusChannels.YieldCreated, Stored);
-        Add(BusChannels.YieldUpdated, Stored);
-        Add(BusChannels.YieldCloned, Stored);
-        Add(BusChannels.YieldMoved, Stored);
-        Add(BusChannels.FrameEntityTypeAdded, _ => new());
-        Add(BusChannels.FrameTagSchemaAdded, _ => new());
-
-        var persistable = new Dictionary<string, Func<string, ISavedCache>>(StringComparer.Ordinal)
-        {
-            ["resource"] = ResourcesById.PersistAs,
-            ["annotations"] = Annotations.PersistAs,
-            ["annotation"] = Annotation.PersistAs,
-            ["entityTypes"] = entityTypes.PersistAs,
-            ["tagSchemas"] = tagSchemas.PersistAs,
-        };
-
         refresh = Table.RootElement.GetProperty("refresh").EnumerateArray().ToLookup(row => Text(row, "on"), StringComparer.Ordinal);
-        CheckRefresh(persistable.Keys);
-        var channels = persistence is null ? subjects.Keys : subjects.Keys.Concat(ProtocolFacts.Channels("scoped")).Distinct(StringComparer.Ordinal);
+        CheckRefresh();
+        var channels = refresh.Select(group => group.Key).Where(BusChannels.Readings.ContainsKey);
+        if (persistence is not null) channels = channels.Concat(ProtocolFacts.Channels("scoped")).Distinct(StringComparer.Ordinal);
         events = bus.Listen(channels.ToArray());
-        persistence?.Start(transport, PersistedQueries.Select(name => persistable[name](name)).ToArray());
+        if (persistence is not null)
+        {
+            IKeptQuery[] kept =
+            [
+                persistence.Keep("resource", ResourcesById, KeptKeys.ByResource<ResourceDescriptor>()),
+                persistence.Keep("annotations", Annotations, KeptKeys.ByResource<GetAnnotationsResponse>()),
+                persistence.Keep("annotation", Annotation, KeptKeys.ByAnnotation),
+                persistence.Keep("entityTypes", entityTypes, KeptKeys.Whole<IReadOnlyList<string>>()),
+                persistence.Keep("tagSchemas", tagSchemas, KeptKeys.Whole<IReadOnlyList<TagSchema>>()),
+            ];
+            if (!kept.Select(query => query.Name).ToHashSet(StringComparer.Ordinal).SetEquals(PersistedQueries))
+                throw new InvalidOperationException("The live cache does not keep the queries client/refresh.json marks persisted.");
+            persistence.Start(kept, transport.RestoreWatermarks);
+        }
         _ = ReadEventsAsync();
         _ = ReadReopensAsync(transport);
 
-        Cache<bool, T> Singleton<T>(Func<CancellationToken, Task<T>> fetch, out Cached<T> query, Action? saved = null)
+        Cache<bool, T> Singleton<T>(Func<CancellationToken, Task<T>> fetch, out CacheEntry<T> query, Action? changed = null)
         {
-            var cache = new Cache<bool, T>((_, token) => fetch(token), null, clock, window, saved, saved is not null ? pending : null);
-            query = cache.Observe(true);
+            var cache = new Cache<bool, T>((_, token) => fetch(token), null, clock, window, changed);
+            query = cache.Entry(true);
             return cache;
         }
-
-        void Add<T>(BusChannel<T> channel, Func<T, Subject> read) where T : class =>
-            subjects.Add(channel.Name, payload => read(Bus.Decode<T>(payload)));
     }
+
+    private bool RefetchOwed() => caches.Any(cache => cache.RefetchOwed);
 
     private static async Task<IReadOnlyList<EngineWithLimits>> LoadEnginesAsync(Bus wire, CancellationToken cancellation)
     {
@@ -162,12 +148,6 @@ internal sealed class LiveQueries : IDisposable
         }
     }
 
-    private static Subject Stored(StoredEventResponse value) => new(Resource: value.ResourceId);
-
-    private static AnnotationId? AnnotationNamed(JsonElement payload) =>
-        payload.TryGetProperty("annotationId", out var value) && value.ValueKind == JsonValueKind.String &&
-        AnnotationId.TryParse(value.GetString(), out var id) ? id : null;
-
     private static bool ResourceMatches(ResourceId resource, Subject subject) => subject.Resource == resource;
 
     private static bool AnnotationMatches(AnnotationKey key, Subject subject) =>
@@ -184,13 +164,13 @@ internal sealed class LiveQueries : IDisposable
     private void WriteAnnotations(Subject subject)
     {
         if (subject.Resource is not { } resource || subject.Written is not { } written) return;
-        Annotations.Find(resource)?.UpdateIfReady(items =>
+        Annotations.Find(resource)?.UpdateIfReady(answer =>
         {
-            var values = items.ToList();
+            var values = answer.Annotations.ToList();
             var index = values.FindIndex(item => item.Id == written.Id);
             if (index < 0) values.Add(written);
             else values[index] = written;
-            return values.ToArray();
+            return answer with { Annotations = values.ToArray() };
         });
     }
 
@@ -207,16 +187,23 @@ internal sealed class LiveQueries : IDisposable
             if (AnnotationMatches(pair.Key, subject)) pair.Value.Remove(onlyIfHeld: true);
     }
 
-    private void CheckRefresh(IEnumerable<string> persisted)
+    private void CheckRefresh()
     {
         var named = Table.RootElement.GetProperty("queries").EnumerateArray().Select(row => Text(row, "name"));
+        var unheard = refresh.Select(group => group.Key).Where(trigger => !BusChannels.Readings.ContainsKey(trigger));
         if (!queries.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(named) ||
-            !persisted.ToHashSet(StringComparer.Ordinal).SetEquals(PersistedQueries) ||
-            !subjects.Keys.Append(Reopened).ToHashSet(StringComparer.Ordinal).SetEquals(refresh.Select(group => group.Key)))
+            !unheard.ToHashSet(StringComparer.Ordinal).SetEquals([Reopened, Unreadable]))
             throw new InvalidOperationException("The live cache does not cover the refresh table.");
         foreach (var group in refresh)
             foreach (var row in group)
             {
+                foreach (var member in row.EnumerateObject())
+                    if (!RowMembers.Contains(member.Name, StringComparer.Ordinal))
+                        throw new InvalidOperationException("A refresh row states " + member.Name + ", which the live cache does not read.");
+                if (row.TryGetProperty("names", out var names))
+                    foreach (var slot in names.EnumerateObject())
+                        if (!NamedSlots.Contains(slot.Name, StringComparer.Ordinal))
+                            throw new InvalidOperationException("A refresh row names a " + slot.Name + ", which the live cache does not read.");
                 var reach = OptionalText(row, "reach");
                 var when = OptionalText(row, "when");
                 if (reach is not (null or "held") || when is not (null or "enriched" or "unenriched"))
@@ -240,16 +227,59 @@ internal sealed class LiveQueries : IDisposable
 
     private void ApplyFrame(BusFrame frame)
     {
-        if (!subjects.TryGetValue(frame.Channel, out var name)) return;
+        if (!refresh.Contains(frame.Channel)) return;
         Subject subject;
-        try { subject = name(frame.Payload); }
+        try { subject = SubjectOf(frame); }
         catch (JsonException)
         {
-            foreach (var query in queries.Values) query.Refetch(new Subject(), true);
+            Refresh(Unreadable, new Subject());
             return;
         }
         Refresh(frame.Channel, subject);
     }
+
+    /// <summary>What a frame on one of the table's channels names, by the ways of its row. Throws JsonException where its
+    /// channel's reading refuses it, or a member a way passes through or ends at is present and not what the way names.</summary>
+    private Subject SubjectOf(BusFrame frame)
+    {
+        BusChannels.Readings[frame.Channel](frame.Payload);
+        var row = RowOf(frame.Channel, frame.Payload);
+        return new Subject(
+            Resource: MemberAt(frame.Payload, Named(row, "resource"))?.Deserialize<ResourceId>(),
+            Annotation: MemberAt(frame.Payload, Named(row, "annotation"))?.Deserialize<AnnotationId>(),
+            Written: MemberAt(frame.Payload, OptionalText(row, "carries"))?.Deserialize<Annotation>(),
+            When: OptionalText(row, "when"));
+    }
+
+    /// <summary>A channel's row: of a split channel, the enriched one where the member it carries is present and not
+    /// null.</summary>
+    private JsonElement RowOf(string channel, JsonElement payload)
+    {
+        var rows = refresh[channel];
+        if (rows.All(row => OptionalText(row, "when") is null)) return rows.Single();
+        var enriched = rows.Single(row => OptionalText(row, "when") == "enriched");
+        return MemberAt(payload, OptionalText(enriched, "carries")) is null
+            ? rows.Single(row => OptionalText(row, "when") == "unenriched")
+            : enriched;
+    }
+
+    /// <summary>The member <paramref name="way"/> ends at: none where the way is absent, or it or a member it passes
+    /// through is absent or null. Throws JsonException where a member it passes through is present and no object.</summary>
+    private static JsonElement? MemberAt(JsonElement payload, string? way)
+    {
+        if (way is null) return null;
+        var member = payload;
+        foreach (var name in way.Split('.'))
+        {
+            if (member.ValueKind == JsonValueKind.Null) return null;
+            if (member.ValueKind != JsonValueKind.Object) throw new JsonException("The event's " + way + " passes through a member that is no object.");
+            if (!member.TryGetProperty(name, out var within)) return null;
+            member = within;
+        }
+        return member.ValueKind == JsonValueKind.Null ? null : member;
+    }
+
+    private static string? Named(JsonElement row, string slot) => row.TryGetProperty("names", out var names) ? OptionalText(names, slot) : null;
 
     private async Task ReadReopensAsync(HttpTransport transport)
     {

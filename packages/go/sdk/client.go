@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
@@ -79,6 +80,9 @@ type Client struct {
 	links     *links
 	live      *live
 	refresher *refresher
+	// places is the places coupled to what the client keeps
+	// (CoupledBookmarks.CoupleTo); nil while none is.
+	places atomic.Pointer[CoupledBookmarks]
 }
 
 // NewClient is a client over config's transport, content and gateway.
@@ -115,15 +119,29 @@ func NewClient(config ClientConfig) *Client {
 	}
 }
 
-// PersistenceSettled reports whether every cache the client keeps is at rest:
-// none is fetching, and none owes a save.
-func (c *Client) PersistenceSettled() bool { return c.live.persistenceSettled() }
+// PersistenceSettled reports whether what the client keeps is at rest: its
+// refresher owes no refetch (B19), no cache it keeps is fetching, and none
+// owes a save.
+func (c *Client) PersistenceSettled() bool {
+	// The refresher first: a refetch it has run is in flight by the time it
+	// owes it no more.
+	return !c.refresher.windows.owing() && c.live.persistenceSettled()
+}
 
 // Close ends the client. Its queries end first: every watcher's states end,
-// and a read asked for after is refused as closed. Then its own bus ends, so
-// every reader of it and every followed job does, and then the work it
-// started has ended. Closing twice is closing once.
+// what each owed to storage is saved, and a read asked for after is refused
+// as closed. Then its own bus ends, so every reader of it and every followed
+// job does, and then the work it started has ended. Closing twice is closing
+// once.
+//
+// The places coupled to what it keeps are sealed first, before anything is
+// disposed (B17): disposing drops a fetch in flight and a refetch owed, so
+// either holds the places back from the saves Close makes. A save owed does
+// not: Close makes it.
 func (c *Client) Close() {
+	if places := c.places.Load(); places != nil {
+		places.seal(func() bool { return !c.refresher.windows.owing() && !c.live.keptFetching() })
+	}
 	c.refresher.dispose()
 	c.live.dispose()
 	c.Bus.Close()

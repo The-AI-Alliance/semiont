@@ -12,6 +12,7 @@
 //! marked by a `bus.recv` span in the trace it was sent under.
 
 use crate::actor::{self, Command};
+use rand_core::Rng;
 use semiont::bus_log::bus_log;
 use semiont::channels::{BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS};
 use semiont::errors::{BusRequestError, TransportError, TransportErrorCode};
@@ -156,6 +157,9 @@ pub struct HttpTransportConfig {
     pub timing: Timing,
     /// With none, the stream begins each life at the present.
     pub bookmarks: Option<Arc<dyn Bookmarks>>,
+    /// What the jitter of the stream's reconnects and of each emit's retries
+    /// is drawn from; the system's source when none is given.
+    pub random: Option<Arc<Mutex<dyn Rng + Send>>>,
 }
 
 pub(crate) fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -176,6 +180,7 @@ pub(crate) struct Shared {
     pub global: Vec<String>,
     pub timing: Timing,
     pub bookmarks: Option<Arc<dyn Bookmarks>>,
+    pub random: Option<Arc<Mutex<dyn Rng + Send>>>,
     pub hub: FrameHub,
     pub router: Arc<ReplyRouter>,
     /// The error stream; `None` once closed.
@@ -229,6 +234,7 @@ impl Shared {
             }),
             timing: config.timing,
             bookmarks: config.bookmarks,
+            random: config.random,
             hub: FrameHub::new(),
             router: ReplyRouter::new(),
             failures: Mutex::new(Some(FailureStream::new())),
@@ -542,6 +548,7 @@ impl Shared {
             };
             let emitted = retry_with_backoff(
                 self.timing.emit_retry,
+                self.random.as_deref(),
                 attempt,
                 |error: &TransportError| {
                     error.code != TransportErrorCode::Unauthorized

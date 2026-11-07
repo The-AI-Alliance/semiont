@@ -102,7 +102,7 @@ private const val WHO = "/api/users/me"
 private val UNAVAILABLE = Said(503, buildJsonObject { put("error", "the gateway is unavailable") })
 
 /** What the client of jo's, standing in for one closing with a save owed, writes as it closes. */
-private const val WRITTEN_CLOSING = """{"version":1,"writtenAt":1700000000001,"entries":[]}"""
+private const val WRITTEN_CLOSING = """{"version":1,"entries":[]}"""
 
 /** The gateway's refusal of a token. */
 private val REFUSED = Said(401, buildJsonObject { put("error", "invalid_token") })

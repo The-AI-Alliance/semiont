@@ -48,7 +48,7 @@ private val refused = buildJsonObject { put("error", "invalid_token") }
 /** The key Alice's caches are kept under, and what is kept of res-1 for her on the knowledge base `local`. */
 private val ALICE_KEY = personKey(alice.getValue("did").jsonPrimitive.content)
 private val KEPT_FOR_ALICE = cacheKey("local", ALICE_KEY, "resource") to
-    """{"version":1,"writtenAt":1700000000000,"entries":[["res-1",{"@context":"https://schema.org/","@id":"res-1","name":"kept","representations":[]},1700000000000]]}"""
+    """{"version":1,"entries":[["res-1",{"@context":"https://schema.org/","@id":"res-1","name":"kept","representations":[]},1700000000000]]}"""
 
 /** `beneath`, whose sign-in cannot be read while `unreadable` holds. */
 private class Unreadable(private val beneath: SignInKept) : SignInKept by beneath {

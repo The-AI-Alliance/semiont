@@ -501,8 +501,8 @@ func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
 	frame.Trace = received(frame.Channel, frame.Scope, sentUnder)
 	s.shared.router.Route(frame)
 	// A scope's position is the last recorded event delivered on it: only a
-	// recorded event's id (p-…) is one, and it always comes on its scope.
-	recorded := hasID && !frame.Scope.IsZero() && strings.HasPrefix(id, "p-")
+	// recorded event's id is one, and it always comes on its scope.
+	recorded := hasID && !frame.Scope.IsZero() && persisted(id)
 	if recorded {
 		s.watermarks[frame.Scope] = id
 	}

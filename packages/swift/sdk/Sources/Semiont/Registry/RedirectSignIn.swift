@@ -153,7 +153,8 @@ public func describeConnection(
       channels: [operation.result.name, operation.failure.name], timing: timing, clock: clock,
       random: random)
     defer { transport.dispose() }
-    description = try await Bus(transport).request(operation, BrowseKbRequest()).response
+    description = try await Bus(transport, clock: clock).request(operation, BrowseKbRequest())
+      .response
   } catch let refusal as BusRequestError where refusal.reason == .busRejected {
     throw IdentityUnverifiableError(reason: .notReported, description: refusal.description)
   } catch is CancellationError {

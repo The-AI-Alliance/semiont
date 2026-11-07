@@ -18,6 +18,7 @@
 use crate::transport::{HttpTransport, HttpTransportConfig, Timing, why_unanswered};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use rand_core::Rng;
 use ring::rand::SecureRandom;
 use semiont::errors::{SignInError, SignInErrorCode, TransportError};
 use semiont::identity::encode_uri_component;
@@ -33,6 +34,7 @@ use semiont::transport::{GatewayOperations, Transport};
 use semiont::types::HttpEndpoint;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
 use tokio::sync::watch;
 use tokio::time::Instant;
@@ -71,7 +73,9 @@ pub async fn discover_issuer(
             "The knowledge base trusts no external issuer",
         )
     };
-    // Its resource metadata is public: asked with no token.
+    // Its resource metadata is public: asked with no token. A transport with
+    // no token never opens its stream, and this one emits nothing, so it
+    // never backs off and draws no jitter.
     let transport = HttpTransport::new(HttpTransportConfig {
         base_url: gateway(target)?,
         token: watch::channel(None).1,
@@ -79,8 +83,8 @@ pub async fn discover_issuer(
         channels: Some(Vec::new()),
         http: http.clone(),
         timing: Timing::default(),
-
         bookmarks: None,
+        random: None,
     });
     let metadata = transport.get_protected_resource_metadata().await;
     transport.close().await;
@@ -460,7 +464,8 @@ pub async fn refresh_at_issuer(
 /// not expired, was renewed some other way meanwhile, and is given as it is,
 /// so no refresh token another program already replaced is spent. A renewal
 /// that fails says why in the issuer's own words, and, when the retry budget
-/// ran out, how many attempts it took to give up.
+/// ran out, how many attempts it took to give up. The retries' jitter is
+/// drawn from `random`, the system's source when it is `None`.
 ///
 /// What is kept is written against what is kept then
 /// (`SignInKept::renewed`; protocol/specs/src/sign-in-store/README.md,
@@ -474,6 +479,7 @@ pub(crate) async fn renew_kept(
     kept: &dyn SignInKept,
     holding: Option<&str>,
     http: &reqwest::Client,
+    random: Option<&Mutex<dyn Rng + Send>>,
 ) -> Result<Option<String>, Box<dyn std::error::Error + Send + Sync>> {
     let Some(stored) = kept.held().await? else {
         return Ok(None);
@@ -486,6 +492,7 @@ pub(crate) async fn renew_kept(
     let mut attempts = 0;
     let renewed = retry_with_backoff(
         REFRESH_RETRY,
+        random,
         || {
             attempts += 1;
             refresh_at_issuer(

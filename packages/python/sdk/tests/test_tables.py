@@ -6,9 +6,11 @@ here from a knowledge base's id, a person's did and a query's name.
 
 from typing import get_args
 
+from pydantic import JsonValue
 from spec import SPEC, objects, read, text
 
 from semiont import error_codes, refresh, stored, timing
+from semiont.channels import CHANNELS
 from semiont.retry import RetryPolicy
 
 CODES = read(SPEC / "errors/codes.json")
@@ -97,17 +99,30 @@ def test_the_refresh_table_names_every_query_and_every_trigger() -> None:
     triggers = list(dict.fromkeys(text(row["on"], "a trigger") for row in rows))
     assert list(refresh.CACHE_REFRESH) == triggers
     assert list(get_args(refresh.CacheRefreshTrigger.__value__)) == triggers
+    channels = [trigger for trigger in triggers if trigger in CHANNELS]
+    assert list(refresh.CACHE_REFRESH_CHANNELS) == channels
+    assert list(get_args(refresh.CacheRefreshChannel.__value__)) == channels
     assert sum(len(held) for held in refresh.CACHE_REFRESH.values()) == len(rows)
     by_trigger = {str(trigger): held for trigger, held in refresh.CACHE_REFRESH.items()}
     for row in rows:
+        names: JsonValue = row.get("names", {})
+        assert isinstance(names, dict)
         assert any(
             held.reach == row.get("reach", "subject")
             and held.when == row.get("when")
+            and way(held.names_resource) == names.get("resource")
+            and way(held.names_annotation) == names.get("annotation")
+            and way(held.carries) == row.get("carries")
             and list(held.refetches) == row.get("refetches", [])
             and list(held.writes) == row.get("writes", [])
             and list(held.removes) == row.get("removes", [])
             for held in by_trigger[text(row["on"], "a trigger")]
         )
+
+
+def way(names: refresh.CacheRefreshWay | None) -> str | None:
+    """A way as the table writes it: the names of the members on it, joined by dots."""
+    return None if names is None else ".".join(names)
 
 
 def test_the_persisted_queries_are_those_the_refresh_table_marks_persisted_in_its_order() -> None:
@@ -130,4 +145,6 @@ def test_each_key_prefix_s_example_in_the_stored_table_is_the_key_made_of_it() -
     stream = example("lastEventIdKeyPrefix")
     assert stored.last_event_id_key(stream["kbId"], stored.person_key(stream["did"])) == stream["key"]
     query = example("cacheKeyPrefix")
-    assert stored.cache_key(query["kbId"], stored.person_key(query["did"]), query["query"]) == query["key"]
+    named: list[stored.KeptQuery] = [name for name in stored.KEPT_QUERIES if name == query["query"]]
+    (kept,) = named
+    assert stored.cache_key(query["kbId"], stored.person_key(query["did"]), kept) == query["key"]

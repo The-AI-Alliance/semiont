@@ -43,9 +43,18 @@ jobs:
   census:
     name: Census
     runs-on: ubuntu-latest
+    outputs:
+      sdks: ${{ steps.sdks.outputs.sdks }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
+
+      # The SDKs the conformance suite holds to the corpus, each a leg of SDK
+      # Conformance and of Worker Conformance: those its implementations file
+      # names.
+      - name: Which SDKs the conformance suite tests
+        id: sdks
+        run: echo "sdks=$(jq -c '.sdks | keys' protocol/conformance/semiont.implementations.json)" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -110,6 +119,8 @@ jobs:
           npm run lint:conformance-readmes || fail=1
           npm run lint:transport-contract || fail=1
           npm run lint:client-surface || fail=1
+          npm run lint:haskell-api || fail=1
+          npm run lint:haskell-transport || fail=1
           npm run lint:state-unit-census || fail=1
           npm run lint:state-unit-cases || fail=1
           npm run lint:internal-deps || fail=1
@@ -151,6 +162,7 @@ jobs:
       go: ${{ steps.areas.outputs.go }}
       kotlin: ${{ steps.areas.outputs.kotlin }}
       csharp: ${{ steps.areas.outputs.csharp }}
+      haskell: ${{ steps.areas.outputs.haskell }}
       swift: ${{ steps.areas.outputs.swift }}
       python-sdk: ${{ steps.areas.outputs.python-sdk }}
       python-inference: ${{ steps.areas.outputs.python-inference }}
@@ -252,6 +264,14 @@ jobs:
               - 'packages/kotlin/**'
             csharp:
               - 'packages/csharp/**'
+            haskell:
+              - 'packages/haskell/**'
+              - 'protocol/specs/src/**'
+              - 'packages/typescript/http-transport/src/transport/api-error.ts'
+              - 'packages/typescript/core/src/event-bus.ts'
+              - 'protocol/contract/TRANSPORT-HTTP.md'
+              - 'package.json'
+              - 'LICENSE'
             # Each Python project; a job lists its own and the ones its
             # pyproject depends on (every one depends on the SDK).
             python-sdk:
@@ -1016,7 +1036,7 @@ jobs:
     name: Rust Binaries
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true'
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true'
     defaults:
       run:
         working-directory: packages/rust
@@ -1423,7 +1443,7 @@ jobs:
     name: Build Swift Drivers
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true'
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
@@ -1442,11 +1462,19 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+  # Each SDK's drivers, put through the corpus against a real gateway. One leg
+  # per SDK the suite's implementations file names, which census reads: each
+  # sets up its own SDK's toolchain and drivers and runs the suite on that SDK
+  # alone, so the slowest SDK, not the sum of them, is how long the job takes.
   sdk-conformance:
-    name: SDK Conformance
+    name: SDK Conformance (${{ matrix.sdk }})
     runs-on: ubuntu-26.04
-    needs: [census, changes, generated-artifacts, build-rust, build-swift-drivers]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true'
+    needs: [census, changes, generated-artifacts, build-rust, build-swift-drivers, test-sdk-haskell]
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk: ${{ fromJSON(needs.census.outputs.sdks) }}
     env:
       # Where every Rust binary this job starts writes what it ran, as it exits,
       # merged into one file per binary: kept below, for Rust Coverage.
@@ -1456,7 +1484,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      # Built once by build-rust. An artifact keeps no file modes.
+      # Built once by build-rust: the gateway, and the Rust SDK's drivers. An
+      # artifact keeps no file modes.
       - name: Fetch the Rust binaries
         uses: actions/download-artifact@v8
         with:
@@ -1467,13 +1496,32 @@ jobs:
         run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Fetch the Swift driver and its runtime
+        if: matrix.sdk == 'swift'
         uses: actions/download-artifact@v8
         with:
           name: swift-drivers
           path: packages/swift/sdk/.build/conformance
 
       - name: Make the Swift driver executable
+        if: matrix.sdk == 'swift'
         run: chmod +x packages/swift/sdk/.build/conformance/semiont-swift-wire-driver packages/swift/sdk/.build/conformance/bin/SemiontWireDriver
+
+      - name: Fetch the Haskell wire driver
+        if: matrix.sdk == 'haskell'
+        uses: actions/download-artifact@v8
+        with:
+          name: haskell-conformance-drivers
+          path: packages/haskell/sdk/conformance/bin
+
+      - name: Make the Haskell driver executable
+        if: matrix.sdk == 'haskell'
+        run: chmod +x packages/haskell/sdk/conformance/bin/semiont-haskell-*-driver*
+
+      - name: Install the Haskell driver's native libraries
+        if: matrix.sdk == 'haskell'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libgmp10 libnuma1 zlib1g
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1484,8 +1532,9 @@ jobs:
             package-lock.json
             protocol/conformance/package-lock.json
 
-      # The TypeScript drivers run the built SDK, as an application would, and
-      # the packages it is built on.
+      # The suite bundles the spec with the root's tools and reads
+      # @semiont/core; the TypeScript drivers run the built SDK, as an
+      # application would, and the packages it is built on.
       - name: Install dependencies
         run: |
           npm ci --include=optional
@@ -1499,67 +1548,81 @@ jobs:
       # The Python driver runs the SDK from its locked environment, which the
       # suite's setup makes with uv.
       - name: Setup Python
+        if: matrix.sdk == 'python'
         uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
 
       - name: Setup uv
+        if: matrix.sdk == 'python'
         uses: astral-sh/setup-uv@v10.3.3
 
       # The Go drivers are static binaries, built from their own module so
       # that what only a driver takes reaches nothing else.
       - name: Setup Go
+        if: matrix.sdk == 'go'
         uses: actions/setup-go@v7.0.0
         with:
           go-version-file: packages/go/sdk/conformance/go.mod
           cache: false
 
       - name: Build the Go drivers
+        if: matrix.sdk == 'go'
         run: cd packages/go/sdk/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...
 
       # The Kotlin drivers run on the JDK the SDK's .java-version names, from
       # the start scripts its build lays out.
       - name: Setup Java
+        if: matrix.sdk == 'kotlin'
         uses: actions/setup-java@v6.1.0
         with:
           distribution: temurin
           java-version-file: packages/kotlin/sdk/.java-version
 
       - name: Build the Kotlin drivers
+        if: matrix.sdk == 'kotlin'
         working-directory: packages/kotlin/sdk
         run: ./gradlew --no-daemon --console=plain installConformance
 
-      # Each SDK's drivers, put through the corpus against the gateway; the
-      # suite type-checks the TypeScript drivers and makes the Python SDK's
-      # environment before it starts. The Kotlin drivers run with JaCoCo's
-      # agent, which their start scripts take from JAVA_OPTS.
       - name: Setup .NET
+        if: matrix.sdk == 'csharp'
         uses: actions/setup-dotnet@v6
         with:
           global-json-file: packages/csharp/sdk/global.json
 
       - name: Build the C# wire driver
+        if: matrix.sdk == 'csharp'
         working-directory: packages/csharp/sdk
         run: dotnet publish conformance/WireDriver -c Release --self-contained -r linux-x64 -o conformance/bin -p:RestoreLockedMode=true
 
+      # The leg's SDK alone: the implementations file less every other SDK.
+      # The suite type-checks the TypeScript drivers and makes the Python SDK's
+      # environment before it starts, when its SDK is one of them. The Kotlin
+      # drivers run with JaCoCo's agent, which their start scripts take from
+      # JAVA_OPTS; every case starts its driver anew, so the JVM's start is
+      # most of a case, which C1 alone and the serial collector shorten.
       - name: Run the SDK conformance suite
         run: |
           cd protocol/conformance
           npm ci
+          jq --arg sdk '${{ matrix.sdk }}' '.sdks |= {($sdk): .[$sdk]}' semiont.implementations.json > leg.implementations.json
+          mv leg.implementations.json semiont.implementations.json
           npm run test:sdk
         env:
           CI: true
-          JAVA_OPTS: -javaagent:${{ github.workspace }}/packages/kotlin/sdk/build/conformance/jacoco/jacocoagent.jar=destfile=${{ github.workspace }}/packages/kotlin/sdk/build/conformance-coverage/drivers.exec,append=true
+          JAVA_OPTS: -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -javaagent:${{ github.workspace }}/packages/kotlin/sdk/build/conformance/jacoco/jacocoagent.jar=destfile=${{ github.workspace }}/packages/kotlin/sdk/build/conformance-coverage/drivers.exec,append=true
 
       # What the suite ran of the Kotlin SDK. A run that wrote no report
       # measured nothing, and the upload below would pass it in silence.
       - name: Report what the suite ran of the Kotlin SDK
+        if: matrix.sdk == 'kotlin'
         working-directory: packages/kotlin/sdk
         run: |
           ./gradlew --no-daemon --console=plain conformanceCoverage
           test -s build/reports/jacoco/conformanceCoverage/conformanceCoverage.xml
 
       - name: Upload the Kotlin SDK's conformance coverage to Codecov
+        if: matrix.sdk == 'kotlin'
         uses: codecov/codecov-action@v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -1570,6 +1633,7 @@ jobs:
         continue-on-error: true
 
       - name: Report what the suite ran of the Swift SDK
+        if: matrix.sdk == 'swift'
         working-directory: packages/swift/sdk
         run: |
           docker run --rm --user "$(id -u):$(id -g)" \
@@ -1577,6 +1641,7 @@ jobs:
             "swift:$(../../../packages/swift/scripts/swift-version.sh)" Scripts/conformance-coverage.sh
 
       - name: Upload the Swift SDK's conformance coverage to Codecov
+        if: matrix.sdk == 'swift'
         uses: codecov/codecov-action@v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -1586,23 +1651,31 @@ jobs:
           verbose: true
         continue-on-error: true
 
-      # What the instrumented binaries ran, for Rust Coverage. A job that
-      # started one and finds no profile fails: the measurement broke.
+      # What the instrumented binaries ran, for Rust Coverage: every leg runs
+      # the gateway. A leg that started one and finds no profile fails: the
+      # measurement broke.
       - name: Keep the coverage profiles
         uses: actions/upload-artifact@v7
         with:
-          name: coverage-profiles-${{ github.job }}
+          name: coverage-profiles-${{ github.job }}-${{ matrix.sdk }}
           path: coverage-profiles
           retention-days: 1
           if-no-files-found: error
 
   # A worker written on an SDK, held to protocol/contract/WORKER-CONTRACT.md: a
-  # real gateway, with the suite playing the dispatcher.
+  # real gateway, with the suite playing the dispatcher. One leg per SDK the
+  # suite's implementations file names, which census reads, as SDK
+  # Conformance's are: each sets up its own SDK's toolchain and worker driver
+  # and runs the suite on that SDK alone.
   worker-conformance:
-    name: Worker Conformance
-    runs-on: ubuntu-latest
-    needs: [census, changes, generated-artifacts, build-rust, build-swift-drivers]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true'
+    name: Worker Conformance (${{ matrix.sdk }})
+    runs-on: ubuntu-26.04
+    needs: [census, changes, generated-artifacts, build-rust, build-swift-drivers, test-sdk-haskell]
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk: ${{ fromJSON(needs.census.outputs.sdks) }}
     env:
       # Where every Rust binary this job starts writes what it ran, as it exits,
       # merged into one file per binary: kept below, for Rust Coverage.
@@ -1612,7 +1685,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      # Built once by build-rust. An artifact keeps no file modes.
+      # Built once by build-rust: the gateway, and the Rust SDK's worker
+      # driver. An artifact keeps no file modes.
       - name: Fetch the Rust binaries
         uses: actions/download-artifact@v8
         with:
@@ -1621,6 +1695,23 @@ jobs:
 
       - name: Make the binaries executable
         run: chmod +x packages/rust/target/release/semiont-*
+
+      - name: Fetch the Haskell conformance driver
+        if: matrix.sdk == 'haskell'
+        uses: actions/download-artifact@v8
+        with:
+          name: haskell-conformance-drivers
+          path: packages/haskell/sdk/conformance/bin
+
+      - name: Make the Haskell driver executable
+        if: matrix.sdk == 'haskell'
+        run: chmod +x packages/haskell/sdk/conformance/bin/semiont-haskell-*-driver*
+
+      - name: Install the Haskell driver's native libraries
+        if: matrix.sdk == 'haskell'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libgmp10 libnuma1 zlib1g
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1631,8 +1722,9 @@ jobs:
             package-lock.json
             protocol/conformance/package-lock.json
 
-      # The TypeScript worker driver runs the built SDK over the built
-      # transport, as a worker's author would.
+      # The suite bundles the spec with the root's tools and reads
+      # @semiont/core; the TypeScript worker driver runs the built SDK over the
+      # built transport, as a worker's author would.
       - name: Install dependencies
         run: |
           npm ci --include=optional
@@ -1646,66 +1738,80 @@ jobs:
       # The Python driver runs the SDK from its locked environment, which the
       # suite's setup makes with uv.
       - name: Setup Python
+        if: matrix.sdk == 'python'
         uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
 
       - name: Setup uv
+        if: matrix.sdk == 'python'
         uses: astral-sh/setup-uv@v10.3.3
 
       # The Go worker driver is a static binary, built from the drivers' own
       # module, as the SDK suite's are.
       - name: Setup Go
+        if: matrix.sdk == 'go'
         uses: actions/setup-go@v7.0.0
         with:
           go-version-file: packages/go/sdk/conformance/go.mod
           cache: false
 
       - name: Build the Go drivers
+        if: matrix.sdk == 'go'
         run: cd packages/go/sdk/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...
 
       # The Kotlin worker driver, written in Java, runs on the JDK the SDK's
       # .java-version names, from the start script its build lays out.
       - name: Setup Java
+        if: matrix.sdk == 'kotlin'
         uses: actions/setup-java@v6.1.0
         with:
           distribution: temurin
           java-version-file: packages/kotlin/sdk/.java-version
 
       - name: Build the Kotlin drivers
+        if: matrix.sdk == 'kotlin'
         working-directory: packages/kotlin/sdk
         run: ./gradlew --no-daemon --console=plain installConformance
 
       - name: Setup .NET
+        if: matrix.sdk == 'csharp'
         uses: actions/setup-dotnet@v6
         with:
           global-json-file: packages/csharp/sdk/global.json
 
       - name: Build the C# worker driver
+        if: matrix.sdk == 'csharp'
         working-directory: packages/csharp/sdk
         run: dotnet publish conformance/WireDriver -c Release --self-contained -r linux-x64 -o conformance/bin -p:RestoreLockedMode=true
 
       - name: Fetch the Swift driver
+        if: matrix.sdk == 'swift'
         uses: actions/download-artifact@v8
         with:
           name: swift-drivers
           path: packages/swift/sdk/.build/conformance
 
       - name: Make the Swift driver executable
+        if: matrix.sdk == 'swift'
         run: chmod +x packages/swift/sdk/.build/conformance/semiont-swift-wire-driver packages/swift/sdk/.build/conformance/bin/SemiontWireDriver
 
-      # Each SDK's worker driver, put through the corpus against the gateway;
-      # the suite type-checks the TypeScript driver and makes the Python SDK's
-      # environment before it starts.
+      # The leg's SDK's worker driver alone, put through the corpus against the
+      # gateway: the implementations file less every other SDK. The suite
+      # type-checks the TypeScript driver and makes the Python SDK's
+      # environment before it starts, when its SDK is one of them.
       - name: Run the worker conformance suite
         run: |
           cd protocol/conformance
           npm ci
+          jq --arg sdk '${{ matrix.sdk }}' '.sdks |= {($sdk): .[$sdk]}' semiont.implementations.json > leg.implementations.json
+          mv leg.implementations.json semiont.implementations.json
           npm run test:worker
         env:
           CI: true
 
       - name: Report what the worker suite ran of the Swift SDK
+        if: matrix.sdk == 'swift'
         working-directory: packages/swift/sdk
         run: |
           docker run --rm --user "$(id -u):$(id -g)" \
@@ -1713,6 +1819,7 @@ jobs:
             "swift:$(../../../packages/swift/scripts/swift-version.sh)" Scripts/conformance-coverage.sh
 
       - name: Upload the Swift SDK's worker coverage to Codecov
+        if: matrix.sdk == 'swift'
         uses: codecov/codecov-action@v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -1722,12 +1829,13 @@ jobs:
           verbose: true
         continue-on-error: true
 
-      # What the instrumented binaries ran, for Rust Coverage. A job that
-      # started one and finds no profile fails: the measurement broke.
+      # What the instrumented binaries ran, for Rust Coverage: every leg runs
+      # the gateway. A leg that started one and finds no profile fails: the
+      # measurement broke.
       - name: Keep the coverage profiles
         uses: actions/upload-artifact@v7
         with:
-          name: coverage-profiles-${{ github.job }}
+          name: coverage-profiles-${{ github.job }}-${{ matrix.sdk }}
           path: coverage-profiles
           retention-days: 1
           if-no-files-found: error
@@ -2318,6 +2426,125 @@ jobs:
         if: matrix.python-version == '3.12'
         run: ../../../packages/python/sdk/scripts/build-python-sdk.sh
 
+  complete-sdk-haskell:
+    name: Haskell SDK Completion
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - name: Install dependencies
+        run: npm ci --include=optional
+      - name: Require full Haskell parity
+        run: npm run lint:haskell-complete
+
+  test-sdk-haskell:
+    name: Haskell SDK and design probes
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true'
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+      - name: Cache Cabal dependencies
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.cache/semiont/haskell-cabal
+          key: ${{ runner.os }}-${{ runner.arch }}-haskell-${{ hashFiles('packages/haskell/probes/Dockerfile', 'packages/haskell/**/cabal.project*', 'packages/haskell/probes/cabal-install.version') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-haskell-
+      - name: Compile and test the SDK and design probes
+        run: bash packages/haskell/run-container.sh docker
+      - name: Upload the Haskell conformance drivers
+        uses: actions/upload-artifact@v7
+        with:
+          name: haskell-conformance-drivers
+          path: packages/haskell/sdk/conformance/bin
+          retention-days: 1
+          if-no-files-found: error
+      - name: Upload SDK coverage
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/haskell/sdk/coverage.lcov
+          disable_search: true
+          flags: haskell-sdk
+          name: haskell-sdk
+      - name: Upload design probe coverage
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/haskell/probes/coverage.lcov
+          disable_search: true
+          flags: haskell-probes
+          name: haskell-probes
+
+  test-sdk-haskell-native:
+    name: Haskell SDK (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true'
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+      - name: Set up Python for native interoperability peers
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Read the pinned Haskell toolchain
+        id: versions
+        shell: bash
+        run: |
+          python - <<'PYTHON'
+          import os
+          import re
+          from pathlib import Path
+          project = Path('packages/haskell/probes/cabal.project').read_text()
+          compiler = re.search(r'^with-compiler: ghc-([0-9]+\.[0-9]+\.[0-9]+)$', project, re.MULTILINE)
+          if compiler is None:
+              raise SystemExit('No pinned GHC compiler')
+          cabal = Path('packages/haskell/probes/cabal-install.version').read_text().strip()
+          if re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+', cabal) is None:
+              raise SystemExit('No pinned Cabal version')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'ghc={compiler[1]}\ncabal={cabal}\n')
+          PYTHON
+      - name: Set up the pinned Haskell compiler
+        id: haskell
+        uses: haskell-actions/setup@0f8e8c99d88aeb3fbfd523f1ef2c6f762d10d64d # v2.12.1
+        with:
+          ghc-version: ${{ steps.versions.outputs.ghc }}
+          cabal-version: ${{ steps.versions.outputs.cabal }}
+      - name: Cache native Cabal packages
+        uses: actions/cache@v6.1.0
+        with:
+          path: ${{ steps.haskell.outputs.cabal-store }}
+          key: ${{ runner.os }}-${{ runner.arch }}-haskell-native-${{ hashFiles('packages/haskell/**/cabal.project*', 'packages/haskell/probes/cabal-install.version') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-haskell-native-
+      - name: Build and run native SDK and interoperability cases
+        working-directory: packages/haskell/sdk
+        shell: bash
+        run: |
+          cabal update
+          cabal check
+          cabal run semiont-codegen -- --check "$GITHUB_WORKSPACE"
+          cabal build all --enable-tests -j2
+          cabal test schema-cases --test-show-details=direct --test-option="$GITHUB_WORKSPACE"
+          python api.py --compiler-check
+          python test/refusals.py
+
   # The C# SDK and its compiler/analyzer gates, on Linux and Windows.
   test-sdk-csharp:
     name: C# SDK
@@ -2540,7 +2767,7 @@ jobs:
         if: runner.os == 'macOS'
         working-directory: .
         run: |
-          /usr/bin/make --version | head -1 | grep 'GNU Make 3.81'
+          /usr/bin/make --version | sed -n 1p | grep 'GNU Make 3.81'
           /usr/bin/make help
           /usr/bin/make -n local-build
 
@@ -3535,7 +3762,7 @@ jobs:
       # one is the tests' fixture, real data at the pin, so the script, the
       # package's reader and the pin are held to each other. A bump of the pin
       # without `npm run generate:model-catalogue` fails here. This and the
-      # next are the checks of this job that read an installed package, so
+      # following steps are the checks of this job that read an installed package, so
       # this one installs first: the root's own dependencies at the lockfile's
       # versions, without the workspaces' and without running any package's
       # scripts. They are the job's last steps, so that no other check runs
@@ -3556,6 +3783,9 @@ jobs:
       # `npm run generate:encoding-cases` fails here when the table changes.
       - name: Encoding Standard vs the table of its labels and single-byte encodings
         run: npm run generate:encoding-cases:check
+
+      - name: Refresh, text, media and operation reports vs Haskell
+        run: npm run generate:haskell:check
 
   # Everything about the launcher's modules but its suite: formatting, vet on
   # every target a release ships, the Go SDK's own build and tests, and the
@@ -3646,8 +3876,7 @@ jobs:
       # provenance, checked before it runs, and what it pulls in: protobuf,
       # TUF, the Sigstore clients) and packages/go/sdk (whose client pulls
       # oapi-codegen/runtime, whose telemetry is the OpenTelemetry API, and
-      # whose reader of a resource's text decodes the legacy multi-byte
-      # charsets with golang.org/x/text),
+      # whose annotations lower a text's case with golang.org/x/text),
       # plus the Go stdlib compiled into the shipped binary (distributed via
       # Homebrew and the release's archives).
       # govulncheck scans stdlib + deps and reports only vulns reachable from
@@ -3989,6 +4218,9 @@ jobs:
       - test-sdk-rust-windows
       - test-sdk-kotlin
       - test-sdk-csharp
+      - test-sdk-haskell
+      - test-sdk-haskell-native
+      - complete-sdk-haskell
       - test-sdk-csharp-windows
       - test-sdk-swift
       - test-sdk-swift-macos

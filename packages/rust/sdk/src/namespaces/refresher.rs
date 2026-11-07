@@ -4,30 +4,29 @@
 //! asks again for the queries its row names, writes the ones whose new value
 //! the event carries, and ends the ones whose entity is gone.
 //!
-//! A client has one refresher. It states what each event names (its
-//! resource, its annotation, the value it carries) and, for each query of
-//! the table, which namespace's cache answers it: `gather` what refers to a
-//! resource, `match_` the searches, `browse` the rest. Both are matches
-//! over the table's own enums, so a trigger or a query added to the table
-//! does not compile until it is answered here.
+//! A client has one refresher. What each event names (its resource, its
+//! annotation, the value it carries) it reads where the table's row says it
+//! is. It states for itself only which namespace's cache answers each query
+//! of the table: `gather` what refers to a resource, `match_` the searches,
+//! `browse` the rest; a match over the table's own enum, so a query added to
+//! the table does not compile until it is answered here.
 //!
 //! An event acts only on a key its cache holds, and the refetches one key is
 //! asked for inside a window are one refetch
 //! (protocol/contract/CACHE-SEMANTICS.md B12–B13b, B19, B20).
 
-use super::browse::{self, BrowseNamespace, WHOLE, invalidate_engines};
+use super::browse::{self, BrowseNamespace, WholeKey, invalidate_engines};
 use super::gather::{GatherNamespace, ReferencedBy};
 use super::match_::{MatchNamespace, ResourceSearch};
-use crate::bus::StreamError;
+use crate::bus::held_to;
 use crate::cache::{Cache, CacheKey, CacheValue};
-use crate::channels::{self, Channel};
 use crate::client::Links;
 use crate::locked;
-use crate::refresh::{CacheQuery, Reach, RefreshTrigger, RefreshWhen};
-use crate::transport::ConnectionState;
-use crate::types::{
-    Annotation, AnnotationId, MatchResourcesResponse, ResourceId, StoredEventResponse,
-};
+use crate::refresh::{CacheQuery, CacheRefresh, Reach, RefreshTrigger, RefreshWhen};
+use crate::transport::{ConnectionState, Frame, FrameRefusal, Lagged};
+use crate::types::{Annotation, AnnotationId, MatchResourcesResponse, ResourceId};
+use serde::Deserialize;
+use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -92,6 +91,13 @@ impl Windows {
         refetch();
     }
 
+    /// Whether a window holds a refetch it has not yet run.
+    fn owes(&self) -> bool {
+        locked(&self.open)
+            .as_ref()
+            .is_some_and(|windows| windows.values().any(|window| window.owed.is_some()))
+    }
+
     /// Every window closes, and what each owed is dropped.
     fn dispose(&self) {
         if let Some(windows) = locked(&self.open).take() {
@@ -115,13 +121,87 @@ pub(super) struct Subject {
     pub(super) written: Option<Annotation>,
 }
 
-impl Subject {
-    fn of(resource: Option<ResourceId>) -> Subject {
-        Subject {
-            resource,
-            ..Subject::default()
-        }
+/// An event that cannot be read: missed, refused, or one a member of which
+/// its row names is present and is not what the row names.
+struct Unreadable;
+
+/// The member `way` ends at in `event`: none where the row names no way, or
+/// where the member, or one it passes through, is absent or null. One it
+/// passes through that is present and is no object makes the event
+/// unreadable.
+fn member_at<'a>(event: &'a Value, way: Option<&[&str]>) -> Result<Option<&'a Value>, Unreadable> {
+    let Some(way) = way else {
+        return Ok(None);
+    };
+    let mut member = event;
+    for name in way {
+        member = match member {
+            Value::Null => return Ok(None),
+            Value::Object(members) => match members.get(*name) {
+                Some(within) => within,
+                None => return Ok(None),
+            },
+            _ => return Err(Unreadable),
+        };
     }
+    Ok(match member {
+        Value::Null => None,
+        present => Some(present),
+    })
+}
+
+/// What `way` names in `event`, read as a `T` by its own decoder (an id's
+/// decoder holds its pattern): one present and not a `T` makes the event
+/// unreadable.
+fn named<'a, T: Deserialize<'a>>(
+    event: &'a Value,
+    way: Option<&[&str]>,
+) -> Result<Option<T>, Unreadable> {
+    match member_at(event, way)? {
+        None => Ok(None),
+        Some(member) => T::deserialize(member).map(Some).map_err(|_| Unreadable),
+    }
+}
+
+/// `trigger`'s row for events `when` says they are. The table's own reader
+/// refuses a trigger that has not exactly one.
+fn row(trigger: RefreshTrigger, when: Option<RefreshWhen>) -> &'static CacheRefresh {
+    match trigger.rows().iter().find(|row| row.when == when) {
+        Some(row) => row,
+        None => panic!("the refresh table has no row for {trigger:?} when {when:?}"),
+    }
+}
+
+/// What a frame on `trigger`'s `channel` names, by the ways of its row. A
+/// split channel's event is enriched when the member its enriched row
+/// carries is present.
+fn subject(
+    trigger: RefreshTrigger,
+    channel: &str,
+    frame: Result<Result<Frame, FrameRefusal>, Lagged>,
+) -> Result<Subject, Unreadable> {
+    let Ok(Ok(frame)) = frame else {
+        return Err(Unreadable);
+    };
+    let event = held_to(channel, frame.payload).map_err(|_| Unreadable)?;
+    let enriched = trigger
+        .rows()
+        .iter()
+        .find(|row| row.when == Some(RefreshWhen::Enriched));
+    let when = match enriched {
+        None => None,
+        Some(enriched) => match member_at(&event, enriched.carries)? {
+            Some(_) => Some(RefreshWhen::Enriched),
+            None => Some(RefreshWhen::Unenriched),
+        },
+    };
+    let row = row(trigger, when);
+    Ok(Subject {
+        when,
+        resource: named(&event, row.names.resource)?,
+        annotation: named(&event, row.names.annotation)?,
+        written: named(&event, row.carries)?,
+    })
 }
 
 // ── The refresher ───────────────────────────────────────────────────────
@@ -159,123 +239,32 @@ impl Refresher {
         refresher
     }
 
-    /// Listen for every trigger of the refresh table. Each arm states what
-    /// its event names, and a trigger with no arm does not compile.
+    /// Listen for every trigger of the refresh table: the stream's reopening,
+    /// and the events of each channel the table names.
     fn listen(self: &Arc<Self>, links: &Links) {
-        let stored = |event: StoredEventResponse| Subject::of(event.resource_id);
+        self.on_reopening(links.transport.state());
         for trigger in RefreshTrigger::ALL {
-            match trigger {
-                RefreshTrigger::Reopened => self.on_reopening(links.transport.state()),
-                RefreshTrigger::BusResumeGap => {
-                    self.on::<channels::BusResumeGap>(links, *trigger, |gap| {
-                        Subject::of(ResourceId::new(gap.scope).ok())
-                    });
-                }
-                RefreshTrigger::MarkAdded => {
-                    self.on::<channels::MarkAdded>(links, *trigger, |event| {
-                        Subject::of(event.resource_id)
-                    });
-                }
-                RefreshTrigger::MarkRemoved => {
-                    self.on::<channels::MarkRemoved>(links, *trigger, |event| Subject {
-                        annotation: event
-                            .payload
-                            .get("annotationId")
-                            .and_then(|id| id.as_str())
-                            .and_then(|id| AnnotationId::new(id).ok()),
-                        ..Subject::of(event.resource_id)
-                    });
-                }
-                RefreshTrigger::MarkDeleteOk => {
-                    self.on::<channels::MarkDeleteOk>(links, *trigger, |reply| Subject {
-                        annotation: Some(reply.response.annotation_id),
-                        ..Subject::default()
-                    });
-                }
-                RefreshTrigger::MarkBodyUpdated => {
-                    self.on::<channels::MarkBodyUpdated>(links, *trigger, |event| {
-                        match event.annotation {
-                            Some(annotation) => Subject {
-                                when: Some(RefreshWhen::Enriched),
-                                resource: event.resource_id,
-                                annotation: Some(annotation.id.clone()),
-                                written: Some(annotation),
-                            },
-                            None => Subject {
-                                when: Some(RefreshWhen::Unenriched),
-                                resource: event.resource_id,
-                                annotation: event
-                                    .payload
-                                    .get("annotationId")
-                                    .and_then(|id| id.as_str())
-                                    .and_then(|id| AnnotationId::new(id).ok()),
-                                written: None,
-                            },
-                        }
-                    });
-                }
-                RefreshTrigger::MarkEntityTagAdded => {
-                    self.on::<channels::MarkEntityTagAdded>(links, *trigger, stored);
-                }
-                RefreshTrigger::MarkEntityTagRemoved => {
-                    self.on::<channels::MarkEntityTagRemoved>(links, *trigger, stored);
-                }
-                RefreshTrigger::MarkArchived => {
-                    self.on::<channels::MarkArchived>(links, *trigger, stored);
-                }
-                RefreshTrigger::MarkUnarchived => {
-                    self.on::<channels::MarkUnarchived>(links, *trigger, stored);
-                }
-                // What is heard by every client: its resource is the one it
-                // records, not a scope the client holds.
-                RefreshTrigger::YieldCreated => {
-                    self.on::<channels::YieldCreated>(links, *trigger, stored);
-                }
-                RefreshTrigger::YieldUpdated => {
-                    self.on::<channels::YieldUpdated>(links, *trigger, stored);
-                }
-                RefreshTrigger::YieldCloned => {
-                    self.on::<channels::YieldCloned>(links, *trigger, stored);
-                }
-                RefreshTrigger::YieldMoved => {
-                    self.on::<channels::YieldMoved>(links, *trigger, stored);
-                }
-                RefreshTrigger::FrameEntityTypeAdded => {
-                    self.on::<channels::FrameEntityTypeAdded>(links, *trigger, |_| {
-                        Subject::default()
-                    });
-                }
-                RefreshTrigger::FrameTagSchemaAdded => {
-                    self.on::<channels::FrameTagSchemaAdded>(links, *trigger, |_| {
-                        Subject::default()
-                    });
-                }
+            if let Some(channel) = trigger.channel() {
+                self.on(links, *trigger, channel);
             }
         }
     }
 
-    /// Apply `trigger`'s row to what each event on the channel `C` names.
-    fn on<C: Channel>(
-        self: &Arc<Self>,
-        links: &Links,
-        trigger: RefreshTrigger,
-        names: impl Fn(C::Payload) -> Subject + Send + 'static,
-    ) {
-        debug_assert_eq!(trigger.channel(), Some(C::NAME));
-        let mut events = links.own.stream::<C>();
+    /// Apply `trigger`'s row to what each event on its `channel` names; and,
+    /// to one that cannot be read, the row of an unreadable event. A missed
+    /// event is one: something changed and nothing says what.
+    fn on(self: &Arc<Self>, links: &Links, trigger: RefreshTrigger, channel: &'static str) {
+        let mut frames = links.own.frames(channel);
         let refresher = Arc::downgrade(self);
         locked(&self.listening).spawn(async move {
-            while let Some(event) = events.next().await {
+            while let Some(frame) = frames.next().await {
                 let Some(refresher) = refresher.upgrade() else {
                     return;
                 };
-                match event {
-                    Ok(event) => refresher.refresh(trigger, &names(event.payload)),
-                    // An event that was missed, or one that cannot be read:
-                    // something changed and nothing says what. Everything
-                    // held is asked for again, as after a gap.
-                    Err(StreamError::Lagged(_) | StreamError::Refused(_)) => {
-                        refresher.everything_held();
+                match subject(trigger, channel, frame) {
+                    Ok(subject) => refresher.refresh(trigger, &subject),
+                    Err(Unreadable) => {
+                        refresher.refresh(RefreshTrigger::Unreadable, &Subject::default());
                     }
                 }
             }
@@ -310,9 +299,7 @@ impl Refresher {
     }
 
     fn refresh(&self, trigger: RefreshTrigger, subject: &Subject) {
-        let Some(row) = trigger.rows().iter().find(|row| row.when == subject.when) else {
-            return;
-        };
+        let row = row(trigger, subject.when);
         // What an event carries, and what it says is gone, is only ever an
         // annotation: the table's own build refuses a row that says more.
         for query in row.writes {
@@ -323,12 +310,6 @@ impl Refresher {
         }
         for query in row.refetches {
             self.refetch(*query, subject, row.reach);
-        }
-    }
-
-    fn everything_held(&self) {
-        for query in CacheQuery::ALL {
-            self.refetch(*query, &Subject::default(), Reach::Held);
         }
     }
 
@@ -371,25 +352,25 @@ impl Refresher {
         match query {
             CacheQuery::Resource => {
                 for id in reached(browse.resource.keys()) {
-                    let window = format!("resource/{id}");
+                    let window = format!("{}/{id}", query.name());
                     self.again(&browse.resource, id, window);
                 }
             }
             CacheQuery::Annotations => {
                 for id in reached(browse.annotations.keys()) {
-                    let window = format!("annotations/{id}");
+                    let window = format!("{}/{id}", query.name());
                     self.again(&browse.annotations, id, window);
                 }
             }
             CacheQuery::Events => {
                 for id in reached(browse.events.keys()) {
-                    let window = format!("events/{id}");
+                    let window = format!("{}/{id}", query.name());
                     self.again(&browse.events, id, window);
                 }
             }
             CacheQuery::ReferencedBy => {
                 for id in reached(self.referenced_by.keys()) {
-                    let window = format!("referenced-by/{id}");
+                    let window = format!("{}/{id}", query.name());
                     self.again(&self.referenced_by, id, window);
                 }
             }
@@ -406,38 +387,36 @@ impl Refresher {
                         .collect(),
                 };
                 for id in annotations {
-                    let window = format!("annotation/{id}");
+                    let window = format!("{}/{id}", query.name());
                     self.again(&browse.annotation, id, window);
                 }
             }
             // An event does not say which lists it changes, nor which
             // searches would now find its resource.
-            CacheQuery::Resources => self.all_again(&browse.lists, "resource-lists"),
-            CacheQuery::MatchedResources => self.all_again(&self.searches, "matched-resources"),
+            CacheQuery::Resources => self.all_again(&browse.lists, query.name()),
+            CacheQuery::MatchedResources => self.all_again(&self.searches, query.name()),
             CacheQuery::EntityTypes => {
-                self.again(
-                    &browse.entity_types,
-                    WHOLE.to_owned(),
-                    "entity-types".to_owned(),
-                );
+                self.again(&browse.entity_types, WholeKey, query.name().to_owned());
             }
             CacheQuery::TagSchemas => {
-                self.again(
-                    &browse.tag_schemas,
-                    WHOLE.to_owned(),
-                    "tag-schemas".to_owned(),
-                );
+                self.again(&browse.tag_schemas, WholeKey, query.name().to_owned());
             }
             CacheQuery::Engines => {
-                if browse.engines.known(&WHOLE.to_owned()) {
+                if browse.engines.known(&WholeKey) {
                     let (engines, limits) = (browse.engines.clone(), browse.limits.clone());
                     self.windows.run(
-                        "engines".to_owned(),
+                        query.name().to_owned(),
                         Box::new(move || invalidate_engines(&engines, &limits)),
                     );
                 }
             }
         }
+    }
+
+    /// Whether a refetch an event asked for is owed: a window (B19) holds
+    /// one it has not yet run.
+    pub(crate) fn owes_a_refetch(&self) -> bool {
+        self.windows.owes()
     }
 
     /// Stop: no event refreshes anything after, and what a window owed is

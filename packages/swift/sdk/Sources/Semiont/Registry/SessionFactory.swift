@@ -4,7 +4,7 @@ public struct SessionFactoryOptions: Sendable {
   public let kb: KnowledgeBase
   public let storage: any SessionStorage
   public let signals: SessionSignals
-  public let onError: @Sendable (any Error) -> Void
+  public let onError: @Sendable (SessionError) -> Void
 }
 
 public protocol SessionFactory: Sendable {

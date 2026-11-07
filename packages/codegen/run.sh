@@ -90,6 +90,10 @@ group() {
       run "$NODE_IMAGE" node packages/go/sdk/scripts/check-go-schema-coverage.mjs
       ;;
     discovery-go) go_generate packages/go/launcher/discovery.go ;;
+    haskell)
+      install
+      run "$NODE_IMAGE" sh -ec 'apk add --no-cache python3 >/dev/null; exec npm run "$1"' sh "generate:$name$SUFFIX"
+      ;;
     encoding-cases|model-catalogue) install; npm_script "generate:$name$SUFFIX" ;;
     *) npm_script "generate:$name$SUFFIX" ;;
   esac

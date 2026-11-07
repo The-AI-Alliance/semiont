@@ -1259,6 +1259,7 @@ fn from_kept(world: &World, kept: Arc<MemorySignIn>) -> SessionFromKept {
         on_auth_failed: None,
         on_error: None,
         http: world.http.clone(),
+        random: None,
     }
 }
 
@@ -1859,7 +1860,7 @@ fn registered(world: &World, id: &str, did: &str) -> KnowledgeBase {
 fn browser(world: &World, storage: Arc<InMemorySessionStorage>) -> SemiontBrowser {
     SemiontBrowser::new(SemiontBrowserConfig {
         storage,
-        session_factory: Arc::new(HttpSessionFactory::new(world.http.clone())),
+        session_factory: Arc::new(HttpSessionFactory::new(world.http.clone(), None)),
     })
     .expect("a browser")
 }
@@ -2021,7 +2022,7 @@ async fn a_registrys_sign_in_registers_the_knowledge_base_under_what_it_says_it_
         },
     )
     .await;
-    let outcome = complete_sign_in(&browser, &callback, &world.http)
+    let outcome = complete_sign_in(&browser, &callback, &world.http, None)
         .await
         .expect("the sign-in completes");
 
@@ -2070,7 +2071,7 @@ async fn a_knowledge_base_that_cannot_say_who_it_is_is_not_registered() {
     *world.staged.describes.lock().unwrap() = Describes::Refusing;
     world.answers([granted(&jwt(3600, 1), Some("r"))]);
     let callback = sent_back(&world, &browser, world.begin()).await;
-    let refused = complete_sign_in(&browser, &callback, &world.http)
+    let refused = complete_sign_in(&browser, &callback, &world.http, None)
         .await
         .expect_err("it cannot say who it is");
     let unverifiable = refused
@@ -2088,7 +2089,7 @@ async fn a_knowledge_base_that_cannot_say_who_it_is_is_not_registered() {
         .push(unwelcome.clone());
     world.answers([granted(&unwelcome, Some("r"))]);
     let callback = sent_back(&world, &browser, world.begin()).await;
-    let unreached = complete_sign_in(&browser, &callback, &world.http)
+    let unreached = complete_sign_in(&browser, &callback, &world.http, None)
         .await
         .expect_err("it was not reached");
     let unverifiable = unreached
@@ -2111,6 +2112,7 @@ async fn a_callback_that_is_not_the_pending_sign_ins_registers_nothing() {
         &browser,
         "http://127.0.0.1:9/callback?state=another&code=the-code",
         &world.http,
+        None,
     )
     .await
     .expect_err("the state is another's");
@@ -2130,7 +2132,7 @@ async fn a_callback_that_is_not_the_pending_sign_ins_registers_nothing() {
 async fn asked_with_a_token_the_knowledge_base_says_who_it_is() {
     let world = World::start().await;
 
-    let identity = describe_connection(&world.target(), &jwt(3600, 1), &world.http)
+    let identity = describe_connection(&world.target(), &jwt(3600, 1), &world.http, None)
         .await
         .expect("it says who it is");
 
@@ -2165,7 +2167,7 @@ async fn a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept(
     .expect("stored");
     let places_key = last_event_id_key("kb-a", &person_key(ALICE));
     storage
-        .set(&places_key, &json!({ "res-1": "p-5" }).to_string())
+        .set(&places_key, &json!({ "res-1": "p-res-1-5" }).to_string())
         .expect("stored");
     let browser = browser(&world, storage.clone());
     let session = live(&browser).await;
@@ -2190,12 +2192,14 @@ async fn a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept(
             .map(|scoped| scoped["lastEventId"].clone())
     };
     until("the stream names the scope", || resumed_from().is_some()).await;
-    assert_eq!(resumed_from(), Some(json!("p-5")));
+    assert_eq!(resumed_from(), Some(json!("p-res-1-5")));
 
     // A recorded event of the scope moves the place, and the place is kept
     // once the caches have taken the event in and written what they hold.
     let frame = json!({ "channel": "mark:archived", "scope": "res-1", "payload": {} });
-    let event = Bytes::from(format!("event: bus-event\nid: p-9\ndata: {frame}\n\n"));
+    let event = Bytes::from(format!(
+        "event: bus-event\nid: p-res-1-9\ndata: {frame}\n\n"
+    ));
     for stream in world.staged.streams.lock().unwrap().iter() {
         let _ = stream.send(event.clone());
     }
@@ -2205,7 +2209,7 @@ async fn a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept(
             .and_then(|kept| serde_json::from_str::<Value>(&kept).ok())
     };
     until("the place is kept", || {
-        kept() == Some(json!({ "res-1": "p-9" }))
+        kept() == Some(json!({ "res-1": "p-res-1-9" }))
     })
     .await;
     browser.close().await.expect("closed");
@@ -2372,6 +2376,7 @@ impl World {
                 self.http.clone(),
             ),
             self.http.clone(),
+            None,
         )
         .await
     }
@@ -2785,6 +2790,7 @@ impl World {
                 http: self.http.clone(),
                 timing: Timing::default(),
                 bookmarks: None,
+                random: None,
             },
             ClientOptions::default(),
         )
@@ -3161,6 +3167,7 @@ async fn a_script(
         on_auth_failed: None,
         on_error: None,
         http,
+        random: None,
     })
     .await?;
 
@@ -3199,6 +3206,7 @@ async fn a_first_sign_in(
         on_auth_failed: None,
         on_error: None,
         http,
+        random: None,
     })
     .await?;
     // </readme:device>
@@ -3218,6 +3226,7 @@ async fn a_daemon(
         gateway,
         ServiceToken::new(credential, http.clone()),
         http.clone(),
+        None,
     )
     .await?;
     let client = client(
@@ -3229,6 +3238,7 @@ async fn a_daemon(
             http,
             timing: Timing::default(),
             bookmarks: None,
+            random: None,
         },
         ClientOptions::default(),
     );
@@ -3274,6 +3284,7 @@ async fn a_worker(
         gateway,
         ServiceToken::new(Credential::Key(Box::new(credential)), http.clone()),
         http.clone(),
+        None,
     )
     .await?;
     println!("working as {}", agent.did());
@@ -3301,6 +3312,7 @@ async fn a_worker(
             http,
             timing: Timing::default(),
             bookmarks: None,
+            random: None,
         },
         ClientOptions::default(),
     );
@@ -3397,7 +3409,7 @@ async fn an_application(
     // The registry an application holds, with its sessions over HTTP.
     let browser = SemiontBrowser::new(SemiontBrowserConfig {
         storage,
-        session_factory: Arc::new(HttpSessionFactory::new(http.clone())),
+        session_factory: Arc::new(HttpSessionFactory::new(http.clone(), None)),
     })?;
 
     // A person signs in at the issuer the knowledge base trusts, in their
@@ -3419,7 +3431,7 @@ async fn an_application(
     let callback = redirect.callback().await?;
 
     // The knowledge base that answered is registered, signed in and active.
-    let signed_in = complete_sign_in(&browser, &callback, &http).await?;
+    let signed_in = complete_sign_in(&browser, &callback, &http, None).await?;
     // </readme:application>
     browser.close().await?;
     Ok(signed_in.kb)

@@ -62,7 +62,7 @@ import { STORAGE_KEY, ACTIVE_KEY, OPEN_RESOURCES_BY_KB_KEY, LAST_VIEWED_RESOURCE
 import { PENDING_AUTHORIZATION_KEY } from '../oauth';
 import { IdentityUnverifiableError } from '../connect';
 import { mockResource } from '../../__tests__/fixtures/resource';
-import { BusRequestError } from '@semiont/core';
+import { BusRequestError, resourceId } from '@semiont/core';
 import type { SemiontError } from '@semiont/core';
 
 /** An issuer's JSON answer, as `fetch` would hand it back. */
@@ -390,22 +390,22 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
   it('addOpenResource, removeOpenResource, updateName, reorder — on the active KB', async () => {
     const browser = await makeConnectedBrowser();
 
-    browser.addOpenResource('r1', 'One');
-    browser.addOpenResource('r2', 'Two', 'text/markdown', 'file://two.md');
+    browser.addOpenResource(resourceId('r1'), 'One');
+    browser.addOpenResource(resourceId('r2'), 'Two', 'text/markdown', 'file://two.md');
     expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['r1', 'r2']);
 
-    browser.addOpenResource('r1', 'One v2', 'text/plain');
+    browser.addOpenResource(resourceId('r1'), 'One v2', 'text/plain');
     const r1 = browser.openResources$.getValue().find((r) => r.id === 'r1');
     expect(r1?.name).toBe('One v2');
     expect(r1?.mediaType).toBe('text/plain');
 
-    browser.updateOpenResourceName('r2', 'Two v2');
+    browser.updateOpenResourceName(resourceId('r2'), 'Two v2');
     expect(browser.openResources$.getValue().find((r) => r.id === 'r2')?.name).toBe('Two v2');
 
     browser.reorderOpenResources(0, 1);
     expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['r2', 'r1']);
 
-    browser.removeOpenResource('r1');
+    browser.removeOpenResource(resourceId('r1'));
     expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['r2']);
 
     await browser.dispose();
@@ -413,12 +413,12 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
   it('assigns a unique order after removals (no collision with surviving tabs)', async () => {
     const browser = await makeConnectedBrowser();
-    browser.addOpenResource('r1', 'One');
-    browser.addOpenResource('r2', 'Two');
-    browser.addOpenResource('r3', 'Three');
-    browser.removeOpenResource('r2'); // surviving orders: 0, 2
+    browser.addOpenResource(resourceId('r1'), 'One');
+    browser.addOpenResource(resourceId('r2'), 'Two');
+    browser.addOpenResource(resourceId('r3'), 'Three');
+    browser.removeOpenResource(resourceId('r2')); // surviving orders: 0, 2
 
-    browser.addOpenResource('r4', 'Four'); // length-based order would collide at 2
+    browser.addOpenResource(resourceId('r4'), 'Four'); // length-based order would collide at 2
 
     const list = browser.openResources$.getValue();
     const orders = list.map((r) => r.order);
@@ -430,7 +430,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
   it('reorderOpenResources ignores out-of-range indices', async () => {
     const browser = await makeConnectedBrowser();
-    browser.addOpenResource('r1', 'One');
+    browser.addOpenResource(resourceId('r1'), 'One');
     const before = browser.openResources$.getValue();
     browser.reorderOpenResources(0, 5);
     expect(browser.openResources$.getValue()).toEqual(before);
@@ -517,7 +517,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
     // A projection refresh is not an activation: CRUD re-projects, and must
     // not re-run the pass.
-    browser.addOpenResource('r3', 'Three');
+    browser.addOpenResource(resourceId('r3'), 'Three');
     browser.reorderOpenResources(0, 1);
     await settled();
     expect(mockResourceFresh).toHaveBeenCalledTimes(2);
@@ -527,8 +527,8 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
   it('a KB switch validates the newly active list', async () => {
     storage.set(OPEN_RESOURCES_BY_KB_KEY, JSON.stringify({
-      [KB_A.id]: [{ id: 'a1', name: 'A1', openedAt: 0 }],
-      [KB_B.id]: [{ id: 'b1', name: 'B1', openedAt: 0 }],
+      [KB_A.id]: [{ id: 'a1', name: 'A1', openedAt: 0, order: 0 }],
+      [KB_B.id]: [{ id: 'b1', name: 'B1', openedAt: 0, order: 0 }],
     }));
     const browser = await makeConnectedBrowser();
     await settled();
@@ -576,14 +576,14 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     // Nothing to do with validation: were `mutateOpenResources` to write from
     // its in-memory copy, whichever context wrote last would erase the other.
     const browser = await makeConnectedBrowser();
-    browser.addOpenResource('mine', 'Mine');
+    browser.addOpenResource(resourceId('mine'), 'Mine');
 
     // A sibling context commits its own tab directly to storage.
     const committed = JSON.parse(storage.get(OPEN_RESOURCES_BY_KB_KEY)!) as Record<string, unknown[]>;
     committed[KB_A.id] = [...(committed[KB_A.id] ?? []), { id: 'theirs', name: 'Theirs', openedAt: 9, order: 9 }];
     storage.set(OPEN_RESOURCES_BY_KB_KEY, JSON.stringify(committed));
 
-    browser.addOpenResource('later', 'Later');
+    browser.addOpenResource(resourceId('later'), 'Later');
 
     const persisted = JSON.parse(storage.get(OPEN_RESOURCES_BY_KB_KEY)!) as Record<string, { id: string }[]>;
     expect(persisted[KB_A.id]!.map((r) => r.id).sort()).toEqual(['later', 'mine', 'theirs']);
@@ -603,8 +603,8 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     await liveSession(second);
     await settled();
 
-    first.addOpenResource('from-here', 'Here');
-    second.addOpenResource('from-there', 'There');
+    first.addOpenResource(resourceId('from-here'), 'Here');
+    second.addOpenResource(resourceId('from-there'), 'There');
     second.setLastViewedResource('from-there');
 
     const both = ['from-here', 'from-there'];
@@ -620,7 +620,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
   it('a change to what is open, or to where the person was, is made against what the storage holds', async () => {
     const browser = await makeConnectedBrowser();
-    browser.addOpenResource('mine', 'Mine');
+    browser.addOpenResource(resourceId('mine'), 'Mine');
 
     // Written to the storage with nobody told: what the registry holds in
     // memory is behind, and what it writes next must not put it back.
@@ -631,7 +631,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
       ],
     }));
     storage.set(LAST_VIEWED_RESOURCE_BY_KB_KEY, JSON.stringify({ [KB_B.id]: 'in-b' }));
-    browser.addOpenResource('another', 'Another');
+    browser.addOpenResource(resourceId('another'), 'Another');
     browser.setLastViewedResource('mine');
 
     const want = ['mine', 'theirs', 'another'];
@@ -645,7 +645,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
   it('removing a knowledge base forgets what was kept of it, against what the storage holds', async () => {
     const browser = await makeConnectedBrowser();
-    browser.addOpenResource('a1', 'A1');
+    browser.addOpenResource(resourceId('a1'), 'A1');
     browser.setLastViewedResource('a1');
 
     // Another context's, written with nobody told.
@@ -673,8 +673,8 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
   /** Both per-KB maps seeded for KB_A and KB_B, as a restore would leave them. */
   function seedKbScopedState() {
     storage.set(OPEN_RESOURCES_BY_KB_KEY, JSON.stringify({
-      [KB_A.id]: [{ id: 'a1', name: 'A1', openedAt: 0 }],
-      [KB_B.id]: [{ id: 'b1', name: 'B1', openedAt: 0 }],
+      [KB_A.id]: [{ id: 'a1', name: 'A1', openedAt: 0, order: 0 }],
+      [KB_B.id]: [{ id: 'b1', name: 'B1', openedAt: 0, order: 0 }],
     }));
     storage.set(LAST_VIEWED_RESOURCE_BY_KB_KEY, JSON.stringify({
       [KB_A.id]: 'a1',
@@ -712,7 +712,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     await settled();
 
     expect(readMap(OPEN_RESOURCES_BY_KB_KEY)[KB_B.id]).toEqual([
-      { id: 'b1', name: 'B1', openedAt: 0 },
+      { id: 'b1', name: 'B1', openedAt: 0, order: 0 },
     ]);
     expect(readMap(LAST_VIEWED_RESOURCE_BY_KB_KEY)[KB_B.id]).toBe('b1');
 
@@ -985,7 +985,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
   it('is inert with no live session: nothing visible, nothing persisted', async () => {
     const browser = makeBrowser();
-    browser.addOpenResource('r1', 'One');
+    browser.addOpenResource(resourceId('r1'), 'One');
     expect(browser.openResources$.getValue()).toEqual([]);
     expect(storage.get(OPEN_RESOURCES_BY_KB_KEY)).toBeNull();
     await browser.dispose();
@@ -993,12 +993,12 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
   it('switching KBs switches the visible list; each KB keeps its own', async () => {
     const browser = await makeConnectedBrowser();
-    browser.addOpenResource('r1', 'One');
+    browser.addOpenResource(resourceId('r1'), 'One');
 
     await browser.setActiveKb(KB_B.id);
     await liveSession(browser);
     expect(browser.openResources$.getValue()).toEqual([]);
-    browser.addOpenResource('r2', 'Two');
+    browser.addOpenResource(resourceId('r2'), 'Two');
     expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['r2']);
 
     await browser.setActiveKb(KB_A.id);
@@ -1010,7 +1010,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
   it('signOut hides the tabs; storage retains them; signIn restores', async () => {
     const browser = await makeConnectedBrowser();
-    browser.addOpenResource('r1', 'One');
+    browser.addOpenResource(resourceId('r1'), 'One');
 
     await browser.signOut(KB_A.id);
     expect(browser.openResources$.getValue()).toEqual([]);
@@ -1025,7 +1025,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
   it('removeKb reaps the stored tabs for that KB', async () => {
     const browser = await makeConnectedBrowser();
-    browser.addOpenResource('r1', 'One');
+    browser.addOpenResource(resourceId('r1'), 'One');
 
     browser.removeKb(KB_A.id);
     const stored = JSON.parse(storage.get(OPEN_RESOURCES_BY_KB_KEY) ?? '{}') as Record<string, unknown>;

@@ -28,14 +28,24 @@ type storedTable struct {
 		Properties map[string]json.RawMessage `json:"properties"`
 		Required   []string                   `json:"required"`
 	} `json:"storedSession"`
+	OpenResource struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+		Required   []string                   `json:"required"`
+	} `json:"openResource"`
 }
 
-// A key or a member the table gains fails here until Go has it.
-func TestWhatARegistryKeepsIsTheTables(t *testing.T) {
+func readStoredTable(t *testing.T) storedTable {
+	t.Helper()
 	text, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "protocol", "specs", "src", "session", "stored.json"))
 	must(t, err)
 	var table storedTable
 	must(t, json.Unmarshal(text, &table))
+	return table
+}
+
+// A key or a member the table gains fails here until Go has it.
+func TestWhatARegistryKeepsIsTheTables(t *testing.T) {
+	table := readStoredTable(t)
 
 	keys := map[string]string{}
 	for _, entry := range table.Keys {
@@ -87,6 +97,63 @@ func TestWhatARegistryKeepsIsTheTables(t *testing.T) {
 		if required := slices.Contains(table.StoredSession.Required, left); read == required {
 			t.Errorf("a stored value without %s reads as a session: %v; the table requires it: %v", left, read, required)
 		}
+	}
+}
+
+// An open resource the registry writes carries every member the table names
+// when all of them are known, and only the ones the table requires when no
+// more are. A member the table gains, or one it stops requiring, fails here
+// until Go writes it so.
+func TestAnOpenResourceIsWrittenWithTheTablesMembers(t *testing.T) {
+	table := readStoredTable(t)
+	members := slices.Sorted(maps.Keys(table.OpenResource.Properties))
+	requiredMembers := slices.Sorted(slices.Values(table.OpenResource.Required))
+	bubble(t, func(t *testing.T, w *world) {
+		browser := w.with(kbOfA()).browser()
+		live(t, browser)
+		must(t, browser.AddOpenResource(id("whole"), "Whole", "text/markdown", "file://docs/whole.md"))
+		must(t, browser.AddOpenResource(id("bare"), "Bare", "", ""))
+
+		var byKb map[string][]map[string]json.RawMessage
+		w.stored(registry.OpenResourcesByKbKey, &byKb)
+		written := map[string][]string{}
+		for _, entry := range byKb[kbA] {
+			var named string
+			must(t, json.Unmarshal(entry["id"], &named))
+			written[named] = slices.Sorted(maps.Keys(entry))
+		}
+		if got := written["whole"]; !slices.Equal(got, members) {
+			t.Errorf("an open resource whose media type and place in the working tree are known is written with %v; the table's members are %v", got, members)
+		}
+		if got := written["bare"]; !slices.Equal(got, requiredMembers) {
+			t.Errorf("an open resource of which no more is known is written with %v; the table requires %v", got, requiredMembers)
+		}
+	})
+}
+
+// A stored open resource that lacks a member the table requires is none, as
+// one with a member of the wrong type is: what is stored does not read, and
+// nothing is shown open.
+func TestAStoredOpenResourceThatLacksAMemberTheTableRequiresIsNone(t *testing.T) {
+	table := readStoredTable(t)
+	members := slices.Sorted(maps.Keys(table.OpenResource.Properties))
+	whole := map[string]any{"id": "r1", "name": "One", "openedAt": 1, "order": 0, "mediaType": "text/plain", "storageUri": "file://docs/one.md"}
+	if got := slices.Sorted(maps.Keys(whole)); !slices.Equal(got, members) {
+		t.Fatalf("the open resource stored here has %v; the table's members are %v", got, members)
+	}
+	for _, left := range members {
+		bubble(t, func(t *testing.T, w *world) {
+			without := maps.Clone(whole)
+			delete(without, left)
+			w.with(kbOfA())
+			must(t, w.storage.Set(registry.OpenResourcesByKbKey, string(marshal(map[string]any{kbA: []any{without}}))))
+			browser := w.browser()
+			live(t, browser)
+			shown := len(open(browser)) == 1
+			if required := slices.Contains(table.OpenResource.Required, left); shown == required {
+				t.Errorf("an open resource stored without %s is shown: %v; the table requires it: %v", left, shown, required)
+			}
+		})
 	}
 }
 

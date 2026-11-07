@@ -216,14 +216,15 @@ project and import `System.Linq`. Then call
 `client.Browse.Resource(resourceId).ToObservable()`.
 
 Supply `CachePersistence(storage, kbId, RegistryStorage.PersonKey(did))` when
-constructing a client to keep its persisted queries and their replay bookmarks
-across sessions for that person, one key per query. A registry's
-`HttpSessionFactory` keeps for the person from when the knowledge base's stored
-sign-in names them, and forgetting that sign-in, however it is forgotten,
-signing in again included, deletes what was kept. Such a session writes only
-while the sign-in it holds names its person; a client you construct with a
-`CachePersistence` of your own writes unchecked. A restored value is visible immediately and revalidated
-when first read.
+constructing a client to keep its persisted queries and where its stream was
+across sessions for that person: one document per query, which a client in any
+Semiont SDK reads over the same storage. A registry's `HttpSessionFactory`
+keeps for the person from when the knowledge base's stored sign-in names them,
+and forgetting that sign-in, however it is forgotten, signing in again
+included, deletes what was kept. Such a session writes only while the sign-in
+it holds names its person; a client you construct with a `CachePersistence` of
+your own writes unchecked. A restored value is visible immediately and
+revalidated when first read.
 
 ## State units
 

@@ -74,6 +74,13 @@ public sealed class ProtocolGenerator : IIncrementalGenerator
                 Schema.Validate(schema, "session/stored.json");
                 definitions.Add("StoredSession", schema.Clone());
             }
+            if (files.TryGetValue("session/cases.json", out var sessionCases))
+            {
+                using var document = JsonDocument.Parse(sessionCases);
+                var schema = document.RootElement.GetProperty("told");
+                Schema.Validate(schema, "session/cases.json");
+                definitions.Add("SessionEndReason", schema.Clone());
+            }
             if (files.TryGetValue("identifiers/kinds.json", out var kinds))
             {
                 using var document = JsonDocument.Parse(kinds);

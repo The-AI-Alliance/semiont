@@ -517,18 +517,19 @@ func Watch(ctx context.Context, client *semiont.Client, resource api.ResourceId)
 - **A client can keep what its small queries hold**
   (`ClientConfig.Persistence`, a `CachePersistence` over a `SessionStorage`
   the application supplies, for one knowledge base and one person,
-  `PersonKey(did)`, one key per query): a resource's description, its
-  annotations, one annotation, the entity types, the tag schemas. The next
-  client of the same knowledge base and person shows them at once and asks
-  for each anew the first time it is watched. `SessionFromKeptConfig.Storage`
-  does this for a session once the gateway names its person and its kept
-  sign-in records them, and keeps the stream's place in each resource's scope
-  with it (`CoupledBookmarks`), so the next session is sent what was recorded
-  since. Forgetting a registry's stored sign-in, however it is forgotten,
-  signing in again included, deletes what was kept for its person. A session
-  the SDK builds writes only while the sign-in it holds names its person; a
-  client you configure with a `CachePersistence` of your own writes
-  unchecked.
+  `PersonKey(did)`): the queries `PersistedCacheQueries` names, those
+  [`refresh.json`](../../../protocol/specs/src/client/refresh.json) marks
+  `persisted`, each one document under its own key that a client of any SDK
+  reads and writes alike. The next client of the same knowledge base and
+  person shows them at once and asks for each anew the first time it is
+  watched. `SessionFromKeptConfig.Storage` does this for a session once the
+  gateway names its person and its kept sign-in records them, and keeps the
+  stream's place in each resource's scope with it (`CoupledBookmarks`), so
+  the next session is sent what was recorded since. Forgetting a registry's
+  stored sign-in, however it is forgotten, signing in again included, deletes
+  what was kept for its person. A session the SDK builds writes only while
+  the sign-in it holds names its person; a client you configure with a
+  `CachePersistence` of your own writes unchecked.
 
 The behaviours every SDK's live queries are held to are numbered in
 [the cache's semantics][cache-semantics].

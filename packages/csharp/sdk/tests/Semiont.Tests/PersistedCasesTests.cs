@@ -235,7 +235,7 @@ public sealed partial class TransportTests
             storage.Release();
             await passing;
             await Assert.ThrowsAsync<TransportError>(() => refused);
-            Assert.Equal("refused", await EndedAsync(signals, deadline.Token));
+            Assert.Equal(SessionEndReason.Refused, await EndedAsync(signals, deadline.Token));
             Assert.True(RegistryStorage.StoredSession(storage, CaseKb) is null, "the session forgot its sign-in");
         }
         finally
@@ -339,7 +339,7 @@ public sealed partial class TransportTests
         if (signedIn is not null) RegistryStorage.StoreSession(storage, forgetting.Id, signedIn);
         var factory = new RegistryFactory((options, _) => Task.FromResult(OpenRegistrySession(options.Kb,
             onClose: options.Kb.Id == forgetting.Id && RegistryStorage.StoredSession(options.Storage, options.Kb.Id)?.PersonKey == jo
-                ? () => storage.Set(joResource, """{"version":1,"writtenAt":1700000000001,"entries":[]}""") : null)));
+                ? () => storage.Set(joResource, """{"version":1,"entries":[]}""") : null)));
         await using var browser = new SemiontBrowser(new SemiontBrowserConfig(storage, factory));
         await browser.SetActiveKbAsync(active.Id, cancellation);
         Assert.True(browser.State.ActiveSession is not null, why + ": " + active.Id + " is open");
@@ -389,14 +389,14 @@ public sealed partial class TransportTests
                 gateway.Refuse(access);
                 gateway.Refuse(renewed);
                 await Assert.ThrowsAsync<TransportError>(() => opened.Client.Transport.GetStatusAsync(cancellation));
-                Assert.True(await EndedAsync(signals, cancellation) == (by == "refusal" ? "refused" : "expired"), why + ": how the session ended");
+                Assert.True(await EndedAsync(signals, cancellation) == (by == "refusal" ? SessionEndReason.Refused : SessionEndReason.Expired), why + ": how the session ended");
             }
             Assert.True(RegistryStorage.StoredSession(storage, CaseKb) is null, why + ": the session forgot its sign-in");
         }
         finally { await opened.DisposeAsync(); }
     }
 
-    private static async Task<string> EndedAsync(SessionSignals signals, CancellationToken cancellation)
+    private static async Task<SessionEndReason> EndedAsync(SessionSignals signals, CancellationToken cancellation)
     {
         await foreach (var ended in signals.SessionEnded.WithCancellation(cancellation))
             if (ended is { Reason: var reason }) return reason;
@@ -508,7 +508,6 @@ public sealed partial class TransportTests
         if (document is null) return false;
         using var parsed = JsonDocument.Parse(document);
         Assert.Equal(1, parsed.RootElement.GetProperty("version").GetInt32());
-        Assert.Equal(JsonValueKind.Number, parsed.RootElement.GetProperty("writtenAt").ValueKind);
         return parsed.RootElement.GetProperty("entries").EnumerateArray()
             .Any(entry => entry[0].GetString() == id && Text(entry[1], "name") == "fresh");
     }

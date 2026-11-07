@@ -146,9 +146,10 @@ export interface Cache<K, V> extends StateUnit {
   /**
    * B17-Q — true while this cache's content may be ahead of (or racing) its
    * persisted document: any fetch in flight, or a debounced save pending.
-   * The quiescence input to the resumption-bookmark flush gate — the
-   * bookmark may only be flushed when every persisted cache is quiet, so it
-   * can lag the persisted content but never lead it (C1).
+   * After disposal, true for good if disposal dropped a fetch: that content
+   * never catches up. The quiescence input to the resumption-bookmark flush
+   * gate — the bookmark may only be flushed when every persisted cache is
+   * quiet, so it can lag the persisted content but never lead it (C1).
    */
   persistencePending(): boolean;
 }
@@ -210,6 +211,8 @@ export function createPersistableCache<K, V>(
    * async resumption point in the SWR driver, not just at entry.
    */
   let disposed = false;
+  /** B17-Q: disposal dropped a fetch in flight, so the places stay held back. */
+  let droppedFetch = false;
 
   /**
    * B15 — the terminal failure of each VALUE-LESS key: set when the B14 retry
@@ -508,7 +511,7 @@ export function createPersistableCache<K, V>(
       // B17-Q: in-flight fetches mean content may still be older than the
       // event that triggered them; a pending debounced save means content
       // newer than the persisted document. Either way the bookmark must wait.
-      return inflight.size > 0 || pendingSave !== null;
+      return droppedFetch || inflight.size > 0 || pendingSave !== null;
     },
 
     dispose(): void {
@@ -527,6 +530,7 @@ export function createPersistableCache<K, V>(
       // keep every observer's subscription alive.
       failures$.complete();
       obsCache.clear();
+      droppedFetch = inflight.size > 0;
       inflight.clear();
     },
   };

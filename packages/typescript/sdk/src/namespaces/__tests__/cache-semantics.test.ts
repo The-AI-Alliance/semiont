@@ -16,6 +16,9 @@ import type { components, StoredEvent, EventOfType, EventMetadata, UserId, Resou
 import type { ConnectionState } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
 import { isReady, readyValue, type CacheState } from '../../cache';
+import { coupledLastEventId, type CachePersistence } from '../../cache-persister';
+import { InMemorySessionStorage } from '../../session/session-storage';
+import { cacheKey, lastEventIdKey, personKey } from '../../session/storage';
 import type { IContentTransport } from '@semiont/core';
 
 import type { Annotation } from '@semiont/core';
@@ -163,6 +166,8 @@ interface HarnessOptions {
   silentChannels?: string[];
   /** Threaded to BrowseNamespace so timeout tests run on short real time. */
   busTimeoutMs?: number;
+  /** Threaded to BrowseNamespace: its kept caches persist through this storage, for its knowledge base and person. */
+  cachePersistence?: CachePersistence;
 }
 
 function createHarness(opts: HarnessOptions = {}) {
@@ -268,12 +273,10 @@ function createHarness(opts: HarnessOptions = {}) {
   };
 
   const eventBus = new EventBus();
-  const browse = new BrowseNamespace(
-    transport,
-    eventBus,
-    content,
-    opts.busTimeoutMs !== undefined ? { busTimeoutMs: opts.busTimeoutMs } : undefined,
-  );
+  const browse = new BrowseNamespace(transport, eventBus, content, {
+    ...(opts.busTimeoutMs !== undefined ? { busTimeoutMs: opts.busTimeoutMs } : {}),
+    ...(opts.cachePersistence !== undefined ? { cachePersistence: opts.cachePersistence } : {}),
+  });
 
   return { browse, eventBus, emitSpy, getAnnotations, state };
 }
@@ -938,6 +941,109 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
         expect(vi.getTimerCount(), 'timers left running after disposal').toBe(0);
         await vi.advanceTimersByTimeAsync(INVALIDATION_WINDOW_MS * 2);
         expect(getAnnotations.mock.calls.length, 'nothing is requested after disposal').toBe(settled);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("while a window owes a refetch, persistence is not settled, so the stream's places wait for it (B17-Q)", async () => {
+      vi.useFakeTimers();
+      try {
+        const { browse, eventBus } = createHarness();
+        const sub = browse.annotations(RID).subscribe(() => {});
+        await firstDefined(browse.annotations(RID));
+        expect(browse.persistenceSettled()).toBe(true);
+        eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-a'));
+        eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-b'));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(browse.persistenceSettled(), 'the second mark is owed to the window').toBe(false);
+        await vi.advanceTimersByTimeAsync(INVALIDATION_WINDOW_MS);
+        expect(browse.persistenceSettled(), 'the window has run what it owed').toBe(true);
+        sub.unsubscribe();
+        browse.dispose();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    /** The person the persisted harness keeps for, on kb-1. */
+    const PERSON = personKey('did:web:example.org:users:jo');
+
+    /** A harness whose kept caches persist through storage coupled to the stream's places, gated as the session factory gates them. */
+    function persistedHarness(options: Omit<HarnessOptions, 'cachePersistence'>) {
+      const storage = new InMemorySessionStorage();
+      const coupled = coupledLastEventId(storage, lastEventIdKey('kb-1', PERSON));
+      const harness = createHarness({ ...options, cachePersistence: { storage: coupled.storage, kbId: 'kb-1', personKey: PERSON } });
+      coupled.setFlushGate(() => harness.browse.persistenceSettled());
+      return { ...harness, storage, saveLastEventId: coupled.saveLastEventId };
+    }
+
+    /** The total of the resource's annotations its kept document holds. */
+    function keptTotal(storage: InMemorySessionStorage): number | undefined {
+      const text = storage.get(cacheKey('kb-1', PERSON, 'annotations'));
+      if (text === null) throw new Error('No annotations document was written');
+      const document = JSON.parse(text) as { entries: [string, { total: number }, number][] };
+      return document.entries.find(([key]) => key === RID)?.[1].total;
+    }
+
+    it("a window holding an owed invalidation at disposal leaves the places unwritten, and the caches' documents are still flushed (B17-Q)", async () => {
+      vi.useFakeTimers();
+      try {
+        const { browse, eventBus, state, storage, saveLastEventId } = persistedHarness({});
+        const sub = browse.annotations(RID).subscribe(() => {});
+        await firstDefined(browse.annotations(RID));
+        state.annotationCount = 2;
+        eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-a'));
+        eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-b'));
+        saveLastEventId(RID, 'p-res-1-2');
+        await vi.advanceTimersByTimeAsync(0);
+        sub.unsubscribe();
+        browse.dispose();
+        expect(keptTotal(storage), 'the save the annotations owed is flushed').toBe(2);
+        expect(storage.get(lastEventIdKey('kb-1', PERSON)), 'the places wait for the refetch disposal drops').toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('with nothing owed at disposal, the documents flushed then carry the places (B17-Q)', async () => {
+      vi.useFakeTimers();
+      try {
+        const { browse, eventBus, state, storage, saveLastEventId } = persistedHarness({});
+        const sub = browse.annotations(RID).subscribe(() => {});
+        await firstDefined(browse.annotations(RID));
+        state.annotationCount = 2;
+        eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-a'));
+        saveLastEventId(RID, 'p-res-1-2');
+        await vi.advanceTimersByTimeAsync(0);
+        sub.unsubscribe();
+        browse.dispose();
+        expect(keptTotal(storage), 'the save the annotations owed is flushed').toBe(2);
+        const places = storage.get(lastEventIdKey('kb-1', PERSON));
+        if (places === null) throw new Error('The places were not written');
+        expect(JSON.parse(places)).toEqual({ 'res-1': 'p-res-1-2' });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("a fetch in flight in a kept cache disposed first leaves the places unwritten when the next cache's document is flushed (B17-Q)", async () => {
+      vi.useFakeTimers();
+      try {
+        const { browse, eventBus, state, storage, saveLastEventId } = persistedHarness({ silentChannels: ['browse:resource-requested'] });
+        const annotationsSub = browse.annotations(RID).subscribe(() => {});
+        await firstDefined(browse.annotations(RID));
+        // The resource cache is disposed before the annotations: its fetch is never answered.
+        const resourceSub = browse.resource(RID).subscribe(() => {});
+        state.annotationCount = 2;
+        eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-a'));
+        saveLastEventId(RID, 'p-res-1-2');
+        await vi.advanceTimersByTimeAsync(0);
+        resourceSub.unsubscribe();
+        annotationsSub.unsubscribe();
+        browse.dispose();
+        expect(keptTotal(storage), 'the save the annotations owed is flushed').toBe(2);
+        expect(storage.get(lastEventIdKey('kb-1', PERSON)), 'the places wait for the fetch disposal drops').toBeNull();
       } finally {
         vi.useRealTimers();
       }

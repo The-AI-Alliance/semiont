@@ -8,20 +8,25 @@
  * document write is what can flush a stashed bookmark.
  */
 
-import type { ResourceId } from '@semiont/core';
+import { isObject, isString, type ResourceId } from '@semiont/core';
 import { createCache, type Cache } from '../../cache';
-import { coupledLastEventId, sessionStoragePersister } from '../../cache-persister';
+import { coupledLastEventId, sessionStoragePersister, type EntryDecoder } from '../../cache-persister';
 import type { InMemorySessionStorage } from '../../session/session-storage';
 
 /** The one key cache A holds content under. */
 export const KEY = 'res-1';
 const A_DOC_KEY = 'semiont.cache.test.annotations';
-const B_DOC_KEY = 'semiont.cache.test.entity-types';
+const B_DOC_KEY = 'semiont.cache.test.entityTypes';
 export const BOOKMARK_KEY = 'semiont.lastEventId.test';
 export const DEBOUNCE_MS = 50;
 
 /** Content model: "the effect of every event ≤ upTo is present". */
 export interface Content { upTo: number }
+
+const CONTENT: EntryDecoder<string, Content> = {
+  key: isString,
+  value: (json): json is Content => isObject(json) && Number.isInteger(json['upTo']),
+};
 
 export interface Rig {
   cacheA: Cache<string, Content>;
@@ -43,8 +48,8 @@ export function buildRig(storage: InMemorySessionStorage, gated: boolean): Rig {
   const cacheA = createCache<string, Content>(
     () => new Promise<Content>((resolve) => { resolvers.push(resolve); }),
     {
-      persister: sessionStoragePersister<string, Content>({
-        storage: coupled.storage, storageKey: A_DOC_KEY, version: 1,
+      persister: sessionStoragePersister({
+        storage: coupled.storage, storageKey: A_DOC_KEY, decode: CONTENT,
       }),
       saveDebounceMs: DEBOUNCE_MS,
     },
@@ -52,8 +57,8 @@ export function buildRig(storage: InMemorySessionStorage, gated: boolean): Rig {
   const cacheB = createCache<string, Content>(
     async () => ({ upTo: 0 }),
     {
-      persister: sessionStoragePersister<string, Content>({
-        storage: coupled.storage, storageKey: B_DOC_KEY, version: 1,
+      persister: sessionStoragePersister({
+        storage: coupled.storage, storageKey: B_DOC_KEY, decode: CONTENT,
       }),
       saveDebounceMs: DEBOUNCE_MS,
     },

@@ -24,7 +24,7 @@ import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 import type { IContentTransport, ITransport, ResourceDescriptor } from '@semiont/core';
 import { isReady } from '../cache';
 import { BrowseNamespace } from '../namespaces/browse';
-import { sessionStoragePersister } from '../cache-persister';
+import { keptPersister } from '../cache-persister';
 import { cacheKey } from '../session/storage';
 import { TestStorage } from '../session/__tests__/test-storage-helpers';
 import { inMemoryTransport, type InMemoryTransportOptions } from './helpers/in-memory-transport';
@@ -51,11 +51,7 @@ const settle = (ms: number): Promise<void> => new Promise((resolve) => setTimeou
 describe('BrowseNamespace cache rehydration (B17)', () => {
   it('serves a rehydrated resource instantly AND revalidates it (B18); un-cached keys still request', async () => {
     const storage = new TestStorage();
-    sessionStoragePersister<string, ResourceDescriptor>({
-      storage,
-      storageKey: RESOURCE_KEY,
-      version: 1,
-    }).save(new Map([[String(RID), DESCRIPTOR]]));
+    keptPersister('resource', { storage, ...KEPT_FOR }).save(new Map([[RID, DESCRIPTOR]]));
 
     const emit = vi.fn<(channel: string, ...rest: unknown[]) => Promise<number>>(async () => 1);
     const browse = new BrowseNamespace(
@@ -122,10 +118,10 @@ describe('BrowseNamespace cache rehydration (B17)', () => {
   it('keeps nothing until given persistence; then fills only the keys it does not hold, revalidates them (B18), and saves', async () => {
     const HELD = makeResourceId('res-held');
     const storage = new TestStorage();
-    sessionStoragePersister<string, ResourceDescriptor>({ storage, storageKey: RESOURCE_KEY, version: 1 }).save(
+    keptPersister('resource', { storage, ...KEPT_FOR }).save(
       new Map([
-        [String(RID), DESCRIPTOR],
-        [String(HELD), mockResource(HELD, { name: 'Kept, but held anew' })],
+        [RID, DESCRIPTOR],
+        [HELD, mockResource(HELD, { name: 'Kept, but held anew' })],
       ]),
     );
     const kept = storage.get(RESOURCE_KEY);

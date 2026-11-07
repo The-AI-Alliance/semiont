@@ -1,0 +1,600 @@
+cabal-version: 3.0
+name: semiont
+version: 0.7.1
+synopsis: Typed Semiont SDK for Haskell
+description: Protocol-derived models for the Semiont knowledge platform.
+license: Apache-2.0
+license-file: LICENSE
+category: Network
+author: The AI Alliance
+maintainer: Semiont contributors
+build-type: Simple
+extra-source-files: codegen/annotation-adapters.json, test/store-owner-policy.py, test/store-owner-policy.ps1, test/store-lock-peer.py, generated/Semiont/Internal/Generated/semiont_store_policy.h, test/fixtures/*.pem, codegen/session-adapters.json, semiont.cabal.in, README.md, run.sh, api.py, public-api.inputs.json, public-api.json, test/refusals.py, test/refusals/*.hs, test/http-peer.py, conformance/README.md, conformance/launch.sh
+
+common settings
+  default-language: GHC2021
+  ghc-options: -Wall -Wincomplete-patterns -Wincomplete-record-updates
+  build-depends:
+    base >=4.20 && <4.21,
+    aeson >=2.3 && <2.4,
+    async >=2.2 && <2.3,
+    bytestring >=0.12 && <0.13,
+    base64-bytestring >=1.2 && <1.3,
+    containers >=0.7 && <0.8,
+    regex-tdfa >=1.3 && <1.4,
+    scientific >=0.3 && <0.4,
+    stm >=2.5 && <2.6,
+    streaming >=0.2 && <0.3,
+    text >=2.1 && <2.2,
+    vector >=0.13 && <0.14,
+    QuickCheck >=2.19 && <2.20
+
+common context-propagation
+  build-depends: hs-opentelemetry-api >=1.0 && <1.1, http-client >=0.7 && <0.8, http-types >=0.12 && <0.13, case-insensitive >=1.2 && <1.3, network-uri >=2.6 && <2.7, uuid-types >=1.0 && <1.1, unordered-containers >=0.2 && <0.3
+
+common crypto
+  build-depends: crypton >=2.2 && <2.3, ram >=0.22 && <0.23, crypton-pem >=0.3 && <0.4, crypton-x509 >=1.10 && <1.11, crypton-x509-store >=1.10 && <1.11
+
+library
+  default-language: GHC2021
+  build-depends: base >=4.20 && <4.21, semiont:internal
+  reexported-modules: Semiont.Types, Semiont.Types.Presence, Semiont.Channels, Semiont.Running, Semiont.ErrorCodes, Semiont.Timing, Semiont.Timing.Settings, Semiont.Retry, Semiont.Discovery, Semiont.Discovery.Reasons, Semiont.Transport, Semiont.Transport.Facts, Semiont.StateValue, Semiont.Errors, Semiont.EventBus, Semiont.Bus, Semiont.Http, Semiont.Http.Discovery, Semiont.Content, Semiont.Gateway, Semiont.Frame, Semiont.Auth, Semiont.System, Semiont.Client, Semiont.JobFilter, Semiont.Claims, Semiont.HostName, Semiont.Worker, Semiont.Worker.Types, Semiont.Bind, Semiont.Beckon, Semiont.Job, Semiont.Cache, Semiont.Resources, Semiont.MediaTypes, Semiont.Browse, Semiont.Gather, Semiont.Match, Semiont.Delegation, Semiont.Mark, Semiont.Yield, Semiont.Tokens, Semiont.SessionStorage, Semiont.Session, Semiont.Issuer, Semiont.Registry.Stored, Semiont.ClientAssertion, Semiont.ServiceToken, Semiont.SignIn, Semiont.SignInStore, Semiont.Annotations, Semiont.Identity, Semiont.StoragePersister, Semiont.State.SessionSignals, Semiont.Registry.Identity, Semiont.Registry.Factory, Semiont.Registry.Resources, Semiont.Registry, Semiont.State.HoverDwell, Semiont.State.Search, Semiont.State.Beckon, Semiont.State.Match, Semiont.State.Gather, Semiont.State.Mark, Semiont.State.Yield, Semiont.Testing, Semiont.Testing.Client, Semiont.Testing.Transport, Semiont.Testing.Storage, Semiont.Testing.Sessions, Semiont.Testing.Liveness
+
+library internal
+  import: settings, context-propagation, crypto
+  build-depends: directory >=1.3 && <1.4, filepath >=1.5 && <1.6, time >=1.12 && <1.13
+  visibility: private
+  hs-source-dirs: src, internal, generated
+  c-sources: internal/Semiont/Internal/NativeStore.c
+  include-dirs: generated/Semiont/Internal/Generated
+  cc-options: -Wall -Wextra -Werror
+  if os(windows)
+    extra-libraries: advapi32, bcrypt
+  exposed-modules:
+    Semiont.Types
+    Semiont.Types.Presence
+    Semiont.Channels
+    Semiont.Running
+    Semiont.ErrorCodes
+    Semiont.Timing
+    Semiont.Timing.Settings
+    Semiont.Retry
+    Semiont.Discovery
+    Semiont.Discovery.Reasons
+    Semiont.Transport
+    Semiont.Transport.Facts
+    Semiont.StateValue
+    Semiont.Errors
+    Semiont.EventBus
+    Semiont.Bus
+    Semiont.Internal.Schema
+    Semiont.Internal.Required
+    Semiont.Internal.Cache
+    Semiont.Internal.Queries
+    Semiont.Internal.Delegation
+    Semiont.Internal.DelegatedVerbs
+    Semiont.Internal.Mark
+    Semiont.Internal.Yield
+    Semiont.Internal.Generated.OperationReports
+    Semiont.Internal.Browse
+    Semiont.Internal.Gather
+    Semiont.Internal.Match
+    Semiont.Internal.Refresh
+    Semiont.Internal.Text
+    Semiont.Internal.Utf8
+    Semiont.Internal.StreamFrame
+    Semiont.Internal.Broadcast
+    Semiont.Internal.Sse
+    Semiont.Internal.Running
+    Semiont.Internal.Delivery
+    Semiont.Internal.StateValue
+    Semiont.Internal.Transport
+    Semiont.Registry
+    Semiont.Registry.Resources
+    Semiont.Registry.Factory
+    Semiont.Internal.Generated.SessionFactoryOptions
+    Semiont.Registry.Identity
+    Semiont.State.SessionSignals
+    Semiont.State.Beckon
+    Semiont.State.Match
+    Semiont.State.Gather
+    Semiont.State.Mark
+    Semiont.State.Yield
+    Semiont.Testing
+    Semiont.Testing.Client
+    Semiont.Testing.Transport
+    Semiont.Testing.Storage
+    Semiont.Testing.Sessions
+    Semiont.Testing.Liveness
+    Semiont.Internal.Generated.Testing
+    Semiont.Internal.Generated.PendingAnnotation
+    Semiont.Internal.Generated.MarkMotivation
+    Semiont.State.HoverDwell
+    Semiont.State.Search
+    Semiont.Internal.Generated.SearchState
+    Semiont.Internal.StateTasks
+    Semiont.StoragePersister
+    Semiont.Internal.Coupled
+    Semiont.Internal.Persistence
+    Semiont.Internal.Generated.CachePersistence
+    Semiont.Internal.Generated.Stored
+    Semiont.Identity
+    Semiont.Internal.Generated.Principals
+    Semiont.Internal.Generated.BusLog
+    Semiont.Internal.BusLog
+    Semiont.Internal.Generated.UnicodeCase
+    Semiont.Annotations
+    Semiont.Internal.Annotations.Id
+    Semiont.Internal.Annotations.Pdf
+    Semiont.Internal.Annotations.Spans
+    Semiont.Http
+    Semiont.Http.Discovery
+    Semiont.Content
+    Semiont.Gateway
+    Semiont.Frame
+    Semiont.Auth
+    Semiont.System
+    Semiont.Client
+    Semiont.JobFilter
+    Semiont.Claims
+    Semiont.HostName
+    Semiont.Worker
+    Semiont.Worker.Types
+    Semiont.Bind
+    Semiont.Beckon
+    Semiont.Job
+    Semiont.Cache
+    Semiont.Resources
+    Semiont.MediaTypes
+    Semiont.Browse
+    Semiont.Gather
+    Semiont.Match
+    Semiont.Delegation
+    Semiont.Mark
+    Semiont.Yield
+    Semiont.Tokens
+    Semiont.SessionStorage
+    Semiont.Session
+    Semiont.Issuer
+    Semiont.ClientAssertion
+    Semiont.ServiceToken
+    Semiont.SignIn
+    Semiont.SignInStore
+    Semiont.Registry.Stored
+    Semiont.Internal.Http
+    Semiont.Internal.HttpActor
+    Semiont.Internal.HttpContent
+    Semiont.Internal.Lifetime
+    Semiont.Http.Routes
+    Semiont.Internal.Generated.Text
+    Semiont.Internal.Generated.CacheRefresh
+    Semiont.Internal.Generated.Required
+    Semiont.Internal.Generated.Schemas
+  other-modules:
+    Paths_semiont
+    Semiont.Internal.Telemetry
+    Semiont.Internal.Codec
+    Semiont.Internal.Bus
+    Semiont.Internal.Local
+    Semiont.Internal.RetryPolicy
+    Semiont.Internal.Generated.OperationFailure
+    Semiont.Internal.Generated.OAuth
+    Semiont.Internal.Generated.SignInStore
+    Semiont.Internal.NativeStore
+    Semiont.Internal.SignIn
+    Semiont.Internal.Stored
+    Semiont.Internal.Generated.ClientAssertion
+    Semiont.Internal.Generated.ServiceProof
+    Semiont.Internal.Issuer
+    Semiont.Internal.Generated.WorkerChannels
+    Semiont.Internal.Generated.Models.YieldJobFilter
+    Semiont.Internal.Generated.Models.YieldCloneResourceRequest
+    Semiont.Internal.Generated.Models.VoyageEmbeddingConfig
+    Semiont.Internal.Generated.Models.UserId
+    Semiont.Internal.Generated.Models.UserResponse
+    Semiont.Internal.Generated.Models.UploadResourceHeader0
+    Semiont.Internal.Generated.Models.UnitCursor
+    Semiont.Internal.Generated.Models.TraceCarrier
+    Semiont.Internal.Generated.Models.TextSpan
+    Semiont.Internal.Generated.Models.TextQuoteSelector
+    Semiont.Internal.Generated.Models.TextPositionSelector
+    Semiont.Internal.Generated.Models.TaggingJobParams
+    Semiont.Internal.Generated.Models.TagCategory
+    Semiont.Internal.Generated.Models.TagSchema
+    Semiont.Internal.Generated.Models.TagSchemaAddedPayload
+    Semiont.Internal.Generated.Models.TagSchemasProjection
+    Semiont.Internal.Generated.Models.TabVerdict
+    Semiont.Internal.Generated.Models.TabCheck
+    Semiont.Internal.Generated.Models.SvgSelector
+    Semiont.Internal.Generated.Models.SupportedMediaType
+    Semiont.Internal.Generated.Models.StoredSession
+    Semiont.Internal.Generated.Models.StatusResponse
+    Semiont.Internal.Generated.Models.SignIn
+    Semiont.Internal.Generated.Models.SettingsThemeChangedEvent
+    Semiont.Internal.Generated.Models.SettingsLocaleChangedEvent
+    Semiont.Internal.Generated.Models.SettingsHoverDelayChangedEvent
+    Semiont.Internal.Generated.Models.SessionLeftEvent
+    Semiont.Internal.Generated.Models.SessionJoinedEvent
+    Semiont.Internal.Generated.Models.SessionEndReason
+    Semiont.Internal.Generated.Models.SessionEnded
+    Semiont.Internal.Generated.Models.ResourceUpdatedPayload
+    Semiont.Internal.Generated.Models.ResourceUnarchivedPayload
+    Semiont.Internal.Generated.Models.ResourceMovedPayload
+    Semiont.Internal.Generated.Models.ResourceId
+    Semiont.Internal.Generated.Models.SmeltRebuildAnchorsCommand
+    Semiont.Internal.Generated.Models.SmeltSettled
+    Semiont.Internal.Generated.Models.StorageUriEntry
+    Semiont.Internal.Generated.Models.WeaveApplied
+    Semiont.Internal.Generated.Models.WeaveRebuildCommand
+    Semiont.Internal.Generated.Models.YieldCloneCreated
+    Semiont.Internal.Generated.Models.YieldClonePersistOk
+    Semiont.Internal.Generated.Models.YieldCloneTokenRequest
+    Semiont.Internal.Generated.Models.YieldCreateOk
+    Semiont.Internal.Generated.Models.YieldJobDone
+    Semiont.Internal.Generated.Models.YieldUpdateCommand
+    Semiont.Internal.Generated.Models.YieldUpdateOk
+    Semiont.Internal.Generated.Models.ResourceErrorEvent
+    Semiont.Internal.Generated.Models.ResourceArchivedPayload
+    Semiont.Internal.Generated.Models.RepresentationRemovedPayload
+    Semiont.Internal.Generated.Models.RepresentationNotFound
+    Semiont.Internal.Generated.Models.Representation
+    Semiont.Internal.Generated.Models.RepresentationAddedPayload
+    Semiont.Internal.Generated.Models.ReplyEventId
+    Semiont.Internal.Generated.Models.QuotedText
+    Semiont.Internal.Generated.Models.QdrantVectorsConfig
+    Semiont.Internal.Generated.Models.ProtectedResourceMetadata
+    Semiont.Internal.Generated.Models.Profile
+    Semiont.Internal.Generated.Models.ProfilesProjection
+    Semiont.Internal.Generated.Models.PrincipalProfiledPayload
+    Semiont.Internal.Generated.Models.PrincipalProfileCommand
+    Semiont.Internal.Generated.Models.PersistedEventId
+    Semiont.Internal.Generated.Models.PermissionDenied
+    Semiont.Internal.Generated.Models.PdfTextItem
+    Semiont.Internal.Generated.Models.PdfCoordinate
+    Semiont.Internal.Generated.Models.OpenResource
+    Semiont.Internal.Generated.Models.OllamaEmbeddingConfig
+    Semiont.Internal.Generated.Models.NeptuneGraphConfig
+    Semiont.Internal.Generated.Models.Neo4jGraphConfig
+    Semiont.Internal.Generated.Models.Motivation
+    Semiont.Internal.Generated.Models.MemoryVectorsConfig
+    Semiont.Internal.Generated.Models.VectorsConfig
+    Semiont.Internal.Generated.Models.MemoryGraphConfig
+    Semiont.Internal.Generated.Models.MediaTokenResponse
+    Semiont.Internal.Generated.Models.MediaTokenRequest
+    Semiont.Internal.Generated.Models.MatchSearchOptions
+    Semiont.Internal.Generated.Models.MatchResourcesRequest
+    Semiont.Internal.Generated.Models.MatchQuality
+    Semiont.Internal.Generated.Models.MarkUpdateEntityTypesCommand
+    Semiont.Internal.Generated.Models.MarkUnarchiveCommand
+    Semiont.Internal.Generated.Models.MarkJobFilter
+    Semiont.Internal.Generated.Models.MarkJobDone
+    Semiont.Internal.Generated.Models.MarkDelegateTimeoutEvent
+    Semiont.Internal.Generated.Models.MarkArchiveCommand
+    Semiont.Internal.Generated.Models.LogLevel
+    Semiont.Internal.Generated.Models.LogFormat
+    Semiont.Internal.Generated.Models.LocalEndpoint
+    Semiont.Internal.Generated.Models.LinkingJobParams
+    Semiont.Internal.Generated.Models.LimitRefusal
+    Semiont.Internal.Generated.Models.KbSessionStatus
+    Semiont.Internal.Generated.Models.KbReadKind
+    Semiont.Internal.Generated.Models.KbReadVerdict
+    Semiont.Internal.Generated.Models.KbRead
+    Semiont.Internal.Generated.Models.KbIdentityConflict
+    Semiont.Internal.Generated.Models.KbIdentity
+    Semiont.Internal.Generated.Models.KbDescription
+    Semiont.Internal.Generated.Models.JobType
+    Semiont.Internal.Generated.Models.JobProgressLoading
+    Semiont.Internal.Generated.Models.JobProgressGeneratingResource
+    Semiont.Internal.Generated.Models.JobProgressDetectingEntities
+    Semiont.Internal.Generated.Models.JobProgressCreatingTagAnnotations
+    Semiont.Internal.Generated.Models.JobProgressCreatingResource
+    Semiont.Internal.Generated.Models.JobProgressCreatingAnnotations
+    Semiont.Internal.Generated.Models.JobProgressCompleteGenerated
+    Semiont.Internal.Generated.Models.JobProgressCompleteCreated
+    Semiont.Internal.Generated.Models.JobProgressAnalyzingTags
+    Semiont.Internal.Generated.Models.JobProgressAnalyzing
+    Semiont.Internal.Generated.Models.JobProgressMessage
+    Semiont.Internal.Generated.Models.JobParams
+    Semiont.Internal.Generated.Models.JobId
+    Semiont.Internal.Generated.Models.JobMetadata
+    Semiont.Internal.Generated.Models.JobPending
+    Semiont.Internal.Generated.Models.JobStatusRequest
+    Semiont.Internal.Generated.Models.JobFilter
+    Semiont.Internal.Generated.Models.JobDeclined
+    Semiont.Internal.Generated.Models.JobResult
+    Semiont.Internal.Generated.Models.JobStoredResult
+    Semiont.Internal.Generated.Models.MarkJobResult
+    Semiont.Internal.Generated.Models.YieldJobResult
+    Semiont.Internal.Generated.Models.JobCreatedResultResponse
+    Semiont.Internal.Generated.Models.JobCreatedResult
+    Semiont.Internal.Generated.Models.JobComplete
+    Semiont.Internal.Generated.Models.JobClaimCommand
+    Semiont.Internal.Generated.Models.JobCheckpointCommand
+    Semiont.Internal.Generated.Models.JobCancelled
+    Semiont.Internal.Generated.Models.JobCancelResult
+    Semiont.Internal.Generated.Models.JobCancelResultBusEnvelope
+    Semiont.Internal.Generated.Models.JobCancelRequest
+    Semiont.Internal.Generated.Models.JobAssignedPayload
+    Semiont.Internal.Generated.Models.JobAssignCommand
+    Semiont.Internal.Generated.Models.JanusGraphConfig
+    Semiont.Internal.Generated.Models.IssuerEndpoints
+    Semiont.Internal.Generated.Models.IssuedTokens
+    Semiont.Internal.Generated.Models.InferenceLimitsRequest
+    Semiont.Internal.Generated.Models.InferenceLimits
+    Semiont.Internal.Generated.Models.HttpEndpoint
+    Semiont.Internal.Generated.Models.KbEndpoint
+    Semiont.Internal.Generated.Models.KbTarget
+    Semiont.Internal.Generated.Models.KnowledgeBase
+    Semiont.Internal.Generated.Models.NewKnowledgeBase
+    Semiont.Internal.Generated.Models.SignedIn
+    Semiont.Internal.Generated.Models.PendingAuthorization
+    Semiont.Internal.Generated.Models.HighlightingJobParams
+    Semiont.Internal.Generated.Models.HealthResponse
+    Semiont.Internal.Generated.Models.GraphResourceNode
+    Semiont.Internal.Generated.Models.GraphConfig
+    Semiont.Internal.Generated.Models.GetTagSchemasResponse
+    Semiont.Internal.Generated.Models.GetOpenApiDocumentResponse
+    Semiont.Internal.Generated.Models.GetEntityTypesResponse
+    Semiont.Internal.Generated.Models.GenerationJobRequest
+    Semiont.Internal.Generated.Models.YieldJobQueuedEvent
+    Semiont.Internal.Generated.Models.GatherResourceRequestOptions
+    Semiont.Internal.Generated.Models.GatherResourceRequest
+    Semiont.Internal.Generated.Models.GatherResourceOptions
+    Semiont.Internal.Generated.Models.GatherResourceFailed
+    Semiont.Internal.Generated.Models.GatherReferencedByRequest
+    Semiont.Internal.Generated.Models.GatherAnnotationOptions
+    Semiont.Internal.Generated.Models.GatewayConfig
+    Semiont.Internal.Generated.Models.FrameAddTagSchemaCommand
+    Semiont.Internal.Generated.Models.FrameAddEntityTypeCommand
+    Semiont.Internal.Generated.Models.FragmentSelector
+    Semiont.Internal.Generated.Models.Selector
+    Semiont.Internal.Generated.Models.FileEntry
+    Semiont.Internal.Generated.Models.FailureClass
+    Semiont.Internal.Generated.Models.JobFailed
+    Semiont.Internal.Generated.Models.ExtractionDeclined
+    Semiont.Internal.Generated.Models.ExtractedText
+    Semiont.Internal.Generated.Models.ExtractionOutcome
+    Semiont.Internal.Generated.Models.Expected
+    Semiont.Internal.Generated.Models.SignInOutcome
+    Semiont.Internal.Generated.Models.EventMetadata
+    Semiont.Internal.Generated.Models.StoredEventResponse
+    Semiont.Internal.Generated.Models.ErrorResponse
+    Semiont.Internal.Generated.Models.EphemeralEventId
+    Semiont.Internal.Generated.Models.EntityTypesProjection
+    Semiont.Internal.Generated.Models.EntityTypeAddedPayload
+    Semiont.Internal.Generated.Models.EntityTagChangedPayload
+    Semiont.Internal.Generated.Models.Engine
+    Semiont.Internal.Generated.Models.EngineEntry
+    Semiont.Internal.Generated.Models.EngineLimits
+    Semiont.Internal.Generated.Models.InferenceLimitsResult
+    Semiont.Internal.Generated.Models.EngineWithLimits
+    Semiont.Internal.Generated.Models.LibrarianEngineConfig
+    Semiont.Internal.Generated.Models.WorkerEngineConfig
+    Semiont.Internal.Generated.Models.WorkerKnowledgeBaseConfig
+    Semiont.Internal.Generated.Models.WorkerConfig
+    Semiont.Internal.Generated.Models.WorkerEngineHealth
+    Semiont.Internal.Generated.Models.WorkerKnowledgeBaseHealth
+    Semiont.Internal.Generated.Models.WorkerHealth
+    Semiont.Internal.Generated.Models.EmptyBusPayload
+    Semiont.Internal.Generated.Models.EmitOnBusHeader0
+    Semiont.Internal.Generated.Models.EmbeddingConfig
+    Semiont.Internal.Generated.Models.LibrarianConfig
+    Semiont.Internal.Generated.Models.DurabilityEvidence
+    Semiont.Internal.Generated.Models.MarkJobCompleteCommand
+    Semiont.Internal.Generated.Models.DispatcherHealth
+    Semiont.Internal.Generated.Models.DispatcherConfig
+    Semiont.Internal.Generated.Models.DiscoveredKB
+    Semiont.Internal.Generated.Models.DiscoveryDocument
+    Semiont.Internal.Generated.Models.DirEntry
+    Semiont.Internal.Generated.Models.DirectoryEntry
+    Semiont.Internal.Generated.Models.DeviceCode
+    Semiont.Internal.Generated.Models.CursorsPath
+    Semiont.Internal.Generated.Models.SmelterConfig
+    Semiont.Internal.Generated.Models.WeaverConfig
+    Semiont.Internal.Generated.Models.CreateResourceResponse
+    Semiont.Internal.Generated.Models.ContextualSummaryResponse
+    Semiont.Internal.Generated.Models.ContextualSummaryResponseBusEnvelope
+    Semiont.Internal.Generated.Models.ContentFormat
+    Semiont.Internal.Generated.Models.YieldCloneCreateCommand
+    Semiont.Internal.Generated.Models.YieldClonePersistCommand
+    Semiont.Internal.Generated.Models.ConnectionIdentity
+    Semiont.Internal.Generated.Models.CommentingJobParams
+    Semiont.Internal.Generated.Models.CommandError
+    Semiont.Internal.Generated.Models.BusSubscribeRequest
+    Semiont.Internal.Generated.Models.BusResumeGap
+    Semiont.Internal.Generated.Models.BusPingMessage
+    Semiont.Internal.Generated.Models.BusFrame
+    Semiont.Internal.Generated.Models.BusEventMessage
+    Semiont.Internal.Generated.Models.BusStreamMessage
+    Semiont.Internal.Generated.Models.BusEmitRequest
+    Semiont.Internal.Generated.Models.BusEmitAccepted
+    Semiont.Internal.Generated.Models.BrowseTagSchemasResult
+    Semiont.Internal.Generated.Models.BrowseTagSchemasRequest
+    Semiont.Internal.Generated.Models.BrowseRouterPushEvent
+    Semiont.Internal.Generated.Models.BrowseResourcesRequest
+    Semiont.Internal.Generated.Models.BrowseResourceViewedEvent
+    Semiont.Internal.Generated.Models.BrowseResourceRequest
+    Semiont.Internal.Generated.Models.BrowseResourceReorderEvent
+    Semiont.Internal.Generated.Models.BrowseResourceOpenEvent
+    Semiont.Internal.Generated.Models.BrowseResourceCloseEvent
+    Semiont.Internal.Generated.Models.BrowseProfilesResult
+    Semiont.Internal.Generated.Models.BrowseProfilesRequest
+    Semiont.Internal.Generated.Models.BrowsePanelToggleEvent
+    Semiont.Internal.Generated.Models.BrowseLinkClickedEvent
+    Semiont.Internal.Generated.Models.BrowseKbResult
+    Semiont.Internal.Generated.Models.BrowseKbRequest
+    Semiont.Internal.Generated.Models.BrowseFilesResponse
+    Semiont.Internal.Generated.Models.BrowseExternalNavigateEvent
+    Semiont.Internal.Generated.Models.BrowseEventsRequest
+    Semiont.Internal.Generated.Models.BrowseEntityTypesResult
+    Semiont.Internal.Generated.Models.BrowseEntityTypesRequest
+    Semiont.Internal.Generated.Models.BrowseEntityTypeClickedEvent
+    Semiont.Internal.Generated.Models.BrowseEnginesResult
+    Semiont.Internal.Generated.Models.BrowseEnginesRequest
+    Semiont.Internal.Generated.Models.BrowseDirectoryResultResponse
+    Semiont.Internal.Generated.Models.BrowseDirectoryResult
+    Semiont.Internal.Generated.Models.BrowseDirectoryRequest
+    Semiont.Internal.Generated.Models.BrowseDirectoryFailed
+    Semiont.Internal.Generated.Models.BodyPurpose
+    Semiont.Internal.Generated.Models.SpecificResource
+    Semiont.Internal.Generated.Models.TextualBody
+    Semiont.Internal.Generated.Models.BodyOperationReplace
+    Semiont.Internal.Generated.Models.BodyOperationRemove
+    Semiont.Internal.Generated.Models.BodyOperationAdd
+    Semiont.Internal.Generated.Models.UpdateAnnotationBodyRequest
+    Semiont.Internal.Generated.Models.BindBodyUpdated
+    Semiont.Internal.Generated.Models.BeginAuthorizationOptions
+    Semiont.Internal.Generated.Models.AssessingJobParams
+    Semiont.Internal.Generated.Models.MarkJobParams
+    Semiont.Internal.Generated.Models.MarkJobCreateCommand
+    Semiont.Internal.Generated.Models.MarkJobQueuedEvent
+    Semiont.Internal.Generated.Models.JobQueuedEvent
+    Semiont.Internal.Generated.Models.ArchivistStream
+    Semiont.Internal.Generated.Models.ArchivistStreamsResponse
+    Semiont.Internal.Generated.Models.ArchivistHealth
+    Semiont.Internal.Generated.Models.ArchivistEventsResponse
+    Semiont.Internal.Generated.Models.ArchivistEngines
+    Semiont.Internal.Generated.Models.ArchivistConfig
+    Semiont.Internal.Generated.Models.AnnotationSelector
+    Semiont.Internal.Generated.Models.AnnotationTarget
+    Semiont.Internal.Generated.Models.MarkRequestedEvent
+    Semiont.Internal.Generated.Models.AnnotationId
+    Semiont.Internal.Generated.Models.AnnotationRemovedPayload
+    Semiont.Internal.Generated.Models.BeckonFocusEvent
+    Semiont.Internal.Generated.Models.BeckonHoverEvent
+    Semiont.Internal.Generated.Models.BeckonSparkleEvent
+    Semiont.Internal.Generated.Models.BindInitiateCommand
+    Semiont.Internal.Generated.Models.BrowseAnnotationHistoryRequest
+    Semiont.Internal.Generated.Models.BrowseAnnotationRequest
+    Semiont.Internal.Generated.Models.BrowseClickEvent
+    Semiont.Internal.Generated.Models.BrowsePanelOpenEvent
+    Semiont.Internal.Generated.Models.GatherAnnotationRequest
+    Semiont.Internal.Generated.Models.GatherFailed
+    Semiont.Internal.Generated.Models.GatherSummaryRequest
+    Semiont.Internal.Generated.Models.GetReferencedByResponseReferencedByItem
+    Semiont.Internal.Generated.Models.GetReferencedByResponse
+    Semiont.Internal.Generated.Models.GatherReferencedByResult
+    Semiont.Internal.Generated.Models.JobCancelCommand
+    Semiont.Internal.Generated.Models.JobCompletedPayload
+    Semiont.Internal.Generated.Models.JobFailCommand
+    Semiont.Internal.Generated.Models.JobFailedPayload
+    Semiont.Internal.Generated.Models.JobProgress
+    Semiont.Internal.Generated.Models.JobStoredProgress
+    Semiont.Internal.Generated.Models.JobRunning
+    Semiont.Internal.Generated.Models.Job
+    Semiont.Internal.Generated.Models.JobRecord
+    Semiont.Internal.Generated.Models.JobClaimedResult
+    Semiont.Internal.Generated.Models.JobStatusResponse
+    Semiont.Internal.Generated.Models.JobStatusResult
+    Semiont.Internal.Generated.Models.JobReportProgressCommand
+    Semiont.Internal.Generated.Models.JobStartCommand
+    Semiont.Internal.Generated.Models.JobStartedPayload
+    Semiont.Internal.Generated.Models.MarkCommitOk
+    Semiont.Internal.Generated.Models.MarkCreateOkResponse
+    Semiont.Internal.Generated.Models.MarkCreateOk
+    Semiont.Internal.Generated.Models.MarkDeleteCommand
+    Semiont.Internal.Generated.Models.MarkDeleteOk
+    Semiont.Internal.Generated.Models.MarkUpdateBodyCommand
+    Semiont.Internal.Generated.Models.MatchSearchFailed
+    Semiont.Internal.Generated.Models.ResourceUpload
+    Semiont.Internal.Generated.Models.ResourceUploadMetadata
+    Semiont.Internal.Generated.Models.SemanticMatch
+    Semiont.Internal.Generated.Models.YieldJobCompleteCommand
+    Semiont.Internal.Generated.Models.JobCompleteCommand
+    Semiont.Internal.Generated.Models.AnnotationBodyUpdatedPayload
+    Semiont.Internal.Generated.Models.AnnotationBody
+    Semiont.Internal.Generated.Models.BindBodyOperation
+    Semiont.Internal.Generated.Models.BindUpdateBodyCommand
+    Semiont.Internal.Generated.Models.AnnotationBodies
+    Semiont.Internal.Generated.Models.CreateAnnotationRequest
+    Semiont.Internal.Generated.Models.MarkCreateRequest
+    Semiont.Internal.Generated.Models.MarkSubmitEvent
+    Semiont.Internal.Generated.Models.AnchoredTextStamp
+    Semiont.Internal.Generated.Models.AnchoredTextExtractedEntry
+    Semiont.Internal.Generated.Models.AnchoredTextEntries
+    Semiont.Internal.Generated.Models.AnchoredTextDeclinedEntry
+    Semiont.Internal.Generated.Models.AnchoredTextEntry
+    Semiont.Internal.Generated.Models.AnchoredTextWrite
+    Semiont.Internal.Generated.Models.AnchoredTextAbsent
+    Semiont.Internal.Generated.Models.AnchoredTextAnswer
+    Semiont.Internal.Generated.Models.AnchoredText
+    Semiont.Internal.Generated.Models.AnchorMethod
+    Semiont.Internal.Generated.Models.ReconciledSpan
+    Semiont.Internal.Generated.Models.AgentSoftware
+    Semiont.Internal.Generated.Models.AgentPerson
+    Semiont.Internal.Generated.Models.AgentOrganization
+    Semiont.Internal.Generated.Models.Agent
+    Semiont.Internal.Generated.Models.Annotation
+    Semiont.Internal.Generated.Models.AnnotationAddedPayload
+    Semiont.Internal.Generated.Models.EnrichedResourceEvent
+    Semiont.Internal.Generated.Models.GetAnnotationsResponse
+    Semiont.Internal.Generated.Models.GraphAnnotationNode
+    Semiont.Internal.Generated.Models.KnowledgeGraph
+    Semiont.Internal.Generated.Models.MarkCommitCommand
+    Semiont.Internal.Generated.Models.ResourceAnnotations
+    Semiont.Internal.Generated.Models.AttributedEvent
+    Semiont.Internal.Generated.Models.GetAnnotationHistoryResponse
+    Semiont.Internal.Generated.Models.BrowseAnnotationHistoryResult
+    Semiont.Internal.Generated.Models.GetEventsResponse
+    Semiont.Internal.Generated.Models.BrowseEventsResult
+    Semiont.Internal.Generated.Models.ResourceClonedPayload
+    Semiont.Internal.Generated.Models.ResourceCreatedPayload
+    Semiont.Internal.Generated.Models.ResourceDescriptor
+    Semiont.Internal.Generated.Models.BrowseResourceResult
+    Semiont.Internal.Generated.Models.CloneResourceWithTokenResponse
+    Semiont.Internal.Generated.Models.CloneResourceWithTokenResponseBusEnvelope
+    Semiont.Internal.Generated.Models.GatheredContext
+    Semiont.Internal.Generated.Models.GatherAnnotationComplete
+    Semiont.Internal.Generated.Models.GatherResourceComplete
+    Semiont.Internal.Generated.Models.GenerationJobParams
+    Semiont.Internal.Generated.Models.YieldJobCreateCommand
+    Semiont.Internal.Generated.Models.JobCreateCommand
+    Semiont.Internal.Generated.Models.MatchSearchRequest
+    Semiont.Internal.Generated.Models.GetAnnotationResponse
+    Semiont.Internal.Generated.Models.BrowseAnnotationResult
+    Semiont.Internal.Generated.Models.GetResourceByTokenResponse
+    Semiont.Internal.Generated.Models.GetResourceByTokenResponseBusEnvelope
+    Semiont.Internal.Generated.Models.GetResourceResponse
+    Semiont.Internal.Generated.Models.ListResourcesResponse
+    Semiont.Internal.Generated.Models.BrowseResourcesResult
+    Semiont.Internal.Generated.Models.MatchResourcesResponse
+    Semiont.Internal.Generated.Models.MatchResourcesResult
+    Semiont.Internal.Generated.Models.ResourceView
+    Semiont.Internal.Generated.Models.ScoredResource
+    Semiont.Internal.Generated.Models.MatchSearchResult
+    Semiont.Internal.Generated.Models.YieldCreateCommand
+  autogen-modules: Paths_semiont
+
+executable semiont-codegen
+  import: settings
+  main-is: Main.hs
+  hs-source-dirs: codegen, internal
+  other-modules: Semiont.Internal.Schema, Facts, TransportFacts, HttpFacts, WorkerFacts, WorkerTypes
+  ghc-options: -threaded
+  build-depends: mtl >=2.3 && <2.4, directory >=1.3 && <1.4, filepath >=1.5 && <1.6
+
+test-suite schema-cases
+  import: settings, context-propagation, crypto
+  build-tool-depends: hpc-codecov:hpc-codecov ==0.6.4.1
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  hs-source-dirs: test
+  other-modules: Semiont.Internal.Generated.RoundTrip, Semiont.Internal.Generated.ChannelRoundTrip, Semiont.Internal.Generated.ErrorRoundTrip, Semiont.Internal.Generated.TimingValues, Semiont.Internal.Generated.DiscoveryReasonRoundTrip, Runtime, Discovery, BusCases, SchemaCases, HttpCases, HttpDiscoveryCases, AnnotationCases, IdentityCases, BusLogCases, PersistenceCases, CacheDocumentCases, StateUnitCases, FlowCases, ActorCases, TestingCases, RegistryCases, RegistryRuntimeCases, LifetimeCases, WorkerCases, GatewayCases, HeldCases, SurfaceCases, CacheCases, ControlledTime, ClockCases, ResourceCases, FrameCases, RefreshCases, TextCases, DelegationCases, TokenStorageCases, SessionCases, IssuerCases, ClientAssertionCases, SignInStoreCases, TestProcess
+  ghc-options: -threaded
+  build-depends: semiont:internal, process >=1.6 && <1.7, directory >=1.3 && <1.4, filepath >=1.5 && <1.6, time >=1.12 && <1.13
+
+executable semiont-haskell-wire-driver
+  import: settings, context-propagation
+  main-is: Main.hs
+  other-modules: DriverProtocol
+  hs-source-dirs: conformance
+  ghc-options: -threaded
+  build-depends: semiont, http-client >=0.7 && <0.8, uuid >=1.3 && <1.4, uuid-types >=1.0 && <1.1, random >=1.3 && <1.4, time >=1.12 && <1.13, hs-opentelemetry-sdk >=1.0 && <1.1
+
+executable semiont-haskell-live-driver
+  import: settings, context-propagation
+  main-is: LiveMain.hs
+  other-modules: DriverProtocol, LiveQueries
+  hs-source-dirs: conformance
+  ghc-options: -threaded
+  build-depends: semiont, http-client >=0.7 && <0.8, uuid >=1.3 && <1.4, uuid-types >=1.0 && <1.1, random >=1.3 && <1.4, time >=1.12 && <1.13
