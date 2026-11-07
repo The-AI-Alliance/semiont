@@ -67,11 +67,14 @@ public sealed partial class TransportTests
         private readonly Dictionary<string, IStateUnit> units = new(StringComparer.Ordinal);
         private readonly EventBus.Subscription listening;
         private readonly CancellationTokenSource deadline = new(TimeSpan.FromSeconds(25));
+        private readonly CaseThreads threads;
         private readonly string answers;
         private readonly TimeSpan delay;
 
         internal StateCasePlayer(JsonElement row, JsonElement fixtures)
         {
+            // Before the client, whose transport sets its read loop going as it is made.
+            threads = new CaseThreads();
             this.row = row;
             this.fixtures = fixtures;
             var transport = row.GetProperty("transport");
@@ -169,8 +172,9 @@ public sealed partial class TransportTests
                     break;
                 case "answer":
                     var nth = step.GetProperty("nth").GetInt32();
-                    var request = (await SentAsync(TextValue(action.Value), nth + 1))[nth];
-                    Reply(gateway, request, Text(step, "reply"), Resolve(step.GetProperty("payload")));
+                    var asked = await SentAsync(TextValue(action.Value));
+                    Assert.True(asked.Length > nth, $"Request {nth} on {TextValue(action.Value)} was not sent");
+                    Reply(gateway, asked[nth], Text(step, "reply"), Resolve(step.GetProperty("payload")));
                     break;
                 case "queueReply": QueueReply(TextValue(action.Value), Resolve(step.GetProperty("response"))); break;
                 case "invoke":
@@ -195,12 +199,9 @@ public sealed partial class TransportTests
                             CheckValue(Resolve(member.Value), ValueOf(Watch(units[subject.Name], member.Name)), $"{subject.Name}.{member.Name}");
                     break;
                 case "sent":
-                    var hasCount = step.TryGetProperty("count", out var count);
-                    var expectedPayloads = hasCount ? default : Resolve(step.GetProperty("payloads"));
-                    var expectedCount = hasCount ? count.GetInt32() : expectedPayloads.GetArrayLength();
-                    var sent = await SentAsync(TextValue(action.Value), expectedCount);
-                    if (hasCount) Assert.Equal(expectedCount, sent.Length);
-                    else CheckValue(expectedPayloads, sent.Select(request => request.GetProperty("payload")).ToArray(), "sent payloads");
+                    var sent = await SentAsync(TextValue(action.Value));
+                    if (step.TryGetProperty("count", out var count)) Assert.Equal(count.GetInt32(), sent.Length);
+                    else CheckValue(Resolve(step.GetProperty("payloads")), sent.Select(request => request.GetProperty("payload")).ToArray(), "sent payloads");
                     break;
                 case "nothingSent": Assert.Empty(requests); break;
                 case "heard":
@@ -233,42 +234,37 @@ public sealed partial class TransportTests
             }
         }
 
-        /// <summary>One tick of a settle's quiet: no shorter than Windows' default timer resolution (about 15.6 ms), so
-        /// it lasts about as long on every runner.</summary>
-        private const int QuietTickMs = 16;
-
-        /// <summary>The quiet ticks a settle waits out: at least 64 ms, for a slow runner's first use of a path.</summary>
-        private const int QuietTicks = 4;
-
+        /// <summary>
+        /// Let what is ready run, and what that makes ready, until nothing more is: no thread but this one runs the case's
+        /// work, the thread pool holds nothing queued, and every request that reached the gateway has had its answer.
+        /// </summary>
         private async Task SettleAsync()
         {
             // Only settled steps release gateway answers. An immediate expect can inspect the
             // state set by an invocation before its wire response is available.
-            // This settle is time-based, because .NET offers no outside view of the SDK's async flows: it waits until no
-            // request has reached the gateway for QuietTicks ticks, and takes what is ready to have run by then. A
-            // deterministic settle, one that sees those flows come to rest, can replace it.
-            for (var idle = 0; idle < QuietTicks;)
+            while (true)
             {
                 if (unanswered.TryDequeue(out var request))
                 {
                     _ = AnswerAsync(request);
-                    idle = 0;
                     continue;
                 }
-                await Task.Delay(QuietTickMs, deadline.Token);
-                idle = unanswered.IsEmpty ? idle + 1 : 0;
+                // Two looks, the thread yielded between them: a worker that has taken an item off the queue but not yet
+                // taken up the case's context shows in neither the queue nor the threads, as long as it stays between them.
+                if (threads.Quiet())
+                {
+                    Thread.Yield();
+                    if (threads.Quiet() && unanswered.IsEmpty) return;
+                }
+                if (deadline.IsCancellationRequested) throw new TimeoutException("The case's work never came to rest");
+                await Task.Yield();
             }
         }
 
-        private async Task<JsonElement[]> SentAsync(string operation, int expected)
+        private async Task<JsonElement[]> SentAsync(string operation)
         {
-            using var patience = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            while (true)
-            {
-                var sent = requests.Where(request => Text(request, "channel") == operation).ToArray();
-                if (sent.Length >= expected || patience.IsCancellationRequested) return sent;
-                await SettleAsync();
-            }
+            await SettleAsync();
+            return requests.Where(request => Text(request, "channel") == operation).ToArray();
         }
 
         private JsonElement Request(string name, int nth) =>
@@ -385,6 +381,48 @@ public sealed partial class TransportTests
             http.Dispose();
             deadline.Cancel();
             deadline.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Which threads are running what a case sets going. The execution context a case is marked in flows into all the work
+    /// it starts, the SDK's ConfigureAwait(false) continuations on the thread pool among it, and an AsyncLocal's handler is
+    /// told each time a thread takes that context up or puts it down: the one view .NET gives, from outside, of where the
+    /// SDK's async flows stand.
+    /// </summary>
+    private sealed class CaseThreads
+    {
+        private readonly object gate = new();
+        private readonly HashSet<int> running = [];
+        private readonly AsyncLocal<CaseThreads?> marked;
+
+        /// <summary>
+        /// Marks the caller's execution context, and so all the work it goes on to start, as the case's, and takes the caller
+        /// off its SynchronizationContext, so that whatever that work resumes is queued on the thread pool, where
+        /// <see cref="Quiet"/> sees it.
+        /// </summary>
+        internal CaseThreads()
+        {
+            marked = new AsyncLocal<CaseThreads?>(Changed);
+            marked.Value = this;
+            SynchronizationContext.SetSynchronizationContext(null);
+        }
+
+        /// <summary>Whether the thread pool holds nothing queued and no thread but the caller's runs the case's work.</summary>
+        internal bool Quiet()
+        {
+            if (ThreadPool.PendingWorkItemCount != 0) return false;
+            var caller = Environment.CurrentManagedThreadId;
+            lock (gate) return running.All(thread => thread == caller);
+        }
+
+        private void Changed(AsyncLocalValueChangedArgs<CaseThreads?> change)
+        {
+            lock (gate)
+            {
+                if (ReferenceEquals(change.CurrentValue, this)) running.Add(Environment.CurrentManagedThreadId);
+                else running.Remove(Environment.CurrentManagedThreadId);
+            }
         }
     }
 }
