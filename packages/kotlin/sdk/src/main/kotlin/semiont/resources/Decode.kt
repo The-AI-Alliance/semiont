@@ -6,10 +6,6 @@ import semiont.mediatypes.TextSource
 import semiont.mediatypes.baseMediaType
 import semiont.mediatypes.derivesTextOf
 import semiont.mediatypes.textSourceOf
-import java.nio.ByteBuffer
-import java.nio.charset.Charset
-import java.nio.charset.CodingErrorAction
-import java.nio.charset.UnsupportedCharsetException
 
 // What a content type is made of, as the MIME Sniffing Standard reads one: its white space, and the characters of a type, a
 // subtype and a parameter's name.
@@ -20,22 +16,6 @@ private const val HTTP_TOKEN = "!#$%&'*+-.^_`|~0123456789abcdefghijklmnopqrstuvw
 private const val ASCII_WHITE_SPACE = "\t\n\u000c\r "
 
 private const val REPLACEMENT = '�'
-
-/**
- * The standard's legacy multi-byte encodings, each by the JDK's decoder of the
- * encoding the standard names for it: GBK's is gb18030's, and each other is
- * the superset of what its name says that the standard reads (Big5-HKSCS,
- * windows-949, windows-31j). text/encoding-cases.json holds every label of each.
- */
-private val LEGACY_MULTI_BYTE: Map<String, String> = mapOf(
-    "big5" to "Big5-HKSCS",
-    "euc-jp" to "EUC-JP",
-    "euc-kr" to "x-windows-949",
-    "gb18030" to "GB18030",
-    "gbk" to "GB18030",
-    "iso-2022-jp" to "ISO-2022-JP",
-    "shift_jis" to "windows-31j",
-)
 
 private fun asciiLower(text: String): String = buildString { for (c in text) append(if (c in 'A'..'Z') c + 32 else c) }
 
@@ -121,7 +101,7 @@ private fun statedEncoding(contentType: String): String? {
 }
 
 private fun undecoded(stated: String) =
-    TransportError(TransportErrorCode.Error, "The resource's text is $stated, which is no charset the Encoding Standard decodes: read its bytes instead")
+    TransportError(TransportErrorCode.Error, "The resource's text is $stated, which is no charset this reader decodes: read its bytes instead")
 
 /** The Encoding Standard's UTF-8 decoder: a U+FFFD for each maximal part of a sequence that is not one. */
 private fun utf8(data: ByteArray, from: Int): String = buildString {
@@ -208,21 +188,6 @@ private fun utf16(data: ByteArray, from: Int, bigEndian: Boolean): String = buil
     if (lead != null || at < data.size) append(REPLACEMENT)
 }
 
-/** Bytes in one of the standard's legacy multi-byte encodings, by the JDK's decoder of it. One this runtime lacks is refused, by its name. */
-private fun legacy(data: ByteArray, encoding: String): String {
-    val charset = try {
-        Charset.forName(LEGACY_MULTI_BYTE.getValue(encoding))
-    } catch (_: UnsupportedCharsetException) {
-        throw TransportError(TransportErrorCode.Error, "The resource's text is $encoding, which this runtime does not decode: read its bytes instead")
-    }
-    return charset.newDecoder()
-        .onMalformedInput(CodingErrorAction.REPLACE)
-        .onUnmappableCharacter(CodingErrorAction.REPLACE)
-        .replaceWith(REPLACEMENT.toString())
-        .decode(ByteBuffer.wrap(data))
-        .toString()
-}
-
 private val UTF8_MARK = byteArrayOf(0xef.toByte(), 0xbb.toByte(), 0xbf.toByte())
 private val UTF16BE_MARK = byteArrayOf(0xfe.toByte(), 0xff.toByte())
 private val UTF16LE_MARK = byteArrayOf(0xff.toByte(), 0xfe.toByte())
@@ -259,6 +224,6 @@ internal fun decodeRepresentation(data: ByteArray, mediaType: String): String {
         encoding == null || encoding == "utf-8" -> utf8(data, 0)
         encoding == "utf-16be" -> utf16(data, 0, bigEndian = true)
         encoding == "utf-16le" -> utf16(data, 0, bigEndian = false)
-        else -> SINGLE_BYTE[encoding]?.let { table -> buildString { for (byte in data) append(table[byte.toInt() and 0xff]) } } ?: legacy(data, encoding)
+        else -> SINGLE_BYTE.getValue(encoding).let { table -> buildString { for (byte in data) append(table[byte.toInt() and 0xff]) } }
     }
 }

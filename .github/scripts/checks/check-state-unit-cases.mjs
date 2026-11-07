@@ -24,6 +24,11 @@
  * - a motivation `MarkJobParams` tells apart that no case of the mark unit
  *   delegates a job of;
  * - a fixture that does not exist, or one no case uses;
+ * - a notice a case gives or expects that is not as the table's `notices`
+ *   states it, a notice of `notices` the sessionSignals unit does not raise,
+ *   or one it raises that `notices` does not state;
+ * - a `told` of protocol/specs/src/session/cases.json, the reasons a session
+ *   ends with, that is not what its rows tell;
  * - a case with no step that checks anything: it drives, and asserts nothing.
  *
  * What a case says the units do is each SDK's runner's to hold.
@@ -31,6 +36,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { translated } from '../../../packages/codegen/schemas/openapi-schema.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const TABLE = 'protocol/specs/src/client/state-units.json';
@@ -291,12 +297,126 @@ const delegated = new Set(
 const undelegated = toldApart.filter((motivation) => !delegated.has(motivation));
 if (undelegated.length > 0) fail(`${TABLE}: no case of the mark unit delegates a job of ${undelegated.join(', ')}, which MarkJobParams tells apart`);
 
+// A notice's reason is a value of the session table's `told`, the vocabulary its rows tell.
+const SESSION_CASES = 'protocol/specs/src/session/cases.json';
+const sessionCases = read(SESSION_CASES);
+const toldValues = sessionCases.told?.enum;
+if (sessionCases.told?.type !== 'string' || !Array.isArray(toldValues) || toldValues.length === 0 || !toldValues.every((value) => typeof value === 'string')) {
+  fail(`${SESSION_CASES} states no \`told\` of strings: the reasons a session ends with`);
+} else {
+  const told = new Set();
+  for (const section of ['startup', 'refusal']) {
+    if (!Array.isArray(sessionCases[section])) {
+      fail(`${SESSION_CASES} has no ${section}`);
+      continue;
+    }
+    for (const [index, row] of sessionCases[section].entries()) {
+      if (!Object.hasOwn(row, 'told')) fail(`${SESSION_CASES}: ${section}[${index}] states no told`);
+      else if (row.told !== null && !toldValues.includes(row.told)) fail(`${SESSION_CASES}: ${section}[${index}] tells ${JSON.stringify(row.told)}, which is none of its \`told\`: ${toldValues.join(', ')}`);
+      else if (row.told !== null) told.add(row.told);
+    }
+  }
+  for (const value of toldValues) {
+    if (!told.has(value)) fail(`${SESSION_CASES}: its \`told\` has ${value}, and no row tells it`);
+  }
+}
+
+// The notices are what the session's signals raise: a notice for each reader of the
+// unit that a `notify` member raises, named as the reader is with its first letter a capital.
+if (!rows.has('sessionSignals')) fail(`protocol/specs/src/client/surface.json's stateUnits has no sessionSignals, whose notices ${TABLE} states`);
+const signalMembers = rows.get('sessionSignals') ?? new Set();
+const raised = [...signalMembers].filter((member) => signalMembers.has(`notify${member[0].toUpperCase()}${member.slice(1)}`));
+const notices = isObject(table.notices) ? table.notices : {};
+if (!isObject(table.notices)) fail(`${TABLE} states no notices: what the session's signals raise`);
+const noticeOf = new Map(raised.map((member) => [member, `${member[0].toUpperCase()}${member.slice(1)}`]));
+for (const name of noticeOf.values()) {
+  if (!Object.hasOwn(notices, name)) fail(`${TABLE}: notices states no ${name}, which the sessionSignals unit raises`);
+}
+for (const [name, schema] of Object.entries(notices)) {
+  const at = `${TABLE}: notices.${name}`;
+  if (![...noticeOf.values()].includes(name)) fail(`${at} is no notice the sessionSignals unit raises`);
+  if (schema?.type !== 'object' || schema.additionalProperties !== false || !isObject(schema.properties) || !Array.isArray(schema.required)) {
+    fail(`${at} is no closed record: \`type: object\`, \`additionalProperties: false\`, its \`properties\` and what it \`required\``);
+    delete notices[name];
+  }
+}
+
+/** The schema a notice's member is, a reference into the session table's `told` followed. */
+function memberSchema(stated, at) {
+  const reference = Array.isArray(stated.allOf) && stated.allOf.length === 1 ? stated.allOf[0].$ref : stated.$ref;
+  if (reference === undefined) return stated;
+  if (reference !== '../session/cases.json#/told') {
+    fail(`${at} refers to ${reference}, and a notice's member refers to nothing but ../session/cases.json#/told`);
+    return undefined;
+  }
+  return sessionCases.told;
+}
+
+/** Hold `value`, what `where` gives or expects as a `name`, to the notice the table states. */
+function heldNotice(name, value, where) {
+  const schema = notices[name];
+  if (schema === undefined) return;
+  if (!isObject(value)) {
+    fail(`${where}: a ${name} is an object, and this is ${JSON.stringify(value)}`);
+    return;
+  }
+  for (const key of Object.keys(value)) {
+    if (!Object.hasOwn(schema.properties, key)) fail(`${where}: ${key} is no member of ${name} in ${TABLE}'s notices`);
+  }
+  for (const [member, property] of Object.entries(schema.properties)) {
+    const at = `${TABLE}: notices.${name}.${member}`;
+    if (!Object.hasOwn(value, member)) {
+      if (schema.required.includes(member)) fail(`${where}: a ${name} states its ${member}`);
+      continue;
+    }
+    const stated = memberSchema(property, at);
+    if (stated === undefined) continue;
+    // The OpenAPI 3.0 schema as JSON Schema: a member that may be null has `null` among its types.
+    const standard = translated(stated);
+    const types = Array.isArray(standard.type) ? standard.type : [standard.type];
+    if (!types.includes('string') || !types.every((type) => type === 'string' || type === 'null')) {
+      fail(`${at} is no string, and a notice's members are strings`);
+      continue;
+    }
+    const given = value[member];
+    const allowed = given === null ? types.includes('null') : typeof given === 'string' && (standard.enum === undefined || standard.enum.includes(given));
+    if (!allowed) fail(`${where}: ${name}'s ${member} is ${JSON.stringify(given)}, which ${at} does not allow`);
+  }
+}
+
+// Each notice a case raises, and each it expects a reader to hold: a `notify` member is
+// given the notice's members, or the notice as its one argument.
+for (const c of (table.cases ?? []).filter((each) => each.unit === 'sessionSignals')) {
+  const units = new Set(Object.keys(c.made ?? {}));
+  for (const [index, step] of (c.steps ?? []).entries()) {
+    const where = `${TABLE}: sessionSignals case "${c.case}", step ${index + 1}`;
+    if (isObject(step) && units.has(step.of) && typeof step.invoke === 'string') {
+      const member = [...noticeOf.keys()].find((reader) => step.invoke === `notify${noticeOf.get(reader)}`);
+      if (member !== undefined) {
+        const name = noticeOf.get(member);
+        const keys = Object.keys(step.args ?? {});
+        const members = Object.keys(notices[name]?.properties ?? {});
+        if (keys.length === 1 && !members.includes(keys[0])) heldNotice(name, step.args[keys[0]], where);
+        else heldNotice(name, step.args, where);
+      }
+    }
+    if (isObject(step) && isObject(step.expect)) {
+      for (const [unit, held] of Object.entries(step.expect)) {
+        if (!units.has(unit) || !isObject(held)) continue;
+        for (const [member, value] of Object.entries(held)) {
+          if (noticeOf.has(member) && value !== null) heldNotice(noticeOf.get(member), value, where);
+        }
+      }
+    }
+  }
+}
+
 // A fixture may be made of another.
 for (const [name, value] of Object.entries(table.fixtures ?? {})) fixtures(value, `${TABLE}: fixtures.${name}`);
 for (const name of Object.keys(table.fixtures ?? {})) {
   if (!used.has(name)) fail(`${TABLE}: the fixture ${name} is used by no case`);
 }
-const strays = Object.keys(table).filter((key) => !['$comment', 'fixtures', 'cases'].includes(key));
+const strays = Object.keys(table).filter((key) => !['$comment', 'notices', 'fixtures', 'cases'].includes(key));
 if (strays.length > 0) fail(`${TABLE} states ${strays.join(', ')}, which the table does not have`);
 
 if (failures.length > 0) {

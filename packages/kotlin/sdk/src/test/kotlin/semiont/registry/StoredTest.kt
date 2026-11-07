@@ -1,6 +1,7 @@
 package semiont.registry
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -10,20 +11,26 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.Spec
+import semiont.identifiers.ResourceId
 import semiont.signin.HeldSignIn
 import semiont.storage.MemoryStorage
 import semiont.types.HttpEndpoint
 import semiont.types.HttpEndpointProtocol
 import semiont.types.KnowledgeBase
+import semiont.types.wireJson
 
 private val table = Spec.read("session/stored.json").jsonObject
 private val session = table.getValue("storedSession").jsonObject
 private val members = session.getValue("properties").jsonObject.keys
 private val required = session.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet()
+private val openResource = table.getValue("openResource").jsonObject
+private val openMembers = openResource.getValue("properties").jsonObject.keys
+private val openRequired = openResource.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet()
 
 /** Each key's constant here, by the name the table gives it. */
 private val KEYS = mapOf(
@@ -34,13 +41,25 @@ private val KEYS = mapOf(
     "pendingAuthorizationKey" to PENDING_AUTHORIZATION_KEY,
 )
 
+/** What the registry writes of two resources it opens: one with a media type and a storage URI, then one with neither. */
+private fun writtenOpen(): List<JsonObject> = runBlocking {
+    val world = World().with(kbOfA())
+    world.browser().use { browser ->
+        live(browser)
+        browser.addOpenResource(ResourceId("r1"), "One", "text/plain", "file://docs/one.md")
+        browser.addOpenResource(ResourceId("r2"), "Two")
+    }
+    checkNotNull(world.stored(OPEN_RESOURCES_BY_KB_KEY)).jsonObject.getValue(KB_A).jsonArray.map { it.jsonObject }
+}
+
 /**
  * What a registry keeps in its storage, as protocol/specs/src/session/stored.json
  * states it: every key Kotlin writes by hand, the key of a knowledge base's
- * session, the keys of what a session keeps of its stream and its queries, and
- * the members of a stored session. A key or a member the table gains fails
- * here until Kotlin has it. And the registry's readers and writers of what it
- * keeps. AuthorizationTest holds what is kept of a sign-in begun.
+ * session, the keys of what a session keeps of its stream and its queries, the
+ * members of a stored session, and those of an open resource. A key or a member
+ * the table gains, or a change to what it requires, fails here until Kotlin
+ * has it. And the registry's readers and writers of what it keeps.
+ * AuthorizationTest holds what is kept of a sign-in begun.
  */
 class StoredTest {
     @Test
@@ -86,6 +105,29 @@ class StoredTest {
             storage.set(sessionKey(KB_A), JsonObject((members - member).associateWith { JsonPrimitive("the $it") }).toString())
             val read = storedSession(storage, KB_A)
             if (member in required) assertNull(read) else assertNotNull(read)
+        }
+    }
+
+    @Test
+    fun anOpenResourceIsWrittenWithTheTablesMembersAndNoOthers() {
+        val (full, bare) = writtenOpen()
+        assertEquals(openMembers, full.keys)
+        // One with no media type and no storage URI is written with what the table requires alone.
+        assertEquals(openRequired, bare.keys)
+    }
+
+    @TestFactory
+    fun aStoredOpenResourceWithoutAMemberIsOneOnlyIfTheTableDoesNotRequireIt(): List<DynamicTest> {
+        val full = writtenOpen().first()
+        return openMembers.map { member ->
+            DynamicTest.dynamicTest(member) {
+                val lacking = JsonObject(full - member)
+                if (member in openRequired) {
+                    assertThrows(SerializationException::class.java) { wireJson.decodeFromJsonElement(OpenResource.serializer(), lacking) }
+                } else {
+                    wireJson.decodeFromJsonElement(OpenResource.serializer(), lacking)
+                }
+            }
         }
     }
 

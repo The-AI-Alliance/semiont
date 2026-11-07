@@ -455,5 +455,5 @@ export function readRequiredShapes(root, refuse) {
   }
 
   const names = [...unpruned.keys()].sort();
-  return { names, shapes: new Map(names.map((name) => [name, pruned(unpruned.get(name))])) };
+  return { names, shapes: new Map(names.map((name) => [name, pruned(unpruned.get(name))])), inline: (schema, file) => pruned(shapeOf(schema, file)) };
 }

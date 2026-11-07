@@ -1,0 +1,191 @@
+{
+  "$comment": "AUTHORITY for what a registry of knowledge bases hands its caller, and is handed, in memory: what a completed sign-in learned, what the person believed they were signing in to, what the sign-in landed on, who a knowledge base at an address says it is, what reading the active knowledge base against its entry concluded, what checking an open resource concluded, and what the credential stored for a knowledge base says. None of it is stored or sent: what a registry keeps is protocol/specs/src/session/stored.json's. Every SDK hands its caller the same records, told apart the same way, with the same members. WHO HOLDS IT. Haskell: packages/haskell/sdk/codegen/Main.hs generates each type from this table into packages/haskell/sdk/generated/Semiont/Internal/Generated/Models/. TypeScript, Rust, Python, Go, Kotlin, Swift and C# state each by hand, in the files protocol/specs/src/client/surface.json's `registry` and `redirectSignIn` modules say, and lint:client-surface (.github/scripts/checks/check-client-surface.mjs) holds each one's members, values and branches to this table. READING IT. `types` maps each type's name, as surface.json's row names it, to its schema. A record's members are its properties, each spelled as its language spells a field; one it does not require is none when absent. An enum's values are its spellings. A union (a `oneOf` with a `discriminator`) is told apart by the member its discriminator names, which in each branch is one value of the enum it refers to, and each branch states its own members. How an SDK holds a union is its language's idiom: TypeScript a union of records; Rust an enum whose variants, named by the values, carry the other members; the others one record whose tag is the enum, with every branch's other members, each none where its branch has none.",
+  "types": {
+    "ConnectionIdentity": {
+      "title": "ConnectionIdentity",
+      "type": "object",
+      "description": "Who the knowledge base at an address says it is, asked with a token just issued, before any entry is made for it.",
+      "additionalProperties": false,
+      "properties": {
+        "did": {
+          "allOf": [{ "$ref": "../components/schemas/UserId.json" }],
+          "description": "The did it reports for itself."
+        },
+        "description": {
+          "allOf": [{ "$ref": "../components/schemas/KbDescription.json" }],
+          "description": "What it says of itself."
+        }
+      },
+      "required": ["did", "description"]
+    },
+    "SignedIn": {
+      "title": "SignedIn",
+      "type": "object",
+      "description": "What a completed sign-in learned, as a registry is handed it to record: where it was, who the knowledge base there says it is, the tokens, and what the person believed they were signing in to.",
+      "additionalProperties": false,
+      "properties": {
+        "endpoint": {
+          "allOf": [{ "$ref": "../components/schemas/KbEndpoint.json" }],
+          "description": "Where the sign-in was."
+        },
+        "description": {
+          "allOf": [{ "$ref": "../components/schemas/KbDescription.json" }],
+          "description": "What the knowledge base said of itself, asked with the new token."
+        },
+        "session": {
+          "allOf": [{ "$ref": "../session/stored.json#/storedSession" }],
+          "description": "The tokens, as a registry keeps them."
+        },
+        "kbId": {
+          "type": "string",
+          "description": "The registered knowledge base the person signed in to again. Absent when it is none."
+        },
+        "expectedDid": {
+          "type": "string",
+          "description": "The did of what the person believed they clicked. Absent when they named nothing."
+        },
+        "expectedName": {
+          "type": "string",
+          "description": "The name of what the person believed they clicked. Absent when they named nothing."
+        }
+      },
+      "required": ["endpoint", "description", "session"]
+    },
+    "Expected": {
+      "title": "Expected",
+      "type": "object",
+      "description": "What a person believed they were signing in to: the did and the name of the row they clicked, or of the entry they signed in to again.",
+      "additionalProperties": false,
+      "properties": {
+        "did": {
+          "type": "string",
+          "description": "The did they believed it has."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name they believed it has. Absent when they had none."
+        }
+      },
+      "required": ["did"]
+    },
+    "SignInOutcome": {
+      "title": "SignInOutcome",
+      "type": "object",
+      "description": "The entry a sign-in landed on, and what the person believed, so a host can set the two against each other and say when they differ. The sign-in stands either way: the knowledge base that answered is the one reached.",
+      "additionalProperties": false,
+      "properties": {
+        "kb": {
+          "allOf": [{ "$ref": "../components/schemas/KnowledgeBase.json" }],
+          "description": "The entry the sign-in made or signed in to again."
+        },
+        "expected": {
+          "allOf": [{ "$ref": "#/types/Expected" }],
+          "description": "What the person believed they were signing in to. Absent when they named nothing."
+        }
+      },
+      "required": ["kb"]
+    },
+    "KbReadKind": {
+      "title": "KbReadKind",
+      "type": "string",
+      "description": "What reading the active knowledge base against its entry concluded.",
+      "enum": ["recorded", "conflict", "no-verdict"]
+    },
+    "KbReadVerdict": {
+      "title": "KbReadVerdict",
+      "description": "What a knowledge base said when it was asked to describe itself, read against the entry it was asked as.",
+      "discriminator": { "propertyName": "kind" },
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "It answered as that entry, and its name and branch are on the entry now.",
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "allOf": [{ "$ref": "#/types/KbReadKind" }], "enum": ["recorded"] }
+          },
+          "required": ["kind"]
+        },
+        {
+          "type": "object",
+          "description": "A different knowledge base answered. Its did and the name it gave itself are here and nowhere else: the entry is as it was.",
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "allOf": [{ "$ref": "#/types/KbReadKind" }], "enum": ["conflict"] },
+            "observedDid": {
+              "type": "string",
+              "description": "The did the knowledge base that answered reported."
+            },
+            "observedName": {
+              "type": "string",
+              "description": "The name the knowledge base that answered gave itself."
+            }
+          },
+          "required": ["kind", "observedDid", "observedName"]
+        },
+        {
+          "type": "object",
+          "description": "It did not answer, or could not say who it is. Evidence of nothing.",
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "allOf": [{ "$ref": "#/types/KbReadKind" }], "enum": ["no-verdict"] }
+          },
+          "required": ["kind"]
+        }
+      ]
+    },
+    "TabVerdict": {
+      "title": "TabVerdict",
+      "type": "string",
+      "description": "What checking an open resource against its knowledge base concluded.",
+      "enum": ["gone", "ready", "unknown"]
+    },
+    "TabCheck": {
+      "title": "TabCheck",
+      "description": "What checking one open resource against its knowledge base concluded. `gone` is the only verdict that closes it, and it means the knowledge base said the resource does not exist, not that the check failed: a failed transport, a timeout and a peer that is down are each `unknown`, and an unknown resource stays open.",
+      "discriminator": { "propertyName": "verdict" },
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "The knowledge base said the resource does not exist.",
+          "additionalProperties": false,
+          "properties": {
+            "verdict": { "allOf": [{ "$ref": "#/types/TabVerdict" }], "enum": ["gone"] }
+          },
+          "required": ["verdict"]
+        },
+        {
+          "type": "object",
+          "description": "The knowledge base has the resource, and said what it is called now.",
+          "additionalProperties": false,
+          "properties": {
+            "verdict": { "allOf": [{ "$ref": "#/types/TabVerdict" }], "enum": ["ready"] },
+            "name": {
+              "type": "string",
+              "description": "The name the knowledge base gave the resource."
+            },
+            "mediaType": {
+              "type": "string",
+              "description": "The media type of its primary representation. Absent when it said none."
+            }
+          },
+          "required": ["verdict", "name"]
+        },
+        {
+          "type": "object",
+          "description": "The check found out nothing.",
+          "additionalProperties": false,
+          "properties": {
+            "verdict": { "allOf": [{ "$ref": "#/types/TabVerdict" }], "enum": ["unknown"] }
+          },
+          "required": ["verdict"]
+        }
+      ]
+    },
+    "KbSessionStatus": {
+      "title": "KbSessionStatus",
+      "type": "string",
+      "description": "What the credential stored for a knowledge base says, read without asking anyone: `authenticated`, a token is stored and has not expired; `expired`, a token is stored and has expired; `signed-out`, nothing is stored.",
+      "enum": ["authenticated", "expired", "signed-out"]
+    }
+  }
+}

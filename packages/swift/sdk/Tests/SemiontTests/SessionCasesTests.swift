@@ -338,9 +338,7 @@ private struct UnwritableSignIn: SignInKept {
         did: UserId("did:web:kb:users:alice"), domain: "kb", email: nil, image: nil, name: token)
     },
     random: RandomSource(SystemRandomNumberGenerator()),
-    onError: { error in
-      if let error = error as? SessionError { errors.withLock { $0.append(error.code) } }
-    })
+    onError: { error in errors.withLock { $0.append(error.code) } })
   defer { session.dispose() }
   await gate.set(session)
   await session.start()

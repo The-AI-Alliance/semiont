@@ -1,0 +1,4 @@
+/dist-newstyle/
+/.hpc/
+/*.tix
+/coverage.json

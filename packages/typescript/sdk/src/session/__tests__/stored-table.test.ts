@@ -1,16 +1,22 @@
 /**
  * What a registry keeps in its storage, as protocol/specs/src/session/stored.json
  * states it: every key this SDK writes by hand, the key of a knowledge base's
- * session, the keys of what a session keeps of its stream and its queries, and
- * the members of a stored session. A key or a member the table gains fails
- * here until this SDK has it. oauth.test.ts holds a pending sign-in's members.
+ * session, the keys of what a session keeps of its stream and its queries, the
+ * members of a stored session, and the members of a resource open in a
+ * knowledge base. A key or a member the table gains, or a change in what it
+ * requires, fails here until this SDK has it. oauth.test.ts holds a pending
+ * sign-in's members.
  */
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { filter, firstValueFrom } from 'rxjs';
+import { resourceId } from '@semiont/core';
+import { createTestSession } from '../../testing';
 import { PENDING_AUTHORIZATION_KEY } from '../oauth';
+import { SemiontBrowser } from '../semiont-browser';
 import { InMemorySessionStorage } from '../session-storage';
 import {
   ACTIVE_KEY,
@@ -31,6 +37,7 @@ interface StoredTable {
   lastEventIdKeyPrefix: { prefix: string };
   cacheKeyPrefix: { prefix: string };
   storedSession: { properties: Record<string, unknown>; required: string[] };
+  openResource: { properties: Record<string, unknown>; required: string[] };
 }
 
 const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../../protocol/specs/src/session/stored.json');
@@ -45,6 +52,34 @@ const KEYS: Record<string, string> = {
   lastViewedResourceByKbKey: LAST_VIEWED_RESOURCE_BY_KB_KEY,
   pendingAuthorizationKey: PENDING_AUTHORIZATION_KEY,
 };
+
+/**
+ * What a registry with its knowledge base live writes under the open
+ * resources key when one resource is opened with a media type and a place in
+ * the working tree and another with neither: each written entry, by its id.
+ */
+async function writtenOpenResources(): Promise<Record<string, object>> {
+  const kb = {
+    id: 'kb-a',
+    label: 'KB A',
+    did: 'did:web:example.github.io:kb-a',
+    endpoint: { kind: 'http' as const, host: 'localhost', port: 4000, protocol: 'http' as const },
+  };
+  const { session, storage } = createTestSession({ kb });
+  storage.set(STORAGE_KEY, JSON.stringify([kb]));
+  storage.set(ACTIVE_KEY, kb.id);
+  const browser = new SemiontBrowser({ storage, sessionFactory: () => session });
+  await firstValueFrom(browser.activeSession$.pipe(filter((live) => live !== null)));
+
+  browser.addOpenResource(resourceId('whole'), 'Whole', 'text/markdown', 'file://docs/whole.md');
+  browser.addOpenResource(resourceId('bare'), 'Bare');
+  const kept = storage.get(OPEN_RESOURCES_BY_KB_KEY);
+  await browser.dispose();
+
+  if (kept === null) throw new Error(`Nothing was written under ${OPEN_RESOURCES_BY_KB_KEY}`);
+  const byKb = JSON.parse(kept) as Record<string, { id: string }[]>;
+  return Object.fromEntries(byKb[kb.id].map((entry) => [entry.id, entry]));
+}
 
 /** A stored value with every member the table names but `left`. */
 const storedWithout = (left: string): string =>
@@ -90,5 +125,15 @@ describe('what a registry keeps, as protocol/specs/src/session/stored.json state
     } else {
       expect(read).not.toBeNull();
     }
+  });
+
+  it("an open resource is written with the table's members, and no others", async () => {
+    const { whole } = await writtenOpenResources();
+    expect(Object.keys(whole).sort()).toEqual(Object.keys(table.openResource.properties).sort());
+  });
+
+  it('an open resource with no media type and no place in the tree is written with the members the table requires, and no others', async () => {
+    const { bare } = await writtenOpenResources();
+    expect(Object.keys(bare).sort()).toEqual([...table.openResource.required].sort());
   });
 });

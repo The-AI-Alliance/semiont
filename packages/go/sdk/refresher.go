@@ -10,6 +10,7 @@ package semiont
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -88,10 +89,7 @@ type refresher struct {
 	windows *windows
 }
 
-var (
-	_ cacheEvents = (*refresher)(nil)
-	_ cacheActs   = (*refresher)(nil)
-)
+var _ cacheActs = (*refresher)(nil)
 
 func newRefresher(l *links, v *live) *refresher {
 	return &refresher{links: l, live: v, windows: &windows{lasting: l.timing.InvalidationWindow, open: map[string]*window{}}}
@@ -99,11 +97,9 @@ func newRefresher(l *links, v *live) *refresher {
 
 // start listens, from now on, until the client closes.
 func (r *refresher) start() {
-	var channels []bus.Channel
-	for trigger := range CacheRefreshTable {
-		if trigger != CacheRefreshReopened {
-			channels = append(channels, bus.Channel(trigger))
-		}
+	channels := make([]bus.Channel, 0, len(CacheRefreshChannels))
+	for _, trigger := range CacheRefreshChannels {
+		channels = append(channels, bus.Channel(trigger))
 	}
 	// Listening before the work that reads has started: nothing said meanwhile is missed.
 	events, leave := r.links.own.listenAmong(channels...)
@@ -133,7 +129,7 @@ func (r *refresher) start() {
 		for state := range states {
 			if state == ConnectionStateOpen {
 				if left {
-					r.refresh(CacheRefreshReopened, r.reopened())
+					r.refresh(CacheRefreshReopened, cacheSubject{})
 				}
 				opened, left = true, false
 			} else {
@@ -143,133 +139,118 @@ func (r *refresher) start() {
 	})
 }
 
-// heard applies the row of a frame's trigger. An event that cannot be read,
-// and one whose frame was refused, is something that changed with nothing
-// saying what: everything held is asked for again, as after a gap.
+// heard applies the row of a frame's channel to what its event names. A frame
+// refused, one whose payload is not its channel's, and one a member of which
+// its row names is present and is not what it names, is an event that cannot
+// be read: the row of an unreadable event applies in its place.
 func (r *refresher) heard(one arrival) {
 	if one.refusal == nil {
-		trigger := CacheRefreshTrigger(one.frame.Channel)
-		if subject, err := subjectOf(r, trigger, one.frame); err == nil {
-			r.refresh(trigger, subject)
-			return
+		channel := CacheRefreshTrigger(one.frame.Channel)
+		if cacheRefreshReadings[channel](one.frame) {
+			if subject, readable := subjectOf(channel, one.frame.Payload); readable {
+				r.refresh(channel, subject)
+				return
+			}
 		}
 	}
-	for _, query := range CacheQueries {
-		applyRefresh(r, CacheRefresh{Reach: CacheRefreshReachHeld, Refetches: []CacheQuery{query}}, cacheSubject{})
-	}
+	r.refresh(CacheRefreshUnreadable, cacheSubject{})
 }
 
 // refresh applies trigger's row for subject: the one its event's way of
 // coming names.
 func (r *refresher) refresh(trigger CacheRefreshTrigger, subject cacheSubject) {
-	for _, row := range CacheRefreshTable[trigger] {
-		if row.When == subject.when {
-			applyRefresh(r, row, subject)
-			return
-		}
-	}
+	applyRefresh(r, rowOf(trigger, subject.when), subject)
 }
 
 // dispose stops: what a window owed is dropped, and no window opens after.
 // The client's close ends the listening.
 func (r *refresher) dispose() { r.windows.dispose() }
 
-// ── What each event names ───────────────────────────────────────────────
-
-// recorded is the resource an event of the record states.
-func recorded(frame Frame) (cacheSubject, error) {
-	stored, ok := required.ReadFramePayloadAs[api.StoredEventResponse](frame.Payload)
-	if !ok {
-		return cacheSubject{}, fmt.Errorf("a payload on %s is not that channel's", frame.Channel)
-	}
-	var subject cacheSubject
-	if stored.ResourceId != nil {
-		subject.resource = *stored.ResourceId
-	}
-	return subject, nil
-}
-
-// annotationNamed is the annotation an event's own payload names; the zero
-// AnnotationId when it names none.
-func annotationNamed(payload map[string]any) api.AnnotationId {
-	if named, ok := payload["annotationId"].(string); ok {
-		if id, err := api.ParseAnnotationId(named); err == nil {
-			return id
+// rowOf is trigger's row for events that come when.
+func rowOf(trigger CacheRefreshTrigger, when CacheRefreshWhen) CacheRefresh {
+	for _, row := range CacheRefreshTable[trigger] {
+		if row.When == when {
+			return row
 		}
 	}
-	return api.AnnotationId{}
+	panic(fmt.Sprintf("the refresh table has no row for %s %q", trigger, when))
 }
 
-func (r *refresher) reopened() cacheSubject { return cacheSubject{} }
+// ── What each event names ───────────────────────────────────────────────
 
-func (r *refresher) busResumeGap(frame Frame) (cacheSubject, error) {
-	gap, ok := required.ReadFramePayloadAs[api.BusResumeGap](frame.Payload)
-	if !ok {
-		return cacheSubject{}, fmt.Errorf("a payload on %s is not that channel's", frame.Channel)
-	}
-	return cacheSubject{resource: gap.Scope}, nil
+// readingOf is how frames of c are read: whether a frame's payload is one of
+// c's, as c's reader holds it.
+func readingOf[P any](bus.Global[P]) func(Frame) bool { return reads[P] }
+
+// scopedReadingOf is readingOf, of a channel a resource's scope carries.
+func scopedReadingOf[P, E any](bus.Scoped[P, E]) func(Frame) bool { return reads[P] }
+
+// reads is whether frame's payload is a P.
+func reads[P any](frame Frame) bool {
+	_, _, faulty := payloadAs[P](frame)
+	return !faulty
 }
 
-func (r *refresher) markAdded(frame Frame) (cacheSubject, error) { return recorded(frame) }
-
-func (r *refresher) markRemoved(frame Frame) (cacheSubject, error) {
-	removed, ok := required.ReadFramePayloadAs[api.StoredEventResponse](frame.Payload)
-	if !ok {
-		return cacheSubject{}, fmt.Errorf("a payload on %s is not that channel's", frame.Channel)
+// subjectOf is what an event on channel names, read by the ways of its row
+// (protocol/specs/src/client/refresh.json); false when the event is
+// unreadable. A split channel's event is enriched when the member its
+// enriched row carries is present and not null.
+func subjectOf(channel CacheRefreshTrigger, payload json.RawMessage) (cacheSubject, bool) {
+	var when CacheRefreshWhen
+	for _, row := range CacheRefreshTable[channel] {
+		if row.When == CacheRefreshWhenEnriched {
+			carried, readable := memberAt(payload, row.Carries)
+			if !readable {
+				return cacheSubject{}, false
+			}
+			when = CacheRefreshWhenUnenriched
+			if carried != nil {
+				when = CacheRefreshWhenEnriched
+			}
+		}
 	}
-	subject := cacheSubject{annotation: annotationNamed(removed.Payload)}
-	if removed.ResourceId != nil {
-		subject.resource = *removed.ResourceId
+	row := rowOf(channel, when)
+	resource, resourceRead := wayAs[api.ResourceId](payload, row.Names.Resource)
+	annotation, annotationRead := wayAs[api.AnnotationId](payload, row.Names.Annotation)
+	written, writtenRead := wayAs[*api.Annotation](payload, row.Carries)
+	if !resourceRead || !annotationRead || !writtenRead {
+		return cacheSubject{}, false
 	}
-	return subject, nil
+	return cacheSubject{when: when, resource: resource, annotation: annotation, written: written}, true
 }
 
-func (r *refresher) markDeleteOk(frame Frame) (cacheSubject, error) {
-	deleted, ok := required.ReadFramePayloadAs[api.MarkDeleteOk](frame.Payload)
-	if !ok {
-		return cacheSubject{}, fmt.Errorf("a payload on %s is not that channel's", frame.Channel)
+// wayAs is the member way ends at in payload, read as T: T's zero value where
+// it names none, and false where the event is unreadable there.
+func wayAs[T any](payload json.RawMessage, way CacheRefreshWay) (T, bool) {
+	var none T
+	member, readable := memberAt(payload, way)
+	if !readable || member == nil {
+		return none, readable
 	}
-	return cacheSubject{annotation: deleted.Response.AnnotationId}, nil
+	return required.ReadAs[T](member)
 }
 
-func (r *refresher) markBodyUpdated(frame Frame) (cacheSubject, error) {
-	updated, ok := required.ReadFramePayloadAs[api.EnrichedResourceEvent](frame.Payload)
-	if !ok {
-		return cacheSubject{}, fmt.Errorf("a payload on %s is not that channel's", frame.Channel)
+// memberAt is the member way ends at in payload: nil where the row states no
+// way, and where the member, or a member it passes through, is absent or
+// null. False where a member it passes through is present and is no object.
+func memberAt(payload json.RawMessage, way CacheRefreshWay) (json.RawMessage, bool) {
+	if len(way) == 0 {
+		return nil, true
 	}
-	var resource api.ResourceId
-	if updated.ResourceId != nil {
-		resource = *updated.ResourceId
+	member := payload
+	for _, name := range way {
+		var object map[string]json.RawMessage
+		if json.Unmarshal(member, &object) != nil {
+			return nil, false
+		}
+		if member = object[name]; member == nil {
+			return nil, true
+		}
 	}
-	if updated.Annotation != nil {
-		return cacheSubject{when: CacheRefreshWhenEnriched, resource: resource, annotation: updated.Annotation.Id, written: updated.Annotation}, nil
+	if string(member) == "null" {
+		return nil, true
 	}
-	return cacheSubject{when: CacheRefreshWhenUnenriched, resource: resource, annotation: annotationNamed(updated.Payload)}, nil
-}
-
-func (r *refresher) markEntityTagAdded(frame Frame) (cacheSubject, error)   { return recorded(frame) }
-func (r *refresher) markEntityTagRemoved(frame Frame) (cacheSubject, error) { return recorded(frame) }
-func (r *refresher) markArchived(frame Frame) (cacheSubject, error)         { return recorded(frame) }
-func (r *refresher) markUnarchived(frame Frame) (cacheSubject, error)       { return recorded(frame) }
-
-// What every client hears: its resource is the one it records, not a scope the client holds.
-func (r *refresher) yieldCreated(frame Frame) (cacheSubject, error) { return recorded(frame) }
-func (r *refresher) yieldUpdated(frame Frame) (cacheSubject, error) { return recorded(frame) }
-func (r *refresher) yieldCloned(frame Frame) (cacheSubject, error)  { return recorded(frame) }
-func (r *refresher) yieldMoved(frame Frame) (cacheSubject, error)   { return recorded(frame) }
-
-func (r *refresher) frameEntityTypeAdded(frame Frame) (cacheSubject, error) {
-	if _, err := recorded(frame); err != nil {
-		return cacheSubject{}, err
-	}
-	return cacheSubject{}, nil
-}
-
-func (r *refresher) frameTagSchemaAdded(frame Frame) (cacheSubject, error) {
-	if _, err := recorded(frame); err != nil {
-		return cacheSubject{}, err
-	}
-	return cacheSubject{}, nil
+	return member, true
 }
 
 // ── What each act does to each query ────────────────────────────────────

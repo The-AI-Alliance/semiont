@@ -22,7 +22,7 @@ import { useTranslations } from '../../contexts/TranslationContext';
 import { useSemiont } from '../../session/SemiontProvider';
 import type { CollapsibleResourceNavigationProps } from '../../types/collapsible-navigation';
 import './CollapsibleResourceNavigation.css';
-import { resourceId as makeResourceId } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
 
 /**
  * A comprehensive collapsible navigation component with fixed items and dynamic resource tabs.
@@ -30,7 +30,7 @@ import { resourceId as makeResourceId } from '@semiont/core';
  * Platform-agnostic design for use across different React environments.
  *
  * @emits tabs:reorder - Resource tab reordered. Payload: { oldIndex: number, newIndex: number }
- * @emits tabs:close - Resource tab closed. Payload: { resourceId: string }
+ * @emits tabs:close - Resource tab closed. Payload: { resourceId: ResourceId }
  * @emits shell:sidebar-toggle - Toggle sidebar collapsed/expanded state. Payload: undefined
  */
 export function CollapsibleResourceNavigation({
@@ -98,7 +98,7 @@ export function CollapsibleResourceNavigation({
   );
 
   // Handle keyboard reordering (Alt+Up/Down arrows)
-  const handleKeyboardReorder = useCallback((resourceId: string, direction: 'up' | 'down') => {
+  const handleKeyboardReorder = useCallback((resourceId: ResourceId, direction: 'up' | 'down') => {
     const currentIndex = resources.findIndex(r => r.id === resourceId);
     if (currentIndex === -1) return;
 
@@ -119,12 +119,12 @@ export function CollapsibleResourceNavigation({
   }, [resources, semiont]);
 
   // Handle resource close
-  const handleResourceClose = (resourceId: string, e: React.MouseEvent) => {
+  const handleResourceClose = (resourceId: ResourceId, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
     // Emit event
-    semiont.emit('tabs:close', { resourceId: makeResourceId(resourceId) });
+    semiont.emit('tabs:close', { resourceId });
 
     // If we're closing the currently viewed resource, navigate to first fixed item or trigger callback
     const resourceHref = getResourceHref(resourceId);

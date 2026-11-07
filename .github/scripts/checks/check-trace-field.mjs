@@ -5,8 +5,8 @@
  * constant generated from there.
  *
  * The registry's `trace.field` (protocol/specs/src/bus/registry.json) is the field. The
- * generators write it into the committed vocabulary of TypeScript, Go and
- * Python (`GENERATED`), and the Rust SDK's build into its `channels` module;
+ * generators write it into the committed vocabulary of TypeScript, Go,
+ * Python and Haskell (`GENERATED`), and the Rust SDK's build into its `channels` module;
  * the gateway and every SDK read it from those. A second place that spells
  * the field is a mirror nothing holds: a code literal, a comment, a document,
  * or a payload schema that declares it.
@@ -30,6 +30,7 @@ const GENERATED = [
   'packages/typescript/core/src/bus-protocol.ts',
   'packages/go/sdk/bus/channels_gen.go',
   'packages/python/sdk/src/semiont/channels.py',
+  'packages/haskell/sdk/src/Semiont/Transport/Facts.hs',
 ];
 const TEST = /(^|\/)(__tests__|tests|Tests)\/|\.(test|spec)\.[cm]?[jt]sx?$|_test\.go$|(^|\/)test_[^/]*\.py$/;
 

@@ -56,12 +56,3 @@ private func checkDecode(
     }
   }
 }
-
-@Test func legacyDecodingContinuesAcrossOutputBuffersAndInvalidInput() throws {
-  let bytes = Data(
-    Array(repeating: [UInt8(0x93), 0xFA], count: 1_400).flatMap { $0 } + [
-      0x82, 0x20, 0x82,
-    ])
-  let text = try decodeRepresentation(bytes, contentType: "text/plain; charset=shift_jis")
-  #expect(text == String(repeating: "日", count: 1_400) + "� �")
-}
