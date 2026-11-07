@@ -293,7 +293,7 @@ const CSHARP_SDK = 'packages/csharp/sdk/src/Semiont';
 const CSHARP_NAMESPACES = `${CSHARP_SDK}/Namespaces`;
 const SCHEMAS = 'protocol/specs/src/components/schemas';
 /** Each SDK as a message names it. */
-const LANGUAGES = { typescript: 'TypeScript', rust: 'Rust', python: 'Python', go: 'Go', kotlin: 'Kotlin', swift: 'Swift', csharp: 'C#', haskell: 'Haskell' };
+const LANGUAGES = { typescript: 'TypeScript', rust: 'Rust', python: 'Python', go: 'Go', kotlin: 'Kotlin', swift: 'Swift', csharp: 'C#', haskell: 'Haskell', ocaml: 'OCaml' };
 
 const failures = [];
 const fail = (message) => failures.push(message);
@@ -2053,8 +2053,22 @@ function haskellSurface() {
   return result;
 }
 
+/** Read namespaces reachable as modules under the installed OCaml Client. */
+function ocamlSurface() {
+  const { entries } = JSON.parse(read('packages/ocaml/sdk/public-api.json'));
+  const namespaces = new Map();
+  for (const { kind, path } of entries) {
+    const match = /^Semiont\.Client\.([A-Z]\w*)$/.exec(path);
+    if (kind !== 'module' || !match) continue;
+    const name = match[1].toLowerCase();
+    namespaces.set(name, new Map());
+  }
+  return namespaces;
+}
+
 /** Each SDK whose namespaces this reads: where they are, and their reader. */
 const NAMESPACES = {
+  ocaml: { where: 'packages/ocaml/sdk/public-api.json', surface: ocamlSurface },
   haskell: { where: 'packages/haskell/sdk/src/Semiont/Client.hs', surface: haskellSurface },
   typescript: { where: TS_INTERFACES, surface: typescriptSurface },
   rust: { where: RUST_NAMESPACES, surface: rustSurface },

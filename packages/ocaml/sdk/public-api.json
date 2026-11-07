@@ -109,16 +109,18 @@
     "dune.lock/x509.1.2.0.pkg": "57d1481d367b6687543ebab5b194f2b4ce6eb4509d70354cbfbac22a1744fb8e",
     "dune.lock/yojson.3.0.0.pkg": "d1536ef266187c4f3c66bbcef7998bac8497c175450463e075b552e0e99dc3a3",
     "dune.lock/zarith.1.14.pkg": "fd76eda421de026914a0de1c4d81d4140fd0d685f596dfe5aae1a5b83f06b75c",
-    "lib/dune": "eed5b42a243d3dde4d436decc1aa16a25424323cdc9e54ce8092b81b9249d3f9",
+    "lib/clock.ml": "7fbcd81067a62d56842bf1f5b50e64e35f0efb056796a6926b1b732e52cca8b6",
+    "lib/clock.mli": "9eec4a9bf79a437a5b331cc40dacd46905f70367ccae882650bce067932078b2",
+    "lib/dune": "3d71e075c5270da69db2e19a4a0642b86b6f709797dfd913cc603aff80cb6bcd",
     "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
     "lib/identifiers.mli": "bba7e132069a1c36758c9d1bfebd936ecb815b6d05dae2b55f03a5de72f2c20d",
     "lib/pattern.ml": "a41d5ebb9ebc0eee59522a4d883e2a5281202c4fbebb0a2040b267961bf677ad",
-    "lib/semiont.ml": "061a1223699cb8299e2e4753a647f9aeb9a469e8caa596e3fc6d88448a9246dc",
-    "lib/semiont.mli": "baf8c85aca19cd7163c8611bca1b81d7a65ff01a6116f17d56984652b2af2cc4",
+    "lib/semiont.ml": "1a80c82658d41de0f7a78495388146e17edcb62f7a6209229e57ca5fba42c105",
+    "lib/semiont.mli": "7af93b7a2b03db645682851b658dd7706ec94cd622c37fc66c5dd080b49739c3",
     "lib/types.ml": "5921efffb7596beb176e09960cdfa080ec954349ec2ce9d7e54bc7f638c808fe",
     "lib/types.mli": "97149245ffc84db1b741d7156a08017eff6f941179e9e6df950f212da8d60d76",
     "probes/api_inventory.ml": "1b93b9964b99c5d333e39903e31bc429dbf4ed7a3df0ba2b0d40d9b098f0230b",
-    "probes/dune": "f9ab9c7d4c9a89b38ca775129b2b291217845ef2affa277385a4c2d336e44cfb",
+    "probes/dune": "b5424a1fb955b8b8dbdaa6ea129b931c67c2f1d2b616d5f55d5aaf13698aa8ee",
     "public-api.inputs.json": "16a156e808e8dfd7df61837746b0e4b8ce44e38a40f5a1b647baec0af1bfcca9",
     "semiont.opam": "a5f3e7a7e1b1e98783797caa3bd9f9c9dff8e7a631803e45c1062ed263485223"
   },
@@ -269,6 +271,43 @@
       "kind": "value",
       "path": "Semiont.Identifiers.User_id.equal",
       "declaration": "val equal : t -> t -> bool"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Clock",
+      "declaration": "module Clock = Semiont__.Clock",
+      "alias": "Semiont__.Clock"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Clock.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Clock.make",
+      "declaration": "val make :\n  monotonic:[> Eio.Time.Mono.ty ] Eio.Time.Mono.t ->\n  wall:[> float Eio.Time.clock_ty ] Eio.Time.clock ->\n  jitter:Random.State.t -> t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Clock.monotonic_now",
+      "declaration": "val monotonic_now : t -> Mtime.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Clock.sleep_until",
+      "declaration": "val sleep_until : t -> Mtime.t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Clock.wall_now",
+      "declaration": "val wall_now : t -> float"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Clock.jitter",
+      "declaration": "val jitter : t -> float"
     }
   ]
 }

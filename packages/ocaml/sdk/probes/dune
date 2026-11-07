@@ -30,7 +30,7 @@
 (test
  (name runtime)
  (modules runtime)
- (libraries semiont eio_main alcotest))
+ (libraries semiont eio_main eio.mock mtime alcotest))
 
 (executable
  (name api_inventory)

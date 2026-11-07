@@ -157,6 +157,40 @@ let failed_startup () =
   check "startup failure escapes" true failed;
   check "failed startup joined owned child cleanup" true !finalized
 
+let caller_clock () =
+  Eio_main.run @@ fun _ ->
+  Switch.run @@ fun sw ->
+  let monotonic = Eio_mock.Clock.Mono.make () in
+  let wall = Eio_mock.Clock.make () in
+  let jitter = Random.State.make [| 19 |] in
+  let expected = Random.State.copy jitter in
+  let module Clock = Semiont.Clock in
+  let clock = Clock.make ~monotonic ~wall ~jitter in
+  let start = Clock.monotonic_now clock in
+  let due = Option.get (Mtime.add_span start (Mtime.Span.of_uint64_ns 2L)) in
+  let before = Option.get (Mtime.add_span start (Mtime.Span.of_uint64_ns 1L)) in
+  let waiting =
+    Fiber.fork_promise ~sw (fun () -> Clock.sleep_until clock due)
+  in
+  Eio_mock.Clock.set_time wall 12.;
+  Eio_mock.Clock.Mono.set_time monotonic before;
+  Alcotest.(check (float 0.))
+    "reads the supplied wall clock" 12. (Clock.wall_now clock);
+  check "monotonic time follows its own clock" true
+    (Mtime.equal before (Clock.monotonic_now clock));
+  check "wait stays pending before the deadline" false
+    (Promise.is_resolved waiting);
+  Eio_mock.Clock.Mono.set_time monotonic due;
+  Promise.await_exn waiting;
+  Alcotest.(check (float 0.))
+    "draws from the supplied jitter state"
+    (Random.State.float expected 1.)
+    (Clock.jitter clock);
+  Alcotest.(check (float 0.))
+    "the caller observes the same advanced state"
+    (Random.State.float expected 1.)
+    (Random.State.float jitter 1.)
+
 let () =
   Alcotest.run "OCaml ownership substrate"
     [
@@ -172,5 +206,7 @@ let () =
             `Quick close_from_callback;
           Alcotest.test_case "failed startup joins cleanup" `Quick
             failed_startup;
+          Alcotest.test_case "caller controls time and jitter" `Quick
+            caller_clock;
         ] );
     ]
