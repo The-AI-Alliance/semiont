@@ -5,7 +5,7 @@ here from a knowledge base's id, a person's did and a query's name.
 """
 
 from pathlib import PurePosixPath
-from typing import Final, get_args
+from typing import get_args
 
 from pydantic import BaseModel, JsonValue
 from spec import SPEC, objects, read, text
@@ -138,10 +138,6 @@ def test_the_kept_queries_are_one_list_and_it_is_those_the_refresh_table_marks_p
     assert not hasattr(refresh, "PERSISTED_QUERIES")
 
 
-WAITING: Final = frozenset({"engines"})
-"""The queries whose `value` waits on a ruling: the census holds no type to theirs yet."""
-
-
 def held_type(reference: str) -> object:
     """The type a query's `value` names in `semiont.types`: a component's model, or a member of one (`#/properties/…`) by its wire name."""
     component, _, pointer = reference.partition("#")
@@ -162,10 +158,7 @@ def test_each_query_s_cache_holds_the_type_the_refresh_table_s_value_names() -> 
     # Every query has a value type, each the type alias its cache and its persister are typed with,
     # and a query the table gains has none until one is given it.
     assert list(live.CACHE_VALUES) == list(rows)
-    assert set(rows) >= WAITING
     for name, held in live.CACHE_VALUES.items():
-        if name in WAITING:
-            continue
         value = rows[name]["value"]
         assert isinstance(value, dict), name
         assert held.__value__ == held_type(text(value["$ref"], f"{name}'s value")), name

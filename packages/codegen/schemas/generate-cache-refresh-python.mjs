@@ -2,8 +2,8 @@
 // Generate the Python SDK's cache-refresh table from protocol/specs/src/client/refresh.json:
 // which live queries each event on the bus, the reopening of a dropped
 // stream, and an event that cannot be read, asks again for, writes, or
-// removes; where in each event its row finds what it names; and which of
-// them a client keeps for its person across its lives.
+// removes; and where in each event its row finds what it names. Which of them
+// a client keeps for its person is generate-stored-python.mjs's KEPT_QUERIES.
 //
 //   packages/python/sdk/src/semiont/refresh.py
 //
@@ -60,7 +60,6 @@ const entries = triggers.map((on) => {
 });
 
 const literal = (values, indent = '    ') => values.map((value) => `${indent}${pyString(value)},`).join('\n');
-const persisted = queries.filter((query) => query.persisted === true).map((query) => query.name);
 
 const text = `${pyBanner('protocol/specs/src/client/refresh.json', 'packages/codegen/schemas/generate-cache-refresh-python.mjs')}
 """What a Semiont client asks again for, and when.
@@ -81,7 +80,6 @@ __all__ = [
     "CACHE_QUERIES",
     "CACHE_REFRESH",
     "CACHE_REFRESH_CHANNELS",
-    "PERSISTED_QUERIES",
     "CacheQuery",
     "CacheRefresh",
     "CacheRefreshChannel",
@@ -98,13 +96,6 @@ ${queries.map((query) => `${pyComment(query.docs, '    ')}\n    ${pyString(query
 
 CACHE_QUERIES: Final[tuple[CacheQuery, ...]] = (
 ${literal(queries.map((query) => query.name))}
-)
-
-# The live queries a client keeps for the person its token is, so its next life
-# shows them at once: each under its name (protocol/specs/src/session/stored.json,
-# \`cacheKeyPrefix\`). Every other query is held only while the client lives.
-PERSISTED_QUERIES: Final[tuple[CacheQuery, ...]] = (
-${literal(persisted)}
 )
 
 # Which of a split channel's two kinds of event a row is for.

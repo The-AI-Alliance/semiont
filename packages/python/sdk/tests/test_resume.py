@@ -230,8 +230,9 @@ def test_a_place_is_noted_only_once_the_refresher_has_taken_its_event() -> None:
             persistence = CachePersistence(storage=places.storage, kb_id="kb-a", person_key=PERSON)
             client = SemiontClient(transport, transport.content, transport, persistence=persistence)
             places.couple_to(client)
-            # A reader of the client's own bus that listens from before its refresher does: each event is given to it
-            # first, and while it reads one, the refresher's copy is still queued.
+            # A reader of the client's own bus, listening from before the client is held. The transport gives each event
+            # to the refresher before the bus, so once this reader has one, the refresher has taken it, and the stream
+            # notes its place only after that.
             ahead = client.bus.frames_among(["mark:archived"])
 
             def settled() -> bool:
@@ -251,11 +252,12 @@ def test_a_place_is_noted_only_once_the_refresher_has_taken_its_event() -> None:
 
                 gateway.send("p-res-1-7", {"channel": "mark:archived", "payload": recorded("mark:archived", "res-1"), "scope": "res-1"})
                 await soon(anext(ahead))
-                # The event has been delivered, and the refresher has not taken it. A kept cache writes now, and no place rides it.
+                # The event has been delivered, and the refresher took it first: its fetch of the resource is in flight.
+                # A kept cache writes now, and no place rides it.
                 places.storage.set(CACHE, document)
                 assert storage.get(KEY) is None
 
-                # The refresher takes it, and asks again for the resource: that fetch, in flight, holds the place back.
+                # The read asked again reaches the service: that fetch, still in flight, holds the place back.
                 await soon(asked_again.wait())
                 assert not settled()
                 places.storage.set(CACHE, document)

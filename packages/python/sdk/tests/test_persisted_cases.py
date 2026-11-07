@@ -13,7 +13,9 @@ registry's session whose stored sign-in another context deletes or replaces
 before the client has written what it holds. `holder`: a script's session over
 a memory sign-in, keeping in a storage of its own, whose sign-in is forgotten,
 replaced or renewed through the memory sign-in before the client has written
-what it holds.
+what it holds. `resumeFrom`: a registry's session whose stream is sent events
+on a scope its client holds, and where the stream next asks that scope to
+begin.
 """
 
 import asyncio
@@ -21,12 +23,13 @@ from collections.abc import AsyncGenerator, AsyncIterator, Callable, Mapping
 from contextlib import asynccontextmanager
 from typing import Final, final, override
 
+import kb
 import pytest
 from aio import run, soon
 from gateway_server import Answer, GatewayServer
 from issuer import ME, REFUSED, TOKEN, says, trusting
 from pydantic import JsonValue, TypeAdapter
-from spec import SPEC, JsonObject, objects, read, text
+from spec import SPEC, JsonObject, objects, read, strings, text
 from tokens import expired, token
 
 from semiont.cache import CacheState, Pending, Ready
@@ -82,6 +85,7 @@ STARTUP_STORAGE = texts(TABLE["startupStorage"], "startupStorage")
 WHO_AM_I = object_of(TABLE["whoAmI"], "whoAmI")
 CROSS_TAB = objects(TABLE["crossTab"], "crossTab")
 HOLDER = objects(TABLE["holder"], "holder")
+RESUME_FROM = objects(TABLE["resumeFrom"], "resumeFrom")
 PREFIXES: Final = tuple(text(object_of(STORED[member], member)["prefix"], member) for member in ("lastEventIdKeyPrefix", "cacheKeyPrefix"))
 """What every key a client keeps of a person begins with."""
 
@@ -369,10 +373,10 @@ async def shown(live: AsyncIterator[CacheState[ResourceDescriptor]]) -> str:
     raise AssertionError("the watcher was shown no value")
 
 
-async def resumed_from(gateway: GatewayServer, scope: str) -> JsonValue:
-    """Where the first subscription that names `scope` asks it to begin: none for the present."""
+async def resumed_from(gateway: GatewayServer, scope: str, seen: int) -> JsonValue:
+    """Where the first subscription after the first `seen` that names `scope` asks it to begin: none for the present."""
     while True:
-        for subscription in gateway.subscriptions:
+        for subscription in gateway.subscriptions[seen:]:
             scoped = subscription.get("scoped")
             if isinstance(scoped, list):
                 for entry in scoped:
@@ -430,7 +434,7 @@ def test_a_registrys_session_reads_and_records_what_the_table_says(row: JsonObje
                 # Asked after, of a scope the stream has not held before.
                 async with client.browse.resource(ResourceId("res-1")) as live:
                     assert await soon(shown(live)) == row["then"]
-                    assert await soon(resumed_from(gateway, "res-1")) == row["place"]
+                    assert await soon(resumed_from(gateway, "res-1", 0)) == row["place"]
 
             if "untouched" in row:
                 kept = {key: value for key, value in storage.held.items() if key.startswith(PREFIXES)}
@@ -540,9 +544,46 @@ def test_a_session_whose_sign_in_what_holds_it_changes_writes_what_the_table_say
     assert run(scenario()) is row["saved"]
 
 
+# ── resumeFrom ──────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("row", RESUME_FROM, ids=why)
+def test_a_scope_resumes_from_the_place_the_table_says(row: JsonObject) -> None:
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            gateway.answers[ME] = WHO_AM_I
+            answers_fresh(gateway)
+            storage = SharedStorage()
+            save_knowledge_bases(storage, [registered(gateway)])
+            store_session(storage, KB, signed_in(JO))
+
+            async with SemiontBrowser(SemiontBrowserConfig(storage=storage, session_factory=HttpSessionFactory())) as browser:
+                session = await soon(reached(browser.active_session, lambda session: session is not None), within=10)
+                assert session is not None
+                await soon(session.ready())
+                client = session.client
+                async with client.browse.resource(ResourceId("res-1")) as live:
+                    assert await soon(shown(live)) == "fresh"
+                    # The stream holds res-1's scope from the present: nothing was kept of it.
+                    assert await soon(resumed_from(gateway, "res-1", 0)) is None
+                    heard = client.transport.frames("mark:added")
+                    for event_id in strings(row["frames"], "frames"):
+                        gateway.send(event_id, {"channel": "mark:added", "payload": kb.recorded("mark:added", "res-1"), "scope": "res-1"})
+                        await soon(anext(heard))
+                    seen = len(gateway.subscriptions)
+                    # Holding another resource's scope too, the stream subscribes again, and says where each scope begins.
+                    async with client.browse.resource(ResourceId("res-2")) as other:
+                        assert await soon(shown(other)) == "fresh"
+                        assert await soon(resumed_from(gateway, "res-1", seen)) == row["resumes"]
+
+    run(scenario())
+
+
 def test_the_table_was_read() -> None:
     assert len(KEYS) >= 2
     assert len(FORGET) >= 14
     assert len(STARTUP) >= 3
     assert len(CROSS_TAB) >= 4
     assert len(HOLDER) >= 4
+    assert len(RESUME_FROM) >= 4

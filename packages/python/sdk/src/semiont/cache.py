@@ -25,7 +25,8 @@ A cache with a `CachePersister` begins with what was kept and saves its values
 as they change. A value that was kept is shown at once and asked for again the
 first time it is observed: nothing says it is still true. One given its
 persister after it began (`attach`) takes what was kept only for the keys it
-holds nothing for, alike.
+holds nothing for, alike. A save the persister refuses is still owed: the next
+change, or disposal, makes it.
 
 An observer that falls behind is given the latest state, not each one it
 missed: a state is what is true now.
@@ -162,9 +163,9 @@ class Cache[K: Hashable, V](StateUnit):
         self._disposed = False
         self._fetches = 0
         self._saving: asyncio.TimerHandle | None = None
-        """The wait before the next save, while one is owed."""
-        self._dropped_a_fetch = False
-        """Whether disposing dropped a fetch in flight: what it would have kept never is."""
+        """The wait before the next save."""
+        self._owed = False
+        """Whether the values changed since the persister last took them."""
         self._keys: Final[dict[K, _Key[V]]] = {}
         self._kept: Final[set[K]] = set()
         """Keys whose value was kept by an earlier cache and has not been asked for by this one."""
@@ -208,14 +209,23 @@ class Cache[K: Hashable, V](StateUnit):
         """The values changed: save them once they have stopped changing."""
         if self._persister is None:
             return
+        self._owed = True
         if self._saving is not None:
             self._saving.cancel()
         self._saving = asyncio.get_running_loop().call_later(self._save_debounce_ms / 1000, self._save)
 
     def _save(self) -> None:
+        """Give the persister the values. One it refuses is still owed, and its refusal is raised."""
         self._saving = None
-        if self._persister is not None:
+        if self._persister is None:
+            return
+        # Owed no longer while the persister writes: a place riding this write (`semiont.resume`) is held back by what else is owed.
+        self._owed = False
+        try:
             self._persister.save(self._values())
+        except BaseException:
+            self._owed = True
+            raise
 
     def _fetching(self, key: K) -> asyncio.Task[V]:
         """Start a fetch for `key`, or join the one in flight."""
@@ -325,11 +335,9 @@ class Cache[K: Hashable, V](StateUnit):
     def persistence_pending(self) -> bool:
         """Whether a cache that keeps its values has not yet kept what it knows: a fetch is in flight, or a save is owed.
 
-        Once disposed, whether disposing dropped a fetch in flight: that value is never kept.
+        A save the persister refused is owed until it is made.
         """
-        if self._persister is None:
-            return False
-        return self._saving is not None or self._dropped_a_fetch or self._fetch_in_flight()
+        return self._persister is not None and (self._owed or self._fetch_in_flight())
 
     def invalidate(self, key: K) -> None:
         """The key's value is out of date: ask again, showing what there is meanwhile.
@@ -373,14 +381,19 @@ class Cache[K: Hashable, V](StateUnit):
     def dispose(self) -> None:
         """End the cache: a save that was owed is made now, every observer's states end, and nothing is fetched or written after.
 
-        Disposing twice is disposing once.
+        Disposing twice is disposing once. A save the persister refuses is raised, and the cache has ended all the same.
         """
-        self._dropped_a_fetch = self._dropped_a_fetch or self._fetch_in_flight()
+        if self._disposed:
+            return
         if self._saving is not None:
             self._saving.cancel()
-            self._save()
-        self._disposed = True
-        for held in self._keys.values():
-            held.state.end()
-        self._keys.clear()
-        self._kept.clear()
+            self._saving = None
+        try:
+            if self._owed:
+                self._save()
+        finally:
+            self._disposed = True
+            for held in self._keys.values():
+                held.state.end()
+            self._keys.clear()
+            self._kept.clear()

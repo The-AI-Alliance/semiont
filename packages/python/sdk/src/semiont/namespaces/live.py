@@ -3,15 +3,20 @@
 One of these is a client's: `browse`, `gather` and `match` build their
 queries over it, and the client's refresher (`semiont.namespaces.refresher`)
 keeps it true.
+
+What each query's cache holds is the type `protocol/specs/src/client/refresh.json`'s
+`value` names for it (`CACHE_VALUES`), and what a kept query's document keeps.
 """
 
-from collections.abc import Hashable
+import asyncio
+from collections.abc import Coroutine, Hashable, Mapping
 from dataclasses import dataclass
-from typing import Final, NamedTuple, final
+from types import MappingProxyType
+from typing import Final, NamedTuple, TypeAliasType, final, override
 
 from pydantic import TypeAdapter
 
-from semiont.cache import Cache
+from semiont.cache import Cache, Runs
 from semiont.cached import Cached, Source
 from semiont.errors import BusRequestError, SemiontError
 from semiont.identifiers import AnnotationId, ResourceId
@@ -30,7 +35,7 @@ from semiont.operations import (
 )
 from semiont.refresh import CacheQuery, CacheRefreshWhen
 from semiont.storage import SessionStorage, StoragePersister
-from semiont.stored import WHOLE_KEY, KeptQuery, WholeKey, cache_key
+from semiont.stored import KEPT_QUERIES, WHOLE_KEY, KeptQuery, WholeKey, cache_key
 from semiont.timing import MAX_STORED_BYTES_COUNT
 from semiont.transport import ContentTransport
 from semiont.types import (
@@ -56,7 +61,54 @@ from semiont.types import (
     TagSchema,
 )
 
-__all__ = ["LIMITS_HOLDERS", "CachePersistence", "KeptPersisters", "Live", "ResourceFilters", "ResourceSearch", "Subject"]
+__all__ = [
+    "CACHE_VALUES",
+    "LIMITS_HOLDERS",
+    "AnnotationValue",
+    "AnnotationsValue",
+    "CachePersistence",
+    "EnginesValue",
+    "EntityTypesValue",
+    "EventsValue",
+    "KeptPersisters",
+    "Live",
+    "MatchedResourcesValue",
+    "ReferencedByValue",
+    "ResourceFilters",
+    "ResourceSearch",
+    "ResourceValue",
+    "ResourcesValue",
+    "Subject",
+    "TagSchemasValue",
+]
+
+type ResourceValue = ResourceDescriptor
+type AnnotationsValue = GetAnnotationsResponse
+type AnnotationValue = Annotation
+type EventsValue = list[AttributedEvent]
+type ReferencedByValue = list[GetReferencedByResponseReferencedByItem]
+type ResourcesValue = ListResourcesResponse
+type MatchedResourcesValue = MatchResourcesResponse
+type EntityTypesValue = list[str]
+type TagSchemasValue = list[TagSchema]
+type EnginesValue = list[EngineEntry]
+
+CACHE_VALUES: Final[Mapping[CacheQuery, TypeAliasType]] = MappingProxyType(
+    {
+        "resource": ResourceValue,
+        "annotations": AnnotationsValue,
+        "annotation": AnnotationValue,
+        "events": EventsValue,
+        "referencedBy": ReferencedByValue,
+        "resources": ResourcesValue,
+        "matchedResources": MatchedResourcesValue,
+        "entityTypes": EntityTypesValue,
+        "tagSchemas": TagSchemasValue,
+        "engines": EnginesValue,
+    }
+)
+"""What each query's cache holds, in the refresh table's order: a hand-written mirror of each row's `value`, which the
+census in tests/test_tables.py holds to the table."""
 
 _HOLDERS: Final = {operation.request.name: operation for operation in LIMITS_OPERATIONS}
 LIMITS_HOLDERS: Final = tuple(_HOLDERS)
@@ -97,11 +149,34 @@ class KeptPersisters:
     """What keeps each query a client keeps in `persistence`: what its entries are keyed by, and what each keeps."""
 
     def __init__(self, persistence: CachePersistence) -> None:
-        self.resource: Final = _persister(persistence, "resource", _RESOURCE_ID, TypeAdapter(ResourceDescriptor))
-        self.annotations: Final = _persister(persistence, "annotations", _RESOURCE_ID, TypeAdapter(GetAnnotationsResponse))
-        self.annotation: Final = _persister(persistence, "annotation", _ANNOTATION_ID, TypeAdapter(Annotation))
-        self.entity_types: Final = _persister(persistence, "entityTypes", _WHOLE_KEY, TypeAdapter[list[str]](list[str]))
-        self.tag_schemas: Final = _persister(persistence, "tagSchemas", _WHOLE_KEY, TypeAdapter[list[TagSchema]](list[TagSchema]))
+        self.resource: Final = _persister(persistence, "resource", _RESOURCE_ID, TypeAdapter[ResourceValue](ResourceValue))
+        self.annotations: Final = _persister(persistence, "annotations", _RESOURCE_ID, TypeAdapter[AnnotationsValue](AnnotationsValue))
+        self.annotation: Final = _persister(persistence, "annotation", _ANNOTATION_ID, TypeAdapter[AnnotationValue](AnnotationValue))
+        self.entity_types: Final = _persister(persistence, "entityTypes", _WHOLE_KEY, TypeAdapter[EntityTypesValue](EntityTypesValue))
+        self.tag_schemas: Final = _persister(persistence, "tagSchemas", _WHOLE_KEY, TypeAdapter[TagSchemasValue](TagSchemasValue))
+
+
+@final
+class _Counted(Runs):
+    """What runs the fetches of the caches a client keeps, and how many of its tasks have not ended.
+
+    A task is counted from when a cache starts it, before its first turn: a
+    fetch just asked for is running, though it has not yet begun.
+    """
+
+    def __init__(self, links: Links) -> None:
+        self._links: Final = links
+        self.running = 0
+
+    @override
+    def run[T](self, work: Coroutine[object, object, T]) -> asyncio.Task[T]:
+        task = self._links.run(work)
+        self.running += 1
+        task.add_done_callback(self._ended)
+        return task
+
+    def _ended(self, _: asyncio.Task[object]) -> None:
+        self.running -= 1
 
 
 class ResourceFilters(NamedTuple):
@@ -144,22 +219,40 @@ class Live:
         self._content: Final = content
         self._kept_true = False
         self._disposed = False
+        self._keeping = False
+        """Whether the kept queries' caches were given their persisters (`attach`)."""
+        self._kept_tasks: Final = _Counted(links)
+        """What runs the kept queries' caches' fetches."""
         self.annotation_of: Final[dict[AnnotationId, ResourceId]] = {}
         """The resource each annotation that was asked for is of: an annotation
         is kept by its own id, and a request for it names its resource too."""
 
-        self.resource: Final = Cache(self._resource, tasks=links)
-        self.lists: Final = Cache(self._list, tasks=links)
-        self.annotations: Final = Cache(self._annotations, tasks=links)
-        self.annotation: Final = Cache(self._annotation, tasks=links)
-        self.entity_types: Final = Cache(self._entity_types, tasks=links)
-        self.tag_schemas: Final = Cache(self._tag_schemas, tasks=links)
-        self.engines: Final = Cache(self._engines, tasks=links)
-        self.limits: Final = Cache(self._limits, tasks=links)
+        self.resource: Final = Cache[ResourceId, ResourceValue](self._resource, tasks=self._runs("resource"))
+        self.lists: Final = Cache[ResourceFilters, ResourcesValue](self._list, tasks=self._runs("resources"))
+        self.annotations: Final = Cache[ResourceId, AnnotationsValue](self._annotations, tasks=self._runs("annotations"))
+        self.annotation: Final = Cache[AnnotationId, AnnotationValue](self._annotation, tasks=self._runs("annotation"))
+        self.entity_types: Final = Cache[WholeKey, EntityTypesValue](self._entity_types, tasks=self._runs("entityTypes"))
+        self.tag_schemas: Final = Cache[WholeKey, TagSchemasValue](self._tag_schemas, tasks=self._runs("tagSchemas"))
+        self.engines: Final = Cache[WholeKey, EnginesValue](self._engines, tasks=self._runs("engines"))
+        self.limits: Final = Cache[str, list[EngineLimits]](self._limits, tasks=links)
         """Each key holder's report of its engines' limits, by the operation that asks it."""
-        self.events: Final = Cache(self.events_of, tasks=links)
-        self.referenced_by: Final = Cache(self._referenced_by, tasks=links)
-        self.searches: Final = Cache(self._search, tasks=links)
+        self.events: Final = Cache[ResourceId, EventsValue](self.events_of, tasks=self._runs("events"))
+        self.referenced_by: Final = Cache[ResourceId, ReferencedByValue](self._referenced_by, tasks=self._runs("referencedBy"))
+        self.searches: Final = Cache[ResourceSearch, MatchedResourcesValue](self._search, tasks=self._runs("matchedResources"))
+        self._caches: Final = (
+            self.resource,
+            self.lists,
+            self.annotations,
+            self.annotation,
+            self.entity_types,
+            self.tag_schemas,
+            self.engines,
+            self.limits,
+            self.events,
+            self.referenced_by,
+            self.searches,
+        )
+        """Every cache: what is kept is whichever was given a persister (`attach`)."""
         if persistence is not None:
             self.attach(persistence)
 
@@ -171,6 +264,11 @@ class Live:
         self.annotation.attach(kept.annotation)
         self.entity_types.attach(kept.entity_types)
         self.tag_schemas.attach(kept.tag_schemas)
+        self._keeping = True
+
+    def _runs(self, query: CacheQuery) -> Runs:
+        """What runs the fetches of `query`'s cache: the counted tasks (`_kept_tasks`) for a query a client keeps."""
+        return self._kept_tasks if query in KEPT_QUERIES else self._links
 
     def query[T](self, source: Source[T]) -> Cached[T]:
         """A live query of this client, answered from `source`."""
@@ -190,32 +288,32 @@ class Live:
 
     # ── What each cache asks ────────────────────────────────────────────
 
-    async def _resource(self, resource_id: ResourceId) -> ResourceDescriptor:
+    async def _resource(self, resource_id: ResourceId) -> ResourceValue:
         return (await self._links.request(BROWSE_RESOURCE_REQUESTED, BrowseResourceRequest(resource_id=resource_id))).response.resource
 
-    async def _list(self, filters: ResourceFilters) -> ListResourcesResponse:
+    async def _list(self, filters: ResourceFilters) -> ResourcesValue:
         request = BrowseResourcesRequest(
             limit=filters.limit, offset=filters.offset, archived=filters.archived, entity_type=filters.entity_type
         )
         return (await self._links.request(BROWSE_RESOURCES_REQUESTED, request)).response
 
-    async def _annotations(self, resource_id: ResourceId) -> GetAnnotationsResponse:
+    async def _annotations(self, resource_id: ResourceId) -> AnnotationsValue:
         return await self._content.get_annotations(resource_id)
 
-    async def _annotation(self, annotation_id: AnnotationId) -> Annotation:
+    async def _annotation(self, annotation_id: AnnotationId) -> AnnotationValue:
         resource_id = self.annotation_of.get(annotation_id)
         if resource_id is None:
             raise BusRequestError("bus.rejected", f"Cannot ask for annotation {annotation_id}: the resource it is of is not known")
         request = BrowseAnnotationRequest(resource_id=resource_id, annotation_id=annotation_id)
         return (await self._links.request(BROWSE_ANNOTATION_REQUESTED, request)).response.annotation
 
-    async def _entity_types(self, _: WholeKey) -> list[str]:
+    async def _entity_types(self, _: WholeKey) -> EntityTypesValue:
         return (await self._links.request(BROWSE_ENTITY_TYPES_REQUESTED, BrowseEntityTypesRequest())).response.entity_types
 
-    async def _tag_schemas(self, _: WholeKey) -> list[TagSchema]:
+    async def _tag_schemas(self, _: WholeKey) -> TagSchemasValue:
         return (await self._links.request(BROWSE_TAG_SCHEMAS_REQUESTED, BrowseTagSchemasRequest())).response.tag_schemas
 
-    async def _engines(self, _: str) -> list[EngineEntry]:
+    async def _engines(self, _: WholeKey) -> EnginesValue:
         return (await self._links.request(BROWSE_ENGINES_REQUESTED, BrowseEnginesRequest())).response.engines
 
     async def _limits(self, holder: str) -> list[EngineLimits]:
@@ -230,15 +328,15 @@ class Live:
         except SemiontError:
             return []
 
-    async def events_of(self, resource_id: ResourceId) -> list[AttributedEvent]:
+    async def events_of(self, resource_id: ResourceId) -> EventsValue:
         """A resource's events, each with who it is attributed to, asked for now."""
         return (await self._links.request(BROWSE_EVENTS_REQUESTED, BrowseEventsRequest(resource_id=resource_id))).response.events
 
-    async def _referenced_by(self, resource_id: ResourceId) -> list[GetReferencedByResponseReferencedByItem]:
+    async def _referenced_by(self, resource_id: ResourceId) -> ReferencedByValue:
         answer = await self._links.request(GATHER_REFERENCED_BY_REQUESTED, GatherReferencedByRequest(resource_id=resource_id))
         return answer.response.referenced_by
 
-    async def _search(self, search: ResourceSearch) -> MatchResourcesResponse:
+    async def _search(self, search: ResourceSearch) -> MatchedResourcesValue:
         filters = search.filters
         request = MatchResourcesRequest(
             search=search.search, limit=filters.limit, offset=filters.offset, archived=filters.archived, entity_type=filters.entity_type
@@ -288,26 +386,21 @@ class Live:
     @property
     def persistence_settled(self) -> bool:
         """Whether every cache the client keeps is at rest: none is fetching, and none owes a save."""
-        return not (
-            self.resource.persistence_pending
-            or self.annotations.persistence_pending
-            or self.annotation.persistence_pending
-            or self.entity_types.persistence_pending
-            or self.tag_schemas.persistence_pending
-        )
+        return not any(cache.persistence_pending for cache in self._caches)
+
+    @property
+    def fetching_what_it_keeps(self) -> bool:
+        """Whether a cache the client keeps is fetching: what it would keep of that fetch, a disposal drops.
+
+        Read by the tasks those caches run, each counted from when it is
+        started until it has ended: a fetch let go of by an `invalidate`
+        still writes its answer, and is fetching too.
+        """
+        return self._keeping and self._kept_tasks.running > 0
 
     def dispose(self) -> None:
         """End the queries: every watcher's states end, and what was owed to storage is saved."""
         self._disposed = True
-        self.resource.dispose()
-        self.lists.dispose()
-        self.annotations.dispose()
-        self.annotation.dispose()
-        self.entity_types.dispose()
-        self.tag_schemas.dispose()
-        self.engines.dispose()
-        self.limits.dispose()
-        self.events.dispose()
-        self.referenced_by.dispose()
-        self.searches.dispose()
+        for cache in self._caches:
+            cache.dispose()
         self.annotation_of.clear()

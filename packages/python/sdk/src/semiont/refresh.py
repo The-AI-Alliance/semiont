@@ -19,7 +19,6 @@ __all__ = [
     "CACHE_QUERIES",
     "CACHE_REFRESH",
     "CACHE_REFRESH_CHANNELS",
-    "PERSISTED_QUERIES",
     "CacheQuery",
     "CacheRefresh",
     "CacheRefreshChannel",
@@ -69,17 +68,6 @@ CACHE_QUERIES: Final[tuple[CacheQuery, ...]] = (
     "entityTypes",
     "tagSchemas",
     "engines",
-)
-
-# The live queries a client keeps for the person its token is, so its next life
-# shows them at once: each under its name (protocol/specs/src/session/stored.json,
-# `cacheKeyPrefix`). Every other query is held only while the client lives.
-PERSISTED_QUERIES: Final[tuple[CacheQuery, ...]] = (
-    "resource",
-    "annotations",
-    "annotation",
-    "entityTypes",
-    "tagSchemas",
 )
 
 # Which of a split channel's two kinds of event a row is for.
