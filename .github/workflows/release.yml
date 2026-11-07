@@ -73,7 +73,9 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           ERRORS=0
-          for pkg in packages/typescript/*/package.json apps/*/package.json images/*/package.json; do
+          # The packages a release covers are version.json's list.
+          for dir in $(jq -r '.packages[].dir' version.json); do
+            pkg="$dir/package.json"
             PKG_VERSION=$(jq -r .version "$pkg")
             if [ "$PKG_VERSION" != "$VERSION" ]; then
               echo "::error::Version mismatch in $pkg: expected $VERSION, got $PKG_VERSION"
