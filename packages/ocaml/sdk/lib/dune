@@ -2,4 +2,4 @@
  (name semiont)
  (public_name semiont)
  (private_modules pattern client_timing schema_shape schema_shapes schema_codec)
- (libraries eio mtime yojson zarith decimal uutf))
+ (libraries eio mtime yojson base64 zarith decimal uutf))

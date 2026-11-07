@@ -1,0 +1,9 @@
+(executable
+ (name wire_driver)
+ (modules wire_driver paths)
+ (libraries semiont eio_main cohttp-eio yojson uri cstruct))
+
+(rule
+ (alias runtest)
+ (deps smoke.py)
+ (action (run python3 %{dep:smoke.py} %{exe:wire_driver.exe})))

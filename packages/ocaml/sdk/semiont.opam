@@ -19,6 +19,7 @@ depends: [
   "mirage-crypto-pk"
   "mirage-crypto-rng"
   "yojson" {>= "3.0.0"}
+  "base64"
   "zarith"
   "decimal"
   "uri"

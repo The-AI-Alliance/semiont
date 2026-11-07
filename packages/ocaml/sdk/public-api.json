@@ -3,7 +3,7 @@
   "inputs": {
     ".ocamlformat": "a389416000f8e8466aad27a9209661717699f30fd6fd6f8e36342f646e086354",
     "api.py": "ef9bb4c0ce8ca1c4c6be8a8c2ab584d7a965b3bae517a1c1216b60a1c55daad3",
-    "dune-project": "45f09d70f94297cf8b71cfa49820a854867e8dff394de31d59445ba091a1df8c",
+    "dune-project": "c093af4d280904239ed7e6a8e8ff77fdf781cd7e83f1ca948e464b214a620b23",
     "dune-workspace": "92e610fd0fcb46d183ea095446dd9c1046c152ad5a25ae8e919ede8cc8c00093",
     "dune.lock/alcotest.1.9.1.pkg": "73922332861e22a3d354aad41ab3e58b637b4bf6ddb04f65bbef1ddca728e34d",
     "dune.lock/ambient-context-eio.0.2.pkg": "78fd6f543af740d9ea110059e4f27eb4b5fe66e4b1a74b30f4eec66788c9c36a",
@@ -49,7 +49,7 @@
     "dune.lock/iomux.0.4.pkg": "d139c9404b8fa7c34eea329e939f83fe4f15faf039aa0325cb0e8852af2c01fe",
     "dune.lock/ipaddr.5.6.2.pkg": "f451a2ce111b990e7fb37f3d792f9cee278af9fd010c041c80c98fc41539b66f",
     "dune.lock/kdf.1.1.2.pkg": "d4639b3daa24b7ec9dc0d903a8ebbfa27e8c4e6aa7834cc1b07cd9efff5c5906",
-    "dune.lock/lock.dune": "e60ba73f3d72f7473876174b5f6680f61e53d3e1849357bd18cd133c932d39d0",
+    "dune.lock/lock.dune": "5e0607af8be7e4b5f3524803717446ea7d28076f06c5ee5411e8de2bb7dee36e",
     "dune.lock/logs.0.10.0.pkg": "31c8fe5814797a85b22673c2fc3d337d1ef59173ee8cfd86c6060cf3012f5d04",
     "dune.lock/lwt-dllist.1.1.0.pkg": "72cb6b9b6d506bf02178e3a0c2c0ee6fb529d8fddc9f4c339e273baa2fa3ec65",
     "dune.lock/macaddr.5.6.2.pkg": "5eb4292c994af7d587b64ad9459851d0adcf02c19b958e0a4c7182090ad182f3",
@@ -115,7 +115,7 @@
     "lib/client_timing.mli": "cb433bda9c37944c0dd973b950f25c229b727fef820d144b66915c26e3c4c7a5",
     "lib/clock.ml": "7fbcd81067a62d56842bf1f5b50e64e35f0efb056796a6926b1b732e52cca8b6",
     "lib/clock.mli": "9eec4a9bf79a437a5b331cc40dacd46905f70367ccae882650bce067932078b2",
-    "lib/dune": "6a75048ed3c9ca2e8a9345c7fdf7cc97003dfc074b051bfa227d8d61cd747469",
+    "lib/dune": "335050cba327ffae0628e23be36584f4649ae58b23f4dd95bdc0aba756d5553d",
     "lib/enums.ml": "e2a188bb4fd853313782622b84257a43be1c0e89472fc2323ab9c89ff1aa1232",
     "lib/enums.mli": "1c28ee0ac1ca50a86fe00ce3fe5c6ed5b015045b5cd14c8b48d46fa4b937daaf",
     "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
@@ -130,12 +130,14 @@
     "lib/schema_shapes.ml": "12f163c8f930d2cb1559aa93de7f8d5fd58583827059852e6aebdf9b03629bea",
     "lib/selector.ml": "28f250d3a6ed926ba94317cf595d39742124587c527ebcf02c6f6c043c50a7e8",
     "lib/selector.mli": "1c3c9f74ea5c90d0154547e5c3f249f4f7fcfd05f5fc97bc89ad7976a7b02716",
-    "lib/semiont.ml": "dc5ae0ae480c4d35287acfbf71b83f8d5190017f1c6d2859f4b4d7383661e523",
-    "lib/semiont.mli": "aac955481b7a08f5a436faa93525ad084960257c2ea8b38839e02da9d42b6408",
+    "lib/semiont.ml": "3b2f4ff91c4efb35fd076fdeb6f93948adc52d7182b71b1467776b0d32b2d3c0",
+    "lib/semiont.mli": "1493fa8d00453698db5c1871a052a72fbf3be9991f227efaa2b914f207bea51b",
+    "lib/session.ml": "9f01d7546c52be09408419522c7b95d5b067b6c08d3bbfd78202a3495f9afc31",
+    "lib/session.mli": "5202a41238b363ab84685b83c2419073b416a56373e3ff0a5bc5acc81d212656",
     "lib/strict_json.ml": "19a2f3c4c5a828e0fe55cd36eb25b685e965f0b79c21cd57cc4a17c53d0112d6",
     "lib/strict_json.mli": "818f38488855a5ce525bbf7fa483feb6aad993670115a63065029201999b50a7",
-    "lib/subscription.ml": "dcec7d03213abbc5963d88b907c44adcb3a4273f048299df634078787cac8592",
-    "lib/subscription.mli": "241d0f56c6643f0a49eda2eea07e5bb02f7a0425c28c75d30cf93da7916141ef",
+    "lib/subscription.ml": "839c941824717b77ea5f523e78965e61761a33bba14963a201b67837a84cc865",
+    "lib/subscription.mli": "c04ce817e57018ff08d7019f284851d25e4f3385e28d3befe26a305230768e5c",
     "lib/types.ml": "5921efffb7596beb176e09960cdfa080ec954349ec2ce9d7e54bc7f638c808fe",
     "lib/types.mli": "97149245ffc84db1b741d7156a08017eff6f941179e9e6df950f212da8d60d76",
     "lib/wire_stream.ml": "3d3bfb920d6fc1ec36f520313c5f856d2d517a649991daedc0501dc53e7ba37c",
@@ -143,7 +145,7 @@
     "probes/api_inventory.ml": "97b819335b2d6d55f2f4a7c73422ad4df34ca5e459fe4df300f01a0ff5efb36a",
     "probes/dune": "4b82a53ae47205f7a5bfc5ac215aa840814c53ff15e0c58bc1974d913fea043b",
     "public-api.inputs.json": "16a156e808e8dfd7df61837746b0e4b8ce44e38a40f5a1b647baec0af1bfcca9",
-    "semiont.opam": "a5f3e7a7e1b1e98783797caa3bd9f9c9dff8e7a631803e45c1062ed263485223"
+    "semiont.opam": "ad03b49f5d9976a91a7a245dbcd0a3ee2779312a77da9dd06d2f525e3138c460"
   },
   "entries": [
     {
@@ -11903,6 +11905,11 @@
     },
     {
       "kind": "value",
+      "path": "Semiont.Subscription.await_state_change",
+      "declaration": "val await_state_change : t -> from:state -> state"
+    },
+    {
+      "kind": "value",
       "path": "Semiont.Subscription.close",
       "declaration": "val close : t -> unit"
     },
@@ -11983,6 +11990,86 @@
       "kind": "value",
       "path": "Semiont.Subscription.request",
       "declaration": "val request :\n  t ->\n  ?timeout_ms:int ->\n  correlation_id:string ->\n  ('request, 'result, 'failure) Semiont__.Bus_registry.operation ->\n  send:(unit -> unit) -> (('result, 'failure) reply, request_error) result"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Session",
+      "declaration": "module Session = Semiont__.Session",
+      "alias": "Semiont__.Session"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Session.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Session.renewal",
+      "declaration": "type renewal = Renewed of string | Refused | Unavailable",
+      "representation": "variant",
+      "constructors": [
+        "Renewed",
+        "Refused",
+        "Unavailable"
+      ],
+      "variants": [
+        {
+          "name": "Renewed",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Refused",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Unavailable",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session.token_expiry",
+      "declaration": "val token_expiry : string -> float option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session.refresh_delay",
+      "declaration": "val refresh_delay : now:float -> string -> float option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session.start",
+      "declaration": "val start :\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  initial_token:string option ->\n  renew:(refused:string option -> renewal) -> unit -> t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session.credential",
+      "declaration": "val credential : t -> string option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session.replace",
+      "declaration": "val replace : t -> string option -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session.refresh_refused",
+      "declaration": "val refresh_refused : t -> refused:string -> string option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session.close",
+      "declaration": "val close : t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session.await_closed",
+      "declaration": "val await_closed : t -> unit"
     }
   ]
 }

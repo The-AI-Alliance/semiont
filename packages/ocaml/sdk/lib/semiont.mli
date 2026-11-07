@@ -11,3 +11,4 @@ module Models = Models
 module Records = Records
 module Wire_stream = Wire_stream
 module Subscription = Subscription
+module Session = Session

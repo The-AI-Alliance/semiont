@@ -25,3 +25,26 @@ const cases = offsets.cases.map(({ text, codePoints, spans }) =>
 writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/probes/unicode_cases.ml'),
   '(* Generated from text/offset-cases.json. Do not edit. *)\n\n[@@@ocamlformat "disable"]\nlet cases = [\n' + cases.join(';\n') + '\n]\n',
   process.argv.includes('--check'));
+
+const sessionSource = 'protocol/specs/src/session/cases.json';
+const { refreshSchedule, tokenExpiry } = JSON.parse(readFileSync(resolve(root, sessionSource), 'utf8'));
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/probes/session_cases.ml'),
+  `(* Generated from ${sessionSource}. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n` +
+  `let cases = ${ocamlString(JSON.stringify({ refreshSchedule, tokenExpiry }))}\n`,
+  process.argv.includes('--check'));
+
+const openapi = JSON.parse(readFileSync(resolve(root, 'protocol/specs/src/openapi.json'), 'utf8'));
+const busPaths = new Map(Object.entries(openapi.paths).flatMap(([path, item]) => {
+  const target = item.$ref === undefined ? item
+    : JSON.parse(readFileSync(resolve(root, 'protocol/specs/src', item.$ref), 'utf8'));
+  return target.post?.operationId === undefined ? [] : [[target.post.operationId, path]];
+}));
+const route = (operation) => {
+  const path = busPaths.get(operation);
+  if (path === undefined || path.includes('{')) throw new Error(`No static POST route for ${operation}`);
+  return ocamlString(path);
+};
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/conformance/paths.ml'),
+  '(* Generated from the OpenAPI bus paths. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n\n' +
+  `let subscribe = ${route('subscribeToBus')}\nlet emit = ${route('emitOnBus')}\n`,
+  process.argv.includes('--check'));

@@ -17,3 +17,14 @@
  (name generated_protocol)
  (modules generated_protocol)
  (libraries semiont yojson alcotest))
+
+(test
+ (name session_renewal)
+ (modules session_renewal session_cases)
+ (libraries semiont eio_main eio.mock mtime base64 yojson alcotest))
+
+
+(rule
+ (targets session_cases.ml)
+ (deps ../probes/session_cases.ml)
+ (action (copy %{deps} %{targets})))

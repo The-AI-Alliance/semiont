@@ -158,6 +158,12 @@ let set_state t state =
 
 let state t = t.state
 
+let rec await_state_change t ~from =
+  if t.state <> from || t.state = Closed then t.state
+  else (
+    Promise.await (fst t.changed);
+    await_state_change t ~from)
+
 let close t =
   if not (Promise.is_resolved t.closing) then Promise.resolve t.close_now ()
 

@@ -62,6 +62,7 @@ val hold_scope : t -> scope -> unit -> unit
     hold once. A replacement opens before the current stream is retired. *)
 
 val state : t -> state
+val await_state_change : t -> from:state -> state
 val close : t -> unit
 val await_closed : t -> unit
 
