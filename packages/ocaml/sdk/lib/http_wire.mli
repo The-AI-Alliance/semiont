@@ -16,6 +16,7 @@ val default_timing : timing
 
 val make :
   ?timing:timing ->
+  ?telemetry:Telemetry.t ->
   clock:Clock.t ->
   session:Session.t ->
   key:(unit -> string) ->
@@ -59,6 +60,7 @@ val anchored_text : t -> Identifiers.Resource_id.t -> string
 
 val with_content :
   t ->
+  ?streaming:bool ->
   Identifiers.Resource_id.t ->
   (content_type:string -> Eio.Flow.source_ty Eio.Resource.t -> 'a) ->
   'a

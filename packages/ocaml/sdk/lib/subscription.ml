@@ -92,12 +92,14 @@ type request_error =
   | Timeout
   | Duplicate_id
   | Unsubscribed
+  | Unrecognized_failure
   | Invalid_reply of Bus_registry.decode_error
   | Invalid_frame of Models.decode_error
 
 type t = {
   clock : Clock.t;
   timing : timing;
+  telemetry : Telemetry.t option;
   client_id : string;
   global : Bus_registry.packed_channel list;
   scopes : (string, (unit ref * scope) list) Hashtbl.t;
@@ -291,14 +293,32 @@ let first_delivery t = function
   | _ -> true
 
 let dispatch t event =
-  if first_delivery t event then (
-    (match Option.bind (route event) (fun route -> route.correlation_id) with
-    | Some id ->
-        Option.iter
-          (fun receive -> receive event)
-          (Hashtbl.find_opt t.pending id)
-    | None -> ());
-    t.on_event event)
+  if first_delivery t event then
+    let deliver () =
+      (match Option.bind (route event) (fun route -> route.correlation_id) with
+      | Some id ->
+          Option.iter
+            (fun receive -> receive event)
+            (Hashtbl.find_opt t.pending id)
+      | None -> ());
+      t.on_event event
+    in
+    match event with
+    | Ok (Wire_stream.Frame { route; payload = Ok _; _ }) ->
+        let open Telemetry_facts in
+        let prefix, kind = bus_recv in
+        let attributes =
+          (attr_bus_channel, Telemetry.String route.channel)
+          :: Option.to_list
+               (Option.map
+                  (fun scope ->
+                    (attr_bus_scope, Telemetry.String (scope_key scope)))
+                  route.scope)
+        in
+        Telemetry.around t.telemetry ~clock:t.clock
+          (prefix ^ route.channel, kind)
+          attributes deliver
+    | _ -> deliver ()
 
 let read_stream t input =
   let rec loop () =
@@ -486,14 +506,15 @@ let run t =
   set_state t Connecting;
   connect t.timing.reconnect_ms
 
-let start ?(timing = default_timing) ~sw ~clock ~client_id ~global ~scopes
-    ~connect ~on_event () =
+let start ?(timing = default_timing) ?telemetry ~sw ~clock ~client_id ~global
+    ~scopes ~connect ~on_event () =
   let closing, close_now = Promise.create () in
   let closed, mark_closed = Promise.create () in
   let t =
     {
       clock;
       timing;
+      telemetry;
       client_id;
       global;
       scopes = Hashtbl.create 8;
@@ -574,7 +595,13 @@ let request t ?(timeout_ms = t.timing.bus_request_timeout_ms) ~correlation_id
                     Some (decode result (fun value -> Result value) payload)
                 | Ok (Wire_stream.Frame { route; payload; _ })
                   when route.channel = failure_name ->
-                    Some (decode failure (fun value -> Failure value) payload)
+                    Some
+                      (match payload with
+                      | Error
+                          (Bus_registry.Invalid_payload { member = "code"; _ })
+                        ->
+                          Error Unrecognized_failure
+                      | _ -> decode failure (fun value -> Failure value) payload)
                 | Error (Wire_stream.Invalid_frame (Some route, fault))
                   when route.channel = result_name
                        || route.channel = failure_name ->

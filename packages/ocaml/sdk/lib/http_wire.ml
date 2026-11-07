@@ -25,6 +25,7 @@ exception Deadline
 
 type t = {
   timing : timing;
+  telemetry : Telemetry.t option;
   clock : Clock.t;
   session : Session.t;
   key : unit -> string;
@@ -39,8 +40,9 @@ type t = {
     int * (string * string) list * Eio.Flow.source_ty Eio.Resource.t;
 }
 
-let make ?(timing = default_timing) ~clock ~session ~key ~on_error ~call () =
-  { timing; clock; session; key; on_error; call }
+let make ?(timing = default_timing) ?telemetry ~clock ~session ~key ~on_error
+    ~call () =
+  { timing; telemetry; clock; session; key; on_error; call }
 
 let fail t ?status code =
   let failure = { code; status } in
@@ -165,6 +167,9 @@ let exchange t ~auth ?progress ?timeout_ms ?(headers = []) ?(body = "")
 
 let read_text _ stream = body_text stream
 
+let around t row attributes run =
+  Telemetry.around t.telemetry ~clock:t.clock row attributes run
+
 let emit t ~client_id ?scope ?correlation_id channel source =
   let body =
     match
@@ -173,12 +178,41 @@ let emit t ~client_id ?scope ?correlation_id channel source =
     | Ok body -> body
     | Error _ -> fail t "bad-request"
   in
-  let timing = t.timing in
-  exchange t ~auth:true ~timeout_ms:timing.emit_timeout_ms ~body
-    ~headers:
-      [ ("content-type", "application/json"); ("idempotency-key", t.key ()) ]
-    ~attempts:timing.emit_attempts ~initial_delay:timing.emit_initial_delay_ms
-    ~max_delay:timing.emit_max_delay_ms ~jitter:true Http_facts.emit read_text
+  let open Telemetry_facts in
+  let name = Bus_registry.name channel in
+  let attributes =
+    (attr_bus_channel, Telemetry.String name)
+    :: Option.to_list
+         (Option.map
+            (fun scope ->
+              ( attr_bus_scope,
+                Telemetry.String (Identifiers.Resource_id.to_string scope) ))
+            scope)
+  in
+  let prefix, kind = bus_emit in
+  around t
+    (prefix ^ name, kind)
+    attributes
+    (fun () ->
+      Option.iter
+        (fun (sink : Telemetry.t) ->
+          sink.increment
+            {
+              name = semiont_bus_sent;
+              attributes;
+              time = Clock.wall_now t.clock;
+            })
+        t.telemetry;
+      let timing = t.timing in
+      exchange t ~auth:true ~timeout_ms:timing.emit_timeout_ms ~body
+        ~headers:
+          [
+            ("content-type", "application/json"); ("idempotency-key", t.key ());
+          ]
+        ~attempts:timing.emit_attempts
+        ~initial_delay:timing.emit_initial_delay_ms
+        ~max_delay:timing.emit_max_delay_ms ~jitter:true Http_facts.emit
+        read_text)
 
 let bus_failure payload =
   Http_facts.bus_failure (json_text "code" (Bus_registry.encode payload))
@@ -202,13 +236,24 @@ let on_resource (meth, path) resource =
     String.sub path 0 at ^ id
     ^ String.sub path (last + 1) (String.length path - last - 1) )
 
-let graph t resource = json_get t (on_resource Http_facts.graph resource)
+let resource_attrs resource =
+  [
+    ( Telemetry_facts.attr_resource_id,
+      Telemetry.String (Identifiers.Resource_id.to_string resource) );
+  ]
 
-let annotations t resource =
-  json_get t (on_resource Http_facts.annotations resource)
+let resource_json t row path resource =
+  around t row (resource_attrs resource) (fun () ->
+      json_get t (on_resource path resource))
 
-let anchored_text t resource =
-  json_get t (on_resource Http_facts.anchored_text resource)
+let graph t = resource_json t Telemetry_facts.content_get_graph Http_facts.graph
+
+let annotations t =
+  resource_json t Telemetry_facts.content_get_annotations Http_facts.annotations
+
+let anchored_text t =
+  resource_json t Telemetry_facts.content_get_anchored_text
+    Http_facts.anchored_text
 
 let media_token t resource =
   let body =
@@ -222,55 +267,72 @@ let media_token t resource =
     ~headers:[ ("content-type", "application/json") ]
     Http_facts.media_token read_text
 
-let with_content t resource consume =
-  exchange t ~auth:true ~timeout_ms:t.timing.request_timeout_ms ~attempts:2
-    ~initial_delay:Client_timing.request_retry_pause_ms
-    (on_resource Http_facts.representation resource) (fun headers stream ->
-      let content_type =
-        Option.value
-          (header "content-type" headers)
-          ~default:"application/octet-stream"
-      in
-      consume ~content_type stream)
+let with_content t ?(streaming = true) resource consume =
+  let attrs = resource_attrs resource in
+  let attrs =
+    if streaming then
+      (Telemetry_facts.attr_content_stream, Telemetry.Bool true) :: attrs
+    else attrs
+  in
+  around t Telemetry_facts.content_get attrs (fun () ->
+      exchange t ~auth:true ~timeout_ms:t.timing.request_timeout_ms ~attempts:2
+        ~initial_delay:Client_timing.request_retry_pause_ms
+        (on_resource Http_facts.representation resource) (fun headers stream ->
+          let content_type =
+            Option.value
+              (header "content-type" headers)
+              ~default:"application/octet-stream"
+          in
+          consume ~content_type stream))
 
 let put t ~fields ~bytes ~on_progress =
-  let key = t.key () in
-  let boundary = t.key () in
-  let buffer = Buffer.create (String.length bytes) in
-  let part name value =
-    Buffer.add_string buffer
-      ("--" ^ boundary ^ "\r\nContent-Disposition: form-data; name=\"" ^ name
-     ^ "\"\r\n\r\n");
-    Buffer.add_string buffer value;
-    Buffer.add_string buffer "\r\n"
+  let attrs =
+    [
+      ( Telemetry_facts.attr_content_format,
+        Telemetry.String
+          (Option.value (List.assoc_opt "format" fields) ~default:"") );
+      ( Telemetry_facts.attr_content_size_bytes,
+        Telemetry.Int (String.length bytes) );
+    ]
   in
-  List.iter
-    (fun name ->
-      if name <> "file" then
-        Option.iter (part name) (List.assoc_opt name fields))
-    Http_facts.upload_fields;
-  Buffer.add_string buffer
-    ("--" ^ boundary
-   ^ "\r\n\
-      Content-Disposition: form-data; name=\"file\"; filename=\"upload\"\r\n\
-      Content-Type: application/octet-stream\r\n\
-      \r\n");
-  let offset = Buffer.length buffer in
-  Buffer.add_string buffer bytes;
-  Buffer.add_string buffer ("\r\n--" ^ boundary ^ "--\r\n");
-  let body = Buffer.contents buffer in
-  let reported = ref (-1) in
-  let report sent =
-    let sent = min (String.length bytes) (max 0 (sent - offset)) in
-    if sent > !reported then (
-      reported := sent;
-      on_progress sent)
-  in
-  exchange t ~auth:true ~body ~progress:report
-    ~headers:
-      [
-        ("content-type", "multipart/form-data; boundary=" ^ boundary);
-        ("idempotency-key", key);
-      ]
-    ~attempts:2 ~initial_delay:Client_timing.request_retry_pause_ms
-    Http_facts.upload read_text
+  around t Telemetry_facts.content_put attrs (fun () ->
+      let key = t.key () in
+      let boundary = t.key () in
+      let buffer = Buffer.create (String.length bytes) in
+      let part name value =
+        Buffer.add_string buffer
+          ("--" ^ boundary ^ "\r\nContent-Disposition: form-data; name=\""
+         ^ name ^ "\"\r\n\r\n");
+        Buffer.add_string buffer value;
+        Buffer.add_string buffer "\r\n"
+      in
+      List.iter
+        (fun name ->
+          if name <> "file" then
+            Option.iter (part name) (List.assoc_opt name fields))
+        Http_facts.upload_fields;
+      Buffer.add_string buffer
+        ("--" ^ boundary
+       ^ "\r\n\
+          Content-Disposition: form-data; name=\"file\"; filename=\"upload\"\r\n\
+          Content-Type: application/octet-stream\r\n\
+          \r\n");
+      let offset = Buffer.length buffer in
+      Buffer.add_string buffer bytes;
+      Buffer.add_string buffer ("\r\n--" ^ boundary ^ "--\r\n");
+      let body = Buffer.contents buffer in
+      let reported = ref (-1) in
+      let report sent =
+        let sent = min (String.length bytes) (max 0 (sent - offset)) in
+        if sent > !reported then (
+          reported := sent;
+          on_progress sent)
+      in
+      exchange t ~auth:true ~body ~progress:report
+        ~headers:
+          [
+            ("content-type", "multipart/form-data; boundary=" ^ boundary);
+            ("idempotency-key", key);
+          ]
+        ~attempts:2 ~initial_delay:Client_timing.request_retry_pause_ms
+        Http_facts.upload read_text)

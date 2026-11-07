@@ -47,7 +47,7 @@ let state = function
   | S.Closed -> "closed"
 
 let error ?status code =
-  let fields = [ ("code", text code) ] in
+  let fields = [ ("code", text code); ("detail", text code) ] in
   `Assoc
     (match status with
     | None -> fields
@@ -81,6 +81,32 @@ let run env =
   let lock = Eio.Mutex.create () in
   let output_json value =
     Eio.Mutex.use_rw ~protect:true lock (fun () -> write output value)
+  in
+  let telemetry, flush_telemetry =
+    match Sys.getenv_opt "OTEL_EXPORTER_OTLP_ENDPOINT" with
+    | None -> (None, fun () -> ())
+    | Some endpoint ->
+        let http = Cohttp_eio.Client.make ~https:None (Eio.Stdenv.net env) in
+        let post path payload =
+          Switch.run @@ fun sw ->
+          let uri = Uri.with_path (Uri.of_string endpoint) path in
+          let headers =
+            Cohttp.Header.init_with "content-type" "application/json"
+          in
+          let _, body =
+            Cohttp_eio.Client.post http ~sw ~headers
+              ~body:(Cohttp_eio.Body.of_string payload)
+              uri
+          in
+          ignore (body_text body)
+        in
+        let sink, flush =
+          Otlp.make
+            ~id:(fun () ->
+              String.concat "" (String.split_on_char '-' (uuid env)))
+            ~post
+        in
+        (Some sink, flush)
   in
   let client = ref None in
   let listens = Hashtbl.create 8 in
@@ -213,7 +239,7 @@ let run env =
         ()
     in
     let http =
-      H.make ~clock ~session ~timing:http_timing
+      H.make ?telemetry ~clock ~session ~timing:http_timing
         ~key:(fun () -> uuid env)
         ~on_error:(fun failure ->
           output_json
@@ -234,8 +260,8 @@ let run env =
       |> List.map (fun name -> channel (J.to_string name))
     in
     let subscription =
-      S.start ~timing:subscription_timing ~sw ~clock ~client_id ~global
-        ~scopes:[] ~connect ~on_event ()
+      S.start ?telemetry ~timing:subscription_timing ~sw ~clock ~client_id
+        ~global ~scopes:[] ~connect ~on_event ()
     in
     client := Some { subscription; session; client_id; http };
     Fiber.fork_daemon ~sw (fun () ->
@@ -260,7 +286,8 @@ let run env =
         Session.close client.session;
         S.await_closed client.subscription;
         Session.await_closed client.session)
-      !client
+      !client;
+    flush_telemetry ()
   in
   let perform input =
     let ok value = ("ok", value) in
@@ -327,11 +354,16 @@ let run env =
             ~correlation_id operation ~send
         with
         | Ok (S.Result payload) ->
-            ok (Yojson.Safe.from_string (B.encode payload))
+            let fields =
+              Yojson.Safe.from_string (B.encode payload) |> J.to_assoc
+            in
+            ok
+              (`Assoc (List.filter (fun (name, _) -> name = "response") fields))
         | Ok (S.Failure payload) -> ("error", error (H.bus_failure payload))
         | Error S.Timeout -> ("error", error "bus.timeout")
         | Error S.Transport_closed -> ("error", error "bus.closed")
         | Error S.Unsubscribed -> ("error", error "bus.unsubscribed")
+        | Error S.Unrecognized_failure -> ("error", error "bus.rejected")
         | Error _ -> ("error", error "error"))
     | "health" -> ok (Yojson.Safe.from_string (H.health (get_client ()).http))
     | "status" -> ok (Yojson.Safe.from_string (H.status (get_client ()).http))
@@ -360,8 +392,8 @@ let run env =
           (Yojson.Safe.from_string
              (H.anchored_text (get_client ()).http
                 (resource (string "resource" input))))
-    | "get" | "get-stream" ->
-        H.with_content (get_client ()).http
+    | ("get" | "get-stream") as op ->
+        H.with_content (get_client ()).http ~streaming:(op = "get-stream")
           (resource (string "resource" input))
           (fun ~content_type stream ->
             ok

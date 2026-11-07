@@ -63,6 +63,7 @@ val encode_subscription : snapshot -> (string, Models.decode_error) result
 
 val start :
   ?timing:timing ->
+  ?telemetry:Telemetry.t ->
   sw:Eio.Switch.t ->
   clock:Clock.t ->
   client_id:string ->
@@ -93,6 +94,7 @@ type request_error =
   | Timeout
   | Duplicate_id
   | Unsubscribed
+  | Unrecognized_failure
   | Invalid_reply of Bus_registry.decode_error
   | Invalid_frame of Models.decode_error
 

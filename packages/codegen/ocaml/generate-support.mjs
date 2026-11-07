@@ -72,3 +72,19 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/http_facts.ml'),
     `let retry_statuses = [${retryStatuses.join('; ')}]`,
     `let upload_fields = [${uploadFields.map(ocamlString).join('; ')}]`, '',
   ].join('\n'), process.argv.includes('--check'));
+
+const telemetrySource = 'sdk-telemetry/telemetry.json';
+const telemetry = readSpec(telemetrySource);
+const telemetryName = (name) => name.replace(/:\{channel\}$/, '').replaceAll('.', '_');
+const spanRows = telemetry.spans.map(({ name, kind }) => {
+  const constructor = kind[0].toUpperCase() + kind.slice(1);
+  return `let ${telemetryName(name)} = (${ocamlString(name.replace('{channel}', ''))}, Telemetry.${constructor})`;
+});
+const metricRows = telemetry.metrics.map(({ name }) => `let ${telemetryName(name)} = ${ocamlString(name)}`);
+const attributeRows = [...new Set([...telemetry.spans, ...telemetry.metrics]
+  .flatMap(({ attributes }) => attributes.map(({ key }) => key)))].sort()
+  .map((key) => `let attr_${telemetryName(key)} = ${ocamlString(key)}`);
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/telemetry_facts.ml'),
+  [`(* Generated from ${telemetrySource}. Do not edit. *)`, '', '[@@@ocamlformat "disable"]', '',
+    ...spanRows, ...metricRows, ...attributeRows, ''].join('\n'),
+  process.argv.includes('--check'));

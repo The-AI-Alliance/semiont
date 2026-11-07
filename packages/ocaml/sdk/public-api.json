@@ -115,12 +115,12 @@
     "lib/client_timing.mli": "cb433bda9c37944c0dd973b950f25c229b727fef820d144b66915c26e3c4c7a5",
     "lib/clock.ml": "7fbcd81067a62d56842bf1f5b50e64e35f0efb056796a6926b1b732e52cca8b6",
     "lib/clock.mli": "9eec4a9bf79a437a5b331cc40dacd46905f70367ccae882650bce067932078b2",
-    "lib/dune": "ce8990f485ed63232a967d3c7a9a117d963c6145977a49a6c6bd06e4c6465f31",
+    "lib/dune": "24485c8dc552174a457a63b4431a727c28338ad4f5f64b6fbb1ff3144bd5aab0",
     "lib/enums.ml": "e2a188bb4fd853313782622b84257a43be1c0e89472fc2323ab9c89ff1aa1232",
     "lib/enums.mli": "1c28ee0ac1ca50a86fe00ce3fe5c6ed5b015045b5cd14c8b48d46fa4b937daaf",
     "lib/http_facts.ml": "3bce75ca4edacc1682410d6c9f6faf5584fe027ff8f058c91a63f0fa59be7784",
-    "lib/http_wire.ml": "4fde58812e450cd951c751d38d4df0c3ab6812a3f2157a4c3feef2cbc6f5d6e0",
-    "lib/http_wire.mli": "4e0fd73266e2be61e3f3226cb400fd0bfab0cb57fec95d29ea8b807be026685d",
+    "lib/http_wire.ml": "d6ccc17efecb393ed128e1aa1de21e7bc41038364611238fd7909e54c83d3f81",
+    "lib/http_wire.mli": "c7e4d662ca05106cab45201182ac3da6f63887d97dfc74a5b89c5eea69963d50",
     "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
     "lib/identifiers.mli": "bba7e132069a1c36758c9d1bfebd936ecb815b6d05dae2b55f03a5de72f2c20d",
     "lib/models.ml": "a36b2528fa00802a9e6482da3564a96c31300a8447921557f90770774d7e588c",
@@ -133,14 +133,17 @@
     "lib/schema_shapes.ml": "12f163c8f930d2cb1559aa93de7f8d5fd58583827059852e6aebdf9b03629bea",
     "lib/selector.ml": "28f250d3a6ed926ba94317cf595d39742124587c527ebcf02c6f6c043c50a7e8",
     "lib/selector.mli": "1c3c9f74ea5c90d0154547e5c3f249f4f7fcfd05f5fc97bc89ad7976a7b02716",
-    "lib/semiont.ml": "684988de81dc01191d91490254468f8501b94e5e11d5da510d0bd9a058d7cffc",
-    "lib/semiont.mli": "13c5d48bcb477b1bc81ecb8e655bae422c365b30ce424f8c7a2ffe82589db97f",
+    "lib/semiont.ml": "7b7e03bfd40d27ab716998a5bb9c2d1f069e85c4a5906f258c8a561191d4c8e4",
+    "lib/semiont.mli": "7ac6ffeb080510950d1a43e0881564a55959dec57787281bbbc6f5333853483a",
     "lib/session.ml": "9f01d7546c52be09408419522c7b95d5b067b6c08d3bbfd78202a3495f9afc31",
     "lib/session.mli": "5202a41238b363ab84685b83c2419073b416a56373e3ff0a5bc5acc81d212656",
     "lib/strict_json.ml": "19a2f3c4c5a828e0fe55cd36eb25b685e965f0b79c21cd57cc4a17c53d0112d6",
     "lib/strict_json.mli": "818f38488855a5ce525bbf7fa483feb6aad993670115a63065029201999b50a7",
-    "lib/subscription.ml": "51710a910cf4db7c81ebb7b03604b0d7c247adad47ffc0593f74bfa1c05bcfef",
-    "lib/subscription.mli": "b4ed9fec32b08a0c660186ce74947bbb48e714b15467eceeb8e74acd7e0302a7",
+    "lib/subscription.ml": "f4675e7c53060037c9082ee4c01d33d23b1568c7ccb9c59799819bad573de74a",
+    "lib/subscription.mli": "fbc556cf060c63b46e07c7f6c14464457524d00e2c30600f34b7d30f1bbf9f46",
+    "lib/telemetry.ml": "0a0e894fce2dc08882480282df978fb3919f88ab146eba570d70e1e6c4b6b6e4",
+    "lib/telemetry.mli": "ceca1720a28361d5f9852d66224cf52a15137ad29d44522e968532f1e3a31c65",
+    "lib/telemetry_facts.ml": "8b2c6d1ee7d75fc70b98cd0668d902fab6bf6463a302cbc8411cb6cc565cd484",
     "lib/types.ml": "5921efffb7596beb176e09960cdfa080ec954349ec2ce9d7e54bc7f638c808fe",
     "lib/types.mli": "97149245ffc84db1b741d7156a08017eff6f941179e9e6df950f212da8d60d76",
     "lib/wire_stream.ml": "3d3bfb920d6fc1ec36f520313c5f856d2d517a649991daedc0501dc53e7ba37c",
@@ -11927,7 +11930,7 @@
     {
       "kind": "value",
       "path": "Semiont.Subscription.start",
-      "declaration": "val start :\n  ?timing:timing ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  client_id:string ->\n  global:Semiont__.Bus_registry.packed_channel list ->\n  scopes:scope list ->\n  connect:(sw:Eio.Switch.t -> snapshot -> (Eio.Buf_read.t, open_error) result) ->\n  on_event:((Semiont__.Wire_stream.frame, Semiont__.Wire_stream.refusal)\n            result -> unit) ->\n  unit -> t"
+      "declaration": "val start :\n  ?timing:timing ->\n  ?telemetry:Semiont__.Telemetry.t ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  client_id:string ->\n  global:Semiont__.Bus_registry.packed_channel list ->\n  scopes:scope list ->\n  connect:(sw:Eio.Switch.t -> snapshot -> (Eio.Buf_read.t, open_error) result) ->\n  on_event:((Semiont__.Wire_stream.frame, Semiont__.Wire_stream.refusal)\n            result -> unit) ->\n  unit -> t"
     },
     {
       "kind": "value",
@@ -11979,13 +11982,14 @@
     {
       "kind": "type",
       "path": "Semiont.Subscription.request_error",
-      "declaration": "type request_error =\n    Transport_closed\n  | Timeout\n  | Duplicate_id\n  | Unsubscribed\n  | Invalid_reply of Semiont__.Bus_registry.decode_error\n  | Invalid_frame of Semiont__.Models.decode_error",
+      "declaration": "type request_error =\n    Transport_closed\n  | Timeout\n  | Duplicate_id\n  | Unsubscribed\n  | Unrecognized_failure\n  | Invalid_reply of Semiont__.Bus_registry.decode_error\n  | Invalid_frame of Semiont__.Models.decode_error",
       "representation": "variant",
       "constructors": [
         "Transport_closed",
         "Timeout",
         "Duplicate_id",
         "Unsubscribed",
+        "Unrecognized_failure",
         "Invalid_reply",
         "Invalid_frame"
       ],
@@ -12007,6 +12011,11 @@
         },
         {
           "name": "Unsubscribed",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Unrecognized_failure",
           "fields": [],
           "unit": true
         },
@@ -12155,7 +12164,7 @@
     {
       "kind": "value",
       "path": "Semiont.Http_wire.make",
-      "declaration": "val make :\n  ?timing:timing ->\n  clock:Semiont__.Clock.t ->\n  session:Semiont__.Session.t ->\n  key:(unit -> string) ->\n  on_error:(failure -> unit) ->\n  call:(sw:Eio.Switch.t ->\n        meth:string ->\n        path:string ->\n        headers:(string * string) list ->\n        body:string ->\n        progress:(int -> unit) option ->\n        int * (string * string) list * Eio.Flow.source_ty Eio.Resource.t) ->\n  unit -> t"
+      "declaration": "val make :\n  ?timing:timing ->\n  ?telemetry:Semiont__.Telemetry.t ->\n  clock:Semiont__.Clock.t ->\n  session:Semiont__.Session.t ->\n  key:(unit -> string) ->\n  on_error:(failure -> unit) ->\n  call:(sw:Eio.Switch.t ->\n        meth:string ->\n        path:string ->\n        headers:(string * string) list ->\n        body:string ->\n        progress:(int -> unit) option ->\n        int * (string * string) list * Eio.Flow.source_ty Eio.Resource.t) ->\n  unit -> t"
     },
     {
       "kind": "value",
@@ -12215,12 +12224,113 @@
     {
       "kind": "value",
       "path": "Semiont.Http_wire.with_content",
-      "declaration": "val with_content :\n  t ->\n  Semiont__.Identifiers.Resource_id.t ->\n  (content_type:string -> Eio.Flow.source_ty Eio.Resource.t -> 'a) -> 'a"
+      "declaration": "val with_content :\n  t ->\n  ?streaming:bool ->\n  Semiont__.Identifiers.Resource_id.t ->\n  (content_type:string -> Eio.Flow.source_ty Eio.Resource.t -> 'a) -> 'a"
     },
     {
       "kind": "value",
       "path": "Semiont.Http_wire.put",
       "declaration": "val put :\n  t ->\n  fields:(string * string) list ->\n  bytes:string -> on_progress:(int -> unit) -> string"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Telemetry",
+      "declaration": "module Telemetry = Semiont__.Telemetry",
+      "alias": "Semiont__.Telemetry"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Telemetry.kind",
+      "declaration": "type kind = Client | Producer | Consumer",
+      "representation": "variant",
+      "constructors": [
+        "Client",
+        "Producer",
+        "Consumer"
+      ],
+      "variants": [
+        {
+          "name": "Client",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Producer",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Consumer",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Telemetry.attribute",
+      "declaration": "type attribute = String of string | Int of int | Bool of bool",
+      "representation": "variant",
+      "constructors": [
+        "String",
+        "Int",
+        "Bool"
+      ],
+      "variants": [
+        {
+          "name": "String",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Int",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Bool",
+          "fields": [],
+          "unit": false
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Telemetry.span",
+      "declaration": "type span = {\n  name : string;\n  kind : kind;\n  attributes : (string * attribute) list;\n  started : float;\n  ended : float;\n}",
+      "representation": "record",
+      "fields": [
+        "name",
+        "kind",
+        "attributes",
+        "started",
+        "ended"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Telemetry.counter",
+      "declaration": "type counter = {\n  name : string;\n  attributes : (string * attribute) list;\n  time : float;\n}",
+      "representation": "record",
+      "fields": [
+        "name",
+        "attributes",
+        "time"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Telemetry.t",
+      "declaration": "type t = { span : span -> unit; increment : counter -> unit; }",
+      "representation": "record",
+      "fields": [
+        "span",
+        "increment"
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Telemetry.around",
+      "declaration": "val around :\n  t option ->\n  clock:Semiont__.Clock.t ->\n  string * kind -> (string * attribute) list -> (unit -> 'a) -> 'a"
     }
   ]
 }
