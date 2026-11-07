@@ -14,9 +14,10 @@ import kotlinx.serialization.json.longOrNull
  * (errors/codes.json), the media types a knowledge base admits
  * (media-types/registry.json), the Encoding Standard's labels and
  * single-byte encodings (text/encoding-cases.json), what each event does to
- * a client's cache (client/refresh.json); and what each component schema
- * requires of a value, from the SDK's copy of that table. Each refuses what
- * it cannot render.
+ * a client's cache (client/refresh.json); what each component schema
+ * requires of a value, from the SDK's copy of that table; and Unicode's Cased
+ * and Case_Ignorable properties, from the SDK's copy of theirs. Each refuses
+ * what it cannot render.
  */
 private fun JsonElement?.obj(what: String): JsonObject = this as? JsonObject ?: refuse("$what is no object")
 
@@ -366,6 +367,42 @@ internal fun requiredFile(table: JsonObject): String = buildString {
     append("internal val REQUIRED_SCHEMAS: Map<String, String> = mapOf(\n")
     for ((name, shape) in schemas) append("    ${literal(name)} to ${literal(shape.obj("$name's shape").toString())},\n")
     append(")\n")
+}
+
+/**
+ * Whether a code point is cased, and whether it is case-ignorable, as Unicode's
+ * Cased and Case_Ignorable properties have it, which the JDK gives neither of.
+ * The table is the SDK's copy (src/codegen/unicode-case.json), which
+ * packages/codegen/schemas/generate-unicode-case.mjs writes from Node's Unicode data.
+ */
+internal fun unicodeCaseFile(table: JsonObject): String = buildString {
+    fun ranges(property: String): Pair<List<Long>, List<Long>> {
+        val ranges = table[property].list("the table's $property").map { range ->
+            val bounds = range.list("a range of $property").map { (it as? JsonPrimitive)?.longOrNull ?: refuse("a range of $property holds $it, which is no code point") }
+            if (bounds.size != 2) refuse("a range of $property is not a first and a last code point: $range")
+            bounds[0] to bounds[1]
+        }
+        if (ranges.isEmpty() || ranges.any { (first, last) -> last < first } || ranges.zipWithNext().any { (before, after) -> after.first <= before.second }) {
+            refuse("the ranges of $property are none, or do not ascend")
+        }
+        return ranges.map { it.first } to ranges.map { it.second }
+    }
+    val (casedFirsts, casedLasts) = ranges("cased")
+    val (ignorableFirsts, ignorableLasts) = ranges("caseIgnorable")
+    append("/** Whether a code point is cased, as Unicode's Cased property has it. */\n")
+    append("internal fun cased(point: Int): Boolean = within(point, CASED_FIRSTS, CASED_LASTS)\n\n")
+    append("/** Whether a code point is case-ignorable, as Unicode's Case_Ignorable property has it. */\n")
+    append("internal fun caseIgnorable(point: Int): Boolean = within(point, CASE_IGNORABLE_FIRSTS, CASE_IGNORABLE_LASTS)\n\n")
+    append("private fun within(point: Int, firsts: IntArray, lasts: IntArray): Boolean {\n")
+    append("    val at = lasts.binarySearch(point)\n")
+    append("    if (at >= 0) return true\n")
+    append("    val next = -at - 1\n")
+    append("    return next < firsts.size && firsts[next] <= point\n")
+    append("}\n\n")
+    append("private val CASED_FIRSTS = intArrayOf(${casedFirsts.joinToString(", ")})\n\n")
+    append("private val CASED_LASTS = intArrayOf(${casedLasts.joinToString(", ")})\n\n")
+    append("private val CASE_IGNORABLE_FIRSTS = intArrayOf(${ignorableFirsts.joinToString(", ")})\n\n")
+    append("private val CASE_IGNORABLE_LASTS = intArrayOf(${ignorableLasts.joinToString(", ")})\n")
 }
 
 /**

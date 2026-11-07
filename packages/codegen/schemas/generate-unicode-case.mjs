@@ -2,13 +2,14 @@
 // Generate the code points Unicode gives the Cased and the Case_Ignorable
 // property, which decide whether a capital sigma ends a word as the
 // case-insensitive search lower-cases it (protocol/specs/src/annotations/reconcile-cases.json),
-// as the C# SDK reads them as it builds:
+// as the C# and Kotlin SDKs read them as they build, one copy in each:
 //
 //   packages/csharp/sdk/generators/Semiont.Generator/unicode-case.json   (read by the SDK's source generator)
+//   packages/kotlin/sdk/src/codegen/unicode-case.json                    (read by the SDK's generator)
 //
-// .NET gives neither property. The ranges are
+// Neither .NET nor the JDK gives the two properties. The ranges are
 // unicode-properties.mjs's, from Node's Unicode data, which Haskell's table
-// is generated from too. No build runs this, so the copy is committed;
+// is generated from too. No build runs this, so the copies are committed;
 // `--check` compares without writing (the CI drift gate).
 
 import { dirname, resolve } from 'node:path';
@@ -19,6 +20,7 @@ import { writeOrCheck } from '../lib/committed-source.mjs';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const OUTS = [
   'packages/csharp/sdk/generators/Semiont.Generator/unicode-case.json',
+  'packages/kotlin/sdk/src/codegen/unicode-case.json',
 ];
 const CHECK = process.argv.includes('--check');
 

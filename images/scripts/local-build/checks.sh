@@ -233,17 +233,18 @@ fi
 
 # --- Unicode's Cased and Case_Ignorable properties ---
 #
-# C#'s copy of them is COMMITTED: C#'s source generator reads it, and .NET
-# gives neither property.
+# C#'s and Kotlin's copies of them are COMMITTED: C#'s source generator and
+# Kotlin's generator read them, and neither .NET nor the JDK gives the two
+# properties.
 
-if ! run_logged "C#'s copy of Unicode's case properties matches this Node's" \
+if ! run_logged "C#'s and Kotlin's copies of Unicode's case properties match this Node's" \
     $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
     npm run generate:unicode-case:check; then
-  fail "C#'s copy of Unicode's case properties is STALE (or was hand-edited) — it must match Node's Unicode data."
+  fail "C#'s or Kotlin's copy of Unicode's case properties is STALE (or was hand-edited) — it must match Node's Unicode data."
   echo ""
   echo -e "  Regenerate and commit:"
   echo ""
-  echo -e "    ${BOLD}npm run generate:unicode-case${RESET}   (packages/csharp/sdk/generators/Semiont.Generator)"
+  echo -e "    ${BOLD}npm run generate:unicode-case${RESET}   (packages/csharp/sdk/generators/Semiont.Generator, packages/kotlin/sdk/src/codegen)"
   echo ""
   exit 1
 fi
