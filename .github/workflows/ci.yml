@@ -2767,7 +2767,7 @@ jobs:
         if: runner.os == 'macOS'
         working-directory: .
         run: |
-          /usr/bin/make --version | head -1 | grep 'GNU Make 3.81'
+          /usr/bin/make --version | sed -n 1p | grep 'GNU Make 3.81'
           /usr/bin/make help
           /usr/bin/make -n local-build
 
