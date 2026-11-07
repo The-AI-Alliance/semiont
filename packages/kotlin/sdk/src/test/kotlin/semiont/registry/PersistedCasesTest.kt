@@ -264,10 +264,11 @@ private class ClosingWrites(private val scripted: ScriptedSessions, private val 
         val josClient = options.kb.id == KB_A && storedSession(storage, KB_A)?.personKey == JO
         val opened = scripted.session(options)
         if (!josClient) return opened
-        return OpenedSession(opened.session) {
+        val writesAsItCloses = AutoCloseable {
             opened.close()
             storage.set(JO_RESOURCE_ON_A, WRITTEN_CLOSING)
         }
+        return OpenedSession(opened.session, writesAsItCloses) { opened.stopKeeping() }
     }
 }
 
@@ -497,7 +498,11 @@ class PersistedCasesTest {
                 val elsewhere = storage.context()
                 when (val stored = row.getValue("stored")) {
                     is JsonNull -> clearStoredSession(elsewhere, KB_A)
-                    else -> storeSession(elsewhere, KB_A, realm.signIn(stored.jsonObject.textOrNull("personKey"), tokenFor("another"), "r-another"))
+                    else -> when (val person = stored.jsonObject.textOrNull("personKey")) {
+                        // The same person's: the sign-in renewed there, with other tokens.
+                        JO -> keptIn(elsewhere, KB_A).let { kept -> kept.renewed(checkNotNull(kept.held()), tokenFor("another"), "r-another") }
+                        else -> storeSession(elsewhere, KB_A, realm.signIn(person, tokenFor("another"), "r-another"))
+                    }
                 }
             }
             assertEquals(row.getValue("saved").jsonPrimitive.boolean, savedIn(storage), "saved")

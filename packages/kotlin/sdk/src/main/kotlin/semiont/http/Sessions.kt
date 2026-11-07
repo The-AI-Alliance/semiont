@@ -2,6 +2,7 @@ package semiont.http
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -9,6 +10,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import semiont.SemiontClient
 import semiont.channels.BRIDGED_CHANNELS
 import semiont.errors.SessionError
@@ -20,11 +24,9 @@ import semiont.registry.SessionFactoryOptions
 import semiont.registry.SignInOutcome
 import semiont.registry.SignedIn
 import semiont.registry.StoredSession
-import semiont.registry.isKeptIn
 import semiont.registry.keptIn
 import semiont.registry.lastEventIdKey
 import semiont.registry.personKey
-import semiont.registry.storedSession
 import semiont.session.OpenedSession
 import semiont.session.SemiontSession
 import semiont.session.SessionEndReason
@@ -71,48 +73,79 @@ private fun asking(baseUrl: String, http: HttpClient): suspend (String) -> UserR
 }
 
 /**
- * `beneath`, written only while the sign-in of knowledge base `kbId` kept
- * there names the person whose key is `personKey`. Once it does not (the
- * saved sign-in forgotten, however it was, or another sign-in in its place,
- * here or in another context), nothing is written for the rest of its life:
- * what was owed is dropped, so nothing forgetting deleted is put back. A
- * renewal keeps the person, and changes nothing.
+ * What a session's client writes of what it keeps for one person, each write
+ * one step with its check: made only while the sign-in `kept` holds names
+ * that person, read through `kept` before each write, whatever holds it. Once
+ * it does not (the saved sign-in forgotten, however it was, or another sign-in
+ * kept in its place, here or in another context), what was owed is dropped,
+ * and nothing more is written for the rest of the client's life, so nothing
+ * forgetting deleted is put back. A renewal keeps the person, and changes
+ * nothing. The session's own forgetting of its sign-in (`forgetting`) stops
+ * the writes first (`stop`), once the write under way has landed, so none
+ * lands after what it deletes; a registry that closes the session before it
+ * deletes stops them too.
  */
-private class WhileSignedIn(private val beneath: SessionStorage, private val kbId: String, private val personKey: String) : SessionStorage {
-    @Volatile
-    private var signedIn = true
+private class WhileNamed(private val kept: SignInKept) {
+    private val turn = Mutex()
+    private val writing = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    private fun stillSignedIn(): Boolean {
-        if (signedIn && storedSession(beneath, kbId)?.personKey != personKey) signedIn = false
-        return signedIn
+    // Read and written only while `turn` is held.
+    private var dropped = false
+
+    /** `beneath`, written only while `kept`'s sign-in names the person whose key is `personKey`. */
+    fun over(beneath: SessionStorage, personKey: String): SessionStorage = object : SessionStorage {
+        // Begun in this thread: while no other write has the turn and `kept` answers without waiting, as the sign-ins
+        // the SDK keeps do, it is made before the caller goes on, so a client's closing writes what it owes before it
+        // has closed.
+        private fun write(change: () -> Unit) {
+            writing.launch(start = CoroutineStart.UNDISPATCHED) {
+                turn.withLock {
+                    if (!dropped) {
+                        // A sign-in that cannot be read names nobody: nothing more is written, and the failure goes on.
+                        val held = try {
+                            kept.held()
+                        } catch (unread: Exception) {
+                            dropped = true
+                            throw unread
+                        }
+                        if (held?.personKey != personKey) dropped = true
+                    }
+                    if (!dropped) change()
+                }
+            }
+        }
+
+        override fun get(key: String): String? = beneath.get(key)
+
+        override fun set(key: String, value: String) = write { beneath.set(key, value) }
+
+        override fun delete(key: String) = write { beneath.delete(key) }
+
+        override fun update(key: String, change: (String?) -> String?) = write { beneath.update(key, change) }
+
+        override fun subscribe(onChange: (key: String, value: String?) -> Unit): AutoCloseable? = beneath.subscribe(onChange)
     }
 
-    override fun get(key: String): String? = beneath.get(key)
+    /** Stop every write: one under way lands first, and none is made after. */
+    suspend fun stop(): Unit = turn.withLock { dropped = true }
 
-    override fun set(key: String, value: String) {
-        if (stillSignedIn()) beneath.set(key, value)
+    /** `kept`, as the session holds it: its forgetting stops every write before the sign-in is forgotten. */
+    val forgetting: SignInKept = object : SignInKept by kept {
+        override suspend fun forget() {
+            stop()
+            kept.forget()
+        }
     }
-
-    override fun delete(key: String) {
-        if (stillSignedIn()) beneath.delete(key)
-    }
-
-    override fun update(key: String, change: (String?) -> String?) {
-        if (stillSignedIn()) beneath.update(key, change)
-    }
-
-    override fun subscribe(onChange: (key: String, value: String?) -> Unit): AutoCloseable? = beneath.subscribe(onChange)
 }
 
 /**
  * What a session's client keeps in `storage` of knowledge base `kbId` for the
  * person whose key is `personKey`: the stream's places, which ride the
- * caches' writes, and the caches. Where `kept` is the knowledge base's
- * sign-in as `keptIn` keeps it in `storage` too, each write is made only while
- * that sign-in names the person.
+ * caches' writes, and the caches, each write made only while the session's
+ * sign-in names the person (`named`).
  */
-private class KeptFor(storage: SessionStorage, kbId: String, personKey: String, kept: SignInKept) {
-    val places = CoupledBookmarks(if (isKeptIn(kept, storage, kbId)) WhileSignedIn(storage, kbId, personKey) else storage, lastEventIdKey(kbId, personKey))
+private class KeptFor(storage: SessionStorage, kbId: String, personKey: String, named: WhileNamed) {
+    val places = CoupledBookmarks(named.over(storage, personKey), lastEventIdKey(kbId, personKey))
     val persistence = CachePersistence(places.storage, kbId, personKey)
 }
 
@@ -151,7 +184,8 @@ internal suspend fun sessionStarted(
     val token = MutableStateFlow<String?>(null)
     val renewing = Renewing(kept, token, http)
     val keeping = storage?.takeIf { validate }
-    val atStart = keeping?.let { into -> kept.held()?.personKey?.let { person -> KeptFor(into, kb.id, person, kept) } }
+    val named = WhileNamed(kept)
+    val atStart = keeping?.let { into -> kept.held()?.personKey?.let { person -> KeptFor(into, kb.id, person, named) } }
     // The transport's refresher is made before the session that answers it: it waits for that session,
     // and closing the transport ends the wait (SDK-FOLLOW-UPS item 16).
     val made = CompletableDeferred<SemiontSession>()
@@ -178,20 +212,21 @@ internal suspend fun sessionStarted(
         val user = ask(asked)
         val person = personKey(user.did.value)
         if (keeping != null && kept.recordPersonKey(asked, person) && attached.compareAndSet(false, true)) {
-            val late = KeptFor(keeping, kb.id, person, kept)
+            val late = KeptFor(keeping, kb.id, person, named)
             late.places.flushGate = { client.persistenceSettled }
             client.attach(late.persistence)
             transport.keepPlaces(late.places)
         }
         user
     }
-    val session = SemiontSession(kb, client, token, kept, { renewing() }, if (validate) whoIs else null, onAuthFailed, onError)
+    val session = SemiontSession(kb, client, token, named.forgetting, { renewing() }, if (validate) whoIs else null, onAuthFailed, onError)
     made.complete(session)
-    val opened = OpenedSession(session) {
+    val built = AutoCloseable {
         renewing.close()
         content.close()
         transport.close()
     }
+    val opened = OpenedSession(session, built, named::stop)
     try {
         session.start()
     } catch (failure: Throwable) {
@@ -215,10 +250,12 @@ internal suspend fun sessionStarted(
  * stream's place in each scope with it: the next session over the same
  * storage for them shows what was kept at once, and is sent what was recorded
  * since. Where `kept` has no place to record a person (the sign-in store of
- * `semiont login`), nothing is kept. Where `kept` is the knowledge base's
- * sign-in as `keptIn` keeps it in this `storage`, each write is made only
- * while that sign-in names the person: forgetting it deletes what was kept
- * for them, and the client puts none of it back.
+ * `semiont login`), nothing is kept. Each write is made only while the
+ * sign-in `kept` holds names the person, read through `kept` before it: once
+ * that sign-in is forgotten, or another is kept in its place, nothing more is
+ * written. Where `kept` is the knowledge base's sign-in as `keptIn` keeps it
+ * in this `storage`, forgetting it, or keeping a new sign-in in its place,
+ * deletes what was kept for them, and the client puts none of it back.
  * The gateway and the issuer are asked with `http`. Throws `SessionError`
  * (`session.construct-failed`), before anything is asked, for a knowledge
  * base that is not reached over HTTP or whose host is no host's name.

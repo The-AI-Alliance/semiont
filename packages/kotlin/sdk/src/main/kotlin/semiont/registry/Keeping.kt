@@ -20,28 +20,45 @@ private fun writtenOf(session: StoredSession): String = wireJson.encodeToString(
 /** The session stored for a knowledge base; null when none is, or what is stored lacks a member a session has. */
 public fun storedSession(storage: SessionStorage, kbId: String): StoredSession? = storage.get(sessionKey(kbId))?.let(::sessionIn)
 
-/** Store a knowledge base's session, in place of what was stored. */
-public fun storeSession(storage: SessionStorage, kbId: String, session: StoredSession): Unit = storage.set(sessionKey(kbId), writtenOf(session))
+/**
+ * Store a new sign-in as a knowledge base's session, in place of what was
+ * stored. A new sign-in names nobody until its gateway names them, so the one
+ * it replaces is forgotten: what a client kept there for the person that one
+ * named is deleted, as forgetting a saved sign-in does, even when the new one
+ * turns out to be theirs.
+ */
+public fun storeSession(storage: SessionStorage, kbId: String, session: StoredSession): Unit = replaceSignIn(storage, kbId, session) {}
 
 /**
  * Forget a knowledge base's stored session: it is deleted, and, as forgetting
  * a saved sign-in does, so is what a client kept there for the person it
  * named.
  */
-public fun clearStoredSession(storage: SessionStorage, kbId: String): Unit = forgetSignIn(storage, kbId) {}
+public fun clearStoredSession(storage: SessionStorage, kbId: String): Unit = replaceSignIn(storage, kbId, null) {}
 
 /**
- * Forget the sign-in stored for knowledge base `kbId`: it is cleared, `between`
- * is done with what was stored (null when nothing was), and then what was kept
- * there for the person it named is deleted. What `between` closes has closed
- * before anything is deleted. Gives what `between` gave.
+ * Put `signIn` in place of the sign-in stored for knowledge base `kbId`, or
+ * nothing for null, as one step; `between` is done with the sign-in replaced
+ * (null when nothing was stored), and then what was kept there for the person
+ * it named is deleted. What `between` closes has closed before anything is
+ * deleted. Gives what `between` gave. A renewal replaces no sign-in: it keeps
+ * the person, and deletes nothing.
  */
-internal fun <T> forgetSignIn(storage: SessionStorage, kbId: String, between: (StoredSession?) -> T): T {
-    val stored = storedSession(storage, kbId)
-    storage.delete(sessionKey(kbId))
-    val done = between(stored)
-    stored?.personKey?.let { forgetKept(storage, kbId, it) }
+internal inline fun <T> replaceSignIn(storage: SessionStorage, kbId: String, signIn: StoredSession?, between: (StoredSession?) -> T): T {
+    val replaced = swapSignIn(storage, kbId, signIn)
+    val done = between(replaced)
+    replaced?.personKey?.let { forgetKept(storage, kbId, it) }
     return done
+}
+
+/** Put `signIn` in place of the sign-in stored for knowledge base `kbId`, or nothing for null, as one step. Gives the sign-in replaced; null when nothing was stored. */
+internal fun swapSignIn(storage: SessionStorage, kbId: String, signIn: StoredSession?): StoredSession? {
+    var replaced: StoredSession? = null
+    storage.update(sessionKey(kbId)) { stored ->
+        replaced = stored?.let(::sessionIn)
+        signIn?.let(::writtenOf)
+    }
+    return replaced
 }
 
 /**
@@ -74,7 +91,7 @@ private fun heldOf(stored: StoredSession) = HeldSignIn(stored.access, stored.ref
 private fun storedOf(held: HeldSignIn) = StoredSession(held.access, held.refresh, held.clientId, held.tokenEndpoint, held.revocationEndpoint, held.personKey)
 
 /** A knowledge base's sign-in, kept where a registry keeps it. */
-private class KeptIn(val storage: SessionStorage, val kbId: String) : SignInKept {
+private class KeptIn(private val storage: SessionStorage, private val kbId: String) : SignInKept {
     override suspend fun held(): HeldSignIn? = storedSession(storage, kbId)?.let(::heldOf)
 
     override suspend fun keep(signIn: HeldSignIn): Unit = storeSession(storage, kbId, storedOf(signIn))
@@ -132,9 +149,7 @@ private class KeptIn(val storage: SessionStorage, val kbId: String) : SignInKept
  * under `sessionKey(kbId)`. A renewal is written as one step against what is
  * stored then, so one made meanwhile by another session or context stands.
  * Forgetting it, as forgetting any saved sign-in, deletes what was kept in
- * `storage` of the knowledge base for the person it named.
+ * `storage` of the knowledge base for the person it named, and so does
+ * keeping a new sign-in in its place.
  */
 public fun keptIn(storage: SessionStorage, kbId: String): SignInKept = KeptIn(storage, kbId)
-
-/** Whether `kept` is knowledge base `kbId`'s sign-in as `keptIn` keeps it in `storage`, this very storage. */
-internal fun isKeptIn(kept: SignInKept, storage: SessionStorage, kbId: String): Boolean = kept is KeptIn && kept.storage === storage && kept.kbId == kbId

@@ -54,7 +54,8 @@ internal fun cacheKey(kbId: String, personKey: String, query: String): String = 
 /**
  * Delete what a client kept of knowledge base `kbId` for the person whose key
  * is `personKey`: every persisted query's key and the stream's places. What
- * forgetting a saved sign-in that named them deletes.
+ * forgetting a saved sign-in that named them deletes, whether it is cleared
+ * or a new sign-in is kept in its place.
  */
 internal fun forgetKept(storage: SessionStorage, kbId: String, personKey: String) {
     PERSISTED_QUERIES.forEach { storage.delete(cacheKey(kbId, personKey, it.wire)) }

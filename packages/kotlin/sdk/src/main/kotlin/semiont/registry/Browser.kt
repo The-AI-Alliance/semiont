@@ -164,6 +164,12 @@ private class Live(val opened: OpenedSession, val signals: SessionSignals, val r
         opened.close()
         signals.close()
     }
+
+    /** Close it, then wait until its client writes nothing more of what it keeps: what comes before deleting what forgetting a saved sign-in deletes. */
+    suspend fun end() {
+        close()
+        opened.stopKeeping()
+    }
 }
 
 /**
@@ -302,9 +308,9 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
      */
     public suspend fun removeKb(kbId: String) {
         val wasActive = activeKbIdHeld.value == kbId
-        val rest = forgetSignIn(storage, kbId) {
+        val rest = replaceSignIn(storage, kbId, null) {
             forgetOpenOf(kbId)
-            if (wasActive) takeSession()?.close()
+            if (wasActive) takeSession()?.end()
             synchronized(lock) { kbsHeld.value.filter { it.id != kbId }.also(::putKbs) }
         }
         if (wasActive) setActive(rest.firstOrNull()?.id)
@@ -331,12 +337,18 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     /** `setActiveKb`, for Java. */
     public fun setActiveKbFuture(kbId: String?): CompletableFuture<Unit> = scope.futureOf { setActive(kbId) }
 
-    /** Keep new tokens for a registered knowledge base and bring its session up on them. A session it already had is closed and replaced. */
+    /**
+     * Keep new tokens for a registered knowledge base and bring its session up
+     * on them. A session it already had is closed and replaced. The new
+     * sign-in names nobody until its gateway names them, so, as forgetting a
+     * saved sign-in does, what a client kept there for the person the replaced
+     * one named is deleted: after the session it already had closed, so
+     * nothing it wrote as it closed is left.
+     */
     public suspend fun signIn(kbId: String, session: StoredSession) {
         if (closing) return
-        storeSession(storage, kbId, session)
         // A session it already has is on the old tokens: it is closed, and the one built next reads the new ones.
-        if (activeKbIdHeld.value == kbId) takeSession()?.close()
+        replaceSignIn(storage, kbId, session) { if (activeKbIdHeld.value == kbId) takeSession()?.end() }
         setActive(kbId)
     }
 
@@ -390,12 +402,12 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
      */
     public suspend fun signOut(kbId: String) {
         if (closing) return
-        forgetSignIn(storage, kbId) { stored ->
+        replaceSignIn(storage, kbId, null) { stored ->
             // The sign-out is the local act: an issuer that cannot be reached does not keep anyone in a session they asked to end.
             if (stored != null) scope.launch { factory.revoke(stored) }
             // Said again, so whoever shows each knowledge base's status reads it anew.
             synchronized(lock) { kbsHeld.raise(kbsHeld.value) }
-            if (activeKbIdHeld.value == kbId) takeSession()?.close()
+            if (activeKbIdHeld.value == kbId) takeSession()?.end()
         }
     }
 

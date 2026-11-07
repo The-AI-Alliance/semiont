@@ -142,7 +142,8 @@ public class ScriptedSessions @JvmOverloads constructor(private val answer: Answ
             options.onError,
         )
         session.start()
-        return OpenedSession(session) { transport.close() }
+        // Its client keeps nothing, so no write is ever under way to wait for.
+        return OpenedSession(session, transport) {}
     }
 
     override suspend fun revoke(stored: StoredSession) {
