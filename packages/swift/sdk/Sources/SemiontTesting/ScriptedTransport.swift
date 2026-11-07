@@ -18,6 +18,8 @@ public struct RequestAttempt: Sendable {
 }
 
 /// A transport for composing SDK clients without a network. Faults are consumed in request order.
+/// It keeps no deadline: a dropped reply never comes, and the bus that asked fails the request at
+/// its own.
 public final class ScriptedTransport: Transport {
   private struct State: Sendable {
     var attempts: [RequestAttempt] = []
@@ -32,18 +34,15 @@ public final class ScriptedTransport: Transport {
   private let errors = Broadcast<TransportError>()
   private let wire = Mutex(State())
   private let schedule: [FaultAction]
-  private let timeout: Duration
   let clock: any Clock<Duration>
   private let respond: Respond
 
   public init(
     baseUrl: String = "http://localhost:4000", schedule: [FaultAction] = [],
-    timeout: Duration = .milliseconds(100), clock: any Clock<Duration> = ContinuousClock(),
-    respond: Respond? = nil
+    clock: any Clock<Duration> = ContinuousClock(), respond: Respond? = nil
   ) {
     self.baseUrl = baseUrl
     self.schedule = schedule
-    self.timeout = timeout
     self.clock = clock
     self.respond =
       respond ?? { operation, _ in
@@ -92,7 +91,7 @@ public final class ScriptedTransport: Transport {
     return 1
   }
 
-  public func request(operation: String, payload: [String: JSONValue], timeoutMs: Int?) async throws
+  public func request(operation: String, payload: [String: JSONValue]) async throws
     -> [String: JSONValue]
   {
     try Task.checkCancellation()
@@ -104,17 +103,19 @@ public final class ScriptedTransport: Transport {
       wire.attempts.append(RequestAttempt(operation: operation, payload: payload, action: action))
       let reply = wire.queued[operation]?.first
       if reply != nil { wire.queued[operation]?.removeFirst() }
-      let task = Task { [clock, timeout, respond, events] in
+      let task = Task { [clock, respond, events] in
         switch action {
         case .rejectEmit:
           throw BusRequestError(.busPeerUnavailable, "The scripted wire rejected \(operation)")
         case .dropReply:
-          try await clock.sleep(for: timeoutMs.map { .milliseconds($0) } ?? timeout)
-          throw BusRequestError(.busTimeout, "The scripted wire dropped \(operation)")
+          let never = SharedWait<Void>()
+          try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { never.install($0) }
+          } onCancel: {
+            never.resolve(.failure(CancellationError()))
+          }
         case .delay(let duration):
-          let limit = timeoutMs.map { Duration.milliseconds($0) } ?? timeout
-          try await clock.sleep(for: min(limit, duration))
-          if duration >= limit { throw BusRequestError(.busTimeout, "\(operation) timed out") }
+          try await clock.sleep(for: duration)
         case .deliver, .duplicateReply: break
         }
         try Task.checkCancellation()
