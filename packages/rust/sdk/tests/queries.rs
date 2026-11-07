@@ -873,6 +873,7 @@ fn updated_on_its_scope() -> Frame {
         correlation_id: None,
         scope: Some(as_id("res-1")),
         trace: None,
+        stream_id: None,
     }
 }
 

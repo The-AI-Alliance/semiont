@@ -225,7 +225,6 @@ async fn serve(
         channels: Some(channels),
         http: http.clone(),
         timing: Timing::default(),
-        bookmarks: None,
         random: None,
     });
     let mut ordered = Vec::new();
@@ -294,7 +293,6 @@ async fn served_at(gateway: &str, http: &reqwest::Client) -> Result<String, Stri
         channels: Some(Vec::new()),
         http: http.clone(),
         timing: Timing::default(),
-        bookmarks: None,
         random: None,
     });
     let metadata = asking.get_protected_resource_metadata().await;

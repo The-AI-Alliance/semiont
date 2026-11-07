@@ -115,6 +115,7 @@ let opened = session_from_kept(SessionFromKept {
     ),
     kept,
     validate: true,
+    storage: None,
     on_auth_failed: None,
     on_error: None,
     http,
@@ -154,6 +155,7 @@ let opened = session_from_kept(SessionFromKept {
     kb,
     kept,
     validate: true,
+    storage: None,
     on_auth_failed: None,
     on_error: None,
     http,
@@ -195,7 +197,6 @@ let client = client(
         channels: None,
         http,
         timing: Timing::default(),
-        bookmarks: None,
         random: None,
     },
     ClientOptions::default(),
@@ -220,7 +221,6 @@ while let Some(event) = completed.next().await {
 | `channels` | The global channels the stream names. `None` is every channel a client hears. A process that awaits only some operations names their reply channels, and is not sent every other client's replies. |
 | `http` | The application's `reqwest::Client`. |
 | `timing` | The deadlines. `Timing::default()` is the ones every Semiont SDK keeps. |
-| `bookmarks` | Where the stream's place is kept across restarts. With none, the stream begins each life at the present. |
 | `random` | What the jitter of the stream's reconnects and of each emit's retries is drawn from. With none, the system's source. |
 
 **A worker** is a daemon whose agent claims jobs from the knowledge base's
@@ -271,7 +271,6 @@ let client = client(
         channels: Some(channels),
         http,
         timing: Timing::default(),
-        bookmarks: None,
         random: None,
     },
     ClientOptions::default(),
@@ -482,7 +481,7 @@ credential goes by (`token`, `password`, `apiKey` and the rest of the list in
 | Module | What it holds |
 |---|---|
 | `client` | `client(config, options)`: a `SemiontClient` over this transport |
-| `transport` | `HttpTransport`, `HttpTransportConfig`, `Timing`, `Bookmarks` |
+| `transport` | `HttpTransport`, `HttpTransportConfig`, `Timing` |
 | `content` | `HttpContentTransport` |
 | `service_account`, `agent` | A service's sign-in: `Credential` (`SecretCredential` or `KeyCredential`), `private_key_from_pem`, `ServiceToken`, `AgentToken` |
 | `client_assertion` | The assertion a key's grant carries: the key's thumbprint, the header and claims, signed RS256 |

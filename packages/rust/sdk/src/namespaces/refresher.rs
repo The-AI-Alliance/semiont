@@ -14,21 +14,28 @@
 //! An event acts only on a key its cache holds, and the refetches one key is
 //! asked for inside a window are one refetch
 //! (protocol/contract/CACHE-SEMANTICS.md B12–B13b, B19, B20).
+//!
+//! The refresher is also where a frame's place is noted, in the stream's
+//! places coupled to the client (`crate::resume`): only once it has taken
+//! the frame's event in, so a place is never noted while the refetch its
+//! event asks for is neither owed nor in flight (B17).
 
 use super::browse::{self, BrowseNamespace, WholeKey, invalidate_engines};
 use super::gather::{GatherNamespace, ReferencedBy};
 use super::match_::{MatchNamespace, ResourceSearch};
 use crate::bus::held_to;
 use crate::cache::{Cache, CacheKey, CacheValue};
+use crate::channels::RESOURCE_SCOPED_CHANNELS;
 use crate::client::Links;
 use crate::locked;
 use crate::refresh::{CacheQuery, CacheRefresh, Reach, RefreshTrigger, RefreshWhen};
+use crate::resume::CoupledBookmarks;
 use crate::transport::{ConnectionState, Frame, FrameRefusal, Lagged};
 use crate::types::{Annotation, AnnotationId, MatchResourcesResponse, ResourceId};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 use tokio::sync::watch;
 use tokio::task::{AbortHandle, JoinSet};
@@ -47,6 +54,12 @@ struct Window {
 /// a window; any more inside it are owed, and run as one when it closes,
 /// which opens the next. So a storm of events costs a refetch per key per
 /// window, and the last event is always reflected.
+///
+/// A refetch is started under the lock of the windows, so whoever reads
+/// what is owed (`owes`) waits until a refetch a closing window gave up has
+/// started, and is never told that nothing is owed while it is neither
+/// owed nor in flight (B17). Starting a refetch only marks its key and
+/// spawns its fetch: it reads no window, and writes nothing.
 struct Windows {
     lasting: Duration,
     /// `None` once disposed.
@@ -59,24 +72,26 @@ impl Windows {
         let Some(windows) = open.as_mut() else {
             return;
         };
-        if let Some(window) = windows.get_mut(&key) {
-            window.owed = Some(refetch);
-            return;
+        match windows.get_mut(&key) {
+            Some(window) => window.owed = Some(refetch),
+            None => self.open_window(windows, key, refetch),
         }
+    }
+
+    /// Open `key`'s window, and start `refetch`, with `windows` locked.
+    fn open_window(
+        self: &Arc<Self>,
+        windows: &mut HashMap<String, Window>,
+        key: String,
+        refetch: Owed,
+    ) {
         let these = Arc::downgrade(self);
         let lasting = self.lasting;
         let of = key.clone();
         let closing = tokio::spawn(async move {
             tokio::time::sleep(lasting).await;
-            let Some(these) = these.upgrade() else {
-                return;
-            };
-            let owed = locked(&these.open)
-                .as_mut()
-                .and_then(|windows| windows.remove(&of))
-                .and_then(|window| window.owed);
-            if let Some(owed) = owed {
-                these.run(of, owed);
+            if let Some(these) = these.upgrade() {
+                these.close(&of);
             }
         })
         .abort_handle();
@@ -87,8 +102,19 @@ impl Windows {
                 closing,
             },
         );
-        drop(open);
         refetch();
+    }
+
+    /// `key`'s window closes: what it owed starts at once, and opens the
+    /// next window, under the one lock.
+    fn close(self: &Arc<Self>, key: &str) {
+        let mut open = locked(&self.open);
+        let Some(windows) = open.as_mut() else {
+            return;
+        };
+        if let Some(owed) = windows.remove(key).and_then(|window| window.owed) {
+            self.open_window(windows, key.to_owned(), owed);
+        }
     }
 
     /// Whether a window holds a refetch it has not yet run.
@@ -172,18 +198,19 @@ fn row(trigger: RefreshTrigger, when: Option<RefreshWhen>) -> &'static CacheRefr
     }
 }
 
-/// What a frame on `trigger`'s `channel` names, by the ways of its row. A
-/// split channel's event is enriched when the member its enriched row
-/// carries is present.
-fn subject(
-    trigger: RefreshTrigger,
-    channel: &str,
-    frame: Result<Result<Frame, FrameRefusal>, Lagged>,
-) -> Result<Subject, Unreadable> {
-    let Ok(Ok(frame)) = frame else {
-        return Err(Unreadable);
-    };
-    let event = held_to(channel, frame.payload).map_err(|_| Unreadable)?;
+/// The trigger of the events of `channel`, when the table names it.
+fn trigger_of(channel: &str) -> Option<RefreshTrigger> {
+    RefreshTrigger::ALL
+        .iter()
+        .find(|trigger| trigger.channel() == Some(channel))
+        .copied()
+}
+
+/// What a frame of `trigger` names, by the ways of its row. A split
+/// channel's event is enriched when the member its enriched row carries is
+/// present.
+fn subject(trigger: RefreshTrigger, frame: Frame) -> Result<Subject, Unreadable> {
+    let event = held_to(&frame.channel, frame.payload).map_err(|_| Unreadable)?;
     let enriched = trigger
         .rows()
         .iter()
@@ -210,10 +237,31 @@ fn subject(
 pub(crate) struct Refresher {
     browse: Arc<browse::Live>,
     referenced_by: Cache<ResourceId, Vec<ReferencedBy>>,
-    searches: Cache<ResourceSearch, MatchResourcesResponse>,
+    matched_resources: Cache<ResourceSearch, MatchResourcesResponse>,
     windows: Arc<Windows>,
-    /// What listens for each trigger, until the refresher is disposed.
+    /// The stream's places of the client, once they are coupled to it
+    /// (`crate::resume::CoupledBookmarks::couple_to`): the place a frame
+    /// brings its scope to is noted there once its event has been taken in.
+    places: OnceLock<CoupledBookmarks>,
+    /// What listens for the stream's reopening and for the events, until the
+    /// refresher is disposed.
     listening: Mutex<JoinSet<()>>,
+}
+
+/// The channels whose frames the refresher reads: each one the table names,
+/// and each one a resource's scope carries, whose frames bring their scope
+/// to a place whether or not the table names their channel.
+fn heard_channels() -> Vec<&'static str> {
+    let mut channels: Vec<&'static str> = RefreshTrigger::ALL
+        .iter()
+        .filter_map(|trigger| trigger.channel())
+        .collect();
+    for channel in RESOURCE_SCOPED_CHANNELS {
+        if !channels.contains(channel) {
+            channels.push(channel);
+        }
+    }
+    channels
 }
 
 impl Refresher {
@@ -228,11 +276,12 @@ impl Refresher {
         let refresher = Arc::new(Refresher {
             browse: browse.live.clone(),
             referenced_by: gather.referenced_by.clone(),
-            searches: match_.searches.clone(),
+            matched_resources: match_.matched_resources.clone(),
             windows: Arc::new(Windows {
                 lasting: links.timing.invalidation_window,
                 open: Mutex::new(Some(HashMap::new())),
             }),
+            places: OnceLock::new(),
             listening: Mutex::new(JoinSet::new()),
         });
         refresher.listen(links);
@@ -240,35 +289,66 @@ impl Refresher {
     }
 
     /// Listen for every trigger of the refresh table: the stream's reopening,
-    /// and the events of each channel the table names.
+    /// and the events of the channels it reads (`heard_channels`), in the
+    /// order they were published, so the places they bring their scopes to
+    /// are noted in that order too.
     fn listen(self: &Arc<Self>, links: &Links) {
         self.on_reopening(links.transport.state());
-        for trigger in RefreshTrigger::ALL {
-            if let Some(channel) = trigger.channel() {
-                self.on(links, *trigger, channel);
-            }
-        }
-    }
-
-    /// Apply `trigger`'s row to what each event on its `channel` names; and,
-    /// to one that cannot be read, the row of an unreadable event. A missed
-    /// event is one: something changed and nothing says what.
-    fn on(self: &Arc<Self>, links: &Links, trigger: RefreshTrigger, channel: &'static str) {
-        let mut frames = links.own.frames(channel);
+        let mut frames = links.own.frames_among(&heard_channels());
         let refresher = Arc::downgrade(self);
         locked(&self.listening).spawn(async move {
-            while let Some(frame) = frames.next().await {
+            while let Some(heard) = frames.next().await {
                 let Some(refresher) = refresher.upgrade() else {
                     return;
                 };
-                match subject(trigger, channel, frame) {
-                    Ok(subject) => refresher.refresh(trigger, &subject),
-                    Err(Unreadable) => {
-                        refresher.refresh(RefreshTrigger::Unreadable, &Subject::default());
-                    }
-                }
+                refresher.heard(heard);
             }
         });
+    }
+
+    /// Apply the row of a frame's channel to what its event names; to one
+    /// that cannot be read, the row of an unreadable event. A missed event
+    /// is one: something changed and nothing says what. Then the place the
+    /// frame brings its scope to is noted, its event taken in: the fetch it
+    /// started is in flight, or the refetch it asked for is owed (B17). A
+    /// refusal on a channel the table does not name changes nothing held.
+    fn heard(&self, heard: Result<Result<Frame, FrameRefusal>, Lagged>) {
+        let frame = match heard {
+            Ok(Ok(frame)) => frame,
+            Ok(Err(refusal)) => {
+                if trigger_of(&refusal.channel).is_some() {
+                    self.refresh(RefreshTrigger::Unreadable, &Subject::default());
+                }
+                return;
+            }
+            Err(Lagged(_)) => {
+                self.refresh(RefreshTrigger::Unreadable, &Subject::default());
+                return;
+            }
+        };
+        let stream_id = frame.stream_id.clone();
+        if let Some(trigger) = trigger_of(&frame.channel) {
+            match subject(trigger, frame) {
+                Ok(subject) => self.refresh(trigger, &subject),
+                Err(Unreadable) => {
+                    self.refresh(RefreshTrigger::Unreadable, &Subject::default());
+                }
+            }
+        }
+        if let (Some(at), Some(places)) = (stream_id, self.places.get()) {
+            places.save(&at.scope, &at.event_id);
+        }
+    }
+
+    /// Note the places of each frame taken in from now on in `places`. A
+    /// refresher whose places are coupled already keeps them.
+    pub(crate) fn couple(&self, places: CoupledBookmarks) {
+        let _ = self.places.set(places);
+    }
+
+    /// The places coupled to the client, once they are.
+    pub(crate) fn places(&self) -> Option<&CoupledBookmarks> {
+        self.places.get()
     }
 
     /// B13: the stream is open again having left `Open`, which only a drop
@@ -393,8 +473,8 @@ impl Refresher {
             }
             // An event does not say which lists it changes, nor which
             // searches would now find its resource.
-            CacheQuery::Resources => self.all_again(&browse.lists, query.name()),
-            CacheQuery::MatchedResources => self.all_again(&self.searches, query.name()),
+            CacheQuery::Resources => self.all_again(&browse.resources, query.name()),
+            CacheQuery::MatchedResources => self.all_again(&self.matched_resources, query.name()),
             CacheQuery::EntityTypes => {
                 self.again(&browse.entity_types, WholeKey, query.name().to_owned());
             }
@@ -438,10 +518,6 @@ mod tests {
     use super::*;
     use std::path::Path;
 
-    /// The queries whose `value` in client/refresh.json waits on a ruling:
-    /// the census below holds them to nothing until it is made.
-    const WAITING: &[&str] = &["engines"];
-
     /// The last part of a path: `ResourceDescriptor` of
     /// `semiont::types::ResourceDescriptor`.
     fn last_part(path: &str) -> &str {
@@ -482,9 +558,9 @@ mod tests {
             CacheQuery::ReferencedBy => {
                 held::<Refresher, _, _>(|refresher| &refresher.referenced_by)
             }
-            CacheQuery::Resources => held::<browse::Live, _, _>(|live| &live.lists),
+            CacheQuery::Resources => held::<browse::Live, _, _>(|live| &live.resources),
             CacheQuery::MatchedResources => {
-                held::<Refresher, _, _>(|refresher| &refresher.searches)
+                held::<Refresher, _, _>(|refresher| &refresher.matched_resources)
             }
             CacheQuery::EntityTypes => held::<browse::Live, _, _>(|live| &live.entity_types),
             CacheQuery::TagSchemas => held::<browse::Live, _, _>(|live| &live.tag_schemas),
@@ -556,18 +632,9 @@ mod tests {
             .collect();
         let ours: Vec<&str> = CacheQuery::ALL.iter().map(|query| query.name()).collect();
         assert_eq!(ours, named, "the queries");
-        for waiting in WAITING {
-            assert!(
-                named.contains(waiting),
-                "{waiting} waits on a ruling, and is no query of the table"
-            );
-        }
 
         let mut wrong = Vec::new();
         for (row, query) in rows.iter().zip(CacheQuery::ALL) {
-            if WAITING.contains(&query.name()) {
-                continue;
-            }
             let value = named_by(&row["value"], &within);
             let cached = value_of(*query);
             if cached != value {

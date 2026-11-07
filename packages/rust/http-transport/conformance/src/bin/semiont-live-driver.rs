@@ -203,6 +203,13 @@ impl Live {
             }
         }
         let (token, tokens) = watch::channel(Some(text(args, "token")?.to_owned()));
+        let person = person_key(CONFORMANCE_PERSON);
+        let places = (args.get("persist") == Some(&Value::Bool(true))).then(|| {
+            CoupledBookmarks::new(
+                self.storage.clone(),
+                &last_event_id_key(CONFORMANCE_KB, &person),
+            )
+        });
         let client = Arc::new(client(
             HttpTransportConfig {
                 base_url: text(args, "baseUrl")?.to_owned(),
@@ -211,25 +218,20 @@ impl Live {
                 channels: None,
                 http: reqwest::Client::new(),
                 timing: wire,
-
-                bookmarks: None,
                 random: None,
             },
             ClientOptions {
                 timing,
-                cache_persistence: (args.get("persist") == Some(&Value::Bool(true))).then(|| {
-                    let person = person_key(CONFORMANCE_PERSON);
-                    CachePersistence {
-                        places: CoupledBookmarks::new(
-                            self.storage.clone(),
-                            &last_event_id_key(CONFORMANCE_KB, &person),
-                        ),
-                        kb_id: CONFORMANCE_KB.to_owned(),
-                        person_key: person,
-                    }
+                cache_persistence: places.as_ref().map(|places| CachePersistence {
+                    storage: places.storage(),
+                    kb_id: CONFORMANCE_KB.to_owned(),
+                    person_key: person,
                 }),
             },
         ));
+        if let Some(places) = &places {
+            places.couple_to(&client);
+        }
 
         locked(&self.observers).clear();
         *locked(&self.reported) = None;

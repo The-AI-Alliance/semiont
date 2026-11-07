@@ -31,6 +31,8 @@
 //!   and the reopening of a dropped stream do to a client's cache, and where
 //!   in each event its row finds what the event names (client/refresh.json,
 //!   its triggers held to the registry's channels);
+//! - `live_kept.rs`: the cache of each query client/refresh.json persists,
+//!   as the browse namespace holds it, in the field named after its query;
 //! - `media_types.rs`: the media types a knowledge base admits and what the
 //!   system can do with each (media-types/registry.json);
 //! - `utf8_labels.rs`: the labels of UTF-8 in the Encoding Standard, which
@@ -41,7 +43,7 @@
 //!   refuses with the `charsets` feature (text/encoding-cases.json).
 
 use semiont_codegen::bundle::{Bundle, draft7_definitions, read_json};
-use semiont_codegen::types::{Generation, generate, pascal};
+use semiont_codegen::types::{Generation, generate, pascal, snake};
 use serde_json::Value;
 use std::fmt::Write as _;
 use std::fs;
@@ -301,6 +303,11 @@ fn main() {
         ),
     )
     .expect("cannot write cache_refresh.rs");
+    fs::write(
+        out.join("live_kept.rs"),
+        live_kept(&read_json(&specs.join("client/refresh.json"))),
+    )
+    .expect("cannot write live_kept.rs");
     fs::write(
         out.join("media_types.rs"),
         media_types(&read_json(&specs.join("media-types/registry.json"))),
@@ -651,6 +658,45 @@ fn media_types(table: &Value) -> String {
     code
 }
 
+/// The names of the queries the refresh table persists, in its order.
+fn persisted_queries(table: &Value) -> Vec<&str> {
+    let mut persisted = Vec::new();
+    for query in list(&table["queries"], "queries") {
+        let name = text(query, "name", "a query");
+        match &query["persisted"] {
+            Value::Null => {}
+            Value::Bool(true) => persisted.push(name),
+            other => panic!("{name}: persisted is {other}, which is neither true nor absent"),
+        }
+    }
+    persisted
+}
+
+/// The cache of each query the refresh table persists, as the browse
+/// namespace's `Live` holds it: in the field named after the query. A
+/// persisted query with no such field, or one whose cache cannot be kept,
+/// fails to compile.
+fn live_kept(table: &Value) -> String {
+    let persisted = persisted_queries(table);
+    let mut code =
+        String::from("// Generated from protocol/specs/src/client/refresh.json; do not edit.\n");
+    let _ = writeln!(
+        code,
+        "impl Live {{\n    /// The cache of each query protocol/specs/src/client/refresh.json persists, in the table's order.\n    fn kept(&self) -> [(CacheQuery, &dyn Kept); {}] {{\n        [",
+        persisted.len()
+    );
+    for name in persisted {
+        let _ = writeln!(
+            code,
+            "            (CacheQuery::{}, &self.{}),",
+            pascal(name),
+            snake(name)
+        );
+    }
+    code.push_str("        ]\n    }\n}\n");
+    code
+}
+
 /// The refresh table as its queries, its triggers, which of them are
 /// `channels` of the registry, and each trigger's rows, their ways split into
 /// the names of their members. The table's own reader
@@ -678,15 +724,8 @@ fn cache_refresh(table: &Value, channels: &[&str]) -> String {
         let _ = writeln!(code, "        CacheQuery::{},", pascal(name));
     }
     code.push_str("    ];\n\n    /// The queries whose answers a client keeps across its lives, for the person signed in, in the table's order.\n    pub const PERSISTED: &'static [CacheQuery] = &[\n");
-    for query in list(&table["queries"], "queries") {
-        let name = text(query, "name", "a query");
-        match &query["persisted"] {
-            Value::Null => {}
-            Value::Bool(true) => {
-                let _ = writeln!(code, "        CacheQuery::{},", pascal(name));
-            }
-            other => panic!("{name}: persisted is {other}, which is neither true nor absent"),
-        }
+    for name in persisted_queries(table) {
+        let _ = writeln!(code, "        CacheQuery::{},", pascal(name));
     }
     code.push_str("    ];\n\n    /// The query's name, as the table and every SDK spell it.\n    pub const fn name(self) -> &'static str {\n        match self {\n");
     for name in &queries {

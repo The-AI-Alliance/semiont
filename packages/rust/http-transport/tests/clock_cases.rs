@@ -477,7 +477,6 @@ async fn over_a_gateway(
         channels: None,
         http: http(),
         timing: Timing::default(),
-        bookmarks: None,
         random: Some(lowest()),
     }));
     (transport, network)
@@ -1089,6 +1088,7 @@ fn job_follower(_: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
                     correlation_id: None,
                     scope: None,
                     trace: None,
+                    stream_id: None,
                 });
                 async {}.boxed_local()
             })),

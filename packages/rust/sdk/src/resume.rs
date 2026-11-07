@@ -6,11 +6,13 @@
 //! **The place may lag the caches and never leads them.** A place kept
 //! ahead of a cache would have the next client resume past an event the
 //! cache it rehydrates never took in. So a place is not written when it is
-//! reached. It is remembered, and written with the next write of a cache,
-//! and only when the gate says the caches are at rest: no kept cache is
-//! still fetching or owes a save, and no refetch an event asked for is still
-//! owed, so every one has taken in the event the place names. A place that
-//! is not written is only late, which costs a replay.
+//! reached. The places are coupled to a client (`CoupledBookmarks::couple_to`),
+//! which notes each one once it has taken in the event that reached it, and
+//! a place noted is written with the next write of a cache, and only while
+//! the client is at rest: no kept cache is still fetching or owes a save,
+//! and no refetch an event asked for is still owed, so every one has taken
+//! in the event the place names. A place that is not written is only late,
+//! which costs a replay.
 //!
 //! What is kept is protocol/specs/src/session/stored.json's `lastEventIds`:
 //! a JSON object from a scope, a resource's id, to the id of the last
@@ -25,6 +27,7 @@
 //! something is, since closing drops it. A place noted after that is of an
 //! event whose refetch closing drops, and is not kept.
 
+use crate::client::SemiontClient;
 use crate::locked;
 use crate::required::{fault_of, schema};
 use crate::storage::{SessionStorage, StorageChange, StorageSubscription};
@@ -148,16 +151,27 @@ impl CoupledBookmarks {
         }
     }
 
-    /// Say when the caches are at rest: no kept cache is fetching or owes a
-    /// save, and no refetch an event asked for is owed. With no gate every
-    /// write of a cache carries what is remembered.
-    pub fn set_flush_gate(&self, at_rest: impl Fn() -> bool + Send + Sync + 'static) {
-        *locked(&self.coupling.gate) = Some(Box::new(at_rest));
+    /// Couple the places to `client`: it notes each place once it has taken
+    /// in the event that reached it, a place noted rides a write of a cache
+    /// only while the client is at rest (`SemiontClient::persistence_settled`),
+    /// and the client's close takes the places once. A client that is gone
+    /// is at rest for nobody, so nothing more is written. Places not coupled
+    /// to a client ride every write of a cache. A client coupled to places
+    /// already keeps them.
+    pub fn couple_to(&self, client: &Arc<SemiontClient>) {
+        let at_rest = Arc::downgrade(client);
+        *locked(&self.coupling.gate) = Some(Box::new(move || {
+            at_rest
+                .upgrade()
+                .is_some_and(|client| client.persistence_settled())
+        }));
+        client.couple(self.clone());
     }
 
-    /// The storage to give the caches: what they write goes to the storage
-    /// beneath, and carries the places with it.
-    pub(crate) fn storage(&self) -> Arc<dyn SessionStorage> {
+    /// The storage to give the caches (`crate::client::CachePersistence`):
+    /// what they write goes to the storage beneath, and carries the places
+    /// with it.
+    pub fn storage(&self) -> Arc<dyn SessionStorage> {
         Arc::new(Carrying(self.coupling.clone()))
     }
 }

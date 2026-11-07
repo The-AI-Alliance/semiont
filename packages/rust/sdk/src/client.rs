@@ -28,9 +28,10 @@ use crate::namespaces::{
     YieldNamespace,
 };
 use crate::resume::CoupledBookmarks;
+use crate::storage::SessionStorage;
 use crate::timing::{BUS_REQUEST_TIMEOUT, INVALIDATION_WINDOW, JOB_SILENCE, JOB_STATUS_POLL};
 use crate::transport::{ConnectionState, ContentTransport, Envelope, GatewayOperations, Transport};
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::watch;
 
@@ -61,13 +62,15 @@ impl Default for ClientTiming {
 
 /// Where a client keeps the queries protocol/specs/src/client/refresh.json
 /// marks `persisted`, so the next client of the same person on the same
-/// knowledge base shows them at once: the stream's places, whose storage the
-/// caches are written through so that their writes carry the places, and the
-/// knowledge base's id and the person's key (`crate::session::person_key`),
-/// under which each query is kept (`crate::session::cache_key`).
+/// knowledge base shows them at once: the storage the caches are written
+/// to, and the knowledge base's id and the person's key
+/// (`crate::session::person_key`), under which each query is kept
+/// (`crate::session::cache_key`). The storage of the stream's places coupled
+/// to the client (`CoupledBookmarks::storage`, `CoupledBookmarks::couple_to`)
+/// has the caches' writes carry the places.
 #[derive(Clone)]
 pub struct CachePersistence {
-    pub places: CoupledBookmarks,
+    pub storage: Arc<dyn SessionStorage>,
     pub kb_id: String,
     pub person_key: String,
 }
@@ -139,11 +142,10 @@ pub struct SemiontClient {
     /// The bus over the transport.
     wire: Bus,
     own: EventBus,
-    /// What keeps the queries of `browse`, `gather` and `match_` true.
+    /// What keeps the queries of `browse`, `gather` and `match_` true, and
+    /// notes each place the stream reaches in the places coupled to the
+    /// client.
     refresher: Arc<Refresher>,
-    /// The stream's places, which ride the writes of the kept caches: the
-    /// persistence's the client was built with, or was given later.
-    places: OnceLock<CoupledBookmarks>,
     /// The vocabulary: what kinds of things exist.
     pub frame: FrameNamespace,
     /// Reads, and this viewer's own signals.
@@ -201,10 +203,6 @@ impl SemiontClient {
             wire,
             own,
             refresher: Refresher::new(&links, &browse, &gather, &match_),
-            places: match options.cache_persistence {
-                Some(persistence) => OnceLock::from(persistence.places),
-                None => OnceLock::new(),
-            },
             frame: FrameNamespace::new(links.clone()),
             browse,
             mark: MarkNamespace::new(links.clone()),
@@ -269,10 +267,15 @@ impl SemiontClient {
     /// it is. What a session does once the gateway names the person its
     /// token is (protocol/contract/CACHE-SEMANTICS.md, B17).
     pub fn attach_persistence(&self, persistence: &CachePersistence) {
-        if self.places.set(persistence.places.clone()).is_err() {
-            return;
-        }
         self.browse.attach_persistence(persistence);
+    }
+
+    /// Note the stream's places in `places` from now on, each once the
+    /// client has taken in the event that reached it, and have the client's
+    /// close take them (`CoupledBookmarks::couple_to`). A client coupled to
+    /// places already keeps them.
+    pub(crate) fn couple(&self, places: CoupledBookmarks) {
+        self.refresher.couple(places);
     }
 
     /// Write nothing more of what the client keeps, for the rest of its
@@ -296,7 +299,7 @@ impl SemiontClient {
     pub async fn close(&self) {
         // Before anything is disposed: disposing the refresher clears what
         // it owed, and disposing a cache drops its fetch in flight.
-        if let Some(places) = self.places.get() {
+        if let Some(places) = self.refresher.places() {
             places.close(|| !self.refresher.owes_a_refetch() && !self.browse.kept_fetching());
         }
         self.refresher.dispose();

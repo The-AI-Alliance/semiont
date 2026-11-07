@@ -83,7 +83,6 @@ pub async fn discover_issuer(
         channels: Some(Vec::new()),
         http: http.clone(),
         timing: Timing::default(),
-        bookmarks: None,
         random: None,
     });
     let metadata = transport.get_protected_resource_metadata().await;

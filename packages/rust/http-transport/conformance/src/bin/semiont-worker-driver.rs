@@ -181,7 +181,6 @@ impl Worker {
             channels: Some(channels),
             http: reqwest::Client::new(),
             timing,
-            bookmarks: None,
             random: None,
         });
 

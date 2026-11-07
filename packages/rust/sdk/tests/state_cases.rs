@@ -1102,6 +1102,7 @@ impl World {
                 correlation_id: correlation(step)?,
                 scope: None,
                 trace: None,
+                stream_id: None,
             });
         } else if let Some(channel) = step.get("answer") {
             let asked = request_id(
@@ -1115,6 +1116,7 @@ impl World {
                 correlation_id: asked,
                 scope: None,
                 trace: None,
+                stream_id: None,
             });
         } else if let Some(operation) = step.get("queueReply") {
             self.transport.queue_reply(

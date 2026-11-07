@@ -325,6 +325,7 @@ fn answer(transport: &FaultyTransport, request: &str, nth: usize, response: Valu
         correlation_id: asked.correlation_id,
         scope: None,
         trace: None,
+        stream_id: None,
     });
 }
 

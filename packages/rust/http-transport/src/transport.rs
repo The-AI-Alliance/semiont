@@ -127,17 +127,6 @@ impl Default for Timing {
     }
 }
 
-/// Where a stream's place in each scope is kept across a client's lives: a
-/// client that starts with the places its last life reached is sent what was
-/// recorded since, and what it kept of those scopes is brought up to date by
-/// replay.
-pub trait Bookmarks: Send + Sync + 'static {
-    /// The id of the last recorded event delivered on each scope, as kept.
-    fn load(&self) -> HashMap<ResourceId, String>;
-    /// A recorded event was delivered on `scope`.
-    fn save(&self, scope: &ResourceId, event_id: &str);
-}
-
 pub struct HttpTransportConfig {
     /// The gateway's origin.
     pub base_url: String,
@@ -155,8 +144,6 @@ pub struct HttpTransportConfig {
     pub channels: Option<Vec<String>>,
     pub http: reqwest::Client,
     pub timing: Timing,
-    /// With none, the stream begins each life at the present.
-    pub bookmarks: Option<Arc<dyn Bookmarks>>,
     /// What the jitter of the stream's reconnects and of each emit's retries
     /// is drawn from; the system's source when none is given.
     pub random: Option<Arc<Mutex<dyn Rng + Send>>>,
@@ -179,7 +166,6 @@ pub(crate) struct Shared {
     pub client_id: String,
     pub global: Vec<String>,
     pub timing: Timing,
-    pub bookmarks: Option<Arc<dyn Bookmarks>>,
     pub random: Option<Arc<Mutex<dyn Rng + Send>>>,
     pub hub: FrameHub,
     pub router: Arc<ReplyRouter>,
@@ -233,7 +219,6 @@ impl Shared {
                     .collect()
             }),
             timing: config.timing,
-            bookmarks: config.bookmarks,
             random: config.random,
             hub: FrameHub::new(),
             router: ReplyRouter::new(),

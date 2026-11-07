@@ -88,7 +88,6 @@ impl Gateway {
             channels: Some(vec![HEARD.to_owned()]),
             http: reqwest::Client::new(),
             timing: Timing::default(),
-            bookmarks: None,
             random: None,
         });
         let mut states = transport.state();

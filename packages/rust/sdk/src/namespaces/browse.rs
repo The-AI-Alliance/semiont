@@ -29,7 +29,7 @@ use crate::refresh::CacheQuery;
 use crate::resources::decode_representation;
 use crate::session::cache_key;
 use crate::state_unit::StateUnit;
-use crate::timing::{MAX_STORED_BYTES_COUNT, SAVE_DEBOUNCE};
+use crate::timing::MAX_STORED_BYTES_COUNT;
 use crate::transport::{BoxFuture, Content, ContentStream, ContentTransport, Envelope};
 use crate::types::{
     AnchoredTextAnswer, Annotation, AttributedEvent, BrowseAnnotationHistoryRequest,
@@ -180,10 +180,12 @@ async fn limits_reported(links: &Links, operation: &Operation) -> Vec<EngineLimi
 
 // ── The caches ──────────────────────────────────────────────────────────
 
-/// The caches the namespace's queries answer from.
+/// The caches the namespace's queries answer from. A query's cache is named
+/// as protocol/specs/src/client/refresh.json names the query: what the table
+/// persists is reached by that name (`Live::kept`, generated).
 pub(super) struct Live {
     pub(super) resource: Cache<ResourceId, ResourceDescriptor>,
-    pub(super) lists: Cache<ResourceFilters, ListResourcesResponse>,
+    pub(super) resources: Cache<ResourceFilters, ListResourcesResponse>,
     pub(super) annotations: Cache<ResourceId, GetAnnotationsResponse>,
     pub(super) annotation: Cache<AnnotationId, Annotation>,
     /// The resource each annotation that was asked for is of: an annotation
@@ -241,8 +243,7 @@ where
 }
 
 /// Where `persistence` keeps the persisted query `query`, written under
-/// `writes` through the places' storage, so that each write carries the
-/// stream's places.
+/// `writes` to its storage.
 fn persister<K, V>(
     persistence: &CachePersistence,
     writes: &Arc<Writes>,
@@ -254,7 +255,7 @@ where
 {
     Arc::new(Through {
         persister: StoragePersister::new(
-            persistence.places.storage(),
+            persistence.storage.clone(),
             cache_key(&persistence.kb_id, &persistence.person_key, query),
             MAX_STORED_BYTES_COUNT,
         ),
@@ -262,28 +263,31 @@ where
     })
 }
 
-/// The cache of a persisted query, one protocol/specs/src/session/stored.json
-/// names as `keptQueries`: kept in the client's persistence, when it was
-/// built with one, and written under `writes`.
-fn kept<K, V, F, Fut>(
-    persistence: Option<&CachePersistence>,
-    writes: &Arc<Writes>,
-    query: CacheQuery,
-    fetch: F,
-) -> Cache<K, V>
+/// A cache a persisted query answers from, whatever its keys and values.
+trait Kept {
+    /// What it is doing that what it has saved may not yet hold.
+    fn persistence(&self) -> Persistence;
+
+    /// Keep it in `persistence` from now on, as the query `query`, written
+    /// under `writes`.
+    fn attach(&self, persistence: &CachePersistence, writes: &Arc<Writes>, query: CacheQuery);
+}
+
+impl<K, V> Kept for Cache<K, V>
 where
     K: CacheKey + Serialize + DeserializeOwned,
     V: CacheValue + Serialize + DeserializeOwned,
-    F: Fn(K) -> Fut + Send + Sync + 'static,
-    Fut: Future<Output = Result<V, Box<dyn std::error::Error + Send + Sync>>> + Send + 'static,
 {
-    match persistence {
-        None => Cache::new(fetch),
-        Some(persistence) => {
-            Cache::persisted(fetch, persister(persistence, writes, query), SAVE_DEBOUNCE)
-        }
+    fn persistence(&self) -> Persistence {
+        Cache::persistence(self)
+    }
+
+    fn attach(&self, persistence: &CachePersistence, writes: &Arc<Writes>, query: CacheQuery) {
+        Cache::attach(self, persister(persistence, writes, query));
     }
 }
+
+include!(concat!(env!("OUT_DIR"), "/live_kept.rs"));
 
 fn events_of(resource_id: &ResourceId) -> BrowseEventsRequest {
     BrowseEventsRequest {
@@ -304,7 +308,7 @@ impl Live {
         let writes: Arc<Writes> = Arc::default();
         let asking = |links: &Links| links.clone();
 
-        let resource = kept(persistence, &writes, CacheQuery::Resource, {
+        let resource = Cache::new({
             let links = asking(links);
             move |resource_id: ResourceId| {
                 let links = links.clone();
@@ -316,7 +320,7 @@ impl Live {
                 }
             }
         });
-        let lists = Cache::new({
+        let resources = Cache::new({
             let links = asking(links);
             move |filters: ResourceFilters| {
                 let links = links.clone();
@@ -332,14 +336,14 @@ impl Live {
                 }
             }
         });
-        let annotations = kept(persistence, &writes, CacheQuery::Annotations, {
+        let annotations = Cache::new({
             let content = content.clone();
             move |resource_id: ResourceId| {
                 let content = content.clone();
                 async move { Ok(content.get_annotations(&resource_id).await?) }
             }
         });
-        let annotation = kept(persistence, &writes, CacheQuery::Annotation, {
+        let annotation = Cache::new({
             let links = asking(links);
             let annotation_of = annotation_of.clone();
             move |annotation_id: AnnotationId| {
@@ -365,7 +369,7 @@ impl Live {
                 }
             }
         });
-        let entity_types = kept(persistence, &writes, CacheQuery::EntityTypes, {
+        let entity_types = Cache::new({
             let links = asking(links);
             move |_: WholeKey| {
                 let links = links.clone();
@@ -377,7 +381,7 @@ impl Live {
                 }
             }
         });
-        let tag_schemas = kept(persistence, &writes, CacheQuery::TagSchemas, {
+        let tag_schemas = Cache::new({
             let links = asking(links);
             move |_: WholeKey| {
                 let links = links.clone();
@@ -426,9 +430,9 @@ impl Live {
             }
         });
 
-        Arc::new(Live {
+        let live = Live {
             resource,
-            lists,
+            resources,
             annotations,
             annotation,
             annotation_of,
@@ -438,7 +442,11 @@ impl Live {
             limits,
             events,
             writes,
-        })
+        };
+        if let Some(persistence) = persistence {
+            live.attach(persistence);
+        }
+        Arc::new(live)
     }
 
     /// B13b: the event carries the value. The table's own build refuses a
@@ -493,22 +501,14 @@ impl Live {
 
     /// Keep each persisted query's cache in `persistence` from now on.
     fn attach(&self, persistence: &CachePersistence) {
-        let writes = &self.writes;
-        self.resource
-            .attach(persister(persistence, writes, CacheQuery::Resource));
-        self.annotations
-            .attach(persister(persistence, writes, CacheQuery::Annotations));
-        self.annotation
-            .attach(persister(persistence, writes, CacheQuery::Annotation));
-        self.entity_types
-            .attach(persister(persistence, writes, CacheQuery::EntityTypes));
-        self.tag_schemas
-            .attach(persister(persistence, writes, CacheQuery::TagSchemas));
+        for (query, cache) in self.kept() {
+            cache.attach(persistence, &self.writes, query);
+        }
     }
 
     fn dispose(&self) {
         self.resource.dispose();
-        self.lists.dispose();
+        self.resources.dispose();
         self.annotations.dispose();
         self.annotation.dispose();
         self.entity_types.dispose();
@@ -660,28 +660,22 @@ impl BrowseNamespace {
     }
 
     /// What each cache the client's storage keeps is doing.
-    fn kept(&self) -> [Persistence; 5] {
-        let live = &self.live;
-        [
-            live.resource.persistence(),
-            live.annotations.persistence(),
-            live.annotation.persistence(),
-            live.entity_types.persistence(),
-            live.tag_schemas.persistence(),
-        ]
+    fn kept(&self) -> impl Iterator<Item = Persistence> + '_ {
+        self.live
+            .kept()
+            .into_iter()
+            .map(|(_, cache)| cache.persistence())
     }
 
     /// Whether every cache the client's storage keeps is at rest: none is
     /// fetching, and none owes a save.
     pub(crate) fn persistence_settled(&self) -> bool {
-        self.kept()
-            .iter()
-            .all(|kept| !kept.fetching && !kept.saving)
+        self.kept().all(|kept| !kept.fetching && !kept.saving)
     }
 
     /// Whether a cache the client's storage keeps has a fetch in flight.
     pub(crate) fn kept_fetching(&self) -> bool {
-        self.kept().iter().any(|kept| kept.fetching)
+        self.kept().any(|kept| kept.fetching)
     }
 
     /// See `SemiontClient::attach_persistence`.
@@ -747,7 +741,7 @@ impl BrowseNamespace {
     /// text is `match_.resources`.
     pub fn resources(&self, filters: ResourceFilters) -> Cached<ListResourcesResponse> {
         Cached::of(Keyed {
-            cache: self.live.lists.clone(),
+            cache: self.live.resources.clone(),
             key: filters,
             view: |value| value,
             scope: None,

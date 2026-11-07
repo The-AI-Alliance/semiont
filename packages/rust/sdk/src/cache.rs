@@ -29,8 +29,10 @@
 //! kept of each key it does not know yet. A value that was kept is shown at
 //! once and asked for again the first time it is observed: nothing says it
 //! is still true. Keeping its values is a convenience: a save that fails is
-//! logged as a warning, the cache goes on as it was, and its next save tries
-//! again. Once a cache is disposed no save of it is still being written.
+//! logged as a warning, and the cache goes on as it was, the save still
+//! owed: the next change, or disposal, writes its values again. Nothing
+//! tries it again before that. Once a cache is disposed no save of it is
+//! still being written.
 
 use crate::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
 use crate::locked;
@@ -117,13 +119,18 @@ pub trait CachePersister<K, V>: Send + Sync + 'static {
     -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }
 
-/// Save a cache's values; one that fails is a warning.
+/// Save a cache's values; one that fails is a warning. Whether they were
+/// kept.
 fn saved<K: CacheKey, V: CacheValue>(
     persister: &dyn CachePersister<K, V>,
     entries: &HashMap<K, V>,
-) {
-    if let Err(unsaved) = persister.save(entries) {
-        log::warn!("semiont: the cache's values were not kept: {unsaved}");
+) -> bool {
+    match persister.save(entries) {
+        Ok(()) => true,
+        Err(unsaved) => {
+            log::warn!("semiont: the cache's values were not kept: {unsaved}");
+            false
+        }
     }
 }
 
@@ -155,6 +162,14 @@ impl<V> Key<V> {
     }
 }
 
+/// A save owed.
+enum Saving {
+    /// Made once the values have stopped changing: the wait.
+    Waiting(AbortHandle),
+    /// Refused by the persister: made at the next change, or at disposal.
+    Refused,
+}
+
 struct State<K, V> {
     disposed: bool,
     keys: HashMap<K, Key<V>>,
@@ -162,8 +177,8 @@ struct State<K, V> {
     /// for by this one.
     kept: HashSet<K>,
     fetches: u64,
-    /// The wait before the next save, while one is owed.
-    saving: Option<AbortHandle>,
+    /// The save owed, while one is.
+    saving: Option<Saving>,
     /// Where the values are kept, once the cache keeps them somewhere.
     persister: Option<Arc<dyn CachePersister<K, V>>>,
 }
@@ -235,12 +250,12 @@ where
         if state.persister.is_none() || state.disposed {
             return;
         }
-        if let Some(waiting) = state.saving.take() {
+        if let Some(Saving::Waiting(waiting)) = state.saving.take() {
             waiting.abort();
         }
         let cache = Arc::downgrade(self);
         let wait = self.save_debounce;
-        state.saving = Some(
+        state.saving = Some(Saving::Waiting(
             tokio::spawn(async move {
                 tokio::time::sleep(wait).await;
                 if let Some(cache) = Weak::upgrade(&cache) {
@@ -248,10 +263,13 @@ where
                 }
             })
             .abort_handle(),
-        );
+        ));
     }
 
-    /// Make the save that is owed, unless disposal has made it.
+    /// Make the save that is owed, unless disposal makes it. While it is
+    /// written no save is owed, so the write itself finds the cache at rest
+    /// and carries the stream's places (`crate::resume`); one the persister
+    /// refuses is owed again, unless a change meanwhile owes another.
     fn save_owed(&self) {
         let _writing = self.writing();
         let (entries, persister) = {
@@ -262,8 +280,14 @@ where
             state.saving = None;
             (Inner::values(&state), state.persister.clone())
         };
-        if let Some(persister) = persister {
-            saved(persister.as_ref(), &entries);
+        let Some(persister) = persister else {
+            return;
+        };
+        if !saved(persister.as_ref(), &entries) {
+            let mut state = self.state();
+            if state.saving.is_none() {
+                state.saving = Some(Saving::Refused);
+            }
         }
     }
 
@@ -356,8 +380,10 @@ where
             .state
             .get_mut()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if let Some(waiting) = state.saving.take() {
-            waiting.abort();
+        if let Some(saving) = state.saving.take() {
+            if let Saving::Waiting(waiting) = saving {
+                waiting.abort();
+            }
             if let Some(persister) = &state.persister {
                 saved(persister.as_ref(), &Inner::values(state));
             }
@@ -646,25 +672,32 @@ where
     K: CacheKey,
     V: CacheValue,
 {
-    /// End the cache: a save that was owed is made now, one under way is
-    /// waited for, every observer's stream ends, and nothing is fetched or
-    /// written after.
+    /// End the cache: one save under way is waited for, a save then owed
+    /// (waiting, or refused) is made now, every observer's stream ends, and
+    /// nothing is fetched or written after.
     fn dispose(&self) {
-        let (owed, persister) = {
+        {
             let mut state = self.inner.state();
             if state.disposed {
                 return;
             }
             state.disposed = true;
-            let owed = state.saving.take().map(|waiting| {
-                waiting.abort();
+        }
+        // A save under way finishes first: one the persister refuses is
+        // owed again, and made here.
+        let _writing = self.inner.writing();
+        let (owed, persister) = {
+            let mut state = self.inner.state();
+            let owed = state.saving.take().map(|saving| {
+                if let Saving::Waiting(waiting) = saving {
+                    waiting.abort();
+                }
                 Inner::values(&state)
             });
             state.kept.clear();
             state.keys.clear();
             (owed, state.persister.clone())
         };
-        let _writing = self.inner.writing();
         if let (Some(entries), Some(persister)) = (owed, persister) {
             saved(persister.as_ref(), &entries);
         }

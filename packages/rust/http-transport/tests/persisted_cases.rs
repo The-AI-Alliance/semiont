@@ -9,8 +9,10 @@
 //! registry whose stored sign-in another context deletes or replaces;
 //! `holder` against a registry whose stored sign-in this process forgets,
 //! replaces or renews through the storage's functions, which are what holds
-//! a registry session's sign-in. Then a save being written as the session
-//! forgets its sign-in: no save lands after the delete.
+//! a registry session's sign-in; `resumeFrom` against the session the HTTP
+//! session factory builds, over a stand-in gateway whose stream delivers
+//! events on a scope the client holds. Then a save being written as the
+//! session forgets its sign-in: no save lands after the delete.
 
 use axum::Router;
 use axum::body::Body;
@@ -133,6 +135,7 @@ fn the_table_states_only_what_this_runner_reads() {
         "startup",
         "crossTab",
         "holder",
+        "resumeFrom",
     ];
     for part in object(&cases, "the table").keys() {
         assert!(
@@ -140,7 +143,7 @@ fn the_table_states_only_what_this_runner_reads() {
             "the table states {part}, which this runner does not read"
         );
     }
-    let members: [(&str, &[&str]); 5] = [
+    let members: [(&str, &[&str]); 6] = [
         (
             "keys",
             &[
@@ -171,6 +174,7 @@ fn the_table_states_only_what_this_runner_reads() {
         ),
         ("crossTab", &["why", "stored", "saved"]),
         ("holder", &["why", "stored", "saved"]),
+        ("resumeFrom", &["why", "frames", "resumes"]),
     ];
     for (part, read) in members {
         for row in rows(&cases, part) {
@@ -374,7 +378,20 @@ impl Staged {
             let _ = stream.send(event.clone());
         }
     }
+
+    /// Send, on every open stream, an event of `scope` whose id is `id`:
+    /// the resource was archived.
+    fn deliver_on(&self, scope: &str, id: &str) {
+        let frame = json!({ "channel": ARCHIVED, "scope": scope, "payload": {} });
+        let event = Bytes::from(format!("event: bus-event\nid: {id}\ndata: {frame}\n\n"));
+        for stream in self.streams.lock().unwrap().iter() {
+            let _ = stream.send(event.clone());
+        }
+    }
 }
+
+/// The channel of the events `resumeFrom` delivers on a scope.
+const ARCHIVED: &str = "mark:archived";
 
 async fn me(State(staged): State<Arc<Staged>>) -> Response {
     let mut answers = staged.who_answers.subscribe();
@@ -523,20 +540,30 @@ impl Gateway {
     /// The event id the first stream that held `scope` resumed it from,
     /// null for none; `None` while no stream has held it.
     fn resumed_from(&self, scope: &str) -> Option<Value> {
+        resumed_in(&self.first_holding(scope)?, scope)
+    }
+
+    /// What the first stream that held `scope` was opened with; `None` while
+    /// no stream has held it.
+    fn first_holding(&self, scope: &str) -> Option<Value> {
         self.staged
             .subscriptions
             .lock()
             .unwrap()
             .iter()
-            .flat_map(|subscription| {
-                subscription["scoped"]
-                    .as_array()
-                    .cloned()
-                    .unwrap_or_default()
-            })
-            .find(|scoped| scoped["scope"] == scope)
-            .map(|scoped| scoped["lastEventId"].clone())
+            .find(|subscription| resumed_in(subscription, scope).is_some())
+            .cloned()
     }
+}
+
+/// The event id a stream opened with `subscription` resumes `scope` from,
+/// null for none; `None` when it does not hold `scope`.
+fn resumed_in(subscription: &Value, scope: &str) -> Option<Value> {
+    subscription["scoped"]
+        .as_array()?
+        .iter()
+        .find(|scoped| scoped["scope"] == scope)
+        .map(|scoped| scoped["lastEventId"].clone())
 }
 
 /// Whether `probe` holds within the test's patience.
@@ -1125,6 +1152,94 @@ async fn holder() {
             across(&cases, row, Changed::ThroughTheHolder)
                 .await
                 .into_iter()
+                .map(|differs| format!("{why}: {differs}")),
+        );
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+// ── resumeFrom ──────────────────────────────────────────────────────────
+
+/// How one row of `resumeFrom` is not what the HTTP session factory's
+/// session resumed res-1's scope from. Its client, kept for jo, holds res-1;
+/// once its stream has delivered the row's events on res-1's scope, and its
+/// client has been given each, the client comes to hold res-2 too, and the
+/// stream that then holds both is the one res-1's scope is next subscribed
+/// to on.
+async fn resumed(cases: &Value, row: &Value) -> Option<String> {
+    let jo = person(cases, "jo");
+    let gateway = Gateway::start(Who::Names, cases["whoAmI"].clone()).await;
+    gateway.let_who_answer();
+    let storage = Arc::new(SharedStorage::new());
+    store_session(storage.as_ref(), KB, &sign_in(1, Some(&jo))).expect("stored");
+    let session = HttpSessionFactory::new(gateway.http.clone(), None)
+        .session(SessionFactoryOptions {
+            kb: gateway.kb(),
+            storage: storage.clone(),
+            signals: Arc::new(SessionSignals::new()),
+            on_error: Arc::new(|_: SessionError| {}),
+        })
+        .expect("a session");
+    let client = session.client().clone();
+    let ids: Vec<&str> = row["frames"]
+        .as_array()
+        .expect("a row's frames are a list")
+        .iter()
+        .map(|id| id.as_str().expect("a frame is an event's id"))
+        .collect();
+
+    let mut given = client.bus().frames(ARCHIVED);
+    let _res_1 = client.browse.resource(&as_id("res-1")).watch();
+    let wrong = if !settled(|| gateway.first_holding("res-1").is_some()).await {
+        Some("no stream held res-1".to_owned())
+    } else {
+        for id in &ids {
+            gateway.staged.deliver_on("res-1", id);
+        }
+        let mut taken = 0;
+        while taken < ids.len()
+            && matches!(
+                tokio::time::timeout(PATIENCE, given.next()).await,
+                Ok(Some(Ok(Ok(_))))
+            )
+        {
+            taken += 1;
+        }
+        let _res_2 = client.browse.resource(&as_id("res-2")).watch();
+        let next = settled(|| gateway.first_holding("res-2").is_some())
+            .await
+            .then(|| gateway.first_holding("res-2"))
+            .flatten();
+        match (taken == ids.len(), next) {
+            (false, _) => Some(format!(
+                "the client was given {taken} of the {} events",
+                ids.len()
+            )),
+            (true, None) => Some("no stream held res-2".to_owned()),
+            (true, Some(next)) => match resumed_in(&next, "res-1") {
+                None => Some("the stream that held res-2 did not hold res-1".to_owned()),
+                Some(resumes) if resumes == row["resumes"] => None,
+                Some(resumes) => Some(format!(
+                    "res-1's scope resumed from {resumes}, want {}",
+                    row["resumes"]
+                )),
+            },
+        }
+    };
+    session.dispose();
+    client.close().await;
+    wrong
+}
+
+#[tokio::test]
+async fn resume_from() {
+    let cases = table();
+    let mut wrong = Vec::new();
+    for row in rows(&cases, "resumeFrom") {
+        let why = text(row, "why");
+        wrong.extend(
+            resumed(&cases, row)
+                .await
                 .map(|differs| format!("{why}: {differs}")),
         );
     }

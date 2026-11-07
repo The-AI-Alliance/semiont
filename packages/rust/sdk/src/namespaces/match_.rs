@@ -27,12 +27,12 @@ pub(super) type ResourceSearch = (String, ResourceFilters);
 pub struct MatchNamespace {
     links: Links,
     /// What each search asked for found. Kept as long as the client is.
-    pub(super) searches: Cache<ResourceSearch, MatchResourcesResponse>,
+    pub(super) matched_resources: Cache<ResourceSearch, MatchResourcesResponse>,
 }
 
 impl MatchNamespace {
     pub(crate) fn new(links: Links) -> MatchNamespace {
-        let searches = Cache::new({
+        let matched_resources = Cache::new({
             let links = links.clone();
             move |(search, filters): ResourceSearch| {
                 let links = links.clone();
@@ -51,12 +51,15 @@ impl MatchNamespace {
                 }
             }
         });
-        MatchNamespace { links, searches }
+        MatchNamespace {
+            links,
+            matched_resources,
+        }
     }
 
     /// End the query: every watcher's stream ends.
     pub(crate) fn dispose(&self) {
-        self.searches.dispose();
+        self.matched_resources.dispose();
     }
 
     /// A page of the resources among those `filters` admits that a search
@@ -72,7 +75,7 @@ impl MatchNamespace {
         filters: ResourceFilters,
     ) -> Cached<MatchResourcesResponse> {
         Cached::of(Keyed {
-            cache: self.searches.clone(),
+            cache: self.matched_resources.clone(),
             key: (search.to_owned(), filters),
             view: |value| value,
             scope: None,
