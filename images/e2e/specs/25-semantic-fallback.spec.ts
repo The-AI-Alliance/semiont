@@ -146,17 +146,18 @@ test.describe.serial('semantic fallback answers what lexical search cannot', () 
    * diagnosis unambiguous rather than requiring a second debugging pass.
    */
   test('a name search still answers lexically (control)', async () => {
+    // Poll for THIS resource, not for a non-empty page: the trap T1 describes.
     await expect
-      .poll(async () => (await client.match.resources(RESOURCE_NAME).fresh()).resources.length, {
-        timeout: INDEXING_TIMEOUT,
-      })
-      .toBeGreaterThan(0);
-
-    const { resources: hits } = await client.match.resources(RESOURCE_NAME).fresh();
-    expect(
-      hits.some((r) => r['@id'] === rid),
-      'the seeded resource is findable by name — lexical search is intact and the fallback did not displace it',
-    ).toBe(true);
+      .poll(
+        async () =>
+          (await client.match.resources(RESOURCE_NAME).fresh()).resources.some((r) => r['@id'] === rid),
+        {
+          timeout: INDEXING_TIMEOUT,
+          message:
+            'the seeded resource is findable by name — lexical search is intact and the fallback did not displace it',
+        },
+      )
+      .toBe(true);
   });
 
   /**
