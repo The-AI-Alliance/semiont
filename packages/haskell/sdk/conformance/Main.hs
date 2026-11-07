@@ -73,7 +73,12 @@ data Driver = Driver
   }
 
 say :: Driver -> Value -> IO ()
-say driver value = withMVar (output driver) $ \() -> Lazy.hPut stdout (encode value <> "\n") >> hFlush stdout
+say driver value = withMVar (output driver) $ \() -> writeLine value
+
+-- A line is written whole or not at all: a thread cancelled between a line's text and its newline would leave the
+-- next line on the same one.
+writeLine :: Value -> IO ()
+writeLine value = uninterruptibleMask_ (Lazy.hPut stdout (encode value <> "\n") >> hFlush stdout)
 
 opened :: Driver -> IO Http.HttpTransport
 opened driver = readTVarIO (connection driver) >>= maybe (throwIO (Misuse "No transport is open")) pure
@@ -84,7 +89,7 @@ reportState driver state = withMVar (output driver) $ \() -> do
     before <- readTVar (reported driver)
     writeTVar (reported driver) (Just state)
     pure (before /= Just state)
-  when changed (Lazy.hPut stdout (encode (object ["state" .= connectionStateName state]) <> "\n") >> hFlush stdout)
+  when changed (writeLine (object ["state" .= connectionStateName state]))
 
 -- Registration completes inside each public scoped subscription, before its
 -- operation is acknowledged and the harness can publish the first event.

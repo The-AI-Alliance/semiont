@@ -49,8 +49,10 @@ data Driver = Driver
   , reported :: TVar (Maybe Text)
   }
 
+-- A line is written whole or not at all: a thread cancelled between a line's text and its newline would leave the
+-- next line on the same one.
 say :: Driver -> Value -> IO ()
-say driver value=withMVar (output driver) (\()->Lazy.hPut stdout (encode value<>"\n") >> hFlush stdout)
+say driver value=withMVar (output driver) (\()->uninterruptibleMask_ (Lazy.hPut stdout (encode value<>"\n") >> hFlush stdout))
 opened :: Driver -> IO Client.Client
 opened driver=readTVarIO (current driver) >>= maybe (throwIO (Misuse "no client is open")) pure
 stateJSON :: Cache.CacheState Value -> IO Value
