@@ -16,6 +16,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventBus } from '../event-bus';
+import { warnIfUnobservedReply } from '../bus-log';
 import { annotationId, resourceId } from '../identifiers';
 
 const RID = resourceId('res-1');
@@ -172,6 +173,12 @@ describe('EventBus dropped-reply detection', () => {
     const bus = new EventBus();
     bus.scope(RID).on('settings:theme-changed').subscribe(() => {});
     bus.scope(RID).emit('settings:theme-changed', { theme: 'dark' }, { correlationId: 'deadbeef-8' });
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('does NOT warn for an event of a resource scope, which is never a reply, though it carries the correlationId of the request that caused it', () => {
+    warnIfUnobservedReply('mark:added', 'deadbeef-9', 0);
 
     expect(warnSpy).not.toHaveBeenCalled();
   });
