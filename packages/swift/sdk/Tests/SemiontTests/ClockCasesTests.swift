@@ -442,8 +442,9 @@ private final class Ended: Sendable {
   var value: Ending? { ending.withLock { $0 } }
 }
 
-/// A bus request of a resource's events, made as the case begins, over a gateway that holds its
-/// stream open and refuses every emit; how it ended, once it has; and the task that asks it.
+/// A bus request of a resource's events, made as the case begins by a bus on the case's clock,
+/// which keeps the request's deadline, over a gateway that holds its stream open and refuses every
+/// emit; how it ended, once it has; and the task that asks it.
 private func refusedRequest(_ given: [String: JSONValue], _ clock: TestClock) async throws -> (
   Gateway, Ended, Task<Void, Never>
 ) {
@@ -451,10 +452,11 @@ private func refusedRequest(_ given: [String: JSONValue], _ clock: TestClock) as
     .holds, retryAfterSeconds: givenSeconds(given, "retryAfterSeconds"), refused: [emitPath],
     clock: clock)
   let ended = Ended()
+  let bus = Bus(gateway.transport, clock: clock)
   let asking = Task {
     do {
-      _ = try await gateway.transport.request(
-        operation: "browse:events-requested", payload: ["resourceId": .string("res-1")])
+      _ = try await bus.request(
+        Operations.browseEventsRequested, BrowseEventsRequest(resourceId: try ResourceId("res-1")))
       ended.tell(.answered)
     } catch let failure as BusRequestError where failure.reason == .busTimeout {
       ended.tell(.timedOut)
