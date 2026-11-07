@@ -31,6 +31,8 @@
     "generate:haskell:check": "node packages/codegen/schemas/generate-cache-refresh-haskell.mjs --check && node packages/codegen/schemas/generate-text-haskell.mjs --check && node packages/codegen/schemas/generate-operation-reports-haskell.mjs --check && node packages/codegen/schemas/generate-session-adapters-haskell.mjs --check && node packages/codegen/schemas/generate-annotation-adapters-haskell.mjs --check && node packages/codegen/schemas/generate-cache-persistence-haskell.mjs --check && node packages/codegen/schemas/generate-state-adapters-haskell.mjs --check && node packages/codegen/schemas/generate-testing-adapters-haskell.mjs --check",
     "generate:required": "node packages/codegen/schemas/generate-required.mjs",
     "generate:required:check": "node packages/codegen/schemas/generate-required.mjs --check",
+    "generate:unicode-case": "node packages/codegen/schemas/generate-unicode-case.mjs",
+    "generate:unicode-case:check": "node packages/codegen/schemas/generate-unicode-case.mjs --check",
     "generate:encoding-cases": "node packages/codegen/schemas/generate-encoding-cases.mjs",
     "generate:encoding-cases:check": "node packages/codegen/schemas/generate-encoding-cases.mjs --check",
     "generate:model-catalogue": "node packages/python/inference/scripts/generate-model-catalogue.mjs --out packages/python/inference/tests/catalogue",

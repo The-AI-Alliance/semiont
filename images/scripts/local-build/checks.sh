@@ -231,6 +231,23 @@ if ! run_logged "the table of what each component schema requires matches protoc
   exit 1
 fi
 
+# --- Unicode's Cased and Case_Ignorable properties ---
+#
+# C#'s copy of them is COMMITTED: C#'s source generator reads it, and .NET
+# gives neither property.
+
+if ! run_logged "C#'s copy of Unicode's case properties matches this Node's" \
+    $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
+    npm run generate:unicode-case:check; then
+  fail "C#'s copy of Unicode's case properties is STALE (or was hand-edited) — it must match Node's Unicode data."
+  echo ""
+  echo -e "  Regenerate and commit:"
+  echo ""
+  echo -e "    ${BOLD}npm run generate:unicode-case${RESET}   (packages/csharp/sdk/generators/Semiont.Generator)"
+  echo ""
+  exit 1
+fi
+
 # Both Go caches are this script's own, not shared with other container
 # consumers. Concurrent container VMs extracting into one shared module cache
 # corrupt it — Go's cache locking is flock, which does not hold across VM

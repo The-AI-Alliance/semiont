@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 
 namespace Semiont.Annotations;
@@ -169,11 +168,9 @@ public static partial class AnnotationTools
     {
         for (var at = offset + step; at >= 0 && at < text.Length; at += step)
         {
-            var point = text.Points[at];
-            var category = Rune.GetUnicodeCategory(point);
-            if (category is UnicodeCategory.NonSpacingMark or UnicodeCategory.EnclosingMark or UnicodeCategory.Format
-                or UnicodeCategory.ModifierLetter or UnicodeCategory.ModifierSymbol || point.Value is 0x27 or 0x2019) continue;
-            return category is UnicodeCategory.UppercaseLetter or UnicodeCategory.LowercaseLetter or UnicodeCategory.TitlecaseLetter;
+            var point = text.Points[at].Value;
+            if (UnicodeCase.CaseIgnorable(point)) continue;
+            return UnicodeCase.Cased(point);
         }
         return false;
     }

@@ -6,6 +6,7 @@ stack-go
 mcp-tools-go
 control
 required
+unicode-case
 discovery-go
 encoding-cases
 model-catalogue

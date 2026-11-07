@@ -9,6 +9,7 @@
     <AdditionalFiles Include="../../../../../protocol/specs/src/**/*.json" />
     <AdditionalFiles Include="../../../../../protocol/specs/src/sign-in-store/README.md" />
     <AdditionalFiles Include="../../generators/Semiont.Generator/required-schemas.json" />
+    <AdditionalFiles Include="../../generators/Semiont.Generator/unicode-case.json" />
     <ProjectReference Include="../../tools/RefusalRunner/RefusalRunner.csproj" GlobalPropertiesToRemove="$(SemiontBuildToolGlobalPropertiesToRemove)" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

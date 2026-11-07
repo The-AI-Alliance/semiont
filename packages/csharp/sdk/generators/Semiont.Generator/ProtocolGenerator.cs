@@ -33,11 +33,17 @@ public sealed class ProtocolGenerator : IIncrementalGenerator
         {
             var files = new Dictionary<string, string>(StringComparer.Ordinal);
             string? requiredSchemas = null;
+            string? unicodeCase = null;
             foreach (var input in inputs)
             {
                 if (input.Path.EndsWith("/required-schemas.json", StringComparison.Ordinal))
                 {
                     requiredSchemas = input.Contents;
+                    continue;
+                }
+                if (input.Path.EndsWith("/unicode-case.json", StringComparison.Ordinal))
+                {
+                    unicodeCase = input.Contents;
                     continue;
                 }
                 const string marker = "/specs/src/";
@@ -50,6 +56,10 @@ public sealed class ProtocolGenerator : IIncrementalGenerator
             if (requiredSchemas is null)
             {
                 throw new InvalidOperationException("No required-schemas.json is supplied: the table of what each component schema requires, which packages/codegen/schemas/generate-required.mjs writes.");
+            }
+            if (unicodeCase is null)
+            {
+                throw new InvalidOperationException("No unicode-case.json is supplied: the code points Unicode gives the Cased and the Case_Ignorable property, which packages/codegen/schemas/generate-unicode-case.mjs writes.");
             }
             var definitions = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
             var identifiers = new HashSet<string>(StringComparer.Ordinal);
@@ -119,6 +129,7 @@ public sealed class ProtocolGenerator : IIncrementalGenerator
             }
             facts.Append("}\n");
             context.AddSource("ProtocolTables.g.cs", SourceText.From(facts.ToString(), Encoding.UTF8));
+            context.AddSource("UnicodeCase.g.cs", SourceText.From(UnicodeCase.Emit(unicodeCase), Encoding.UTF8));
             var busPayloads = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
             if (files.TryGetValue("bus/registry.json", out var registry))
                 context.AddSource("BusDescriptors.g.cs", SourceText.From(BusDescriptors.Emit(registry, definitions, busPayloads), Encoding.UTF8));

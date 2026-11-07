@@ -5,6 +5,7 @@ import {dirname,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import ts from 'typescript';
 import {writeOrCheck} from '../lib/committed-source.mjs';
+import {propertyRanges,scalars,unicodeVersion} from './unicode-properties.mjs';
 const ROOT=resolve(dirname(fileURLToPath(import.meta.url)),'../../..');
 const sources=['annotation-builders.ts','fuzzy-anchor.ts','pdf-coordinates.ts'].map(file=>{
  const path=resolve(ROOT,'packages/typescript/core/src',file);
@@ -59,23 +60,16 @@ writeOrCheck(ROOT,resolve(ROOT,'packages/haskell/sdk/codegen/annotation-adapters
 // sigma. Derive the character properties and mappings from the JS runtime's
 // Unicode data, including multi-code-point mappings; Haskell Text.toLower
 // deliberately implements only unconditional mappings.
-const cased=/\p{Cased}/u,ignorable=/\p{Case_Ignorable}/u,whiteSpace=/\p{White_Space}/u;
-const mappings=[],finals=[],casedRanges=[],ignoredRanges=[],whiteSpaceRanges=[];
-const range=(ranges,code,yes)=>{
- if(!yes)return;
- const last=ranges.at(-1);
- if(last&&last[1]+1===code)last[1]=code;else ranges.push([code,code]);
-};
-for(let code=0;code<=0x10ffff;code++){
- if(code>=0xd800&&code<=0xdfff)continue;
+const casedRanges=propertyRanges(/\p{Cased}/u),ignoredRanges=propertyRanges(/\p{Case_Ignorable}/u),whiteSpaceRanges=propertyRanges(/\p{White_Space}/u);
+const mappings=[],finals=[];
+for(const code of scalars()){
  const char=String.fromCodePoint(code),lower=char.toLowerCase();
  if(lower!==char)mappings.push([code,Array.from(lower,c=>c.codePointAt(0))]);
  const atEnd=('A'+char+' ').toLowerCase().slice(1,-1);
  if(atEnd!==lower)finals.push([code,Array.from(atEnd,c=>c.codePointAt(0))]);
- range(casedRanges,code,cased.test(char));range(ignoredRanges,code,ignorable.test(char));range(whiteSpaceRanges,code,whiteSpace.test(char));
 }
 const chars=values=>`[${values.map(value=>`chr ${value}`).join(',')}]`;
-const generated=`-- Generated from Node's Unicode ${process.versions.unicode} data; do not edit.
+const generated=`-- Generated from Node's Unicode ${unicodeVersion} data; do not edit.
 module Semiont.Internal.Generated.UnicodeCase (lowerChar, finalChar, isCased, caseIgnorable, whiteSpace) where
 import Data.Char (chr, ord)
 import qualified Data.IntMap.Strict as Map
