@@ -29,9 +29,7 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import java.net.http.HttpTimeoutException
 import java.nio.ByteBuffer
-import java.time.Duration
 import java.util.concurrent.CompletionException
 import java.util.concurrent.Flow.Publisher
 import kotlin.coroutines.resume
@@ -177,11 +175,13 @@ internal class Exchange(
             if (closing()) throw failed(TransportError(TransportErrorCode.Error, "$method $path was not sent: the transport is closed"))
             val builder = request(path, sent).method(method, body?.invoke() ?: HttpRequest.BodyPublishers.noBody())
             headers.forEach { (name, value) -> builder.header(name, value) }
-            if (!atLength) builder.timeout(Duration.ofMillis(deadlineMs))
-            val response = try {
-                http.exchange(builder.build(), HttpResponse.BodyHandlers.ofPublisher())
-            } catch (_: HttpTimeoutException) {
-                throw failed(TransportError.withoutResponse("$method $path got no answer within ${deadlineMs}ms"))
+            val built = builder.build()
+            val begun = try {
+                if (atLength) {
+                    http.exchange(built, HttpResponse.BodyHandlers.ofPublisher())
+                } else {
+                    withTimeoutOrNull(deadlineMs) { http.exchange(built, HttpResponse.BodyHandlers.ofPublisher()) }
+                }
             } catch (error: IOException) {
                 if (repeatable && !retried && !closing()) {
                     retried = true
@@ -190,6 +190,7 @@ internal class Exchange(
                 }
                 throw failed(TransportError.withoutResponse("$method $path got no answer: ${error.message ?: error::class.simpleName}"))
             }
+            val response = begun ?: throw failed(TransportError.withoutResponse("$method $path got no answer within ${deadlineMs}ms"))
             val status = response.statusCode()
             if (status in 200..299) return response
             val stated = retryAfterMs(response.headers().firstValue("retry-after").orElse(null))

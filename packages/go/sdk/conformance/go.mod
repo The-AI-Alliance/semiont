@@ -1,6 +1,6 @@
 module github.com/The-AI-Alliance/semiont/packages/go/sdk/conformance
 
-go 1.27
+go 1.27.0
 
 toolchain go1.27.3
 

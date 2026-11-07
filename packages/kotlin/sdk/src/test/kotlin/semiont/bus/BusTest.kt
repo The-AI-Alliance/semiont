@@ -1,5 +1,6 @@
 package semiont.bus
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
@@ -68,7 +69,7 @@ private class Wire(private val subscribed: Set<String>) : Transport {
     val emitted = mutableListOf<Emitted>()
     var answer: (Emitted) -> Unit = {}
     private val channels = mutableMapOf<String, Broadcast<Carried>>()
-    private val router = ReplyRouter()
+    private val router = ReplyRouter(Dispatchers.Unconfined)
     val holds = mutableMapOf<ResourceId, Int>()
 
     override suspend fun emit(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): Long? {

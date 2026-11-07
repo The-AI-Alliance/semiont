@@ -4,13 +4,11 @@
     "haskell": ["packages/haskell/sdk/test/ClockCases.hs", "packages/haskell/sdk/test/HeldCases.hs", "packages/haskell/sdk/test/DelegationCases.hs", "packages/haskell/sdk/test/SessionCases.hs", "packages/haskell/sdk/test/IssuerCases.hs"],
     "python": ["packages/python/sdk/tests/test_clock_cases.py"],
     "rust": ["packages/rust/http-transport/tests/clock_cases.rs"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/ClockCasesTest.kt"],
     "swift": ["packages/swift/sdk/Tests/SemiontTests/ClockCasesTests.swift"],
     "csharp": ["packages/csharp/sdk/tests/Semiont.Tests/ClockCasesTests.cs"],
     "typescript": ["packages/typescript/sdk/src/__tests__/clock-cases.test.ts"],
     "go": ["packages/go/sdk/clock_cases_test.go"]
-  },
-  "notYetReached": {
-    "kotlin": "The context, clock and random source become public on every maker that waits, the System.nanoTime readings and the JDK's request timeouts go, and a runner under runTest."
   },
   "cases": [
     {

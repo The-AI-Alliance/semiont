@@ -4,6 +4,7 @@ package semiont.bus
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -41,6 +42,8 @@ import semiont.types.wireJson
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Flow.Publisher
+import kotlin.coroutines.CoroutineContext
+import kotlin.time.TimeSource
 
 /** The type of every event of the record. */
 public val PERSISTED_EVENT_TYPES: List<String> = semiont.channels.PERSISTED
@@ -88,32 +91,46 @@ private fun <P> encoded(channel: Channel<P>, payload: P): JsonObject = wireJson.
 private fun notTheChannels(channel: String, fault: Fault): String = "a payload on $channel is not that channel's: $fault"
 
 /**
- * Send `payload` as the request of `operation`, and wait up to `timeoutMs`
- * for its reply: the payload of the reply on the operation's result channel.
- * For what relays requests it does not read; `Bus.request` types them.
+ * Send `payload` as the request of `operation`, and wait up to `timeoutMs`,
+ * measured by `clock`, for its reply: the payload of the reply on the
+ * operation's result channel. For what relays requests it does not read;
+ * `Bus.request` types them.
  * Throws `BusRequestError` when it is answered with a failure, when no reply
  * comes in time, when the transport is closed, and when its stream does not
  * carry the operation's replies; and `TransportError` when the emit itself is
  * refused, at once when its reply is, and when the failure it is answered
  * with is not its channel's.
  */
-public suspend fun request(transport: Transport, operation: Operation<*, *, *>, payload: JsonObject, timeoutMs: Long = Timings.BUS_REQUEST_TIMEOUT_MS): JsonObject =
-    resultOf(transport, operation, payload, timeoutMs).payload
+public suspend fun request(
+    transport: Transport,
+    operation: Operation<*, *, *>,
+    payload: JsonObject,
+    timeoutMs: Long = Timings.BUS_REQUEST_TIMEOUT_MS,
+    clock: TimeSource = TimeSource.Monotonic,
+): JsonObject = resultOf(transport, operation, payload, timeoutMs, clock).payload
 
-/** `request`, for Java. */
-public fun requestFuture(transport: Transport, operation: Operation<*, *, *>, payload: JsonObject, timeoutMs: Long): CompletableFuture<JsonObject> =
-    CoroutineScope(Dispatchers.Default).futureOf { request(transport, operation, payload, timeoutMs) }
+/** `request`, for Java, on `context`. */
+@JvmOverloads
+public fun requestFuture(
+    transport: Transport,
+    operation: Operation<*, *, *>,
+    payload: JsonObject,
+    timeoutMs: Long,
+    context: CoroutineContext = Dispatchers.Default,
+    clock: TimeSource = TimeSource.Monotonic,
+): CompletableFuture<JsonObject> = CoroutineScope(context).futureOf { request(transport, operation, payload, timeoutMs, clock) }
 
 /**
  * A request of the bus, as far as the frame that answers it on its
- * operation's result channel; a failure is the request's error. It is not
- * sent before its reply can arrive: it waits, inside its own deadline, for the
+ * operation's result channel; a failure is the request's error. Its deadline
+ * is measured by `clock`. It is not sent before its reply can arrive: it
+ * waits, inside its own deadline, for the
  * stream to be open. Its reply is tracked before it is emitted, and the emit
  * is not cut short by the deadline: a request half sent is one nobody can
  * account for. Cancelled, it reports nothing more, and a reply that comes
  * anyway settles nothing.
  */
-internal suspend fun resultOf(transport: Transport, operation: Operation<*, *, *>, payload: JsonObject, timeoutMs: Long): Frame {
+internal suspend fun resultOf(transport: Transport, operation: Operation<*, *, *>, payload: JsonObject, timeoutMs: Long, clock: TimeSource): Frame {
     val asked = operation.request.name
     val result = operation.result.name
     val failure = operation.failure.name
@@ -125,8 +142,8 @@ internal suspend fun resultOf(transport: Transport, operation: Operation<*, *, *
             )
         }
     }
-    val deadline = System.nanoTime() / 1_000_000 + timeoutMs
-    fun left(): Long = maxOf(0, deadline - System.nanoTime() / 1_000_000)
+    val began = clock.markNow()
+    fun left(): Long = maxOf(0, timeoutMs - began.elapsedNow().inWholeMilliseconds)
     fun timedOut() = BusRequestError(BusRequestErrorCode.Timeout, "Bus request timed out after ${timeoutMs}ms on $result")
 
     val state = withTimeoutOrNull(left()) { transport.state.first { it == ConnectionState.Open || it == ConnectionState.Closed } } ?: throw timedOut()
@@ -242,10 +259,16 @@ public class Typed<P> internal constructor(
  * A caller abandons a request by cancelling the coroutine that awaits it, or
  * from Java the future: what was sent stays sent, the reply stops being
  * tracked, and one that comes anyway reaches nobody. Cancelled while it waits
- * for the stream, it sends nothing.
+ * for the stream, it sends nothing. A request's deadline is measured by
+ * `clock`, and a future runs on `context`, under the job `context` has when
+ * it has one.
  */
-public class Bus(private val transport: Transport) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+public class Bus @JvmOverloads constructor(
+    private val transport: Transport,
+    context: CoroutineContext = Dispatchers.Default,
+    private val clock: TimeSource = TimeSource.Monotonic,
+) {
+    private val scope = CoroutineScope(context + SupervisorJob(context[Job]))
 
     /** Send one frame on `channel`: how many subscribers the gateway reached, or null when it kept no count. */
     public suspend fun <P> emit(channel: Channel<P>, payload: P, scope: ResourceId? = null, correlationId: String? = null): Long? =
@@ -273,7 +296,7 @@ public class Bus(private val transport: Transport) {
      * `TransportError` when the result that came is not the operation's.
      */
     public suspend fun <Q, R, F> request(operation: Operation<Q, R, F>, payload: Q, timeoutMs: Long = Timings.BUS_REQUEST_TIMEOUT_MS): R =
-        decoded(operation.result, resultOf(transport, operation, encoded(operation.request, payload), timeoutMs).payload)
+        decoded(operation.result, resultOf(transport, operation, encoded(operation.request, payload), timeoutMs, clock).payload)
 
     /** `request`, for Java. */
     public fun <Q, R, F> requestFuture(operation: Operation<Q, R, F>, payload: Q, timeoutMs: Long): CompletableFuture<R> =

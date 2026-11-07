@@ -9,7 +9,7 @@ once: the client as it is made (`open_library`), the headers of a request
 request says and how its reply is read are each module's own.
 
 **What the library does on its own, and what is done about each** (`openai`,
-read at 3.40.0, so that a new release of it is read for the same):
+read at 3.42.1, so that a new release of it is read for the same):
 
 - Its HTTP client takes a proxy and its trusted certificates from the
   environment (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`,

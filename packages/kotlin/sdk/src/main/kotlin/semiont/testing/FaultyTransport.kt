@@ -4,6 +4,7 @@ package semiont.testing
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -122,30 +123,25 @@ public fun retryKeyOf(channel: String, payload: JsonObject): String =
  * request did, as a gateway's does. A frame sent on a channel the stream
  * names (`channels`, every channel when none are given) comes back to it, as
  * a gateway gives a frame to every client whose stream names its channel.
+ * Its replies arrive, and a delayed one waits, on `context`, under the job
+ * `context` has when it has one.
  */
-public class FaultyTransport internal constructor(
-    private val schedule: List<FaultAction>,
-    private val respond: Respond,
-    private val channels: Collection<String>?,
-    context: CoroutineContext,
+public class FaultyTransport @JvmOverloads constructor(
+    private val schedule: List<FaultAction> = emptyList(),
+    private val respond: Respond = REFUSE_UNSCRIPTED,
+    private val channels: Collection<String>? = null,
+    context: CoroutineContext = Dispatchers.Default,
 ) : Transport {
-    /** A transport whose replies arrive on the default dispatcher. */
-    @JvmOverloads
-    public constructor(
-        schedule: List<FaultAction> = emptyList(),
-        respond: Respond = REFUSE_UNSCRIPTED,
-        channels: Collection<String>? = null,
-    ) : this(schedule, respond, channels, Dispatchers.Default)
 
     private val replies = mutableMapOf<String, ArrayDeque<Queued>>()
     private val log = mutableListOf<RequestLogEntry>()
     private val sent = mutableListOf<Frame>()
     private val held = mutableMapOf<ResourceId, Int>()
     private val hub = FrameHub()
-    private val router = ReplyRouter()
+    private val router = ReplyRouter(context)
     private val connection = Variable(ConnectionState.Open)
     private val failing = Broadcast<SemiontError>(keepForFirst = true)
-    private val arriving = CoroutineScope(SupervisorJob() + context)
+    private val arriving = CoroutineScope(context + SupervisorJob(context[Job]))
     private var refusing: Refuse? = null
 
     @Volatile
