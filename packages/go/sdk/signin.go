@@ -226,7 +226,7 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 	}, baseURL)
 	var keeps *keptFor
 	if keepsForAPerson {
-		keeps = &keptFor{SignInKept: config.Kept, storage: config.Storage, kbID: config.Kb.Id, client: client, transport: transport}
+		keeps = &keptFor{SignInKept: config.Kept, storage: config.Storage, kbID: config.Kb.Id, client: client, transport: transport, onError: config.OnError}
 		if has && held.PersonKey != nil {
 			keeps.attach(*held.PersonKey)
 		}
@@ -270,6 +270,9 @@ type keptFor struct {
 	kbID      string
 	client    *Client
 	transport *HTTPTransport
+	// onError is the session's (SessionConfig): it is told when the client
+	// stops keeping because the sign-in could not be read.
+	onError func(*SessionError)
 
 	mu sync.Mutex
 	// keeping is where the client keeps the person's things: nil until it is
@@ -287,7 +290,7 @@ type keptFor struct {
 // a cache still taking in the event it names would have the next session
 // skip that event.
 func (k *keptFor) attach(personKey string) {
-	k.keeping = &whileNamed{SessionStorage: k.storage, kept: k.SignInKept, personKey: personKey}
+	k.keeping = &whileNamed{SessionStorage: k.storage, kept: k.SignInKept, personKey: personKey, unreadable: k.unreadable}
 	places := NewCoupledBookmarks(k.keeping, LastEventIDKey(k.kbID, personKey))
 	places.SetFlushGate(k.client.PersistenceSettled)
 	k.transport.keepPlaces(places)
@@ -301,6 +304,15 @@ func (k *keptFor) attach(personKey string) {
 func (k *keptFor) Forget(ctx context.Context) error {
 	k.stop()
 	return k.SignInKept.Forget(ctx)
+}
+
+// unreadable tells the session's OnError, as session.keep-failed, that the
+// sign-in could not be read before the client saved what it keeps, so the
+// client keeps nothing more.
+func (k *keptFor) unreadable(err error) {
+	if k.onError != nil {
+		k.onError(&SessionError{Code: SessionErrorCodeKeepFailed, Message: "The sign-in could not be read before the client saved what it keeps: " + err.Error(), KbID: k.kbID})
+	}
 }
 
 // stop has the client keep nothing more, once a write being made is made:
@@ -318,49 +330,57 @@ func (k *keptFor) stop() {
 // whileNamed is the storage a session keeps one person's things in, written
 // only while its kept sign-in names that person (HeldSignIn.PersonKey). Each
 // write is checked and made as one step. Once a write finds the sign-in
-// forgotten, or naming nobody or another person, or the session has dropped
-// it, that write and every one after it are dropped: what the session had not
-// written of the person is discarded.
+// forgotten, or naming nobody or another person, or cannot read it, or the
+// session has dropped it, that write and every one after it are dropped: what
+// the session had not written of the person is discarded.
 type whileNamed struct {
 	SessionStorage
 	kept      SignInKept
 	personKey string
+	// unreadable is told why the sign-in could not be read, the one time it
+	// is found so: nothing is asked of it after.
+	unreadable func(error)
 
 	// mu is held across each write's check and the write, and by drop.
 	mu      sync.Mutex
 	dropped bool
 }
 
-// writes reports whether a write is made, with mu held. A sign-in that cannot
-// be read is not known to name the person: why is said where a value not kept
-// is said (unsaved), once, as nothing is asked again.
-func (w *whileNamed) writes() bool {
-	if !w.dropped {
-		held, has, err := w.kept.Held(context.Background())
-		if err != nil {
-			slog.Warn("semiont: the sign-in could not be read before a write, so nothing more is kept for its person", "error", err)
-		}
-		w.dropped = err != nil || !has || held.PersonKey == nil || *held.PersonKey != w.personKey
+// writes reports whether a write is made, with mu held, and why the sign-in
+// could not be read when this is the check that found it so. A sign-in that
+// cannot be read is not known to name the person.
+func (w *whileNamed) writes() (bool, error) {
+	if w.dropped {
+		return false, nil
 	}
-	return !w.dropped
+	held, has, err := w.kept.Held(context.Background())
+	w.dropped = err != nil || !has || held.PersonKey == nil || *held.PersonKey != w.personKey
+	return !w.dropped, err
 }
 
 func (w *whileNamed) Set(key, value string) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if !w.writes() {
-		return nil
-	}
-	return w.SessionStorage.Set(key, value)
+	return w.made(func() error { return w.SessionStorage.Set(key, value) })
 }
 
 func (w *whileNamed) Update(key string, change func(stored string, has bool) (string, bool)) error {
+	return w.made(func() error { return w.SessionStorage.Update(key, change) })
+}
+
+// made checks and makes write as one step, under mu. A sign-in found
+// unreadable is said once mu is let go: mu is held over the check and the
+// write, and no one's callback.
+func (w *whileNamed) made(write func() error) error {
 	w.mu.Lock()
-	defer w.mu.Unlock()
-	if !w.writes() {
-		return nil
+	writes, unreadable := w.writes()
+	var err error
+	if writes {
+		err = write()
 	}
-	return w.SessionStorage.Update(key, change)
+	w.mu.Unlock()
+	if unreadable != nil {
+		w.unreadable(unreadable)
+	}
+	return err
 }
 
 // drop has every write from now on dropped, once a write being made is made.

@@ -22,7 +22,9 @@ type SessionFactoryOptions struct {
 	Storage semiont.SessionStorage
 	// Signals is where the session says it is over, for a host to show.
 	Signals *semiont.SessionSignals
-	// OnError is told each failure that makes the session unusable.
+	// OnError is told each failure the session says (semiont.SessionConfig's
+	// OnError): one that makes it unusable, and one that stops its client
+	// keeping what it holds, after which it goes on.
 	OnError func(*semiont.SessionError)
 }
 

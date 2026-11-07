@@ -8,12 +8,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -814,5 +816,89 @@ func TestASaveBeingWrittenDoesNotLandAfterTheSessionForgetsItsSignIn(t *testing.
 		if _, has := storage.Get(key); has {
 			t.Errorf("%s holds something once the forget and the write are both done", key)
 		}
+	}
+}
+
+// unreadableSignIn is a memory sign-in whose Held fails while unreadable
+// holds.
+type unreadableSignIn struct {
+	*semiont.MemorySignIn
+	unreadable atomic.Bool
+}
+
+func (u *unreadableSignIn) Held(ctx context.Context) (semiont.HeldSignIn, bool, error) {
+	if u.unreadable.Load() {
+		return semiont.HeldSignIn{}, false, errors.New("the sign-in cannot be read")
+	}
+	return u.MemorySignIn.Held(ctx)
+}
+
+// A sign-in that cannot be read when the client saves is not known to name
+// the person the client keeps for: nothing is written, nor anything after for
+// the client's life, even once it can be read again and names them still, and
+// the session says so once, as session.keep-failed.
+func TestASignInUnreadableAtASaveStopsTheClientKeepingAndIsSaidOnce(t *testing.T) {
+	table := readPersistedCases(t)
+	jo := personOf(t, table, "jo").PersonKey
+	s := newStage(t)
+	s.mu.Lock()
+	s.who = table.WhoAmI
+	s.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	kept := &unreadableSignIn{MemorySignIn: &semiont.MemorySignIn{}}
+	must(t, kept.Keep(ctx, s.heldSignIn(jwt(time.Hour), "r1", &jo)))
+	caches := &watchedStorage{SessionStorage: semiont.NewMemoryStorage()}
+	issuer := s.issuerOf()
+	timing := issuer.Timing
+	timing.SaveDebounce = time.Millisecond
+	var mu sync.Mutex
+	var told []*semiont.SessionError
+	first := make(chan struct{})
+	session, end, err := semiont.SessionFromKept(ctx, semiont.SessionFromKeptConfig{
+		Kb:            api.KbTarget{Endpoint: s.registered(t, kbA).Endpoint, Id: kbA, Label: "KB A"},
+		Kept:          kept,
+		HTTP:          issuer.HTTP,
+		Timing:        timing,
+		AskWhoTokenIs: true,
+		Channels:      bus.BridgedChannels,
+		Storage:       caches,
+		OnError: func(err *semiont.SessionError) {
+			mu.Lock()
+			defer mu.Unlock()
+			told = append(told, err)
+			if len(told) == 1 {
+				close(first)
+			}
+		},
+	})
+	must(t, err)
+	ended := sync.OnceFunc(end)
+	defer ended()
+
+	kept.unreadable.Store(true)
+	_, err = session.Client().Browse.Resource(id("res-1")).Fresh(ctx)
+	must(t, err)
+	select {
+	case <-first:
+	case <-ctx.Done():
+		t.Fatal("the session never said its client stopped keeping")
+	}
+	kept.unreadable.Store(false)
+	_, err = session.Client().Browse.Resource(id("res-2")).Fresh(ctx)
+	must(t, err)
+	ended()
+
+	if written := caches.under(&caches.written, keyPrefixes(t)); len(written) > 0 {
+		t.Errorf("the client wrote %v", written)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	codes := []semiont.SessionErrorCode{}
+	for _, each := range told {
+		codes = append(codes, each.Code)
+	}
+	if !slices.Equal(codes, []semiont.SessionErrorCode{semiont.SessionErrorCodeKeepFailed}) || told[0].KbID != kbA {
+		t.Errorf("the session said %v; it says session.keep-failed of kb-a, once", codes)
 	}
 }

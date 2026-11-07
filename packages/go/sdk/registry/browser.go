@@ -269,9 +269,11 @@ func (b *SemiontBrowser) LastViewedResource() semiont.Watched[api.ResourceId] {
 	return b.lastViewed.Reading()
 }
 
-// Errors is the failures that made a session unusable, from this call on,
-// until ctx is done or the registry is closed. A reader that falls more than
-// a few dozen behind misses those after.
+// Errors is the failures its sessions say (semiont.SessionConfig's OnError):
+// those that made a session unusable, and those that stopped a session's
+// client keeping what it holds, from this call on, until ctx is done or the
+// registry is closed. A reader that falls more than a few dozen behind misses
+// those after.
 func (b *SemiontBrowser) Errors(ctx context.Context) iter.Seq[*semiont.SessionError] {
 	return b.failures.from(ctx)
 }

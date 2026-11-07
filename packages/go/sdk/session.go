@@ -158,7 +158,10 @@ type SessionConfig struct {
 	Validate func(ctx context.Context, token string) (api.UserResponse, error)
 	// OnAuthFailed is told why the session ended, when it ends. May be nil.
 	OnAuthFailed func(SessionEndReason)
-	// OnError is told each failure that makes the session unusable. May be nil.
+	// OnError is told each failure that makes the session unusable, and, for
+	// a session whose client keeps what it holds (SessionFromKeptConfig's
+	// Storage), the one that stops it keeping (session.keep-failed), after
+	// which the session goes on. May be nil.
 	OnError func(*SessionError)
 	Timing  Timing
 	// Random is what the jitter of a renewal tried again after it got no
