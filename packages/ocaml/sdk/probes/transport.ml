@@ -424,6 +424,132 @@ let payload_wire () =
   check "end of response" true (Option.is_none (W.read input));
   Promise.await_exn server
 
+let subscription_replay () =
+  let module B = Semiont.Bus_registry in
+  let module S = Semiont.Subscription in
+  Eio_main.run @@ fun env ->
+  with_listener env @@ fun sw socket address port ->
+  let base = Eio_mock.Clock.Mono.make () in
+  let jitter = Random.State.make [| 42 |] in
+  let expected_delay =
+    float Subscription_timing.reconnect_ms
+    *. (0.5 +. (Random.State.float (Random.State.copy jitter) 1. *. 0.5))
+  in
+  let retry_at = Int64.of_float (expected_delay *. 1_000_000.) in
+  let waiting, waiting_u = Promise.create () in
+  let module Timer = struct
+    type t = unit
+    type time = Mtime.t
+
+    let now () = Eio.Time.Mono.now base
+
+    let sleep_until () due =
+      if Mtime.to_uint64_ns due <= retry_at && not (Promise.is_resolved waiting)
+      then Promise.resolve waiting_u ();
+      Eio.Time.Mono.sleep_until base due
+  end in
+  let monotonic = Eio.Resource.T ((), Eio.Time.Pi.clock (module Timer)) in
+  let clock =
+    Semiont.Clock.make ~monotonic ~wall:(Eio.Stdenv.clock env) ~jitter
+  in
+  let sent, send = Promise.create () in
+  let release, release_peer = Promise.create () in
+  let reattached, attach = Promise.create () in
+  let server =
+    Fiber.fork_promise ~sw (fun () ->
+        Switch.run (fun sw ->
+            let flow, _ = Eio.Net.accept ~sw socket in
+            ignore (request flow);
+            Eio.Flow.copy_string "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n"
+              flow;
+            Promise.await sent);
+        Switch.run (fun sw ->
+            let flow, _ = Eio.Net.accept ~sw socket in
+            ignore (request flow);
+            let event =
+              Printf.sprintf "event: %s\nid: reply-1\ndata: %s\n\n"
+                B.stream_event
+                {|{"channel":"mark:archive-ok","correlationId":"pending","payload":{}}|}
+            in
+            Eio.Flow.copy_string
+              ("HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n" ^ event ^ event)
+              flow;
+            Promise.await release))
+  in
+  let opens = ref 0 in
+  let deliveries = ref 0 in
+  let http = client env address (ref 0) in
+  let connect ~sw snapshot =
+    incr opens;
+    if !opens = 2 then Promise.resolve attach snapshot;
+    let body = Result.get_ok (S.encode_subscription snapshot) in
+    let _, response =
+      Cohttp_eio.Client.post http ~sw
+        ~body:(Cohttp_eio.Body.of_string body)
+        (Uri.of_string
+           (Printf.sprintf "http://localhost:%d/bus/subscribe" port))
+    in
+    Ok (Eio.Buf_read.of_flow ~max_size:65536 response)
+  in
+  let subscription =
+    S.start ~sw ~clock ~client_id:"client"
+      ~global:
+        [
+          B.Channel B.Channels.mark_archive_ok;
+          B.Channel B.Channels.mark_archive_failed;
+        ]
+      ~scopes:[] ~connect
+      ~on_event:(fun _ -> incr deliveries)
+      ()
+  in
+  let pending =
+    Fiber.fork_promise ~sw (fun () ->
+        S.request subscription ~correlation_id:"pending"
+          B.Operations.mark_archive ~send:(fun () -> Promise.resolve send ()))
+  in
+  Promise.await waiting;
+  check "drop leaves open" true (S.state subscription = S.Reconnecting);
+  let before = Mtime.of_uint64_ns (Int64.pred retry_at) in
+  let barrier =
+    Fiber.fork_promise ~sw (fun () -> Eio.Time.Mono.sleep_until base before)
+  in
+  Eio_mock.Clock.Mono.set_time base before;
+  Promise.await_exn barrier;
+  Alcotest.(check int) "no early reconnect" 1 !opens;
+  Eio_mock.Clock.Mono.set_time base (Mtime.of_uint64_ns retry_at);
+  let snapshot = Promise.await reattached in
+  Alcotest.(check (list string))
+    "reopen carries unanswered id" [ "pending" ] snapshot.pending_replies;
+  (match Promise.await_exn pending with
+  | Ok (S.Result payload) ->
+      Alcotest.(check string)
+        "reply settles typed request" "{}" (B.encode payload)
+  | _ -> Alcotest.fail "expected replayed reply");
+  Alcotest.(check int) "replayed duplicate is suppressed" 1 !deliveries;
+  let waiting_request () =
+    let started, start = Promise.create () in
+    let result =
+      Fiber.fork_promise ~sw (fun () ->
+          S.request subscription ~timeout_ms:20 ~correlation_id:"unused"
+            B.Operations.mark_archive ~send:(fun () -> Promise.resolve start ()))
+    in
+    Promise.await started;
+    result
+  in
+  let timed = waiting_request () in
+  Eio_mock.Clock.Mono.set_time base
+    (Mtime.of_uint64_ns (Int64.add retry_at 20_000_000L));
+  check "unanswered request times out" true
+    (Promise.await_exn timed = Error S.Timeout);
+  let outstanding = waiting_request () in
+  S.close subscription;
+  S.await_closed subscription;
+  check "close ends a pending request" true
+    (Promise.await_exn outstanding = Error S.Transport_closed);
+  check "close is terminal" true (S.state subscription = S.Closed);
+  Promise.resolve release_peer ();
+  Promise.await_exn server
+
 let () =
   Mirage_crypto_rng_unix.use_default ();
   Alcotest.run "OCaml native transport substrate"
@@ -434,6 +560,8 @@ let () =
             explicit_connection_policy;
           Alcotest.test_case "wire codecs over loopback HTTP" `Quick
             payload_wire;
+          Alcotest.test_case "controlled reconnect replays pending replies"
+            `Quick subscription_replay;
           Alcotest.test_case "no hidden retry" `Quick no_hidden_retry;
           Alcotest.test_case "request scopes preserve a borrowed connection"
             `Quick borrowed_connection;

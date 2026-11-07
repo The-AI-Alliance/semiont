@@ -130,16 +130,18 @@
     "lib/schema_shapes.ml": "12f163c8f930d2cb1559aa93de7f8d5fd58583827059852e6aebdf9b03629bea",
     "lib/selector.ml": "28f250d3a6ed926ba94317cf595d39742124587c527ebcf02c6f6c043c50a7e8",
     "lib/selector.mli": "1c3c9f74ea5c90d0154547e5c3f249f4f7fcfd05f5fc97bc89ad7976a7b02716",
-    "lib/semiont.ml": "d84b40eca78ae02e8bef7deff6041596bc5b3e7e9b3b0709bd01a91565b0dc17",
-    "lib/semiont.mli": "b037142fc49c35b0af15796bcf48ec54a151f176e3a4dd2dbb84306f3be4ccd0",
+    "lib/semiont.ml": "dc5ae0ae480c4d35287acfbf71b83f8d5190017f1c6d2859f4b4d7383661e523",
+    "lib/semiont.mli": "aac955481b7a08f5a436faa93525ad084960257c2ea8b38839e02da9d42b6408",
     "lib/strict_json.ml": "19a2f3c4c5a828e0fe55cd36eb25b685e965f0b79c21cd57cc4a17c53d0112d6",
     "lib/strict_json.mli": "818f38488855a5ce525bbf7fa483feb6aad993670115a63065029201999b50a7",
+    "lib/subscription.ml": "84a47184694ba7d7751d5e1dd92b92e05e7d70b7640b03d7a4475e46533c964f",
+    "lib/subscription.mli": "ae84e84040267de55da412ecacb8aabd0b553e65367fbf2f3d223d4081840266",
     "lib/types.ml": "5921efffb7596beb176e09960cdfa080ec954349ec2ce9d7e54bc7f638c808fe",
     "lib/types.mli": "97149245ffc84db1b741d7156a08017eff6f941179e9e6df950f212da8d60d76",
     "lib/wire_stream.ml": "3d3bfb920d6fc1ec36f520313c5f856d2d517a649991daedc0501dc53e7ba37c",
     "lib/wire_stream.mli": "645c74a149403f6f73ff86e00f60937a5edca97689a5267dd0f85d9a62f501c0",
     "probes/api_inventory.ml": "97b819335b2d6d55f2f4a7c73422ad4df34ca5e459fe4df300f01a0ff5efb36a",
-    "probes/dune": "af03bffa34cc3aec8dd16e9789627f57d99dde204b7ee0b4c19d732fa51f6c2a",
+    "probes/dune": "4b82a53ae47205f7a5bfc5ac215aa840814c53ff15e0c58bc1974d913fea043b",
     "public-api.inputs.json": "16a156e808e8dfd7df61837746b0e4b8ce44e38a40f5a1b647baec0af1bfcca9",
     "semiont.opam": "a5f3e7a7e1b1e98783797caa3bd9f9c9dff8e7a631803e45c1062ed263485223"
   },
@@ -11743,6 +11745,212 @@
       "kind": "value",
       "path": "Semiont.Wire_stream.encode_emit",
       "declaration": "val encode_emit :\n  ?scope:Semiont__.Identifiers.Resource_id.t ->\n  ?client_id:string ->\n  ?correlation_id:string ->\n  'a Semiont__.Bus_registry.channel -> string -> (string, emit_error) result"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Subscription",
+      "declaration": "module Subscription = Semiont__.Subscription",
+      "alias": "Semiont__.Subscription"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Subscription.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Subscription.state",
+      "declaration": "type state =\n    Initial\n  | Connecting\n  | Open\n  | Reconnecting\n  | Degraded\n  | Unauthenticated\n  | Closed",
+      "representation": "variant",
+      "constructors": [
+        "Initial",
+        "Connecting",
+        "Open",
+        "Reconnecting",
+        "Degraded",
+        "Unauthenticated",
+        "Closed"
+      ],
+      "variants": [
+        {
+          "name": "Initial",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Connecting",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Open",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Reconnecting",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Degraded",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Unauthenticated",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Closed",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Subscription.scope",
+      "declaration": "type scope = {\n  resource : Semiont__.Identifiers.Resource_id.t;\n  channels : Semiont__.Bus_registry.packed_channel list;\n}",
+      "representation": "record",
+      "fields": [
+        "resource",
+        "channels"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Subscription.snapshot",
+      "declaration": "type snapshot = {\n  client_id : string;\n  global : Semiont__.Bus_registry.packed_channel list;\n  scoped : (scope * string option) list;\n  pending_replies : string list;\n}",
+      "representation": "record",
+      "fields": [
+        "client_id",
+        "global",
+        "scoped",
+        "pending_replies"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Subscription.open_error",
+      "declaration": "type open_error = Retry | No_credential",
+      "representation": "variant",
+      "constructors": [
+        "Retry",
+        "No_credential"
+      ],
+      "variants": [
+        {
+          "name": "Retry",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "No_credential",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Subscription.encode_subscription",
+      "declaration": "val encode_subscription :\n  snapshot -> (string, Semiont__.Models.decode_error) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Subscription.start",
+      "declaration": "val start :\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  client_id:string ->\n  global:Semiont__.Bus_registry.packed_channel list ->\n  scopes:scope list ->\n  connect:(sw:Eio.Switch.t -> snapshot -> (Eio.Buf_read.t, open_error) result) ->\n  on_event:((Semiont__.Wire_stream.frame, Semiont__.Wire_stream.refusal)\n            result -> unit) ->\n  unit -> t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Subscription.state",
+      "declaration": "val state : t -> state"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Subscription.close",
+      "declaration": "val close : t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Subscription.await_closed",
+      "declaration": "val await_closed : t -> unit"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Subscription.reply",
+      "declaration": "type ('result, 'failure) reply =\n    Result of 'result Semiont__.Bus_registry.decoded\n  | Failure of 'failure Semiont__.Bus_registry.decoded",
+      "representation": "variant",
+      "constructors": [
+        "Result",
+        "Failure"
+      ],
+      "variants": [
+        {
+          "name": "Result",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Failure",
+          "fields": [],
+          "unit": false
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Subscription.request_error",
+      "declaration": "type request_error =\n    Transport_closed\n  | Timeout\n  | Duplicate_id\n  | Unsubscribed\n  | Invalid_reply of Semiont__.Bus_registry.decode_error\n  | Invalid_frame of Semiont__.Models.decode_error",
+      "representation": "variant",
+      "constructors": [
+        "Transport_closed",
+        "Timeout",
+        "Duplicate_id",
+        "Unsubscribed",
+        "Invalid_reply",
+        "Invalid_frame"
+      ],
+      "variants": [
+        {
+          "name": "Transport_closed",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Timeout",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Duplicate_id",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Unsubscribed",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Invalid_reply",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Invalid_frame",
+          "fields": [],
+          "unit": false
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Subscription.request",
+      "declaration": "val request :\n  t ->\n  ?timeout_ms:int ->\n  correlation_id:string ->\n  ('request, 'result, 'failure) Semiont__.Bus_registry.operation ->\n  send:(unit -> unit) -> (('result, 'failure) reply, request_error) result"
     }
   ]
 }

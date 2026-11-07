@@ -1,9 +1,14 @@
 (test
  (name transport)
- (modules transport)
+ (modules transport subscription_timing)
  (libraries semiont eio_main eio.mock cohttp-eio tls-eio mirage-crypto-rng.unix
   x509 uri mtime ptime cstruct domain-name alcotest)
  (deps peer-cert.pem peer-key.pem))
+
+(rule
+ (targets subscription_timing.ml)
+ (deps ../lib/client_timing.ml)
+ (action (copy %{deps} %{targets})))
 
 (rule
  (targets peer-cert.pem peer-key.pem)
