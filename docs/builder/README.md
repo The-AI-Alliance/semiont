@@ -37,6 +37,9 @@ Kotlin and Java: the SDK is not published yet. [Its README](../../packages/kotli
 
 Swift uses a [local Swift package from a Semiont checkout](../../packages/swift/sdk/README.md#install).
 
+Haskell uses a [local Cabal package](../../packages/haskell/sdk/README.md#install)
+from a Semiont checkout until it is published.
+
 **Then go to the [Developer Guide](./DEVELOPER-GUIDE.md).** It is the way in: short recipes in the order you will need them. You connect, read, ingest a document, enrich it, gather context around it, generate from it, react to what other participants do, and test what you built.
 
 The client needs a knowledge base to talk to. The [Quick Start](./QUICK-START.md) gets one running on your machine.
@@ -95,6 +98,7 @@ The main guide examples use TypeScript. Each SDK README shows how to call the sa
 - **[Kotlin](../../packages/kotlin/sdk/README.md)**, for Kotlin and Java programs: `suspend` functions and `Flow`s in Kotlin, and in Java a `CompletableFuture` for each and a `Flow.Publisher` for each stream. It has the client, live queries, sessions, the state units, a worker's claims, the annotation readers and builders, and a registry of several knowledge bases with a person's sign-in by a page redirect. It is not published yet.
 - **[C#](../../packages/csharp/sdk/README.md)** uses tasks and async enumerables. The README has runnable examples for delegation, workers, and live queries.
 - **[Swift](../../packages/swift/sdk/README.md)** uses async functions and sequences in Apple apps and Linux services. The README shows local package setup, device sign-in, resource reads, delegation, and live queries.
+- **[Haskell](../../packages/haskell/sdk/README.md)** uses `IO`, STM observations and scoped `streaming` readers. Its README covers sign-in, kept sessions, live queries and persistence, typed delegation, [claims and held jobs](../../packages/haskell/sdk/README.md#running-a-worker), all ten state units, and a registry of knowledge bases. It builds from source until published.
 
 ## Agent skills
 

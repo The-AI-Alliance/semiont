@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for what a registry of knowledge bases keeps in a SessionStorage, and what the sessions it makes keep there: the key each thing is kept under, the shape of a knowledge base's stored session, and the shape of a sign-in by a page redirect that is under way. A registry in any SDK finds what one in another wrote, over one storage, only if every SDK says these alike. WHO HOLDS IT. TypeScript states it by hand in packages/typescript/sdk/src/session/storage.ts and oauth.ts, held by packages/typescript/sdk/src/session/__tests__/stored-table.test.ts and oauth.test.ts. Rust in packages/rust/sdk/src/session/stored.rs, held by packages/rust/sdk/tests/tables.rs and stored.rs's own tests, and in packages/rust/http-transport/src/oauth.rs and session.rs, held by packages/rust/http-transport/tests/sign_in.rs and session.rs's own tests. Go in packages/go/sdk/registry/stored.go, held by packages/go/sdk/registry/stored_test.go, and in packages/go/sdk/authorization.go and storage.go, held by packages/go/sdk/stored_test.go. Kotlin in packages/kotlin/sdk/src/main/kotlin/semiont/registry/Stored.kt and semiont/http/Authorization.kt, held by packages/kotlin/sdk/src/test/kotlin/semiont/registry/StoredTest.kt and semiont/http/AuthorizationTest.kt. Swift in packages/swift/sdk/Sources/Semiont/Registry/Stored.swift and RedirectSignIn.swift, held by packages/swift/sdk/Tests/SemiontTests/RegistryTablesTests.swift and IssuerTests.swift; its generator, packages/swift/sdk/Sources/SemiontCodegen/Tables.swift, makes its stored session of `storedSession`. C# reads the table, which its generator (packages/csharp/sdk/generators/Semiont.Generator/ProtocolGenerator.cs) embeds, in packages/csharp/sdk/src/Semiont/Registry/RegistryStorage.cs, and states the pending sign-in in packages/csharp/sdk/src/Semiont/Authorization/RedirectSignIn.cs, held by packages/csharp/sdk/tests/Semiont.Tests/RegistryTests.cs. Python: packages/codegen/schemas/generate-stored-python.mjs writes packages/python/sdk/src/semiont/stored.py, and packages/python/sdk/tests/test_registry_http.py holds the pending sign-in of packages/python/sdk/src/semiont/http/oauth.py. Swift and C# keep what a client keeps of its queries under `cacheKeyPrefix` in one document of their own (Swift's key is the prefix, the knowledge base's id and `.swift`; C#'s the prefix, `csharp.v1.` and a digest of the knowledge base's id and the person), with the stream's places inside it, and so keep nothing under `lastEventIdKeyPrefix`: their tests hold the prefix alone. READING IT. `keys` are the fixed keys, each named as protocol/specs/src/client/surface.json names its constant. A knowledge base's session is kept under `sessionKeyPrefix` followed by the knowledge base's id, and `storedSession` is what is kept there, as JSON: a flat object schema whose every member is text. `lastEventIdKeyPrefix` and `cacheKeyPrefix` begin the keys of what a session keeps of its stream and its queries, as each one's `docs` says. `pendingAuthorization` is what is kept under `pendingAuthorizationKey`, as JSON; a member it does not require is not written when there is none.",
+  "$comment": "AUTHORITY for what a registry of knowledge bases keeps in a SessionStorage, and what the sessions it makes keep there: the key each thing is kept under, the shape of a knowledge base's stored session, the shape of a resource open in one, and the shape of a sign-in by a page redirect that is under way. A registry in any SDK finds what one in another wrote, over one storage, only if every SDK says these alike. WHO HOLDS IT. TypeScript states it by hand in packages/typescript/sdk/src/session/storage.ts, oauth.ts and open-resource.ts, held by packages/typescript/sdk/src/session/__tests__/stored-table.test.ts and oauth.test.ts. Rust in packages/rust/sdk/src/session/stored.rs and open_resource.rs, held by packages/rust/sdk/tests/tables.rs and stored.rs's own tests, and in packages/rust/http-transport/src/oauth.rs and session.rs, held by packages/rust/http-transport/tests/sign_in.rs and session.rs's own tests. Go in packages/go/sdk/registry/stored.go and openresource.go, held by packages/go/sdk/registry/stored_test.go, and in packages/go/sdk/authorization.go and storage.go, held by packages/go/sdk/stored_test.go. Kotlin in packages/kotlin/sdk/src/main/kotlin/semiont/registry/Stored.kt and Open.kt and semiont/http/Authorization.kt, held by packages/kotlin/sdk/src/test/kotlin/semiont/registry/StoredTest.kt and semiont/http/AuthorizationTest.kt. Swift in packages/swift/sdk/Sources/Semiont/Registry/Stored.swift, OpenResources.swift and RedirectSignIn.swift, held by packages/swift/sdk/Tests/SemiontTests/RegistryTablesTests.swift and IssuerTests.swift; its generator, packages/swift/sdk/Sources/SemiontCodegen/Tables.swift, makes its stored session of `storedSession`. C# reads the table, which its generator (packages/csharp/sdk/generators/Semiont.Generator/ProtocolGenerator.cs) embeds, in packages/csharp/sdk/src/Semiont/Registry/RegistryStorage.cs, where it states the open resource, and states the pending sign-in in packages/csharp/sdk/src/Semiont/Authorization/RedirectSignIn.cs, held by packages/csharp/sdk/tests/Semiont.Tests/RegistryTests.cs. Python: packages/codegen/schemas/generate-stored-python.mjs writes packages/python/sdk/src/semiont/stored.py, and packages/python/sdk/tests/test_registry_http.py holds the pending sign-in of packages/python/sdk/src/semiont/http/oauth.py. Haskell: packages/haskell/sdk/codegen/Main.hs generates its keys and prefixes (packages/haskell/sdk/generated/Semiont/Internal/Generated/Stored.hs) and its stored session, pending sign-in and open resource (Models/StoredSession.hs, PendingAuthorization.hs and OpenResource.hs beside it) from the table. Swift and C# keep what a client keeps of its queries under `cacheKeyPrefix` in one document of their own (Swift's key is the prefix, the knowledge base's id and `.swift`; C#'s the prefix, `csharp.v1.` and a digest of the knowledge base's id and the person), with the stream's places inside it, and so keep nothing under `lastEventIdKeyPrefix`: their tests hold the prefix alone. READING IT. `keys` are the fixed keys, each named as protocol/specs/src/client/surface.json names its constant. A knowledge base's session is kept under `sessionKeyPrefix` followed by the knowledge base's id, and `storedSession` is what is kept there, as JSON: a flat object schema whose every member is text. `lastEventIdKeyPrefix` and `cacheKeyPrefix` begin the keys of what a session keeps of its stream and its queries, as each one's `docs` says. `pendingAuthorization` is what is kept under `pendingAuthorizationKey`, and `openResource` each entry of a list kept under `openResourcesByKbKey`, as JSON; a member either does not require is not written when there is none.",
   "keys": [
     {
       "member": "knowledgeBasesKey",
@@ -14,7 +14,7 @@
     {
       "member": "openResourcesByKbKey",
       "key": "semiont.openResourcesByKb",
-      "docs": "What is open in each knowledge base: a JSON object from a knowledge base's id to the list of its open resources."
+      "docs": "What is open in each knowledge base: a JSON object from a knowledge base's id to the list of its open resources, each an `openResource`."
     },
     {
       "member": "lastViewedResourceByKbKey",
@@ -129,5 +129,39 @@
       }
     },
     "required": ["state", "verifier", "redirectUri", "target", "issuer"]
+  },
+  "openResource": {
+    "title": "OpenResource",
+    "type": "object",
+    "description": "A resource open in a knowledge base: which resource, the name it is shown by, when it was opened and its place among the others open there. A registry shows them by their places, and two in one place by when each was opened, first first.",
+    "properties": {
+      "id": {
+        "allOf": [{ "$ref": "../components/schemas/ResourceId.json" }],
+        "description": "The resource."
+      },
+      "name": {
+        "type": "string",
+        "description": "The name the resource is shown by."
+      },
+      "openedAt": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "When the resource was opened, in milliseconds since the Unix epoch. Opening it again while it is open changes neither this nor its place."
+      },
+      "order": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "The resource's place among those open in the knowledge base. One opened is given the place after the last taken, so a place freed by closing one is not given twice; a move gives each its place in the new order, counted from 0."
+      },
+      "mediaType": {
+        "type": "string",
+        "description": "The resource's media type, which its icon is chosen by. Absent when it is not known."
+      },
+      "storageUri": {
+        "type": "string",
+        "description": "Where the resource is in the knowledge base's working tree, as a URI (file://docs/overview.md). Absent when it is not known."
+      }
+    },
+    "required": ["id", "name", "openedAt", "order"]
   }
 }

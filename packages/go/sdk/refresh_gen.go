@@ -4,7 +4,7 @@
 
 package semiont
 
-import "fmt"
+import "github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 
 // CacheQuery is a live query a client's cache answers.
 type CacheQuery string
@@ -54,12 +54,14 @@ const (
 var CacheQueries = []CacheQuery{CacheQueryResource, CacheQueryAnnotations, CacheQueryAnnotation, CacheQueryEvents, CacheQueryReferencedBy, CacheQueryResources, CacheQueryMatchedResources, CacheQueryEntityTypes, CacheQueryTagSchemas, CacheQueryEngines}
 
 // CacheRefreshTrigger is what refreshes a client's cache: a channel of the
-// bus, or the stream open again after a drop.
+// bus, the stream open again after a drop, or an event on one of the table's
+// channels that cannot be read.
 type CacheRefreshTrigger string
 
 // The triggers of the table.
 const (
 	CacheRefreshReopened             CacheRefreshTrigger = "reopened"
+	CacheRefreshUnreadable           CacheRefreshTrigger = "unreadable"
 	CacheRefreshBusResumeGap         CacheRefreshTrigger = "bus:resume-gap"
 	CacheRefreshMarkAdded            CacheRefreshTrigger = "mark:added"
 	CacheRefreshMarkRemoved          CacheRefreshTrigger = "mark:removed"
@@ -76,6 +78,10 @@ const (
 	CacheRefreshFrameEntityTypeAdded CacheRefreshTrigger = "frame:entity-type-added"
 	CacheRefreshFrameTagSchemaAdded  CacheRefreshTrigger = "frame:tag-schema-added"
 )
+
+// CacheRefreshChannels is each trigger of the table that is a channel of the
+// bus, in the table's order.
+var CacheRefreshChannels = []CacheRefreshTrigger{CacheRefreshBusResumeGap, CacheRefreshMarkAdded, CacheRefreshMarkRemoved, CacheRefreshMarkDeleteOk, CacheRefreshMarkBodyUpdated, CacheRefreshMarkEntityTagAdded, CacheRefreshMarkEntityTagRemoved, CacheRefreshMarkArchived, CacheRefreshMarkUnarchived, CacheRefreshYieldCreated, CacheRefreshYieldUpdated, CacheRefreshYieldCloned, CacheRefreshYieldMoved, CacheRefreshFrameEntityTypeAdded, CacheRefreshFrameTagSchemaAdded}
 
 // CacheRefreshReach is which keys a row acts on: those the event names
 // (subject), or every key the client holds (held).
@@ -98,12 +104,27 @@ const (
 	CacheRefreshWhenUnenriched CacheRefreshWhen = "unenriched"
 )
 
-// CacheRefresh is one row of the table: the queries a trigger asks again
-// for, keeping the value shown meanwhile; those whose new value its event
-// carries; and those whose entity its event says is gone.
+// CacheRefreshWay is a way to a member of an event: the names of the members
+// it is within, and its own. Nil where a row states none.
+type CacheRefreshWay []string
+
+// CacheRefreshNames is where in its event a row that reaches its subject
+// finds it: the way to the resource it names (a ResourceId), and to the
+// annotation (an AnnotationId).
+type CacheRefreshNames struct {
+	Resource   CacheRefreshWay
+	Annotation CacheRefreshWay
+}
+
+// CacheRefresh is one row of the table: where its event names what it
+// reaches; the way to the value it writes (an Annotation); the queries a
+// trigger asks again for, keeping the value shown meanwhile; those whose new
+// value its event carries; and those whose entity its event says is gone.
 type CacheRefresh struct {
 	When      CacheRefreshWhen
 	Reach     CacheRefreshReach
+	Names     CacheRefreshNames
+	Carries   CacheRefreshWay
 	Refetches []CacheQuery
 	Writes    []CacheQuery
 	Removes   []CacheQuery
@@ -120,75 +141,83 @@ var CacheRefreshTable = map[CacheRefreshTrigger][]CacheRefresh{
 		{Reach: CacheRefreshReachHeld, Refetches: []CacheQuery{CacheQueryResources, CacheQueryMatchedResources, CacheQueryResource, CacheQueryEntityTypes, CacheQueryTagSchemas, CacheQueryEngines}},
 	},
 
+	// A frame on a channel of this table that its reading refuses, or one a
+	// member of which the row names is present and is not what it names:
+	// something changed and nothing says what, so every key held is asked for
+	// again, as after a gap.
+	CacheRefreshUnreadable: {
+		{Reach: CacheRefreshReachHeld, Refetches: []CacheQuery{CacheQueryResource, CacheQueryAnnotations, CacheQueryAnnotation, CacheQueryEvents, CacheQueryReferencedBy, CacheQueryResources, CacheQueryMatchedResources, CacheQueryEntityTypes, CacheQueryTagSchemas, CacheQueryEngines}},
+	},
+
 	// The gateway could not replay what a scope missed: everything held of that
 	// resource, and of its annotations, is asked for again.
 	CacheRefreshBusResumeGap: {
-		{Reach: CacheRefreshReachSubject, Refetches: []CacheQuery{CacheQueryAnnotations, CacheQueryAnnotation, CacheQueryResource, CacheQueryEvents, CacheQueryReferencedBy}},
+		{Reach: CacheRefreshReachSubject, Names: CacheRefreshNames{Resource: CacheRefreshWay{"scope"}}, Refetches: []CacheQuery{CacheQueryAnnotations, CacheQueryAnnotation, CacheQueryResource, CacheQueryEvents, CacheQueryReferencedBy}},
 	},
 
 	// An annotation was added to the resource.
 	CacheRefreshMarkAdded: {
-		{Reach: CacheRefreshReachSubject, Refetches: []CacheQuery{CacheQueryAnnotations, CacheQueryEvents}},
+		{Reach: CacheRefreshReachSubject, Names: CacheRefreshNames{Resource: CacheRefreshWay{"resourceId"}}, Refetches: []CacheQuery{CacheQueryAnnotations, CacheQueryEvents}},
 	},
 
 	// An annotation was removed from the resource.
 	CacheRefreshMarkRemoved: {
-		{Reach: CacheRefreshReachSubject, Refetches: []CacheQuery{CacheQueryAnnotations, CacheQueryEvents}, Removes: []CacheQuery{CacheQueryAnnotation}},
+		{Reach: CacheRefreshReachSubject, Names: CacheRefreshNames{Resource: CacheRefreshWay{"resourceId"}, Annotation: CacheRefreshWay{"payload", "annotationId"}}, Refetches: []CacheQuery{CacheQueryAnnotations, CacheQueryEvents}, Removes: []CacheQuery{CacheQueryAnnotation}},
 	},
 
 	// The reply to this client's own deletion: the annotation is gone whether or
 	// not the client holds the scope that would tell it so.
 	CacheRefreshMarkDeleteOk: {
-		{Reach: CacheRefreshReachSubject, Removes: []CacheQuery{CacheQueryAnnotation}},
+		{Reach: CacheRefreshReachSubject, Names: CacheRefreshNames{Annotation: CacheRefreshWay{"response", "annotationId"}}, Removes: []CacheQuery{CacheQueryAnnotation}},
 	},
 
 	// enriched: An annotation's body changed, and the event carries the
 	// annotation as it now is. unenriched: An annotation's body changed, and the
 	// event could not say what it now is.
 	CacheRefreshMarkBodyUpdated: {
-		{When: CacheRefreshWhenEnriched, Reach: CacheRefreshReachSubject, Refetches: []CacheQuery{CacheQueryEvents}, Writes: []CacheQuery{CacheQueryAnnotations, CacheQueryAnnotation}},
-		{When: CacheRefreshWhenUnenriched, Reach: CacheRefreshReachSubject, Refetches: []CacheQuery{CacheQueryAnnotations, CacheQueryAnnotation, CacheQueryEvents}},
+		{When: CacheRefreshWhenEnriched, Reach: CacheRefreshReachSubject, Names: CacheRefreshNames{Resource: CacheRefreshWay{"resourceId"}, Annotation: CacheRefreshWay{"annotation", "id"}}, Carries: CacheRefreshWay{"annotation"}, Refetches: []CacheQuery{CacheQueryEvents}, Writes: []CacheQuery{CacheQueryAnnotations, CacheQueryAnnotation}},
+		{When: CacheRefreshWhenUnenriched, Reach: CacheRefreshReachSubject, Names: CacheRefreshNames{Resource: CacheRefreshWay{"resourceId"}, Annotation: CacheRefreshWay{"payload", "annotationId"}}, Refetches: []CacheQuery{CacheQueryAnnotations, CacheQueryAnnotation, CacheQueryEvents}},
 	},
 
 	// An entity tag was added to the resource.
 	CacheRefreshMarkEntityTagAdded: {
-		{Reach: CacheRefreshReachSubject, Refetches: []CacheQuery{CacheQueryAnnotations, CacheQueryResource, CacheQueryEvents}},
+		{Reach: CacheRefreshReachSubject, Names: CacheRefreshNames{Resource: CacheRefreshWay{"resourceId"}}, Refetches: []CacheQuery{CacheQueryAnnotations, CacheQueryResource, CacheQueryEvents}},
 	},
 
 	// An entity tag was removed from the resource.
 	CacheRefreshMarkEntityTagRemoved: {
-		{Reach: CacheRefreshReachSubject, Refetches: []CacheQuery{CacheQueryAnnotations, CacheQueryResource, CacheQueryEvents}},
+		{Reach: CacheRefreshReachSubject, Names: CacheRefreshNames{Resource: CacheRefreshWay{"resourceId"}}, Refetches: []CacheQuery{CacheQueryAnnotations, CacheQueryResource, CacheQueryEvents}},
 	},
 
 	// The resource was archived, which its description states and lists filter
 	// on.
 	CacheRefreshMarkArchived: {
-		{Reach: CacheRefreshReachSubject, Refetches: []CacheQuery{CacheQueryResource, CacheQueryResources, CacheQueryMatchedResources}},
+		{Reach: CacheRefreshReachSubject, Names: CacheRefreshNames{Resource: CacheRefreshWay{"resourceId"}}, Refetches: []CacheQuery{CacheQueryResource, CacheQueryResources, CacheQueryMatchedResources}},
 	},
 
 	// The resource was unarchived.
 	CacheRefreshMarkUnarchived: {
-		{Reach: CacheRefreshReachSubject, Refetches: []CacheQuery{CacheQueryResource, CacheQueryResources, CacheQueryMatchedResources}},
+		{Reach: CacheRefreshReachSubject, Names: CacheRefreshNames{Resource: CacheRefreshWay{"resourceId"}}, Refetches: []CacheQuery{CacheQueryResource, CacheQueryResources, CacheQueryMatchedResources}},
 	},
 
 	// A resource was created.
 	CacheRefreshYieldCreated: {
-		{Reach: CacheRefreshReachSubject, Refetches: []CacheQuery{CacheQueryResource, CacheQueryResources, CacheQueryMatchedResources}},
+		{Reach: CacheRefreshReachSubject, Names: CacheRefreshNames{Resource: CacheRefreshWay{"resourceId"}}, Refetches: []CacheQuery{CacheQueryResource, CacheQueryResources, CacheQueryMatchedResources}},
 	},
 
 	// A resource was updated.
 	CacheRefreshYieldUpdated: {
-		{Reach: CacheRefreshReachSubject, Refetches: []CacheQuery{CacheQueryResource, CacheQueryResources, CacheQueryMatchedResources}},
+		{Reach: CacheRefreshReachSubject, Names: CacheRefreshNames{Resource: CacheRefreshWay{"resourceId"}}, Refetches: []CacheQuery{CacheQueryResource, CacheQueryResources, CacheQueryMatchedResources}},
 	},
 
 	// A resource was created as a clone.
 	CacheRefreshYieldCloned: {
-		{Reach: CacheRefreshReachSubject, Refetches: []CacheQuery{CacheQueryResource, CacheQueryResources, CacheQueryMatchedResources}},
+		{Reach: CacheRefreshReachSubject, Names: CacheRefreshNames{Resource: CacheRefreshWay{"resourceId"}}, Refetches: []CacheQuery{CacheQueryResource, CacheQueryResources, CacheQueryMatchedResources}},
 	},
 
 	// A resource was renamed or moved.
 	CacheRefreshYieldMoved: {
-		{Reach: CacheRefreshReachSubject, Refetches: []CacheQuery{CacheQueryResource, CacheQueryResources, CacheQueryMatchedResources}},
+		{Reach: CacheRefreshReachSubject, Names: CacheRefreshNames{Resource: CacheRefreshWay{"resourceId"}}, Refetches: []CacheQuery{CacheQueryResource, CacheQueryResources, CacheQueryMatchedResources}},
 	},
 
 	// An entity type was added to the knowledge base.
@@ -202,65 +231,24 @@ var CacheRefreshTable = map[CacheRefreshTrigger][]CacheRefresh{
 	},
 }
 
-// cacheEvents is what the client's refresher states each trigger's event
-// names. A trigger the table gains is a method it lacks.
-type cacheEvents interface {
-	reopened() cacheSubject
-	busResumeGap(frame Frame) (cacheSubject, error)
-	markAdded(frame Frame) (cacheSubject, error)
-	markRemoved(frame Frame) (cacheSubject, error)
-	markDeleteOk(frame Frame) (cacheSubject, error)
-	markBodyUpdated(frame Frame) (cacheSubject, error)
-	markEntityTagAdded(frame Frame) (cacheSubject, error)
-	markEntityTagRemoved(frame Frame) (cacheSubject, error)
-	markArchived(frame Frame) (cacheSubject, error)
-	markUnarchived(frame Frame) (cacheSubject, error)
-	yieldCreated(frame Frame) (cacheSubject, error)
-	yieldUpdated(frame Frame) (cacheSubject, error)
-	yieldCloned(frame Frame) (cacheSubject, error)
-	yieldMoved(frame Frame) (cacheSubject, error)
-	frameEntityTypeAdded(frame Frame) (cacheSubject, error)
-	frameTagSchemaAdded(frame Frame) (cacheSubject, error)
-}
-
-// subjectOf is what frame's event names, by its trigger. A payload that is not
-// its channel's is the error.
-func subjectOf(events cacheEvents, trigger CacheRefreshTrigger, frame Frame) (cacheSubject, error) {
-	switch trigger {
-	case CacheRefreshReopened:
-		return events.reopened(), nil
-	case CacheRefreshBusResumeGap:
-		return events.busResumeGap(frame)
-	case CacheRefreshMarkAdded:
-		return events.markAdded(frame)
-	case CacheRefreshMarkRemoved:
-		return events.markRemoved(frame)
-	case CacheRefreshMarkDeleteOk:
-		return events.markDeleteOk(frame)
-	case CacheRefreshMarkBodyUpdated:
-		return events.markBodyUpdated(frame)
-	case CacheRefreshMarkEntityTagAdded:
-		return events.markEntityTagAdded(frame)
-	case CacheRefreshMarkEntityTagRemoved:
-		return events.markEntityTagRemoved(frame)
-	case CacheRefreshMarkArchived:
-		return events.markArchived(frame)
-	case CacheRefreshMarkUnarchived:
-		return events.markUnarchived(frame)
-	case CacheRefreshYieldCreated:
-		return events.yieldCreated(frame)
-	case CacheRefreshYieldUpdated:
-		return events.yieldUpdated(frame)
-	case CacheRefreshYieldCloned:
-		return events.yieldCloned(frame)
-	case CacheRefreshYieldMoved:
-		return events.yieldMoved(frame)
-	case CacheRefreshFrameEntityTypeAdded:
-		return events.frameEntityTypeAdded(frame)
-	case CacheRefreshFrameTagSchemaAdded:
-		return events.frameTagSchemaAdded(frame)
-	}
-	return cacheSubject{}, fmt.Errorf("%s is no trigger of the refresh table", trigger)
+// cacheRefreshReadings is how each channel of the table reads a frame:
+// whether its payload is one of the channel's.
+var cacheRefreshReadings = map[CacheRefreshTrigger]func(Frame) bool{
+	CacheRefreshBusResumeGap:         readingOf(bus.BusResumeGap),
+	CacheRefreshMarkAdded:            scopedReadingOf(bus.MarkAdded),
+	CacheRefreshMarkRemoved:          scopedReadingOf(bus.MarkRemoved),
+	CacheRefreshMarkDeleteOk:         readingOf(bus.MarkDeleteOk),
+	CacheRefreshMarkBodyUpdated:      scopedReadingOf(bus.MarkBodyUpdated),
+	CacheRefreshMarkEntityTagAdded:   scopedReadingOf(bus.MarkEntityTagAdded),
+	CacheRefreshMarkEntityTagRemoved: scopedReadingOf(bus.MarkEntityTagRemoved),
+	CacheRefreshMarkArchived:         scopedReadingOf(bus.MarkArchived),
+	CacheRefreshMarkUnarchived:       scopedReadingOf(bus.MarkUnarchived),
+	CacheRefreshYieldCreated:         readingOf(bus.YieldCreated),
+	CacheRefreshYieldUpdated:         readingOf(bus.YieldUpdated),
+	CacheRefreshYieldCloned:          readingOf(bus.YieldCloned),
+	CacheRefreshYieldMoved:           readingOf(bus.YieldMoved),
+	CacheRefreshFrameEntityTypeAdded: readingOf(bus.FrameEntityTypeAdded),
+	CacheRefreshFrameTagSchemaAdded:  readingOf(bus.FrameTagSchemaAdded),
 }
 
 // cacheActs is what the client's refresher does to each live query a row acts

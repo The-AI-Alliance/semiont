@@ -1,14 +1,15 @@
 import { Observable } from 'rxjs';
-import { CACHE_QUERIES, CACHE_REFRESH, FrameRefusal, INVALIDATION_WINDOW_MS } from '@semiont/core';
+import { CACHE_REFRESH, CACHE_REFRESH_CHANNELS, FrameRefusal, INVALIDATION_WINDOW_MS, faultOf, isAnnotationId, isObject, isResourceId } from '@semiont/core';
 import type {
   Annotation,
   AnnotationId,
   CacheQuery,
   CacheRefresh,
+  CacheRefreshChannel,
   CacheRefreshTrigger,
+  CacheRefreshWay,
   CacheRefreshWhen,
   EventBus,
-  EventMap,
   ITransport,
   ResourceId,
 } from '@semiont/core';
@@ -52,37 +53,59 @@ export interface RefreshSubject {
   written?: Annotation;
 }
 
-/** The channels protocol/specs/src/client/refresh.json has a row for. */
-type RefreshChannel = Exclude<CacheRefreshTrigger, 'reopened'>;
+/** An event a member of which a row names is present and is not what it names. */
+class Unreadable extends Error {}
 
 /**
- * What each channel's event names. What follows from it is the table's to
- * say (`CACHE_REFRESH`), so a row added there with no entry here does not
- * compile.
+ * The member `way` ends at in `event`, as `is` reads it: none where the way
+ * is absent or a member on it is absent or null. A member on it that is
+ * present and is no object, or the one it ends at that is not what `is`
+ * reads, makes the event `Unreadable`.
  */
-const SUBJECT_OF: { [K in RefreshChannel]: (event: EventMap[K]) => RefreshSubject } = {
-  'bus:resume-gap': (gap) => ({ resource: gap.scope }),
-  'mark:added': (stored) => ({ resource: stored.resourceId }),
-  'mark:removed': (stored) => ({ resource: stored.resourceId, annotation: stored.payload.annotationId }),
-  'mark:delete-ok': (reply) => ({ annotation: reply.response.annotationId }),
-  'mark:body-updated': (stored) =>
-    stored.annotation
-      ? { when: 'enriched', resource: stored.resourceId, annotation: stored.annotation.id, written: stored.annotation }
-      : { when: 'unenriched', resource: stored.resourceId, annotation: stored.payload.annotationId },
-  'mark:entity-tag-added': (stored) => ({ resource: stored.resourceId }),
-  'mark:entity-tag-removed': (stored) => ({ resource: stored.resourceId }),
-  'mark:archived': (stored) => ({ resource: stored.resourceId }),
-  'mark:unarchived': (stored) => ({ resource: stored.resourceId }),
-  // Cross-client resource refresh rides the persisted domain events, never
-  // the request replies: a `yield:*-ok` reply reaches only the client that
-  // asked, and would leave every other viewer's list stale.
-  'yield:created': (stored) => ({ resource: stored.resourceId }),
-  'yield:updated': (stored) => ({ resource: stored.resourceId }),
-  'yield:cloned': (stored) => ({ resource: stored.resourceId }),
-  'yield:moved': (stored) => ({ resource: stored.resourceId }),
-  'frame:entity-type-added': () => ({}),
-  'frame:tag-schema-added': () => ({}),
-};
+function memberAt<T>(event: unknown, way: CacheRefreshWay | undefined, is: (value: unknown) => value is T): T | undefined {
+  if (way === undefined) return undefined;
+  let member = event;
+  for (const name of way) {
+    if (member === null || member === undefined) return undefined;
+    if (!isObject(member)) throw new Unreadable();
+    member = member[name];
+  }
+  if (member === null || member === undefined) return undefined;
+  if (!is(member)) throw new Unreadable();
+  return member;
+}
+
+const isResource = (value: unknown): value is ResourceId => typeof value === 'string' && isResourceId(value);
+const isAnnotationIdentifier = (value: unknown): value is AnnotationId => typeof value === 'string' && isAnnotationId(value);
+const isAnnotation = (value: unknown): value is Annotation => faultOf('Annotation', value) === undefined;
+
+/**
+ * What an event on `channel` names, read by the ways of its row
+ * (protocol/specs/src/client/refresh.json); none, when the event is
+ * unreadable. A split channel's event is enriched when the member its
+ * enriched row carries is present: read there as what it carries, so one
+ * present and not an Annotation is unreadable either way.
+ */
+function subjectOf(channel: CacheRefreshChannel, event: unknown): RefreshSubject | undefined {
+  const rows: readonly CacheRefresh[] = CACHE_REFRESH[channel];
+  const enriched = rows.find((row) => row.when === 'enriched');
+  try {
+    const row = enriched === undefined ? rows[0] : memberAt(event, enriched.carries, isAnnotation) === undefined ? rows.find((other) => other.when === 'unenriched') : enriched;
+    if (!row) throw new Error(`The refresh table has no row for ${channel}`);
+    const resource = memberAt(event, row.names.resource, isResource);
+    const annotation = memberAt(event, row.names.annotation, isAnnotationIdentifier);
+    const written = memberAt(event, row.carries, isAnnotation);
+    return {
+      ...(row.when === undefined ? {} : { when: row.when }),
+      ...(resource === undefined ? {} : { resource }),
+      ...(annotation === undefined ? {} : { annotation }),
+      ...(written === undefined ? {} : { written }),
+    };
+  } catch (error) {
+    if (error instanceof Unreadable) return undefined;
+    throw error;
+  }
+}
 
 /** What a namespace does to one of its live queries when the table says to. */
 export interface QueryActs {
@@ -117,7 +140,7 @@ export class CacheRefresher<Q extends CacheQuery> {
   ) {
     this.windows = new InvalidationWindows(windowMs);
 
-    for (const channel of Object.keys(SUBJECT_OF) as RefreshChannel[]) this.refreshOn(channel);
+    for (const channel of CACHE_REFRESH_CHANNELS) this.refreshOn(channel);
 
     // B13: `reopened`. The stream is `open` again having left it, which only
     // a drop does: a subscription that changes is handed over, and the state
@@ -188,22 +211,14 @@ export class CacheRefresher<Q extends CacheQuery> {
     }
   }
 
-  /** Ask again for every key held by each query this refresher acts on. */
-  private everythingHeld(): void {
-    for (const query of CACHE_QUERIES) {
-      if (this.answers(query)) this.acts[query].refetch({}, 'held');
-    }
-  }
-
-  /** Subscribe `channel`'s row of the refresh table to its events. */
-  private refreshOn<K extends RefreshChannel>(channel: K): void {
-    const subjectOf: (event: EventMap[K]) => RefreshSubject = SUBJECT_OF[channel];
+  /** Subscribe `channel`'s rows of the refresh table to its events. */
+  private refreshOn(channel: CacheRefreshChannel): void {
     this.subs.push(
       this.bus.on(channel).subscribe((event) => {
-        // An event that cannot be read: something changed and nothing says
-        // what. Everything held is asked for again, as after a gap.
-        if (event instanceof FrameRefusal) this.everythingHeld();
-        else this.refresh(channel, subjectOf(event));
+        const subject = event instanceof FrameRefusal ? undefined : subjectOf(channel, event);
+        // An event that cannot be read: something changed and nothing says what.
+        if (subject === undefined) this.refresh('unreadable');
+        else this.refresh(channel, subject);
       }),
     );
   }

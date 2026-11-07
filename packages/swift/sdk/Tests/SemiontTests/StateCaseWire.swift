@@ -120,14 +120,6 @@ final class StateCaseWire: Sendable {
     guard mode == "never" else {
       throw BusRequestError(.busRejected, "The test transport refused \(channel)")
     }
-    let deadline = clock.now.advanced(by: .milliseconds(Timings.busRequestTimeoutMs))
-    let timeout = Task { [clock] in
-      do {
-        try await clock.sleep(until: deadline, tolerance: nil)
-        wait.resolve(.failure(BusRequestError(.busTimeout, "\(channel) timed out")))
-      } catch {}
-    }
-    defer { timeout.cancel() }
     return try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { wait.install($0) }
     } onCancel: {

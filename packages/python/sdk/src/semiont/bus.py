@@ -177,10 +177,20 @@ def _unstamped(channel: AnyChannel, payload: Mapping[str, JsonValue]) -> dict[st
     return {name: value for name, value in payload.items() if not name.startswith("_") or name in channel.stamps}
 
 
-def decoded[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], payload: Mapping[str, JsonValue]) -> P:
+@overload
+def decoded[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], payload: Mapping[str, JsonValue]) -> P: ...
+
+
+@overload
+def decoded(channel: AnyChannel, payload: Mapping[str, JsonValue]) -> WireModel: ...
+
+
+def decoded(channel: AnyChannel, payload: Mapping[str, JsonValue]) -> WireModel:
     """A payload as `channel` types it, without the stamps it does not declare.
 
-    Raises `ValidationError` for one that is not that channel's.
+    A channel by name (`semiont.channels.CHANNELS`) types it as one of the
+    protocol's shapes. Raises `ValidationError` for one that is not that
+    channel's.
     """
     return channel.decode(_unstamped(channel, payload))
 

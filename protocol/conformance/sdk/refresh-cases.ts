@@ -165,6 +165,17 @@ function cause(row: Row, all: Row[], holding: Held[]): Step[] {
   switch (row.on) {
     case 'reopened':
       return [{ backend: 'cut' }, { state: 'reconnecting' }, { state: 'open' }];
+    case 'unreadable':
+      // Both ways an event cannot be read, each its own round: a frame its
+      // channel's reading refuses (a stored event with no id), then one whose
+      // payload's annotation id is present and is no AnnotationId, which no
+      // channel's reading holds it to.
+      return [
+        { backend: 'carry', with: { frame: { channel: 'mark:removed', scope: V('r1'), payload: { type: 'mark:removed', resourceId: V('r1'), payload: { annotationId: V('a1') } } } } },
+        ...asked(refetched(row, holding), 'refused'),
+        { quiet: 200 },
+        record('mark:removed', { payload: { annotationId: 'not an annotation id' } }),
+      ];
     case 'bus:resume-gap': {
       // A gap with no drop: the scope is let go and taken again, with the
       // watermark an event left it, while the record cannot be read.

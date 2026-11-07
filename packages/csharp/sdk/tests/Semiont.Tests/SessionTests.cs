@@ -267,7 +267,9 @@ public sealed class SessionTests
                 static string End(KeptSession session) => session.State.Token is null ? "signed-out" : session.State.User is null ? "unconfirmed" : "signed-in";
                 Assert.Equal(row.GetProperty("ends").GetString(), End(session));
                 Assert.Equal(row.GetProperty("kept").GetBoolean(), await kept.HeldAsync() is not null);
-                Assert.Equal(row.GetProperty("told").ValueKind == JsonValueKind.Null ? null : row.GetProperty("told").GetString(), session.EndReason);
+                var told = row.GetProperty("told");
+                SessionEndReason? reason = told.ValueKind == JsonValueKind.Null ? null : told.Deserialize<SessionEndReason>();
+                Assert.Equal(reason, session.EndReason);
                 if (row.GetProperty("error").ValueKind != JsonValueKind.Null)
                 {
                     Assert.True(await errorRead.WaitAsync(TimeSpan.FromSeconds(10)));

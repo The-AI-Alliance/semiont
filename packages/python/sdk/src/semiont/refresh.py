@@ -4,9 +4,10 @@
 """What a Semiont client asks again for, and when.
 
 A client's live queries answer from a cache. This table says what each event
-on the bus, and the reopening of a dropped stream, does to it: which queries
-are asked for again, which are written with what the event carries, and which
-are gone.
+on the bus, the reopening of a dropped stream, and an event that cannot be
+read, does to it: which queries are asked for again, which are written with
+what the event carries, and which are gone. And it says where in an event its
+row finds the resource and the annotation it names, and the value it carries.
 """
 
 from collections.abc import Mapping
@@ -17,10 +18,13 @@ from typing import Final, Literal, final
 __all__ = [
     "CACHE_QUERIES",
     "CACHE_REFRESH",
+    "CACHE_REFRESH_CHANNELS",
     "CacheQuery",
     "CacheRefresh",
+    "CacheRefreshChannel",
     "CacheRefreshReach",
     "CacheRefreshTrigger",
+    "CacheRefreshWay",
     "CacheRefreshWhen",
 ]
 
@@ -72,10 +76,12 @@ type CacheRefreshWhen = Literal["enriched", "unenriched"]
 # `subject`: the keys the event names. `held`: every key the client holds.
 type CacheRefreshReach = Literal["subject", "held"]
 
-# What each trigger is: a channel whose events are it, or `reopened`, the
-# stream open again after a drop.
+# What each trigger is: a channel whose events are it; `reopened`, the
+# stream open again after a drop; or `unreadable`, an event on one of the
+# table's channels that cannot be read.
 type CacheRefreshTrigger = Literal[
     "reopened",
+    "unreadable",
     "bus:resume-gap",
     "mark:added",
     "mark:removed",
@@ -93,6 +99,47 @@ type CacheRefreshTrigger = Literal[
     "frame:tag-schema-added",
 ]
 
+# The triggers that are channels of the bus.
+type CacheRefreshChannel = Literal[
+    "bus:resume-gap",
+    "mark:added",
+    "mark:removed",
+    "mark:delete-ok",
+    "mark:body-updated",
+    "mark:entity-tag-added",
+    "mark:entity-tag-removed",
+    "mark:archived",
+    "mark:unarchived",
+    "yield:created",
+    "yield:updated",
+    "yield:cloned",
+    "yield:moved",
+    "frame:entity-type-added",
+    "frame:tag-schema-added",
+]
+
+CACHE_REFRESH_CHANNELS: Final[tuple[CacheRefreshChannel, ...]] = (
+    "bus:resume-gap",
+    "mark:added",
+    "mark:removed",
+    "mark:delete-ok",
+    "mark:body-updated",
+    "mark:entity-tag-added",
+    "mark:entity-tag-removed",
+    "mark:archived",
+    "mark:unarchived",
+    "yield:created",
+    "yield:updated",
+    "yield:cloned",
+    "yield:moved",
+    "frame:entity-type-added",
+    "frame:tag-schema-added",
+)
+
+# A way to a member of an event (the frame's payload): the names of the
+# members it is within, and its own.
+type CacheRefreshWay = tuple[str, ...]
+
 
 @final
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -100,6 +147,12 @@ class CacheRefresh:
     """What one trigger does to the cache."""
 
     reach: CacheRefreshReach
+    names_resource: CacheRefreshWay | None = None
+    """The way to the resource a `subject` row reaches (a ResourceId)."""
+    names_annotation: CacheRefreshWay | None = None
+    """The way to the annotation a `subject` row reaches (an AnnotationId)."""
+    carries: CacheRefreshWay | None = None
+    """The way to the value the row writes (an Annotation). On a split channel, its presence is what makes an event enriched."""
     refetches: tuple[CacheQuery, ...] = ()
     """Asked for again, the value shown meanwhile."""
     writes: tuple[CacheQuery, ...] = ()
@@ -119,62 +172,68 @@ CACHE_REFRESH: Final[Mapping[CacheRefreshTrigger, tuple[CacheRefresh, ...]]] = M
         "reopened": (
             CacheRefresh(reach="held", refetches=("resources", "matchedResources", "resource", "entityTypes", "tagSchemas", "engines")),
         ),
+        # A frame on a channel of this table that its reading refuses, or one a member of which
+        # the row names is present and is not what it names: something changed and nothing says
+        # what, so every key held is asked for again, as after a gap.
+        "unreadable": (
+            CacheRefresh(reach="held", refetches=("resource", "annotations", "annotation", "events", "referencedBy", "resources", "matchedResources", "entityTypes", "tagSchemas", "engines")),
+        ),
         # The gateway could not replay what a scope missed: everything held of that resource,
         # and of its annotations, is asked for again.
         "bus:resume-gap": (
-            CacheRefresh(reach="subject", refetches=("annotations", "annotation", "resource", "events", "referencedBy")),
+            CacheRefresh(reach="subject", names_resource=("scope",), refetches=("annotations", "annotation", "resource", "events", "referencedBy")),
         ),
         # An annotation was added to the resource.
         "mark:added": (
-            CacheRefresh(reach="subject", refetches=("annotations", "events")),
+            CacheRefresh(reach="subject", names_resource=("resourceId",), refetches=("annotations", "events")),
         ),
         # An annotation was removed from the resource.
         "mark:removed": (
-            CacheRefresh(reach="subject", refetches=("annotations", "events"), removes=("annotation",)),
+            CacheRefresh(reach="subject", names_resource=("resourceId",), names_annotation=("payload", "annotationId"), refetches=("annotations", "events"), removes=("annotation",)),
         ),
         # The reply to this client's own deletion: the annotation is gone whether or not the
         # client holds the scope that would tell it so.
         "mark:delete-ok": (
-            CacheRefresh(reach="subject", removes=("annotation",)),
+            CacheRefresh(reach="subject", names_annotation=("response", "annotationId"), removes=("annotation",)),
         ),
         # enriched: An annotation's body changed, and the event carries the annotation as it now
         # is. unenriched: An annotation's body changed, and the event could not say what it now
         # is.
         "mark:body-updated": (
-            CacheRefresh(reach="subject", refetches=("events",), writes=("annotations", "annotation"), when="enriched"),
-            CacheRefresh(reach="subject", refetches=("annotations", "annotation", "events"), when="unenriched"),
+            CacheRefresh(reach="subject", names_resource=("resourceId",), names_annotation=("annotation", "id"), carries=("annotation",), refetches=("events",), writes=("annotations", "annotation"), when="enriched"),
+            CacheRefresh(reach="subject", names_resource=("resourceId",), names_annotation=("payload", "annotationId"), refetches=("annotations", "annotation", "events"), when="unenriched"),
         ),
         # An entity tag was added to the resource.
         "mark:entity-tag-added": (
-            CacheRefresh(reach="subject", refetches=("annotations", "resource", "events")),
+            CacheRefresh(reach="subject", names_resource=("resourceId",), refetches=("annotations", "resource", "events")),
         ),
         # An entity tag was removed from the resource.
         "mark:entity-tag-removed": (
-            CacheRefresh(reach="subject", refetches=("annotations", "resource", "events")),
+            CacheRefresh(reach="subject", names_resource=("resourceId",), refetches=("annotations", "resource", "events")),
         ),
         # The resource was archived, which its description states and lists filter on.
         "mark:archived": (
-            CacheRefresh(reach="subject", refetches=("resource", "resources", "matchedResources")),
+            CacheRefresh(reach="subject", names_resource=("resourceId",), refetches=("resource", "resources", "matchedResources")),
         ),
         # The resource was unarchived.
         "mark:unarchived": (
-            CacheRefresh(reach="subject", refetches=("resource", "resources", "matchedResources")),
+            CacheRefresh(reach="subject", names_resource=("resourceId",), refetches=("resource", "resources", "matchedResources")),
         ),
         # A resource was created.
         "yield:created": (
-            CacheRefresh(reach="subject", refetches=("resource", "resources", "matchedResources")),
+            CacheRefresh(reach="subject", names_resource=("resourceId",), refetches=("resource", "resources", "matchedResources")),
         ),
         # A resource was updated.
         "yield:updated": (
-            CacheRefresh(reach="subject", refetches=("resource", "resources", "matchedResources")),
+            CacheRefresh(reach="subject", names_resource=("resourceId",), refetches=("resource", "resources", "matchedResources")),
         ),
         # A resource was created as a clone.
         "yield:cloned": (
-            CacheRefresh(reach="subject", refetches=("resource", "resources", "matchedResources")),
+            CacheRefresh(reach="subject", names_resource=("resourceId",), refetches=("resource", "resources", "matchedResources")),
         ),
         # A resource was renamed or moved.
         "yield:moved": (
-            CacheRefresh(reach="subject", refetches=("resource", "resources", "matchedResources")),
+            CacheRefresh(reach="subject", names_resource=("resourceId",), refetches=("resource", "resources", "matchedResources")),
         ),
         # An entity type was added to the knowledge base.
         "frame:entity-type-added": (

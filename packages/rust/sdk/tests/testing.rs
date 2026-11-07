@@ -331,10 +331,15 @@ impl Asked {
 #[tokio::test(start_paused = true)]
 async fn scripted_sessions_answer_what_each_knowledge_base_was_told_to_and_refuse_the_rest_by_name()
 {
-    let sessions = ScriptedSessions::answering(|kb_id, operation, _| match (kb_id, operation) {
-        ("kb-a", "browse:kb-requested") => Ok(Some(json!({ "name": "A", "domain": "a.example" }))),
-        _ => Err(format!("{kb_id} does not answer {operation}")),
-    });
+    let sessions = ScriptedSessions::answering(
+        |kb_id, operation, _| match (kb_id, operation) {
+            ("kb-a", "browse:kb-requested") => {
+                Ok(Some(json!({ "name": "A", "domain": "a.example" })))
+            }
+            _ => Err(format!("{kb_id} does not answer {operation}")),
+        },
+        None,
+    );
     let asked = Asked::new();
     let of_a = sessions.session(asked.of("kb-a")).expect("a session");
     let of_b = sessions.session(asked.of("kb-b")).expect("a session");
@@ -352,7 +357,7 @@ async fn scripted_sessions_answer_what_each_knowledge_base_was_told_to_and_refus
     assert_eq!(sessions.transports("kb-c").len(), 0);
 
     // One built with nothing to answer refuses everything, naming both.
-    let silent = ScriptedSessions::new();
+    let silent = ScriptedSessions::new(None);
     let of_c = silent.session(asked.of("kb-c")).expect("a session");
     let refused = of_c.client().browse.kb().await.expect_err("not scripted");
     assert!(
@@ -372,7 +377,7 @@ async fn scripted_sessions_answer_what_each_knowledge_base_was_told_to_and_refus
 
 #[tokio::test(start_paused = true)]
 async fn scripted_sessions_say_who_a_token_is_only_when_told_and_after_as_long_as_told() {
-    let sessions = ScriptedSessions::new();
+    let sessions = ScriptedSessions::new(None);
     let asked = Asked::new();
     asked.signed_in("kb-a");
 
@@ -400,7 +405,7 @@ async fn scripted_sessions_say_who_a_token_is_only_when_told_and_after_as_long_a
 
 #[tokio::test(start_paused = true)]
 async fn scripted_sessions_renew_as_told_in_order_and_refuse_a_renewal_nobody_scripted() {
-    let sessions = ScriptedSessions::new();
+    let sessions = ScriptedSessions::new(None);
     sessions.says_who(alice());
     let asked = Asked::new();
     asked.signed_in("kb-a");
@@ -434,7 +439,7 @@ async fn scripted_sessions_renew_as_told_in_order_and_refuse_a_renewal_nobody_sc
 
 #[tokio::test(start_paused = true)]
 async fn scripted_sessions_can_refuse_to_build_and_keep_what_was_revoked() {
-    let sessions = ScriptedSessions::new();
+    let sessions = ScriptedSessions::new(None);
     let asked = Asked::new();
 
     sessions.refuse_to_build(Some("this knowledge base cannot be reached"));

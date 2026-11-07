@@ -22,6 +22,7 @@
 import { validateRegistry, validateRegistryFormat } from './validate-registry.mjs';
 import { goComment } from '../lib/go-source.mjs';
 import { replyNames } from './reply-names.mjs';
+import { storedEventComponent } from './stored-event.mjs';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,7 +77,7 @@ function payloadOf(c) {
     case 'envelope':
       return { type: `Response[api.${c.schema}]` };
     case 'storedEvent':
-      return { type: c.enriched === true ? 'api.EnrichedResourceEvent' : 'api.StoredEventResponse', recorded: `api.${c.payload}` };
+      return { type: `api.${storedEventComponent(c)}`, recorded: `api.${c.payload}` };
     case 'void':
     case 'empty':
       return { type: 'Empty' };

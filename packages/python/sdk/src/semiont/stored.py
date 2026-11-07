@@ -2,14 +2,15 @@
 # Regenerate: node packages/codegen/schemas/generate-stored-python.mjs
 
 """What a registry of knowledge bases keeps in a `SessionStorage` (`protocol/specs/src/session/stored.json`):
-the key each thing it keeps is kept under, and the shape of a knowledge base's
-stored session.
+the key each thing it keeps is kept under, the shape of a knowledge base's
+stored session, and the shape of a resource open in one.
 """
 
 from typing import Annotated, Final, final
 
 from pydantic import Field
 
+from semiont.identifiers import ResourceId
 from semiont.model import WireModel
 
 __all__ = [
@@ -18,6 +19,7 @@ __all__ = [
     "LAST_VIEWED_RESOURCE_BY_KB_KEY",
     "OPEN_RESOURCES_BY_KB_KEY",
     "PENDING_AUTHORIZATION_KEY",
+    "OpenResource",
     "StoredSession",
     "kb_of_session_key",
     "session_key",
@@ -31,7 +33,7 @@ KNOWLEDGE_BASES_KEY: Final = "semiont.knowledgeBases"
 ACTIVE_KEY: Final = "semiont.activeKnowledgeBaseId"
 
 # What is open in each knowledge base: a JSON object from a knowledge base's id to the list of
-# its open resources.
+# its open resources, each an `openResource`.
 OPEN_RESOURCES_BY_KB_KEY: Final = "semiont.openResourcesByKb"
 
 # Where the person was in each knowledge base: a JSON object from a knowledge base's id to the
@@ -102,3 +104,33 @@ class StoredSession(WireModel, frozen=True):
     # The issuer's revocation endpoint (RFC 7009), where a sign-out tells it to forget the
     # refresh token. Absent when the issuer has none.
     revocation_endpoint: Annotated[str | None, Field(alias="revocationEndpoint")] = None
+
+
+@final
+class OpenResource(WireModel, frozen=True):
+    """A resource open in a knowledge base: which resource, the name it is shown by, when it was
+    opened and its place among the others open there. A registry shows them by their places, and
+    two in one place by when each was opened, first first.
+    """
+
+    # The resource.
+    id: ResourceId
+
+    # The name the resource is shown by.
+    name: str
+
+    # When the resource was opened, in milliseconds since the Unix epoch. Opening it again while
+    # it is open changes neither this nor its place.
+    opened_at: Annotated[int, Field(alias="openedAt", ge=0)]
+
+    # The resource's place among those open in the knowledge base. One opened is given the place
+    # after the last taken, so a place freed by closing one is not given twice; a move gives
+    # each its place in the new order, counted from 0.
+    order: Annotated[int, Field(ge=0)]
+
+    # The resource's media type, which its icon is chosen by. Absent when it is not known.
+    media_type: Annotated[str | None, Field(alias="mediaType")] = None
+
+    # Where the resource is in the knowledge base's working tree, as a URI
+    # (file://docs/overview.md). Absent when it is not known.
+    storage_uri: Annotated[str | None, Field(alias="storageUri")] = None

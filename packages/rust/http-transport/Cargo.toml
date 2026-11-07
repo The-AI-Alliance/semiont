@@ -20,6 +20,8 @@ sign-in = ["tokio/net", "tokio/io-util"]
 base64.workspace = true
 bytes.workspace = true
 futures.workspace = true
+# The random source a caller gives, which every jitter draws from.
+rand_core.workspace = true
 reqwest = { workspace = true, features = ["json", "stream"] }
 ring.workspace = true
 semiont.workspace = true

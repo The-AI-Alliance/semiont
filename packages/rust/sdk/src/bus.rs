@@ -276,13 +276,9 @@ struct Failure {
 /// failure channel: under the code its own code becomes, in its own words. A
 /// failure with a fault as its channel's is refused, as a result with one is.
 fn answered(channel: &str, failure: Map<String, Value>) -> SemiontError {
-    let mut declared = failure.clone();
-    declared
-        .retain(|key, _| !key.starts_with('_') || payload_stamps(channel).contains(&key.as_str()));
-    let declared = Value::Object(declared);
-    let fault = match fault_of(payload_shape(channel), &declared) {
-        Some(fault) => fault,
-        None => match serde_json::from_value::<Failure>(declared) {
+    let fault = match held_to(channel, failure.clone()) {
+        Err(fault) => fault,
+        Ok(declared) => match serde_json::from_value::<Failure>(declared) {
             Ok(read) => {
                 return BusRequestError {
                     code: BusRequestErrorCode::of_wire(read.code.as_deref()),
@@ -335,20 +331,24 @@ impl fmt::Display for StreamError {
 
 impl std::error::Error for StreamError {}
 
-/// A payload as the channel `C` types it. A gateway's stamps the type does
+/// A payload held to the channel `channel`. A gateway's stamps its type does
 /// not declare are the bus's, not the payload's, and are left out. A payload
 /// with a fault as the channel's is refused, for the fault.
-pub(crate) fn decoded<C: Channel>(mut payload: Map<String, Value>) -> Result<C::Payload, Fault> {
-    payload.retain(|key, _| !key.starts_with('_') || C::STAMPS.contains(&key.as_str()));
+pub(crate) fn held_to(channel: &str, mut payload: Map<String, Value>) -> Result<Value, Fault> {
+    let stamps = payload_stamps(channel);
+    payload.retain(|key, _| !key.starts_with('_') || stamps.contains(&key.as_str()));
     let payload = Value::Object(payload);
-    let fault = match fault_of(payload_shape(C::NAME), &payload) {
-        Some(fault) => fault,
-        None => match serde_json::from_value(payload) {
-            Ok(decoded) => return Ok(decoded),
-            Err(_) => Fault::undecoded(),
-        },
-    };
-    Err(fault)
+    match fault_of(payload_shape(channel), &payload) {
+        Some(fault) => Err(fault),
+        None => Ok(payload),
+    }
+}
+
+/// A payload as the channel `C` types it: held to the channel (`held_to`),
+/// and refused as malformed where serde refuses what has no fault the table
+/// states.
+pub(crate) fn decoded<C: Channel>(payload: Map<String, Value>) -> Result<C::Payload, Fault> {
+    serde_json::from_value(held_to(C::NAME, payload)?).map_err(|_| Fault::undecoded())
 }
 
 /// A frame of the channel `C`, its payload decoded; or, refused, what

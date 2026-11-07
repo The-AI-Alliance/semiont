@@ -28,6 +28,7 @@ public sealed record BrowserState(IReadOnlyList<KnowledgeBase> Kbs, string? Acti
 public sealed class SemiontBrowser : IAsyncDisposable
 {
     private static readonly KbReadVerdict Unavailable = new(KbReadKind.NoVerdict);
+    private static readonly int ChecksAtOnce = ProtocolFacts.Timing("checksAtOnceCount").GetInt32();
     private readonly SessionFactory factory;
     private readonly TimeProvider clock;
     private readonly Random random;
@@ -368,7 +369,7 @@ public sealed class SemiontBrowser : IAsyncDisposable
         }
 
         var checks = new System.Collections.Concurrent.ConcurrentDictionary<ResourceId, TabCheck>();
-        await Parallel.ForEachAsync(waiting, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = stop.Token },
+        await Parallel.ForEachAsync(waiting, new ParallelOptions { MaxDegreeOfParallelism = ChecksAtOnce, CancellationToken = stop.Token },
             async (resource, token) =>
             {
                 try

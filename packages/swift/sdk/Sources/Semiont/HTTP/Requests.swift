@@ -41,15 +41,15 @@ func projectFailure(_ payload: [String: JSONValue], on channel: String, stamps: 
   return BusRequestError(code, message)
 }
 extension HttpTransport {
-  public func request(operation: String, payload: [String: JSONValue], timeoutMs: Int? = nil)
-    async throws -> [String: JSONValue]
+  public func request(operation: String, payload: [String: JSONValue]) async throws
+    -> [String: JSONValue]
   {
-    try await requestFrame(operation: operation, payload: payload, timeoutMs: timeoutMs).payload
+    try await requestFrame(operation: operation, payload: payload).payload
   }
 
   func requestFrame(
-    operation: String, payload: [String: JSONValue], timeoutMs: Int?,
-    parent: [String: String]? = nil, enqueued: (@Sendable () -> Void)? = nil
+    operation: String, payload: [String: JSONValue], parent: [String: String]? = nil,
+    enqueued: (@Sendable () -> Void)? = nil
   ) async throws -> ReceivedFrame {
     guard let descriptor = wireOperations[operation] else {
       throw BusRequestError(.busRejected, "Unknown operation \(operation)")
@@ -62,18 +62,12 @@ extension HttpTransport {
     let body = try descriptor.request(payload)
     let correlation = UUID().uuidString
     let senderID = UUID()
-    let timerID = UUID()
-    let deadline = timeoutMs ?? timing.busRequestTimeoutMs
-    let clock = self.clock
     let life = lifetime
     let frame: ReceivedFrame = try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { continuation in
         pending[correlation] = Pending(
           result: descriptor.result, failure: descriptor.failure,
-          cancel: {
-            life.cancel(senderID)
-            life.cancel(timerID)
-          }, complete: { continuation.resume(with: $0) })
+          cancel: { life.cancel(senderID) }, complete: { continuation.resume(with: $0) })
         let emission = enqueueEmission(
           channel: operation, payload: body, correlationId: correlation, afterOpen: true,
           parent: parent)
@@ -90,15 +84,6 @@ extension HttpTransport {
           } catch { fail(correlation, error: error) }
         }
         life.keep(send, id: senderID)
-        let timer = Task { [weak self] in
-          defer { life.forget(timerID) }
-          do { try await sleepMilliseconds(deadline, on: clock) } catch {
-            return
-          }
-          await self?.fail(
-            correlation, error: BusRequestError(.busTimeout, "\(operation) timed out"))
-        }
-        life.keep(timer, id: timerID)
       }
     } onCancel: {
       Task { await self.fail(correlation, error: CancellationError()) }

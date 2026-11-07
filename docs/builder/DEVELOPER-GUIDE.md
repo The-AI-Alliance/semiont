@@ -9,6 +9,10 @@ The same namespaces and methods are available in [Rust](../../packages/rust/sdk/
 [Kotlin and Java](../../packages/kotlin/sdk/README.md), [C#](../../packages/csharp/sdk/README.md),
 and [Swift](../../packages/swift/sdk/README.md). Each SDK's README has examples in its own language.
 
+The [Haskell SDK](../../packages/haskell/sdk/README.md) follows the same contract
+with `IO`, STM and scoped streams. Its README covers local Cabal setup, sign-in,
+delegation, live queries, state units, workers and a registry.
+
 This is the **how-to** doc. For the exhaustive per-namespace surface see
 [Usage.md](./Usage.md) (reference); for *why* the surface is shaped the way it is —
 the return shapes, and the three paths to the bus — see

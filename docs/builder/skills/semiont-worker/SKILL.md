@@ -330,6 +330,7 @@ let agent = AgentToken::sign_in(
     gateway,
     ServiceToken::new(Credential::Key(Box::new(credential)), http.clone()),
     http.clone(),
+    None,
 )
 .await?;
 println!("working as {}", agent.did());
@@ -357,6 +358,7 @@ let client = client(
         http,
         timing: Timing::default(),
         bookmarks: None,
+        random: None,
     },
     ClientOptions::default(),
 );

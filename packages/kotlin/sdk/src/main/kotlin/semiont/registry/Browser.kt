@@ -23,6 +23,7 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
+import semiont.Timings
 import semiont.bus.EventBus
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
@@ -111,9 +112,6 @@ public data class KbReadVerdict @JvmOverloads constructor(
     public val observedDid: String? = null,
     public val observedName: String? = null,
 )
-
-/** How many open resources are checked at once when a session comes up: a connection just opened is not handed every check together. */
-private const val CHECKS_AT_ONCE = 4
 
 private val OPEN_BY_KB = MapSerializer(String.serializer(), ListSerializer(OpenResource.serializer()))
 
@@ -691,7 +689,7 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
         // What the storage holds, not what is in memory: another context may have opened a resource before this session came up.
         val waiting = storedAs(OPEN_BY_KB, storage.get(OPEN_RESOURCES_BY_KB_KEY))[kbId].orEmpty().map { it.id }
         if (waiting.isEmpty()) return
-        val lanes = Semaphore(CHECKS_AT_ONCE)
+        val lanes = Semaphore(Timings.CHECKS_AT_ONCE_COUNT.toInt())
         val checks = coroutineScope { waiting.map { id -> async { lanes.withPermit { id to checked(session, id) } } }.awaitAll() }.toMap()
         synchronized(lock) {
             if (isLive(session) && liveKbId() == kbId) {

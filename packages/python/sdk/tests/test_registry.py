@@ -29,7 +29,6 @@ from semiont.identifiers import ResourceId
 from semiont.registry import (
     Expected,
     KbReadVerdict,
-    OpenResource,
     SemiontBrowser,
     SemiontBrowserConfig,
     SessionFactory,
@@ -52,6 +51,7 @@ from semiont.stored import (
     KNOWLEDGE_BASES_KEY,
     LAST_VIEWED_RESOURCE_BY_KB_KEY,
     OPEN_RESOURCES_BY_KB_KEY,
+    OpenResource,
     StoredSession,
     kb_of_session_key,
     session_key,

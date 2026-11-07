@@ -124,6 +124,18 @@ component_management:
       name: "packages/go/launcher"
       paths:
         - packages/go/launcher/**
+    - component_id: haskell
+      name: "packages/haskell"
+      paths:
+        - packages/haskell/**
+    - component_id: haskell-sdk
+      name: "packages/haskell/sdk"
+      paths:
+        - packages/haskell/sdk/**
+    - component_id: haskell-probes
+      name: "packages/haskell/probes"
+      paths:
+        - packages/haskell/probes/**
     - component_id: csharp-sdk
       name: "packages/csharp/sdk"
       paths:
@@ -348,6 +360,16 @@ flags:
   go-launcher:
     paths:
       - packages/go/launcher/**
+    carryforward: true
+
+  haskell-sdk:
+    paths:
+      - packages/haskell/sdk/**
+    carryforward: true
+
+  haskell-probes:
+    paths:
+      - packages/haskell/probes/**
     carryforward: true
 
   csharp-sdk:

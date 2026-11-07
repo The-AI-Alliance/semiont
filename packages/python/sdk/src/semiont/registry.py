@@ -53,9 +53,9 @@ from contextlib import AbstractAsyncContextManager, AsyncExitStack
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from types import TracebackType
-from typing import Annotated, Final, Literal, Protocol, Self, final, override
+from typing import Final, Literal, Protocol, Self, final, override
 
-from pydantic import Field, JsonValue, TypeAdapter, ValidationError
+from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont._endpoints import same_place
 from semiont._reading import Reading
@@ -64,7 +64,7 @@ from semiont.event_bus import EventBus
 from semiont.events import Broadcast, Events
 from semiont.identifiers import ResourceId
 from semiont.identity import kb_did
-from semiont.model import WireModel, written
+from semiont.model import written
 from semiont.resources import primary_media_type
 from semiont.session import HeldSignIn, SemiontSession, SignInKept, is_token_expired
 from semiont.session_signals import KbIdentityConflict, SessionSignals
@@ -74,9 +74,11 @@ from semiont.stored import (
     KNOWLEDGE_BASES_KEY,
     LAST_VIEWED_RESOURCE_BY_KB_KEY,
     OPEN_RESOURCES_BY_KB_KEY,
+    OpenResource,
     StoredSession,
     session_key,
 )
+from semiont.timing import CHECKS_AT_ONCE_COUNT
 from semiont.transport import Transport
 from semiont.types import KbDescription, KbEndpoint, KbRead, KnowledgeBase, NewKnowledgeBase
 from semiont.watched import Variable, Watched
@@ -86,7 +88,6 @@ __all__ = [
     "KbReadKind",
     "KbReadVerdict",
     "KbSessionStatus",
-    "OpenResource",
     "SemiontBrowser",
     "SemiontBrowserConfig",
     "SessionFactory",
@@ -104,9 +105,6 @@ __all__ = [
     "store_session",
     "stored_session",
 ]
-
-_CHECKS_AT_ONCE: Final = 4
-"""How many open resources are checked at once when a session comes up: a connection just opened is not handed every check together."""
 
 _LIST: Final = TypeAdapter[list[JsonValue]](list[JsonValue])
 
@@ -245,21 +243,6 @@ stored and has expired (`expired`), nothing is stored (`signed-out`)."""
 
 
 # ── What is open ────────────────────────────────────────────────────────
-
-
-@final
-class OpenResource(WireModel, frozen=True):
-    """One resource open in a knowledge base (a tab, where there are tabs)."""
-
-    id: ResourceId
-    name: str
-    opened_at: Annotated[int, Field(alias="openedAt")]
-    """When it was opened, in milliseconds since the epoch."""
-    order: int
-    """Its place among the others."""
-    media_type: Annotated[str | None, Field(alias="mediaType")] = None
-    storage_uri: Annotated[str | None, Field(alias="storageUri")] = None
-    """Where it is in the working tree, such as `file://docs/overview.md`; none when that is not known."""
 
 
 type TabVerdict = Literal["gone", "ready", "unknown"]
@@ -1107,7 +1090,7 @@ class SemiontBrowser:
         waiting = [tab.id for tab in _open_by_kb_of(self._storage.get(OPEN_RESOURCES_BY_KB_KEY)).get(kb_id, [])]
         if not waiting:
             return
-        lanes = asyncio.Semaphore(_CHECKS_AT_ONCE)
+        lanes = asyncio.Semaphore(CHECKS_AT_ONCE_COUNT)
 
         async def checked(resource_id: ResourceId) -> tuple[ResourceId, TabCheck]:
             async with lanes:

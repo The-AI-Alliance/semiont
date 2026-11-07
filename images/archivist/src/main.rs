@@ -126,6 +126,7 @@ async fn serve(
         &document.gateway_url,
         ServiceToken::new(Credential::Secret(credential), http.clone()),
         http.clone(),
+        None,
     )
     .await
     .map_err(|e| format!("cannot sign in: {e}"))?;
@@ -225,6 +226,7 @@ async fn serve(
         http: http.clone(),
         timing: Timing::default(),
         bookmarks: None,
+        random: None,
     });
     let mut ordered = Vec::new();
     for channel in bus::COMMANDS {
@@ -293,6 +295,7 @@ async fn served_at(gateway: &str, http: &reqwest::Client) -> Result<String, Stri
         http: http.clone(),
         timing: Timing::default(),
         bookmarks: None,
+        random: None,
     });
     let metadata = asking.get_protected_resource_metadata().await;
     asking.close().await;

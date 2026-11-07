@@ -1,0 +1,126 @@
+{
+  "QuotedText": {
+    "title": "QuotedText",
+    "type": "object",
+    "properties": {
+      "exact": {
+        "type": "string"
+      },
+      "prefix": {
+        "type": "string"
+      },
+      "suffix": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "exact"
+    ]
+  },
+  "TextSpan": {
+    "title": "TextSpan",
+    "type": "object",
+    "properties": {
+      "start": {
+        "type": "number"
+      },
+      "end": {
+        "type": "number"
+      },
+      "exact": {
+        "type": "string"
+      },
+      "prefix": {
+        "type": "string"
+      },
+      "suffix": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "start",
+      "end",
+      "exact"
+    ]
+  },
+  "ReconciledSpan": {
+    "title": "ReconciledSpan",
+    "type": "object",
+    "properties": {
+      "start": {
+        "type": "number"
+      },
+      "end": {
+        "type": "number"
+      },
+      "exact": {
+        "type": "string"
+      },
+      "prefix": {
+        "type": "string"
+      },
+      "suffix": {
+        "type": "string"
+      },
+      "anchorMethod": {
+        "$ref": "AnchorMethod.json"
+      },
+      "matchQuality": {
+        "$ref": "MatchQuality.json"
+      }
+    },
+    "required": [
+      "start",
+      "end",
+      "exact",
+      "anchorMethod"
+    ]
+  },
+  "AnchorMethod": {
+    "title": "AnchorMethod",
+    "type": "string",
+    "enum": [
+      "unique-match",
+      "context-recovered",
+      "first-of-many",
+      "fuzzy-match"
+    ]
+  },
+  "MatchQuality": {
+    "title": "MatchQuality",
+    "type": "string",
+    "enum": [
+      "normalized",
+      "case-insensitive",
+      "fuzzy"
+    ]
+  },
+  "PdfCoordinate": {
+    "title": "PdfCoordinate",
+    "type": "object",
+    "properties": {
+      "page": {
+        "type": "number"
+      },
+      "x": {
+        "type": "number"
+      },
+      "y": {
+        "type": "number"
+      },
+      "width": {
+        "type": "number"
+      },
+      "height": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "page",
+      "x",
+      "y",
+      "width",
+      "height"
+    ]
+  }
+}

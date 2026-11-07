@@ -20,7 +20,7 @@ actor SessionGate {
 public func sessionFromKept(
   kb: KbTarget, kept: any SignInKept, httpClient: HTTPClient,
   onAuthFailed: (@Sendable (SessionEndReason) -> Void)? = nil,
-  onError: (@Sendable (any Error) -> Void)? = nil, persistence: CachePersistence? = nil,
+  onError: (@Sendable (SessionError) -> Void)? = nil, persistence: CachePersistence? = nil,
   clock: any Clock<Duration> = ContinuousClock(),
   random: any RandomNumberGenerator & Sendable = SystemRandomNumberGenerator()
 ) async throws -> OpenedSession {
@@ -60,8 +60,8 @@ public func sessionFromKept(
   let life = session.lifetime
   let forwarding = Task { [weak session] in
     defer { life.forget(id) }
-    do { for try await error in failures { session?.report(error) } } catch {
-      if !Task.isCancelled { session?.report(error) }
+    do { for try await error in failures { session?.relay(error) } } catch {
+      if !Task.isCancelled { session?.relay(error) }
     }
   }
   life.keep(forwarding, id: id)

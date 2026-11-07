@@ -1,5 +1,5 @@
 {
-  "$comment": "The telemetry a Semiont SDK's transports export over OTLP, in any language, when the process they run in exports at all: every span and metric, the transport it comes from, its kind, and the attributes it carries. `transport` is `bus` (the stream and emits) or `content` (uploads and reads). The SDK conformance suite holds each SDK to this table from outside: every row must arrive from its driver, of the listed kind, with every attribute not marked `only`, and whatever arrives under a row's name must carry only that row's attributes. A service that reaches the bus through an SDK exports the rows of the transports it uses; protocol/specs/src/service-telemetry/telemetry.json names such services under `sdk`, each with the transports it uses or, of a transport it uses part of, the rows it exports, and their suites hold them to both tables. `semiont.bus.sent` counts the emits a client sent; the emits a gateway accepted are `semiont.bus.emit`, a row of that table, so that neither is counted as the other and the difference between them shows. In a span name, `{channel}` is the bus channel. Span kinds are OTLP's; a metric's `instrument` is `counter` (a monotonic sum).",
+  "$comment": "The telemetry a Semiont SDK's transports export over OTLP, in any language, when the process they run in exports at all: every span and metric, the transport it comes from, its kind, and the attributes it carries. `transport` is `bus` (the stream and emits) or `content` (uploads and reads). The SDK conformance suite holds each SDK to this table from outside: every row must arrive from its driver, of the listed kind, with every attribute not marked `only`, and whatever arrives under a row's name must carry only that row's attributes. A service that reaches the bus through an SDK exports the rows of the transports it uses; protocol/specs/src/service-telemetry/telemetry.json names such services under `sdk`, each with the transports it uses or, of a transport it uses part of, the rows it exports, and their suites hold them to both tables. `semiont.bus.sent` counts the emits a client sent; the emits a gateway accepted are `semiont.bus.emit`, a row of that table, so that neither is counted as the other and the difference between them shows. In a span name, `{channel}` is the bus channel. Span kinds are OTLP's; a metric's `instrument` is `counter` (a monotonic sum). The optional thread.id attribute is runtime metadata supplied automatically by some host OpenTelemetry APIs.",
   "spans": [
     {
       "name": "bus.emit:{channel}",
@@ -13,6 +13,10 @@
         {
           "key": "bus.scope",
           "only": "on a frame in a resource scope"
+        },
+        {
+          "key": "thread.id",
+          "only": "when the host OpenTelemetry API supplies its runtime thread identity"
         }
       ]
     },
@@ -28,6 +32,10 @@
         {
           "key": "bus.scope",
           "only": "on a frame in a resource scope"
+        },
+        {
+          "key": "thread.id",
+          "only": "when the host OpenTelemetry API supplies its runtime thread identity"
         }
       ]
     },
@@ -42,6 +50,10 @@
         },
         {
           "key": "content.size_bytes"
+        },
+        {
+          "key": "thread.id",
+          "only": "when the host OpenTelemetry API supplies its runtime thread identity"
         }
       ]
     },
@@ -60,6 +72,10 @@
             "true"
           ],
           "only": "on a read taken as a stream"
+        },
+        {
+          "key": "thread.id",
+          "only": "when the host OpenTelemetry API supplies its runtime thread identity"
         }
       ]
     },
@@ -71,6 +87,10 @@
       "attributes": [
         {
           "key": "resource.id"
+        },
+        {
+          "key": "thread.id",
+          "only": "when the host OpenTelemetry API supplies its runtime thread identity"
         }
       ]
     },
@@ -82,6 +102,10 @@
       "attributes": [
         {
           "key": "resource.id"
+        },
+        {
+          "key": "thread.id",
+          "only": "when the host OpenTelemetry API supplies its runtime thread identity"
         }
       ]
     }
@@ -94,6 +118,10 @@
       "attributes": [
         {
           "key": "resource.id"
+        },
+        {
+          "key": "thread.id",
+          "only": "when the host OpenTelemetry API supplies its runtime thread identity"
         }
       ]
     }

@@ -15,6 +15,7 @@
  */
 
 import { SemiontError } from './errors';
+import { REFUSED_ENCODINGS } from './generated/encodings';
 import type { TransportErrorCode } from './generated/error-codes';
 
 /** HTTP white space: line feed, carriage return, tab and space. */
@@ -110,16 +111,28 @@ export function extractCharset(mediaType: string): string {
   return asciiLowerCase(stated.replace(/^[\t\n\f\r ]+|[\t\n\f\r ]+$/g, ''));
 }
 
-/** The platform's decoder for a label of the Encoding Standard, or the reader's own refusal, which names the label. */
+/** The reader's own refusal of a charset, which names it. */
+function undecoded(label: string): SemiontError {
+  return new SemiontError(
+    `The resource's text is ${label}, which is no charset this reader decodes: read its bytes instead`,
+    'error' satisfies TransportErrorCode,
+  );
+}
+
+/**
+ * The platform's decoder for a label of the Encoding Standard, or the reader's
+ * own refusal, which names the label. The platform decodes the encodings every
+ * reader refuses, so those are refused here.
+ */
 function decoderFor(label: string): TextDecoder {
+  let decoder: TextDecoder;
   try {
-    return new TextDecoder(label);
+    decoder = new TextDecoder(label);
   } catch {
-    throw new SemiontError(
-      `The resource's text is ${label}, which is no charset this platform decodes: read its bytes instead`,
-      'error' satisfies TransportErrorCode,
-    );
+    throw undecoded(label);
   }
+  if (REFUSED_ENCODINGS.has(decoder.encoding)) throw undecoded(label);
+  return decoder;
 }
 
 /** The encoding whose byte-order mark the bytes begin with. */
