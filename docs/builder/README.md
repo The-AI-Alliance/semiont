@@ -4,50 +4,70 @@
 
 For people, and AI agents, writing software that works with a Semiont knowledge base: a web, desktop or mobile application, an ingestion or enrichment pipeline, a service, an agent.
 
-Choose the SDK for your language. Java programs use the Kotlin SDK.
+## Choose your language
 
-TypeScript:
+Java programs use the Kotlin SDK. The guides' examples are in TypeScript, and each SDK's README shows the same calls in its own language.
+
+### TypeScript
+
+[`@semiont/sdk`](../../packages/typescript/sdk/README.md) is what the guides are written in.
 
 ```bash
 npm install @semiont/sdk
 ```
 
-Rust:
+### Rust
+
+The [`semiont` crate](../../packages/rust/sdk/README.md) maps each TypeScript shape in these docs to its Rust form. [`semiont-http-transport`](../../packages/rust/http-transport/README.md) has the sessions and signing in.
 
 ```bash
 cargo add semiont
 cargo add semiont-http-transport --features sign-in    # the transport over a gateway
 ```
 
-Python:
+### Python
+
+The [`semiont` package](../../packages/python/sdk/README.md) runs on asyncio, and is checked by `mypy` and `pyright`, both strict. It has the client, live queries, sessions, the state units, and a registry of several knowledge bases with a person's sign-in by a page redirect.
 
 ```bash
 pip install semiont
 ```
 
-Go:
+### Go
+
+The [Go SDK](../../packages/go/sdk/README.md) reads over time with iterators and is stopped by a context. It has the client, live queries, sessions, the state units, a worker's claims, the annotation readers and builders, and a registry of several knowledge bases with a person's sign-in by a page redirect, and the launcher is built on it.
 
 ```bash
 go get github.com/The-AI-Alliance/semiont/packages/go/sdk
 ```
 
-Kotlin and Java:
+### Kotlin and Java
+
+The [Kotlin SDK](../../packages/kotlin/sdk/README.md) has `suspend` functions and `Flow`s in Kotlin, and in Java a `CompletableFuture` for each and a `Flow.Publisher` for each stream. It has the client, live queries, sessions, the state units, a worker's claims, the annotation readers and builders, and a registry of several knowledge bases with a person's sign-in by a page redirect.
 
 The SDK is not published yet. [Its README](../../packages/kotlin/sdk/README.md#installing) builds its jar from source.
 
-C# and .NET:
+### C# and .NET
 
-Use a [project reference](../../packages/csharp/sdk/README.md#install) until the NuGet package is published. Its README has runnable C# examples.
+The [C# SDK](../../packages/csharp/sdk/README.md) uses tasks and async enumerables. Its README has runnable examples for delegation, workers, and live queries.
 
-Swift:
+Use a [project reference](../../packages/csharp/sdk/README.md#install) until the NuGet package is published.
+
+### Swift
+
+The [Swift SDK](../../packages/swift/sdk/README.md) uses async functions and sequences in Apple apps and Linux services. Its README shows device sign-in, resource reads, delegation, and live queries.
 
 Use the [local Swift package in a Semiont checkout](../../packages/swift/sdk/README.md#install).
 
-Haskell:
+### Haskell
+
+The [Haskell SDK](../../packages/haskell/sdk/README.md) uses `IO`, STM observations and scoped `streaming` readers. Its README covers sign-in, kept sessions, live queries and persistence, typed delegation, [claims and held jobs](../../packages/haskell/sdk/README.md#running-a-worker), the state units, and a registry of knowledge bases.
 
 Use the [local Cabal package in a Semiont checkout](../../packages/haskell/sdk/README.md#install) until it is published.
 
-**Then go to the [Developer Guide](./DEVELOPER-GUIDE.md).** It is the way in: short recipes in the order you will need them. You connect, read, ingest a document, enrich it, gather context around it, generate from it, react to what other participants do, and test what you built.
+## Where to start
+
+**Go to the [Developer Guide](./DEVELOPER-GUIDE.md) next.** It is the way in: short recipes in the order you will need them. You connect, read, ingest a document, enrich it, gather context around it, generate from it, react to what other participants do, and test what you built.
 
 The client needs a knowledge base to talk to. The [Quick Start](./QUICK-START.md) gets one running on your machine.
 
@@ -57,7 +77,7 @@ The client needs a knowledge base to talk to. The [Quick Start](./QUICK-START.md
 
 - **One wire, eight verbs.** Everything a participant does travels over one event bus, as one of eight verbs: four that write (**yield · mark · bind · frame**), three that read (**browse · match · gather**), and one that directs attention (**beckon**). They are the client's namespaces in every SDK.
 - **The SDK is the boundary.** Your code never calls the gateway's HTTP API directly. Something the SDK lacks is a gap to raise, not a reason to reach around it.
-- **One contract.** TypeScript, Rust, Python, Go, Kotlin, C#, Swift and Haskell have the same namespaces and methods, and are held to one [conformance suite](../../protocol/conformance/sdk/README.md) against a real gateway. What you learn in one carries to the others.
+- **One contract.** Every SDK has the same namespaces and methods, and is held to one [conformance suite](../../protocol/conformance/sdk/README.md) against a real gateway. What you learn in one carries to the others.
 - **People and AI agents are the same kind of participant.** They use the same client and the same verbs, and every annotation records who made it.
 - **Data is live.** A read is a query that stays current as others write. Work a model does is a job you start and watch.
 
@@ -95,17 +115,6 @@ Read in this order. Most people need only the first three.
 | [Reactive model](./REACTIVE-MODEL.md) | The return shapes the SDKs share and why each method uses its shape |
 | [State units](./STATE-UNITS.md) | The pattern for coordinated page and flow state in an application |
 | [Cache semantics](../../protocol/contract/CACHE-SEMANTICS.md) | The numbered contract every SDK's live queries are held to |
-
-The main guide examples use TypeScript. Each SDK README shows how to call the same methods in its own language.
-
-- **[TypeScript](../../packages/typescript/sdk/README.md)**, `@semiont/sdk`: what the guides are written in.
-- **[Rust](../../packages/rust/sdk/README.md)**, the `semiont` crate: maps each TypeScript shape in these docs to its Rust form. [`semiont-http-transport`](../../packages/rust/http-transport/README.md) has the sessions and signing in.
-- **[Python](../../packages/python/sdk/README.md)**, the `semiont` package: runs on asyncio, and is checked by `mypy` and `pyright`, both strict. It has the client, live queries, sessions, the state units, and a registry of several knowledge bases with a person's sign-in by a page redirect.
-- **[Go](../../packages/go/sdk/README.md)**, the module `github.com/The-AI-Alliance/semiont/packages/go/sdk`: reads over time with iterators and is stopped by a context. It has the client, live queries, sessions, the state units, a worker's claims, the annotation readers and builders, and a registry of several knowledge bases with a person's sign-in by a page redirect, and the launcher is built on it.
-- **[Kotlin](../../packages/kotlin/sdk/README.md)**, for Kotlin and Java programs: `suspend` functions and `Flow`s in Kotlin, and in Java a `CompletableFuture` for each and a `Flow.Publisher` for each stream. It has the client, live queries, sessions, the state units, a worker's claims, the annotation readers and builders, and a registry of several knowledge bases with a person's sign-in by a page redirect. It is not published yet.
-- **[C#](../../packages/csharp/sdk/README.md)** uses tasks and async enumerables. The README has runnable examples for delegation, workers, and live queries.
-- **[Swift](../../packages/swift/sdk/README.md)** uses async functions and sequences in Apple apps and Linux services. The README shows local package setup, device sign-in, resource reads, delegation, and live queries.
-- **[Haskell](../../packages/haskell/sdk/README.md)** uses `IO`, STM observations and scoped `streaming` readers. Its README covers sign-in, kept sessions, live queries and persistence, typed delegation, [claims and held jobs](../../packages/haskell/sdk/README.md#running-a-worker), all ten state units, and a registry of knowledge bases. It builds from source until published.
 
 ## Agent skills
 
