@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Semiont.Errors;
 using Semiont.Types;
 
@@ -20,15 +19,14 @@ public sealed class MatchStateUnit : IStateUnit
 
     private async Task ReadAsync(CancellationToken cancellation)
     {
-        await foreach (var received in events.Reader.ReadAllAsync(cancellation).ConfigureAwait(false))
+        await foreach (var carried in events.Reader.ReadAllAsync(cancellation).ConfigureAwait(false))
         {
             lock (work.Gate)
             {
                 if (!work.Active) return;
-                MatchSearchRequest request;
-                try { request = Bus.Decode<MatchSearchRequest>(received.Frame.Payload); }
-                catch (JsonException) { continue; }
-                work.Run(token => SearchAsync(request, received.Frame.CorrelationId, token));
+                // A request that is not a search's names nothing to search for.
+                if (Bus.HeardOf<MatchSearchRequest>(carried) is Heard<MatchSearchRequest>.Delivered asked)
+                    work.Run(token => SearchAsync(asked.Payload, asked.Received.CorrelationId, token));
             }
         }
     }

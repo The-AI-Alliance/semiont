@@ -159,19 +159,22 @@ public sealed class Claims
         try
         {
             var frames = transport.ReceivedFrames([BusChannels.JobQueued.Name, BusChannels.JobCancelRequested.Name], null, stop);
-            await foreach (var received in frames.ConfigureAwait(false))
+            await foreach (var carried in frames.ConfigureAwait(false))
             {
-                var frame = received.Frame;
-                if (frame.Channel == BusChannels.JobQueued.Name)
+                if (carried.Channel == BusChannels.JobQueued.Name)
                 {
                     lock (gate) lastQueued = clock.GetUtcNow();
-                    if (filters.Any(filter => WorkerRules.JobMatchesFilter(filter, frame.Payload))) Wake();
+                    var wakes = carried switch
+                    {
+                        ReceivedBusFrame announced => filters.Any(filter => WorkerRules.JobMatchesFilter(filter, announced.Frame.Payload)),
+                        // No filter can be compared with what cannot be read: a refused announcement counts as one that matches.
+                        FrameRefusal => true,
+                    };
+                    if (wakes) Wake();
                 }
-                else
+                // A refused frame, or one whose payload is not its channel's, names no job to cancel.
+                else if (Bus.HeardOf<JobCancelRequest>(carried) is Heard<JobCancelRequest>.Delivered { Received: var received, Payload: var requested })
                 {
-                    JobCancelRequest requested;
-                    try { requested = Bus.Decode<JobCancelRequest>(frame.Payload); }
-                    catch (JsonException) { continue; }
                     lock (gate)
                     {
                         if (held is { } job && requested.JobId == job.JobId && received.Sequence > claimedAtSequence)
@@ -229,7 +232,7 @@ public sealed class Claims
             var reply = await transport.RequestFrameAsync(BusOperations.JobClaim.Request.Name, command, timing.JobClaimTimeoutMs, default)
                 .ConfigureAwait(false);
             replySequence = reply.Sequence;
-            var record = Bus.Decode<JobClaimedResult>(reply.Frame.Payload).Response;
+            var record = Bus.Decoded<JobClaimedResult>(reply.Frame.Channel, reply.Frame.Payload).Response;
             acquired = record.Metadata.Type switch
             {
                 JobType.Mark => new HeldMarkJob(this, wire, record, reply.Trace),

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Semiont.Errors;
 using Semiont.Identifiers;
 using Semiont.Protocol;
@@ -78,29 +77,22 @@ public sealed class MarkStateUnit : IStateUnit
 
     private async Task ReadAsync(CancellationToken cancellation)
     {
-        await foreach (var received in events.Reader.ReadAllAsync(cancellation).ConfigureAwait(false))
+        await foreach (var carried in events.Reader.ReadAllAsync(cancellation).ConfigureAwait(false))
         {
             lock (work.Gate)
             {
                 if (!work.Active) return;
-                try
+                // A frame refused, or one whose payload is not its channel's, is nobody's to act on.
+                if (carried.Channel == BusChannels.MarkRequested.Name)
                 {
-                    if (received.Frame.Channel == BusChannels.MarkRequested.Name)
-                    {
-                        var request = Bus.Decode<MarkRequestedEvent>(received.Frame.Payload);
-                        if (request.Source == resourceId) PendingAnnotation.Set(new PendingAnnotation(request.Selector, request.Motivation));
-                    }
-                    else
-                    {
-                        var submission = Bus.Decode<MarkSubmitEvent>(received.Frame.Payload);
-                        if (submission.Source == resourceId)
-                        {
-                            var composed = PendingAnnotation.Value;
-                            work.Run(token => CreateAsync(submission, composed, token));
-                        }
-                    }
+                    if (Bus.HeardOf<MarkRequestedEvent>(carried) is Heard<MarkRequestedEvent>.Delivered { Payload: var request } && request.Source == resourceId)
+                        PendingAnnotation.Set(new PendingAnnotation(request.Selector, request.Motivation));
                 }
-                catch (JsonException) { /* An invalid event cannot create an annotation. */ }
+                else if (Bus.HeardOf<MarkSubmitEvent>(carried) is Heard<MarkSubmitEvent>.Delivered { Payload: var submission } && submission.Source == resourceId)
+                {
+                    var composed = PendingAnnotation.Value;
+                    work.Run(token => CreateAsync(submission, composed, token));
+                }
             }
         }
     }
@@ -132,14 +124,20 @@ public sealed class MarkStateUnit : IStateUnit
         try
         {
             await using var reader = run.GetAsyncEnumerator(token);
+            // The silence is counted from the follower's last word of the job, and said once until the next.
+            var heardAt = clock.GetTimestamp();
+            var said = false;
             while (true)
             {
                 var next = reader.MoveNextAsync().AsTask();
-                using (var waiting = CancellationTokenSource.CreateLinkedTokenSource(token))
+                if (!said)
                 {
-                    var quiet = Task.Delay(Silence, clock, waiting.Token);
+                    using var waiting = CancellationTokenSource.CreateLinkedTokenSource(token);
+                    var left = Silence - clock.GetElapsedTime(heardAt);
+                    var quiet = Task.Delay(left > TimeSpan.Zero ? left : TimeSpan.Zero, clock, waiting.Token);
                     if (await Task.WhenAny(next, quiet).ConfigureAwait(false) == quiet && !token.IsCancellationRequested && !next.IsCompleted)
                     {
+                        said = true;
                         lock (work.Gate)
                         {
                             if (work.Active && revision == selected)
@@ -162,6 +160,10 @@ public sealed class MarkStateUnit : IStateUnit
                         case JobEvent<MarkJobCompleteCommand>.Progress(var progress): Progress.Set(progress); break;
                     }
                 }
+                // A refused frame is no word of the job: the silence goes on being counted through it.
+                if (reader.Current is JobEvent<MarkJobCompleteCommand>.Refused) continue;
+                heardAt = clock.GetTimestamp();
+                said = false;
             }
         }
         catch (SemiontError failure)

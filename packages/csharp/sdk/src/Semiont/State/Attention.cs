@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Semiont.Identifiers;
 using Semiont.Protocol;
 using Semiont.Types;
@@ -107,24 +106,23 @@ public sealed class BeckonStateUnit : IStateUnit
 
     private async Task ReadAsync(CancellationToken cancellation)
     {
-        await foreach (var received in events.Reader.ReadAllAsync(cancellation).ConfigureAwait(false))
+        await foreach (var carried in events.Reader.ReadAllAsync(cancellation).ConfigureAwait(false))
         {
             lock (work.Gate)
             {
                 if (!work.Active) return;
-                try
+                // A frame refused, or one whose payload is not its channel's, is nobody's to act on.
+                if (carried.Channel == BusChannels.BrowseClick.Name)
                 {
-                    if (received.Frame.Channel == BusChannels.BrowseClick.Name)
-                        Focus(Bus.Decode<BrowseClickEvent>(received.Frame.Payload).AnnotationId);
-                    else
-                    {
-                        var annotation = Bus.Decode<BeckonHoverEvent>(received.Frame.Payload).AnnotationId;
-                        HoveredAnnotationId.Set(annotation);
-                        if (annotation is { } id)
-                            client.Bus.Emit(BusChannels.BeckonSparkle, new BeckonSparkleEvent { AnnotationId = id });
-                    }
+                    if (Bus.HeardOf<BrowseClickEvent>(carried) is Heard<BrowseClickEvent>.Delivered click) Focus(click.Payload.AnnotationId);
                 }
-                catch (JsonException) { /* An invalid event cannot move attention. */ }
+                else if (Bus.HeardOf<BeckonHoverEvent>(carried) is Heard<BeckonHoverEvent>.Delivered hover)
+                {
+                    var annotation = hover.Payload.AnnotationId;
+                    HoveredAnnotationId.Set(annotation);
+                    if (annotation is { } id)
+                        client.Bus.Emit(BusChannels.BeckonSparkle, new BeckonSparkleEvent { AnnotationId = id });
+                }
             }
         }
     }

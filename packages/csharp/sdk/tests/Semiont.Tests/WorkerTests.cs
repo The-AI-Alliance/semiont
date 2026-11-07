@@ -201,6 +201,87 @@ public sealed partial class TransportTests
         await worker.StopAsync().WaitAsync(deadline.Token);
     }
 
+    [Fact]
+    public async Task ARefusedAnnouncementIsHeardAndClaimsAsAMatchingOneDoes()
+    {
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        using var transport = new HttpTransport("http://unit.test", "token", WorkerRules.JobClaimChannels, httpClient: http);
+        using var client = new SemiontClient(transport);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await OpenAsync(transport);
+        var worker = client.Job.Claim(HighlightingFilters());
+        var next = worker.NextAsync(deadline.Token);
+        var (first, _) = await server.Emits.Reader.ReadAsync(deadline.Token);
+        Reply(server, first, BusOperations.JobClaim.Failure.Name, new { message = "No pending job matches", code = "none-pending" });
+        Assert.Null(worker.Vitals().LastQueuedEventAt);
+
+        // No filter can be compared with what cannot be read.
+        PushRawFrame(server, BusChannels.JobQueued.Name, "job-8");
+        var (second, _) = await server.Emits.Reader.ReadAsync(deadline.Token);
+        Assert.Equal(BusOperations.JobClaim.Request.Name, Text(second, "channel"));
+        Assert.NotNull(worker.Vitals().LastQueuedEventAt);
+        Reply(server, second, BusOperations.JobClaim.Result.Name, new JobClaimedResult { Response = RunningMarkJob() });
+        Assert.Equal(DelegatedJob, Assert.IsType<HeldMarkJob>(await next).JobId);
+        await worker.StopAsync().WaitAsync(deadline.Token);
+    }
+
+    [Fact]
+    public async Task ARefusedAnnouncementWhileAClaimIsInFlightEarnsOneMoreClaim()
+    {
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        using var transport = new HttpTransport("http://unit.test", "token", WorkerRules.JobClaimChannels, httpClient: http);
+        using var client = new SemiontClient(transport);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await OpenAsync(transport);
+        var worker = client.Job.Claim(HighlightingFilters());
+        var next = worker.NextAsync(deadline.Token);
+        var (first, _) = await server.Emits.Reader.ReadAsync(deadline.Token);
+
+        PushRawFrame(server, BusChannels.JobQueued.Name, "job-9");
+        while (worker.Vitals().LastQueuedEventAt is null) await Task.Delay(1, deadline.Token);
+        Assert.False(server.Emits.Reader.TryPeek(out _), "one claim is in flight at a time");
+        Reply(server, first, BusOperations.JobClaim.Failure.Name, new { message = "No pending job matches", code = "none-pending" });
+        var (second, _) = await server.Emits.Reader.ReadAsync(deadline.Token);
+        Assert.Equal(BusOperations.JobClaim.Request.Name, Text(second, "channel"));
+        Reply(server, second, BusOperations.JobClaim.Failure.Name, new { message = "No pending job matches", code = "none-pending" });
+        await worker.StopAsync().WaitAsync(deadline.Token);
+        Assert.Null(await next);
+        Assert.False(server.Emits.Reader.TryPeek(out _), "and exactly one");
+    }
+
+    [Fact]
+    public async Task ARefusedAnnouncementWhileAJobIsHeldIsHeardAndIgnored()
+    {
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        using var transport = new HttpTransport("http://unit.test", "token", WorkerRules.JobClaimChannels, httpClient: http);
+        using var client = new SemiontClient(transport);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await OpenAsync(transport);
+        var worker = client.Job.Claim(HighlightingFilters());
+        var next = worker.NextAsync(deadline.Token);
+        var (first, _) = await server.Emits.Reader.ReadAsync(deadline.Token);
+        Reply(server, first, BusOperations.JobClaim.Result.Name, new JobClaimedResult { Response = RunningMarkJob() });
+        var job = Assert.IsType<HeldMarkJob>(await next);
+
+        PushRawFrame(server, BusChannels.JobQueued.Name, "job-8");
+        while (worker.Vitals().LastQueuedEventAt is null) await Task.Delay(1, deadline.Token);
+        Assert.False(server.Emits.Reader.TryPeek(out _));
+        await job.CompleteAsync(new MarkJobResult.MarkJobDoneCase(new MarkJobDone { Found = 0, Persisted = 0 }), deadline.Token);
+        var (completion, _) = await server.Emits.Reader.ReadAsync(deadline.Token);
+        Assert.Equal(BusChannels.JobComplete.Name, Text(completion, "channel"));
+        var (settled, _) = await server.Emits.Reader.ReadAsync(deadline.Token);
+        Assert.Equal(BusOperations.JobClaim.Request.Name, Text(settled, "channel"));
+        Reply(server, settled, BusOperations.JobClaim.Failure.Name, new { message = "No pending job matches", code = "none-pending" });
+        await worker.StopAsync().WaitAsync(deadline.Token);
+        Assert.False(server.Emits.Reader.TryPeek(out _), "the settle claims, and nothing was owed");
+    }
+
+    private static JobFilter[] HighlightingFilters() =>
+        Required<JobFilter[]>(JsonSerializer.SerializeToElement(new[] { new { jobType = "mark", @params = new { motivation = "highlighting" } } }));
+
     private static JobRunning RunningMarkJob() => Required<JobRunning>(JsonSerializer.Deserialize<JsonElement>("""
         {"status":"running","metadata":{"id":"job-1","type":"mark","userId":"did:web:example.org:users:alice","created":"2026-01-01T00:00:00Z","retryCount":0,"maxRetries":3},"params":{"resourceId":"res-1","motivation":"highlighting"},"startedAt":"2026-01-01T00:00:01Z","progress":{}}
         """));
