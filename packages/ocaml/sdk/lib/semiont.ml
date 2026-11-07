@@ -4,3 +4,5 @@ module Clock = Clock
 module Enums = Enums
 module Bus_registry = Bus_registry
 module Selector = Selector
+module Json = Strict_json
+module Models = Models

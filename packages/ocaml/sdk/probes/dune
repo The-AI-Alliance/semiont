@@ -46,8 +46,8 @@
 
 (test
  (name json_boundary)
- (modules json_boundary strict_json)
- (libraries yojson uutf qcheck alcotest))
+ (modules json_boundary)
+ (libraries semiont yojson uutf qcheck alcotest))
 
 (test
  (name body_lifetime)

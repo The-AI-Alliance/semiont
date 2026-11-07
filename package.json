@@ -10,8 +10,8 @@
     "docs/checks/doc-snippets"
   ],
   "scripts": {
-    "generate:ocaml": "node packages/codegen/ocaml/generate-identifiers.mjs && node packages/codegen/ocaml/generate-support.mjs && node packages/codegen/ocaml/generate-client-timing.mjs && node packages/codegen/ocaml/generate-enums.mjs && node packages/codegen/ocaml/generate-bus.mjs && node packages/codegen/ocaml/generate-selectors.mjs",
-    "generate:ocaml:check": "node packages/codegen/ocaml/generate-identifiers.mjs --check && node packages/codegen/ocaml/generate-support.mjs --check && node packages/codegen/ocaml/generate-client-timing.mjs --check && node packages/codegen/ocaml/generate-enums.mjs --check && node packages/codegen/ocaml/generate-bus.mjs --check && node packages/codegen/ocaml/generate-selectors.mjs --check",
+    "generate:ocaml": "node packages/codegen/ocaml/generate-identifiers.mjs && node packages/codegen/ocaml/generate-support.mjs && node packages/codegen/ocaml/generate-client-timing.mjs && node packages/codegen/ocaml/generate-enums.mjs && node packages/codegen/ocaml/generate-bus.mjs && node packages/codegen/ocaml/generate-selectors.mjs && node packages/codegen/ocaml/generate-shapes.mjs",
+    "generate:ocaml:check": "node packages/codegen/ocaml/generate-identifiers.mjs --check && node packages/codegen/ocaml/generate-support.mjs --check && node packages/codegen/ocaml/generate-client-timing.mjs --check && node packages/codegen/ocaml/generate-enums.mjs --check && node packages/codegen/ocaml/generate-bus.mjs --check && node packages/codegen/ocaml/generate-selectors.mjs --check && node packages/codegen/ocaml/generate-shapes.mjs --check",
     "dev": "npm run dev --workspaces",
     "build": "npm run build:packages && npm run build:browser",
     "build:packages": "node packages/typescript/scripts/build-packages.js",

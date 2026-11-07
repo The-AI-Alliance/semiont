@@ -11,10 +11,16 @@ type delivery = Positioned | Correlated | Passing
 type audience = Everyone | Scoped | Declared
 type operation_effect = Reads | Writes
 type payload = Component of string | Envelope of string | Recorded of { envelope : string; payload : string } | Empty | Void
+type 'a decoded
+type fault = { member : string; reason : [ `Lacks | `Malformed ] }
+type decode_error = Invalid_json of string | Invalid_payload of fault
+val encode : 'a decoded -> string
+val json : 'a decoded -> Yojson.Raw.t
 type 'a channel
 type ('request, 'result, 'failure) operation
 type packed_channel = Channel : 'a channel -> packed_channel
 type packed_operation = Operation : ('request, 'result, 'failure) operation -> packed_operation
+val decode : 'a channel -> string -> ('a decoded, decode_error) result
 val name : 'a channel -> string
 val payload : 'a channel -> payload
 val delivery : 'a channel -> delivery option

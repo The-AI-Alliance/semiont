@@ -13,8 +13,23 @@ type operation_effect = Reads | Writes
 type payload = Component of string | Envelope of string | Recorded of { envelope : string; payload : string } | Empty | Void
 type 'a channel = { name : string; payload : payload; delivery : delivery option; emittable : bool; audience : audience option; in_process : bool }
 type ('request, 'result, 'failure) operation = { request : 'request channel; result : 'result channel; failure : 'failure channel; reply_names : string list; operation_effect : operation_effect option }
+type 'a decoded = Yojson.Raw.t
+type fault = Schema_codec.fault = { member : string; reason : [ `Lacks | `Malformed ] }
+type decode_error = Schema_codec.error = Invalid_json of string | Invalid_payload of fault
 type packed_channel = Channel : 'a channel -> packed_channel
 type packed_operation = Operation : ('request, 'result, 'failure) operation -> packed_operation
+let json value = value
+let encode value = Yojson.Raw.to_string value
+let decode channel source =
+  let open Schema_shape in
+  let shape = match channel.payload with
+    | Component name -> reference name
+    | Recorded { envelope; payload } ->
+        { any with all_of = [reference envelope; object_ ~members:["payload", reference payload] ()] }
+    | Envelope name -> object_ ~required:["response"] ~members:["response", reference name] ~closed:["response"] ()
+    | Empty | Void -> object_ ~closed:[] ()
+  in
+  Schema_codec.decode shape source
 let name value = value.name
 let payload value = value.payload
 let delivery value = value.delivery

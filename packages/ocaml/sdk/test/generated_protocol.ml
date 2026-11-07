@@ -65,10 +65,66 @@ let operations () =
         && Bus.delivery failure = Some Bus.Correlated))
     Bus.operations
 
+let payload_codecs () =
+  let round_trip channel source =
+    let decoded = Result.get_ok (Bus.decode channel source) in
+    Alcotest.(check string) "wire literal preserved" source (Bus.encode decoded)
+  in
+  let refuse channel source member reason =
+    match Bus.decode channel source with
+    | Error (Bus.Invalid_payload fault) ->
+        Alcotest.(check string) "fault member" member fault.member;
+        Alcotest.(check bool) "fault reason" true (fault.reason = reason)
+    | _ -> Alcotest.fail "expected a payload fault"
+  in
+  let module C = Bus.Channels in
+  round_trip C.browse_resource_requested
+    {|{"resourceId":"res-1","extension":[null,0.123456789012345678901,1e1000000000]}|};
+  round_trip C.job_cancel_ok {|{"response":{"cancelled":true}}|};
+  round_trip C.mark_archive_ok "{}";
+  round_trip C.yield_created
+    {|{"id":"event","type":"yield:created","timestamp":"2026-11-07","userId":"did:web:example:alice","version":1,"payload":{"name":"a","format":"text/plain","contentChecksum":"hash"},"metadata":{"sequenceNumber":1}}|};
+  refuse C.yield_created
+    {|{"id":"event","type":"yield:created","timestamp":"2026-11-07","userId":"did:web:example:alice","version":1,"payload":{},"metadata":{"sequenceNumber":1}}|}
+    "payload.name" `Lacks;
+  refuse C.browse_resource_requested {|{"resourceId":null}|} "resourceId" `Lacks;
+  refuse C.browse_resource_requested {|{"resourceId":"bad/path"}|} "resourceId"
+    `Malformed;
+  refuse C.job_cancel_ok {|{"response":{"cancelled":"yes"}}|}
+    "response.cancelled" `Malformed;
+  refuse C.job_cancel_ok {|{}|} "response" `Lacks;
+  refuse C.mark_archive_ok {|{"z":0,"a":0}|} "a" `Malformed;
+  match Bus.decode C.mark_archive_ok "{/* comment */}" with
+  | Error (Bus.Invalid_json _) -> ()
+  | _ -> Alcotest.fail "expected a strict JSON fault"
+
+let component_codecs () =
+  let module M = Semiont.Models in
+  let round_trip model source =
+    Alcotest.(check string)
+      "component literal preserved" source
+      (M.encode (Result.get_ok (M.decode model source)))
+  in
+  round_trip M.bus_frame {|{"channel":"mark:archive-ok","payload":{}}|};
+  round_trip M.selector
+    {|{"type":"TextPositionSelector","start":0.0,"end":1e1000000000}|};
+  match
+    M.decode M.selector
+      {|{"type":"TextPositionSelector","start":-0.00000000000000000001,"end":1}|}
+  with
+  | Error (M.Invalid_payload { member = "start"; reason = `Malformed }) -> ()
+  | _ -> Alcotest.fail "expected a union branch fault at start"
+
 let () =
   Alcotest.run "generated protocol"
     [
       ( "models",
         [ Alcotest.test_case "selector records and union" `Quick selectors ] );
-      ("bus", [ Alcotest.test_case "typed operation facts" `Quick operations ]);
+      ( "bus",
+        [
+          Alcotest.test_case "typed operation facts" `Quick operations;
+          Alcotest.test_case "payload codecs" `Quick payload_codecs;
+        ] );
+      ( "components",
+        [ Alcotest.test_case "component codecs" `Quick component_codecs ] );
     ]

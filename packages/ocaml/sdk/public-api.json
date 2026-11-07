@@ -109,26 +109,33 @@
     "dune.lock/x509.1.2.0.pkg": "57d1481d367b6687543ebab5b194f2b4ce6eb4509d70354cbfbac22a1744fb8e",
     "dune.lock/yojson.3.0.0.pkg": "d1536ef266187c4f3c66bbcef7998bac8497c175450463e075b552e0e99dc3a3",
     "dune.lock/zarith.1.14.pkg": "fd76eda421de026914a0de1c4d81d4140fd0d685f596dfe5aae1a5b83f06b75c",
-    "lib/bus_registry.ml": "d2d7a0131297380aeecdb15932e4f805ce0b14f90f7a66be56dc0f563d99806b",
-    "lib/bus_registry.mli": "93be2575c2e0dfd60ed6f52206f66a1193c96dcac8c3fda63092bf72cb2dfb9f",
+    "lib/bus_registry.ml": "d1a5b24583dc73f6ad619950baaeaa04f3ff05ea7bedf8b9bc6db8f2890dedea",
+    "lib/bus_registry.mli": "9580bc192a33428091cfe9706099795d55cd236d3a82d6fae24b8dc7459ca7e1",
     "lib/client_timing.ml": "ba5f3459d482317eb1ea394460a7aa0773bdd39acd2547dcec4e9efb25560d9f",
     "lib/client_timing.mli": "cb433bda9c37944c0dd973b950f25c229b727fef820d144b66915c26e3c4c7a5",
     "lib/clock.ml": "7fbcd81067a62d56842bf1f5b50e64e35f0efb056796a6926b1b732e52cca8b6",
     "lib/clock.mli": "9eec4a9bf79a437a5b331cc40dacd46905f70367ccae882650bce067932078b2",
-    "lib/dune": "73b6e4983e157525e7e62438dc27a991f269ce8bf76565f0472dd1fabf681818",
+    "lib/dune": "6a75048ed3c9ca2e8a9345c7fdf7cc97003dfc074b051bfa227d8d61cd747469",
     "lib/enums.ml": "e2a188bb4fd853313782622b84257a43be1c0e89472fc2323ab9c89ff1aa1232",
     "lib/enums.mli": "1c28ee0ac1ca50a86fe00ce3fe5c6ed5b015045b5cd14c8b48d46fa4b937daaf",
     "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
     "lib/identifiers.mli": "bba7e132069a1c36758c9d1bfebd936ecb815b6d05dae2b55f03a5de72f2c20d",
+    "lib/models.ml": "a36b2528fa00802a9e6482da3564a96c31300a8447921557f90770774d7e588c",
+    "lib/models.mli": "bc54c8ce9935e9e195877b7ed8d7a6afc85ea7e3a5662139acc669c8f4f02b63",
     "lib/pattern.ml": "a41d5ebb9ebc0eee59522a4d883e2a5281202c4fbebb0a2040b267961bf677ad",
+    "lib/schema_codec.ml": "dc4b332b431a97b35c0f159224044f62df3ff3dc6501742efa17a4e19eff3345",
+    "lib/schema_shape.ml": "f035fcc70aa623f06257cb2c5051483c90c3869a70b618dcf66f27170673e0d4",
+    "lib/schema_shapes.ml": "12f163c8f930d2cb1559aa93de7f8d5fd58583827059852e6aebdf9b03629bea",
     "lib/selector.ml": "28f250d3a6ed926ba94317cf595d39742124587c527ebcf02c6f6c043c50a7e8",
     "lib/selector.mli": "1c3c9f74ea5c90d0154547e5c3f249f4f7fcfd05f5fc97bc89ad7976a7b02716",
-    "lib/semiont.ml": "40881ba9a8a50e7d67589620f772fab166558b810a1d30ed37ed786c7e67e314",
-    "lib/semiont.mli": "be4fc2b11f3a5197eb44c9d09732d2f8d21323c417487d5a3ffa8a9a629c5e6f",
+    "lib/semiont.ml": "de6347954273348044c3aaad11084b9d8e0d7751744bd1c889fa52140848fbd4",
+    "lib/semiont.mli": "be537d30aa2b24d196139313e902c54656a5bd1a38445e2cff476612071aa68b",
+    "lib/strict_json.ml": "19a2f3c4c5a828e0fe55cd36eb25b685e965f0b79c21cd57cc4a17c53d0112d6",
+    "lib/strict_json.mli": "818f38488855a5ce525bbf7fa483feb6aad993670115a63065029201999b50a7",
     "lib/types.ml": "5921efffb7596beb176e09960cdfa080ec954349ec2ce9d7e54bc7f638c808fe",
     "lib/types.mli": "97149245ffc84db1b741d7156a08017eff6f941179e9e6df950f212da8d60d76",
     "probes/api_inventory.ml": "97b819335b2d6d55f2f4a7c73422ad4df34ca5e459fe4df300f01a0ff5efb36a",
-    "probes/dune": "b5424a1fb955b8b8dbdaa6ea129b931c67c2f1d2b616d5f55d5aaf13698aa8ee",
+    "probes/dune": "772c1cbf3deb767e90095ce74d9d806b0b6ab477521b89f61aebecc342102792",
     "public-api.inputs.json": "16a156e808e8dfd7df61837746b0e4b8ce44e38a40f5a1b647baec0af1bfcca9",
     "semiont.opam": "a5f3e7a7e1b1e98783797caa3bd9f9c9dff8e7a631803e45c1062ed263485223"
   },
@@ -1281,6 +1288,54 @@
     },
     {
       "kind": "type",
+      "path": "Semiont.Bus_registry.decoded",
+      "declaration": "type 'a decoded",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Bus_registry.fault",
+      "declaration": "type fault = { member : string; reason : [ `Lacks | `Malformed ]; }",
+      "representation": "record",
+      "fields": [
+        "member",
+        "reason"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Bus_registry.decode_error",
+      "declaration": "type decode_error = Invalid_json of string | Invalid_payload of fault",
+      "representation": "variant",
+      "constructors": [
+        "Invalid_json",
+        "Invalid_payload"
+      ],
+      "variants": [
+        {
+          "name": "Invalid_json",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Invalid_payload",
+          "fields": [],
+          "unit": false
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.encode",
+      "declaration": "val encode : 'a decoded -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.json",
+      "declaration": "val json : 'a decoded -> Yojson.Raw.t"
+    },
+    {
+      "kind": "type",
       "path": "Semiont.Bus_registry.channel",
       "declaration": "type 'a channel",
       "representation": "abstract"
@@ -1322,6 +1377,11 @@
           "unit": false
         }
       ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_registry.decode",
+      "declaration": "val decode : 'a channel -> string -> ('a decoded, decode_error) result"
     },
     {
       "kind": "value",
@@ -2646,6 +2706,1762 @@
       "kind": "value",
       "path": "Semiont.Selector.to_json",
       "declaration": "val to_json : t -> Yojson.Safe.t"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Json",
+      "declaration": "module Json = Semiont__.Strict_json",
+      "alias": "Semiont__.Strict_json"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Json.parse",
+      "declaration": "val parse : string -> (Yojson.Raw.t, string) result"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Models",
+      "declaration": "module Models = Semiont__.Models",
+      "alias": "Semiont__.Models"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Models.t",
+      "declaration": "type 'schema t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Models.descriptor",
+      "declaration": "type 'schema descriptor",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Models.fault",
+      "declaration": "type fault = { member : string; reason : [ `Lacks | `Malformed ]; }",
+      "representation": "record",
+      "fields": [
+        "member",
+        "reason"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Models.decode_error",
+      "declaration": "type decode_error = Invalid_json of string | Invalid_payload of fault",
+      "representation": "variant",
+      "constructors": [
+        "Invalid_json",
+        "Invalid_payload"
+      ],
+      "variants": [
+        {
+          "name": "Invalid_json",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Invalid_payload",
+          "fields": [],
+          "unit": false
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.decode",
+      "declaration": "val decode : 'schema descriptor -> string -> ('schema t, decode_error) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.encode",
+      "declaration": "val encode : 'schema t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.json",
+      "declaration": "val json : 'schema t -> Yojson.Raw.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.agent",
+      "declaration": "val agent : [ `Agent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.agent_organization",
+      "declaration": "val agent_organization : [ `AgentOrganization ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.agent_person",
+      "declaration": "val agent_person : [ `AgentPerson ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.agent_software",
+      "declaration": "val agent_software : [ `AgentSoftware ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.anchored_text",
+      "declaration": "val anchored_text : [ `AnchoredText ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.anchored_text_absent",
+      "declaration": "val anchored_text_absent : [ `AnchoredTextAbsent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.anchored_text_answer",
+      "declaration": "val anchored_text_answer : [ `AnchoredTextAnswer ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.anchored_text_declined_entry",
+      "declaration": "val anchored_text_declined_entry : [ `AnchoredTextDeclinedEntry ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.anchored_text_entries",
+      "declaration": "val anchored_text_entries : [ `AnchoredTextEntries ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.anchored_text_entry",
+      "declaration": "val anchored_text_entry : [ `AnchoredTextEntry ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.anchored_text_extracted_entry",
+      "declaration": "val anchored_text_extracted_entry :\n  [ `AnchoredTextExtractedEntry ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.anchored_text_stamp",
+      "declaration": "val anchored_text_stamp : [ `AnchoredTextStamp ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.anchored_text_write",
+      "declaration": "val anchored_text_write : [ `AnchoredTextWrite ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.annotation",
+      "declaration": "val annotation : [ `Annotation ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.annotation_added_payload",
+      "declaration": "val annotation_added_payload : [ `AnnotationAddedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.annotation_bodies",
+      "declaration": "val annotation_bodies : [ `AnnotationBodies ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.annotation_body",
+      "declaration": "val annotation_body : [ `AnnotationBody ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.annotation_body_updated_payload",
+      "declaration": "val annotation_body_updated_payload :\n  [ `AnnotationBodyUpdatedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.annotation_id",
+      "declaration": "val annotation_id : [ `AnnotationId ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.annotation_removed_payload",
+      "declaration": "val annotation_removed_payload : [ `AnnotationRemovedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.annotation_selector",
+      "declaration": "val annotation_selector : [ `AnnotationSelector ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.annotation_target",
+      "declaration": "val annotation_target : [ `AnnotationTarget ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.archivist_config",
+      "declaration": "val archivist_config : [ `ArchivistConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.archivist_engines",
+      "declaration": "val archivist_engines : [ `ArchivistEngines ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.archivist_events_response",
+      "declaration": "val archivist_events_response : [ `ArchivistEventsResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.archivist_health",
+      "declaration": "val archivist_health : [ `ArchivistHealth ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.archivist_stream",
+      "declaration": "val archivist_stream : [ `ArchivistStream ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.archivist_streams_response",
+      "declaration": "val archivist_streams_response : [ `ArchivistStreamsResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.assessing_job_params",
+      "declaration": "val assessing_job_params : [ `AssessingJobParams ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.attributed_event",
+      "declaration": "val attributed_event : [ `AttributedEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.beckon_focus_event",
+      "declaration": "val beckon_focus_event : [ `BeckonFocusEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.beckon_hover_event",
+      "declaration": "val beckon_hover_event : [ `BeckonHoverEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.beckon_sparkle_event",
+      "declaration": "val beckon_sparkle_event : [ `BeckonSparkleEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.bind_body_operation",
+      "declaration": "val bind_body_operation : [ `BindBodyOperation ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.bind_body_updated",
+      "declaration": "val bind_body_updated : [ `BindBodyUpdated ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.bind_initiate_command",
+      "declaration": "val bind_initiate_command : [ `BindInitiateCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.bind_update_body_command",
+      "declaration": "val bind_update_body_command : [ `BindUpdateBodyCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.body_operation_add",
+      "declaration": "val body_operation_add : [ `BodyOperationAdd ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.body_operation_remove",
+      "declaration": "val body_operation_remove : [ `BodyOperationRemove ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.body_operation_replace",
+      "declaration": "val body_operation_replace : [ `BodyOperationReplace ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.body_purpose",
+      "declaration": "val body_purpose : [ `BodyPurpose ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_annotation_history_request",
+      "declaration": "val browse_annotation_history_request :\n  [ `BrowseAnnotationHistoryRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_annotation_history_result",
+      "declaration": "val browse_annotation_history_result :\n  [ `BrowseAnnotationHistoryResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_annotation_request",
+      "declaration": "val browse_annotation_request : [ `BrowseAnnotationRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_annotation_result",
+      "declaration": "val browse_annotation_result : [ `BrowseAnnotationResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_click_event",
+      "declaration": "val browse_click_event : [ `BrowseClickEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_directory_failed",
+      "declaration": "val browse_directory_failed : [ `BrowseDirectoryFailed ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_directory_request",
+      "declaration": "val browse_directory_request : [ `BrowseDirectoryRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_directory_result",
+      "declaration": "val browse_directory_result : [ `BrowseDirectoryResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_directory_result_response",
+      "declaration": "val browse_directory_result_response :\n  [ `BrowseDirectoryResultResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_engines_request",
+      "declaration": "val browse_engines_request : [ `BrowseEnginesRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_engines_result",
+      "declaration": "val browse_engines_result : [ `BrowseEnginesResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_entity_type_clicked_event",
+      "declaration": "val browse_entity_type_clicked_event :\n  [ `BrowseEntityTypeClickedEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_entity_types_request",
+      "declaration": "val browse_entity_types_request : [ `BrowseEntityTypesRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_entity_types_result",
+      "declaration": "val browse_entity_types_result : [ `BrowseEntityTypesResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_events_request",
+      "declaration": "val browse_events_request : [ `BrowseEventsRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_events_result",
+      "declaration": "val browse_events_result : [ `BrowseEventsResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_external_navigate_event",
+      "declaration": "val browse_external_navigate_event :\n  [ `BrowseExternalNavigateEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_files_response",
+      "declaration": "val browse_files_response : [ `BrowseFilesResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_kb_request",
+      "declaration": "val browse_kb_request : [ `BrowseKbRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_kb_result",
+      "declaration": "val browse_kb_result : [ `BrowseKbResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_link_clicked_event",
+      "declaration": "val browse_link_clicked_event : [ `BrowseLinkClickedEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_panel_open_event",
+      "declaration": "val browse_panel_open_event : [ `BrowsePanelOpenEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_panel_toggle_event",
+      "declaration": "val browse_panel_toggle_event : [ `BrowsePanelToggleEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_profiles_request",
+      "declaration": "val browse_profiles_request : [ `BrowseProfilesRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_profiles_result",
+      "declaration": "val browse_profiles_result : [ `BrowseProfilesResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_resource_close_event",
+      "declaration": "val browse_resource_close_event : [ `BrowseResourceCloseEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_resource_open_event",
+      "declaration": "val browse_resource_open_event : [ `BrowseResourceOpenEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_resource_reorder_event",
+      "declaration": "val browse_resource_reorder_event :\n  [ `BrowseResourceReorderEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_resource_request",
+      "declaration": "val browse_resource_request : [ `BrowseResourceRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_resource_result",
+      "declaration": "val browse_resource_result : [ `BrowseResourceResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_resource_viewed_event",
+      "declaration": "val browse_resource_viewed_event : [ `BrowseResourceViewedEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_resources_request",
+      "declaration": "val browse_resources_request : [ `BrowseResourcesRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_resources_result",
+      "declaration": "val browse_resources_result : [ `BrowseResourcesResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_router_push_event",
+      "declaration": "val browse_router_push_event : [ `BrowseRouterPushEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_tag_schemas_request",
+      "declaration": "val browse_tag_schemas_request : [ `BrowseTagSchemasRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.browse_tag_schemas_result",
+      "declaration": "val browse_tag_schemas_result : [ `BrowseTagSchemasResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.bus_emit_accepted",
+      "declaration": "val bus_emit_accepted : [ `BusEmitAccepted ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.bus_emit_request",
+      "declaration": "val bus_emit_request : [ `BusEmitRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.bus_event_message",
+      "declaration": "val bus_event_message : [ `BusEventMessage ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.bus_frame",
+      "declaration": "val bus_frame : [ `BusFrame ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.bus_ping_message",
+      "declaration": "val bus_ping_message : [ `BusPingMessage ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.bus_resume_gap",
+      "declaration": "val bus_resume_gap : [ `BusResumeGap ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.bus_stream_message",
+      "declaration": "val bus_stream_message : [ `BusStreamMessage ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.bus_subscribe_request",
+      "declaration": "val bus_subscribe_request : [ `BusSubscribeRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.clone_resource_with_token_response",
+      "declaration": "val clone_resource_with_token_response :\n  [ `CloneResourceWithTokenResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.command_error",
+      "declaration": "val command_error : [ `CommandError ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.commenting_job_params",
+      "declaration": "val commenting_job_params : [ `CommentingJobParams ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.content_format",
+      "declaration": "val content_format : [ `ContentFormat ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.contextual_summary_response",
+      "declaration": "val contextual_summary_response : [ `ContextualSummaryResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.create_annotation_request",
+      "declaration": "val create_annotation_request : [ `CreateAnnotationRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.create_resource_response",
+      "declaration": "val create_resource_response : [ `CreateResourceResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.cursors_path",
+      "declaration": "val cursors_path : [ `CursorsPath ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.dir_entry",
+      "declaration": "val dir_entry : [ `DirEntry ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.directory_entry",
+      "declaration": "val directory_entry : [ `DirectoryEntry ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.discovered_kb",
+      "declaration": "val discovered_kb : [ `DiscoveredKB ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.discovery_document",
+      "declaration": "val discovery_document : [ `DiscoveryDocument ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.dispatcher_config",
+      "declaration": "val dispatcher_config : [ `DispatcherConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.dispatcher_health",
+      "declaration": "val dispatcher_health : [ `DispatcherHealth ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.durability_evidence",
+      "declaration": "val durability_evidence : [ `DurabilityEvidence ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.embedding_config",
+      "declaration": "val embedding_config : [ `EmbeddingConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.engine",
+      "declaration": "val engine : [ `Engine ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.engine_entry",
+      "declaration": "val engine_entry : [ `EngineEntry ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.engine_limits",
+      "declaration": "val engine_limits : [ `EngineLimits ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.enriched_resource_event",
+      "declaration": "val enriched_resource_event : [ `EnrichedResourceEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.entity_tag_changed_payload",
+      "declaration": "val entity_tag_changed_payload : [ `EntityTagChangedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.entity_type_added_payload",
+      "declaration": "val entity_type_added_payload : [ `EntityTypeAddedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.entity_types_projection",
+      "declaration": "val entity_types_projection : [ `EntityTypesProjection ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.ephemeral_event_id",
+      "declaration": "val ephemeral_event_id : [ `EphemeralEventId ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.error_response",
+      "declaration": "val error_response : [ `ErrorResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.event_metadata",
+      "declaration": "val event_metadata : [ `EventMetadata ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.extracted_text",
+      "declaration": "val extracted_text : [ `ExtractedText ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.extraction_declined",
+      "declaration": "val extraction_declined : [ `ExtractionDeclined ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.extraction_outcome",
+      "declaration": "val extraction_outcome : [ `ExtractionOutcome ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.failure_class",
+      "declaration": "val failure_class : [ `FailureClass ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.file_entry",
+      "declaration": "val file_entry : [ `FileEntry ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.fragment_selector",
+      "declaration": "val fragment_selector : [ `FragmentSelector ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.frame_add_entity_type_command",
+      "declaration": "val frame_add_entity_type_command : [ `FrameAddEntityTypeCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.frame_add_tag_schema_command",
+      "declaration": "val frame_add_tag_schema_command : [ `FrameAddTagSchemaCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.gateway_config",
+      "declaration": "val gateway_config : [ `GatewayConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.gather_annotation_complete",
+      "declaration": "val gather_annotation_complete : [ `GatherAnnotationComplete ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.gather_annotation_options",
+      "declaration": "val gather_annotation_options : [ `GatherAnnotationOptions ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.gather_annotation_request",
+      "declaration": "val gather_annotation_request : [ `GatherAnnotationRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.gather_failed",
+      "declaration": "val gather_failed : [ `GatherFailed ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.gather_referenced_by_request",
+      "declaration": "val gather_referenced_by_request : [ `GatherReferencedByRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.gather_referenced_by_result",
+      "declaration": "val gather_referenced_by_result : [ `GatherReferencedByResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.gather_resource_complete",
+      "declaration": "val gather_resource_complete : [ `GatherResourceComplete ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.gather_resource_failed",
+      "declaration": "val gather_resource_failed : [ `GatherResourceFailed ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.gather_resource_request",
+      "declaration": "val gather_resource_request : [ `GatherResourceRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.gather_resource_request_options",
+      "declaration": "val gather_resource_request_options :\n  [ `GatherResourceRequestOptions ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.gather_summary_request",
+      "declaration": "val gather_summary_request : [ `GatherSummaryRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.gathered_context",
+      "declaration": "val gathered_context : [ `GatheredContext ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.generation_job_params",
+      "declaration": "val generation_job_params : [ `GenerationJobParams ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.generation_job_request",
+      "declaration": "val generation_job_request : [ `GenerationJobRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.get_annotation_history_response",
+      "declaration": "val get_annotation_history_response :\n  [ `GetAnnotationHistoryResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.get_annotation_response",
+      "declaration": "val get_annotation_response : [ `GetAnnotationResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.get_annotations_response",
+      "declaration": "val get_annotations_response : [ `GetAnnotationsResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.get_entity_types_response",
+      "declaration": "val get_entity_types_response : [ `GetEntityTypesResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.get_events_response",
+      "declaration": "val get_events_response : [ `GetEventsResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.get_referenced_by_response",
+      "declaration": "val get_referenced_by_response : [ `GetReferencedByResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.get_referenced_by_response_referenced_by_item",
+      "declaration": "val get_referenced_by_response_referenced_by_item :\n  [ `GetReferencedByResponseReferencedByItem ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.get_resource_by_token_response",
+      "declaration": "val get_resource_by_token_response :\n  [ `GetResourceByTokenResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.get_resource_response",
+      "declaration": "val get_resource_response : [ `GetResourceResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.get_tag_schemas_response",
+      "declaration": "val get_tag_schemas_response : [ `GetTagSchemasResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.graph_annotation_node",
+      "declaration": "val graph_annotation_node : [ `GraphAnnotationNode ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.graph_config",
+      "declaration": "val graph_config : [ `GraphConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.graph_resource_node",
+      "declaration": "val graph_resource_node : [ `GraphResourceNode ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.health_response",
+      "declaration": "val health_response : [ `HealthResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.highlighting_job_params",
+      "declaration": "val highlighting_job_params : [ `HighlightingJobParams ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.http_endpoint",
+      "declaration": "val http_endpoint : [ `HttpEndpoint ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.inference_limits",
+      "declaration": "val inference_limits : [ `InferenceLimits ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.inference_limits_request",
+      "declaration": "val inference_limits_request : [ `InferenceLimitsRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.inference_limits_result",
+      "declaration": "val inference_limits_result : [ `InferenceLimitsResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.janus_graph_config",
+      "declaration": "val janus_graph_config : [ `JanusGraphConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job",
+      "declaration": "val job : [ `Job ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_assign_command",
+      "declaration": "val job_assign_command : [ `JobAssignCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_assigned_payload",
+      "declaration": "val job_assigned_payload : [ `JobAssignedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_cancel_command",
+      "declaration": "val job_cancel_command : [ `JobCancelCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_cancel_request",
+      "declaration": "val job_cancel_request : [ `JobCancelRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_cancel_result",
+      "declaration": "val job_cancel_result : [ `JobCancelResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_cancelled",
+      "declaration": "val job_cancelled : [ `JobCancelled ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_checkpoint_command",
+      "declaration": "val job_checkpoint_command : [ `JobCheckpointCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_claim_command",
+      "declaration": "val job_claim_command : [ `JobClaimCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_claimed_result",
+      "declaration": "val job_claimed_result : [ `JobClaimedResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_complete",
+      "declaration": "val job_complete : [ `JobComplete ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_complete_command",
+      "declaration": "val job_complete_command : [ `JobCompleteCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_completed_payload",
+      "declaration": "val job_completed_payload : [ `JobCompletedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_create_command",
+      "declaration": "val job_create_command : [ `JobCreateCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_created_result",
+      "declaration": "val job_created_result : [ `JobCreatedResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_created_result_response",
+      "declaration": "val job_created_result_response : [ `JobCreatedResultResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_declined",
+      "declaration": "val job_declined : [ `JobDeclined ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_fail_command",
+      "declaration": "val job_fail_command : [ `JobFailCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_failed",
+      "declaration": "val job_failed : [ `JobFailed ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_failed_payload",
+      "declaration": "val job_failed_payload : [ `JobFailedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_filter",
+      "declaration": "val job_filter : [ `JobFilter ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_id",
+      "declaration": "val job_id : [ `JobId ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_metadata",
+      "declaration": "val job_metadata : [ `JobMetadata ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_params",
+      "declaration": "val job_params : [ `JobParams ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_pending",
+      "declaration": "val job_pending : [ `JobPending ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_progress",
+      "declaration": "val job_progress : [ `JobProgress ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_progress_analyzing",
+      "declaration": "val job_progress_analyzing : [ `JobProgressAnalyzing ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_progress_analyzing_tags",
+      "declaration": "val job_progress_analyzing_tags : [ `JobProgressAnalyzingTags ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_progress_complete_created",
+      "declaration": "val job_progress_complete_created :\n  [ `JobProgressCompleteCreated ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_progress_complete_generated",
+      "declaration": "val job_progress_complete_generated :\n  [ `JobProgressCompleteGenerated ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_progress_creating_annotations",
+      "declaration": "val job_progress_creating_annotations :\n  [ `JobProgressCreatingAnnotations ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_progress_creating_resource",
+      "declaration": "val job_progress_creating_resource :\n  [ `JobProgressCreatingResource ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_progress_creating_tag_annotations",
+      "declaration": "val job_progress_creating_tag_annotations :\n  [ `JobProgressCreatingTagAnnotations ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_progress_detecting_entities",
+      "declaration": "val job_progress_detecting_entities :\n  [ `JobProgressDetectingEntities ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_progress_generating_resource",
+      "declaration": "val job_progress_generating_resource :\n  [ `JobProgressGeneratingResource ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_progress_loading",
+      "declaration": "val job_progress_loading : [ `JobProgressLoading ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_progress_message",
+      "declaration": "val job_progress_message : [ `JobProgressMessage ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_queued_event",
+      "declaration": "val job_queued_event : [ `JobQueuedEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_record",
+      "declaration": "val job_record : [ `JobRecord ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_report_progress_command",
+      "declaration": "val job_report_progress_command : [ `JobReportProgressCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_result",
+      "declaration": "val job_result : [ `JobResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_running",
+      "declaration": "val job_running : [ `JobRunning ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_start_command",
+      "declaration": "val job_start_command : [ `JobStartCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_started_payload",
+      "declaration": "val job_started_payload : [ `JobStartedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_status_request",
+      "declaration": "val job_status_request : [ `JobStatusRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_status_response",
+      "declaration": "val job_status_response : [ `JobStatusResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_status_result",
+      "declaration": "val job_status_result : [ `JobStatusResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_stored_progress",
+      "declaration": "val job_stored_progress : [ `JobStoredProgress ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_stored_result",
+      "declaration": "val job_stored_result : [ `JobStoredResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.job_type",
+      "declaration": "val job_type : [ `JobType ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.kb_description",
+      "declaration": "val kb_description : [ `KbDescription ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.kb_endpoint",
+      "declaration": "val kb_endpoint : [ `KbEndpoint ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.kb_identity",
+      "declaration": "val kb_identity : [ `KbIdentity ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.kb_read",
+      "declaration": "val kb_read : [ `KbRead ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.kb_target",
+      "declaration": "val kb_target : [ `KbTarget ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.knowledge_base",
+      "declaration": "val knowledge_base : [ `KnowledgeBase ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.knowledge_graph",
+      "declaration": "val knowledge_graph : [ `KnowledgeGraph ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.librarian_config",
+      "declaration": "val librarian_config : [ `LibrarianConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.librarian_engine_config",
+      "declaration": "val librarian_engine_config : [ `LibrarianEngineConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.limit_refusal",
+      "declaration": "val limit_refusal : [ `LimitRefusal ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.linking_job_params",
+      "declaration": "val linking_job_params : [ `LinkingJobParams ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.list_resources_response",
+      "declaration": "val list_resources_response : [ `ListResourcesResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.local_endpoint",
+      "declaration": "val local_endpoint : [ `LocalEndpoint ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.log_format",
+      "declaration": "val log_format : [ `LogFormat ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.log_level",
+      "declaration": "val log_level : [ `LogLevel ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_archive_command",
+      "declaration": "val mark_archive_command : [ `MarkArchiveCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_commit_command",
+      "declaration": "val mark_commit_command : [ `MarkCommitCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_commit_ok",
+      "declaration": "val mark_commit_ok : [ `MarkCommitOk ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_create_ok",
+      "declaration": "val mark_create_ok : [ `MarkCreateOk ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_create_ok_response",
+      "declaration": "val mark_create_ok_response : [ `MarkCreateOkResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_create_request",
+      "declaration": "val mark_create_request : [ `MarkCreateRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_delegate_timeout_event",
+      "declaration": "val mark_delegate_timeout_event : [ `MarkDelegateTimeoutEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_delete_command",
+      "declaration": "val mark_delete_command : [ `MarkDeleteCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_delete_ok",
+      "declaration": "val mark_delete_ok : [ `MarkDeleteOk ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_job_complete_command",
+      "declaration": "val mark_job_complete_command : [ `MarkJobCompleteCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_job_create_command",
+      "declaration": "val mark_job_create_command : [ `MarkJobCreateCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_job_done",
+      "declaration": "val mark_job_done : [ `MarkJobDone ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_job_filter",
+      "declaration": "val mark_job_filter : [ `MarkJobFilter ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_job_params",
+      "declaration": "val mark_job_params : [ `MarkJobParams ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_job_queued_event",
+      "declaration": "val mark_job_queued_event : [ `MarkJobQueuedEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_job_result",
+      "declaration": "val mark_job_result : [ `MarkJobResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_requested_event",
+      "declaration": "val mark_requested_event : [ `MarkRequestedEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_submit_event",
+      "declaration": "val mark_submit_event : [ `MarkSubmitEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_unarchive_command",
+      "declaration": "val mark_unarchive_command : [ `MarkUnarchiveCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_update_body_command",
+      "declaration": "val mark_update_body_command : [ `MarkUpdateBodyCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.mark_update_entity_types_command",
+      "declaration": "val mark_update_entity_types_command :\n  [ `MarkUpdateEntityTypesCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.match_resources_request",
+      "declaration": "val match_resources_request : [ `MatchResourcesRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.match_resources_response",
+      "declaration": "val match_resources_response : [ `MatchResourcesResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.match_resources_result",
+      "declaration": "val match_resources_result : [ `MatchResourcesResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.match_search_failed",
+      "declaration": "val match_search_failed : [ `MatchSearchFailed ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.match_search_request",
+      "declaration": "val match_search_request : [ `MatchSearchRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.match_search_result",
+      "declaration": "val match_search_result : [ `MatchSearchResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.media_token_request",
+      "declaration": "val media_token_request : [ `MediaTokenRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.media_token_response",
+      "declaration": "val media_token_response : [ `MediaTokenResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.memory_graph_config",
+      "declaration": "val memory_graph_config : [ `MemoryGraphConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.memory_vectors_config",
+      "declaration": "val memory_vectors_config : [ `MemoryVectorsConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.motivation",
+      "declaration": "val motivation : [ `Motivation ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.neo4j_graph_config",
+      "declaration": "val neo4j_graph_config : [ `Neo4jGraphConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.neptune_graph_config",
+      "declaration": "val neptune_graph_config : [ `NeptuneGraphConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.new_knowledge_base",
+      "declaration": "val new_knowledge_base : [ `NewKnowledgeBase ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.ollama_embedding_config",
+      "declaration": "val ollama_embedding_config : [ `OllamaEmbeddingConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.pdf_text_item",
+      "declaration": "val pdf_text_item : [ `PdfTextItem ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.persisted_event_id",
+      "declaration": "val persisted_event_id : [ `PersistedEventId ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.principal_profile_command",
+      "declaration": "val principal_profile_command : [ `PrincipalProfileCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.principal_profiled_payload",
+      "declaration": "val principal_profiled_payload : [ `PrincipalProfiledPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.profile",
+      "declaration": "val profile : [ `Profile ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.profiles_projection",
+      "declaration": "val profiles_projection : [ `ProfilesProjection ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.protected_resource_metadata",
+      "declaration": "val protected_resource_metadata : [ `ProtectedResourceMetadata ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.qdrant_vectors_config",
+      "declaration": "val qdrant_vectors_config : [ `QdrantVectorsConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.reply_event_id",
+      "declaration": "val reply_event_id : [ `ReplyEventId ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.representation",
+      "declaration": "val representation : [ `Representation ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.representation_added_payload",
+      "declaration": "val representation_added_payload : [ `RepresentationAddedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.representation_not_found",
+      "declaration": "val representation_not_found : [ `RepresentationNotFound ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.representation_removed_payload",
+      "declaration": "val representation_removed_payload :\n  [ `RepresentationRemovedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.resource_annotations",
+      "declaration": "val resource_annotations : [ `ResourceAnnotations ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.resource_archived_payload",
+      "declaration": "val resource_archived_payload : [ `ResourceArchivedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.resource_cloned_payload",
+      "declaration": "val resource_cloned_payload : [ `ResourceClonedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.resource_created_payload",
+      "declaration": "val resource_created_payload : [ `ResourceCreatedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.resource_descriptor",
+      "declaration": "val resource_descriptor : [ `ResourceDescriptor ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.resource_error_event",
+      "declaration": "val resource_error_event : [ `ResourceErrorEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.resource_id",
+      "declaration": "val resource_id : [ `ResourceId ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.resource_moved_payload",
+      "declaration": "val resource_moved_payload : [ `ResourceMovedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.resource_unarchived_payload",
+      "declaration": "val resource_unarchived_payload : [ `ResourceUnarchivedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.resource_updated_payload",
+      "declaration": "val resource_updated_payload : [ `ResourceUpdatedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.resource_upload",
+      "declaration": "val resource_upload : [ `ResourceUpload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.resource_view",
+      "declaration": "val resource_view : [ `ResourceView ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.scored_resource",
+      "declaration": "val scored_resource : [ `ScoredResource ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.selector",
+      "declaration": "val selector : [ `Selector ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.semantic_match",
+      "declaration": "val semantic_match : [ `SemanticMatch ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.session_joined_event",
+      "declaration": "val session_joined_event : [ `SessionJoinedEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.session_left_event",
+      "declaration": "val session_left_event : [ `SessionLeftEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.settings_hover_delay_changed_event",
+      "declaration": "val settings_hover_delay_changed_event :\n  [ `SettingsHoverDelayChangedEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.settings_locale_changed_event",
+      "declaration": "val settings_locale_changed_event :\n  [ `SettingsLocaleChangedEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.settings_theme_changed_event",
+      "declaration": "val settings_theme_changed_event : [ `SettingsThemeChangedEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.smelt_rebuild_anchors_command",
+      "declaration": "val smelt_rebuild_anchors_command :\n  [ `SmeltRebuildAnchorsCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.smelt_settled",
+      "declaration": "val smelt_settled : [ `SmeltSettled ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.smelter_config",
+      "declaration": "val smelter_config : [ `SmelterConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.specific_resource",
+      "declaration": "val specific_resource : [ `SpecificResource ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.status_response",
+      "declaration": "val status_response : [ `StatusResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.storage_uri_entry",
+      "declaration": "val storage_uri_entry : [ `StorageUriEntry ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.stored_event_response",
+      "declaration": "val stored_event_response : [ `StoredEventResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.supported_media_type",
+      "declaration": "val supported_media_type : [ `SupportedMediaType ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.svg_selector",
+      "declaration": "val svg_selector : [ `SvgSelector ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.tag_category",
+      "declaration": "val tag_category : [ `TagCategory ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.tag_schema",
+      "declaration": "val tag_schema : [ `TagSchema ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.tag_schema_added_payload",
+      "declaration": "val tag_schema_added_payload : [ `TagSchemaAddedPayload ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.tag_schemas_projection",
+      "declaration": "val tag_schemas_projection : [ `TagSchemasProjection ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.tagging_job_params",
+      "declaration": "val tagging_job_params : [ `TaggingJobParams ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.text_position_selector",
+      "declaration": "val text_position_selector : [ `TextPositionSelector ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.text_quote_selector",
+      "declaration": "val text_quote_selector : [ `TextQuoteSelector ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.textual_body",
+      "declaration": "val textual_body : [ `TextualBody ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.unit_cursor",
+      "declaration": "val unit_cursor : [ `UnitCursor ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.update_annotation_body_request",
+      "declaration": "val update_annotation_body_request :\n  [ `UpdateAnnotationBodyRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.user_id",
+      "declaration": "val user_id : [ `UserId ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.user_response",
+      "declaration": "val user_response : [ `UserResponse ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.vectors_config",
+      "declaration": "val vectors_config : [ `VectorsConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.voyage_embedding_config",
+      "declaration": "val voyage_embedding_config : [ `VoyageEmbeddingConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.weave_applied",
+      "declaration": "val weave_applied : [ `WeaveApplied ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.weave_rebuild_command",
+      "declaration": "val weave_rebuild_command : [ `WeaveRebuildCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.weaver_config",
+      "declaration": "val weaver_config : [ `WeaverConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.worker_config",
+      "declaration": "val worker_config : [ `WorkerConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.worker_engine_config",
+      "declaration": "val worker_engine_config : [ `WorkerEngineConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.worker_engine_health",
+      "declaration": "val worker_engine_health : [ `WorkerEngineHealth ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.worker_health",
+      "declaration": "val worker_health : [ `WorkerHealth ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.worker_knowledge_base_config",
+      "declaration": "val worker_knowledge_base_config : [ `WorkerKnowledgeBaseConfig ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.worker_knowledge_base_health",
+      "declaration": "val worker_knowledge_base_health : [ `WorkerKnowledgeBaseHealth ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.yield_clone_create_command",
+      "declaration": "val yield_clone_create_command : [ `YieldCloneCreateCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.yield_clone_created",
+      "declaration": "val yield_clone_created : [ `YieldCloneCreated ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.yield_clone_persist_command",
+      "declaration": "val yield_clone_persist_command : [ `YieldClonePersistCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.yield_clone_persist_ok",
+      "declaration": "val yield_clone_persist_ok : [ `YieldClonePersistOk ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.yield_clone_resource_request",
+      "declaration": "val yield_clone_resource_request : [ `YieldCloneResourceRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.yield_clone_token_request",
+      "declaration": "val yield_clone_token_request : [ `YieldCloneTokenRequest ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.yield_create_command",
+      "declaration": "val yield_create_command : [ `YieldCreateCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.yield_create_ok",
+      "declaration": "val yield_create_ok : [ `YieldCreateOk ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.yield_job_complete_command",
+      "declaration": "val yield_job_complete_command : [ `YieldJobCompleteCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.yield_job_create_command",
+      "declaration": "val yield_job_create_command : [ `YieldJobCreateCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.yield_job_done",
+      "declaration": "val yield_job_done : [ `YieldJobDone ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.yield_job_filter",
+      "declaration": "val yield_job_filter : [ `YieldJobFilter ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.yield_job_queued_event",
+      "declaration": "val yield_job_queued_event : [ `YieldJobQueuedEvent ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.yield_job_result",
+      "declaration": "val yield_job_result : [ `YieldJobResult ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.yield_update_command",
+      "declaration": "val yield_update_command : [ `YieldUpdateCommand ] descriptor"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Models.yield_update_ok",
+      "declaration": "val yield_update_ok : [ `YieldUpdateOk ] descriptor"
     }
   ]
 }
