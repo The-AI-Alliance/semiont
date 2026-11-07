@@ -139,6 +139,7 @@
     "save": "Simpan",
     "cancel": "Batal",
     "edit": "Sunting",
+    "saveFailed": "Tidak dapat menyimpan ulasan: {{detail}}",
     "annotateComments": "Anotasi Ulasan",
     "instructions": "Arahan",
     "optional": "(pilihan)",
