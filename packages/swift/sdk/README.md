@@ -139,7 +139,10 @@ query. The first observation shows the saved value while asking for a current
 one. The HTTP transport resumes saved resource scopes from bookmarks committed
 with the cache. Disposal flushes pending settled values. A registry's session
 keeps for the person once its stored sign-in names them, and forgetting that
-sign-in, however it is forgotten, deletes what was kept.
+sign-in, however it is forgotten, signing in again included, deletes what was
+kept. A session the SDK builds, `sessionFromKept` with a storage too, writes
+only while the sign-in it holds names its person; a client you construct with a
+`CachePersistence` of your own writes unchecked.
 
 ## Signing in and managing a session
 

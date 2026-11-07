@@ -525,7 +525,10 @@ func Watch(ctx context.Context, client *semiont.Client, resource api.ResourceId)
   sign-in records them, and keeps the stream's place in each resource's scope
   with it (`CoupledBookmarks`), so the next session is sent what was recorded
   since. Forgetting a registry's stored sign-in, however it is forgotten,
-  deletes what was kept for its person.
+  signing in again included, deletes what was kept for its person. A session
+  the SDK builds writes only while the sign-in it holds names its person; a
+  client you configure with a `CachePersistence` of your own writes
+  unchecked.
 
 The behaviours every SDK's live queries are held to are numbered in
 [the cache's semantics][cache-semantics].

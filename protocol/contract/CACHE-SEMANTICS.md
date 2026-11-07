@@ -422,15 +422,43 @@ cache durable rehydration, for one person on one knowledge base:
    and one for the watermarks
    ([`stored.json`](../specs/src/session/stored.json), `cacheKeyPrefix`
    and `lastEventIdKeyPrefix`). Forgetting a saved sign-in, however it is
-   forgotten — signing out, removing the knowledge base, the issuer
-   refusing a renewal, the gateway refusing a renewed token — deletes
-   every one of its person's keys on that knowledge base, after the
-   client has closed or once it writes nothing more. A client whose
-   sign-in is stored beside what it keeps checks at every write that the
-   stored sign-in still names its person: one whose
-   sign-in another context deleted, or replaced with one that does not
-   name its person, discards what it has not written and writes nothing
-   more.
+   forgotten — signing out, removing the knowledge base, signing in to it
+   again, the issuer refusing a renewal, the gateway refusing a renewed
+   token — deletes every one of its person's keys on that knowledge base,
+   after the client has closed or once it writes nothing more. Signing in
+   again forgets the person even when the new sign-in turns out to be
+   theirs: a new sign-in names nobody until its gateway names them.
+
+   Every session an SDK's own builders make whose client keeps (a
+   registry's, and a script's session given a storage) checks before each
+   write that the sign-in it holds still names its person, whatever holds
+   that sign-in: the registry's stored sign-in, a memory sign-in, or a
+   host's own. One whose sign-in is forgotten, or replaced with one that
+   does not name its person, here or in another context, discards what it
+   has not written and writes nothing more; a renewal changes nothing. A
+   sign-in it cannot read counts as one that does not name its person, and
+   the failure is reported. A client an application builds itself, with a
+   cache persistence it makes, writes unchecked.
+
+   The check and the write are one step. A forgetting the session makes
+   itself (its renewal refused, its renewed token refused) runs its delete
+   only once no write of its client is under way, and the registry's
+   signing out, removal and signing in again delete only once the client
+   has closed: no save of that client lands after their delete.
+
+   What is not held today:
+   - **Other code in the same program.** In Kotlin, Swift, C#, Go and
+     Rust, a forgetting by other code — the public clear or store of a
+     knowledge base's stored sign-in, a script's sign-out, a second
+     registry over the same storage — is not serialized with an open
+     client's write: one save already in progress can land after that
+     delete, and what it writes is keyed to the forgotten person. The
+     client's next check stops it writing. In TypeScript and Python
+     nothing runs between a write's check and the write, and a forgetting
+     runs whole, so within one program this does not happen.
+   - **Two programs sharing one storage**, in every SDK: a save one of
+     them checked just before the other forgot the sign-in can land after
+     the other's delete.
 
 ### B18 — A restored-from-disk value is revalidated on first observation
 

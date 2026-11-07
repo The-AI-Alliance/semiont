@@ -615,10 +615,15 @@ gateway answers for the token, recorded on the stored sign-in once it answers):
 A session whose stored sign-in already names its person loads these as its client
 is made; one whose gateway has not yet named the person keeps nothing until it does,
 then attaches them. Forgetting the saved sign-in — signing out, removing the
-knowledge base, the issuer refusing a renewal, the gateway refusing a renewed
-token — deletes every one of these keys of its person. A client whose stored
-sign-in another tab deletes, or replaces with one that does not name its person,
-discards what it has not written.
+knowledge base, signing in to it again, the issuer refusing a renewal, the gateway
+refusing a renewed token — deletes every one of these keys of its person. A
+session the SDK builds checks before each write that the sign-in it holds still
+names its person: one whose sign-in is forgotten, or replaced with one that does
+not name its person, here or in another tab, discards what it has not written and
+writes nothing more. A client you assemble yourself, with a cache persistence you
+make, writes unchecked. What two programs sharing one storage can still race on,
+and what other code in the same program can, is in
+[CACHE-SEMANTICS.md](../../protocol/contract/CACHE-SEMANTICS.md) (B17, item 6).
 
 How reconciliation works — there is no reconcile code path, only the existing
 contract: rehydrated entries serve immediately (plus one background

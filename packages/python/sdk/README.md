@@ -392,8 +392,10 @@ async def watch(client: SemiontClient[Transport], resource: ResourceId) -> None:
   gateway names its person and its kept sign-in records them, and keeps the
   stream's place in each resource's scope with it (`semiont.resume`), so the
   next session is sent what was recorded since. Forgetting a registry's
-  stored sign-in, however it is forgotten, deletes what was kept for its
-  person.
+  stored sign-in, however it is forgotten, signing in again included, deletes
+  what was kept for its person. A session the SDK builds writes only while
+  the sign-in it holds names its person; a client you construct with a cache
+  persistence of your own writes unchecked.
 
 The behaviours every SDK's live queries are held to are numbered in
 [the cache's semantics][cache-semantics].
