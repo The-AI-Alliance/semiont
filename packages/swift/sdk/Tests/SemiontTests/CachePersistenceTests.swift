@@ -230,7 +230,7 @@ private func saved(
   #expect(storage.get(documentKey) == kept, "A failed fetch leaves what was kept as it was")
 }
 
-// B17 item 1: what a cache held before its client kept anything is written with its next change.
+// B17 item 1: nothing is owed before the person is named, and attaching writes nothing.
 @Test func attachingWritesNothingThoughTheCachesHoldValues() async throws {
   let storage = MemorySessionStorage()
   let jo = try joKey()
@@ -270,6 +270,53 @@ private func saved(
   #expect(storage.get(documentKey) == kept, "Attaching writes nothing over what was kept")
   #expect(
     storage.get(cacheKey("kb", jo, .entityTypes)) == nil, "Attaching writes nothing new")
+}
+
+// B17 item 1: what a cache held before its client kept anything is written with its next change,
+// whose save writes the whole document: a value held in place of the one kept, nothing of an
+// entity gone, and what was kept of a key the cache did not hold.
+@Test func theNextChangeAfterAttachingWritesWhatTheCacheHeldBeforeIt() async throws {
+  let storage = MemorySessionStorage()
+  let jo = try joKey()
+  let ids = try ["res-1", "res-2", "res-3", "res-4", "res-5"].map { try ResourceId($0) }
+  let documentKey = cacheKey("kb", jo, .resource)
+  let earlier = KeptQueries(
+    CachePersistence(storage: storage, kbId: "kb", personKey: jo), clock: ContinuousClock())
+  #expect(earlier.attach(jo) == [:])
+  for id in ids.prefix(3) { earlier.store(.resource, id, try keptDescriptor("kept")) }
+  earlier.close()
+
+  // Before the gateway names the person: res-1 is answered, res-2's entity is gone, and res-4,
+  // which nothing kept, is answered too.
+  let probe = ProbeTransport()
+  probe.handle { operation, _ in
+    guard operation == Operations.browseResourceRequested.request.name else {
+      throw SpecFailure.shape("Unscripted request: \(operation)")
+    }
+    return try wirePayload(
+      BrowseResourceResult(
+        response: BrowseResourceResultResponse(
+          lastSequence: 1, resource: try keptDescriptor("fresh"))))
+  }
+  let client = try await SemiontClient(
+    transport: probe,
+    persistence: CachePersistence(
+      storage: storage, kbId: "kb", person: nil, writer: WritesAsGiven()))
+  let live = client.browse.live
+  _ = try await live.resources.fetch(ids[0])
+  await live.resources.remove(ids[1], gone: BusRequestError(.busNotFound, "res-2 is gone"))
+  _ = try await live.resources.fetch(ids[3])
+  await client.attach(jo)
+  #expect(client.keeping?.pending == false, "Attaching owes no save")
+
+  await live.resources.set(ids[4], value: try keptDescriptor("changed"))
+  client.dispose()
+  var names: [String: String] = [:]
+  for entry in try required(storedJSON(storage.get(documentKey)).object, "entries").array {
+    let parts = try entry.array
+    names[try parts[0].text] = try required(parts[1].object, "name").text
+  }
+  #expect(names == ["res-1": "fresh", "res-3": "kept", "res-4": "fresh", "res-5": "changed"])
 }
 
 @Test func aStandaloneCacheSkipsAKeptEntryWhoseValueIsNotItsType() async throws {
@@ -398,11 +445,11 @@ private func drained(_ probe: ProbeTransport, _ client: SemiontClient) async thr
 @Test func aValueReceivedAgainUnchangedKeepsTheTimeItWasFirstReceived() throws {
   let storage = MemorySessionStorage()
   let key = "stamps"
-  let first = StoragePersister<String>(storage: storage, storageKey: key)
+  let first = StoragePersister<String, String>(storage: storage, storageKey: key)
   first.store("a", "one")
   first.close()
   let written = try storedJSON(storage.get(key))
-  let again = StoragePersister<String>(storage: storage, storageKey: key)
+  let again = StoragePersister<String, String>(storage: storage, storageKey: key)
   again.store("a", "one")
   again.close()
   #expect(try storedJSON(storage.get(key)) == written)
@@ -414,7 +461,7 @@ private func drained(_ probe: ProbeTransport, _ client: SemiontClient) async thr
   let large = String(repeating: "x", count: Timings.maxStoredBytesCount * 2 / 5)
   storage.set(
     key, #"{"version":1,"entries":[["old","\#(large)",1],["mid","\#(large)",2]]}"#)
-  let persister = StoragePersister<String>(storage: storage, storageKey: key)
+  let persister = StoragePersister<String, String>(storage: storage, storageKey: key)
   #expect(Set(persister.keys) == ["old", "mid"])
   persister.store("new", large)
   persister.close()

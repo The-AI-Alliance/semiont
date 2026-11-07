@@ -13,8 +13,9 @@ import Testing
 // keys it keeps them under (`keys`), what forgetting a stored sign-in deletes, however it is
 // forgotten (`forget`), what a session of a registry reads, records and restores from its start
 // (`startup`), what it still writes once another context changes its stored sign-in (`crossTab`),
-// and once what holds its sign-in in this process changes it (`holder`). The sessions of
-// `forget`'s expiry and refusal, of `startup` and of `crossTab` are the registry's own, made by
+// and once what holds its sign-in in this process changes it (`holder`), and the place its stream
+// resumes a scope from (`resumeFrom`). The sessions of `forget`'s expiry and refusal, of
+// `startup`, of `resumeFrom` and of `crossTab` are the registry's own, made by
 // HttpSessionFactory over a gateway and an issuer in this process; `holder`'s is a script's, made
 // by sessionFromKept over a MemorySignIn. A script's session whose sign-in cannot be read when its
 // client saves keeps nothing more, and says so once. Last, a save being written when its session
@@ -350,7 +351,7 @@ private final class ClosingWrites: SessionFactory {
   }
 }
 
-// ── The gateway and issuer of `forget`, `startup` and `crossTab` ────────
+// ── The gateway and issuer of `forget`, `startup`, `resumeFrom` and `crossTab` ──
 
 /// What the gateway says to whoever asks who a token is.
 private enum WhoAmI: Sendable {
@@ -534,11 +535,22 @@ private final class PersonGateway: Sendable {
     for respond in waiting { respond(.json(200, user)) }
   }
 
-  /// Where the first subscription naming `scope` resumes it from: nil while none names it, and
-  /// `.some(nil)` when the one that does resumes it from nowhere.
-  func place(of scope: ResourceId) -> String?? {
+  /// How many subscriptions it has been asked for.
+  var subscribed: Int { state.withLock { $0.subscriptions.count } }
+
+  /// Tells `event`, as a stream writes it, on the stream opened last.
+  func tell(_ event: String) {
+    guard let stream = state.withLock({ $0.streams.last }) else {
+      return fault("an event to tell with no stream open")
+    }
+    stream(.streamEvent(event))
+  }
+
+  /// Where the first subscription after the first `skipped` that names `scope` resumes it from:
+  /// nil while none names it, and `.some(nil)` when the one that does resumes it from nowhere.
+  func place(of scope: ResourceId, after skipped: Int) -> String?? {
     state.withLock { state in
-      for subscription in state.subscriptions {
+      for subscription in state.subscriptions.dropFirst(skipped) {
         if let entry = subscription.scoped?.first(where: { $0.scope == scope }) {
           return .some(entry.lastEventId)
         }
@@ -547,11 +559,12 @@ private final class PersonGateway: Sendable {
     }
   }
 
-  /// Where the first subscription naming `scope` resumes it from, once one names it.
-  func awaitPlace(of scope: ResourceId) async throws -> String? {
+  /// Where the first subscription after the first `skipped` that names `scope` resumes it from,
+  /// once one names it.
+  func awaitPlace(of scope: ResourceId, after skipped: Int) async throws -> String? {
     try await withinTestDeadline { () async throws -> String? in
       while true {
-        if let found = self.place(of: scope) { return found }
+        if let found = self.place(of: scope, after: skipped) { return found }
         try await Task.sleep(for: .milliseconds(2))
       }
     }
@@ -678,7 +691,7 @@ private func overGateway(
       defer { late.stop() }
       let givenThen = try await withinTestDeadline { try await late.first() }
       #expect(givenThen.name == then, "\(why)")
-      #expect(try await gateway.awaitPlace(of: askedThen) == place, "\(why)")
+      #expect(try await gateway.awaitPlace(of: askedThen, after: 0) == place, "\(why)")
       guard untouched else { return }
       late.stop()
       early.stop()
@@ -708,6 +721,70 @@ private final class ListedStorage: SessionStorage {
     }
   }
   func subscribe(_ key: String) -> AsyncStream<String?>? { nil }
+}
+
+// ── resumeFrom ──────────────────────────────────────────────────────────
+
+/// A `mark:archived` event of `scope` whose id is `id`, as a stream writes it.
+private func archivedEvent(of scope: ResourceId, id: String) throws -> String {
+  let event = StoredEventResponse(
+    id: id, metadata: EventMetadata(sequenceNumber: 1), payload: [:], resourceId: scope,
+    timestamp: "2026-11-07T00:00:00.000Z", type: Channels.markArchived.name,
+    userId: try UserId("did:web:example.org:users:alice"), version: 1)
+  let frame = BusFrame(
+    channel: Channels.markArchived.name, payload: try wirePayload(event), scope: scope)
+  let data = try JSONEncoder().encode(frame)
+  return "id: \(id)\nevent: bus-event\ndata: " + String(decoding: data, as: UTF8.self) + "\n\n"
+}
+
+@Test func aRegistrysStreamResumesAScopeFromWhatTheCaseTableSays() async throws {
+  let table = try casesTable()
+  let jo = try personKeyOf(table, "jo")
+  let user = try JSONEncoder().encode(required(table, "whoAmI"))
+  let held = try ResourceId("res-1")
+  let other = try ResourceId("res-2")
+  for value in try required(table, "resumeFrom").array {
+    let row = try value.object
+    let why = try required(row, "why").text
+    let frames = try required(row, "frames").array.map { try $0.text }
+    let resumes = try optionalText(required(row, "resumes"))
+    let storage = MemorySessionStorage()
+    try storeSession(
+      storage, kbId: "kb-a",
+      session: signIn(personKey: jo, expired: false, tokenEndpoint: unaskedIssuer))
+    try await overGateway(.names, issuer: .unasked, user: user) { gateway, port, http in
+      let opened = try await HttpSessionFactory(httpClient: http).session(
+        SessionFactoryOptions(
+          kb: knowledgeBase("kb-a", port: port), storage: storage, signals: SessionSignals(),
+          onError: { _ in }))
+      defer { opened.dispose() }
+      try await withinTestDeadline { try await opened.session.ready() }
+      let holding = Observed(opened.client.browse.resource(held))
+      defer { holding.stop() }
+      _ = try await withinTestDeadline { try await holding.first() }
+      _ = try await gateway.awaitPlace(of: held, after: 0)
+      // Each frame is on the client's bus once its transport has taken it.
+      let archived = opened.client.bus.listen([Channels.markArchived.name])
+      for id in frames { gateway.tell(try archivedEvent(of: held, id: id)) }
+      try await withinTestDeadline {
+        var taken = 0
+        for try await carried in archived {
+          if case .refused(let refusal) = carried {
+            Issue.record("\(why): the transport refused a frame: \(refusal)")
+          }
+          taken += 1
+          if taken == frames.count { return }
+        }
+        throw SpecFailure.shape("The bus ended before every frame came")
+      }
+      // Holding another resource subscribes again, naming res-1's scope with its place.
+      let subscribed = gateway.subscribed
+      let more = Observed(opened.client.browse.resource(other))
+      defer { more.stop() }
+      _ = try await withinTestDeadline { try await more.first() }
+      #expect(try await gateway.awaitPlace(of: held, after: subscribed) == resumes, "\(why)")
+    }
+  }
 }
 
 // ── crossTab ────────────────────────────────────────────────────────────

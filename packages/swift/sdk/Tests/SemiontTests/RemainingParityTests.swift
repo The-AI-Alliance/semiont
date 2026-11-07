@@ -7,7 +7,7 @@ import Testing
 
 @Test func cacheStateUnitUsesTheSameQueriesAndDisposesOnlyItsOwnWork() async throws {
   let storage = MemorySessionStorage()
-  let persisted = { StoragePersister<String>(storage: storage, storageKey: "parity-cache") }
+  let persisted = { StoragePersister<String, String>(storage: storage, storageKey: "parity-cache") }
   let calls = Mutex<[String]>([])
   let cache = Cache<String, String>(persister: persisted()) { key in
     calls.withLock { $0.append(key) }

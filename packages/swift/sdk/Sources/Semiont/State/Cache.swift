@@ -47,7 +47,7 @@ public final class Cache<Key: Hashable & Sendable, Value: Sendable>: StateUnit {
   /// A cache whose values `persister` keeps: it starts with every value kept, each asked for again
   /// when first observed (B17, B18), and it closes `persister` when it is disposed.
   public convenience init(
-    persister: StoragePersister<Key>, clock: any Clock<Duration> = ContinuousClock(),
+    persister: StoragePersister<Key, Value>, clock: any Clock<Duration> = ContinuousClock(),
     fetch: @escaping @Sendable (Key) async throws -> Value
   ) where Key: Codable, Value: Codable {
     let life = Lifetime()

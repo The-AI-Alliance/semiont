@@ -108,7 +108,9 @@ public final class Cached<Value: Sendable>: AsyncSequence, Sendable {
   func snapshot() async -> Value? { await entry.snapshot() }
   func isKnown() async -> Bool { await entry.isKnown }
   func replace(_ state: CacheState<Value>) async { await entry.replace(state) }
-  func keepingStarted() async { await entry.keepingStarted() }
+  func keepingStarted(absorb: @Sendable (Value?) -> Void) async {
+    await entry.keepingStarted(absorb: absorb)
+  }
 }
 
 private actor CacheEntry<Value: Sendable> {
@@ -122,6 +124,8 @@ private actor CacheEntry<Value: Sendable> {
   private let clock: any Clock<Duration>
   private var rehydrated = false
   private var state: State = .pending
+  /// Its failure says its entity is gone (B13a), not that a fetch failed.
+  private var gone = false
   private var listeners:
     [UUID: (yield: @Sendable (State) -> Void, finish: @Sendable () -> Void, scope: ResourceHold?)] =
       [:]
@@ -153,17 +157,19 @@ private actor CacheEntry<Value: Sendable> {
 
   nonisolated var ended: Bool { lifetime.ended }
 
-  /// Its client started keeping: it takes the kept value when it holds none and asks for none, and
-  /// otherwise writes what it holds over what was kept, as had its client kept from the start (B17).
-  func keepingStarted() {
+  /// Its client started keeping (B17): it takes the kept value when it holds none and asks for
+  /// none. Otherwise `absorb` makes what is kept agree with it, owing no save, so the next
+  /// change's save writes it: the value it holds, or nothing of an entity gone. A failed fetch
+  /// leaves what was kept, as a key whose refetch failed keeps the value it last had.
+  func keepingStarted(absorb: @Sendable (Value?) -> Void) {
     switch state {
     case .pending:
       guard current == nil, validation == nil, let value = kept?.load() else { return }
       state = .ready(value)
       rehydrated = true
       for listener in listeners.values { listener.yield(state) }
-    case .ready(let value): if !rehydrated { kept?.store(value) }
-    case .failed: kept?.forget()
+    case .ready(let value): if !rehydrated { absorb(value) }
+    case .failed: if gone { absorb(nil) }
     }
   }
 
@@ -213,6 +219,7 @@ private actor CacheEntry<Value: Sendable> {
   /// A settled value is kept; a failed fetch leaves what is kept alone.
   private func publish(_ state: State) {
     self.state = state
+    gone = false
     if case .ready(let value) = state { kept?.store(value) }
     for listener in listeners.values { listener.yield(state) }
   }
@@ -333,8 +340,11 @@ private actor CacheEntry<Value: Sendable> {
     validation = nil
     let wasOwed = refreshOwed
     refreshOwed = false
-    if case .failed = state { kept?.forget() }
     publish(state)
+    if case .failed = state {
+      gone = true
+      kept?.forget()
+    }
     if wasOwed { owed?.end() }
   }
 

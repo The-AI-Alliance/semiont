@@ -28,7 +28,10 @@ struct LiveQueries: Sendable {
   let annotations: Cache<ResourceId, KeptAnnotations>
   let listedResources: Cache<ResourceFilters, ListResourcesResponse>
   let matchedResources: Cache<SearchKey, MatchResourcesResponse>
-  let engines: Cached<[EngineWithLimits]>
+  let engines: Cached<[EngineEntry]>
+  /// The engines, each joined with the limits reported for it: the one view every observer of the
+  /// engines shares (B4).
+  let enginesWithLimits: Cached<[EngineWithLimits]>
   let details: Cache<AnnotationKey, KeptAnnotation>
   private let annotationLists = Views<ResourceId, [Annotation]>()
   private let keeping: KeptQueries?
@@ -60,11 +63,14 @@ struct LiveQueries: Sendable {
           offset: filters.offset, search: search.text)
       ).response
     }
-    engines = Cached(
+    let limits = ReportedLimits()
+    let engines = Cached(
       lifetime: lifetime, owed: owed, invalidationWindowMs: invalidationWindowMs, clock: clock
     ) {
-      try await browseEngines(wire)
+      try await browseEngines(wire, keeping: limits)
     }
+    self.engines = engines
+    enginesWithLimits = engines.view { limits.joined($0) }
     entityTypes = Cached(
       lifetime: lifetime,
       kept: keeping.map { KeptValue(keeping: $0, query: .entityTypes, key: WholeKey()) },
@@ -133,29 +139,36 @@ struct LiveQueries: Sendable {
   }
 
   /// B17, as the client starts keeping: each persisted query takes what is kept for a key it holds
-  /// no value for, and writes the value it holds over what is kept for any other. A kept
-  /// annotation is of the resource its target is.
+  /// no value for, and what is kept is made to agree with every other key it holds, owing no save,
+  /// so the save of its next change writes the whole document. A kept annotation is of the
+  /// resource its target is.
   func rehydrate() async {
     guard let keeping else { return }
     for query in KeptQuery.allCases {
       switch query {
       case .resource:
-        for key in keeping.keys(query, as: ResourceId.self) {
-          await resources.observe(key).keepingStarted()
+        let held = await resources.keys()
+        for key in Set(keeping.keys(query, as: ResourceId.self)).union(held) {
+          await resources.observe(key).keepingStarted { keeping.absorb(query, key, $0) }
         }
       case .annotations:
-        for key in keeping.keys(query, as: ResourceId.self) {
-          await annotations.observe(key).keepingStarted()
+        let held = await annotations.keys()
+        for key in Set(keeping.keys(query, as: ResourceId.self)).union(held) {
+          await annotations.observe(key).keepingStarted { keeping.absorb(query, key, $0) }
         }
       case .annotation:
+        var keys = Set(await details.keys())
         for id in keeping.keys(query, as: AnnotationId.self) {
           guard let annotation = keeping.load(query, id, as: KeptAnnotation.self) else { continue }
-          await details.observe(
-            AnnotationKey(resource: targetSource(annotation.target), annotation: id)
-          ).keepingStarted()
+          keys.insert(AnnotationKey(resource: targetSource(annotation.target), annotation: id))
         }
-      case .entityTypes: await entityTypes.keepingStarted()
-      case .tagSchemas: await tagSchemas.keepingStarted()
+        for key in keys {
+          await details.observe(key).keepingStarted { keeping.absorb(query, key.annotation, $0) }
+        }
+      case .entityTypes:
+        await entityTypes.keepingStarted { keeping.absorb(query, WholeKey(), $0) }
+      case .tagSchemas:
+        await tagSchemas.keepingStarted { keeping.absorb(query, WholeKey(), $0) }
       }
     }
   }

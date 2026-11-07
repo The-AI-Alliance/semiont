@@ -579,9 +579,6 @@ package struct TableGenerator {
         try models.enumeration(name, values.map(JSONValue.string), ["type": .string("string")])
         .replacingOccurrences(of: "public ", with: "internal ") + "\n"
     }
-    out += "internal protocol CacheQueryHandlers {\n"
-    for query in queries { out += "  func \(escaped(memberName(query)))()\n" }
-    out += "}\n"
     out +=
       """
       /// What one trigger does to the cache. `resource` and `annotation` are the ways into its
@@ -608,45 +605,50 @@ package struct TableGenerator {
     return out + "]\n"
   }
   /// What a client keeps, as Sources/Semiont/CachePersistence.swift reads it: the queries
-  /// client/refresh.json marks `persisted`, the type session/stored.json's `keptQueries` says each
-  /// keeps, the key of a query per nothing, the version of a kept document, and the schema a kept
-  /// place is held to. `keptQueries` naming other queries than the persisted ones, or in another
-  /// order, and a document or a place of another shape than the one the persistence reads, refuse
-  /// generation.
+  /// client/refresh.json marks `persisted`, the type each one's `value` says its cache holds, how
+  /// a kept document of each is read, by the key its `per` gives, the key of a query per nothing,
+  /// the version of a kept document, and the schema a kept place is held to. A query persisted
+  /// per anything but a resource, an annotation or nothing, and a document or a place of another
+  /// shape than the one the persistence reads, refuse generation.
   func keptTable() throws -> String {
     let stored = try table("session/stored.json")
-    let persisted = try required(table("client/refresh.json"), "queries").array.map {
-      try $0.object
-    }.filter { query in
-      guard let value = query["persisted"] else { return false }
-      guard value == .bool(true) else {
+    // Each persisted query: its name, the type of the key its `per` gives, and its value's type.
+    var persisted: [(name: String, key: String, value: String)] = []
+    for raw in try required(table("client/refresh.json"), "queries").array {
+      let query = try raw.object
+      guard let mark = query["persisted"] else { continue }
+      guard mark == .bool(true) else {
         throw GenerationRefused(description: "a cache query is persisted true, or not at all")
       }
-      return true
-    }.map { try required($0, "name").text }
+      let name = try required(query, "name").text
+      let key: String
+      switch try query["per"]?.text {
+      case nil: key = "WholeKey"
+      case "resource"?: key = "ResourceId"
+      case "annotation"?: key = "AnnotationId"
+      case .some(let per):
+        throw GenerationRefused(description: "\(name) is persisted per \(per), which keeps nothing")
+      }
+      persisted.append((name, key, try storedType(required(query, "value").object, of: name)))
+    }
     var out = "/// The live queries whose answers a client keeps across its lives, for the person\n"
     out += "/// signed in.\n"
     out +=
       try models.enumeration(
-        "KeptQuery", persisted.map(JSONValue.string), ["type": .string("string")]
+        "KeptQuery", persisted.map { .string($0.name) }, ["type": .string("string")]
       ).replacingOccurrences(of: "public ", with: "internal ") + "\n"
-    var kept: [String] = []
-    for raw in try required(stored, "keptQueries").array {
-      let row = try raw.object
-      for key in row.keys.sorted() where !["query", "value"].contains(key) {
-        throw GenerationRefused(description: "a kept query states \(key), which is not read")
-      }
-      let query = try required(row, "query").text
-      kept.append(query)
-      let value = try storedType(required(row, "value").object, of: query)
-      out += "internal typealias Kept\(pascal(query)) = \(value)\n"
+    for query in persisted {
+      out += "internal typealias Kept\(pascal(query.name)) = \(query.value)\n"
     }
-    guard kept == persisted else {
-      throw GenerationRefused(
-        description:
-          "session/stored.json's keptQueries are not the queries client/refresh.json marks persisted, in its order"
-      )
+    out += "extension KeptQuery {\n"
+    out += "  /// What `text` keeps of this query: each entry whose key and value it keeps.\n"
+    out += "  func document(_ text: String?) -> KeptDocument {\n"
+    out += "    switch self {\n"
+    for query in persisted {
+      out +=
+        "    case .\(escaped(enumCase(query.name))): KeptDocument(text, keys: \(query.key).self, values: Kept\(pascal(query.name)).self)\n"
     }
+    out += "    }\n  }\n}\n"
     let whole = try required(required(stored, "wholeKey").object, "key").text
     out += "internal let wholeKey = \(literal(whole))\n"
     let version = try cacheDocumentVersion(required(stored, "cacheDocument").object)
@@ -663,7 +665,7 @@ package struct TableGenerator {
     }
     return out + "internal let keptPlace = \(literal(place))\n"
   }
-  /// The type a schema of session/stored.json refers to: a component schema, or one member of one.
+  /// The type a table's schema refers to: a component schema, or one member of one.
   func storedType(_ schema: Schema, of owner: String) throws -> String {
     guard schema.count == 1, let ref = schema["$ref"] else {
       throw GenerationRefused(description: "\(owner) is no reference to a component schema")

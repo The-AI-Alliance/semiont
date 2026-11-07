@@ -65,11 +65,11 @@ struct KeptValue<Value: Sendable>: Sendable {
   /// Keeps nothing of its key, whose value is gone.
   let forget: @Sendable () -> Void
 
-  init<Key>(book: StoragePersister<Key>, key: Key) where Value: Codable {
+  init<Key>(book: StoragePersister<Key, Value>, key: Key) where Value: Codable {
     underway = book.underway
-    load = { book.load(key, as: Value.self) }
+    load = { book.load(key) }
     store = { book.store(key, $0) }
-    forget = { book.store(key, Value?.none) }
+    forget = { book.store(key, nil) }
   }
 
   init<Key: Encodable & Sendable>(keeping: KeptQueries, query: KeptQuery, key: Key)
@@ -84,9 +84,9 @@ struct KeptValue<Value: Sendable>: Sendable {
 /// One cache's values, kept in `storage` under `storageKey` as one document, the form
 /// protocol/specs/src/session/stored.json's `cacheDocument` gives: a new value is written
 /// `saveDebounceMs` after the last, by `clock`, and what is not yet written when it is closed. It
-/// knows its keys' type alone, so it skips an entry kept under a key that is not a `Key`, and a
-/// value that is not its cache's reads as nothing.
-public final class StoragePersister<Key: Codable & Hashable & Sendable>: Sendable {
+/// skips an entry kept under a key that is not a `Key`, or with a value that is not a `Value`.
+public final class StoragePersister<Key, Value>: Sendable
+where Key: Codable & Hashable & Sendable, Value: Codable & Sendable {
   private struct State: Sendable {
     var document: KeptDocument
     var owed = false
@@ -111,14 +111,13 @@ public final class StoragePersister<Key: Codable & Hashable & Sendable>: Sendabl
     // A document that cannot be read is nothing kept.
     state = Mutex(
       State(
-        document: KeptDocument(
-          try? storage.get(storageKey), keys: Key.self, values: JSONValue.self)))
+        document: KeptDocument(try? storage.get(storageKey), keys: Key.self, values: Value.self)))
   }
 
   public var keys: [Key] { state.withLock { $0.document }.keys(as: Key.self) }
 
-  public func load<Value: Decodable>(_ key: Key, as type: Value.Type) -> Value? {
-    state.withLock { $0.document }.value(key, as: type)
+  public func load(_ key: Key) -> Value? {
+    state.withLock { $0.document }.value(key, as: Value.self)
   }
 
   /// Whether what it holds may be newer than what is written: a save owed, or a fetch of its
@@ -129,7 +128,7 @@ public final class StoragePersister<Key: Codable & Hashable & Sendable>: Sendabl
   }
 
   /// Keeps `value` as `key`'s, and nothing of `key` when it is nil.
-  public func store<Value: Encodable>(_ key: Key, _ value: Value?) {
+  public func store(_ key: Key, _ value: Value?) {
     state.withLock { state in
       guard !state.closed else { return }
       state.document.set(key, value, at: millisecondsNow())
@@ -237,6 +236,15 @@ final class KeptQueries: Sendable {
     state.withLock { $0.attached?.documents[query] }?.value(key, as: type)
   }
 
+  /// Makes `query`'s document hold `value` as `key`'s, and nothing of `key` when it is nil, owing
+  /// no save: the save of the document's next change writes it (B17: attaching writes nothing).
+  func absorb<Key: Encodable, Value: Encodable>(_ query: KeptQuery, _ key: Key, _ value: Value?) {
+    state.withLock { state in
+      guard !state.closed else { return }
+      state.attached?.documents[query]?.set(key, value, at: millisecondsNow())
+    }
+  }
+
   /// Keeps `value` as `key`'s in `query`'s document, and nothing of `key` when it is nil.
   func store<Key: Encodable, Value: Encodable>(_ query: KeptQuery, _ key: Key, _ value: Value?) {
     state.withLock { state in
@@ -254,6 +262,13 @@ final class KeptQueries: Sendable {
     state.withLock { state in
       if !state.closed { state.attached?.places[scope] = id }
     }
+  }
+
+  /// Whether what it holds may be newer than what is written: a save owed, a write the storage
+  /// refused among them, or a kept cache's fetch under way or refetch owed.
+  var pending: Bool {
+    let (closed, owing) = state.withLock { ($0.closed, $0.attached?.owed.isEmpty == false) }
+    return !closed && (owing || !underway.settled)
   }
 
   /// Takes no new value, and writes what is not yet written as its writer writes.
@@ -394,19 +409,6 @@ final class KeptQueries: Sendable {
     if attached.owed.isEmpty, underway.settled { swap(&places, &attached.places) }
     state.attached = attached
     return Writing(person: attached.person, documents: documents, places: places)
-  }
-}
-
-extension KeptQuery {
-  /// What `text` keeps of this query: each entry whose key and value are the query's.
-  fileprivate func document(_ text: String?) -> KeptDocument {
-    switch self {
-    case .resource: KeptDocument(text, keys: ResourceId.self, values: KeptResource.self)
-    case .annotations: KeptDocument(text, keys: ResourceId.self, values: KeptAnnotations.self)
-    case .annotation: KeptDocument(text, keys: AnnotationId.self, values: KeptAnnotation.self)
-    case .entityTypes: KeptDocument(text, keys: WholeKey.self, values: KeptEntityTypes.self)
-    case .tagSchemas: KeptDocument(text, keys: WholeKey.self, values: KeptTagSchemas.self)
-    }
   }
 }
 

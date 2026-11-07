@@ -22,7 +22,7 @@ public final class SemiontClient: Sendable {
   let clock: any Clock<Duration>
   private let lifetime = Lifetime()
   private let disposed = Mutex(false)
-  private let keeping: KeptQueries?
+  let keeping: KeptQueries?
   private let live: LiveQueries
   public init(
     transport: any Transport, gateway: (any GatewayOperations)? = nil,
