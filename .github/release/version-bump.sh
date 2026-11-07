@@ -111,7 +111,7 @@ NEXT=$(bump_version "$CURRENT" "$BUMP_TYPE")
 echo ""
 echo "This will:"
 echo "  1. Bump version from ${CURRENT} to ${NEXT} (${BUMP_TYPE})"
-echo "  2. Update all package.json files, and the published crates (Cargo.toml, Cargo.lock)"
+echo "  2. Update all package.json files, the published crates (Cargo.toml, Cargo.lock) and the Haskell SDK's manifest (semiont.cabal)"
 echo "  3. Regenerate package-lock.json (npm, in ${RUNTIME})"
 echo "  4. Commit and push to $(git rev-parse --abbrev-ref HEAD)"
 echo ""
@@ -154,6 +154,11 @@ update_package_json package.json "$NEXT"
 ./packages/rust/scripts/cargo-version.sh "$NEXT"
 FILES+=(packages/rust/Cargo.toml packages/rust/Cargo.lock)
 
+# So does the Haskell SDK's manifest, which its codegen writes from the root
+# package.json.
+./packages/haskell/scripts/cabal-version.sh "$NEXT"
+FILES+=(packages/haskell/sdk/semiont.cabal)
+
 # Phase 2: Verify
 echo ""
 echo "Verifying version sync..."
@@ -193,6 +198,7 @@ This commit bumps the version after releasing ${CURRENT} as stable.
 Version bump type: ${BUMP_TYPE}
 - All package.json files updated to ${NEXT}
 - The published crates updated to ${NEXT} (Cargo.toml, Cargo.lock)
+- The Haskell SDK's manifest updated to ${NEXT} (semiont.cabal)
 - package-lock.json regenerated to match
 - Publish manually via GitHub Actions workflow dispatch"
 
