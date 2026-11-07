@@ -3,11 +3,11 @@ import Foundation
 import NIOCore
 import NIOHTTP1
 import NIOPosix
-@testable import SemiontTesting
 import Synchronization
 import Testing
 
 @testable import Semiont
+@testable import SemiontTesting
 
 // What a client keeps of one person, against protocol/specs/src/session/persisted-cases.json: the
 // keys it keeps them under (`keys`), what forgetting a stored sign-in deletes, however it is
@@ -711,6 +711,33 @@ private final class ListedStorage: SessionStorage {
 
 // ── crossTab ────────────────────────────────────────────────────────────
 
+/// How a `crossTab` or `holder` row changes kb-a's sign-in, kept for jo.
+private enum SignInChange: Sendable {
+  case forget
+  /// A new sign-in kept in its place, naming the person whose key this is, or nobody.
+  case keep(personKey: String?)
+  /// The same sign-in renewed, with other tokens.
+  case renew
+
+  /// The change a row's `stored` states: null forgets; jo's key renews; another, or none, is a
+  /// new sign-in.
+  init(_ row: [String: JSONValue], jo: String) throws {
+    switch try required(row, "stored") {
+    case .null: self = .forget
+    case .object(let stored):
+      let named = try optionalText(required(stored, "personKey"))
+      self = named == jo ? .renew : .keep(personKey: named)
+    default: throw SpecFailure.shape("stored is a sign-in or null")
+    }
+  }
+
+  /// The sign-in a `keep` keeps.
+  static func kept(_ personKey: String?) throws -> HeldSignIn {
+    try signIn(
+      personKey: personKey, tokens: "another", expired: false, tokenEndpoint: unaskedIssuer)
+  }
+}
+
 @Test func aRegistrysSessionWritesNothingOnceItsStoredSignInIsNotItsPersons() async throws {
   let table = try casesTable()
   let jo = try personKeyOf(table, "jo")
@@ -721,15 +748,7 @@ private final class ListedStorage: SessionStorage {
     let row = try value.object
     let why = try required(row, "why").text
     let saved = try required(row, "saved") == .bool(true)
-    let replacement: HeldSignIn?
-    switch try required(row, "stored") {
-    case .null: replacement = nil
-    case .object(let stored):
-      replacement = try signIn(
-        personKey: optionalText(required(stored, "personKey")), tokens: "another",
-        expired: false, tokenEndpoint: unaskedIssuer)
-    default: throw SpecFailure.shape("\(why): stored is a sign-in or null")
-    }
+    let change = try SignInChange(row, jo: jo)
     try await overGateway(.names, issuer: .unasked, user: user) { _, port, http in
       let storage = SharedStorage()
       try saveKnowledgeBases(storage, knowledgeBases: [knowledgeBase("kb-a", port: port)])
@@ -755,10 +774,17 @@ private final class ListedStorage: SessionStorage {
         #expect(held.name == "fresh", "\(why)")
         #expect(storage.get(resourceKey) == nil, "\(why): written before the client closed")
         let other = storage.context()
-        if let replacement {
-          try storeSession(other, kbId: "kb-a", session: replacement)
-        } else {
-          try clearStoredSession(other, kbId: "kb-a")
+        switch change {
+        case .forget: try clearStoredSession(other, kbId: "kb-a")
+        case .keep(let personKey):
+          try storeSession(other, kbId: "kb-a", session: SignInChange.kept(personKey))
+        case .renew:
+          let read = try #require(try storedSession(other, kbId: "kb-a"))
+          let access = try accessToken("another", expired: false)
+          #expect(
+            try await keptIn(other, kbId: "kb-a").renewed(
+              read: read, access: access, refresh: "another-refresh") == access,
+            "\(why): renewed")
         }
       } catch {
         try? await browser.close()
@@ -774,15 +800,6 @@ private final class ListedStorage: SessionStorage {
 
 // ── holder ──────────────────────────────────────────────────────────────
 
-/// How a `holder` row changes the sign-in, through the memory sign-in that holds it.
-private enum HolderChange: Sendable {
-  case forget
-  /// A new sign-in kept in its place, naming the person whose key this is, or nobody.
-  case keep(personKey: String?)
-  /// The same sign-in with other tokens.
-  case renew
-}
-
 @Test func aScriptSessionWritesNothingOnceWhatHoldsItsSignInNoLongerNamesItsPerson() async throws {
   let table = try casesTable()
   let jo = try personKeyOf(table, "jo")
@@ -793,14 +810,7 @@ private enum HolderChange: Sendable {
     let row = try value.object
     let why = try required(row, "why").text
     let saved = try required(row, "saved") == .bool(true)
-    let change: HolderChange
-    switch try required(row, "stored") {
-    case .null: change = .forget
-    case .object(let stored):
-      let named = try optionalText(required(stored, "personKey"))
-      change = named == jo ? .renew : .keep(personKey: named)
-    default: throw SpecFailure.shape("\(why): stored is a sign-in or null")
-    }
+    let change = try SignInChange(row, jo: jo)
     try await overGateway(.names, issuer: .unasked, user: user) { _, port, http in
       let memory = try MemorySignIn(
         signIn(personKey: jo, expired: false, tokenEndpoint: unaskedIssuer))
@@ -819,10 +829,7 @@ private enum HolderChange: Sendable {
       #expect(caches.get(resourceKey) == nil, "\(why): written before the client closed")
       switch change {
       case .forget: await memory.forget()
-      case .keep(let personKey):
-        try await memory.keep(
-          signIn(
-            personKey: personKey, tokens: "another", expired: false, tokenEndpoint: unaskedIssuer))
+      case .keep(let personKey): try await memory.keep(SignInChange.kept(personKey))
       case .renew:
         let read = try #require(await memory.held())
         let access = try accessToken("another", expired: false)
@@ -831,6 +838,7 @@ private enum HolderChange: Sendable {
           "\(why): renewed")
       }
       opened.dispose()
+      await opened.client.closed()
       let kept = try keptValue(caches.get(resourceKey), key: .string(asked.value))
       let keptName = try kept?.object["name"]
       #expect((keptName == .string("fresh")) == saved, "\(why)")

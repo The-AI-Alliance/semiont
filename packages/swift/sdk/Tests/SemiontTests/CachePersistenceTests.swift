@@ -6,7 +6,7 @@ import Testing
   let storage = MemorySessionStorage()
   let jo = personKey(try UserId("did:web:kb.example.org:users:jo%40example.org"))
   let persistence = CachePersistence(
-    storage: storage, kbId: "kb-a", person: nil, followsSignIn: false)
+    storage: storage, kbId: "kb-a", person: nil, writer: WritesAsGiven())
   let resource = try ResourceId("res-1")
 
   let unattached = KeptQueries(persistence, clock: ContinuousClock())

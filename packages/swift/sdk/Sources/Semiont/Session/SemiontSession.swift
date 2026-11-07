@@ -147,7 +147,7 @@ public actor SemiontSession: StateUnit {
         }
         if try await kept.held() != nil {
           if startup {
-            try await kept.forget()
+            try await client.forgetSignIn(kept)
             await setToken(nil)
           } else {
             try await signedOut(.expired, code: .sessionRefreshExhausted)
@@ -163,7 +163,7 @@ public actor SemiontSession: StateUnit {
           !RetryContext.refresh.retryable(status: status, method: "POST", keyed: false)
         {
           if startup {
-            try await kept.forget()
+            try await client.forgetSignIn(kept)
           } else {
             try await signedOut(.expired, code: .sessionRefreshExhausted)
           }
@@ -190,7 +190,7 @@ public actor SemiontSession: StateUnit {
     }
     await setToken(nil)
     if !lifetime.ended { user.set(nil) }
-    do { try await kept.forget() } catch { report(error) }
+    do { try await client.forgetSignIn(kept) } catch { report(error) }
     guard !lifetime.ended else { return }
     onAuthFailed?(reason)
     report(SessionError(code, "Session ended: " + reason.rawValue, kbId: kb.id))

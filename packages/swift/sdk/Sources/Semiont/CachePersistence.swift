@@ -10,19 +10,18 @@ public struct CachePersistence: Sendable {
   let kbId: String
   /// The key of the person kept for: none until the gateway names them, when the session attaches it.
   let person: String?
-  /// The sign-in is kept beside the caches, under `sessionKey(kbId)`, and every write first checks
-  /// that it still names `person`.
-  let followsSignIn: Bool
+  /// How the client writes what it keeps.
+  let writer: any KeptWriter
 
   public init(storage: any SessionStorage, kbId: String, personKey: String) {
-    self.init(storage: storage, kbId: kbId, person: personKey, followsSignIn: false)
+    self.init(storage: storage, kbId: kbId, person: personKey, writer: WritesAsGiven())
   }
 
-  init(storage: any SessionStorage, kbId: String, person: String?, followsSignIn: Bool) {
+  init(storage: any SessionStorage, kbId: String, person: String?, writer: any KeptWriter) {
     self.storage = storage
     self.kbId = kbId
     self.person = person
-    self.followsSignIn = followsSignIn
+    self.writer = writer
   }
 }
 
@@ -133,8 +132,7 @@ public final class StoragePersister<Key: Codable & Hashable & Sendable>: CacheWo
 
 /// What a client keeps of one person on one knowledge base: each persisted query's document, and
 /// the stream's places, under that person's keys. It reads and writes nothing until it is attached
-/// for a person, and nothing again once a write finds that the sign-in it follows names no one, or
-/// someone else.
+/// for a person, and its writer (``KeptWriter``) says how and when it writes.
 final class KeptQueries: CacheWork {
   private struct Attached: Sendable {
     let person: String
@@ -147,19 +145,29 @@ final class KeptQueries: CacheWork {
     var attached: Attached?
     var work = 0
     var timer = SaveTimer()
+    /// It takes no new value: its client is closing.
+    var closed = false
+    /// It writes nothing more: it has closed, or its sign-in no longer names its person.
     var ended = false
+  }
+
+  /// What one write puts in storage: each changed document's text, and the stream's places.
+  fileprivate struct Writing: Sendable {
+    let person: String
+    let documents: [(KeptQuery, String)]
+    let places: [ResourceId: String]
   }
 
   private let storage: any SessionStorage
   private let kbId: String
-  private let followsSignIn: Bool
+  private let writer: any KeptWriter
   private let clock: any Clock<Duration>
   private let state = Mutex(State())
 
   init(_ persistence: CachePersistence, clock: any Clock<Duration>) {
     storage = persistence.storage
     kbId = persistence.kbId
-    followsSignIn = persistence.followsSignIn
+    writer = persistence.writer
     self.clock = clock
   }
 
@@ -167,7 +175,7 @@ final class KeptQueries: CacheWork {
   /// it keeps already, or has stopped.
   func attach(_ person: String) -> [ResourceId: String]? {
     state.withLock { state in
-      guard !state.ended, state.attached == nil else { return nil }
+      guard !state.ended, !state.closed, state.attached == nil else { return nil }
       // A document that cannot be read is nothing kept.
       let documents = Dictionary(
         uniqueKeysWithValues: KeptQuery.allCases.map { query in
@@ -191,7 +199,7 @@ final class KeptQueries: CacheWork {
 
   func store<Key: Encodable, Value: Encodable>(_ query: KeptQuery, _ key: Key, _ value: Value?) {
     state.withLock { state in
-      guard state.attached != nil else { return }
+      guard state.attached != nil, !state.closed else { return }
       state.attached?.documents[query]?.set(key, value, at: millisecondsNow())
       state.attached?.changed.insert(query)
       state.timer.restart(on: clock) { [weak self] id in self?.saved(id) }
@@ -206,52 +214,245 @@ final class KeptQueries: CacheWork {
   func begin() { state.withLock { $0.work += 1 } }
   func end() { state.withLock { $0.work -= 1 } }
 
-  func close() {
+  /// Takes no new value, and writes what is not yet written as its writer writes.
+  func close() { writer.close(self) }
+
+  /// Waits until every write begun so far has landed: once it is closed, until its last.
+  func closed() async { await writer.closed() }
+
+  /// Runs `forget`, the session's forgetting of its saved sign-in, once every write begun before it
+  /// has landed, and writes nothing more.
+  func forgetting(_ forget: @escaping @Sendable () async throws -> Void) async throws {
+    try await writer.forgetting(self, forget)
+  }
+
+  private func saved(_ id: UUID) {
+    guard state.withLock({ $0.timer.fire(id) }) else { return }
+    writer.save(self)
+  }
+
+  // What its writers do with it.
+
+  /// What is not yet written, taken to be written; nil when there is none, or it writes no more.
+  fileprivate func take() -> Writing? { state.withLock { Self.taken(&$0) } }
+
+  /// Writes what is not yet written at once, while nothing it holds changes.
+  fileprivate func writeNow() {
     state.withLock { state in
+      guard let writing = Self.taken(&state), let unwritten = put(writing) else { return }
+      Self.restore(&state, unwritten)
+    }
+  }
+
+  /// Takes no new value, writes what is not yet written at once, and keeps nothing more.
+  fileprivate func closeNow() {
+    state.withLock { state in
+      guard !state.closed else { return }
+      state.closed = true
       state.timer.stop()
-      flush(&state)
+      // What the close cannot write is kept no more.
+      if let writing = Self.taken(&state) { put(writing) }
       state.attached = nil
       state.ended = true
     }
   }
 
-  deinit { close() }
-
-  private func saved(_ id: UUID) {
+  /// Takes no new value, and gives what is not yet written; `closing` is false when it was closed
+  /// already.
+  fileprivate func stopTaking() -> (closing: Bool, writing: Writing?) {
     state.withLock { state in
-      if state.timer.fire(id) { flush(&state) }
+      guard !state.closed else { return (false, nil) }
+      state.closed = true
+      state.timer.stop()
+      return (true, Self.taken(&state))
     }
   }
 
-  /// Writes each changed document and then, while no persisted query has a read in flight, the
-  /// stream's places: so they may lag the documents, and never lead them (B17-Q).
-  private func flush(_ state: inout State) {
-    guard let attached = state.attached, !attached.changed.isEmpty else { return }
+  /// Writes `writing`, taken before, and keeps what it could not write to be written again.
+  fileprivate func write(_ writing: Writing) {
+    guard let unwritten = put(writing) else { return }
+    state.withLock { Self.restore(&$0, unwritten) }
+  }
+
+  /// Its sign-in no longer names its person: what is not yet written goes, and nothing is written
+  /// again.
+  fileprivate func drop() {
+    state.withLock { state in
+      state.timer.stop()
+      state.attached = nil
+      state.ended = true
+    }
+  }
+
+  /// Its client has closed: it keeps nothing more.
+  fileprivate func finish() {
+    state.withLock { state in
+      state.attached = nil
+      state.ended = true
+    }
+  }
+
+  /// Puts `writing` in storage, and gives what it could not put: nil when it put everything.
+  @discardableResult
+  private func put(_ writing: Writing) -> Writing? {
+    var written = 0
     do {
-      if followsSignIn, try storedSession(storage, kbId: kbId)?.personKey != attached.person {
-        state.timer.stop()
-        state.attached = nil
-        state.ended = true
-        return
+      for (query, text) in writing.documents {
+        try storage.set(cacheKey(kbId, writing.person, query), text)
+        written += 1
       }
-      let now = millisecondsNow()
-      for query in KeptQuery.allCases where attached.changed.contains(query) {
-        guard let text = state.attached?.documents[query]?.text(at: now) else { continue }
-        try storage.set(cacheKey(kbId, attached.person, query), text)
-        state.attached?.changed.remove(query)
-      }
-      let places = attached.places
-      guard state.work == 0, !places.isEmpty else { return }
-      try storage.update(lastEventIdKey(kbId, attached.person)) { text in
-        let merged = storedPlaces(text).merging(places) { _, heard in heard }
+      guard !writing.places.isEmpty else { return nil }
+      try storage.update(lastEventIdKey(kbId, writing.person)) { text in
+        let merged = storedPlaces(text).merging(writing.places) { _, heard in heard }
         return try storedText(
           Dictionary(uniqueKeysWithValues: merged.map { scope, id in (scope.value, id) }))
       }
-      state.attached?.places.removeAll()
+      return nil
     } catch {
       // Keeping is optional: what was not written is written with the next save, or the close.
+      return Writing(
+        person: writing.person, documents: Array(writing.documents.dropFirst(written)),
+        places: writing.places)
     }
   }
+
+  /// What a write did not put in storage is not yet written again; a place heard since stays.
+  private static func restore(_ state: inout State, _ unwritten: Writing) {
+    state.attached?.changed.formUnion(unwritten.documents.map { $0.0 })
+    state.attached?.places.merge(unwritten.places) { heard, _ in heard }
+  }
+
+  /// What is not yet written, taken to be written: each changed document's text and, while no
+  /// persisted query has a read in flight, the stream's places, so they may lag the documents and
+  /// never lead them (B17-Q).
+  private static func taken(_ state: inout State) -> Writing? {
+    guard !state.ended, var attached = state.attached, !attached.changed.isEmpty else { return nil }
+    let now = millisecondsNow()
+    var documents: [(KeptQuery, String)] = []
+    for query in KeptQuery.allCases where attached.changed.contains(query) {
+      guard let text = attached.documents[query]?.text(at: now) else { continue }
+      documents.append((query, text))
+    }
+    attached.changed.removeAll()
+    var places: [ResourceId: String] = [:]
+    if state.work == 0 { swap(&places, &attached.places) }
+    state.attached = attached
+    return Writing(person: attached.person, documents: documents, places: places)
+  }
+}
+
+/// How a client's keeping writes what it holds: ``WritesAsGiven`` for a client an app wires itself
+/// with a ``CachePersistence``, ``WritesWhileNamed`` for the client of a session an SDK's builder
+/// makes.
+protocol KeptWriter: Sendable {
+  /// Writes what `keeping` has not yet written, its save being due.
+  func save(_ keeping: KeptQueries)
+  /// Writes what `keeping` has not yet written as its client closes; it keeps nothing after.
+  func close(_ keeping: KeptQueries)
+  /// Waits until every write it has begun has landed.
+  func closed() async
+  /// Runs `forget`, the forgetting of the session's saved sign-in, so that nothing `keeping` writes
+  /// lands after it; `keeping` writes nothing more.
+  func forgetting(
+    _ keeping: KeptQueries, _ forget: @escaping @Sendable () async throws -> Void
+  ) async throws
+}
+
+/// The writer of a client an app wires itself: it writes as it is given, at once, so a client has
+/// written everything when its closing returns. It asks no sign-in anything: no session of the
+/// SDK's holds one for that client.
+struct WritesAsGiven: KeptWriter {
+  func save(_ keeping: KeptQueries) { keeping.writeNow() }
+  func close(_ keeping: KeptQueries) { keeping.closeNow() }
+  func closed() async {}
+  func forgetting(
+    _ keeping: KeptQueries, _ forget: @escaping @Sendable () async throws -> Void
+  ) async throws {
+    keeping.drop()
+    try await forget()
+  }
+}
+
+/// The writer of the client of a session an SDK's builder makes. It writes in steps that run one at
+/// a time (``SerialSteps``): each asks what holds the session's sign-in whether it still names the
+/// person kept for, and writes only while it does, with no other step between; the session's
+/// forgetting of its sign-in is a step too, so no save lands after what forgetting deletes, within
+/// one process. A sign-in that is gone, names nobody or someone else, or cannot be read drops what
+/// is not yet written, and nothing is written again; a sign-in that cannot be read is reported.
+final class WritesWhileNamed: KeptWriter {
+  private let kept: any SignInKept
+  private let report: @Sendable (any Error) async -> Void
+  private let steps = SerialSteps()
+
+  init(kept: any SignInKept, report: @escaping @Sendable (any Error) async -> Void) {
+    self.kept = kept
+    self.report = report
+  }
+
+  func save(_ keeping: KeptQueries) {
+    steps.then { [weak keeping, self] in
+      guard let keeping, let writing = keeping.take() else { return }
+      await write(writing, of: keeping)
+    }
+  }
+
+  func close(_ keeping: KeptQueries) {
+    let (closing, writing) = keeping.stopTaking()
+    guard closing else { return }
+    steps.then { [self] in
+      if let writing { await write(writing, of: keeping) }
+      keeping.finish()
+    }
+  }
+
+  func closed() async { await steps.drained() }
+
+  func forgetting(
+    _ keeping: KeptQueries, _ forget: @escaping @Sendable () async throws -> Void
+  ) async throws {
+    try await steps.then {
+      keeping.drop()
+      try await forget()
+    }.value
+  }
+
+  private func write(_ writing: KeptQueries.Writing, of keeping: KeptQueries) async {
+    let named: String?
+    do {
+      named = try await kept.held()?.personKey
+    } catch {
+      keeping.drop()
+      await report(error)
+      return
+    }
+    guard named == writing.person else { return keeping.drop() }
+    keeping.write(writing)
+  }
+}
+
+/// Steps that run one at a time, in the order they are given: each runs to its end, across every
+/// suspension in it, before the next begins.
+final class SerialSteps: Sendable {
+  private let last = Mutex<Task<Void, Never>?>(nil)
+
+  /// Runs `step` once every step given before it has run.
+  @discardableResult
+  func then<Value: Sendable>(
+    _ step: @escaping @Sendable () async throws -> Value
+  ) -> Task<Value, any Error> {
+    last.withLock { last in
+      let previous = last
+      let next = Task {
+        await previous?.value
+        return try await step()
+      }
+      last = Task { _ = await next.result }
+      return next
+    }
+  }
+
+  /// Waits until every step given so far has run.
+  func drained() async { await last.withLock { $0 }?.value }
 }
 
 /// The stream places `text` keeps: a JSON object from a resource's id to the id of the last

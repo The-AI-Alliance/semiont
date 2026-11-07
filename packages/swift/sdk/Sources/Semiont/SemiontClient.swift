@@ -131,6 +131,16 @@ public final class SemiontClient: Sendable {
     if let http = transport as? HttpTransport { await http.restoreBookmarks(places) }
     await live.rehydrate()
   }
+  /// Waits until every write of what this client keeps that has begun has landed, or been dropped:
+  /// once it is disposed, until its closing has written what it held.
+  func closed() async { await keeping?.closed() }
+  /// Forgets the saved sign-in `kept` holds once every write of what this client keeps that has
+  /// begun has landed, and so that it writes nothing more: nothing it saves lands after what
+  /// forgetting deletes.
+  func forgetSignIn(_ kept: any SignInKept) async throws {
+    guard let keeping else { return try await kept.forget() }
+    try await keeping.forgetting { try await kept.forget() }
+  }
   public func dispose() {
     guard
       disposed.withLock({ ended in

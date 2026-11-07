@@ -27,12 +27,13 @@ func cacheKey(_ kbId: String, _ personKey: String, _ query: KeptQuery) -> String
   "\(cacheKeyPrefix)\(kbId).\(personKey).\(query.rawValue)"
 }
 
-/// Deletes what every client kept of the person `personKey` on the knowledge base `kbId`: each
-/// persisted query's document and the stream's places. Forgetting a saved sign-in deletes them for
-/// the person it named.
-func forgetKept(_ storage: any SessionStorage, kbId: String, personKey: String) throws {
-  for query in KeptQuery.allCases { try storage.delete(cacheKey(kbId, personKey, query)) }
-  try storage.delete(lastEventIdKey(kbId, personKey))
+/// Deletes what every client kept on the knowledge base `kbId` of the person `forgotten`, a saved
+/// sign-in just forgotten, named: each persisted query's document and the stream's places. A
+/// sign-in that named nobody leaves everything.
+func forgetKept(_ storage: any SessionStorage, kbId: String, of forgotten: HeldSignIn?) throws {
+  guard let person = forgotten?.personKey else { return }
+  for query in KeptQuery.allCases { try storage.delete(cacheKey(kbId, person, query)) }
+  try storage.delete(lastEventIdKey(kbId, person))
 }
 
 public func kbOfSessionKey(_ key: String) -> String? {
@@ -53,29 +54,35 @@ public func storedSession(_ storage: any SessionStorage, kbId: String) throws ->
   decodedStorage(HeldSignIn.self, try storage.get(sessionKey(kbId)))
 }
 
+/// Saves `session`, a new sign-in, as the knowledge base `kbId`'s in the place of the saved one,
+/// which it forgets, with what every client kept there of the person it named. A new sign-in names
+/// nobody until its gateway names them, so that person is forgotten even when it turns out to be
+/// theirs. Every save of a new sign-in into a storage is this one; a renewal is no new sign-in, and
+/// keeps its person (``SignInKept/renewed(read:access:refresh:)``).
 public func storeSession(
   _ storage: any SessionStorage, kbId: String, session: HeldSignIn
 ) throws {
-  try storage.set(sessionKey(kbId), storedText(session))
+  try forgetKept(storage, kbId: kbId, of: swapStoredSession(storage, kbId: kbId, with: session))
 }
 
 /// Forgets the knowledge base `kbId`'s saved sign-in, and what every client kept there of the
 /// person it named.
 public func clearStoredSession(_ storage: any SessionStorage, kbId: String) throws {
-  if let person = try takeStoredSession(storage, kbId: kbId)?.personKey {
-    try forgetKept(storage, kbId: kbId, personKey: person)
-  }
+  try forgetKept(storage, kbId: kbId, of: swapStoredSession(storage, kbId: kbId, with: nil))
 }
 
-/// Clears the knowledge base `kbId`'s stored sign-in in one update, and gives what it held: the
-/// person whose keys forgetting it deletes.
-func takeStoredSession(_ storage: any SessionStorage, kbId: String) throws -> HeldSignIn? {
-  let taken = Mutex<String?>(nil)
-  try storage.update(sessionKey(kbId)) { text in
-    taken.withLock { $0 = text }
-    return nil
+/// Puts `signIn` (nil: nothing) in the place of the knowledge base `kbId`'s stored sign-in in one
+/// update, and gives the one it replaced: the person whose keys forgetting it deletes.
+func swapStoredSession(
+  _ storage: any SessionStorage, kbId: String, with signIn: HeldSignIn?
+) throws -> HeldSignIn? {
+  let text = try signIn.map { try storedText($0) }
+  let replaced = Mutex<String?>(nil)
+  try storage.update(sessionKey(kbId)) { old in
+    replaced.withLock { $0 = old }
+    return text
   }
-  return decodedStorage(HeldSignIn.self, taken.withLock { $0 })
+  return decodedStorage(HeldSignIn.self, replaced.withLock { $0 })
 }
 
 func readKnowledgeBases(_ text: String?) -> [KnowledgeBase] {

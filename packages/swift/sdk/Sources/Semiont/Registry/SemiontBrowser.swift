@@ -100,6 +100,9 @@ public actor SemiontBrowser {
   private var firstFailure: (any Error)?
   private var closed = false
   private var started = false
+  /// The knowledge bases whose replaced or cleared sign-in's person is being forgotten: none gets a
+  /// session until that is done.
+  private var forgetting: Set<String> = []
 
   init(_ config: SemiontBrowserConfig) throws {
     storage = config.storage
@@ -237,14 +240,15 @@ public actor SemiontBrowser {
 
   public func removeKb(_ id: String) async throws {
     try requireOpen()
-    let old = try takeStoredSession(storage, kbId: id)
+    let old = try swapStoredSession(storage, kbId: id, with: nil)
     try forgetResources(id)
     try changeKnowledgeBases { $0.removeAll { $0.id == id } }
     let active = activeKbId.value == id
-    if active { try chooseActiveKb(knowledgeBases.value.first?.id) }
-    // After the client has closed: whatever its closing wrote of the person goes too.
-    if let person = old?.personKey { try forgetKept(storage, kbId: id, personKey: person) }
-    if active { try await waitForActivation() }
+    try await forgetAfterClosing(old, kbId: id)
+    if active {
+      try chooseActiveKb(knowledgeBases.value.first?.id)
+      try await waitForActivation()
+    }
   }
 
   public func updateKb(_ id: String, label: String? = nil, lastRead: KbRead? = nil) throws {
@@ -284,13 +288,24 @@ public actor SemiontBrowser {
     guard knowledgeBases.value.contains(where: { $0.id == id }) else {
       throw BusRequestError(.busNotFound, "The knowledge base is not registered")
     }
-    try storeSession(storage, kbId: id, session: session)
+    let old = try swapStoredSession(storage, kbId: id, with: session)
+    try await forgetAfterClosing(old, kbId: id)
     if activeKbId.value == id {
       activate()
     } else {
       try chooseActiveKb(id)
     }
     try await waitForActivation()
+  }
+
+  /// Forgets what was kept on the knowledge base `kbId` for the person `old`, the saved sign-in it
+  /// just replaced or cleared, named: once kbId's client, when it is the active one, has closed,
+  /// so that nothing it was writing, or writes as it closes, is left.
+  private func forgetAfterClosing(_ old: HeldSignIn?, kbId: String) async throws {
+    forgetting.insert(kbId)
+    defer { forgetting.remove(kbId) }
+    if activeKbId.value == kbId { await deactivate()?.client.closed() }
+    try forgetKept(storage, kbId: kbId, of: old)
   }
 
   private func waitForActivation() async throws {
@@ -302,16 +317,16 @@ public actor SemiontBrowser {
     try Task.checkCancellation()
   }
 
-  public func signOut(_ id: String) throws {
+  public func signOut(_ id: String) async throws {
     try requireOpen()
-    let old = try takeStoredSession(storage, kbId: id)
+    let old = try swapStoredSession(storage, kbId: id, with: nil)
     knowledgeBases.set(knowledgeBases.value)
+    if let old {
+      let factory = factory
+      _ = spawn(abandonOnClose: true) { await factory.revoke(old) }
+    }
+    try await forgetAfterClosing(old, kbId: id)
     if activeKbId.value == id { activate() }
-    guard let old else { return }
-    let factory = factory
-    _ = spawn(abandonOnClose: true) { await factory.revoke(old) }
-    // After the client has closed: whatever its closing wrote of the person goes too.
-    if let person = old.personKey { try forgetKept(storage, kbId: id, personKey: person) }
   }
 
   public func signedIn(_ signed: SignedIn) async throws -> SignInOutcome {
@@ -350,20 +365,27 @@ public actor SemiontBrowser {
     return outcome
   }
 
-  private func activate() {
+  /// Closes the active knowledge base's session, and gives it.
+  @discardableResult
+  private func deactivate() -> OpenedSession? {
     if let activation { tasks[activation]?.cancel() }
     if let sessionWatch { tasks[sessionWatch]?.cancel() }
     sessionWatch = nil
     activation = nil
-    activeSession.value?.dispose()
+    let closing = activeSession.value
+    closing?.dispose()
     activeSignals.value?.dispose()
     activeSession.set(nil)
     activeSignals.set(nil)
     openResources.set([])
     lastViewedResource.set(nil)
     sessionActivating.set(false)
+    return closing
+  }
 
-    guard !closed, let id = activeKbId.value,
+  private func activate() {
+    deactivate()
+    guard !closed, let id = activeKbId.value, !forgetting.contains(id),
       let kb = knowledgeBases.value.first(where: { $0.id == id })
     else { return }
     sessionWatch = watch(sessionKey(id))
@@ -582,16 +604,19 @@ public actor SemiontBrowser {
   }
 
   public func close() async throws {
+    var closing: OpenedSession?
     if !closed {
       closed = true
       for (id, task) in tasks where id != RegistryTask.id { task.cancel() }
-      activeSession.value?.dispose()
+      closing = activeSession.value
+      closing?.dispose()
       activeSignals.value?.dispose()
       finish()
     }
     if RegistryTask.id == nil {
       for (id, task) in tasks where !abandonable.contains(id) { await task.value }
     }
+    await closing?.client.closed()
     if let firstFailure { throw firstFailure }
   }
 }
