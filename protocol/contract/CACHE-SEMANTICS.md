@@ -599,11 +599,25 @@ what is shown.
 ## What refreshes what
 
 [`protocol/specs/src/client/refresh.json`](../specs/src/client/refresh.json)
-is the authority: a row per trigger, saying which live queries it acts on.
-A trigger is a channel of the bus, or `reopened`, the stream open again
-after a drop (B13). `BrowseNamespace` applies the table generated from it
-(`CACHE_REFRESH` in `@semiont/core`), and states for itself only what each
-event names: its resource, its annotation, the value it carries.
+is the authority: a row per trigger, saying which live queries it acts on,
+and where in the trigger's event the keys and the value it acts with are.
+A trigger is a channel of the bus; `reopened`, the stream open again after
+a drop (B13); or `unreadable`, an event on one of the table's channels that
+cannot be read. Every SDK applies its own generation of the table
+(TypeScript's `BrowseNamespace` applies `CACHE_REFRESH` in `@semiont/core`).
+
+What an event names is the table's too. A row's `names` are the ways to the
+resource and the annotation the event names, and its `carries` the way to
+the value it writes, each the names of the members it is within and its
+own. A way names nothing where a member on it is absent or null. A split
+channel's event is `enriched` when the member its `enriched` row carries is
+there.
+
+An event is unreadable when its channel's reading refuses its frame, or when
+a member a way passes through or ends at is there and is not what the way
+says. Something changed and nothing says what, so the `unreadable` row
+applies in place of the event's own: every key held is asked for again, as
+after a gap.
 
 | A row says | The cache does | Behavior |
 |---|---|---|

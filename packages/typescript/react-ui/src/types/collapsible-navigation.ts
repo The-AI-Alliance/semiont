@@ -1,4 +1,5 @@
 import { ComponentType, ReactNode } from 'react';
+import type { ResourceId } from '@semiont/core';
 import type { OpenResource } from '@semiont/sdk';
 import type { LinkComponentProps } from '../contexts/RoutingContext';
 /**
@@ -9,8 +10,8 @@ export interface SortableResourceTabProps {
   isCollapsed: boolean;
   isActive: boolean;
   href: string;
-  onClose: (id: string, e: React.MouseEvent) => void;
-  onReorder?: (resourceId: string, direction: 'up' | 'down') => void;
+  onClose: (id: ResourceId, e: React.MouseEvent) => void;
+  onReorder?: (resourceId: ResourceId, direction: 'up' | 'down') => void;
   index?: number;
   totalCount?: number;
   Link: ComponentType<LinkComponentProps>;

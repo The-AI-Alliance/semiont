@@ -182,6 +182,7 @@ impl Worker {
             http: reqwest::Client::new(),
             timing,
             bookmarks: None,
+            random: None,
         });
 
         let mut reporters = locked(&self.reporters);

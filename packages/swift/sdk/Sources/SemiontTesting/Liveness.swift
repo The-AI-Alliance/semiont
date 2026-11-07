@@ -17,6 +17,11 @@ public struct LivenessScenario: Sendable {
   }
 }
 
+/// A composition, and the schedules it is run under. `setup` builds a fresh composition over the
+/// transport it is given, which keeps no deadline: `timeout` is the time the composition gives a
+/// bus request, its client's `busRequestTimeoutMs`. A case's bound is derived from it: the timeout
+/// times one more than `retryBudget`, how often a request may be sent again, and the schedule's
+/// delays, all of it four times over.
 public struct LivenessSpec: Sendable {
   public let setup: @Sendable (ScriptedTransport) async throws -> LivenessScenario
   public let respond: Respond
@@ -69,8 +74,7 @@ public func assertLivenessAxioms(_ spec: LivenessSpec) async throws {
   else { throw AxiomViolation("Liveness needs a timeout, retry budget and at least one schedule") }
 
   for schedule in spec.schedules {
-    let transport = ScriptedTransport(
-      schedule: schedule, timeout: spec.timeout, clock: spec.clock, respond: spec.respond)
+    let transport = ScriptedTransport(schedule: schedule, clock: spec.clock, respond: spec.respond)
     defer { transport.dispose() }
     let scenario = try await spec.setup(transport)
     defer { scenario.dispose() }

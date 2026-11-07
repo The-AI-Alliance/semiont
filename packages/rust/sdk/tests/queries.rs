@@ -493,6 +493,16 @@ async fn an_event_that_was_missed_or_cannot_be_read_asks_again_for_everything_he
     );
     assert_eq!(all.more().await, [2, 1, 2, 2, 2, 2, 1, 1, 1, 1]);
 
+    // An event of the record whose own payload, which it leaves open, has a
+    // member the row names that is present and is not an annotation's id.
+    let all = watching_everything().await;
+    heard(
+        &all.client,
+        "mark:removed",
+        recorded("res-1", json!({ "annotationId": 7 }), json!({})),
+    );
+    assert_eq!(all.more().await, [2, 1, 2, 2, 2, 2, 1, 1, 1, 1]);
+
     let all = watching_everything().await;
     for _ in 0..(STREAM_BACKLOG + 10) {
         heard(

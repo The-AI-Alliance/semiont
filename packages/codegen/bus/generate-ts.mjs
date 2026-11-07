@@ -13,6 +13,7 @@
 
 import { deliveryClasses } from './delivery.mjs';
 import { replyNames } from './reply-names.mjs';
+import { storedEventComponent } from './stored-event.mjs';
 import { validateRegistry, validateRegistryFormat } from './validate-registry.mjs';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -161,7 +162,7 @@ function payloadSchema(c) {
     case 'envelope':
       return `{ response: '${c.schema}' }`;
     case 'storedEvent':
-      return `{ payload: '${c.enriched === true ? 'EnrichedResourceEvent' : 'StoredEventResponse'}' }`;
+      return `{ payload: '${storedEventComponent(c)}' }`;
     case 'void':
     case 'empty':
       return '{}';

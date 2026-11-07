@@ -11,16 +11,27 @@ import semiont.Spec
 import semiont.types.KbEndpointSerializer
 import semiont.types.wireJson
 
-/** When a registry takes two endpoints for one place (protocol/specs/src/session/registry-cases.json). */
+private val table = Spec.read("session/registry-cases.json").jsonObject
+
+/** When a registry takes two endpoints for one place, and the order it shows what is open in (protocol/specs/src/session/registry-cases.json). */
 class RegistryCasesTest {
     @TestFactory
-    fun onePlaceIsTheTables(): List<DynamicTest> = Spec.read("session/registry-cases.json").jsonObject.getValue("cases").jsonArray.map { it.jsonObject }.map { case ->
+    fun onePlaceIsTheTables(): List<DynamicTest> = table.getValue("cases").jsonArray.map { it.jsonObject }.map { case ->
         DynamicTest.dynamicTest(case.getValue("why").jsonPrimitive.content) {
             val one = wireJson.decodeFromJsonElement(KbEndpointSerializer, case.getValue("one"))
             val other = wireJson.decodeFromJsonElement(KbEndpointSerializer, case.getValue("other"))
             val same = case.getValue("samePlace").jsonPrimitive.boolean
             assertEquals(same, samePlace(one, other))
             assertEquals(same, samePlace(other, one), "the other way round")
+        }
+    }
+
+    @TestFactory
+    fun whatIsOpenIsShownInTheTablesOrder(): List<DynamicTest> = table.getValue("openResourceOrder").jsonArray.map { it.jsonObject }.map { case ->
+        DynamicTest.dynamicTest(case.getValue("why").jsonPrimitive.content) {
+            val open = case.getValue("open").jsonArray.map { wireJson.decodeFromJsonElement(OpenResource.serializer(), it) }
+            val shown = case.getValue("shown").jsonArray.map { it.jsonPrimitive.content }
+            assertEquals(shown, sortOpenResources(open).map { it.id.value })
         }
     }
 }

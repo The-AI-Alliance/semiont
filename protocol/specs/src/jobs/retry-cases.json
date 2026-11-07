@@ -7,7 +7,8 @@
     "rust": ["packages/rust/sdk/tests/job_retry_cases.rs"],
     "python": ["packages/python/sdk/tests/test_claims.py"],
     "go": ["packages/go/sdk/claims_test.go"],
-    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/jobs/JobTablesTest.kt"]
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/jobs/JobTablesTest.kt"],
+    "haskell": ["packages/haskell/sdk/test/WorkerCases.hs"]
   },
   "cases": [
     { "why": "a transient failure with budget left", "retryCount": 0, "maxRetries": 1, "failureClass": "transient", "retries": true },

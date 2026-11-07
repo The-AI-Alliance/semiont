@@ -17,12 +17,12 @@ internal sealed class LiveQueries : IDisposable
     internal readonly record struct AnnotationKey(ResourceId Resource, AnnotationId Annotation);
 
     private static readonly JsonDocument Table = JsonDocument.Parse(ProtocolTables.CacheRefresh);
+    private static readonly string[] RowMembers = ["on", "when", "reach", "names", "carries", "refetches", "writes", "removes", "docs"];
+    private static readonly string[] NamedSlots = ["resource", "annotation"];
     private const string Reopened = "reopened";
+    private const string Unreadable = "unreadable";
     private readonly EventBus.Subscription events;
     private readonly Dictionary<string, Query> queries;
-    // What each channel's frame is of; null for a frame refused, or one whose payload is not its channel's, which could
-    // be of anything held.
-    private readonly Dictionary<string, Func<Carried, Subject?>> subjects;
     private readonly ILookup<string, JsonElement> refresh;
     private readonly IDisposable[] caches;
     private readonly LiveCacheStorage? persistence;
@@ -92,28 +92,10 @@ internal sealed class LiveQueries : IDisposable
             ["engines"] = new((_, _) => Engines.Refresh()),
         };
 
-        subjects = new(StringComparer.Ordinal);
-        Add(BusChannels.BusResumeGap, value => new(Resource: value.Scope));
-        Add(BusChannels.MarkAdded, value => new(Resource: value.ResourceId));
-        Add(BusChannels.MarkRemoved, value => new(Resource: value.ResourceId, Annotation: AnnotationNamed(value.Payload)));
-        Add(BusChannels.MarkDeleteOk, value => new(Annotation: value.Response.AnnotationId));
-        Add(BusChannels.MarkBodyUpdated, value => value.Annotation is { } annotation
-            ? new(Resource: value.ResourceId, Annotation: annotation.Id, Written: annotation, When: "enriched")
-            : new(Resource: value.ResourceId, Annotation: AnnotationNamed(value.Payload), When: "unenriched"));
-        Add(BusChannels.MarkEntityTagAdded, Stored);
-        Add(BusChannels.MarkEntityTagRemoved, Stored);
-        Add(BusChannels.MarkArchived, Stored);
-        Add(BusChannels.MarkUnarchived, Stored);
-        Add(BusChannels.YieldCreated, Stored);
-        Add(BusChannels.YieldUpdated, Stored);
-        Add(BusChannels.YieldCloned, Stored);
-        Add(BusChannels.YieldMoved, Stored);
-        Add(BusChannels.FrameEntityTypeAdded, _ => new());
-        Add(BusChannels.FrameTagSchemaAdded, _ => new());
-
         refresh = Table.RootElement.GetProperty("refresh").EnumerateArray().ToLookup(row => Text(row, "on"), StringComparer.Ordinal);
         CheckRefresh();
-        var channels = persistence is null ? subjects.Keys : subjects.Keys.Concat(ProtocolFacts.Channels("scoped")).Distinct(StringComparer.Ordinal);
+        var channels = refresh.Select(group => group.Key).Where(BusChannels.Readings.ContainsKey);
+        if (persistence is not null) channels = channels.Concat(ProtocolFacts.Channels("scoped")).Distinct(StringComparer.Ordinal);
         events = bus.Listen(channels.ToArray());
         persistence?.Start(transport, [ResourcesById.PersistAs("resource"), Annotations.PersistAs("annotations"),
             Annotation.PersistAs("annotation"), entityTypes.PersistAs("entityTypes"), tagSchemas.PersistAs("tagSchemas")]);
@@ -126,9 +108,6 @@ internal sealed class LiveQueries : IDisposable
             query = cache.Observe(true);
             return cache;
         }
-
-        void Add<T>(BusChannel<T> channel, Func<T, Subject> read) where T : class =>
-            subjects.Add(channel.Name, carried => Bus.HeardOf<T>(carried) is Heard<T>.Delivered delivered ? read(delivered.Payload) : null);
     }
 
     private static async Task<IReadOnlyList<EngineWithLimits>> LoadEnginesAsync(Bus wire, CancellationToken cancellation)
@@ -153,12 +132,6 @@ internal sealed class LiveQueries : IDisposable
             catch (SemiontError) { return []; }
         }
     }
-
-    private static Subject Stored(StoredEventResponse value) => new(Resource: value.ResourceId);
-
-    private static AnnotationId? AnnotationNamed(JsonElement payload) =>
-        payload.TryGetProperty("annotationId", out var value) && value.ValueKind == JsonValueKind.String &&
-        AnnotationId.TryParse(value.GetString(), out var id) ? id : null;
 
     private static bool ResourceMatches(ResourceId resource, Subject subject) => subject.Resource == resource;
 
@@ -202,12 +175,20 @@ internal sealed class LiveQueries : IDisposable
     private void CheckRefresh()
     {
         var named = Table.RootElement.GetProperty("queries").EnumerateArray().Select(row => Text(row, "name"));
+        var unheard = refresh.Select(group => group.Key).Where(trigger => !BusChannels.Readings.ContainsKey(trigger));
         if (!queries.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(named) ||
-            !subjects.Keys.Append(Reopened).ToHashSet(StringComparer.Ordinal).SetEquals(refresh.Select(group => group.Key)))
+            !unheard.ToHashSet(StringComparer.Ordinal).SetEquals([Reopened, Unreadable]))
             throw new InvalidOperationException("The live cache does not cover the refresh table.");
         foreach (var group in refresh)
             foreach (var row in group)
             {
+                foreach (var member in row.EnumerateObject())
+                    if (!RowMembers.Contains(member.Name, StringComparer.Ordinal))
+                        throw new InvalidOperationException("A refresh row states " + member.Name + ", which the live cache does not read.");
+                if (row.TryGetProperty("names", out var names))
+                    foreach (var slot in names.EnumerateObject())
+                        if (!NamedSlots.Contains(slot.Name, StringComparer.Ordinal))
+                            throw new InvalidOperationException("A refresh row names a " + slot.Name + ", which the live cache does not read.");
                 var reach = OptionalText(row, "reach");
                 var when = OptionalText(row, "when");
                 if (reach is not (null or "held") || when is not (null or "enriched" or "unenriched"))
@@ -231,14 +212,63 @@ internal sealed class LiveQueries : IDisposable
 
     private void Apply(Carried carried)
     {
-        if (!subjects.TryGetValue(carried.Channel, out var read)) return;
-        if (read(carried) is not { } subject)
+        if (!refresh.Contains(carried.Channel)) return;
+        // A frame that cannot be read could be of anything held.
+        if (SubjectOf(carried) is not { } subject)
         {
-            foreach (var query in queries.Values) query.Refetch(new Subject(), true);
+            Refresh(Unreadable, new Subject());
             return;
         }
         Refresh(carried.Channel, subject);
     }
+
+    /// <summary>What a frame on one of the table's channels names, by the ways of its row. None for a frame refused, one
+    /// whose payload its channel's typed read refuses, or one where a member a way passes through or ends at is present
+    /// and not what the way names.</summary>
+    private Subject? SubjectOf(Carried carried)
+    {
+        if (carried is not ReceivedBusFrame { Frame.Payload: var payload } || !BusChannels.Readings[carried.Channel](carried)) return null;
+        try
+        {
+            var row = RowOf(carried.Channel, payload);
+            return new Subject(
+                Resource: MemberAt(payload, Named(row, "resource"))?.Deserialize<ResourceId>(),
+                Annotation: MemberAt(payload, Named(row, "annotation"))?.Deserialize<AnnotationId>(),
+                Written: MemberAt(payload, OptionalText(row, "carries"))?.Deserialize<Annotation>(),
+                When: OptionalText(row, "when"));
+        }
+        catch (JsonException) { return null; }
+    }
+
+    /// <summary>A channel's row: of a split channel, the enriched one where the member it carries is present and not
+    /// null.</summary>
+    private JsonElement RowOf(string channel, JsonElement payload)
+    {
+        var rows = refresh[channel];
+        if (rows.All(row => OptionalText(row, "when") is null)) return rows.Single();
+        var enriched = rows.Single(row => OptionalText(row, "when") == "enriched");
+        return MemberAt(payload, OptionalText(enriched, "carries")) is null
+            ? rows.Single(row => OptionalText(row, "when") == "unenriched")
+            : enriched;
+    }
+
+    /// <summary>The member <paramref name="way"/> ends at: none where the way is absent, or it or a member it passes
+    /// through is absent or null. Throws JsonException where a member it passes through is present and no object.</summary>
+    private static JsonElement? MemberAt(JsonElement payload, string? way)
+    {
+        if (way is null) return null;
+        var member = payload;
+        foreach (var name in way.Split('.'))
+        {
+            if (member.ValueKind == JsonValueKind.Null) return null;
+            if (member.ValueKind != JsonValueKind.Object) throw new JsonException("The event's " + way + " passes through a member that is no object.");
+            if (!member.TryGetProperty(name, out var within)) return null;
+            member = within;
+        }
+        return member.ValueKind == JsonValueKind.Null ? null : member;
+    }
+
+    private static string? Named(JsonElement row, string slot) => row.TryGetProperty("names", out var names) ? OptionalText(names, slot) : null;
 
     private async Task ReadReopensAsync(HttpTransport transport)
     {

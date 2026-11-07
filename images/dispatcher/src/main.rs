@@ -114,7 +114,7 @@ async fn serve(
         .build()
         .map_err(|e| format!("cannot build the HTTP client: {e}"))?;
     let service = ServiceToken::new(Credential::Secret(credential), http.clone());
-    let agent = AgentToken::sign_in(&document.gateway_url, service, http.clone())
+    let agent = AgentToken::sign_in(&document.gateway_url, service, http.clone(), None)
         .await
         .map_err(|e| format!("cannot sign in: {e}"))?;
     logging::info("Authenticated", json!({ "component": "dispatcher" }));
@@ -154,6 +154,7 @@ async fn serve(
         timing: Timing::default(),
 
         bookmarks: None,
+        random: None,
     });
     let mut commands = Vec::new();
     for command in COMMANDS {

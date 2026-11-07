@@ -435,6 +435,24 @@ The [.NET SDK README](../../packages/csharp/sdk/README.md) has runnable
 examples of following a delegation, running a worker, and watching a live
 query.
 
+## In Haskell
+
+The [Haskell SDK](../../packages/haskell/sdk/README.md) uses native effects.
+Its `Running report result` handle starts work when consumed once:
+`await` returns the final result, while `withReports` gives a
+`Stream (Of report) IO result` from `streaming`. Leaving the report scope cancels
+and joins the producer. `Mark.delegate` and `Yield.delegate` use typed
+`JobEvent completion` reports, and `Yield.resource` reports `UploadEvent` values.
+All client namespace methods are available.
+
+Live queries return `Query value`: `current` reads its `CacheState` in STM,
+`watch` scopes observation, and `fresh` performs a one-shot read in IO. Native
+`Pending`, `Ready value`, and `Failed exception` constructors keep those outcomes
+explicit. `invalidateQuery` invalidates a namespace query. Sessions, all ten
+state units, and the registry expose read-only `StateValue`s. Persisted query
+documents are coupled to replay bookmarks, so a reload cannot skip unfinished
+cache updates.
+
 ## See also
 
 - [Usage.md](./Usage.md) — per-namespace tour with concrete examples

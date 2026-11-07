@@ -73,7 +73,7 @@ private func named<Value>(_ delegation: Delegation<Value>) -> (
   return (names, reading)
 }
 /// Until `clock` has a sleeper due at `due`.
-private func sleeping(_ clock: TestClock, until due: TestClock.Instant) async throws {
+func sleeping(_ clock: TestClock, until due: TestClock.Instant) async throws {
   try await withinTestDeadline {
     while !clock.wakes.contains(due) { try await Task.sleep(for: .milliseconds(1)) }
   }

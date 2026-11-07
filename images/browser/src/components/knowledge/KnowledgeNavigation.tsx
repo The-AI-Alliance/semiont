@@ -10,6 +10,7 @@ import {
   CollapsibleResourceNavigation,
   type NavigationItem,
 } from '@semiont/react-ui';
+import type { EventMap } from '@semiont/core';
 import type { OpenResource } from '@semiont/sdk';
 // Custom telescope icon component
 const TelescopeIcon = ({ className }: { className?: string }) => (
@@ -52,7 +53,7 @@ export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMe
   }, [toggleCollapsed]);
 
   // Handle resource close events
-  const handleResourceClose = useCallback(({ resourceId }: { resourceId: string }) => {
+  const handleResourceClose = useCallback(({ resourceId }: EventMap['tabs:close']) => {
     removeResource(resourceId);
 
     // If we're closing the currently viewed document, navigate to Discover

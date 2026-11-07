@@ -37,13 +37,16 @@ reads it makes.
 
 | Span                   | Kind     | Attributes                                              | What it is                                    |
 |------------------------|----------|---------------------------------------------------------|-----------------------------------------------|
-| `bus.emit:{channel}`   | producer | `bus.channel`, and `bus.scope` on a frame in a resource scope | A frame the client sent, in the trace of the work that sent it |
-| `bus.recv:{channel}`   | consumer | `bus.channel`, and `bus.scope` on a frame in a resource scope | A frame the client received, and the work done for it, in the trace the frame was sent under |
-| `content.put`          | client   | `content.format`, `content.size_bytes`                  | An upload |
-| `content.get`          | client   | `resource.id`, and `content.stream` (`true`) on a read taken as a stream | A read of a resource's bytes |
-| `content.get_graph`    | client   | `resource.id`                                           | A read of a resource's description |
-| `content.get_annotations` | client | `resource.id`                                           | A read of a resource's annotations |
-| `content.get_anchored_text` | client | `resource.id`                                        | A read of a resource's anchored text |
+| `bus.emit:{channel}`   | producer | `bus.channel`, and `bus.scope` on a frame in a resource scope, optional `thread.id` | A frame the client sent, in the trace of the work that sent it |
+| `bus.recv:{channel}`   | consumer | `bus.channel`, and `bus.scope` on a frame in a resource scope, optional `thread.id` | A frame the client received, and the work done for it, in the trace the frame was sent under |
+| `content.put`          | client   | `content.format`, `content.size_bytes`, optional `thread.id` | An upload |
+| `content.get`          | client   | `resource.id`, and `content.stream` (`true`) on a read taken as a stream, optional `thread.id` | A read of a resource's bytes |
+| `content.get_graph`    | client   | `resource.id`, optional `thread.id` | A read of a resource's description |
+| `content.get_annotations` | client | `resource.id`, optional `thread.id` | A read of a resource's annotations |
+| `content.get_anchored_text` | client | `resource.id`, optional `thread.id` | A read of a resource's anchored text |
+
+The optional SDK-span `thread.id` is runtime metadata attached by a host
+OpenTelemetry API, including the Haskell API.
 
 The gateway:
 

@@ -1,8 +1,19 @@
 import Foundation
 
+/// The typed bus over a transport. A request it sends waits for its reply on its clock, for
+/// `busRequestTimeoutMs` unless its caller gives another deadline, whatever the transport.
 public struct Bus: Sendable {
   private let transport: any Transport
-  public init(_ transport: any Transport) { self.transport = transport }
+  private let busRequestTimeoutMs: Int
+  private let clock: any Clock<Duration>
+  public init(
+    _ transport: any Transport, busRequestTimeoutMs: Int? = nil,
+    clock: any Clock<Duration> = ContinuousClock()
+  ) {
+    self.transport = transport
+    self.busRequestTimeoutMs = busRequestTimeoutMs ?? Timings.busRequestTimeoutMs
+    self.clock = clock
+  }
   public func emit<Payload>(
     _ channel: Channel<Payload>, _ payload: Payload, scope: ResourceId? = nil,
     correlationId: String? = nil
@@ -42,24 +53,46 @@ public struct Bus: Sendable {
     _ operation: Operation<Request, Result, Failure>, _ payload: Request, timeoutMs: Int? = nil,
     enqueued: (@Sendable () -> Void)?
   ) async throws -> Result {
-    let body = try wirePayload(payload)
-    let response: [String: JSONValue]
-    if let enqueued, let http = transport as? HttpTransport {
-      response = try await http.requestFrame(
-        operation: operation.request.name, payload: body, timeoutMs: timeoutMs, enqueued: enqueued
-      )
-      .payload
-    } else {
-      response = try await transport.request(
-        operation: operation.request.name, payload: body, timeoutMs: timeoutMs)
-      enqueued?()
-    }
+    let answer = try await resultOf(
+      operation.request.name, wirePayload(payload), over: transport,
+      timeoutMs: timeoutMs ?? busRequestTimeoutMs, clock: clock, enqueued: enqueued)
     do throws(Fault) {
       return try held(
-        Result.self, response, on: operation.result.name, stamps: operation.result.stamps)
+        Result.self, answer.payload, on: operation.result.name, stamps: operation.result.stamps)
     } catch {
       throw TransportError(.error, notTheChannels(operation.result.name, error))
     }
+  }
+}
+
+/// A request of the operation whose request channel is `operation`, over `transport`, as far as
+/// the frame that answers it on the operation's result channel. It fails as timed out once
+/// `timeoutMs` has passed on `clock` since it was asked, whatever the transport, which keeps no
+/// deadline of its own. Every request the SDK makes is made here: a bus's, a worker's claim and a
+/// held job's commit. `parent` is the trace the HTTP transport sends it in. `enqueued` is told when
+/// the HTTP transport hands it to the wire, and over any other transport once its reply has come.
+package func resultOf(
+  _ operation: String, _ payload: [String: JSONValue], over transport: any Transport,
+  timeoutMs: Int, clock: any Clock<Duration>, parent: [String: String]? = nil,
+  enqueued: (@Sendable () -> Void)? = nil
+) async throws -> ReceivedFrame {
+  guard let result = wireOperations[operation]?.result else {
+    throw BusRequestError(.busRejected, "Unknown operation \(operation)")
+  }
+  do {
+    return try await within(.milliseconds(timeoutMs), on: clock) {
+      // The trace a request is sent in, the moment it is handed to the wire and the frame of its
+      // reply are what `Transport.request` does not carry; the HTTP transport gives them.
+      if let http = transport as? HttpTransport {
+        return try await http.requestFrame(
+          operation: operation, payload: payload, parent: parent, enqueued: enqueued)
+      }
+      let answer = try await transport.request(operation: operation, payload: payload)
+      enqueued?()
+      return ReceivedFrame(channel: result, payload: answer)
+    }
+  } catch is RequestDeadline {
+    throw BusRequestError(.busTimeout, "Bus request timed out after \(timeoutMs)ms on \(result)")
   }
 }
 

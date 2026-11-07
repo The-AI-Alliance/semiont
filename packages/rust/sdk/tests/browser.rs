@@ -73,35 +73,38 @@ impl Factory {
     fn new() -> Factory {
         let behind: Arc<Mutex<Behind>> = Arc::default();
         let (answering, refusing) = (behind.clone(), behind.clone());
-        let sessions = ScriptedSessions::answering(move |kb_id, operation, payload| {
-            let behind = answering.lock().expect("behind");
-            match operation {
-                "browse:kb-requested" => match behind.describes.get(kb_id) {
-                    Some(Describes::As(description)) => Ok(Some(description.clone())),
-                    _ => Err("the knowledge base does not answer".to_owned()),
-                },
-                "browse:resource-requested" => {
-                    let id = payload["resourceId"].as_str().unwrap_or_default();
-                    if behind.failing.contains(id) {
-                        return Err(format!("{id} could not be read"));
+        let sessions = ScriptedSessions::answering(
+            move |kb_id, operation, payload| {
+                let behind = answering.lock().expect("behind");
+                match operation {
+                    "browse:kb-requested" => match behind.describes.get(kb_id) {
+                        Some(Describes::As(description)) => Ok(Some(description.clone())),
+                        _ => Err("the knowledge base does not answer".to_owned()),
+                    },
+                    "browse:resource-requested" => {
+                        let id = payload["resourceId"].as_str().unwrap_or_default();
+                        if behind.failing.contains(id) {
+                            return Err(format!("{id} could not be read"));
+                        }
+                        let representations: Vec<Value> = behind
+                            .media_types
+                            .get(id)
+                            .map(|media_type| json!({ "mediaType": media_type }))
+                            .into_iter()
+                            .collect();
+                        Ok(Some(json!({
+                            "resource": {
+                                "@context": "https://schema.org", "@id": id,
+                                "name": format!("name-{id}"), "representations": representations,
+                            },
+                            "lastSequence": 1,
+                        })))
                     }
-                    let representations: Vec<Value> = behind
-                        .media_types
-                        .get(id)
-                        .map(|media_type| json!({ "mediaType": media_type }))
-                        .into_iter()
-                        .collect();
-                    Ok(Some(json!({
-                        "resource": {
-                            "@context": "https://schema.org", "@id": id,
-                            "name": format!("name-{id}"), "representations": representations,
-                        },
-                        "lastSequence": 1,
-                    })))
+                    other => Err(format!("{other} is not answered here")),
                 }
-                other => Err(format!("{other} is not answered here")),
-            }
-        });
+            },
+            None,
+        );
         sessions.refuse_when(move |kb_id, operation, payload| {
             let behind = refusing.lock().expect("behind");
             match operation {

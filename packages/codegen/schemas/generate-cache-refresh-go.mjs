@@ -5,16 +5,18 @@
 //
 //   packages/go/sdk/refresh_gen.go
 //
-// Beside the table it writes the two interfaces the client's refresher
-// implements: what each trigger's event names, and what each act does to each
-// query. A trigger or a query the table gains is a method the refresher lacks,
-// so Go does not compile until it is answered.
+// Beside the table it writes the triggers that are channels, how each of them
+// reads a frame (by its typed value in package bus, so the payload type is the
+// bus's), and the interface the client's refresher implements: what each act
+// does to each query. A query a row comes to act on is a method the refresher
+// lacks, so Go does not compile until it is answered.
 //
 // The reading of the table, and the account it is held to, are
-// cache-refresh-table.mjs's, shared with the TypeScript and Python generators.
+// cache-refresh-table.mjs's, shared with every SDK's generator of the table.
 // The output is committed; `--check` compares without writing (the CI drift
 // gate).
 
+import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readCacheRefresh } from './cache-refresh-table.mjs';
@@ -31,7 +33,9 @@ function refuse(message) {
   process.exit(1);
 }
 
-const { queries, refresh, whens, ACTS } = readCacheRefresh(TABLE, resolve(ROOT, 'protocol/specs/src/bus/registry.json'), resolve(ROOT, 'protocol/specs/src/openapi.json'), refuse);
+const { queries, refresh, whens, channelTriggers, ACTS } = readCacheRefresh(ROOT, TABLE, refuse);
+// A channel a resource's scope carries is a bus.Scoped value, and every other a bus.Global one.
+const scoped = new Set(JSON.parse(readFileSync(resolve(ROOT, 'protocol/specs/src/bus/registry.json'), 'utf8')).audience.scoped);
 
 /** `mark:body-updated` → `MarkBodyUpdated`; `referencedBy` → `ReferencedBy`. */
 const pascal = (name) =>
@@ -39,11 +43,6 @@ const pascal = (name) =>
     .split(/[:\-]/)
     .map((part) => part[0].toUpperCase() + part.slice(1))
     .join('');
-/** `mark:body-updated` → `markBodyUpdated`. */
-const camel = (name) => {
-  const p = pascal(name);
-  return p[0].toLowerCase() + p.slice(1);
-};
 const quoted = (value) => JSON.stringify(value);
 
 /** gofmt aligns a run of `Name Type = value` lines to their longest name. */
@@ -65,10 +64,18 @@ const triggers = [...whens.keys()];
 const triggerConsts = aligned(triggers.map((on) => [triggerConst(on), `CacheRefreshTrigger = ${quoted(on)}`]));
 
 const list = (names) => `[]CacheQuery{${names.map(queryConst).join(', ')}}`;
+/** `payload.annotationId` → `CacheRefreshWay{"payload", "annotationId"}`. */
+const way = (dotted) => `CacheRefreshWay{${dotted.split('.').map(quoted).join(', ')}}`;
 const rowOf = (row) => {
   const said = [];
   if (row.when !== undefined) said.push(`When: CacheRefreshWhen${pascal(row.when)}`);
   said.push(`Reach: CacheRefreshReach${pascal(row.reach ?? 'subject')}`);
+  const names = [
+    ['Resource', row.names?.resource],
+    ['Annotation', row.names?.annotation],
+  ].flatMap(([field, dotted]) => (dotted === undefined ? [] : [`${field}: ${way(dotted)}`]));
+  if (names.length > 0) said.push(`Names: CacheRefreshNames{${names.join(', ')}}`);
+  if (row.carries !== undefined) said.push(`Carries: ${way(row.carries)}`);
   for (const act of ACTS) if ((row[act] ?? []).length > 0) said.push(`${pascal(act)}: ${list(row[act])}`);
   return `{${said.join(', ')}}`;
 };
@@ -91,10 +98,11 @@ const actCases = (act) =>
     .map((name) => `\t\tcase ${queryConst(name)}:\n\t\t\tacts.${verb[act]}${pascal(name)}(${act === 'refetches' ? 'row.Reach, ' : ''}subject)`)
     .join('\n');
 
-const eventMethods = triggers.map((on) => (on === 'reopened' ? `\treopened() cacheSubject` : `\t${camel(on)}(frame Frame) (cacheSubject, error)`));
-const eventCases = triggers
-  .map((on) => (on === 'reopened' ? `\tcase ${triggerConst(on)}:\n\t\treturn events.reopened(), nil` : `\tcase ${triggerConst(on)}:\n\t\treturn events.${camel(on)}(frame)`))
-  .join('\n');
+const channelList = `[]CacheRefreshTrigger{${channelTriggers.map(triggerConst).join(', ')}}`;
+// The bus's typed value of each channel is named as its trigger is.
+const readings = aligned(
+  channelTriggers.map((on) => [`${triggerConst(on)}:`, `${scoped.has(on) ? 'scopedReadingOf' : 'readingOf'}(bus.${pascal(on)}),`]),
+);
 
 const text = `// Code generated from protocol/specs/src/client/refresh.json — DO NOT EDIT.
 //
@@ -102,7 +110,7 @@ const text = `// Code generated from protocol/specs/src/client/refresh.json — 
 
 package semiont
 
-import "fmt"
+import "github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 
 // CacheQuery is a live query a client's cache answers.
 type CacheQuery string
@@ -116,13 +124,18 @@ ${queryConsts.join('\n')}
 var CacheQueries = ${list(queries.map((query) => query.name))}
 
 // CacheRefreshTrigger is what refreshes a client's cache: a channel of the
-// bus, or the stream open again after a drop.
+// bus, the stream open again after a drop, or an event on one of the table's
+// channels that cannot be read.
 type CacheRefreshTrigger string
 
 // The triggers of the table.
 const (
 ${triggerConsts.join('\n')}
 )
+
+// CacheRefreshChannels is each trigger of the table that is a channel of the
+// bus, in the table's order.
+var CacheRefreshChannels = ${channelList}
 
 // CacheRefreshReach is which keys a row acts on: those the event names
 // (subject), or every key the client holds (held).
@@ -145,12 +158,27 @@ const (
 \tCacheRefreshWhenUnenriched CacheRefreshWhen = "unenriched"
 )
 
-// CacheRefresh is one row of the table: the queries a trigger asks again
-// for, keeping the value shown meanwhile; those whose new value its event
-// carries; and those whose entity its event says is gone.
+// CacheRefreshWay is a way to a member of an event: the names of the members
+// it is within, and its own. Nil where a row states none.
+type CacheRefreshWay []string
+
+// CacheRefreshNames is where in its event a row that reaches its subject
+// finds it: the way to the resource it names (a ResourceId), and to the
+// annotation (an AnnotationId).
+type CacheRefreshNames struct {
+\tResource   CacheRefreshWay
+\tAnnotation CacheRefreshWay
+}
+
+// CacheRefresh is one row of the table: where its event names what it
+// reaches; the way to the value it writes (an Annotation); the queries a
+// trigger asks again for, keeping the value shown meanwhile; those whose new
+// value its event carries; and those whose entity its event says is gone.
 type CacheRefresh struct {
 \tWhen      CacheRefreshWhen
 \tReach     CacheRefreshReach
+\tNames     CacheRefreshNames
+\tCarries   CacheRefreshWay
 \tRefetches []CacheQuery
 \tWrites    []CacheQuery
 \tRemoves   []CacheQuery
@@ -161,19 +189,10 @@ var CacheRefreshTable = map[CacheRefreshTrigger][]CacheRefresh{
 ${table.join('\n')}
 }
 
-// cacheEvents is what the client's refresher states each trigger's event
-// names. A trigger the table gains is a method it lacks.
-type cacheEvents interface {
-${eventMethods.join('\n')}
-}
-
-// subjectOf is what frame's event names, by its trigger. A payload that is not
-// its channel's is the error.
-func subjectOf(events cacheEvents, trigger CacheRefreshTrigger, frame Frame) (cacheSubject, error) {
-\tswitch trigger {
-${eventCases}
-\t}
-\treturn cacheSubject{}, fmt.Errorf("%s is no trigger of the refresh table", trigger)
+// cacheRefreshReadings is how each channel of the table reads a frame:
+// whether its payload is one of the channel's.
+var cacheRefreshReadings = map[CacheRefreshTrigger]func(Frame) bool{
+${readings.join('\n')}
 }
 
 // cacheActs is what the client's refresher does to each live query a row acts

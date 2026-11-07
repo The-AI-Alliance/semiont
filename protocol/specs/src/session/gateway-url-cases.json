@@ -7,7 +7,8 @@
     "rust": ["packages/rust/sdk/src/session/knowledge_base.rs"],
     "python": ["packages/python/sdk/tests/test_gateway_url.py"],
     "go": ["packages/go/sdk/endpoint_test.go"],
-    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/GatewayUrlTest.kt"]
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/GatewayUrlTest.kt"],
+    "haskell": ["packages/haskell/sdk/test/GatewayCases.hs"]
   },
   "cases": [
     {

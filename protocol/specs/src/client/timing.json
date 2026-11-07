@@ -193,6 +193,11 @@
       "name": "discoveryIntervalMs",
       "value": 5000,
       "docs": "How often a launcher's discovery document is read again, unless a caller says otherwise. A launcher rewrites it on every change to its stack, so a list of the knowledge bases it manages is a few seconds behind at worst, and the document is not read without pause."
+    },
+    {
+      "name": "checksAtOnceCount",
+      "value": 4,
+      "docs": "How many of the resources open in a knowledge base a registry checks against it at once when its session comes up. A connection that has just opened is not handed every check together."
     }
   ]
 }

@@ -31,6 +31,8 @@ interface Row {
   on: string;
   when?: string;
   reach?: string;
+  names?: Record<string, string>;
+  carries?: string;
   refetches?: string[];
   writes?: string[];
   removes?: string[];
@@ -81,10 +83,12 @@ describe('the cache-refresh generator', () => {
     expect(run.stderr).toBe('');
     expect(run.status).toBe(0);
     const generated = readFileSync(run.out, 'utf8');
-    expect(generated).toContain("'mark:added': [{ reach: 'subject', refetches: ['annotations', 'events'], writes: [], removes: [] }],");
-    expect(generated).toContain("'reopened': [{ reach: 'held', ");
-    expect(generated).toContain("'mark:body-updated': [{ when: 'enriched', ");
-    expect(generated).toContain("{ when: 'unenriched', ");
+    expect(generated).toContain("'mark:added': [{ reach: 'subject', names: { resource: ['resourceId'] }, refetches: ['annotations', 'events'], writes: [], removes: [] }],");
+    expect(generated).toContain("'reopened': [{ reach: 'held', names: {}, ");
+    expect(generated).toContain("'unreadable': [{ reach: 'held', names: {}, ");
+    expect(generated).toContain("'mark:body-updated': [{ when: 'enriched', reach: 'subject', names: { resource: ['resourceId'], annotation: ['annotation', 'id'] }, carries: ['annotation'], ");
+    expect(generated).toContain("{ when: 'unenriched', reach: 'subject', names: { resource: ['resourceId'], annotation: ['payload', 'annotationId'] }, refetches: ");
+    expect(generated).toContain("export const CACHE_REFRESH_CHANNELS = ['bus:resume-gap', ");
   });
 
   it('refuses a query stated twice, one with no docs, and one that asks no operation', () => {
@@ -101,8 +105,8 @@ describe('the cache-refresh generator', () => {
     refused((t) => delete annotations(t).reads, 'must either ask an operation of the registry or read a route of the gateway\'s API, and not both');
   });
 
-  it('refuses a trigger that is neither a channel nor reopened', () => {
-    refused((t) => (row(t, 'mark:added').on = 'mark:invented'), '"mark:invented" is neither a channel of the registry nor `reopened`');
+  it('refuses a trigger that is neither a channel nor reopened nor unreadable', () => {
+    refused((t) => (row(t, 'mark:added').on = 'mark:invented'), '"mark:invented" is neither a channel of the registry nor `reopened` nor `unreadable`');
   });
 
   it('refuses a row with no docs, one that does nothing, and one stated twice', () => {
@@ -116,9 +120,42 @@ describe('the cache-refresh generator', () => {
     refused((t) => (row(t, 'mark:removed').removes = ['annotations']), 'mark:removed acts on annotations twice');
   });
 
-  it('refuses a reach that is neither, and a reopened that names a subject', () => {
+  it('refuses a reach that is neither, and a trigger that is no event reaching a subject', () => {
     refused((t) => (row(t, 'mark:added').reach = 'everything'), 'mark:added reaches "everything"');
-    refused((t) => (row(t, 'reopened').reach = 'subject'), 'reopened names no subject');
+    refused((t) => (row(t, 'reopened').reach = 'subject'), 'reopened is no event, so it names no subject');
+    refused((t) => (row(t, 'unreadable').reach = 'subject'), 'unreadable is no event, so it names no subject');
+    refused((t) => t.refresh.splice(t.refresh.indexOf(row(t, 'unreadable')), 1), 'has no row for `unreadable`');
+  });
+
+  it('refuses a way that is no way, or names no member of its channel\'s events', () => {
+    refused((t) => (row(t, 'mark:added').names = { resource: 'resource Id' }), 'mark:added: names.resource is a way to a member');
+    refused((t) => (row(t, 'mark:removed').names!['annotation'] = 'payload.annotationIdentifier'), 'mark:removed: names.annotation is payload.annotationIdentifier, and StoredEventResponse.payload has no member annotationIdentifier');
+    refused((t) => (row(t, 'mark:delete-ok').names = { annotation: 'annotationId' }), 'mark:delete-ok: names.annotation is annotationId, and MarkDeleteOk has no member annotationId');
+    refused((t) => (row(t, 'mark:added').names = { value: 'resourceId' }), 'mark:added names a value: it names a resource and an annotation');
+  });
+
+  it('refuses a way that ends at another type than its slot\'s', () => {
+    refused((t) => (row(t, 'mark:removed').names!['resource'] = 'payload.annotationId'), 'mark:removed: names.resource is payload.annotationId, which ends at AnnotationId, not at ResourceId');
+    refused((t) => (row(t, 'mark:body-updated', 'enriched').carries = 'annotation.id'), 'mark:body-updated (enriched): carries is annotation.id, which ends at AnnotationId, not at Annotation');
+  });
+
+  it('refuses a resource named by an event of no resource, and a way on a row that names nothing', () => {
+    refused((t) => (row(t, 'frame:entity-type-added').names = { resource: 'resourceId' }), 'frame:entity-type-added names a resource, and the registry says its events are the knowledge base\'s');
+    refused((t) => (row(t, 'reopened').names = { resource: 'resourceId' }), 'reopened is no event, so it names no subject');
+  });
+
+  it('refuses a carried value with no write, a write with nothing carried, and an enriched row that carries nothing', () => {
+    refused((t) => delete row(t, 'mark:body-updated', 'enriched').carries, 'mark:body-updated (enriched) writes what the event carries, so it states both');
+    refused((t) => (row(t, 'mark:body-updated', 'unenriched').carries = 'annotation'), 'mark:body-updated (unenriched) writes what the event carries, so it states both');
+    refused(
+      (t) => {
+        const enriched = row(t, 'mark:body-updated', 'enriched');
+        delete enriched.carries;
+        enriched.refetches = [...enriched.refetches!, ...enriched.writes!];
+        delete enriched.writes;
+      },
+      'mark:body-updated (enriched): an enriched row carries the value that makes it enriched',
+    );
   });
 
   it('refuses a split the registry does not support, and one that is not whole', () => {
@@ -135,9 +172,8 @@ describe('the cache-refresh generator', () => {
     refused((t) => t.refresh.splice(t.refresh.indexOf(row(t, 'reopened')), 1), 'has no row for `reopened`');
   });
 
-  it('refuses a write or a removal on a passing trigger', () => {
+  it('refuses a removal on a passing trigger', () => {
     refused((t) => (row(t, 'yield:updated').removes = ['annotation']), 'yield:updated removes annotation, and its frames are passing');
-    refused((t) => (row(t, 'frame:tag-schema-added').writes = ['annotation']), 'frame:tag-schema-added writes annotation');
   });
 
   it('refuses a row that states something a row does not have', () => {

@@ -9,7 +9,7 @@ from spec import JsonObject
 
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.operations import OPERATIONS
-from semiont.refresh import CacheQuery, CacheRefreshTrigger, CacheRefreshWhen
+from semiont.refresh import CacheQuery, CacheRefreshChannel, CacheRefreshWhen
 from semiont.testing import ContentCall, DropReply, FaultyTransport, GetAnnotations, InMemoryContent, Refuse, refuse_unscripted_operation
 from semiont.transport import Content, ContentStream, ContentTransport, Frame, PutBinaryRequest, Upload
 from semiont.types import AnchoredTextAnswer, GetAnnotationsResponse, GetResourceResponse
@@ -178,12 +178,10 @@ def recorded(kind: str, resource: str | None, payload: JsonObject | None = None)
     return event
 
 
-def event(trigger: CacheRefreshTrigger, when: CacheRefreshWhen | None = None, *, resource: str = RESOURCE, of: str = ANNOTATION) -> Frame:
+def event(trigger: CacheRefreshChannel, when: CacheRefreshWhen | None = None, *, resource: str = RESOURCE, of: str = ANNOTATION) -> Frame:
     """An event that is `trigger`, about `resource` and its annotation `of`. The stream carries one on its resource's scope."""
     scope = ResourceId(resource)
     match trigger:
-        case "reopened":
-            raise AssertionError("a reopening is no event")
         case "bus:resume-gap":
             return Frame(channel=trigger, payload={"scope": resource, "lastSeenId": "p-1", "reason": "retention-exceeded"})
         case "mark:delete-ok":

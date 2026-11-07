@@ -51,6 +51,7 @@ encoding_rs = "0.8.42"
 chrono = { version = "0.4.45", default-features = false }
 futures = "0.3.34"
 futures-core = "0.3.34"
+getrandom = "0.4.3"
 http-body = "1.1.0"
 http-body-util = "0.1.5"
 hyper = "1.11.1"
@@ -64,6 +65,7 @@ opentelemetry-otlp = { version = "0.33.0", default-features = false }
 opentelemetry-stdout = { version = "0.33.0", default-features = false }
 percent-encoding = "2.3.2"
 proptest = { version = "1.11.0", default-features = false, features = ["std"] }
+rand_core = "0.10.1"
 reqwest = { version = "0.13.5", default-features = false }
 ring = "0.17.14"
 rustls = { version = "0.23.46", default-features = false }
