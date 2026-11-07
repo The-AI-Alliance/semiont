@@ -11,14 +11,14 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { filter, firstValueFrom, map, take } from 'rxjs';
-import { resourceId, type ResourceDescriptor } from '@semiont/core';
+import { PERSISTED_QUERIES, resourceId, type ResourceDescriptor } from '@semiont/core';
 import { isReady } from '../../cache';
 import { sessionStoragePersister } from '../../cache-persister';
 import { mockResource } from '../../__tests__/fixtures/resource';
 import { createHttpSessionFactory } from '../http-session-factory';
 import { createSessionSignals } from '../session-signals';
 import type { SemiontSessionError } from '../errors';
-import { cacheKey, getStoredSession, personKey, sessionKey } from '../storage';
+import { cacheKey, getStoredSession, lastEventIdKey, personKey, sessionKey } from '../storage';
 import { fakeGateway, renews } from './fake-gateway';
 import { freshJwt, seedStoredSession, SharedStorage, TestStorage, testSession, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
 
@@ -239,5 +239,59 @@ describe('a session over HTTP whose gateway names its person only after it has s
       session.client.dispose();
       gateway.close();
     }
+  });
+});
+
+describe('a session over HTTP whose stored sign-in cannot be read as its client writes', () => {
+  const JO = { did: 'did:web:example.org:users:jo', email: 'jo@example.org', name: 'Jo', image: null, domain: 'example.org' };
+
+  /** A storage whose read of the knowledge base's stored sign-in fails while `failing` is set. */
+  class FailingStorage extends SharedStorage {
+    failing = false;
+    failures = 0;
+
+    override get(key: string): string | null {
+      if (this.failing && key === sessionKey(KB.id)) {
+        this.failures += 1;
+        throw new Error('the stored sign-in could not be read');
+      }
+      return super.get(key);
+    }
+  }
+
+  it("reads it as naming nobody: the client writes nothing more for its life, and the session's errors say so once, as session.keep-failed", async () => {
+    const storage = new FailingStorage();
+    const jo = personKey(JO.did);
+    /** Every key the client keeps jo's under: the stream's places, and each persisted query's. */
+    const josKeys = [lastEventIdKey(KB.id, jo), ...PERSISTED_QUERIES.map((query) => cacheKey(KB.id, jo, query))];
+    let josBefore: (string | null)[] = [];
+    storage.set(sessionKey(KB.id), JSON.stringify({ ...testSession(freshJwt(), 'r'), personKey: jo }));
+    const gateway = fakeGateway({ whoIs: async () => Response.json(JO), issuer: renews, resourceName: 'fresh' });
+    const errors: SemiontSessionError[] = [];
+    const session = createHttpSessionFactory(gateway.fetch)({ kb: KB, storage, signals: createSessionSignals(), onError: (error) => errors.push(error) });
+    const nameOf = (id: string): Promise<string> =>
+      firstValueFrom(session.client.browse.resource(resourceId(id)).pipe(filter(isReady), map((state) => state.value.name), take(1)));
+    try {
+      await session.ready;
+      // A value the client holds unwritten, whose save finds the stored sign-in unreadable.
+      josBefore = josKeys.map((key) => storage.get(key));
+      storage.failing = true;
+      expect(await nameOf('res-1')).toBe('fresh');
+      await vi.waitFor(() => expect(storage.failures).toBeGreaterThan(0));
+      // Readable again, and naming jo still: the client writes nothing all the same.
+      storage.failing = false;
+      expect(await nameOf('res-2')).toBe('fresh');
+    } finally {
+      session.dispose();
+      session.client.dispose();
+      gateway.close();
+    }
+
+    expect(storage.get(cacheKey(KB.id, jo, 'resource'))).toBeNull();
+    // Nothing was written for jo after the sign-in could not be read, closing included.
+    expect(josKeys.map((key) => storage.get(key))).toEqual(josBefore);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.code).toBe('session.keep-failed');
+    expect(errors[0]?.kbId).toBe(KB.id);
   });
 });

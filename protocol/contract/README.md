@@ -68,14 +68,17 @@ The same holds one level up. **[`protocol/specs/src/client/surface.json`](../spe
 The eight verbs are also the eight namespaces of a client in every SDK: `yield`, `mark`, `bind`, `frame`, `browse`, `match`, `gather` and `beckon`. The protocol's vocabulary and the typed surface are one to one, so there is no translation step between reading a verb's contract and writing code. In TypeScript:
 
 ```typescript
-import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
+import { MemorySignIn, SemiontSession, httpKb } from '@semiont/sdk';
 
-const opened = await SemiontSession.signInDevice({
-  kb: httpKb({ id: 'demo', label: 'Demo', host: 'localhost', port: 4000, protocol: 'http' }),
-  storage: new InMemorySessionStorage(),
+const kb = httpKb({ id: 'demo', label: 'Demo', host: 'localhost', port: 4000, protocol: 'http' });
+const kept = new MemorySignIn();
+await SemiontSession.signInDevice({
+  kb,
+  kept,
   onCode: ({ verificationUriComplete, verificationUri }) =>
     console.error(`Approve at ${verificationUriComplete ?? verificationUri}`),
 });
+const opened = await SemiontSession.fromKept({ kb, kept });
 const semiont = opened.session.client;
 
 await semiont.mark.delegate(resourceId, { motivation: 'linking', entityTypes: ['Person'] });  // write

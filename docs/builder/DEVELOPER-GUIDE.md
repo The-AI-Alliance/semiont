@@ -24,18 +24,23 @@ Throughout, the eight verb namespaces hang off `session.client` — `session.cli
 
 For anything longer than a one-shot script, use **`SemiontSession`**: it refreshes the
 bearer token in the background, so long-running work doesn't die at the token TTL (a raw
-`SemiontClient` does). Supply a `SessionStorage` — `InMemorySessionStorage` for Node/scripts,
-a `localStorage`-backed one for the browser. A script's sign-in gives the session with the
-client it was built with (an `OpenedSession`), and `dispose()` on it ends both when done.
+`SemiontClient` does). A script keeps its sign-in in a `SignInKept` — a `MemorySignIn` for
+the life of the process, `keptIn(storage, kb.id)` over a `SessionStorage`, or an entry of the
+`SignInStore` that `semiont login` keeps; a browser app's is kept in the `SemiontBrowser`'s
+storage. A script's session over its kept sign-in comes with the client it was built with
+(an `OpenedSession`), and `dispose()` on it ends both when done.
 
 ```typescript
-import { SemiontSession, httpKb, InMemorySessionStorage } from '@semiont/sdk';
+import { MemorySignIn, SemiontSession, httpKb } from '@semiont/sdk';
 
-const opened = await SemiontSession.signInDevice({
-  kb: httpKb({ id: 'my-app', label: 'My KB', host: 'localhost', port: 4000, protocol: 'http' }),
-  storage: new InMemorySessionStorage(),
+const kb = httpKb({ id: 'my-app', label: 'My KB', host: 'localhost', port: 4000, protocol: 'http' });
+const kept = new MemorySignIn();
+await SemiontSession.signInDevice({
+  kb,
+  kept,
   onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
 });
+const opened = await SemiontSession.fromKept({ kb, kept });
 const { session } = opened;
 
 // … use session.client.{browse,gather,yield,mark,bind,match,frame,beckon} …
@@ -45,13 +50,16 @@ opened.dispose();   // the session, then the client it was built with
 
 Sign-in happens at the knowledge base's identity provider, never at the gateway:
 `SemiontSession.signInDevice(...)` for a script (the device grant — it prints a URL, the person
-approves in any browser) and `SemiontBrowser.beginSignIn` / `completeSignIn` for a browser app
-(authorization code with PKCE). Both give a session that refreshes at the issuer: a script's
-comes with the client it was built with, to end together, and a browser app's is the
-`SemiontBrowser`'s to end.
+approves in any browser, and the sign-in is kept where the script says) and
+`SemiontBrowser.beginSignIn` / `completeSignIn` for a browser app (authorization code with
+PKCE). Each gives a session that refreshes at the issuer: a script's, built by
+`SemiontSession.fromKept(...)`, comes with the client it was built with, to end together, and a
+browser app's is the `SemiontBrowser`'s to end. `signOut(kept)` revokes a script's sign-in at
+the issuer and forgets it.
 `SemiontClient` has no sign-in of its own: a bare token lives as long as the issuer says —
-minutes — with nothing to renew it. Already hold an access and refresh pair? `SemiontSession.fromIssuedSession(...)`. A bare
-JWT? The `fromHttp(...)` variants.
+minutes — with nothing to renew it. Already hold an access and refresh pair? Keep it in a
+`MemorySignIn` and open it with `SemiontSession.fromKept(...)`. A bare JWT? The `fromHttp(...)`
+variants.
 → [Usage § Setup](./Usage.md#setup).
 
 **Discover local KBs (launcher-managed).** Before there's a session at all: on a machine
@@ -583,8 +591,9 @@ made in — so a host with N viewers routes each `mark:requested` to the right o
 
 ## Headless (Node) vs. browser
 
-The same code runs in both — only the storage differs: `InMemorySessionStorage` (or your own
-file-backed `SessionStorage`) in Node; a `localStorage`-backed `SessionStorage` in the browser.
+The same code runs in both — only where the sign-in is kept differs: a `MemorySignIn`, your
+own file-backed `SessionStorage` through `keptIn`, or the `SignInStore`, in Node; a
+`localStorage`-backed `SessionStorage` in the browser.
 The verb namespaces are identical either way.
 
 Keep your orchestration framework-free (plain functions over the `session` / `session.client`

@@ -237,12 +237,13 @@ export class SemiontClient {
    * `SemiontClient`.
    *
    * Use this for one-shot scripts, CLI commands, or any consumer that
-   * doesn't need to drive the token from outside (no manual refresh,
-   * no cross-tab sync). For long-running scripts that need refresh,
-   * use `SemiontSession.fromHttp(...)` (with a token already on hand)
-   * or `SemiontSession.signInDevice(...)` (sign in at the issuer) instead —
-   * either owns the same transport/client wiring plus the
-   * proactive-refresh + storage machinery.
+   * doesn't need to drive the token from outside (no manual refresh).
+   * For long-running scripts that need refresh, use
+   * `SemiontSession.fromKept(...)` over a kept sign-in (one
+   * `SemiontSession.signInDevice(...)` kept, or `semiont login`'s) or
+   * `SemiontSession.fromHttp(...)` (with a token already on hand) instead —
+   * either owns the same transport/client wiring plus the proactive
+   * refresh and the kept sign-in.
    *
    * Strings are accepted for `baseUrl` and `token`; they are branded
    * via `baseUrl()` / `accessToken()` from `@semiont/core` automatically.

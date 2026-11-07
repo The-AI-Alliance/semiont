@@ -4,7 +4,8 @@
  * has none: building `HttpTransport`/`HttpContentTransport`,
  * wiring the `tokenRefresher` callback, deduplicating concurrent 401
  * refresh round trips, renewing the session at its issuer, and asking the
- * gateway who a stored token is.
+ * gateway who a stored token is. Each session's sign-in is the knowledge
+ * base's in the registry's storage, as `keptIn` keeps it.
  *
  * Returned as a closure so a single `inFlightRefreshes` map is shared
  * across every session this factory builds — the dedup is meaningful
@@ -21,8 +22,8 @@ import { SemiontClient } from '../client';
 import { coupledLastEventId, whileSignedIn } from '../cache-persister';
 import { SemiontSession, type UserInfo } from './semiont-session';
 import { SemiontSessionError } from './errors';
-import { getStoredSession, kbGatewayUrl, lastEventIdKey, personKey, recordPersonKey } from './storage';
-import { refreshStoredSession } from './oauth';
+import { kbGatewayUrl, keptIn, lastEventIdKey, personKey } from './storage';
+import { renewKept } from './oauth';
 import type { SessionFactory, SessionFactoryOptions } from './session-factory';
 
 export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): SessionFactory {
@@ -40,10 +41,11 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
     }
     const endpoint = kb.endpoint;
     const gateway = baseUrl(kbGatewayUrl(endpoint));
+    const signIn = keptIn(storage, kb.id);
 
     /**
      * Renew `holding`, the KB's access token the session holds, at the
-     * issuer the stored session names. Concurrent calls for the same KB
+     * issuer the kept sign-in names. Concurrent calls for the same KB
      * dedup through `inFlightRefreshes`, so simultaneous 401s trigger only
      * one refresh grant.
      */
@@ -51,7 +53,7 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
       const existing = inFlightRefreshes.get(kb.id);
       if (existing) return existing;
 
-      const promise = refreshStoredSession(storage, kb.id, holding, fetch);
+      const promise = renewKept(signIn, holding, fetch);
 
       inFlightRefreshes.set(kb.id, promise);
       try {
@@ -62,21 +64,34 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
     };
 
     /**
+     * The sign-in could not be read before a save: the client keeps nothing
+     * more for its life, and the session's host is told so once.
+     */
+    const unreadable = (cause: unknown): void => {
+      const why = cause instanceof Error ? cause.message : String(cause);
+      onError(new SemiontSessionError(
+        'session.keep-failed',
+        `The sign-in could not be read before what the client keeps was saved, so it keeps nothing more: ${why}`,
+        kb.id,
+      ));
+    };
+
+    /**
      * B17: what the session keeps for one person, the stream's places and
-     * the caches, through a store that writes only while the stored sign-in
+     * the caches, through a store that writes only while the kept sign-in
      * names that person. The places are COUPLED to the cache flush (stashed
      * in memory, written only alongside cache-document writes), so the kept
      * bookmark can lag the caches but never lead them, and a reload resumes
      * by replay instead of gapping.
      */
-    const keeping = (person: string) => {
-      const coupled = coupledLastEventId(whileSignedIn(storage, kb.id, person), lastEventIdKey(kb.id, person));
+    const keepingFor = (person: string) => {
+      const coupled = coupledLastEventId(whileSignedIn(storage, signIn, person, unreadable), lastEventIdKey(kb.id, person));
       return { ...coupled, persistence: { storage: coupled.storage, kbId: kb.id, personKey: person } };
     };
-    // Kept from the start when the stored sign-in names its person; until
+    // Kept from the start when the kept sign-in names its person; until
     // the gateway names them otherwise, nothing is kept.
-    const named = getStoredSession(storage, kb.id)?.personKey;
-    let kept = named === undefined ? null : keeping(named);
+    const named = signIn.held()?.personKey;
+    let keeping = named === undefined ? null : keepingFor(named);
 
     // Build transport stack: factory owns token$ and threads it through
     // transport (which reads it on every request) and session (which
@@ -89,20 +104,20 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
       baseUrl: gateway,
       token$,
       tokenRefresher: (refused) => session.refresh(refused),
-      ...(kept === null ? {} : { loadLastEventIds: kept.loadLastEventIds }),
+      ...(keeping === null ? {} : { loadLastEventIds: keeping.loadLastEventIds }),
       saveLastEventId: (scope, id) => {
-        if (kept !== null) kept.saveLastEventId(scope, id);
+        if (keeping !== null) keeping.saveLastEventId(scope, id);
       },
       ...(fetch ? { fetch } : {}),
     });
     const content = new HttpContentTransport(transport);
-    const client = new SemiontClient(transport, content, transport, kept === null ? {} : { cachePersistence: kept.persistence });
+    const client = new SemiontClient(transport, content, transport, keeping === null ? {} : { cachePersistence: keeping.persistence });
     // B17-Q (C1): the bookmark flush waits for persisted-cache quiescence —
     // a bystander document write must not carry an id whose event some other
     // cache is still absorbing (mid-refetch or mid-debounce). Wired after
     // construction because the gate reads the client's own caches.
     const settled = (): boolean => client.browse.persistenceSettled();
-    if (kept !== null) kept.setFlushGate(settled);
+    if (keeping !== null) keeping.setFlushGate(settled);
 
     /**
      * Ask the gateway who `token` is: one request, with no client behind it.
@@ -110,7 +125,7 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
      * itself what a refusal means. A client built for the asking would open
      * a bus stream each time it is built, with the token being asked about.
      *
-     * The answer names the person, recorded on the stored sign-in only while
+     * The answer names the person, recorded on the kept sign-in only while
      * it still holds `token` (a renewal or another context's sign-in in
      * between records nothing). Recorded for a session keeping nothing yet,
      * it starts keeping before the answer is handed back, so before the
@@ -120,11 +135,11 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
     const performValidate = async (token: AccessToken): Promise<UserInfo> => {
       const user = await currentUserOf(gateway, token, fetch);
       const person = personKey(user.did);
-      if (recordPersonKey(storage, kb.id, token, person) && kept === null) {
-        kept = keeping(person);
-        kept.setFlushGate(settled);
-        client.browse.attachPersistence(kept.persistence);
-        const places = kept.loadLastEventIds();
+      if (signIn.recordPersonKey(token, person) && keeping === null) {
+        keeping = keepingFor(person);
+        keeping.setFlushGate(settled);
+        client.browse.attachPersistence(keeping.persistence);
+        const places = keeping.loadLastEventIds();
         if (places !== null) transport.restoreLastEventIds(places);
       }
       return user;
@@ -132,7 +147,7 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
 
     session = new SemiontSession({
       kb,
-      storage,
+      kept: signIn,
       client,
       token$,
       refresh: performRefresh,

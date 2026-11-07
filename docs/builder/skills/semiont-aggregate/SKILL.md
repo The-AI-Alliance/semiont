@@ -39,24 +39,27 @@ await semiont.frame.addEntityTypes(['SubsequentTreatment', 'Aggregate']);
 
 ## Sign in
 
-`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant (RFC 8628): the issuer mints a code, `onCode` shows the person where to approve it, and no password passes through the script. The session then keeps the token fresh. An access token is short-lived (five minutes from the Keycloak a launcher stack runs), so a session, not a bare client, is what keeps a script working past that. It gives the session with the client it was built with, which end together. Sign in once, use `opened.session.client` for every call, and `opened.dispose()` when done: that ends the session, then closes its client.
+`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant (RFC 8628): the issuer mints a code, `onCode` shows the person where to approve it, and no password passes through the script. The sign-in is kept in `kept`, a `MemorySignIn` here, so the script signs in again each time it starts; `SemiontSession.fromKept(...)` then opens the session over it, which keeps the token fresh. An access token is short-lived (five minutes from the Keycloak a launcher stack runs), so a session, not a bare client, is what keeps a script working past that. `fromKept` gives the session with the client it was built with, which end together. Sign in once, use `opened.session.client` for every call, and `opened.dispose()` when done: that ends the session, then closes its client.
 
 ```typescript
-import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
+import { SemiontSession, MemorySignIn, httpKb } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-const opened = await SemiontSession.signInDevice({
-  kb: httpKb({
-    id: 'semiont-aggregate', label: 'Semiont',
-    host: url.hostname, port: Number(url.port || 4000),
-    protocol: url.protocol === 'https:' ? 'https' : 'http',
-  }),
-  storage: new InMemorySessionStorage(),
+const kb = httpKb({
+  id: 'semiont-aggregate', label: 'Semiont',
+  host: url.hostname, port: Number(url.port || 4000),
+  protocol: url.protocol === 'https:' ? 'https' : 'http',
+});
+const kept = new MemorySignIn();
+await SemiontSession.signInDevice({
+  kb,
+  kept,
   onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
     console.error(`Approve this script at ${verificationUriComplete ?? verificationUri}`);
     if (!verificationUriComplete) console.error(`Code: ${userCode}`);
   },
 });
+const opened = await SemiontSession.fromKept({ kb, kept });
 const semiont = opened.session.client;
 ```
 
@@ -135,25 +138,28 @@ With `Aggregate` on every one, `browse.resources({ entityType: 'Aggregate' })` l
 
 ```typescript
 import {
-  SemiontSession, InMemorySessionStorage, httpKb, resourceId,
+  SemiontSession, MemorySignIn, httpKb, resourceId,
 } from '@semiont/sdk';
 
 const INCLUDE_EXCERPTS = process.env.INCLUDE_GATHER !== '0';
 
 async function aggregate(anchorIdStr: string): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-  const opened = await SemiontSession.signInDevice({
-    kb: httpKb({
-      id: 'semiont-aggregate', label: 'Semiont',
-      host: url.hostname, port: Number(url.port || 4000),
-      protocol: url.protocol === 'https:' ? 'https' : 'http',
-    }),
-    storage: new InMemorySessionStorage(),
+  const kb = httpKb({
+    id: 'semiont-aggregate', label: 'Semiont',
+    host: url.hostname, port: Number(url.port || 4000),
+    protocol: url.protocol === 'https:' ? 'https' : 'http',
+  });
+  const kept = new MemorySignIn();
+  await SemiontSession.signInDevice({
+    kb,
+    kept,
     onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
       console.error(`Approve this script at ${verificationUriComplete ?? verificationUri}`);
       if (!verificationUriComplete) console.error(`Code: ${userCode}`);
     },
   });
+  const opened = await SemiontSession.fromKept({ kb, kept });
   const semiont = opened.session.client;
 
   try {

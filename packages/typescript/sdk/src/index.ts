@@ -250,6 +250,7 @@ export {
   getStoredSession,
   setStoredSession,
   clearStoredSession,
+  keptIn,
   // One refresh policy for every holder of a gateway token: when a token
   // expires is the token's own claim, and how long before that to renew is
   // a single number. Sidecars outside this package schedule from both.
@@ -260,7 +261,10 @@ export {
   personKey,
   type StoredSession,
 } from './session/storage';
-// The sign-ins `semiont login` keeps, over the files a caller gives.
+// Where a session's sign-in is kept: a registry's storage (`keptIn`), memory,
+// or an entry of the sign-ins `semiont login` keeps, over the files a caller
+// gives; and a script's sign-out of one.
+export { MemorySignIn, signOut, type SignInKept } from './session/sign-in-kept';
 export { SignInStore, stateDir, type SignInFiles, type System } from './session/sign-in-store';
 
 // State units — flow state machines and their RxJS substrate.

@@ -44,6 +44,7 @@ import {
   LAST_VIEWED_RESOURCE_BY_KB_KEY,
   saveKnowledgeBases,
   setStoredSession,
+  swapStoredSession,
   takeStoredSession,
   type StoredSession,
 } from './storage';
@@ -614,26 +615,15 @@ export class SemiontBrowser {
   }
 
   /**
-   * Sign in to an existing KB: store the tokens and (re)activate the
-   * session. If the KB is already active, the current session is disposed
-   * and replaced so the new tokens take effect.
+   * Sign in to an existing KB: save the new sign-in in place of the stored
+   * one and (re)activate the session, which picks the new tokens up from
+   * storage. A new sign-in saved over one forgets the person it named: if
+   * the KB is active its session is closed first, and only then is what was
+   * kept for that person deleted.
    */
   async signIn(id: string, session: StoredSession): Promise<void> {
     if (this.disposed) return;
-    setStoredSession(this.storage, id, session);
-
-    // If this KB is already active, tear down and reconstruct so the new
-    // tokens are picked up from storage by the session ctor.
-    if (this.activeKbId$.getValue() === id) {
-      const prevSession = this.activeSession$.getValue();
-      const prevSignals = this.activeSignals$.getValue();
-      this.activeSession$.next(null);
-      this.activeSignals$.next(null);
-      this.endSession(prevSession, prevSignals);
-      await this.setActiveKb(id);
-      return;
-    }
-
+    this.closeThenForget(id, swapStoredSession(this.storage, id, session));
     await this.setActiveKb(id);
   }
 
@@ -656,14 +646,19 @@ export class SemiontBrowser {
     this.kbs$.next([...this.kbs$.getValue()]);
   }
 
-  /**
-   * Forget a KB's saved sign-in, for a sign-out or a removal: it is taken,
-   * the KB's session is closed if it is the active one, and only then is
-   * what was kept for the person it named deleted, so nothing its client
-   * writes as it closes is left. What was saved is given back.
-   */
+  /** Forget a KB's saved sign-in, for a sign-out or a removal, and give back what was saved. */
   private forgetSignIn(id: string): StoredSession | null {
     const stored = takeStoredSession(this.storage, id);
+    this.closeThenForget(id, stored);
+    return stored;
+  }
+
+  /**
+   * Once a KB's saved sign-in is taken or replaced: close the KB's session if
+   * it is the active one, and only then delete what was kept for the person
+   * `forgotten` named, so nothing its client writes as it closes is left.
+   */
+  private closeThenForget(id: string, forgotten: StoredSession | null): void {
     if (this.activeKbId$.getValue() === id) {
       const prevSession = this.activeSession$.getValue();
       const prevSignals = this.activeSignals$.getValue();
@@ -671,8 +666,7 @@ export class SemiontBrowser {
       this.activeSignals$.next(null);
       this.endSession(prevSession, prevSignals);
     }
-    if (stored !== null && stored.personKey !== undefined) forgetKept(this.storage, id, stored.personKey);
-    return stored;
+    if (forgotten !== null && forgotten.personKey !== undefined) forgetKept(this.storage, id, forgotten.personKey);
   }
 
   // ── Open resources (per-KB; the visible list is a projection) ─────────

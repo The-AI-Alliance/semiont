@@ -32,7 +32,7 @@ import { EventBus } from '@semiont/core';
 import type { ConnectionState, SemiontError } from '@semiont/core';
 import type { CacheState } from '@semiont/sdk';
 import type { SemiontClient, SemiontSession } from '@semiont/sdk';
-import { SemiontSession as RealSemiontSession, httpKb, InMemorySessionStorage } from '@semiont/sdk';
+import { SemiontSession as RealSemiontSession, httpKb, MemorySignIn } from '@semiont/sdk';
 import type { AccessToken } from '@semiont/core';
 
 export interface TestClient {
@@ -77,7 +77,7 @@ export function makeTestSession(
       port: 4000,
       protocol: 'http',
     }),
-    storage: new InMemorySessionStorage(),
+    kept: new MemorySignIn(),
     client,
     token$: new BehaviorSubject<AccessToken | null>(null),
   });
@@ -106,7 +106,7 @@ export function sessionOf(client: SemiontClient): SemiontSession {
       port: 4000,
       protocol: 'http',
     }),
-    storage: new InMemorySessionStorage(),
+    kept: new MemorySignIn(),
     client: complete,
     token$: new BehaviorSubject<AccessToken | null>(null),
   });

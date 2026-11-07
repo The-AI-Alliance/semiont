@@ -18,7 +18,8 @@
 import { MAX_STORED_BYTES_COUNT, isObject, isResourceId, isString, type ResourceId } from '@semiont/core';
 import type { CachePersister } from './cache';
 import type { SessionStorage } from './session/session-storage';
-import { getStoredSession } from './session/storage';
+import type { SignInKept } from './session/sign-in-kept';
+import type { StoredSession } from './session/storage';
 
 /**
  * B17 — where a client keeps its persisted queries' values: a store, under
@@ -33,19 +34,34 @@ export interface CachePersistence {
 }
 
 /**
- * A store that writes for one person only while a knowledge base's stored
- * sign-in names them. Once it does not (the saved sign-in was forgotten,
- * here or in another context, or another sign-in replaced it), it writes
- * nothing more for its life: what was about to be written, a debounced save
- * or a stream's place, belongs to a sign-in that is gone, and must not put
- * back what forgetting it deleted. A renewal keeps the person, so writes go
- * on through it.
+ * `storage`, written for one person only while the sign-in `kept` holds names
+ * them, as `kept` says before each write. Once it does not (the sign-in was
+ * forgotten, here or in another context, or another sign-in replaced it), it
+ * writes nothing more for its life: what was about to be written, a debounced
+ * save or a stream's place, belongs to a sign-in that is gone, and must not
+ * put back what forgetting it deleted. A renewal keeps the person, so writes
+ * go on through it. A sign-in that cannot be read counts as one that no
+ * longer names the person, and `unreadable` is told of it once, as it
+ * happens. A write `storage` refuses is its own failure, and is let through.
  */
-export function whileSignedIn(storage: SessionStorage, kbId: string, personKey: string): SessionStorage {
+export function whileSignedIn(
+  storage: SessionStorage,
+  kept: SignInKept,
+  personKey: string,
+  unreadable: (cause: unknown) => void,
+): SessionStorage {
   let signedOut = false;
   const signedIn = (): boolean => {
-    const stored = getStoredSession(storage, kbId);
-    if (stored === null || stored.personKey !== personKey) signedOut = true;
+    if (signedOut) return false;
+    let held: StoredSession | null;
+    try {
+      held = kept.held();
+    } catch (cause) {
+      signedOut = true;
+      unreadable(cause);
+      return false;
+    }
+    if (held === null || held.personKey !== personKey) signedOut = true;
     return !signedOut;
   };
   return {

@@ -40,31 +40,41 @@ your own machine.
 ## Connect
 
 Sign-in happens at the knowledge base's identity provider, never at the gateway. A script uses
-the device grant: it prints a URL, the person approves in any browser, and the session comes
-back live. `SemiontSession` owns the token lifecycle (proactive refresh at the issuer, storage,
-disposal); `kb.id` is the storage key, so distinct scripts use distinct ids. There is no
-client-level signIn: the issuer decides how long an access token lives and it is short — minutes,
-not hours — so anything that outlives one token needs a session to renew it.
+the device grant: it prints a URL, the person approves in any browser, and the sign-in is kept
+where the script says, in a `SignInKept`. `SemiontSession.fromKept` then opens a session over
+it, which owns the token lifecycle (proactive refresh at the issuer, each renewal kept where the
+sign-in is, disposal). There is no client-level signIn: the issuer decides how long an access
+token lives and it is short — minutes, not hours — so anything that outlives one token needs a
+session to renew it.
 
 ```ts
-import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
+import { MemorySignIn, SemiontSession, httpKb } from '@semiont/sdk';
 
-const opened = await SemiontSession.signInDevice({
-  kb: httpKb({ id: 'my-watcher', label: 'My Watcher',
-               host: 'localhost', port: 4000, protocol: 'http' }),
-  storage: new InMemorySessionStorage(),
+const kb = httpKb({ id: 'my-watcher', label: 'My Watcher',
+                    host: 'localhost', port: 4000, protocol: 'http' });
+const kept = new MemorySignIn();
+await SemiontSession.signInDevice({
+  kb,
+  kept,
   onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
 });
+const opened = await SemiontSession.fromKept({ kb, kept });
 const { resources } = await opened.session.client.browse.resources({ limit: 10 }).fresh();
 opened.dispose(); // the session, then the client it was built with
 ```
 
-The sign-in gives an `OpenedSession`: the session, and the client it was built with. The session
+`fromKept` gives an `OpenedSession`: the session, and the client it was built with. The session
 only uses its client, so the two end together.
 
-Already hold tokens? `SemiontSession.fromIssuedSession(...)` takes the access and refresh pair.
-`SemiontSession.fromHttp(...)` takes a bare access token and the `refresh` that renews it, which
-is given the token the session holds. Each gives an `OpenedSession` too.
+Where the sign-in is kept decides what a restart does. A `MemorySignIn` lives as long as the
+process. `keptIn(storage, kb.id)` keeps it in a `SessionStorage` under `kb.id`, so distinct
+scripts sharing one storage use distinct ids. An entry of the `SignInStore` is the sign-in
+`semiont login` keeps (below).
+
+Already hold tokens? Keep the access and refresh pair in a `MemorySignIn` and open it with
+`SemiontSession.fromKept(...)`. `SemiontSession.fromHttp(...)` takes a bare access token and the
+`refresh` that renews it, which is given the token the session holds, and gives an
+`OpenedSession` too.
 `SemiontClient.fromHttp({ baseUrl, token })` takes a bare token and never renews it, which suits
 a one-shot script that finishes inside one token's life.
 
@@ -73,19 +83,19 @@ a one-shot script that finishes inside one token's life.
 A person who has run `semiont login` has a sign-in the launcher keeps for each stack, in
 `tokens.json` in the launcher's state home
 ([the sign-in store](https://github.com/The-AI-Alliance/semiont/tree/main/protocol/specs/src/sign-in-store)).
-A `SignInStore` is a `SessionStorage` over that file. `SemiontSession.fromStoredSession` builds a
-session over the entry keyed by `kb.id`, and gives null when there is none. The session renews
-the sign-in by the contract's rules and writes each renewal back, so one sign-in serves the
-launcher and the script.
+A `SignInStore` is that file, and `entry(key)` is where the sign-in of the stack `key` is kept.
+`SemiontSession.fromKept` builds a session over an entry; with nothing kept there, the session is
+signed out. The session renews the sign-in by the contract's rules and keeps each renewal in the
+file, so one sign-in serves the launcher and the script. An entry keeps only what the launcher's
+script client was issued, and records no person, so a session over it keeps no caches.
 
 ```ts
-import { SemiontSession, SignInStore, InMemorySessionStorage, httpKb } from '@semiont/sdk';
+import { SemiontSession, SignInStore, httpKb } from '@semiont/sdk';
 
-const opened = await SemiontSession.fromStoredSession({
+const opened = await SemiontSession.fromKept({
   kb: httpKb({ id: 'local:example.org-my-kb', label: 'My KB',
                host: 'localhost', port: 4000, protocol: 'http' }),
-  storage: new SignInStore(signInFiles, new InMemorySessionStorage()),
-  baseUrl: 'http://localhost:4000',
+  kept: new SignInStore(signInFiles).entry('local:example.org-my-kb'),
 });
 ```
 
@@ -106,17 +116,16 @@ file with the launcher and the other SDKs, each member must do the following:
 - **`replace`** writes a temporary file beside the document with the mode given, and renames it
   over the document. It removes the temporary file when that fails.
 
-Each member is synchronous, as `SessionStorage` is. The store holds the lock from before its read
+Each member is synchronous, as a `SignInKept` is. The store holds the lock from before its read
 until after its rename, and never asks for it while it holds it.
 
-To sign out, revoke the refresh token that `getStoredSession` gives with `revokeAtIssuer`, then
-call `clearStoredSession(store, kb.id)`.
+To sign out, `signOut(kept)` revokes the refresh token at the issuer, when the issuer says where,
+and forgets the sign-in whatever the issuer answers.
 
 Every request these make, of the gateway and of the issuer, is sent with the `fetch` they are
-given, or with the runtime's own when they are given none. `signInDevice`, `fromIssuedSession`,
-`fromStoredSession`, `fromHttp`, `startAgentSession` and `SemiontBrowser` take it in their options as
-`fetch`;
-`createHttpSessionFactory` and `httpDiscovery` take it as their last argument. The certificates a
+given, or with the runtime's own when they are given none. `signInDevice`, `fromKept`,
+`fromHttp`, `startAgentSession` and `SemiontBrowser` take it in their options as `fetch`;
+`signOut`, `createHttpSessionFactory` and `httpDiscovery` take it as their last argument. The certificates a
 request trusts, and the proxy it goes through, are that fetch's: the SDK reads no setting of its
 own for either. In Node, a gateway whose certificate another authority signed is reached with
 undici's `fetch` sent through an `Agent` that trusts that authority; in a browser page, the
@@ -345,9 +354,9 @@ is what a worker promises the dispatcher.
   `startAgentSession` and `privateKeyFromPem` for a worker's sign-in, and
   `JOB_CLAIM_CHANNELS` and `JOB_COMMIT_CHANNELS` for its stream.
 - **Session layer** — `SemiontSession` (per-KB auth, proactive token refresh, lifecycle),
-  `SemiontBrowser` (multi-KB orchestration), `SessionStorage` adapters, the `httpKb`
-  helper for endpoint shapes, and `SignInStore` and `stateDir` for the sign-in `semiont login`
-  keeps.
+  `SemiontBrowser` (multi-KB orchestration), `SessionStorage` adapters, `SignInKept` and
+  where a sign-in is kept (`MemorySignIn`, `keptIn`), `signOut`, the `httpKb` helper for
+  endpoint shapes, and `SignInStore` and `stateDir` for the sign-in `semiont login` keeps.
 - **Flow state machines** — closure-based factories (`createMarkStateUnit`, `…Gather…`,
   `…Match…`, `…Yield…`, `…Beckon…`) wrapping each long-running flow with `loading$`/`error$`/
   progress observables; UI-shape-agnostic ([`docs/builder/STATE-UNITS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/STATE-UNITS.md)).

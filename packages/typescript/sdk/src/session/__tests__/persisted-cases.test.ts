@@ -14,9 +14,8 @@
  * session factory makes — what a registry's sessions are — over a gateway
  * that is `fetch` and nothing else (fake-gateway.ts). This SDK builds no
  * keeping session over anything but a registry's storage, so `holder`
- * changes kb-a's sign-in through the storage's own functions: forgotten by
- * `clearStoredSession`, a new one saved by `setStoredSession`, renewed by a
- * write of other tokens that keeps the person, as a renewal writes it.
+ * changes kb-a's sign-in through what holds it there, `keptIn`: forgotten,
+ * a new one kept in its place, or renewed with other tokens.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -38,12 +37,11 @@ import {
   ACTIVE_KEY,
   STORAGE_KEY,
   cacheKey,
-  clearStoredSession,
   getStoredSession,
+  keptIn,
   lastEventIdKey,
   personKey,
   sessionKey,
-  setStoredSession,
 } from '../storage';
 import { fakeGateway, GATEWAY_ENDPOINT, refuses, renews, type FakeGateway, type StreamConnect } from './fake-gateway';
 import { SharedStorage, freshJwt, testSession } from './test-storage-helpers';
@@ -242,7 +240,7 @@ describe('protocol/specs/src/session/persisted-cases.json', () => {
           storage.set(cacheKey(KB_A.id, jo.personKey, 'resource'), CLOSING);
         };
       }
-      return new SemiontSession({ kb, storage, client, token$: new BehaviorSubject<AccessToken | null>(null) });
+      return new SemiontSession({ kb, kept: keptIn(storage, kb.id), client, token$: new BehaviorSubject<AccessToken | null>(null) });
     };
 
     /** The sign-in the registry signs in to kb-a with: new, so naming nobody. */
@@ -395,21 +393,25 @@ describe('protocol/specs/src/session/persisted-cases.json', () => {
 
   describe('holder', () => {
     /**
-     * kb-a's sign-in changed in this process, through the storage that holds
-     * it: forgotten; a new sign-in saved in its place, naming whom the row
-     * says; or, when the row names jo, renewed with other tokens.
+     * kb-a's sign-in changed in this process, through what holds it in the
+     * storage (`keptIn`): forgotten; a new sign-in kept in its place, naming
+     * whom the row says; or, when the row names jo, renewed with other tokens.
      */
     const changeHeld = (storage: SessionStorage, held: CrossTabRow['stored']): void => {
+      const kept = keptIn(storage, KB_A.id);
       if (held === null) {
-        clearStoredSession(storage, KB_A.id);
+        kept.forget();
+        return;
+      }
+      const read = kept.held();
+      if (read === null) throw new Error("kb-a's sign-in was not kept");
+      if (held.personKey === jo.personKey) {
+        const renewed = freshJwt();
+        expect(kept.renewed(read, renewed, 'refresh-held')).toBe(renewed);
         return;
       }
       const signIn = testSession(freshJwt(), 'refresh-held');
-      if (held.personKey === jo.personKey) {
-        storage.set(sessionKey(KB_A.id), JSON.stringify({ ...signIn, personKey: held.personKey }));
-        return;
-      }
-      setStoredSession(storage, KB_A.id, held.personKey === null ? signIn : { ...signIn, personKey: held.personKey });
+      kept.keep(held.personKey === null ? signIn : { ...signIn, personKey: held.personKey });
     };
 
     it.each(table.holder)('$why', async (row) => {

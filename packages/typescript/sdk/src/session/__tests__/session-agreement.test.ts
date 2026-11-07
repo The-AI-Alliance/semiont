@@ -18,7 +18,7 @@ import { SemiontSession, type UserInfo } from '../semiont-session';
 import type { SemiontSessionError } from '../errors';
 import type { SessionEndReason } from '../session-signals';
 import { InMemorySessionStorage } from '../session-storage';
-import { getStoredSession, parseJwtExpiry, refreshDelayMs, setStoredSession } from '../storage';
+import { getStoredSession, keptIn, parseJwtExpiry, refreshDelayMs, setStoredSession } from '../storage';
 import { userId } from '@semiont/core';
 
 interface ScheduleCase {
@@ -162,7 +162,7 @@ describe('session — the SDK agrees with the shared table', () => {
     const token$ = new BehaviorSubject<AccessToken | null>(null);
     const session = new SemiontSession({
       kb: KB,
-      storage,
+      kept: keptIn(storage, KB.id),
       client: createTestClient().client,
       token$,
       validate: async () => {
@@ -238,7 +238,7 @@ describe('session — the SDK agrees with the shared table', () => {
     const token$ = new BehaviorSubject<AccessToken | null>(null);
     const session = new SemiontSession({
       kb: KB,
-      storage,
+      kept: keptIn(storage, KB.id),
       client: createTestClient().client,
       token$,
       validate: async () => {
@@ -316,7 +316,7 @@ describe('session — the SDK agrees with the shared table', () => {
     let renewals = 0;
     const session = new SemiontSession({
       kb: KB,
-      storage,
+      kept: keptIn(storage, KB.id),
       client: createTestClient().client,
       token$: new BehaviorSubject<AccessToken | null>(null),
       validate: async () => {

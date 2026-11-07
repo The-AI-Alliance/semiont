@@ -1,14 +1,16 @@
 /**
  * Tests for the `SemiontSession` factories: `fromHttp` (structural — brand
  * the inputs, build the transport stack, thread the shared `token$`),
- * `fromIssuedSession` (tokens an issuer already issued: persist, wire the
- * refresh grant, give the ready session), and `signInDevice` (the device
- * grant end to end). Each gives an `OpenedSession`: the session and the
- * client it was built with, ended together. They construct a real `SemiontClient` over a real
+ * `fromKept` (a sign-in kept where its holder keeps it: renewed and
+ * forgotten there, and the ready session given), and `signInDevice` (the
+ * device grant end to end, the sign-in kept where it is told, and a session
+ * then built over it). `fromHttp` and `fromKept` each give an
+ * `OpenedSession`: the session and the client it was built with, ended
+ * together. They construct a real `SemiontClient` over a real
  * `HttpTransport`, so the wire is kept quiet by spying on the transport and
- * stubbing `fetch` for the issuer. And a new sign-in saved over a stored one,
- * by `setStoredSession` or `fromIssuedSession`, forgets it, with what was kept
- * for the person it named; a renewal forgets nothing.
+ * stubbing `fetch` for the issuer. And a new sign-in saved over a stored one
+ * by `setStoredSession` forgets it, with what was kept for the person it
+ * named; a renewal forgets nothing.
  */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -17,7 +19,8 @@ import { PERSISTED_QUERIES } from '@semiont/core';
 
 import { SemiontSession } from '../semiont-session';
 import { refreshStoredSession } from '../oauth';
-import { cacheKey, getStoredSession, lastEventIdKey, personKey, setStoredSession, type StoredSession } from '../storage';
+import { MemorySignIn } from '../sign-in-kept';
+import { cacheKey, getStoredSession, lastEventIdKey, personKey, setStoredSession } from '../storage';
 import { TestStorage, freshJwt, storageKey, testSession, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
 
 const KB = {
@@ -39,7 +42,7 @@ afterEach(() => {
 
 describe('SemiontSession.fromHttp', () => {
   test('what it gives ends the session, then closes the client it was built with', async () => {
-    const opened = SemiontSession.fromHttp({ kb: KB, storage, baseUrl: 'http://test.local' });
+    const opened = SemiontSession.fromHttp({ kb: KB, kept: new MemorySignIn(), baseUrl: 'http://test.local' });
     await opened.session.ready;
     const closed = vi.spyOn(opened.session.client, 'dispose');
     let ended = false;
@@ -54,7 +57,7 @@ describe('SemiontSession.fromHttp', () => {
   test('returns a SemiontSession with no token when none provided', async () => {
     const opened = SemiontSession.fromHttp({
       kb: KB,
-      storage,
+      kept: new MemorySignIn(),
       baseUrl: 'http://test.local',
     });
     const { session } = opened;
@@ -70,7 +73,7 @@ describe('SemiontSession.fromHttp', () => {
   test('seeds token$ when a string token is supplied (and brands it)', async () => {
     const opened = SemiontSession.fromHttp({
       kb: KB,
-      storage,
+      kept: new MemorySignIn(),
       baseUrl: 'http://test.local',
       token: 'header.payload.sig',
     });
@@ -89,7 +92,7 @@ describe('SemiontSession.fromHttp', () => {
 
     const opened = SemiontSession.fromHttp({
       kb: KB,
-      storage,
+      kept: new MemorySignIn(),
       baseUrl: 'http://test.local',
       refresh,
       onAuthFailed,
@@ -115,44 +118,43 @@ function issuerReply(json: unknown, status = 200): Response {
   return { ok: status < 300, status, json: async () => json } as unknown as Response;
 }
 
-describe('SemiontSession.fromIssuedSession', () => {
+describe('SemiontSession.fromKept', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  test('persists the issued session, seeds token$, and is ready', async () => {
+  test('starts with the access token the kept sign-in holds, and is ready', async () => {
     const accessJwt = freshJwt();
+    const kept = new MemorySignIn(testSession(accessJwt, 'refresh-tok'));
 
-    const opened = await SemiontSession.fromIssuedSession({
-      kb: KB,
-      storage,
-      baseUrl: 'http://test.local',
-      session: testSession(accessJwt, 'refresh-tok'),
-    });
-
-    const { session } = opened;
+    const opened = await SemiontSession.fromKept({ kb: KB, kept });
 
     try {
-      expect(session.token$.getValue()).toBe(accessJwt);
-      const parsed = JSON.parse(storage.get(storageKey(KB.id))!);
-      expect(parsed).toMatchObject({ access: accessJwt, refresh: 'refresh-tok', tokenEndpoint: TEST_TOKEN_ENDPOINT });
+      expect(opened.session.token$.getValue()).toBe(accessJwt);
+      expect(kept.held()).toEqual(testSession(accessJwt, 'refresh-tok'));
     } finally {
       opened.dispose();
     }
   });
 
-  test('refreshes at the issuer the session names, with the stored refresh token', async () => {
+  test('with nothing kept, the session is signed out', async () => {
+    const opened = await SemiontSession.fromKept({ kb: KB, kept: new MemorySignIn() });
+
+    try {
+      expect(opened.session.token$.getValue()).toBeNull();
+      expect(opened.session.user$.getValue()).toBeNull();
+    } finally {
+      opened.dispose();
+    }
+  });
+
+  test('renews at the issuer the kept sign-in names, with its refresh token, and keeps the renewal where the sign-in is kept', async () => {
     const newAccess = freshJwt();
     const fetchMock = vi.fn(async (_url: string) => issuerReply({ access_token: newAccess, refresh_token: 'refresh-2' }));
     vi.stubGlobal('fetch', fetchMock);
+    const kept = new MemorySignIn({ ...testSession(freshJwt(), 'refresh-tok'), personKey: 'gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I' });
 
-    const opened = await SemiontSession.fromIssuedSession({
-      kb: KB,
-      storage,
-      baseUrl: 'http://test.local',
-      session: testSession(freshJwt(), 'refresh-tok'),
-    });
-
+    const opened = await SemiontSession.fromKept({ kb: KB, kept });
     const { session } = opened;
 
     try {
@@ -164,8 +166,8 @@ describe('SemiontSession.fromIssuedSession', () => {
       expect(Object.fromEntries(tokenCall![1].body.entries())).toEqual({
         grant_type: 'refresh_token', refresh_token: 'refresh-tok', client_id: 'semiont-browser',
       });
-      // The rotation is persisted: the next refresh starts from the new token.
-      expect(JSON.parse(storage.get(storageKey(KB.id))!).refresh).toBe('refresh-2');
+      // The rotation is kept, and the person with it: the next renewal starts from the new token.
+      expect(kept.held()).toMatchObject({ access: newAccess, refresh: 'refresh-2', personKey: 'gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I' });
     } finally {
       opened.dispose();
     }
@@ -176,13 +178,7 @@ describe('SemiontSession.fromIssuedSession', () => {
     const fetchMock = vi.fn(async (_url: string) => issuerReply({ access_token: newAccess, refresh_token: 'refresh-2' }));
     vi.stubGlobal('fetch', fetchMock);
 
-    const opened = await SemiontSession.fromIssuedSession({
-      kb: KB,
-      storage,
-      baseUrl: 'http://test.local',
-      session: testSession(freshJwt(), 'refresh-tok'),
-    });
-
+    const opened = await SemiontSession.fromKept({ kb: KB, kept: new MemorySignIn(testSession(freshJwt(), 'refresh-tok')) });
     const { session } = opened;
 
     try {
@@ -196,20 +192,48 @@ describe('SemiontSession.fromIssuedSession', () => {
     }
   });
 
-  test('a refused refresh returns null', async () => {
+  test('a renewal the issuer refuses ends the session, and the kept sign-in is forgotten', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => issuerReply({ error: 'invalid_grant' }, 400)));
+    const kept = new MemorySignIn(testSession(freshJwt(), 'refresh-tok'));
+    const onAuthFailed = vi.fn();
 
-    const opened = await SemiontSession.fromIssuedSession({
-      kb: KB,
-      storage,
-      baseUrl: 'http://test.local',
-      session: testSession(freshJwt(), 'refresh-tok'),
-    });
-
+    const opened = await SemiontSession.fromKept({ kb: KB, kept, onAuthFailed });
     const { session } = opened;
 
     try {
       expect(await session.refresh(session.token$.getValue())).toBeNull();
+      expect(session.token$.getValue()).toBeNull();
+      expect(onAuthFailed).toHaveBeenCalledWith('expired');
+      expect(kept.held()).toBeNull();
+    } finally {
+      opened.dispose();
+    }
+  });
+
+  test('at its start, an expired kept token is renewed, and the renewal kept', async () => {
+    const newAccess = freshJwt();
+    vi.stubGlobal('fetch', vi.fn(async () => issuerReply({ access_token: newAccess, refresh_token: 'refresh-2' })));
+    const kept = new MemorySignIn(testSession(freshJwt(-60), 'refresh-tok'));
+
+    const opened = await SemiontSession.fromKept({ kb: KB, kept });
+
+    try {
+      expect(opened.session.token$.getValue()).toBe(newAccess);
+      expect(kept.held()).toMatchObject({ access: newAccess, refresh: 'refresh-2' });
+    } finally {
+      opened.dispose();
+    }
+  });
+
+  test('at its start, an expired kept token the issuer will not renew is forgotten', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => issuerReply({ error: 'invalid_grant' }, 400)));
+    const kept = new MemorySignIn(testSession(freshJwt(-60), 'refresh-tok'));
+
+    const opened = await SemiontSession.fromKept({ kb: KB, kept });
+
+    try {
+      expect(opened.session.token$.getValue()).toBeNull();
+      expect(kept.held()).toBeNull();
     } finally {
       opened.dispose();
     }
@@ -224,7 +248,7 @@ describe('SemiontSession.signInDevice', () => {
     vi.useRealTimers();
   });
 
-  test('runs the device grant against the issuer the KB trusts and returns a ready session', async () => {
+  test('runs the device grant against the issuer the KB trusts and keeps the sign-in where it is told', async () => {
     vi.useFakeTimers();
     vi.spyOn(HttpTransport.prototype, 'getProtectedResourceMetadata').mockResolvedValue({
       resource: 'http://test.local', authorization_servers: [ISSUER], bearer_methods_supported: ['header'],
@@ -243,25 +267,20 @@ describe('SemiontSession.signInDevice', () => {
       return issuerReply({ access_token: accessJwt, refresh_token: 'refresh-tok' });
     }));
     const onCode = vi.fn();
+    const kept = new MemorySignIn();
 
-    const pending = SemiontSession.signInDevice({ kb: KB, storage, onCode });
+    const pending = SemiontSession.signInDevice({ kb: KB, kept, onCode });
     await vi.advanceTimersByTimeAsync(1500);
-    const opened = await pending;
-    const { session } = opened;
+    await pending;
 
-    try {
-      expect(onCode).toHaveBeenCalledWith(expect.objectContaining({ userCode: 'ABCD-EFGH' }));
-      expect(session.token$.getValue()).toBe(accessJwt);
-      expect(JSON.parse(storage.get(storageKey(KB.id))!)).toMatchObject({
-        access: accessJwt, refresh: 'refresh-tok', clientId: 'semiont-cli',
-        tokenEndpoint: `${ISSUER}/token`, revocationEndpoint: `${ISSUER}/revoke`,
-      });
-    } finally {
-      opened.dispose();
-    }
+    expect(onCode).toHaveBeenCalledWith(expect.objectContaining({ userCode: 'ABCD-EFGH' }));
+    expect(kept.held()).toEqual({
+      access: accessJwt, refresh: 'refresh-tok', clientId: 'semiont-cli',
+      tokenEndpoint: `${ISSUER}/token`, revocationEndpoint: `${ISSUER}/revoke`,
+    });
   });
 
-  test('signs in, asks the gateway and renews through the fetch it is given, and nothing through the runtime\'s', async () => {
+  test('signs in, and a session over what it kept asks the gateway and renews, through the fetch each is given, and nothing through the runtime\'s', async () => {
     vi.useFakeTimers();
     vi.spyOn(HttpTransport.prototype, 'getProtectedResourceMetadata').mockResolvedValue({
       resource: 'http://test.local', authorization_servers: [ISSUER], bearer_methods_supported: ['header'],
@@ -286,10 +305,12 @@ describe('SemiontSession.signInDevice', () => {
       return new Promise<Response>(() => {});
     });
 
-    const pending = SemiontSession.signInDevice({ kb: KB, storage, onCode: () => {}, fetch: given });
+    const kept = new MemorySignIn();
+    const pending = SemiontSession.signInDevice({ kb: KB, kept, onCode: () => {}, fetch: given });
     await vi.advanceTimersByTimeAsync(1500);
-    const opened = await pending;
+    await pending;
     vi.useRealTimers();
+    const opened = await SemiontSession.fromKept({ kb: KB, kept, fetch: given });
 
     try {
       await opened.session.client.auth!.me();
@@ -314,11 +335,9 @@ describe('SemiontSession.signInDevice', () => {
 
     const onAuthFailed = vi.fn();
     const onError = vi.fn();
-    const opened = await SemiontSession.fromIssuedSession({
+    const opened = await SemiontSession.fromKept({
       kb: KB,
-      storage,
-      baseUrl: 'http://test.local',
-      session: testSession(jwt, 'refresh-tok'),
+      kept: new MemorySignIn(testSession(jwt, 'refresh-tok')),
       onAuthFailed,
       onError,
     });
@@ -358,33 +377,23 @@ describe('a new sign-in saved over a stored one', () => {
     storage.set(storageKey(KB.id), JSON.stringify(signedIn === 'named' ? { ...old, personKey: JO } : old));
   };
 
-  const saves: Array<[string, (issued: StoredSession) => Promise<void>]> = [
-    ['setStoredSession', async (issued) => {
-      setStoredSession(storage, KB.id, issued);
-    }],
-    ['SemiontSession.fromIssuedSession', async (issued) => {
-      const opened = await SemiontSession.fromIssuedSession({ kb: KB, storage, baseUrl: 'http://test.local', session: issued });
-      opened.dispose();
-    }],
-  ];
-
-  describe.each(saves)('%s', (_, save) => {
-    test('over a stored sign-in naming a person: what was kept for them on the knowledge base is deleted, and nothing else', async () => {
+  describe('setStoredSession', () => {
+    test('over a stored sign-in naming a person: what was kept for them on the knowledge base is deleted, and nothing else', () => {
       seedOld('named');
       const issued = testSession(freshJwt(), 'refresh-new');
 
-      await save(issued);
+      setStoredSession(storage, KB.id, issued);
 
       for (const key of JOS) expect(storage.get(key), key).toBeNull();
       for (const key of OTHERS) expect(storage.get(key), key).toBe(KEPT);
       expect(getStoredSession(storage, KB.id)).toEqual(issued);
     });
 
-    test.each(['unnamed', 'none'] as const)('over %s: nothing is deleted', async (signedIn) => {
+    test.each(['unnamed', 'none'] as const)('over %s: nothing is deleted', (signedIn) => {
       seedOld(signedIn);
       const issued = testSession(freshJwt(), 'refresh-new');
 
-      await save(issued);
+      setStoredSession(storage, KB.id, issued);
 
       for (const key of [...JOS, ...OTHERS]) expect(storage.get(key), key).toBe(KEPT);
       expect(getStoredSession(storage, KB.id)).toEqual(issued);

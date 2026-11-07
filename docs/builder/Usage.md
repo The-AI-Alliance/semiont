@@ -49,14 +49,14 @@ Streams, delegations and uploads are thenable, so `await` works without learning
 
 There are three idiomatic construction shapes, by audience:
 
-### Scripts: `SemiontSession.signInDevice(...)`
+### Scripts: `SemiontSession.signInDevice(...)`, then `SemiontSession.fromKept(...)`
 
-A script signs in at the knowledge base's identity provider with the device grant: the factory discovers the issuer from the gateway (RFC 9728), asks it for a code, hands the verification URL to `onCode`, and resolves once the person has approved in any browser. `SemiontClient` has no signIn factory: a bare token lives for minutes, as long as the issuer says, with nothing to renew it, so any script outliving that window would start failing in ways nothing surfaced. The session machinery is what makes tokens safe to hold: proactive refresh at the issuer, validation, storage persistence, lifecycle observables.
+A script signs in at the knowledge base's identity provider with the device grant: `signInDevice` discovers the issuer from the gateway (RFC 9728), asks it for a code, hands the verification URL to `onCode`, and resolves once the person has approved in any browser, with the sign-in kept in the `SignInKept` it was given. `fromKept` then opens a session over that sign-in. `SemiontClient` has no signIn factory: a bare token lives for minutes, as long as the issuer says, with nothing to renew it, so any script outliving that window would start failing in ways nothing surfaced. The session machinery is what makes tokens safe to hold: proactive refresh at the issuer, each renewal kept where the sign-in is, validation, lifecycle observables.
 
-`kb` is required. Its `id` is the storage key for this session — distinct scripts sharing the same `SessionStorage` instance must use distinct `id`s to avoid trampling each other's tokens. The factory does not synthesize a default; the consumer makes the choice.
+Where the sign-in is kept decides what a restart does: a `MemorySignIn` lives as long as the process; `keptIn(storage, kb.id)` keeps it in a `SessionStorage` under the knowledge base's `id`, so distinct scripts sharing one storage must use distinct `id`s; an entry of the `SignInStore` is the sign-in `semiont login` keeps, renewed there for the launcher's verbs too. `signOut(kept)` revokes it at the issuer and forgets it.
 
 ```typescript
-import { SemiontSession, InMemorySessionStorage, type KnowledgeBase } from '@semiont/sdk';
+import { MemorySignIn, SemiontSession, type KnowledgeBase } from '@semiont/sdk';
 
 const kb: KnowledgeBase = {
   id: 'my-watcher',
@@ -65,33 +65,35 @@ const kb: KnowledgeBase = {
   endpoint: { kind: 'http', host: 'localhost', port: 4000, protocol: 'http' },
 };
 
-const opened = await SemiontSession.signInDevice({
+const kept = new MemorySignIn();
+await SemiontSession.signInDevice({
   kb,
-  storage: new InMemorySessionStorage(),
+  kept,
   onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
 });
+const opened = await SemiontSession.fromKept({ kb, kept });
 
 // opened.session.client is the same SemiontClient surface; the session
 // manages the access-token lifecycle around it (proactive refresh,
-// validation, storage-adapter wiring).
+// validation, each renewal kept in `kept`).
 
 opened.dispose(); // when done: the session, then the client it was built with
 ```
 
-`signInDevice` gives an `OpenedSession`: the session and the client it was built with. A session only uses its client, so the two end together, and `opened.dispose()` is what ends them. `opened.session.dispose()` alone would leave the client's event stream open.
+`fromKept` gives an `OpenedSession`: the session and the client it was built with. A session only uses its client, so the two end together, and `opened.dispose()` is what ends them. `opened.session.dispose()` alone would leave the client's event stream open.
 
 `KnowledgeBase` is a uniform shape regardless of transport kind. The transport-specific connection details live in the nested `endpoint` discriminated union (`{ kind: 'http', host, port, protocol }` for HTTP gateways, `{ kind: 'local', kbId }` for a transport with no wire). Code that doesn't construct transports never inspects `endpoint`.
 
-The session refreshes at the issuer with the refresh token the grant returned. Override `refresh` only for non-standard flows (a service account's client-credentials grant, an interactive re-prompt).
+The session refreshes at the issuer with the refresh token the grant returned. For non-standard flows (a service account's client-credentials grant, an interactive re-prompt), supply `refresh` to `SemiontSession.fromHttp(...)` instead.
 
-A browser app signs in with the authorization code grant instead: `SemiontBrowser.beginSignIn` sends the person to the issuer and `completeSignIn` finishes on the callback page. Already hold an access and refresh pair from either grant? `SemiontSession.fromIssuedSession(...)`.
+A browser app signs in with the authorization code grant instead: `SemiontBrowser.beginSignIn` sends the person to the issuer and `completeSignIn` finishes on the callback page. Already hold an access and refresh pair from either grant? Keep it in a `MemorySignIn` and open it with `SemiontSession.fromKept(...)`.
 
 ### Already-have-a-token: `SemiontClient.fromHttp(...)` / `SemiontSession.fromHttp(...)`
 
 For consumers that already hold a JWT (CLI cached-token path, env-var token, embedded auth flow that produced one elsewhere), skip the auth round-trip:
 
 ```typescript
-import { SemiontClient, SemiontSession, InMemorySessionStorage } from '@semiont/sdk';
+import { MemorySignIn, SemiontClient, SemiontSession } from '@semiont/sdk';
 
 // One-shot
 const semiont = SemiontClient.fromHttp({
@@ -106,7 +108,8 @@ const opened = SemiontSession.fromHttp({
     label: 'Local Gateway',
       endpoint: { kind: 'http', host: 'localhost', port: 4000, protocol: 'http' },
   },
-  storage: new InMemorySessionStorage(),
+  // Nothing is kept: the token is on hand, and `refresh` renews it.
+  kept: new MemorySignIn(),
   baseUrl: 'http://localhost:4000',
   token: 'your-jwt',
   // Given the token the session holds; return a new access token, or null.
@@ -534,7 +537,7 @@ const metadata = await semiont.auth!.protectedResourceMetadata();  // which issu
 const { token } = await semiont.auth!.mediaToken(resourceId);
 ```
 
-Signing in is not an `auth` op: it happens at the issuer, through `SemiontSession.signInDevice(...)` or `SemiontBrowser.beginSignIn` / `completeSignIn`, which wire the tokens into `token$` AND own the refresh that keeps them alive past the issuer's access-token lifetime — minutes, and the issuer's number to choose.
+Signing in is not an `auth` op: it happens at the issuer, through `SemiontSession.signInDevice(...)` (then `SemiontSession.fromKept(...)`) or `SemiontBrowser.beginSignIn` / `completeSignIn`, which wire the tokens into `token$` AND own the refresh that keeps them alive past the issuer's access-token lifetime — minutes, and the issuer's number to choose.
 
 ## System
 
@@ -817,4 +820,4 @@ const transport = new HttpTransport({
 const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 ```
 
-The factory shorthands (`fromHttp`, `SemiontSession.signInDevice`) take no `logger`; use manual construction when you need transport-level logging.
+The factory shorthands (`fromHttp`, `SemiontSession.fromKept`) take no `logger`; use manual construction when you need transport-level logging.

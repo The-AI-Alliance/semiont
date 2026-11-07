@@ -169,9 +169,11 @@ The heart of a document-grounded chat app, abridged from a real one. Watch the
 verbs compose:
 
 ```ts
-import { SemiontSession } from '@semiont/sdk';
+import { MemorySignIn, SemiontSession } from '@semiont/sdk';
 
-const opened = await SemiontSession.signInDevice({ kb, storage, onCode });
+const kept = new MemorySignIn();
+await SemiontSession.signInDevice({ kb, kept, onCode });
+const opened = await SemiontSession.fromKept({ kb, kept });
 const { client } = opened.session;
 
 // 1. Persist the question as a document in its own right.

@@ -35,6 +35,7 @@ import { SemiontClient } from './client';
 import { SemiontSession } from './session/semiont-session';
 import type { KbTarget } from '@semiont/core';
 import { httpKb } from './session/knowledge-base';
+import { keptIn } from './session/storage';
 import { InMemorySessionStorage } from './session/session-storage';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
@@ -189,7 +190,8 @@ export interface TestSessionOptions extends TestClientOptions {
 
 /**
  * A real `SemiontSession` over the same scriptable stack — for testing
- * state-unit factories, which take a session.
+ * state-unit factories, which take a session. Its sign-in is kept in
+ * `storage`, as a registry's session's is (`keptIn`).
  * No token is seeded and no
  * `validate`/`refresh` callbacks are wired, so `session.ready` settles
  * immediately; tests that need an authenticated shape push into `token$`.
@@ -214,6 +216,6 @@ export function createTestSession(options: TestSessionOptions = {}): {
       port: 4000,
       protocol: 'http',
     });
-  const session = new SemiontSession({ kb, storage, client, token$ });
+  const session = new SemiontSession({ kb, kept: keptIn(storage, kb.id), client, token$ });
   return { session, client, transport, storage, token$ };
 }

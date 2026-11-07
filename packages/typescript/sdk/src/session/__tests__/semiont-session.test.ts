@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { BehaviorSubject, firstValueFrom, skip, take } from 'rxjs';
+import { BehaviorSubject } from 'rxjs';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 
 const mockDispose = vi.fn();
@@ -37,8 +37,8 @@ vi.mock('../../client', async () => {
 import { SemiontClient, APIError } from '../../client';
 import { SemiontSession, type SemiontSessionConfig, type UserInfo } from '../semiont-session';
 import { accessToken, userId, MAX_RECONNECT_MS, RECONNECT_MS, SignInError, type AccessToken } from '@semiont/core';
-import { SESSION_PREFIX_RE, freshJwt, storageKey, seedStoredSession, testSession, TestStorage } from './test-storage-helpers';
-import { getStoredSession } from '../storage';
+import { SESSION_PREFIX_RE, freshJwt, storageKey, seedStoredSession, TestStorage } from './test-storage-helpers';
+import { getStoredSession, keptIn } from '../storage';
 
 const KB = {
   id: 'kb-alpha',
@@ -65,7 +65,7 @@ function newSession(overrides?: Partial<SemiontSessionConfig>): SemiontSession {
   const token$ = new BehaviorSubject<AccessToken | null>(null);
   return new SemiontSession({
     kb: KB,
-    storage,
+    kept: keptIn(storage, KB.id),
     client,
     token$,
     refresh,
@@ -656,13 +656,14 @@ describe('SemiontSession — a refusal of a running session', () => {
     }) as typeof validate;
     refresh = vi.fn(async () => renewed) as typeof refresh;
     const onAuthFailed = vi.fn();
-    const session = newSession({ onAuthFailed });
+    const token$ = new BehaviorSubject<AccessToken | null>(null);
+    const session = newSession({ onAuthFailed, token$ });
     await session.ready;
 
     const refreshing = session.refresh(session.token$.getValue());
     await vi.waitFor(() => expect(validate).toHaveBeenCalledTimes(2));
-    // Another context signs in again while the gateway is being asked.
-    storage.dispatch(storageKey(KB.id), JSON.stringify({ ...testSession(elsewhere, 'r2') }));
+    // The session holds another token by the time the gateway answers.
+    token$.next(accessToken(elsewhere));
     release();
 
     expect(await refreshing).toBe(elsewhere);
@@ -737,49 +738,6 @@ describe('SemiontSession — StateUnit axioms', () => {
       surfaces: (u) => [u.token$, u.user$],
       invocations: (u) => [() => void u.refresh(u.token$.getValue())],
     });
-  });
-});
-
-describe('SemiontSession — cross-context storage sync', () => {
-  it('responds to a storage change that updates this KB\'s session key', async () => {
-    const session = newSession();
-    await session.ready;
-
-    const newJwt = freshJwt();
-    const nextToken = firstValueFrom(session.token$.pipe(skip(1), take(1)));
-    storage.dispatch(storageKey(KB.id), JSON.stringify({ access: newJwt, refresh: 'r2' }));
-    await expect(nextToken).resolves.toBe(newJwt);
-
-    session.dispose();
-  });
-
-  it('responds to a storage change that clears this KB\'s session', async () => {
-    const jwt = freshJwt();
-    seedStoredSession(storage, KB.id, jwt, 'r');
-
-    const session = newSession();
-    await session.ready;
-    expect(session.token$.getValue()).toBe(jwt);
-
-    storage.dispatch(storageKey(KB.id), null);
-
-    expect(session.token$.getValue()).toBeNull();
-    expect(session.user$.getValue()).toBeNull();
-
-    session.dispose();
-  });
-
-  it('ignores storage changes for other keys', async () => {
-    const jwt = freshJwt();
-    seedStoredSession(storage, KB.id, jwt, 'r');
-
-    const session = newSession();
-    await session.ready;
-
-    storage.dispatch('semiont.session.OTHER_KB', JSON.stringify({ access: 'xyz', refresh: 'q' }));
-    expect(session.token$.getValue()).toBe(jwt);
-
-    session.dispose();
   });
 });
 

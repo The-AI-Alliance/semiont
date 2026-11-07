@@ -3,8 +3,9 @@
  * them, over files a caller gives: where the launcher's state home is
  * (sign-in-store/cases.json, `cases`), what a renewal of a kept sign-in writes
  * and gives while other programs renew it and sign it out (`renewals`), run
- * through `refreshStoredSession` over the store and over
- * `InMemorySessionStorage`, and what the store hands its caller's files.
+ * through `renewKept` over an entry of the store and over a `MemorySignIn`,
+ * what an entry keeps and forgets, what the store hands its caller's files,
+ * and a session over an entry.
  *
  * The files are a directory in memory whose lock excludes every other holder,
  * as the contract's does. Nothing here touches a disk or takes a lock of the
@@ -23,12 +24,12 @@ import {
   SIGN_IN_STORE_WINDOWS_OFFSET_HIGH,
   SignInError,
 } from '@semiont/core';
-import { refreshStoredSession } from '../oauth';
+import { renewKept } from '../oauth';
 import { httpKb } from '../knowledge-base';
 import { SemiontSession, type OpenedSession } from '../semiont-session';
-import { InMemorySessionStorage, type SessionStorage } from '../session-storage';
+import { MemorySignIn, type SignInKept } from '../sign-in-kept';
 import { SignInStore, stateDir, type SignInFiles, type System } from '../sign-in-store';
-import { clearStoredSession, getStoredSession, sessionKey, setStoredSession, type StoredSession } from '../storage';
+import type { StoredSession } from '../storage';
 
 const SPECS = join(dirname(fileURLToPath(import.meta.url)), '../../../../../../protocol/specs/src/sign-in-store');
 
@@ -198,46 +199,48 @@ function issuerOf(tokens: Tokens, issues: Renewal['issues'], during: () => void)
   return { fetch, spent };
 }
 
-/** Two programs' storage of one stack's sign-in: this renewer's, and another's. */
+/** Two programs' hold on one stack's sign-in: this renewer's, and another's. */
 interface Programs {
-  mine: SessionStorage;
-  theirs: SessionStorage;
+  renewer: SignInKept;
+  another: SignInKept;
 }
 
 const STORES: [string, () => Programs][] = [
-  ['the sign-in store', () => {
+  ['an entry of the sign-in store', () => {
     const directory = new Directory();
     return {
-      mine: new SignInStore(directory.files$(), new InMemorySessionStorage()),
-      theirs: new SignInStore(directory.files$(), new InMemorySessionStorage()),
+      renewer: new SignInStore(directory.files$()).entry(KEY),
+      another: new SignInStore(directory.files$()).entry(KEY),
     };
   }],
-  ['InMemorySessionStorage', () => {
-    const storage = new InMemorySessionStorage();
-    return { mine: storage, theirs: storage };
+  ['MemorySignIn', () => {
+    const kept = new MemorySignIn();
+    return { renewer: kept, another: kept };
   }],
 ];
+
+const nothing = (): void => {};
 
 describe.each(STORES)('a renewal over %s (sign-in-store/cases.json, renewals)', (_store, programs) => {
   it.each(table.renewals.map((row) => [row.why, row] as const))('%s', async (_why, row) => {
     const tokens = new Tokens(row.expired);
-    const { mine, theirs } = programs();
-    setStoredSession(theirs, KEY, scriptSession(tokens.of(row.kept.token), row.kept.refreshToken));
+    const { renewer, another } = programs();
+    another.keep(scriptSession(tokens.of(row.kept.token), row.kept.refreshToken));
 
     const meanwhile = row.meanwhile;
     const theyAct = (): void => {
       if (meanwhile === null) return;
-      if (meanwhile.does === 'renews') setStoredSession(theirs, KEY, scriptSession(tokens.of(meanwhile.theirs.token), meanwhile.theirs.refreshToken));
-      else clearStoredSession(theirs, KEY);
+      if (meanwhile.does === 'renews') another.keep(scriptSession(tokens.of(meanwhile.theirs.token), meanwhile.theirs.refreshToken));
+      else another.forget();
     };
     if (meanwhile?.when === 'before') theyAct();
-    const issuer = issuerOf(tokens, row.issues, meanwhile?.when === 'during' ? theyAct : () => {});
+    const issuer = issuerOf(tokens, row.issues, meanwhile?.when === 'during' ? theyAct : nothing);
 
-    const gave = await refreshStoredSession(mine, KEY, row.holding === null ? null : tokens.of(row.holding), issuer.fetch);
+    const gave = await renewKept(renewer, row.holding === null ? null : tokens.of(row.holding), issuer.fetch);
 
     expect(issuer.spent).toEqual(row.spends === null ? [] : [row.spends]);
     expect(gave === null ? null : tokens.nameOf(gave)).toBe(row.gives);
-    const left = getStoredSession(theirs, KEY);
+    const left = another.held();
     expect(left === null ? null : { token: tokens.nameOf(left.access), refreshToken: left.refresh }).toEqual(row.leaves);
   });
 });
@@ -257,12 +260,16 @@ function launcherEntry(token: string, refreshToken: string): Record<string, stri
 
 const TO_THE_SECOND = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 
-describe('the sign-in store', () => {
+/** As many locks let go as were taken: none is left held. */
+const everyLockLetGo = (directory: Directory): void => {
+  expect(directory.done.filter((done) => done === 'release')).toHaveLength(directory.done.filter((done) => done === 'lock').length);
+};
+
+describe('an entry of the sign-in store', () => {
   it('hands its files the names, the modes and the access list the contract fixes', () => {
     const directory = new Directory();
-    const store = new SignInStore(directory.files$(), new InMemorySessionStorage());
 
-    setStoredSession(store, KEY, scriptSession(jwt({ email: EMAIL, iss: ISSUER }), 'refresh-1'));
+    new SignInStore(directory.files$()).entry(KEY).keep(scriptSession(jwt({ email: EMAIL, iss: ISSUER }), 'refresh-1'));
 
     expect(directory.locks).toEqual([{ name: SIGN_IN_STORE_LOCK, mode: Number.parseInt(ownerOnly.fileMode.value, 8), windowsOffsetHigh: SIGN_IN_STORE_WINDOWS_OFFSET_HIGH }]);
     expect(directory.keptToOwner).toEqual([{
@@ -274,54 +281,67 @@ describe('the sign-in store', () => {
 
   it('holds the lock from before its read until after its rename, and keeps the directory to its owner before it reads', () => {
     const directory = new Directory();
-    const store = new SignInStore(directory.files$(), new InMemorySessionStorage());
 
-    setStoredSession(store, KEY, scriptSession(jwt({ email: EMAIL, iss: ISSUER }), 'refresh-1'));
+    new SignInStore(directory.files$()).entry(KEY).keep(scriptSession(jwt({ email: EMAIL, iss: ISSUER }), 'refresh-1'));
 
     expect(directory.done).toEqual(['makeDirectory', 'lock', 'keepToOwner', 'read', 'replace', 'release']);
   });
 
   it('never asks its files for the lock while it holds it: a change begun inside another is refused, not waited on', () => {
     const directory = new Directory();
-    const store = new SignInStore(directory.files$(), new InMemorySessionStorage());
-    setStoredSession(store, KEY, scriptSession(jwt({ email: EMAIL, iss: ISSUER }), 'refresh-1'));
+    const files = directory.files$();
+    const refused: unknown[] = [];
+    // Files that, read under the lock, begin another change of the same entry.
+    const nesting: SignInFiles = {
+      ...files,
+      read: (name) => {
+        if (refused.length === 0 && directory.done.includes('lock')) {
+          try {
+            entry.forget();
+            refused.push(null);
+          } catch (error) {
+            refused.push(error);
+          }
+        }
+        return files.read(name);
+      },
+    };
+    const entry = new SignInStore(nesting).entry(KEY);
 
-    expect(() => store.update(sessionKey(KEY), (held) => {
-      clearStoredSession(store, KEY);
-      return held;
-    })).toThrow(/inside another/);
+    entry.keep(scriptSession(jwt({ email: EMAIL, iss: ISSUER }), 'refresh-1'));
 
-    expect(directory.locks).toHaveLength(2);
-    expect(directory.done.at(-1)).toBe('release');
-    expect(getStoredSession(store, KEY)).not.toBeNull();
+    expect(refused).toHaveLength(1);
+    expect(refused[0]).toBeInstanceOf(Error);
+    expect((refused[0] as Error).message).toMatch(/inside another/);
+    expect(directory.locks).toHaveLength(1);
+    everyLockLetGo(directory);
+    expect(entry.held()).not.toBeNull();
   });
 
   it('reads a kept sign-in with no lock, as a session of the script client', () => {
     const directory = new Directory();
     directory.files.set(SIGN_IN_STORE_FILE, JSON.stringify({ [KEY]: launcherEntry('access-1', 'refresh-1') }));
-    const store = new SignInStore(directory.files$(), new InMemorySessionStorage());
 
-    expect(getStoredSession(store, KEY)).toEqual(scriptSession('access-1', 'refresh-1'));
+    expect(new SignInStore(directory.files$()).entry(KEY).held()).toEqual(scriptSession('access-1', 'refresh-1'));
     expect(directory.done).toEqual(['read']);
   });
 
-  it('reads no session from a sign-in that has no refresh token, and none from a member that is no sign-in', () => {
+  it('reads no sign-in from an entry that has no refresh token, and none from a member that is no sign-in', () => {
     const directory = new Directory();
     const { refreshToken: _none, ...unrenewable } = launcherEntry('access-1', 'refresh-1');
     directory.files.set(SIGN_IN_STORE_FILE, JSON.stringify({ [KEY]: unrenewable, other: { token: 7 } }));
-    const store = new SignInStore(directory.files$(), new InMemorySessionStorage());
+    const store = new SignInStore(directory.files$());
 
-    expect(getStoredSession(store, KEY)).toBeNull();
-    expect(getStoredSession(store, 'other')).toBeNull();
+    expect(store.entry(KEY).held()).toBeNull();
+    expect(store.entry('other').held()).toBeNull();
   });
 
   it('keeps a sign-in as its access token names who signed in and at which issuer', () => {
     const directory = new Directory();
-    const store = new SignInStore(directory.files$(), new InMemorySessionStorage());
     const exp = Math.floor(Date.now() / 1000) + 300;
     const access = jwt({ email: EMAIL, iss: ISSUER, exp });
 
-    setStoredSession(store, KEY, scriptSession(access, 'refresh-1'));
+    new SignInStore(directory.files$()).entry(KEY).keep(scriptSession(access, 'refresh-1'));
 
     expect(directory.document()[KEY]).toEqual({
       token: access,
@@ -337,20 +357,19 @@ describe('the sign-in store', () => {
 
   it('keeps a sign-in whose access token names no address without one', () => {
     const directory = new Directory();
-    const store = new SignInStore(directory.files$(), new InMemorySessionStorage());
 
-    setStoredSession(store, KEY, scriptSession(jwt({ iss: ISSUER }), 'refresh-1'));
+    new SignInStore(directory.files$()).entry(KEY).keep(scriptSession(jwt({ iss: ISSUER }), 'refresh-1'));
 
     expect(directory.document()[KEY]).not.toHaveProperty('email');
   });
 
-  it('keeps no sign-in whose access token names no issuer, writes nothing, and lets the lock go', () => {
+  it('keeps no sign-in whose access token names no issuer, writes nothing, and lets every lock go', () => {
     const directory = new Directory();
-    const store = new SignInStore(directory.files$(), new InMemorySessionStorage());
+    const entry = new SignInStore(directory.files$()).entry(KEY);
 
     let refused: unknown = null;
     try {
-      setStoredSession(store, KEY, scriptSession(jwt({ email: EMAIL }), 'refresh-1'));
+      entry.keep(scriptSession(jwt({ email: EMAIL }), 'refresh-1'));
     } catch (error) {
       refused = error;
     }
@@ -358,86 +377,93 @@ describe('the sign-in store', () => {
     expect(refused).toBeInstanceOf(SignInError);
     expect(refused).toMatchObject({ code: 'exchange', message: `The sign-in to ${KEY} was not kept: its access token names no issuer` });
     expect(directory.files.has(SIGN_IN_STORE_FILE)).toBe(false);
-    expect(directory.done.at(-1)).toBe('release');
+    everyLockLetGo(directory);
+  });
+
+  it('keeps no sign-in another client was issued, and writes nothing', () => {
+    const directory = new Directory();
+    directory.files.set(SIGN_IN_STORE_FILE, JSON.stringify({ [KEY]: launcherEntry('access-1', 'refresh-1') }));
+    const browsers: StoredSession = { ...scriptSession(jwt({ email: EMAIL, iss: ISSUER }), 'refresh-b'), clientId: BROWSER_CLIENT_ID };
+
+    expect(() => new SignInStore(directory.files$()).entry(KEY).keep(browsers)).toThrow();
+
+    expect(directory.replaced).toEqual([]);
+    expect(directory.document()[KEY]).toEqual(launcherEntry('access-1', 'refresh-1'));
+    everyLockLetGo(directory);
+  });
+
+  it('keeps a new sign-in in place of the one it holds as its own access token names who signed in and at which issuer', () => {
+    const directory = new Directory();
+    directory.files.set(SIGN_IN_STORE_FILE, JSON.stringify({ [KEY]: launcherEntry('access-1', 'refresh-1') }));
+    const access = jwt({ email: 'someone-else@example.org', iss: 'https://another.test' });
+
+    new SignInStore(directory.files$()).entry(KEY).keep(scriptSession(access, 'refresh-2'));
+
+    expect(directory.document()[KEY]).toMatchObject({
+      token: access,
+      refreshToken: 'refresh-2',
+      email: 'someone-else@example.org',
+      issuer: 'https://another.test',
+    });
   });
 
   it('a renewal keeps who signed in and the issuer as the sign-in learned them', async () => {
     const directory = new Directory();
     directory.files.set(SIGN_IN_STORE_FILE, JSON.stringify({ [KEY]: launcherEntry('access-1', 'refresh-1') }));
-    const store = new SignInStore(directory.files$(), new InMemorySessionStorage());
+    const entry = new SignInStore(directory.files$()).entry(KEY);
     const renewed = jwt({ email: 'someone-else@example.org', iss: 'https://another.test', exp: Math.floor(Date.now() / 1000) + 300 });
     const fetch: typeof globalThis.fetch = async () => Response.json({ access_token: renewed, refresh_token: 'refresh-2' });
 
-    expect(await refreshStoredSession(store, KEY, 'access-1', fetch)).toBe(renewed);
+    expect(await renewKept(entry, 'access-1', fetch)).toBe(renewed);
 
     expect(directory.document()[KEY]).toMatchObject({ token: renewed, refreshToken: 'refresh-2', email: EMAIL, issuer: ISSUER });
+  });
+
+  it('records no person: the entry has no member for one', () => {
+    const directory = new Directory();
+    directory.files.set(SIGN_IN_STORE_FILE, JSON.stringify({ [KEY]: launcherEntry('access-1', 'refresh-1') }));
+    const entry = new SignInStore(directory.files$()).entry(KEY);
+
+    expect(entry.recordPersonKey('access-1', 'gqB898gk4Ww_orAHhzDCSVl7yHP9UEsX0DA_xbGbq-I')).toBe(false);
+
+    expect(directory.replaced).toEqual([]);
+    expect(entry.held()).toEqual(scriptSession('access-1', 'refresh-1'));
   });
 
   it('writes back what is not a sign-in as it was', () => {
     const directory = new Directory();
     const later = { kept: 'by a later release', nested: { list: [1, 2] } };
     directory.files.set(SIGN_IN_STORE_FILE, JSON.stringify({ later, [KEY]: launcherEntry('access-1', 'refresh-1') }));
-    const store = new SignInStore(directory.files$(), new InMemorySessionStorage());
 
-    clearStoredSession(store, KEY);
+    new SignInStore(directory.files$()).entry(KEY).forget();
 
     expect(directory.document()).toEqual({ later });
+  });
+
+  it('forgetting what is not kept writes nothing', () => {
+    const directory = new Directory();
+
+    new SignInStore(directory.files$()).entry(KEY).forget();
+
+    expect(directory.replaced).toEqual([]);
+    everyLockLetGo(directory);
   });
 
   it('reads a document that is no JSON object as an error, never as empty, and writes nothing over it', () => {
     for (const text of ['[]', '{"local": ', 'null']) {
       const directory = new Directory();
       directory.files.set(SIGN_IN_STORE_FILE, text);
-      const store = new SignInStore(directory.files$(), new InMemorySessionStorage());
+      const entry = new SignInStore(directory.files$()).entry(KEY);
 
-      expect(() => getStoredSession(store, KEY)).toThrow();
-      expect(() => setStoredSession(store, KEY, scriptSession(jwt({ iss: ISSUER }), 'refresh-1'))).toThrow();
+      expect(() => entry.held()).toThrow();
+      expect(() => entry.keep(scriptSession(jwt({ iss: ISSUER }), 'refresh-1'))).toThrow();
       expect(directory.files.get(SIGN_IN_STORE_FILE)).toBe(text);
-      expect(directory.done.at(-1)).toBe('release');
+      everyLockLetGo(directory);
     }
-  });
-
-  it('keeps a session another client was issued in the storage beneath, and reads it before the file', () => {
-    const directory = new Directory();
-    directory.files.set(SIGN_IN_STORE_FILE, JSON.stringify({ [KEY]: launcherEntry('access-1', 'refresh-1') }));
-    const beneath = new InMemorySessionStorage();
-    const store = new SignInStore(directory.files$(), beneath);
-    const browsers: StoredSession = { ...scriptSession('access-b', 'refresh-b'), clientId: BROWSER_CLIENT_ID };
-
-    setStoredSession(store, KEY, browsers);
-
-    expect(getStoredSession(beneath, KEY)).toEqual(browsers);
-    expect(getStoredSession(store, KEY)).toEqual(browsers);
-    expect(directory.document()[KEY]).toEqual(launcherEntry('access-1', 'refresh-1'));
-  });
-
-  it('keeps what is not a session in the storage beneath, and takes no lock for it', () => {
-    const directory = new Directory();
-    const beneath = new InMemorySessionStorage();
-    const store = new SignInStore(directory.files$(), beneath);
-
-    store.set('semiont.activeKnowledgeBaseId', KEY);
-
-    expect(beneath.get('semiont.activeKnowledgeBaseId')).toBe(KEY);
-    expect(store.get('semiont.activeKnowledgeBaseId')).toBe(KEY);
-    expect(directory.done).toEqual([]);
-  });
-
-  it("a sign-in of the script client takes the place of this program's own session of the stack", () => {
-    const directory = new Directory();
-    const beneath = new InMemorySessionStorage();
-    const store = new SignInStore(directory.files$(), beneath);
-    setStoredSession(store, KEY, { ...scriptSession('access-b', 'refresh-b'), clientId: BROWSER_CLIENT_ID });
-    const access = jwt({ email: EMAIL, iss: ISSUER });
-
-    setStoredSession(store, KEY, scriptSession(access, 'refresh-1'));
-
-    expect(beneath.get(sessionKey(KEY))).toBeNull();
-    expect(getStoredSession(store, KEY)).toEqual(scriptSession(access, 'refresh-1'));
   });
 });
 
-describe('SemiontSession.fromStoredSession', () => {
+describe('SemiontSession.fromKept over an entry of the sign-in store', () => {
   const kb = httpKb({ id: KEY, label: 'My KB', host: 'localhost', port: 4000, protocol: 'http' });
   let opened: OpenedSession | null = null;
 
@@ -446,23 +472,25 @@ describe('SemiontSession.fromStoredSession', () => {
     opened = null;
   });
 
-  it('gives no session when nothing is kept for the knowledge base', async () => {
-    const store = new SignInStore(new Directory().files$(), new InMemorySessionStorage());
+  it('with nothing kept, the session is signed out', async () => {
+    const entry = new SignInStore(new Directory().files$()).entry(KEY);
 
-    expect(await SemiontSession.fromStoredSession({ kb, storage: store, baseUrl: 'http://localhost:4000' })).toBeNull();
+    opened = await SemiontSession.fromKept({ kb, kept: entry });
+
+    expect(opened.session.token$.getValue()).toBeNull();
   });
 
   it('starts with the kept access token, and renews it through the store', async () => {
     const directory = new Directory();
     const tokens = new Tokens([]);
     directory.files.set(SIGN_IN_STORE_FILE, JSON.stringify({ [KEY]: launcherEntry(tokens.of('access-1'), 'refresh-1') }));
-    const store = new SignInStore(directory.files$(), new InMemorySessionStorage());
-    const issuer = issuerOf(tokens, { token: 'access-2', refreshToken: 'refresh-2' }, () => {});
+    const entry = new SignInStore(directory.files$()).entry(KEY);
+    const issuer = issuerOf(tokens, { token: 'access-2', refreshToken: 'refresh-2' }, nothing);
 
-    opened = await SemiontSession.fromStoredSession({ kb, storage: store, baseUrl: 'http://localhost:4000', fetch: issuer.fetch });
-    expect(opened?.session.token$.getValue()).toBe(tokens.of('access-1'));
+    opened = await SemiontSession.fromKept({ kb, kept: entry, fetch: issuer.fetch });
+    expect(opened.session.token$.getValue()).toBe(tokens.of('access-1'));
 
-    expect(await opened?.session.refresh(tokens.of('access-1'))).toBe(tokens.of('access-2'));
+    expect(await opened.session.refresh(tokens.of('access-1'))).toBe(tokens.of('access-2'));
     expect(issuer.spent).toEqual(['refresh-1']);
     expect(directory.document()[KEY]).toMatchObject({ token: tokens.of('access-2'), refreshToken: 'refresh-2', email: EMAIL, issuer: ISSUER });
   });
@@ -471,13 +499,13 @@ describe('SemiontSession.fromStoredSession', () => {
     const directory = new Directory();
     const tokens = new Tokens(['access-1']);
     directory.files.set(SIGN_IN_STORE_FILE, JSON.stringify({ [KEY]: launcherEntry(tokens.of('access-1'), 'refresh-1') }));
-    const store = new SignInStore(directory.files$(), new InMemorySessionStorage());
-    const issuer = issuerOf(tokens, { token: 'access-2', refreshToken: 'refresh-2' }, () => {});
+    const entry = new SignInStore(directory.files$()).entry(KEY);
+    const issuer = issuerOf(tokens, { token: 'access-2', refreshToken: 'refresh-2' }, nothing);
 
-    opened = await SemiontSession.fromStoredSession({ kb, storage: store, baseUrl: 'http://localhost:4000', fetch: issuer.fetch });
+    opened = await SemiontSession.fromKept({ kb, kept: entry, fetch: issuer.fetch });
 
     expect(issuer.spent).toEqual(['refresh-1']);
-    expect(opened?.session.token$.getValue()).toBe(tokens.of('access-2'));
+    expect(opened.session.token$.getValue()).toBe(tokens.of('access-2'));
     expect(directory.document()[KEY]).toMatchObject({ token: tokens.of('access-2'), refreshToken: 'refresh-2' });
   });
 });

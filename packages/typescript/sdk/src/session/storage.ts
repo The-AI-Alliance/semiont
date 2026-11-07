@@ -18,6 +18,7 @@ import { MIN_REFRESH_DELAY_MS, PERSISTED_QUERIES, REFRESH_BEFORE_EXP_MS, isObjec
 
 import type { HttpEndpoint, KbRead, KnowledgeBase, PersistedQuery } from '@semiont/core';
 import type { SessionStorage } from './session-storage';
+import type { SignInKept } from './sign-in-kept';
 import { sha256 } from './sha256';
 
 // ---------- Storage keys ----------
@@ -209,8 +210,33 @@ export function storedSessionIn(raw: string | null): StoredSession | null {
   return null;
 }
 
+/**
+ * Save a new sign-in as a knowledge base's stored sign-in. A new sign-in
+ * saved over one forgets the person it named: what was kept for them is
+ * deleted, even when the new sign-in turns out to be theirs, as a new
+ * sign-in names nobody until its gateway names them. A renewal is not saved
+ * through this: it keeps the person. A save whose knowledge base's client
+ * may still write as it closes, a registry's sign-in, swaps the sign-in
+ * instead, and deletes once the client has closed.
+ */
 export function setStoredSession(storage: SessionStorage, kbId: string, session: StoredSession): void {
-  storage.set(sessionKey(kbId), JSON.stringify(session));
+  const replaced = swapStoredSession(storage, kbId, session);
+  if (replaced !== null && replaced.personKey !== undefined) forgetKept(storage, kbId, replaced.personKey);
+}
+
+/**
+ * Save a new sign-in in place of a knowledge base's stored sign-in as one
+ * step, and give back the one it replaced; null when none was saved. What
+ * was kept for the person that one named is the caller's to delete with
+ * {@link forgetKept}, once nothing open can write it back.
+ */
+export function swapStoredSession(storage: SessionStorage, kbId: string, session: StoredSession): StoredSession | null {
+  let replaced: StoredSession | null = null;
+  storage.update(sessionKey(kbId), (raw) => {
+    replaced = storedSessionIn(raw);
+    return JSON.stringify(session);
+  });
+  return replaced;
 }
 
 /**
@@ -240,27 +266,53 @@ export function clearStoredSession(storage: SessionStorage, kbId: string): void 
 }
 
 /**
- * Name the person a knowledge base's stored sign-in is for, as one step: only
- * while it still holds `access`, the token the gateway was asked about, and
- * names no one. True when the stored sign-in names `personKey` once it is
- * done; false when it holds another token, names another person, or is gone.
+ * A knowledge base's sign-in as a session keeps it, in a registry's storage,
+ * under `sessionKey(kbId)`. A renewal is written as one step against what is
+ * stored then, so one made meanwhile by another session or context stands.
+ * Forgetting it, as forgetting any saved sign-in, deletes what was kept in
+ * `storage` of the knowledge base for the person it named, and so does
+ * keeping a new sign-in in its place.
  */
-export function recordPersonKey(storage: SessionStorage, kbId: string, access: string, personKey: string): boolean {
-  let recorded = false;
-  storage.update(sessionKey(kbId), (raw) => {
-    const stored = storedSessionIn(raw);
-    if (stored === null || stored.access !== access) {
-      recorded = false;
-      return raw;
-    }
-    if (stored.personKey !== undefined) {
-      recorded = stored.personKey === personKey;
-      return raw;
-    }
-    recorded = true;
-    return JSON.stringify({ ...stored, personKey });
-  });
-  return recorded;
+export function keptIn(storage: SessionStorage, kbId: string): SignInKept {
+  return {
+    held: () => getStoredSession(storage, kbId),
+    keep: (signIn) => setStoredSession(storage, kbId, signIn),
+    renewed: (read, access, refresh) => {
+      let given: string | null = null;
+      storage.update(sessionKey(kbId), (raw) => {
+        const current = storedSessionIn(raw);
+        if (current === null) {
+          given = null;
+          return raw;
+        }
+        if (current.access !== read.access || current.refresh !== read.refresh) {
+          given = current.access;
+          return raw;
+        }
+        given = access;
+        return JSON.stringify({ ...current, access, refresh });
+      });
+      return given;
+    },
+    forget: () => clearStoredSession(storage, kbId),
+    recordPersonKey: (access, personKey) => {
+      let recorded = false;
+      storage.update(sessionKey(kbId), (raw) => {
+        const stored = storedSessionIn(raw);
+        if (stored === null || stored.access !== access) {
+          recorded = false;
+          return raw;
+        }
+        if (stored.personKey !== undefined) {
+          recorded = stored.personKey === personKey;
+          return raw;
+        }
+        recorded = true;
+        return JSON.stringify({ ...stored, personKey });
+      });
+      return recorded;
+    },
+  };
 }
 
 // ---------- JWT helpers ----------
