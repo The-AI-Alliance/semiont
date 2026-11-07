@@ -52,7 +52,7 @@ from semiont.identifiers import UserId
 from semiont.identity import kb_did
 from semiont.oauth_clients import BROWSER_CLIENT_ID, SCRIPT_CLIENT_ID
 from semiont.operations import BROWSE_KB_REQUESTED
-from semiont.registry import SemiontBrowser, SessionFactory, SessionFactoryOptions, SignedIn, SignInOutcome, kept_in, stored_session
+from semiont.registry import SemiontBrowser, SessionFactory, SessionFactoryOptions, SignedIn, SignInOutcome, kept_in
 from semiont.resume import CoupledBookmarks
 from semiont.session import HeldSignIn, SemiontSession, SessionEndReason, SignInKept, Validate
 from semiont.storage import SessionStorage
@@ -128,74 +128,116 @@ def _asking(base_url: str, http: httpx.AsyncClient | None) -> Validate:
 
 
 @final
-class _TheirsOnly(SessionStorage):
-    """A registry's storage, written only while the knowledge base's stored sign-in names the person.
+class _WhileNamed(SessionStorage):
+    """The storage a session's client keeps in, written only while the session's sign-in names the person it keeps for.
 
-    Once it does not, because the saved sign-in was forgotten, which deletes
-    what was kept for the person, or replaced by a sign-in that names nobody
-    or someone else, here or in another context, nothing is written again:
-    what was still to be written is dropped, and nothing deleted is put back.
-    A renewal names the same person, and changes nothing.
+    Each write is owed until it is made. What is owed is made after whatever
+    holds the sign-in says what it holds (`SignInKept.held`), and only if
+    that still names the person: once it does not, because the saved sign-in
+    was forgotten, which deletes what was kept for the person where its holder
+    can reach, or replaced by a sign-in that names nobody or someone else,
+    what is owed is dropped and nothing is written again. A renewal names the
+    same person, and changes nothing. A sign-in that cannot be read counts as
+    one that no longer names the person, and so does a write the storage
+    refuses: what failed is raised by `close`. What is owed reads as written.
     """
 
-    def __init__(self, storage: SessionStorage, kb_id: str, person: str) -> None:
+    def __init__(self, storage: SessionStorage, kept: SignInKept, person: str) -> None:
         self._storage: Final = storage
-        self._kb_id: Final = kb_id
+        self._kept: Final = kept
         self._person: Final = person
-        self._moved_on = False
-
-    def _theirs(self) -> bool:
-        if not self._moved_on:
-            stored = stored_session(self._storage, self._kb_id)
-            self._moved_on = stored is None or stored.person_key != self._person
-        return not self._moved_on
+        self._owed: list[tuple[str, str | None]] = []
+        """Each write not yet made, in order: a key, and its value, or nothing for its removal."""
+        self._owing: Final = asyncio.Event()
+        self._closing = False
+        self._dropped = False
+        self._writer: Final = asyncio.get_running_loop().create_task(self._write())
 
     @override
     def get(self, key: str) -> str | None:
-        return self._storage.get(key)
+        owed = [value for owed_key, value in self._owed if owed_key == key]
+        return owed[-1] if owed else self._storage.get(key)
 
     @override
     def set(self, key: str, value: str) -> None:
-        if self._theirs():
-            self._storage.set(key, value)
+        self._owe(key, value)
 
     @override
     def delete(self, key: str) -> None:
-        if self._theirs():
-            self._storage.delete(key)
+        self._owe(key, None)
 
     @override
     def update(self, key: str, change: Callable[[str | None], str | None]) -> None:
-        if self._theirs():
-            self._storage.update(key, change)
+        self._owe(key, change(self.get(key)))
 
     @override
     def subscribe(self, on_change: Callable[[str, str | None], None]) -> Callable[[], None] | None:
         return self._storage.subscribe(on_change)
+
+    def _owe(self, key: str, value: str | None) -> None:
+        if not self._dropped:
+            self._owed.append((key, value))
+            self._owing.set()
+
+    async def _write(self) -> None:
+        """Make what is owed whenever something is, until closing, until the sign-in no longer names the person, or until a failure.
+
+        However it ends, what is owed is dropped and nothing is written again.
+        """
+        try:
+            while True:
+                await self._owing.wait()
+                self._owing.clear()
+                if self._owed:
+                    held = await self._kept.held()
+                    # Nothing is awaited from here to the last write: where `held` answers without waiting,
+                    # as this SDK's holders do, no forgetting falls between its answer and the writes.
+                    owed, self._owed = self._owed, []
+                    if held is None or held.person_key != self._person:
+                        return
+                    for key, value in owed:
+                        if value is None:
+                            self._storage.delete(key)
+                        else:
+                            self._storage.set(key, value)
+                if self._closing:
+                    return
+        finally:
+            self._dropped = True
+            self._owed.clear()
+
+    async def close(self) -> None:
+        """Make what is owed, as every write is made, and then nothing more.
+
+        Raises what the writing failed with: a sign-in that could not be read, or a write the storage refused.
+        """
+        self._closing = True
+        self._owing.set()
+        await self._writer
 
 
 @final
 class _Keeping:
     """What a session's client keeps in `storage` for the person its token is, from when it knows who they are.
 
-    With `checked`, the sign-in is kept in `storage` too, and every write
-    first finds it still naming the person (`_TheirsOnly`).
+    It is written only while the sign-in `kept` holds names them (`_WhileNamed`).
     """
 
     def __init__(
-        self, kb_id: str, storage: SessionStorage, transport: HttpTransport, client: SemiontClient[HttpTransport], *, checked: bool
+        self, kb_id: str, storage: SessionStorage, kept: SignInKept, transport: HttpTransport, client: SemiontClient[HttpTransport]
     ) -> None:
         self._kb_id: Final = kb_id
         self._storage: Final = storage
+        self._kept: Final = kept
         self._transport: Final = transport
         self._client: Final = client
-        self._checked: Final = checked
         self._person: str | None = None
+        self._beneath: _WhileNamed | None = None
 
     def attach(self, person: str) -> None:
         """Keep what the client holds for `person` from now on: their caches begin with what was kept, and the stream with its places."""
         self._person = person
-        beneath = _TheirsOnly(self._storage, self._kb_id, person) if self._checked else self._storage
+        beneath = self._beneath = _WhileNamed(self._storage, self._kept, person)
         # The stream's place rides the caches' writes, and only when every cache is
         # at rest: a place kept ahead of a cache still taking in the event it names
         # would have the next session skip that event.
@@ -204,8 +246,8 @@ class _Keeping:
         self._client.attach_persistence(CachePersistence(storage=places.storage, kb_id=self._kb_id, person_key=person))
         self._transport.attach_bookmarks(places)
 
-    def recording(self, kept: SignInKept, ask: Validate) -> Validate:
-        """`ask`, after which the person the gateway names is recorded on the sign-in in `kept`, and kept for once it is."""
+    def recording(self, ask: Validate) -> Validate:
+        """`ask`, after which the person the gateway names is recorded on the sign-in, and kept for once it is."""
 
         async def validate(token: str) -> UserResponse:
             user = await ask(token)
@@ -214,11 +256,19 @@ class _Keeping:
                 # Recorded only on a sign-in that still holds the token asked
                 # about: an answer of who an older token was names nobody of a
                 # sign-in that has moved on.
-                if await kept.record_person_key(token, person) and self._person is None:
+                if await self._kept.record_person_key(token, person) and self._person is None:
                     self.attach(person)
             return user
 
         return validate
+
+    async def close(self) -> None:
+        """Make what the client still owes once it has closed, as every write is made: only while the sign-in names its person.
+
+        Raises what that writing failed with (`_WhileNamed.close`).
+        """
+        if self._beneath is not None:
+            await self._beneath.close()
 
 
 def _gateway_of(kb: KbTarget) -> str:
@@ -268,11 +318,16 @@ async def session_from_kept(
     over the same storage shows what was kept at once, and is sent what was
     recorded since. A sign-in that names its person already begins with what
     was kept for them. A session that does not `validate` keeps nothing, and
-    neither does one whose `kept` records nobody (a `SignInStore`'s). A
-    `kept` that keeps the sign-in in `storage` itself, for `kb`
-    (`semiont.registry.kept_in`), is a registry's: forgetting it deletes what
-    was kept for its person, and once it is forgotten or replaced the session
-    writes nothing more there, as a registry's session does.
+    neither does one whose `kept` records nobody (a `SignInStore`'s).
+    Whatever holds the sign-in, it is asked before each write what it holds,
+    and once it no longer names the person, because it was forgotten or a new
+    sign-in was kept in its place, the session writes nothing more. Forgetting
+    a saved sign-in deletes what was kept for its person only where what holds
+    it keeps it in `storage` itself, for `kb` (`semiont.registry.kept_in`), as
+    a registry's does; a `MemorySignIn` cannot reach the storage, and deletes
+    nothing. A sign-in that cannot be read before a write, or a write the
+    storage refuses, ends what the session keeps, and is raised on the way
+    out.
 
     With `http`, every request of the session, of the gateway and of the
     issuer, is made with that client, which its caller built and closes
@@ -310,9 +365,11 @@ async def _session_started(
 ) -> AsyncGenerator[SemiontSession[HttpTransport]]:
     """`session_from_kept`'s session as soon as it has started, before it is ready: what a registry holds, and waits on itself.
 
-    A `kept` that keeps the sign-in in `storage` itself (`kept_in`), as a
-    registry's does, is forgotten there: then nothing is written there once
-    it no longer names the person, so what forgetting it deleted stays deleted.
+    What its client still owes once it has closed is made as every write is,
+    only while `kept` names the person, so what forgetting the sign-in deleted
+    stays deleted. What that writing failed with is raised on the way out: a
+    registry raises it from its `close`, as it does every failure of what it
+    runs.
     """
     base_url = _gateway_of(kb)
     # Read before anything is built: the client begins with what was kept for the person the sign-in names.
@@ -322,12 +379,13 @@ async def _session_started(
     transport = HttpTransport(base_url, token=token, refresher=lambda refused: session.refresh(refused), channels=channels, http=http)
     client = SemiontClient(transport, transport.content, transport)
     asking = _asking(base_url, http) if validate else None
+    keeping: _Keeping | None = None
     # A session that never asks who its token is never learns whose its caches would be, and keeps nothing.
     if storage is not None and asking is not None:
-        keeping = _Keeping(kb.id, storage, transport, client, checked=kept == kept_in(storage, kb.id))
+        keeping = _Keeping(kb.id, storage, kept, transport, client)
         if named is not None and named.person_key is not None:
             keeping.attach(named.person_key)
-        asking = keeping.recording(kept, asking)
+        asking = keeping.recording(asking)
     session: SemiontSession[HttpTransport] = SemiontSession(
         kb=kb,
         client=client,
@@ -343,6 +401,8 @@ async def _session_started(
             yield session
     finally:
         await renewing.close()
+        if keeping is not None:
+            await keeping.close()
 
 
 async def sign_in_device(
@@ -419,12 +479,13 @@ class HttpSessionFactory(SessionFactory):
     The session's caches, and the stream's place in each scope, are kept in
     the registry's storage for the person its stored session names, once the
     gateway has named them, and only while it names them: once that saved
-    sign-in is forgotten, which deletes what was kept for them, or replaced,
-    here or in another context, nothing more is written. Its token is renewed
-    at the issuer its stored session names. Each session renews its own: a
-    knowledge base's old session and its new one, during a sign-in, are
-    closed in turn. With `http`, every request of each session, and each
-    revocation, is made with that client, which its caller built and closes.
+    sign-in is forgotten or a new one replaces it, here or in another context,
+    which deletes what was kept for them, nothing more is written. Its token
+    is renewed at the issuer its stored session names. Each session renews
+    its own: a knowledge base's old session and its new one, during a
+    sign-in, are closed in turn. With `http`, every request of each session,
+    and each revocation, is made with that client, which its caller built and
+    closes.
     """
 
     def __init__(self, *, http: httpx.AsyncClient | None = None) -> None:

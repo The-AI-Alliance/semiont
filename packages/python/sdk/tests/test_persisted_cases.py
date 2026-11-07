@@ -38,6 +38,7 @@ from semiont.registry import (
     SemiontBrowserConfig,
     SessionFactory,
     SessionFactoryOptions,
+    kept_in,
     save_knowledge_bases,
     store_session,
     stored_session,
@@ -250,8 +251,8 @@ async def forgotten_by_the_session(row: JsonObject) -> SessionStorage:
                 renewed: JsonObject = {"access_token": token(3600, 2), "refresh_token": "r2", "token_type": "Bearer", "expires_in": 3600}
                 gateway.scripted[("POST", TOKEN)] = [says(renewed)]
                 ended = "refused"
-            case other:
-                raise AssertionError(f"a way of forgetting the table does not state: {other}")
+            case way:
+                raise AssertionError(f"a way of forgetting the table does not state: {way}")
         storage = holding_forget_storage()
         save_knowledge_bases(storage, [registered(gateway)])
         stored = sign_in_of(
@@ -478,7 +479,15 @@ def test_a_session_whose_stored_sign_in_another_context_changes_writes_what_the_
                 else:
                     person = object_of(stored, "stored")["personKey"]
                     assert person is None or isinstance(person, str)
-                    store_session(elsewhere, KB, signed_in(person, 2))
+                    if person == JO:
+                        # Renewed in the other context: other tokens, the same person.
+                        there = kept_in(elsewhere, KB)
+                        read = await there.held()
+                        assert read is not None
+                        renewed = signed_in(JO, 2)
+                        assert await there.renewed(read, renewed.access, renewed.refresh) == renewed.access
+                    else:
+                        store_session(elsewhere, KB, signed_in(person, 2))
             return saved(storage)
 
     assert run(scenario()) is row["saved"]

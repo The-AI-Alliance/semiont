@@ -48,7 +48,7 @@ brought up, and on the way out the registry is closed, as `close` does.
 import asyncio
 import time
 import uuid
-from collections.abc import Callable, Coroutine, Iterable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Coroutine, Generator, Iterable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager, AsyncExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -129,13 +129,19 @@ def stored_session(storage: SessionStorage, kb_id: str) -> StoredSession | None:
 
 
 def store_session(storage: SessionStorage, kb_id: str, session: StoredSession) -> None:
-    """Store a knowledge base's session, in place of what was stored."""
-    storage.set(session_key(kb_id), session.model_dump_json(by_alias=True, exclude_none=True))
+    """Store a new sign-in for a knowledge base, in place of what was stored.
+
+    The sign-in it replaces is forgotten, and with it what a client kept for
+    the person it named (`_replacing`): a new sign-in names nobody until a
+    gateway names its person, even one who turns out to be the same.
+    """
+    with _replacing(storage, kb_id, session):
+        pass
 
 
 def clear_stored_session(storage: SessionStorage, kb_id: str) -> None:
-    """Forget a knowledge base's saved sign-in, and with it what a client kept for the person it named (`_forgetting`)."""
-    with _forgetting(storage, kb_id):
+    """Forget a knowledge base's saved sign-in, and with it what a client kept for the person it named (`_replacing`)."""
+    with _replacing(storage, kb_id, None):
         pass
 
 
@@ -147,21 +153,23 @@ def _forget_kept(storage: SessionStorage, kb_id: str, person_key: str) -> None:
 
 
 @contextmanager
-def _forgetting(storage: SessionStorage, kb_id: str) -> Iterator[StoredSession | None]:
-    """Forget a knowledge base's saved sign-in, however it is forgotten: it is taken as one step, and given to the block.
+def _replacing(storage: SessionStorage, kb_id: str, replacement: StoredSession | None) -> Generator[StoredSession | None]:
+    """Forget a knowledge base's saved sign-in, however it is forgotten: one step puts `replacement`, or nothing, in its place.
 
-    Once the block is done, what a client kept for the person it named is
-    deleted, so a client the block closed has had its last write deleted too.
-    A sign-in that named nobody, or nothing saved, deletes nothing. A client
-    still open writes nothing once its sign-in is gone
-    (`semiont.http.session`), so a block may be empty.
+    The block is given the sign-in forgotten. Once the block is done, what a
+    client kept for the person it named is deleted, so a client the block
+    closed has had its last write deleted too. A sign-in that named nobody, or
+    nothing saved, deletes nothing. A client still open writes nothing once
+    its sign-in no longer names its person (`semiont.http.session`), so a
+    block may be empty.
     """
     read: list[StoredSession | None] = []
 
-    def take(stored: str | None) -> None:
+    def swap(stored: str | None) -> str | None:
         read.append(None if stored is None else _session_in(stored))
+        return None if replacement is None else replacement.model_dump_json(by_alias=True, exclude_none=True)
 
-    storage.update(session_key(kb_id), take)
+    storage.update(session_key(kb_id), swap)
     (forgotten,) = read
     yield forgotten
     if forgotten is not None and forgotten.person_key is not None:
@@ -203,11 +211,6 @@ class _KeptIn(SignInKept):
     def __init__(self, storage: SessionStorage, kb_id: str) -> None:
         self._storage: Final = storage
         self._kb_id: Final = kb_id
-
-    @override
-    def __eq__(self, other: object) -> bool:
-        """The same sign-in: a knowledge base's, kept in the same storage."""
-        return isinstance(other, _KeptIn) and other._storage is self._storage and other._kb_id == self._kb_id
 
     @override
     async def held(self) -> HeldSignIn | None:
@@ -288,11 +291,13 @@ def kept_in(storage: SessionStorage, kb_id: str) -> SignInKept:
     """A knowledge base's sign-in as a session keeps it, in a registry's storage, under `session_key(kb_id)`.
 
     A renewal is written as one step against what is stored then, so one made
-    meanwhile by another session or context stands. Forgetting it, as a
-    session whose sign-in expired or was refused does, is forgetting a saved
-    sign-in (`clear_stored_session`): what was kept for the person it named is
-    deleted too. A session over it with the same storage
-    (`semiont.http.session`) writes nothing there once it is forgotten.
+    meanwhile by another session or context stands, and keeps the person it
+    names. Forgetting it, as a session whose sign-in expired or was refused
+    does, and keeping a new sign-in in its place, are forgetting a saved
+    sign-in (`clear_stored_session`, `store_session`): what was kept for the
+    person it named is deleted too. A session over it
+    (`semiont.http.session`) writes nothing once it no longer names that
+    person, so what was deleted stays deleted.
     """
     return _KeptIn(storage, kb_id)
 
@@ -539,7 +544,12 @@ class _Live:
         self.signals: Final = signals
 
     async def close(self) -> None:
-        """End the session, then the client it was built with, then what a host was shown of it."""
+        """End the session, then the client it was built with, then what a host was shown of it.
+
+        What the holder failed with, the session's closing among it, is not
+        this caller's: the registry raises it from its `close`, as it does
+        every failure of what it runs (`SemiontBrowser._done`).
+        """
         self._stop.set()
         await asyncio.gather(self._holder, return_exceptions=True)
         self.signals.dispose()
@@ -685,7 +695,7 @@ class SemiontBrowser:
         client kept for the person the sign-in named is deleted: after the
         close, so what the client wrote as it closed goes too.
         """
-        with _forgetting(self._storage, kb_id):
+        with _replacing(self._storage, kb_id, None):
             self._forget_open_of(kb_id)
             rest = tuple(kb for kb in self._kbs.value if kb.id != kb_id)
             self._put_kbs(rest)
@@ -726,17 +736,21 @@ class SemiontBrowser:
     async def sign_in(self, kb_id: str, session: StoredSession) -> None:
         """Keep new tokens for a registered knowledge base and bring its session up on them.
 
-        A session it already had is closed and replaced.
+        A session it already had is closed and replaced. The new sign-in
+        replaces the saved one, and, as forgetting a saved sign-in does, what
+        its client kept for the person the old one named is deleted: after the
+        close, so what the client wrote as it closed goes too, and before the
+        new session is built.
         """
         if self._closing.is_set():
             return
-        store_session(self._storage, kb_id, session)
-        # A session it already has is on the old tokens: it is closed, and the
-        # one built next reads the new ones.
-        if self._active_kb_id.value == kb_id:
-            taken = self._take_session()
-            if taken is not None:
-                await taken.close()
+        with _replacing(self._storage, kb_id, session):
+            # A session it already has is on the old tokens: it is closed, and the
+            # one built next reads the new ones.
+            if self._active_kb_id.value == kb_id:
+                taken = self._take_session()
+                if taken is not None:
+                    await taken.close()
         await self._set_active_kb(kb_id)
 
     async def signed_in(self, signed_in: SignedIn) -> SignInOutcome:
@@ -782,7 +796,7 @@ class SemiontBrowser:
         """
         if self._closing.is_set():
             return
-        with _forgetting(self._storage, kb_id) as stored:
+        with _replacing(self._storage, kb_id, None) as stored:
             if stored is not None:
                 # The sign-out is the local act: an issuer that cannot be reached
                 # does not keep anyone in a session they asked to end.

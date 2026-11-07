@@ -214,11 +214,15 @@ class SignInKept(Protocol):
     """Where one knowledge base's sign-in is kept."""
 
     async def held(self) -> HeldSignIn | None:
-        """The sign-in as it is kept now, when there is one."""
+        """The sign-in as it is kept now, when there is one.
+
+        A session whose client keeps what it holds asks before each write,
+        and writes only while what is kept names its person.
+        """
         ...
 
     async def keep(self, sign_in: HeldSignIn) -> None:
-        """Keep a sign-in, in place of whatever was kept."""
+        """Keep a new sign-in, in place of whatever was kept: a renewal is kept with `renewed`."""
         ...
 
     async def renewed(self, read: HeldSignIn, access: str, refresh: str) -> str | None:

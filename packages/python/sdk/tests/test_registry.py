@@ -373,7 +373,7 @@ def written_session(storage: SessionStorage) -> dict[str, JsonValue]:
     """The session stored for `KB_A`, as the storage holds it."""
     stored = storage.get(session_key(KB_A))
     assert stored is not None
-    written = json.loads(stored)
+    written: JsonValue = json.loads(stored)
     assert isinstance(written, dict)
     return written
 
