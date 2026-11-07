@@ -233,23 +233,11 @@ public sealed partial class TransportTests
             }
         }
 
-        private const int QuietTicks = 10;
-
         private async Task SettleAsync()
         {
             // Only settled steps release gateway answers. An immediate expect can inspect the
             // state set by an invocation before its wire response is available.
-            //
-            // This settle is time-based: it waits for QuietTicks ticks in a row with no request left
-            // unanswered. It is time-based because .NET offers no outside view of the SDK's async
-            // flows: they run on the shared thread pool, so nothing here can tell when a frame's
-            // continuations have all run. A deterministic settle can replace this one once the SDK
-            // reports where its flows wait. The window must cover the slowest step a case takes
-            // between frames. That is the first failure read in a process, whose first walk of the
-            // required-shape table takes 4–6 ms on a fast machine and several times that on a CI
-            // runner. Ten ticks of 4 ms (about 16 ms each on Windows, by its timer) give that
-            // margin.
-            for (var idle = 0; idle < QuietTicks;)
+            for (var idle = 0; idle < 2;)
             {
                 if (unanswered.TryDequeue(out var request))
                 {
