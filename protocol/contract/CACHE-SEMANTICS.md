@@ -408,9 +408,14 @@ cache durable rehydration, for one person on one knowledge base:
    rehydrates as absent and refetches on first observation.
 4. **Saves are debounced** (`saveDebounceMs` in
    [`protocol/specs/src/client/timing.json`](../specs/src/client/timing.json)) and
-   **`dispose()` flushes a pending save synchronously before going inert** —
-   the flush is part of the disposal act, so a KB switch cannot lose the last
-   write; nothing may save after disposal (B16 extends to the persister). A
+   **`dispose()` flushes a pending save before going inert** — the flush is
+   part of the disposal act, so a KB switch cannot lose the last write. A
+   client given a cache persistence directly writes it before `dispose()`
+   returns. A session that checks its sign-in before each write (item 6)
+   checks this one too: where that check waits on what holds the sign-in,
+   `dispose()` begins the flush, and whatever follows the close, a
+   registry's delete among them, waits until the client has closed. Nothing
+   may save after disposal (B16 extends to the persister). A
    document larger than `maxStoredBytesCount` loses the entries that have gone
    longest without a new value until it fits.
 5. **Version-gated.** A stored document whose version doesn't match (or
@@ -437,8 +442,10 @@ cache durable rehydration, for one person on one knowledge base:
    does not name its person, here or in another context, discards what it
    has not written and writes nothing more; a renewal changes nothing. A
    sign-in it cannot read counts as one that does not name its person, and
-   the failure is reported. A client an application builds itself, with a
-   cache persistence it makes, writes unchecked.
+   the session says so once, on its error channel, as `session.keep-failed`
+   ([`codes.json`](../specs/src/errors/codes.json)); the session itself goes
+   on. A client an application builds itself, with a cache persistence it
+   makes, writes unchecked.
 
    The check and the write are one step. A forgetting the session makes
    itself (its renewal refused, its renewed token refused) runs its delete

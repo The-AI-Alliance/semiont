@@ -8,11 +8,11 @@ Sign-in happens at the knowledge base's identity provider, never at the gateway,
 
 | Who is signing in | The way | TypeScript | Python | Rust | Go | Kotlin | .NET | Swift |
 |---|---|---|---|---|---|---|---|---|
-| A person, at a script | [The device grant](#the-device-grant): the script shows an address, the person approves in any browser | `SemiontSession.signInDevice` | `sign_in_device` | `sign_in_device` | `SignInWithDevice` | `signInDevice` | `Issuer.SignInDeviceAsync`, then `KeptSession` | `signInDevice`, then `sessionFromKept` |
-| A person who has run `semiont login` | [The sign-in the launcher keeps](#the-sign-in-semiont-login-keeps): nothing to approve | `SignInStore` and `SemiontSession.fromStoredSession` | `session_from_kept` | `SignInStore` | `SessionFromKept` | `sessionFromKept` | `SignInStore.Entry` and `KeptSession` | `SignInStore` and `sessionFromKept` |
+| A person, at a script | [The device grant](#the-device-grant): the script shows an address, the person approves in any browser | `SemiontSession.signInDevice`, then `SemiontSession.fromKept` | `sign_in_device` | `sign_in_device`, then `session_from_kept` | `SignInWithDevice` | `signInDevice` | `Issuer.SignInDeviceAsync`, then `KeptSession` | `signInDevice`, then `sessionFromKept` |
+| A person who has run `semiont login` | [The sign-in the launcher keeps](#the-sign-in-semiont-login-keeps): nothing to approve | `SignInStore.entry` and `SemiontSession.fromKept` | `session_from_kept` | `SignInStore::entry` and `session_from_kept` | `SessionFromKept` | `sessionFromKept` | `SignInStore.Entry` and `KeptSession` | `SignInStore` and `sessionFromKept` |
 | A service or a worker | [A service account](#a-service-or-a-worker): the program signs in as its own account, an agent | `startAgentSession` | `AgentToken` | `AgentToken::sign_in` | `SignInAgent` | `AgentToken` | `ServiceToken` and `AgentToken.SignInAsync` | `ServiceToken` and `AgentToken` |
 | A person, in an application | [A page redirect](#an-application) to the identity provider and back | `SemiontBrowser.beginSignIn`, `completeSignIn` | `begin_sign_in`, `complete_sign_in` | `begin_sign_in`, `complete_sign_in` | `BeginSignIn`, `CompleteSignIn` | `beginSignIn`, `completeSignIn` | `BrowserSignIn.BeginSignInAsync` and `CompleteSignInAsync` | `SemiontBrowser.beginSignIn` and `completeSignIn` |
-| A program that already holds tokens | [The tokens themselves](#tokens-you-already-hold) | `SemiontSession.fromIssuedSession`, `SemiontSession.fromHttp` | its README | its README | its README | its README | `KeptSession` or `SemiontClient` | `SemiontClient.fromHttp` or `sessionFromKept` |
+| A program that already holds tokens | [The tokens themselves](#tokens-you-already-hold) | `MemorySignIn` and `SemiontSession.fromKept`, or `SemiontSession.fromHttp` | its README | `MemorySignIn` and `session_from_kept` | its README | its README | `KeptSession` or `SemiontClient` | `SemiontClient.fromHttp` or `sessionFromKept` |
 | Every way above | [The HTTP client you give it](#the-http-client): its requests go through that client | `fetch` | `http=` | `http` | `HTTP` | `http` | `HttpClient` | `HTTPClient` |
 
 See the SDK guides for [TypeScript](../../packages/typescript/sdk/README.md#connect), [Python](../../packages/python/sdk/README.md#signing-in), [Go](../../packages/go/sdk/README.md#signing-in), [Kotlin](../../packages/kotlin/sdk/README.md#signing-in), [Rust](../../packages/rust/http-transport/README.md), [.NET](../../packages/csharp/sdk/README.md#signing-in), and [Swift](../../packages/swift/sdk/README.md#connect).
@@ -30,9 +30,9 @@ Every way makes its requests, of the gateway and of the identity provider, with 
 
 | SDK | What it takes | Where | Given none |
 |---|---|---|---|
-| TypeScript | a `fetch` | `fetch` in the options of `SemiontSession.signInDevice`, `fromIssuedSession`, `fromStoredSession` and `fromHttp`, `startAgentSession` and `SemiontBrowser`; the last argument of `createHttpSessionFactory` and of `ServiceToken` | the runtime's own |
+| TypeScript | a `fetch` | `fetch` in the options of `SemiontSession.signInDevice`, `fromKept` and `fromHttp`, `startAgentSession` and `SemiontBrowser`; the last argument of `signOut`, `createHttpSessionFactory` and of `ServiceToken` | the runtime's own |
 | Python | an `httpx.AsyncClient` | `http=` on `sign_in_device`, `session_from_kept`, `ServiceToken`, `AgentToken`, `begin_sign_in`, `complete_sign_in` and `HttpSessionFactory` | one of its own |
-| Rust | a `reqwest::Client` | `http` in `SignInDevice` and `StoredSignIn`, and the argument `http` of `ServiceToken::new`, `AgentToken::sign_in`, `begin_sign_in`, `complete_sign_in` and `HttpSessionFactory::new` | none: it is required |
+| Rust | a `reqwest::Client` | `http` in `SessionFromKept`, and the argument `http` of `sign_in_device`, `sign_out`, `ServiceToken::new`, `AgentToken::sign_in`, `begin_sign_in`, `complete_sign_in` and `HttpSessionFactory::new` | none: it is required |
 | Go | a `*http.Client` | `HTTP` in the `Issuer` that `SignInWithDevice`, `NewServiceToken`, `BeginSignIn` and `CompleteSignIn` take, and in `AgentConfig`, `SessionFromKeptConfig` and `registry.HttpSessionFactory` | none: it is required |
 | Kotlin | a `java.net.http.HttpClient` | the last argument `http` of `sessionFromKept`, `beginSignIn`, `completeSignIn`, `ServiceToken`, `AgentToken` and `HttpSessionFactory`, and of `signInDevice` before its `onCode` | the JDK's, with its default proxy selector and trust store |
 | .NET | a `System.Net.Http.HttpClient` | `httpClient` on `Issuer`, `KeptSession`, `ServiceToken`, `AgentToken`, `HttpSessionFactory`, and the client and transport constructors. The redirect helpers also accept it. | an SDK-owned HTTP handler with proxy use disabled |
@@ -44,28 +44,31 @@ An SDK never closes a client it is given: the program that built it closes it.
 The script asks the identity provider for a code and shows the person where to approve it. The person approves in any browser, on any machine, and the tokens come back to the script.
 
 ```typescript
-import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
+import { MemorySignIn, SemiontSession, httpKb } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+const kb = httpKb({
+  id: 'my-script', label: 'My script',
+  host: url.hostname, port: Number(url.port || 4000),
+  protocol: url.protocol === 'https:' ? 'https' : 'http',
+});
+const kept = new MemorySignIn();
 
-const opened = await SemiontSession.signInDevice({
-  kb: httpKb({
-    id: 'my-script', label: 'My script',
-    host: url.hostname, port: Number(url.port || 4000),
-    protocol: url.protocol === 'https:' ? 'https' : 'http',
-  }),
-  storage: new InMemorySessionStorage(),
+await SemiontSession.signInDevice({
+  kb,
+  kept,
   onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
     console.error(`Approve this script at ${verificationUriComplete ?? verificationUri}`);
     if (!verificationUriComplete) console.error(`Code: ${userCode}`);
   },
 });
+const opened = await SemiontSession.fromKept({ kb, kept });
 ```
 
-- **The TypeScript example gives an `OpenedSession`**, which holds the session and its client. Call `opened.dispose()` to end the session and then close the client.
-- **It needs a person each time the script starts**, unless the script keeps its tokens. A pipeline of several scripts asks once per script.
-- **To keep the tokens between runs**, give the session a `SessionStorage` that writes to a file: [`semiont-session`](./skills/semiont-session/SKILL.md#keeping-tokens-across-restarts) has one. The file holds tokens. Keep it where only you can read it, and outside the knowledge base's working tree, which is a git repository.
-- **`kb.id` is the key the tokens are stored under.** Two scripts that share one storage use different ids.
+- **The device grant keeps the sign-in, and `SemiontSession.fromKept` gives an `OpenedSession`**, which holds the session and its client. Call `opened.dispose()` to end the session and then close the client.
+- **It needs a person each time the script starts**, unless the script keeps its sign-in. A pipeline of several scripts asks once per script.
+- **To keep the sign-in between runs**, keep it in `keptIn(storage, kb.id)` over a `SessionStorage` that writes to a file: [`semiont-session`](./skills/semiont-session/SKILL.md#keeping-tokens-across-restarts) has one. The file holds tokens. Keep it where only you can read it, and outside the knowledge base's working tree, which is a git repository.
+- **`kb.id` is the key `keptIn` stores the sign-in under.** Two scripts that share one storage use different ids.
 
 In .NET, `Issuer.SignInDeviceAsync` stores the granted credentials in the
 supplied `ISignInKept`. Construct a `KeptSession` over that same entry. Await
@@ -101,8 +104,8 @@ the application's `SemiontBrowser`.
 
 In TypeScript, the entry point depends on the credentials you hold.
 
-- **An access token and its refresh token** go to `SemiontSession.fromIssuedSession`. The session renews them as if it had signed in itself.
-- **An access token and your own renewal logic** go to `SemiontSession.fromHttp` with the `refresh` you supply. Both session factories return an `OpenedSession`.
+- **An access token and its refresh token** go in a `MemorySignIn` (a `StoredSession`: access, refresh, clientId, tokenEndpoint), opened with `SemiontSession.fromKept`. The session renews them as if it had signed in itself.
+- **An access token and your own renewal logic** go to `SemiontSession.fromHttp` with the `refresh` you supply. `fromKept` and `fromHttp` each give an `OpenedSession`.
 - **An access token alone** goes to `SemiontClient.fromHttp`. Use it for a program that finishes within the token's lifetime.
 
 In .NET, pass an existing access token to `SemiontClient`. For a credential

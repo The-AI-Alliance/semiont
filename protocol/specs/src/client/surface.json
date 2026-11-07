@@ -1746,11 +1746,7 @@
         },
         {
           "member": "keptIn",
-          "kind": "function",
-          "absent": {
-            "typescript": "TypeScript's session reads and writes its tokens in the registry's storage itself.",
-            "rust": "Rust's session reads and writes its tokens in the registry's storage itself."
-          }
+          "kind": "function"
         },
         {
           "member": "beginSignIn",
@@ -2426,7 +2422,7 @@
           "HttpTransportConfig": ["RngCore"],
           "SemiontSessionConfig": ["RngCore"],
           "retry_with_backoff": ["RngCore"],
-          "refresh_stored_session": ["RngCore"],
+          "SessionFromKept": ["RngCore"],
           "AgentToken::sign_in": ["RngCore"],
           "equal_jitter": ["RngCore"]
         },
@@ -2493,7 +2489,7 @@
           "HttpTransportConfig": "The stream's reconnect draws its jitter from a v4 UUID.",
           "SemiontSessionConfig": "A session's renewal retry draws its jitter from a v4 UUID.",
           "retry_with_backoff": "Its jitter draws from a v4 UUID.",
-          "refresh_stored_session": "Its renewal retry draws its jitter from a v4 UUID.",
+          "SessionFromKept": "The session it opens draws its renewal retry from a v4 UUID.",
           "AgentToken::sign_in": "The agent's renewal retry draws its jitter from a v4 UUID.",
           "equal_jitter": "It draws from a v4 UUID."
         },
