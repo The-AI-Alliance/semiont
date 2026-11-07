@@ -10,6 +10,8 @@
     "docs/checks/doc-snippets"
   ],
   "scripts": {
+    "generate:ocaml": "node packages/codegen/ocaml/generate-identifiers.mjs",
+    "generate:ocaml:check": "node packages/codegen/ocaml/generate-identifiers.mjs --check",
     "dev": "npm run dev --workspaces",
     "build": "npm run build:packages && npm run build:browser",
     "build:packages": "node packages/typescript/scripts/build-packages.js",

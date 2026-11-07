@@ -1,0 +1,9 @@
+(test
+ (name substrate)
+ (modules substrate)
+ (libraries semiont eio_main cohttp-eio tls-eio yojson zarith decimal alcotest))
+
+(test
+ (name identifiers)
+ (modules identifiers)
+ (libraries semiont alcotest))

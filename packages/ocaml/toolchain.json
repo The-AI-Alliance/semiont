@@ -1,0 +1,7 @@
+{
+  "ocaml": "5.5.2",
+  "dune": "3.24.2",
+  "opamRepository": "1e8ccc4347bd42cdf513d376cdad11075f385a8c",
+  "duneOverlay": "99fc2e18c45b4761ed5f6d282910c03c97e32bce",
+  "baseImage": "ocaml/opam:debian-13-ocaml-5.5@sha256:5f3c1eddb76096c9bbdf877998ac7255c5d33fb9f7d8d691a288b70ef530ef8b"
+}

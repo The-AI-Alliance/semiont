@@ -1,0 +1,15 @@
+(version 2.2.0)
+
+(build
+ (all_platforms
+  ((action (run ocaml pkg/pkg.ml build --dev-pkg %{pkg-self:dev})))))
+
+(depends
+ (all_platforms
+  (ocaml ocamlfind ocamlbuild topkg)))
+
+(source
+ (fetch
+  (url https://erratique.ch/software/mtime/releases/mtime-2.2.0.tbz)
+  (checksum
+   sha512=c7d0ef764c3cc803b9c06216601057d5092b624ee313780df70f6a0a462f12671986af69c90e811038419cae4648c62acbef71398ceb8d0d3c9dcda6ff0fab80)))
