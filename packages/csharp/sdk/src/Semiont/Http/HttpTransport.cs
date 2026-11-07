@@ -95,12 +95,12 @@ public sealed partial class HttpTransport : IDisposable
 
     public IAsyncEnumerable<Carried> Frames(string channel, CancellationToken cancellation = default) => Frames([channel], cancellation);
 
-    public IAsyncEnumerable<Carried> Frames(IEnumerable<string> channels, CancellationToken cancellation = default) =>
-        ReceivedFrames(channels, null, cancellation);
+    public IAsyncEnumerable<Carried> Frames(IEnumerable<string> channelNames, CancellationToken cancellation = default) =>
+        ReceivedFrames(channelNames, null, cancellation);
 
-    internal IAsyncEnumerable<Carried> ReceivedFrames(IEnumerable<string> channels, ResourceId? resource, CancellationToken cancellation)
+    internal IAsyncEnumerable<Carried> ReceivedFrames(IEnumerable<string> channelNames, ResourceId? resource, CancellationToken cancellation)
     {
-        var selected = channels.ToHashSet(StringComparer.Ordinal);
+        var selected = channelNames.ToHashSet(StringComparer.Ordinal);
         foreach (var channel in selected)
         {
             if (!IsSubscribed(channel) && !ProtocolFacts.Channels("scoped").Contains(channel, StringComparer.Ordinal))
@@ -494,8 +494,7 @@ public sealed partial class HttpTransport : IDisposable
     {
         // Make the wire frame visible before a continuation can publish its derived signal.
         foreach (var bus in buses) bus.Receive(carried);
-        foreach (var listener in listeners)
-            if (listener.Channels.Contains(carried.Channel)) listener.Stream.Publish(carried);
+        foreach (var listener in listeners.Where(view => view.Channels.Contains(carried.Channel))) listener.Stream.Publish(carried);
         if (carried.CorrelationId is string correlation && pending.TryGetValue(correlation, out var reply) &&
             (carried.Channel == reply.Result || carried.Channel == reply.Failure)) reply.Completion.TrySetResult(carried);
     }
@@ -545,8 +544,8 @@ public sealed partial class HttpTransport : IDisposable
         if (value.EnumerateObject().Any(member => member.Value.ValueKind == JsonValueKind.Null))
         {
             var stated = new JsonObject();
-            foreach (var member in value.EnumerateObject())
-                if (member.Value.ValueKind != JsonValueKind.Null) stated[member.Name] = JsonNode.Parse(member.Value.GetRawText());
+            foreach (var member in value.EnumerateObject().Where(property => property.Value.ValueKind != JsonValueKind.Null))
+                stated[member.Name] = JsonNode.Parse(member.Value.GetRawText());
             carried = JsonSerializer.SerializeToElement(stated);
         }
         try { frame = carried.Deserialize<BusFrame>() ?? throw new JsonException("A frame is null."); }

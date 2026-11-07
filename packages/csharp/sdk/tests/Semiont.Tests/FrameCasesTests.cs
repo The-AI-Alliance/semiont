@@ -163,7 +163,8 @@ public sealed partial class TransportTests
     }
 
     private static bool IsTheFrameAfter(Carried carried) =>
-        carried is ReceivedBusFrame received && received.Frame.Payload.TryGetProperty("resourceId", out var resource) && resource.GetString() == "after";
+        carried is ReceivedBusFrame received && received.Frame.Payload.TryGetProperty("resourceId", out var resource)
+        && resource.ValueKind == JsonValueKind.String && resource.GetString() == "after";
 
     /// <summary>A <c>bus-event</c> line carrying <paramref name="data"/>, as the gateway's stream carries one.</summary>
     private static void Carry(Handler server, string id, string data) =>
