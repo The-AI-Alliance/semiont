@@ -206,7 +206,7 @@ public sealed partial class TransportTests
                 case "heard":
                     await SettleAsync();
                     var seen = new List<BusFrame>();
-                    while (listening.Reader.TryRead(out var received)) seen.Add(received.Frame);
+                    while (listening.Reader.TryRead(out var heard)) seen.Add(Assert.IsType<ReceivedBusFrame>(heard).Frame);
                     var wanted = action.Value.EnumerateArray().ToArray();
                     Assert.True(seen.Count == wanted.Length, "Heard " + JsonSerializer.Serialize(seen));
                     foreach (var (expected, actual) in wanted.Zip(seen))
@@ -233,11 +233,21 @@ public sealed partial class TransportTests
             }
         }
 
+        /// <summary>One tick of a settle's quiet: no shorter than Windows' default timer resolution (about 15.6 ms), so
+        /// it lasts about as long on every runner.</summary>
+        private const int QuietTickMs = 16;
+
+        /// <summary>The quiet ticks a settle waits out: at least 64 ms, for a slow runner's first use of a path.</summary>
+        private const int QuietTicks = 4;
+
         private async Task SettleAsync()
         {
             // Only settled steps release gateway answers. An immediate expect can inspect the
             // state set by an invocation before its wire response is available.
-            for (var idle = 0; idle < 2;)
+            // This settle is time-based, because .NET offers no outside view of the SDK's async flows: it waits until no
+            // request has reached the gateway for QuietTicks ticks, and takes what is ready to have run by then. A
+            // deterministic settle, one that sees those flows come to rest, can replace it.
+            for (var idle = 0; idle < QuietTicks;)
             {
                 if (unanswered.TryDequeue(out var request))
                 {
@@ -245,7 +255,7 @@ public sealed partial class TransportTests
                     idle = 0;
                     continue;
                 }
-                await Task.Delay(4, deadline.Token);
+                await Task.Delay(QuietTickMs, deadline.Token);
                 idle = unanswered.IsEmpty ? idle + 1 : 0;
             }
         }
