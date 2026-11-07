@@ -30,7 +30,7 @@ from semiont.operations import (
 )
 from semiont.refresh import CacheQuery, CacheRefreshWhen
 from semiont.storage import SessionStorage, StoragePersister
-from semiont.stored import cache_key
+from semiont.stored import WHOLE_KEY, KeptQuery, WholeKey, cache_key
 from semiont.timing import MAX_STORED_BYTES_COUNT
 from semiont.transport import ContentTransport
 from semiont.types import (
@@ -56,14 +56,7 @@ from semiont.types import (
     TagSchema,
 )
 
-__all__ = ["LIMITS_HOLDERS", "WHOLE", "CachePersistence", "Live", "ResourceFilters", "ResourceSearch", "Subject"]
-
-WHOLE: Final = "_"
-"""The key of a query the knowledge base has one of."""
-
-# The version of what the kept caches hold. A document of another version
-# reads as nothing kept, so this changes when a kept value's shape does.
-_KEPT_VERSION: Final = 1
+__all__ = ["LIMITS_HOLDERS", "CachePersistence", "KeptPersisters", "Live", "ResourceFilters", "ResourceSearch", "Subject"]
 
 _HOLDERS: Final = {operation.request.name: operation for operation in LIMITS_OPERATIONS}
 LIMITS_HOLDERS: Final = tuple(_HOLDERS)
@@ -71,7 +64,7 @@ LIMITS_HOLDERS: Final = tuple(_HOLDERS)
 
 _RESOURCE_ID: Final = TypeAdapter(ResourceId)
 _ANNOTATION_ID: Final = TypeAdapter(AnnotationId)
-_NAME: Final = TypeAdapter(str)
+_WHOLE_KEY: Final = TypeAdapter[WholeKey](WholeKey)
 
 
 @final
@@ -79,13 +72,34 @@ _NAME: Final = TypeAdapter(str)
 class CachePersistence:
     """Where a client keeps what its queries hold, so the next client of the same knowledge base shows it at once.
 
-    The small queries are kept: a resource's description, its annotations,
-    one annotation, the entity types, the tag schemas. Each is a document in
-    `storage`, under `semiont.cache.<key_prefix>.<query>`.
+    The small queries are kept (`semiont.stored.KEPT_QUERIES`): a resource's
+    description, its annotations, one annotation, the entity types, the tag
+    schemas. Each is a document in `storage`, under
+    `semiont.cache.<key_prefix>.<query>`.
     """
 
     storage: SessionStorage
     key_prefix: str
+
+
+def _persister[K: Hashable, V](
+    persistence: CachePersistence, query: KeptQuery, key: TypeAdapter[K], value: TypeAdapter[V]
+) -> StoragePersister[K, V]:
+    return StoragePersister(
+        persistence.storage, cache_key(persistence.key_prefix, query), key=key, value=value, max_bytes=MAX_STORED_BYTES_COUNT
+    )
+
+
+@final
+class KeptPersisters:
+    """What keeps each query a client keeps in `persistence`: what its entries are keyed by, and what each keeps."""
+
+    def __init__(self, persistence: CachePersistence) -> None:
+        self.resource: Final = _persister(persistence, "resource", _RESOURCE_ID, TypeAdapter(ResourceDescriptor))
+        self.annotations: Final = _persister(persistence, "annotations", _RESOURCE_ID, TypeAdapter(GetAnnotationsResponse))
+        self.annotation: Final = _persister(persistence, "annotation", _ANNOTATION_ID, TypeAdapter(Annotation))
+        self.entity_types: Final = _persister(persistence, "entityTypes", _WHOLE_KEY, TypeAdapter[list[str]](list[str]))
+        self.tag_schemas: Final = _persister(persistence, "tagSchemas", _WHOLE_KEY, TypeAdapter[list[TagSchema]](list[TagSchema]))
 
 
 class ResourceFilters(NamedTuple):
@@ -126,29 +140,20 @@ class Live:
     def __init__(self, links: Links, content: ContentTransport, persistence: CachePersistence | None) -> None:
         self._links: Final = links
         self._content: Final = content
-        self._persistence: Final = persistence
         self._kept_true = False
         self._disposed = False
         self.annotation_of: Final[dict[AnnotationId, ResourceId]] = {}
         """The resource each annotation that was asked for is of: an annotation
         is kept by its own id, and a request for it names its resource too."""
 
-        self.resource: Final = Cache(
-            self._resource, tasks=links, persister=self._kept("resource", _RESOURCE_ID, TypeAdapter(ResourceDescriptor))
-        )
+        # With no storage, nothing is kept.
+        kept = None if persistence is None else KeptPersisters(persistence)
+        self.resource: Final = Cache(self._resource, tasks=links, persister=None if kept is None else kept.resource)
         self.lists: Final = Cache(self._list, tasks=links)
-        self.annotations: Final = Cache(
-            self._annotations, tasks=links, persister=self._kept("annotations", _RESOURCE_ID, TypeAdapter(GetAnnotationsResponse))
-        )
-        self.annotation: Final = Cache(
-            self._annotation, tasks=links, persister=self._kept("annotation-detail", _ANNOTATION_ID, TypeAdapter(Annotation))
-        )
-        self.entity_types: Final = Cache(
-            self._entity_types, tasks=links, persister=self._kept("entity-types", _NAME, TypeAdapter[list[str]](list[str]))
-        )
-        self.tag_schemas: Final = Cache(
-            self._tag_schemas, tasks=links, persister=self._kept("tag-schemas", _NAME, TypeAdapter[list[TagSchema]](list[TagSchema]))
-        )
+        self.annotations: Final = Cache(self._annotations, tasks=links, persister=None if kept is None else kept.annotations)
+        self.annotation: Final = Cache(self._annotation, tasks=links, persister=None if kept is None else kept.annotation)
+        self.entity_types: Final = Cache(self._entity_types, tasks=links, persister=None if kept is None else kept.entity_types)
+        self.tag_schemas: Final = Cache(self._tag_schemas, tasks=links, persister=None if kept is None else kept.tag_schemas)
         self.engines: Final = Cache(self._engines, tasks=links)
         self.limits: Final = Cache(self._limits, tasks=links)
         """Each key holder's report of its engines' limits, by the operation that asks it."""
@@ -172,15 +177,6 @@ class Live:
         if not self._kept_true and not self._disposed:
             raise RuntimeError("a live query is watched inside its client's `async with`: before it, nothing keeps the query true")
 
-    def _kept[K: Hashable, V](self, name: str, key: TypeAdapter[K], value: TypeAdapter[V]) -> StoragePersister[K, V] | None:
-        """What keeps the cache named `name`, when the client keeps its caches."""
-        if self._persistence is None:
-            return None
-        kept_under = cache_key(self._persistence.key_prefix, name)
-        return StoragePersister(
-            self._persistence.storage, kept_under, key=key, value=value, version=_KEPT_VERSION, max_bytes=MAX_STORED_BYTES_COUNT
-        )
-
     # ── What each cache asks ────────────────────────────────────────────
 
     async def _resource(self, resource_id: ResourceId) -> ResourceDescriptor:
@@ -202,10 +198,10 @@ class Live:
         request = BrowseAnnotationRequest(resource_id=resource_id, annotation_id=annotation_id)
         return (await self._links.request(BROWSE_ANNOTATION_REQUESTED, request)).response.annotation
 
-    async def _entity_types(self, _: str) -> list[str]:
+    async def _entity_types(self, _: WholeKey) -> list[str]:
         return (await self._links.request(BROWSE_ENTITY_TYPES_REQUESTED, BrowseEntityTypesRequest())).response.entity_types
 
-    async def _tag_schemas(self, _: str) -> list[TagSchema]:
+    async def _tag_schemas(self, _: WholeKey) -> list[TagSchema]:
         return (await self._links.request(BROWSE_TAG_SCHEMAS_REQUESTED, BrowseTagSchemasRequest())).response.tag_schemas
 
     async def _engines(self, _: str) -> list[EngineEntry]:
@@ -274,7 +270,7 @@ class Live:
 
     def invalidate_engines(self) -> None:
         """The engines are out of date, and so is what each key holder reported."""
-        self.engines.invalidate(WHOLE)
+        self.engines.invalidate(WHOLE_KEY)
         for holder in LIMITS_HOLDERS:
             self.limits.invalidate(holder)
 

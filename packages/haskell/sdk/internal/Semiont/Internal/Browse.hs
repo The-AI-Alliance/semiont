@@ -1,6 +1,6 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings, RankNTypes, ScopedTypeVariables #-}
 module Semiont.Internal.Browse
-  ( BrowseNamespace, newBrowse, controls, persistencePending, dispose
+  ( BrowseNamespace, newBrowse, controls, persistencePending, fetching, dispose
   , resource, resources, annotations, annotation, entityTypes, tagSchemas, engines, events
   , resourceContent, resourceGraph, resourceAnchoredText, resourceRepresentation, resourceRepresentationStream
   , resourceEvents, annotationHistory, files, kb, click, openResource, resourceViewed
@@ -22,6 +22,7 @@ import qualified Semiont.Bus as Bus
 import Semiont.Channels
 import qualified Semiont.Content as Content
 import qualified Semiont.Internal.Cache as Cache
+import qualified Semiont.Internal.Coupled as Coupled
 import qualified Semiont.Internal.Persistence as Persistence
 import qualified Semiont.Internal.Generated.CachePersistence as Persisted
 import qualified Semiont.Annotations as Annotations
@@ -46,21 +47,21 @@ data BrowseNamespace = BrowseNamespace
   , resourcesCache :: Cache.Cache BrowseResourcesRequest ListResourcesResponse
   , annotationsCache :: Cache.Cache ResourceId GetAnnotationsResponse
   , annotationCache :: Cache.Cache AnnotationKey Annotation
-  , entityTypesCache :: Cache.Cache Text [Text]
-  , tagSchemasCache :: Cache.Cache Text [TagSchema]
+  , entityTypesCache :: Cache.Cache Persisted.Whole [Text]
+  , tagSchemasCache :: Cache.Cache Persisted.Whole [TagSchema]
   , enginesCache :: Cache.Cache () [EngineEntry]
   , limitsCache :: Cache.Cache Text [EngineLimits]
   , eventsCache :: Cache.Cache ResourceId [AttributedEvent]
   }
 
-newBrowse :: Bus.Bus -> LocalBus.EventBus -> Transport.Transport -> Content.ContentTransport -> Bus.BusOptions -> Timing.Settings -> Maybe Persistence.CachePersistence -> IO BrowseNamespace
+newBrowse :: Bus.Bus -> LocalBus.EventBus -> Transport.Transport -> Content.ContentTransport -> Bus.BusOptions -> Timing.Settings -> Maybe (Persistence.CachePersistence, Coupled.Coupled) -> IO BrowseNamespace
 newBrowse bus signals carrier contents clock settings persistence = do
   let ask operation input = Bus.request bus operation input (Timing.busRequestTimeoutMs settings)
       unscoped = cacheOptions clock settings (const (pure (pure ())))
       scoped = cacheOptions clock settings (Transport.subscribeToResource carrier)
   resourceStore <- Persistence.persister persistence settings Persisted.Resource (\key _ -> parseJSON key)
   annotationListStore <- Persistence.persister persistence settings Persisted.Annotations (\key _ -> parseJSON key)
-  annotationStore <- Persistence.persister persistence settings Persisted.AnnotationDetail
+  annotationStore <- Persistence.persister persistence settings Persisted.Annotation
     (\key value -> AnnotationKey (Annotations.targetSource (annotationTarget value)) <$> parseJSON key)
   vocabularyStore <- Persistence.persister persistence settings Persisted.EntityTypes (\key _ -> parseJSON key)
   schemaStore <- Persistence.persister persistence settings Persisted.TagSchemas (\key _ -> parseJSON key)
@@ -100,9 +101,9 @@ annotations namespace identity = getAnnotationsResponseAnnotations <$> Cache.que
 annotation :: BrowseNamespace -> ResourceId -> AnnotationId -> Cache.Query Annotation
 annotation namespace identity mark = Cache.query (annotationCache namespace) (AnnotationKey identity mark)
 entityTypes :: BrowseNamespace -> Cache.Query [Text]
-entityTypes namespace = Cache.query (entityTypesCache namespace) Persisted.entityTypesKey
+entityTypes namespace = Cache.query (entityTypesCache namespace) Persisted.Whole
 tagSchemas :: BrowseNamespace -> Cache.Query [TagSchema]
-tagSchemas namespace = Cache.query (tagSchemasCache namespace) Persisted.tagSchemasKey
+tagSchemas namespace = Cache.query (tagSchemasCache namespace) Persisted.Whole
 engines :: BrowseNamespace -> Cache.Query [EngineWithLimits]
 engines namespace = case reports of
   [] -> error "the derived inference-limits operation set is empty"
@@ -156,10 +157,14 @@ resourceViewed namespace identity = void $ Lifetime.start (signalLifetime namesp
       (TransportError Code.TransportError "resource-viewed report failed" Nothing Nothing) (fromException problem)))
 
 persistencePending :: BrowseNamespace -> STM Bool
-persistencePending namespace=or <$> sequence
-  [ Cache.persistencePending (resourceCache namespace), Cache.persistencePending (annotationsCache namespace)
-  , Cache.persistencePending (annotationCache namespace), Cache.persistencePending (entityTypesCache namespace)
-  , Cache.persistencePending (tagSchemasCache namespace)
+persistencePending = anyKept Cache.persistencePending
+fetching :: BrowseNamespace -> STM Bool
+fetching = anyKept Cache.fetching
+
+anyKept :: (forall key value. Cache.Cache key value -> STM Bool) -> BrowseNamespace -> STM Bool
+anyKept probe namespace=or <$> sequence
+  [ probe (resourceCache namespace), probe (annotationsCache namespace), probe (annotationCache namespace)
+  , probe (entityTypesCache namespace), probe (tagSchemasCache namespace)
   ]
 
 controls :: BrowseNamespace -> [(Fact.Query,Refresh.Acts)]

@@ -19,6 +19,7 @@ import semiont.cache.CacheRefreshWhen
 import semiont.errors.TransportError
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
+import semiont.registry.WHOLE_KEY
 import semiont.transport.Carried
 import semiont.transport.ConnectionState
 import semiont.transport.Frame
@@ -60,6 +61,10 @@ private class Windows(private val links: Links, private val lastingMs: Long) {
         val window = synchronized(this) { open.remove(key) } ?: return
         if (window.owed) run(key, window.refetch)
     }
+
+    /** Whether a window that is open holds a refetch it has not yet run. */
+    val owesARefetch: Boolean
+        get() = synchronized(this) { open.values.any { it.owed } }
 
     /** Every window closes, and what each owed is dropped. */
     fun dispose() {
@@ -210,11 +215,15 @@ internal class Refresher(private val links: Links, private val live: Live) {
             // An event does not say which lists it changes, nor which searches would now find its resource.
             CacheQuery.Resources -> windows.run("resource-lists", live.lists::invalidateAll)
             CacheQuery.MatchedResources -> windows.run("matched-resources", live.searches::invalidateAll)
-            CacheQuery.EntityTypes -> again(live.entityTypes, WHOLE, "entity-types")
-            CacheQuery.TagSchemas -> again(live.tagSchemas, WHOLE, "tag-schemas")
-            CacheQuery.Engines -> if (live.engines.known(WHOLE)) windows.run("engines", live::invalidateEngines)
+            CacheQuery.EntityTypes -> again(live.entityTypes, WHOLE_KEY, CacheQuery.EntityTypes.wire)
+            CacheQuery.TagSchemas -> again(live.tagSchemas, WHOLE_KEY, CacheQuery.TagSchemas.wire)
+            CacheQuery.Engines -> if (live.engines.known(WHOLE_KEY)) windows.run("engines", live::invalidateEngines)
         }
     }
+
+    /** Whether an event's refetch is owed: a window holds one it has not yet run (B19). */
+    val owesARefetch: Boolean
+        get() = windows.owesARefetch
 
     /** Stop: what a window owed is dropped, and no window opens after. The client's close ends the listening. */
     fun dispose(): Unit = windows.dispose()

@@ -97,8 +97,8 @@ internal suspend fun sessionStarted(
     val baseUrl = gatewayOf(kb)
     val token = MutableStateFlow<String?>(null)
     val renewing = Renewing(kept, token, http)
-    // The stream's place rides the caches' writes, and only when every cache is at rest: a place kept ahead of a
-    // cache still taking in the event it names would have the next session skip that event.
+    // The stream's place rides the caches' writes, and only when every cache is at rest and no event's refetch is owed:
+    // a place kept ahead of a cache still taking in the event it names would have the next session skip that event.
     val places = storage?.let { CoupledBookmarks(it, lastEventIdKey(kb.id)) }
     // The transport's refresher is made before the session that answers it: it waits for that session,
     // and closing the transport ends the wait (SDK-FOLLOW-UPS item 16).
@@ -115,7 +115,7 @@ internal suspend fun sessionStarted(
     )
     val content = HttpContentTransport(transport)
     val client = SemiontClient(transport, content, transport, persistence = places?.let { CachePersistence(it.storage, kb.id) })
-    places?.flushGate = { client.persistenceSettled }
+    places?.let(client::keepPlacesIn)
     val session = SemiontSession(kb, client, token, kept, { renewing() }, if (validate) asking(baseUrl, http) else null, onAuthFailed, onError)
     made.complete(session)
     val opened = OpenedSession(session) {

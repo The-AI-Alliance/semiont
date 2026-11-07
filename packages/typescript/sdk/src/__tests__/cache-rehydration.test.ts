@@ -19,7 +19,7 @@ import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 import type { IContentTransport, ITransport, ResourceDescriptor } from '@semiont/core';
 import { isReady } from '../cache';
 import { BrowseNamespace } from '../namespaces/browse';
-import { sessionStoragePersister } from '../cache-persister';
+import { keptPersister } from '../cache-persister';
 import { TestStorage } from '../session/__tests__/test-storage-helpers';
 import { inMemoryTransport, type InMemoryTransportOptions } from './helpers/in-memory-transport';
 import { mockResource } from './fixtures/resource';
@@ -34,11 +34,7 @@ const DESCRIPTOR = mockResource(RID, { name: 'Cached Doc' });
 describe('BrowseNamespace cache rehydration (B17)', () => {
   it('serves a rehydrated resource instantly AND revalidates it (B18); un-cached keys still request', async () => {
     const storage = new TestStorage();
-    sessionStoragePersister<string, ResourceDescriptor>({
-      storage,
-      storageKey: 'semiont.cache.kb-1.resource',
-      version: 1,
-    }).save(new Map([[String(RID), DESCRIPTOR]]));
+    keptPersister('resource', { storage, keyPrefix: 'kb-1' }).save(new Map([[RID, DESCRIPTOR]]));
 
     const emit = vi.fn<(channel: string, ...rest: unknown[]) => Promise<number>>(async () => 1);
     const browse = new BrowseNamespace(

@@ -3,8 +3,8 @@ module RefreshCases (refreshCases) where
 
 import Control.Concurrent.STM
 import Control.Exception (IOException, bracket, fromException, try)
-import Control.Monad (unless)
-import Data.Aeson (FromJSON, ToJSON, Result(..), Value(..), fromJSON, toJSON)
+import Control.Monad (unless, when)
+import Data.Aeson (FromJSON, ToJSON, Result(..), Value(..), fromJSON, parseJSON, toJSON)
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -16,9 +16,14 @@ import qualified Semiont.Cache as Cache
 import qualified Semiont.Channels as Channel
 import qualified Semiont.ErrorCodes as Code
 import Semiont.Errors (BusRequestError(..))
+import qualified Semiont.Internal.Cache as Cache (fetching)
+import qualified Semiont.Internal.Coupled as Coupled
 import qualified Semiont.Internal.Generated.CacheRefresh as Fact
+import qualified Semiont.Internal.Generated.CachePersistence as Persisted
+import qualified Semiont.Internal.Persistence as Persistence
 import qualified Semiont.Internal.Refresh as Refresh
 import qualified Semiont.Internal.Transport as Internal
+import qualified Semiont.SessionStorage as Storage
 import qualified Semiont.Transport as Transport
 import qualified Semiont.Timing.Settings as Timing
 import Semiont.Types
@@ -90,18 +95,19 @@ windowCases fixtures = withCarrier $ \carrier input local -> do
       Time.settle
       readTVarIO count >>= require "first source invalidation was delayed" . (==3)
       readTVarIO parents >>= require "refresh work lost the delivered frame's context" . ((==Just "frame-owner") . last)
-      require "coalescing let a bookmark outrun an open window" =<< atomically (Refresh.pending refresher)
+      require "a window owed an invalidation before a second event" . not =<< atomically (Refresh.owes refresher)
       Transport.receive input (event resource)
       Transport.receive input (event resource)
       Time.settle
       readTVarIO count >>= require "source invalidations did not coalesce" . (==3)
+      require "coalescing let a bookmark outrun an owed invalidation" =<< atomically (Refresh.owes refresher)
       Time.advance time (Timing.invalidationWindowMs Timing.protocolSettings * 1000000 - 1000000)
       readTVarIO count >>= require "owed invalidation ran before its deadline" . (==3)
       Time.advance time 1000000
       readTVarIO count >>= require "owed invalidation did not run at its deadline" . (==4)
       readTVarIO parents >>= require "a later frame inherited an earlier frame's context" . ((==Nothing) . last)
       waitWindow
-      require "an empty invalidation window did not close" . not =<< atomically (Refresh.pending refresher)
+      require "an invalidation stayed owed once it ran" . not =<< atomically (Refresh.owes refresher)
       Transport.receive input (BusFrame (Channel.channelName Channel.BusResumeGap) Nothing (payload gap { busResumeGapScope = resource }) Nothing)
       Time.settle
       readTVarIO count >>= require "a resumption gap did not refresh its held scope" . (==5)
@@ -150,7 +156,7 @@ writeCases fixtures = withCarrier $ \carrier input local -> do
         Cache.Failed problem -> case fromException problem of Just failure -> busRequestErrorCode failure == Code.BusRequestNotFound; Nothing -> False
         _ -> False)
       readTVarIO requests >>= require "a removal refetched its ended key" . (==1)
-      require "written/ended keys left a stale window" . not =<< atomically (Refresh.pending refresher)
+      require "written/ended keys left an invalidation owed" . not =<< atomically (Refresh.owes refresher)
 
 reopenCases :: Map.Map Text Value -> IO ()
 reopenCases _ = withCarrier $ \carrier input local -> do
@@ -169,8 +175,50 @@ reopenCases _ = withCarrier $ \carrier input local -> do
       Time.settle
       readTVarIO requests >>= require "reopening did not refresh held passing-event queries" . (==1)
 
+-- | Disposal reads the places' gate once, before the refresher or a kept cache
+-- is disposed: a window owing an invalidation then holds the places back from
+-- the flush, which still writes the document; an owed save does not.
+disposalCases :: Map.Map Text Value -> IO ()
+disposalCases fixtures = do
+  (owedDocument,owedPlaces) <- disposeWith True
+  require "disposal did not flush a kept cache's document while a window owed an invalidation" (owedDocument /= Nothing)
+  require "disposal wrote the places while a window owed an invalidation" (owedPlaces == Nothing)
+  (quietDocument,quietPlaces) <- disposeWith False
+  require "disposal did not flush a kept cache's document" (quietDocument /= Nothing)
+  require "disposal with nothing in flight or owed did not write the places" (quietPlaces /= Nothing)
+  where
+  disposeWith owing = withCarrier $ \carrier input local -> do
+    time <- Time.newTime
+    storage <- Storage.newMemoryStorage
+    coupled <- Coupled.newCoupled storage "kb"
+    resource <- either (ioError . userError) pure (mkResourceId "held")
+    stored <- fixture fixtures "StoredEventResponse"
+    persister <- Persistence.persister (Just (Persistence.CachePersistence storage "kb" (pure 1800000000000), coupled))
+      Timing.protocolSettings Persisted.Resource (\key _ -> parseJSON key)
+    let event = BusFrame (Channel.channelName Channel.MarkAdded) Nothing
+          (payload stored { storedEventResponseResourceId = Just resource }) (Just resource)
+        matches info identity = Refresh.subjectResource info == Just identity
+    bracket (Cache.newCache (\(_::ResourceId) -> pure (1::Int)) ((options time) { Cache.cachePersister = persister })) Cache.dispose $ \cache -> do
+      _ <- Cache.fetch cache resource
+      let control = Refresh.Acts (Refresh.cacheTargets cache matches) Nothing Nothing
+      bracket (Refresh.newRefresher local carrier (clock time) Timing.protocolSettings [(Fact.Events,control)]) Refresh.dispose $ \refresher -> do
+        Coupled.start coupled (Cache.persistencePending cache) ((||) <$> Cache.fetching cache <*> Refresh.owes refresher)
+        Time.settle
+        when owing $ do
+          Transport.receive input event
+          Time.settle
+          Transport.receive input event
+          Time.settle
+          require "a second event in a window did not owe its invalidation" =<< atomically (Refresh.owes refresher)
+        Coupled.savePosition coupled resource "p-held-7"
+        require "the kept cache owed no save as disposal began" =<< atomically (Cache.persistencePending cache)
+        Coupled.dispose coupled
+        Refresh.dispose refresher
+        Cache.dispose cache
+    (,) <$> Storage.get storage (Persistence.documentKey "kb" Persisted.Resource) <*> Storage.get storage (Coupled.placesKey "kb")
+
 refreshCases :: Map.Map Text Value -> IO ()
 refreshCases fixtures = do
-  outcome <- timeout 10000000 (windowCases fixtures >> writeCases fixtures >> reopenCases fixtures)
+  outcome <- timeout 10000000 (windowCases fixtures >> writeCases fixtures >> reopenCases fixtures >> disposalCases fixtures)
   require "refresh runtime exceeded its liveness guard" (outcome == Just ())
   putStrLn "PASS atomic refresh, coalescing, held-only effects, writes/removals, resumption gaps, trace context and disposal"

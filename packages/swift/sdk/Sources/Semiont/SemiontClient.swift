@@ -22,7 +22,7 @@ public final class SemiontClient: Sendable {
   let clock: any Clock<Duration>
   private let lifetime = Lifetime()
   private let disposed = Mutex(false)
-  private let book: StoragePersister<KeptQuery>?
+  private let keeping: Keeping?
   public init(
     transport: any Transport, gateway: (any GatewayOperations)? = nil,
     content: (any ContentTransport)? = nil, followTiming: FollowTiming = FollowTiming(),
@@ -30,10 +30,10 @@ public final class SemiontClient: Sendable {
     busRequestTimeoutMs: Int? = nil, clock: any Clock<Duration> = ContinuousClock()
   ) async throws {
     self.clock = clock
-    let book = persistence.map { StoragePersister<KeptQuery>($0, clock: clock) }
-    self.book = book
-    if let http = transport as? HttpTransport, let book {
-      await http.restoreBookmarks(book.bookmarks)
+    let keeping = persistence.map { Keeping($0, clock: clock) }
+    self.keeping = keeping
+    if let http = transport as? HttpTransport, let keeping {
+      await http.restoreBookmarks(keeping.places.kept)
     }
     let source = try await transport.frames([])
     do { try Task.checkCancellation() } catch {
@@ -47,7 +47,7 @@ public final class SemiontClient: Sendable {
     self.wire = wire
     let content = content ?? (transport as? any ContentTransport)
     let live = LiveQueries(
-      wire: wire, transport: transport, content: content, lifetime: lifetime, book: book,
+      wire: wire, transport: transport, content: content, lifetime: lifetime, keeping: keeping,
       invalidationWindowMs: invalidationWindowMs ?? Timings.invalidationWindowMs, clock: clock)
     browse = BrowseNamespace(
       wire: wire, bus: bus, lifetime: lifetime, content: content, live: live)
@@ -78,7 +78,7 @@ public final class SemiontClient: Sendable {
           bus.receive(carried)
           await live.receive(carried)
           if case .frame(let frame) = carried, let id = frame.eventId, let scope = frame.scope {
-            book?.heard(id, in: scope)
+            keeping?.places.heard(id, in: scope)
           }
         }
       } catch {
@@ -128,7 +128,7 @@ public final class SemiontClient: Sendable {
         return true
       })
     else { return }
-    book?.close()
+    keeping?.close()
     lifetime.end()
     transport.dispose()
     bus.dispose()

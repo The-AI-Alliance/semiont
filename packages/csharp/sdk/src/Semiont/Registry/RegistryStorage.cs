@@ -12,7 +12,6 @@ public static class RegistryStorage
 {
     private static readonly JsonElement Table = JsonSerializer.Deserialize<JsonElement>(ProtocolTables.Stored);
     private static readonly string Prefix = Text(Table.GetProperty("sessionKeyPrefix"), "prefix");
-    private static readonly string CachePrefix = Text(Table.GetProperty("cacheKeyPrefix"), "prefix");
     public static readonly string KnowledgeBasesKey = Key("knowledgeBasesKey");
     public static readonly string ActiveKey = Key("activeKey");
     public static readonly string OpenResourcesByKbKey = Key("openResourcesByKbKey");
@@ -26,9 +25,6 @@ public static class RegistryStorage
 
     private static string Key(string member) => Text(Table.GetProperty("keys").EnumerateArray().Single(row => Text(row, "member") == member), "key");
     private static string Text(JsonElement value, string name) => value.GetProperty(name).GetString() ?? throw new InvalidOperationException("Missing " + name);
-
-    internal static string CacheKey(string kbId, UserId user) => CachePrefix + "csharp.v1." +
-        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new[] { kbId, user.Value })));
 
     public static string SessionKey(string kbId) => Prefix + kbId;
     public static string? KbOfSessionKey(string key) => key.StartsWith(Prefix, StringComparison.Ordinal) ? key[Prefix.Length..] : null;

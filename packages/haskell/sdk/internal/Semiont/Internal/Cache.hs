@@ -2,7 +2,7 @@
 module Semiont.Internal.Cache
   ( Cache, Query, CacheState(..), CacheOptions(..), CachePersister(..)
   , newCache, query, current, watch, fresh, invalidateQuery, observe, fetch, get, known, keys
-  , invalidate, invalidateAll, remove, set, persistencePending, dispose
+  , invalidate, invalidateAll, remove, set, persistencePending, fetching, dispose
   , isReady, readyValue, invalidateSTM, setSTM, removeSTM, updateSTM, encodeKey, canonical, liftQuery2
   ) where
 
@@ -37,6 +37,9 @@ instance Functor CacheState where
 data CachePersister key value = CachePersister
   { load :: IO [(key,value)]
   , save :: [(key,value)] -> IO ()
+  , saved :: IO ()
+  -- ^ Run in the same call as each save, once the cache has recorded it: the
+  -- cache then owes no save unless its values changed while it was saving.
   }
 data CacheOptions key value = CacheOptions
   { cacheNow :: IO Integer
@@ -411,16 +414,19 @@ persist cache persister epoch = withMVar (persistenceLock cache) $ \_ -> do
     outcome <- try (save persister values)
     case outcome of
       Left (_ :: SomeException) -> pure ()
-      Right () -> atomically $ do
-        version <- readTVar (saveVersion cache)
-        when (version == epoch) (writeTVar (dirty cache) False)
+      Right () -> do
+        atomically $ do
+          version <- readTVar (saveVersion cache)
+          when (version == epoch) (writeTVar (dirty cache) False)
+        saved persister
 
 persistencePending :: Cache key value -> STM Bool
-persistencePending cache = do
-  unsaved <- readTVar (dirty cache)
+persistencePending cache = (||) <$> readTVar (dirty cache) <*> fetching cache
+
+fetching :: Cache key value -> STM Bool
+fetching cache = do
   values <- Map.elems <$> readTVar (entries cache)
-  running <- or <$> traverse (\(Entry _ _ _ _ _ _ _ _ busy) -> (>0) <$> readTVar busy) values
-  pure (unsaved || running)
+  or <$> traverse (\(Entry _ _ _ _ _ _ _ _ busy) -> (>0) <$> readTVar busy) values
 
 dispose :: Cache key value -> IO ()
 dispose cache = mask $ \restore -> do

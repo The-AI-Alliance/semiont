@@ -1315,7 +1315,7 @@ def test_a_session_with_a_storage_keeps_what_its_queries_hold_and_the_streams_pl
                     await soon(gateway.arrived("POST", "/bus/emit", 2))
                     # The stream reaches a place in the resource's scope.
                     heard = client.transport.frames("mark:added")
-                    gateway.send("p-7", {"channel": "mark:added", "payload": recorded("mark:added", "res-1"), "scope": "res-1"})
+                    gateway.send("p-res-1-7", {"channel": "mark:added", "payload": recorded("mark:added", "res-1"), "scope": "res-1"})
                     await soon(anext(heard))
 
                     # The resource is kept once it has stopped changing. The place is not: a cache is still fetching,
@@ -1333,8 +1333,8 @@ def test_a_session_with_a_storage_keeps_what_its_queries_hold_and_the_streams_pl
                     )
                     await settle()
                     await pass_time(0.2, step=0.01)
-                    assert kept_under("semiont.cache.kb.entity-types") is not None
-                    assert kept_under("semiont.lastEventId.kb") == {"res-1": "p-7"}
+                    assert kept_under("semiont.cache.kb.entityTypes") is not None
+                    assert kept_under("semiont.lastEventId.kb") == {"res-1": "p-res-1-7"}
 
             # The next session of the same knowledge base, over the same storage: what was kept is shown at once,
             # and the resource's scope resumes from the place that was kept.
@@ -1358,7 +1358,7 @@ def test_a_session_with_a_storage_keeps_what_its_queries_hold_and_the_streams_pl
                     assert isinstance(scoped, list)
                     (entry,) = scoped
                     assert isinstance(entry, dict)
-                    assert (entry["scope"], entry["lastEventId"]) == ("res-1", "p-7")
+                    assert (entry["scope"], entry["lastEventId"]) == ("res-1", "p-res-1-7")
 
             # A session of another knowledge base, over the same storage, begins with neither.
             async with session_from_kept(gateway.target("another"), kept=kept, storage=storage) as session:

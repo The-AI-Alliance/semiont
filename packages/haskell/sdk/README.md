@@ -348,16 +348,20 @@ also needs `streaming` in its `build-depends`.
 
 Cache persistence is opt-in: pass `Just (Client.CachePersistence storage
 "kb-id" wallMilliseconds)` to the client or session factory in place of
-`Nothing`. Give each principal a separate storage namespace, or include the
-principal and KB in the prefix. Close the old client before switching profiles;
-persisted values are available before gateway revalidation. Resource details,
-annotation lists and details, entity types and tag
-schemas rehydrate immediately. The first observation revalidates each restored
-key. Cache documents are versioned and bounded by the shared UTF-8 byte cap;
-unchanged entries retain their write times for eviction. Replay bookmarks advance
-only after a cache-document write and after every persisted view and refresh
-window has settled. Disposal freezes bookmark advancement before final cache
-saves, so a reload may replay extra events and cannot skip an unfinished update.
+`Nothing`. Give each principal a separate storage. Close the old client before
+switching profiles; persisted values are available before gateway revalidation.
+The queries `session/stored.json` keeps (resource details, annotation lists and
+details, entity types and tag schemas) rehydrate immediately, each from one
+cache document that every SDK writes and reads alike. The first observation
+revalidates each restored key. Each entry's stamp is the wall clock rounded to a
+whole millisecond, kept while its value is unchanged; a document over the shared
+UTF-8 byte cap loses its oldest entries. Where the stream was is written in the
+same call as a cache document, and only while every kept view has no fetch in
+flight and owes no save and no refresh window owes an invalidation. Disposal
+reads that gate once, before anything is disposed: a fetch in flight or an owed
+invalidation holds the places back from the final cache saves, and an owed save
+does not, since those saves are it. So a reload may replay extra events and
+cannot skip an unfinished update.
 
 ## Building annotations
 

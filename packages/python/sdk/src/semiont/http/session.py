@@ -205,8 +205,8 @@ async def _session_started(
     token = Variable[str | None](None)
     renewing = _Renewing(kept, token, http)
     # The stream's place rides the caches' writes, and only when every cache is
-    # at rest: a place kept ahead of a cache still taking in the event it names
-    # would have the next session skip that event.
+    # at rest and the refresher owes no refetch: a place kept ahead of a cache
+    # still taking in the event it names would have the next session skip that event.
     places = None if storage is None else CoupledBookmarks(storage, last_event_id_key(kb.id))
     transport = HttpTransport(
         base_url, token=token, refresher=lambda refused: session.refresh(refused), channels=channels, bookmarks=places, http=http

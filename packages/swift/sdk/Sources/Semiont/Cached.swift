@@ -6,44 +6,82 @@ public enum CacheState<Value: Sendable>: Sendable {
   case failed(any Error)
 }
 
+extension CacheState {
+  func map<Seen: Sendable>(_ see: (Value) -> Seen) -> CacheState<Seen> {
+    switch self {
+    case .pending: .pending
+    case .ready(let value): .ready(see(value))
+    case .failed(let error): .failed(error)
+    }
+  }
+}
+
 /// A read-through query. Iteration watches its shared state and fresh() asks for a current answer.
 public final class Cached<Value: Sendable>: AsyncSequence, Sendable {
   public typealias Element = CacheState<Value>
-  private let entry: CacheEntry<Value>
+  private let reading: Reading
+  private let held: CacheEntry<Value>?
 
   init(
     lifetime: Lifetime, hold: (@Sendable () async -> ResourceHold)? = nil,
-    kept: KeptValue<Value>? = nil, invalidationWindowMs: Int = Timings.invalidationWindowMs,
-    clock: any Clock<Duration>, fetch: @escaping @Sendable () async throws -> Value
+    kept: KeptValue<Value>? = nil, owed: Unsettled?,
+    invalidationWindowMs: Int = Timings.invalidationWindowMs, clock: any Clock<Duration>,
+    fetch: @escaping @Sendable () async throws -> Value
   ) {
     let entry = CacheEntry(
-      lifetime: lifetime, hold: hold, kept: kept, invalidationWindowMs: invalidationWindowMs,
-      clock: clock, fetch: fetch)
-    self.entry = entry
+      lifetime: lifetime, hold: hold, kept: kept, owed: owed,
+      invalidationWindowMs: invalidationWindowMs, clock: clock, fetch: fetch)
+    held = entry
+    reading = Reading(entry) { $0 }
     lifetime.onEnd { [weak entry] in
       Task { await entry?.close() }
     }
   }
 
+  private init(reading: Reading) {
+    self.reading = reading
+    held = nil
+  }
+
+  /// This query as `see` sees its value: the same states, answers and observers, shown otherwise.
+  func view<Seen: Sendable>(_ see: @escaping @Sendable (Value) -> Seen) -> Cached<Seen> {
+    Cached<Seen>(reading: Cached<Seen>.Reading(entry, see))
+  }
+
+  /// A query's entry, as one query shows its value.
+  fileprivate struct Reading: Sendable {
+    let ended: @Sendable () -> Bool
+    let observe: @Sendable () async -> (AsyncStream<Element>, ResourceHold)?
+    let fresh: @Sendable () async throws -> Value
+    let invalidate: @Sendable () async -> Void
+
+    init<Held: Sendable>(_ entry: CacheEntry<Held>, _ see: @escaping @Sendable (Held) -> Value) {
+      ended = { entry.ended }
+      observe = { await entry.observe(seeing: see) }
+      fresh = { see(try await entry.fresh()) }
+      invalidate = { await entry.invalidate() }
+    }
+  }
+
   public struct AsyncIterator: AsyncIteratorProtocol {
-    private let entry: CacheEntry<Value>
+    private let reading: Reading
     private var reader: AsyncStream<Element>.Iterator?
     private var subscription: ResourceHold?
 
-    fileprivate init(entry: CacheEntry<Value>) { self.entry = entry }
+    fileprivate init(reading: Reading) { self.reading = reading }
 
     public mutating func next() async -> Element? {
-      guard !entry.ended, !Task.isCancelled else {
+      guard !reading.ended(), !Task.isCancelled else {
         subscription?.dispose()
         return nil
       }
       if reader == nil {
-        guard !Task.isCancelled, let (stream, hold) = await entry.observe() else { return nil }
+        guard !Task.isCancelled, let (stream, hold) = await reading.observe() else { return nil }
         reader = stream.makeAsyncIterator()
         subscription = hold
       }
       let state = await reader?.next()
-      if state == nil || entry.ended || Task.isCancelled {
+      if state == nil || reading.ended() || Task.isCancelled {
         subscription?.dispose()
         return nil
       }
@@ -51,9 +89,16 @@ public final class Cached<Value: Sendable>: AsyncSequence, Sendable {
     }
   }
 
-  public func makeAsyncIterator() -> AsyncIterator { AsyncIterator(entry: entry) }
-  public func fresh() async throws -> Value { try await entry.fresh() }
-  public func invalidate() async { await entry.invalidate() }
+  public func makeAsyncIterator() -> AsyncIterator { AsyncIterator(reading: reading) }
+  public func fresh() async throws -> Value { try await reading.fresh() }
+  public func invalidate() async { await reading.invalidate() }
+
+  /// The entry this query holds. A view only reads another query's.
+  private var entry: CacheEntry<Value> {
+    guard let held else { preconditionFailure("A view of a query is read, never written") }
+    return held
+  }
+
   func refreshIfKnown(coalescing: Bool) async { await entry.refreshIfKnown(coalescing: coalescing) }
   func writeIfKnown(_ value: Value) async { await entry.writeIfKnown(value) }
   func editIfKnown(_ change: @escaping @Sendable (Value) -> Value) async {
@@ -71,12 +116,14 @@ private actor CacheEntry<Value: Sendable> {
   private let fetch: @Sendable () async throws -> Value
   private let hold: (@Sendable () async -> ResourceHold)?
   private let kept: KeptValue<Value>?
+  private let owed: Unsettled?
   private let invalidationWindowMs: Int
   private let clock: any Clock<Duration>
   private var rehydrated = false
   private var state: State = .pending
-  private var listeners: [UUID: (stream: AsyncStream<State>.Continuation, scope: ResourceHold?)] =
-    [:]
+  private var listeners:
+    [UUID: (yield: @Sendable (State) -> Void, finish: @Sendable () -> Void, scope: ResourceHold?)] =
+      [:]
   private var flights: [UUID: Task<Value, any Error>] = [:]
   private var flightEdits: [UUID: [@Sendable (Value) -> Value]] = [:]
   private var current: UUID?
@@ -87,14 +134,15 @@ private actor CacheEntry<Value: Sendable> {
 
   init(
     lifetime: Lifetime, hold: (@Sendable () async -> ResourceHold)?,
-    kept: KeptValue<Value>?, invalidationWindowMs: Int, clock: any Clock<Duration>,
-    fetch: @escaping @Sendable () async throws -> Value
+    kept: KeptValue<Value>?, owed: Unsettled?, invalidationWindowMs: Int,
+    clock: any Clock<Duration>, fetch: @escaping @Sendable () async throws -> Value
   ) {
     self.lifetime = lifetime
     self.clock = clock
     self.hold = hold
     self.fetch = fetch
     self.kept = kept
+    self.owed = owed
     self.invalidationWindowMs = invalidationWindowMs
     if let value = kept?.load() {
       state = .ready(value)
@@ -115,7 +163,9 @@ private actor CacheEntry<Value: Sendable> {
     return value
   }
 
-  func observe() async -> (AsyncStream<State>, ResourceHold)? {
+  func observe<Seen: Sendable>(seeing see: @escaping @Sendable (Value) -> Seen) async
+    -> (AsyncStream<CacheState<Seen>>, ResourceHold)?
+  {
     guard !lifetime.ended, !Task.isCancelled else { return nil }
     let scope = await hold?()
     guard !lifetime.ended, !Task.isCancelled else {
@@ -130,9 +180,10 @@ private actor CacheEntry<Value: Sendable> {
     case .pending: revalidate()
     }
     let id = UUID()
-    let (stream, continuation) = AsyncStream<State>.makeStream(bufferingPolicy: .unbounded)
-    listeners[id] = (continuation, scope)
-    continuation.yield(state)
+    let (stream, continuation) = AsyncStream<CacheState<Seen>>.makeStream(
+      bufferingPolicy: .unbounded)
+    listeners[id] = ({ _ = continuation.yield($0.map(see)) }, { continuation.finish() }, scope)
+    continuation.yield(state.map(see))
     return (
       stream,
       ResourceHold { [weak self] in
@@ -142,27 +193,24 @@ private actor CacheEntry<Value: Sendable> {
     )
   }
 
-  private func remove(_ id: UUID) { listeners.removeValue(forKey: id)?.stream.finish() }
+  private func remove(_ id: UUID) { listeners.removeValue(forKey: id)?.finish() }
 
+  /// A settled value is kept; a failed fetch leaves what is kept alone.
   private func publish(_ state: State) {
     self.state = state
-    switch state {
-    case .ready(let value): kept?.store(value)
-    case .failed: kept?.store(nil)
-    case .pending: break
-    }
-    for listener in listeners.values { listener.stream.yield(state) }
+    if case .ready(let value) = state { kept?.store(value) }
+    for listener in listeners.values { listener.yield(state) }
   }
 
   private func fetching() -> Task<Value, any Error> {
     if let current, let flight = flights[current] { return flight }
     rehydrated = false
-    kept?.book.begin()
+    kept?.underway.begin()
     let id = UUID()
     let revision = mutation
     let task = Task {
       defer {
-        kept?.book.end()
+        kept?.underway.end()
         flights.removeValue(forKey: id)
         flightEdits.removeValue(forKey: id)
         if current == id { current = nil }
@@ -212,9 +260,9 @@ private actor CacheEntry<Value: Sendable> {
     let id = UUID()
     validation = id
     let first = fetching()
-    kept?.book.begin()
+    kept?.underway.begin()
     lifetime.start {
-      defer { self.kept?.book.end() }
+      defer { self.kept?.underway.end() }
       await self.validate(first, id: id)
     }
   }
@@ -236,7 +284,7 @@ private actor CacheEntry<Value: Sendable> {
     if !coalescing {
       invalidate()
     } else if windowOpen {
-      if !refreshOwed { kept?.book.begin() }
+      if !refreshOwed { owed?.begin() }
       refreshOwed = true
     } else {
       openWindow()
@@ -260,6 +308,7 @@ private actor CacheEntry<Value: Sendable> {
     replace(.failed(error))
   }
 
+  /// A value written, or one gone (B13a), which is then kept no longer.
   func replace(_ state: State) {
     guard !lifetime.ended else { return }
     // Earlier reads can finish for their callers but cannot undo a bus mutation.
@@ -267,10 +316,11 @@ private actor CacheEntry<Value: Sendable> {
     rehydrated = false
     current = nil
     validation = nil
-    let owed = refreshOwed
+    let wasOwed = refreshOwed
     refreshOwed = false
+    if case .failed = state { kept?.forget() }
     publish(state)
-    if owed { kept?.book.end() }
+    if wasOwed { owed?.end() }
   }
 
   private func openWindow() {
@@ -290,7 +340,7 @@ private actor CacheEntry<Value: Sendable> {
     if refreshOwed, !lifetime.ended {
       refreshOwed = false
       openWindow()
-      kept?.book.end()
+      owed?.end()
     }
   }
 
@@ -298,11 +348,12 @@ private actor CacheEntry<Value: Sendable> {
     for flight in flights.values { flight.cancel() }
     for listener in listeners.values {
       listener.scope?.dispose()
-      listener.stream.finish()
+      listener.finish()
     }
     flights.removeAll()
     flightEdits.removeAll()
     listeners.removeAll()
+    if refreshOwed { owed?.end() }
     refreshOwed = false
   }
 }

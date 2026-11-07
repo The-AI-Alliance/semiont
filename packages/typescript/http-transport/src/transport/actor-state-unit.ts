@@ -71,7 +71,7 @@ export interface ActorStateUnitOptions {
    * CACHE-SEMANTICS B17 — IO-abstracted persistence of the last seen
    * PERSISTED event id PER SCOPE, so a reloaded client resumes each
    * scope's replay instead of gapping. `load` runs once at construction;
-   * `save` fires per persisted (`p-*`) id with that frame's scope —
+   * `save` fires per PersistedEventId with that frame's scope —
    * ephemeral (`e-*`) ids are never saved: they carry no replay meaning,
    * and one displacing a scope's watermark would silently lose that
    * scope's replay. The transport stays storage-free; callers wrap their
@@ -202,7 +202,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   /** The subscription matrix's scoped half: scope → channels. */
   const scopedSubscriptions = new Map<ResourceId, Set<string>>();
   /**
-   * Per-scope resumption watermarks: the last PERSISTED (`p-*`) id seen for
+   * Per-scope resumption watermarks: the last PersistedEventId seen for
    * each scope. Sent as `lastEventId` on that scope's matrix entry so the
    * server replays each scope's own gap. A scope keeps its watermark after
    * its channels are removed — re-subscribing later replays what was missed
@@ -705,11 +705,12 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
               // crash mid-apply resumes from the previous id and redelivers,
               // and re-invalidation is idempotent.
               //
-              // Watermarks are PER SCOPE and persisted-ids-only: a `p-*` id is
-              // stamped only on scoped deliveries (the frame always carries
-              // `scope`), and ephemeral ids never displace a scope's watermark,
-              // which would silently lose that scope's replay.
-              if (currentId !== undefined && currentId.startsWith('p-') && parsed.scope) {
+              // Watermarks are PER SCOPE and persisted-ids-only: a
+              // PersistedEventId is stamped only on scoped deliveries (the
+              // frame always carries `scope`), and ephemeral ids never displace
+              // a scope's watermark, which would silently lose that scope's
+              // replay. The places check the same component.
+              if (currentId !== undefined && faultOf('PersistedEventId', currentId) === undefined && parsed.scope) {
                 scopeWatermarks.set(parsed.scope, currentId);
                 // B17: persist per scope — see ActorStateUnitOptions.
                 options.saveLastEventId?.(parsed.scope, currentId);

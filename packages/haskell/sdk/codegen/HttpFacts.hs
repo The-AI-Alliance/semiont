@@ -104,18 +104,13 @@ httpFacts root (Object spec) schemas = do
   codeChoices <- property "enum" refusalCode
   unless (codeType == String "string" && case codeChoices of Array values -> String literal `elem` values; _ -> False)
     (fail "credential refusal reader no longer matches its schema")
-  pattern <- lookupSchema "PersistedEventId" >>= property "pattern"
-  (prefix, separator) <- case pattern of
-    String value | Just body <- T.stripPrefix "^" value >>= T.stripSuffix "[0-9]+$" ->
-      case T.splitOn ".+" body of [before, after] | not (T.null before) && not (T.null after) -> pure (before, after); _ -> fail "persisted id grammar changed"
-    _ -> fail "persisted id grammar changed"
   event <- lookupSchema "BusEventMessage" >>= property "properties" >>= property "event" >>= property "enum"
   eventName <- case event of Array values | [String value] <- foldr (:) [] values -> pure value; _ -> fail "bus event has no single name"
   let quote = T.pack . show . T.unpack
       code = T.unlines
         [ "-- Generated from protocol/specs/src/openapi.json and its paths, and the reference credential classifier. Do not edit."
         , "{-# LANGUAGE GADTs, OverloadedStrings #-}"
-        , "module Semiont.Http.Routes (HttpRoute(..), routeName, routeMethod, routePath, routeStatus, routeMediaType, routeAuthenticated, routeRequestMediaType, routeRequiredHeaders, wireRefusesCredential, persistedScopePrefix, busEventName) where"
+        , "module Semiont.Http.Routes (HttpRoute(..), routeName, routeMethod, routePath, routeStatus, routeMediaType, routeAuthenticated, routeRequestMediaType, routeRequiredHeaders, wireRefusesCredential, busEventName) where"
         , "import Data.ByteString (ByteString)"
         , "import Data.Text (Text)"
         , "import Data.Aeson (Value(..))"
@@ -133,7 +128,6 @@ httpFacts root (Object spec) schemas = do
         <> "routeRequiredHeaders :: HttpRoute request answer -> [(ByteString, Text)]\n" <> T.unlines ["routeRequiredHeaders " <> constructorName row <> " = [" <> T.intercalate ", " ["(" <> quote header <> ", " <> quote named <> ")" | (header,named,_) <- headerSchemas row] <> "]" | row <- rows]
         <> "wireRefusesCredential :: Int -> Maybe Value -> Bool\nwireRefusesCredential status body = status == " <> T.pack (show unauthorized)
         <> " || (status == " <> T.pack (show limited) <> " && maybe False matches body)\n  where matches (Object fields) = KM.lookup " <> quote field <> " fields == Just (String " <> quote literal <> ")\n        matches _ = False\n"
-        <> "persistedScopePrefix :: ResourceId -> Text\npersistedScopePrefix scope = " <> quote prefix <> " <> resourceIdValue scope <> " <> quote separator <> "\n"
         <> "busEventName :: Text\nbusEventName = " <> quote eventName <> "\n"
   pure (concat [addedSchemas row ++ [(named, shape) | (_,named,shape) <- headerSchemas row] | row <- rows], [("src/Semiont/Http/Routes.hs", code)])
 httpFacts _ _ _ = fail "OpenAPI is not an object"

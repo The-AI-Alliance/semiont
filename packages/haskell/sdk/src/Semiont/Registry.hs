@@ -48,8 +48,9 @@ import qualified Semiont.Internal.Broadcast as Broadcast
 import qualified Semiont.Internal.Lifetime as Lifetime
 import qualified Semiont.Internal.Stored as Kept
 import qualified Semiont.Timing as Timing
+import qualified Semiont.Internal.Coupled as Coupled
 import qualified Semiont.Internal.Generated.CachePersistence as Persistent
-import qualified Semiont.Internal.Generated.Stored as StoredKeys
+import qualified Semiont.Internal.Persistence as Persistence
 import qualified Semiont.Tokens as Tokens
 import qualified Semiont.Internal.StateValue as State
 import qualified Semiont.Issuer as Issuer
@@ -359,9 +360,8 @@ removeKb owner key=Lifetime.run (lifetime owner) $ do
   -- Close its client before deleting documents: the final cache flush must
   -- not recreate data belonging to a registry entry that was removed.
   withMVar (activation owner) (const (drainRetired owner))
-  forM_ [minBound..maxBound] $ \query -> Storage.delete (storage owner)
-    (StoredKeys.cacheKeyPrefix<>key<>"."<>Persistent.persistedQueryName query)
-  Storage.delete (storage owner) (StoredKeys.lastEventIdKeyPrefix<>key)
+  forM_ [minBound..maxBound :: Persistent.KeptQuery] $ \query -> Storage.delete (storage owner) (Persistence.documentKey key query)
+  Storage.delete (storage owner) (Coupled.placesKey key)
 
 currentKey :: SemiontBrowser -> STM (Maybe Text)
 currentKey owner=do current<-readTVar (live owner); pure (case current of Nothing->Nothing; Just (Live _ openedSession _ _)->Just (Session.id (Session.openedSession openedSession)))

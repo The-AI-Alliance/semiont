@@ -47,14 +47,103 @@ import Testing
   #expect(try storedSession(storage, kbId: id) == nil)
 }
 
-@Test func aKeptCacheIsKeptUnderTheStoredTablesPrefix() throws {
+/// Hold a value in `query`'s cache of a client's queries.
+private func hold(_ query: CacheQuery, in live: LiveQueries) async throws {
+  let resource = try ResourceId("res-1")
+  let listed: JSONValue = .object([
+    "resources": .array([]), "total": .number(0), "offset": .number(0), "limit": .number(10),
+  ])
+  switch query {
+  case .resource: await live.resources.set(resource, value: try keptDescriptor("res-1"))
+  case .annotations:
+    await live.annotations.set(
+      resource,
+      value: GetAnnotationsResponse(
+        annotations: [try keptAnnotation("ann-1", of: "res-1")], total: 1))
+  case .annotation:
+    let annotation = try keptAnnotation("ann-1", of: "res-1")
+    await live.details.set(
+      LiveQueries.AnnotationKey(resource: resource, annotation: annotation.id), value: annotation)
+  case .events: await live.events.set(resource, value: [])
+  case .referencedBy: await live.referencedBy.set(resource, value: [])
+  case .resources:
+    await live.listedResources.set(
+      ResourceFilters(), value: try decoded(ListResourcesResponse.self, listed))
+  case .matchedResources:
+    var matched = try listed.object
+    matched["matchKind"] = .string("lexical")
+    await live.matchedResources.set(
+      LiveQueries.SearchKey(text: "one", filters: ResourceFilters()),
+      value: try decoded(MatchResourcesResponse.self, .object(matched)))
+  case .entityTypes: await live.entityTypes.replace(.ready(["Person"]))
+  case .tagSchemas: await live.tagSchemas.replace(.ready([]))
+  case .engines: await live.engines.replace(.ready([]))
+  }
+}
+
+@Test func aClientKeepsTheStoredTablesQueriesUnderItsPrefix() async throws {
   let table = try Spec.read("session/stored.json").object
   let prefix = try required(required(table, "cacheKeyPrefix").object, "prefix").text
+  let kept = Set(
+    try required(table, "keptQueries").array.map { try required($0.object, "query").text })
+  let whole = try required(required(table, "wholeKey").object, "key").text
+  let version = try required(
+    required(required(required(table, "cacheDocument").object, "properties").object, "version")
+      .object, "const")
+  var perNothing: Set<String> = []
+  for row in try required(Spec.read("client/refresh.json").object, "queries").array {
+    let row = try row.object
+    if row["per"] == nil { perNothing.insert(try required(row, "name").text) }
+  }
+  #expect(!kept.isDisjoint(with: perNothing), "A query per nothing is kept")
+
   let storage = MemorySessionStorage()
-  let persister = StoragePersister<KeptQuery>(CachePersistence(storage: storage, keyPrefix: "kb-a"))
-  persister.store(.annotations(try ResourceId("one")), ["one"])
-  persister.close()
-  #expect(storage.get(prefix + "kb-a.swift") != nil)
+  let client = try await SemiontClient(
+    transport: ProbeTransport(), persistence: CachePersistence(storage: storage, keyPrefix: "kb-a"))
+  for query in CacheQuery.allCases { try await hold(query, in: client.browse.live) }
+  client.dispose()
+  for query in CacheQuery.allCases {
+    let name = query.rawValue
+    let text = storage.get(prefix + "kb-a." + name)
+    #expect((text != nil) == kept.contains(name), "\(name) is kept as session/stored.json keeps it")
+    guard let text else { continue }
+    let document = try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)).object
+    #expect(try required(document, "version") == version, "\(name)'s document's version")
+    let keys = try required(document, "entries").array.map { try $0.array[0] }
+    if perNothing.contains(name) {
+      #expect(keys == [.string(whole)], "\(name) keeps its one entry under the whole key")
+    }
+  }
+}
+
+@Test func placesAreKeptAsTheStoredTablesLastEventIds() throws {
+  let table = try Spec.read("session/stored.json").object
+  let prefix = try required(required(table, "lastEventIdKeyPrefix").object, "prefix").text
+  let places = try required(table, "lastEventIds").object
+  let schema = { (member: String) throws -> String in
+    URL(fileURLWithPath: try required(required(places, member).object, "$ref").text)
+      .deletingPathExtension().lastPathComponent
+  }
+  let scope = try schema("propertyNames")
+  let place = try schema("additionalProperties")
+
+  let storage = MemorySessionStorage()
+  let keeping = Keeping(
+    CachePersistence(storage: storage, keyPrefix: "kb-a"), clock: ContinuousClock())
+  let book: StoragePersister<ResourceId, KeptResource> = try #require(
+    keeping.persister(.resource))
+  let resource = try ResourceId("res-1")
+  keeping.places.heard("p-res-1-7", in: resource)
+  book.store(resource, try keptDescriptor("res-1"))
+  keeping.close()
+  let written = try JSONDecoder().decode(
+    JSONValue.self, from: Data(try #require(storage.get(prefix + "kb-a")).utf8)
+  ).object
+  #expect(written.count == 1)
+  for (key, value) in written {
+    #expect(faultOf(scope, .string(key)) == nil, "\(key) is a scope as \(scope) holds one")
+    #expect(faultOf(place, value) == nil, "\(value) is a place as \(place) holds one")
+  }
 }
 
 @Test func onePlaceRunsEverySharedCase() throws {

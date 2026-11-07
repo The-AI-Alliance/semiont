@@ -67,13 +67,14 @@ construct carrier contents gateway options timing ownedPersistence =
   bracketOnError (Transport.bridgeInto carrier local) id $ \disconnect -> do
     let typed = Bus.newBus options carrier
     bracketOnError (Delegation.newFollower typed local options timing) Delegation.dispose $ \follower ->
-      bracketOnError (Browse.newBrowse typed local carrier contents options timing (fmap (\(config,owner) -> config { cacheStorage=Coupled.storage owner }) ownedPersistence)) Browse.dispose $ \browseQueries ->
+      bracketOnError (Browse.newBrowse typed local carrier contents options timing ownedPersistence) Browse.dispose $ \browseQueries ->
         bracketOnError (Gather.newGather typed carrier options timing) Gather.dispose $ \gatherQueries ->
         bracketOnError (Match.newMatch typed local options timing) Match.dispose $ \matchQueries -> do
           let controls = Browse.controls browseQueries ++ Gather.controls gatherQueries ++ Match.controls matchQueries
           unless (sort (map fst controls) == [minBound..maxBound]) (ioError (userError "the client does not own every refresh-table query exactly once"))
           bracketOnError (Refresh.newRefresher local carrier options timing controls) Refresh.dispose $ \refresher -> do
-            mapM_ (\owner -> Coupled.start owner (not <$> ((||) <$> Browse.persistencePending browseQueries <*> Refresh.pending refresher))) (snd <$> ownedPersistence)
+            mapM_ (\owner -> Coupled.start owner (Browse.persistencePending browseQueries)
+              ((||) <$> Browse.fetching browseQueries <*> Refresh.owes refresher)) (snd <$> ownedPersistence)
             pure (Client carrier contents typed local (newFrame typed timing) (newBind typed local timing) (newBeckon typed local)
               browseQueries gatherQueries matchQueries (Mark.newMark typed local timing follower)
               (Yield.newYield typed local contents timing follower) follower refresher (newJob typed local carrier options timing) (newAuth <$> gateway) (newSystem <$> gateway) (snd <$> ownedPersistence) disconnect)
@@ -128,6 +129,7 @@ system Client { clientSystem = value } = value
 
 state :: Client -> StateValue Transport.ConnectionState
 state = Transport.state . transport
+-- | The places' gate is read first, before what it reads is disposed.
 dispose :: Client -> IO ()
 dispose client =
   mapM_ Coupled.dispose (clientCoupled client) `finally` Delegation.dispose (clientFollower client) `finally` Refresh.dispose (clientRefresh client) `finally` (Browse.dispose (browse client)

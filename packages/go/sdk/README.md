@@ -516,12 +516,14 @@ func Watch(ctx context.Context, client *semiont.Client, resource api.ResourceId)
   missed: a state is what is true now.
 - **A client can keep what its small queries hold**
   (`ClientConfig.Persistence`, a `CachePersistence` over a `SessionStorage`
-  the application supplies): a resource's description, its annotations, one
-  annotation, the entity types, the tag schemas. The next client over the
-  same storage shows them at once and asks for each anew the first time it is
-  watched. `SessionFromKeptConfig.Storage` does this for a session, and keeps
-  the stream's place in each resource's scope with it (`CoupledBookmarks`),
-  so the next session is sent what was recorded since.
+  the application supplies): the queries
+  [`stored.json`](../../../protocol/specs/src/session/stored.json) names in
+  `keptQueries`, each one document that a client of any SDK reads and writes
+  alike. The next client over the same storage shows them at once and asks
+  for each anew the first time it is watched. `SessionFromKeptConfig.Storage`
+  does this for a session, and keeps the stream's place in each resource's
+  scope with it (`CoupledBookmarks`), so the next session is sent what was
+  recorded since.
 
 The behaviours every SDK's live queries are held to are numbered in
 [the cache's semantics][cache-semantics].

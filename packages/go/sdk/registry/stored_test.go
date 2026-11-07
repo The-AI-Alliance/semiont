@@ -23,6 +23,9 @@ type storedTable struct {
 	SessionKeyPrefix struct {
 		Prefix string `json:"prefix"`
 	} `json:"sessionKeyPrefix"`
+	LastEventIDKeyPrefix struct {
+		Prefix string `json:"prefix"`
+	} `json:"lastEventIdKeyPrefix"`
 	StoredSession struct {
 		Properties map[string]json.RawMessage `json:"properties"`
 		Required   []string                   `json:"required"`

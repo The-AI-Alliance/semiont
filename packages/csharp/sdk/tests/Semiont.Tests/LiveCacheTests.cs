@@ -5,6 +5,7 @@ using System.Threading.Channels;
 using Semiont.Errors;
 using Semiont.Identifiers;
 using Semiont.Http;
+using Semiont.Storage;
 using Semiont.Types;
 using Xunit;
 
@@ -151,65 +152,187 @@ public sealed partial class TransportTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task PersistenceAdvancesBookmarksWithSettledValues(bool settles)
+    public async Task APlaceIsKeptOnlyOnceTheValuesItsEventRefetchesHaveSettled(bool settles)
     {
-        using var server = new Handler();
-        using var http = new HttpClient(server);
-        using var transport = new HttpTransport("http://unit.test", "token", [], httpClient: http);
         var clock = new TestClock();
-        string? document = null;
-        using var storage = new LiveCacheStorage(new CachePersistence(() => null, saved => document = saved), clock);
-        var answer = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var cache = new Cache<ResourceId, int>((_, cancellation) => answer.Task.WaitAsync(cancellation), null,
-            clock, TimeSpan.Zero, storage.Changed);
-        storage.Start(transport, [cache.PersistAs("resource")]);
+        var store = new MemoryStorage();
+        using var storage = new LiveCacheStorage(new CachePersistence(store, "kb-1"), clock, () => false);
+        var answer = new TaskCompletionSource<ResourceDescriptor>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cache = new Cache<ResourceId, ResourceDescriptor>((_, cancellation) => answer.Task.WaitAsync(cancellation), null,
+            clock, TimeSpan.Zero, storage.Changed("resource"));
+        storage.Start([storage.Keep("resource", cache, KeptKeys.ByResource<ResourceDescriptor>())]);
 
         var resource = ResourceId.Parse("res-1");
-        cache.Set(resource, 1);
+        cache.Set(resource, Described("one"));
         var frame = new ReceivedBusFrame(new BusFrame
         {
             Channel = BusChannels.MarkAdded.Name,
             Scope = resource,
             Payload = JsonSerializer.SerializeToElement(new { }),
         }, default)
-        { EventId = "p-1" };
+        { EventId = "p-res-1-1" };
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        Task<int>? refresh = null;
+        Task<ResourceDescriptor>? refresh = null;
         storage.Apply(frame, () => refresh = cache.FetchAsync(resource, deadline.Token));
         if (settles)
         {
-            answer.SetResult(2);
-            Assert.Equal(2, await Assert.IsAssignableFrom<Task<int>>(refresh));
+            answer.SetResult(Described("two"));
+            Assert.Equal("two", (await Assert.IsAssignableFrom<Task<ResourceDescriptor>>(refresh)).Name);
         }
         storage.Dispose();
 
-        using var saved = JsonDocument.Parse(Assert.IsType<string>(document));
-        Assert.Equal(settles ? 2 : 1, saved.RootElement.GetProperty("Values")[0].GetProperty("Value").GetInt32());
-        var bookmarks = saved.RootElement.GetProperty("Bookmarks");
-        Assert.Equal(settles, bookmarks.TryGetProperty(resource.Value, out var bookmark));
-        if (settles) Assert.Equal("p-1", bookmark.GetString());
+        using var saved = JsonDocument.Parse(Assert.IsType<string>(store.Get(KeptTable.DocumentKey("kb-1", "resource"))));
+        var entry = Assert.Single(saved.RootElement.GetProperty("entries").EnumerateArray());
+        Assert.Equal("res-1", entry[0].GetString());
+        Assert.Equal(settles ? "two" : "one", entry[1].GetProperty("name").GetString());
+        var places = store.Get(KeptTable.PlacesKey("kb-1"));
+        if (settles) Assert.Equal("""{"res-1":"p-res-1-1"}""", places);
+        else Assert.Null(places);
+    }
+
+    [Fact]
+    public void APlaceIsNotKeptWhileTheRefresherOwesARefetch()
+    {
+        var clock = new TestClock();
+        var store = new MemoryStorage();
+        var owed = true;
+        using var storage = new LiveCacheStorage(new CachePersistence(store, "kb-1"), clock, () => owed);
+        using var cache = new Cache<ResourceId, ResourceDescriptor>((_, _) => throw new InvalidOperationException("Nothing is fetched."), null,
+            clock, TimeSpan.Zero, storage.Changed("resource"));
+        storage.Start([storage.Keep("resource", cache, KeptKeys.ByResource<ResourceDescriptor>())]);
+        var resource = ResourceId.Parse("res-1");
+        storage.Apply(new ReceivedBusFrame(new BusFrame { Channel = BusChannels.MarkAdded.Name, Scope = resource, Payload = JsonSerializer.SerializeToElement(new { }) }, default)
+        { EventId = "p-res-1-1" }, () => cache.Set(resource, Described("one")));
+        Assert.True(cache.PersistencePending);
+
+        clock.Advance(LiveCacheStorage.Debounce);
+        Assert.False(cache.PersistencePending);
+        Assert.NotNull(store.Get(KeptTable.DocumentKey("kb-1", "resource")));
+        Assert.Null(store.Get(KeptTable.PlacesKey("kb-1")));
+
+        owed = false;
+        cache.Set(resource, Described("two"));
+        clock.Advance(LiveCacheStorage.Debounce);
+        Assert.Equal("""{"res-1":"p-res-1-1"}""", store.Get(KeptTable.PlacesKey("kb-1")));
     }
 
     [Theory]
-    [InlineData("""{"Version":99,"Values":[],"Bookmarks":{}}""")]
-    [InlineData("""{"Version":1,"Values":[{"Cache":"resource"}],"Bookmarks":{}}""")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DisposalFlushesEveryDocumentAndKeepsThePlacesOnlyWhenNoRefetchIsOwed(bool refetchOwed)
+    {
+        var clock = new TestClock();
+        var store = new MemoryStorage();
+        var flushing = new FlushingStorage(store);
+        using var events = new Cache<ResourceId, int>((_, _) => Task.FromResult(2), null, clock, TimeSpan.FromSeconds(1));
+        using var storage = new LiveCacheStorage(new CachePersistence(flushing, "kb-1"), clock, () => ((IRefreshedCache)events).RefetchOwed);
+        using var resources = new Cache<ResourceId, ResourceDescriptor>((_, _) => throw new InvalidOperationException("Nothing is fetched."), null,
+            clock, TimeSpan.Zero, storage.Changed("resource"));
+        using var types = new Cache<bool, IReadOnlyList<string>>((_, _) => throw new InvalidOperationException("Nothing is fetched."), null,
+            clock, TimeSpan.Zero, storage.Changed("entityTypes"));
+        storage.Start([storage.Keep("resource", resources, KeptKeys.ByResource<ResourceDescriptor>()),
+            storage.Keep("entityTypes", types, KeptKeys.Whole<IReadOnlyList<string>>())]);
+        var resource = ResourceId.Parse("res-1");
+        storage.Apply(new ReceivedBusFrame(new BusFrame { Channel = BusChannels.MarkAdded.Name, Scope = resource, Payload = JsonSerializer.SerializeToElement(new { }) }, default)
+        { EventId = "p-res-1-7" }, () =>
+        {
+            resources.Set(resource, Described("one"));
+            types.Set(true, ["Person"]);
+        });
+        if (refetchOwed)
+        {
+            events.Set(resource, 1);
+            events.Entry(resource).Refresh();
+            events.Entry(resource).Refresh();
+        }
+        var later = false;
+        flushing.During = () => storage.Apply(new ReceivedBusFrame(new BusFrame
+        {
+            Channel = BusChannels.MarkAdded.Name,
+            Scope = ResourceId.Parse("res-2"),
+            Payload = JsonSerializer.SerializeToElement(new { }),
+        }, default)
+        { EventId = "p-res-2-9" }, () => later = true);
+
+        storage.Dispose();
+
+        Assert.False(later);
+        Assert.NotNull(store.Get(KeptTable.DocumentKey("kb-1", "resource")));
+        Assert.NotNull(store.Get(KeptTable.DocumentKey("kb-1", "entityTypes")));
+        var places = store.Get(KeptTable.PlacesKey("kb-1"));
+        if (refetchOwed) Assert.Null(places);
+        else Assert.Equal("""{"res-1":"p-res-1-7"}""", places);
+    }
+
+    [Fact]
+    public async Task ARehydratedAnnotationIsHeldUnderTheResourceItTargets()
+    {
+        var store = new MemoryStorage();
+        store.Set(KeptTable.DocumentKey("kb-1", "annotation"), """
+            {"version":1,"entries":[["ann-1",{"@context":"http://www.w3.org/ns/anno.jsonld","type":"Annotation","id":"ann-1","motivation":"highlighting","target":{"source":"res-1"},"created":"2026-01-01T00:00:00.000Z"},1000]]}
+            """);
+        using var storage = new LiveCacheStorage(new CachePersistence(store, "kb-1"), TimeProvider.System, () => false);
+        var never = new TaskCompletionSource<Annotation>();
+        using var cache = new Cache<LiveQueries.AnnotationKey, Annotation>((_, cancellation) => never.Task.WaitAsync(cancellation), null,
+            TimeProvider.System, TimeSpan.Zero, storage.Changed("annotation"));
+        storage.Start([storage.Keep("annotation", cache, KeptKeys.ByAnnotation)]);
+
+        var annotation = AnnotationId.Parse("ann-1");
+        Assert.Null(cache.Get(new LiveQueries.AnnotationKey(ResourceId.Parse("res-2"), annotation)));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var observer = cache.Observe(new LiveQueries.AnnotationKey(ResourceId.Parse("res-1"), annotation)).GetAsyncEnumerator(deadline.Token);
+        Assert.True(await observer.MoveNextAsync());
+        Assert.Equal(annotation, Assert.IsType<CacheState<Annotation>.Ready>(observer.Current).Value.Id);
+    }
+
+    [Theory]
+    [InlineData("""{"version":99,"entries":[]}""")]
+    [InlineData("""{"version":1,"entries":[["res-1",{"name":"Not a resource"},1000]]}""")]
     [InlineData("invalid JSON")]
     public async Task InvalidPersistenceStartsEmpty(string document)
     {
-        using var server = new Handler();
-        using var http = new HttpClient(server);
-        using var transport = new HttpTransport("http://unit.test", "token", [], httpClient: http);
-        using var storage = new LiveCacheStorage(new CachePersistence(() => document, _ => { }), TimeProvider.System);
-        using var cache = new Cache<ResourceId, int>((_, _) => Task.FromResult(7));
-        storage.Start(transport, [cache.PersistAs("resource")]);
+        var store = new MemoryStorage();
+        store.Set(KeptTable.DocumentKey("kb-1", "resource"), document);
+        using var storage = new LiveCacheStorage(new CachePersistence(store, "kb-1"), TimeProvider.System, () => false);
+        using var cache = new Cache<ResourceId, ResourceDescriptor>((_, _) => Task.FromResult(Described("fetched")), null,
+            TimeProvider.System, TimeSpan.Zero, storage.Changed("resource"));
+        storage.Start([storage.Keep("resource", cache, KeptKeys.ByResource<ResourceDescriptor>())]);
 
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await using var observer = cache.Observe(ResourceId.Parse("res-1")).GetAsyncEnumerator(deadline.Token);
         Assert.True(await observer.MoveNextAsync());
-        Assert.IsType<CacheState<int>.Pending>(observer.Current);
+        Assert.IsType<CacheState<ResourceDescriptor>.Pending>(observer.Current);
         Assert.True(await observer.MoveNextAsync());
-        Assert.Equal(7, Assert.IsType<CacheState<int>.Ready>(observer.Current).Value);
+        Assert.Equal("fetched", Assert.IsType<CacheState<ResourceDescriptor>.Ready>(observer.Current).Value.Name);
     }
+
+    /// <summary>A storage that runs <see cref="During"/> at its first write after it is set: within a flush, after the
+    /// flush has read its gate.</summary>
+    private sealed class FlushingStorage(MemoryStorage store) : ISessionStorage
+    {
+        internal Action? During { get; set; }
+        public string? Get(string key) => store.Get(key);
+
+        public void Set(string key, string value)
+        {
+            store.Set(key, value);
+            if (During is not { } during) return;
+            During = null;
+            during();
+        }
+
+        public void Delete(string key) => store.Delete(key);
+        public void Update(string key, Func<string?, string?> change) => store.Update(key, change);
+        public IDisposable? Subscribe(Action<string, string?> onChange) => store.Subscribe(onChange);
+    }
+
+    private static ResourceDescriptor Described(string name) => Required<ResourceDescriptor>(JsonSerializer.SerializeToElement(new Dictionary<string, object>
+    {
+        ["@context"] = "https://schema.org/",
+        ["@id"] = "res-1",
+        ["name"] = name,
+        ["representations"] = Array.Empty<object>(),
+    }));
 
     [Fact]
     public async Task FirstObserversShareAFetchAndRecoveryReachesExistingReaders()

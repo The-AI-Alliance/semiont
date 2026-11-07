@@ -371,12 +371,19 @@ func (c *Cache[K, V]) Keys() []K {
 func (c *Cache[K, V]) PersistencePending() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.persister == nil {
-		return false
-	}
-	if c.saving != nil {
-		return true
-	}
+	return c.persister != nil && (c.saving != nil || c.anyInFlight())
+}
+
+// keptFetching reports whether a cache that keeps its values has a fetch in
+// flight.
+func (c *Cache[K, V]) keptFetching() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.persister != nil && c.anyInFlight()
+}
+
+// anyInFlight reports whether a fetch is in flight; c.mu is held.
+func (c *Cache[K, V]) anyInFlight() bool {
 	for _, k := range c.keys {
 		if k.inFlight != nil {
 			return true

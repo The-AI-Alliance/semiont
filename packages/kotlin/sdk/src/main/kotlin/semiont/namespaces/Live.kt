@@ -1,13 +1,8 @@
 package semiont.namespaces
 
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.serializer
-import semiont.Timings
 import semiont.bus.LIMITS_OPERATIONS
 import semiont.bus.Operations
 import semiont.cache.Cache
-import semiont.cache.CachePersister
 import semiont.cache.CacheQuery
 import semiont.cache.CacheRefreshWhen
 import semiont.cache.Cached
@@ -15,9 +10,13 @@ import semiont.cache.Source
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
 import semiont.errors.SemiontError
-import semiont.registry.cacheKey
+import semiont.registry.KEPT_ANNOTATION
+import semiont.registry.KEPT_ANNOTATIONS
+import semiont.registry.KEPT_ENTITY_TYPES
+import semiont.registry.KEPT_RESOURCE
+import semiont.registry.KEPT_TAG_SCHEMAS
+import semiont.registry.WHOLE_KEY
 import semiont.storage.CachePersistence
-import semiont.storage.StoragePersister
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
 import semiont.transport.ContentTransport
@@ -39,14 +38,7 @@ import semiont.types.ListResourcesResponse
 import semiont.types.MatchResourcesRequest
 import semiont.types.MatchResourcesResponse
 import semiont.types.ResourceDescriptor
-import semiont.types.TagSchema
 import java.util.concurrent.ConcurrentHashMap
-
-/** The key of a query the knowledge base has one of. */
-internal const val WHOLE = "_"
-
-/** The version of what the kept caches hold. A document of another version reads as nothing kept, so this changes when a kept value's shape does. */
-private const val KEPT_VERSION = 1L
 
 /** How many resources a list asks for when its caller states no limit. Every SDK asks for as many: client/surface.json's cases hold each to it. */
 internal const val LIST_LIMIT = 100L
@@ -80,19 +72,19 @@ internal class Live(private val links: Links, private val content: ContentTransp
     val annotationOf = ConcurrentHashMap<AnnotationId, ResourceId>()
 
     // The small queries are kept: a resource's description, its annotations, one annotation, the entity types, the tag schemas.
-    val resource = Cache(::resourceOf, links.scope, kept("resource", ResourceId.serializer(), ResourceDescriptor.serializer()))
+    val resource = Cache(::resourceOf, links.scope, persistence?.let(KEPT_RESOURCE::persister))
     val lists = Cache(::resourcesOf, links.scope)
-    val annotations = Cache(content::getAnnotations, links.scope, kept("annotations", ResourceId.serializer(), GetAnnotationsResponse.serializer()))
-    val annotation = Cache(::annotationOf, links.scope, kept("annotation-detail", AnnotationId.serializer(), Annotation.serializer()))
+    val annotations = Cache(content::getAnnotations, links.scope, persistence?.let(KEPT_ANNOTATIONS::persister))
+    val annotation = Cache(::annotationOf, links.scope, persistence?.let(KEPT_ANNOTATION::persister))
     val entityTypes = Cache(
         { _: String -> links.request(Operations.BROWSE_ENTITY_TYPES_REQUESTED, BrowseEntityTypesRequest).response.entityTypes },
         links.scope,
-        kept("entity-types", String.serializer(), ListSerializer(String.serializer())),
+        persistence?.let(KEPT_ENTITY_TYPES::persister),
     )
     val tagSchemas = Cache(
         { _: String -> links.request(Operations.BROWSE_TAG_SCHEMAS_REQUESTED, BrowseTagSchemasRequest).response.tagSchemas },
         links.scope,
-        kept("tag-schemas", String.serializer(), ListSerializer(TagSchema.serializer())),
+        persistence?.let(KEPT_TAG_SCHEMAS::persister),
     )
     val engines = Cache({ _: String -> links.request(Operations.BROWSE_ENGINES_REQUESTED, BrowseEnginesRequest).response.engines }, links.scope)
 
@@ -102,14 +94,15 @@ internal class Live(private val links: Links, private val content: ContentTransp
     val referencedBy = Cache(::referencedByOf, links.scope)
     val searches = Cache(::searchOf, links.scope)
 
-    /** What keeps the cache named `name`, when the client keeps its caches. */
-    private fun <K : Any, V : Any> kept(name: String, key: KSerializer<K>, value: KSerializer<V>): CachePersister<K, V>? = persistence?.let {
-        StoragePersister(it.storage, cacheKey(it.keyPrefix, name), key, value, KEPT_VERSION, Timings.MAX_STORED_BYTES_COUNT)
-    }
+    private val caches: List<Cache<*, *>> = listOf(resource, lists, annotations, annotation, entityTypes, tagSchemas, engines, limits, events, referencedBy, searches)
 
-    /** Whether every cache the client keeps is at rest: none is fetching, and none owes a save. */
+    /** Whether every cache the client keeps is at rest: none is fetching, and none owes a save. A cache that keeps nothing never owes one. */
     val persistenceSettled: Boolean
-        get() = listOf(resource, annotations, annotation, entityTypes, tagSchemas).none { it.persistencePending }
+        get() = caches.none { it.persistencePending }
+
+    /** Whether no cache the client keeps has a fetch in flight. */
+    val keptFetchesSettled: Boolean
+        get() = caches.none { it.keptFetchInFlight }
 
     /** A live query of this client, answered from `source`. */
     fun <T : Any> query(source: Source<T>): Cached<T> = Cached(source, links.scope)
@@ -189,23 +182,13 @@ internal class Live(private val links: Links, private val content: ContentTransp
 
     /** The engines are out of date, and so is what each key holder reported. */
     fun invalidateEngines() {
-        engines.invalidate(WHOLE)
+        engines.invalidate(WHOLE_KEY)
         LIMITS_HOLDERS.forEach(limits::invalidate)
     }
 
     /** End the queries: every collector's states end. */
     fun dispose() {
-        resource.close()
-        lists.close()
-        annotations.close()
-        annotation.close()
-        entityTypes.close()
-        tagSchemas.close()
-        engines.close()
-        limits.close()
-        events.close()
-        referencedBy.close()
-        searches.close()
+        caches.forEach { it.close() }
         annotationOf.clear()
     }
 }

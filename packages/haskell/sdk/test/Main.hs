@@ -44,6 +44,7 @@ import AnnotationCases (annotationCases)
 import IdentityCases (identityCases)
 import BusLogCases (busLogCases)
 import PersistenceCases (persistenceCases)
+import CacheDocumentCases (cacheDocumentCases)
 import StateUnitCases (stateUnitCases)
 import FlowCases (flowCases)
 import ActorCases (actorCases)
@@ -422,6 +423,7 @@ runCases root = do
   testingCases fixtures
   registryCases root fixtures
   persistenceCases fixtures
+  cacheDocumentCases root
   issuerCases fixtures
   serviceTokenCases root
   deviceClockCases root

@@ -4,20 +4,75 @@
  * is: the browser passes its localStorage-backed adapter, a desktop host
  * passes its own, tests pass the in-memory one.
  *
- * Stored document (all-or-nothing under one key):
- *   { version, writtenAt, entries: [[keyJson, value, entryWrittenAt], …] }
+ * What is kept, and where, is protocol/specs/src/session/stored.json's
+ * `keptQueries`, `wholeKey`, `cacheDocument` and `lastEventIds`; every SDK
+ * runs protocol/specs/src/session/cache-cases.json against it. One document
+ * per kept query:
+ *   { version, entries: [[key, value, stamp], …] }
  *
- * - `version` gates load: mismatch or parse garbage reads as "nothing
- *   stored" — never throws into the cache.
- * - Per-entry `entryWrittenAt` stamps power byte-cap eviction: an entry
- *   keeps its stamp while its serialized value is unchanged, so eviction
- *   drops the entries that have gone longest without a write (not merely
+ * - A document whose structure is not `cacheDocument`'s reads as nothing
+ *   stored; an entry whose key or value is not its query's is skipped. A load
+ *   never throws into the cache.
+ * - An entry keeps its stamp while its value's JSON text is unchanged, so
+ *   byte-cap eviction drops the entries received longest ago (not merely
  *   whatever a full-map re-save touched last).
  */
 
-import { MAX_STORED_BYTES_COUNT, isObject, isResourceId, isString, type ResourceId } from '@semiont/core';
+import { MAX_STORED_BYTES_COUNT, faultOf, isAnnotationId, isObject, isResourceId, isString } from '@semiont/core';
+import type { AnnotationId, ResourceId, components } from '@semiont/core';
 import type { CachePersister } from './cache';
 import type { SessionStorage } from './session/session-storage';
+import { cacheKey } from './session/storage';
+
+/** The form of a kept query's document: `cacheDocument`'s `version`. */
+export const CACHE_DOCUMENT_VERSION = 1;
+
+/** The key a query per nothing keeps its one entry under: `wholeKey`. */
+export const WHOLE_KEY = '_';
+export type WholeKey = typeof WHOLE_KEY;
+
+/** How a document's entry is read back: its key and its value, each held to what the document keeps. */
+export interface EntryDecoder<K extends string, V> {
+  key(json: unknown): json is K;
+  value(json: unknown): json is V;
+}
+
+type Schemas = components['schemas'];
+
+/** Whether a value is a `component`, held as every reply is: it has no fault. */
+const holds = <C extends keyof Schemas>(component: C) =>
+  (json: unknown): json is Schemas[C] => faultOf(component, json) === undefined;
+
+/** Whether a value is `component`'s `member`, held as that component holding it alone. */
+const holdsAs = <C extends keyof Schemas, M extends keyof Schemas[C] & string>(component: C, member: M) =>
+  (json: unknown): json is Schemas[C][M] => faultOf(component, { [member]: json }) === undefined;
+
+const isPlace = holds('PersistedEventId');
+
+/** Each kept query, by its name in protocol/specs/src/client/refresh.json: the key and the value of its entries. */
+interface KeptEntries {
+  resource: [ResourceId, Schemas['ResourceDescriptor']];
+  annotations: [ResourceId, Schemas['GetAnnotationsResponse']];
+  annotation: [AnnotationId, Schemas['Annotation']];
+  entityTypes: [WholeKey, Schemas['GetEntityTypesResponse']['entityTypes']];
+  tagSchemas: [WholeKey, Schemas['GetTagSchemasResponse']['tagSchemas']];
+}
+export type KeptQuery = keyof KeptEntries;
+export type KeptKey<Q extends KeptQuery> = KeptEntries[Q][0];
+export type KeptValue<Q extends KeptQuery> = KeptEntries[Q][1];
+
+const resourceIdKey = (json: unknown): json is ResourceId => isString(json) && isResourceId(json);
+const annotationIdKey = (json: unknown): json is AnnotationId => isString(json) && isAnnotationId(json);
+const wholeKey = (json: unknown): json is WholeKey => json === WHOLE_KEY;
+
+/** `keptQueries`: how each kept query's entries are read back. */
+export const KEPT_QUERIES: { [Q in KeptQuery]: EntryDecoder<KeptKey<Q>, KeptValue<Q>> } = {
+  resource: { key: resourceIdKey, value: holds('ResourceDescriptor') },
+  annotations: { key: resourceIdKey, value: holds('GetAnnotationsResponse') },
+  annotation: { key: annotationIdKey, value: holds('Annotation') },
+  entityTypes: { key: wholeKey, value: holdsAs('GetEntityTypesResponse', 'entityTypes') },
+  tagSchemas: { key: wholeKey, value: holdsAs('GetTagSchemasResponse', 'tagSchemas') },
+};
 
 /**
  * B17 — couple the resumption bookmarks to the cache flush.
@@ -35,11 +90,9 @@ import type { SessionStorage } from './session/session-storage';
  * A crash between the two writes leaves the ids lagging — the safe
  * direction.
  *
- * One connection holds many resource scopes, so watermarks are PER SCOPE
- * (`Record<scope, p-* id>`, JSON under `lastEventIdKey`). A pre-multi-scope
- * single-id bookmark fails the JSON parse and reads as "nothing stored" —
- * safe: rehydrated caches reconcile via B18's refetch-on-rehydrate instead
- * of replay.
+ * One connection holds many resource scopes, so watermarks are PER SCOPE:
+ * `lastEventIds` under `lastEventIdKey`, each a resource's id to a
+ * PersistedEventId.
  */
 export function coupledLastEventId(
   storage: SessionStorage,
@@ -52,12 +105,11 @@ export function coupledLastEventId(
   /**
    * B17-Q (C1) — quiescence-gate the flush. Write-ordering alone couples
    * write MOMENTS, not content: doc B's save can flush a bookmark whose
-   * event doc A has not yet absorbed (mid-refetch or mid-debounce). With a
-   * gate (wired by the session factory to
+   * event doc A has not yet absorbed (mid-refetch, mid-debounce, or owed by
+   * the refresher's window). With a gate (wired by the session factory to
    * `browse.persistenceSettled()`), a cache-document write carries the
-   * pending ids through only when every persisted cache is quiet; otherwise
-   * the ids stay pending — lagging, the safe direction — and ride the next
-   * quiet write.
+   * pending ids through only when that is settled; otherwise the ids stay
+   * pending — lagging, the safe direction — and ride the next quiet write.
    */
   setFlushGate: (gate: () => boolean) => void;
 } {
@@ -66,17 +118,18 @@ export function coupledLastEventId(
   const readStored = (): Map<ResourceId, string> => {
     const stored = new Map<ResourceId, string>();
     const raw = storage.get(lastEventIdKey);
-    if (!raw) return stored;
+    if (raw === null) return stored;
+    let parsed: unknown;
     try {
-      const parsed: unknown = JSON.parse(raw);
-      if (!isObject(parsed)) return stored;
-      for (const [scope, id] of Object.entries(parsed)) {
-        if (isResourceId(scope) && isString(id)) stored.set(scope, id);
-      }
-      return stored;
+      parsed = JSON.parse(raw);
     } catch {
       return stored;
     }
+    if (!isObject(parsed)) return stored;
+    for (const [scope, id] of Object.entries(parsed)) {
+      if (isResourceId(scope) && isPlace(id)) stored.set(scope, id);
+    }
+    return stored;
   };
   const flush = (): void => {
     if (pending.size > 0 && (flushGate === null || flushGate())) {
@@ -100,7 +153,10 @@ export function coupledLastEventId(
   };
   return {
     storage: coupled,
-    saveLastEventId: (scope, id) => { pending.set(scope, id); },
+    // An id that is no PersistedEventId is no place, and is never kept.
+    saveLastEventId: (scope, id) => {
+      if (isPlace(id)) pending.set(scope, id);
+    },
     loadLastEventIds: () => {
       const stored = readStored();
       return stored.size > 0 ? stored : null;
@@ -109,105 +165,99 @@ export function coupledLastEventId(
   };
 }
 
-interface StoredDocument {
-  version: number;
-  writtenAt: number;
-  entries: Array<[unknown, unknown, number]>;
-}
+type StoredEntry = [unknown, unknown, number];
 
-function parseDocument(raw: string | null, version: number): StoredDocument | null {
-  if (!raw) return null;
+const isStoredEntry = (entry: unknown): entry is StoredEntry =>
+  Array.isArray(entry) && entry.length === 3 && Number.isInteger(entry[2]) && entry[2] >= 0;
+
+/** A document's entries, or null when its structure is not `cacheDocument`'s, which keeps none of it. */
+function storedEntries(raw: string | null): StoredEntry[] | null {
+  if (raw === null) return null;
+  let document: unknown;
   try {
-    const parsed = JSON.parse(raw) as StoredDocument;
-    if (typeof parsed !== 'object' || parsed === null) return null;
-    if (parsed.version !== version) return null;
-    if (!Array.isArray(parsed.entries)) return null;
-    return parsed;
+    document = JSON.parse(raw);
   } catch {
     return null;
   }
+  if (!isObject(document) || document['version'] !== CACHE_DOCUMENT_VERSION) return null;
+  const entries: unknown = document['entries'];
+  if (!Array.isArray(entries) || !entries.every(isStoredEntry)) return null;
+  return entries;
 }
 
-export function sessionStoragePersister<K, V>(opts: {
+export function sessionStoragePersister<K extends string, V>(opts: {
   /** The environment's storage adapter — the seam, and the test seam. */
   storage: SessionStorage;
   /** Full storage key; callers scope it per KB (`semiont.cache.<kbId>.<name>`). */
   storageKey: string;
-  /** Schema version; mismatch discards on load. Bump when the value shape changes. */
-  version: number;
-  /** Byte cap for the serialized document; oldest-written entries evicted first. Default `MAX_STORED_BYTES_COUNT`. */
+  /** What an entry read back must be; one that is not is skipped. */
+  decode: EntryDecoder<K, V>;
+  /** Byte cap for the document's UTF-8 text; oldest-stamped entries evicted first. Absent, `MAX_STORED_BYTES_COUNT`. */
   maxBytes?: number;
-  /** Serialize a key to a JSON-safe value. Default identity (branded ids are strings). */
-  keyToJson?: (k: K) => unknown;
-  /** Deserialize a JSON value back to a key. Default identity. */
-  jsonToKey?: (j: unknown) => K;
 }): CachePersister<K, V> {
-  const { storage, storageKey, version } = opts;
+  const { storage, storageKey, decode } = opts;
   const maxBytes = opts.maxBytes ?? MAX_STORED_BYTES_COUNT;
-  const keyToJson = opts.keyToJson ?? ((k: K) => k as unknown);
-  const jsonToKey = opts.jsonToKey ?? ((j: unknown) => j as K);
 
   /**
-   * Prior write stamps, keyed by the serialized key. Seeded by load(),
-   * refreshed by save() — an unchanged value keeps its stamp so eviction
-   * order reflects real write recency.
+   * Prior stamps, by key. Seeded by load(), refreshed by save() — an
+   * unchanged value keeps its stamp so eviction order reflects when each
+   * value was received.
    */
-  let stamps = new Map<string, { valueJson: string; writtenAt: number }>();
-
-  const seedStamps = (doc: StoredDocument): void => {
-    stamps = new Map(
-      doc.entries.map(([keyJson, value, writtenAt]) => [
-        JSON.stringify(keyJson),
-        { valueJson: JSON.stringify(value), writtenAt },
-      ]),
-    );
-  };
-
-  const toMap = (doc: StoredDocument): Map<K, V> =>
-    new Map(doc.entries.map(([keyJson, value]) => [jsonToKey(keyJson), value as V]));
+  let stamps = new Map<K, { valueJson: string; at: number }>();
 
   return {
     load(): Map<K, V> | null {
-      const doc = parseDocument(storage.get(storageKey), version);
-      if (!doc) return null;
-      seedStamps(doc);
-      return toMap(doc);
+      const entries = storedEntries(storage.get(storageKey));
+      if (entries === null) return null;
+      const kept = entries.filter((entry): entry is [K, V, number] => decode.key(entry[0]) && decode.value(entry[1]));
+      stamps = new Map(kept.map(([key, value, at]) => [key, { valueJson: JSON.stringify(value), at }]));
+      return new Map(kept.map(([key, value]) => [key, value]));
     },
 
     save(entries: Map<K, V>): void {
       const now = Date.now();
-      let records: Array<[unknown, unknown, number]> = [];
-      const nextStamps = new Map<string, { valueJson: string; writtenAt: number }>();
+      let records: Array<[K, V, number]> = [];
+      const nextStamps = new Map<K, { valueJson: string; at: number }>();
 
-      for (const [k, v] of entries) {
-        const keyJson = keyToJson(k);
-        const keyId = JSON.stringify(keyJson);
-        const valueJson = JSON.stringify(v);
-        const prior = stamps.get(keyId);
-        const writtenAt = prior !== undefined && prior.valueJson === valueJson ? prior.writtenAt : now;
-        nextStamps.set(keyId, { valueJson, writtenAt });
-        records.push([keyJson, v, writtenAt]);
+      for (const [key, value] of entries) {
+        const valueJson = JSON.stringify(value);
+        const prior = stamps.get(key);
+        const at = prior !== undefined && prior.valueJson === valueJson ? prior.at : now;
+        nextStamps.set(key, { valueJson, at });
+        records.push([key, value, at]);
       }
 
-      // Byte-cap eviction: drop oldest-written entries until the document
+      // Byte-cap eviction: drop oldest-stamped entries until the document
       // fits. Measured in real UTF-8 bytes (the option's name tells the
       // truth): `.length` counts UTF-16 code units, which skews up to 3×
       // for non-ASCII values. localStorage itself accounts in code units,
       // so for that substrate the byte cap is conservative — acceptable
       // for a guard rail.
+      const text = (list: Array<[K, V, number]>): string => JSON.stringify({ version: CACHE_DOCUMENT_VERSION, entries: list });
       const encoder = new TextEncoder();
-      const documentSize = (list: Array<[unknown, unknown, number]>): number =>
-        encoder.encode(JSON.stringify({ version, writtenAt: now, entries: list })).length;
+      const documentSize = (list: Array<[K, V, number]>): number => encoder.encode(text(list)).length;
       if (documentSize(records) > maxBytes) {
         records = [...records].sort((a, b) => a[2] - b[2]);
         while (records.length > 0 && documentSize(records) > maxBytes) {
           const [evicted] = records.splice(0, 1);
-          if (evicted) nextStamps.delete(JSON.stringify(evicted[0]));
+          if (evicted) nextStamps.delete(evicted[0]);
         }
       }
 
       stamps = nextStamps;
-      storage.set(storageKey, JSON.stringify({ version, writtenAt: now, entries: records }));
+      storage.set(storageKey, text(records));
     },
   };
+}
+
+/** The persister of the kept query `query`, under its key (`cacheKeyPrefix`, the persistence's key prefix, `.`, the query's name). */
+export function keptPersister<Q extends KeptQuery>(
+  query: Q,
+  persistence: { storage: SessionStorage; keyPrefix: string },
+): CachePersister<KeptKey<Q>, KeptValue<Q>> {
+  return sessionStoragePersister({
+    storage: persistence.storage,
+    storageKey: cacheKey(persistence.keyPrefix, query),
+    decode: KEPT_QUERIES[query],
+  });
 }

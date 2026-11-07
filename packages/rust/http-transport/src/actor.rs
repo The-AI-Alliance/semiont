@@ -27,6 +27,7 @@ use futures::StreamExt;
 use semiont::bus_log::{bus_log, bus_note};
 use semiont::channels::{RESOURCE_SCOPED_CHANNELS, TRACE_FIELD};
 use semiont::errors::{TransportError, TransportErrorCode};
+use semiont::resume::is_persisted_event_id;
 use semiont::retry::{equal_jitter, retry_after};
 use semiont::timing::{DEGRADED_THRESHOLD, MAX_RECONNECT, RECONNECT_DEBOUNCE};
 use semiont::transport::{ConnectionState, Envelope, Frame, FrameRefusal, TraceCarrier};
@@ -428,10 +429,10 @@ impl Actor {
             }
         }
         // A scope's position is the last recorded event delivered on it:
-        // only a recorded event's id (`p-…`) is one, and it always comes on
-        // its scope.
+        // only a recorded event's id is one, and it always comes on its
+        // scope.
         if let (Some(id), Some(scope)) = (&id, &frame.scope)
-            && id.starts_with("p-")
+            && is_persisted_event_id(id)
         {
             self.watermarks.insert(scope.clone(), id.clone());
             if let Some(bookmarks) = &self.shared.bookmarks {

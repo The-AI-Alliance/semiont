@@ -214,7 +214,7 @@ class RegistryHttpTest {
             saveKnowledgeBases(storage, listOf(realm.registered()))
             storeSession(storage, KB_A, realm.kept(tokenFor("access"), "r1"))
             val places = "semiont.lastEventId.$KB_A"
-            storage.set(places, """{"res-1":"p-5"}""")
+            storage.set(places, """{"res-1":"p-res-1-5"}""")
 
             fun resumedFrom(): String? = realm.subscriptions.flatMap { subscription ->
                 (subscription["scoped"] as? kotlinx.serialization.json.JsonArray).orEmpty().map { it.jsonObject }
@@ -227,7 +227,7 @@ class RegistryHttpTest {
                 val watching = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launchWatching(session)
                 try {
                     until("the stream names the scope") { resumedFrom() != null }
-                    assertEquals("p-5", resumedFrom())
+                    assertEquals("p-res-1-5", resumedFrom())
                     // A recorded event of the scope moves the place, which is kept once the caches have taken it in and written what they hold.
                     realm.send(
                         buildJsonObject {
@@ -235,9 +235,9 @@ class RegistryHttpTest {
                             put("scope", "res-1")
                             put("payload", recorded("mark:archived", ResourceId("res-1")))
                         },
-                        id = "p-9",
+                        id = "p-res-1-9",
                     )
-                    until("the place is kept") { storage.get(places)?.let { Json.parseToJsonElement(it) } == Json.parseToJsonElement("""{"res-1":"p-9"}""") }
+                    until("the place is kept") { storage.get(places)?.let { Json.parseToJsonElement(it) } == Json.parseToJsonElement("""{"res-1":"p-res-1-9"}""") }
                 } finally {
                     watching.cancel()
                 }

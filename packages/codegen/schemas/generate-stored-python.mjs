@@ -2,8 +2,10 @@
 // generate-stored-python.mjs — generate what the Python SDK's registry keeps
 // in a SessionStorage from protocol/specs/src/session/stored.json: the key each thing
 // is kept under, the key of a knowledge base's session, the keys of what a
-// session keeps of its stream and its queries, the stored session's shape, and
-// an open resource's.
+// session keeps of its stream and its queries, the stored session's shape, an
+// open resource's, the queries a client keeps (read by kept-queries.mjs) with
+// the key of one per nothing and the version of what keeps them, and the shape
+// of the stream's places.
 //
 //   packages/python/sdk/src/semiont/stored.py
 //
@@ -13,16 +15,20 @@
 // session's schema is sign-in-schema.mjs's; an open resource's members are
 // not all text, so its reading is this file's own. The pending sign-in's shape is
 // not rendered here: semiont/http/oauth.py states it, and
-// packages/python/sdk/tests/test_registry_http.py holds it to the table.
+// packages/python/sdk/tests/test_registry_http.py holds it to the table. What
+// a document of a kept query holds is semiont/storage.py's, held to
+// protocol/specs/src/session/cache-cases.json by
+// packages/python/sdk/tests/test_cache_cases.py.
 //
 // --check compares without writing (the CI drift gate).
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeOrCheck } from '../lib/committed-source.mjs';
 import { pyBanner, pyComment, pyConstant, pyDocstring, pySnake, pyString } from '../lib/python-source.mjs';
 import { readIdentifierKinds } from './identifier-kinds.mjs';
+import { readKeptQueries, WHOLE } from './kept-queries.mjs';
 import { readFlatSchema } from './sign-in-schema.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -41,7 +47,7 @@ const table = JSON.parse(readFileSync(TABLE, 'utf8'));
 const stated = (value) => typeof value === 'string' && value !== '';
 
 for (const member of Object.keys(table)) {
-  if (!['$comment', 'keys', 'sessionKeyPrefix', 'lastEventIdKeyPrefix', 'cacheKeyPrefix', 'storedSession', 'pendingAuthorization', 'openResource'].includes(member)) refuse(`states \`${member}\`, which this generator does not render`);
+  if (!['$comment', 'keys', 'sessionKeyPrefix', 'lastEventIdKeyPrefix', 'cacheKeyPrefix', 'keptQueries', 'wholeKey', 'storedSession', 'pendingAuthorization', 'openResource', 'cacheDocument', 'lastEventIds'].includes(member)) refuse(`states \`${member}\`, which this generator does not render`);
 }
 if (!Array.isArray(table.keys) || table.keys.length === 0) refuse('states no `keys`');
 const seen = new Set();
@@ -107,7 +113,45 @@ function readOpenResource(schema) {
   return { title: schema.title, description: schema.description, fields };
 }
 const openResource = readOpenResource(table.openResource);
-const identifiers = [...new Set(openResource.fields.flatMap(({ kind }) => (kind === undefined ? [] : [kind])))].sort();
+
+const { kept, wholeKey, version } = readKeptQueries(ROOT, refuse);
+if (!stated(table.wholeKey.docs)) refuse('`wholeKey` states no `docs`');
+const versionDocs = table.cacheDocument.properties.version.description;
+if (!stated(versionDocs)) refuse("`cacheDocument`'s `version` has no description");
+
+/** The component a `$ref` names, refused unless it is one. */
+function componentOf(form, where, wrong) {
+  const name = /^\.\.\/components\/schemas\/([A-Za-z]+)\.json$/.exec(form?.$ref ?? '')?.[1];
+  if (Object.keys(form ?? {}).join(' ') !== '$ref' || name === undefined || !existsSync(resolve(SCHEMAS, `${name}.json`))) {
+    wrong(`\`${where}\` is a ${JSON.stringify(form)}, not a $ref to a component`);
+  }
+  return name;
+}
+
+/** `lastEventIds`'s title and description, the kind of id it names its members by, and the component each member is. */
+function readLastEventIds(schema) {
+  const wrong = (message) => refuse(`\`lastEventIds\` ${message}`);
+  for (const keyword of Object.keys(schema ?? {})) {
+    if (!['title', 'type', 'description', 'propertyNames', 'additionalProperties'].includes(keyword)) wrong(`uses \`${keyword}\`, which this generator does not render`);
+  }
+  if (schema?.type !== 'object') wrong('is not an object schema');
+  if (!stated(schema.title) || !/^[A-Z][A-Za-z]*$/.test(schema.title)) wrong('has no title that names a type');
+  if (!stated(schema.description)) wrong('has no description');
+  const scope = componentOf(schema.propertyNames, 'propertyNames', wrong);
+  if (!kinds.has(scope)) wrong(`names its members by ${scope}, which is no kind of id`);
+  return { title: schema.title, description: schema.description, scope, place: componentOf(schema.additionalProperties, 'additionalProperties', wrong) };
+}
+const lastEventIds = readLastEventIds(table.lastEventIds);
+
+const named = [lastEventIds.scope, lastEventIds.place];
+const identifiers = [...new Set([...openResource.fields.flatMap(({ kind }) => (kind === undefined ? [] : [kind])), ...named.filter((name) => kinds.has(name))])].sort();
+const components = [...new Set(named.filter((name) => !kinds.has(name)))].sort();
+
+/** What a kept query's entries are keyed by, and what each keeps. */
+const keptAs = ({ key, component, member }) => {
+  const value = member === undefined ? component : `${component}'s \`${member}\``;
+  return `Keyed by ${key === WHOLE ? 'WHOLE_KEY alone' : key}; its value is ${value}.`;
+};
 
 const field = ({ name, description, required, type, least }) => {
   const python = pySnake(name);
@@ -118,19 +162,27 @@ const field = ({ name, description, required, type, least }) => {
 };
 
 const constants = table.keys.map(({ member, key, docs }) => ({ name: pyConstant(member), key, docs }));
-const exported = [...constants.map(({ name }) => name).sort(), ...[session.title, openResource.title].sort(), 'kb_of_session_key', 'session_key'];
+const exported = [
+  ...[...constants.map(({ name }) => name), 'CACHE_DOCUMENT_VERSION', 'KEPT_QUERIES', 'WHOLE_KEY'].sort(),
+  ...[session.title, openResource.title, lastEventIds.title, 'KeptQuery', 'WholeKey'].sort(),
+  'cache_key',
+  'kb_of_session_key',
+  'last_event_id_key',
+  'session_key',
+];
 
 const text = `${pyBanner('protocol/specs/src/session/stored.json', 'packages/codegen/schemas/generate-stored-python.mjs')}
 """What a registry of knowledge bases keeps in a \`SessionStorage\` (\`protocol/specs/src/session/stored.json\`):
 the key each thing it keeps is kept under, the shape of a knowledge base's
-stored session, and the shape of a resource open in one.
+stored session, and the shape of a resource open in one. And what the
+sessions it makes keep there: which queries, and the stream's places.
 """
 
-from typing import Annotated, Final, final
+from typing import Annotated, Final, Literal, final
 
 from pydantic import Field
 ${identifiers.length === 0 ? '' : `\nfrom semiont.identifiers import ${identifiers.join(', ')}`}
-from semiont.model import WireModel
+from semiont.model import WireModel${components.length === 0 ? '' : `\nfrom semiont.types import ${components.join(', ')}`}
 
 __all__ = [
 ${exported.map((name) => `    ${pyString(name)},`).join('\n')}
@@ -157,17 +209,39 @@ _LAST_EVENT_ID_KEY_PREFIX: Final = ${pyString(lastEventIdPrefix.prefix)}
 
 
 def last_event_id_key(kb_id: str) -> str:
-    """The key a knowledge base's stream's places are kept under."""
+    """The key a knowledge base's stream's places are kept under, as \`${lastEventIds.title}\`."""
     return f"{_LAST_EVENT_ID_KEY_PREFIX}{kb_id}"
+
+
+${pyComment(lastEventIds.description)}
+type ${lastEventIds.title} = dict[${lastEventIds.scope}, ${lastEventIds.place}]
 
 
 ${pyComment(cachePrefix.docs)}
 _CACHE_KEY_PREFIX: Final = ${pyString(cachePrefix.prefix)}
 
+# The queries a client keeps across a restart, each by its name in
+# protocol/specs/src/client/refresh.json, and each as one document under \`cache_key\`.
+type KeptQuery = Literal[
+${kept.map((each) => `${pyComment(keptAs(each), '    ')}\n    ${pyString(each.query)},`).join('\n')}
+]
 
-def cache_key(key_prefix: str, name: str) -> str:
-    """The key the query \`name\` is kept under, by a persistence whose key prefix is \`key_prefix\`."""
-    return f"{_CACHE_KEY_PREFIX}{key_prefix}.{name}"
+KEPT_QUERIES: Final[tuple[KeptQuery, ...]] = (
+${kept.map(({ query }) => `    ${pyString(query)},`).join('\n')}
+)
+
+
+def cache_key(key_prefix: str, query: KeptQuery) -> str:
+    """The key \`query\` is kept under, by a persistence whose key prefix is \`key_prefix\`."""
+    return f"{_CACHE_KEY_PREFIX}{key_prefix}.{query}"
+
+
+${pyComment(table.wholeKey.docs)}
+type WholeKey = Literal[${pyString(wholeKey)}]
+WHOLE_KEY: Final[WholeKey] = ${pyString(wholeKey)}
+
+${pyComment(versionDocs)}
+CACHE_DOCUMENT_VERSION: Final = ${version}
 
 
 @final

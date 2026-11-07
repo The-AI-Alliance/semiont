@@ -34,8 +34,8 @@ use semiont::resume::CoupledBookmarks;
 use semiont::session::{
     BROWSER_CLIENT_ID, OnAuthFailed, OnSessionError, OpenedSession, Refresh, SCRIPT_CLIENT_ID,
     SemiontBrowser, SemiontSession, SemiontSessionConfig, SessionFactory, SessionFactoryOptions,
-    SessionRenewer, SignInOutcome, SignedIn, StoredSession, Validate, store_session,
-    stored_session,
+    SessionRenewer, SignInOutcome, SignedIn, StoredSession, Validate, last_event_id_key,
+    store_session, stored_session,
 };
 use semiont::storage::SessionStorage;
 use semiont::transport::BoxFuture;
@@ -134,11 +134,6 @@ type Renewal =
 
 /// The renewals under way, by knowledge base.
 type Renewing = Arc<Mutex<HashMap<String, Renewal>>>;
-
-/// The key a knowledge base's stream's places are kept under.
-fn last_event_id_key(kb_id: &str) -> String {
-    format!("semiont.lastEventId.{kb_id}")
-}
 
 /// Renew at the issuer the stored session of `kb_id` names. A renewal asked
 /// for while one is under way is that one: a stream refused and a request
@@ -418,8 +413,9 @@ impl SessionFactory for HttpSessionFactory {
         );
 
         // The stream's place rides the caches' writes, and only when every
-        // cache is at rest: a place kept ahead of a cache still taking in
-        // the event it names would have the next life skip that event.
+        // cache is at rest and no refetch is owed: a place kept ahead of a
+        // cache still taking in the event it names would have the next life
+        // skip that event.
         let kept = CoupledBookmarks::new(options.storage.clone(), &last_event_id_key(&kb_id));
         let signals = options.signals;
         let session = built_over_http(HttpSession {
@@ -435,7 +431,7 @@ impl SessionFactory for HttpSessionFactory {
             http: self.http.clone(),
             client: ClientOptions {
                 cache_persistence: Some(CachePersistence {
-                    storage: kept.storage(),
+                    places: kept.clone(),
                     key_prefix: kb_id.clone(),
                 }),
                 ..ClientOptions::default()
@@ -593,18 +589,6 @@ mod tests {
     use semiont::testing::{TestClientOptions, create_test_client};
     use semiont::types::LocalEndpoint;
     use std::sync::atomic::{AtomicUsize, Ordering};
-
-    #[test]
-    fn where_a_knowledge_bases_stream_was_is_kept_under_the_tables_prefix_and_its_id() {
-        let table: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../../protocol/specs/src/session/stored.json"
-        ))
-        .expect("the table");
-        let prefix = table["lastEventIdKeyPrefix"]["prefix"]
-            .as_str()
-            .expect("the table states the prefix of a stream's places' key");
-        assert_eq!(last_event_id_key("kb-a"), format!("{prefix}kb-a"));
-    }
 
     /// A session whose renewal answers `renewed`, counted each time it is asked.
     fn renewing(asked: Arc<AtomicUsize>) -> SemiontSession {

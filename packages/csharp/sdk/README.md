@@ -215,11 +215,12 @@ stream as an observable, reference `System.Interactive.Async` in the host
 project and import `System.Linq`. Then call
 `client.Browse.Resource(resourceId).ToObservable()`.
 
-Supply `CachePersistence` when constructing a client to keep selected values
-and their replay bookmarks across sessions. Use a separate document for each
-knowledge base and principal. Its `Write` callback should replace the whole
-document atomically. A restored value is visible immediately and revalidated
-when first read.
+Supply `CachePersistence` when constructing a client to keep its resources,
+annotations, entity types and tag schemas, and where its stream was, across
+sessions. It names a storage and a knowledge base's id, and keeps one document
+per query, which a client in any Semiont SDK reads over the same storage. A
+session from the registry always keeps them. A restored value is visible
+immediately and revalidated when first read.
 
 ## State units
 

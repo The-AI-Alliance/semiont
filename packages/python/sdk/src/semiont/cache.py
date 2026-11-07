@@ -160,6 +160,8 @@ class Cache[K: Hashable, V](StateUnit):
         self._fetches = 0
         self._saving: asyncio.TimerHandle | None = None
         """The wait before the next save, while one is owed."""
+        self._dropped_a_fetch = False
+        """Whether disposing dropped a fetch in flight: what it would have kept never is."""
         kept = None if persister is None else persister.load()
         self._keys: Final[dict[K, _Key[V]]] = {key: _Key(Ready(value)) for key, value in (kept or {}).items()}
         self._kept: Final[set[K]] = set(self._keys)
@@ -288,12 +290,18 @@ class Cache[K: Hashable, V](StateUnit):
         """Every key the cache knows."""
         return [key for key, held in self._keys.items() if held.known()]
 
+    def _fetch_in_flight(self) -> bool:
+        return any(held.in_flight is not None for held in self._keys.values())
+
     @property
     def persistence_pending(self) -> bool:
-        """Whether a cache that keeps its values has not yet kept what it knows: a fetch is in flight, or a save is owed."""
+        """Whether a cache that keeps its values has not yet kept what it knows: a fetch is in flight, or a save is owed.
+
+        Once disposed, whether disposing dropped a fetch in flight: that value is never kept.
+        """
         if self._persister is None:
             return False
-        return self._saving is not None or any(held.in_flight is not None for held in self._keys.values())
+        return self._saving is not None or self._dropped_a_fetch or self._fetch_in_flight()
 
     def invalidate(self, key: K) -> None:
         """The key's value is out of date: ask again, showing what there is meanwhile.
@@ -339,6 +347,7 @@ class Cache[K: Hashable, V](StateUnit):
 
         Disposing twice is disposing once.
         """
+        self._dropped_a_fetch = self._dropped_a_fetch or self._fetch_in_flight()
         if self._saving is not None:
             self._saving.cancel()
             self._save()

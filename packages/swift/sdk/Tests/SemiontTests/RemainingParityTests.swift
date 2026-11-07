@@ -9,7 +9,7 @@ import Testing
   let storage = MemorySessionStorage()
   let config = CachePersistence(storage: storage, keyPrefix: "parity-cache")
   let calls = Mutex<[String]>([])
-  let cache = Cache<String, String>(persistence: config) { key in
+  let cache = Cache<String, String>(persistence: config, name: "parity") { key in
     calls.withLock { $0.append(key) }
     return "value for \(key)"
   }
@@ -38,7 +38,7 @@ import Testing
   #expect(await watched.value)
   #expect(!(await cache.known("a")))
   #expect(!cache.persistencePending())
-  let restored = Cache<String, String>(persistence: config) { _ in "fresh" }
+  let restored = Cache<String, String>(persistence: config, name: "parity") { _ in "fresh" }
   defer { restored.dispose() }
   #expect(await restored.get("b") == "written")
   #expect(Set(await restored.keys()) == ["a", "b"])

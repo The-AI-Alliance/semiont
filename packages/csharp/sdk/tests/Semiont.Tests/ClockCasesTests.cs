@@ -358,19 +358,29 @@ public sealed class ClockCasesTests
 
     private static Task<Subject> SaveDebounceAsync(JsonElement given, Case play)
     {
-        var saves = 0;
-        var http = play.Keep(new HttpClient(new Gateway(StreamAnswer.Holds, null)) { Timeout = Timeout.InfiniteTimeSpan });
-        var transport = play.Keep(new HttpTransport(GatewayUrl, "a-token", [], httpClient: http, timeProvider: play.Clock, random: play.Random));
-        var storage = play.Keep(new LiveCacheStorage(new CachePersistence(() => null, _ => Interlocked.Increment(ref saves)), play.Clock));
-        var cache = play.Keep(new Cache<string, int>((key, _) => throw new CaseFailed($"a cache that is only written fetched {key}"), null,
-            play.Clock, TimeSpan.FromMilliseconds(ProtocolFacts.Timing("invalidationWindowMs").GetInt32()), storage.Changed, () => storage.Pending));
-        storage.Start(transport, [cache.PersistAs("values")]);
+        var saves = new CountedSaves();
+        var storage = play.Keep(new LiveCacheStorage(new CachePersistence(saves, "kb-1"), play.Clock, () => false));
+        var cache = play.Keep(new Cache<ResourceId, ResourceDescriptor>((key, _) => throw new CaseFailed($"a cache that is only written fetched {key}"), null,
+            play.Clock, TimeSpan.FromMilliseconds(ProtocolFacts.Timing("invalidationWindowMs").GetInt32()), storage.Changed("resource")));
+        storage.Start([storage.Keep("resource", cache, KeptKeys.ByResource<ResourceDescriptor>())]);
         var changes = 0;
-        return Task.FromResult(new Subject(() => Volatile.Read(ref saves), () =>
+        return Task.FromResult(new Subject(() => saves.Counted, () =>
         {
-            cache.Set("a key", ++changes);
+            cache.Set(Resource, Read<ResourceDescriptor>($$"""{"@context":"https://schema.org/","@id":"res-1","name":"{{++changes}}","representations":[]}"""));
             return Task.CompletedTask;
         }));
+    }
+
+    /// <summary>A storage that keeps nothing, and counts what it is given to keep.</summary>
+    private sealed class CountedSaves : Semiont.Storage.ISessionStorage
+    {
+        private int counted;
+        internal int Counted => Volatile.Read(ref counted);
+        public string? Get(string key) => null;
+        public void Set(string key, string value) => Interlocked.Increment(ref counted);
+        public void Delete(string key) { }
+        public void Update(string key, Func<string?, string?> change) => throw new CaseFailed("a save updated " + key);
+        public IDisposable? Subscribe(Action<string, string?> onChange) => null;
     }
 
     private static Task<Subject> JobFollowerAsync(JsonElement given, Case play)

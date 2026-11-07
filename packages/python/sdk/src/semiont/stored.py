@@ -3,25 +3,35 @@
 
 """What a registry of knowledge bases keeps in a `SessionStorage` (`protocol/specs/src/session/stored.json`):
 the key each thing it keeps is kept under, the shape of a knowledge base's
-stored session, and the shape of a resource open in one.
+stored session, and the shape of a resource open in one. And what the
+sessions it makes keep there: which queries, and the stream's places.
 """
 
-from typing import Annotated, Final, final
+from typing import Annotated, Final, Literal, final
 
 from pydantic import Field
 
 from semiont.identifiers import ResourceId
 from semiont.model import WireModel
+from semiont.types import PersistedEventId
 
 __all__ = [
     "ACTIVE_KEY",
+    "CACHE_DOCUMENT_VERSION",
+    "KEPT_QUERIES",
     "KNOWLEDGE_BASES_KEY",
     "LAST_VIEWED_RESOURCE_BY_KB_KEY",
     "OPEN_RESOURCES_BY_KB_KEY",
     "PENDING_AUTHORIZATION_KEY",
+    "WHOLE_KEY",
+    "KeptQuery",
+    "LastEventIds",
     "OpenResource",
     "StoredSession",
+    "WholeKey",
+    "cache_key",
     "kb_of_session_key",
+    "last_event_id_key",
     "session_key",
 ]
 
@@ -59,26 +69,66 @@ def kb_of_session_key(key: str) -> str | None:
     return key.removeprefix(_SESSION_KEY_PREFIX) if key.startswith(_SESSION_KEY_PREFIX) else None
 
 
-# Where a knowledge base's stream was is kept under this followed by the knowledge base's id: a
-# JSON object from a scope, a resource's id, to the id of the last recorded event delivered on
-# it. It is written only with a write of the caches kept beside it, so it never leads them.
+# Where a knowledge base's stream was is kept under this followed by the knowledge base's id, as
+# `lastEventIds`. It is written in the same call as a write of one of the caches kept beside it,
+# and only while every kept cache has no fetch in flight and owes no save, and the refresher
+# owes no refetch (a window of B19, protocol/contract/CACHE-SEMANTICS.md, that holds an
+# invalidation it has not yet run); so it never leads them. Its own write is never a reason to
+# write a cache.
 _LAST_EVENT_ID_KEY_PREFIX: Final = "semiont.lastEventId."
 
 
 def last_event_id_key(kb_id: str) -> str:
-    """The key a knowledge base's stream's places are kept under."""
+    """The key a knowledge base's stream's places are kept under, as `LastEventIds`."""
     return f"{_LAST_EVENT_ID_KEY_PREFIX}{kb_id}"
 
 
+# Where a knowledge base's stream was: for each scope, a resource's id, the id of the last
+# recorded event delivered on it.
+type LastEventIds = dict[ResourceId, PersistedEventId]
+
+
 # What a client keeps of a query is kept under this followed by its persistence's key prefix, a
-# dot and the query's name. A registry's session takes the knowledge base's id for its key
-# prefix.
+# dot and the query's name: one `cacheDocument` for each of `keptQueries`. A registry's session
+# takes the knowledge base's id for its key prefix.
 _CACHE_KEY_PREFIX: Final = "semiont.cache."
 
+# The queries a client keeps across a restart, each by its name in
+# protocol/specs/src/client/refresh.json, and each as one document under `cache_key`.
+type KeptQuery = Literal[
+    # Keyed by ResourceId; its value is ResourceDescriptor.
+    "resource",
+    # Keyed by ResourceId; its value is GetAnnotationsResponse.
+    "annotations",
+    # Keyed by AnnotationId; its value is Annotation.
+    "annotation",
+    # Keyed by WHOLE_KEY alone; its value is GetEntityTypesResponse's `entityTypes`.
+    "entityTypes",
+    # Keyed by WHOLE_KEY alone; its value is GetTagSchemasResponse's `tagSchemas`.
+    "tagSchemas",
+]
 
-def cache_key(key_prefix: str, name: str) -> str:
-    """The key the query `name` is kept under, by a persistence whose key prefix is `key_prefix`."""
-    return f"{_CACHE_KEY_PREFIX}{key_prefix}.{name}"
+KEPT_QUERIES: Final[tuple[KeptQuery, ...]] = (
+    "resource",
+    "annotations",
+    "annotation",
+    "entityTypes",
+    "tagSchemas",
+)
+
+
+def cache_key(key_prefix: str, query: KeptQuery) -> str:
+    """The key `query` is kept under, by a persistence whose key prefix is `key_prefix`."""
+    return f"{_CACHE_KEY_PREFIX}{key_prefix}.{query}"
+
+
+# The key a kept query that is per nothing (a `queries` row of
+# protocol/specs/src/client/refresh.json with no `per`) keeps its one entry under.
+type WholeKey = Literal["_"]
+WHOLE_KEY: Final[WholeKey] = "_"
+
+# The form of the document. A document of another version is read as none.
+CACHE_DOCUMENT_VERSION: Final = 1
 
 
 @final

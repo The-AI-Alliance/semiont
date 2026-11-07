@@ -58,9 +58,7 @@ public sealed class HttpSessionFactory(HttpClient? httpClient = null, TimeProvid
                 BusRegistry.FullClientChannels, refresher: kept.RefreshAsync,
                 httpClient: httpClient, timeProvider: timeProvider, random: random);
             transport = http;
-            var user = kept.State.User;
-            var persistence = user is null ? null : new CachePersistence(options.Storage, RegistryStorage.CacheKey(options.Kb.Id, user.Did));
-            var client = new SemiontClient(http, persistence);
+            var client = new SemiontClient(http, new CachePersistence(options.Storage, options.Kb.Id));
             var session = new SemiontSession(new KbTarget { Id = options.Kb.Id, Endpoint = options.Kb.Endpoint, Label = options.Kb.Label },
                 client, kept);
             var watching = Task.WhenAll(FollowErrorsAsync(), FollowPermissionAsync());

@@ -7,6 +7,7 @@
 //! written by another release is dropped entry by entry, never half-read.
 
 use super::token_expiry;
+use crate::refresh::CacheQuery;
 use crate::storage::SessionStorage;
 use crate::types::KnowledgeBase;
 use serde::{Deserialize, Serialize};
@@ -32,10 +33,15 @@ pub fn kb_of_session_key(key: &str) -> Option<&str> {
     key.strip_prefix(SESSION_PREFIX)
 }
 
-/// The key the query `name` is kept under, by a persistence whose key prefix
-/// is `key_prefix`.
-pub(crate) fn cache_key(key_prefix: &str, name: &str) -> String {
-    format!("semiont.cache.{key_prefix}.{name}")
+/// The key a knowledge base's stream's places are kept under.
+pub fn last_event_id_key(kb_id: &str) -> String {
+    format!("semiont.lastEventId.{kb_id}")
+}
+
+/// The key `query` is kept under, by a persistence whose key prefix is
+/// `key_prefix`.
+pub(crate) fn cache_key(key_prefix: &str, query: CacheQuery) -> String {
+    format!("semiont.cache.{key_prefix}.{}", query.name())
 }
 
 /// What is kept of a sign-in: the tokens an issuer issued, the client they
@@ -124,14 +130,22 @@ mod tests {
     const STORED: &str = include_str!("../../specs/session/stored.json");
 
     #[test]
-    fn a_kept_query_is_kept_under_the_tables_prefix_its_persistences_key_prefix_and_its_name() {
+    fn each_kept_query_is_kept_under_the_tables_prefix_its_persistences_key_prefix_and_its_name() {
         let table: Value = serde_json::from_str(STORED).expect("the table is JSON");
         let prefix = table["cacheKeyPrefix"]["prefix"]
             .as_str()
             .expect("the table states the prefix of a kept query's key");
-        assert_eq!(
-            cache_key("kb-a", "resource"),
-            format!("{prefix}kb-a.resource")
-        );
+        let kept = table["keptQueries"]
+            .as_array()
+            .expect("the table states the kept queries");
+        assert!(!kept.is_empty(), "the table keeps no query");
+        for row in kept {
+            let name = row["query"].as_str().expect("a kept query is named");
+            let query = CacheQuery::ALL
+                .iter()
+                .find(|query| query.name() == name)
+                .unwrap_or_else(|| panic!("{name} is no query of client/refresh.json"));
+            assert_eq!(cache_key("kb-a", *query), format!("{prefix}kb-a.{name}"));
+        }
     }
 }

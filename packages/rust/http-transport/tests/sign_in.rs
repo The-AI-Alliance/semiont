@@ -2174,7 +2174,7 @@ async fn a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept(
     storage
         .set(
             "semiont.lastEventId.kb-a",
-            &json!({ "res-1": "p-5" }).to_string(),
+            &json!({ "res-1": "p-res-1-5" }).to_string(),
         )
         .expect("stored");
     let browser = browser(&world, storage.clone());
@@ -2200,12 +2200,14 @@ async fn a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept(
             .map(|scoped| scoped["lastEventId"].clone())
     };
     until("the stream names the scope", || resumed_from().is_some()).await;
-    assert_eq!(resumed_from(), Some(json!("p-5")));
+    assert_eq!(resumed_from(), Some(json!("p-res-1-5")));
 
     // A recorded event of the scope moves the place, and the place is kept
     // once the caches have taken the event in and written what they hold.
     let frame = json!({ "channel": "mark:archived", "scope": "res-1", "payload": {} });
-    let event = Bytes::from(format!("event: bus-event\nid: p-9\ndata: {frame}\n\n"));
+    let event = Bytes::from(format!(
+        "event: bus-event\nid: p-res-1-9\ndata: {frame}\n\n"
+    ));
     for stream in world.staged.streams.lock().unwrap().iter() {
         let _ = stream.send(event.clone());
     }
@@ -2215,7 +2217,7 @@ async fn a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept(
             .and_then(|kept| serde_json::from_str::<Value>(&kept).ok())
     };
     until("the place is kept", || {
-        kept() == Some(json!({ "res-1": "p-9" }))
+        kept() == Some(json!({ "res-1": "p-res-1-9" }))
     })
     .await;
     browser.close().await.expect("closed");

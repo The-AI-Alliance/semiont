@@ -120,7 +120,7 @@ client.getBrowse().annotations(resource).asPublisher().subscribe(new Flow.Subscr
 });
 ```
 
-A client given a `CachePersistence` keeps its small queries in a `SessionStorage`, so the next client of the same knowledge base shows them at once and asks for them anew. `CoupledBookmarks` keeps the stream's place in each scope beside them, for an `HttpTransport` to resume from.
+A client given a `CachePersistence` keeps its small queries in a `SessionStorage`, so the next client of the same knowledge base shows them at once and asks for them anew. `CoupledBookmarks` keeps the stream's place in each scope beside them, for an `HttpTransport` to resume from. Both are kept as `protocol/specs/src/session/stored.json` says, so a client in any SDK over the same storage reads what this one kept.
 
 ## Taking work
 

@@ -299,7 +299,8 @@ extension HttpTransport {
       "annotationId": .string("annotation"), traceField: .object(trace.mapValues(JSONValue.string)),
     ]
     for (channel, id) in [
-      ("beckon:focus", "p-one"), ("beckon:sparkle", "e-two"), ("beckon:focus", "p-three"),
+      ("beckon:focus", "p-resource-1"), ("beckon:sparkle", "e-two"),
+      ("beckon:focus", "p-resource-3"),
       ("beckon:sparkle", "e-two"), ("beckon:focus", "e-four"),
     ] {
       try await transport.deliverForTest(
@@ -317,7 +318,7 @@ extension HttpTransport {
     #expect(
       received.map(\.channel) == ["beckon:focus", "beckon:sparkle", "beckon:focus", "beckon:focus"])
     #expect(received.allSatisfy { $0.payload[traceField] == nil && $0.trace == trace })
-    #expect(await transport.watermarks[resource] == "p-three")
+    #expect(await transport.watermarks[resource] == "p-resource-3")
   }
 }
 

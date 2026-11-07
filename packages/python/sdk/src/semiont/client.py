@@ -140,11 +140,14 @@ class SemiontClient[T: Transport]:
 
     @property
     def persistence_settled(self) -> bool:
-        """Whether every cache the client keeps is at rest: none is fetching, and none owes a save.
+        """Whether every cache the client keeps is at rest: none is fetching, none owes a save, and the refresher owes no refetch.
 
         What is kept of the stream's place is kept only then (`semiont.resume`).
+        A fetch in flight or a refetch owed as the close begins is dropped by
+        it and never kept, so it holds the places back from the saves the
+        close makes; a save owed does not, since the close makes it.
         """
-        return self._live.persistence_settled
+        return self._live.persistence_settled and not self._refresher.owes_a_refetch
 
     async def close(self) -> None:
         """End the client.

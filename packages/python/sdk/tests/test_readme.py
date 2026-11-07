@@ -141,7 +141,7 @@ def test_the_bus_reads_a_resource_then_its_frames_and_says_the_code_of_a_request
             await soon(gateway.streams(2))
             await settle()
             assert gateway.of("POST", "/bus/subscribe")[0].headers["authorization"] == "Bearer a-token"
-            gateway.send("p-1", {"channel": "mark:added", "payload": recorded("mark:added", "res-1"), "scope": "res-1"})
+            gateway.send("p-res-1-1", {"channel": "mark:added", "payload": recorded("mark:added", "res-1"), "scope": "res-1"})
             await settle()
             await settle()
             # It reads frames for as long as it is left to.

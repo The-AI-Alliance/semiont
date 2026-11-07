@@ -36,8 +36,18 @@ public sealed partial class TransportTests
         Assert.Equal(Text(table.RootElement.GetProperty("sessionKeyPrefix"), "prefix") + "kb-1", key);
         Assert.Equal("kb-1", RegistryStorage.KbOfSessionKey(key));
         Assert.Null(RegistryStorage.KbOfSessionKey("unrelated"));
-        Assert.StartsWith(Text(table.RootElement.GetProperty("cacheKeyPrefix"), "prefix"),
-            RegistryStorage.CacheKey("kb-1", UserId.Parse("did:web:example.org:users:alice")), StringComparison.Ordinal);
+        var kept = table.RootElement.GetProperty("keptQueries").EnumerateArray().Select(row => Text(row, "query")).ToArray();
+        Assert.Equal(kept, KeptTable.Queries);
+        foreach (var query in kept)
+            Assert.Equal(Text(table.RootElement.GetProperty("cacheKeyPrefix"), "prefix") + "kb-1." + query, KeptTable.DocumentKey("kb-1", query));
+        Assert.Equal(Text(table.RootElement.GetProperty("lastEventIdKeyPrefix"), "prefix") + "kb-1", KeptTable.PlacesKey("kb-1"));
+        Assert.Equal(Text(table.RootElement.GetProperty("wholeKey"), "key"), KeptTable.WholeKey);
+        var document = table.RootElement.GetProperty("cacheDocument");
+        Assert.Equal(document.GetProperty("properties").GetProperty("version").GetProperty("const").GetInt64(), KeptTable.Version);
+        Assert.Equal(new[] { "version", "entries" }, document.GetProperty("required").EnumerateArray().Select(member => Assert.IsType<string>(member.GetString())));
+        var places = table.RootElement.GetProperty("lastEventIds");
+        Assert.EndsWith("/ResourceId.json", Text(places.GetProperty("propertyNames"), "$ref"), StringComparison.Ordinal);
+        Assert.EndsWith("/PersistedEventId.json", Text(places.GetProperty("additionalProperties"), "$ref"), StringComparison.Ordinal);
         var store = new MemoryStorage();
         var session = RegistryTokens() with { RevocationEndpoint = "https://issuer.test/revoke" };
         RegistryStorage.StoreSession(store, "kb-1", session);

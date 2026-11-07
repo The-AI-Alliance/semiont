@@ -11,6 +11,8 @@ use semiont::cached::Observed;
 use semiont::client::{CachePersistence, ClientOptions, ClientTiming, SemiontClient};
 use semiont::namespaces::{Delegation, ResourceFilters};
 use semiont::refresh::CacheQuery;
+use semiont::resume::CoupledBookmarks;
+use semiont::session::last_event_id_key;
 use semiont::storage::InMemorySessionStorage;
 use semiont::transport::ConnectionState;
 use semiont::types::{AnnotationId, GenerationJobParams, MarkJobParams, ResourceId};
@@ -212,7 +214,10 @@ impl Live {
                 timing,
                 cache_persistence: (args.get("persist") == Some(&Value::Bool(true))).then(|| {
                     CachePersistence {
-                        storage: self.storage.clone(),
+                        places: CoupledBookmarks::new(
+                            self.storage.clone(),
+                            &last_event_id_key("conformance"),
+                        ),
                         key_prefix: "conformance".to_owned(),
                     }
                 }),

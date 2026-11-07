@@ -280,7 +280,14 @@ public class Cache<K : Any, V : Any> internal constructor(
 
     /** Whether a cache that keeps its values has not yet kept what it knows: a fetch is in flight, or a save is owed. */
     public val persistencePending: Boolean
-        get() = synchronized(lock) { persister != null && (saving != null || keys.values.any { it.inFlight != null }) }
+        get() = synchronized(lock) { persister != null && (saving != null || fetchInFlight()) }
+
+    /** Whether a cache that keeps its values has a fetch in flight: what closing it drops. */
+    internal val keptFetchInFlight: Boolean
+        get() = synchronized(lock) { persister != null && fetchInFlight() }
+
+    /** Called under the lock. */
+    private fun fetchInFlight(): Boolean = keys.values.any { it.inFlight != null }
 
     /** The key's value is out of date: ask again, showing what there is meanwhile. A fetch in flight is not waited on. */
     public fun invalidate(key: K): Unit = synchronized(lock) {

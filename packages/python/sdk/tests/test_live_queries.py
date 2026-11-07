@@ -12,7 +12,7 @@ from collections.abc import AsyncGenerator, AsyncIterator, Mapping
 from contextlib import AsyncExitStack, asynccontextmanager
 
 import pytest
-from aio import pass_time, run, soon, turns
+from aio import pass_time, run, run_still, soon, turns
 from kb import (
     ANNOTATION,
     LIMITS,
@@ -39,10 +39,12 @@ from semiont.errors import BusRequestError
 from semiont.identifiers import ResourceId
 from semiont.namespaces.browse import EngineWithLimits
 from semiont.refresh import CACHE_QUERIES, CacheQuery
+from semiont.resume import CoupledBookmarks
 from semiont.storage import MemoryStorage
-from semiont.testing import FaultyTransport, StubGateway, create_test_client, refuse_unscripted_operation
+from semiont.stored import KEPT_QUERIES, cache_key, last_event_id_key
+from semiont.testing import DropReply, FaultyTransport, StubGateway, create_test_client, refuse_unscripted_operation
 from semiont.testing.liveness import LivenessScenario, LivenessSpec, assert_liveness_axioms
-from semiont.timing import SAVE_DEBOUNCE_MS
+from semiont.timing import INVALIDATION_WINDOW_MS, SAVE_DEBOUNCE_MS
 
 type Client = SemiontClient[FaultyTransport]
 
@@ -319,12 +321,12 @@ def test_a_client_keeps_its_small_queries_and_the_next_client_shows_them_at_once
             await turns(20)
             assert settled(client)
 
-        # The five small queries, each a document under the client's prefix; a list, a search and a history are not kept.
-        names = ("resource", "annotations", "annotation-detail", "entity-types", "tag-schemas")
-        documents = {name: kept(name) for name in names}
+        # The small queries, each a document under the client's prefix by its name; a list, a search and a history are not kept.
+        documents = {name: kept(name) for name in KEPT_QUERIES}
         assert all(document is not None and document["version"] == 1 for document in documents.values())
-        for unkept in ("lists", "resources", "events", "referenced-by", "matched-resources", "searches", "engines", "limits"):
-            assert kept(unkept) is None
+        for unkept in CACHE_QUERIES:
+            if unkept not in KEPT_QUERIES:
+                assert kept(unkept) is None
         resource = documents["resource"]
         assert resource is not None
         entries = resource["entries"]
@@ -377,10 +379,6 @@ def test_a_client_that_keeps_nothing_is_always_settled() -> None:
     run(scenario())
 
 
-KEPT = ("resource", "annotations", "annotation", "entityTypes", "tagSchemas")
-"""The queries a client with a storage keeps."""
-
-
 @pytest.mark.parametrize("query", CACHE_QUERIES)
 def test_a_client_is_settled_unless_a_query_it_keeps_is_being_fetched_or_is_owed_to_storage(query: CacheQuery) -> None:
     async def scenario() -> None:
@@ -402,10 +400,128 @@ def test_a_client_is_settled_unless_a_query_it_keeps_is_being_fetched_or_is_owed
             reading = asyncio.ensure_future(named[query].fresh())
             await turns()
             # Fetching what it keeps, it is not at rest; fetching what it does not keep, it is.
-            assert client.persistence_settled == (query not in KEPT)
+            assert client.persistence_settled == (query not in KEPT_QUERIES)
             reading.cancel()
 
     run(scenario())
+
+
+def test_a_client_is_not_settled_while_its_refresher_owes_a_refetch() -> None:
+    async def scenario() -> None:
+        client, transport = world(CachePersistence(storage=MemoryStorage(), key_prefix="kb"))
+
+        def asked() -> int:
+            return len(asked_for(transport, "browse:resource-requested"))
+
+        async def saved() -> None:
+            await turns(20)
+            await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.02, step=0.01)
+
+        async with client, client.browse.resource(RESOURCE) as live:
+            while not isinstance(await soon(anext(live)), Ready):
+                pass
+            await saved()
+            assert client.persistence_settled
+
+            # The first event asks again at once and opens the key's window: a window that owes nothing is no reason to wait.
+            transport.deliver(event("mark:archived"))
+            await saved()
+            assert asked() == 2
+            assert client.persistence_settled
+
+            # The next inside the window is owed: nothing is fetching and nothing owes a save, and the client is not settled.
+            transport.deliver(event("mark:archived"))
+            await saved()
+            assert asked() == 2
+            assert not client.persistence_settled
+
+            # The window closes, and what it owed is asked for and kept.
+            await pass_time(INVALIDATION_WINDOW_MS / 1000, step=0.01)
+            await saved()
+            assert asked() == 3
+            assert client.persistence_settled
+
+    # The window is timed by the loop's clock, which moves only when the test moves it.
+    run_still(scenario())
+
+
+def test_a_close_keeps_the_place_only_when_nothing_was_in_flight_or_owed_as_it_began() -> None:
+    """A fetch in flight or a refetch owed, which the close drops, holds the place back; a save owed, which the close makes, carries it."""
+    places_key = last_event_id_key("kb")
+
+    def kept(storage: MemoryStorage, key: str) -> dict[str, JsonValue] | None:
+        stored = storage.get(key)
+        return None if stored is None else _DOCUMENT.validate_json(stored)
+
+    def keeping(storage: MemoryStorage, transport: FaultyTransport) -> tuple[Client, CoupledBookmarks]:
+        """A client whose kept caches carry its stream's places."""
+        places = CoupledBookmarks(storage, places_key)
+        persistence = CachePersistence(storage=places.storage, key_prefix="kb")
+        client: Client = SemiontClient(transport, knowing_content(), StubGateway(), persistence=persistence)
+        places.set_flush_gate(lambda: client.persistence_settled)
+        return client, places
+
+    async def owing_a_refetch() -> None:
+        storage = MemoryStorage()
+        transport = FaultyTransport(make_response=knowing)
+        client, places = keeping(storage, transport)
+        async with client, client.browse.resource(RESOURCE) as live:
+            while not isinstance(await soon(anext(live)), Ready):
+                pass
+            # The first event asks again at once and opens the key's window, and what it asked is kept.
+            transport.deliver(event("mark:archived"))
+            await turns(20)
+            await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.02, step=0.01)
+            # The next, inside the window, is owed: it is all the client waits on.
+            transport.deliver(event("mark:archived"))
+            await turns(20)
+            assert len(asked_for(transport, "browse:resource-requested")) == 2
+            places.save(RESOURCE, "p-res-1-7")
+            async with client.browse.annotations(RESOURCE) as listed:
+                while not isinstance(await soon(anext(listed)), Ready):
+                    pass
+            assert kept(storage, cache_key("kb", "annotations")) is None
+        # The close disposes the refresher before the annotations' cache makes the save it owed,
+        # and the refetch it dropped holds the place back.
+        assert kept(storage, cache_key("kb", "annotations")) is not None
+        assert kept(storage, places_key) is None
+
+    async def fetching() -> None:
+        storage = MemoryStorage()
+        # The resource's answer is lost: its fetch is in flight when the close begins.
+        transport = FaultyTransport([DropReply()], make_response=knowing)
+        client, places = keeping(storage, transport)
+        async with client, client.browse.resource(RESOURCE), client.browse.annotations(RESOURCE) as listed:
+            while not isinstance(await soon(anext(listed)), Ready):
+                pass
+            places.save(RESOURCE, "p-res-1-7")
+            assert kept(storage, cache_key("kb", "annotations")) is None
+        # The close disposes the resource's cache before the annotations' makes the save it owed,
+        # and the fetch it dropped holds the place back.
+        assert kept(storage, cache_key("kb", "annotations")) is not None
+        assert kept(storage, places_key) is None
+
+    async def at_rest() -> None:
+        storage = MemoryStorage()
+        transport = FaultyTransport(make_response=knowing)
+        client, places = keeping(storage, transport)
+        async with client, client.browse.resource(RESOURCE) as live:
+            while not isinstance(await soon(anext(live)), Ready):
+                pass
+            places.save(RESOURCE, "p-res-1-7")
+            assert kept(storage, cache_key("kb", "resource")) is None
+        # Only a save was owed: the close makes it, and the place rides it.
+        assert kept(storage, cache_key("kb", "resource")) is not None
+        assert kept(storage, places_key) == {"res-1": "p-res-1-7"}
+        # A session's stream outlives its client. A place it reaches after the close is of an event whose refetch the close
+        # dropped: no cache writes after its close, however long after, so the place is never kept.
+        places.save(OTHER, "p-res-2-3")
+        await pass_time(SAVE_DEBOUNCE_MS / 1000 + 0.02, step=0.01)
+        assert kept(storage, places_key) == {"res-1": "p-res-1-7"}
+
+    # A save is made only when the test moves the loop's clock past it.
+    for scenario in (owing_a_refetch, fetching, at_rest):
+        run_still(scenario())
 
 
 # ── Liveness: under any behaviour of the wire, a watcher is told something ──

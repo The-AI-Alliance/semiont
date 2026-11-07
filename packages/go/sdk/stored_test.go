@@ -2,8 +2,10 @@ package semiont
 
 // What a session and a sign-in by a page redirect keep in a SessionStorage,
 // held to protocol/specs/src/session/stored.json: the keys of a stream's places
-// and of the kept queries, and what is kept of a sign-in begun. The registry's
-// own keys are registry/stored_test.go's.
+// and of the kept queries, the form of a kept document and of the places, and
+// what is kept of a sign-in begun. Which queries are kept is live_test.go's,
+// and what each document holds cache_cases_test.go's. The registry's own keys
+// are registry/stored_test.go's.
 
 import (
 	"context"
@@ -12,9 +14,12 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // objectShape is an object schema of the table: the members it names, and
@@ -31,7 +36,29 @@ type sessionTable struct {
 	CacheKeyPrefix struct {
 		Prefix string `json:"prefix"`
 	} `json:"cacheKeyPrefix"`
+	WholeKey struct {
+		Key string `json:"key"`
+	} `json:"wholeKey"`
+	CacheDocument struct {
+		Properties map[string]struct {
+			Const json.RawMessage `json:"const"`
+		} `json:"properties"`
+	} `json:"cacheDocument"`
+	LastEventIds struct {
+		PropertyNames        schemaRef `json:"propertyNames"`
+		AdditionalProperties schemaRef `json:"additionalProperties"`
+	} `json:"lastEventIds"`
 	PendingAuthorization objectShape `json:"pendingAuthorization"`
+}
+
+// schemaRef is a schema that is a component schema of the spec's.
+type schemaRef struct {
+	Ref string `json:"$ref"`
+}
+
+// component is the name of the component schema ref names.
+func (ref schemaRef) component() string {
+	return strings.TrimSuffix(filepath.Base(ref.Ref), ".json")
 }
 
 // readSpec is what the spec's file at way, under protocol/specs/src, holds.
@@ -58,8 +85,33 @@ func TestTheKeysOfAStreamsPlacesAndOfTheKeptQueriesAreTheTables(t *testing.T) {
 	if got, want := lastEventIDKey("kb-a"), table.LastEventIDKeyPrefix.Prefix+"kb-a"; got != want {
 		t.Errorf("a knowledge base's stream's places are kept under %q; the table's key is %q", got, want)
 	}
-	if got, want := cacheStorageKey("kb-a", "resource"), table.CacheKeyPrefix.Prefix+"kb-a.resource"; got != want {
+	if got, want := cacheStorageKey("kb-a", CacheQueryResource), table.CacheKeyPrefix.Prefix+"kb-a.resource"; got != want {
 		t.Errorf("a kept query is kept under %q; the table's key is %q", got, want)
+	}
+}
+
+func TestAKeptDocumentAndThePlacesAreOfTheTablesForm(t *testing.T) {
+	table := readSessionTable(t)
+	if got, want := textOf(t, whole{}), textOf(t, table.WholeKey.Key); got != want {
+		t.Errorf("the key of a query of one value is written %s; the table's is %s", got, want)
+	}
+
+	if version := string(table.CacheDocument.Properties["version"].Const); !sameJSON(t, textOf(t, keptVersion), version) {
+		t.Errorf("a kept document is of version %d; the table's is %s", keptVersion, version)
+	}
+	storage := NewMemoryStorage()
+	keptBy[whole, []string](&CachePersistence{Storage: storage, KeyPrefix: "kb-a"}, CacheQueryEntityTypes, DefaultTiming().MaxStoredBytesCount).
+		Save(map[whole][]string{{}: {"Person"}})
+	written, _ := storage.Get(cacheStorageKey("kb-a", CacheQueryEntityTypes))
+	if got, want := membersOf(t, []byte(written)), slices.Sorted(maps.Keys(table.CacheDocument.Properties)); !slices.Equal(got, want) {
+		t.Errorf("a kept document is written with %v; the table's members are %v", got, want)
+	}
+
+	if got, want := reflect.TypeFor[api.ResourceId]().Name(), table.LastEventIds.PropertyNames.component(); got != want {
+		t.Errorf("a place's scope is read as a %s; the table's is a %s", got, want)
+	}
+	if got, want := placeSchema, table.LastEventIds.AdditionalProperties.component(); got != want {
+		t.Errorf("a place is held to %s; the table's is a %s", got, want)
 	}
 }
 

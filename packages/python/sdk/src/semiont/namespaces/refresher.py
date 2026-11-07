@@ -27,7 +27,7 @@ from semiont.channels import CHANNELS
 from semiont.events import Events
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.namespaces.links import Links
-from semiont.namespaces.live import WHOLE, Live, Subject
+from semiont.namespaces.live import Live, Subject
 from semiont.refresh import (
     CACHE_REFRESH,
     CACHE_REFRESH_CHANNELS,
@@ -38,6 +38,7 @@ from semiont.refresh import (
     CacheRefreshWay,
     CacheRefreshWhen,
 )
+from semiont.stored import WHOLE_KEY
 from semiont.transport import ConnectionState, Frame, FrameRefusal
 from semiont.types import Annotation
 from semiont.watched import Watched
@@ -74,6 +75,8 @@ class _Windows:
     def __init__(self, lasting_ms: int) -> None:
         self._lasting: Final = lasting_ms / 1000
         self._open: Final[dict[str, _Window]] = {}
+        self._dropped_owed = False
+        """Whether disposing dropped a refetch a window owed: it is owed for good."""
 
     def run(self, key: str, refetch: Callable[[], None]) -> None:
         """Ask again for `key`, by `refetch`: what asks for one key is the same whichever event asked."""
@@ -84,6 +87,11 @@ class _Windows:
         self._open[key] = _Window(refetch, asyncio.get_running_loop().call_later(self._lasting, self._close, key))
         refetch()
 
+    @property
+    def owed(self) -> bool:
+        """Whether a window holds a refetch it has not yet run, or disposing dropped one."""
+        return self._dropped_owed or any(window.owed for window in self._open.values())
+
     def _close(self, key: str) -> None:
         window = self._open.pop(key)
         if window.owed:
@@ -91,6 +99,7 @@ class _Windows:
 
     def dispose(self) -> None:
         """Every window closes, and what each owed is dropped."""
+        self._dropped_owed = self.owed
         for window in self._open.values():
             window.closing.cancel()
         self._open.clear()
@@ -207,6 +216,11 @@ class Refresher:
             else:
                 left = opened
 
+    @property
+    def owes_a_refetch(self) -> bool:
+        """Whether a window (B19) holds a refetch it has not yet run: a cache it would ask again for is not yet asked."""
+        return self._windows.owed
+
     def _refresh(self, trigger: CacheRefreshTrigger, subject: Subject) -> None:
         (row,) = (candidate for candidate in CACHE_REFRESH[trigger] if candidate.when == subject.when)
         for query in row.writes:
@@ -265,11 +279,11 @@ class Refresher:
             case "matchedResources":
                 self._windows.run("matched-resources", live.searches.invalidate_all)
             case "entityTypes":
-                self._again(live.entity_types, WHOLE, "entity-types")
+                self._again(live.entity_types, WHOLE_KEY, "entity-types")
             case "tagSchemas":
-                self._again(live.tag_schemas, WHOLE, "tag-schemas")
+                self._again(live.tag_schemas, WHOLE_KEY, "tag-schemas")
             case "engines":
-                if live.engines.known(WHOLE):
+                if live.engines.known(WHOLE_KEY):
                     self._windows.run("engines", live.invalidate_engines)
             case _:
                 assert_never(query)

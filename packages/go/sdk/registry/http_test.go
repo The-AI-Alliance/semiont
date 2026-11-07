@@ -484,7 +484,8 @@ func TestARegistrysSessionResumesItsStreamFromThePlaceItsStorageKept(t *testing.
 	storage := semiont.NewMemoryStorage()
 	must(t, registry.SaveKnowledgeBases(storage, []api.KnowledgeBase{s.registered(t, "kb-a")}))
 	must(t, registry.StoreSession(storage, "kb-a", s.stored(jwt(time.Hour), "r1")))
-	must(t, storage.Set("semiont.lastEventId.kb-a", `{"res-1":"p-5"}`))
+	places := readStoredTable(t).LastEventIDKeyPrefix.Prefix + "kb-a"
+	must(t, storage.Set(places, `{"res-1":"p-res-1-5"}`))
 	browser := s.browser(t, storage)
 	session := liveOver(t, browser)
 
@@ -511,17 +512,17 @@ func TestARegistrysSessionResumesItsStreamFromThePlaceItsStorageKept(t *testing.
 		return ""
 	}
 	until(t, "the stream names the scope", func() bool { return resumedFrom() != "" })
-	if from := resumedFrom(); from != "p-5" {
+	if from := resumedFrom(); from != "p-res-1-5" {
 		t.Errorf("the stream resumes the scope from %q", from)
 	}
 
 	// A recorded event of the scope moves the place, and the place is kept
 	// once the caches have taken the event in and written what they hold:
 	// an archived resource is asked for again, and its description written.
-	s.send("p-9", `{"channel":"mark:archived","scope":"res-1","payload":{"id":"0e2f8c0a-4a34-4a8e-9b47-0d6d5a3f8a11","type":"mark:archived","timestamp":"2026-10-27T12:00:00.000Z","userId":"did:web:example.org:users:alice","resourceId":"res-1","version":1,"metadata":{"sequenceNumber":9},"payload":{}}}`)
+	s.send("p-res-1-9", `{"channel":"mark:archived","scope":"res-1","payload":{"id":"0e2f8c0a-4a34-4a8e-9b47-0d6d5a3f8a11","type":"mark:archived","timestamp":"2026-10-27T12:00:00.000Z","userId":"did:web:example.org:users:alice","resourceId":"res-1","version":1,"metadata":{"sequenceNumber":9},"payload":{}}}`)
 	until(t, "the place is kept", func() bool {
-		kept, _ := storage.Get("semiont.lastEventId.kb-a")
-		var places map[string]string
-		return json.Unmarshal([]byte(kept), &places) == nil && reflect.DeepEqual(places, map[string]string{"res-1": "p-9"})
+		kept, _ := storage.Get(places)
+		var read map[string]string
+		return json.Unmarshal([]byte(kept), &read) == nil && reflect.DeepEqual(read, map[string]string{"res-1": "p-res-1-9"})
 	})
 }

@@ -7,6 +7,7 @@ public final class Cache<Key: Hashable & Sendable, Value: Sendable>: StateUnit {
   private let holdFor: (@Sendable (Key) async -> ResourceHold)?
   private let lifetime: Lifetime
   private let kept: (@Sendable (Key) -> KeptValue<Value>?)?
+  private let owed: Unsettled?
   private let invalidationWindowMs: Int
   private let clock: any Clock<Duration>
   private let persistenceWork: (@Sendable () -> Bool)?
@@ -15,8 +16,8 @@ public final class Cache<Key: Hashable & Sendable, Value: Sendable>: StateUnit {
   init(
     lifetime: Lifetime, ownsLifetime: Bool = false,
     hold: (@Sendable (Key) async -> ResourceHold)? = nil,
-    kept: (@Sendable (Key) -> KeptValue<Value>?)? = nil, invalidationWindowMs: Int,
-    clock: any Clock<Duration>,
+    kept: (@Sendable (Key) -> KeptValue<Value>?)? = nil, owed: Unsettled?,
+    invalidationWindowMs: Int, clock: any Clock<Duration>,
     persistencePending: (@Sendable () -> Bool)? = nil,
     fetch: @escaping @Sendable (Key) async throws -> Value
   ) {
@@ -24,6 +25,7 @@ public final class Cache<Key: Hashable & Sendable, Value: Sendable>: StateUnit {
     self.holdFor = hold
     self.lifetime = lifetime
     self.kept = kept
+    self.owed = owed
     self.invalidationWindowMs = invalidationWindowMs
     self.clock = clock
     self.persistenceWork = persistencePending
@@ -38,20 +40,21 @@ public final class Cache<Key: Hashable & Sendable, Value: Sendable>: StateUnit {
     fetch: @escaping @Sendable (Key) async throws -> Value
   ) {
     self.init(
-      lifetime: Lifetime(), ownsLifetime: true, invalidationWindowMs: Timings.invalidationWindowMs,
-      clock: clock, fetch: fetch)
+      lifetime: Lifetime(), ownsLifetime: true, owed: nil,
+      invalidationWindowMs: Timings.invalidationWindowMs, clock: clock, fetch: fetch)
   }
 
+  /// A cache that keeps its values under `persistence`, in one document named `name`.
   public convenience init(
-    persistence: CachePersistence, clock: any Clock<Duration> = ContinuousClock(),
+    persistence: CachePersistence, name: String, clock: any Clock<Duration> = ContinuousClock(),
     fetch: @escaping @Sendable (Key) async throws -> Value
   ) where Key: Codable, Value: Codable {
     let life = Lifetime()
-    let book = StoragePersister<Key>(persistence, clock: clock)
+    let book = StoragePersister<Key, Value>(persistence, name: name, clock: clock)
     life.onEnd { book.close() }
     self.init(
       lifetime: life, ownsLifetime: true, kept: { KeptValue(book: book, key: $0) },
-      invalidationWindowMs: Timings.invalidationWindowMs, clock: clock,
+      owed: book.underway, invalidationWindowMs: Timings.invalidationWindowMs, clock: clock,
       persistencePending: { book.pending }, fetch: fetch)
     for key in book.keys { _ = observe(key) }
   }
@@ -68,7 +71,7 @@ public final class Cache<Key: Hashable & Sendable, Value: Sendable>: StateUnit {
     return entries.withLock { entries in
       if let query = entries[key] { return query }
       let query = Cached(
-        lifetime: lifetime, hold: hold, kept: kept?(key),
+        lifetime: lifetime, hold: hold, kept: kept?(key), owed: owed,
         invalidationWindowMs: invalidationWindowMs,
         clock: clock
       ) {

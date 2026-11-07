@@ -15,7 +15,7 @@
 //! asked for inside a window are one refetch
 //! (protocol/contract/CACHE-SEMANTICS.md B12–B13b, B19, B20).
 
-use super::browse::{self, BrowseNamespace, WHOLE, invalidate_engines};
+use super::browse::{self, BrowseNamespace, WholeKey, invalidate_engines};
 use super::gather::{GatherNamespace, ReferencedBy};
 use super::match_::{MatchNamespace, ResourceSearch};
 use crate::bus::held_to;
@@ -89,6 +89,13 @@ impl Windows {
         );
         drop(open);
         refetch();
+    }
+
+    /// Whether a window holds a refetch it has not yet run.
+    fn owes(&self) -> bool {
+        locked(&self.open)
+            .as_ref()
+            .is_some_and(|windows| windows.values().any(|window| window.owed.is_some()))
     }
 
     /// Every window closes, and what each owed is dropped.
@@ -345,25 +352,25 @@ impl Refresher {
         match query {
             CacheQuery::Resource => {
                 for id in reached(browse.resource.keys()) {
-                    let window = format!("resource/{id}");
+                    let window = format!("{}/{id}", query.name());
                     self.again(&browse.resource, id, window);
                 }
             }
             CacheQuery::Annotations => {
                 for id in reached(browse.annotations.keys()) {
-                    let window = format!("annotations/{id}");
+                    let window = format!("{}/{id}", query.name());
                     self.again(&browse.annotations, id, window);
                 }
             }
             CacheQuery::Events => {
                 for id in reached(browse.events.keys()) {
-                    let window = format!("events/{id}");
+                    let window = format!("{}/{id}", query.name());
                     self.again(&browse.events, id, window);
                 }
             }
             CacheQuery::ReferencedBy => {
                 for id in reached(self.referenced_by.keys()) {
-                    let window = format!("referenced-by/{id}");
+                    let window = format!("{}/{id}", query.name());
                     self.again(&self.referenced_by, id, window);
                 }
             }
@@ -380,38 +387,36 @@ impl Refresher {
                         .collect(),
                 };
                 for id in annotations {
-                    let window = format!("annotation/{id}");
+                    let window = format!("{}/{id}", query.name());
                     self.again(&browse.annotation, id, window);
                 }
             }
             // An event does not say which lists it changes, nor which
             // searches would now find its resource.
-            CacheQuery::Resources => self.all_again(&browse.lists, "resource-lists"),
-            CacheQuery::MatchedResources => self.all_again(&self.searches, "matched-resources"),
+            CacheQuery::Resources => self.all_again(&browse.lists, query.name()),
+            CacheQuery::MatchedResources => self.all_again(&self.searches, query.name()),
             CacheQuery::EntityTypes => {
-                self.again(
-                    &browse.entity_types,
-                    WHOLE.to_owned(),
-                    "entity-types".to_owned(),
-                );
+                self.again(&browse.entity_types, WholeKey, query.name().to_owned());
             }
             CacheQuery::TagSchemas => {
-                self.again(
-                    &browse.tag_schemas,
-                    WHOLE.to_owned(),
-                    "tag-schemas".to_owned(),
-                );
+                self.again(&browse.tag_schemas, WholeKey, query.name().to_owned());
             }
             CacheQuery::Engines => {
-                if browse.engines.known(&WHOLE.to_owned()) {
+                if browse.engines.known(&WholeKey) {
                     let (engines, limits) = (browse.engines.clone(), browse.limits.clone());
                     self.windows.run(
-                        "engines".to_owned(),
+                        query.name().to_owned(),
                         Box::new(move || invalidate_engines(&engines, &limits)),
                     );
                 }
             }
         }
+    }
+
+    /// Whether a refetch an event asked for is owed: a window (B19) holds
+    /// one it has not yet run.
+    pub(crate) fn owes_a_refetch(&self) -> bool {
+        self.windows.owes()
     }
 
     /// Stop: no event refreshes anything after, and what a window owed is

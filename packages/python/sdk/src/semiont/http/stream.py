@@ -43,6 +43,7 @@ from semiont.events import Broadcast
 from semiont.http.exchange import TokenRefresher, refusal
 from semiont.http.sse import SseParser
 from semiont.identifiers import ResourceId
+from semiont.resume import is_recorded_event_id
 from semiont.retry import RetryPolicy, equal_jitter, retry_after_ms
 from semiont.timing import (
     DEGRADED_THRESHOLD_MS,
@@ -583,12 +584,12 @@ class Stream:
         )
         self._router.route(frame)
         # A scope's position is the last recorded event delivered on it: only
-        # a recorded event's id (`p-…`) is one, and it always comes on its scope.
-        if event_id is not None and frame.scope is not None and event_id.startswith("p-"):
+        # a recorded event's id is one, and it always comes on its scope.
+        if frame.scope is not None and is_recorded_event_id(event_id):
             self._watermarks[frame.scope] = event_id
         self._hub.deliver(frame)
         # Kept only once the event has been given to those it changes: a place is never ahead of what was taken in.
-        if self._bookmarks is not None and event_id is not None and frame.scope is not None and event_id.startswith("p-"):
+        if self._bookmarks is not None and frame.scope is not None and is_recorded_event_id(event_id):
             self._bookmarks.save(frame.scope, event_id)
 
     def _refused(self, tasks: asyncio.TaskGroup, conn: int, error: TransportError, now: float) -> None:

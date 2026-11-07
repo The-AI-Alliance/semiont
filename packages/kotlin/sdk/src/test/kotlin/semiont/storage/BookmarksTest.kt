@@ -30,9 +30,9 @@ class BookmarksTest {
         val places = CoupledBookmarks(storage, KEY)
         val caches = places.storage
         assertEquals(emptyMap<ResourceId, String>(), places.load())
-        places.save(RESOURCE, "p-7")
-        places.save(RESOURCE, "p-8")
-        places.save(OTHER, "p-3")
+        places.save(RESOURCE, "p-res-1-7")
+        places.save(RESOURCE, "p-res-1-8")
+        places.save(OTHER, "p-res-2-3")
         assertNull(storage.get(KEY))
         // Reading what a cache kept, and forgetting it, write no place.
         assertNull(caches.get(CACHE))
@@ -40,15 +40,15 @@ class BookmarksTest {
         assertNull(storage.get(KEY))
         caches.set(CACHE, "{}")
         assertEquals("{}" to "{}", storage.get(CACHE) to caches.get(CACHE))
-        assertEquals(mapOf(RESOURCE to "p-8", OTHER to "p-3"), places.load())
+        assertEquals(mapOf(RESOURCE to "p-res-1-8", OTHER to "p-res-2-3"), places.load())
         // A later place of one scope leaves the other's as it was.
-        places.save(OTHER, "p-4")
+        places.save(OTHER, "p-res-2-4")
         caches.set(CACHE, "{}")
-        assertEquals(mapOf(RESOURCE to "p-8", OTHER to "p-4"), places.load())
+        assertEquals(mapOf(RESOURCE to "p-res-1-8", OTHER to "p-res-2-4"), places.load())
         // With nothing reached since, a cache's write writes no places: what another client kept meanwhile stays.
-        storage.set(KEY, """{"res-9": "p-1"}""")
+        storage.set(KEY, """{"res-9": "p-res-9-1"}""")
         caches.set(CACHE, "{}")
-        assertEquals(mapOf(ResourceId("res-9") to "p-1"), places.load())
+        assertEquals(mapOf(ResourceId("res-9") to "p-res-9-1"), places.load())
         caches.delete(CACHE)
         assertNull(storage.get(CACHE))
     }
@@ -57,9 +57,9 @@ class BookmarksTest {
     fun aCachesUpdateCarriesThePlacesAsItsWriteDoesAndWhatIsHeardIsWhatTheStorageBeneathHears() {
         val beneath = SharedStorage()
         val places = CoupledBookmarks(beneath, KEY)
-        places.save(RESOURCE, "p-7")
+        places.save(RESOURCE, "p-res-1-7")
         places.storage.update(CACHE) { kept -> "${kept.orEmpty()}{}" }
-        assertEquals("{}" to mapOf(RESOURCE to "p-7"), beneath.get(CACHE) to places.load())
+        assertEquals("{}" to mapOf(RESOURCE to "p-res-1-7"), beneath.get(CACHE) to places.load())
 
         val heard = mutableListOf<Pair<String, String?>>()
         checkNotNull(places.storage.subscribe { key, value -> heard += key to value }).use {
@@ -69,32 +69,47 @@ class BookmarksTest {
     }
 
     @Test
+    fun anIdThatIsNoPersistedEventsIdIsNoPlaceToKeep() {
+        val storage = MemoryStorage()
+        val places = CoupledBookmarks(storage, KEY)
+        places.save(RESOURCE, "e-res-1-7")
+        places.save(OTHER, "p-7")
+        places.storage.set(CACHE, "{}")
+        assertNull(storage.get(KEY))
+        assertEquals(emptyMap<ResourceId, String>(), places.load())
+    }
+
+    @Test
     fun aPlaceWaitsForTheCachesToBeAtRest() {
         val storage = MemoryStorage()
         val places = CoupledBookmarks(storage, KEY)
         var atRest = false
         places.flushGate = { atRest }
-        places.save(RESOURCE, "p-7")
+        places.save(RESOURCE, "p-res-1-7")
         places.storage.set(CACHE, "{}")
         // Late, which is safe: the cache that was written may not be the one still taking the event in.
         assertNull(storage.get(KEY))
         atRest = true
         places.storage.set("semiont.cache.kb-a.annotations", "{}")
-        assertEquals(mapOf(RESOURCE to "p-7"), places.load())
+        assertEquals(mapOf(RESOURCE to "p-res-1-7"), places.load())
     }
 
     @Test
     fun whatIsKeptUnderTheKeyAndIsNotPlacesIsNothingKept() {
         val storage = MemoryStorage()
-        for (kept in listOf("not json", "[1, 2]", """{"res-1": 7}""", """{"not an id": "p-1"}""")) {
+        for (kept in listOf("not json", "[1, 2]", """{"res-1": 7}""", """{"not an id": "p-x-1"}""", """{"res-1": "e-res-1-1"}""", """{"res-1": "p-1"}""")) {
             storage.set(KEY, kept)
             assertEquals(emptyMap<ResourceId, String>(), CoupledBookmarks(storage, KEY).load(), kept)
         }
+        // A pair that is not a scope and its place is not read, and the rest are.
+        storage.set(KEY, """{"res-1": "e-res-1-1", "not an id": "p-x-1", "res-2": "p-res-2-3"}""")
+        assertEquals(mapOf(OTHER to "p-res-2-3"), CoupledBookmarks(storage, KEY).load())
         // And is written over by the first places that are.
+        storage.set(KEY, "not json")
         val places = CoupledBookmarks(storage, KEY)
-        places.save(RESOURCE, "p-1")
+        places.save(RESOURCE, "p-res-1-1")
         places.storage.set(CACHE, "{}")
-        assertEquals(mapOf(RESOURCE to "p-1"), places.load())
+        assertEquals(mapOf(RESOURCE to "p-res-1-1"), places.load())
     }
 
     @Test
@@ -121,18 +136,18 @@ class BookmarksTest {
             override fun subscribe(onChange: (key: String, value: String?) -> Unit): AutoCloseable? = null
         }
         val places = CoupledBookmarks(full, KEY)
-        places.save(RESOURCE, "p-7")
+        places.save(RESOURCE, "p-res-1-7")
         assertThrows(java.io.IOException::class.java) { places.storage.set(CACHE, "{}") }
         // The cache kept nothing of what the place names, and no place says it did.
         assertNull(full.get(KEY))
         places.storage.set("semiont.cache.kb-a.annotations", "{}")
-        assertEquals(mapOf(RESOURCE to "p-7"), places.load())
+        assertEquals(mapOf(RESOURCE to "p-res-1-7"), places.load())
     }
 
     @Test
     fun aStreamBeginsEachScopeWhereItsBookmarksSayAndTellsThemEachRecordedEventItDelivered() = runBlocking {
         val storage = MemoryStorage()
-        storage.set(KEY, """{"res-1": "p-41"}""")
+        storage.set(KEY, """{"res-1": "p-res-1-41"}""")
         val places = CoupledBookmarks(storage, KEY)
         StreamGateway().use { gateway ->
             HttpTransport(gateway.origin, MutableStateFlow("t"), emptyList(), QUICK, null, places).use { transport ->
@@ -140,15 +155,15 @@ class BookmarksTest {
                 transport.subscribeToResource(RESOURCE).use {
                     transport.subscribeToResource(OTHER).use {
                         // The scope it kept a place in resumes from it; the other begins at the present.
-                        assertEquals(mapOf("res-1" to "p-41", "res-2" to null), gateway.placesAskedFrom(2))
+                        assertEquals(mapOf("res-1" to "p-res-1-41", "res-2" to null), gateway.placesAskedFrom(2))
                         // A recorded event's id is its scope's place, once it has been delivered. A passing frame's is no place.
-                        gateway.send("p-42", """{"channel":"mark:added","payload":{"n":1},"scope":"res-1"}""")
+                        gateway.send("p-res-1-42", """{"channel":"mark:added","payload":{"n":1},"scope":"res-1"}""")
                         gateway.send("e-9", """{"channel":"mark:added","payload":{"n":2},"scope":"res-2"}""")
                         val read = withTimeout(5_000) { heard.firstOf(2) }
                         assertEquals(listOf(JsonPrimitive(1), JsonPrimitive(2)), read.map { it.frame().payload.getValue("n") })
-                        assertEquals("""{"res-1": "p-41"}""", storage.get(KEY))
+                        assertEquals("""{"res-1": "p-res-1-41"}""", storage.get(KEY))
                         places.storage.set(CACHE, "{}")
-                        assertEquals(mapOf(RESOURCE to "p-42"), places.load())
+                        assertEquals(mapOf(RESOURCE to "p-res-1-42"), places.load())
                     }
                 }
             }

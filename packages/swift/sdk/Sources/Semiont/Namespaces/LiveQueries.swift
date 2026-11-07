@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 struct LiveQueries: Sendable {
   struct SearchKey: Hashable, Sendable {
@@ -6,7 +7,7 @@ struct LiveQueries: Sendable {
     let filters: ResourceFilters
   }
 
-  private struct AnnotationKey: Hashable, Sendable {
+  struct AnnotationKey: Hashable, Sendable {
     let resource: ResourceId
     let annotation: AnnotationId
   }
@@ -19,23 +20,34 @@ struct LiveQueries: Sendable {
     var written: Annotation?
   }
 
-  let entityTypes: Cached<[String]>
-  let tagSchemas: Cached<[TagSchema]>
-  let resources: Cache<ResourceId, ResourceDescriptor>
+  let entityTypes: Cached<KeptEntityTypes>
+  let tagSchemas: Cached<KeptTagSchemas>
+  let resources: Cache<ResourceId, KeptResource>
   let events: Cache<ResourceId, [AttributedEvent]>
   let referencedBy: Cache<ResourceId, [GetReferencedByResponseReferencedByItem]>
-  let annotations: Cache<ResourceId, [Annotation]>
+  let annotations: Cache<ResourceId, KeptAnnotations>
   let listedResources: Cache<ResourceFilters, ListResourcesResponse>
   let matchedResources: Cache<SearchKey, MatchResourcesResponse>
   let engines: Cached<[EngineWithLimits]>
-  private let details: Cache<AnnotationKey, Annotation>
+  let details: Cache<AnnotationKey, KeptAnnotation>
+  private let annotationLists = Views<ResourceId, [Annotation]>()
 
   init(
     wire: Bus, transport: any Transport, content: (any ContentTransport)?, lifetime: Lifetime,
-    book: StoragePersister<KeptQuery>?, invalidationWindowMs: Int, clock: any Clock<Duration>
+    keeping: Keeping?, invalidationWindowMs: Int, clock: any Clock<Duration>
   ) {
+    let owed = keeping?.underway
+    let resourceBook: StoragePersister<ResourceId, KeptResource>? = keeping?.persister(.resource)
+    let annotationsBook: StoragePersister<ResourceId, KeptAnnotations>? = keeping?.persister(
+      .annotations)
+    let annotationBook: StoragePersister<AnnotationId, KeptAnnotation>? = keeping?.persister(
+      .annotation)
+    let entityTypesBook: StoragePersister<WholeKey, KeptEntityTypes>? = keeping?.persister(
+      .entityTypes)
+    let tagSchemasBook: StoragePersister<WholeKey, KeptTagSchemas>? = keeping?.persister(
+      .tagSchemas)
     listedResources = Cache(
-      lifetime: lifetime, invalidationWindowMs: invalidationWindowMs, clock: clock
+      lifetime: lifetime, owed: owed, invalidationWindowMs: invalidationWindowMs, clock: clock
     ) { filters in
       try await wire.request(
         Operations.browseResourcesRequested,
@@ -45,7 +57,7 @@ struct LiveQueries: Sendable {
       ).response
     }
     matchedResources = Cache(
-      lifetime: lifetime, invalidationWindowMs: invalidationWindowMs, clock: clock
+      lifetime: lifetime, owed: owed, invalidationWindowMs: invalidationWindowMs, clock: clock
     ) { search in
       let filters = search.filters
       return try await wire.request(
@@ -55,26 +67,28 @@ struct LiveQueries: Sendable {
           offset: filters.offset, search: search.text)
       ).response
     }
-    engines = Cached(lifetime: lifetime, invalidationWindowMs: invalidationWindowMs, clock: clock) {
+    engines = Cached(
+      lifetime: lifetime, owed: owed, invalidationWindowMs: invalidationWindowMs, clock: clock
+    ) {
       try await browseEngines(wire)
     }
     entityTypes = Cached(
-      lifetime: lifetime, kept: book.map { KeptValue(book: $0, key: .entityTypes) },
-      invalidationWindowMs: invalidationWindowMs, clock: clock
+      lifetime: lifetime, kept: entityTypesBook.map { KeptValue(book: $0, key: WholeKey()) },
+      owed: owed, invalidationWindowMs: invalidationWindowMs, clock: clock
     ) {
       try await wire.request(Operations.browseEntityTypesRequested, BrowseEntityTypesRequest())
         .response.entityTypes
     }
     tagSchemas = Cached(
-      lifetime: lifetime, kept: book.map { KeptValue(book: $0, key: .tagSchemas) },
-      invalidationWindowMs: invalidationWindowMs, clock: clock
+      lifetime: lifetime, kept: tagSchemasBook.map { KeptValue(book: $0, key: WholeKey()) },
+      owed: owed, invalidationWindowMs: invalidationWindowMs, clock: clock
     ) {
       try await wire.request(Operations.browseTagSchemasRequested, BrowseTagSchemasRequest())
         .response.tagSchemas
     }
     resources = Cache(
       lifetime: lifetime, hold: { await transport.subscribeToResource($0) },
-      kept: { key in book.map { KeptValue(book: $0, key: .resource(key)) } },
+      kept: { key in resourceBook.map { KeptValue(book: $0, key: key) } }, owed: owed,
       invalidationWindowMs: invalidationWindowMs, clock: clock,
       fetch: { resource in
         try await wire.request(
@@ -82,7 +96,7 @@ struct LiveQueries: Sendable {
         ).response.resource
       })
     events = Cache(
-      lifetime: lifetime, hold: { await transport.subscribeToResource($0) },
+      lifetime: lifetime, hold: { await transport.subscribeToResource($0) }, owed: owed,
       invalidationWindowMs: invalidationWindowMs, clock: clock,
       fetch: { resource in
         try await wire.request(
@@ -90,7 +104,7 @@ struct LiveQueries: Sendable {
         ).response.events
       })
     referencedBy = Cache(
-      lifetime: lifetime, hold: { await transport.subscribeToResource($0) },
+      lifetime: lifetime, hold: { await transport.subscribeToResource($0) }, owed: owed,
       invalidationWindowMs: invalidationWindowMs, clock: clock,
       fetch: { resource in
         try await wire.request(
@@ -99,35 +113,42 @@ struct LiveQueries: Sendable {
       })
     annotations = Cache(
       lifetime: lifetime, hold: { await transport.subscribeToResource($0) },
-      kept: { key in book.map { KeptValue(book: $0, key: .annotations(key)) } },
+      kept: { key in annotationsBook.map { KeptValue(book: $0, key: key) } }, owed: owed,
       invalidationWindowMs: invalidationWindowMs, clock: clock,
       fetch: { resource in
         guard let content else {
           throw TransportError(.error, "No content transport is configured")
         }
-        return try await content.getAnnotations(resource).annotations
+        return try await content.getAnnotations(resource)
       })
     details = Cache(
       lifetime: lifetime, hold: { await transport.subscribeToResource($0.resource) },
-      kept: { key in
-        book.map { KeptValue(book: $0, key: .annotation(key.resource, key.annotation)) }
-      },
-      invalidationWindowMs: invalidationWindowMs, clock: clock,
+      kept: { key in annotationBook.map { KeptValue(book: $0, key: key.annotation) } },
+      owed: owed, invalidationWindowMs: invalidationWindowMs, clock: clock,
       fetch: { key in
         try await wire.request(
           Operations.browseAnnotationRequested,
           BrowseAnnotationRequest(annotationId: key.annotation, resourceId: key.resource)
         ).response.annotation
       })
-    for key in book?.keys ?? [] {
-      switch key {
-      case .resource(let resource): _ = resources.observe(resource)
-      case .annotations(let resource): _ = annotations.observe(resource)
-      case .annotation(let resource, let id):
-        _ = details.observe(AnnotationKey(resource: resource, annotation: id))
-      case .entityTypes, .tagSchemas: break
+    // Each kept key is held at once, so a returning observer is shown its value. A kept
+    // annotation is of the resource its target is.
+    if let resourceBook {
+      for key in resourceBook.keys { _ = resources.observe(key) }
+    }
+    if let annotationsBook {
+      for key in annotationsBook.keys { _ = annotations.observe(key) }
+    }
+    if let annotationBook {
+      for (id, annotation) in annotationBook.values {
+        _ = details.observe(
+          AnnotationKey(resource: targetSource(annotation.target), annotation: id))
       }
     }
+  }
+
+  func annotationList(_ resource: ResourceId) -> Cached<[Annotation]> {
+    annotationLists.view(resource) { annotations.observe(resource).view { $0.annotations } }
   }
 
   func annotation(resourceId: ResourceId, annotationId: AnnotationId) -> Cached<Annotation> {
@@ -207,10 +228,10 @@ struct LiveQueries: Sendable {
       guard let resource = subject.resource else { return }
       await annotations.existing(resource)?.editIfKnown { current in
         var current = current
-        if let index = current.firstIndex(where: { $0.id == value.id }) {
-          current[index] = value
+        if let index = current.annotations.firstIndex(where: { $0.id == value.id }) {
+          current.annotations[index] = value
         } else {
-          current.append(value)
+          current.annotations.append(value)
         }
         return current
       }
@@ -248,6 +269,20 @@ struct LiveQueries: Sendable {
       for detail in annotationEntries(subject) {
         await detail.refreshIfKnown(coalescing: coalescing)
       }
+    }
+  }
+}
+
+/// One view of a query per key, so every observer of a key shares one (B4).
+private final class Views<Key: Hashable & Sendable, Value: Sendable>: Sendable {
+  private let held = Mutex<[Key: Cached<Value>]>([:])
+
+  func view(_ key: Key, _ make: () -> Cached<Value>) -> Cached<Value> {
+    held.withLock { held in
+      if let view = held[key] { return view }
+      let view = make()
+      held[key] = view
+      return view
     }
   }
 }

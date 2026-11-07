@@ -27,7 +27,7 @@ use crate::namespaces::{
     GatherNamespace, JobNamespace, MarkNamespace, MatchNamespace, Refresher, SystemNamespace,
     YieldNamespace,
 };
-use crate::storage::SessionStorage;
+use crate::resume::CoupledBookmarks;
 use crate::timing::{BUS_REQUEST_TIMEOUT, INVALIDATION_WINDOW, JOB_SILENCE, JOB_STATUS_POLL};
 use crate::transport::{ConnectionState, ContentTransport, Envelope, GatewayOperations, Transport};
 use std::sync::Arc;
@@ -60,11 +60,12 @@ impl Default for ClientTiming {
 }
 
 /// Where a client keeps its small caches so the next client for the same
-/// knowledge base shows them at once: a storage, and a prefix for its keys,
-/// which is what tells one knowledge base's from another's.
+/// knowledge base shows them at once: a storage, whose writes carry the
+/// stream's places, and a prefix for its keys, which is what tells one
+/// knowledge base's from another's.
 #[derive(Clone)]
 pub struct CachePersistence {
-    pub storage: Arc<dyn SessionStorage>,
+    pub places: CoupledBookmarks,
     pub key_prefix: String,
 }
 
@@ -136,6 +137,8 @@ pub struct SemiontClient {
     own: EventBus,
     /// What keeps the queries of `browse`, `gather` and `match_` true.
     refresher: Arc<Refresher>,
+    /// The stream's places, which ride the writes of the kept caches.
+    places: Option<CoupledBookmarks>,
     /// The vocabulary: what kinds of things exist.
     pub frame: FrameNamespace,
     /// Reads, and this viewer's own signals.
@@ -193,6 +196,9 @@ impl SemiontClient {
             wire,
             own,
             refresher: Refresher::new(&links, &browse, &gather, &match_),
+            places: options
+                .cache_persistence
+                .map(|persistence| persistence.places),
             frame: FrameNamespace::new(links.clone()),
             browse,
             mark: MarkNamespace::new(links.clone()),
@@ -239,17 +245,30 @@ impl SemiontClient {
     }
 
     /// Whether every cache the client's storage keeps is at rest: none is
-    /// fetching, and none owes a save. What is kept of the stream's place is
-    /// kept only then (`crate::resume`).
+    /// fetching, none owes a save, and the refresher owes no refetch (B19).
+    /// What is kept of the stream's place is kept only then
+    /// (`crate::resume`).
     pub fn persistence_settled(&self) -> bool {
-        self.browse.persistence_settled()
+        // The refresher first: a refetch it owed is under way in a cache by
+        // the time it is no longer owed.
+        !self.refresher.owes_a_refetch() && self.browse.persistence_settled()
     }
 
     /// Stop. The queries end first, so nothing they had in flight asks
     /// again of a transport that is going; then the transport closes, so
     /// every stream ends and every request still pending fails as closed;
     /// then the client's own bus ends. Closing twice is closing once.
+    ///
+    /// Before anything is disposed, the places the closing flush may write
+    /// are taken: those noted so far, when no fetch is in flight and no
+    /// refetch is owed. A save then owed does not hold them back, because
+    /// the flush is that save.
     pub async fn close(&self) {
+        // Before anything is disposed: disposing the refresher clears what
+        // it owed, and disposing a cache drops its fetch in flight.
+        if let Some(places) = &self.places {
+            places.close(|| !self.refresher.owes_a_refetch() && !self.browse.kept_fetching());
+        }
         self.refresher.dispose();
         self.browse.dispose();
         self.gather.dispose();

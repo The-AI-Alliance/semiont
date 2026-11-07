@@ -6,7 +6,7 @@
 use semiont::identity;
 use semiont::session::{
     ACTIVE_KEY, KNOWLEDGE_BASES_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY, OPEN_RESOURCES_BY_KB_KEY,
-    OpenResource, StoredSession, session_key,
+    OpenResource, StoredSession, last_event_id_key, session_key,
 };
 use semiont::testing::as_id;
 use serde_json::{Map, Value};
@@ -160,6 +160,11 @@ fn what_a_registry_keeps_is_the_tables() {
         session_key("kb-a"),
         format!("{}kb-a", text(&stored["sessionKeyPrefix"], "prefix")),
         "a knowledge base's session key"
+    );
+    assert_eq!(
+        last_event_id_key("kb-a"),
+        format!("{}kb-a", text(&stored["lastEventIdKeyPrefix"], "prefix")),
+        "the key a knowledge base's stream's places are kept under"
     );
 
     let schema = &stored["storedSession"];

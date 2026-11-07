@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 module Semiont.Internal.Refresh
-  ( Refresher, SubjectInfo(..), Target(..), Acts(..), newRefresher, pending, dispose
+  ( Refresher, SubjectInfo(..), Target(..), Acts(..), newRefresher, owes, dispose
   , cacheTargets, writeTargets, updateTargets, endTargets
   ) where
 
@@ -12,7 +12,7 @@ import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
 import Data.List (find)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, isNothing)
+import Data.Maybe (fromMaybe, isJust, isNothing)
 import Data.Text (Text)
 import qualified OpenTelemetry.Context as Context
 import OpenTelemetry.Context.ThreadLocal (attachContext, detachContext)
@@ -199,11 +199,9 @@ startTimer runtime key generation = do
             writeTQueue (queue runtime) (parent,launch >> startTimer runtime key following)
         _ -> pure ()
 
-pending :: Refresher -> STM Bool
-pending runtime = do
-  held <- readTVar (windows runtime)
-  empty <- isEmptyTQueue (queue runtime)
-  pure (not (Map.null held) || not empty)
+-- | Whether a window holds an invalidation it has not yet run (B19).
+owes :: Refresher -> STM Bool
+owes runtime = any (\(Window _ owed) -> isJust owed) . Map.elems <$> readTVar (windows runtime)
 dispose :: Refresher -> IO ()
 dispose runtime = mask_ $ do
   atomically $ do

@@ -197,8 +197,8 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 		Channels: config.Channels, HTTP: config.HTTP, Timing: config.Timing, Random: config.Random,
 	}
 	if config.Storage != nil {
-		// The stream's place rides the caches' writes, and only when every
-		// cache is at rest: a place kept ahead of a cache still taking in the
+		// The stream's place rides the caches' writes, and only when what is
+		// kept is at rest: a place kept ahead of a cache still taking in the
 		// event it names would have the next session skip that event.
 		places = NewCoupledBookmarks(config.Storage, lastEventIDKey(config.Kb.Id))
 		persistence = &CachePersistence{Storage: places.Storage(), KeyPrefix: config.Kb.Id}
@@ -207,7 +207,7 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 	transport := NewHTTPTransport(transportConfig)
 	client := NewClient(ClientConfig{Transport: transport, Content: NewHTTPContentTransport(transport), Gateway: transport, Timing: config.Timing, Persistence: persistence})
 	if places != nil {
-		places.SetFlushGate(client.PersistenceSettled)
+		places.CoupleTo(client)
 	}
 	session, err = ResumeSession(ctx, ResumeConfig{
 		Kb: config.Kb, Client: client, Kept: config.Kept, Token: token, HTTP: config.HTTP, Timing: config.Timing, Random: config.Random,

@@ -794,13 +794,49 @@ func TestEnginesThatFailAreAFailedStateWhateverTheirHoldersReportAndAReadOfThemF
 	watch(t, w.client.Browse.Engines()).ended(t)
 }
 
-// keptOf is the one entry of the document a client keeps of the query
-// named name: its key, and its value.
-func keptOf(t *testing.T, storage semiont.SessionStorage, name string) (key, value json.RawMessage) {
+// keptTable is what protocol/specs/src/session/stored.json says a client
+// keeps of its queries: under which key, which queries, and the key of a
+// query of one value.
+type keptTable struct {
+	CacheKeyPrefix struct {
+		Prefix string `json:"prefix"`
+	} `json:"cacheKeyPrefix"`
+	KeptQueries []struct {
+		Query semiont.CacheQuery `json:"query"`
+	} `json:"keptQueries"`
+	WholeKey struct {
+		Key string `json:"key"`
+	} `json:"wholeKey"`
+}
+
+func readKeptTable(t *testing.T) keptTable {
 	t.Helper()
-	text, ok := storage.Get("semiont.cache.kb." + name)
+	var table keptTable
+	if err := json.Unmarshal(readSpec(t, "session", "stored.json"), &table); err != nil {
+		t.Fatal(err)
+	}
+	if len(table.KeptQueries) == 0 {
+		t.Fatal("the table keeps no query: it was not read")
+	}
+	return table
+}
+
+// kept is the queries the table keeps.
+func (table keptTable) kept() []semiont.CacheQuery {
+	queries := make([]semiont.CacheQuery, 0, len(table.KeptQueries))
+	for _, kept := range table.KeptQueries {
+		queries = append(queries, kept.Query)
+	}
+	return queries
+}
+
+// keptOf is the one entry of the document a client whose key prefix is "kb"
+// keeps of query: its key, and its value.
+func keptOf(t *testing.T, storage semiont.SessionStorage, table keptTable, query semiont.CacheQuery) (key, value json.RawMessage) {
+	t.Helper()
+	text, ok := storage.Get(table.CacheKeyPrefix.Prefix + "kb." + string(query))
 	if !ok {
-		t.Fatalf("nothing is kept of %s", name)
+		t.Fatalf("nothing is kept of %s", query)
 	}
 	var document struct {
 		Version int                 `json:"version"`
@@ -810,7 +846,7 @@ func keptOf(t *testing.T, storage semiont.SessionStorage, name string) (key, val
 		t.Fatal(err)
 	}
 	if document.Version != 1 || len(document.Entries) != 1 || len(document.Entries[0]) != 3 {
-		t.Fatalf("what is kept of %s is %s", name, text)
+		t.Fatalf("what is kept of %s is %s", query, text)
 	}
 	return document.Entries[0][0], document.Entries[0][1]
 }
@@ -847,22 +883,31 @@ func TestAClientKeepsItsSmallQueriesAndTheNextClientShowsThemAtOnceAndAsksForThe
 	}
 	c.Close()
 
-	// The five small queries, each a document under the client's prefix; a list, a search and a history are not kept.
-	for _, name := range []string{"resource", "annotations", "annotation-detail", "entity-types", "tag-schemas"} {
-		keptOf(t, storage, name)
-	}
-	for _, name := range []string{"lists", "resources", "events", "referenced-by", "matched-resources", "searches", "engines", "limits"} {
-		if _, ok := storage.Get("semiont.cache.kb." + name); ok {
-			t.Fatalf("%s is kept", name)
+	// Each query the table keeps is a document under the client's prefix, and no other query is.
+	table := readKeptTable(t)
+	for _, query := range semiont.CacheQueries {
+		_, written := storage.Get(table.CacheKeyPrefix.Prefix + "kb." + string(query))
+		if keeps := slices.Contains(table.kept(), query); written != keeps {
+			t.Fatalf("%s is kept: %v; the table keeps it: %v", query, written, keeps)
 		}
 	}
+	for _, query := range table.kept() {
+		keptOf(t, storage, table, query)
+	}
 	// As the wire had it: by the wire's names, and without what the knowledge base never said.
-	if key, value := keptOf(t, storage, "resource"); !sameJSON(t, key, []byte(`"res-1"`)) || !sameJSON(t, value, []byte(describing("res-1", "A resource"))) {
+	if key, value := keptOf(t, storage, table, semiont.CacheQueryResource); !sameJSON(t, key, []byte(`"res-1"`)) || !sameJSON(t, value, []byte(describing("res-1", "A resource"))) {
 		t.Fatalf("the resource is kept as %s: %s", key, value)
 	}
 	listed := `{"annotations":[` + annotating("ann-1", "res-1", "") + `],"total":1}`
-	if key, value := keptOf(t, storage, "annotations"); !sameJSON(t, key, []byte(`"res-1"`)) || !sameJSON(t, value, []byte(listed)) {
+	if key, value := keptOf(t, storage, table, semiont.CacheQueryAnnotations); !sameJSON(t, key, []byte(`"res-1"`)) || !sameJSON(t, value, []byte(listed)) {
 		t.Fatalf("the annotations are kept as %s: %s", key, value)
+	}
+	wholeKey, err := json.Marshal(table.WholeKey.Key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key, _ := keptOf(t, storage, table, semiont.CacheQueryEntityTypes); !sameJSON(t, key, wholeKey) {
+		t.Fatalf("the entity types are kept under %s; the table's key is %s", key, wholeKey)
 	}
 
 	// The next client of the same knowledge base, over the same storage.
@@ -917,7 +962,7 @@ func TestAClientThatKeepsNothingIsAlwaysSettled(t *testing.T) {
 }
 
 func TestAClientIsSettledUnlessAQueryItKeepsIsBeingFetchedOrIsOwedToStorage(t *testing.T) {
-	kept := []semiont.CacheQuery{semiont.CacheQueryResource, semiont.CacheQueryAnnotations, semiont.CacheQueryAnnotation, semiont.CacheQueryEntityTypes, semiont.CacheQueryTagSchemas}
+	kept := readKeptTable(t).kept()
 	census := newLiveWorld(t, liveSetup{silent: true})
 	if named := slices.Sorted(maps.Keys(eachQuery(t, census.client))); !slices.Equal(named, slices.Sorted(slices.Values(semiont.CacheQueries))) {
 		t.Fatalf("this test names %v, the table %v", named, semiont.CacheQueries)
@@ -936,4 +981,111 @@ func TestAClientIsSettledUnlessAQueryItKeepsIsBeingFetchedOrIsOwedToStorage(t *t
 			}
 		})
 	}
+}
+
+// An event a B19 window owes has not been taken in: while the refresher owes
+// a refetch, the client is not settled, though no cache is fetching or owes a
+// save.
+func TestAClientIsNotSettledWhileItsRefresherOwesARefetch(t *testing.T) {
+	const window = time.Second
+	w := newLiveWorld(t, liveSetup{window: window, saveWait: 10 * time.Millisecond, persistence: &semiont.CachePersistence{Storage: semiont.NewMemoryStorage(), KeyPrefix: "kb"}})
+	c := w.client
+	resources := bus.BrowseResourceRequested.Request().Channel()
+	asked := func() int { return len(requestsOn(w.transport, resources)) }
+	updated := func() { w.transport.Deliver(eventOf(t, semiont.CacheRefreshYieldUpdated, "", "res-1", "ann-1")) }
+	untilReady(t, watch(t, c.Browse.Resource(resourceOf(t, "res-1"))))
+	waitUntil(t, "the client settled", 2*time.Second, c.PersistenceSettled)
+
+	// The first refetch runs at once, and opens the window.
+	updated()
+	waitUntil(t, "the first refetch", time.Second, func() bool { return asked() == 2 })
+	waitUntil(t, "the first refetch kept", time.Second, c.PersistenceSettled)
+	// The next is owed to the window.
+	updated()
+	time.Sleep(settling)
+	if asked() != 2 {
+		t.Fatalf("asked %d resources inside the window, want 2", asked())
+	}
+	if c.PersistenceSettled() {
+		t.Fatal("a client whose refresher owes a refetch is settled")
+	}
+	// The window closed: what it owed ran, and was kept.
+	waitUntil(t, "what the window owed", 2*window, func() bool { return asked() == 3 })
+	waitUntil(t, "the client settled", time.Second, c.PersistenceSettled)
+}
+
+// notingStorage is storage where a write under key first calls note.
+type notingStorage struct {
+	semiont.SessionStorage
+	key  string
+	note func()
+}
+
+func (s *notingStorage) Set(key, value string) error {
+	if key == s.key {
+		s.note()
+	}
+	return s.SessionStorage.Set(key, value)
+}
+
+// Close reads once, before it disposes anything, whether what is kept is at
+// rest (B17). A refetch then owed holds the places back from the saves Close
+// makes; a save then owed does not, since Close makes it. The places those
+// saves may write are those noted before the reading.
+func TestCloseReadsWhetherWhatIsKeptIsAtRestBeforeItDisposesAnything(t *testing.T) {
+	const placesKey = "places"
+	// Long enough that Close comes before either ends.
+	const window, saveWait = 5 * time.Second, 5 * time.Second
+	table := readKeptTable(t)
+	closed := func(t *testing.T, owing bool) semiont.SessionStorage {
+		storage := semiont.NewMemoryStorage()
+		underneath := &notingStorage{SessionStorage: storage, key: table.CacheKeyPrefix.Prefix + "kb." + string(semiont.CacheQueryResource)}
+		places := semiont.NewCoupledBookmarks(underneath, placesKey)
+		// A place noted after Close read the gate: as Close saves the resources.
+		noted := false
+		underneath.note = func() {
+			places.Save(resourceOf(t, "res-2"), "p-res-2-3")
+			noted = true
+		}
+		w := newLiveWorld(t, liveSetup{window: window, saveWait: saveWait, persistence: &semiont.CachePersistence{Storage: places.Storage(), KeyPrefix: "kb"}})
+		places.CoupleTo(w.client)
+		resources := bus.BrowseResourceRequested.Request().Channel()
+		updated := func() { w.transport.Deliver(eventOf(t, semiont.CacheRefreshYieldUpdated, "", "res-1", "ann-1")) }
+		watched := watch(t, w.client.Browse.Resource(resourceOf(t, "res-1")))
+		untilReady(t, watched)
+		if owing {
+			// The first refetch runs at once, and opens the window; its answer is
+			// the watcher's next value, so nothing is in flight after it.
+			updated()
+			untilReady(t, watched)
+			// The next is owed to the window.
+			updated()
+			time.Sleep(settling)
+			if asked := len(requestsOn(w.transport, resources)); asked != 2 {
+				t.Fatalf("asked %d resources, want 2: the second refetch is not owed", asked)
+			}
+		}
+		places.Save(resourceOf(t, "res-1"), "p-res-1-7")
+		w.client.Close()
+		if !noted {
+			t.Fatal("Close saved no resource")
+		}
+		return storage
+	}
+
+	t.Run("a refetch owed holds the places back", func(t *testing.T) {
+		storage := closed(t, true)
+		keptOf(t, storage, table, semiont.CacheQueryResource)
+		if kept, ok := storage.Get(placesKey); ok {
+			t.Fatalf("the places were written while a refetch was owed: %s", kept)
+		}
+	})
+	t.Run("with nothing in flight or owed the places noted before are written", func(t *testing.T) {
+		storage := closed(t, false)
+		keptOf(t, storage, table, semiont.CacheQueryResource)
+		kept, ok := storage.Get(placesKey)
+		if !ok || !sameJSON(t, []byte(kept), []byte(`{"res-1":"p-res-1-7"}`)) {
+			t.Fatalf("the places kept are %q, %v: only res-1's was noted before Close read the gate", kept, ok)
+		}
+	})
 }

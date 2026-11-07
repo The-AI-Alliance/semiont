@@ -15,8 +15,18 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
-// whole is the key of a query the knowledge base has one of.
+// whole is the key of a query the knowledge base has one of. It is written,
+// and read, as wholeKey alone.
 type whole struct{}
+
+func (whole) MarshalText() ([]byte, error) { return []byte(wholeKey), nil }
+
+func (*whole) UnmarshalText(text []byte) error {
+	if string(text) != wholeKey {
+		return fmt.Errorf("%q is not the whole key %q", text, wholeKey)
+	}
+	return nil
+}
 
 // filterKey is which resources a list, or a search, is of: the values of
 // ResourceFilters, so two lists of the same filters are one key.
@@ -95,13 +105,13 @@ type live struct {
 	searches     *Cache[searchKey, api.MatchResourcesResponse]
 }
 
-// keptBy is what keeps the cache named name, when the client keeps its
-// caches; nil when it keeps nothing.
-func keptBy[K comparable, V any](persistence *CachePersistence, name string, maxBytes int) CachePersister[K, V] {
+// keptBy is what keeps the cache of query, when the client keeps its caches;
+// nil when it keeps nothing.
+func keptBy[K comparable, V any](persistence *CachePersistence, query CacheQuery, maxBytes int) CachePersister[K, V] {
 	if persistence == nil {
 		return nil
 	}
-	return NewStoragePersister[K, V](persistence.Storage, cacheStorageKey(persistence.KeyPrefix, name), maxBytes)
+	return NewStoragePersister[K, V](persistence.Storage, cacheStorageKey(persistence.KeyPrefix, query), maxBytes)
 }
 
 func newLive(l *links, content ContentTransport, persistence *CachePersistence) *live {
@@ -110,7 +120,7 @@ func newLive(l *links, content ContentTransport, persistence *CachePersistence) 
 	v.resource = NewCache(func(ctx context.Context, id api.ResourceId) (api.ResourceDescriptor, error) {
 		answer, err := ask(ctx, l, bus.BrowseResourceRequested, api.BrowseResourceRequest{ResourceId: id})
 		return answer.Response.Resource, err
-	}, l.run, keptBy[api.ResourceId, api.ResourceDescriptor](persistence, "resource", most), save)
+	}, l.run, keptBy[api.ResourceId, api.ResourceDescriptor](persistence, CacheQueryResource, most), save)
 	v.lists = NewCache(func(ctx context.Context, key filterKey) (api.ListResourcesResponse, error) {
 		limit, offset, archived, entityType := key.request()
 		answer, err := ask(ctx, l, bus.BrowseResourcesRequested, api.BrowseResourcesRequest{Limit: &limit, Offset: &offset, Archived: archived, EntityType: entityType})
@@ -118,7 +128,7 @@ func newLive(l *links, content ContentTransport, persistence *CachePersistence) 
 	}, l.run, nil, 0)
 	v.annotations = NewCache(func(ctx context.Context, id api.ResourceId) (api.GetAnnotationsResponse, error) {
 		return content.GetAnnotations(ctx, id)
-	}, l.run, keptBy[api.ResourceId, api.GetAnnotationsResponse](persistence, "annotations", most), save)
+	}, l.run, keptBy[api.ResourceId, api.GetAnnotationsResponse](persistence, CacheQueryAnnotations, most), save)
 	v.annotation = NewCache(func(ctx context.Context, id api.AnnotationId) (api.Annotation, error) {
 		v.annotationMu.Lock()
 		resource, named := v.annotationOf[id]
@@ -128,15 +138,15 @@ func newLive(l *links, content ContentTransport, persistence *CachePersistence) 
 		}
 		answer, err := ask(ctx, l, bus.BrowseAnnotationRequested, api.BrowseAnnotationRequest{ResourceId: resource, AnnotationId: id})
 		return answer.Response.Annotation, err
-	}, l.run, keptBy[api.AnnotationId, api.Annotation](persistence, "annotation-detail", most), save)
+	}, l.run, keptBy[api.AnnotationId, api.Annotation](persistence, CacheQueryAnnotation, most), save)
 	v.entityTypes = NewCache(func(ctx context.Context, _ whole) ([]string, error) {
 		answer, err := ask(ctx, l, bus.BrowseEntityTypesRequested, api.BrowseEntityTypesRequest{})
 		return answer.Response.EntityTypes, err
-	}, l.run, keptBy[whole, []string](persistence, "entity-types", most), save)
+	}, l.run, keptBy[whole, []string](persistence, CacheQueryEntityTypes, most), save)
 	v.tagSchemas = NewCache(func(ctx context.Context, _ whole) ([]api.TagSchema, error) {
 		answer, err := ask(ctx, l, bus.BrowseTagSchemasRequested, api.BrowseTagSchemasRequest{})
 		return answer.Response.TagSchemas, err
-	}, l.run, keptBy[whole, []api.TagSchema](persistence, "tag-schemas", most), save)
+	}, l.run, keptBy[whole, []api.TagSchema](persistence, CacheQueryTagSchemas, most), save)
 	v.engines = NewCache(func(ctx context.Context, _ whole) ([]api.EngineEntry, error) {
 		answer, err := requestAsking(ctx, l.wire, bus.BrowseEnginesRequested, api.BrowseEnginesRequest{}, l.timing.BusRequestTimeout, v.askedForTheEngines)
 		return answer.Response.Engines, err
@@ -432,25 +442,45 @@ func (v *live) removeAnnotation(subject cacheSubject) {
 	v.annotation.Remove(subject.annotation, &BusRequestError{Code: BusRequestErrorCodeNotFound, Message: fmt.Sprintf("Annotation %s was removed", subject.annotation)})
 }
 
+// liveCache is what the client asks of each of its caches as a whole.
+type liveCache interface {
+	PersistencePending() bool
+	keptFetching() bool
+	Close()
+}
+
+// caches is every cache of the client's.
+func (v *live) caches() []liveCache {
+	return []liveCache{v.resource, v.lists, v.annotations, v.annotation, v.entityTypes, v.tagSchemas, v.engines, v.limits, v.events, v.referencedBy, v.searches}
+}
+
 // persistenceSettled reports whether every cache the client keeps is at
-// rest: none is fetching, and none owes a save.
+// rest: none is fetching, and none owes a save. A cache that keeps nothing is
+// always at rest.
 func (v *live) persistenceSettled() bool {
-	return !(v.resource.PersistencePending() || v.annotations.PersistencePending() || v.annotation.PersistencePending() ||
-		v.entityTypes.PersistencePending() || v.tagSchemas.PersistencePending())
+	for _, cache := range v.caches() {
+		if cache.PersistencePending() {
+			return false
+		}
+	}
+	return true
+}
+
+// keptFetching reports whether a cache the client keeps has a fetch in
+// flight.
+func (v *live) keptFetching() bool {
+	for _, cache := range v.caches() {
+		if cache.keptFetching() {
+			return true
+		}
+	}
+	return false
 }
 
 // dispose ends the queries: every watcher's states end, what was owed to
 // storage is saved, and nothing is fetched after.
 func (v *live) dispose() {
-	v.resource.Close()
-	v.lists.Close()
-	v.annotations.Close()
-	v.annotation.Close()
-	v.entityTypes.Close()
-	v.tagSchemas.Close()
-	v.engines.Close()
-	v.limits.Close()
-	v.events.Close()
-	v.referencedBy.Close()
-	v.searches.Close()
+	for _, cache := range v.caches() {
+		cache.Close()
+	}
 }
