@@ -145,7 +145,8 @@ export interface Cache<K, V> extends StateUnit {
 
   /**
    * B17-Q — true while this cache's content may be ahead of (or racing) its
-   * persisted document: any fetch in flight, or a debounced save pending.
+   * persisted document: any fetch in flight, or a save owed (waiting out its
+   * debounce, or refused by the storage).
    * After disposal, true for good if disposal dropped a fetch: that content
    * never catches up. The quiescence input to the resumption-bookmark flush
    * gate — the bookmark may only be flushed when every persisted cache is
@@ -180,6 +181,12 @@ export interface PersistableCache<K, V> {
    * (B18), and every later change is saved. Once; inert after disposal (B16).
    */
   attach(persister: CachePersister<K, V>): void;
+  /**
+   * B17 — a fetch is in flight, or disposal dropped one: what holds the
+   * stream's places back at disposal's one reading of them. A save owed does
+   * not: disposal makes it.
+   */
+  fetching(): boolean;
 }
 
 export function createPersistableCache<K, V>(
@@ -239,28 +246,16 @@ export function createPersistableCache<K, V>(
   const toError = (e: unknown): Error => (e instanceof Error ? e : new Error(String(e)));
 
   /**
-   * B17 — debounced persistence, from when a persister is attached. The
-   * store as it is then (the loaded map merged in) is skipped: only
-   * mutations schedule a save. `dispose()` flushes a pending save
-   * synchronously (the KB-switch teardown must not lose the last write),
-   * then everything goes inert with the rest of B16.
+   * B17 — the save owed, from when a persister is attached: the store as a
+   * change left it, waiting out the debounce (`timer`), or refused by the
+   * storage (no timer: nothing retries it). The store as attach found it
+   * (the loaded map merged in) owes nothing: only mutations do. The next
+   * change replaces what is owed, and `dispose()` writes it synchronously
+   * (the KB-switch teardown must not lose the last write), then everything
+   * goes inert with the rest of B16.
    */
   let attached = false;
-  let pendingSave: { timer: ReturnType<typeof setTimeout>; save(): void } | null = null;
-  /**
-   * Persistence is best-effort: a throwing save (localStorage quota, a
-   * broken adapter) must never break the cache — and above all must never
-   * break dispose(), which sits on the KB-switch teardown path.
-   */
-  const trySave = (persister: CachePersister<K, V>, entries: Map<K, V>): void => {
-    try {
-      persister.save(entries);
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn('[cache PERSIST] save failed; persistence skipped (best-effort):',
-        e instanceof Error ? e.message : e);
-    }
-  };
+  let pendingSave: { timer: ReturnType<typeof setTimeout> | null; save(): void } | null = null;
 
   /**
    * Run (or join) a fetch for `key`. Resolves with the value and updates the
@@ -369,10 +364,22 @@ export function createPersistableCache<K, V>(
     }
     store$.pipe(skip(1)).subscribe((entries) => {
       if (disposed) return;
-      if (pendingSave !== null) clearTimeout(pendingSave.timer);
+      if (pendingSave !== null && pendingSave.timer !== null) clearTimeout(pendingSave.timer);
+      // Owed no more while it is written, so the places' gate the write
+      // reads finds this cache at rest. A write the storage refuses (its
+      // quota, a broken adapter) breaks neither the cache nor dispose(), on
+      // the KB-switch teardown path: the save is owed again, and the places
+      // stay held back.
       const save = (): void => {
         pendingSave = null;
-        trySave(persister, entries);
+        try {
+          persister.save(entries);
+        } catch (e) {
+          pendingSave = { timer: null, save };
+          // eslint-disable-next-line no-console
+          console.warn('[cache PERSIST] the storage refused the save; it is owed until the next change or disposal:',
+            e instanceof Error ? e.message : e);
+        }
       };
       pendingSave = { timer: setTimeout(save, saveDebounceMs), save };
     });
@@ -520,7 +527,7 @@ export function createPersistableCache<K, V>(
       // B17: flush a pending save before the store completes — the disposal
       // act itself, not a post-disposal act.
       if (pendingSave !== null) {
-        clearTimeout(pendingSave.timer);
+        if (pendingSave.timer !== null) clearTimeout(pendingSave.timer);
         pendingSave.save();
       }
       rehydrated.clear(); // B18
@@ -535,5 +542,5 @@ export function createPersistableCache<K, V>(
     },
   };
 
-  return { cache, attach };
+  return { cache, attach, fetching: () => droppedFetch || inflight.size > 0 };
 }

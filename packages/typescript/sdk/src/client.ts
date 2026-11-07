@@ -14,7 +14,7 @@
 
 import type { BaseUrl, AccessToken, CacheQuery } from '@semiont/core';
 import { Bus, EventBus, accessToken, baseUrl } from '@semiont/core';
-import type { CachePersistence } from './cache-persister';
+import { sealPlaces, type CachePersistence } from './cache-persister';
 import { BehaviorSubject } from 'rxjs';
 import { BrowseNamespace, type BROWSE_QUERIES } from './namespaces/browse';
 import { MarkNamespace } from './namespaces/mark';
@@ -208,6 +208,11 @@ export class SemiontClient {
   }
 
   dispose(): void {
+    // B17: the places coupled to this client are sealed before anything is
+    // disposed. Disposing drops a kept cache's fetch in flight and a refetch
+    // the refresher owes, so either holds the places back from the saves
+    // disposal makes; a save owed does not, since disposal makes it.
+    sealPlaces(this, this.browse.fetchesSettled());
     // The live queries first: completing their caches stops any SWR
     // fetch/retry chain from issuing new requests into a transport that's
     // about to go away (B16 — a chain straddling teardown must die quietly,

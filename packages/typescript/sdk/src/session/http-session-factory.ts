@@ -19,10 +19,10 @@ import { BehaviorSubject } from 'rxjs';
 import { HttpTransport, HttpContentTransport, currentUserOf } from '@semiont/http-transport';
 import { baseUrl, type AccessToken } from '@semiont/core';
 import { SemiontClient } from '../client';
-import { coupledLastEventId, whileSignedIn } from '../cache-persister';
+import { personKeeping } from '../cache-persister';
 import { SemiontSession, type UserInfo } from './semiont-session';
 import { SemiontSessionError } from './errors';
-import { kbGatewayUrl, keptIn, lastEventIdKey, personKey } from './storage';
+import { kbGatewayUrl, keptIn } from './storage';
 import { renewKept } from './oauth';
 import type { SessionFactory, SessionFactoryOptions } from './session-factory';
 
@@ -63,35 +63,12 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
       }
     };
 
-    /**
-     * The sign-in could not be read before a save: the client keeps nothing
-     * more for its life, and the session's host is told so once.
-     */
-    const unreadable = (cause: unknown): void => {
-      const why = cause instanceof Error ? cause.message : String(cause);
-      onError(new SemiontSessionError(
-        'session.keep-failed',
-        `The sign-in could not be read before what the client keeps was saved, so it keeps nothing more: ${why}`,
-        kb.id,
-      ));
-    };
-
-    /**
-     * B17: what the session keeps for one person, the stream's places and
-     * the caches, through a store that writes only while the kept sign-in
-     * names that person. The places are COUPLED to the cache flush (stashed
-     * in memory, written only alongside cache-document writes), so the kept
-     * bookmark can lag the caches but never lead them, and a reload resumes
-     * by replay instead of gapping.
-     */
-    const keepingFor = (person: string) => {
-      const coupled = coupledLastEventId(whileSignedIn(storage, signIn, person, unreadable), lastEventIdKey(kb.id, person));
-      return { ...coupled, persistence: { storage: coupled.storage, kbId: kb.id, personKey: person } };
-    };
-    // Kept from the start when the kept sign-in names its person; until
-    // the gateway names them otherwise, nothing is kept.
-    const named = signIn.held()?.personKey;
-    let keeping = named === undefined ? null : keepingFor(named);
+    // B17: what the session keeps for one person, the stream's places and
+    // the caches, kept from the start when the kept sign-in names its
+    // person; until the gateway names them otherwise, nothing is kept. A
+    // sign-in that cannot be read before a save is told to the session's
+    // host once.
+    const keeps = personKeeping(storage, kb.id, signIn, onError);
 
     // Build transport stack: factory owns token$ and threads it through
     // transport (which reads it on every request) and session (which
@@ -104,21 +81,18 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
       baseUrl: gateway,
       token$,
       tokenRefresher: (refused) => session.refresh(refused),
-      ...(keeping === null ? {} : { loadLastEventIds: keeping.loadLastEventIds }),
-      saveLastEventId: (scope, id) => {
-        if (keeping !== null) keeping.saveLastEventId(scope, id);
-      },
+      ...(keeps.fromStart === null ? {} : { loadLastEventIds: keeps.fromStart.places.loadLastEventIds }),
+      saveLastEventId: keeps.saveLastEventId,
       ...(fetch ? { fetch } : {}),
     });
     const content = new HttpContentTransport(transport);
-    const client = new SemiontClient(transport, content, transport, keeping === null ? {} : { cachePersistence: keeping.persistence });
-    // B17-Q (C1): the bookmark flush waits for persisted-cache quiescence —
+    const client = new SemiontClient(transport, content, transport, keeps.fromStart === null ? {} : { cachePersistence: keeps.fromStart.persistence });
+    // B17-Q (C1): the places wait for what the client keeps to be at rest —
     // a bystander document write must not carry an id whose event some other
     // cache is still absorbing (mid-refetch, mid-debounce, or a refetch the
-    // refresher's window owes). Wired after
-    // construction because the gate reads the client's own caches.
-    const settled = (): boolean => client.browse.persistenceSettled();
-    if (keeping !== null) keeping.setFlushGate(settled);
+    // refresher's window owes). Coupled after construction because the gate
+    // reads the client's own caches.
+    if (keeps.fromStart !== null) keeps.fromStart.places.coupleTo(client);
 
     /**
      * Ask the gateway who `token` is: one request, with no client behind it.
@@ -135,14 +109,7 @@ export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): Sessi
      */
     const performValidate = async (token: AccessToken): Promise<UserInfo> => {
       const user = await currentUserOf(gateway, token, fetch);
-      const person = personKey(user.did);
-      if (signIn.recordPersonKey(token, person) && keeping === null) {
-        keeping = keepingFor(person);
-        keeping.setFlushGate(settled);
-        client.browse.attachPersistence(keeping.persistence);
-        const places = keeping.loadLastEventIds();
-        if (places !== null) transport.restoreLastEventIds(places);
-      }
+      keeps.named(token, user.did, client, transport);
       return user;
     };
 

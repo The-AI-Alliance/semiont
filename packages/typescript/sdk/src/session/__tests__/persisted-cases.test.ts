@@ -10,12 +10,15 @@
  * kept for jo is stood in for by one whose closing writes under jo's
  * `resource` key, as the table allows; or by the registry's own session
  * expiring or being refused, over a gateway and an issuer that answer as the
- * row says. `startup`, `crossTab` and `holder` run the sessions the HTTP
- * session factory makes — what a registry's sessions are — over a gateway
- * that is `fetch` and nothing else (fake-gateway.ts). This SDK builds no
- * keeping session over anything but a registry's storage, so `holder`
- * changes kb-a's sign-in through what holds it there, `keptIn`: forgotten,
- * a new one kept in its place, or renewed with other tokens.
+ * row says. `startup`, `crossTab`, `holder` and `resumeFrom` run the
+ * sessions the HTTP session factory makes — what a registry's sessions are —
+ * over a gateway that is `fetch` and nothing else (fake-gateway.ts); the
+ * frames `resumeFrom` delivers are res-1's scope's, and where it resumes is
+ * read from the next connect, made for another resource's scope. `holder`
+ * changes kb-a's sign-in through what holds it: for a registry's session,
+ * `keptIn`; for the session `SemiontSession.fromKept` makes over a storage,
+ * the memory sign-in it is given. Either way the sign-in is forgotten, a new
+ * one kept in its place, or renewed with other tokens.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -26,6 +29,7 @@ import { BehaviorSubject, filter, firstValueFrom, map, take } from 'rxjs';
 import { PERSISTED_QUERIES, resourceId } from '@semiont/core';
 import type { AccessToken, KnowledgeBase, components } from '@semiont/core';
 import { isReady } from '../../cache';
+import { mockAnnotation } from '../../__tests__/fixtures/annotation';
 import { createTestClient } from '../../testing';
 import { createHttpSessionFactory } from '../http-session-factory';
 import { SemiontBrowser } from '../semiont-browser';
@@ -33,6 +37,7 @@ import { SemiontSession } from '../semiont-session';
 import { createSessionSignals } from '../session-signals';
 import type { SessionFactory } from '../session-factory';
 import type { SessionStorage } from '../session-storage';
+import { MemorySignIn, type SignInKept } from '../sign-in-kept';
 import {
   ACTIVE_KEY,
   STORAGE_KEY,
@@ -91,6 +96,12 @@ interface CrossTabRow {
   saved: boolean;
 }
 
+interface ResumeFromRow {
+  why: string;
+  frames: string[];
+  resumes: string | null;
+}
+
 interface PersistedCases {
   people: Readonly<Record<string, Person>>;
   keys: KeysRow[];
@@ -101,6 +112,7 @@ interface PersistedCases {
   startup: StartupRow[];
   crossTab: CrossTabRow[];
   holder: CrossTabRow[];
+  resumeFrom: ResumeFromRow[];
 }
 
 interface StoredTable {
@@ -393,12 +405,11 @@ describe('protocol/specs/src/session/persisted-cases.json', () => {
 
   describe('holder', () => {
     /**
-     * kb-a's sign-in changed in this process, through what holds it in the
-     * storage (`keptIn`): forgotten; a new sign-in kept in its place, naming
-     * whom the row says; or, when the row names jo, renewed with other tokens.
+     * kb-a's sign-in changed in this process, through what holds it (`kept`):
+     * forgotten; a new sign-in kept in its place, naming whom the row says;
+     * or, when the row names jo, renewed with other tokens.
      */
-    const changeHeld = (storage: SessionStorage, held: CrossTabRow['stored']): void => {
-      const kept = keptIn(storage, KB_A.id);
+    const changeHeld = (kept: SignInKept, held: CrossTabRow['stored']): void => {
       if (held === null) {
         kept.forget();
         return;
@@ -425,12 +436,86 @@ describe('protocol/specs/src/session/persisted-cases.json', () => {
         // The gateway's answer, which reaches the cache now and is written
         // only once the save's wait is over: the change comes first.
         expect(await firstName(session, 'res-1')).toBe('fresh');
-        changeHeld(here, row.stored);
+        changeHeld(keptIn(here, KB_A.id), row.stored);
       } finally {
         end(session, gateway);
       }
 
       expect(savedRes1(here)).toBe(row.saved);
+    });
+
+    it.each(table.holder)('a session made from a memory sign-in over a storage: $why', async (row) => {
+      const here = new SharedStorage();
+      const kept = new MemorySignIn({ ...testSession(freshJwt(), 'refresh-1'), personKey: jo.personKey });
+      const { gateway, release } = heldGateway('names');
+      release();
+      const opened = await SemiontSession.fromKept({ kb: KB_A, kept, storage: here, fetch: gateway.fetch });
+      try {
+        // The gateway's answer, which reaches the cache now and is written
+        // only once the save's wait is over: the change comes first.
+        expect(await firstName(opened.session, 'res-1')).toBe('fresh');
+        changeHeld(kept, row.stored);
+      } finally {
+        opened.dispose();
+        gateway.close();
+      }
+
+      expect(savedRes1(here)).toBe(row.saved);
+    });
+  });
+
+  describe('resumeFrom', () => {
+    const RES_1 = resourceId('res-1');
+
+    /** An annotation added to res-1, as its scope delivers it. */
+    const markAdded = {
+      channel: 'mark:added',
+      scope: RES_1,
+      payload: {
+        id: 'evt-ann-1',
+        type: 'mark:added',
+        timestamp: '2026-01-01T00:00:00Z',
+        userId: jo.did,
+        resourceId: RES_1,
+        version: 1,
+        payload: { annotation: mockAnnotation('ann-1') },
+        metadata: { sequenceNumber: 2 },
+      },
+    };
+
+    it.each(table.resumeFrom)('$why', async (row) => {
+      const storage = new SharedStorage();
+      storeSignIn(storage, KB_A.id, 'named', jo.personKey, freshJwt());
+      const { gateway, release } = heldGateway('names');
+      release();
+      const session = sessionOver(gateway, KB_A, storage);
+      let resumes: string | undefined;
+      try {
+        await session.ready;
+        const { client } = session;
+        let heard = 0;
+        const held = [
+          client.browse.resource(RES_1).subscribe(() => {}),
+          client.wire.frames('mark:added', RES_1).subscribe(() => { heard += 1; }),
+        ];
+        await vi.waitFor(() => expect(scopeEntry(gateway.connects, RES_1)).toBeDefined());
+
+        for (const id of row.frames) gateway.deliver(markAdded, id);
+        await vi.waitFor(() => expect(heard).toBe(row.frames.length));
+
+        // The next subscription: another resource's scope, so the stream connects again naming res-1's.
+        held.push(client.browse.resource(resourceId('res-2')).subscribe(() => {}));
+        await vi.waitFor(() => expect(scopeEntry(gateway.connects, 'res-2')).toBeDefined());
+        const next = gateway.connects.find((connect) => connect.scoped?.some((entry) => entry.scope === 'res-2'));
+        const res1 = next?.scoped?.find((entry) => entry.scope === RES_1);
+        expect(res1, "the next connect names res-1's scope").toBeDefined();
+        resumes = res1?.lastEventId;
+        for (const holding of held) holding.unsubscribe();
+      } finally {
+        end(session, gateway);
+      }
+
+      expect(resumes === undefined ? null : resumes).toBe(row.resumes);
     });
   });
 });

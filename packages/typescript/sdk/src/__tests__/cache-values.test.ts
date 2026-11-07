@@ -1,19 +1,19 @@
 /**
- * What each live query's cache holds, as protocol/specs/src/client/refresh.json's `value` says: a census.
- * `SDK_VALUES` is this SDK's reading of every query's value, the component and the members within it; it
- * is held to refresh.json at test time, row by row, and to the types this SDK's caches hold at compile
- * time (`valueCensus`). A query refresh.json gains fails both: `satisfies` names it, and so does the
- * comparison with the table's rows.
+ * What each live query's cache holds, as protocol/specs/src/client/refresh.json's `value` says. The mapping
+ * is generated (packages/codegen/schemas/generate-cache-refresh.mjs): `CACHE_VALUES`, each query's component
+ * and the members within it, and `CacheValues`, the type each names, which types the namespaces' caches.
+ * Held here: that the generated mapping names refresh.json's rows, and, at compile time (`shownCensus`), that
+ * what each live query shows, which namespaces/types.ts writes by hand in the names consumers read
+ * (`ResourceDescriptor`, `ResourceList`, …), is its cache's value. `annotations` shows its value's
+ * annotations. `engines` shows a view no component is, each engine joined with its limits
+ * (`EngineWithLimits`), so generation cannot name it, and nothing here holds it.
  */
 
 import { describe, it, expect } from 'vitest';
 import { fileURLToPath } from 'node:url';
-import type { CacheQuery, components } from '@semiont/core';
+import { CACHE_QUERIES, CACHE_VALUES, type CacheQuery, type CacheValues } from '@semiont/core';
 import type { CacheObservable } from '../awaitable';
-import type { KeptValue } from '../cache-persister';
 import type { BrowseNamespace, GatherNamespace, MatchNamespace } from '../namespaces/types';
-
-type Schemas = components['schemas'];
 
 /** What packages/codegen/schemas/cache-refresh-table.mjs reads of a query's `value`. */
 interface Value {
@@ -32,79 +32,50 @@ const { values } = readCacheRefresh(ROOT, `${ROOT}/protocol/specs/src/client/ref
   throw new Error(message);
 });
 
-/**
- * The queries whose `value` waits on a ruling: refresh.json names one, and this SDK is not yet held to it.
- * `engines` is proposed as BrowseEnginesResult's `response.engines`, the engines without their limits.
- */
-const WAITING = ['engines'] as const;
-type Waiting = (typeof WAITING)[number];
-
-/** Each query's value as this SDK holds it: the component, and the members within it, outermost first. */
-const SDK_VALUES = {
-  resource: { component: 'ResourceDescriptor', members: [] },
-  annotations: { component: 'GetAnnotationsResponse', members: [] },
-  annotation: { component: 'Annotation', members: [] },
-  events: { component: 'GetEventsResponse', members: ['events'] },
-  referencedBy: { component: 'GetReferencedByResponse', members: ['referencedBy'] },
-  resources: { component: 'ListResourcesResponse', members: [] },
-  matchedResources: { component: 'MatchResourcesResponse', members: [] },
-  entityTypes: { component: 'GetEntityTypesResponse', members: ['entityTypes'] },
-  tagSchemas: { component: 'GetTagSchemasResponse', members: ['tagSchemas'] },
-} as const satisfies { [Q in Exclude<CacheQuery, Waiting>]: { component: keyof Schemas; members: readonly string[] } };
-type Mapped = keyof typeof SDK_VALUES;
+const isQuery = (name: string): name is CacheQuery => Object.hasOwn(CACHE_VALUES, name);
 
 /** What a live query shows. */
 type Shown<O> = O extends CacheObservable<infer V> ? V : never;
 
-/**
- * The type each query's cache holds in this SDK. A kept query's is what its persister reads back; the
- * others' is what their query shows, which is their value whole (`annotations` shows a view of its value,
- * and is kept).
- */
-interface SdkValue {
-  resource: KeptValue<'resource'>;
-  annotations: KeptValue<'annotations'>;
-  annotation: KeptValue<'annotation'>;
+/** The queries whose live query shows what generation names: all but `engines`. */
+type Named = Exclude<CacheQuery, 'engines'>;
+
+/** What each live query shows, as its namespace declares it. */
+interface ShownByQuery {
+  resource: Shown<ReturnType<BrowseNamespace['resource']>>;
+  annotations: Shown<ReturnType<BrowseNamespace['annotations']>>;
+  annotation: Shown<ReturnType<BrowseNamespace['annotation']>>;
   events: Shown<ReturnType<BrowseNamespace['events']>>;
   referencedBy: Shown<ReturnType<GatherNamespace['referencedBy']>>;
   resources: Shown<ReturnType<BrowseNamespace['resources']>>;
   matchedResources: Shown<ReturnType<MatchNamespace['resources']>>;
-  entityTypes: KeptValue<'entityTypes'>;
-  tagSchemas: KeptValue<'tagSchemas'>;
+  entityTypes: Shown<ReturnType<BrowseNamespace['entityTypes']>>;
+  tagSchemas: Shown<ReturnType<BrowseNamespace['tagSchemas']>>;
 }
 
-/** The member `members` names within `T`, member within member. */
-type Walk<T, M extends readonly string[]> = M extends readonly [infer Head, ...infer Rest extends readonly string[]]
-  ? Head extends keyof T
-    ? Walk<T[Head], Rest>
-    : never
-  : T;
-
-/** The type of the value `SDK_VALUES` names for a query. */
-type NamedValue<Q extends Mapped> = Walk<Schemas[(typeof SDK_VALUES)[Q]['component']], (typeof SDK_VALUES)[Q]['members']>;
+/** What of its cache's value each live query shows: the value, or `annotations`' annotations. */
+type ShownOfValue<Q extends Named> = Q extends 'annotations' ? CacheValues['annotations']['annotations'] : CacheValues[Q];
 
 /** Each holds every value of the other: the same shape, however it is written. */
 type Agrees<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 
-type Disagreeing = { [Q in Mapped]: Agrees<SdkValue[Q], NamedValue<Q>> extends true ? never : Q }[Mapped];
+type Disagreeing = { [Q in Named]: Agrees<ShownByQuery[Q], ShownOfValue<Q>> extends true ? never : Q }[Named];
 
-/** tsc fails here while any query's cache holds another type than the value `SDK_VALUES` names: `Disagreeing` is those queries. */
-const valueCensus: [Disagreeing] extends [never] ? 'agrees' : Disagreeing = 'agrees';
-
-const isMapped = (query: string): query is Mapped => Object.hasOwn(SDK_VALUES, query);
+/** tsc fails here while any live query shows another type than its cache's value: `Disagreeing` is those queries. */
+const shownCensus: [Disagreeing] extends [never] ? 'agrees' : Disagreeing = 'agrees';
 
 describe("what each live query's cache holds (protocol/specs/src/client/refresh.json's value)", () => {
-  it("names every query refresh.json names: those this SDK maps, and those waiting on a ruling", () => {
-    expect([...values.keys()].sort()).toEqual([...Object.keys(SDK_VALUES), ...WAITING].sort());
+  it('the generated mapping names every query refresh.json names, in its order, and no other', () => {
+    expect(Object.keys(CACHE_VALUES)).toEqual([...values.keys()]);
+    expect(Object.keys(CACHE_VALUES)).toEqual([...CACHE_QUERIES]);
   });
 
-  it.each(Object.keys(SDK_VALUES))('%s: its value is the component and the members this SDK holds it as', (query) => {
-    if (!isMapped(query)) throw new Error(`${query} is no query this SDK maps`);
-    const { component, members } = SDK_VALUES[query];
-    expect(values.get(query)).toEqual({ component, members: [...members] });
+  it.each([...values.keys()])("%s: the generated mapping names refresh.json's component and members", (query) => {
+    if (!isQuery(query)) throw new Error(`refresh.json names ${query}, which the generated mapping does not`);
+    expect(CACHE_VALUES[query]).toEqual(values.get(query));
   });
 
-  it("the type each query's cache holds is the value it is mapped to", () => {
-    expect(valueCensus).toBe('agrees');
+  it("what each live query shows is its cache's value", () => {
+    expect(shownCensus).toBe('agrees');
   });
 });

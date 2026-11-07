@@ -66,6 +66,8 @@ import {
 import { SemiontSessionError } from './errors';
 import type { SemiontSessionErrorCode } from '@semiont/core';
 import type { SignInKept } from './sign-in-kept';
+import type { SessionStorage } from './session-storage';
+import { personKeeping, type PersonKeeping } from '../cache-persister';
 import type { SessionEndReason } from './session-signals';
 import { SCRIPT_CLIENT_ID, renewKept, signInWithDeviceGrant, type DeviceCode } from './oauth';
 
@@ -583,17 +585,43 @@ export class SemiontSession implements StateUnit {
     onAuthFailed?: (reason: SessionEndReason) => void;
     onError?: (err: SemiontSessionError) => void;
   }): OpenedSession {
+    return SemiontSession.overHttp(opts, null);
+  }
+
+  /**
+   * The session `fromHttp` builds, its client keeping what `keeps` says
+   * (B17), or nothing: from the start, or once `validate` says who the token
+   * is, with the stream's places coupled to the client.
+   */
+  private static overHttp(opts: Parameters<typeof SemiontSession.fromHttp>[0], keeps: PersonKeeping | null): OpenedSession {
     const url = typeof opts.baseUrl === 'string' ? baseUrl(opts.baseUrl) : opts.baseUrl;
     const tok = opts.token == null
       ? null
       : (typeof opts.token === 'string' ? accessToken(opts.token) : opts.token);
     const token$ = new BehaviorSubject<AccessToken | null>(tok);
-    const transport = new HttpTransport({ baseUrl: url, token$, ...(opts.fetch ? { fetch: opts.fetch } : {}) });
+    const transport = new HttpTransport({
+      baseUrl: url,
+      token$,
+      ...(keeps === null ? {} : { saveLastEventId: keeps.saveLastEventId }),
+      ...(keeps === null || keeps.fromStart === null ? {} : { loadLastEventIds: keeps.fromStart.places.loadLastEventIds }),
+      ...(opts.fetch ? { fetch: opts.fetch } : {}),
+    });
     const content = new HttpContentTransport(transport);
-    const client = new SemiontClient(transport, content, transport);
+    const fromStart = keeps === null ? null : keeps.fromStart;
+    const client = new SemiontClient(transport, content, transport, fromStart === null ? {} : { cachePersistence: fromStart.persistence });
+    if (fromStart !== null) fromStart.places.coupleTo(client);
     const config: SemiontSessionConfig = { kb: opts.kb, kept: opts.kept, client, token$ };
     if (opts.refresh) config.refresh = opts.refresh;
-    if (opts.validate) config.validate = opts.validate;
+    if (opts.validate) {
+      const validate = opts.validate;
+      // Who the token is, as validate says, starts keeping for that person
+      // before the answer is handed back, so before the session is ready.
+      config.validate = keeps === null ? validate : async (token) => {
+        const user = await validate(token);
+        if (user !== null) keeps.named(token, user.did, client, transport);
+        return user;
+      };
+    }
     if (opts.onAuthFailed) config.onAuthFailed = opts.onAuthFailed;
     if (opts.onError) config.onError = opts.onError;
     const session = new SemiontSession(config);
@@ -620,10 +648,21 @@ export class SemiontSession implements StateUnit {
    * are asked with `fetch`, or the runtime's own. Throws a
    * `SemiontSessionError` (`session.construct-failed`), before anything is
    * asked, for a knowledge base that is not reached over HTTP.
+   *
+   * Given a `storage`, the client keeps there what a registry's does (B17)
+   * for the person the kept sign-in names, while it names them: the persisted
+   * queries' values, and the stream's places, coupled to the client. A
+   * sign-in that names nobody yet keeps nothing until `validate` says who
+   * its token is: the person's key is then recorded on the kept sign-in, and
+   * the client keeps for them from then on. Without `validate` the session
+   * never asks, and keeps only for a person the sign-in already names. A
+   * sign-in that cannot be read before a save is told to `onError` as
+   * `session.keep-failed`, once, and the client keeps nothing more.
    */
   static async fromKept(opts: {
     kb: KbTarget;
     kept: SignInKept;
+    storage?: SessionStorage;
     fetch?: typeof fetch;
     validate?: (token: AccessToken) => Promise<UserInfo | null>;
     onAuthFailed?: (reason: SessionEndReason) => void;
@@ -640,7 +679,12 @@ export class SemiontSession implements StateUnit {
     // same moment each ask for one, and an issuer that rotates refresh tokens
     // refuses the second grant, which would end a session that was fine.
     let renewing: Promise<string | null> | null = null;
-    const opened = SemiontSession.fromHttp({
+    const keeps = opts.storage === undefined
+      ? null
+      : personKeeping(opts.storage, opts.kb.id, opts.kept, (error) => {
+        if (opts.onError) opts.onError(error);
+      });
+    const opened = SemiontSession.overHttp({
       kb: opts.kb,
       kept: opts.kept,
       baseUrl: kbGatewayUrl(opts.kb.endpoint),
@@ -652,7 +696,7 @@ export class SemiontSession implements StateUnit {
       ...(opts.validate ? { validate: opts.validate } : {}),
       ...(opts.onAuthFailed ? { onAuthFailed: opts.onAuthFailed } : {}),
       ...(opts.onError ? { onError: opts.onError } : {}),
-    });
+    }, keeps);
     await opened.session.ready;
     return opened;
   }

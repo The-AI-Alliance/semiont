@@ -19,9 +19,9 @@ import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { filter, firstValueFrom } from 'rxjs';
-import { PERSISTED_QUERIES, isObject, resourceId } from '@semiont/core';
+import { PERSISTED_QUERIES, isObject, resourceId, type PersistedQuery } from '@semiont/core';
 import { validators } from '@semiont/core/openapi';
-import { KEPT_QUERIES, WHOLE_KEY, coupledLastEventId, keptPersister, type KeptQuery } from '../../cache-persister';
+import { KEPT_QUERIES, WHOLE_KEY, coupledLastEventId, keptPersister } from '../../cache-persister';
 import { createTestSession } from '../../testing';
 import { PENDING_AUTHORIZATION_KEY } from '../oauth';
 import { SemiontBrowser } from '../semiont-browser';
@@ -87,7 +87,7 @@ const { kept } = readKeptQueries(ROOT, (message) => {
 /** A key of each kind a kept query's entries are keyed by: a resource's id, an annotation's id, or the whole key. */
 const KEY_OF_KIND: Record<string, string> = { ResourceId: 'res-1', AnnotationId: 'ann-1', [WHOLE]: table.wholeKey.key };
 
-const isKept = (name: string): name is KeptQuery => Object.hasOwn(KEPT_QUERIES, name);
+const isKept = (name: string): name is PersistedQuery => Object.hasOwn(KEPT_QUERIES, name);
 
 /** Each key's constant here, by the name the table gives it. */
 const KEYS: Record<string, string> = {

@@ -10,9 +10,9 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { isObject } from '@semiont/core';
+import { isObject, type CacheValues, type PersistedQuery } from '@semiont/core';
 import { createCache, type Cache } from '../cache';
-import { KEPT_QUERIES, coupledLastEventId, keptPersister, type KeptKey, type KeptQuery, type KeptValue } from '../cache-persister';
+import { KEPT_QUERIES, coupledLastEventId, keptPersister, type KeptKey } from '../cache-persister';
 import { InMemorySessionStorage, type SessionStorage } from '../session/session-storage';
 import { cacheKey, lastEventIdKey, personKey } from '../session/storage';
 
@@ -46,9 +46,9 @@ const table = JSON.parse(readFileSync(TABLE, 'utf8')) as { cases: Load[]; writes
 /** The knowledge base and the person each case's documents and places are kept for. */
 const KEPT_FOR = { kbId: 'kb-cases', personKey: personKey('did:web:example.org:users:jo') };
 
-const isKept = (name: string): name is KeptQuery => Object.hasOwn(KEPT_QUERIES, name);
+const isKept = (name: string): name is PersistedQuery => Object.hasOwn(KEPT_QUERIES, name);
 
-function keptQuery(name: string): KeptQuery {
+function keptQuery(name: string): PersistedQuery {
   if (!isKept(name)) throw new Error(`the table keeps ${name}, and this SDK keeps no ${name}`);
   return name;
 }
@@ -64,7 +64,7 @@ function text(stated: Stored): string {
 const asMap = (entries: Entry[]): Map<string, unknown> => new Map(entries.map(([key, value]) => [JSON.stringify(key), value]));
 
 /** What a load of `query`'s document keeps of `source`. */
-function loaded(query: KeptQuery, source: string): Entry[] {
+function loaded(query: PersistedQuery, source: string): Entry[] {
   const storage = new InMemorySessionStorage();
   storage.set(cacheKey(KEPT_FOR.kbId, KEPT_FOR.personKey, query), source);
   const kept = keptPersister(query, { storage, ...KEPT_FOR }).load();
@@ -75,9 +75,9 @@ function loaded(query: KeptQuery, source: string): Entry[] {
  * `query`'s cache, saving through its persister to `storage`, once it holds `held`: each answer set into
  * the cache by its own path. Its save runs on the next turn of the event loop, or when it is disposed.
  */
-function holding<Q extends KeptQuery>(query: Q, held: Entry[], storage: SessionStorage): Cache<KeptKey<Q>, KeptValue<Q>> {
+function holding<Q extends PersistedQuery>(query: Q, held: Entry[], storage: SessionStorage): Cache<KeptKey<Q>, CacheValues[Q]> {
   const { key: isKey, value: isValue } = KEPT_QUERIES[query];
-  const cache = createCache<KeptKey<Q>, KeptValue<Q>>(
+  const cache = createCache<KeptKey<Q>, CacheValues[Q]>(
     async (key) => {
       throw new Error(`a cache that is only written fetched ${key}`);
     },
@@ -91,14 +91,14 @@ function holding<Q extends KeptQuery>(query: Q, held: Entry[], storage: SessionS
 }
 
 /** The document kept under `query`'s key, as JSON. */
-function documentOf(storage: SessionStorage, query: KeptQuery): unknown {
+function documentOf(storage: SessionStorage, query: PersistedQuery): unknown {
   const document = storage.get(cacheKey(KEPT_FOR.kbId, KEPT_FOR.personKey, query));
   if (document === null) throw new Error(`a save of ${query} wrote nothing`);
   return JSON.parse(document);
 }
 
 /** What a save writes once `query`'s cache holds `held`: the cache disposed, which flushes the save it owes. */
-function written(query: KeptQuery, held: Entry[]): unknown {
+function written(query: PersistedQuery, held: Entry[]): unknown {
   const storage = new InMemorySessionStorage();
   holding(query, held, storage).dispose();
   return documentOf(storage, query);
