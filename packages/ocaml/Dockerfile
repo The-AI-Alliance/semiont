@@ -2,7 +2,7 @@ ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 USER root
 RUN apt-get update && apt-get install --yes --no-install-recommends \
-    python3 build-essential pkg-config libgmp-dev libssl-dev ca-certificates git curl \
+    python3 build-essential pkg-config libgmp-dev libssl-dev openssl ca-certificates git curl \
     && rm -rf /var/lib/apt/lists/*
 USER opam
 COPY --chown=opam:opam toolchain.json /tmp/semiont-ocaml-toolchain.json

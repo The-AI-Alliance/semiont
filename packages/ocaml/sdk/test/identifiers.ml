@@ -1,4 +1,6 @@
 (* Generated from protocol identifier kinds and shared required shapes. Do not edit. *)
+
+[@@@ocamlformat "disable"]
 let () =
   Alcotest.(check bool) "ResourceId: as the knowledge base mints one" true
     (Result.is_ok (Semiont.Identifiers.Resource_id.of_string "5bcd259ab1464cf68a556bbad21f513f"));

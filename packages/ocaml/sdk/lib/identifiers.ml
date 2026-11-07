@@ -1,4 +1,6 @@
 (* Generated from protocol identifier kinds and shared required shapes. Do not edit. *)
+
+[@@@ocamlformat "disable"]
 module Resource_id = struct
   type t = string
   let of_string value =

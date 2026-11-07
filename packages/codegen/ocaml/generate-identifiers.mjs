@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { readRequiredShapes } from '../schemas/required-shapes.mjs';
 import { readIdentifierKinds } from '../schemas/identifier-kinds.mjs';
 import { writeOrCheck } from '../lib/committed-source.mjs';
+import { ocamlString } from '../lib/ocaml-source.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const check = process.argv.includes('--check');
@@ -13,11 +14,8 @@ const { kinds } = JSON.parse(readFileSync(resolve(root, 'protocol/specs/src/iden
 const definitions = readIdentifierKinds(
   resolve(root, 'protocol/specs/src/identifiers/kinds.json'),
   resolve(root, 'protocol/specs/src/components/schemas'), refuse);
-const text = (value) => '"' + [...Buffer.from(value)].map((byte) =>
-  byte >= 32 && byte < 127 && byte !== 34 && byte !== 92
-    ? String.fromCharCode(byte) : '\\' + String(byte).padStart(3, '0')).join('') + '"';
 const moduleName = (schema) => schema.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase().replace(/^./, (c) => c.toUpperCase());
-const header = '(* Generated from protocol identifier kinds and shared required shapes. Do not edit. *)\n';
+const header = '(* Generated from protocol identifier kinds and shared required shapes. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n';
 const implementations = [];
 const signatures = [];
 const tests = [];
@@ -35,7 +33,7 @@ for (const [index, definition] of definitions.entries()) {
   type t = string
   let of_string value =
     if Pattern.matches [${steps}] value then Ok value
-    else Error ${text(`Invalid ${kind.schema}`)}
+    else Error ${ocamlString(`Invalid ${kind.schema}`)}
   let to_string value = value
   let compare = String.compare
   let equal = String.equal
@@ -49,8 +47,8 @@ end\n`);
 end\n`);
   for (const [group, accepted] of [['accepts', true], ['refuses', false]]) {
     for (const { id, why } of kind[group]) {
-      tests.push(`  Alcotest.(check bool) ${text(`${kind.schema}: ${why}`)} ${accepted}
-    (Result.is_ok (Semiont.Identifiers.${name}.of_string ${text(id)}));`);
+      tests.push(`  Alcotest.(check bool) ${ocamlString(`${kind.schema}: ${why}`)} ${accepted}
+    (Result.is_ok (Semiont.Identifiers.${name}.of_string ${ocamlString(id)}));`);
     }
   }
 }

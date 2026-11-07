@@ -25,6 +25,14 @@
   uutf
   uucp
   re
+  mtime
+  ptime
+  cstruct
+  ipaddr
+  domain-name
+  (opentelemetry (>= 0.92))
+  (ambient-context-eio :with-test)
   (alcotest :with-test)
   (qcheck :with-test)
+  (ocamlformat (and :with-test (= 0.29.0)))
   (odoc :with-doc)))

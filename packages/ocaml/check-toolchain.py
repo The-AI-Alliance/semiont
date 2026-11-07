@@ -9,6 +9,8 @@ project = (root / 'sdk/dune-project').read_text()
 workspace = (root / 'sdk/dune-workspace').read_text()
 assert re.findall(r'\(ocaml \(= ([^)]+)\)\)', project) == [pins['ocaml']]
 assert re.findall(r'\(lang dune ([^)]+)\)', project) == ['.'.join(pins['dune'].split('.')[:2])]
+assert re.findall(r'\(ocamlformat \(and :with-test \(= ([^)]+)\)\)\)', project) == [pins['ocamlformat']]
+assert (root / 'sdk/.ocamlformat').read_text().strip() == 'version=' + pins['ocamlformat']
 assert re.findall(r'git\+https://github.com/ocaml/opam-repository.git#([a-f0-9]+)', workspace) == [pins['opamRepository']]
 assert re.findall(r'git\+https://github.com/ocaml-dune/opam-overlays.git#([a-f0-9]+)', workspace) == [pins['duneOverlay']]
 print('OCaml toolchain constraints agree')

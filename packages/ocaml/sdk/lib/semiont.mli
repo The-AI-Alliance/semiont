@@ -1,3 +1,4 @@
-(** The Semiont client library. *)
 module Types = Types
+(** The Semiont client library. *)
+
 module Identifiers = Identifiers

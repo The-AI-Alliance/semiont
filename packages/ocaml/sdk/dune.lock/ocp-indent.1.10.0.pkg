@@ -1,0 +1,28 @@
+(version 1.10.0)
+
+(build
+ (all_platforms
+  ((action
+    (progn
+     (run dune build -p %{pkg-self:name} -j %{jobs} @install)
+     (run
+      cmdliner
+      install
+      tool-completion
+      --update-opam-install=ocp-indent.install
+      (when (catch_undefined_var (<> %{os_family} windows) false) ocp-indent)
+      (when
+       (catch_undefined_var (= %{os_family} windows) false)
+       ocp-indent.exe)
+      _build/))))))
+
+(depends
+ (all_platforms
+  (ocaml dune cmdliner ocamlfind)))
+
+(source
+ (fetch
+  (url
+   https://github.com/OCamlPro/ocp-indent/releases/download/1.10.0/ocp-indent-1.10.0.tbz)
+  (checksum
+   sha512=8c3e6a05f0692772a14aa533aa436d15100ea28be6592f51174811689ce8c3b717c78803189e450574ae982ab4a062b01251e1e57b971ce95dbd3f41265515f2)))
