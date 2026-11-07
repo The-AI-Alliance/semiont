@@ -29,7 +29,7 @@ container stop semiont-example.github.io-test-kb-gateway
 container rm semiont-example.github.io-test-kb-gateway
 container stop semiont-example.github.io-test-kb-nats
 container rm semiont-example.github.io-test-kb-nats
-# remove staged configs: <home>/tmp/semiont-config.example.github.io-test-kb.*
+# remove staged configs: <temp-dir>/semiont-config.example.github.io-test-kb.*
 # require free ports: 7474 7687 17687 4222 4000 14000 24101 24102 24103 24104 24105
 # write <config-stage>/gateway.json (the gateway's configuration document: GatewayConfig, resolved)
 # write <config-stage>/dispatcher.json (the dispatcher's configuration document: DispatcherConfig, resolved)

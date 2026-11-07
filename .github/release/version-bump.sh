@@ -126,21 +126,14 @@ update_version_json "$NEXT"
 
 FILES=(version.json package.json)
 
-for dir in packages/typescript/*/; do
-  pkg="${dir}package.json"
-  if [[ -f "$pkg" ]]; then
-    update_package_json "$pkg" "$NEXT"
-    FILES+=("$pkg")
-  fi
-done
+# The packages a release covers are version.json's list.
+PACKAGE_DIRS=$(jq -r '.packages[].dir' version.json)
 
-for dir in apps/*/ images/*/; do
-  pkg="${dir}package.json"
-  if [[ -f "$pkg" ]]; then
-    update_package_json "$pkg" "$NEXT"
-    FILES+=("$pkg")
-  fi
-  publish="${dir}package.publish.json"
+for dir in $PACKAGE_DIRS; do
+  pkg="$dir/package.json"
+  update_package_json "$pkg" "$NEXT"
+  FILES+=("$pkg")
+  publish="$dir/package.publish.json"
   if [[ -f "$publish" ]]; then
     update_package_json "$publish" "$NEXT"
     FILES+=("$publish")
@@ -158,8 +151,8 @@ FILES+=(packages/rust/Cargo.toml packages/rust/Cargo.lock)
 echo ""
 echo "Verifying version sync..."
 ERRORS=0
-for pkg in packages/typescript/*/package.json apps/*/package.json images/*/package.json; do
-  [[ -f "$pkg" ]] || continue
+for dir in $PACKAGE_DIRS; do
+  pkg="$dir/package.json"
   PKG_VERSION=$(jq -r .version "$pkg")
   if [[ "$PKG_VERSION" != "$NEXT" ]]; then
     echo "  MISMATCH: $pkg has $PKG_VERSION (expected $NEXT)"
