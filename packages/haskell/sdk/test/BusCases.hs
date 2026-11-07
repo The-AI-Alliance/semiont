@@ -85,6 +85,28 @@ requestFailures command browse failureRows = do
         Left problem -> require "peer failure lost its code, words or original payload"
           (busRequestErrorCode problem == expected && busRequestErrorMessage problem == "peer refused" && busRequestFailure problem == Just payload)
         Right _ -> ioError (userError "failure reply became a successful result")) failureRows
+  -- A failure that is not its channel's is refused, naming its first fault, and is never given words.
+  mapM_ (\(payload, said) -> do
+    inputCell <- newEmptyTMVarIO
+    let send frame = do
+          input <- atomically (readTMVar inputCell)
+          Transport.receive input (BusFrame (channelName failure) (busFrameCorrelationId frame) (BusFramePayload payload) Nothing)
+          pure Nothing
+    rig send (pure ()) $ \transport input -> do
+      atomically (putTMVar inputCell input)
+      ready input
+      clock <- newTVarIO 0
+      waits <- newTQueueIO
+      options <- requestOptions clock waits
+      outcome <- try (Bus.request (Bus.newBus options transport) operation command Timing.busRequestTimeoutMs) :: IO (Either TransportError EmptyBusPayload)
+      case outcome of
+        Left problem -> require ("a failure that is not its channel's was not refused as " ++ Text.unpack said)
+          (transportErrorCode problem == Code.TransportError
+            && transportErrorMessage problem == "a payload on " <> channelName failure <> " is not that channel's: " <> said)
+        Right _ -> ioError (userError "a failure that is not its channel's became a successful result"))
+    [ (KM.empty, "it has no `message`")
+    , (KM.fromList [("code", String "not-found")], "it has no `message`")
+    , (KM.fromList [("message", String "peer refused"), ("code", Number 7)], "its `code` is malformed") ]
   -- A malformed result is an error at the typed boundary and is observed once.
   inputCell <- newEmptyTMVarIO
   let (_, result, _) = operationChannels BrowseResourceRequestedOperation
