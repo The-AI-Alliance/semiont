@@ -10,6 +10,7 @@
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/bus/BusLogTest.kt"],
     "csharp": ["packages/csharp/sdk/tests/Semiont.Tests/BusLogTests.cs"]
   },
+  "notYetReached": { "ocaml": "P3 runs the frame and log codecs through the typed bus." },
   "names": [
     "token",
     "cloneToken",

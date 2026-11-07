@@ -109,17 +109,21 @@
     "dune.lock/x509.1.2.0.pkg": "57d1481d367b6687543ebab5b194f2b4ce6eb4509d70354cbfbac22a1744fb8e",
     "dune.lock/yojson.3.0.0.pkg": "d1536ef266187c4f3c66bbcef7998bac8497c175450463e075b552e0e99dc3a3",
     "dune.lock/zarith.1.14.pkg": "fd76eda421de026914a0de1c4d81d4140fd0d685f596dfe5aae1a5b83f06b75c",
+    "lib/client_timing.ml": "ba5f3459d482317eb1ea394460a7aa0773bdd39acd2547dcec4e9efb25560d9f",
+    "lib/client_timing.mli": "cb433bda9c37944c0dd973b950f25c229b727fef820d144b66915c26e3c4c7a5",
     "lib/clock.ml": "7fbcd81067a62d56842bf1f5b50e64e35f0efb056796a6926b1b732e52cca8b6",
     "lib/clock.mli": "9eec4a9bf79a437a5b331cc40dacd46905f70367ccae882650bce067932078b2",
-    "lib/dune": "3d71e075c5270da69db2e19a4a0642b86b6f709797dfd913cc603aff80cb6bcd",
+    "lib/dune": "73b6e4983e157525e7e62438dc27a991f269ce8bf76565f0472dd1fabf681818",
+    "lib/enums.ml": "e2a188bb4fd853313782622b84257a43be1c0e89472fc2323ab9c89ff1aa1232",
+    "lib/enums.mli": "1c28ee0ac1ca50a86fe00ce3fe5c6ed5b015045b5cd14c8b48d46fa4b937daaf",
     "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
     "lib/identifiers.mli": "bba7e132069a1c36758c9d1bfebd936ecb815b6d05dae2b55f03a5de72f2c20d",
     "lib/pattern.ml": "a41d5ebb9ebc0eee59522a4d883e2a5281202c4fbebb0a2040b267961bf677ad",
-    "lib/semiont.ml": "1a80c82658d41de0f7a78495388146e17edcb62f7a6209229e57ca5fba42c105",
-    "lib/semiont.mli": "7af93b7a2b03db645682851b658dd7706ec94cd622c37fc66c5dd080b49739c3",
+    "lib/semiont.ml": "afed3c4d05482258b3e3978efadded383131c79947a0f76f4e3fead7da737829",
+    "lib/semiont.mli": "f73a9ee3acd7529f04297f15e9ec30bf7b694844771716d0513455d5919051a0",
     "lib/types.ml": "5921efffb7596beb176e09960cdfa080ec954349ec2ce9d7e54bc7f638c808fe",
     "lib/types.mli": "97149245ffc84db1b741d7156a08017eff6f941179e9e6df950f212da8d60d76",
-    "probes/api_inventory.ml": "1b93b9964b99c5d333e39903e31bc429dbf4ed7a3df0ba2b0d40d9b098f0230b",
+    "probes/api_inventory.ml": "97b819335b2d6d55f2f4a7c73422ad4df34ca5e459fe4df300f01a0ff5efb36a",
     "probes/dune": "b5424a1fb955b8b8dbdaa6ea129b931c67c2f1d2b616d5f55d5aaf13698aa8ee",
     "public-api.inputs.json": "16a156e808e8dfd7df61837746b0e4b8ce44e38a40f5a1b647baec0af1bfcca9",
     "semiont.opam": "a5f3e7a7e1b1e98783797caa3bd9f9c9dff8e7a631803e45c1062ed263485223"
@@ -140,6 +144,23 @@
         "Absent",
         "Null",
         "Present"
+      ],
+      "variants": [
+        {
+          "name": "Absent",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Null",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Present",
+          "fields": [],
+          "unit": false
+        }
       ]
     },
     {
@@ -308,6 +329,794 @@
       "kind": "value",
       "path": "Semiont.Clock.jitter",
       "declaration": "val jitter : t -> float"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Enums",
+      "declaration": "module Enums = Semiont__.Enums",
+      "alias": "Semiont__.Enums"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Enums.Body_purpose",
+      "declaration": "module Body_purpose :\n  sig\n    type t =\n        Assessing\n      | Bookmarking\n      | Classifying\n      | Commenting\n      | Describing\n      | Editing\n      | Highlighting\n      | Identifying\n      | Linking\n      | Moderating\n      | Questioning\n      | Replying\n      | Tagging\n    val to_string : t -> string\n    val of_string : string -> t option\n  end"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Enums.Body_purpose.t",
+      "declaration": "type t =\n    Assessing\n  | Bookmarking\n  | Classifying\n  | Commenting\n  | Describing\n  | Editing\n  | Highlighting\n  | Identifying\n  | Linking\n  | Moderating\n  | Questioning\n  | Replying\n  | Tagging",
+      "representation": "variant",
+      "constructors": [
+        "Assessing",
+        "Bookmarking",
+        "Classifying",
+        "Commenting",
+        "Describing",
+        "Editing",
+        "Highlighting",
+        "Identifying",
+        "Linking",
+        "Moderating",
+        "Questioning",
+        "Replying",
+        "Tagging"
+      ],
+      "variants": [
+        {
+          "name": "Assessing",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Bookmarking",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Classifying",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Commenting",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Describing",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Editing",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Highlighting",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Identifying",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Linking",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Moderating",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Questioning",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Replying",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Tagging",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Enums.Body_purpose.to_string",
+      "declaration": "val to_string : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Enums.Body_purpose.of_string",
+      "declaration": "val of_string : string -> t option"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Enums.Durability_evidence",
+      "declaration": "module Durability_evidence :\n  sig\n    type t =\n        Acknowledged\n      | Probe_confirmed\n      | Probe_refused\n      | Probe_unreachable\n    val to_string : t -> string\n    val of_string : string -> t option\n  end"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Enums.Durability_evidence.t",
+      "declaration": "type t = Acknowledged | Probe_confirmed | Probe_refused | Probe_unreachable",
+      "representation": "variant",
+      "constructors": [
+        "Acknowledged",
+        "Probe_confirmed",
+        "Probe_refused",
+        "Probe_unreachable"
+      ],
+      "variants": [
+        {
+          "name": "Acknowledged",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Probe_confirmed",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Probe_refused",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Probe_unreachable",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Enums.Durability_evidence.to_string",
+      "declaration": "val to_string : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Enums.Durability_evidence.of_string",
+      "declaration": "val of_string : string -> t option"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Enums.Failure_class",
+      "declaration": "module Failure_class :\n  sig\n    type t = Transient | Deterministic | Withheld\n    val to_string : t -> string\n    val of_string : string -> t option\n  end"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Enums.Failure_class.t",
+      "declaration": "type t = Transient | Deterministic | Withheld",
+      "representation": "variant",
+      "constructors": [
+        "Transient",
+        "Deterministic",
+        "Withheld"
+      ],
+      "variants": [
+        {
+          "name": "Transient",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Deterministic",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Withheld",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Enums.Failure_class.to_string",
+      "declaration": "val to_string : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Enums.Failure_class.of_string",
+      "declaration": "val of_string : string -> t option"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Enums.Job_type",
+      "declaration": "module Job_type :\n  sig\n    type t = Mark | Yield\n    val to_string : t -> string\n    val of_string : string -> t option\n  end"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Enums.Job_type.t",
+      "declaration": "type t = Mark | Yield",
+      "representation": "variant",
+      "constructors": [
+        "Mark",
+        "Yield"
+      ],
+      "variants": [
+        {
+          "name": "Mark",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Yield",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Enums.Job_type.to_string",
+      "declaration": "val to_string : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Enums.Job_type.of_string",
+      "declaration": "val of_string : string -> t option"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Enums.Log_format",
+      "declaration": "module Log_format :\n  sig\n    type t = Json | Simple\n    val to_string : t -> string\n    val of_string : string -> t option\n  end"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Enums.Log_format.t",
+      "declaration": "type t = Json | Simple",
+      "representation": "variant",
+      "constructors": [
+        "Json",
+        "Simple"
+      ],
+      "variants": [
+        {
+          "name": "Json",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Simple",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Enums.Log_format.to_string",
+      "declaration": "val to_string : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Enums.Log_format.of_string",
+      "declaration": "val of_string : string -> t option"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Enums.Log_level",
+      "declaration": "module Log_level :\n  sig\n    type t = Error | Warn | Info | Http | Debug\n    val to_string : t -> string\n    val of_string : string -> t option\n  end"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Enums.Log_level.t",
+      "declaration": "type t = Error | Warn | Info | Http | Debug",
+      "representation": "variant",
+      "constructors": [
+        "Error",
+        "Warn",
+        "Info",
+        "Http",
+        "Debug"
+      ],
+      "variants": [
+        {
+          "name": "Error",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Warn",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Info",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Http",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Debug",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Enums.Log_level.to_string",
+      "declaration": "val to_string : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Enums.Log_level.of_string",
+      "declaration": "val of_string : string -> t option"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Enums.Motivation",
+      "declaration": "module Motivation :\n  sig\n    type t = Assessing | Commenting | Highlighting | Linking | Tagging\n    val to_string : t -> string\n    val of_string : string -> t option\n  end"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Enums.Motivation.t",
+      "declaration": "type t = Assessing | Commenting | Highlighting | Linking | Tagging",
+      "representation": "variant",
+      "constructors": [
+        "Assessing",
+        "Commenting",
+        "Highlighting",
+        "Linking",
+        "Tagging"
+      ],
+      "variants": [
+        {
+          "name": "Assessing",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Commenting",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Highlighting",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Linking",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Tagging",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Enums.Motivation.to_string",
+      "declaration": "val to_string : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Enums.Motivation.of_string",
+      "declaration": "val of_string : string -> t option"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Enums.Supported_media_type",
+      "declaration": "module Supported_media_type :\n  sig\n    type t =\n        Text_plain\n      | Text_markdown\n      | Text_html\n      | Text_css\n      | Text_csv\n      | Text_xml\n      | Application_json\n      | Application_xml\n      | Application_yaml\n      | Application_x_yaml\n      | Application_pdf\n      | Application_msword\n      | Application_vnd_openxmlformats_officedocument_wordprocessingml_document\n      | Application_vnd_ms_excel\n      | Application_vnd_openxmlformats_officedocument_spreadsheetml_sheet\n      | Application_vnd_ms_powerpoint\n      | Application_vnd_openxmlformats_officedocument_presentationml_presentation\n      | Application_zip\n      | Application_gzip\n      | Application_x_tar\n      | Application_x_7z_compressed\n      | Application_octet_stream\n      | Application_wasm\n      | Image_png\n      | Image_jpeg\n      | Image_gif\n      | Image_webp\n      | Image_svg_plusxml\n      | Image_bmp\n      | Image_tiff\n      | Image_x_icon\n      | Video_mp4\n      | Video_mpeg\n      | Video_webm\n      | Video_ogg\n      | Video_quicktime\n      | Video_x_msvideo\n      | Audio_mpeg\n      | Audio_wav\n      | Audio_ogg\n      | Audio_webm\n      | Audio_aac\n      | Audio_flac\n      | Text_javascript\n      | Application_javascript\n      | Text_x_typescript\n      | Application_typescript\n      | Text_x_python\n      | Text_x_java\n      | Text_x_c\n      | Text_x_c_plus_plus\n      | Text_x_csharp\n      | Text_x_go\n      | Text_x_rust\n      | Text_x_ruby\n      | Text_x_php\n      | Text_x_swift\n      | Text_x_kotlin\n      | Text_x_shell\n      | Font_woff\n      | Font_woff2\n      | Font_ttf\n      | Font_otf\n    val to_string : t -> string\n    val of_string : string -> t option\n  end"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Enums.Supported_media_type.t",
+      "declaration": "type t =\n    Text_plain\n  | Text_markdown\n  | Text_html\n  | Text_css\n  | Text_csv\n  | Text_xml\n  | Application_json\n  | Application_xml\n  | Application_yaml\n  | Application_x_yaml\n  | Application_pdf\n  | Application_msword\n  | Application_vnd_openxmlformats_officedocument_wordprocessingml_document\n  | Application_vnd_ms_excel\n  | Application_vnd_openxmlformats_officedocument_spreadsheetml_sheet\n  | Application_vnd_ms_powerpoint\n  | Application_vnd_openxmlformats_officedocument_presentationml_presentation\n  | Application_zip\n  | Application_gzip\n  | Application_x_tar\n  | Application_x_7z_compressed\n  | Application_octet_stream\n  | Application_wasm\n  | Image_png\n  | Image_jpeg\n  | Image_gif\n  | Image_webp\n  | Image_svg_plusxml\n  | Image_bmp\n  | Image_tiff\n  | Image_x_icon\n  | Video_mp4\n  | Video_mpeg\n  | Video_webm\n  | Video_ogg\n  | Video_quicktime\n  | Video_x_msvideo\n  | Audio_mpeg\n  | Audio_wav\n  | Audio_ogg\n  | Audio_webm\n  | Audio_aac\n  | Audio_flac\n  | Text_javascript\n  | Application_javascript\n  | Text_x_typescript\n  | Application_typescript\n  | Text_x_python\n  | Text_x_java\n  | Text_x_c\n  | Text_x_c_plus_plus\n  | Text_x_csharp\n  | Text_x_go\n  | Text_x_rust\n  | Text_x_ruby\n  | Text_x_php\n  | Text_x_swift\n  | Text_x_kotlin\n  | Text_x_shell\n  | Font_woff\n  | Font_woff2\n  | Font_ttf\n  | Font_otf",
+      "representation": "variant",
+      "constructors": [
+        "Text_plain",
+        "Text_markdown",
+        "Text_html",
+        "Text_css",
+        "Text_csv",
+        "Text_xml",
+        "Application_json",
+        "Application_xml",
+        "Application_yaml",
+        "Application_x_yaml",
+        "Application_pdf",
+        "Application_msword",
+        "Application_vnd_openxmlformats_officedocument_wordprocessingml_document",
+        "Application_vnd_ms_excel",
+        "Application_vnd_openxmlformats_officedocument_spreadsheetml_sheet",
+        "Application_vnd_ms_powerpoint",
+        "Application_vnd_openxmlformats_officedocument_presentationml_presentation",
+        "Application_zip",
+        "Application_gzip",
+        "Application_x_tar",
+        "Application_x_7z_compressed",
+        "Application_octet_stream",
+        "Application_wasm",
+        "Image_png",
+        "Image_jpeg",
+        "Image_gif",
+        "Image_webp",
+        "Image_svg_plusxml",
+        "Image_bmp",
+        "Image_tiff",
+        "Image_x_icon",
+        "Video_mp4",
+        "Video_mpeg",
+        "Video_webm",
+        "Video_ogg",
+        "Video_quicktime",
+        "Video_x_msvideo",
+        "Audio_mpeg",
+        "Audio_wav",
+        "Audio_ogg",
+        "Audio_webm",
+        "Audio_aac",
+        "Audio_flac",
+        "Text_javascript",
+        "Application_javascript",
+        "Text_x_typescript",
+        "Application_typescript",
+        "Text_x_python",
+        "Text_x_java",
+        "Text_x_c",
+        "Text_x_c_plus_plus",
+        "Text_x_csharp",
+        "Text_x_go",
+        "Text_x_rust",
+        "Text_x_ruby",
+        "Text_x_php",
+        "Text_x_swift",
+        "Text_x_kotlin",
+        "Text_x_shell",
+        "Font_woff",
+        "Font_woff2",
+        "Font_ttf",
+        "Font_otf"
+      ],
+      "variants": [
+        {
+          "name": "Text_plain",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_markdown",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_html",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_css",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_csv",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_xml",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_json",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_xml",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_yaml",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_x_yaml",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_pdf",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_msword",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_vnd_openxmlformats_officedocument_wordprocessingml_document",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_vnd_ms_excel",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_vnd_openxmlformats_officedocument_spreadsheetml_sheet",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_vnd_ms_powerpoint",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_vnd_openxmlformats_officedocument_presentationml_presentation",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_zip",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_gzip",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_x_tar",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_x_7z_compressed",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_octet_stream",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_wasm",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Image_png",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Image_jpeg",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Image_gif",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Image_webp",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Image_svg_plusxml",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Image_bmp",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Image_tiff",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Image_x_icon",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Video_mp4",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Video_mpeg",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Video_webm",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Video_ogg",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Video_quicktime",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Video_x_msvideo",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Audio_mpeg",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Audio_wav",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Audio_ogg",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Audio_webm",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Audio_aac",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Audio_flac",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_javascript",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_javascript",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_x_typescript",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Application_typescript",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_x_python",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_x_java",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_x_c",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_x_c_plus_plus",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_x_csharp",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_x_go",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_x_rust",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_x_ruby",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_x_php",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_x_swift",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_x_kotlin",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Text_x_shell",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Font_woff",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Font_woff2",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Font_ttf",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Font_otf",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Enums.Supported_media_type.to_string",
+      "declaration": "val to_string : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Enums.Supported_media_type.of_string",
+      "declaration": "val of_string : string -> t option"
     }
   ]
 }

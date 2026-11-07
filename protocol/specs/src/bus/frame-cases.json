@@ -10,6 +10,7 @@
     "swift": ["packages/swift/sdk/Tests/SemiontTests/FrameCasesTests.swift"]
   },
   "notYetReached": {
+    "ocaml": "P3 runs the frame and log codecs through the typed bus.",
     "csharp": "The C# SDK's stream reader, which is to hold each frame to BusFrame."
   },
   "cases": [

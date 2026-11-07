@@ -10,6 +10,7 @@
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/resources/DecodeCasesTest.kt"],
     "swift": ["packages/swift/sdk/Tests/SemiontTests/DecodeRepresentationTests.swift"]
   },
+  "notYetReached": { "ocaml": "P4 runs the HTTP content decoder cases." },
   "cases": [
     {
       "why": "no charset is stated: the bytes are UTF-8, and a character outside the basic plane is one character",

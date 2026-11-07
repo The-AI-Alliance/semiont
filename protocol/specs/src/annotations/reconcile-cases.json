@@ -11,6 +11,7 @@
     "conformance": ["protocol/conformance/worker-service/anchoring.test.ts"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/ReconcileCasesTest.kt"]
   },
+  "notYetReached": { "ocaml": "P7 runs the annotation and offset helpers against the shared cases." },
   "cases": [
     {
       "why": "words the text has once are the span, and the context is the text's: all of it on either side when there are fewer than 64 characters",

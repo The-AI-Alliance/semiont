@@ -12,6 +12,7 @@
     "launcher": ["packages/go/launcher/kbidentity_agreement_test.go", "packages/go/launcher/staging_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/identity/IdentityTest.kt"]
   },
+  "notYetReached": { "ocaml": "P6 runs knowledge-base identity cases through the registry." },
   "cases": [
     {
       "why": "the shape semiont init writes",

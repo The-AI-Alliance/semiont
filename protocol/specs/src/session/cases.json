@@ -11,6 +11,7 @@
     "launcher": ["packages/go/launcher/verbs/session_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/session/SessionCasesTest.kt"]
   },
+  "notYetReached": { "ocaml": "P4 and P6 run the session and registry cases through their public APIs." },
   "told": {
     "title": "SessionEndReason",
     "type": "string",

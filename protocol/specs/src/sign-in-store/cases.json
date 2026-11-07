@@ -10,6 +10,7 @@
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/signin/SignInStoreTest.kt"],
     "typescript": ["packages/typescript/sdk/src/session/__tests__/sign-in-store.test.ts"]
   },
+  "notYetReached": { "ocaml": "P6 runs sign-in store cases through the public store." },
   "cases": [
     {
       "why": "macOS: the application-support directory",

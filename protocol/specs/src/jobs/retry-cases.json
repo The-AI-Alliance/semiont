@@ -10,6 +10,7 @@
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/jobs/JobTablesTest.kt"],
     "haskell": ["packages/haskell/sdk/test/WorkerCases.hs"]
   },
+  "notYetReached": { "ocaml": "P5 runs the worker and delegation cases." },
   "cases": [
     { "why": "a transient failure with budget left", "retryCount": 0, "maxRetries": 1, "failureClass": "transient", "retries": true },
     { "why": "an unclassified failure is treated as transient", "retryCount": 0, "maxRetries": 1, "retries": true },

@@ -46,6 +46,24 @@ let rec signature env prefix seen items =
                         (List.map
                            (fun constructor -> constructor.cd_id)
                            constructors) );
+                    ( "variants",
+                      `List
+                        (List.map
+                           (fun constructor ->
+                             let fields, unit =
+                               match constructor.cd_args with
+                               | Cstr_record fields ->
+                                   ( List.map (fun field -> field.ld_id) fields,
+                                     false )
+                               | Cstr_tuple arguments -> ([], arguments = [])
+                             in
+                             `Assoc
+                               [
+                                 ("name", text (Ident.name constructor.cd_id));
+                                 ("fields", names fields);
+                                 ("unit", `Bool unit);
+                               ])
+                           constructors) );
                   ]
             in
             [ row "type" path item detail ]

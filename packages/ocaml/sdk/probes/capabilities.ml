@@ -1,6 +1,7 @@
 open Eio.Std
 module Otel = Opentelemetry
 
+(* Unicode_cases supplies the generated text/offset-cases.json corpus. *)
 let span digit =
   Otel.Span.make
     ~trace_id:(Otel.Trace_id.of_hex (String.make 32 digit))

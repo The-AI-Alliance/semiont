@@ -10,6 +10,7 @@
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/GatewayUrlTest.kt"],
     "haskell": ["packages/haskell/sdk/test/GatewayCases.hs"]
   },
+  "notYetReached": { "ocaml": "P4 and P6 run the session and registry cases through their public APIs." },
   "cases": [
     {
       "why": "this machine, over HTTP",

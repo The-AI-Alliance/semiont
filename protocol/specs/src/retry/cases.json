@@ -11,6 +11,7 @@
     "swift": ["packages/swift/sdk/Tests/SemiontTests/TransportTablesTests.swift"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/retry/RetryCasesTest.kt"]
   },
+  "notYetReached": { "ocaml": "P3 and P4 run the retry cases through the transport and issuer." },
   "rules": [
     {
       "why": "429 is the server saying not now",

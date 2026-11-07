@@ -35,6 +35,7 @@ include sig val included : string end
 module Nested : sig
   type phase = Open | Closed
   type state = { count : int; phase : phase }
+  type event = Idle | Progress of { completed : int } | Failure of string
   type resource
   type annotation
   type 's scope
@@ -61,6 +62,11 @@ with tempfile.TemporaryDirectory() as directory:
     assert entries['Probe_surface.included']['kind'] == 'value'
     assert entries['Probe_surface.Nested.state']['fields'] == ['count', 'phase']
     assert entries['Probe_surface.Nested.op']['constructors'] == ['Read', 'Write']
+    assert entries['Probe_surface.Nested.event']['variants'] == [
+        {'name': 'Idle', 'fields': [], 'unit': True},
+        {'name': 'Progress', 'fields': ['completed'], 'unit': False},
+        {'name': 'Failure', 'fields': [], 'unit': False},
+    ]
     assert 'X.t' in entries['Probe_surface.Make.result.value']['declaration']
 
     mutations = {

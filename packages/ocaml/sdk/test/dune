@@ -7,3 +7,8 @@
  (name identifiers)
  (modules identifiers)
  (libraries semiont alcotest))
+
+(test
+ (name enums_cases)
+ (modules enums_cases)
+ (libraries semiont alcotest))
