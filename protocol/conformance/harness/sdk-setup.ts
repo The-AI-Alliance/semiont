@@ -21,6 +21,10 @@ declare module 'vitest' {
 
 export default function setup(project: TestProject): void {
   const drivers = project.getProvidedContext().sdkDrivers;
+  const ocaml = drivers['ocaml']?.wire?.[0];
+  if (ocaml !== undefined && !existsSync(ocaml)) {
+    throw new Error(`The OCaml driver is not built: ${ocaml} does not exist. Run \`dune build conformance/wire_driver.exe\` in packages/ocaml/sdk.`);
+  }
   const haskell = drivers['haskell']?.wire?.[0];
   if (haskell !== undefined && !existsSync(haskell)) {
     throw new Error(`The Haskell driver is not built: ${haskell} does not exist. Run \`bash packages/haskell/run-container.sh\` at the repository root.`);

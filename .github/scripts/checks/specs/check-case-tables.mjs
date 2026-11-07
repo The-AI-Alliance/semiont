@@ -69,8 +69,8 @@ const IMPLEMENTATIONS = {
   conformance: ['protocol/conformance'],
 };
 
-/** OCaml participates before its conformance drivers are registered. */
-const SDKS = [...new Set([...Object.keys(JSON.parse(readFileSync(resolve(REPO, 'protocol/conformance/semiont.implementations.json'), 'utf8')).sdks), 'ocaml'])];
+/** Every SDK in Semiont's implementation inventory is held to the others. */
+const SDKS = Object.keys(JSON.parse(readFileSync(resolve(REPO, 'protocol/conformance/semiont.implementations.json'), 'utf8')).sdks);
 
 /** The tables whose rule counts or states an offset. */
 const COUNTS_CODE_POINTS = new Set([

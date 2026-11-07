@@ -3,6 +3,9 @@
   "dispatcher": ["../../packages/rust/target/release/semiont-dispatcher"],
   "archivist": ["../../packages/rust/target/release/semiont-archivist"],
   "sdks": {
+    "ocaml": {
+      "wire": ["../../packages/ocaml/sdk/_build/default/conformance/wire_driver.exe"]
+    },
     "haskell": {
       "wire": [
         "../../packages/haskell/sdk/conformance/bin/semiont-haskell-wire-driver"
