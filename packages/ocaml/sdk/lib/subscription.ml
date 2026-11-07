@@ -21,8 +21,35 @@ type snapshot = {
   pending_replies : string list;
 }
 
-type open_error = Retry | No_credential
-type credential_error = Connect_failed | Credential_refused of int
+type timing = {
+  stream_open_timeout_ms : int;
+  reconnect_ms : int;
+  max_reconnect_ms : int;
+  degraded_threshold_ms : int;
+  reconnect_debounce_ms : int;
+  lazy_remove_ms : int;
+  linger_ms : int;
+  bus_request_timeout_ms : int;
+}
+
+let default_timing =
+  {
+    stream_open_timeout_ms = Client_timing.stream_open_timeout_ms;
+    reconnect_ms = Client_timing.reconnect_ms;
+    max_reconnect_ms = Client_timing.max_reconnect_ms;
+    degraded_threshold_ms = Client_timing.degraded_threshold_ms;
+    reconnect_debounce_ms = Client_timing.reconnect_debounce_ms;
+    lazy_remove_ms = Client_timing.lazy_remove_ms;
+    linger_ms = Client_timing.linger_ms;
+    bus_request_timeout_ms = Client_timing.bus_request_timeout_ms;
+  }
+
+type open_error = Retry | Retry_after of int | No_credential
+
+type credential_error =
+  | Connect_failed
+  | Connect_retry_after of int
+  | Credential_refused of int
 
 let authenticated ~credential ~renew ~on_refused connect =
   let refused = ref [] in
@@ -34,6 +61,7 @@ let authenticated ~credential ~renew ~on_refused connect =
         replacement := None;
         Ok reader
     | Error Connect_failed -> Error Retry
+    | Error (Connect_retry_after ms) -> Error (Retry_after ms)
     | Error (Credential_refused status) -> (
         refused := bearer :: !refused;
         on_refused status;
@@ -69,6 +97,7 @@ type request_error =
 
 type t = {
   clock : Clock.t;
+  timing : timing;
   client_id : string;
   global : Bus_registry.packed_channel list;
   scopes : (string, (unit ref * scope) list) Hashtbl.t;
@@ -182,8 +211,7 @@ let sleep t milliseconds = Clock.sleep_until t.clock (deadline t milliseconds)
 
 let schedule_scope_change t ~addition =
   let delay =
-    if addition then Client_timing.reconnect_debounce_ms
-    else Client_timing.lazy_remove_ms
+    if addition then t.timing.reconnect_debounce_ms else t.timing.lazy_remove_ms
   in
   let due = deadline t (float delay) in
   let due =
@@ -287,9 +315,10 @@ let read_stream t input =
 
 let open_stream t sw snapshot =
   Fiber.first
-    (fun () -> try t.connect ~sw snapshot with Eio.Io _ -> Error Retry)
     (fun () ->
-      sleep t (float Client_timing.stream_open_timeout_ms);
+      try t.connect ~sw snapshot with Eio.Io _ | End_of_file -> Error Retry)
+    (fun () ->
+      sleep t (float t.timing.stream_open_timeout_ms);
       Error Retry)
 
 let scope_signature snapshot =
@@ -369,9 +398,7 @@ let run t =
       set_state t Reconnecting;
       let restored, restore = Promise.create () in
       recovered := Some restore;
-      let degraded_at =
-        deadline t (float Client_timing.degraded_threshold_ms)
-      in
+      let degraded_at = deadline t (float t.timing.degraded_threshold_ms) in
       Fiber.fork_daemon ~sw:lifetime (fun () ->
           Fiber.first
             (fun () ->
@@ -385,10 +412,10 @@ let run t =
     set_state t Open;
     stream.read ()
   in
-  let backoff step =
+  let backoff ?(minimum = 0) step =
     let delay = float step *. (0.5 +. (Clock.jitter t.clock *. 0.5)) in
-    sleep t delay;
-    min (step * 2) Client_timing.max_reconnect_ms
+    sleep t (max (float minimum) delay);
+    min (step * 2) t.timing.max_reconnect_ms
   in
   let rec connect step =
     let stream = spawn_stream t lifetime in
@@ -401,12 +428,15 @@ let run t =
     | Error No_credential ->
         end_outage ();
         set_state t Unauthenticated;
-        sleep t (float Client_timing.reconnect_ms);
+        sleep t (float t.timing.reconnect_ms);
         set_state t Connecting;
-        connect Client_timing.reconnect_ms
-    | Error Retry ->
+        connect t.timing.reconnect_ms
+    | Error (Retry | Retry_after _) as error ->
         begin_outage ();
-        connect (backoff step)
+        let minimum =
+          match error with Error (Retry_after ms) -> ms | _ -> 0
+        in
+        connect (backoff ~minimum step)
   and serve active =
     match
       Fiber.first
@@ -419,7 +449,7 @@ let run t =
     with
     | `Dropped ->
         begin_outage ();
-        connect (backoff Client_timing.reconnect_ms)
+        connect (backoff t.timing.reconnect_ms)
     | `Replace ->
         if active.scopes = scope_signature (snapshot t) then (
           t.scope_change <- None;
@@ -438,7 +468,7 @@ let run t =
     with
     | `Dropped ->
         begin_outage ();
-        settle Client_timing.reconnect_ms candidate
+        settle t.timing.reconnect_ms candidate
     | `Ready -> (
         match Promise.await candidate.ready with
         | Error _ ->
@@ -448,20 +478,22 @@ let run t =
         | Ok () ->
             activate candidate;
             Fiber.fork_daemon ~sw:lifetime (fun () ->
-                sleep t (float Client_timing.linger_ms);
+                sleep t (float t.timing.linger_ms);
                 active.stop ();
                 `Stop_daemon);
             serve candidate)
   in
   set_state t Connecting;
-  connect Client_timing.reconnect_ms
+  connect t.timing.reconnect_ms
 
-let start ~sw ~clock ~client_id ~global ~scopes ~connect ~on_event () =
+let start ?(timing = default_timing) ~sw ~clock ~client_id ~global ~scopes
+    ~connect ~on_event () =
   let closing, close_now = Promise.create () in
   let closed, mark_closed = Promise.create () in
   let t =
     {
       clock;
+      timing;
       client_id;
       global;
       scopes = Hashtbl.create 8;
@@ -506,8 +538,8 @@ let rec await_open t =
         Promise.await (fst t.changed);
         await_open t
 
-let request t ?(timeout_ms = Client_timing.bus_request_timeout_ms)
-    ~correlation_id operation ~send =
+let request t ?(timeout_ms = t.timing.bus_request_timeout_ms) ~correlation_id
+    operation ~send =
   let result = Bus_registry.result operation in
   let failure = Bus_registry.failure operation in
   let result_name = Bus_registry.name result in

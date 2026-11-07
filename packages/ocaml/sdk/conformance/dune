@@ -1,7 +1,7 @@
 (executable
  (name wire_driver)
- (modules wire_driver paths)
- (libraries semiont eio_main cohttp-eio yojson uri cstruct))
+ (modules wire_driver)
+ (libraries semiont eio_main cohttp-eio yojson uri cstruct base64))
 
 (rule
  (alias runtest)

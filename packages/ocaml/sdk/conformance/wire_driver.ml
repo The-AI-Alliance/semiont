@@ -3,12 +3,15 @@ module B = Semiont.Bus_registry
 module S = Semiont.Subscription
 module Session = Semiont.Session
 module J = Yojson.Safe.Util
+module H = Semiont.Http_wire
 
 exception Misuse of string
-exception Http_error of int
 
 let text value = `String value
-let field name input = J.member name input
+
+let field name input =
+  match input with `Null -> `Null | _ -> J.member name input
+
 let string name input = J.to_string (field name input)
 let optional read name input = J.to_option read (field name input)
 
@@ -68,12 +71,7 @@ type client = {
   subscription : S.t;
   session : Session.t;
   client_id : string;
-  post :
-    sw:Switch.t ->
-    bearer:string ->
-    string ->
-    string ->
-    Cohttp.Response.t * Eio.Flow.source_ty Eio.Resource.t;
+  http : H.t;
 }
 
 let run env =
@@ -120,20 +118,74 @@ let run env =
       raise (Misuse "the wire driver expects the harness HTTP proxy");
     let net = Eio.Stdenv.net env in
     let http = Cohttp_eio.Client.make ~https:None net in
-    let post ~sw ~bearer path body =
-      let headers =
-        Cohttp.Header.of_list
-          [
-            ("authorization", "Bearer " ^ bearer);
-            ("content-type", "application/json");
-          ]
+    let call ~sw ~meth ~path ~headers ~body ~progress =
+      let headers = Cohttp.Header.of_list headers in
+      let body =
+        match progress with
+        | None -> Cohttp_eio.Body.of_string body
+        | Some report ->
+            let module Source = struct
+              type t = int ref
+
+              let read_methods = []
+
+              let single_read offset buffer =
+                let count =
+                  min (Cstruct.length buffer) (String.length body - !offset)
+                in
+                if count = 0 then raise End_of_file;
+                Cstruct.blit_from_string body !offset buffer 0 count;
+                offset := !offset + count;
+                report !offset;
+                count
+            end in
+            Eio.Resource.T (ref 0, Eio.Flow.Pi.source (module Source))
       in
       let response, body =
-        Cohttp_eio.Client.post http ~sw ~headers
-          ~body:(Cohttp_eio.Body.of_string body)
-          (Uri.with_path base path)
+        try
+          Cohttp_eio.Client.call http ~sw ~headers ~body
+            (Cohttp.Code.method_of_string meth)
+            (Uri.with_path base path)
+        with Failure message when message = "connection closed by peer" ->
+          raise End_of_file
       in
-      (response, (body :> Eio.Flow.source_ty Eio.Resource.t))
+      ( Cohttp.Code.code_of_status (Cohttp.Response.status response),
+        Cohttp.Header.to_list (Cohttp.Response.headers response),
+        (body :> Eio.Flow.source_ty Eio.Resource.t) )
+    in
+    let timing = field "timing" input in
+    let value settings name default =
+      Option.value (optional J.to_int name settings) ~default
+    in
+    let time name default = value timing name default in
+    let s = S.default_timing in
+    let subscription_timing : S.timing =
+      {
+        stream_open_timeout_ms =
+          time "streamOpenTimeoutMs" s.stream_open_timeout_ms;
+        reconnect_ms = time "reconnectMs" s.reconnect_ms;
+        max_reconnect_ms = time "maxReconnectMs" s.max_reconnect_ms;
+        degraded_threshold_ms =
+          time "degradedThresholdMs" s.degraded_threshold_ms;
+        reconnect_debounce_ms =
+          time "reconnectDebounceMs" s.reconnect_debounce_ms;
+        lazy_remove_ms = time "lazyRemoveMs" s.lazy_remove_ms;
+        linger_ms = time "lingerMs" s.linger_ms;
+        bus_request_timeout_ms =
+          time "busRequestTimeoutMs" s.bus_request_timeout_ms;
+      }
+    in
+    let h = H.default_timing in
+    let retry = field "emitRetry" timing in
+    let http_timing : H.timing =
+      {
+        emit_attempts = value retry "attempts" h.emit_attempts;
+        emit_initial_delay_ms =
+          value retry "initialDelayMs" h.emit_initial_delay_ms;
+        emit_max_delay_ms = value retry "maxDelayMs" h.emit_max_delay_ms;
+        emit_timeout_ms = time "emitTimeoutMs" h.emit_timeout_ms;
+        request_timeout_ms = time "httpRequestTimeoutMs" h.request_timeout_ms;
+      }
     in
     let renewals =
       ref
@@ -160,26 +212,21 @@ let run env =
               Session.Renewed bearer)
         ()
     in
+    let http =
+      H.make ~clock ~session ~timing:http_timing
+        ~key:(fun () -> uuid env)
+        ~on_error:(fun failure ->
+          output_json
+            (`Assoc [ ("error", error ?status:failure.status failure.code) ]))
+        ~call ()
+    in
     let connect =
       S.authenticated
         ~credential:(fun () -> Session.credential session)
         ~renew:(Session.refresh_refused session)
         ~on_refused:(fun status ->
           output_json (`Assoc [ ("error", error ~status "unauthorized") ]))
-        (fun ~sw snapshot ~bearer ->
-          let body = Result.get_ok (S.encode_subscription snapshot) in
-          let response, stream = post ~sw ~bearer Paths.subscribe body in
-          match
-            Cohttp.Code.code_of_status (Cohttp.Response.status response)
-          with
-          | 200 -> Ok (Eio.Buf_read.of_flow ~max_size:1_048_576 stream)
-          | 401 -> Error (S.Credential_refused 401)
-          | 429 ->
-              let body = body_text stream |> Yojson.Safe.from_string in
-              if field "code" body = text "refusal-rate" then
-                Error (S.Credential_refused 429)
-              else Error S.Connect_failed
-          | _ -> Error S.Connect_failed)
+        (H.subscribe http)
     in
     let client_id = uuid env in
     let global =
@@ -187,9 +234,10 @@ let run env =
       |> List.map (fun name -> channel (J.to_string name))
     in
     let subscription =
-      S.start ~sw ~clock ~client_id ~global ~scopes:[] ~connect ~on_event ()
+      S.start ~timing:subscription_timing ~sw ~clock ~client_id ~global
+        ~scopes:[] ~connect ~on_event ()
     in
-    client := Some { subscription; session; client_id; post };
+    client := Some { subscription; session; client_id; http };
     Fiber.fork_daemon ~sw (fun () ->
         let rec report previous =
           let current = S.await_state_change subscription ~from:previous in
@@ -200,30 +248,10 @@ let run env =
         `Stop_daemon)
   in
   let emit client ?scope ?correlation_id channel payload =
-    let bearer =
-      match Session.credential client.session with
-      | Some bearer -> bearer
-      | None -> raise (Http_error 401)
-    in
-    let body =
-      match
-        Semiont.Wire_stream.encode_emit ?scope ?correlation_id
-          ~client_id:client.client_id channel
-          (Yojson.Safe.to_string payload)
-      with
-      | Ok body -> body
-      | Error _ -> raise (Misuse "invalid emit payload")
-    in
-    Switch.run @@ fun sw ->
-    let response, stream = client.post ~sw ~bearer Paths.emit body in
-    let status = Cohttp.Code.code_of_status (Cohttp.Response.status response) in
-    if status <> 202 then raise (Http_error status);
-    let accepted =
-      Result.get_ok
-        (Semiont.Models.decode Semiont.Models.bus_emit_accepted
-           (body_text stream))
-    in
-    Yojson.Safe.from_string (Semiont.Models.encode accepted)
+    H.emit client.http ~client_id:client.client_id ?scope ?correlation_id
+      channel
+      (Yojson.Safe.to_string payload)
+    |> Yojson.Safe.from_string
   in
   let close () =
     Option.iter
@@ -300,11 +328,75 @@ let run env =
         with
         | Ok (S.Result payload) ->
             ok (Yojson.Safe.from_string (B.encode payload))
-        | Ok (S.Failure _) -> ("error", error "error")
-        | Error S.Timeout -> ("error", error "timeout")
-        | Error S.Transport_closed -> ("error", error "closed")
-        | Error S.Unsubscribed -> ("error", error "unsubscribed")
+        | Ok (S.Failure payload) -> ("error", error (H.bus_failure payload))
+        | Error S.Timeout -> ("error", error "bus.timeout")
+        | Error S.Transport_closed -> ("error", error "bus.closed")
+        | Error S.Unsubscribed -> ("error", error "bus.unsubscribed")
         | Error _ -> ("error", error "error"))
+    | "health" -> ok (Yojson.Safe.from_string (H.health (get_client ()).http))
+    | "status" -> ok (Yojson.Safe.from_string (H.status (get_client ()).http))
+    | "current-user" ->
+        ok (Yojson.Safe.from_string (H.current_user (get_client ()).http))
+    | "protected-resource-metadata" ->
+        ok
+          (Yojson.Safe.from_string
+             (H.protected_resource_metadata (get_client ()).http))
+    | "media-token" ->
+        ok
+          (Yojson.Safe.from_string
+             (H.media_token (get_client ()).http
+                (resource (string "resource" input))))
+    | "graph" ->
+        ok
+          (Yojson.Safe.from_string
+             (H.graph (get_client ()).http (resource (string "resource" input))))
+    | "annotations" ->
+        ok
+          (Yojson.Safe.from_string
+             (H.annotations (get_client ()).http
+                (resource (string "resource" input))))
+    | "anchored-text" ->
+        ok
+          (Yojson.Safe.from_string
+             (H.anchored_text (get_client ()).http
+                (resource (string "resource" input))))
+    | "get" | "get-stream" ->
+        H.with_content (get_client ()).http
+          (resource (string "resource" input))
+          (fun ~content_type stream ->
+            ok
+              (`Assoc
+                 [
+                   ("contentType", text content_type);
+                   ("bytes", text (Base64.encode_exn (body_text stream)));
+                 ]))
+    | ("put" | "upload") as op ->
+        let fields =
+          J.to_assoc input
+          |> List.filter_map (fun (name, value) ->
+              match value with
+              | `Null -> None
+              | `String value -> Some (name, value)
+              | value -> Some (name, Yojson.Safe.to_string value))
+        in
+        let bytes = Base64.decode_exn (string "bytes" input) in
+        let on_progress count =
+          if op = "upload" then
+            output_json
+              (`Assoc
+                 [
+                   ( "progress",
+                     `Assoc
+                       [
+                         ("upload", field "id" input);
+                         ("bytesUploaded", `Int count);
+                         ("totalBytes", `Int (String.length bytes));
+                       ] );
+                 ])
+        in
+        ok
+          (Yojson.Safe.from_string
+             (H.put (get_client ()).http ~fields ~bytes ~on_progress))
     | "abandon" ->
         Option.iter
           (fun cancel -> Eio.Cancel.cancel cancel Exit)
@@ -331,10 +423,8 @@ let run env =
               | Eio.Cancel.Cancelled Exit -> ("abandoned", `Bool true)
               | Misuse message | J.Type_error (message, _) ->
                   ("misuse", text message)
-              | Http_error status ->
-                  ( "error",
-                    error ~status
-                      (if status = 401 then "unauthorized" else "error") )
+              | H.Failed failure ->
+                  ("error", error ?status:failure.status failure.code)
               | Eio.Io _ -> ("error", error "error")
             in
             output_json (`Assoc [ ("id", `Int id); answer ]));

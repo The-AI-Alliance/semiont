@@ -24,8 +24,25 @@ type snapshot = {
   pending_replies : string list;
 }
 
-type open_error = Retry | No_credential
-type credential_error = Connect_failed | Credential_refused of int
+type timing = {
+  stream_open_timeout_ms : int;
+  reconnect_ms : int;
+  max_reconnect_ms : int;
+  degraded_threshold_ms : int;
+  reconnect_debounce_ms : int;
+  lazy_remove_ms : int;
+  linger_ms : int;
+  bus_request_timeout_ms : int;
+}
+
+val default_timing : timing
+
+type open_error = Retry | Retry_after of int | No_credential
+
+type credential_error =
+  | Connect_failed
+  | Connect_retry_after of int
+  | Credential_refused of int
 
 val authenticated :
   credential:(unit -> string option) ->
@@ -45,6 +62,7 @@ val authenticated :
 val encode_subscription : snapshot -> (string, Models.decode_error) result
 
 val start :
+  ?timing:timing ->
   sw:Eio.Switch.t ->
   clock:Clock.t ->
   client_id:string ->

@@ -10,3 +10,4 @@ module Records = Records
 module Wire_stream = Wire_stream
 module Subscription = Subscription
 module Session = Session
+module Http_wire = Http_wire

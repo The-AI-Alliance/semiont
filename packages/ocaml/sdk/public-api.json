@@ -115,9 +115,12 @@
     "lib/client_timing.mli": "cb433bda9c37944c0dd973b950f25c229b727fef820d144b66915c26e3c4c7a5",
     "lib/clock.ml": "7fbcd81067a62d56842bf1f5b50e64e35f0efb056796a6926b1b732e52cca8b6",
     "lib/clock.mli": "9eec4a9bf79a437a5b331cc40dacd46905f70367ccae882650bce067932078b2",
-    "lib/dune": "335050cba327ffae0628e23be36584f4649ae58b23f4dd95bdc0aba756d5553d",
+    "lib/dune": "ce8990f485ed63232a967d3c7a9a117d963c6145977a49a6c6bd06e4c6465f31",
     "lib/enums.ml": "e2a188bb4fd853313782622b84257a43be1c0e89472fc2323ab9c89ff1aa1232",
     "lib/enums.mli": "1c28ee0ac1ca50a86fe00ce3fe5c6ed5b015045b5cd14c8b48d46fa4b937daaf",
+    "lib/http_facts.ml": "3bce75ca4edacc1682410d6c9f6faf5584fe027ff8f058c91a63f0fa59be7784",
+    "lib/http_wire.ml": "4fde58812e450cd951c751d38d4df0c3ab6812a3f2157a4c3feef2cbc6f5d6e0",
+    "lib/http_wire.mli": "4e0fd73266e2be61e3f3226cb400fd0bfab0cb57fec95d29ea8b807be026685d",
     "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
     "lib/identifiers.mli": "bba7e132069a1c36758c9d1bfebd936ecb815b6d05dae2b55f03a5de72f2c20d",
     "lib/models.ml": "a36b2528fa00802a9e6482da3564a96c31300a8447921557f90770774d7e588c",
@@ -130,14 +133,14 @@
     "lib/schema_shapes.ml": "12f163c8f930d2cb1559aa93de7f8d5fd58583827059852e6aebdf9b03629bea",
     "lib/selector.ml": "28f250d3a6ed926ba94317cf595d39742124587c527ebcf02c6f6c043c50a7e8",
     "lib/selector.mli": "1c3c9f74ea5c90d0154547e5c3f249f4f7fcfd05f5fc97bc89ad7976a7b02716",
-    "lib/semiont.ml": "3b2f4ff91c4efb35fd076fdeb6f93948adc52d7182b71b1467776b0d32b2d3c0",
-    "lib/semiont.mli": "1493fa8d00453698db5c1871a052a72fbf3be9991f227efaa2b914f207bea51b",
+    "lib/semiont.ml": "684988de81dc01191d91490254468f8501b94e5e11d5da510d0bd9a058d7cffc",
+    "lib/semiont.mli": "13c5d48bcb477b1bc81ecb8e655bae422c365b30ce424f8c7a2ffe82589db97f",
     "lib/session.ml": "9f01d7546c52be09408419522c7b95d5b067b6c08d3bbfd78202a3495f9afc31",
     "lib/session.mli": "5202a41238b363ab84685b83c2419073b416a56373e3ff0a5bc5acc81d212656",
     "lib/strict_json.ml": "19a2f3c4c5a828e0fe55cd36eb25b685e965f0b79c21cd57cc4a17c53d0112d6",
     "lib/strict_json.mli": "818f38488855a5ce525bbf7fa483feb6aad993670115a63065029201999b50a7",
-    "lib/subscription.ml": "839c941824717b77ea5f523e78965e61761a33bba14963a201b67837a84cc865",
-    "lib/subscription.mli": "c04ce817e57018ff08d7019f284851d25e4f3385e28d3befe26a305230768e5c",
+    "lib/subscription.ml": "51710a910cf4db7c81ebb7b03604b0d7c247adad47ffc0593f74bfa1c05bcfef",
+    "lib/subscription.mli": "b4ed9fec32b08a0c660186ce74947bbb48e714b15467eceeb8e74acd7e0302a7",
     "lib/types.ml": "5921efffb7596beb176e09960cdfa080ec954349ec2ce9d7e54bc7f638c808fe",
     "lib/types.mli": "97149245ffc84db1b741d7156a08017eff6f941179e9e6df950f212da8d60d76",
     "lib/wire_stream.ml": "3d3bfb920d6fc1ec36f520313c5f856d2d517a649991daedc0501dc53e7ba37c",
@@ -11836,11 +11839,33 @@
     },
     {
       "kind": "type",
+      "path": "Semiont.Subscription.timing",
+      "declaration": "type timing = {\n  stream_open_timeout_ms : int;\n  reconnect_ms : int;\n  max_reconnect_ms : int;\n  degraded_threshold_ms : int;\n  reconnect_debounce_ms : int;\n  lazy_remove_ms : int;\n  linger_ms : int;\n  bus_request_timeout_ms : int;\n}",
+      "representation": "record",
+      "fields": [
+        "stream_open_timeout_ms",
+        "reconnect_ms",
+        "max_reconnect_ms",
+        "degraded_threshold_ms",
+        "reconnect_debounce_ms",
+        "lazy_remove_ms",
+        "linger_ms",
+        "bus_request_timeout_ms"
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Subscription.default_timing",
+      "declaration": "val default_timing : timing"
+    },
+    {
+      "kind": "type",
       "path": "Semiont.Subscription.open_error",
-      "declaration": "type open_error = Retry | No_credential",
+      "declaration": "type open_error = Retry | Retry_after of int | No_credential",
       "representation": "variant",
       "constructors": [
         "Retry",
+        "Retry_after",
         "No_credential"
       ],
       "variants": [
@@ -11848,6 +11873,11 @@
           "name": "Retry",
           "fields": [],
           "unit": true
+        },
+        {
+          "name": "Retry_after",
+          "fields": [],
+          "unit": false
         },
         {
           "name": "No_credential",
@@ -11859,10 +11889,11 @@
     {
       "kind": "type",
       "path": "Semiont.Subscription.credential_error",
-      "declaration": "type credential_error = Connect_failed | Credential_refused of int",
+      "declaration": "type credential_error =\n    Connect_failed\n  | Connect_retry_after of int\n  | Credential_refused of int",
       "representation": "variant",
       "constructors": [
         "Connect_failed",
+        "Connect_retry_after",
         "Credential_refused"
       ],
       "variants": [
@@ -11870,6 +11901,11 @@
           "name": "Connect_failed",
           "fields": [],
           "unit": true
+        },
+        {
+          "name": "Connect_retry_after",
+          "fields": [],
+          "unit": false
         },
         {
           "name": "Credential_refused",
@@ -11891,7 +11927,7 @@
     {
       "kind": "value",
       "path": "Semiont.Subscription.start",
-      "declaration": "val start :\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  client_id:string ->\n  global:Semiont__.Bus_registry.packed_channel list ->\n  scopes:scope list ->\n  connect:(sw:Eio.Switch.t -> snapshot -> (Eio.Buf_read.t, open_error) result) ->\n  on_event:((Semiont__.Wire_stream.frame, Semiont__.Wire_stream.refusal)\n            result -> unit) ->\n  unit -> t"
+      "declaration": "val start :\n  ?timing:timing ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  client_id:string ->\n  global:Semiont__.Bus_registry.packed_channel list ->\n  scopes:scope list ->\n  connect:(sw:Eio.Switch.t -> snapshot -> (Eio.Buf_read.t, open_error) result) ->\n  on_event:((Semiont__.Wire_stream.frame, Semiont__.Wire_stream.refusal)\n            result -> unit) ->\n  unit -> t"
     },
     {
       "kind": "value",
@@ -12070,6 +12106,121 @@
       "kind": "value",
       "path": "Semiont.Session.await_closed",
       "declaration": "val await_closed : t -> unit"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Http_wire",
+      "declaration": "module Http_wire = Semiont__.Http_wire",
+      "alias": "Semiont__.Http_wire"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Http_wire.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Http_wire.timing",
+      "declaration": "type timing = {\n  emit_attempts : int;\n  emit_initial_delay_ms : int;\n  emit_max_delay_ms : int;\n  emit_timeout_ms : int;\n  request_timeout_ms : int;\n}",
+      "representation": "record",
+      "fields": [
+        "emit_attempts",
+        "emit_initial_delay_ms",
+        "emit_max_delay_ms",
+        "emit_timeout_ms",
+        "request_timeout_ms"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Http_wire.failure",
+      "declaration": "type failure = { code : string; status : int option; }",
+      "representation": "record",
+      "fields": [
+        "code",
+        "status"
+      ]
+    },
+    {
+      "kind": "extension",
+      "path": "Semiont.Http_wire.Failed",
+      "declaration": "exception Failed of failure"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Http_wire.default_timing",
+      "declaration": "val default_timing : timing"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Http_wire.make",
+      "declaration": "val make :\n  ?timing:timing ->\n  clock:Semiont__.Clock.t ->\n  session:Semiont__.Session.t ->\n  key:(unit -> string) ->\n  on_error:(failure -> unit) ->\n  call:(sw:Eio.Switch.t ->\n        meth:string ->\n        path:string ->\n        headers:(string * string) list ->\n        body:string ->\n        progress:(int -> unit) option ->\n        int * (string * string) list * Eio.Flow.source_ty Eio.Resource.t) ->\n  unit -> t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Http_wire.subscribe",
+      "declaration": "val subscribe :\n  t ->\n  sw:Eio.Switch.t ->\n  Semiont__.Subscription.snapshot ->\n  bearer:string ->\n  (Eio.Buf_read.t, Semiont__.Subscription.credential_error) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Http_wire.emit",
+      "declaration": "val emit :\n  t ->\n  client_id:string ->\n  ?scope:Semiont__.Identifiers.Resource_id.t ->\n  ?correlation_id:string ->\n  'a Semiont__.Bus_registry.channel -> string -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Http_wire.bus_failure",
+      "declaration": "val bus_failure : 'a Semiont__.Bus_registry.decoded -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Http_wire.health",
+      "declaration": "val health : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Http_wire.status",
+      "declaration": "val status : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Http_wire.current_user",
+      "declaration": "val current_user : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Http_wire.protected_resource_metadata",
+      "declaration": "val protected_resource_metadata : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Http_wire.media_token",
+      "declaration": "val media_token : t -> Semiont__.Identifiers.Resource_id.t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Http_wire.graph",
+      "declaration": "val graph : t -> Semiont__.Identifiers.Resource_id.t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Http_wire.annotations",
+      "declaration": "val annotations : t -> Semiont__.Identifiers.Resource_id.t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Http_wire.anchored_text",
+      "declaration": "val anchored_text : t -> Semiont__.Identifiers.Resource_id.t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Http_wire.with_content",
+      "declaration": "val with_content :\n  t ->\n  Semiont__.Identifiers.Resource_id.t ->\n  (content_type:string -> Eio.Flow.source_ty Eio.Resource.t -> 'a) -> 'a"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Http_wire.put",
+      "declaration": "val put :\n  t ->\n  fields:(string * string) list ->\n  bytes:string -> on_progress:(int -> unit) -> string"
     }
   ]
 }

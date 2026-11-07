@@ -33,18 +33,42 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/probes/session_cases.ml'),
   `let cases = ${ocamlString(JSON.stringify({ refreshSchedule, tokenExpiry }))}\n`,
   process.argv.includes('--check'));
 
-const openapi = JSON.parse(readFileSync(resolve(root, 'protocol/specs/src/openapi.json'), 'utf8'));
-const busPaths = new Map(Object.entries(openapi.paths).flatMap(([path, item]) => {
-  const target = item.$ref === undefined ? item
-    : JSON.parse(readFileSync(resolve(root, 'protocol/specs/src', item.$ref), 'utf8'));
-  return target.post?.operationId === undefined ? [] : [[target.post.operationId, path]];
+const specRoot = resolve(root, 'protocol/specs/src');
+const readSpec = (file) => JSON.parse(readFileSync(resolve(specRoot, file), 'utf8'));
+const openapi = readSpec('openapi.json');
+const operations = new Map(Object.entries(openapi.paths).flatMap(([path, item]) => {
+  const target = item.$ref === undefined ? item : readSpec(item.$ref);
+  return Object.entries(target).flatMap(([method, operation]) => operation?.operationId === undefined
+    ? [] : [[operation.operationId, { path, method, operation }]]);
 }));
-const route = (operation) => {
-  const path = busPaths.get(operation);
-  if (path === undefined || path.includes('{')) throw new Error(`No static POST route for ${operation}`);
-  return ocamlString(path);
+const names = {
+  subscribe: 'subscribeToBus', emit: 'emitOnBus', health: 'getHealth',
+  status: 'getStatus', current_user: 'getCurrentUser',
+  protected_resource_metadata: 'getProtectedResourceMetadata',
+  media_token: 'createMediaToken', representation: 'getResourceRepresentation',
+  graph: 'getResourceJsonLd', annotations: 'getResourceAnnotations',
+  anchored_text: 'getResourceAnchoredText', upload: 'uploadResource',
 };
-writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/conformance/paths.ml'),
-  '(* Generated from the OpenAPI bus paths. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n\n' +
-  `let subscribe = ${route('subscribeToBus')}\nlet emit = ${route('emitOnBus')}\n`,
-  process.argv.includes('--check'));
+const routes = Object.entries(names).map(([name, id]) => {
+  const { path, method } = operations.get(id);
+  return `let ${name} = (${ocamlString(method.toUpperCase())}, ${ocamlString(path)})`;
+});
+const { transport, busRequest } = readSpec('errors/codes.json');
+const statusCode = transport.codes.flatMap(({ code, status, statusFrom }) =>
+  status !== undefined ? [`  | ${status} -> ${ocamlString(code)}`]
+    : statusFrom !== undefined ? [`  | status when status >= ${statusFrom} -> ${ocamlString(code)}`] : []);
+const busCode = busRequest.codes.flatMap(({ code, wire }) =>
+  wire === undefined ? [] : [`  | Some ${ocamlString(wire)} -> ${ocamlString(code)}`]);
+const retryStatuses = [...new Set(readSpec('retry/cases.json').rules
+  .filter((row) => row.rule === 'transport' && row.retries && row.status !== undefined)
+  .map((row) => row.status))].sort((a, b) => a - b);
+const uploadFields = Object.keys(readSpec('components/schemas/ResourceUpload.json').properties);
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/http_facts.ml'),
+  [
+    '(* Generated from OpenAPI paths, error codes and retry cases. Do not edit. *)',
+    '', '[@@@ocamlformat "disable"]', '', ...routes,
+    'let status_code = function', ...statusCode, `  | _ -> ${ocamlString(transport.unclassified)}`,
+    'let bus_failure = function', ...busCode, `  | _ -> ${ocamlString(busRequest.unrecognizedFailure)}`,
+    `let retry_statuses = [${retryStatuses.join('; ')}]`,
+    `let upload_fields = [${uploadFields.map(ocamlString).join('; ')}]`, '',
+  ].join('\n'), process.argv.includes('--check'));

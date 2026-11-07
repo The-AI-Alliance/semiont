@@ -1,5 +1,5 @@
 (library
  (name semiont)
  (public_name semiont)
- (private_modules pattern client_timing schema_shape schema_shapes schema_codec)
+ (private_modules pattern client_timing schema_shape schema_shapes schema_codec http_facts)
  (libraries eio mtime yojson base64 zarith decimal uutf))
