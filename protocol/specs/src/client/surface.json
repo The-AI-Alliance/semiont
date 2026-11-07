@@ -1562,10 +1562,7 @@
         },
         {
           "member": "FrameRefusal",
-          "kind": "type",
-          "notYetReached": {
-            "csharp": "C#'s transport does not yet refuse a frame; its frame catch-up hands out the refusal."
-          }
+          "kind": "type"
         },
         {
           "member": "FrameRefusalReason",
@@ -1574,9 +1571,6 @@
           "absent": {
             "typescript": "TypeScript's refusal states its reason as one of two strings, `lacks` and `malformed`.",
             "python": "Python's refusal states its reason as a Literal of the two spellings, `lacks` and `malformed`."
-          },
-          "notYetReached": {
-            "csharp": "C# names a fault's reason only inside its reader; its frame catch-up hands it out with the refusal."
           }
         },
         {
@@ -1587,9 +1581,6 @@
             "rust": "Rust's transport delivers a frame or its refusal as a `Result<Frame, FrameRefusal>`.",
             "python": "Python's transport delivers a frame or its refusal as the union `Frame | FrameRefusal`.",
             "go": "Go's transport delivers a frame or, as its error, its refusal (`iter.Seq2[Frame, error]`)."
-          },
-          "notYetReached": {
-            "csharp": "C#'s transport does not yet deliver a frame's refusal; its frame catch-up says how."
           }
         }
       ]

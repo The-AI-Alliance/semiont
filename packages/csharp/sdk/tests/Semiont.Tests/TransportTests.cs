@@ -149,8 +149,10 @@ public sealed partial class TransportTests
             """ + "\n\n");
         Assert.True(await wireFirst);
         Assert.True(await localNext);
-        Assert.True(JsonElement.DeepEquals(wire.Current.Received.Frame.Payload, local.Current.Received.Frame.Payload));
-        Assert.Equal("did:web:example.org:users:ada", local.Current.Received.UserId?.Value);
+        var fromWire = Assert.IsType<Heard<BeckonSparkleEvent>.Delivered>(wire.Current).Received;
+        var fromLocal = Assert.IsType<Heard<BeckonSparkleEvent>.Delivered>(local.Current).Received;
+        Assert.True(JsonElement.DeepEquals(fromWire.Frame.Payload, fromLocal.Frame.Payload));
+        Assert.Equal("did:web:example.org:users:ada", fromLocal.UserId?.Value);
         client.Dispose();
         Assert.False(await local.MoveNextAsync());
     }
@@ -171,7 +173,8 @@ public sealed partial class TransportTests
             """ + "\n\n");
 
         Assert.True(await first);
-        Assert.IsType<Heard<BeckonFocusEvent>.Refused>(frames.Current);
+        var refused = Assert.IsType<Heard<BeckonFocusEvent>.Refused>(frames.Current).Refusal;
+        Assert.Equal(("beckon:focus", "payload.resourceId", FrameRefusalReason.Lacks), (refused.Channel, refused.Member, refused.Reason));
         Assert.True(await frames.MoveNextAsync());
         var delivered = Assert.IsType<Heard<BeckonFocusEvent>.Delivered>(frames.Current);
         Assert.Equal("r1", delivered.Payload.ResourceId.Value);
@@ -199,7 +202,8 @@ public sealed partial class TransportTests
             server.Stream.Push("event: bus-event\ndata: {\"channel\":\"mark:body-updated\",\"scope\":\"r2\",\"payload\":{}}\n\n");
             server.Stream.Push("event: bus-event\ndata: {\"channel\":\"mark:body-updated\",\"scope\":\"r1\",\"payload\":{}}\n\n");
             Assert.True(await first);
-            Assert.Equal("r1", frames.Current.Received.Frame.Scope?.Value);
+            // An empty payload is not mark:body-updated's: its refusal is told the reader of its own scope alone.
+            Assert.Equal("r1", Assert.IsType<Heard<EnrichedResourceEvent>.Refused>(frames.Current).Refusal.Scope?.Value);
         }
         var released = await server.Subscriptions.Reader.ReadAsync(deadline.Token);
         Assert.Empty(released.GetProperty("scoped").EnumerateArray());
@@ -443,11 +447,11 @@ public sealed partial class TransportTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => firstRead);
         server.Stream.Push("event: bus-event\nid: e-1\ndata: {\"channel\":\"beckon:focus\",\"payload\":{\"text\":\"héllo 🌱\"}}\n\n");
         Assert.True(await secondRead);
-        Assert.Equal("héllo 🌱", second.Current.Payload.GetProperty("text").GetString());
+        Assert.Equal("héllo 🌱", Assert.IsType<ReceivedBusFrame>(second.Current).Frame.Payload.GetProperty("text").GetString());
         var following = second.MoveNextAsync().AsTask();
         server.Stream.Push("event: bus-event\nid: e-1\ndata: {\"channel\":\"beckon:focus\",\"payload\":{\"text\":\"duplicate\"}}\n\nevent: bus-event\nid: e-2\ndata: {\"channel\":\"beckon:focus\",\"payload\":{\"text\":\"next\"}}\n\n");
         Assert.True(await following);
-        Assert.Equal("next", second.Current.Payload.GetProperty("text").GetString());
+        Assert.Equal("next", Assert.IsType<ReceivedBusFrame>(second.Current).Frame.Payload.GetProperty("text").GetString());
     }
 
     [Fact]
@@ -908,7 +912,7 @@ public sealed partial class TransportTests
     }
 
     [Fact]
-    public async Task PayloadStreamsAndHandlersEndIndependently()
+    public async Task FrameReadersAndHandlersEndIndependently()
     {
         using var server = new Handler();
         using var client = new HttpClient(server);
@@ -917,11 +921,11 @@ public sealed partial class TransportTests
         await using var errors = transport.Errors().GetAsyncEnumerator();
         var failed = errors.MoveNextAsync().AsTask();
         using var callback = transport.On("beckon:focus", _ => throw new InvalidOperationException("handler failed"));
-        await using var payloads = transport.Stream("beckon:focus").GetAsyncEnumerator();
+        await using var payloads = transport.Frames("beckon:focus").GetAsyncEnumerator();
         var delivered = payloads.MoveNextAsync().AsTask();
         server.Stream.Push("event: bus-event\ndata: {\"channel\":\"beckon:focus\",\"payload\":{\"n\":1}}\n\n");
         Assert.True(await delivered);
-        Assert.Equal(1, payloads.Current.GetProperty("n").GetInt32());
+        Assert.Equal(1, Assert.IsType<ReceivedBusFrame>(payloads.Current).Frame.Payload.GetProperty("n").GetInt32());
         Assert.True(await failed);
         Assert.IsType<InvalidOperationException>(errors.Current.InnerException);
         callback.Dispose();

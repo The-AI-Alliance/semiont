@@ -1,7 +1,7 @@
 using Semiont.Protocol;
 using Semiont.Errors;
-using Semiont.Serialization;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Net.Http.Json;
@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using Semiont.Identifiers;
+using Semiont.Serialization;
 using Semiont.Types;
 
 namespace Semiont.Http;
@@ -98,20 +99,14 @@ public sealed partial class HttpTransport : IDisposable
 
     public bool IsSubscribed(string channel) => channels.Contains(channel, StringComparer.Ordinal);
 
-    public IAsyncEnumerable<BusFrame> Frames(string channel, CancellationToken cancellation = default) => Frames([channel], cancellation);
+    public IAsyncEnumerable<Carried> Frames(string channel, CancellationToken cancellation = default) => Frames([channel], cancellation);
 
-    public IAsyncEnumerable<BusFrame> Frames(IEnumerable<string> channels, CancellationToken cancellation = default) =>
-        RawFrames(ReceivedFrames(channels, null, cancellation), cancellation);
+    public IAsyncEnumerable<Carried> Frames(IEnumerable<string> channelNames, CancellationToken cancellation = default) =>
+        ReceivedFrames(channelNames, null, cancellation);
 
-    private static async IAsyncEnumerable<BusFrame> RawFrames(IAsyncEnumerable<ReceivedBusFrame> frames,
-        [EnumeratorCancellation] CancellationToken cancellation)
+    internal IAsyncEnumerable<Carried> ReceivedFrames(IEnumerable<string> channelNames, ResourceId? resource, CancellationToken cancellation)
     {
-        await foreach (var frame in frames.WithCancellation(cancellation).ConfigureAwait(false)) yield return frame.Frame;
-    }
-
-    internal IAsyncEnumerable<ReceivedBusFrame> ReceivedFrames(IEnumerable<string> channels, ResourceId? resource, CancellationToken cancellation)
-    {
-        var selected = channels.ToHashSet(StringComparer.Ordinal);
+        var selected = channelNames.ToHashSet(StringComparer.Ordinal);
         foreach (var channel in selected)
         {
             if (!IsSubscribed(channel) && !ProtocolFacts.Channels("scoped").Contains(channel, StringComparer.Ordinal))
@@ -127,7 +122,7 @@ public sealed partial class HttpTransport : IDisposable
         return new Hold(() => { lock (gate) buses.Remove(bus); });
     }
 
-    private async IAsyncEnumerable<ReceivedBusFrame> ObserveFrames(HashSet<string> selected, ResourceId? resource, [EnumeratorCancellation] CancellationToken cancellation)
+    private async IAsyncEnumerable<Carried> ObserveFrames(HashSet<string> selected, ResourceId? resource, [EnumeratorCancellation] CancellationToken cancellation)
     {
         var view = new FrameView(selected);
         await using var events = view.Stream.Observe(cancellation).GetAsyncEnumerator();
@@ -152,12 +147,7 @@ public sealed partial class HttpTransport : IDisposable
         }
     }
 
-    public async IAsyncEnumerable<JsonElement> Stream(string channel, [EnumeratorCancellation] CancellationToken cancellation = default)
-    {
-        await foreach (var frame in Frames(channel, cancellation).ConfigureAwait(false)) yield return frame.Payload;
-    }
-
-    public IDisposable On(string channel, Action<JsonElement> handler)
+    public IDisposable On(string channel, Action<Carried> handler)
     {
         var cancellation = new CancellationTokenSource();
         var frames = Frames(channel, cancellation.Token);
@@ -168,9 +158,9 @@ public sealed partial class HttpTransport : IDisposable
         {
             try
             {
-                await foreach (var frame in frames.ConfigureAwait(false))
+                await foreach (var carried in frames.ConfigureAwait(false))
                 {
-                    try { handler(frame.Payload); }
+                    try { handler(carried); }
                     catch (Exception error) { failures.Publish(new TransportError(ProtocolFacts.Error(0), error.Message, inner: error)); }
                 }
             }
@@ -298,7 +288,12 @@ public sealed partial class HttpTransport : IDisposable
             await EmitAsync(operation, payload, correlationId: correlation, cancellation: linked.Token).ConfigureAwait(false);
             sendOrder.Release();
             ownsTurn = false;
-            var frame = await reply.Completion.Task.WaitAsync(linked.Token).ConfigureAwait(false);
+            var frame = await reply.Completion.Task.WaitAsync(linked.Token).ConfigureAwait(false) switch
+            {
+                FrameRefusal refusal => throw new TransportError(ProtocolFacts.Error(0),
+                    "a frame on " + refusal.Channel + " is not that channel's: " + new Fault(refusal.Member, refusal.Reason)),
+                ReceivedBusFrame received => received,
+            };
             if (frame.Frame.Channel == replies.Failure) throw Answered(replies.Failure, frame.Frame.Payload);
             return frame;
         }
@@ -320,7 +315,7 @@ public sealed partial class HttpTransport : IDisposable
     private SemiontError Answered(string channel, JsonElement failure)
     {
         if (Required.FaultOf(failureSchemas[channel], failure) is { } fault)
-            return new TransportError(ProtocolFacts.Error(0), $"a payload on {channel} is not that channel's: {fault.Said}");
+            return new TransportError(ProtocolFacts.Error(0), $"a payload on {channel} is not that channel's: {fault}");
         var code = failure.TryGetProperty("code", out var field) ? field.GetString() : null;
         return new BusRequestError(ProtocolFacts.Failure(code), failure.GetProperty("message").GetString()
             ?? throw new InvalidOperationException($"The schema of {channel} let a failure's message be null."));
@@ -450,11 +445,8 @@ public sealed partial class HttpTransport : IDisposable
                 {
                     foreach (var message in parser.Feed(buffer.AsSpan(0, count)))
                     {
-                        if (message.Event != "bus-event") continue;
-                        BusFrame? frame;
-                        try { frame = JsonSerializer.Deserialize<BusFrame>(message.Data); }
-                        catch (JsonException) { continue; }
-                        if (frame is null) continue;
+                        if (message.Event != "bus-event" || message.Data.Length == 0) continue;
+                        var line = LineOf(message.Data);
                         lock (gate)
                         {
                             if (closed) return;
@@ -463,34 +455,117 @@ public sealed partial class HttpTransport : IDisposable
                                 if (!seen.Add(id)) continue;
                                 remembered.Enqueue(id);
                                 while (remembered.Count > timing.SeenEventIdsCount) seen.Remove(remembered.Dequeue());
-                                if (id.StartsWith("p-", StringComparison.Ordinal) && frame.Scope is ResourceId scope) watermarks[scope.Value] = id;
                             }
-                            ActivityContext parent = default;
-                            if (frame.Payload.TryGetProperty(ProtocolFacts.TraceField, out var trace))
+                            switch (line)
                             {
-                                if (trace.ValueKind == JsonValueKind.Object && trace.TryGetProperty("traceparent", out var traceparent) && traceparent.ValueKind == JsonValueKind.String)
-                                {
-                                    ActivityContext.TryParse(traceparent.GetString(), trace.TryGetProperty("tracestate", out var tracestate) && tracestate.ValueKind == JsonValueKind.String ? tracestate.GetString() : null, isRemote: true, out parent);
-                                }
-                                var payload = JsonNode.Parse(frame.Payload.GetRawText())?.AsObject() ?? throw new JsonException("Null frame payload");
-                                payload.Remove(ProtocolFacts.TraceField);
-                                frame = frame with { Payload = JsonSerializer.SerializeToElement(payload) };
+                                case Line.Framed(var frame):
+                                    Receive(frame, message.Id);
+                                    break;
+                                case Line.Refused(var refusal):
+                                    Deliver(refusal);
+                                    break;
+                                case Line.Unaddressed(var fault):
+                                    // What names no reader is told to the failure report.
+                                    failures.Publish(new TransportError(ProtocolFacts.Error(0), "the stream carried what is not a frame: " + fault));
+                                    break;
                             }
-                            using var activity = SdkTelemetry.Start("bus.recv:{channel}", SdkTelemetry.BusTags(frame.Channel, frame.Scope), frame.Channel, parent);
-                            BusLog.Line("RECV", frame.Channel, frame.Payload);
-                            var received = new ReceivedBusFrame(frame, parent) { EventId = message.Id, Sequence = ++receivedSequence };
-                            // Make the wire frame visible before a continuation can publish its derived signal.
-                            foreach (var bus in buses) bus.Receive(received);
-                            foreach (var listener in listeners)
-                                if (listener.Channels.Contains(frame.Channel)) listener.Stream.Publish(received);
-                            if (frame.CorrelationId is string correlation && pending.TryGetValue(correlation, out var reply) &&
-                                (frame.Channel == reply.Result || frame.Channel == reply.Failure)) reply.Completion.TrySetResult(received);
                         }
                     }
                 }
             }
             catch (Exception error) when (error is IOException || error is HttpRequestException || error is OperationCanceledException) { }
         }
+    }
+
+    /// <summary>Takes in <paramref name="frame"/>, carried under <paramref name="id"/>, and delivers it. Called holding
+    /// the gate.</summary>
+    private void Receive(BusFrame frame, string? id)
+    {
+        // A scope's position is the last recorded event delivered on it: only a recorded event's id (p-…) is one.
+        if (id is not null && id.StartsWith("p-", StringComparison.Ordinal) && frame.Scope is ResourceId scope) watermarks[scope.Value] = id;
+        ActivityContext parent = default;
+        if (frame.Payload.TryGetProperty(ProtocolFacts.TraceField, out var trace))
+        {
+            if (trace.ValueKind == JsonValueKind.Object && trace.TryGetProperty("traceparent", out var traceparent) && traceparent.ValueKind == JsonValueKind.String)
+            {
+                ActivityContext.TryParse(traceparent.GetString(), trace.TryGetProperty("tracestate", out var tracestate) && tracestate.ValueKind == JsonValueKind.String ? tracestate.GetString() : null, isRemote: true, out parent);
+            }
+            var payload = JsonNode.Parse(frame.Payload.GetRawText())?.AsObject() ?? throw new JsonException("Null frame payload");
+            payload.Remove(ProtocolFacts.TraceField);
+            frame = frame with { Payload = JsonSerializer.SerializeToElement(payload) };
+        }
+        using var activity = SdkTelemetry.Start("bus.recv:{channel}", SdkTelemetry.BusTags(frame.Channel, frame.Scope), frame.Channel, parent);
+        BusLog.Line("RECV", frame.Channel, frame.Payload);
+        Deliver(new ReceivedBusFrame(frame, parent) { EventId = id, Sequence = ++receivedSequence });
+    }
+
+    /// <summary>Gives <paramref name="carried"/> to the buses, to the readers of its channel, and to the request awaiting
+    /// the reply it names on that channel. Called holding the gate.</summary>
+    private void Deliver(Carried carried)
+    {
+        // Make the wire frame visible before a continuation can publish its derived signal.
+        foreach (var bus in buses) bus.Receive(carried);
+        foreach (var listener in listeners.Where(view => view.Channels.Contains(carried.Channel))) listener.Stream.Publish(carried);
+        if (carried.CorrelationId is string correlation && pending.TryGetValue(correlation, out var reply) &&
+            (carried.Channel == reply.Result || carried.Channel == reply.Failure)) reply.Completion.TrySetResult(carried);
+    }
+
+    /// <summary>What a <c>bus-event</c> line carried: a frame BusFrame allows; the refusal of one it does not allow, whose
+    /// channel and scope name its readers; or the first fault of what names no reader.</summary>
+    private closed record Line
+    {
+        internal sealed record Framed(BusFrame Frame) : Line;
+        internal sealed record Refused(FrameRefusal Refusal) : Line;
+        internal sealed record Unaddressed(Fault Fault) : Line;
+    }
+
+    /// <summary><paramref name="data"/>, held to BusFrame before it is read as a frame. A frame carries what BusFrame
+    /// names, and nothing more; a refused one carries its correlation id when that can be read.</summary>
+    private static Line LineOf(string data)
+    {
+        JsonElement value;
+        try { value = JsonSerializer.Deserialize<JsonElement>(data); }
+        catch (JsonException) { return new Line.Unaddressed(Fault.Undecoded); }
+        if (TryFrame(value, out var frame, out var fault)) return new Line.Framed(frame);
+        if (value.ValueKind != JsonValueKind.Object) return new Line.Unaddressed(fault);
+        // Its channel and scope name its readers when a frame of them alone is one BusFrame allows.
+        var named = new JsonObject { ["payload"] = new JsonObject() };
+        foreach (var member in (string[])["channel", "scope"])
+            if (value.TryGetProperty(member, out var held)) named[member] = JsonNode.Parse(held.GetRawText());
+        if (!TryFrame(JsonSerializer.SerializeToElement(named), out var readers, out _)) return new Line.Unaddressed(fault);
+        // Its correlation id can be read when a frame of it and its readers alone is one BusFrame allows.
+        string? correlationId = null;
+        if (value.TryGetProperty("correlationId", out var correlation))
+        {
+            named["correlationId"] = JsonNode.Parse(correlation.GetRawText());
+            if (TryFrame(JsonSerializer.SerializeToElement(named), out var correlated, out _)) correlationId = correlated.CorrelationId;
+        }
+        JsonElement? payload = value.TryGetProperty("payload", out var carried) ? carried : null;
+        return new Line.Refused(new FrameRefusal(readers.Channel, fault.Member, fault.Reason, payload, correlationId, readers.Scope));
+    }
+
+    /// <summary><paramref name="value"/> read as a frame, when BusFrame allows it; or its first fault.</summary>
+    private static bool TryFrame(JsonElement value, [NotNullWhen(true)] out BusFrame? frame, [NotNullWhen(false)] out Fault? fault)
+    {
+        frame = null;
+        fault = Required.FaultOf("BusFrame", value);
+        if (fault is not null) return false;
+        // The walk reads a null member BusFrame does not require as one the frame does not carry, and so is it read.
+        var carried = value;
+        if (value.EnumerateObject().Any(member => member.Value.ValueKind == JsonValueKind.Null))
+        {
+            var stated = new JsonObject();
+            foreach (var member in value.EnumerateObject().Where(property => property.Value.ValueKind != JsonValueKind.Null))
+                stated[member.Name] = JsonNode.Parse(member.Value.GetRawText());
+            carried = JsonSerializer.SerializeToElement(stated);
+        }
+        try { frame = carried.Deserialize<BusFrame>() ?? throw new JsonException("A frame is null."); }
+        catch (JsonException)
+        {
+            fault = Fault.Undecoded;
+            return false;
+        }
+        return true;
     }
 
     /// <summary>The token to send again with in place of <paramref name="refused"/>, or null when there is none.</summary>
@@ -639,12 +714,12 @@ public sealed partial class HttpTransport : IDisposable
 
     private sealed record FrameView(HashSet<string> Channels)
     {
-        internal Broadcast<ReceivedBusFrame> Stream { get; } = new();
+        internal Broadcast<Carried> Stream { get; } = new();
     }
 
     private sealed record Pending(string Result, string Failure)
     {
-        internal TaskCompletionSource<ReceivedBusFrame> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource<Carried> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
     private sealed class Hold(Action release) : IDisposable
     {

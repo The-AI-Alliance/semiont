@@ -371,10 +371,21 @@ another view of the same storage that hears writes from other contexts.
 given operations, each once: the channels of a transport that awaits only those.
 `BusRegistry.Unsubscribed(channel)` is the refusal of a request whose replies cannot
 arrive, and `BusRegistry.PersistedEventTypes` the channels whose events the record keeps.
-A typed request returns the channel's declared reply model. A typed read
-gives a `Heard<T>` value for each frame, with its envelope and trace context.
-Malformed payloads yield a refusal and the read continues. A scoped read
-keeps its resource subscribed until the enumerator ends.
+A typed request returns the channel's declared reply model; a reply whose payload is not
+its channel's fails it with a `TransportError` saying "a payload on `<channel>` is not that
+channel's: " and the payload's first fault. A typed read gives a `Heard<T>` for each frame:
+a `Heard<T>.Delivered`, the frame with its envelope and trace context and its payload
+decoded, or, in the place of a frame the transport refused or whose payload is not its
+channel's, a `Heard<T>.Refused` holding its `FrameRefusal`. The refusal names the channel,
+the `Member` the frame's first fault is at, its way from the frame (`payload.resourceId`,
+or `payload` for the payload itself), and the `Reason`, `FrameRefusalReason.Lacks` or
+`FrameRefusalReason.Malformed`; it holds the payload as it came, the scope, and the frame's
+correlation id whenever that can be read. The read goes on to the frames after it. A scoped
+read keeps its resource subscribed until the enumerator ends.
+
+A delegation's events tell a refused `job:report-progress`, `job:fail` or `job:complete` as
+`JobEvent<T>.Refused`, naming its channel, member and reason: it names no job, is no word of
+the job, and starts the silence again neither for the follower nor for a `MarkStateUnit`.
 
 `client.Bus` carries local signals and receives frames from the wire.
 Read an existing resource scope through the local bus, or use
@@ -385,7 +396,15 @@ signals return the gateway's subscriber count when it can count observers.
 `Semiont.Http.HttpTransport` carries SSE frames, emits, and correlated requests. It
 supports resource holds, reconnects with per-resource watermarks, event deduplication,
 credential renewal, and cancellation. Each frame observer has its own queue; a view of
-several channels preserves their delivery order. `HttpContentTransport` uploads multipart
+several channels preserves their delivery order. It holds every frame to `BusFrame` before
+it delivers it. `Frames(channel)` and `On(channel, handler)` give each frame as a
+`ReceivedBusFrame`, and, in the place of a frame `BusFrame` does not allow whose channel is a
+text of at least one character and whose scope is absent, null or a resource's id, its
+`FrameRefusal`: both are `Carried`. A request awaiting the reply such a refusal's correlation
+id names fails at once with a `TransportError` saying "a frame on `<channel>` is not that
+channel's: " and the fault. Any other line the stream carries that is not a frame is told to
+`Errors()` as a `TransportError` with no status, saying "the stream carried what is not a
+frame: " and its first fault. The stream goes on after either. `HttpContentTransport` uploads multipart
 content and reads resource bytes, descriptions, annotations, and anchored text.
 
 The transport accepts a caller-owned `HttpClient`. Its own HTTP handler uses no proxy.

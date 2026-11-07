@@ -3,31 +3,27 @@ using System.Text.Json;
 
 namespace Semiont.Serialization;
 
-/// <summary>Why a value is refused.</summary>
-internal enum FrameRefusalReason
-{
-    /// <summary>It does not carry a member its schema requires, or the member holds null where it may not.</summary>
-    Lacks,
-
-    /// <summary>A member is not what its schema allows (of another kind, a value it does not list, a form or a size it
-    /// does not allow), or is one a closed object does not name.</summary>
-    Malformed,
-}
-
 /// <summary>The first thing wrong with a value: the way to the member it is at (the names of the members it is within,
 /// and its own, joined by dots; empty for the value itself), and why.</summary>
 internal sealed record Fault(string Member, FrameRefusalReason Reason)
 {
-    /// <summary>What every SDK says of it.</summary>
-    internal string Said => Reason == FrameRefusalReason.Lacks ? $"it has no `{Member}`"
-        : Member.Length == 0 ? "it is malformed" : $"its `{Member}` is malformed";
+    /// <summary>The fault of a value its decoder refuses that has no fault the table states: the value itself is
+    /// malformed.</summary>
+    internal static readonly Fault Undecoded = new("", FrameRefusalReason.Malformed);
+
+    /// <summary>What every SDK says of the fault.</summary>
+    public override string ToString() =>
+        Reason == FrameRefusalReason.Lacks ? "it has no `" + Member + "`"
+        : Member.Length == 0 ? "it is malformed"
+        : "its `" + Member + "` is malformed";
 }
 
 // The first fault of a value as one of the protocol's component schemas. Every SDK holds what it reads to the table of
 // what each schema requires, and names the first fault it finds the same way. The table is this SDK's copy of it
 // (generators/Semiont.Generator/required-schemas.json), written by the rules of
 // packages/codegen/schemas/required-shapes.mjs, which states what each part of a shape means and the order a reader
-// walks them in.
+// walks them in. The generator adds what each payload type the bus registry makes requires (an envelope of a schema's
+// response, and the empty payload) to it, by the same rules.
 internal static partial class Required
 {
     private static readonly Dictionary<string, Shape> Schemas = ParseTable();
