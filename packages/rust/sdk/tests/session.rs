@@ -11,17 +11,17 @@ use semiont::errors::{
     SemiontError, SessionError, SessionErrorCode, SignInError, SignInErrorCode, TransportError,
 };
 use semiont::session::{
-    SemiontSession, SemiontSessionConfig, SessionEndReason, SessionSignals, StoredSession,
-    session_key, store_session, stored_session,
+    SemiontSession, SemiontSessionConfig, SessionEndReason, SessionSignals, SignInKept,
+    StoredSession, kept_in, store_session, stored_session,
 };
 use semiont::state_unit::StateUnit;
-use semiont::storage::{SessionStorage, StorageChange, StorageSubscription};
 use semiont::testing::axioms::{AxiomSubject, Fresh, Surface, assert_state_unit_axioms};
 use semiont::testing::{
     FaultyTransport, SharedStorage, TestClientOptions, TestSessionOptions, create_test_client,
     create_test_session,
 };
 use semiont::timing::{MAX_RECONNECT, RECONNECT};
+use semiont::transport::BoxFuture;
 use semiont::types::{HttpEndpointProtocol, KbTarget, UserResponse};
 use serde_json::{Value, json};
 use std::collections::VecDeque;
@@ -112,8 +112,6 @@ type Validation = Result<UserResponse, SemiontError>;
 /// A session's environment, and a record of what the session did to it.
 struct World {
     storage: Arc<SharedStorage>,
-    /// Another context's handle on the same storage.
-    elsewhere: SharedStorage,
     transport: FaultyTransport,
     client: Arc<SemiontClient>,
     /// What `refresh` answers, in order; `Ok(None)` once it is spent.
@@ -135,7 +133,6 @@ impl World {
         let storage = Arc::new(SharedStorage::new());
         let transport = FaultyTransport::new(vec![]);
         World {
-            elsewhere: storage.context(),
             storage,
             client: create_test_client(TestClientOptions {
                 transport: Some(transport.clone()),
@@ -180,7 +177,7 @@ impl World {
         let (auth_failed, errors) = (self.auth_failed.clone(), self.errors.clone());
         SemiontSessionConfig {
             kb: KbTarget::http(KB, "Alpha", "localhost", 4000, HttpEndpointProtocol::Http),
-            storage: self.storage.clone(),
+            kept: kept_in(self.storage.clone(), KB),
             client: self.client.clone(),
             token: watch::channel(None).0,
             refresh: Some(Arc::new(move |_holding| {
@@ -289,14 +286,13 @@ async fn with_nothing_stored_a_session_has_no_token_and_asks_nobody() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn a_stored_token_that_is_still_good_is_the_sessions_at_once_and_says_who_it_is() {
+async fn a_stored_token_that_is_still_good_is_the_sessions_from_its_start_and_says_who_it_is() {
     let access = token(3600, 1);
     let world = World::new().storing(&access);
     let session = world.session();
-    // Before anything has run: it is what the transport sends first.
-    assert_eq!(session.token().borrow().as_deref(), Some(access.as_str()));
 
     ready(&session).await;
+    assert_eq!(session.token().borrow().as_deref(), Some(access.as_str()));
     assert_eq!(world.validated(), std::slice::from_ref(&access));
     assert_eq!(*session.user().borrow(), Some(alice()));
     assert_eq!(world.renewed(), 0);
@@ -410,33 +406,40 @@ async fn an_expired_token_whose_renewal_got_no_answer_is_kept_and_renewed_when_a
     }
 }
 
-/// A storage that holds what it has, and forgets none of it: every delete
-/// is refused.
-struct Unforgetting(SharedStorage);
+type Failure = Box<dyn std::error::Error + Send + Sync>;
 
-impl SessionStorage for Unforgetting {
-    fn get(&self, key: &str) -> Option<String> {
-        self.0.get(key)
+/// A sign-in kept that holds what it has, and forgets none of it: every
+/// forgetting is refused.
+struct Unforgetting(Arc<dyn SignInKept>);
+
+impl SignInKept for Unforgetting {
+    fn held(&self) -> BoxFuture<'_, Result<Option<StoredSession>, Failure>> {
+        self.0.held()
     }
 
-    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.0.set(key, value)
+    fn keep(&self, sign_in: StoredSession) -> BoxFuture<'_, Result<(), Failure>> {
+        self.0.keep(sign_in)
     }
 
-    fn delete(&self, _: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        Err("the storage is full".into())
+    fn renewed<'a>(
+        &'a self,
+        read: &'a StoredSession,
+        access: &'a str,
+        refresh: &'a str,
+    ) -> BoxFuture<'a, Result<Option<String>, Failure>> {
+        self.0.renewed(read, access, refresh)
     }
 
-    fn update(
-        &self,
-        key: &str,
-        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.0.update(key, change)
+    fn record_person_key<'a>(
+        &'a self,
+        access: &'a str,
+        person_key: &'a str,
+    ) -> BoxFuture<'a, Result<bool, Failure>> {
+        self.0.record_person_key(access, person_key)
     }
 
-    fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {
-        self.0.subscribe(on_change)
+    fn forget(&self) -> BoxFuture<'_, Result<(), Failure>> {
+        Box::pin(async { Err("the storage is full".into()) })
     }
 }
 
@@ -446,7 +449,7 @@ async fn an_expired_token_the_storage_will_not_forget_is_said_at_the_start() {
         .storing(&expired())
         .renewing([Err(refused_by_the_issuer())]);
     let session = SemiontSession::new(SemiontSessionConfig {
-        storage: Arc::new(Unforgetting(world.storage.context())),
+        kept: Arc::new(Unforgetting(kept_in(world.storage.clone(), KB))),
         ..world.config()
     });
     ready(&session).await;
@@ -1049,7 +1052,9 @@ async fn a_session_is_not_ended_by_the_refusal_of_a_token_it_no_longer_holds() {
     // The gateway holds its answer about the renewed token until released.
     let release = Arc::new(tokio::sync::Notify::new());
     let (holding, held_token) = (release.clone(), renewed.clone());
+    let sends = watch::channel(None).0;
     let session = SemiontSession::new(SemiontSessionConfig {
+        token: sends.clone(),
         validate: Some(Arc::new(move |token| {
             let (holding, held_token) = (holding.clone(), held_token.clone());
             Box::pin(async move {
@@ -1070,11 +1075,8 @@ async fn a_session_is_not_ended_by_the_refusal_of_a_token_it_no_longer_holds() {
         async move { renewer.refresh(refused.as_deref()).await }
     });
     settle().await;
-    // Another context signs in again while the gateway is being asked.
-    world
-        .elsewhere
-        .set(&session_key(KB), &stored(&other).written())
-        .expect("stored");
+    // The token is replaced while the gateway is being asked.
+    sends.send_replace(Some(other.clone()));
     release.notify_one();
 
     assert_eq!(
@@ -1162,7 +1164,7 @@ async fn a_session_that_cannot_be_renewed_is_over_and_says_so_once() {
 async fn a_session_whose_credential_the_storage_will_not_forget_says_so_as_it_ends() {
     let world = World::new().storing(&token(3600, 1));
     let session = SemiontSession::new(SemiontSessionConfig {
-        storage: Arc::new(Unforgetting(world.storage.context())),
+        kept: Arc::new(Unforgetting(kept_in(world.storage.clone(), KB))),
         ..world.config()
     });
     ready(&session).await;
@@ -1373,87 +1375,6 @@ async fn dropping_a_session_ends_what_it_holds_and_leaves_its_client_open() {
     assert_eq!(world.renewed(), 0);
     assert!(!world.client.bus().destroyed());
     assert!(world.transport.request_log().is_empty());
-}
-
-// ── What another context writes ─────────────────────────────────────────
-
-#[tokio::test(start_paused = true)]
-async fn a_token_another_context_renewed_is_taken_up() {
-    let world = World::new().storing(&token(3600, 1));
-    let session = world.session();
-    ready(&session).await;
-
-    let renewed = token(3600, 2);
-    world
-        .elsewhere
-        .set(&session_key(KB), &stored(&renewed).written())
-        .expect("stored");
-
-    assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
-    assert_eq!(*session.user().borrow(), Some(alice()));
-}
-
-#[tokio::test(start_paused = true)]
-async fn a_sign_out_in_another_context_signs_this_one_out() {
-    let world = World::new().storing(&token(3600, 1));
-    let session = world.session();
-    ready(&session).await;
-
-    world.elsewhere.delete(&session_key(KB)).expect("stored");
-
-    assert_eq!(*session.token().borrow(), None);
-    assert_eq!(*session.user().borrow(), None);
-    // Signed out, not expired: nobody is told the session failed.
-    assert!(world.auth_failed().is_empty());
-}
-
-#[tokio::test(start_paused = true)]
-async fn what_another_context_writes_elsewhere_or_unreadably_changes_nothing() {
-    let access = token(3600, 1);
-    let world = World::new().storing(&access);
-    let session = world.session();
-    ready(&session).await;
-
-    world
-        .elsewhere
-        .set(
-            &session_key("another-kb"),
-            &stored(&token(3600, 2)).written(),
-        )
-        .expect("stored");
-    world
-        .elsewhere
-        .set("semiont.knowledgeBases", "[]")
-        .expect("stored");
-    world
-        .elsewhere
-        .set(&session_key(KB), "not a session")
-        .expect("stored");
-    world
-        .elsewhere
-        .set(&session_key(KB), r#"{"access": 7}"#)
-        .expect("stored");
-
-    assert_eq!(session.token().borrow().as_deref(), Some(access.as_str()));
-    assert_eq!(*session.user().borrow(), Some(alice()));
-}
-
-#[tokio::test(start_paused = true)]
-async fn an_ended_session_hears_nothing_of_the_storage() {
-    let access = token(3600, 1);
-    let world = World::new().storing(&access);
-    let session = world.session();
-    ready(&session).await;
-    session.dispose();
-
-    world
-        .elsewhere
-        .set(&session_key(KB), &stored(&token(3600, 2)).written())
-        .expect("stored");
-    settle().await;
-
-    // What it held when it ended is what it shows: nothing after is taken up.
-    assert_eq!(session.token().borrow().as_deref(), Some(access.as_str()));
 }
 
 // ── What a host shows about a session ───────────────────────────────────

@@ -260,6 +260,15 @@ impl SemiontClient {
         self.browse.attach_persistence(persistence);
     }
 
+    /// Write nothing more of what the client keeps, for the rest of its
+    /// life: what its session does before it forgets its saved sign-in. It
+    /// returns once a write under way has finished, its check of the
+    /// sign-in included, so nothing the forget then deletes is written
+    /// after it.
+    pub(crate) fn stop_persisting(&self) {
+        self.browse.stop_persisting();
+    }
+
     /// Stop. The queries end first, so nothing they had in flight asks
     /// again of a transport that is going; then the transport closes, so
     /// every stream ends and every request still pending fails as closed;

@@ -45,7 +45,7 @@ use super::semiont_session::SemiontSession;
 use super::signals::{KbIdentityConflict, SessionSignals};
 use super::stored::{
     ACTIVE_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY, OPEN_RESOURCES_BY_KB_KEY, StoredSession,
-    forget_kept, forget_stored_session, is_token_expired, load_knowledge_bases,
+    forget_kept, is_token_expired, load_knowledge_bases, replace_stored_session,
     save_knowledge_bases, store_session, stored_session,
 };
 use crate::errors::{BusRequestErrorCode, SemiontError, SessionError, TransportErrorCode};
@@ -322,8 +322,7 @@ impl SemiontBrowser {
         id: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let inner = &self.inner;
-        let person_key =
-            forget_stored_session(inner.storage.as_ref(), id)?.and_then(|stored| stored.person_key);
+        let forgotten = replace_stored_session(inner.storage.as_ref(), id, None)?;
         inner.forget_open_of(id)?;
         let rest: Vec<KnowledgeBase> = inner
             .kbs
@@ -336,10 +335,7 @@ impl SemiontBrowser {
         if inner.active_kb_id.now().as_deref() == Some(id) {
             inner.set_active_kb(next).await?;
         }
-        if let Some(person_key) = person_key {
-            forget_kept(inner.storage.as_ref(), id, &person_key)?;
-        }
-        Ok(())
+        forget_kept(inner.storage.as_ref(), id, forgotten.as_ref())
     }
 
     /// Write what a knowledge base last said of itself onto its entry. Its
@@ -375,7 +371,12 @@ impl SemiontBrowser {
     }
 
     /// Keep new tokens for a registered knowledge base and bring its session
-    /// up on them. A session it already had is closed and replaced.
+    /// up on them. A session it already had is closed and replaced. The
+    /// saved sign-in they replace is forgotten: what its client kept of the
+    /// person it named goes, deleted once that client has closed, even when
+    /// the new sign-in turns out to be theirs, as a new sign-in names nobody
+    /// until its gateway names them
+    /// (protocol/specs/src/session/persisted-cases.json, `forget`).
     pub async fn sign_in(
         &self,
         id: &str,
@@ -458,9 +459,8 @@ impl SemiontBrowser {
         if inner.closed() {
             return Ok(());
         }
-        let stored = forget_stored_session(inner.storage.as_ref(), id)?;
-        let person_key = stored.as_ref().and_then(|stored| stored.person_key.clone());
-        if let Some(stored) = stored {
+        let forgotten = replace_stored_session(inner.storage.as_ref(), id, None)?;
+        if let Some(stored) = forgotten.clone() {
             // The sign-out is the local act: an issuer that cannot be
             // reached does not keep anyone in a session they asked to end.
             let revoking = inner.factory.revoke(stored);
@@ -471,15 +471,8 @@ impl SemiontBrowser {
         }
         // Said again, so whoever shows each knowledge base's status reads it anew.
         inner.kbs.raise(inner.kbs.now());
-        if inner.active_kb_id.now().as_deref() == Some(id)
-            && let Some(ended) = inner.take_session()
-        {
-            ended.close().await;
-        }
-        if let Some(person_key) = person_key {
-            forget_kept(inner.storage.as_ref(), id, &person_key)?;
-        }
-        Ok(())
+        inner.close_if_active(id).await;
+        forget_kept(inner.storage.as_ref(), id, forgotten.as_ref())
     }
 
     // ── What is open ────────────────────────────────────────────────────
@@ -772,15 +765,21 @@ impl Inner {
         if self.closed() {
             return Ok(());
         }
-        store_session(self.storage.as_ref(), id, session)?;
+        let replaced = replace_stored_session(self.storage.as_ref(), id, Some(session))?;
         // A session it already has is on the old tokens: it is closed, and
         // the one built next reads the new ones.
+        self.close_if_active(id).await;
+        forget_kept(self.storage.as_ref(), id, replaced.as_ref())?;
+        self.set_active_kb(Some(id.to_owned())).await
+    }
+
+    /// Close the knowledge base's session, when it is the active one's.
+    async fn close_if_active(&self, id: &str) {
         if self.active_kb_id.now().as_deref() == Some(id)
             && let Some(ended) = self.take_session()
         {
             ended.close().await;
         }
-        self.set_active_kb(Some(id.to_owned())).await
     }
 
     // ── The active session ──────────────────────────────────────────────

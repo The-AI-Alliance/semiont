@@ -10,7 +10,7 @@
 //!
 //! **A refusal and an outage are different events.** A `SignInError` that
 //! carries a status is the issuer's answer. One that carries none got no
-//! answer. A stored session's renewal is tried again only on the second
+//! answer. A kept sign-in's renewal is tried again only on the second
 //! kind, and on an answer that says "not now" (`retry::REFRESH`), inside a
 //! bounded budget: a refused grant is final, because trying again only
 //! delays a sign-in the person has to perform anyway.
@@ -23,8 +23,7 @@ use semiont::errors::{SignInError, SignInErrorCode, TransportError};
 use semiont::identity::encode_uri_component;
 use semiont::retry::{self, RetryFacts, retry_with_backoff};
 use semiont::session::{
-    BROWSER_CLIENT_ID, SCRIPT_CLIENT_ID, SIGN_IN_SCOPE, StoredSession, is_token_expired,
-    session_key,
+    BROWSER_CLIENT_ID, SCRIPT_CLIENT_ID, SIGN_IN_SCOPE, SignInKept, is_token_expired,
 };
 use semiont::storage::SessionStorage;
 use semiont::timing::{
@@ -454,29 +453,29 @@ pub async fn refresh_at_issuer(
     })
 }
 
-/// Renew a stored session at its issuer and keep what it rotated. The new
-/// access token; nothing when no session is stored, which is an absence and
-/// not a failure. `holding` is the token its holder has: the one the gateway
-/// refused, or the one due. A stored token that is not it, and has not
-/// expired, was renewed some other way meanwhile, and is given as it is, so
-/// no refresh token another program already replaced is spent. A renewal
+/// Renew the sign-in `kept` holds at its issuer and keep what it rotated.
+/// The new access token; nothing when no sign-in is kept, which is an
+/// absence and not a failure. `holding` is the token its holder has: the one
+/// the gateway refused, or the one due. A kept token that is not it, and has
+/// not expired, was renewed some other way meanwhile, and is given as it is,
+/// so no refresh token another program already replaced is spent. A renewal
 /// that fails says why in the issuer's own words, and, when the retry budget
 /// ran out, how many attempts it took to give up.
 ///
-/// What is kept is written against what is stored then
-/// (protocol/specs/src/sign-in-store/README.md, Renewing it). A renewal another
-/// program made while the grant was in flight stands, and its access token
-/// is the one given. A session that was signed out, or ended, while it was
-/// being renewed is gone: it is not written back, and its new token is given
-/// to nobody, since a session that is over is not handed a credential again.
-/// What the storage would not keep is the storage's own error.
-pub async fn refresh_stored_session(
-    storage: &dyn SessionStorage,
-    kb_id: &str,
+/// What is kept is written against what is kept then
+/// (`SignInKept::renewed`; protocol/specs/src/sign-in-store/README.md,
+/// Renewing it). A renewal another program made while the grant was in
+/// flight stands, and its access token is the one given. A sign-in that was
+/// signed out, or ended, while it was being renewed is gone: it is not
+/// written back, and its new token is given to nobody, since a session that
+/// is over is not handed a credential again. What the sign-in kept could not
+/// read or write is its own error.
+pub(crate) async fn renew_kept(
+    kept: &dyn SignInKept,
     holding: Option<&str>,
     http: &reqwest::Client,
 ) -> Result<Option<String>, Box<dyn std::error::Error + Send + Sync>> {
-    let Some(stored) = semiont::session::stored_session(storage, kb_id) else {
+    let Some(stored) = kept.held().await? else {
         return Ok(None);
     };
     if holding != Some(stored.access.as_str())
@@ -507,31 +506,7 @@ pub async fn refresh_stored_session(
     )
     .await;
     match renewed {
-        Ok(tokens) => {
-            let mut given = None;
-            storage.update(&session_key(kb_id), &mut |current| {
-                let current = current?;
-                let kept = StoredSession::read(current)?;
-                // Another program renewed, or signed in again, while the
-                // grant was in flight: its tokens stand. The refresh token
-                // alone does not tell, since an issuer that rotates none
-                // leaves it as it was.
-                if kept.access != stored.access || kept.refresh != stored.refresh {
-                    given = Some(kept.access);
-                    return Some(current.to_owned());
-                }
-                given = Some(tokens.access.clone());
-                Some(
-                    StoredSession {
-                        access: tokens.access.clone(),
-                        refresh: tokens.refresh.clone(),
-                        ..kept
-                    }
-                    .written(),
-                )
-            })?;
-            Ok(given)
-        }
+        Ok(tokens) => kept.renewed(&stored, &tokens.access, &tokens.refresh).await,
         // One attempt: the issuer answered, and its answer was final.
         Err(error) if attempts <= 1 => Err(error.into()),
         Err(error) => Err(SignInError {
@@ -697,3 +672,6 @@ pub async fn sign_in_with_device_grant(
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

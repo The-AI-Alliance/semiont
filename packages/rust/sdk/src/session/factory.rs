@@ -15,11 +15,15 @@ use std::sync::Arc;
 pub struct SessionFactoryOptions {
     /// The knowledge base the session is for.
     pub kb: KnowledgeBase,
-    /// Where its tokens are kept: the registry's own storage.
+    /// The registry's own storage: its sign-in is kept there under the
+    /// knowledge base's id (`super::kept_in`), and its client keeps what it
+    /// keeps of the person there.
     pub storage: Arc<dyn SessionStorage>,
     /// Where the session says it is over, for a host to show.
     pub signals: Arc<SessionSignals>,
-    /// Told of each failure that makes the session unusable.
+    /// Told of the session's failures: each that makes it unusable, and its
+    /// client's keeping stopped because the sign-in could not be read
+    /// (`SessionErrorCode::KeepFailed`), which the session outlives.
     pub on_error: OnSessionError,
 }
 

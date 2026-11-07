@@ -19,6 +19,7 @@ use crate::errors::{
 use crate::locked;
 use crate::session::{
     SemiontSession, SemiontSessionConfig, SessionFactory, SessionFactoryOptions, StoredSession,
+    kept_in,
 };
 use crate::transport::BoxFuture;
 use crate::types::UserResponse;
@@ -186,7 +187,7 @@ impl SessionFactory for ScriptedSessions {
         let signals = options.signals;
         Ok(SemiontSession::new(SemiontSessionConfig {
             kb: options.kb.target(),
-            storage: options.storage,
+            kept: kept_in(options.storage, &kb_id),
             client,
             token: watch::channel(None).0,
             refresh: Some(Arc::new(move |_holding| {

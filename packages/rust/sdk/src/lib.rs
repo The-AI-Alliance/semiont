@@ -8,7 +8,7 @@
 //! (`storage`), and the stream's place kept with the caches (`resume`); the flows held as state a consumer reads and watches
 //! (`state`); a session with a knowledge base and the registry of the ones
 //! an application has signed in to (`session`); the sign-ins `semiont login`
-//! keeps, as a storage (`sign_in_store`); the media types a knowledge base
+//! keeps, each as a sign-in kept (`sign_in_store`); the media types a knowledge base
 //! admits (`media_types`); the readers of a resource's description, and of
 //! its bytes as text (`resources`); the knowledge bases a launcher
 //! manages (`discovery`); when a failure is worth another attempt; whether a

@@ -32,15 +32,15 @@ use semiont::identity::agent_did;
 use semiont::refresh::CacheQuery;
 use semiont::roles::{AGENT_KIND, KIND_CLAIM, is_agent};
 use semiont::session::{
-    OpenedSession, SemiontBrowser, SemiontBrowserConfig, SemiontSession, SessionEndReason,
-    StoredSession, cache_key, last_event_id_key, person_key, save_knowledge_bases, session_key,
-    store_session, stored_session,
+    MemorySignIn, OpenedSession, SemiontBrowser, SemiontBrowserConfig, SemiontSession,
+    SessionEndReason, SignInKept, StoredSession, cache_key, kept_in, last_event_id_key, person_key,
+    save_knowledge_bases, store_session, stored_session,
 };
 use semiont::sign_in_store::{FILE_NAME, SignInStore};
 use semiont::storage::{InMemorySessionStorage, SessionStorage};
 use semiont::testing::as_id;
 use semiont::testing::examples::{assert_blocks_are_examples, assert_readme_shows};
-use semiont::timing::{DEVICE_SLOW_DOWN, HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
+use semiont::timing::{DEVICE_SLOW_DOWN, HTTP_REQUEST_TIMEOUT};
 use semiont::transport::{Envelope, PutBinaryRequest};
 use semiont::types::{
     AgentSoftware, Annotation, FailureClass, HttpEndpoint, HttpEndpointProtocol,
@@ -55,14 +55,14 @@ use semiont_http_transport::loopback::LoopbackRedirect;
 use semiont_http_transport::oauth::{
     BeginAuthorization, DeviceCode, PENDING_AUTHORIZATION_KEY, PendingAuthorization,
     begin_authorization, code_challenge, complete_authorization, discover_issuer,
-    refresh_at_issuer, refresh_stored_session, revoke_at_issuer, sign_in_with_device_grant,
+    refresh_at_issuer, revoke_at_issuer, sign_in_with_device_grant,
 };
 use semiont_http_transport::service_account::{
     Credential, KeyCredential, KeyError, SecretCredential, ServiceToken, private_key_from_pem,
 };
 use semiont_http_transport::session::{
-    HttpSessionFactory, IssuedSession, SignInDevice, StoredSignIn, begin_sign_in, complete_sign_in,
-    describe_connection, session_from_issued, session_from_stored, sign_in_device,
+    HttpSessionFactory, SessionFromKept, begin_sign_in, complete_sign_in, describe_connection,
+    session_from_kept, sign_in_device, sign_out,
 };
 use semiont_http_transport::transport::{HttpTransportConfig, Timing, TokenRefresher};
 use serde_json::{Value, json};
@@ -948,324 +948,12 @@ async fn a_refused_renewal_says_what_the_issuer_said_and_the_status_it_answered(
     );
 }
 
-fn storing(world: &World, kb_id: &str, access: &str) -> Arc<InMemorySessionStorage> {
-    let storage = Arc::new(InMemorySessionStorage::new());
-    store_session(storage.as_ref(), kb_id, &world.stored(access, "r1")).expect("stored");
-    storage
-}
-
-#[tokio::test(start_paused = true)]
-async fn a_stored_sessions_renewal_rides_out_an_issuer_that_says_not_now_and_keeps_the_rotation() {
-    let world = World::on_a_quick_clock().await;
-    let storage = storing(&world, "kb-a", "a1");
-    world.answers([
-        (503, Value::Null),
-        (429, json!({ "error": "slow_down" })),
-        granted("a2", Some("r2")),
-    ]);
-
-    let renewed = refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http)
-        .await
-        .expect("renewed");
-
-    assert_eq!(renewed, Some("a2".to_owned()));
-    assert_eq!(world.token_forms().len(), 3);
-    assert_eq!(
-        stored_session(storage.as_ref(), "kb-a"),
-        Some(world.stored("a2", "r2"))
-    );
-}
-
-#[tokio::test]
-async fn a_renewal_keeps_the_person_the_stored_session_names() {
-    let world = World::start().await;
-    let storage = Arc::new(InMemorySessionStorage::new());
-    let naming = |access: &str, refresh: &str| StoredSession {
-        person_key: Some(person_key(ALICE)),
-        ..world.stored(access, refresh)
-    };
-    store_session(storage.as_ref(), "kb-a", &naming("a1", "r1")).expect("stored");
-    world.answers([granted("a2", Some("r2"))]);
-
-    let renewed = refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http)
-        .await
-        .expect("renewed");
-
-    assert_eq!(renewed, Some("a2".to_owned()));
-    assert_eq!(
-        stored_session(storage.as_ref(), "kb-a"),
-        Some(naming("a2", "r2"))
-    );
-}
-
-#[tokio::test(start_paused = true)]
-async fn a_refused_grant_is_final_on_its_first_answer() {
-    let world = World::on_a_quick_clock().await;
-    for refusal in [
-        (400, json!({ "error": "invalid_grant" })),
-        (401, json!({ "error": "invalid_client" })),
-        (404, Value::Null),
-    ] {
-        let storage = storing(&world, "kb-a", "a1");
-        let before = world.token_forms().len();
-        world.answers([refusal.clone(), granted("never", None)]);
-
-        let refused = refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http)
-            .await
-            .map_err(sign_in_error)
-            .expect_err("the grant is refused");
-
-        assert_eq!(refused.status, Some(refusal.0));
-        assert!(
-            refused
-                .message
-                .starts_with("The issuer refused the token request"),
-            "{refused}"
-        );
-        assert_eq!(world.token_forms().len(), before + 1);
-        assert_eq!(
-            stored_session(storage.as_ref(), "kb-a"),
-            Some(world.stored("a1", "r1"))
-        );
-        world.staged.token_answers.lock().unwrap().clear();
-    }
-}
-
-#[tokio::test(start_paused = true)]
-async fn a_renewal_that_is_never_answered_gives_up_and_says_how_hard_it_tried() {
-    let world = World::on_a_quick_clock().await;
-    let storage = storing(&world, "kb-a", "a1");
-    world.answers((0..10).map(|_| (503, Value::Null)));
-
-    let refused = refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http)
-        .await
-        .map_err(sign_in_error)
-        .expect_err("the budget is spent");
-
-    assert_eq!(world.token_forms().len(), 4);
-    assert_eq!(
-        refused.message,
-        "The session could not be renewed after 4 attempts: The issuer refused the token request (HTTP 503)"
-    );
-
-    // And one that got no answer at all is tried as often.
-    let nowhere = Arc::new(InMemorySessionStorage::new());
-    store_session(
-        nowhere.as_ref(),
-        "kb-a",
-        &StoredSession {
-            token_endpoint: "http://127.0.0.1:9/token".to_owned(),
-            ..world.stored("a1", "r1")
-        },
-    )
-    .expect("stored");
-    let unanswered = refresh_stored_session(nowhere.as_ref(), "kb-a", Some("a1"), &world.http)
-        .await
-        .map_err(sign_in_error)
-        .expect_err("nothing is there");
-    assert_eq!(unanswered.status, None);
-    assert!(
-        unanswered
-            .message
-            .starts_with("The session could not be renewed after 4 attempts:"),
-        "{unanswered}"
-    );
-}
-
-// ── What a renewal keeps while other programs renew and sign out ──────
-//
-// Every renewal of protocol/specs/src/sign-in-store/cases.json, through
-// refresh_stored_session, over each storage a sign-in is kept in here.
-
 /// The sign-in error a failure is.
 fn sign_in_error(failure: Box<dyn Error + Send + Sync>) -> SignInError {
     match failure.downcast::<SignInError>() {
         Ok(refused) => *refused,
         Err(other) => panic!("{other} is not a sign-in error"),
     }
-}
-
-/// The renewer's storage, on which another program acts between the
-/// renewal's read and its write: while its grant is in flight.
-struct Meanwhile {
-    renewer: Arc<dyn SessionStorage>,
-    act: Mutex<Option<Box<dyn FnOnce() + Send>>>,
-}
-
-impl SessionStorage for Meanwhile {
-    fn get(&self, key: &str) -> Option<String> {
-        let found = self.renewer.get(key);
-        if let Some(act) = self.act.lock().unwrap().take() {
-            act();
-        }
-        found
-    }
-    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
-        self.renewer.set(key, value)
-    }
-    fn delete(&self, key: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
-        self.renewer.delete(key)
-    }
-    fn update(
-        &self,
-        key: &str,
-        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        self.renewer.update(key, change)
-    }
-    fn subscribe(
-        &self,
-        on_change: semiont::storage::StorageChange,
-    ) -> Option<semiont::storage::StorageSubscription> {
-        self.renewer.subscribe(on_change)
-    }
-}
-
-/// The name of an access token a renewal row minted: its `jti`.
-fn named(token: &str) -> String {
-    token
-        .split('.')
-        .nth(1)
-        .and_then(|claims| URL_SAFE_NO_PAD.decode(claims).ok())
-        .and_then(|claims| serde_json::from_slice::<Value>(&claims).ok())
-        .and_then(|claims| claims["jti"].as_str().map(str::to_owned))
-        .unwrap_or_else(|| token.to_owned())
-}
-
-/// What one renewal row comes to over one storage: each way it is not the
-/// row's.
-async fn renewed_as_the_row_says(row: &Value, store: &str) -> Vec<String> {
-    let world = World::start().await;
-    let home = StateHome::new();
-    let in_the_file = || -> Arc<dyn SessionStorage> {
-        Arc::new(SignInStore::at(
-            home.0.join(FILE_NAME),
-            Arc::new(InMemorySessionStorage::new()),
-            Arc::new(|why| panic!("the sign-in store: {why}")),
-        ))
-    };
-    // The renewer's storage, and another program's.
-    let (renewer, another) = match store {
-        "SignInStore" => (in_the_file(), in_the_file()),
-        _ => {
-            let shared: Arc<dyn SessionStorage> = Arc::new(InMemorySessionStorage::new());
-            (shared.clone(), shared)
-        }
-    };
-    let expired: Vec<&str> = row["expired"]
-        .as_array()
-        .expect("expired")
-        .iter()
-        .map(|name| name.as_str().expect("a name"))
-        .collect();
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("after the epoch")
-        .as_secs() as i64;
-    // Each access token the row names is a JWT of its own.
-    let token = |name: &str| {
-        let expiry = if expired.contains(&name) {
-            now - 3600
-        } else {
-            now + 3600
-        };
-        let claims = json!({ "email": "alice@example.org", "iss": world.issuer(), "exp": expiry, "jti": name });
-        format!(
-            "{}.{}.sig",
-            URL_SAFE_NO_PAD.encode(r#"{"alg":"none"}"#),
-            URL_SAFE_NO_PAD.encode(claims.to_string())
-        )
-    };
-    let session = |stated: &Value| StoredSession {
-        access: token(stated["token"].as_str().expect("a token")),
-        refresh: stated["refreshToken"]
-            .as_str()
-            .expect("a refresh token")
-            .to_owned(),
-        client_id: "semiont-cli".to_owned(),
-        token_endpoint: format!("{}/token", world.issuer()),
-        revocation_endpoint: None,
-        person_key: None,
-    };
-    store_session(another.as_ref(), "local", &session(&row["kept"])).expect("stored");
-    let meanwhile = &row["meanwhile"];
-    let act: Option<Box<dyn FnOnce() + Send>> = match meanwhile["does"].as_str() {
-        None => None,
-        Some("renews") => {
-            let (another, theirs) = (another.clone(), session(&meanwhile["theirs"]));
-            Some(Box::new(move || {
-                store_session(another.as_ref(), "local", &theirs).expect("stored")
-            }))
-        }
-        Some("signs-out") => {
-            let another = another.clone();
-            Some(Box::new(move || {
-                another.delete(&session_key("local")).expect("forgotten")
-            }))
-        }
-        Some(other) => panic!("another program {other}"),
-    };
-    let issues = &row["issues"];
-    world.answers([granted(
-        &token(issues["token"].as_str().expect("a token")),
-        issues["refreshToken"].as_str(),
-    )]);
-    let renewing: Arc<dyn SessionStorage> = match (meanwhile["when"].as_str(), act) {
-        (_, None) => renewer.clone(),
-        (Some("before"), Some(act)) => {
-            act();
-            renewer.clone()
-        }
-        (Some("during"), Some(act)) => Arc::new(Meanwhile {
-            renewer: renewer.clone(),
-            act: Mutex::new(Some(act)),
-        }),
-        (when, _) => panic!("another program acts {when:?}"),
-    };
-    let holding = row["holding"].as_str().map(token);
-
-    let given =
-        refresh_stored_session(renewing.as_ref(), "local", holding.as_deref(), &world.http).await;
-
-    let mut wrong = Vec::new();
-    let spent: Vec<String> = world
-        .token_forms()
-        .iter()
-        .map(|form| form["refresh_token"].clone())
-        .collect();
-    let spends: Vec<String> = row["spends"]
-        .as_str()
-        .map(str::to_owned)
-        .into_iter()
-        .collect();
-    if spent != spends {
-        wrong.push(format!("grants were made with {spent:?}, want {spends:?}"));
-    }
-    match given {
-        Ok(given) => {
-            let given = given.as_deref().map(named);
-            let gives = row["gives"].as_str().map(str::to_owned);
-            if given != gives {
-                wrong.push(format!("gave {given:?}, want {gives:?}"));
-            }
-        }
-        Err(failed) => wrong.push(format!("the renewal failed: {failed}")),
-    }
-    let left =
-        stored_session(renewer.as_ref(), "local").map(|left| (named(&left.access), left.refresh));
-    let leaves = row["leaves"].as_object().map(|leaves| {
-        (
-            leaves["token"].as_str().expect("a token").to_owned(),
-            leaves["refreshToken"]
-                .as_str()
-                .expect("a refresh token")
-                .to_owned(),
-        )
-    });
-    if left != leaves {
-        wrong.push(format!("the store holds {left:?}, want {leaves:?}"));
-    }
-    wrong
 }
 
 /// The key a pending sign-in is kept under is protocol/specs/src/session/stored.json's;
@@ -1363,44 +1051,6 @@ async fn a_sign_in_begun_is_kept_as_the_table_states_it() {
         .await
         .expect("a URL");
     assert_eq!(written(&bare), required_of(shape));
-}
-
-#[tokio::test]
-async fn every_renewal_is_the_tables() {
-    let table: Value = serde_json::from_str(include_str!(
-        "../../../../protocol/specs/src/sign-in-store/cases.json"
-    ))
-    .expect("the table");
-    let rows = table["renewals"].as_array().expect("the renewals");
-    assert!(!rows.is_empty(), "the table has no renewals");
-    let members = HashSet::from([
-        "why",
-        "kept",
-        "holding",
-        "meanwhile",
-        "expired",
-        "issues",
-        "spends",
-        "leaves",
-        "gives",
-    ]);
-    let mut wrong = Vec::new();
-    for row in rows {
-        let stated: HashSet<&str> = row
-            .as_object()
-            .expect("a row")
-            .keys()
-            .map(String::as_str)
-            .collect();
-        assert_eq!(stated, members, "{row}");
-        let why = row["why"].as_str().expect("why");
-        for store in ["SignInStore", "InMemorySessionStorage"] {
-            for failure in renewed_as_the_row_says(row, store).await {
-                wrong.push(format!("{store}, {why}: {failure}"));
-            }
-        }
-    }
-    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
 #[tokio::test]
@@ -1587,12 +1237,24 @@ async fn a_device_authorization_answer_with_no_lifetime_is_refused() {
 
 // ── Sessions over a gateway ─────────────────────────────────────────────
 
-fn issued(world: &World, storage: Arc<InMemorySessionStorage>, access: &str) -> IssuedSession {
-    IssuedSession {
+/// A sign-in kept in memory, holding `access` and "r1".
+async fn kept_holding(world: &World, access: &str) -> Arc<MemorySignIn> {
+    let kept = Arc::new(MemorySignIn::new());
+    kept.keep(world.stored(access, "r1")).await.expect("kept");
+    kept
+}
+
+/// What `kept` holds: a read that fails is no answer.
+async fn held_by(kept: &dyn SignInKept) -> Option<StoredSession> {
+    kept.held().await.expect("the sign-in is read")
+}
+
+/// A script's session of "a-script" over the sign-in `kept` holds, which
+/// asks who its token is.
+fn from_kept(world: &World, kept: Arc<MemorySignIn>) -> SessionFromKept {
+    SessionFromKept {
         kb: world.kb("a-script"),
-        storage,
-        base_url: world.origin.clone(),
-        session: world.stored(access, "r1"),
+        kept,
         validate: true,
         on_auth_failed: None,
         on_error: None,
@@ -1601,19 +1263,19 @@ fn issued(world: &World, storage: Arc<InMemorySessionStorage>, access: &str) -> 
 }
 
 #[tokio::test]
-async fn a_session_over_issued_tokens_keeps_them_is_ready_and_says_who_it_is() {
+async fn a_session_over_a_kept_sign_in_is_ready_and_says_who_it_is() {
     let world = World::start().await;
-    let storage = Arc::new(InMemorySessionStorage::new());
     let access = jwt(3600, 1);
+    let kept = kept_holding(&world, &access).await;
 
-    let opened = session_from_issued(issued(&world, storage.clone(), &access))
+    let opened = session_from_kept(from_kept(&world, kept.clone()))
         .await
         .expect("a session");
     let session = opened.session();
 
     assert_eq!(session.token().borrow().as_deref(), Some(access.as_str()));
     assert_eq!(
-        stored_session(storage.as_ref(), "a-script"),
+        held_by(kept.as_ref()).await,
         Some(world.stored(&access, "r1"))
     );
     assert_eq!(*world.staged.asked_who.lock().unwrap(), [access]);
@@ -1626,6 +1288,53 @@ async fn a_session_over_issued_tokens_keeps_them_is_ready_and_says_who_it_is() {
         Some("alice@example.org".to_owned())
     );
     opened.close().await;
+}
+
+/// With nothing kept, the session is signed out: it has no token, nobody is
+/// asked who it is, and a request through its client is refused without a
+/// renewal.
+#[tokio::test]
+async fn with_nothing_kept_a_session_is_signed_out() {
+    let world = World::start().await;
+    let kept = Arc::new(MemorySignIn::new());
+
+    let opened = session_from_kept(from_kept(&world, kept.clone()))
+        .await
+        .expect("a session");
+    let session = opened.session();
+
+    assert_eq!(*session.token().borrow(), None);
+    assert_eq!(*session.user().borrow(), None);
+    assert!(world.staged.asked_who.lock().unwrap().is_empty());
+    let auth = session.client().auth.as_ref().expect("auth");
+    assert!(ends(auth.me()).await.is_err());
+    assert!(world.token_forms().is_empty());
+    assert_eq!(held_by(kept.as_ref()).await, None);
+    opened.close().await;
+}
+
+/// A knowledge base reached any other way than over HTTP has no session
+/// over a gateway: refused before anything is asked.
+#[tokio::test]
+async fn a_knowledge_base_not_reached_over_http_has_no_session_over_a_gateway() {
+    let world = World::start().await;
+    let kept = kept_holding(&world, &jwt(3600, 1)).await;
+
+    let refused = session_from_kept(SessionFromKept {
+        kb: KbTarget {
+            id: "in-process".to_owned(),
+            label: "Here".to_owned(),
+            endpoint: KbEndpoint::LocalEndpoint(LocalEndpoint::new("here")),
+        },
+        ..from_kept(&world, kept)
+    })
+    .await
+    .err()
+    .expect("no session is built");
+
+    assert_eq!(refused.code, SessionErrorCode::ConstructFailed);
+    assert_eq!(refused.kb_id.as_deref(), Some("in-process"));
+    assert!(world.staged.asked_who.lock().unwrap().is_empty());
 }
 
 /// Every key a person's queries and stream's places are kept under on a
@@ -1676,10 +1385,7 @@ async fn a_new_sign_in_saved_over_one_naming_a_person_deletes_what_was_kept_for_
     let storage = kept_and_signed_in(&world, Some(ALICE));
     let access = jwt(3600, 1);
 
-    let opened = session_from_issued(issued(&world, storage.clone(), &access))
-        .await
-        .expect("a session");
-    opened.close().await;
+    store_session(storage.as_ref(), "a-script", &world.stored(&access, "r1")).expect("stored");
 
     assert_eq!(
         stored_session(storage.as_ref(), "a-script"),
@@ -1706,10 +1412,7 @@ async fn a_new_sign_in_saved_over_one_naming_nobody_deletes_nothing() {
     let storage = kept_and_signed_in(&world, None);
     let access = jwt(3600, 1);
 
-    let opened = session_from_issued(issued(&world, storage.clone(), &access))
-        .await
-        .expect("a session");
-    opened.close().await;
+    store_session(storage.as_ref(), "a-script", &world.stored(&access, "r1")).expect("stored");
 
     assert_eq!(
         stored_session(storage.as_ref(), "a-script"),
@@ -1727,10 +1430,10 @@ async fn a_new_sign_in_saved_over_one_naming_nobody_deletes_nothing() {
 #[tokio::test]
 async fn asking_who_a_token_is_opens_no_stream_of_its_own() {
     let world = World::start().await;
-    let storage = Arc::new(InMemorySessionStorage::new());
     let access = jwt(3600, 1);
+    let kept = kept_holding(&world, &access).await;
 
-    let opened = session_from_issued(issued(&world, storage, &access))
+    let opened = session_from_kept(from_kept(&world, kept))
         .await
         .expect("a session");
     until("the session's stream is open", || {
@@ -1754,19 +1457,19 @@ async fn a_gateway_that_refuses_what_its_issuer_issues_is_asked_twice_and_then_l
     *world.staged.refuses_everyone.lock().unwrap() = true;
     // An issuer that renews for as long as it is asked.
     world.answers((2..60).map(|n| granted(&jwt(3600, n), Some("r"))));
-    let storage = Arc::new(InMemorySessionStorage::new());
+    let kept = kept_holding(&world, &jwt(3600, 1)).await;
     let told: Arc<Mutex<Vec<SessionEndReason>>> = Arc::default();
     let reported: Arc<Mutex<Vec<SessionErrorCode>>> = Arc::default();
     let (telling, reporting) = (told.clone(), reported.clone());
 
-    let opened = ends(session_from_issued(IssuedSession {
+    let opened = ends(session_from_kept(SessionFromKept {
         on_auth_failed: Some(Arc::new(move |reason| {
             telling.lock().unwrap().push(reason);
         })),
         on_error: Some(Arc::new(move |error| {
             reporting.lock().unwrap().push(error.code);
         })),
-        ..issued(&world, storage.clone(), &jwt(3600, 1))
+        ..from_kept(&world, kept.clone())
     }))
     .await
     .expect("a session");
@@ -1778,10 +1481,11 @@ async fn a_gateway_that_refuses_what_its_issuer_issues_is_asked_twice_and_then_l
         *reported.lock().unwrap(),
         [SessionErrorCode::CredentialRefused]
     );
-    assert_eq!(stored_session(storage.as_ref(), "a-script"), None);
+    // The sign-in the gateway refused is forgotten.
+    assert_eq!(held_by(kept.as_ref()).await, None);
 
     // And then the gateway and the issuer are left alone, however long the
-    // session is held: its stream asked with the stored token and with the
+    // session is held: its stream asked with the kept token and with the
     // renewed one, and waits for a different credential with no request.
     tokio::time::sleep(Duration::from_secs(120)).await;
     assert_eq!(*session.token().borrow(), None);
@@ -1805,18 +1509,18 @@ async fn a_running_session_whose_gateway_starts_refusing_ends_on_the_first_refus
         std::iter::once(granted(&renewed, Some("r")))
             .chain((3..60).map(|n| granted(&jwt(3600, n), Some("r")))),
     );
-    let storage = Arc::new(InMemorySessionStorage::new());
+    let kept = kept_holding(&world, &first).await;
     let told: Arc<Mutex<Vec<SessionEndReason>>> = Arc::default();
     let reported: Arc<Mutex<Vec<SessionErrorCode>>> = Arc::default();
     let (telling, reporting) = (told.clone(), reported.clone());
-    let opened = ends(session_from_issued(IssuedSession {
+    let opened = ends(session_from_kept(SessionFromKept {
         on_auth_failed: Some(Arc::new(move |reason| {
             telling.lock().unwrap().push(reason);
         })),
         on_error: Some(Arc::new(move |error| {
             reporting.lock().unwrap().push(error.code);
         })),
-        ..issued(&world, storage.clone(), &first)
+        ..from_kept(&world, kept.clone())
     }))
     .await
     .expect("a session");
@@ -1847,7 +1551,7 @@ async fn a_running_session_whose_gateway_starts_refusing_ends_on_the_first_refus
         *reported.lock().unwrap(),
         [SessionErrorCode::CredentialRefused]
     );
-    assert_eq!(stored_session(storage.as_ref(), "a-script"), None);
+    assert_eq!(held_by(kept.as_ref()).await, None);
     assert_eq!(*session.token().borrow(), None);
 
     // A request after that is refused as it is: nothing is renewed for it,
@@ -1860,12 +1564,16 @@ async fn a_running_session_whose_gateway_starts_refusing_ends_on_the_first_refus
     opened.close().await;
 }
 
+/// A session renews through the sign-in it was built from: at the issuer
+/// the sign-in names, as the client it was issued to, and what the issuer
+/// issued is kept there (`renewed`). A refused renewal ends it, and the
+/// sign-in is forgotten (`forget`).
 #[tokio::test]
-async fn a_session_renews_at_the_issuer_its_stored_session_names() {
+async fn a_session_renews_through_the_sign_in_it_was_built_from() {
     let world = World::start().await;
-    let storage = Arc::new(InMemorySessionStorage::new());
     let (first, second) = (jwt(3600, 1), jwt(3600, 2));
-    let opened = session_from_issued(issued(&world, storage.clone(), &first))
+    let kept = kept_holding(&world, &first).await;
+    let opened = session_from_kept(from_kept(&world, kept.clone()))
         .await
         .expect("a session");
     let session = opened.session();
@@ -1876,25 +1584,55 @@ async fn a_session_renews_at_the_issuer_its_stored_session_names() {
     assert_eq!(world.token_forms()[0]["refresh_token"], "r1");
     assert_eq!(world.token_forms()[0]["client_id"], "semiont-browser");
     assert_eq!(
-        stored_session(storage.as_ref(), "a-script"),
+        held_by(kept.as_ref()).await,
         Some(world.stored(&second, "r2"))
     );
 
-    // A refused renewal ends it: no token, and nothing stored.
+    // A refused renewal ends it: no token, and nothing kept.
     assert_eq!(session.refresh(Some(&second)).await, None);
     assert_eq!(*session.token().borrow(), None);
-    assert_eq!(stored_session(storage.as_ref(), "a-script"), None);
+    assert_eq!(held_by(kept.as_ref()).await, None);
+    opened.close().await;
+}
+
+/// Another holder of the same sign-in renewed it: the session takes the
+/// token it kept, and spends no refresh token another already replaced.
+#[tokio::test]
+async fn a_session_takes_the_renewal_another_holder_of_its_sign_in_made() {
+    let world = World::start().await;
+    let (first, theirs) = (jwt(3600, 1), jwt(3600, 9));
+    let kept = kept_holding(&world, &first).await;
+    let opened = session_from_kept(SessionFromKept {
+        validate: false,
+        ..from_kept(&world, kept.clone())
+    })
+    .await
+    .expect("a session");
+    let session = opened.session();
+    let given = kept
+        .renewed(&world.stored(&first, "r1"), &theirs, "r9")
+        .await
+        .expect("renewed");
+    assert_eq!(given.as_deref(), Some(theirs.as_str()));
+
+    assert_eq!(session.refresh(Some(&first)).await, Some(theirs.clone()));
+
+    assert!(world.token_forms().is_empty());
+    assert_eq!(
+        held_by(kept.as_ref()).await,
+        Some(world.stored(&theirs, "r9"))
+    );
     opened.close().await;
 }
 
 #[tokio::test]
 async fn a_token_the_gateway_refuses_is_renewed_and_the_request_made_again() {
     let world = World::start().await;
-    let storage = Arc::new(InMemorySessionStorage::new());
     let (first, second) = (jwt(3600, 1), jwt(3600, 2));
-    let opened = session_from_issued(IssuedSession {
+    let kept = kept_holding(&world, &first).await;
+    let opened = session_from_kept(SessionFromKept {
         validate: false,
-        ..issued(&world, storage, &first)
+        ..from_kept(&world, kept)
     })
     .await
     .expect("a session");
@@ -1920,33 +1658,23 @@ async fn a_token_the_gateway_refuses_is_renewed_and_the_request_made_again() {
     opened.close().await;
 }
 
+/// A sign-in by the device grant is kept where the script says, as the
+/// script client's, and a session is then built from it.
 #[tokio::test(start_paused = true)]
-async fn a_script_signs_in_by_the_device_grant_and_holds_a_ready_session() {
+async fn a_script_signs_in_by_the_device_grant_and_keeps_the_sign_in() {
     let world = World::on_a_quick_clock().await;
-    let storage = Arc::new(InMemorySessionStorage::new());
+    let kept = Arc::new(MemorySignIn::new());
     let access = jwt(3600, 1);
     world.answers([granted(&access, Some("a-refresh-token"))]);
 
-    let opened: OpenedSession = sign_in_device(
-        SignInDevice {
-            kb: world.kb("a-script"),
-            storage: storage.clone(),
-            validate: false,
-            on_auth_failed: None,
-            on_error: None,
-            http: world.http.clone(),
-        },
-        |_| {},
-    )
-    .await
-    .expect("a session");
-    let session = opened.session();
+    sign_in_device(&world.kb("a-script"), kept.as_ref(), |_| {}, &world.http)
+        .await
+        .expect("signed in");
 
-    assert_eq!(session.token().borrow().as_deref(), Some(access.as_str()));
     assert_eq!(
-        stored_session(storage.as_ref(), "a-script"),
+        held_by(kept.as_ref()).await,
         Some(StoredSession {
-            access,
+            access: access.clone(),
             refresh: "a-refresh-token".to_owned(),
             client_id: "semiont-cli".to_owned(),
             token_endpoint: format!("{}/token", world.issuer()),
@@ -1954,21 +1682,27 @@ async fn a_script_signs_in_by_the_device_grant_and_holds_a_ready_session() {
             person_key: None,
         })
     );
+    let opened = session_from_kept(SessionFromKept {
+        validate: false,
+        ..from_kept(&world, kept.clone())
+    })
+    .await
+    .expect("a session");
+    assert_eq!(
+        opened.session().token().borrow().as_deref(),
+        Some(access.as_str())
+    );
+    opened.close().await;
 
     let local = sign_in_device(
-        SignInDevice {
-            kb: KbTarget {
-                id: "in-process".to_owned(),
-                label: "Here".to_owned(),
-                endpoint: KbEndpoint::LocalEndpoint(LocalEndpoint::new("here")),
-            },
-            storage,
-            validate: false,
-            on_auth_failed: None,
-            on_error: None,
-            http: world.http.clone(),
+        &KbTarget {
+            id: "in-process".to_owned(),
+            label: "Here".to_owned(),
+            endpoint: KbEndpoint::LocalEndpoint(LocalEndpoint::new("here")),
         },
+        kept.as_ref(),
         |_| {},
+        &world.http,
     )
     .await;
     assert_eq!(
@@ -1978,6 +1712,136 @@ async fn a_script_signs_in_by_the_device_grant_and_holds_a_ready_session() {
                 .to_owned()
         )
     );
+}
+
+/// A sign-in by the device grant kept in the file `semiont login` keeps is
+/// the launcher's: written as the launcher writes one, and held by a store
+/// of its own.
+#[tokio::test(start_paused = true)]
+async fn a_device_sign_in_kept_in_the_launchers_file_is_the_launchers() {
+    let world = World::on_a_quick_clock().await;
+    let home = StateHome::new();
+    // The file keeps a sign-in whose token names the issuer it was made at.
+    let access = token_of(
+        3600,
+        json!({ "iss": world.issuer(), "email": "alice@example.org" }),
+    );
+    world.answers([granted(&access, Some("a-refresh-token"))]);
+
+    sign_in_device(
+        &world.kb("local"),
+        SignInStore::at(home.0.join(FILE_NAME))
+            .entry("local")
+            .as_ref(),
+        |_| {},
+        &world.http,
+    )
+    .await
+    .expect("signed in");
+
+    let document: Value = serde_json::from_str(
+        &std::fs::read_to_string(home.0.join(FILE_NAME)).expect("the file is there"),
+    )
+    .expect("the file is JSON");
+    assert_eq!(document["local"]["token"], access);
+    assert_eq!(document["local"]["refreshToken"], "a-refresh-token");
+    assert_eq!(document["local"]["issuer"], world.issuer());
+    assert_eq!(
+        held_by(
+            SignInStore::at(home.0.join(FILE_NAME))
+                .entry("local")
+                .as_ref()
+        )
+        .await
+        .map(|held| held.access),
+        Some(access)
+    );
+}
+
+/// A script signs out of the sign-in it keeps: the issuer is told to forget
+/// its refresh token, as the client it was issued to, and the sign-in is
+/// kept no more.
+#[tokio::test]
+async fn a_script_signs_out_by_revoking_at_the_issuer_and_forgetting_the_sign_in() {
+    let world = World::start().await;
+    let kept = kept_holding(&world, &jwt(3600, 1)).await;
+
+    sign_out(kept.as_ref(), &world.http)
+        .await
+        .expect("signed out");
+
+    let revoked = world.staged.revoke_forms.lock().unwrap().clone();
+    assert_eq!(revoked.len(), 1);
+    assert_eq!(revoked[0]["token"], "r1");
+    assert_eq!(revoked[0]["client_id"], "semiont-browser");
+    assert_eq!(held_by(kept.as_ref()).await, None);
+}
+
+/// The sign-in is forgotten whatever the issuer answers, and one whose
+/// issuer names no revocation endpoint is forgotten without a word to it.
+#[tokio::test]
+async fn a_script_is_signed_out_whatever_its_issuer_answers() {
+    let world = World::start().await;
+    *world.staged.revoke_status.lock().unwrap() = 503;
+    let refusing = kept_holding(&world, &jwt(3600, 1)).await;
+
+    sign_out(refusing.as_ref(), &world.http)
+        .await
+        .expect("signed out");
+
+    assert_eq!(world.staged.revoke_forms.lock().unwrap().len(), 1);
+    assert_eq!(held_by(refusing.as_ref()).await, None);
+
+    let unnamed = Arc::new(MemorySignIn::new());
+    unnamed
+        .keep(StoredSession {
+            revocation_endpoint: None,
+            ..world.stored(&jwt(3600, 2), "r2")
+        })
+        .await
+        .expect("kept");
+    sign_out(unnamed.as_ref(), &world.http)
+        .await
+        .expect("signed out");
+    assert_eq!(world.staged.revoke_forms.lock().unwrap().len(), 1);
+    assert_eq!(held_by(unnamed.as_ref()).await, None);
+}
+
+/// With nothing kept there is nothing to sign out of: nobody is asked.
+#[tokio::test]
+async fn a_script_with_nothing_kept_signs_out_of_nothing() {
+    let world = World::start().await;
+
+    sign_out(&MemorySignIn::new(), &world.http)
+        .await
+        .expect("signed out");
+
+    assert!(world.staged.revoke_forms.lock().unwrap().is_empty());
+}
+
+/// Signing out of a sign-in a registry keeps deletes what was kept for the
+/// person it named, and nobody else's.
+#[tokio::test]
+async fn a_script_signing_out_of_a_registrys_sign_in_deletes_what_was_kept_for_its_person() {
+    let world = World::start().await;
+    let storage = kept_and_signed_in(&world, Some(ALICE));
+
+    sign_out(kept_in(storage.clone(), "a-script").as_ref(), &world.http)
+        .await
+        .expect("signed out");
+
+    assert_eq!(stored_session(storage.as_ref(), "a-script"), None);
+    let left: Vec<String> = kept_for("a-script", ALICE)
+        .into_iter()
+        .filter(|key| storage.get(key).is_some())
+        .collect();
+    assert!(left.is_empty(), "alice's keys left: {left:?}");
+    for key in kept_for("a-script", BOB)
+        .into_iter()
+        .chain(kept_for("another", ALICE))
+    {
+        assert_eq!(storage.get(&key).as_deref(), Some("kept"), "{key}");
+    }
 }
 
 // ── A registry over HTTP ────────────────────────────────────────────────
@@ -2098,7 +1962,7 @@ async fn a_registry_over_http_cannot_build_a_session_for_what_is_not_at_a_gatewa
     assert_eq!(refused.code, SessionErrorCode::ConstructFailed);
     assert_eq!(
         refused.message,
-        "HTTP session factory cannot construct a session for endpoint kind \"local\""
+        "A session over HTTP cannot be built for endpoint kind \"local\""
     );
     browser.close().await.expect("closed");
 }
@@ -3027,24 +2891,19 @@ async fn a_session_whose_gateway_never_says_who_it_is_is_ready_at_the_deadline_a
     let world = World::on_a_quick_clock().await;
     world.never_answers("who");
     let access = jwt(3600, 1);
-    let storage = storing(&world, "a-script", &access);
+    let kept = kept_holding(&world, &access).await;
     let said: Arc<Mutex<Vec<String>>> = Arc::default();
     let saying = said.clone();
     let started = tokio::time::Instant::now();
 
-    let opened = ends(session_from_stored(StoredSignIn {
-        kb: world.kb("a-script"),
-        storage,
-        base_url: world.origin.clone(),
-        validate: true,
-        on_auth_failed: None,
+    let opened = ends(session_from_kept(SessionFromKept {
         on_error: Some(Arc::new(move |error| {
             saying.lock().unwrap().push(error.message)
         })),
-        http: world.http.clone(),
+        ..from_kept(&world, kept)
     }))
     .await
-    .expect("a sign-in is stored");
+    .expect("a session");
     let session = opened.session();
 
     assert!(
@@ -3189,41 +3048,6 @@ async fn an_issuer_that_never_answers_fails_each_request_at_the_deadline() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn a_renewal_the_issuer_never_answers_is_tried_inside_the_budget_and_then_given_up() {
-    let world = World::on_a_quick_clock().await;
-    world.never_answers("token");
-    let storage = storing(&world, "kb-a", "a1");
-    let started = tokio::time::Instant::now();
-
-    let refused = ends(refresh_stored_session(
-        storage.as_ref(),
-        "kb-a",
-        Some("a1"),
-        &world.http,
-    ))
-    .await
-    .map_err(sign_in_error)
-    .expect_err("the budget is spent");
-
-    let attempts = REFRESH_RETRY.attempts;
-    assert_eq!(world.token_forms().len(), attempts as usize);
-    assert_eq!(
-        refused.message,
-        format!(
-            "The session could not be renewed after {attempts} attempts: The issuer did not answer within 30s"
-        )
-    );
-    // Each attempt waited out its deadline, and the backoff came between.
-    assert!(started.elapsed() >= HTTP_REQUEST_TIMEOUT * attempts);
-    assert!(started.elapsed() < HTTP_REQUEST_TIMEOUT * (attempts + 1));
-    // The session it could not renew is still the one stored.
-    assert_eq!(
-        stored_session(storage.as_ref(), "kb-a"),
-        Some(world.stored("a1", "r1"))
-    );
-}
-
-#[tokio::test(start_paused = true)]
 async fn a_service_whose_sign_in_is_never_answered_fails_at_the_deadline() {
     let world = World::on_a_quick_clock().await;
 
@@ -3316,16 +3140,15 @@ async fn a_script(
     state_home: &Path,
     gateway: &HttpEndpoint,
     http: reqwest::Client,
-) -> Result<String, Box<dyn Error>> {
+) -> Result<String, Box<dyn Error + Send + Sync>> {
     // <readme:script>
     // The sign-in `semiont login` made for the knowledge base running here. Its key
     // is the knowledge base's id.
-    let store = SignInStore::at(
-        state_home.join(FILE_NAME),
-        Arc::new(InMemorySessionStorage::new()),
-        Arc::new(|why| eprintln!("{why}")),
-    );
-    let opened = session_from_stored(StoredSignIn {
+    let kept = SignInStore::at(state_home.join(FILE_NAME)).entry("local");
+    if kept.held().await?.is_none() {
+        return Err("Not signed in. Run `semiont login`.".into());
+    }
+    let opened = session_from_kept(SessionFromKept {
         kb: KbTarget::http(
             "local",
             "Local",
@@ -3333,15 +3156,13 @@ async fn a_script(
             gateway.port,
             gateway.protocol,
         ),
-        storage: Arc::new(store),
-        base_url: gateway.gateway_url()?,
+        kept,
         validate: true,
         on_auth_failed: None,
         on_error: None,
         http,
     })
-    .await
-    .ok_or("Not signed in. Run `semiont login`.")?;
+    .await?;
 
     let about = opened.session().client().browse.kb().await?;
     // The session, then the client it was built with.
@@ -3352,28 +3173,33 @@ async fn a_script(
 
 async fn a_first_sign_in(
     kb: KbTarget,
-    storage: Arc<dyn SessionStorage>,
+    kept: Arc<dyn SignInKept>,
     http: reqwest::Client,
 ) -> Result<OpenedSession, Box<dyn Error + Send + Sync>> {
     // <readme:device>
     // The issuer mints a code, and the person approves it wherever they
-    // have a browser. No password passes through this process.
-    let opened = sign_in_device(
-        SignInDevice {
-            kb,
-            storage,
-            validate: true,
-            on_auth_failed: None,
-            on_error: None,
-            http,
-        },
+    // have a browser. No password passes through this process. The sign-in
+    // is kept in `kept`, and the session is built from it.
+    sign_in_device(
+        &kb,
+        kept.as_ref(),
         |code| {
             println!(
                 "Open {} and enter {}",
                 code.verification_uri, code.user_code
             )
         },
+        &http,
     )
+    .await?;
+    let opened = session_from_kept(SessionFromKept {
+        kb,
+        kept,
+        validate: true,
+        on_auth_failed: None,
+        on_error: None,
+        http,
+    })
     .await?;
     // </readme:device>
     Ok(opened)
@@ -3651,23 +3477,18 @@ async fn the_script_uses_the_sign_in_the_launcher_kept_and_says_so_when_there_is
 }
 
 #[tokio::test]
-async fn a_session_over_a_stored_sign_in_renews_at_the_issuer_the_sign_in_names() {
+async fn a_session_over_a_kept_sign_in_renews_at_the_issuer_the_sign_in_names() {
     let world = World::start().await;
-    let storage = storing(&world, "a-script", &jwt(3600, 1));
+    let kept = kept_holding(&world, &jwt(3600, 1)).await;
     let renewed = jwt(3600, 2);
     world.answers([granted(&renewed, Some("r2"))]);
 
-    let opened = session_from_stored(StoredSignIn {
-        kb: world.kb("a-script"),
-        storage: storage.clone(),
-        base_url: world.origin.clone(),
+    let opened = session_from_kept(SessionFromKept {
         validate: false,
-        on_auth_failed: None,
-        on_error: None,
-        http: world.http.clone(),
+        ..from_kept(&world, kept.clone())
     })
     .await
-    .expect("a sign-in is stored");
+    .expect("a session");
     let session = opened.session();
 
     let held = session.token().borrow().clone();
@@ -3676,7 +3497,7 @@ async fn a_session_over_a_stored_sign_in_renews_at_the_issuer_the_sign_in_names(
         Some(renewed.clone())
     );
     assert_eq!(
-        stored_session(storage.as_ref(), "a-script"),
+        held_by(kept.as_ref()).await,
         Some(world.stored(&renewed, "r2"))
     );
     assert_eq!(world.token_forms().len(), 1);
@@ -3688,18 +3509,24 @@ async fn a_session_over_a_stored_sign_in_renews_at_the_issuer_the_sign_in_names(
 #[tokio::test(start_paused = true)]
 async fn a_first_sign_in_shows_the_code_and_gives_a_session_that_knows_who_it_is() {
     let world = World::on_a_quick_clock().await;
-    let storage = Arc::new(InMemorySessionStorage::new());
+    let kept = Arc::new(MemorySignIn::new());
     let access = jwt(3600, 1);
     world.answers([granted(&access, Some("a-refresh-token"))]);
 
-    let opened = a_first_sign_in(world.kb("a-script"), storage.clone(), world.http.clone())
+    let opened = a_first_sign_in(world.kb("a-script"), kept.clone(), world.http.clone())
         .await
         .expect("a session");
     let session = opened.session();
 
     assert_eq!(session.token().borrow().as_deref(), Some(access.as_str()));
-    assert_eq!(*world.staged.asked_who.lock().unwrap(), [access]);
-    assert!(stored_session(storage.as_ref(), "a-script").is_some());
+    assert_eq!(
+        *world.staged.asked_who.lock().unwrap(),
+        std::slice::from_ref(&access)
+    );
+    assert_eq!(
+        held_by(kept.as_ref()).await.map(|held| held.access),
+        Some(access)
+    );
     opened.close().await;
 }
 

@@ -171,29 +171,77 @@ pub(super) struct Live {
     /// that asks it.
     pub(super) limits: Cache<&'static str, Vec<EngineLimits>>,
     pub(super) events: Cache<ResourceId, Vec<AttributedEvent>>,
+    /// What every write of the persisted caches goes through.
+    writes: Arc<Writes>,
 }
 
-/// Where `persistence` keeps the persisted query `query`.
+/// The one lock every write of a client's persisted caches is made under,
+/// whichever cache it is of, and whether they write at all any more. A write
+/// is a cache's values and the stream's places they carry, through a storage
+/// that checks before it writes that the saved sign-in still names the
+/// person, so that check and the write it allows are one step under the
+/// lock. Stopping takes the lock: a write under way finishes first, and none
+/// is made after (`SemiontClient::stop_persisting`).
+#[derive(Default)]
+struct Writes {
+    stopped: Mutex<bool>,
+}
+
+/// A persister whose every save is made under its client's `Writes`, and
+/// none once they have stopped.
+struct Through<K, V> {
+    persister: StoragePersister<K, V>,
+    writes: Arc<Writes>,
+}
+
+impl<K, V> CachePersister<K, V> for Through<K, V>
+where
+    K: Serialize + DeserializeOwned + Eq + std::hash::Hash + 'static,
+    V: Serialize + DeserializeOwned + 'static,
+{
+    fn load(&self) -> Option<HashMap<K, V>> {
+        self.persister.load()
+    }
+
+    fn save(
+        &self,
+        entries: &HashMap<K, V>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let stopped = locked(&self.writes.stopped);
+        if *stopped {
+            return Ok(());
+        }
+        self.persister.save(entries)
+    }
+}
+
+/// Where `persistence` keeps the persisted query `query`, written under
+/// `writes`.
 fn persister<K, V>(
     persistence: &CachePersistence,
+    writes: &Arc<Writes>,
     query: CacheQuery,
 ) -> Arc<dyn CachePersister<K, V>>
 where
     K: CacheKey + Serialize + DeserializeOwned,
     V: CacheValue + Serialize + DeserializeOwned,
 {
-    Arc::new(StoragePersister::new(
-        persistence.storage.clone(),
-        cache_key(&persistence.kb_id, &persistence.person_key, query),
-        PERSISTED_VERSION,
-        MAX_STORED_BYTES_COUNT,
-    ))
+    Arc::new(Through {
+        persister: StoragePersister::new(
+            persistence.storage.clone(),
+            cache_key(&persistence.kb_id, &persistence.person_key, query),
+            PERSISTED_VERSION,
+            MAX_STORED_BYTES_COUNT,
+        ),
+        writes: writes.clone(),
+    })
 }
 
 /// The cache of a persisted query: kept in the client's persistence, when it
-/// was built with one.
+/// was built with one, and written under `writes`.
 fn kept<K, V, F, Fut>(
     persistence: Option<&CachePersistence>,
+    writes: &Arc<Writes>,
     query: CacheQuery,
     fetch: F,
 ) -> Cache<K, V>
@@ -205,7 +253,9 @@ where
 {
     match persistence {
         None => Cache::new(fetch),
-        Some(persistence) => Cache::persisted(fetch, persister(persistence, query), SAVE_DEBOUNCE),
+        Some(persistence) => {
+            Cache::persisted(fetch, persister(persistence, writes, query), SAVE_DEBOUNCE)
+        }
     }
 }
 
@@ -225,9 +275,10 @@ impl Live {
         persistence: Option<&CachePersistence>,
     ) -> Arc<Live> {
         let annotation_of: Arc<Mutex<HashMap<AnnotationId, ResourceId>>> = Arc::default();
+        let writes: Arc<Writes> = Arc::default();
         let asking = |links: &Links| links.clone();
 
-        let resource = kept(persistence, CacheQuery::Resource, {
+        let resource = kept(persistence, &writes, CacheQuery::Resource, {
             let links = asking(links);
             move |resource_id: ResourceId| {
                 let links = links.clone();
@@ -255,14 +306,14 @@ impl Live {
                 }
             }
         });
-        let annotations = kept(persistence, CacheQuery::Annotations, {
+        let annotations = kept(persistence, &writes, CacheQuery::Annotations, {
             let content = content.clone();
             move |resource_id: ResourceId| {
                 let content = content.clone();
                 async move { Ok(content.get_annotations(&resource_id).await?) }
             }
         });
-        let annotation = kept(persistence, CacheQuery::Annotation, {
+        let annotation = kept(persistence, &writes, CacheQuery::Annotation, {
             let links = asking(links);
             let annotation_of = annotation_of.clone();
             move |annotation_id: AnnotationId| {
@@ -288,7 +339,7 @@ impl Live {
                 }
             }
         });
-        let entity_types = kept(persistence, CacheQuery::EntityTypes, {
+        let entity_types = kept(persistence, &writes, CacheQuery::EntityTypes, {
             let links = asking(links);
             move |_: String| {
                 let links = links.clone();
@@ -300,7 +351,7 @@ impl Live {
                 }
             }
         });
-        let tag_schemas = kept(persistence, CacheQuery::TagSchemas, {
+        let tag_schemas = kept(persistence, &writes, CacheQuery::TagSchemas, {
             let links = asking(links);
             move |_: String| {
                 let links = links.clone();
@@ -360,6 +411,7 @@ impl Live {
             engines,
             limits,
             events,
+            writes,
         })
     }
 
@@ -415,16 +467,17 @@ impl Live {
 
     /// Keep each persisted query's cache in `persistence` from now on.
     fn attach(&self, persistence: &CachePersistence) {
+        let writes = &self.writes;
         self.resource
-            .attach(persister(persistence, CacheQuery::Resource));
+            .attach(persister(persistence, writes, CacheQuery::Resource));
         self.annotations
-            .attach(persister(persistence, CacheQuery::Annotations));
+            .attach(persister(persistence, writes, CacheQuery::Annotations));
         self.annotation
-            .attach(persister(persistence, CacheQuery::Annotation));
+            .attach(persister(persistence, writes, CacheQuery::Annotation));
         self.entity_types
-            .attach(persister(persistence, CacheQuery::EntityTypes));
+            .attach(persister(persistence, writes, CacheQuery::EntityTypes));
         self.tag_schemas
-            .attach(persister(persistence, CacheQuery::TagSchemas));
+            .attach(persister(persistence, writes, CacheQuery::TagSchemas));
     }
 
     fn dispose(&self) {
@@ -593,6 +646,11 @@ impl BrowseNamespace {
     /// See `SemiontClient::attach_persistence`.
     pub(crate) fn attach_persistence(&self, persistence: &CachePersistence) {
         self.live.attach(persistence);
+    }
+
+    /// See `SemiontClient::stop_persisting`.
+    pub(crate) fn stop_persisting(&self) {
+        *locked(&self.live.writes.stopped) = true;
     }
 
     /// End the queries: every watcher's stream ends, and what was owed to

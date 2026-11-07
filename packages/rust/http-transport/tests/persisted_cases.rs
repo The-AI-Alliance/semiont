@@ -30,7 +30,7 @@ use semiont::identity::kb_did;
 use semiont::refresh::CacheQuery;
 use semiont::session::{
     SemiontBrowser, SemiontBrowserConfig, SemiontSession, SemiontSessionConfig, SessionFactory,
-    SessionFactoryOptions, SessionSignals, StoredSession, cache_key, clear_stored_session,
+    SessionFactoryOptions, SessionSignals, StoredSession, cache_key, clear_stored_session, kept_in,
     last_event_id_key, person_key, save_knowledge_bases, session_key, store_session,
     stored_session,
 };
@@ -705,7 +705,7 @@ impl SessionFactory for ClosingSessions {
         ));
         Ok(SemiontSession::new(SemiontSessionConfig {
             kb: options.kb.target(),
-            storage: options.storage,
+            kept: kept_in(options.storage, &kb_id),
             client,
             token: watch::channel(None).0,
             refresh: None,

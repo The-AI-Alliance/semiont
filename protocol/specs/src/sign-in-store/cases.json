@@ -3,7 +3,7 @@
   "runBy": {
     "csharp": ["packages/csharp/sdk/tests/Semiont.Tests/SignInStoreTests.cs"],
     "swift": ["packages/swift/sdk/Tests/SemiontTests/SignInStoreTests.swift"],
-    "rust": ["packages/rust/http-transport/tests/sign_in.rs", "packages/rust/sdk/tests/sign_in_store.rs"],
+    "rust": ["packages/rust/http-transport/src/oauth/tests.rs", "packages/rust/sdk/tests/sign_in_store.rs"],
     "python": ["packages/python/sdk/tests/test_sign_in_store.py", "packages/python/sdk/tests/test_state_dir.py"],
     "go": ["packages/go/sdk/signinstore_test.go", "packages/go/sdk/statedir_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/signin/SignInStoreTest.kt"],

@@ -1,11 +1,13 @@
 //! Sessions with a knowledge base over its gateway: what builds one
-//! (`HttpSessionFactory`, for a registry of knowledge bases, and the
-//! functions a script uses directly, each of which gives an `OpenedSession`:
-//! the session and the client it was built with, which the script closes
-//! together), what a completed sign-in learns of the knowledge base it
-//! reached, and a registry's sign-in through the issuer.
+//! (`HttpSessionFactory`, for a registry of knowledge bases, and
+//! `session_from_kept`, which a script uses directly and which gives an
+//! `OpenedSession`: the session and the client it was built with, which the
+//! script closes together), a script's sign-in and sign-out of a sign-in it
+//! keeps (`sign_in_device`, `sign_out`), what a completed sign-in learns of
+//! the knowledge base it reached, and a registry's sign-in through the
+//! issuer.
 //!
-//! A session built here renews its token at the issuer its stored session
+//! A session built here renews its token at the issuer its kept sign-in
 //! names. Renewals of one knowledge base that are asked for together are one
 //! request: several requests refused at once ask for one new token.
 //!
@@ -14,8 +16,8 @@
 
 use crate::content::HttpContentTransport;
 use crate::oauth::{
-    BeginAuthorization, DeviceCode, begin_authorization, complete_authorization,
-    refresh_stored_session, revoke_at_issuer, sign_in_with_device_grant,
+    BeginAuthorization, DeviceCode, begin_authorization, complete_authorization, renew_kept,
+    revoke_at_issuer, sign_in_with_device_grant,
 };
 use crate::transport::{
     Bookmarks, HttpTransport, HttpTransportConfig, Timing, TokenRefresher, locked,
@@ -33,13 +35,14 @@ use semiont::resume::CoupledBookmarks;
 use semiont::session::{
     BROWSER_CLIENT_ID, OnAuthFailed, OnSessionError, OpenedSession, Refresh, SCRIPT_CLIENT_ID,
     SemiontBrowser, SemiontSession, SemiontSessionConfig, SessionFactory, SessionFactoryOptions,
-    SessionRenewer, SignInOutcome, SignedIn, StoredSession, Validate, last_event_id_key,
-    person_key, session_key, store_session, stored_session,
+    SessionRenewer, SignInKept, SignInOutcome, SignedIn, StoredSession, Validate, kept_in,
+    last_event_id_key, person_key, stored_session,
 };
 use semiont::storage::{SessionStorage, StorageChange, StorageSubscription};
 use semiont::transport::BoxFuture;
 use semiont::types::{HttpEndpoint, KbDescription, KbEndpoint, KbTarget, ResourceId};
 use std::collections::HashMap;
+use std::error::Error;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 use tokio::sync::watch;
@@ -47,8 +50,8 @@ use tokio::sync::watch;
 /// What a session over a gateway is built with.
 pub struct HttpSession {
     pub kb: KbTarget,
-    /// Where the session's tokens are kept.
-    pub storage: Arc<dyn SessionStorage>,
+    /// Where the session's sign-in is kept.
+    pub kept: Arc<dyn SignInKept>,
     /// The gateway's origin.
     pub base_url: String,
     /// The token it starts with, when it has one already.
@@ -118,7 +121,7 @@ fn built_over_http(
     built(&transport, &client);
     let session = SemiontSession::new(SemiontSessionConfig {
         kb: options.kb,
-        storage: options.storage,
+        kept: options.kept,
         client,
         token,
         refresh: options.refresh,
@@ -136,13 +139,13 @@ type Renewal =
 /// The renewals under way, by knowledge base.
 type Renewing = Arc<Mutex<HashMap<String, Renewal>>>;
 
-/// Renew at the issuer the stored session of `kb_id` names. A renewal asked
-/// for while one is under way is that one: a stream refused and a request
-/// refused at the same moment spend one refresh token, not two, of which an
-/// issuer that rotates them would refuse the second. It goes by the token the
-/// first of them holds.
-fn renewing_stored(
-    storage: Arc<dyn SessionStorage>,
+/// Renew the sign-in `kept` holds of `kb_id` at the issuer it names
+/// (`renew_kept`). A renewal asked for while one is under way is that one: a
+/// stream refused and a request refused at the same moment spend one refresh
+/// token, not two, of which an issuer that rotates them would refuse the
+/// second. It goes by the token the first of them holds.
+fn renewing_kept(
+    kept: Arc<dyn SignInKept>,
     kb_id: String,
     http: reqwest::Client,
     renewing: Renewing,
@@ -151,20 +154,15 @@ fn renewing_stored(
         let renewal = locked(&renewing)
             .entry(kb_id.clone())
             .or_insert_with(|| {
-                let (storage, kb_id, http, renewing) = (
-                    storage.clone(),
-                    kb_id.clone(),
-                    http.clone(),
-                    renewing.clone(),
-                );
+                let (kept, kb_id, http, renewing) =
+                    (kept.clone(), kb_id.clone(), http.clone(), renewing.clone());
                 let once: BoxFuture<
                     'static,
                     Result<Option<String>, Arc<dyn std::error::Error + Send + Sync>>,
                 > = Box::pin(async move {
-                    let renewed =
-                        refresh_stored_session(storage.as_ref(), &kb_id, holding.as_deref(), &http)
-                            .await
-                            .map_err(Arc::from);
+                    let renewed = renew_kept(kept.as_ref(), holding.as_deref(), &http)
+                        .await
+                        .map_err(Arc::from);
                     locked(&renewing).remove(&kb_id);
                     renewed
                 });
@@ -193,12 +191,39 @@ fn asking_the_gateway(base_url: String, http: reqwest::Client) -> Validate {
     })
 }
 
-/// Tokens an issuer has already issued, and the knowledge base they are for.
-pub struct IssuedSession {
+/// The gateway's origin of a knowledge base reached over HTTP. Any other is
+/// refused (`session.construct-failed`), before anything is asked, and so is
+/// a host that is no host's name.
+fn gateway_of(kb: &KbTarget) -> Result<String, SessionError> {
+    let refused = |why: String| SessionError::new(SessionErrorCode::ConstructFailed, why, &kb.id);
+    let Some(endpoint) = kb.endpoint.http() else {
+        return Err(refused(format!(
+            "A session over HTTP cannot be built for endpoint kind \"{}\"",
+            kb.endpoint.kind()
+        )));
+    };
+    endpoint.gateway_url().map_err(refused)
+}
+
+/// Tell the issuer, when the sign-in says where, to forget its refresh
+/// token. Best effort: an issuer that could not be told forgets it when it
+/// expires.
+async fn revoked(sign_in: &StoredSession, http: &reqwest::Client) {
+    if let Some(endpoint) = &sign_in.revocation_endpoint {
+        let _ = revoke_at_issuer(http, endpoint, &sign_in.client_id, &sign_in.refresh).await;
+    }
+}
+
+// ── For a script ────────────────────────────────────────────────────────
+
+/// A script's session of a knowledge base, and where its sign-in is kept.
+pub struct SessionFromKept {
     pub kb: KbTarget,
-    pub storage: Arc<dyn SessionStorage>,
-    pub base_url: String,
-    pub session: StoredSession,
+    /// Where the sign-in is kept: the file `semiont login` keeps
+    /// (`semiont::sign_in_store::SignInStore::entry`), memory
+    /// (`semiont::session::MemorySignIn`), a registry's storage
+    /// (`semiont::session::kept_in`), or anywhere else.
+    pub kept: Arc<dyn SignInKept>,
     /// Whether the gateway is asked who the token is.
     pub validate: bool,
     pub on_auth_failed: Option<OnAuthFailed>,
@@ -206,132 +231,92 @@ pub struct IssuedSession {
     pub http: reqwest::Client,
 }
 
-/// A session over tokens an issuer has already issued: a completed sign-in,
-/// a device grant, a pair minted for a test. They are kept under the
-/// knowledge base's id, the session renews at the issuer they name, and it
-/// is ready when this returns. A storage that would not keep them is the
-/// error, and no session is opened.
-pub async fn session_from_issued(
-    issued: IssuedSession,
-) -> Result<OpenedSession, Box<dyn std::error::Error + Send + Sync>> {
-    store_session(issued.storage.as_ref(), &issued.kb.id, &issued.session)?;
-    Ok(over_stored(
-        StoredSignIn {
-            kb: issued.kb,
-            storage: issued.storage,
-            base_url: issued.base_url,
-            validate: issued.validate,
-            on_auth_failed: issued.on_auth_failed,
-            on_error: issued.on_error,
-            http: issued.http,
-        },
-        issued.session.access,
-    )
-    .await)
-}
-
-/// A sign-in a storage already holds, and the knowledge base it is for.
-pub struct StoredSignIn {
-    pub kb: KbTarget,
-    /// Where the sign-in is kept, under the knowledge base's id.
-    pub storage: Arc<dyn SessionStorage>,
-    pub base_url: String,
-    /// Whether the gateway is asked who the token is.
-    pub validate: bool,
-    pub on_auth_failed: Option<OnAuthFailed>,
-    pub on_error: Option<OnSessionError>,
-    pub http: reqwest::Client,
-}
-
-/// A session over the sign-in `storage` holds for the knowledge base: the
-/// one `semiont login` made, when the storage is a `SignInStore`, or one
-/// this application kept earlier. It renews at the issuer the sign-in
-/// names, and is ready when this returns. `None` when the storage holds no
-/// sign-in for the knowledge base.
-pub async fn session_from_stored(stored: StoredSignIn) -> Option<OpenedSession> {
-    let held = stored_session(stored.storage.as_ref(), &stored.kb.id)?;
-    Some(over_stored(stored, held.access).await)
-}
-
-/// A ready session that starts with `access` and renews from what is
-/// stored.
-async fn over_stored(stored: StoredSignIn, access: String) -> OpenedSession {
+/// A session over the sign-in `kept` holds, with the client it was built
+/// with: it sends the sign-in's token, renews it at the issuer the sign-in
+/// names and keeps the renewal there, and forgets the sign-in when the
+/// issuer refuses to renew it. It is ready when this returns. With nothing
+/// kept it is signed out: it holds no token, and nobody is asked who it is.
+/// A knowledge base reached any other way than over HTTP, or whose host is
+/// no host's name, is refused (`session.construct-failed`) before anything
+/// is asked.
+pub async fn session_from_kept(options: SessionFromKept) -> Result<OpenedSession, SessionError> {
+    let base_url = gateway_of(&options.kb)?;
     let opened = session_over_http(HttpSession {
-        refresh: Some(renewing_stored(
-            stored.storage.clone(),
-            stored.kb.id.clone(),
-            stored.http.clone(),
+        refresh: Some(renewing_kept(
+            options.kept.clone(),
+            options.kb.id.clone(),
+            options.http.clone(),
             Renewing::default(),
         )),
-        validate: stored
+        validate: options
             .validate
-            .then(|| asking_the_gateway(stored.base_url.clone(), stored.http.clone())),
-        kb: stored.kb,
-        storage: stored.storage,
-        base_url: stored.base_url,
-        token: Some(access),
-        on_auth_failed: stored.on_auth_failed,
-        on_error: stored.on_error,
-        http: stored.http,
+            .then(|| asking_the_gateway(base_url.clone(), options.http.clone())),
+        kb: options.kb,
+        kept: options.kept,
+        base_url,
+        token: None,
+        on_auth_failed: options.on_auth_failed,
+        on_error: options.on_error,
+        http: options.http,
         client: ClientOptions::default(),
         bookmarks: None,
     });
     opened.session().ready().await;
-    opened
+    Ok(opened)
 }
 
-/// A sign-in by the device grant.
-pub struct SignInDevice {
-    pub kb: KbTarget,
-    pub storage: Arc<dyn SessionStorage>,
-    pub validate: bool,
-    pub on_auth_failed: Option<OnAuthFailed>,
-    pub on_error: Option<OnSessionError>,
-    pub http: reqwest::Client,
-}
-
-/// Sign in as a person from a process with no browser, and give the session
-/// with the client it was built with.
-/// The issuer the knowledge base trusts mints a code, `on_code` shows the
-/// person where to approve it, and the tokens come back here: no password
-/// passes through this process. A failure is a `SignInError`, or the
-/// storage's own error when it would not keep the tokens.
+/// Sign in to `kb` as a person from a process with no browser, and keep the
+/// sign-in in `kept`, in place of whatever it kept: a session is then built
+/// from it (`session_from_kept`). The issuer the knowledge base trusts mints
+/// a code, `on_code` shows the person where to approve it, and the tokens
+/// come back here: no password passes through this process. A failure is a
+/// `SignInError`, or the sign-in kept's own error when it would not keep
+/// the tokens.
 pub async fn sign_in_device(
-    options: SignInDevice,
+    kb: &KbTarget,
+    kept: &dyn SignInKept,
     on_code: impl FnOnce(DeviceCode),
-) -> Result<OpenedSession, Box<dyn std::error::Error + Send + Sync>> {
-    let Some(target) = options.kb.endpoint.http().cloned() else {
+    http: &reqwest::Client,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let Some(target) = kb.endpoint.http() else {
         return Err(SignInError::new(
             SignInErrorCode::Discovery,
             format!(
                 "The device grant needs an HTTP endpoint; this knowledge base's is \"{}\"",
-                options.kb.endpoint.kind()
+                kb.endpoint.kind()
             ),
         )
         .into());
     };
-    let base_url = target
-        .gateway_url()
-        .map_err(|invalid| SignInError::new(SignInErrorCode::Discovery, invalid))?;
-    let (issuer, tokens) = sign_in_with_device_grant(&target, on_code, &options.http).await?;
-    session_from_issued(IssuedSession {
-        kb: options.kb,
-        storage: options.storage,
-        base_url,
-        session: StoredSession {
-            access: tokens.access,
-            refresh: tokens.refresh,
-            client_id: SCRIPT_CLIENT_ID.to_owned(),
-            token_endpoint: issuer.token,
-            revocation_endpoint: issuer.revocation,
-            person_key: None,
-        },
-        validate: options.validate,
-        on_auth_failed: options.on_auth_failed,
-        on_error: options.on_error,
-        http: options.http,
+    let (issuer, tokens) = sign_in_with_device_grant(target, on_code, http).await?;
+    kept.keep(StoredSession {
+        access: tokens.access,
+        refresh: tokens.refresh,
+        client_id: SCRIPT_CLIENT_ID.to_owned(),
+        token_endpoint: issuer.token,
+        revocation_endpoint: issuer.revocation,
+        person_key: None,
     })
     .await
+}
+
+/// End the sign-in `kept` holds: it is revoked at its issuer, when the
+/// issuer says where, and kept no more. It is forgotten whatever the issuer
+/// answers: a person who signs out is signed out here, and an issuer that
+/// could not be told forgets the token when it expires. Forgetting a sign-in
+/// a registry keeps (`semiont::session::kept_in`) deletes what was kept for
+/// the person it named too; one kept anywhere else deletes nothing. With
+/// nothing kept, nothing is asked. What the sign-in kept could not read or
+/// forget is its own error.
+pub async fn sign_out(
+    kept: &dyn SignInKept,
+    http: &reqwest::Client,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let Some(held) = kept.held().await? else {
+        return Ok(());
+    };
+    revoked(&held, http).await;
+    kept.forget().await
 }
 
 // ── For a registry of knowledge bases ───────────────────────────────────
@@ -369,18 +354,27 @@ impl Bookmarks for Places {
 }
 
 /// The storage a person's caches and places are written through: a write is
-/// made only while the knowledge base's stored sign-in names the person.
+/// made only while the knowledge base's kept sign-in names the person.
 /// Once it does not (forgotten, here or in another context, however it was
 /// forgotten, or replaced by a sign-in of someone else, or of someone the
 /// gateway has not named yet) nothing more is written for the client's
 /// life, and what it had not written is dropped, which is no failure
 /// (protocol/specs/src/session/persisted-cases.json, `crossTab`). So what
 /// forgetting the sign-in deletes, the client does not put back (`forget`).
+/// A sign-in that cannot be read is not known to name the person: nothing
+/// more is written either, and `on_error` is told once
+/// (`session.keep-failed`). A write the storage refuses is the storage's
+/// error. Every write reaches this under the one lock the client's
+/// persisted caches write under, so a check and the write it allows are one
+/// step, and the session's own forget, which takes that lock before it
+/// deletes, never falls between them.
 struct ForThePerson {
     storage: Arc<dyn SessionStorage>,
+    kept: Arc<dyn SignInKept>,
     kb_id: String,
     person_key: String,
     moved_on: AtomicBool,
+    on_error: OnSessionError,
 }
 
 impl ForThePerson {
@@ -388,12 +382,33 @@ impl ForThePerson {
         if self.moved_on.load(Ordering::SeqCst) {
             return false;
         }
-        let named = stored_session(self.storage.as_ref(), &self.kb_id)
-            .is_some_and(|stored| stored.person_key.as_deref() == Some(self.person_key.as_str()));
-        if !named {
-            self.moved_on.store(true, Ordering::SeqCst);
+        // The check is made under the lock the client writes under, where
+        // nothing awaits: the read is driven to its end here. The sign-in of
+        // a registry's session is kept in its storage (`kept_in`), whose
+        // read is ready the moment it is asked.
+        match futures::executor::block_on(self.kept.held()) {
+            Ok(held) => {
+                let named = held.is_some_and(|held| {
+                    held.person_key.as_deref() == Some(self.person_key.as_str())
+                });
+                if !named {
+                    self.moved_on.store(true, Ordering::SeqCst);
+                }
+                named
+            }
+            Err(unread) => {
+                if !self.moved_on.swap(true, Ordering::SeqCst) {
+                    (self.on_error)(SessionError::new(
+                        SessionErrorCode::KeepFailed,
+                        format!(
+                            "The sign-in could not be read before what the client keeps was saved, so it keeps nothing more: {unread}"
+                        ),
+                        &self.kb_id,
+                    ));
+                }
+                false
+            }
         }
-        named
     }
 }
 
@@ -436,51 +451,29 @@ impl SessionStorage for ForThePerson {
 /// registry's storage: the client's persisted queries and where its stream
 /// was, under the knowledge base's id and the person's key
 /// (protocol/specs/src/session/persisted-cases.json). Nothing is kept until
-/// the person is known: from the start when the stored sign-in names them,
+/// the person is known: from the start when the kept sign-in names them,
 /// or once the gateway names them and the sign-in records it.
 struct Keeping {
     storage: Arc<dyn SessionStorage>,
+    /// The session's sign-in, kept in `storage`.
+    kept: Arc<dyn SignInKept>,
     kb_id: String,
+    on_error: OnSessionError,
     places: Arc<Places>,
     /// The transport and the client, once they are built.
     built: OnceLock<(Weak<HttpTransport>, Weak<SemiontClient>)>,
 }
 
 impl Keeping {
-    /// Record on the stored sign-in that the gateway named the person whose
-    /// key is `person_key` as who `access` is: only while it still holds
-    /// `access` and names nobody else. Whether it names them now. A storage
-    /// that will not take the record keeps nothing of them.
-    fn record(&self, access: &str, person_key: &str) -> bool {
-        let names = |held: &StoredSession| {
-            held.access == access
-                && held
-                    .person_key
-                    .as_deref()
-                    .is_none_or(|named| named == person_key)
-        };
-        match stored_session(self.storage.as_ref(), &self.kb_id) {
-            Some(held) if names(&held) && held.person_key.is_none() => {}
-            held => return held.as_ref().is_some_and(names),
-        }
-        let mut named = false;
-        let recorded = self
-            .storage
-            .update(&session_key(&self.kb_id), &mut |stored| {
-                let held = stored.and_then(StoredSession::read);
-                named = held.as_ref().is_some_and(names);
-                match held {
-                    Some(held) if named => Some(
-                        StoredSession {
-                            person_key: Some(person_key.to_owned()),
-                            ..held
-                        }
-                        .written(),
-                    ),
-                    _ => stored.map(str::to_owned),
-                }
-            });
-        recorded.is_ok() && named
+    /// Record on the kept sign-in that the gateway named the person whose
+    /// key is `person_key` as who `access` is (`SignInKept::record_person_key`).
+    /// Whether it names them now: a sign-in that will not take the record
+    /// does not, and keeps nothing of them.
+    async fn record(&self, access: &str, person_key: &str) -> bool {
+        matches!(
+            self.kept.record_person_key(access, person_key).await,
+            Ok(true)
+        )
     }
 
     /// Keep what the client keeps of the person whose key is `person_key`,
@@ -499,9 +492,11 @@ impl Keeping {
         let kept = CoupledBookmarks::new(
             Arc::new(ForThePerson {
                 storage: self.storage.clone(),
+                kept: self.kept.clone(),
                 kb_id: self.kb_id.clone(),
                 person_key: person_key.to_owned(),
                 moved_on: AtomicBool::new(false),
+                on_error: self.on_error.clone(),
             }),
             &last_event_id_key(&self.kb_id, person_key),
         );
@@ -527,7 +522,7 @@ impl Keeping {
 }
 
 /// Ask the gateway who a token is, as `asking` does, and once it names the
-/// person, record them on the stored sign-in and keep what the client keeps
+/// person, record them on the kept sign-in and keep what the client keeps
 /// for them. Both are done before the answer is given, so before the
 /// session is ready.
 fn asking_and_keeping(asking: Validate, keeping: Arc<Keeping>) -> Validate {
@@ -537,7 +532,7 @@ fn asking_and_keeping(asking: Validate, keeping: Arc<Keeping>) -> Validate {
         Box::pin(async move {
             let user = asked.await?;
             let person = person_key(&user.did);
-            if keeping.record(&token, &person) {
+            if keeping.record(&token, &person).await {
                 keeping.attach(&person);
             }
             Ok(user)
@@ -546,8 +541,9 @@ fn asking_and_keeping(asking: Validate, keeping: Arc<Keeping>) -> Validate {
 }
 
 /// Builds the session of each knowledge base a `SemiontBrowser` activates,
-/// over its gateway. What the session's client keeps of its person is kept
-/// in the registry's storage (`Keeping`). The renewals under way are the
+/// over its gateway, from the sign-in the registry keeps in its storage
+/// (`kept_in`). What the session's client keeps of its person is kept in
+/// the registry's storage too (`Keeping`). The renewals under way are the
 /// factory's, so a knowledge base's old session and its new one, during a
 /// sign-in, do not each renew.
 pub struct HttpSessionFactory {
@@ -566,38 +562,34 @@ impl HttpSessionFactory {
 
 impl SessionFactory for HttpSessionFactory {
     fn session(&self, options: SessionFactoryOptions) -> Result<SemiontSession, SessionError> {
-        let kb_id = options.kb.id.clone();
-        let refused =
-            |why: String| SessionError::new(SessionErrorCode::ConstructFailed, why, &kb_id);
-        let Some(endpoint) = options.kb.endpoint.http() else {
-            return Err(refused(format!(
-                "HTTP session factory cannot construct a session for endpoint kind \"{}\"",
-                options.kb.endpoint.kind()
-            )));
-        };
-        let base_url = endpoint.gateway_url().map_err(refused)?;
+        let kb = options.kb.target();
+        let base_url = gateway_of(&kb)?;
+        let kept = kept_in(options.storage.clone(), &kb.id);
 
-        let refresh = renewing_stored(
-            options.storage.clone(),
-            kb_id.clone(),
+        let refresh = renewing_kept(
+            kept.clone(),
+            kb.id.clone(),
             self.http.clone(),
             self.renewing.clone(),
         );
 
         let keeping = Arc::new(Keeping {
             storage: options.storage.clone(),
-            kb_id: kb_id.clone(),
+            kept: kept.clone(),
+            kb_id: kb.id.clone(),
+            on_error: options.on_error.clone(),
             places: Arc::default(),
             built: OnceLock::new(),
         });
         // Read before the client is built: a sign-in that names its person
         // has the client keep for them from its start (B17).
         let named =
-            stored_session(options.storage.as_ref(), &kb_id).and_then(|stored| stored.person_key);
+            stored_session(options.storage.as_ref(), &kb.id).and_then(|stored| stored.person_key);
         let signals = options.signals;
         let session = built_over_http(
             HttpSession {
-                kb: options.kb.target(),
+                kb,
+                kept,
                 base_url: base_url.clone(),
                 token: None,
                 refresh: Some(refresh),
@@ -612,7 +604,6 @@ impl SessionFactory for HttpSessionFactory {
                 http: self.http.clone(),
                 client: ClientOptions::default(),
                 bookmarks: Some(keeping.places.clone()),
-                storage: options.storage,
             },
             |transport, client| {
                 let _ = keeping
@@ -628,11 +619,7 @@ impl SessionFactory for HttpSessionFactory {
 
     fn revoke(&self, stored: StoredSession) -> BoxFuture<'static, ()> {
         let http = self.http.clone();
-        Box::pin(async move {
-            if let Some(endpoint) = &stored.revocation_endpoint {
-                let _ = revoke_at_issuer(&http, endpoint, &stored.client_id, &stored.refresh).await;
-            }
-        })
+        Box::pin(async move { revoked(&stored, &http).await })
     }
 }
 
@@ -749,6 +736,7 @@ pub async fn complete_sign_in(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use semiont::session::MemorySignIn;
     use semiont::storage::InMemorySessionStorage;
     use semiont::testing::{TestClientOptions, create_test_client};
     use semiont::types::LocalEndpoint;
@@ -762,7 +750,7 @@ mod tests {
                 label: "KB".to_owned(),
                 endpoint: KbEndpoint::LocalEndpoint(LocalEndpoint::new("here")),
             },
-            storage: Arc::new(InMemorySessionStorage::new()),
+            kept: Arc::new(MemorySignIn::new()),
             client: create_test_client(TestClientOptions::default()).client,
             token: watch::channel(None).0,
             refresh: Some(Arc::new(move |_| {
@@ -799,5 +787,154 @@ mod tests {
         let renews = Renews(unset);
         drop(set);
         assert_eq!(renews.refresh(None).await, None);
+    }
+
+    // ── What a registry's session keeps, when its sign-in cannot be read ──
+    //
+    // Every write of what a registry's session keeps of its person, its
+    // persisted queries' and its stream's places alike, reaches the storage
+    // through `ForThePerson`, which reads the session's sign-in first.
+
+    const ALICE: &str = "did:web:example.org:users:alice";
+
+    /// A sign-in that names alice, and cannot be read while `unreadable`
+    /// holds.
+    struct Kept {
+        names: StoredSession,
+        unreadable: AtomicBool,
+    }
+
+    impl Kept {
+        fn naming_alice() -> Kept {
+            Kept {
+                names: StoredSession {
+                    access: "a1".to_owned(),
+                    refresh: "r1".to_owned(),
+                    client_id: BROWSER_CLIENT_ID.to_owned(),
+                    token_endpoint: "https://issuer.test/token".to_owned(),
+                    revocation_endpoint: None,
+                    person_key: Some(person_key(ALICE)),
+                },
+                unreadable: AtomicBool::new(false),
+            }
+        }
+    }
+
+    impl SignInKept for Kept {
+        fn held(
+            &self,
+        ) -> BoxFuture<'_, Result<Option<StoredSession>, Box<dyn Error + Send + Sync>>> {
+            Box::pin(async move {
+                if self.unreadable.load(Ordering::SeqCst) {
+                    return Err("the sign-in could not be read".into());
+                }
+                Ok(Some(self.names.clone()))
+            })
+        }
+
+        fn keep(
+            &self,
+            _: StoredSession,
+        ) -> BoxFuture<'_, Result<(), Box<dyn Error + Send + Sync>>> {
+            panic!("nothing is kept")
+        }
+
+        fn renewed<'a>(
+            &'a self,
+            _: &'a StoredSession,
+            _: &'a str,
+            _: &'a str,
+        ) -> BoxFuture<'a, Result<Option<String>, Box<dyn Error + Send + Sync>>> {
+            panic!("nothing is renewed")
+        }
+
+        fn record_person_key<'a>(
+            &'a self,
+            _: &'a str,
+            _: &'a str,
+        ) -> BoxFuture<'a, Result<bool, Box<dyn Error + Send + Sync>>> {
+            panic!("nobody is recorded")
+        }
+
+        fn forget(&self) -> BoxFuture<'_, Result<(), Box<dyn Error + Send + Sync>>> {
+            panic!("nothing is forgotten")
+        }
+    }
+
+    /// What alice's session keeps, written through to `storage` over `kept`,
+    /// and every failure it tells.
+    fn keeping_for_alice(
+        storage: Arc<InMemorySessionStorage>,
+        kept: Arc<Kept>,
+    ) -> (ForThePerson, Arc<Mutex<Vec<SessionError>>>) {
+        let told: Arc<Mutex<Vec<SessionError>>> = Arc::default();
+        let telling = told.clone();
+        let keeping = ForThePerson {
+            storage,
+            kept,
+            kb_id: "kb".to_owned(),
+            person_key: person_key(ALICE),
+            moved_on: AtomicBool::new(false),
+            on_error: Arc::new(move |failure| locked(&telling).push(failure)),
+        };
+        (keeping, told)
+    }
+
+    #[test]
+    fn what_a_session_keeps_is_written_while_its_sign_in_names_the_person() {
+        let storage = Arc::new(InMemorySessionStorage::new());
+        let (keeping, told) = keeping_for_alice(storage.clone(), Arc::new(Kept::naming_alice()));
+
+        keeping.set("a", "1").expect("written");
+        keeping
+            .update("b", &mut |_| Some("2".to_owned()))
+            .expect("written");
+
+        assert_eq!(storage.get("a").as_deref(), Some("1"));
+        assert_eq!(storage.get("b").as_deref(), Some("2"));
+        assert!(locked(&told).is_empty());
+    }
+
+    /// A sign-in that cannot be read when the client saves is not known to
+    /// name the person: the save is not written, and nor is any after it,
+    /// though the sign-in reads again and names them. The session is told
+    /// once, and goes on.
+    #[test]
+    fn a_sign_in_that_cannot_be_read_at_a_save_ends_what_the_session_keeps_and_says_so_once() {
+        let storage = Arc::new(InMemorySessionStorage::new());
+        let kept = Arc::new(Kept::naming_alice());
+        let (keeping, told) = keeping_for_alice(storage.clone(), kept.clone());
+        keeping.set("a", "1").expect("written");
+        kept.unreadable.store(true, Ordering::SeqCst);
+
+        keeping
+            .set("a", "2")
+            .expect("a save not written is no failure");
+        keeping
+            .update("b", &mut |_| Some("2".to_owned()))
+            .expect("a save not written is no failure");
+        keeping
+            .delete("a")
+            .expect("a save not written is no failure");
+        kept.unreadable.store(false, Ordering::SeqCst);
+        keeping
+            .set("c", "3")
+            .expect("a save not written is no failure");
+
+        assert_eq!(storage.get("a").as_deref(), Some("1"));
+        assert_eq!(storage.get("b"), None);
+        assert_eq!(storage.get("c"), None);
+        let told = locked(&told);
+        assert_eq!(
+            told.iter()
+                .map(|failure| (failure.code, failure.kb_id.as_deref()))
+                .collect::<Vec<_>>(),
+            [(SessionErrorCode::KeepFailed, Some("kb"))]
+        );
+        assert!(
+            told[0].message.contains("the sign-in could not be read"),
+            "{}",
+            told[0].message
+        );
     }
 }

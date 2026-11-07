@@ -60,8 +60,8 @@ is the transport crate's:
 
 | Who | Signs in with | |
 |---|---|---|
-| A script, after `semiont login` | `session_from_stored` | The launcher's sign-in, reused. |
-| A script on its own | `sign_in_device` | The person approves a code in any browser. |
+| A script, after `semiont login` | `session_from_kept` | The launcher's sign-in, reused. |
+| A script on its own | `sign_in_device`, then `session_from_kept` | The person approves a code in any browser. |
 | An application | `begin_sign_in`, `complete_sign_in` | The person is sent to the issuer and back to this machine. |
 | A daemon | `AgentToken::sign_in` | A service account. It needs no `sign-in` feature. |
 
@@ -452,10 +452,14 @@ What must outlive a client is kept in a `SessionStorage`
 (`semiont::storage`). A write it could not make is its own error, a
 `Box<dyn std::error::Error + Send + Sync>`; a cache's save that fails is a
 warning through the `log` facade, and the cache goes on as it was.
+A session's sign-in is kept wherever a `SignInKept` keeps it: a session is
+built from it, renews through it and forgets it. A registry keeps its
+sign-ins in its storage (`kept_in`), and a script that keeps nothing past
+its process keeps one in memory (`MemorySignIn`).
 `semiont::sign_in_store` is the sign-ins
 `semiont login` keeps ([sign-in store](../../../protocol/specs/src/sign-in-store/README.md)),
-as a `SessionStorage`, so one sign-in serves the launcher and an application
-built on this SDK.
+each an entry kept (`SignInStore::entry`), so one sign-in serves the
+launcher and a script built on this SDK.
 
 ## State units
 
@@ -570,8 +574,8 @@ Each module is documented on [docs.rs](https://docs.rs/semiont).
 | `errors`, `timing`, `retry` | The failure codes, the deadlines and the retry rules every Semiont SDK shares |
 | `annotations` | The readers of an annotation: the resource it is on and the one it links to, the text it quotes, its entity types, its tag, and what kind it is. Its target is an id or an object, its selector one or a list, its body absent, one item or a list, and these read each. [`reader-cases.json`](../../../protocol/specs/src/annotations/reader-cases.json) holds every SDK's readers to the same answers. And the builders of one, which [a worker](#a-worker) uses: `reconcile`, `annotation_of_span` and `annotation_of_resource`, held by [`reconcile-cases.json`](../../../protocol/specs/src/annotations/reconcile-cases.json) and [`builder-cases.json`](../../../protocol/specs/src/annotations/builder-cases.json). |
 | `claims`, `job_filter` | A worker's side of the job queue: its claims, the jobs it holds, whether a failed job is retried, and whether a job is one a claim takes. What a worker promises is the [worker contract](../../../protocol/contract/WORKER-CONTRACT.md) |
-| `session` | `SemiontSession`, `SemiontBrowser`, `SessionFactory`, `SessionSignals` |
-| `storage`, `sign_in_store` | Where a client keeps what must outlive it, and the sign-ins `semiont login` keeps |
+| `session` | `SemiontSession`, `SemiontBrowser`, `SessionFactory`, `SessionSignals`, and where a session's sign-in is kept: `SignInKept`, `MemorySignIn`, `kept_in` |
+| `storage`, `sign_in_store` | Where a client keeps what must outlive it, and the sign-ins `semiont login` keeps, each an entry (`SignInStore::entry`) |
 | `state`, `state_unit` | The state units, and what every unit commits to |
 | `cache`, `refresh`, `resume` | The cache queries answer from, what each event does to it, and where a stream resumes after a restart |
 | `transport` | The contract a transport implements: `Transport`, `ContentTransport`, `GatewayOperations` |
