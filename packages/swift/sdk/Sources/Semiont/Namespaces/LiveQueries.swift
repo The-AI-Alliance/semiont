@@ -1,10 +1,6 @@
 import Foundation
 
 struct LiveQueries: Sendable {
-  private enum Query: String, CaseIterable {
-    case entityTypes, tagSchemas, resource, events, referencedBy, annotations, annotation
-    case resources, matchedResources, engines
-  }
   struct SearchKey: Hashable, Sendable {
     let text: String
     let filters: ResourceFilters
@@ -15,11 +11,12 @@ struct LiveQueries: Sendable {
     let annotation: AnnotationId
   }
 
+  /// What an event names by its row's ways: the keys a `subject` row reaches, and the annotation
+  /// it carries.
   private struct Subject {
     var resource: ResourceId?
     var annotation: AnnotationId?
-    var value: Annotation?
-    var condition: String?
+    var written: Annotation?
   }
 
   let entityTypes: Cached<[String]>
@@ -138,75 +135,47 @@ struct LiveQueries: Sendable {
   }
 
   func reopened() async {
-    for rule in cacheRefresh where rule.on == "reopened" {
-      await refresh(
-        (rule.refetches ?? []).compactMap(Query.init(rawValue:)), subject: Subject(),
-        coalescing: false)
-    }
+    await apply(refreshRow(.reopened, nil), to: Subject(), coalescing: false)
   }
 
+  /// A frame on one of the refresh table's channels: its row, or, when it is unreadable, the row
+  /// of an unreadable event, which names nothing.
   func receive(_ carried: Carried) async {
-    let rules = cacheRefresh.filter { rule in
-      rule.on == carried.channel
-        && ((rule.refetches ?? []) + (rule.writes ?? []) + (rule.removes ?? [])).contains {
-          Query(rawValue: $0) != nil
-        }
-    }
-    guard !rules.isEmpty else { return }
-    guard case .frame(let frame) = carried else {
-      // A refused event cannot identify what changed. Recheck the known entries.
-      await refresh(Query.allCases, subject: Subject(), coalescing: true)
-      return
-    }
-    do {
-      let subject = try subject(of: frame)
-      for rule in rules where rule.when == subject.condition {
-        for query in (rule.writes ?? []).compactMap(Query.init(rawValue:)) {
-          await write(query, subject: subject)
-        }
-        if (rule.removes ?? []).contains(Query.annotation.rawValue), let id = subject.annotation {
-          let error = BusRequestError(.busNotFound, "Annotation \(id.value) was removed")
-          for detail in annotationEntries(subject) { await detail.removeIfKnown(error) }
-        }
-        await refresh(
-          (rule.refetches ?? []).compactMap(Query.init(rawValue:)),
-          subject: rule.reach == "held" ? Subject() : subject, coalescing: true)
-      }
+    guard let trigger = CacheRefreshTrigger(rawValue: carried.channel),
+      let stamps = cacheRefreshChannels[trigger]
+    else { return }
+    do throws(Unreadable) {
+      let (row, subject) = try reading(carried, on: trigger, stamps: stamps)
+      await apply(row, to: subject, coalescing: true)
     } catch {
-      // A malformed event cannot identify what changed. Recheck the known entries.
-      await refresh(Query.allCases, subject: Subject(), coalescing: true)
+      await apply(refreshRow(.unreadable, nil), to: Subject(), coalescing: true)
     }
   }
 
-  private func subject(of frame: ReceivedFrame) throws -> Subject {
-    let encoder = JSONEncoder()
-    let decoder = JSONDecoder()
-    let data = try encoder.encode(frame.payload)
-    switch frame.channel {
-    case Channels.busResumeGap.name:
-      return Subject(resource: try decoder.decode(BusResumeGap.self, from: data).scope)
-    case Channels.markDeleteOk.name:
-      return Subject(
-        annotation: try decoder.decode(MarkDeleteOk.self, from: data).response.annotationId)
-    case Channels.markBodyUpdated.name:
-      let event = try decoder.decode(EnrichedResourceEvent.self, from: data)
-      if let annotation = event.annotation {
-        return Subject(
-          resource: event.resourceId, annotation: annotation.id, value: annotation,
-          condition: "enriched")
-      }
-      let update = try decoder.decode(
-        AnnotationBodyUpdatedPayload.self, from: encoder.encode(event.payload))
-      return Subject(
-        resource: event.resourceId, annotation: update.annotationId, condition: "unenriched")
-    case Channels.markRemoved.name:
-      let event = try decoder.decode(StoredEventResponse.self, from: data)
-      let removal = try decoder.decode(
-        AnnotationRemovedPayload.self, from: encoder.encode(event.payload))
-      return Subject(resource: event.resourceId, annotation: removal.annotationId)
-    default:
-      return Subject(resource: try decoder.decode(StoredEventResponse.self, from: data).resourceId)
+  /// The row `carried` applies, and what it names by the row's ways. A frame refused, by the
+  /// transport or by its channel's reading, is unreadable. A split channel's event is enriched
+  /// when the member its enriched row carries is present, read there as an Annotation.
+  private func reading(_ carried: Carried, on trigger: CacheRefreshTrigger, stamps: Set<String>)
+    throws(Unreadable) -> (CacheRefreshRow, Subject)
+  {
+    guard case .frame(let frame) = carried else { throw Unreadable() }
+    let stated = declared(frame.payload, stamps: stamps)
+    guard faultOf(payload: stated, on: frame.channel) == nil else { throw Unreadable() }
+    let payload = JSONValue.object(stated)
+    let row: CacheRefreshRow
+    if let enriched = cacheRefresh.first(where: { $0.on == trigger && $0.when == .enriched }) {
+      let written = try member(enriched.carries, of: payload, as: Annotation.self)
+      row = refreshRow(trigger, written == nil ? .unenriched : .enriched)
+    } else {
+      row = refreshRow(trigger, nil)
     }
+    return try (
+      row,
+      Subject(
+        resource: member(row.resource, of: payload, as: ResourceId.self),
+        annotation: member(row.annotation, of: payload, as: AnnotationId.self),
+        written: member(row.carries, of: payload, as: Annotation.self))
+    )
   }
 
   private func annotationEntries(_ subject: Subject) -> [Cached<Annotation>] {
@@ -221,8 +190,16 @@ struct LiveQueries: Sendable {
     }
   }
 
-  private func write(_ query: Query, subject: Subject) async {
-    guard let value = subject.value else { return }
+  /// Apply `row` to what `subject` names: a `held` row reaches every key held.
+  private func apply(_ row: CacheRefreshRow, to subject: Subject, coalescing: Bool) async {
+    for query in row.writes { await write(query, subject: subject) }
+    for query in row.removes { await remove(query, subject: subject) }
+    let reached = row.reach == .held ? Subject() : subject
+    for query in row.refetches { await refetch(query, subject: reached, coalescing: coalescing) }
+  }
+
+  private func write(_ query: CacheQuery, subject: Subject) async {
+    guard let value = subject.written else { return }
     switch query {
     case .annotation:
       for detail in annotationEntries(subject) { await detail.writeIfKnown(value) }
@@ -237,27 +214,79 @@ struct LiveQueries: Sendable {
         }
         return current
       }
-    default: break
+    case .resource, .events, .referencedBy, .resources, .matchedResources, .entityTypes,
+      .tagSchemas, .engines:
+      preconditionFailure("The refresh table writes \(query.rawValue), which no event carries")
     }
   }
 
-  private func refresh(_ queries: [Query], subject: Subject, coalescing: Bool) async {
-    for query in queries {
-      switch query {
-      case .resources: await listedResources.refresh(nil, coalescing: coalescing)
-      case .matchedResources: await matchedResources.refresh(nil, coalescing: coalescing)
-      case .engines: await engines.refreshIfKnown(coalescing: coalescing)
-      case .entityTypes: await entityTypes.refreshIfKnown(coalescing: coalescing)
-      case .tagSchemas: await tagSchemas.refreshIfKnown(coalescing: coalescing)
-      case .resource: await resources.refresh(subject.resource, coalescing: coalescing)
-      case .events: await events.refresh(subject.resource, coalescing: coalescing)
-      case .referencedBy: await referencedBy.refresh(subject.resource, coalescing: coalescing)
-      case .annotations: await annotations.refresh(subject.resource, coalescing: coalescing)
-      case .annotation:
-        for detail in annotationEntries(subject) {
-          await detail.refreshIfKnown(coalescing: coalescing)
-        }
+  private func remove(_ query: CacheQuery, subject: Subject) async {
+    switch query {
+    case .annotation:
+      guard let id = subject.annotation else { return }
+      let error = BusRequestError(.busNotFound, "Annotation \(id.value) was removed")
+      for detail in annotationEntries(subject) { await detail.removeIfKnown(error) }
+    case .resource, .annotations, .events, .referencedBy, .resources, .matchedResources,
+      .entityTypes, .tagSchemas, .engines:
+      preconditionFailure(
+        "The refresh table removes \(query.rawValue), which no event reports gone")
+    }
+  }
+
+  private func refetch(_ query: CacheQuery, subject: Subject, coalescing: Bool) async {
+    switch query {
+    case .resources: await listedResources.refresh(nil, coalescing: coalescing)
+    case .matchedResources: await matchedResources.refresh(nil, coalescing: coalescing)
+    case .engines: await engines.refreshIfKnown(coalescing: coalescing)
+    case .entityTypes: await entityTypes.refreshIfKnown(coalescing: coalescing)
+    case .tagSchemas: await tagSchemas.refreshIfKnown(coalescing: coalescing)
+    case .resource: await resources.refresh(subject.resource, coalescing: coalescing)
+    case .events: await events.refresh(subject.resource, coalescing: coalescing)
+    case .referencedBy: await referencedBy.refresh(subject.resource, coalescing: coalescing)
+    case .annotations: await annotations.refresh(subject.resource, coalescing: coalescing)
+    case .annotation:
+      for detail in annotationEntries(subject) {
+        await detail.refreshIfKnown(coalescing: coalescing)
       }
     }
+  }
+}
+
+/// An event a member of which its row names is present and is not what it names, or a frame
+/// its channel's reading refuses.
+private struct Unreadable: Error {}
+
+/// The refresh table's one row for `trigger` of kind `when`.
+private func refreshRow(_ trigger: CacheRefreshTrigger, _ when: CacheRefreshWhen?)
+  -> CacheRefreshRow
+{
+  guard let row = cacheRefresh.first(where: { $0.on == trigger && $0.when == when }) else {
+    preconditionFailure("The refresh table has no row for \(trigger.rawValue)")
+  }
+  return row
+}
+
+/// The member `way` ends at in `payload`, decoded as `Value`: nil where there is no way, or the
+/// member or one it is within is absent or null. One it is within that is present and no object,
+/// or the member itself present and not a `Value`, makes the event unreadable.
+private func member<Value: Decodable>(_ way: [String]?, of payload: JSONValue, as type: Value.Type)
+  throws(Unreadable) -> Value?
+{
+  guard let way else { return nil }
+  var member = payload
+  for name in way {
+    switch member {
+    case .null: return nil
+    case .object(let fields):
+      guard let next = fields[name] else { return nil }
+      member = next
+    case .bool, .number, .string, .array: throw Unreadable()
+    }
+  }
+  if member == .null { return nil }
+  do {
+    return try JSONDecoder().decode(type, from: JSONEncoder().encode(member))
+  } catch {
+    throw Unreadable()
   }
 }

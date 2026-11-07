@@ -1,0 +1,66 @@
+{
+  "IssuedTokens": {
+    "title": "IssuedTokens",
+    "type": "object",
+    "properties": {
+      "access": {
+        "type": "string"
+      },
+      "refresh": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "access",
+      "refresh"
+    ]
+  },
+  "DeviceCode": {
+    "title": "DeviceCode",
+    "type": "object",
+    "properties": {
+      "userCode": {
+        "type": "string"
+      },
+      "verificationUri": {
+        "type": "string"
+      },
+      "verificationUriComplete": {
+        "type": "string"
+      },
+      "expiresIn": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "userCode",
+      "verificationUri",
+      "expiresIn"
+    ]
+  },
+  "BeginAuthorizationOptions": {
+    "title": "BeginAuthorizationOptions",
+    "type": "object",
+    "properties": {
+      "target": {
+        "$ref": "HttpEndpoint.json"
+      },
+      "redirectUri": {
+        "type": "string"
+      },
+      "kbId": {
+        "type": "string"
+      },
+      "expectedDid": {
+        "type": "string"
+      },
+      "expectedName": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "target",
+      "redirectUri"
+    ]
+  }
+}

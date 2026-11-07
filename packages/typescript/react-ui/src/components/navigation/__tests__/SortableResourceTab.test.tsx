@@ -5,6 +5,7 @@ import { renderWithProviders } from '../../../test-utils';
 import type { SortableResourceTabProps } from '../../../types/collapsible-navigation';
 import type { LinkComponentProps } from '../../../contexts/RoutingContext';
 import type { Transform } from '@dnd-kit/utilities';
+import { resourceId } from '@semiont/core';
 
 // Mock @dnd-kit/sortable
 const mockSetNodeRef = vi.fn();
@@ -73,9 +74,10 @@ describe('SortableResourceTab', () => {
 
   const defaultProps: SortableResourceTabProps = {
     resource: {
-      id: 'resource-1',
+      id: resourceId('resource-1'),
       name: 'Test Document',
       openedAt: Date.now(),
+      order: 0,
       mediaType: 'text/plain',
     },
     isCollapsed: false,

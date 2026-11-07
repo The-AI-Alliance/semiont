@@ -145,9 +145,9 @@ hold it, which every reader runs.
   ASCII case is not read. The label names the encoding the standard gives it:
   `latin1`, `ascii` and `iso-8859-1` are windows-1252, and `utf-16` is
   UTF-16LE. A charset that is no label of the standard is refused, and so is
-  a label of the standard's `replacement` encoding. The refusal names the
-  charset, and is made whatever the bytes are: no mark decides for a charset
-  the standard lacks.
+  a label of the standard's `replacement` encoding or of one of its seven
+  legacy multi-byte encodings (T7). The refusal names the charset, and is
+  made whatever the bytes are: no mark decides for a charset that is refused.
   *Held by `protocol/specs/src/text/decode-cases.json`, and for every label of the standard by `protocol/specs/src/text/encoding-cases.json`.*
 - **T3. A byte-order mark decides, and is not part of the text**, as in the
   standard's `decode`. Bytes that begin `EF BB BF` are UTF-8, bytes that begin
@@ -177,22 +177,18 @@ hold it, which every reader runs.
   of an encoding it does not decode, and bytes whose mark is of one. What it
   does read, it reads as T1 to T4 say. The Rust SDK without its `charsets`
   feature decodes UTF-8 alone. The TypeScript reader decodes what the
-  platform's `TextDecoder` does: every encoding of the standard in a browser,
-  and in a Node built with full ICU, as Node's own distributions are.
+  platform's `TextDecoder` does, but for the encodings T7 refuses: in a
+  browser, and in a Node built with full ICU, as Node's own distributions
+  are, that is every other encoding of the standard.
   *Held by `packages/rust/sdk/src/resources.rs` for the Rust SDK's reader of UTF-8 alone.*
-- **T7. The bytes of the seven legacy multi-byte encodings are read by each
-  reader's own decoder, and those differ at the edges.** Big5, EUC-JP, EUC-KR, gb18030, GBK, ISO-2022-JP and
-  Shift_JIS are encodings of the standard: their labels are labels (T2), and a
-  mark decides over them (T3). Every label of each names its encoding, and its
-  bytes are read by the reader's own decoder of the one the standard names for
-  it: `encoding_rs` in Rust, which is the standard's; ICU in TypeScript;
-  `golang.org/x/text` in Go; and in Python its codec of that decoder (GBK's is
-  gb18030's, and Big5, EUC-KR and Shift_JIS are read as the supersets the
-  standard reads). Each but Rust's differs from the standard's in the
-  characters of some rarer sequences and in what it makes of a fault.
-  *Held, for some bytes of each that every reader reads alike and by every
-  label, by [`encoding-cases.json`](../specs/src/text/encoding-cases.json);
-  where they differ, by no case.*
+- **T7. The seven legacy multi-byte encodings are refused.** Big5, EUC-JP,
+  EUC-KR, gb18030, GBK, ISO-2022-JP and Shift_JIS are encodings of the
+  standard, and their labels are labels, but no reader decodes them. Each
+  platform's own decoder of them reads some of their bytes otherwise than the
+  standard does, and otherwise than the others do, so the same bytes would be
+  two texts and an annotation would land in two places. A charset that is a
+  label of one is refused as T2 and T5 say: by name, whatever the bytes are.
+  *Held, for every label of each, by [`encoding-cases.json`](../specs/src/text/encoding-cases.json).*
 - **T8. Only a media type whose bytes are its text is read.** The media type
   is the content type without its parameters, in lower case. The
   [media-type registry](../specs/src/media-types/registry.json) says where

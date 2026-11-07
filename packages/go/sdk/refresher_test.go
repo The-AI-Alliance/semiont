@@ -48,12 +48,15 @@ func frameOf(t *testing.T, channel bus.Channel, payload any, envelope semiont.En
 }
 
 // eventOf is an event that is trigger, about resource and its annotation of;
-// when is which way a split channel's event comes.
+// when is which way a split channel's event comes. An unreadable one is about
+// nothing.
 func eventOf(t *testing.T, trigger semiont.CacheRefreshTrigger, when semiont.CacheRefreshWhen, resource, of string) semiont.Frame {
 	t.Helper()
 	var payload map[string]any
 	var envelope semiont.Envelope
 	switch trigger {
+	case semiont.CacheRefreshUnreadable:
+		return frameOf(t, bus.MarkAdded.Channel(), map[string]any{"not": "a recorded event"}, envelope)
 	case semiont.CacheRefreshBusResumeGap:
 		payload = map[string]any{"scope": resource, "lastSeenId": "p-1", "reason": "retention-exceeded"}
 	case semiont.CacheRefreshMarkDeleteOk:
@@ -162,19 +165,20 @@ func TestEachRowOfTheRefreshTableDoesWhatItStatesToWhatIsHeld(t *testing.T) {
 	}
 }
 
-func TestEveryTriggerButTheReopeningIsAChannelAClientHears(t *testing.T) {
-	heard := 0
-	for trigger := range semiont.CacheRefreshTable {
-		if trigger == semiont.CacheRefreshReopened {
-			continue
-		}
-		heard++
+func TestEveryChannelOfTheRefreshTableIsOneAClientHearsAndEveryOtherTriggerIsOneTheRefresherApplies(t *testing.T) {
+	if len(semiont.CacheRefreshChannels) == 0 {
+		t.Fatal("the table has no event")
+	}
+	for _, trigger := range semiont.CacheRefreshChannels {
 		if channel := bus.Channel(trigger); !bus.Bridged(channel) && !slices.Contains(bus.ResourceScopedChannels, channel) {
 			t.Errorf("%s is no channel a client hears", trigger)
 		}
 	}
-	if heard == 0 {
-		t.Fatal("the table has no event")
+	// The refresher applies the reopening and an unreadable event itself: a trigger the table gains that is no channel is one it never applies.
+	for trigger := range semiont.CacheRefreshTable {
+		if !slices.Contains(semiont.CacheRefreshChannels, trigger) && trigger != semiont.CacheRefreshReopened && trigger != semiont.CacheRefreshUnreadable {
+			t.Errorf("%s is no channel, and the refresher never applies it", trigger)
+		}
 	}
 	// And these tests know what each live query asks: a query the table gains is one they must be told of.
 	if known, queries := slices.Sorted(maps.Keys(asks)), slices.Sorted(slices.Values(semiont.CacheQueries)); !slices.Equal(known, queries) {
@@ -305,19 +309,51 @@ func TestB20AKeyThatIsFailedOrBeingFetchedIsHeld(t *testing.T) {
 }
 
 func TestAnEventThatCannotBeReadAsksAgainForEverythingHeld(t *testing.T) {
-	w := newLiveWorld(t, liveSetup{window: time.Second})
-	for _, each := range everything(t, w.client) {
-		untilReady(t, watch(t, each.query))
+	unreadable := semiont.CacheRefreshTable[semiont.CacheRefreshUnreadable][0]
+	removed := semiont.CacheRefreshTable[semiont.CacheRefreshMarkRemoved][0]
+	for _, each := range []struct {
+		name  string
+		frame func(t *testing.T, w *liveWorld)
+		asks  map[string]int
+	}{
+		{"a frame refused", func(t *testing.T, w *liveWorld) {
+			w.transport.DeliverRefusal(&semiont.FrameRefusal{Channel: bus.MarkAdded.Channel(), Member: "payload.resourceId", Reason: bus.FrameRefusalReasonMalformed})
+		}, expectedAsks(unreadable.Refetches, unreadable.Reach)},
+		{"a payload that is not its channel's", func(t *testing.T, w *liveWorld) {
+			w.transport.Deliver(frameOf(t, bus.MarkAdded.Channel(), map[string]any{"not": "a recorded event"}, semiont.Envelope{}))
+		}, expectedAsks(unreadable.Refetches, unreadable.Reach)},
+		{"a member that is not what its row names", func(t *testing.T, w *liveWorld) {
+			w.transport.Deliver(frameOf(t, bus.MarkRemoved.Channel(), recordedEvent(string(semiont.CacheRefreshMarkRemoved), "res-1", map[string]any{"annotationId": "not an id!"}), semiont.Envelope{}))
+		}, expectedAsks(unreadable.Refetches, unreadable.Reach)},
+		// A member its row names that is absent names none: the event is read, and names no annotation.
+		{"a member its row names that is absent", func(t *testing.T, w *liveWorld) {
+			w.transport.Deliver(frameOf(t, bus.MarkRemoved.Channel(), recordedEvent(string(semiont.CacheRefreshMarkRemoved), "res-1", map[string]any{}), semiont.Envelope{}))
+		}, expectedAsks(removed.Refetches, removed.Reach)},
+		{"a frame on a channel that is no trigger", func(t *testing.T, w *liveWorld) {
+			w.transport.Deliver(frameOf(t, bus.BeckonFocus.Channel(), map[string]any{"resourceId": "res-1", "annotationId": "ann-1"}, semiont.Envelope{}))
+		}, map[string]int{}},
+	} {
+		t.Run(each.name, func(t *testing.T) {
+			w := newLiveWorld(t, liveSetup{window: time.Second})
+			for _, query := range everything(t, w.client) {
+				untilReady(t, watch(t, query.query))
+			}
+			w.everyHolderAsked(t)
+			annotation := watch(t, w.client.Browse.Annotation(resourceOf(t, "res-1"), annotationIdOf(t, "ann-1")))
+			untilReady(t, annotation)
+			m := w.mark()
+			each.frame(t, w)
+			w.asksCome(t, m, each.asks)
+			// A row that asks again for the annotation gives it its value again; any other gives it nothing.
+			if slices.ContainsFunc(asks[semiont.CacheQueryAnnotation], func(channel string) bool { return each.asks[channel] > 0 }) {
+				if _, failed := annotation.now(t).(semiont.Failed); failed {
+					t.Fatal("an event that names no annotation removed one")
+				}
+			} else {
+				annotation.nothingMore(t)
+			}
+		})
 	}
-	w.everyHolderAsked(t)
-	// Something changed and nothing says what.
-	m := w.mark()
-	w.transport.Deliver(frameOf(t, bus.MarkAdded.Channel(), map[string]any{"not": "a recorded event"}, semiont.Envelope{}))
-	w.asksCome(t, m, expectedAsks(semiont.CacheQueries, semiont.CacheRefreshReachHeld))
-	// And a frame on a channel that is no trigger asks for nothing.
-	m = w.mark()
-	w.transport.Deliver(frameOf(t, bus.BeckonFocus.Channel(), map[string]any{"resourceId": "res-1", "annotationId": "ann-1"}, semiont.Envelope{}))
-	w.asksCome(t, m, map[string]int{})
 }
 
 func TestB13OnlyAStreamThatLeftOpenAndReturnedHasReopened(t *testing.T) {

@@ -39,7 +39,7 @@ use semiont::session::{
 };
 use semiont::storage::SessionStorage;
 use semiont::transport::BoxFuture;
-use semiont::types::{HttpEndpoint, KbDescription, KbEndpoint, KbTarget, ResourceId};
+use semiont::types::{HttpEndpoint, KbDescription, KbEndpoint, KbTarget, ResourceId, UserId};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::watch;
@@ -468,7 +468,7 @@ impl SessionFactory for HttpSessionFactory {
 /// Who the knowledge base at an address says it is.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConnectionIdentity {
-    pub did: String,
+    pub did: UserId,
     pub description: KbDescription,
 }
 
@@ -511,21 +511,30 @@ pub async fn describe_connection(
     );
     let answered = client.browse.kb().await;
     client.close().await;
-    match answered {
-        Ok(description) => Ok(ConnectionIdentity {
-            did: semiont::identity::kb_did(&description.domain),
-            description,
-        }),
+    let description = match answered {
+        Ok(description) => description,
         // A refusal is the knowledge base answering that it cannot say what
         // it is. Anything else is not having reached it.
-        Err(SemiontError::Bus(refusal)) if refusal.code == BusRequestErrorCode::Rejected => Err(
-            unverifiable(IdentityUnverifiableReason::NotReported, refusal.to_string()),
-        ),
-        Err(other) => Err(unverifiable(
-            IdentityUnverifiableReason::Unreachable,
-            other.to_string(),
-        )),
-    }
+        Err(SemiontError::Bus(refusal)) if refusal.code == BusRequestErrorCode::Rejected => {
+            return Err(unverifiable(
+                IdentityUnverifiableReason::NotReported,
+                refusal.to_string(),
+            ));
+        }
+        Err(other) => {
+            return Err(unverifiable(
+                IdentityUnverifiableReason::Unreachable,
+                other.to_string(),
+            ));
+        }
+    };
+    // A domain no did can hold says nothing of who this is.
+    let did = semiont::identity::kb_did(&description.domain)
+        .parse::<UserId>()
+        .map_err(|invalid| {
+            unverifiable(IdentityUnverifiableReason::NotReported, invalid.to_string())
+        })?;
+    Ok(ConnectionIdentity { did, description })
 }
 
 // ── A registry's sign-in through the issuer ─────────────────────────────

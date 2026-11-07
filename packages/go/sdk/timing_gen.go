@@ -254,6 +254,11 @@ type Timing struct {
 	// it manages is a few seconds behind at worst, and the document is not read
 	// without pause.
 	DiscoveryInterval time.Duration
+	// ChecksAtOnceCount is checksAtOnceCount: How many of the resources open in
+	// a knowledge base a registry checks against it at once when its session
+	// comes up. A connection that has just opened is not handed every check
+	// together.
+	ChecksAtOnceCount int
 }
 
 // DefaultTiming is the table's values.
@@ -296,5 +301,6 @@ func DefaultTiming() Timing {
 		HoverDelay:                        150 * time.Millisecond,
 		SearchDebounce:                    250 * time.Millisecond,
 		DiscoveryInterval:                 5000 * time.Millisecond,
+		ChecksAtOnceCount:                 4,
 	}
 }

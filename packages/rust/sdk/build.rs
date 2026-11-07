@@ -10,8 +10,9 @@
 //!   resource's scope carries, from the registry's `audience`; the field of a
 //!   relayed frame's payload its trace rides in, the registry's `trace`; a
 //!   type per channel naming its payload's type, with each operation's request
-//!   tied to its result and its failure; and what each channel's payload must
-//!   be, as `required.rs` states shapes;
+//!   tied to its result and its failure; and, by the channel's name, what
+//!   each channel's payload must be, as `required.rs` states shapes, and the
+//!   stamps its type declares;
 //! - `required.rs`: what each component schema requires of a value
 //!   (src/required-schemas.json, the SDK's copy of the table, which
 //!   packages/codegen/schemas/generate-required.mjs writes by the rules of
@@ -26,13 +27,18 @@
 //!   files are kept to their owner with (sign-in-store/owner-only.json);
 //! - `timing.rs`: the deadlines, retry budgets and stream cadences a client
 //!   keeps (client/timing.json);
-//! - `cache_refresh.rs`: what each event on the bus, and the reopening of a
-//!   dropped stream, does to a client's cache (client/refresh.json);
+//! - `cache_refresh.rs`: what each event on the bus, one that cannot be read,
+//!   and the reopening of a dropped stream do to a client's cache, and where
+//!   in each event its row finds what the event names (client/refresh.json,
+//!   its triggers held to the registry's channels);
 //! - `media_types.rs`: the media types a knowledge base admits and what the
 //!   system can do with each (media-types/registry.json);
 //! - `utf8_labels.rs`: the labels of UTF-8 in the Encoding Standard, which
 //!   the reader of a resource's text has without the `charsets` feature
-//!   (text/encoding-cases.json).
+//!   (text/encoding-cases.json);
+//! - `refused_encodings.rs`: the encodings of the Encoding Standard whose
+//!   labels every reader of a resource's text refuses, which the reader
+//!   refuses with the `charsets` feature (text/encoding-cases.json).
 
 use semiont_codegen::bundle::{Bundle, draft7_definitions, read_json};
 use semiont_codegen::types::{Generation, generate, pascal};
@@ -286,7 +292,13 @@ fn main() {
     .expect("cannot write timing.rs");
     fs::write(
         out.join("cache_refresh.rs"),
-        cache_refresh(&read_json(&specs.join("client/refresh.json"))),
+        cache_refresh(
+            &read_json(&specs.join("client/refresh.json")),
+            &channels
+                .iter()
+                .map(|channel| text(channel, "channel", "a registry channel"))
+                .collect::<Vec<_>>(),
+        ),
     )
     .expect("cannot write cache_refresh.rs");
     fs::write(
@@ -294,11 +306,14 @@ fn main() {
         media_types(&read_json(&specs.join("media-types/registry.json"))),
     )
     .expect("cannot write media_types.rs");
+    let encodings = read_json(&specs.join("text/encoding-cases.json"));
+    fs::write(out.join("utf8_labels.rs"), utf8_labels(&encodings))
+        .expect("cannot write utf8_labels.rs");
     fs::write(
-        out.join("utf8_labels.rs"),
-        utf8_labels(&read_json(&specs.join("text/encoding-cases.json"))),
+        out.join("refused_encodings.rs"),
+        refused_encodings(&encodings),
     )
-    .expect("cannot write utf8_labels.rs");
+    .expect("cannot write refused_encodings.rs");
     let required_schemas = crate_dir.join("src/required-schemas.json");
     println!("cargo:rerun-if-changed={}", required_schemas.display());
     fs::write(
@@ -509,6 +524,27 @@ fn utf8_labels(table: &Value) -> String {
     )
 }
 
+/// The encodings whose labels every reader refuses, by their names in lower
+/// case: the table's `refused` cases.
+fn refused_encodings(table: &Value) -> String {
+    let refused: Vec<&str> = list(&table["cases"], "cases")
+        .iter()
+        .filter(|case| case.get("refused") == Some(&Value::Bool(true)))
+        .map(|case| {
+            case["encoding"]
+                .as_str()
+                .expect("an encoding is named by text")
+        })
+        .collect();
+    assert!(
+        refused.contains(&"replacement"),
+        "the table of encodings does not refuse replacement"
+    );
+    format!(
+        "// Generated from protocol/specs/src/text/encoding-cases.json; do not edit.\n/// Every encoding of the Encoding Standard whose labels are refused, by its name in lower case.\nconst REFUSED_ENCODINGS: &[&str] = &{refused:?};\n"
+    )
+}
+
 /// The registry as an enum per vocabulary, a row per media type in the
 /// registry's order, and the row a clone falls back to. The registry's own
 /// generator (packages/codegen/schemas/generate-media-types.mjs) is where it is held to
@@ -615,10 +651,12 @@ fn media_types(table: &Value) -> String {
     code
 }
 
-/// The refresh table as its queries, its triggers and each trigger's rows.
-/// The table's own generator (packages/codegen/schemas/generate-cache-refresh.mjs) is
-/// where it is held to account; this refuses only what it cannot render.
-fn cache_refresh(table: &Value) -> String {
+/// The refresh table as its queries, its triggers, which of them are
+/// `channels` of the registry, and each trigger's rows, their ways split into
+/// the names of their members. The table's own reader
+/// (packages/codegen/schemas/cache-refresh-table.mjs) is where it is held to
+/// account; this refuses only what it cannot render.
+fn cache_refresh(table: &Value, channels: &[&str]) -> String {
     let mut code =
         String::from("// Generated from protocol/specs/src/client/refresh.json; do not edit.\n");
     let queries: Vec<&str> = list(&table["queries"], "queries")
@@ -658,7 +696,14 @@ fn cache_refresh(table: &Value) -> String {
             None => triggers.push((on, vec![row])),
         }
     }
-    code.push_str("/// What refreshes a cache: the events of a channel, or `Reopened`, the stream open again after a drop.\n#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\npub enum RefreshTrigger {\n");
+    // What is no channel is what this SDK fires itself: the stream open
+    // again after a drop, and an event that cannot be read.
+    for (on, _) in &triggers {
+        if !channels.contains(on) && !matches!(*on, "reopened" | "unreadable") {
+            panic!("{on} is neither a channel of the registry nor a trigger this SDK fires");
+        }
+    }
+    code.push_str("/// What refreshes a cache: the events of a channel, or a trigger that is no channel's: `Reopened`, the stream open again after a drop, and `Unreadable`, an event that cannot be read.\n#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\npub enum RefreshTrigger {\n");
     for (on, rows) in &triggers {
         let docs: Vec<&str> = rows.iter().map(|row| text(row, "docs", on)).collect();
         let _ = writeln!(code, "    /// {}\n    {},", docs.join(" "), pascal(on));
@@ -667,16 +712,16 @@ fn cache_refresh(table: &Value) -> String {
     for (on, _) in &triggers {
         let _ = writeln!(code, "        RefreshTrigger::{},", pascal(on));
     }
-    code.push_str("    ];\n\n    /// The channel whose events are this trigger; none of `Reopened`, which is the stream's own.\n    pub const fn channel(self) -> Option<&'static str> {\n        match self {\n");
+    code.push_str("    ];\n\n    /// The channel whose events are this trigger; none of a trigger that is no channel.\n    pub const fn channel(self) -> Option<&'static str> {\n        match self {\n");
     for (on, _) in &triggers {
-        if *on == "reopened" {
-            let _ = writeln!(code, "            RefreshTrigger::{} => None,", pascal(on));
-        } else {
+        if channels.contains(on) {
             let _ = writeln!(
                 code,
                 "            RefreshTrigger::{} => Some({on:?}),",
                 pascal(on)
             );
+        } else {
+            let _ = writeln!(code, "            RefreshTrigger::{} => None,", pascal(on));
         }
     }
     code.push_str("        }\n    }\n\n    /// What this trigger does: one row, or two for a channel whose events come two ways.\n    pub const fn rows(self) -> &'static [CacheRefresh] {\n        match self {\n");
@@ -709,10 +754,51 @@ fn cache_refresh(table: &Value) -> String {
         };
         format!("&[{}]", named.join(", "))
     };
+    // A way, the names of its members joined by dots, as those names.
+    let way = |row: &Value, key: &str, on: &str| -> String {
+        let dotted = match &row[key] {
+            Value::Null => return "None".to_owned(),
+            Value::String(dotted) => dotted,
+            other => panic!("{on}: {key} is {other}, which is no way to a member"),
+        };
+        let names: Vec<&str> = dotted.split('.').collect();
+        if names.iter().any(|name| name.is_empty()) {
+            panic!("{on}: {key} is {dotted:?}, which names a member with no name");
+        }
+        format!("Some(&{names:?})")
+    };
     for (on, rows) in &triggers {
         let rendered: Vec<String> = rows
             .iter()
             .map(|row| {
+                for key in row.as_object().into_iter().flat_map(|row| row.keys()) {
+                    if ![
+                        "on",
+                        "when",
+                        "reach",
+                        "names",
+                        "carries",
+                        "docs",
+                        "refetches",
+                        "writes",
+                        "removes",
+                    ]
+                    .contains(&key.as_str())
+                    {
+                        panic!("{on} states {key}, which a row does not have");
+                    }
+                }
+                let names = &row["names"];
+                let slots = match names {
+                    Value::Null => Vec::new(),
+                    Value::Object(slots) => slots.keys().collect(),
+                    other => panic!("{on}: names is {other}, which is not an object"),
+                };
+                for slot in slots {
+                    if !matches!(slot.as_str(), "resource" | "annotation") {
+                        panic!("{on} names a {slot}: it names a resource and an annotation");
+                    }
+                }
                 let when = match row["when"].as_str() {
                     None => "None".to_owned(),
                     Some(when @ ("enriched" | "unenriched")) => {
@@ -726,7 +812,10 @@ fn cache_refresh(table: &Value) -> String {
                     Some(other) => panic!("{on}: `reach` is {other}, which is neither"),
                 };
                 format!(
-                    "CacheRefresh {{ when: {when}, reach: Reach::{reach}, refetches: {}, writes: {}, removes: {} }}",
+                    "CacheRefresh {{ when: {when}, reach: Reach::{reach}, names: RefreshNames {{ resource: {}, annotation: {} }}, carries: {}, refetches: {}, writes: {}, removes: {} }}",
+                    way(names, "resource", on),
+                    way(names, "annotation", on),
+                    way(row, "carries", on),
                     listed(row, "refetches", on),
                     listed(row, "writes", on),
                     listed(row, "removes", on)
@@ -845,7 +934,7 @@ fn stamps(definitions: &Value, schema: &Value) -> Vec<String> {
 fn typed_channels(registry: &Value, definitions: &Value) -> String {
     let mut code = String::new();
     let mut markers: Vec<String> = Vec::new();
-    let mut shapes: Vec<(&str, String)> = Vec::new();
+    let mut shapes: Vec<(&str, String, String)> = Vec::new();
     let scoped = list(&registry["audience"]["scoped"], "audience.scoped");
     for channel in list(&registry["channels"], "channels") {
         let name = text(channel, "channel", "a registry channel");
@@ -887,7 +976,7 @@ fn typed_channels(registry: &Value, definitions: &Value) -> String {
             ),
             other => panic!("{name} has the shape {other}, which has no Rust type"),
         };
-        shapes.push((name, shape));
+        shapes.push((name, marker.clone(), shape));
         let _ = writeln!(
             code,
             "/// `{name}`\npub struct {marker};\nimpl Channel for {marker} {{\n    const NAME: &'static str = {name:?};\n    const STAMPS: &'static [&'static str] = &{declared:?};\n    type Payload = {payload};\n}}"
@@ -923,8 +1012,15 @@ fn typed_channels(registry: &Value, definitions: &Value) -> String {
         );
     }
     code.push_str("/// What a payload on each channel must be, by the channel's name, as\n/// `crate::required` holds a payload to it.\npub(crate) fn payload_shape(channel: &str) -> &'static crate::required::Shape {\n    use crate::required::{Kind, NONE, Shape};\n    match channel {\n");
-    for (name, shape) in shapes {
+    for (name, _, shape) in &shapes {
         let _ = writeln!(code, "        {name:?} => &{shape},");
+    }
+    code.push_str(
+        "        other => panic!(\"{other} is no channel of the registry\"),\n    }\n}\n",
+    );
+    code.push_str("/// The stamps each channel's payload type declares (`Channel::STAMPS`), by\n/// the channel's name.\npub(crate) fn payload_stamps(channel: &str) -> &'static [&'static str] {\n    match channel {\n");
+    for (name, marker, _) in &shapes {
+        let _ = writeln!(code, "        {name:?} => <{marker} as Channel>::STAMPS,");
     }
     code.push_str(
         "        other => panic!(\"{other} is no channel of the registry\"),\n    }\n}\n",

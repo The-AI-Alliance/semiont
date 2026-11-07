@@ -6,8 +6,9 @@
 use semiont::identity;
 use semiont::session::{
     ACTIVE_KEY, KNOWLEDGE_BASES_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY, OPEN_RESOURCES_BY_KB_KEY,
-    StoredSession, session_key,
+    OpenResource, StoredSession, session_key,
 };
+use semiont::testing::as_id;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
@@ -201,6 +202,89 @@ fn what_a_registry_keeps_is_the_tables() {
             read.is_none(),
             required.contains(&left.as_str()),
             "a stored value without {left}"
+        );
+    }
+}
+
+/// The members of what `resource` is written as, in order.
+fn written_members(resource: &OpenResource) -> Vec<String> {
+    let written = serde_json::to_value(resource).expect("an open resource writes");
+    let mut members: Vec<String> = written
+        .as_object()
+        .expect("an open resource writes an object")
+        .keys()
+        .cloned()
+        .collect();
+    members.sort();
+    members
+}
+
+/// An open resource is written, as a registry writes the list it keeps
+/// under `openResourcesByKbKey`, with every member the table names when all
+/// of them are known, and with only the ones it requires when no more are;
+/// and one stored without a member the table requires is none. A member the
+/// table gains, or a change to what it requires, fails here until Rust has
+/// it.
+#[test]
+fn an_open_resource_is_kept_as_the_table_states() {
+    let stored = table(include_str!("../specs/session/stored.json"));
+    let schema = &stored["openResource"];
+    let mut members: Vec<String> = schema["properties"]
+        .as_object()
+        .expect("an open resource has properties")
+        .keys()
+        .cloned()
+        .collect();
+    members.sort();
+    let mut required: Vec<String> = schema["required"]
+        .as_array()
+        .expect("an open resource requires members")
+        .iter()
+        .map(|member| {
+            member
+                .as_str()
+                .expect("a required member is named")
+                .to_owned()
+        })
+        .collect();
+    required.sort();
+
+    let whole = OpenResource {
+        id: as_id("r1"),
+        name: "One".to_owned(),
+        opened_at: 1,
+        order: 0,
+        media_type: Some("text/markdown".to_owned()),
+        storage_uri: Some("file://docs/one.md".to_owned()),
+    };
+    let bare = OpenResource {
+        media_type: None,
+        storage_uri: None,
+        ..whole.clone()
+    };
+    assert_eq!(
+        written_members(&whole),
+        members,
+        "an open resource's members"
+    );
+    assert_eq!(
+        written_members(&bare),
+        required,
+        "the members of an open resource of which no more is known"
+    );
+
+    let written = serde_json::to_value(&whole).expect("an open resource writes");
+    for left in &members {
+        let mut without = written.clone();
+        without
+            .as_object_mut()
+            .expect("an open resource writes an object")
+            .remove(left);
+        let read = serde_json::from_value::<OpenResource>(without);
+        assert_eq!(
+            read.is_err(),
+            required.contains(left),
+            "an open resource stored without {left}"
         );
     }
 }

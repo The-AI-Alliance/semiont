@@ -34,8 +34,8 @@ internal static class RepresentationText
             "utf-8" => Encoding.UTF8.GetString(bytes),
             "utf-16le" => Utf16(bytes, bigEndian: false),
             "utf-16be" => Utf16(bytes, bigEndian: true),
-            _ when decoder.SingleByte is { } map => SingleByte(bytes, map),
-            _ => Legacy(decoder.Name).GetString(bytes),
+            _ => SingleByte(bytes, decoder.SingleByte
+                ?? throw new InvalidOperationException("The table of encodings names " + decoder.Name + ", which it neither refuses nor reads byte by byte.")),
         };
     }
 
@@ -56,24 +56,6 @@ internal static class RepresentationText
         var text = new StringBuilder(bytes.Length);
         foreach (var value in bytes) text.Append(map[value]);
         return text.ToString();
-    }
-
-    // The shared table owns labels and single-byte mappings. These IDs select platform decoders.
-    private static Encoding Legacy(string name)
-    {
-        var codePage = name switch
-        {
-            "big5" => 950,
-            "euc-jp" => 51932,
-            "euc-kr" => 949,
-            "gb18030" => 54936,
-            "gbk" => 54936,
-            "iso-2022-jp" => 50220,
-            "shift_jis" => 932,
-            _ => throw Refusal("Unsupported resource charset: " + name),
-        };
-        return CodePagesEncodingProvider.Instance.GetEncoding(codePage, EncoderFallback.ReplacementFallback, new DecoderReplacementFallback("�"))
-            ?? throw Refusal("Unsupported resource charset: " + name);
     }
 
     private static Dictionary<string, Decoder> MakeDecoders()

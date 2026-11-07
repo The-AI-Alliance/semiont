@@ -118,6 +118,52 @@ public sealed partial class TransportTests
     }
 
     [Fact]
+    public void OpenResourcesAreShownInTheOrderOfTheirTable()
+    {
+        using var table = ReadSpec("session/registry-cases.json");
+        var cases = table.RootElement.GetProperty("openResourceOrder").EnumerateArray().ToArray();
+        Assert.NotEmpty(cases);
+        foreach (var row in cases)
+        {
+            var open = Assert.IsType<OpenResource[]>(RegistryStorage.Read<OpenResource[]>(row.GetProperty("open").GetRawText()));
+            var shown = row.GetProperty("shown").EnumerateArray().Select(id => Assert.IsType<string>(id.GetString())).ToArray();
+            var sorted = OpenResources.SortOpenResources(open).Select(tab => tab.Id.Value).ToArray();
+            Assert.True(shown.SequenceEqual(sorted), Text(row, "why") + ": shown " + string.Join(", ", sorted));
+        }
+    }
+
+    [Fact]
+    public async Task AnOpenResourceIsKeptAsTheStoredTableStatesIt()
+    {
+        using var table = ReadSpec("session/stored.json");
+        var schema = table.RootElement.GetProperty("openResource");
+        static string[] Members(JsonElement value) => value.EnumerateObject().Select(member => member.Name).Order().ToArray();
+        var required = schema.GetProperty("required").EnumerateArray().Select(name => Assert.IsType<string>(name.GetString())).Order().ToArray();
+        var store = new MemoryStorage();
+        var kb = RegistryKb("open", "open.test");
+        RegistryStorage.SaveKnowledgeBases(store, [kb]);
+        var factory = new RegistryFactory((options, _) => Task.FromResult(OpenRegistrySession(options.Kb)));
+        await using var browser = new SemiontBrowser(new SemiontBrowserConfig(store, factory));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await browser.SetActiveKbAsync(kb.Id, deadline.Token);
+        browser.AddOpenResource(ResourceId.Parse("full"), "Full", "text/markdown", "file://docs/full.md");
+        browser.AddOpenResource(ResourceId.Parse("bare"), "Bare");
+
+        using var kept = JsonDocument.Parse(Assert.IsType<string>(store.Get(RegistryStorage.OpenResourcesByKbKey)));
+        var tabs = kept.RootElement.GetProperty(kb.Id).EnumerateArray().ToArray();
+        var full = tabs.Single(tab => Text(tab, "id") == "full");
+        Assert.Equal(Members(schema.GetProperty("properties")), Members(full));
+        Assert.Equal(required, Members(tabs.Single(tab => Text(tab, "id") == "bare")));
+        Assert.NotNull(RegistryStorage.Read<OpenResource>(full.GetRawText()));
+        foreach (var member in required)
+        {
+            var incomplete = Assert.IsType<JsonObject>(JsonNode.Parse(full.GetRawText()));
+            incomplete.Remove(member);
+            Assert.Null(RegistryStorage.Read<OpenResource>(incomplete.ToJsonString()));
+        }
+    }
+
+    [Fact]
     public async Task RenewalAdoptsNewerCredentialsAndNeverResurrectsSignOut()
     {
         var store = new MemoryStorage();

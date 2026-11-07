@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for what a Semiont client asks again for, and when. A client's live queries answer from a cache (protocol/contract/CACHE-SEMANTICS.md); this table says what each event on the bus, and the reopening of a dropped stream, does to it. `queries` names the live queries: the operation of the registry each one `asks`, or the GET of the gateway's API it `reads` when its answer grows with a document, and what one is kept `per` (a resource, an annotation, a set of filters; absent, the knowledge base has one). `refresh` has a row per trigger: `on` is a channel of protocol/specs/src/bus/registry.json, or `reopened`, the stream open again after a drop (never after a handoff, which misses nothing). A row `refetches` queries (asks again, keeping the value shown meanwhile), `writes` those whose new value the event itself carries, and `removes` those whose entity the event says is gone, which then fail as `bus.not-found`. `reach` says which keys: `subject`, the resource the event names and, of that resource's annotations, the one it names, or each the client holds when it names none; or `held`, every key the client holds. `when` splits a channel whose events come two ways: `enriched` with the annotation's new value, `unenriched` without. A client acts only on keys it holds (B20). TypeScript: packages/codegen/schemas/generate-cache-refresh.mjs writes packages/typescript/core/src/generated/cache-refresh.ts. protocol/conformance/sdk builds a live case from every row.",
+  "$comment": "AUTHORITY for what a Semiont client asks again for, and when. A client's live queries answer from a cache (protocol/contract/CACHE-SEMANTICS.md); this table says what each event on the bus, and the reopening of a dropped stream, does to it. `queries` names the live queries: the operation of the registry each one `asks`, or the GET of the gateway's API it `reads` when its answer grows with a document, and what one is kept `per` (a resource, an annotation, a set of filters; absent, the knowledge base has one). `refresh` has a row per trigger: `on` is a channel of protocol/specs/src/bus/registry.json; or `reopened`, the stream open again after a drop (never after a handoff, which misses nothing); or `unreadable`, an event on one of the table's channels that cannot be read. A row `refetches` queries (asks again, keeping the value shown meanwhile), `writes` those whose new value the event itself carries, and `removes` those whose entity the event says is gone, which then fail as `bus.not-found`. `reach` says which keys: `subject`, the resource the event names and, of that resource's annotations, the one it names, or each the client holds when it names none; or `held`, every key the client holds. `names` says where in the event (the frame's payload) a `subject` row finds them: the way to the `resource` (a ResourceId) and to the `annotation` (an AnnotationId), the names of the members it is within and its own joined by dots, as a frame's refusal names a member. `carries` is the way to the value the row `writes` (an Annotation). A way names none where its member, or a member it passes through, is absent or null. A member it passes through that is present and is no object, the member it ends at present and not of its type, and a frame its channel's reading refuses each make the event `unreadable`, whose row applies in its place. `when` splits a channel whose events come two ways: `enriched`, when the member its `enriched` row `carries` is present and not null, and `unenriched` otherwise. packages/codegen/schemas/cache-refresh-table.mjs holds every way to the schema of its channel's events. A client acts only on keys it holds (B20). TypeScript: packages/codegen/schemas/generate-cache-refresh.mjs writes packages/typescript/core/src/generated/cache-refresh.ts. protocol/conformance/sdk builds a live case from every row.",
   "queries": [
     {
       "name": "resource",
@@ -74,7 +74,27 @@
       "docs": "The stream is open again after a drop. Events every client hears carry no position, so the ones published meanwhile are lost and nothing replays them: the client asks again for everything they feed. What a resource's own scope feeds needs nothing here: its events are replayed from where the client left off, or `bus:resume-gap` says they could not be."
     },
     {
+      "on": "unreadable",
+      "reach": "held",
+      "refetches": [
+        "resource",
+        "annotations",
+        "annotation",
+        "events",
+        "referencedBy",
+        "resources",
+        "matchedResources",
+        "entityTypes",
+        "tagSchemas",
+        "engines"
+      ],
+      "docs": "A frame on a channel of this table that its reading refuses, or one a member of which the row names is present and is not what it names: something changed and nothing says what, so every key held is asked for again, as after a gap."
+    },
+    {
       "on": "bus:resume-gap",
+      "names": {
+        "resource": "scope"
+      },
       "refetches": [
         "annotations",
         "annotation",
@@ -86,6 +106,9 @@
     },
     {
       "on": "mark:added",
+      "names": {
+        "resource": "resourceId"
+      },
       "refetches": [
         "annotations",
         "events"
@@ -94,6 +117,10 @@
     },
     {
       "on": "mark:removed",
+      "names": {
+        "resource": "resourceId",
+        "annotation": "payload.annotationId"
+      },
       "refetches": [
         "annotations",
         "events"
@@ -105,6 +132,9 @@
     },
     {
       "on": "mark:delete-ok",
+      "names": {
+        "annotation": "response.annotationId"
+      },
       "removes": [
         "annotation"
       ],
@@ -113,6 +143,11 @@
     {
       "on": "mark:body-updated",
       "when": "enriched",
+      "names": {
+        "resource": "resourceId",
+        "annotation": "annotation.id"
+      },
+      "carries": "annotation",
       "writes": [
         "annotations",
         "annotation"
@@ -125,6 +160,10 @@
     {
       "on": "mark:body-updated",
       "when": "unenriched",
+      "names": {
+        "resource": "resourceId",
+        "annotation": "payload.annotationId"
+      },
       "refetches": [
         "annotations",
         "annotation",
@@ -134,6 +173,9 @@
     },
     {
       "on": "mark:entity-tag-added",
+      "names": {
+        "resource": "resourceId"
+      },
       "refetches": [
         "annotations",
         "resource",
@@ -143,6 +185,9 @@
     },
     {
       "on": "mark:entity-tag-removed",
+      "names": {
+        "resource": "resourceId"
+      },
       "refetches": [
         "annotations",
         "resource",
@@ -152,6 +197,9 @@
     },
     {
       "on": "mark:archived",
+      "names": {
+        "resource": "resourceId"
+      },
       "refetches": [
         "resource",
         "resources",
@@ -161,6 +209,9 @@
     },
     {
       "on": "mark:unarchived",
+      "names": {
+        "resource": "resourceId"
+      },
       "refetches": [
         "resource",
         "resources",
@@ -170,6 +221,9 @@
     },
     {
       "on": "yield:created",
+      "names": {
+        "resource": "resourceId"
+      },
       "refetches": [
         "resource",
         "resources",
@@ -179,6 +233,9 @@
     },
     {
       "on": "yield:updated",
+      "names": {
+        "resource": "resourceId"
+      },
       "refetches": [
         "resource",
         "resources",
@@ -188,6 +245,9 @@
     },
     {
       "on": "yield:cloned",
+      "names": {
+        "resource": "resourceId"
+      },
       "refetches": [
         "resource",
         "resources",
@@ -197,6 +257,9 @@
     },
     {
       "on": "yield:moved",
+      "names": {
+        "resource": "resourceId"
+      },
       "refetches": [
         "resource",
         "resources",

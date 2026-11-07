@@ -176,7 +176,6 @@ package struct TableGenerator {
       ("media-types/registry.json", "mediaTypes", "mediaTypes"),
       ("text/encoding-cases.json", "cases", "encodings"),
       ("client/refresh.json", "queries", "cacheQueries"),
-      ("client/refresh.json", "refresh", "cacheRefresh"),
       ("bus/registry.json", "audience", "busAudience"),
       ("bus/log-cases.json", "names", "credentialNames"),
     ] {
@@ -508,42 +507,112 @@ package struct TableGenerator {
     out += shapeTable(
       "requiredSchemas", try schemaShapes.mapValues { try shapeLiteral($0) })
     out += shapeTable("requiredPayloadShapes", payloadShapes)
+    out += try cacheRefreshTable(channels: Set(rows.keys))
+    return out
+  }
+  /// client/refresh.json as typed rows: what each trigger does, and the ways into its event's
+  /// payload, each split into the names of the members it is within and its own. A trigger is a
+  /// channel of the registry, `reopened` or `unreadable`; which are channels is the registry's.
+  func cacheRefreshTable(channels: Set<String>) throws -> String {
     let refresh = try table("client/refresh.json")
-    let queries = try required(refresh, "queries").array.map { try $0.object }
-    let queryNames = try queries.map { try required($0, "name").text }
-    guard Set(queryNames).count == queryNames.count else {
+    let queries = try required(refresh, "queries").array.map {
+      try required($0.object, "name").text
+    }
+    guard Set(queries).count == queries.count else {
       throw GenerationRefused(description: "duplicate cache query")
     }
+    let reaches = ["subject", "held"]
+    let kinds = ["enriched", "unenriched"]
+    let acts = ["refetches", "writes", "removes"]
+    let columns = ["on", "when", "reach", "names", "carries", "docs"] + acts
+    var triggers: [String] = []
+    var literals: [String] = []
     for raw in try required(refresh, "refresh").array {
       let row = try raw.object
+      for key in row.keys.sorted() where !columns.contains(key) {
+        throw GenerationRefused(description: "a refresh row states \(key), which is not read")
+      }
       let trigger = try required(row, "on").text
-      guard trigger == "reopened" || rows[trigger] != nil else {
+      guard ["reopened", "unreadable"].contains(trigger) || channels.contains(trigger) else {
         throw GenerationRefused(description: "unknown cache refresh trigger \(trigger)")
       }
-      for key in ["refetches", "writes", "removes"] {
-        if let value = row[key] {
-          for name in try value.array.map({ try $0.text }) where !queryNames.contains(name) {
-            throw GenerationRefused(description: "unknown cache query \(name)")
-          }
-        }
-      }
-      if let reach = row["reach"], !["subject", "held"].contains(try reach.text) {
+      if !triggers.contains(trigger) { triggers.append(trigger) }
+      // The table's own reading: an absent reach is `subject`, absent names name nothing, and an
+      // absent list of queries lists none.
+      let reach = try row["reach"]?.text ?? "subject"
+      guard reaches.contains(reach) else {
         throw GenerationRefused(description: "unknown refresh reach")
       }
-      if let when = row["when"], !["enriched", "unenriched"].contains(try when.text) {
+      let when = try row["when"]?.text
+      if let when, !kinds.contains(when) {
         throw GenerationRefused(description: "unknown refresh condition")
       }
+      let names = try row["names"]?.object ?? [:]
+      for slot in names.keys.sorted() where !["resource", "annotation"].contains(slot) {
+        throw GenerationRefused(description: "a refresh row names a \(slot)")
+      }
+      var arguments = [
+        "on: .\(escaped(enumCase(trigger)))",
+        "when: \(when.map { ".\(escaped(enumCase($0)))" } ?? "nil")",
+        "reach: .\(escaped(enumCase(reach)))",
+        "resource: \(try wayLiteral(names["resource"]))",
+        "annotation: \(try wayLiteral(names["annotation"]))",
+        "carries: \(try wayLiteral(row["carries"]))",
+      ]
+      for key in acts {
+        let listed = try row[key]?.array.map { try $0.text } ?? []
+        for name in listed where !queries.contains(name) {
+          throw GenerationRefused(description: "unknown cache query \(name)")
+        }
+        let cases = listed.map { ".\(escaped(enumCase($0)))" }
+        arguments.append("\(key): [\(cases.joined(separator: ", "))]")
+      }
+      literals.append("  CacheRefreshRow(\(arguments.joined(separator: ", "))),\n")
     }
-    out +=
-      try models.enumeration(
-        "CacheQuery", queryNames.map(JSONValue.string), ["type": .string("string")]
-      ).replacingOccurrences(of: "public ", with: "internal ") + "\n"
+    var out = ""
+    for (name, values) in [
+      ("CacheQuery", queries), ("CacheRefreshTrigger", triggers), ("CacheRefreshWhen", kinds),
+      ("CacheRefreshReach", reaches),
+    ] {
+      out +=
+        try models.enumeration(name, values.map(JSONValue.string), ["type": .string("string")])
+        .replacingOccurrences(of: "public ", with: "internal ") + "\n"
+    }
     out += "internal protocol CacheQueryHandlers {\n"
-    for query in queries {
-      let name = try required(query, "name").text
-      out += "  func \(escaped(memberName(name)))()\n"
-    }
+    for query in queries { out += "  func \(escaped(memberName(query)))()\n" }
     out += "}\n"
-    return out
+    out +=
+      """
+      /// What one trigger does to the cache. `resource` and `annotation` are the ways into its
+      /// event's payload to the keys a `subject` row reaches, and `carries` the way to the value
+      /// it writes: each the names of the members it is within, and its own.
+      internal struct CacheRefreshRow: Sendable {
+        let on: CacheRefreshTrigger
+        let when: CacheRefreshWhen?
+        let reach: CacheRefreshReach
+        let resource: [String]?
+        let annotation: [String]?
+        let carries: [String]?
+        let refetches: [CacheQuery]
+        let writes: [CacheQuery]
+        let removes: [CacheQuery]
+      }
+      internal let cacheRefresh: [CacheRefreshRow] = [
+      """ + "\n" + literals.joined() + "]\n"
+    out += "/// The triggers that are channels of the bus, with the stamps each payload declares.\n"
+    out += "internal let cacheRefreshChannels: [CacheRefreshTrigger: Set<String>] = [\n"
+    for trigger in triggers where channels.contains(trigger) {
+      out += "  .\(escaped(enumCase(trigger))): Channels.\(escaped(memberName(trigger))).stamps,\n"
+    }
+    return out + "]\n"
+  }
+  /// A way into an event's payload, as the names it is made of; nil where the row states none.
+  func wayLiteral(_ raw: JSONValue?) throws -> String {
+    guard let raw else { return "nil" }
+    let names = try raw.text.split(separator: ".", omittingEmptySubsequences: false)
+    guard names.allSatisfy({ !$0.isEmpty }) else {
+      throw GenerationRefused(description: "\(raw) is no way to a member")
+    }
+    return "[\(names.map { literal(String($0)) }.joined(separator: ", "))]"
   }
 }

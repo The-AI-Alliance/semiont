@@ -18,6 +18,7 @@
 //
 // --check compares without writing (the CI drift gate).
 
+import { storedEventComponent } from './stored-event.mjs';
 import { validateRegistry, validateRegistryFormat } from './validate-registry.mjs';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -46,7 +47,7 @@ function payloadOf(c) {
     case 'envelope':
       return { type: `Response[${c.schema}]`, names: [c.schema] };
     case 'storedEvent': {
-      const event = c.enriched === true ? 'EnrichedResourceEvent' : 'StoredEventResponse';
+      const event = storedEventComponent(c);
       return { type: event, names: [event, c.payload], recorded: c.payload };
     }
     case 'void':
