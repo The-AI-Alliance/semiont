@@ -139,6 +139,7 @@
     "save": "Gem",
     "cancel": "Annuller",
     "edit": "Rediger",
+    "saveFailed": "Kunne ikke gemme kommentaren: {{detail}}",
     "annotateComments": "Annoter kommentarer",
     "instructions": "Instruktioner",
     "optional": "(valgfrit)",

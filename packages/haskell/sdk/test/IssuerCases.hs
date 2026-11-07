@@ -259,7 +259,7 @@ issuerCases fixtures = do
   require "agent refusal lost the session diagnostic" . (==[Code.SessionCredentialRefused]) =<< readTVarIO errors
   putStrLn "PASS issuer discovery, RFC PKCE, one-shot redirect, atomic rotation, explicit credentials and agent startup over real HTTP parsing"
 
-deviceClockCases :: FilePath -> IO ()
+deviceClockCases :: FilePath -> IO [Text]
 deviceClockCases root = clockCasesFor root ["deviceGrant"] $ \time row -> do
   calls <- newTVarIO (0::Integer)
   let given=member "given" row

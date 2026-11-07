@@ -121,11 +121,17 @@ export interface ITransport {
    * absence: an uncounted emit must stay distinguishable from a genuine empty
    * room, and a number standing in for "unknown" would compare, add and print
    * as a count.
+   *
+   * `signal`, when given, is whoever emits giving the emit up: a request
+   * aborts it when its deadline falls due or its caller abandons it. Once it
+   * aborts, an attempt in flight is cancelled, no attempt is made after it,
+   * and the emit rejects.
    */
   emit<K extends keyof EventMap>(
     channel: K,
     payload: EventMap[K],
     envelope?: BusEnvelope,
+    signal?: AbortSignal,
   ): Promise<number | undefined>;
   on<K extends keyof EventMap>(channel: K, handler: (payload: EventMap[K] | FrameRefusal) => void): () => void;
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K] | FrameRefusal>;

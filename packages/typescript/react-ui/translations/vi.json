@@ -139,6 +139,7 @@
     "save": "Lưu",
     "cancel": "Hủy",
     "edit": "Chỉnh sửa",
+    "saveFailed": "Không thể lưu bình luận: {{detail}}",
     "annotateComments": "Chú thích bình luận",
     "instructions": "Hướng dẫn",
     "optional": "(tùy chọn)",

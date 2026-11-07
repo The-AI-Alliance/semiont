@@ -211,6 +211,7 @@ type fakeGateway struct {
 	t          *testing.T
 	stream     streamAnswer
 	retryAfter *int
+	refused    []string
 	unanswered []string
 	// over is closed once the case is over: what the gateway still holds lets
 	// go then, before the server closes, which waits for every answer under
@@ -223,11 +224,12 @@ type fakeGateway struct {
 	closed int
 }
 
-// newFakeGateway is a gateway that answers a subscribe as stream says, with a
-// Retry-After of retryAfter seconds when there is one, and never answers a
-// request of the paths unanswered names.
-func newFakeGateway(t *testing.T, stream streamAnswer, retryAfter *int, unanswered ...string) *fakeGateway {
-	g := &fakeGateway{t: t, stream: stream, retryAfter: retryAfter, unanswered: unanswered, over: make(chan struct{}), asked: map[string]int{}}
+// newFakeGateway is a gateway that answers a subscribe as stream says,
+// refuses a request of the paths refused names with a 503, and never answers
+// a request of the paths unanswered names. Its refusals carry a Retry-After
+// of retryAfter seconds when there is one.
+func newFakeGateway(t *testing.T, stream streamAnswer, retryAfter *int, refused []string, unanswered ...string) *fakeGateway {
+	g := &fakeGateway{t: t, stream: stream, retryAfter: retryAfter, refused: refused, unanswered: unanswered, over: make(chan struct{}), asked: map[string]int{}}
 	g.client = httptest.NewTestServer(t, g).Client()
 	t.Cleanup(func() { close(g.over) })
 	return g
@@ -245,6 +247,10 @@ func (g *fakeGateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	g.mu.Unlock()
 	if slices.Contains(g.unanswered, r.URL.Path) {
 		g.never(r)
+		return
+	}
+	if slices.Contains(g.refused, r.URL.Path) {
+		g.refuse(w, r)
 		return
 	}
 	if r.URL.Path != subscribePath {
@@ -268,16 +274,21 @@ func (g *fakeGateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case <-g.over:
 		}
 	case streamRefused:
-		if g.retryAfter != nil {
-			w.Header().Set("Retry-After", strconv.Itoa(*g.retryAfter))
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		if _, err := io.WriteString(w, `{"error":"The gateway is not ready"}`); err != nil {
-			g.t.Errorf("the gateway could not refuse a subscribe: %v", err)
-		}
+		g.refuse(w, r)
 	case streamUnanswered:
 		g.never(r)
+	}
+}
+
+// refuse answers r with a 503, and the gateway's Retry-After when it has one.
+func (g *fakeGateway) refuse(w http.ResponseWriter, r *http.Request) {
+	if g.retryAfter != nil {
+		w.Header().Set("Retry-After", strconv.Itoa(*g.retryAfter))
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusServiceUnavailable)
+	if _, err := io.WriteString(w, `{"error":"The gateway is not ready"}`); err != nil {
+		g.t.Errorf("the gateway could not refuse %s %s: %v", r.Method, r.URL.Path, err)
 	}
 }
 
@@ -321,25 +332,25 @@ func (g *fakeGateway) transport(t *testing.T) *semiont.HTTPTransport {
 }
 
 func refusedStream(t *testing.T, given clockGiven) clockSubject {
-	gateway := newFakeGateway(t, streamRefused, given.RetryAfterSeconds)
+	gateway := newFakeGateway(t, streamRefused, given.RetryAfterSeconds, nil)
 	gateway.transport(t)
 	return clockSubject{counted: func() int { return gateway.askedOf(subscribePath) }}
 }
 
 func unansweredStream(t *testing.T, _ clockGiven) clockSubject {
-	gateway := newFakeGateway(t, streamUnanswered, nil)
+	gateway := newFakeGateway(t, streamUnanswered, nil, nil)
 	gateway.transport(t)
 	return clockSubject{counted: func() int { return gateway.askedOf(subscribePath) }}
 }
 
 func degradedStream(t *testing.T, given clockGiven) clockSubject {
-	gateway := newFakeGateway(t, streamRefused, given.RetryAfterSeconds)
+	gateway := newFakeGateway(t, streamRefused, given.RetryAfterSeconds, nil)
 	transport := gateway.transport(t)
 	return clockSubject{counted: tallied(t, transport.State(), func(state semiont.ConnectionState) bool { return state == semiont.ConnectionStateDegraded })}
 }
 
 func scopeTaken(t *testing.T, _ clockGiven) clockSubject {
-	gateway := newFakeGateway(t, streamHeld, nil)
+	gateway := newFakeGateway(t, streamHeld, nil, nil)
 	transport := gateway.transport(t)
 	resource := resourceOf(t, "res-1")
 	return clockSubject{
@@ -350,7 +361,7 @@ func scopeTaken(t *testing.T, _ clockGiven) clockSubject {
 }
 
 func scopeLetGo(t *testing.T, _ clockGiven) clockSubject {
-	gateway := newFakeGateway(t, streamHeld, nil)
+	gateway := newFakeGateway(t, streamHeld, nil, nil)
 	transport := gateway.transport(t)
 	synctest.Wait()
 	if state := transport.State().Value(); state != semiont.ConnectionStateOpen {
@@ -364,7 +375,7 @@ func scopeLetGo(t *testing.T, _ clockGiven) clockSubject {
 }
 
 func handoffLinger(t *testing.T, _ clockGiven) clockSubject {
-	gateway := newFakeGateway(t, streamHeld, nil)
+	gateway := newFakeGateway(t, streamHeld, nil, nil)
 	transport := gateway.transport(t)
 	resource := resourceOf(t, "res-1")
 	return clockSubject{
@@ -374,7 +385,7 @@ func handoffLinger(t *testing.T, _ clockGiven) clockSubject {
 }
 
 func unansweredRequest(t *testing.T, _ clockGiven) clockSubject {
-	gateway := newFakeGateway(t, streamHeld, nil, healthPath)
+	gateway := newFakeGateway(t, streamHeld, nil, nil, healthPath)
 	transport := gateway.transport(t)
 	var failed atomic.Int64
 	background(t, func(ctx context.Context) {
@@ -397,7 +408,7 @@ func unansweredRequest(t *testing.T, _ clockGiven) clockSubject {
 }
 
 func unansweredEmit(t *testing.T, _ clockGiven) clockSubject {
-	gateway := newFakeGateway(t, streamHeld, nil, emitPath)
+	gateway := newFakeGateway(t, streamHeld, nil, nil, emitPath)
 	transport := gateway.transport(t)
 	// Its attempts are cut before the transport closes.
 	background(t, func(ctx context.Context) {
@@ -407,6 +418,44 @@ func unansweredEmit(t *testing.T, _ clockGiven) clockSubject {
 		}
 	})
 	return clockSubject{counted: func() int { return gateway.askedOf(emitPath) }}
+}
+
+// refusedRequest is a bus request of a resource's events, made as the case
+// begins, over a gateway that holds its stream open and refuses every emit;
+// ended is told how it ended, unless the case was over first.
+func refusedRequest(t *testing.T, given clockGiven, ended func(err error)) *fakeGateway {
+	gateway := newFakeGateway(t, streamHeld, given.RetryAfterSeconds, []string{emitPath})
+	wire := semiont.NewWire(gateway.transport(t))
+	background(t, func(ctx context.Context) {
+		_, err := wire.RequestOf(ctx, bus.BrowseEventsRequested.Request().Channel(), map[string]any{"resourceId": "res-1"}, semiont.DefaultTiming().BusRequestTimeout)
+		if ctx.Err() == nil {
+			ended(err)
+		}
+	})
+	return gateway
+}
+
+func refusedBusRequest(t *testing.T, given clockGiven) clockSubject {
+	gateway := refusedRequest(t, given, func(err error) {
+		// How it fails is what timedOutBusRequest counts.
+		if err == nil {
+			t.Error("the request was answered")
+		}
+	})
+	return clockSubject{counted: func() int { return gateway.askedOf(emitPath) }}
+}
+
+func timedOutBusRequest(t *testing.T, given clockGiven) clockSubject {
+	var timedOut atomic.Int64
+	refusedRequest(t, given, func(err error) {
+		var failed *semiont.BusRequestError
+		if !errors.As(err, &failed) || failed.Code != semiont.BusRequestErrorCodeTimeout {
+			t.Errorf("the request ended otherwise: %v", err)
+			return
+		}
+		timedOut.Add(1)
+	})
+	return clockSubject{counted: func() int { return int(timedOut.Load()) }}
 }
 
 // ── The issuer ──────────────────────────────────────────────────────────
@@ -691,6 +740,8 @@ var clockSubjects = map[string]func(t *testing.T, given clockGiven) clockSubject
 	"jobFollower":        jobFollower,
 	"unansweredRequest":  unansweredRequest,
 	"unansweredEmit":     unansweredEmit,
+	"refusedBusRequest":  refusedBusRequest,
+	"timedOutBusRequest": timedOutBusRequest,
 }
 
 // ── A case, played ──────────────────────────────────────────────────────

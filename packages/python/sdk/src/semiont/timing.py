@@ -55,9 +55,12 @@ __all__ = [
     "TIMING_NAMES",
 ]
 
-# How long a bus request waits for its reply. The gateway keeps a reply for redelivery at least
-# twice this long (`replyRetentionSeconds` on POST /bus/subscribe), so a reply published during
-# an outage is still there when the requester reconnects inside its own deadline.
+# How long a bus request has, from the call, to be answered: the wait for the stream to open,
+# the emit with its retries and the waits between them, and the wait for the reply. When it
+# falls due the request fails as timed out, and an emit still in flight is given up, with no
+# attempt after it. The gateway keeps a reply for redelivery at least twice this long
+# (`replyRetentionSeconds` on POST /bus/subscribe), so a reply published during an outage is
+# still there when the requester reconnects inside its own deadline.
 BUS_REQUEST_TIMEOUT_MS: Final = 30000
 
 # The deadline on one POST /bus/emit. The gateway accepts an emit promptly; one still unanswered
@@ -222,9 +225,10 @@ GENERATION_STALL_ASSUMED_TOKENS_COUNT: Final = 500
 # worker's heartbeat, so reaching it means silence and not a long call.
 DELEGATE_SILENCE_MS: Final = 180000
 
-# How long a party that takes jobs waits for the answer to one claim (`job:claim`). A claim is
-# answered at once, with a job or with nothing pending; one still unanswered here is given up
-# and reported as a refusal, and the party asks again at its next idle moment.
+# How long a party that takes jobs waits for the answer to one claim (`job:claim`), from the
+# call and its emit included, as `busRequestTimeoutMs` is for any request. A claim is answered
+# at once, with a job or with nothing pending; one still unanswered here is given up and
+# reported as a refusal, and the party asks again at its next idle moment.
 JOB_CLAIM_TIMEOUT_MS: Final = 10000
 
 # How long a held job may show no activity (its claim, a progress report, its settle) before
@@ -238,9 +242,10 @@ HELD_JOB_STALL_CHECK_MS: Final = 60000
 
 # How long a worker waits for the record to acknowledge a commit of annotations (`mark:commit`),
 # and then, when no acknowledgement came, for the answer to its question whether the batch's
-# last annotation is on the resource (`browse:annotation-requested`). Generous beside an append,
-# since a batch is a unit's annotations and the record may be catching up, and finite, since a
-# wait on an acknowledgement that never comes would hold the job forever.
+# last annotation is on the resource (`browse:annotation-requested`). Each wait is from its
+# request's call, its emit included, as `busRequestTimeoutMs` is for any request. Generous
+# beside an append, since a batch is a unit's annotations and the record may be catching up, and
+# finite, since a wait on an acknowledgement that never comes would hold the job forever.
 MARK_COMMIT_TIMEOUT_MS: Final = 60000
 
 # How many times a worker asks for the anchored text of a PDF it has just yielded (`GET

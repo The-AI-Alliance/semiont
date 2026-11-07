@@ -139,6 +139,7 @@
     "save": "Kaydet",
     "cancel": "İptal",
     "edit": "Düzenle",
+    "saveFailed": "Yorum kaydedilemedi: {{detail}}",
     "annotateComments": "Yorumları Açıkla",
     "instructions": "Talimatlar",
     "optional": "(isteğe bağlı)",
