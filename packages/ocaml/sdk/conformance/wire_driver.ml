@@ -1031,6 +1031,7 @@ let run mode env =
                   "scope" input)
              ?correlation_id:(optional J.to_string "correlationId" input)
              channel (field "payload" input))
+    | "request" when !stopping -> ("error", error "bus.closed")
     | "request" -> (
         let (B.Operation operation) = operation (string "operation" input) in
         let client = get_client () in
