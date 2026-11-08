@@ -30,6 +30,16 @@ internal static class ProtocolFacts
         return (result, failure);
     }
 
+    /// <summary>The component schema a payload on <paramref name="channel"/> is.</summary>
+    internal static string PayloadSchema(string channel)
+    {
+        var row = Registry.RootElement.GetProperty("channels").EnumerateArray()
+            .Single(row => row.GetProperty("channel").GetString() == channel);
+        if (row.GetProperty("shape").GetString() != "schema")
+            throw new InvalidOperationException($"A payload on {channel} is no component schema.");
+        return row.GetProperty("schema").GetString() ?? throw new InvalidOperationException($"{channel} names a null schema.");
+    }
+
     internal static IEnumerable<string> EventChannels() => Registry.RootElement.GetProperty("channels").EnumerateArray()
         .Where(row => row.TryGetProperty("event", out _))
         .Select(row => row.GetProperty("channel").GetString() ?? throw new InvalidOperationException("A channel is null"));

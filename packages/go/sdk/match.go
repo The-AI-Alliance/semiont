@@ -5,8 +5,6 @@ package semiont
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
@@ -65,18 +63,7 @@ func (n *MatchNamespace) Search(resourceID api.ResourceId, referenceID api.Annot
 	}
 	request := api.MatchSearchRequest{ResourceId: resourceID, ReferenceId: referenceID, Context: gathered, Limit: &limit, UseSemanticScoring: &semantic}
 	return &Running[api.MatchSearchResult]{links: n.links, work: func(ctx context.Context, _ func(api.MatchSearchResult)) (api.MatchSearchResult, error) {
-		result, err := ask(ctx, n.links, bus.MatchSearchRequested, request)
-		var refused *BusRequestError
-		if errors.As(err, &refused) && refused.Failure != nil {
-			// A search's failure says what went wrong under `error`, where every other operation's says it under `message`.
-			var said struct {
-				Error *string `json:"error"`
-			}
-			if json.Unmarshal(refused.Failure, &said) == nil && said.Error != nil {
-				return result, &BusRequestError{Code: refused.Code, Message: *said.Error, Failure: refused.Failure}
-			}
-		}
-		return result, err
+		return ask(ctx, n.links, bus.MatchSearchRequested, request)
 	}}
 }
 

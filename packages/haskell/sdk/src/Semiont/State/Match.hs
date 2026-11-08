@@ -28,7 +28,7 @@ newMatchStateUnit client = do
       Right input -> Tasks.fork tasks $ do
         let reply :: Text -> IO ()
             reply message=atomically (Local.signalWithCorrelation (Client.bus client) MatchSearchFailed
-              (Types.MatchSearchFailed message (matchSearchRequestReferenceId input) mempty) NoScope (busFrameCorrelationId envelope))
+              (Types.MatchSearchFailed Nothing Nothing message (matchSearchRequestReferenceId input) mempty) NoScope (busFrameCorrelationId envelope))
             work=do
               found <- Match.search (Client.match client) (matchSearchRequestResourceId input) (matchSearchRequestReferenceId input)
                 (matchSearchRequestContext input) (Just (MatchSearchOptions (matchSearchRequestLimit input) (matchSearchRequestUseSemanticScoring input) (matchSearchRequestAdditionalProperties input))) >>= Running.await

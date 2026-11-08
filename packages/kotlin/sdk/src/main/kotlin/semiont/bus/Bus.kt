@@ -15,11 +15,13 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import semiont.Timings
 import semiont.channels.Channel
 import semiont.channels.ScopedChannel
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
+import semiont.errors.SemiontError
 import semiont.errors.TransportError
 import semiont.errors.TransportErrorCode
 import semiont.identifiers.ResourceId
@@ -99,7 +101,8 @@ private fun notTheChannels(channel: String, fault: Fault): String = "a payload o
  * Throws `BusRequestError` when it is answered with a failure, when no reply
  * comes in time, when the transport is closed, and when its stream does not
  * carry the operation's replies; and `TransportError` when the emit itself is
- * refused, and at once when its reply is.
+ * refused, at once when its reply is, and when the failure it is answered
+ * with is not its channel's.
  */
 public suspend fun request(
     transport: Transport,
@@ -159,10 +162,24 @@ internal suspend fun resultOf(transport: Transport, operation: Operation<*, *, *
             is FrameRefusal -> throw TransportError(TransportErrorCode.Error, "a frame on ${reply.channel} is not that channel's: ${Fault(reply.member, reply.reason)}")
             is Frame -> {
                 if (reply.channel == result) return reply
-                throw BusRequestError.answered(reply.payload)
+                throw answered(operation.failure, reply.payload)
             }
         }
     }
+}
+
+/**
+ * The failure a request was answered with on `channel`, its operation's
+ * failure channel. It is held to its channel's shape before it is read, as a
+ * result is: one with a fault is refused, naming the fault. One the shape
+ * passes is the request's `BusRequestError`, in its own words, under the code
+ * its own code becomes; the shape holds the code to no list.
+ */
+private fun answered(channel: Channel<*>, failure: JsonObject): SemiontError {
+    val declared = declared(channel.stamps, failure)
+    val fault = faultOf(channel.payload.descriptor, declared)
+        ?: return BusRequestError.answered(declared.getValue("message").jsonPrimitive.content, failure)
+    return TransportError(TransportErrorCode.Error, notTheChannels(channel.name, fault))
 }
 
 private fun <P> delivered(frame: Frame, payload: P): Delivered<P> =

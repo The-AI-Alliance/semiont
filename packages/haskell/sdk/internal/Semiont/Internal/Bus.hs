@@ -94,23 +94,16 @@ replyChannelsFor operations = nub (concatMap names operations)
   where names (SomeOperation operation) = let (_, result, failure) = operationChannels operation in [channelName result, channelName failure]
 
 request :: Bus -> Operation input output failure -> input -> Integer -> IO output
-request bus operation input timeoutMs = deliveredPayload <$> requestReply PublishRefusal bus operation input timeoutMs
-
-requestDelivered :: Bus -> Operation input output failure -> input -> Integer -> IO (Delivered output)
-requestDelivered = requestReply ReturnRefusal
+request bus operation input timeoutMs = deliveredPayload <$> requestDelivered bus operation input timeoutMs
 
 payloadRefusalSaid :: FrameRefusal -> Text
 payloadRefusalSaid refusal = "a payload on " <> refusedChannel refusal <> " is not that channel's: " <>
   Required.faultSaid ((fault refusal) { Required.member = if Required.member (fault refusal) == "payload" then "" else Text.drop 8 (Required.member (fault refusal)) })
 
-data ReplyRefusal = PublishRefusal | ReturnRefusal
-
-rejectReply :: ReplyRefusal -> Transport.Transport -> TransportError -> IO result
-rejectReply PublishRefusal transport = Transport.raiseTransportError transport
-rejectReply ReturnRefusal _ = throwIO
-
-requestReply :: ReplyRefusal -> Bus -> Operation input output failure -> input -> Integer -> IO (Delivered output)
-requestReply refusalMode bus@(Bus options transport) operation input timeoutMs = do
+-- A refused reply is told to the request awaiting it and to no one else: the
+-- transport's failure report is for a refused frame that names no reader.
+requestDelivered :: Bus -> Operation input output failure -> input -> Integer -> IO (Delivered output)
+requestDelivered bus@(Bus options transport) operation input timeoutMs = do
   let (asked, result, failure) = operationChannels operation
       replyChannels = [channelName result, channelName failure]
       timedOut = throwIO (BusRequestError BusRequestTimeout "bus request deadline expired" Nothing)
@@ -133,28 +126,31 @@ requestReply refusalMode bus@(Bus options transport) operation input timeoutMs =
           carried <- maybe (throwIO (BusRequestError BusRequestClosed "transport closed before reply" Nothing)) pure reply
           frame <- case carried of
             Transport.Arrived value -> pure value
-            Transport.FrameRejected refusal -> rejectReply refusalMode transport
+            Transport.FrameRejected refusal -> throwIO
               (TransportError Codes.TransportError (Transport.refusalSaid refusal) Nothing Nothing)
           if busFrameChannel (Transport.wireFrame frame) == channelName result then
             case decoded result (Transport.Arrived frame) of
               Heard delivered -> pure delivered
-              Refused refusal -> rejectReply refusalMode transport (TransportError Codes.TransportError
+              Refused refusal -> throwIO (TransportError Codes.TransportError
                 (payloadRefusalSaid refusal) Nothing Nothing)
           else do
-            let fields = busFramePayloadAdditionalProperties (busFramePayload (Transport.wireFrame frame))
-            code <- case KM.lookup "code" fields of
-              Nothing -> pure Nothing
-              Just (String value) -> pure (Just value)
-              _ -> rejectReply refusalMode transport (TransportError Codes.TransportError "failure reply has a non-string code" Nothing Nothing)
-            -- Classification owns the optional code, including future values.
-            -- The operation's own schema owns all of its other failure fields.
+            -- A failure is held to its channel's shape before it is read, as a result is: one with a
+            -- fault is refused, naming the fault, and one without words is never given any. The
+            -- table holds the code to no list, so the typed failure, whose code is closed, is read
+            -- without it, and the code is classified on its own: one the wire does not list is a
+            -- rejection in the failure's own words.
             let wireFrame = Transport.wireFrame frame
+                fields = busFramePayloadAdditionalProperties (busFramePayload wireFrame)
+                refuse issue = throwIO (TransportError Codes.TransportError
+                  ("a payload on " <> channelName failure <> " is not that channel's: " <> Required.faultSaid issue) Nothing Nothing)
+                code = case KM.lookup "code" fields of Just (String value) -> Just value; _ -> Nothing
                 diagnostic = frame { Transport.wireFrame = wireFrame { busFramePayload = BusFramePayload (KM.delete "code" fields) } }
-            case decoded failure (Transport.Arrived diagnostic) of
-              Refused refusal -> rejectReply refusalMode transport (TransportError Codes.TransportError
-                (payloadRefusalSaid refusal) Nothing Nothing)
-              Heard delivered -> throwIO (BusRequestError (busRequestCodeFromWire code)
-                (OperationFailure.message operation (deliveredPayload delivered)) (Just fields))
+            case Required.faultChannel (channelName failure) (Object fields) of
+              Just issue -> refuse issue
+              Nothing -> case decoded failure (Transport.Arrived diagnostic) of
+                Refused _ -> refuse Required.undecoded
+                Heard delivered -> throwIO (BusRequestError (busRequestCodeFromWire code)
+                  (OperationFailure.message operation (deliveredPayload delivered)) (Just fields))
   inheritedWork <- propagateContext work
   inheritedWait <- propagateContext (requestWaitUntil options (now + timeoutMs * 1000000))
   outcome <- race inheritedWork (race inheritedWait

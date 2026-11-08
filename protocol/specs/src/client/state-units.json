@@ -86,10 +86,10 @@
       "steps": [
         { "say": "match:search-requested", "correlationId": "asked-1", "payload": { "resourceId": "res-1", "referenceId": "ref-1", "context": { "$fixture": "context" } } },
         "settle",
-        { "answer": "match:search-requested", "nth": 0, "reply": "match:search-failed", "payload": { "referenceId": "ref-1", "error": "the index is down" } },
+        { "answer": "match:search-requested", "nth": 0, "reply": "match:search-failed", "payload": { "referenceId": "ref-1", "message": "the index is down" } },
         { "heard": [
-          { "channel": "match:search-failed", "correlationId": { "sent": "match:search-requested", "nth": 0 }, "payload": { "referenceId": "ref-1", "error": "the index is down" } },
-          { "channel": "match:search-failed", "correlationId": "asked-1", "payload": { "referenceId": "ref-1", "error": "the index is down" } }
+          { "channel": "match:search-failed", "correlationId": { "sent": "match:search-requested", "nth": 0 }, "payload": { "referenceId": "ref-1", "message": "the index is down" } },
+          { "channel": "match:search-failed", "correlationId": "asked-1", "payload": { "referenceId": "ref-1", "message": "the index is down" } }
         ] }
       ]
     },

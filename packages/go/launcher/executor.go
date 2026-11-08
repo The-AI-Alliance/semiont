@@ -1295,8 +1295,9 @@ func (x *planExec) portChecks(ports []portNeed) bool {
 // fact; either() shows both branches.
 func (x *planExec) sharedConfigCurrent(string, string) bool { return false }
 
+// --dry-run names the real path, as stateMounts does, and writes nothing.
 func (x *planExec) writeSharedConfig(file, _ string) (string, bool) {
-	path := "<state-home>/shared/" + file
+	path := filepath.Join(sharedConfigDir(), file)
 	x.c("write %s (the launcher's own; only as its container (re)starts)", path)
 	return path, true
 }

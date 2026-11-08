@@ -341,7 +341,7 @@ func saveStackSet(ss *StackSet) {
 // saveStack upserts one stack into the collection.
 func saveStack(st *StackState) {
 	st.UpdatedAt = time.Now().UTC()
-	exclusively(statePath(), func() {
+	_ = exclusively(statePath(), func() {
 		ss := LoadStackSet()
 		ss.Stacks[StackKey(st)] = st
 		saveStackSet(ss)
@@ -351,7 +351,7 @@ func saveStack(st *StackState) {
 // forgetStack removes one stack from the collection (full local stop,
 // codespace delete). Other stacks' records survive.
 func forgetStack(key string) {
-	exclusively(statePath(), func() {
+	_ = exclusively(statePath(), func() {
 		ss := LoadStackSet()
 		delete(ss.Stacks, key)
 		saveStackSet(ss)
@@ -360,7 +360,7 @@ func forgetStack(key string) {
 
 // saveShared upserts the record of a container the launcher runs for every knowledge base here, by its container name.
 func saveShared(e *ServiceState) {
-	exclusively(statePath(), func() {
+	_ = exclusively(statePath(), func() {
 		ss := LoadStackSet()
 		if ss.Shared == nil {
 			ss.Shared = map[string]*ServiceState{}
@@ -373,7 +373,7 @@ func saveShared(e *ServiceState) {
 // saveIssuerProxy records the issuer proxy that runs, or, nil, that none
 // does.
 func saveIssuerProxy(p *issuerProxyRecord) {
-	exclusively(statePath(), func() {
+	_ = exclusively(statePath(), func() {
 		ss := LoadStackSet()
 		ss.IssuerProxy = p
 		saveStackSet(ss)
@@ -383,7 +383,7 @@ func saveIssuerProxy(p *issuerProxyRecord) {
 // forgetShared forgets the shared container name: stopped, or (Ollama)
 // replaced by a host install.
 func forgetShared(name string) {
-	exclusively(statePath(), func() {
+	_ = exclusively(statePath(), func() {
 		ss := LoadStackSet()
 		if ss.Shared[name] == nil {
 			return

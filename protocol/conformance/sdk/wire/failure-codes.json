@@ -1,5 +1,5 @@
 {
-  "about": "a request answered on its failure channel fails with the client code the failure's own code becomes; a failure stating no code, or one the client does not know, is rejected",
+  "about": "a request answered on its failure channel fails with the client code the failure's own code becomes; a failure stating no code, or one the client does not know, is rejected; a failure that is not its channel's, one with no words, is refused as `error`",
   "source": "protocol/contract/TRANSPORT-CONTRACT.md § Requests; protocol/specs/src/errors/codes.json busRequest; CommandError",
   "steps": [
     {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},
@@ -35,6 +35,11 @@
     {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 10000}, "as": "asked6"},
     {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$var": "cid6"}, "clientId": {"$var": "clientId"}}},
     {"backend": "emit", "with": {"channel": "browse:resource-failed", "correlationId": {"$var": "cid6"}, "payload": {"message": "a code from the future", "code": "not-invented-yet"}}},
-    {"settles": "asked6", "fails": {"code": "bus.rejected"}}
+    {"settles": "asked6", "fails": {"code": "bus.rejected"}},
+
+    {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 10000}, "as": "asked7"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$var": "cid7"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "browse:resource-failed", "correlationId": {"$var": "cid7"}, "payload": {"code": "not-found"}}},
+    {"settles": "asked7", "fails": {"code": "error"}}
   ]
 }

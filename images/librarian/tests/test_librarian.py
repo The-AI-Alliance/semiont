@@ -318,7 +318,7 @@ def test_a_gather_around_a_resource_is_answered_with_its_resource_and_a_failure_
     run(scenario())
 
 
-def test_a_reference_search_is_answered_with_its_reference_and_a_failure_names_it_under_error() -> None:
+def test_a_reference_search_is_answered_with_its_reference_and_a_failure_names_it_too() -> None:
     async def scenario() -> None:
         async with World() as world:
             world.graph.listing = lambda query: ResourceListing(resources=[described(ROCK, name="Black Hawk")], total=1)
@@ -336,8 +336,7 @@ def test_a_reference_search_is_answered_with_its_reference_and_a_failure_names_i
 
             (failed,) = world.answered("match:search-failed")
             assert failed.correlation_id == "c-2"
-            # The one failure that says why under `error`, and states no `message`.
-            assert dict(failed.payload) == {"referenceId": REFERENCE, "error": "Matcher expected annotation focus, received 'resource'"}
+            assert dict(failed.payload) == {"referenceId": REFERENCE, "message": "Matcher expected annotation focus, received 'resource'"}
 
     run(scenario())
 
@@ -443,6 +442,8 @@ def test_a_request_that_is_not_its_channels_is_logged_and_failed_where_it_states
             # It names no annotation, so there is nothing its failure could name.
             world.ask("gather:requested", {"resourceId": 7}, "c-2")
             world.ask("match:resources-requested", {}, "c-3")
+            # It names its reference, and nothing to search for.
+            world.ask("match:search-requested", {"referenceId": REFERENCE}, "c-4")
             # Nobody waits on a request with no correlation id.
             world.tell("gather:summary-requested", {})
             await world.librarian.settled()
@@ -459,12 +460,20 @@ def test_a_request_that_is_not_its_channels_is_logged_and_failed_where_it_states
             assert search.correlation_id == "c-3"
             assert dict(search.payload) == {"message": "The request on match:resources-requested is not what that channel carries: search"}
 
+            (reference,) = world.answered("match:search-failed")
+            assert reference.correlation_id == "c-4"
+            assert sorted(reference.payload) == ["message", "referenceId"]
+            assert reference.payload["referenceId"] == REFERENCE
+            said = reference.payload["message"]
+            assert isinstance(said, str)
+            assert said.startswith("The request on match:search-requested is not what that channel carries: ")
+
             assert world.answered("gather:summary-failed") == []
             assert world.answered("gather:complete") == []
 
     with caplog.at_level(logging.ERROR, logger="semiont_librarian"):
         run(scenario())
-    assert [record.getMessage() for record in caplog.records].count(UNREAD) == 4
+    assert [record.getMessage() for record in caplog.records].count(UNREAD) == 5
 
 
 def test_a_signal_that_is_not_its_channels_is_logged_and_passed_by(caplog: pytest.LogCaptureFixture) -> None:

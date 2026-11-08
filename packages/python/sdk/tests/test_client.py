@@ -285,11 +285,10 @@ def test_a_searchs_failure_says_what_went_wrong_in_the_words_it_was_given() -> N
         task = asyncio.ensure_future(awaited(searching))
         await turns()
         asked = transport.emitted[0]
-        # A search's failure says what went wrong under `error`, where every other operation's says it under `message`.
         transport.deliver(
             Frame(
                 channel="match:search-failed",
-                payload={"referenceId": "ann-1", "error": "the index is rebuilding"},
+                payload={"referenceId": "ann-1", "message": "the index is rebuilding"},
                 correlation_id=asked.correlation_id,
             )
         )

@@ -186,7 +186,7 @@ refuses further reads.
 The Haskell client implements the
 [client surface](../../../protocol/specs/src/client/surface.json), with typed
 channel and operation descriptors in `Semiont.Channels`.
-All 66 methods of Frame, Bind, Beckon, Browse, Gather, Match, Mark, Yield, Job,
+All methods of Frame, Bind, Beckon, Browse, Gather, Match, Mark, Yield, Job,
 Auth and System are available. See the
 [builder guide](../../../docs/builder/README.md) for the shared model.
 
@@ -696,7 +696,11 @@ bash run.sh /work
 
 Here `/work` is the repository root. The Haskell generator derives protocol
 types, channel descriptors, error codes, timing, the module list, and the
-package version. Refresh `public-api.json` after library source changes;
+package version. A release's version bump writes the manifest's version line
+as the generator would (`packages/haskell/scripts/cabal-version.sh`); the
+manifest is not among `public-api.json`'s inputs, since the template, the
+generated modules and the codegen it is written from are. Refresh
+`public-api.json` after library source changes;
 GHC supplies the reachable types, constructors, and signatures through the
 public Cabal modules, including re-exports. The census checks source
 freshness; the Haskell job compares actual compiled exports. All shared
@@ -712,10 +716,9 @@ JSON payloads from the wire, live-query, and worker corpora.
 The wire driver additionally executes the transport scenarios against the real
 gateway on both signal planes. The worker driver runs every worker case against
 the real gateway on both planes as well. The live-query driver executes all
-parity cases and table-derived refresh cases. The three layers currently total
-232 cases across both planes.
-All 76 shared state-unit cases execute, with separate cache and session suites.
-All 15 shared clock subjects run in-process at the protocol timings, including
+parity cases and table-derived refresh cases.
+All shared state-unit cases execute, with separate cache and session suites.
+All shared clock subjects run in-process at the protocol timings, including
 HTTP waits, scope handoffs, cache saves, discovery, session renewal, device
 polling, delegation, invalidation windows and held-job stalls. Every shared
 session startup/refusal case also runs, including recovery after an unanswered

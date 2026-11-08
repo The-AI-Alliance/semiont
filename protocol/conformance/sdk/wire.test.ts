@@ -25,25 +25,35 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 // to agree with a client about a stale value.
 describe('the corpus against the tables it restates', () => {
   it('failure-codes answers with every code a failure can carry, and expects of each the client code protocol/specs/src/errors/codes.json gives it', () => {
-    const { busRequest } = table<{ busRequest: { unrecognizedFailure: string; codes: Array<{ code: string; wire?: string }> } }>('errors/codes.json');
+    const { busRequest, transport } = table<{
+      busRequest: { unrecognizedFailure: string; codes: Array<{ code: string; wire?: string }> };
+      transport: { unclassified: string };
+    }>('errors/codes.json');
     const wireCodes = table<{ properties: { code: { enum: string[] } } }>('components/schemas/CommandError.json').properties.code.enum;
-    const expected = (wire: unknown): string => busRequest.codes.find((entry) => entry.wire !== undefined && entry.wire === wire)?.code ?? busRequest.unrecognizedFailure;
+    // A failure with no words is not its channel's, and is refused as a result with a fault is.
+    const expected = (failure: Record<string, unknown>): string =>
+      typeof failure['message'] !== 'string'
+        ? transport.unclassified
+        : (busRequest.codes.find((entry) => entry.wire !== undefined && entry.wire === failure['code'])?.code ?? busRequest.unrecognizedFailure);
 
     const answered: unknown[] = [];
-    let last: { code: unknown } | undefined;
+    let wordless = 0;
+    let last: Record<string, unknown> | undefined;
     for (const step of named('failure-codes').steps) {
       if ('backend' in step && step.backend === 'emit' && isObject(step.with?.['payload'])) {
-        last = { code: step.with['payload']['code'] };
-        answered.push(last.code);
+        last = step.with['payload'];
+        if (typeof last['message'] === 'string') answered.push(last['code']);
+        else wordless++;
       } else if ('settles' in step) {
         expect(last, 'a settle with no failure before it').toBeDefined();
-        expect(step.fails, `the failure answering ${String(last!.code)}`).toEqual({ code: expected(last!.code) });
+        expect(step.fails, `the failure answering ${JSON.stringify(last)}`).toEqual({ code: expected(last!) });
         last = undefined;
       }
     }
     expect(wireCodes.filter((code) => !answered.includes(code)), 'wire codes the case never answers with').toEqual([]);
     expect(answered, 'a failure stating no code').toContain(undefined);
     expect(answered.some((code) => typeof code === 'string' && !wireCodes.includes(code)), 'a failure stating a code the wire does not declare').toBe(true);
+    expect(wordless, 'a failure with no words').toBeGreaterThan(0);
   });
 
   it('emit-budget-spent refuses as many attempts as protocol/specs/src/client/timing.json gives one emit', () => {

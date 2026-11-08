@@ -55,7 +55,7 @@ podman stop semiont-example.github.io-test-kb-gateway
 podman rm semiont-example.github.io-test-kb-gateway
 podman stop semiont-example.github.io-test-kb-nats
 podman rm semiont-example.github.io-test-kb-nats
-# remove staged configs: <home>/tmp/semiont-config.example.github.io-test-kb.*
+# remove staged configs: <temp-dir>/semiont-config.example.github.io-test-kb.*
 # stop the shared Worker:
 container stop semiont-worker
 container rm semiont-worker
