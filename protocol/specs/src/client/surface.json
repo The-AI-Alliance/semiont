@@ -1393,9 +1393,9 @@
     },
     {
       "module": "hostName",
-      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "Whether a host is one a knowledge base's HTTP endpoint may name. Held by protocol/specs/src/session/gateway-url-cases.json.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/host_name.mli"],
         "csharp": ["packages/csharp/sdk/src/Semiont/Session"],
         "typescript": [
           "packages/typescript/sdk/src/session/storage.ts"

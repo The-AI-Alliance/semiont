@@ -51,6 +51,17 @@ let shared () =
         (List.map (fun (tab : R.open_resource) -> tab.id) shown))
     (rows "openResourceOrder" table)
 
+(* Shared endpoint rows from session/gateway-url-cases.json. *)
+let gateway_urls () =
+  Yojson.Safe.from_string Registry_cases.gateway_cases
+  |> J.to_list
+  |> List.iter (fun row ->
+      let endpoint = decode Models.http_endpoint (field "endpoint" row) in
+      Alcotest.(check (option string))
+        (string "why" row)
+        (J.to_string_option (field "origin" row))
+        (Host_name.gateway_url endpoint))
+
 let discovery () =
   let parse = D.parse_discovery_document in
   assert (parse {|{"version":1,"kbs":[]}|} = D.Managed []);
@@ -774,6 +785,7 @@ let () =
       ( "registry",
         [
           Alcotest.test_case "shared cases" `Quick shared;
+          Alcotest.test_case "shared gateway origins" `Quick gateway_urls;
           Alcotest.test_case "verified sign-in" `Quick sign_in;
           Alcotest.test_case "durable redirect and replay" `Quick redirect;
           Alcotest.test_case "session unit and durable renewal" `Quick

@@ -1,7 +1,5 @@
 # Building with the Semiont SDK
 
-
-For OCaml installation, sign-in, and live queries, see the [OCaml builder guide](./OCAML.md).
 > ⚠️ **Alpha.** API and package surface are not yet stable; breaking changes between 0.x releases are expected.
 
 For people, and AI agents, writing software that works with a Semiont knowledge base: a web, desktop or mobile application, an ingestion or enrichment pipeline, a service, an agent.
@@ -66,6 +64,10 @@ Use the [local Swift package in a Semiont checkout](../../packages/swift/sdk/REA
 The [Haskell SDK](../../packages/haskell/sdk/README.md) uses `IO`, STM observations and scoped `streaming` readers. Its README covers sign-in, kept sessions, live queries and persistence, typed delegation, [claims and held jobs](../../packages/haskell/sdk/README.md#running-a-worker), the state units, and a registry of knowledge bases.
 
 Use the [local Cabal package in a Semiont checkout](../../packages/haskell/sdk/README.md#install) until it is published.
+
+### OCaml
+
+Build from source with Dune. See the [OCaml builder guide](./OCAML.md).
 
 ## Where to start
 

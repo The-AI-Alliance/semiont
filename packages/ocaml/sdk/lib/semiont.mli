@@ -44,3 +44,4 @@ module Storage = Storage
 module Session_notices = Session_notices
 module Tokens = Tokens
 module Job_filter = Job_filter
+module Host_name = Host_name

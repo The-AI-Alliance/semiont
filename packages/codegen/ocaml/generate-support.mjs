@@ -160,12 +160,14 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/registry_facts.ml'),
   process.argv.includes('--check'));
 
 const registryCases = JSON.parse(readFileSync(resolve(specRoot, 'session/registry-cases.json'), 'utf8'));
+const gatewayCases = JSON.parse(readFileSync(resolve(specRoot, 'session/gateway-url-cases.json'), 'utf8'));
 const sharedTiming = JSON.parse(readFileSync(resolve(specRoot, 'client/timing.json'), 'utf8'));
 const clockCases = JSON.parse(readFileSync(resolve(specRoot, 'client/clock-cases.json'), 'utf8'));
 writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/registry_cases.ml'),
-  '(* Generated from session/registry-cases.json and client/clock-cases.json. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n' +
+  '(* Generated from session/registry-cases.json session/gateway-url-cases.json and client/clock-cases.json. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n' +
   `let cases = ${ocamlString(JSON.stringify({ cases: registryCases.cases, openResourceOrder: registryCases.openResourceOrder }))}\n` +
   `let timing = ${ocamlString(JSON.stringify(Object.fromEntries(sharedTiming.timing.map(({ name, value }) => [name, value]))))}\n` +
+  `let gateway_cases = ${ocamlString(JSON.stringify(gatewayCases.cases))}\n` +
   `let clock_cases = ${ocamlString(JSON.stringify(clockCases.cases))}\n`,
   process.argv.includes('--check'));
 

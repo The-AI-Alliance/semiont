@@ -145,6 +145,8 @@
     "lib/gather.ml": "c1b78c87f2e5c35a9636e61aa0ca9b1477a41341f38acda6ff396cb380b3d3b7",
     "lib/gather_state.ml": "2d016b90cab4635ef647118ddb6cb6e49f674e9f4c73311c79a8f845a31f4df5",
     "lib/gather_state.mli": "f5da939b80588f462f13befe2c6974e46448be17e64bb43bfaabfaf848cfe6ae",
+    "lib/host_name.ml": "5f793a4dace4a309161cce83e5d3f23df9b63bbd5f27f89dc1e4bd6f42e98345",
+    "lib/host_name.mli": "ae48395a873d6cb0d60dc1fce328a283adb07c6e0bb9d7107260a1ae8d57bc69",
     "lib/hover_dwell.ml": "2a8e9fef90c75ce18569793c04f553523e3dc523d53d869ceef4dab6a7702122",
     "lib/hover_dwell.mli": "3bf63911f6482ad960a6e4d3881e4a637caa0d9929dc8d62dbf7b69421fa19af",
     "lib/http_facts.ml": "3bce75ca4edacc1682410d6c9f6faf5584fe027ff8f058c91a63f0fa59be7784",
@@ -187,8 +189,8 @@
     "lib/search_pipeline.mli": "8569d48ac54fb0e5b0165613f479fce0d4dcd897d89dae4699c8d25f6d5db0d3",
     "lib/selector.ml": "28f250d3a6ed926ba94317cf595d39742124587c527ebcf02c6f6c043c50a7e8",
     "lib/selector.mli": "1c3c9f74ea5c90d0154547e5c3f249f4f7fcfd05f5fc97bc89ad7976a7b02716",
-    "lib/semiont.ml": "59a3dd50d045c4767c573764f461ea12ca99a606532e2af7c5de2be13df5789e",
-    "lib/semiont.mli": "cef10736465147b5fcb660a6d5752a494c53b55ef5286c7d274d3556b14422c2",
+    "lib/semiont.ml": "ded490c6b03033e3685d83eaa63025642020af3911d6eb189deeb52a6ddf56d2",
+    "lib/semiont.mli": "b2d56b3340fbdbf0f51113752da1a81586f0fb7d21afb3e47e3f33c0716c4321",
     "lib/session.ml": "ec4f4c1cfcdc83ef6f1a31cc3ab1faa42f9ae663f0667f45a9b1704302766aa8",
     "lib/session.mli": "6d9639cabc6fbc5d280b8b3765d3d520492d925cf231a0578a817e3702647879",
     "lib/session_notices.ml": "cccea843423b06e5802f1675a614063b9533b8a5ea8038fa19d76db1f8eeec59",
@@ -18690,6 +18692,22 @@
       "kind": "value",
       "path": "Semiont.Job_filter.job_matches_filter",
       "declaration": "val job_matches_filter :\n  [ `JobFilter ] Semiont__.Models.t ->\n  [ `JobQueuedEvent ] Semiont__.Models.t -> bool"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Host_name",
+      "declaration": "module Host_name = Semiont__.Host_name",
+      "alias": "Semiont__.Host_name"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Host_name.is_valid_hostname",
+      "declaration": "val is_valid_hostname : string -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Host_name.gateway_url",
+      "declaration": "val gateway_url : [ `HttpEndpoint ] Semiont__.Models.t -> string option"
     }
   ]
 }
