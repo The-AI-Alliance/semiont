@@ -1601,7 +1601,7 @@ jobs:
         working-directory: packages/csharp/sdk
         run: dotnet publish conformance/WireDriver -c Release --self-contained -r linux-x64 -o conformance/bin -p:RestoreLockedMode=true
 
-      - name: Build the OCaml wire driver
+      - name: Build the OCaml conformance driver
         if: matrix.sdk == 'ocaml'
         run: |
           python3 packages/ocaml/check-toolchain.py
@@ -1689,7 +1689,7 @@ jobs:
     name: Worker Conformance (${{ matrix.sdk }})
     runs-on: ubuntu-26.04
     needs: [census, changes, generated-artifacts, build-rust, build-swift-drivers, test-sdk-haskell]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true'
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true' || needs.changes.outputs.ocaml == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -1730,6 +1730,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends libgmp10 libnuma1 zlib1g
+
+      - name: Build the OCaml conformance driver
+        if: matrix.sdk == 'ocaml'
+        run: |
+          python3 packages/ocaml/check-toolchain.py
+          base=$(jq -r '.baseImage' packages/ocaml/toolchain.json)
+          docker build --build-arg "BASE_IMAGE=$base" --tag semiont-ocaml-wire --file packages/ocaml/Dockerfile packages/ocaml
+          docker run --rm --volume "$GITHUB_WORKSPACE:/work" \
+            --env GIT_CONFIG_COUNT=1 --env GIT_CONFIG_KEY_0=safe.directory --env GIT_CONFIG_VALUE_0=/work \
+            semiont-ocaml-wire dune build conformance/wire_driver.exe
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libgmp10
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
