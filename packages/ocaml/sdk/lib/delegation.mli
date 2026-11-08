@@ -35,3 +35,6 @@ val start :
   unit ->
   unit
 (** Start following a job. The returned function releases the observer. *)
+
+val close : t -> unit
+(** Releases all followers and prevents new delegations. *)

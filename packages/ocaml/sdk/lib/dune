@@ -1,5 +1,29 @@
 (library
  (name semiont)
  (public_name semiont)
- (private_modules pattern client_timing schema_shape schema_shapes schema_codec http_facts telemetry_facts live_facts)
- (libraries eio mtime yojson base64 zarith decimal uutf))
+ (private_modules
+  pattern
+  client_timing
+  schema_shape
+  schema_shapes
+  schema_codec
+  http_facts
+  telemetry_facts
+  live_facts
+  oauth_facts
+  store_policy)
+ (libraries
+  eio
+  mtime
+  yojson
+  base64
+  zarith
+  decimal
+  uutf
+  uri
+  digestif
+  ptime
+  unix)
+ (foreign_stubs
+  (language c)
+  (names store_lock)))

@@ -69,3 +69,22 @@ and forward subscription events to `Delegation.on_frame`. The delegate
 functions report creation, progress, retryable failures and completion through
 `on_report`. Terminal failures go to `on_failure`. The returned function
 stops following the job and calls `on_close`.
+
+## Connect and sign in
+
+`Semiont.Client.connect` composes a caller-owned `Session.t` with an HTTP
+adapter, a typed bus subscription and a delegation follower. Use
+`Client.request` for correlated bus operations, `Client.http` for content,
+and `Client.delegation` with `Mark.delegate` or `Yield.delegate`.
+
+`Semiont.OAuth` discovers endpoints from a trusted issuer URL. Use
+`begin_redirect` and `finish_redirect` for a browser with PKCE, or
+`begin_device` and `poll_device` for a script. The caller supplies the
+HTTPS adapter, secure randomness for PKCE, and device poll scheduling.
+
+On Linux and macOS, `Semiont.Sign_in_store` can share the launcher's
+`tokens.json`. Resolve the launcher directory with `state_directory`,
+open it with `make`, and supply the stack key to `session`. To keep a
+new device sign-in, call `save_device` with the script tokens. The store
+serializes writes with the launcher's `flock` and adopts credentials
+that another process refreshed during renewal.

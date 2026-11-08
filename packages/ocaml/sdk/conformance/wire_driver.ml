@@ -179,8 +179,6 @@ let run mode env =
   let commit_timeout = ref None in
   let delegation = ref None in
   let delegates = Hashtbl.create 4 in
-  let job_silence = ref 10000 in
-  let job_poll = ref 5000 in
   let active = Hashtbl.create 8 in
   let get_client () =
     match !client with
@@ -209,7 +207,6 @@ let run mode env =
   in
   let on_event event =
     report_frame event;
-    Option.iter (fun follower -> D.on_frame follower event) !delegation;
     match (mode, event) with
     | Worker, Ok (Semiont.Wire_stream.Frame { route; payload; _ })
       when route.channel = B.name B.Channels.job_queued -> (
@@ -352,21 +349,9 @@ let run mode env =
               Session.Renewed bearer)
         ()
     in
-    let http =
-      H.make ?telemetry ~clock ~session ~timing:http_timing
-        ~key:(fun () -> uuid env)
-        ~on_error:(fun failure ->
-          output_json
-            (`Assoc [ ("error", error ?status:failure.status failure.code) ]))
-        ~call ()
-    in
-    let connect =
-      S.authenticated
-        ~credential:(fun () -> Session.credential session)
-        ~renew:(Session.refresh_refused session)
-        ~on_refused:(fun status ->
-          output_json (`Assoc [ ("error", error ~status "unauthorized") ]))
-        (H.subscribe http)
+    let on_error (failure : H.failure) =
+      output_json
+        (`Assoc [ ("error", error ?status:failure.status failure.code) ])
     in
     let client_id = uuid env in
     let global =
@@ -377,9 +362,7 @@ let run mode env =
             W.channels @ W.commit_channels
           else W.channels
       | Live ->
-          job_silence := time "jobSilenceMs" !job_silence;
-          job_poll := time "jobStatusPollMs" !job_poll;
-          live_channels @ D.channels
+          live_channels
           @ [
               B.Channel B.Channels.mark_delete_ok;
               B.Channel B.Channels.mark_delete_failed;
@@ -389,17 +372,39 @@ let run mode env =
           |> List.map (fun value -> channel (J.to_string value))
     in
     claim_timeout := optional J.to_int "jobClaimTimeoutMs" timing;
-    let subscription =
-      S.start ?telemetry ~timing:subscription_timing ~sw ~clock ~client_id
-        ~global ~scopes:[] ~connect ~on_event ()
+    let key () = uuid env in
+    let http, subscription =
+      match mode with
+      | Live ->
+          let facade =
+            Semiont.Client.connect ~timing:subscription_timing ~http_timing
+              ?telemetry
+              ?delegation_silence_ms:(optional J.to_int "jobSilenceMs" timing)
+              ?delegation_poll_ms:(optional J.to_int "jobStatusPollMs" timing)
+              ~sw ~clock ~session ~client_id ~key ~call ~global ~on_event
+              ~on_error ()
+          in
+          delegation := Some (Semiont.Client.delegation facade);
+          (Semiont.Client.http facade, Semiont.Client.subscription facade)
+      | Worker | Wire ->
+          let http =
+            H.make ?telemetry ~clock ~session ~timing:http_timing ~key ~on_error
+              ~call ()
+          in
+          let connect =
+            S.authenticated
+              ~credential:(fun () -> Session.credential session)
+              ~renew:(Session.refresh_refused session)
+              ~on_refused:(fun status ->
+                on_error { code = "unauthorized"; status = Some status })
+              (H.subscribe http)
+          in
+          let subscription =
+            S.start ?telemetry ~timing:subscription_timing ~sw ~clock ~client_id
+              ~global ~scopes:[] ~connect ~on_event ()
+          in
+          (http, subscription)
     in
-    if mode = Live then
-      delegation :=
-        Some
-          (D.make ~silence_ms:!job_silence ~poll_ms:!job_poll ~sw ~clock
-             ~subscription ~http ~client_id
-             ~correlation_id:(fun () -> uuid env)
-             ());
     client :=
       Some
         {

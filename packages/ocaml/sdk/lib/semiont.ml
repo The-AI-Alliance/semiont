@@ -17,3 +17,6 @@ module Worker = Worker
 module Delegation = Delegation
 module Mark = Mark
 module Yield = Yield
+module Client = Client
+module OAuth = Oauth
+module Sign_in_store = Sign_in_store

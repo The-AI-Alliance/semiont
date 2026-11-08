@@ -14,7 +14,7 @@ const mode = (name) => {
   if (!/^0[0-7]{3}$/.test(value)) throw new Error(`${name} is not an octal mode`);
   return `0o${value.slice(1)}`;
 };
-writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/probes/store_policy.ml'),
+for (const dir of ['lib', 'probes']) writeOrCheck(root, resolve(root, `packages/ocaml/sdk/${dir}/store_policy.ml`),
   '(* Generated from sign-in-store/owner-only.json. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n' +
   `let directory_mode = ${mode('directoryMode')}\nlet file_mode = ${mode('fileMode')}\n`,
   process.argv.includes('--check'));
@@ -112,4 +112,19 @@ const filterCases = readSpec(filterSource).cases;
 writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/probes/job_filter_cases.ml'),
   `(* Generated from ${filterSource}. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n\n` +
   `let cases = ${ocamlString(JSON.stringify(filterCases))}\n`,
+  process.argv.includes('--check'));
+
+const oauth = JSON.parse(readFileSync(resolve(root, 'protocol/specs/src/session/oauth.json'), 'utf8'));
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/oauth_facts.ml'),
+  '(* Generated from session/oauth.json. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n' +
+  oauth.clients.map(({ name, id }) => `let ${name} = ${ocamlString(id)}\n`).join('') +
+  `let scope = ${ocamlString(oauth.scope.value)}\n`,
+  process.argv.includes('--check'));
+
+const storeSource = 'sign-in-store/cases.json';
+const storeCases = JSON.parse(readFileSync(resolve(specRoot, storeSource), 'utf8'));
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/sign_in_cases.ml'),
+  `(* Generated from ${storeSource}. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n` +
+  `let cases = ${ocamlString(JSON.stringify(storeCases.cases))}\n` +
+  `let renewals = ${ocamlString(JSON.stringify(storeCases.renewals))}\n`,
   process.argv.includes('--check'));

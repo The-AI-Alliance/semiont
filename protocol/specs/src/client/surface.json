@@ -1982,7 +1982,6 @@
     },
     {
       "module": "signInStore",
-      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "The sign-ins `semiont login` keeps, as protocol/specs/src/sign-in-store states them: the store, whose every change holds the lock every writer takes, and where the launcher's state home is on each system. Held by sign-in-store/cases.json.",
       "where": {
         "csharp": ["packages/csharp/sdk/src/Semiont/SignIn"],
@@ -2005,18 +2004,21 @@
         "kotlin": [
           "packages/kotlin/sdk/src/main/kotlin/semiont/signin"
         ],
-        "haskell": ["packages/haskell/sdk/src/Semiont/SignInStore.hs"]
+        "haskell": ["packages/haskell/sdk/src/Semiont/SignInStore.hs"],
+        "ocaml": ["packages/ocaml/sdk/lib/sign_in_store.mli"]
       },
       "members": [
         {
           "member": "SignInStore",
-          "kind": "type"
+          "kind": "type",
+          "named": { "ocaml": "t" }
         },
         {
           "member": "stateDir",
           "kind": "function",
           "named": {
-            "haskell": "stateDirectory"
+            "haskell": "stateDirectory",
+            "ocaml": "state_directory"
           },
           "absent": {
             "csharp": "C#'s state home is SignInStore.StateDirectory, a static member of the store, which takes the system's name as text."
@@ -2027,7 +2029,8 @@
           "kind": "type",
           "named": {
             "kotlin": "Platform",
-            "swift": "Platform"
+            "swift": "Platform",
+            "ocaml": "platform"
           },
           "absent": {
             "csharp": "C#'s SignInStore.StateDirectory takes the system's name as text.",
@@ -2044,7 +2047,8 @@
             "typescript": "TypeScript reads nothing of the system it runs on: its caller says which it is.",
             "rust": "Rust's is a function of the type, System::of_this_build.",
             "swift": "Swift's caller says which system it runs on.",
-            "csharp": "C#'s caller names the system it runs on."
+            "csharp": "C#'s caller names the system it runs on.",
+            "ocaml": "The OCaml caller supplies the platform."
           }
         },
         {
@@ -2057,7 +2061,8 @@
           "absent": {
             "typescript": "TypeScript's is SIGN_IN_STORE_FILE, generated into @semiont/core, which the store hands to its caller's files.",
             "swift": "Swift's store is made at a path its caller gives.",
-            "csharp": "C#'s store is made in a directory its caller gives, and names the file there itself."
+            "csharp": "C#'s store is made in a directory its caller gives, and names the file there itself.",
+            "ocaml": "The OCaml store names tokens.json inside the directory supplied by its caller."
           }
         },
         {
@@ -2070,7 +2075,8 @@
             "kotlin": "Kotlin reads, writes and locks the file itself, through the JDK and its foreign-function interface.",
             "swift": "Swift reads, writes and locks the file itself, through Foundation and the C library.",
             "csharp": "C# reads, writes and locks the file itself, through .NET and the C library.",
-            "haskell": "Haskell reads, writes and locks the file itself, through its directory and file libraries and the C library."
+            "haskell": "Haskell reads, writes and locks the file itself, through its directory and file libraries and the C library.",
+            "ocaml": "The OCaml store uses Unix file operations and a native flock binding."
           }
         }
       ]

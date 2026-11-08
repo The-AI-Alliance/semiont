@@ -38,3 +38,8 @@
  (targets job_filter_cases.ml)
  (deps ../probes/job_filter_cases.ml)
  (action (copy %{deps} %{targets})))
+
+(test
+ (name sign_in)
+ (modules sign_in sign_in_cases)
+ (libraries semiont eio_main uri base64 yojson alcotest))

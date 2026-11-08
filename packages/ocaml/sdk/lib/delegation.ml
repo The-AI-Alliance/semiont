@@ -7,6 +7,11 @@ module J = Yojson.Safe.Util
 type report_kind = Created | Progress | Complete | Retrying | Refused
 type failure = { code : string; failure_class : Enums.Failure_class.t option }
 
+type listener = {
+  receive : string -> (Yojson.Safe.t, Yojson.Safe.t) result -> unit;
+  finish : unit -> unit;
+}
+
 type t = {
   sw : Switch.t;
   clock : Clock.t;
@@ -16,8 +21,8 @@ type t = {
   correlation_id : unit -> string;
   silence_ms : int;
   poll_ms : int;
-  listeners :
-    (int, string -> (Yojson.Safe.t, Yojson.Safe.t) result -> unit) Hashtbl.t;
+  listeners : (int, listener) Hashtbl.t;
+  mutable closed : bool;
   mutable next : int;
 }
 
@@ -34,6 +39,7 @@ let make ?(silence_ms = Client_timing.job_silence_ms)
     silence_ms;
     poll_ms;
     listeners = Hashtbl.create 4;
+    closed = false;
     next = 0;
   }
 
@@ -82,7 +88,7 @@ let on_frame t = function
       in
       Hashtbl.to_seq_values t.listeners
       |> List.of_seq
-      |> List.iter (fun receive -> receive route.channel signal)
+      |> List.iter (fun listener -> listener.receive route.channel signal)
   | _ -> ()
 
 let send t ~correlation_id channel payload =
@@ -105,8 +111,8 @@ let request t operation payload =
     | Error _ -> Error "error"
   with H.Failed failure -> Error failure.code
 
-let start t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure ~on_close
-    () =
+let start_open t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure
+    ~on_close () =
   let listener = t.next in
   t.next <- listener + 1;
   let pending = Queue.create () in
@@ -155,7 +161,7 @@ let start t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure ~on_close
       | _ -> ()
   in
 
-  Hashtbl.add t.listeners listener receive;
+  Hashtbl.add t.listeners listener { receive; finish };
   let span milliseconds = Mtime.Span.(max 1 milliseconds * ms) in
   let sleep until duration =
     Clock.sleep_until t.clock
@@ -245,3 +251,19 @@ let start t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure ~on_close
         (fun () -> Promise.await stopped);
       `Stop_daemon);
   finish
+
+let start t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure ~on_close
+    () =
+  if t.closed then (
+    on_failure { code = "bus.closed"; failure_class = None };
+    on_close ();
+    Fun.id)
+  else
+    start_open t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure
+      ~on_close ()
+
+let close t =
+  t.closed <- true;
+  Hashtbl.to_seq_values t.listeners
+  |> List.of_seq
+  |> List.iter (fun listener -> listener.finish ())
