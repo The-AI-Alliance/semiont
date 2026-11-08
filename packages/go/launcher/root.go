@@ -109,12 +109,13 @@ func rootsPath() string {
 }
 
 // loadRoots returns the registry, most-recently-used first (empty, never
-// nil-fielded, when absent or unreadable). It reads under the registry's lock,
-// as changeRoots writes: on Windows a reader holding the file open makes the
-// writer's rename over it fail, and that change is lost.
+// nil-fielded, when absent, unreadable, or its lock cannot be taken). It reads
+// under the registry's lock, as changeRoots writes: on Windows a reader
+// holding the file open makes the writer's rename over it fail, and that
+// change is lost.
 func loadRoots() rootsRegistry {
-	var reg rootsRegistry
-	exclusively(rootsPath(), func() { reg, _ = readRoots() })
+	reg := rootsRegistry{Schema: 1}
+	_ = exclusively(rootsPath(), func() { reg, _ = readRoots() })
 	return reg
 }
 
@@ -216,12 +217,13 @@ func upsertRoot(reg *rootsRegistry, kb kbRoot) *rootEntry {
 
 // changeRoots reads the registry, applies change, and writes it, under the
 // registry's lock (exclusively), so a change made meanwhile by another
-// knowledge base's command is never written over. A registry that exists but
+// knowledge base's command is never written over. A lock that cannot be
+// taken is an error, and change does not run. A registry that exists but
 // cannot be read is not rewritten as an empty one, and an error from change
 // leaves it as it was.
 func changeRoots(change func(reg *rootsRegistry) error) error {
 	var err error
-	exclusively(rootsPath(), func() {
+	if lerr := exclusively(rootsPath(), func() {
 		reg, rerr := readRoots()
 		if rerr != nil {
 			err = rerr
@@ -230,7 +232,9 @@ func changeRoots(change func(reg *rootsRegistry) error) error {
 		if err = change(&reg); err == nil {
 			err = writeRoots(reg)
 		}
-	})
+	}); lerr != nil {
+		return lerr
+	}
 	return err
 }
 
