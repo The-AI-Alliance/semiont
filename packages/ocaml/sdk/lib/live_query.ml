@@ -207,6 +207,15 @@ let rec at path value =
       at rest (Option.value (List.assoc_opt key fields) ~default:`Null)
   | _ -> `Null
 
+let rec valid_way valid path value =
+  match (path, value) with
+  | _, `Null -> true
+  | [], value -> valid value
+  | key :: rest, `Assoc fields ->
+      valid_way valid rest
+        (Option.value (List.assoc_opt key fields) ~default:`Null)
+  | _ -> false
+
 let refetch t ~on ~payload =
   let known =
     List.exists
@@ -214,11 +223,30 @@ let refetch t ~on ~payload =
       Live_facts.refresh
   in
   if known && not (Promise.is_resolved t.stopped) then
+    let valid_id parse = function
+      | `String value -> Result.is_ok (parse value)
+      | _ -> false
+    in
+    let valid_payload payload =
+      List.for_all
+        (fun (trigger, _, _, resource, annotation, _, _, _, _) ->
+          trigger <> on
+          || (resource = []
+             || valid_way
+                  (valid_id Identifiers.Resource_id.of_string)
+                  resource payload)
+             && (annotation = []
+                || valid_way
+                     (valid_id Identifiers.Annotation_id.of_string)
+                     annotation payload))
+        Live_facts.refresh
+    in
     let trigger, payload =
       match payload with
       | None when on <> "reopened" -> ("unreadable", `Null)
       | None -> (on, `Null)
-      | Some payload -> (on, payload)
+      | Some payload when valid_payload payload -> (on, payload)
+      | Some _ -> ("unreadable", `Null)
     in
     let rules =
       List.filter

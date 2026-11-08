@@ -195,6 +195,7 @@ let run mode env =
           B.Operation B.Operations.job_create;
           B.Operation B.Operations.job_status_requested;
           B.Operation B.Operations.job_cancel_requested;
+          B.Operation B.Operations.mark_delete;
         ]
   in
   let job_channel channel =
@@ -593,6 +594,7 @@ let run mode env =
     | L.Failed code ->
         `Assoc [ ("status", text "failed"); ("error", error code) ]
   in
+  let send_signal = emit in
   let delegate ~verb input =
     let client = get_client () in
     let observer = string "observer" input in
@@ -629,7 +631,9 @@ let run mode env =
         (`Assoc
            [
              ("status", text "failed");
-             ("error", `Assoc (("code", text code) :: details));
+             ( "error",
+               `Assoc ([ ("code", text code); ("detail", text code) ] @ details)
+             );
            ]);
       finish ()
     in
@@ -638,7 +642,9 @@ let run mode env =
         match (!job_id, signal) with
         | None, _ -> Queue.add (channel, signal) pending
         | Some _, Error detail -> emit "refused" detail
-        | Some id, Ok payload when field "jobId" payload = text id -> (
+        | Some id, Ok (`Assoc fields as payload)
+          when field "jobId" payload = text id -> (
+            let payload = `Assoc (List.remove_assoc "_roles" fields) in
             last_seen := Semiont.Clock.monotonic_now client.clock;
             match channel with
             | "job:report-progress" ->
@@ -699,7 +705,11 @@ let run mode env =
                         Mtime.Span.compare elapsed (span ms) >= 0)
                       stall
                   then (
-                    ignore (request B.Operations.job_cancel_requested identity);
+                    (try
+                       ignore
+                         (send_signal client ~correlation_id:(uuid env)
+                            B.Channels.job_cancel_requested identity)
+                     with H.Failed _ -> ());
                     if not !finished then fail "job.stalled" (`Assoc []))
                   else if Mtime.Span.compare elapsed (span delay) < 0 then
                     monitor delay
@@ -916,6 +926,17 @@ let run mode env =
               ~completed:(optional Fun.id "completedUnits" input)
               ~cursors:(optional Fun.id "unitCursors" input));
         done_
+    | "delete" when mode = Live -> (
+        match
+          request (get_client ()) B.Operations.mark_delete
+            (`Assoc
+               [
+                 ("resourceId", field "resource" input);
+                 ("annotationId", field "annotation" input);
+               ])
+        with
+        | Ok _ -> done_
+        | Error code -> ("error", error code))
     | "markDelegate" when mode = Live ->
         delegate ~verb:"mark" input;
         done_
