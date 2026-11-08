@@ -266,7 +266,7 @@ export class FaultyTransport implements ITransport {
    * (`Bus.frames(channel, resourceId)`).
    */
   frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K] | FrameRefusal>> {
-    return this.bus.channelStream(channel).asObservable();
+    return this.bus.channelStream(channel);
   }
 
   /**

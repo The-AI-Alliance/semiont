@@ -235,7 +235,7 @@ yieldJob fixtures = rig fixtures $ \rigValue@(Rig worker _ _ _ _) -> do
     _ -> ioError (userError "yield job was not handed over with its own result type")
 
 -- Public worker owner for the heldJobStall subjects of client/clock-cases.json.
-heldClockCases :: FilePath -> Map.Map Text Value -> IO ()
+heldClockCases :: FilePath -> Map.Map Text Value -> IO [Text]
 heldClockCases root fixtures = clockCasesFor root ["heldJobStall"] $ \clock _ -> do
   sent <- newTQueueIO
   ids <- newTVarIO (0::Integer)

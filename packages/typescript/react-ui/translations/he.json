@@ -139,6 +139,7 @@
     "save": "שמור",
     "cancel": "ביטול",
     "edit": "ערוך",
+    "saveFailed": "לא ניתן לשמור את התגובה: {{detail}}",
     "annotateComments": "הערת תגובות",
     "instructions": "הוראות",
     "optional": "(אופציונלי)",

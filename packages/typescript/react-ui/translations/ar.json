@@ -139,6 +139,7 @@
     "save": "حفظ",
     "cancel": "إلغاء",
     "edit": "تعديل",
+    "saveFailed": "تعذّر حفظ التعليق: {{detail}}",
     "annotateComments": "توضيح التعليقات",
     "instructions": "التعليمات",
     "optional": "(اختياري)",

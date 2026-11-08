@@ -65,6 +65,8 @@ public sealed class ClockCasesTests
         ["jobFollower"] = JobFollowerAsync,
         ["unansweredRequest"] = UnansweredRequestAsync,
         ["unansweredEmit"] = UnansweredEmitAsync,
+        ["refusedBusRequest"] = RefusedBusRequestAsync,
+        ["timedOutBusRequest"] = TimedOutBusRequestAsync,
     };
 
     public static IEnumerable<object[]> Cases()
@@ -248,6 +250,37 @@ public sealed class ClockCasesTests
         var transport = Over(gateway, play);
         play.Running(stop => transport.EmitAsync("beckon:hover", Parsed("""{"annotationId":"ann-1"}"""), cancellation: stop));
         return Task.FromResult(new Subject(() => gateway.Asked(Emit), null));
+    }
+
+    /// <summary>A bus request of a resource's events, made as the case begins, over a gateway that holds its stream open and refuses every emit.</summary>
+    private static (Gateway Gateway, Task Asked) RefusedRequest(JsonElement given, Case play)
+    {
+        var gateway = new Gateway(StreamAnswer.Holds, GivenSeconds(given, "retryAfterSeconds")) { Refused = [Emit] };
+        var transport = Over(gateway, play);
+        var asked = play.Running(stop => transport.RequestAsync("browse:events-requested", Parsed("""{"resourceId":"res-1"}"""), cancellation: stop));
+        return (gateway, asked);
+    }
+
+    private static Task<Subject> RefusedBusRequestAsync(JsonElement given, Case play)
+    {
+        var (gateway, asked) = RefusedRequest(given, play);
+        return Task.FromResult(new Subject(() =>
+        {
+            // How it fails is what timedOutBusRequest counts.
+            if (asked.IsCompletedSuccessfully) throw new CaseFailed("the request was answered");
+            return gateway.Asked(Emit);
+        }, null));
+    }
+
+    private static Task<Subject> TimedOutBusRequestAsync(JsonElement given, Case play)
+    {
+        var (_, asked) = RefusedRequest(given, play);
+        return Task.FromResult(new Subject(() =>
+        {
+            if (!asked.IsCompleted) return 0;
+            if (asked.Exception?.InnerException is BusRequestError { Code: "bus.timeout" }) return 1;
+            throw new CaseFailed($"the request ended otherwise: {asked.Status}, {asked.Exception?.InnerException?.Message}");
+        }, null));
     }
 
     // ── The issuer ──────────────────────────────────────────────────────────
@@ -530,10 +563,18 @@ public sealed class ClockCasesTests
 
     private enum StreamAnswer { Holds, Refuses, Never }
 
-    /// <summary>A gateway in this process. It answers each request at once, as the subject has it answer, and counts what it is asked.</summary>
+    /// <summary>
+    /// A gateway in this process. It answers each request at once, as the subject has it answer, and counts what it is asked: a
+    /// subscribe as <paramref name="stream"/> says, a request of a path <see cref="Refused"/> names with a 503, and one of a path
+    /// <paramref name="unanswered"/> names never. Its refusals carry a Retry-After of <paramref name="retryAfterSeconds"/>, when it
+    /// states one.
+    /// </summary>
     private sealed class Gateway(StreamAnswer stream, int? retryAfterSeconds, params string[] unanswered) : HttpMessageHandler
     {
         private readonly object gate = new();
+
+        /// <summary>The paths whose requests it refuses with a 503.</summary>
+        internal string[] Refused { get; init; } = [];
         private readonly Dictionary<string, int> asked = new(StringComparer.Ordinal);
         private int closed;
 
@@ -549,6 +590,7 @@ public sealed class ClockCasesTests
             lock (gate) asked[path] = asked.GetValueOrDefault(path) + 1;
             if (unanswered.Contains(path, StringComparer.Ordinal) || path == Subscribe && stream == StreamAnswer.Never)
                 return await NeverAnsweredAsync(cancellationToken);
+            if (Refused.Contains(path, StringComparer.Ordinal)) return Refusal();
             if (path != Subscribe) throw new CaseFailed($"the gateway was asked {request.Method} {path}, which this subject does not have it answer");
             if (stream == StreamAnswer.Holds)
             {
@@ -556,6 +598,11 @@ public sealed class ClockCasesTests
                 content.Headers.ContentType = new("text/event-stream");
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
             }
+            return Refusal();
+        }
+
+        private HttpResponseMessage Refusal()
+        {
             var refused = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = JsonContent.Create(new { error = "The gateway is not ready" }) };
             if (retryAfterSeconds is int seconds) refused.Headers.TryAddWithoutValidation("Retry-After", seconds.ToString(CultureInfo.InvariantCulture));
             return refused;

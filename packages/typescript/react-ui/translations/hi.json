@@ -139,6 +139,7 @@
     "save": "सहेजें",
     "cancel": "रद्द करें",
     "edit": "संपादित करें",
+    "saveFailed": "टिप्पणी सहेजी नहीं जा सकी: {{detail}}",
     "annotateComments": "टिप्पणियां एनोटेट करें",
     "instructions": "निर्देश",
     "optional": "(वैकल्पिक)",

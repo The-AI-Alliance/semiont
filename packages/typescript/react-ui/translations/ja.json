@@ -139,6 +139,7 @@
     "save": "保存",
     "cancel": "キャンセル",
     "edit": "編集",
+    "saveFailed": "コメントを保存できませんでした: {{detail}}",
     "annotateComments": "コメントをアノテーション",
     "instructions": "指示",
     "optional": "（任意）",

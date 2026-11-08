@@ -139,6 +139,7 @@
     "save": "Spara",
     "cancel": "Avbryt",
     "edit": "Redigera",
+    "saveFailed": "Kunde inte spara kommentaren: {{detail}}",
     "annotateComments": "Annotera kommentarer",
     "instructions": "Instruktioner",
     "optional": "(valfritt)",

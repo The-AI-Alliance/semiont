@@ -38,7 +38,7 @@ use tokio::sync::watch;
 /// unless a caller that must not wait it out states another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientTiming {
-    /// How long a bus request waits for its reply.
+    /// How long a bus request has, from the call, to be answered: its emit included.
     pub bus_request: Duration,
     /// How long a followed job may say nothing before its status is asked for.
     pub job_silence: Duration,

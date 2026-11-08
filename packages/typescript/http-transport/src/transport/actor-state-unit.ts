@@ -871,7 +871,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       return framesOn(channel).pipe(map((frame) => frame.payload));
     },
 
-    emit: async <K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number | undefined> => {
+    emit: async <K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope, signal?: AbortSignal): Promise<number | undefined> => {
       // EMIT logging + bus.emit span live at the transport contract layer
       // (`HttpTransport.emit`). ActorStateUnit is plumbing. We do propagate the
       // active span's W3C traceparent on the outbound POST so the gateway
@@ -907,8 +907,11 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // re-run the request and then hand back the same unexamined response.
       //
       // Each attempt is bounded, its reading too: an unresponsive gateway
-      // must not hang the caller's loop forever.
-      const send = (token: string): Promise<number | undefined> => retryWithBackoff(() => withinDeadline(EMIT_TIMEOUT_MS, async (signal) => {
+      // must not hang the caller's loop forever. The caller's `signal` (a
+      // request's deadline, or its abandonment) bounds them all: when it
+      // aborts the attempt in flight is cancelled, the wait for the next is
+      // cut short, and none is made after.
+      const send = (token: string): Promise<number | undefined> => retryWithBackoff(() => withinDeadline(EMIT_TIMEOUT_MS, async (attemptDue) => {
         // `fetch()` rejects only when no answer came: on a network error with
         // a `TypeError` in the runtime's own words (the Fetch standard), on the
         // deadline with a `TimeoutError`. So its rejection is no answer,
@@ -917,7 +920,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           method: 'POST',
           headers: { ...headers, Authorization: `Bearer ${token}` },
           body: JSON.stringify(body),
-          signal,
+          signal: signal === undefined ? attemptDue : AbortSignal.any([attemptDue, signal]),
         }).catch((error: unknown) => {
           throw new UnansweredError('/bus/emit', error);
         });
@@ -954,7 +957,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           return undefined;
         }
         return accepted.subscribers;
-      }), retryableUnlessRefused, emitRetry)
+      }), retryableUnlessRefused, emitRetry, undefined, signal)
         .catch((error: unknown) => {
           // The gateway never answered, on any attempt the budget allowed. It
           // reaches the caller as every failure of this transport does.

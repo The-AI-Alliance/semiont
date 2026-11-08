@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
-module ClockCases (clockCasesFor, Scenario(..), cacheClockCases, httpClockCases, discoveryClockCases, clientClockCases) where
+module ClockCases (clockCasesFor, clockCensus, Scenario(..), cacheClockCases, httpClockCases, discoveryClockCases, clientClockCases) where
 
 import Control.Concurrent.Async (async, cancel)
 import Control.Concurrent.STM
@@ -27,6 +27,8 @@ import qualified Semiont.Bus as Bus
 import qualified Semiont.Cache as Cache
 import qualified Semiont.Channels as Channel
 import qualified Semiont.Discovery as Discovery
+import qualified Semiont.ErrorCodes as Code
+import Semiont.Errors (BusRequestError(..))
 import qualified Semiont.Gateway as Gateway
 import qualified Semiont.Http as Http
 import qualified Semiont.Http.Routes as Route
@@ -52,10 +54,14 @@ number :: Value -> Rational
 number (Number value) = toRational value
 number _ = error "clock case number is not a number"
 
-clockCasesFor :: FilePath -> [Text] -> (Time.ControlledTime -> Value -> IO Scenario) -> IO ()
+clockTable :: FilePath -> IO Value
+clockTable root = Bytes.readFile (root </> "protocol/specs/src/client/clock-cases.json")
+  >>= either (ioError . userError) pure . eitherDecodeStrict'
+
+-- Runs every case of the subjects a runner builds, and answers those subjects for clockCensus.
+clockCasesFor :: FilePath -> [Text] -> (Time.ControlledTime -> Value -> IO Scenario) -> IO [Text]
 clockCasesFor root subjects make = do
-  table <- Bytes.readFile (root </> "protocol/specs/src/client/clock-cases.json")
-    >>= either (ioError . userError) pure . eitherDecodeStrict'
+  table <- clockTable root
   let cases = [row | row <- array (member "cases" table), String subject <- [member "subject" row], subject `elem` subjects]
       settings = toJSON Timing.protocolSettings
       duration (Object fields) =
@@ -85,13 +91,25 @@ clockCasesFor root subjects make = do
           Time.settle
     unless (outcome == Just ()) (ioError (userError ("controlled clock subject did not settle: " ++ show row)))
   putStrLn ("PASS shared clock cases: " ++ show subjects)
+  pure subjects
+
+-- Fails when the table holds a subject no runner built, so a subject the table gains is never skipped.
+clockCensus :: FilePath -> [Text] -> IO ()
+clockCensus root built = do
+  table <- clockTable root
+  let held = Set.fromList [subject | row <- array (member "cases" table), String subject <- [member "subject" row]]
+      unbuilt = Set.toList (Set.difference held (Set.fromList built))
+  unless (null unbuilt) (ioError (userError ("clock cases no runner builds: " ++ show unbuilt)))
+  putStrLn "PASS every clock-case subject has a runner"
 
 -- An in-memory HTTP connection holds real http-client requests and responses.
 -- Time, including the open-headers deadline, belongs to the public HttpOptions.
-httpClockCases :: FilePath -> IO ()
+httpClockCases :: FilePath -> IO [Text]
 httpClockCases root = clockCasesFor root
-  ["refusedStream", "unansweredStream", "degradedStream", "scopeTaken", "scopeLetGo", "handoffLinger", "unansweredRequest", "unansweredEmit"] $ \clock row -> do
+  [ "refusedStream", "unansweredStream", "degradedStream", "scopeTaken", "scopeLetGo", "handoffLinger", "unansweredRequest", "unansweredEmit"
+  , "refusedBusRequest", "timedOutBusRequest" ] $ \clock row -> do
     let subject = case member "subject" row of String name -> name; _ -> error "subject has no name"
+        busRequest = subject `elem` ["refusedBusRequest", "timedOutBusRequest"]
         given = case row of
           Object fields -> case KM.lookup "given" fields of
             Just (Object values) -> values
@@ -123,13 +141,14 @@ httpClockCases root = clockCasesFor root
                       subscribe = requestStart Route.SubscribeToBus `Bytes.isPrefixOf` header
                       emit = requestStart Route.EmitOnBus `Bytes.isPrefixOf` header
                       health = requestStart Route.GetHealth `Bytes.isPrefixOf` header
-                  when (if subject == "unansweredEmit" then emit else if subject == "unansweredRequest" then health else subscribe)
+                  when (if subject `elem` ["unansweredEmit", "refusedBusRequest"] then emit else if subject == "unansweredRequest" then health else subscribe)
                     (atomically (modifyTVar' asks (+1)))
                   if subscribe then case subject of
                     "unansweredStream" -> pure ()
                     "refusedStream" -> refuse output
                     "degradedStream" -> refuse output
                     _ -> atomically (writeTQueue output "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\n\r\n")
+                    else if emit && busRequest then refuse output
                     else unless (emit || health) (ioError (userError ("unexpected controlled HTTP request " ++ show header)))
               stop = atomically $ do
                 prior <- readTVar stopped
@@ -150,7 +169,16 @@ httpClockCases root = clockCasesFor root
     http <- Http.newHttpTransport options
     watcher <- async (State.watch (Transport.state (Http.transport http)) (Stream.mapM_ (\state ->
       when (state == Transport.Degraded) (atomically (modifyTVar' degraded (+1))))))
+    resource <- either (ioError . userError) pure (mkResourceId "clock-resource")
     owned <- case subject of
+      _ | busRequest -> Just <$> async (do
+        let wire = Bus.newBus (Bus.BusOptions (Time.now clock) (Time.waitUntil clock) (UUID.toText <$> fresh)) (Http.transport http)
+        result <- try (Bus.request wire Channel.BrowseEventsRequestedOperation (BrowseEventsRequest Nothing resource Nothing Nothing mempty)
+          (Timing.busRequestTimeoutMs Timing.protocolSettings)) :: IO (Either BusRequestError BrowseEventsResult)
+        case result of
+          Left failure | busRequestErrorCode failure == Code.BusRequestTimeout -> atomically (modifyTVar' failures (+1))
+          Left failure -> ioError (userError ("refused bus request failed but not as timed out: " ++ show failure))
+          Right _ -> ioError (userError "refused bus request returned"))
       "unansweredRequest" -> Just <$> async (do
         result <- try (Gateway.healthCheck (Http.gateway http)) :: IO (Either SomeException HealthResponse)
         case result of Left _ -> atomically (modifyTVar' failures (+1)); Right _ -> ioError (userError "unanswered health request returned"))
@@ -159,7 +187,6 @@ httpClockCases root = clockCasesFor root
           (BusFrame (Channel.channelName Channel.FrameAddEntityType) Nothing (BusFramePayload (KM.singleton "entityType" (String "clock"))) Nothing)) :: IO (Either SomeException (Maybe Integer))
         case result of Left _ -> pure (); Right _ -> ioError (userError "unanswered emit returned"))
       _ -> pure Nothing
-    resource <- either (ioError . userError) pure (mkResourceId "clock-resource")
     release <- newIORef (pure ())
     when (subject == "scopeLetGo") $ do
       Time.settle
@@ -169,12 +196,13 @@ httpClockCases root = clockCasesFor root
           "scopeLetGo" -> readIORef release >>= id
           "handoffLinger" -> Transport.subscribeToResource (Http.transport http) resource >>= writeIORef release
           _ -> pure ()
-        count = readTVarIO (if subject == "degradedStream" then degraded else if subject == "handoffLinger" then closed else if subject == "unansweredRequest" then failures else asks)
+        count = readTVarIO (if subject == "degradedStream" then degraded else if subject == "handoffLinger" then closed
+          else if subject `elem` ["unansweredRequest", "timedOutBusRequest"] then failures else asks)
         finish = (readIORef release >>= id) `finally`
           (mapM_ cancel owned `finally` (cancel watcher `finally` Http.dispose http))
     pure (Scenario action count finish)
 
-discoveryClockCases :: FilePath -> DiscoveredKB -> IO ()
+discoveryClockCases :: FilePath -> DiscoveredKB -> IO [Text]
 discoveryClockCases root kb = clockCasesFor root ["discovery"] $ \clock _ -> do
   readCount <- newTVarIO 0
   let transport = Discovery.DiscoveryTransport $ atomically $ do
@@ -185,7 +213,7 @@ discoveryClockCases root kb = clockCasesFor root ["discovery"] $ \clock _ -> do
   worker <- async (Stream.effects (Discovery.subscribeDiscovery options transport))
   pure (Scenario (pure ()) (readTVarIO readCount) (cancel worker))
 
-cacheClockCases :: FilePath -> IO ()
+cacheClockCases :: FilePath -> IO [Text]
 cacheClockCases root = clockCasesFor root ["saveDebounce"] $ \clock _ -> do
   saves <- newTVarIO 0
   values <- newIORef (0::Int)
@@ -197,7 +225,7 @@ cacheClockCases root = clockCasesFor root ["saveDebounce"] $ \clock _ -> do
   pure (Scenario action (readTVarIO saves) (Cache.dispose cache))
 
 
-clientClockCases :: FilePath -> Map.Map Text Value -> IO ()
+clientClockCases :: FilePath -> Map.Map Text Value -> IO [Text]
 clientClockCases root fixtures = clockCasesFor root ["invalidationWindow"] $ \time _ -> do
   count <- newTVarIO 0
   ids <- newTVarIO (0::Integer)

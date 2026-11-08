@@ -139,6 +139,7 @@
     "save": "সংরক্ষণ করুন",
     "cancel": "বাতিল করুন",
     "edit": "সম্পাদনা করুন",
+    "saveFailed": "মন্তব্য সংরক্ষণ করা যায়নি: {{detail}}",
     "annotateComments": "মন্তব্য টীকাকরণ",
     "instructions": "নির্দেশনা",
     "optional": "(ঐচ্ছিক)",
