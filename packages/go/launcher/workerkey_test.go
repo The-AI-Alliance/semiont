@@ -43,10 +43,10 @@ func TestTheWorkerKeyIsKeptForEveryKnowledgeBase(t *testing.T) {
 	if filepath.Dir(kept) != filepath.Join(dataDir(), "shared") {
 		t.Errorf("the worker key is kept at %s, not shared", kept)
 	}
-	if fi, err := os.Stat(kept); err != nil {
+	if _, err := os.Stat(kept); err != nil {
 		t.Fatalf("the worker key is not kept: %v", err)
-	} else if fi.Mode().Perm()&0o077 != 0 {
-		t.Errorf("the worker key is readable beyond its owner: %v", fi.Mode().Perm())
+	} else if open := harness.OpenToOthers(t, kept); open != "" {
+		t.Errorf("the worker key %s — it is readable only by its owner", open)
 	}
 
 	// The halves agree: the public half and the thumbprint the realm holds are
