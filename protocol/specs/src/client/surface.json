@@ -38,7 +38,6 @@
   "namespaces": [
     {
       "namespace": "frame",
-      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "The knowledge base's vocabulary: what kinds of things exist.",
       "methods": [
         {
@@ -76,7 +75,6 @@
     },
     {
       "namespace": "browse",
-      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "Reads: live queries, one-shot reads, and this viewer's own signals.",
       "methods": [
         {
@@ -217,7 +215,6 @@
     },
     {
       "namespace": "mark",
-      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "Annotations: their creation and removal, a resource's own metadata, and the annotating of a resource delegated as a job.",
       "methods": [
         {
@@ -328,7 +325,6 @@
     },
     {
       "namespace": "bind",
-      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "Linking a reference to what it refers to.",
       "methods": [
         {
@@ -368,7 +364,6 @@
     },
     {
       "namespace": "gather",
-      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "Assembling the context a model is given, and what refers to a resource.",
       "methods": [
         {
@@ -427,7 +422,6 @@
     },
     {
       "namespace": "match",
-      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "Searching: for what a reference could refer to, and for resources by text.",
       "methods": [
         {
@@ -480,7 +474,6 @@
     },
     {
       "namespace": "yield",
-      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "Creating resources: by upload, by a generation delegated as a job, by cloning.",
       "methods": [
         {
@@ -560,7 +553,6 @@
     },
     {
       "namespace": "beckon",
-      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "Attention: driving the other participants' viewers, and this viewer's own signals.",
       "methods": [
         {
@@ -609,7 +601,6 @@
     },
     {
       "namespace": "job",
-      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "Jobs: their lifecycle as it is announced, their status, their cancellation, and, for a worker, the claiming of them.",
       "methods": [
         {
@@ -681,7 +672,6 @@
     },
     {
       "namespace": "auth",
-      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "The gateway's view of who is signed in. Present when the client was given a gateway.",
       "methods": [
         {
@@ -706,7 +696,6 @@
     },
     {
       "namespace": "system",
-      "notYetReached": { "ocaml": "P5 builds the client namespace over the typed bus and transports." },
       "docs": "What the knowledge base says about itself. Present when the client was given a gateway.",
       "methods": [
         {
@@ -1334,7 +1323,6 @@
     },
     {
       "module": "claims",
-      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "What a worker's stream names, and whether a failed job is run again: the channels claiming reads (the replies of `job:claim`, and the announcements and cancellations a worker hears), the channels committing reads (the replies of `mark:commit`, and of the question whether a batch is recorded), and whether a failed attempt is retried, which a held job reports on `job:fail`. Held by protocol/specs/src/jobs/retry-cases.json.",
       "where": {
         "csharp": [
@@ -1356,7 +1344,8 @@
         "kotlin": [
           "packages/kotlin/sdk/src/main/kotlin/semiont/jobs"
         ],
-        "haskell": ["packages/haskell/sdk/src/Semiont/Claims.hs"]
+        "haskell": ["packages/haskell/sdk/src/Semiont/Claims.hs"],
+        "ocaml": ["packages/ocaml/sdk/lib/claims.mli"]
       },
       "whole": ["haskell"],
       "members": [

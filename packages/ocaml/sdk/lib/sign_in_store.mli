@@ -33,3 +33,7 @@ val renew :
   t -> key:string -> http:Oauth.http -> refused:string option -> Session.renewal
 
 val session : t -> sw:Eio.Switch.t -> key:string -> http:Oauth.http -> Session.t
+
+val sign_out : t -> key:string -> http:Oauth.http -> (bool, Oauth.error) result
+(** Removes the entry before attempting issuer revocation. [Ok false] means
+    there was no refresh token or revocation endpoint. *)

@@ -19,6 +19,7 @@ let issuer () =
             ("authorization_endpoint", str (issuer_url ^ "/auth"));
             ("token_endpoint", str endpoint);
             ("device_authorization_endpoint", str (issuer_url ^ "/device"));
+            ("revocation_endpoint", str (issuer_url ^ "/revoke"));
           ] ))
   |> get
 
@@ -136,6 +137,14 @@ let store () =
             Store.remove store ~key;
             token_response "discarded")
         = Session.Refused);
+      assert (Store.find store ~key = None);
+      save "for-revocation";
+      assert (
+        Store.sign_out store ~key ~http:(fun request ->
+            assert (Store.find store ~key = None);
+            assert (List.assoc "token" request.O.form = "refresh-for-revocation");
+            (500, ""))
+        = Error (O.Rejected "oauth.revocation-failed"));
       assert (Store.find store ~key = None);
       assert (
         Yojson.Safe.from_file path
@@ -263,10 +272,167 @@ let renewals () =
   Yojson.Safe.from_string Sign_in_cases.renewals
   |> Yojson.Safe.Util.to_list |> List.iter run
 
+(* Shared rows from session/client-assertion-cases.json. *)
+let rsa () =
+  Eio_main.run @@ fun env ->
+  Mirage_crypto_rng_unix.use_default ();
+  let pem =
+    In_channel.with_open_bin "../probes/peer-key.pem" In_channel.input_all
+  in
+  let key = get (O.rsa_key_of_pem pem) in
+  let public =
+    X509.Private_key.public (get (X509.Private_key.decode_pem pem))
+  in
+  let vector = Yojson.Safe.from_string Assertion_cases.cases in
+  let list = Yojson.Safe.Util.to_list in
+  let thumbprint jwk =
+    O.rsa_thumbprint ~e:(get_text "e" jwk) ~n:(get_text "n" jwk)
+  in
+  List.iter
+    (fun row ->
+      assert (thumbprint (field "jwk" row) = get_text "thumbprint" row))
+    (list (field "thumbprints" vector));
+  List.iter
+    (fun row ->
+      let token_endpoint = get_text "tokenEndpoint" row in
+      let issuer =
+        get
+          (O.discover ~issuer:issuer_url (fun _ ->
+               ( 200,
+                 json
+                   [
+                     ("issuer", str issuer_url);
+                     ("authorization_endpoint", str (issuer_url ^ "/auth"));
+                     ("token_endpoint", str token_endpoint);
+                   ] )))
+      in
+      let issued_at = Yojson.Safe.Util.to_int (field "issuedAt" row) in
+      let wall = Eio_mock.Clock.make () in
+      Eio_mock.Clock.set_time wall (float issued_at);
+      let clock =
+        Clock.make ~wall
+          ~monotonic:(Eio.Stdenv.mono_clock env)
+          ~jitter:(Random.State.make [| 1 |])
+      in
+      let decode value =
+        get (Base64.decode ~pad:false ~alphabet:Base64.uri_safe_alphabet value)
+      in
+      let http (request : O.request) =
+        assert (request.url = token_endpoint);
+        let keys = List.map fst request.form in
+        assert (
+          keys
+          = List.map Yojson.Safe.Util.to_string (list (field "form" vector)));
+        assert (
+          List.assoc "grant_type" request.form = get_text "grantType" vector);
+        assert (
+          List.assoc "client_assertion_type" request.form
+          = get_text "assertionType" vector);
+        (match
+           String.split_on_char '.' (List.assoc "client_assertion" request.form)
+         with
+        | [ header; claims; signature ] ->
+            let message = header ^ "." ^ claims in
+            assert (
+              Result.is_ok
+                (X509.Public_key.verify `SHA256 ~scheme:`RSA_PKCS1
+                   ~signature:(decode signature) public (`Message message)));
+            let header = Yojson.Safe.from_string (decode header) in
+            let expected_header = field "header" row in
+            assert (get_text "alg" header = get_text "alg" expected_header);
+            assert (
+              get_text "kid" expected_header = thumbprint (field "jwk" row));
+            assert (String.length (get_text "kid" header) = 43);
+            let sort = List.sort compare in
+            assert (
+              sort
+                (Yojson.Safe.Util.to_assoc
+                   (Yojson.Safe.from_string (decode claims)))
+              = sort (Yojson.Safe.Util.to_assoc (field "claims" row)))
+        | _ -> assert false);
+        (200, {|{"access_token":"rsa-token"}|})
+      in
+      assert (
+        (get
+           (O.service_key http issuer ~clock
+              ~jti:(fun () -> get_text "jti" row)
+              ~client_id:(get_text "clientId" row) ~key))
+          .access_token = "rsa-token"))
+    (list (field "cases" vector))
+
+let revoke () =
+  let http (request : O.request) =
+    assert (request.url = issuer_url ^ "/revoke");
+    assert (request.meth = "POST");
+    assert (List.assoc "client_id" request.form = "semiont-cli");
+    assert (List.assoc "token_type_hint" request.form = "refresh_token");
+    assert (List.assoc "token" request.form = "kept");
+    (200, "")
+  in
+  assert (
+    O.revoke_script http ~revocation_endpoint:(issuer_url ^ "/revoke")
+      ~refresh_token:"kept"
+    = Ok ())
+
+let agent () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let clock =
+    Clock.make ~wall:(Eio.Stdenv.clock env)
+      ~monotonic:(Eio.Stdenv.mono_clock env)
+      ~jitter:(Random.State.make [| 3 |])
+  in
+  let did = "did:web:kb.example:agents:worker" in
+  let grants = ref 0 in
+  let http (request : O.request) =
+    incr grants;
+    assert (request.url = endpoint);
+    assert (List.assoc "client_secret" request.form = "secret");
+    match !grants with
+    | 1 -> (200, {|{"access_token":"initial"}|})
+    | 2 -> (503, {|{"error":"unavailable"}|})
+    | _ -> (200, {|{"access_token":"replacement"}|})
+  in
+  let call ~sw:_ ~meth ~path ~headers ~body:_ ~progress:_ =
+    assert (meth = "GET" && path = "/api/users/me");
+    assert (List.assoc "authorization" headers = "Bearer initial");
+    let identity =
+      json
+        [
+          ("did", str did);
+          ("domain", str "kb.example");
+          ("email", `Null);
+          ("name", `Null);
+          ("image", `Null);
+        ]
+    in
+    (200, [], Eio.Flow.string_source identity)
+  in
+  let agent =
+    get
+      (Agent.sign_in ~sw ~clock ~issuer:(issuer ()) ~http ~client_id:"worker"
+         ~proof:(Agent.Secret "secret")
+         ~key:(fun () -> "unique")
+         ~call ())
+  in
+  assert (Identifiers.User_id.to_string (Agent.did agent) = did);
+  let session = Agent.session agent in
+  assert (Session.refresh_refused session ~refused:"initial" = None);
+  assert (Session.credential session = Some "initial");
+  assert (
+    Session.refresh_refused session ~refused:"initial" = Some "replacement");
+  Agent.close agent
+
 let () =
   Alcotest.run "OCaml sign-in"
     [
-      ("OAuth", [ Alcotest.test_case "redirect state and PKCE" `Quick pkce ]);
+      ( "OAuth",
+        [
+          Alcotest.test_case "redirect state and PKCE" `Quick pkce;
+          Alcotest.test_case "RSA assertion and thumbprint" `Quick rsa;
+          Alcotest.test_case "issuer revocation form" `Quick revoke;
+          Alcotest.test_case "agent identity and renewal" `Quick agent;
+        ] );
       ( "shared store",
         [
           Alcotest.test_case "state paths" `Quick paths;

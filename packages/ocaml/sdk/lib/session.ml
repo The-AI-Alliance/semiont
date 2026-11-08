@@ -50,6 +50,7 @@ type task = {
 
 type t = {
   clock : Clock.t;
+  keep_on_unavailable : bool;
   renew : refused:string option -> renewal;
   work : task Eio.Stream.t;
   mutable token : string option;
@@ -111,6 +112,7 @@ let worker t =
     (if task.generation == t.generation then
        match outcome with
        | Renewed bearer -> publish t (Some bearer)
+       | Unavailable when t.keep_on_unavailable -> ()
        | Refused | Unavailable -> publish t None);
     Promise.resolve task.complete outcome
   done
@@ -161,12 +163,13 @@ let schedule t =
   in
   loop ()
 
-let start ~sw ~clock ~initial_token ~renew () =
+let start ?(keep_on_unavailable = false) ~sw ~clock ~initial_token ~renew () =
   let stop, stop_now = Promise.create () in
   let closed, mark_closed = Promise.create () in
   let t =
     {
       clock;
+      keep_on_unavailable;
       renew;
       work = Eio.Stream.create 1;
       token = initial_token;

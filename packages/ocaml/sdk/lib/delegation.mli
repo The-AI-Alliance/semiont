@@ -1,6 +1,7 @@
 (** Follow delegated jobs over an existing bus subscription. *)
 
 type t
+type release = unit -> unit
 type report_kind = Created | Progress | Complete | Retrying | Refused
 type failure = { code : string; failure_class : Enums.Failure_class.t option }
 

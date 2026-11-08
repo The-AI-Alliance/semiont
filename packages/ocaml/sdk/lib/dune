@@ -10,7 +10,10 @@
   http_facts
   telemetry_facts
   live_facts
+  client_query
+  clone_facts
   oauth_facts
+  assertion_facts
   store_policy)
  (libraries
   eio
@@ -20,8 +23,11 @@
   zarith
   decimal
   uutf
+  uucp
   uri
   digestif
+  x509
+  mirage-crypto-pk
   ptime
   unix)
  (foreign_stubs

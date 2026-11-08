@@ -88,3 +88,19 @@ open it with `make`, and supply the stack key to `session`. To keep a
 new device sign-in, call `save_device` with the script tokens. The store
 serializes writes with the launcher's `flock` and adopts credentials
 that another process refreshed during renewal.
+
+Use `OAuth.service_key` with an unencrypted RSA PKCS#8 key to exchange a
+signed assertion. The host supplies the clock, a fresh assertion ID, and
+an initialized Mirage secure random generator. `Agent.sign_in` accepts a
+secret or an RSA key and gets the agent DID from the gateway. Its session
+keeps the current bearer if the issuer cannot renew it. `Sign_in_store.sign_out`
+removes the kept sign-in and then attempts to revoke its refresh token.
+
+The namespaces are available under `Semiont.Client`. Request methods accept
+payloads checked by `Bus_registry.decode` against the matching request channel.
+Use `Client.fresh` or `Client.observe` with a query from `Client.Browse`,
+`Client.Match` or `Client.Gather`. Use `Running.await` and `Upload.await`
+for one-shot operations and uploads. For a worker, call `Client.Job.claim`
+with its filters and consume jobs with `Claims.next`. Include `Worker.channels`
+and, for annotation commits, `Worker.commit_channels` when opening that
+worker's client.

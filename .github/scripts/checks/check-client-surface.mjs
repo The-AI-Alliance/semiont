@@ -2103,10 +2103,18 @@ function ocamlSurface() {
     if (kind !== 'module') continue;
     const members = ocamlMembers(path);
     for (const method of members.values()) {
-      // Eio calls return directly. The outer result distinguishes ordinary
-      // requests from signals. Other return families are added with their API.
-      if (method.returns === 'unit') method.shape = 'signal';
-      else if (/\bresult$/.test(method.returns)) method.shape = 'promise';
+      // Eio calls return directly. Handles distinguish cache reads, reports,
+      // and uploads from ordinary request results.
+      const returns = method.returns;
+      if (returns === 'unit') method.shape = 'signal';
+      else if (/\bClient_core\.query$/.test(returns)) method.shape = 'cache';
+      else if (/\bClient_core\.unsubscribe$/.test(returns)) method.shape = 'events';
+      else if (/\bDelegation\.release$/.test(returns)) method.shape = 'delegation';
+      else if (/\bRunning\.t$/.test(returns)) method.shape = 'stream';
+      else if (/\bUpload\.t$/.test(returns)) method.shape = 'upload';
+      else if (/\bClaims\.t$/.test(returns)) method.shape = 'claims';
+      else if (/^\(int option, .*Client_core\.error\) result$/.test(returns)) method.shape = 'count';
+      else if (/\bresult$/.test(returns)) method.shape = 'promise';
     }
     namespaces.set(ocamlCamel(ocamlName(path).toLowerCase()), members);
   }

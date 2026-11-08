@@ -128,3 +128,24 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/sign_in_cases.ml'),
   `let cases = ${ocamlString(JSON.stringify(storeCases.cases))}\n` +
   `let renewals = ${ocamlString(JSON.stringify(storeCases.renewals))}\n`,
   process.argv.includes('--check'));
+
+const assertionSource = 'session/client-assertion-cases.json';
+const assertion = JSON.parse(readFileSync(resolve(specRoot, assertionSource), 'utf8'));
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/assertion_facts.ml'),
+  `(* Generated from ${assertionSource}. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n` +
+  `let lifetime_seconds = ${assertion.lifetimeSeconds}\n` +
+  `let assertion_type = ${ocamlString(assertion.assertionType)}\n` +
+  `let grant_type = ${ocamlString(assertion.grantType)}\n`,
+  process.argv.includes('--check'));
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/assertion_cases.ml'),
+  `(* Generated from ${assertionSource}. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n` +
+  `let cases = ${ocamlString(JSON.stringify({ form: assertion.form, grantType: assertion.grantType, assertionType: assertion.assertionType, thumbprints: assertion.thumbprints, cases: assertion.cases }))}\n`,
+  process.argv.includes('--check'));
+
+const mediaSource = 'media-types/registry.json';
+const media = JSON.parse(readFileSync(resolve(specRoot, mediaSource), 'utf8'));
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/clone_facts.ml'),
+  `(* Generated from ${mediaSource}. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n` +
+  `let authorable = [${media.mediaTypes.filter(({ authorable }) => authorable).map(({ mediaType, extension }) =>
+    `(${ocamlString(mediaType)}, ${ocamlString(extension)})`).join('; ')}]\n`,
+  process.argv.includes('--check'));

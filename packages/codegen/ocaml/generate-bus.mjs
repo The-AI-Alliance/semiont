@@ -133,3 +133,35 @@ const files = [
 for (const [file, lines] of files) {
   writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib', file), `${header}\n${lines.join('\n')}\n`, process.argv.includes('--check'));
 }
+
+const surfaceSource = 'protocol/specs/src/client/surface.json';
+const surface = JSON.parse(readFileSync(resolve(root, surfaceSource), 'utf8'));
+const snake = (name) => name.replace(/[A-Z]/g, (letter) => '_' + letter.toLowerCase());
+const wired = surface.namespaces.flatMap(({ namespace, methods }) => {
+  const functions = methods.flatMap(({ method, shape, via }) => {
+    const name = snake(method);
+    if (via.request && shape === 'promise' && !['addEntityTypes', 'createFromToken', 'pollUntilComplete'].includes(method)) {
+      const operation = operations.find(({ request }) => request === via.request);
+      if (!operation) refuse(`No operation for ${namespace}.${method}`);
+      return [`  let ${name} client payload = Client_core.ask client Bus_registry.Operations.${operation.name} payload`];
+    }
+    if (via.local && shape === 'signal') {
+      const channel = byChannel.get(via.local);
+      if (!channel) refuse(`No local channel for ${namespace}.${method}`);
+      return [`  let ${name} client payload = Client_core.publish client Bus_registry.Channels.${channel.name} payload`];
+    }
+    if (via.emit) {
+      const channel = byChannel.get(via.emit);
+      if (!channel) refuse(`No emitted channel for ${namespace}.${method}`);
+      const emit = shape === 'count' ? 'drive' : 'signal';
+      return [`  let ${name} client ?scope payload = Client_core.${emit} client ?scope Bus_registry.Channels.${channel.name} payload`];
+    }
+    return [];
+  });
+  if (!functions.length) return [];
+  const module = namespace[0].toUpperCase() + namespace.slice(1);
+  return [`module ${module} = struct`, ...functions, 'end', ''];
+});
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/namespace_methods.ml'),
+  `(* Generated from ${surfaceSource} and ${source}. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n\n` +
+  wired.join('\n'), process.argv.includes('--check'));

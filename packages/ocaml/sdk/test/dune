@@ -41,5 +41,15 @@
 
 (test
  (name sign_in)
- (modules sign_in sign_in_cases)
- (libraries semiont eio_main uri base64 yojson alcotest))
+ (modules sign_in sign_in_cases assertion_cases)
+ (libraries
+  semiont
+  eio_main
+  eio.mock
+  uri
+  base64
+  yojson
+  alcotest
+  x509
+  mirage-crypto-rng.unix)
+ (deps ../probes/peer-key.pem))

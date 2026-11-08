@@ -76,44 +76,25 @@ type client = {
   client_id : string;
   http : H.t;
   clock : Semiont.Clock.t;
-  invalidation_window_ms : int option;
 }
 
 type mode = Wire | Worker | Live
 
-let live_operations = L.operations
-
-let scoped_channels =
-  List.filter
-    (fun (B.Channel channel) -> B.audience channel = Some B.Scoped)
-    B.channels
-
-let limits_operations =
-  List.filter
-    (fun (B.Operation op) ->
-      String.ends_with ~suffix:":limits-requested" (B.name (B.request op)))
-    B.operations
-
-let live_channels =
-  L.channels
-  @ List.concat_map
-      (fun (_, B.Operation operation) ->
-        [ B.Channel (B.result operation); B.Channel (B.failure operation) ])
-      live_operations
-  @ List.concat_map
-      (fun (B.Operation op) ->
-        [ B.Channel (B.result op); B.Channel (B.failure op) ])
-      limits_operations
-  |> List.sort_uniq (fun (B.Channel left) (B.Channel right) ->
-      String.compare (B.name left) (B.name right))
-
 let query_key value =
-  ( string "query" value,
-    optional J.to_string "resource" value,
-    optional J.to_string
-      (if field "query" value = text "matchedResources" then "search"
-       else "annotation")
-      value )
+  let name = string "query" value in
+  let resource = optional J.to_string "resource" value in
+  let argument =
+    if name = "resources" || name = "matchedResources" then
+      let page = [ ("limit", `Int 100); ("offset", `Int 0) ] in
+      let fields =
+        if name = "matchedResources" then
+          ("search", field "search" value) :: page
+        else page
+      in
+      Some (Yojson.Safe.to_string (`Assoc fields))
+    else optional J.to_string "annotation" value
+  in
+  (name, resource, argument)
 
 let run mode env =
   Switch.run @@ fun sw ->
@@ -231,18 +212,6 @@ let run mode env =
             if optional J.to_string "jobId" json = Some (W.id job) then
               output_json (`Assoc [ ("signalled", text (W.id job)) ]))
           !held
-    | Live, Ok (Semiont.Wire_stream.Frame { route; payload; _ }) ->
-        let payload =
-          Result.to_option payload
-          |> Option.map (fun value -> Yojson.Safe.from_string (B.encode value))
-        in
-        Option.iter
-          (fun cache -> L.refetch cache ~on:route.channel ~payload)
-          !live
-    | Live, Error (Semiont.Wire_stream.Invalid_frame (Some route, _)) ->
-        Option.iter
-          (fun cache -> L.refetch cache ~on:route.channel ~payload:None)
-          !live
     | _ -> ()
   in
   let open_client input =
@@ -362,11 +331,10 @@ let run mode env =
             W.channels @ W.commit_channels
           else W.channels
       | Live ->
-          live_channels
-          @ [
-              B.Channel B.Channels.mark_delete_ok;
-              B.Channel B.Channels.mark_delete_failed;
-            ]
+          [
+            B.Channel B.Channels.mark_delete_ok;
+            B.Channel B.Channels.mark_delete_failed;
+          ]
       | Wire ->
           field "channels" input |> J.to_list
           |> List.map (fun value -> channel (J.to_string value))
@@ -376,14 +344,25 @@ let run mode env =
     let http, subscription =
       match mode with
       | Live ->
+          let restore key =
+            if !persist then Hashtbl.find_opt persisted key else None
+          in
+          let save key = function
+            | Some value when !persist -> Hashtbl.replace persisted key value
+            | None when !persist -> Hashtbl.remove persisted key
+            | _ -> ()
+          in
           let facade =
             Semiont.Client.connect ~timing:subscription_timing ~http_timing
-              ?telemetry
+              ?telemetry ~restore ~save
+              ?invalidation_window_ms:
+                (optional J.to_int "invalidationWindowMs" timing)
               ?delegation_silence_ms:(optional J.to_int "jobSilenceMs" timing)
               ?delegation_poll_ms:(optional J.to_int "jobStatusPollMs" timing)
               ~sw ~clock ~session ~client_id ~key ~call ~global ~on_event
               ~on_error ()
           in
+          live := Some facade;
           delegation := Some (Semiont.Client.delegation facade);
           (Semiont.Client.http facade, Semiont.Client.subscription facade)
       | Worker | Wire ->
@@ -405,17 +384,7 @@ let run mode env =
           in
           (http, subscription)
     in
-    client :=
-      Some
-        {
-          subscription;
-          session;
-          client_id;
-          http;
-          clock;
-          invalidation_window_ms =
-            optional J.to_int "invalidationWindowMs" timing;
-        };
+    client := Some { subscription; session; client_id; http; clock };
     (if mode = Worker then
        let span name default = Mtime.Span.(max 1 (time name default) * ms) in
        let threshold = span "heldJobStallMs" W.default_stall_ms in
@@ -439,17 +408,10 @@ let run mode env =
            in
            check ()));
     Fiber.fork_daemon ~sw (fun () ->
-        let seen_open = ref false in
         let rec report previous =
           let current = S.await_state_change subscription ~from:previous in
           output_json (`Assoc [ ("state", text (state current)) ]);
-          if current = S.Open then (
-            if mode = Worker then !kick ();
-            if !seen_open then
-              Option.iter
-                (fun cache -> L.refetch cache ~on:"reopened" ~payload:None)
-                !live;
-            seen_open := true);
+          if current = S.Open && mode = Worker then !kick ();
           if current <> S.Closed then report current
         in
         report S.Initial;
@@ -461,107 +423,42 @@ let run mode env =
       (Yojson.Safe.to_string payload)
     |> Yojson.Safe.from_string
   in
-  let request client operation payload =
-    let correlation_id = uuid env in
-    let send () =
-      ignore (emit client ~correlation_id (B.request operation) payload)
-    in
-    match S.request client.subscription ~correlation_id operation ~send with
-    | Ok (S.Result payload) ->
-        Ok (Yojson.Safe.from_string (B.encode payload) |> field "response")
-    | Ok (S.Failure payload) -> Error (H.bus_failure payload)
-    | Error S.Timeout -> Error "bus.timeout"
-    | Error S.Transport_closed -> Error "bus.closed"
-    | Error S.Unsubscribed -> Error "bus.unsubscribed"
-    | Error S.Unrecognized_failure -> Error "bus.rejected"
-    | Error _ -> Error "error"
-  in
-  let make_live () =
-    let client = get_client () in
-    let load (name, resource, annotation) =
-      match List.assoc_opt name live_operations with
-      | None when name = "annotations" -> (
-          match resource with
-          | None -> Error "error"
-          | Some id -> (
-              try
-                Ok
-                  (Yojson.Safe.from_string
-                     (H.annotations client.http (resource_of_name id))
-                  |> field "annotations")
-              with H.Failed failure -> Error failure.code))
-      | None -> Error "error"
-      | Some (B.Operation operation) ->
-          let field name = Option.map (fun value -> (name, text value)) in
-          let payload =
-            let pagination = [ ("limit", `Int 100); ("offset", `Int 0) ] in
-            `Assoc
-              (match name with
-              | "resources" -> pagination
-              | "matchedResources" ->
-                  pagination @ Option.to_list (field "search" annotation)
-              | _ ->
-                  List.filter_map Fun.id
-                    [
-                      field "resourceId" resource;
-                      field "annotationId" annotation;
-                    ])
-          in
-          let read () =
-            try request client operation payload
-            with H.Failed failure -> Error failure.code
-          in
-          let response =
-            if name <> "engines" then read ()
-            else
-              let result = ref (Error "bus.closed") in
-              Fiber.both
-                (fun () -> result := read ())
-                (fun () ->
-                  Fiber.all
-                    (List.map
-                       (fun (B.Operation op) () ->
-                         try ignore (request client op (`Assoc []))
-                         with H.Failed _ -> ())
-                       limits_operations));
-              !result
-          in
-          Result.map
-            (fun json ->
-              match name with
-              | "resource" -> J.member "resource" json
-              | "annotation" -> J.member "annotation" json
-              | "events" | "referencedBy" | "entityTypes" | "tagSchemas"
-              | "engines" ->
-                  J.member name json
-              | _ -> json)
-            response
-    in
-    let hold (_, id, _) =
-      match id with
-      | None -> Fun.id
-      | Some id ->
-          S.hold_scope client.subscription
-            { resource = resource_of_name id; channels = scoped_channels }
-    in
-    let restore key =
-      if !persist then Hashtbl.find_opt persisted key else None
-    in
-    let save key = function
-      | Some value when !persist -> Hashtbl.replace persisted key value
-      | None when !persist -> Hashtbl.remove persisted key
-      | _ -> ()
-    in
-    L.make ~restore ~save ?window_ms:client.invalidation_window_ms ~sw
-      ~clock:client.clock ~load ~hold ()
-  in
-  let live_cache () =
+  let facade () =
     match !live with
-    | Some cache -> cache
-    | None ->
-        let cache = make_live () in
-        live := Some cache;
-        cache
+    | Some facade -> facade
+    | None -> raise (Misuse "open first")
+  in
+  let decode channel source =
+    match B.decode channel source with
+    | Ok value -> value
+    | Error _ -> raise (Misuse "invalid namespace request")
+  in
+  let live_query value =
+    let client = facade () in
+    let module Browse = Semiont.Client.Browse in
+    let name, resource, argument = query_key value in
+    let resource () = resource_of_name (Option.get resource) in
+    match name with
+    | "resource" -> Browse.resource client (resource ())
+    | "annotations" -> Browse.annotations client (resource ())
+    | "annotation" ->
+        let annotation =
+          Result.get_ok
+            (Semiont.Identifiers.Annotation_id.of_string (Option.get argument))
+        in
+        Browse.annotation client (resource ()) annotation
+    | "events" -> Browse.events client (resource ())
+    | "referencedBy" -> Semiont.Client.Gather.referenced_by client (resource ())
+    | "entityTypes" -> Browse.entity_types client
+    | "tagSchemas" -> Browse.tag_schemas client
+    | "engines" -> Browse.engines client
+    | "resources" ->
+        Browse.resources client
+          (decode B.Channels.browse_resources_requested (Option.get argument))
+    | "matchedResources" ->
+        Semiont.Client.Match.resources client
+          (decode B.Channels.match_resources_requested (Option.get argument))
+    | _ -> raise (Misuse "unknown live query")
   in
   let state_json = function
     | L.Pending -> `Assoc [ ("status", text "pending") ]
@@ -714,7 +611,7 @@ let run mode env =
   in
   let close ?(settle_worker = false) () =
     stopping := true;
-    Option.iter L.close !live;
+    Option.iter Semiont.Client.close !live;
     live := None;
     Hashtbl.to_seq_keys delegates
     |> List.of_seq
@@ -824,16 +721,21 @@ let run mode env =
               ~cursors:(optional Fun.id "unitCursors" input));
         done_
     | "delete" when mode = Live -> (
-        match
-          request (get_client ()) B.Operations.mark_delete
-            (`Assoc
-               [
-                 ("resourceId", field "resource" input);
-                 ("annotationId", field "annotation" input);
-               ])
-        with
+        let payload =
+          `Assoc
+            [
+              ("resourceId", field "resource" input);
+              ("annotationId", field "annotation" input);
+            ]
+          |> Yojson.Safe.to_string
+          |> decode B.Channels.mark_delete
+        in
+        match Semiont.Client.Mark.delete (facade ()) payload with
         | Ok _ -> done_
-        | Error code -> ("error", error code))
+        | Error (Semiont.Client.Refused code) -> ("error", error code)
+        | Error (Semiont.Client.Http failure) ->
+            ("error", error ?status:failure.status failure.code)
+        | Error (Semiont.Client.Transport _) -> ("error", error "bus.closed"))
     | "markDelegate" when mode = Live ->
         delegate ~verb:"mark" input;
         done_
@@ -848,8 +750,8 @@ let run mode env =
         if Hashtbl.mem observers observer then
           raise (Misuse "duplicate observer");
         let release =
-          L.observe (live_cache ())
-            (query_key (field "query" input))
+          Semiont.Client.observe
+            (live_query (field "query" input))
             ~on_state:(fun state ->
               output_json
                 (`Assoc
@@ -875,11 +777,11 @@ let run mode env =
         done_
     | "fresh" when mode = Live && !stopping -> ("error", error "bus.closed")
     | "fresh" when mode = Live -> (
-        match L.fresh (live_cache ()) (query_key (field "query" input)) with
+        match Semiont.Client.fresh (live_query (field "query" input)) with
         | Ok value -> ok (`Assoc [ ("value", value) ])
         | Error code -> ("error", error code))
     | "invalidate" when mode = Live ->
-        L.invalidate (live_cache ()) (query_key (field "query" input));
+        Semiont.Client.invalidate (live_query (field "query" input));
         done_
     | "listen" ->
         Hashtbl.replace listens (string "channel" input) ();

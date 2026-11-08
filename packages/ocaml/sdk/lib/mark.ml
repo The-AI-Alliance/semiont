@@ -1,3 +1,5 @@
+include Namespace_methods.Mark
+
 let delegate follower ~resource ~params ~on_report ~on_failure ~on_close () =
   Delegation.start follower ~verb:"mark"
     ~resource:(Identifiers.Resource_id.to_string resource)

@@ -9,6 +9,7 @@ val refresh_delay : now:float -> string -> float option
 (** Read JWT timing claims for scheduling. Authentication is the gateway's. *)
 
 val start :
+  ?keep_on_unavailable:bool ->
   sw:Eio.Switch.t ->
   clock:Clock.t ->
   initial_token:string option ->

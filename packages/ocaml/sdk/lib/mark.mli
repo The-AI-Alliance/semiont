@@ -1,3 +1,5 @@
+include module type of Namespace_methods.Mark
+
 val delegate :
   Delegation.t ->
   resource:Identifiers.Resource_id.t ->
@@ -6,5 +8,4 @@ val delegate :
   on_failure:(Delegation.failure -> unit) ->
   on_close:(unit -> unit) ->
   unit ->
-  unit ->
-  unit
+  Delegation.release

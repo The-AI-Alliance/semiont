@@ -15,6 +15,7 @@ type held = {
   retry_count : int;
   max_retries : int;
   lock : Eio.Mutex.t;
+  settled : unit Eio.Promise.t * unit Eio.Promise.u;
   mutable phase : phase;
   mutable durability : (int * string) option;
 }
@@ -117,6 +118,7 @@ let claim subscription http ~client_id ~correlation_id ?trace
             retry_count = int "retryCount" metadata;
             max_retries = int "maxRetries" metadata;
             lock = Eio.Mutex.create ();
+            settled = Eio.Promise.create ();
             phase = Claimed;
             durability = None;
           }
@@ -251,7 +253,8 @@ let settle job send =
   locked job (fun () ->
       if job.phase <> Settled then (
         send ();
-        job.phase <- Settled))
+        job.phase <- Settled;
+        Eio.Promise.resolve (snd job.settled) ()))
 
 let complete job result =
   settle job (fun () ->
@@ -265,15 +268,19 @@ let cancel job ~completed =
         @ Option.to_list
             (Option.map (fun value -> ("completedUnits", value)) completed)))
 
+let will_retry_after ~retry_count ~max_retries failure_class =
+  retry_count < max_retries
+  &&
+  match failure_class with
+  | Some (Enums.Failure_class.Deterministic | Enums.Failure_class.Withheld) ->
+      false
+  | _ -> true
+
 let fail job ~error ~failure_class ~completed ~cursors =
   let optional name value = Option.map (fun value -> (name, value)) value in
   let will_retry =
-    job.retry_count < job.max_retries
-    &&
-    match failure_class with
-    | Some (Enums.Failure_class.Deterministic | Enums.Failure_class.Withheld) ->
-        false
-    | _ -> true
+    will_retry_after ~retry_count:job.retry_count ~max_retries:job.max_retries
+      failure_class
   in
   let fields =
     List.filter_map Fun.id
@@ -293,3 +300,4 @@ let fail job ~error ~failure_class ~completed ~cursors =
 
 let default_stall_ms = Client_timing.held_job_stall_ms
 let default_stall_check_ms = Client_timing.held_job_stall_check_ms
+let await_settled job = Eio.Promise.await (fst job.settled)

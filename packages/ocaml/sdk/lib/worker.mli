@@ -50,3 +50,7 @@ val fail :
 
 val default_stall_ms : int
 val default_stall_check_ms : int
+val await_settled : held -> unit
+
+val will_retry_after :
+  retry_count:int -> max_retries:int -> Enums.Failure_class.t option -> bool

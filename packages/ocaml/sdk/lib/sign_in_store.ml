@@ -305,3 +305,21 @@ let session t ~sw ~key ~http =
     outcome
   in
   Session.start ~sw ~clock:t.clock ~initial_token ~renew ()
+
+let sign_out t ~key ~http =
+  let held =
+    with_lock t (fun entries ->
+        let held = lookup entries key in
+        if List.mem_assoc key entries then
+          write t (List.remove_assoc key entries);
+        held)
+  in
+  match held with
+  | Some entry -> (
+      match (field "revocationEndpoint" entry.fields, entry.refresh_token) with
+      | Some revocation_endpoint, Some refresh_token ->
+          Result.map
+            (fun () -> true)
+            (Oauth.revoke_script http ~revocation_endpoint ~refresh_token)
+      | _ -> Ok false)
+  | None -> Ok false

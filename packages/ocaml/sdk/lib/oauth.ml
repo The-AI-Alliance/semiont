@@ -246,3 +246,83 @@ let service_secret http issuer ~client_id ~client_secret =
       ("client_id", client_id);
       ("client_secret", client_secret);
     ]
+
+type rsa_key = X509.Private_key.t
+
+let rsa_key_of_pem pem =
+  let trimmed = String.trim pem in
+  if
+    not
+      (String.starts_with ~prefix:"-----BEGIN PRIVATE KEY-----" trimmed
+      && String.ends_with ~suffix:"-----END PRIVATE KEY-----" trimmed)
+  then Error Invalid_response
+  else
+    match X509.Private_key.decode_pem trimmed with
+    | Ok (`RSA _ as key) -> Ok key
+    | _ -> Error Invalid_response
+
+let unsigned z =
+  let little = Z.to_bits z in
+  let length = ref (String.length little) in
+  while !length > 0 && little.[!length - 1] = '\000' do
+    decr length
+  done;
+  String.init !length (fun index -> little.[!length - index - 1]) |> encoded
+
+let rsa_thumbprint ~e ~n =
+  Yojson.Safe.to_string
+    (`Assoc [ ("e", `String e); ("kty", `String "RSA"); ("n", `String n) ])
+  |> Digestif.SHA256.digest_string |> Digestif.SHA256.to_raw_string |> encoded
+
+let assertion_claims ~client_id ~token_endpoint ~issued_at ~jti =
+  `Assoc
+    [
+      ("iss", `String client_id);
+      ("sub", `String client_id);
+      ("aud", `String token_endpoint);
+      ("jti", `String jti);
+      ("iat", `Int issued_at);
+      ("exp", `Int (issued_at + Assertion_facts.lifetime_seconds));
+    ]
+
+let service_key http issuer ~clock ~jti ~client_id ~key =
+  match X509.Private_key.public key with
+  | `RSA public -> (
+      let kid = rsa_thumbprint ~e:(unsigned public.e) ~n:(unsigned public.n) in
+      let header = `Assoc [ ("alg", `String "RS256"); ("kid", `String kid) ] in
+      let issued_at = int_of_float (floor (Clock.wall_now clock)) in
+      let claims =
+        assertion_claims ~client_id ~token_endpoint:issuer.token ~issued_at
+          ~jti:(jti ())
+      in
+      let jwt_segment json = encoded (Yojson.Safe.to_string json) in
+      let message = jwt_segment header ^ "." ^ jwt_segment claims in
+      match
+        X509.Private_key.sign `SHA256 ~scheme:`RSA_PKCS1 key (`Message message)
+      with
+      | Error _ -> Error Invalid_response
+      | Ok signature ->
+          grant http ~token_endpoint:issuer.token
+            [
+              ("grant_type", Assertion_facts.grant_type);
+              ("client_assertion_type", Assertion_facts.assertion_type);
+              ("client_assertion", message ^ "." ^ encoded signature);
+            ])
+  | _ -> Error Invalid_response
+
+let revoke_script http ~revocation_endpoint ~refresh_token =
+  let* url = required (endpoint revocation_endpoint) in
+  let status, _ =
+    http
+      {
+        meth = "POST";
+        url;
+        form =
+          [
+            ("client_id", Oauth_facts.script);
+            ("token_type_hint", "refresh_token");
+            ("token", refresh_token);
+          ];
+      }
+  in
+  if status = 200 then Ok () else Error (Rejected "oauth.revocation-failed")

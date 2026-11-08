@@ -4,6 +4,7 @@ module S = Subscription
 module H = Http_wire
 module J = Yojson.Safe.Util
 
+type release = unit -> unit
 type report_kind = Created | Progress | Complete | Retrying | Refused
 type failure = { code : string; failure_class : Enums.Failure_class.t option }
 

@@ -62,3 +62,27 @@ val service_secret :
   client_id:string ->
   client_secret:string ->
   (service tokens, error) result
+
+type rsa_key
+
+val rsa_key_of_pem : string -> (rsa_key, error) result
+(** Reads an unencrypted RSA PKCS#8 PEM key. *)
+
+val rsa_thumbprint : e:string -> n:string -> string
+
+val service_key :
+  http ->
+  issuer ->
+  clock:Clock.t ->
+  jti:(unit -> string) ->
+  client_id:string ->
+  key:rsa_key ->
+  (service tokens, error) result
+(** [jti] must supply a fresh unique identifier on every invocation. The host
+    initializes Mirage's secure random generator for RSA blinding. *)
+
+val revoke_script :
+  http ->
+  revocation_endpoint:string ->
+  refresh_token:string ->
+  (unit, error) result
