@@ -40,7 +40,7 @@ ifneq ($(word 2,$(MAKECMDGOALS)),)
 $(error Run one public operation per invocation)
 endif
 
-.PHONY: help local-build packages images-only launcher plan npm-publish-local desktop desktop-macos desktop-linux stack-up e2e stack-down smoke clean
+.PHONY: help local-build packages images-only launcher plan npm-publish-local desktop desktop-macos desktop-macos-app desktop-macos-dmg desktop-linux stack-up e2e stack-down smoke clean
 help:
 	@awk -v groups=$(call quote,$(BUILD_ROOT)/packages/codegen/groups.txt) -f $(call quote,$(BUILD_ROOT)/images/scripts/make-help.awk) $(call quote,$(BUILD_ROOT)/Makefile) $(call quote,$(BUILD_ROOT)/Makefile)
 
@@ -58,8 +58,10 @@ local-build packages images-only launcher plan npm-publish-local:
 ##@ Desktop installers
 ## desktop: For this OS
 ## desktop-macos: macOS arm64 DMG, on a macOS host
+## desktop-macos-app: macOS arm64 app, on any host
+## desktop-macos-dmg: macOS arm64 DMG of an assembled app, on a macOS host
 ## desktop-linux: Linux x64 Debian package
-desktop desktop-macos desktop-linux:
+desktop desktop-macos desktop-macos-app desktop-macos-dmg desktop-linux:
 	@bash $(call quote,$(BUILD_ROOT)/apps/desktop/build.sh) $@
 
 ##@ Generated code
