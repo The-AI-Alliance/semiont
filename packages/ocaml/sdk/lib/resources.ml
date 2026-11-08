@@ -23,3 +23,8 @@ let entity_types model =
           Yojson.Safe.from_string (Yojson.Raw.to_string value) |> J.to_string)
         values
   | _ -> []
+
+let resource_text client id =
+  Result.map
+    (fun (content_type, bytes) -> Text_encoding.decode ~content_type bytes)
+    (Browse.resource_content client id)

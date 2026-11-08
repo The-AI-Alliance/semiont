@@ -10,27 +10,6 @@ let resource client ~fields ~bytes ~on_progress =
       Client_core.content (fun () ->
           Http_wire.put (Client_core.http client) ~fields ~bytes ~on_progress))
 
-let storage_name name extension =
-  let slug = Buffer.create (String.length name) in
-  let separator = ref false in
-  let add code =
-    if (code >= 97 && code <= 122) || (code >= 48 && code <= 57) then (
-      if !separator && Buffer.length slug > 0 then Buffer.add_char slug '-';
-      separator := false;
-      Buffer.add_char slug (Char.chr code))
-    else separator := true
-  in
-  Uutf.String.fold_utf_8
-    (fun () _ -> function
-      | `Malformed _ -> separator := true
-      | `Uchar uchar -> (
-          match Uucp.Case.Map.to_lower uchar with
-          | `Self -> add (Uchar.to_int uchar)
-          | `Uchars characters ->
-              List.iter (fun ch -> add (Uchar.to_int ch)) characters))
-    () name;
-  Buffer.contents slug ^ extension
-
 let create_from_token client ~token ~name ~content ?archive_original () =
   let module B = Bus_registry in
   let request = Yojson.Safe.to_string (`Assoc [ ("token", `String token) ]) in
@@ -59,17 +38,13 @@ let create_from_token client ~token ~name ~content ?archive_original () =
                 | _ -> "")
             | _ -> ""
           in
-          let fallback = "text/plain" in
-          let format, extension =
-            match List.assoc_opt media Clone_facts.authorable with
-            | Some extension -> (media, extension)
-            | None -> (fallback, List.assoc fallback Clone_facts.authorable)
-          in
+          let format = Media_types.clone_format media in
           let fields =
             [
               ("name", name);
               ("format", format);
-              ("storageUri", "file://" ^ storage_name name extension);
+              ( "storageUri",
+                "file://" ^ Media_types.storage_file_name ~name ~format );
               ("cloneToken", token);
             ]
             @ Option.to_list

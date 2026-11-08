@@ -12,13 +12,15 @@
   telemetry_facts
   live_facts
   client_query
-  clone_facts
   registry_facts
   state_task
   oauth_facts
   assertion_facts
   store_policy
-  testing_facts)
+  testing_facts
+  encoding_facts
+  log_facts
+  media_facts)
  (libraries
   eio
   cstruct

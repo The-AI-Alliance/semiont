@@ -51,3 +51,7 @@ module Storage_persister = Storage_persister
 module Service_token = Service_token
 module Redirect_sign_in = Redirect_sign_in
 module Testing = Testing
+module Identity = Identity
+module Media_types = Media_types
+module Bus_log = Bus_log
+module Text_encoding = Text_encoding

@@ -144,12 +144,6 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/assertion_cases.ml'),
 
 const mediaSource = 'media-types/registry.json';
 const media = JSON.parse(readFileSync(resolve(specRoot, mediaSource), 'utf8'));
-writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/clone_facts.ml'),
-  `(* Generated from ${mediaSource}. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n` +
-  `let authorable = [${media.mediaTypes.filter(({ authorable }) => authorable).map(({ mediaType, extension }) =>
-    `(${ocamlString(mediaType)}, ${ocamlString(extension)})`).join('; ')}]\n`,
-  process.argv.includes('--check'));
-
 const stored = JSON.parse(readFileSync(resolve(specRoot, 'session/stored.json'), 'utf8'));
 const discovery = JSON.parse(readFileSync(resolve(specRoot, 'discovery/DiscoveryDocument.json'), 'utf8'));
 writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/registry_facts.ml'),
@@ -196,4 +190,30 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/retry_cases.ml'),
   '(* Generated from retry/cases.json. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n' +
   `let rules = ${ocamlString(JSON.stringify(retryCases.rules))}\n` +
   `let retry_after = ${ocamlString(JSON.stringify(retryCases.retryAfter))}\n`,
+  process.argv.includes('--check'));
+
+const closurePaths = ['bus/log-cases', 'kb-identity/cases', 'media-types/cases', 'principals/cases',
+  'text/decode-cases', 'text/encoding-cases'];
+const closureTables = closurePaths.map(path => JSON.parse(readFileSync(resolve(specRoot, path + '.json'), 'utf8')));
+const closureMetadata = ({ $comment, runBy, notYetReached, ...data }) => data;
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/closure_cases.ml'),
+  `(* Generated from the six shared closure tables. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n` +
+  closureTables.map((table, index) => `let table_${index} = ${ocamlString(JSON.stringify(closureMetadata(table)))}\n`).join(''),
+  process.argv.includes('--check'));
+const encodings = closureTables[5].cases;
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/encoding_facts.ml'),
+  '(* Generated from text/encoding-cases.json. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n' +
+  `let labels = [${encodings.flatMap(row => row.labels.map(label => `(${ocamlString(label)}, ${ocamlString(row.encoding)})`)).join('; ')}]\n` +
+  `let single_byte = [${encodings.filter(row => row.everyByte).map(row => `(${ocamlString(row.encoding)}, ${ocamlString(row.everyByte)})`).join('; ')}]\n` +
+  `let refused = [${encodings.filter(row => row.refused).map(row => ocamlString(row.encoding)).join('; ')}]\n`,
+  process.argv.includes('--check'));
+const mediaRegistry = JSON.parse(readFileSync(resolve(specRoot, 'media-types/registry.json'), 'utf8'));
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/media_facts.ml'),
+  '(* Generated from media-types/registry.json. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n' +
+  `let types = [${mediaRegistry.mediaTypes.map(row =>
+    `(${ocamlString(row.mediaType)}, (${ocamlString(row.extension)}, ${row.authorable}, ${ocamlString(row.textSource)}))`).join('; ')}]\n`,
+  process.argv.includes('--check'));
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/log_facts.ml'),
+  '(* Generated from bus/log-cases.json. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n' +
+  `let credentials = [${closureTables[0].names.map(ocamlString).join('; ')}]\n`,
   process.argv.includes('--check'));

@@ -174,6 +174,14 @@ let emit t ~client_id ?scope ?correlation_id ?trace channel source =
   in
   let open Telemetry_facts in
   let name = Bus_registry.name channel in
+  if Bus_log.active () then
+    Bus_log.write "EMIT" ~channel:name
+      ?scope:(Option.map Identifiers.Resource_id.to_string scope)
+      ?correlation_id
+      ?trace:
+        (Option.bind trace (fun (trace : Wire_stream.trace) ->
+             Bus_log.trace_id trace.parent))
+      (Yojson.Safe.from_string source);
   let attributes =
     (attr_bus_channel, Telemetry.String name)
     :: Option.to_list
@@ -295,6 +303,9 @@ let media_token t resource =
     Http_facts.media_token read_text
 
 let with_content t ?(streaming = true) resource consume =
+  Bus_log.write "GET" ~channel:"content"
+    ~scope:(Identifiers.Resource_id.to_string resource)
+    (`Assoc []);
   let attrs = resource_attrs resource in
   let attrs =
     if streaming then
@@ -313,6 +324,9 @@ let with_content t ?(streaming = true) resource consume =
           consume ~content_type stream))
 
 let put t ~fields ~bytes ~on_progress =
+  if Bus_log.active () then
+    Bus_log.write "PUT" ~channel:"content"
+      (`Assoc (List.map (fun (key, value) -> (key, `String value)) fields));
   let attrs =
     [
       ( Telemetry_facts.attr_content_format,

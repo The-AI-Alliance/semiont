@@ -259,7 +259,7 @@ let describe_connection client =
               if domain = "" then Error "kb.identity-not-reported"
               else
                 Ok
-                  ({ did = "did:web:" ^ domain; description }
+                  ({ did = Identity.knowledge_base_did domain; description }
                     : connection_identity)))
 
 let with_identity ~id ~endpoint (identity : connection_identity) =
@@ -280,7 +280,10 @@ let record_sign_in browser (signed : signed_in) =
   if info.domain = "" then Error "kb.identity-not-reported"
   else
     let identity =
-      { did = "did:web:" ^ info.domain; description = signed.description }
+      {
+        did = Identity.knowledge_base_did info.domain;
+        description = signed.description;
+      }
     in
     locked browser (fun () ->
         let values = knowledge_bases browser in

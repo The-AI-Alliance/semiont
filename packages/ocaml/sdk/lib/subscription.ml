@@ -329,6 +329,18 @@ let read_stream t input =
       | exception Eio.Io _ -> ()
       | None -> ()
       | Some event ->
+          (match event with
+          | Ok (Wire_stream.Frame { route; payload = Ok payload; trace; _ })
+            when Bus_log.active () ->
+              Bus_log.write "RECV" ~channel:route.channel
+                ?correlation_id:route.correlation_id
+                ?scope:
+                  (Option.map Identifiers.Resource_id.to_string route.scope)
+                ?trace:
+                  (Option.bind trace (fun (trace : Wire_stream.trace) ->
+                       Bus_log.trace_id trace.parent))
+                (Yojson.Safe.from_string (Bus_registry.encode payload))
+          | _ -> ());
           dispatch t event;
           loop ()
   in

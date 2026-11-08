@@ -149,6 +149,7 @@ const table = {
     'include one through encoding_rs, which is the standard as Firefox has it, and that run is the check of this ' +
     'table against a second implementation, label by label and byte by byte. A reader in another language runs it too.',
   runBy: {
+    ocaml: ['packages/ocaml/sdk/test/closure_behavior.ml'],
     haskell: ['packages/haskell/sdk/test/TextCases.hs'],
     typescript: ['packages/typescript/core/src/__tests__/decode-cases.test.ts'],
     rust: ['packages/rust/sdk/src/resources.rs', 'packages/rust/sdk/tests/decode_cases.rs'],
@@ -158,7 +159,6 @@ const table = {
     swift: ['packages/swift/sdk/Tests/SemiontTests/DecodeRepresentationTests.swift'],
     csharp: ['packages/csharp/sdk/tests/Semiont.Tests/RepresentationTests.cs'],
   },
-  notYetReached: { ocaml: "P4 runs the HTTP encoding cases." },
   cases,
 };
 

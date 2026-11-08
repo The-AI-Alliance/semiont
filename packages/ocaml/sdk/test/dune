@@ -84,3 +84,8 @@
  (name completion_behavior)
  (modules completion_behavior retry_cases)
  (libraries semiont eio_main eio.mock yojson alcotest mtime uri))
+
+(test
+ (name closure_behavior)
+ (modules closure_behavior closure_cases)
+ (libraries semiont yojson alcotest))

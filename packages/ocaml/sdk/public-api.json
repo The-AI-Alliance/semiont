@@ -121,6 +121,7 @@
     "lib/browse.ml": "c42d6ed23168838c63dea27797ca5ec655040198d162d26c0cf54ac35d54e063",
     "lib/browse.mli": "c57e5ff1c98e598cb6c438e781d135c0ff0c76498e1b93455f2c5e870f3b2858",
     "lib/bus.ml": "6515e162ee1e96208327aed95690c73fbf6b50626c39dfb6aa930e2b308f69ab",
+    "lib/bus_log.ml": "1f9824f508b55593336fe854f12be7f202a8bab58393607bb7f77b43abc552ce",
     "lib/bus_registry.ml": "2390b6d387efad1ce7e219c6f88c3a7380bcb00fac8da67c34e6157655e4270c",
     "lib/bus_registry.mli": "e75fd6ce95deeda1d3364659c1ac01c0c507fe226cf18ff97f903a321663d1ff",
     "lib/cache_state.ml": "a7dd3b38f2eaccd71566cd680fe78ccb9601e6ee384200b91b07f2afdfa27dfb",
@@ -136,12 +137,12 @@
     "lib/client_timing.mli": "cb433bda9c37944c0dd973b950f25c229b727fef820d144b66915c26e3c4c7a5",
     "lib/clock.ml": "71063b036aa3069ad2ed649ba8a73505b4eb4a00631c48af43a01f732c6623ab",
     "lib/clock.mli": "5333b1d2447f81415c54bfc99d87ae98362a4ce249695d7783c35df41cdab364",
-    "lib/clone_facts.ml": "5da9ebb49bc4f8e76f64f58d44fdfd94ba3070a96e542060e4deca3370a09225",
     "lib/delegation.ml": "630367eab38d307798e7be35ab0c338b83ccd743d36d6a0ad129472a48353185",
     "lib/delegation.mli": "76f4e7e055c6a9dbb288443bf4d7548aabaa307f2fa354e8e165dd453b4f09d5",
     "lib/discovery.ml": "3fbd431f7ed53eccc27c2c343e6a6556fab618976c42cab23a9b1288b903954d",
     "lib/discovery.mli": "c9924f5e42d374573dc62eb9aa405126a28769a0ce72b65a2187aae704c33747",
-    "lib/dune": "eeca3992fab36fbe6de86563cd84abd5429591dabc52b9f6ec8b5f8152b2ca46",
+    "lib/dune": "d90aad6b08defed12f8e2bb36a08718f65639323a40a540002a7f94ba01efa4e",
+    "lib/encoding_facts.ml": "8d971c2160eea6fe4fbc60d553d2479917de25ffb9e4c7be3dac16dbba78a021",
     "lib/enums.ml": "e2a188bb4fd853313782622b84257a43be1c0e89472fc2323ab9c89ff1aa1232",
     "lib/enums.mli": "1c28ee0ac1ca50a86fe00ce3fe5c6ed5b015045b5cd14c8b48d46fa4b937daaf",
     "lib/frame.ml": "6e0ba59a959758ccdc672cec1d8d802be2f882a5d1354ded4e5ab21398716d54",
@@ -153,16 +154,18 @@
     "lib/hover_dwell.ml": "2a8e9fef90c75ce18569793c04f553523e3dc523d53d869ceef4dab6a7702122",
     "lib/hover_dwell.mli": "3bf63911f6482ad960a6e4d3881e4a637caa0d9929dc8d62dbf7b69421fa19af",
     "lib/http_facts.ml": "3bce75ca4edacc1682410d6c9f6faf5584fe027ff8f058c91a63f0fa59be7784",
-    "lib/http_wire.ml": "071829b6b1129d80d4c8c95c55498182072fa151b937a45fc415e87c5b2e9e71",
+    "lib/http_wire.ml": "394653ce1a2c6a61d8039f9afae4a0b90bd0c75cc900a13f3d85d5ea0149e558",
     "lib/http_wire.mli": "fac172af11ce0c98fc4589264c3bb9b7466682cf011d4e1fad16930e707c3f17",
     "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
     "lib/identifiers.mli": "bba7e132069a1c36758c9d1bfebd936ecb815b6d05dae2b55f03a5de72f2c20d",
+    "lib/identity.ml": "926a5ae2b89b08a294af2bbee6975347194bdaea78109f82a777b9fcff388e58",
     "lib/job.ml": "2381750e7292f8a03640f1e09de22eb525086877fb8289b46e3d188798181453",
     "lib/job_filter.ml": "d0b6bff412af0031c187c9f667c7d75cbff5d486f48c24d34d6441e4d13e4c01",
     "lib/job_filter.mli": "b6990830290c4a2b5d24abce0d0da6f5138eb7abd7799cd8674b97e2918d9b42",
     "lib/live_facts.ml": "ce49adc23b56fd0f25a7f642d9d1ead6ddb67b0c297b420bd49ded3c785b1db2",
     "lib/live_query.ml": "edfcd42d98ef8c4d9d2c80ddfde2be351e1739a2d70fce7434c811cf4b3de994",
     "lib/live_query.mli": "3c62d8ab44d082eb359a24a8b0159f1ebf117e99da80e772feb12899adce2312",
+    "lib/log_facts.ml": "7fbe278d5eb452d36445aa0cd571ce86ef65e0c69d9fab65b6bc3b4a6a5a45cf",
     "lib/mark.ml": "d539b4cea644c035198f7b22d9384e1e19c7815e806e240a2309e9e1e17a7072",
     "lib/mark.mli": "daa70a35284997cf8b5796bda5f3262c19e8690a40090dc415729c4e3dddbbb3",
     "lib/mark_state.ml": "1a250b00085656bb6b547c7a254fe7356f1ac50f8d18cb82104aa5978dddb6d8",
@@ -171,6 +174,9 @@
     "lib/match.mli": "54ac094a6a9f8e8a09b7bc5f175ae198788c3d82b9b80a1f7efc9014fd135179",
     "lib/match_state.ml": "81fe38e465a2218dc3091a197b92bcecc2e92b1a5f31fd6bb0b5d140ead518ab",
     "lib/match_state.mli": "8d03f88a685f32af82e994b883611746f9775689e61a7a455009be21e03d6f54",
+    "lib/media_facts.ml": "79064b570a1612769c84ad4e2941e8b7b03c1122d9e5031a214398d6950c38d1",
+    "lib/media_types.ml": "627feecc23b4f887709476ee12e6fe99099303c19e06be88240ac8bf1905413d",
+    "lib/media_types.mli": "2d65a7872184f4fedba7fb88e5ab2069b0031e9ac924fb0a093978e31ad0c7cc",
     "lib/models.ml": "a36b2528fa00802a9e6482da3564a96c31300a8447921557f90770774d7e588c",
     "lib/models.mli": "bc54c8ce9935e9e195877b7ed8d7a6afc85ea7e3a5662139acc669c8f4f02b63",
     "lib/namespace_methods.ml": "dee5b5a4d62715a03959d611d5d917fd4ccdef1bfe1022eb99711f78a898f8f0",
@@ -182,11 +188,11 @@
     "lib/records.mli": "f80d7cbea4655b5bfdd0e99213e03273d908af8deb0203dcd5fcaf293d9124ff",
     "lib/redirect_sign_in.ml": "0d4bab713f5a86ddd705b15dca1aa01919702bfc5484469d104c9a1776d723fd",
     "lib/refusals.ml": "53b42a4d41b53e88968f5010a843038ffa0ddbcd842f390ce88acba818ad15d1",
-    "lib/registry.ml": "f78d9bde88483329679df8ae28d741658a7e907d0b2e64edc3c16a60d6b6c08d",
+    "lib/registry.ml": "6f743c8b3eded3f823249a649483a7844ceda11af79a552fcc132cd6c5cc39e5",
     "lib/registry.mli": "5067acf4ed7f18c4e1443cfe9732e739cc88e5d5d0e5ddf8ea5013522ebb16f1",
     "lib/registry_facts.ml": "eaa175c7c923df49b9432ae888debf4a403391e32fc9c4e1b72595d402d5912a",
-    "lib/resources.ml": "d10d36956315d962e68be9175554bf7f22e867e46897acd18a92de5dece9a122",
-    "lib/resources.mli": "17a4601720979aab764bed154f86649bb1b6d459b08099e3e8235ed65e67597d",
+    "lib/resources.ml": "99f49caf9937bf6754e62b0011196873fdfbc1488ed90817a49fcd292d6a9fd4",
+    "lib/resources.mli": "681c8d831db9af64fc28b7b91b6e913bf992f99529f2a3edb7f0d16121b10bf2",
     "lib/retry.ml": "0dfc63df473a609eba0ee7c4a87939632b3199038905c514a637cc93c1e6621b",
     "lib/retry.mli": "f1ce129d8c0f5585f03f3ee57b8eecb1da50774a9bccb93bd8d40511f6fcab72",
     "lib/running.ml": "d1e491aa088ca534f4668aa784ce843b98aea9c83b0dfe42c8f679dbb8c0cb03",
@@ -198,8 +204,8 @@
     "lib/search_pipeline.mli": "8569d48ac54fb0e5b0165613f479fce0d4dcd897d89dae4699c8d25f6d5db0d3",
     "lib/selector.ml": "28f250d3a6ed926ba94317cf595d39742124587c527ebcf02c6f6c043c50a7e8",
     "lib/selector.mli": "1c3c9f74ea5c90d0154547e5c3f249f4f7fcfd05f5fc97bc89ad7976a7b02716",
-    "lib/semiont.ml": "950585ded1be347874e02532882cce069cf783697a1fd1690d279b01c48d91a8",
-    "lib/semiont.mli": "06d5f90b4e03c390181a89f1d0f132b696f34601edfa4f0af67fdb8b54952b29",
+    "lib/semiont.ml": "6ff093ff5b0338a7d7b91e824600378ba3ee799586001dbf0d0f941166ddf0ff",
+    "lib/semiont.mli": "ad66133c5c2990ae041ba20bcc18c94de468d68e6a0a9bd82227eff1418ce726",
     "lib/service_token.ml": "5869384fb25f8c9f9ca54fe5beb5dfa5da4b7546dc87930d9eb66d3247322ed2",
     "lib/service_token.mli": "0b0f3278aa4e36179de32dd07002737067901c3ac9d8c24a0b9888241979f8e8",
     "lib/session.ml": "ec4f4c1cfcdc83ef6f1a31cc3ab1faa42f9ae663f0667f45a9b1704302766aa8",
@@ -224,7 +230,7 @@
     "lib/store_policy.ml": "c99553c99225977994e70e6bc0e1d614e59f839f70e7365511f8f9b3a99315ea",
     "lib/strict_json.ml": "19a2f3c4c5a828e0fe55cd36eb25b685e965f0b79c21cd57cc4a17c53d0112d6",
     "lib/strict_json.mli": "818f38488855a5ce525bbf7fa483feb6aad993670115a63065029201999b50a7",
-    "lib/subscription.ml": "5c6ce6921fa2f1869678d3263c28960e9c8440d26f47e6fbb510e3862a892bfb",
+    "lib/subscription.ml": "f8d0e5ff0ee257987650744d671e80e50f01babbca7970422e0a4d1f2dbe65da",
     "lib/subscription.mli": "83750f9a319153381a9300b17a12f5152c7947fba03f7df947c072aba0fcba79",
     "lib/system.ml": "2b48cd685aa8882505bcdb8b75ba376730082ff377aeb67caeaabde6b4070459",
     "lib/telemetry.ml": "d3e6ba70a0b5a00eb4733a8fc973c1c3b98ea5d07661da3297f2d71ee77da306",
@@ -233,6 +239,8 @@
     "lib/testing.ml": "ea61eba82f0874bdad374a7df10caf46d36663c7bc570ce0683dca39de288f99",
     "lib/testing.mli": "0928ba4e6354a6652fcc4c8effabb89bdf2bc319d0d1ee5767d2feb2b3a9cd17",
     "lib/testing_facts.ml": "16282c5960b3a3953769beaca6d31f0cb7aef707b12d6eb68d610a87f77e60af",
+    "lib/text_encoding.ml": "905bc2c16c4fc1416236a3e2751e5d61627d6dddf431941e36e8f233f5589dad",
+    "lib/text_encoding.mli": "60ca2f5b3a32d1c92e3ee786afb1ae8a38b893b3764052fb1b62897eb115da6e",
     "lib/tokens.ml": "a18316d4f94a7deffdaed3a99670163a86ca3ccf66f179628117c4e3a5e0410a",
     "lib/tokens.mli": "97dc7110f327c05cad137497a82178180d6b227ae4cffa177c7b8210cb5ddf4f",
     "lib/types.ml": "5921efffb7596beb176e09960cdfa080ec954349ec2ce9d7e54bc7f638c808fe",
@@ -243,7 +251,7 @@
     "lib/wire_stream.mli": "d145d5064298080786a7d80eb55a4936a8dbe89cd0e0ccf4fa81b6e82fc799a5",
     "lib/worker.ml": "e6eb53d23aa074d55dd27d1ff62732c3e8fef2dbfd0ea5c0e9c618f479545dfe",
     "lib/worker.mli": "d5c6c60e407f915b03a1a65f578a2663b8e6d26aaae77f9db5455656e20db49e",
-    "lib/yield.ml": "6518a0f8244dd123808ca62200a1efb3074206429789bc809b278e1f35144afc",
+    "lib/yield.ml": "c4668051c2fea5f416839b841895fb2df82e9c8c7860d076deb76d46ae32d8b7",
     "lib/yield.mli": "ebe751eaa065d7816cfff15194d77d5d7364dbfc80ded3043396fa1e44b56210",
     "lib/yield_state.ml": "1adf3f472069b3f4c8d3d4dee57bd1ab227032180cfe62c8115935ac2cdc57ba",
     "lib/yield_state.mli": "fe746d0f5b1657d53c8a2856e1ee7b0626dd570e0c855ba57fe502958686b978",
@@ -19271,6 +19279,11 @@
       "declaration": "val entity_types : [ `ResourceDescriptor ] Semiont__.Models.t -> string list"
     },
     {
+      "kind": "value",
+      "path": "Semiont.Resources.resource_text",
+      "declaration": "val resource_text :\n  Semiont__.Client_core.t ->\n  Semiont__.Identifiers.Resource_id.t ->\n  ((string, Semiont__.Text_encoding.refusal) result,\n   Semiont__.Client_core.error)\n  result"
+    },
+    {
       "kind": "module",
       "path": "Semiont.Refusals",
       "declaration": "module Refusals = Semiont__.Refusals",
@@ -19840,6 +19853,187 @@
       "kind": "value",
       "path": "Semiont.Testing.storage_context",
       "declaration": "val storage_context : shared_storage -> Semiont__.Storage.t"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Identity",
+      "declaration": "module Identity = Semiont__.Identity",
+      "alias": "Semiont__.Identity"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identity.knowledge_base_did",
+      "declaration": "val knowledge_base_did : string -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identity.resource",
+      "declaration": "val resource : string -> string"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Identity.kind",
+      "declaration": "type kind = Person | Agent",
+      "representation": "variant",
+      "constructors": [
+        "Person",
+        "Agent"
+      ],
+      "variants": [
+        {
+          "name": "Person",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Agent",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Identity.principal",
+      "declaration": "val principal : domain:string -> kind:kind -> string -> string"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Media_types",
+      "declaration": "module Media_types = Semiont__.Media_types",
+      "alias": "Semiont__.Media_types"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Media_types.text_source",
+      "declaration": "type text_source = Decode | Pdf_text_layer | No_text",
+      "representation": "variant",
+      "constructors": [
+        "Decode",
+        "Pdf_text_layer",
+        "No_text"
+      ],
+      "variants": [
+        {
+          "name": "Decode",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Pdf_text_layer",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "No_text",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Media_types.base",
+      "declaration": "val base : string -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Media_types.clone_format",
+      "declaration": "val clone_format : string -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Media_types.text_source",
+      "declaration": "val text_source : string -> text_source"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Media_types.yields_geometry",
+      "declaration": "val yields_geometry : string -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Media_types.derives_text",
+      "declaration": "val derives_text : string -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Media_types.storage_file_name",
+      "declaration": "val storage_file_name : name:string -> format:string -> string"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Bus_log",
+      "declaration": "module Bus_log = Semiont__.Bus_log",
+      "alias": "Semiont__.Bus_log"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_log.shown",
+      "declaration": "val shown :\n  ([> `Assoc of (string * 'a) list | `List of 'a list | `String of string ]\n   as 'a) ->\n  'a"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_log.enabled",
+      "declaration": "val enabled : bool lazy_t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_log.active",
+      "declaration": "val active : unit -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_log.short",
+      "declaration": "val short : string -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_log.trace_id",
+      "declaration": "val trace_id : string -> string option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_log.line",
+      "declaration": "val line :\n  string ->\n  channel:string ->\n  ?scope:string ->\n  ?correlation_id:string -> ?trace:string -> Yojson.Safe.t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus_log.write",
+      "declaration": "val write :\n  string ->\n  channel:string ->\n  ?scope:string ->\n  ?correlation_id:string -> ?trace:string -> Yojson.Safe.t -> unit"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Text_encoding",
+      "declaration": "module Text_encoding = Semiont__.Text_encoding",
+      "alias": "Semiont__.Text_encoding"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Text_encoding.refusal",
+      "declaration": "type refusal =\n    Unsupported_media_type of string\n  | Unsupported_charset of string",
+      "representation": "variant",
+      "constructors": [
+        "Unsupported_media_type",
+        "Unsupported_charset"
+      ],
+      "variants": [
+        {
+          "name": "Unsupported_media_type",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Unsupported_charset",
+          "fields": [],
+          "unit": false
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Text_encoding.decode",
+      "declaration": "val decode : content_type:string -> string -> (string, refusal) result"
     }
   ]
 }
