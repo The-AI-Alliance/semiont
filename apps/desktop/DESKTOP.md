@@ -8,10 +8,14 @@ Semiont Browser, which remains a web app. The renderer uses `@semiont/sdk` and
 
 - Electron's renderer runs with context isolation and without Node integration.
 - `electron/preload.ts` exposes narrow IPC bridges for configuration, history, preferences,
-  diagnostics, window sizing, and sign-in.
+  window sizing, sign-in, launcher commands, and local machine checks.
 - The main process signs users in through their knowledge base issuer in the system browser.
   It keeps access and refresh tokens in per-KB files with owner-only permissions.
 - HTTP(S) links opened by the renderer go to the user's default browser.
+- The bundled `semiont` launcher runs `status` and `about` when the user opens those views.
+  The Telemetry and Container runtime views currently read those human-readable reports;
+  a versioned launcher machine API has not been added yet. Git, Ollama, and 1Password CLI
+  checks inspect the local machine from Electron's main process.
 
 ## Persistent state
 
@@ -28,12 +32,18 @@ on the next write.
 
 ## Build and support
 
-`apps/desktop/build.sh` is the local build entry. It produces an unsigned Apple Silicon
-DMG; `make desktop-linux` produces a Linux x64 Debian package. Both outputs are
-written under `apps/desktop/release/`, with npm commands run inside Apple Container.
-Each package includes the matching static `semiont` launcher binary at
-`Resources/launcher/semiont`. The build derives its Go toolchain from
-`apps/launcher/go.mod`; the desktop does not invoke the sidecar yet.
-`electron-builder.yml` carries the Semiont product name and the existing Semiont
-bundle identifier. The `.deb` dependency metadata and package build have been exercised;
-installation and launch still need verification on a Debian or Ubuntu host.
+`apps/desktop/build.sh` is the local build entry. `make desktop` selects the host target:
+an unsigned Apple Silicon DMG on macOS, or a Linux x64 Debian package on Linux. The explicit
+targets are `make desktop-macos`, `make desktop-macos-app`, `make desktop-macos-dmg`, and
+`make desktop-linux`. The macOS app and Linux package are assembled in containers; npm
+commands run inside the container runtime selected by the build (Apple Container, Docker,
+or Podman). Creating the DMG uses macOS `hdiutil` and therefore requires a Mac, but the
+macOS app itself can be assembled on another supported host. On Apple Silicon, the Linux
+package is built in an amd64 Debian container using Rosetta.
+
+Installers are written under `apps/desktop/release/`. Each bundles a statically built
+`semiont` launcher for its target platform at the app's `Resources/launcher/semiont` (macOS)
+or `resources/launcher/semiont` (Linux) path. The build derives the Go toolchain from
+`apps/launcher/go.mod`. `electron-builder.yml` carries the Semiont product name and bundle
+identifier. The Linux `.deb` package build has been exercised, but installation and launch
+on a Debian or Ubuntu host still need verification; treat that artifact as experimental.
