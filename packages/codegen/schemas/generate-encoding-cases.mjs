@@ -158,6 +158,7 @@ const table = {
     swift: ['packages/swift/sdk/Tests/SemiontTests/DecodeRepresentationTests.swift'],
     csharp: ['packages/csharp/sdk/tests/Semiont.Tests/RepresentationTests.cs'],
   },
+  notYetReached: { ocaml: "P4 runs the HTTP encoding cases." },
   cases,
 };
 
