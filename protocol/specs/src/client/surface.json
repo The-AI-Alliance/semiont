@@ -845,9 +845,8 @@
     },
     {
       "unit": "beckon",
-      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "Attention on one resource: the annotation this participant hovers, a sparkle for one the moment it is hovered, and a focus, naming the unit's resource, for one clicked here or by another participant.",
-      "made": {"csharp": "BeckonStateUnit", "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit", "kotlin": "BeckonStateUnit", "swift": "BeckonStateUnit", "haskell": "BeckonStateUnit"},
+      "made": {"ocaml": "Beckon", "csharp": "BeckonStateUnit", "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit", "kotlin": "BeckonStateUnit", "swift": "BeckonStateUnit", "haskell": "BeckonStateUnit"},
       "madeBy": {"typescript": "createBeckonStateUnit", "go": "NewBeckonStateUnit", "haskell": "newBeckonStateUnit"},
       "members": [
         { "member": "hoveredAnnotationId" },
@@ -856,9 +855,8 @@
     },
     {
       "unit": "hoverDwell",
-      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "A pointer's rest: an annotation is said to be hovered once the pointer has rested on it for a delay, and none at once when it leaves.",
-      "made": {"csharp": "HoverDwell", "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell", "go": "HoverDwell", "kotlin": "HoverDwell", "swift": "HoverDwell", "haskell": "HoverDwell"},
+      "made": {"ocaml": "Hover_dwell", "csharp": "HoverDwell", "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell", "go": "HoverDwell", "kotlin": "HoverDwell", "swift": "HoverDwell", "haskell": "HoverDwell"},
       "madeBy": {"typescript": "createHoverDwell", "go": "NewHoverDwell", "haskell": "newHoverDwell"},
       "members": [
         { "member": "enter" },
@@ -867,9 +865,8 @@
     },
     {
       "unit": "search",
-      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "A search that follows a query as it is typed: the query as last set, and the results of the query it last settled on, once that query has stayed the same for a debounce.",
-      "made": {"csharp": "SearchPipeline", "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline", "go": "SearchPipeline", "kotlin": "SearchPipeline", "swift": "SearchPipeline", "haskell": "SearchPipeline"},
+      "made": {"ocaml": "Search", "csharp": "SearchPipeline", "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline", "go": "SearchPipeline", "kotlin": "SearchPipeline", "swift": "SearchPipeline", "haskell": "SearchPipeline"},
       "madeBy": {"typescript": "createSearchPipeline", "go": "NewSearchPipeline", "haskell": "newSearchPipeline"},
       "members": [
         { "member": "query" },
@@ -879,9 +876,8 @@
     },
     {
       "unit": "sessionSignals",
-      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it.",
-      "made": {"csharp": "SessionSignals", "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals", "kotlin": "SessionSignals", "swift": "SessionSignals", "haskell": "SessionSignals"},
+      "made": {"ocaml": "Session_signals", "csharp": "SessionSignals", "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals", "kotlin": "SessionSignals", "swift": "SessionSignals", "haskell": "SessionSignals"},
       "madeBy": {"typescript": "createSessionSignals", "go": "NewSessionSignals", "haskell": "newSessionSignals"},
       "members": [
         { "member": "sessionEnded" },
@@ -1609,9 +1605,9 @@
     },
     {
       "module": "registry",
-      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/registry.mli"],
         "csharp": ["packages/csharp/sdk/src/Semiont/Registry"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Registry/OpenResources.swift",
@@ -1702,6 +1698,7 @@
           "member": "KbReadKind",
           "kind": "type",
           "absent": {
+            "ocaml": "OCaml represents the read verdict as a variant.",
             "typescript": "TypeScript's verdict is a union told apart by its `kind`.",
             "rust": "Rust's verdict is an enum, whose variants are its kinds."
           }
@@ -1739,6 +1736,7 @@
           "member": "TabVerdict",
           "kind": "type",
           "absent": {
+            "ocaml": "OCaml represents the tab check as a variant.",
             "typescript": "TypeScript's check is a union told apart by its `verdict`.",
             "rust": "Rust's check is an enum, whose variants are its verdicts."
           }
@@ -1814,6 +1812,7 @@
         },
         {
           "member": "keptIn",
+          "notYetReached": { "ocaml": "Connect the registry session factory to the kept redirect-sign-in workflow." },
           "kind": "function",
           "absent": {
             "typescript": "TypeScript's session reads and writes its tokens in the registry's storage itself.",
@@ -1822,6 +1821,7 @@
         },
         {
           "member": "beginSignIn",
+          "notYetReached": { "ocaml": "Connect the registry session factory to the kept redirect-sign-in workflow." },
           "kind": "function",
           "absent": {
             "typescript": "TypeScript's is a method of `SemiontBrowser`."
@@ -1829,6 +1829,7 @@
         },
         {
           "member": "completeSignIn",
+          "notYetReached": { "ocaml": "Connect the registry session factory to the kept redirect-sign-in workflow." },
           "kind": "function",
           "absent": {
             "typescript": "TypeScript's is a method of `SemiontBrowser`."
@@ -2072,9 +2073,9 @@
     },
     {
       "module": "discovery",
-      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/discovery.mli"],
         "csharp": ["packages/csharp/sdk/src/Semiont/Discovery"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Registry/Discovery.swift"
@@ -2132,6 +2133,7 @@
           "member": "Absent",
           "kind": "type",
           "absent": {
+            "ocaml": "OCaml represents absence as a variant constructor.",
             "typescript": "TypeScript's state is a union told apart by its `kind`.",
             "rust": "Rust's state is an enum, whose variants are its kinds.",
             "haskell": "Haskell represents this case as an algebraic data constructor of DiscoveryState or DiscoveryRead, rather than a separate type."
@@ -2141,6 +2143,7 @@
           "member": "Managed",
           "kind": "type",
           "absent": {
+            "ocaml": "OCaml represents a managed document as a variant constructor.",
             "typescript": "TypeScript's state is a union told apart by its `kind`.",
             "rust": "Rust's state is an enum, whose variants are its kinds.",
             "haskell": "Haskell represents this case as an algebraic data constructor of DiscoveryState or DiscoveryRead, rather than a separate type."
@@ -2150,6 +2153,7 @@
           "member": "Unchanged",
           "kind": "type",
           "absent": {
+            "ocaml": "OCaml represents an unchanged read as a variant constructor.",
             "typescript": "TypeScript's read is a union told apart by its `kind`.",
             "rust": "Rust's read is an enum, whose variants are its kinds.",
             "haskell": "Haskell represents this case as an algebraic data constructor of DiscoveryState or DiscoveryRead, rather than a separate type."

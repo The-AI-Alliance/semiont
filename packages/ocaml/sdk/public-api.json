@@ -113,6 +113,8 @@
     "lib/agent.mli": "00422c6a7034ef99b976c09e21786826cd7c9ba20718d3cef2c92221f08a7e8a",
     "lib/assertion_facts.ml": "b854fcbb9586444c86d24d387b8cd9eabf539b83af9b19307163617730968536",
     "lib/auth.ml": "95cbd3eef3820adfbff02c0ace52d195c7fd35022c2a2a7c6a49d7402880e4f2",
+    "lib/beckon_state.ml": "3b37bcacd3c2fc058e2040672ffa1e5e5a456d2bb7e061559df3107cfe180b2b",
+    "lib/beckon_state.mli": "fa367fbd741509c89d05c49b9a8c45eb507ae5e4aaef46ba295e5045014b1820",
     "lib/browse.ml": "c42d6ed23168838c63dea27797ca5ec655040198d162d26c0cf54ac35d54e063",
     "lib/browse.mli": "c57e5ff1c98e598cb6c438e781d135c0ff0c76498e1b93455f2c5e870f3b2858",
     "lib/bus_registry.ml": "2390b6d387efad1ce7e219c6f88c3a7380bcb00fac8da67c34e6157655e4270c",
@@ -131,11 +133,15 @@
     "lib/clone_facts.ml": "5da9ebb49bc4f8e76f64f58d44fdfd94ba3070a96e542060e4deca3370a09225",
     "lib/delegation.ml": "507294026f204f25a189ceb21c0e0b5d10c3f8e1f8def687e5dd3665374c130b",
     "lib/delegation.mli": "6a95dbf8d1d6a465748e5e8c9daa68c6228add1b4e812ac9b6ad99d431085305",
-    "lib/dune": "c1920968d030cd889a6c7a049cc10b8d2e531bd5aa4225b826443b1404b0f9b7",
+    "lib/discovery.ml": "3fbd431f7ed53eccc27c2c343e6a6556fab618976c42cab23a9b1288b903954d",
+    "lib/discovery.mli": "c9924f5e42d374573dc62eb9aa405126a28769a0ce72b65a2187aae704c33747",
+    "lib/dune": "422c125a1f53d6c463621c3c8245317f0cdcdf042e3e18a8e976b606c9ab49f1",
     "lib/enums.ml": "e2a188bb4fd853313782622b84257a43be1c0e89472fc2323ab9c89ff1aa1232",
     "lib/enums.mli": "1c28ee0ac1ca50a86fe00ce3fe5c6ed5b015045b5cd14c8b48d46fa4b937daaf",
     "lib/frame.ml": "6e0ba59a959758ccdc672cec1d8d802be2f882a5d1354ded4e5ab21398716d54",
     "lib/gather.ml": "c1b78c87f2e5c35a9636e61aa0ca9b1477a41341f38acda6ff396cb380b3d3b7",
+    "lib/hover_dwell.ml": "2a8e9fef90c75ce18569793c04f553523e3dc523d53d869ceef4dab6a7702122",
+    "lib/hover_dwell.mli": "3bf63911f6482ad960a6e4d3881e4a637caa0d9929dc8d62dbf7b69421fa19af",
     "lib/http_facts.ml": "3bce75ca4edacc1682410d6c9f6faf5584fe027ff8f058c91a63f0fa59be7784",
     "lib/http_wire.ml": "9b80c726dedf1ac76f4e88f51e2cd19af8e4cfeea4aab3622c9abb31ef774c98",
     "lib/http_wire.mli": "4a667836831cd4d8ad3be0b4040f0d1545a84312f3a4f00c7385eb39e6f426ea",
@@ -152,25 +158,37 @@
     "lib/models.ml": "a36b2528fa00802a9e6482da3564a96c31300a8447921557f90770774d7e588c",
     "lib/models.mli": "bc54c8ce9935e9e195877b7ed8d7a6afc85ea7e3a5662139acc669c8f4f02b63",
     "lib/namespace_methods.ml": "dee5b5a4d62715a03959d611d5d917fd4ccdef1bfe1022eb99711f78a898f8f0",
-    "lib/oauth.ml": "371b2cc0eb08007d9f5a12cacb1928140a88f8ac2002499c52c8029062c776ad",
-    "lib/oauth.mli": "93b3263a35c5431a34b3a8850d782a1de8dac9d6481d7125e30389e5a2eca513",
+    "lib/oauth.ml": "875f1c547cc4244fdaac3d0ab3fde533bf621d08458c37c095c97fbb0c10092d",
+    "lib/oauth.mli": "5b98f6ab470251ddcf9c87083e185ea5967268ba444d26ea257311735ef9dc93",
     "lib/oauth_facts.ml": "78b55403643d7f11e4d0d999f2747bcf84b3a407eeb24594f9e795675d60fcca",
     "lib/pattern.ml": "a41d5ebb9ebc0eee59522a4d883e2a5281202c4fbebb0a2040b267961bf677ad",
     "lib/records.ml": "708f8a26fc1b0e70509f8c5e0ff1c1c6f41d21ee1046c05f243cfdc99861722d",
     "lib/records.mli": "514f4148625dc18f131fa0bccb855db4aec56e1cea6d90cfd0efad12b9784782",
+    "lib/registry.ml": "052dfbe6340c1b20b920368c80fe7bd9d3722d264e0a3716ef0aa2389238134f",
+    "lib/registry.mli": "1e48f397db1522d6102dc48189a794a764b3282fbb88dbb8cb485412699243c9",
+    "lib/registry_facts.ml": "eaa175c7c923df49b9432ae888debf4a403391e32fc9c4e1b72595d402d5912a",
     "lib/running.ml": "d1e491aa088ca534f4668aa784ce843b98aea9c83b0dfe42c8f679dbb8c0cb03",
     "lib/running.mli": "74bef29c19b9b132888e875f77ea4fec64855a7bb7c6e119e0fb8346a47176f9",
     "lib/schema_codec.ml": "138a6240b6eb8810cfb608c1cb2b29717ef66fbbeb887ca57ca925cb84acb4f8",
     "lib/schema_shape.ml": "f035fcc70aa623f06257cb2c5051483c90c3869a70b618dcf66f27170673e0d4",
     "lib/schema_shapes.ml": "12f163c8f930d2cb1559aa93de7f8d5fd58583827059852e6aebdf9b03629bea",
+    "lib/search_pipeline.ml": "c686787cea18854164219082e02d586aa34f7a0801c876cb011648bd72222ba0",
+    "lib/search_pipeline.mli": "8569d48ac54fb0e5b0165613f479fce0d4dcd897d89dae4699c8d25f6d5db0d3",
     "lib/selector.ml": "28f250d3a6ed926ba94317cf595d39742124587c527ebcf02c6f6c043c50a7e8",
     "lib/selector.mli": "1c3c9f74ea5c90d0154547e5c3f249f4f7fcfd05f5fc97bc89ad7976a7b02716",
-    "lib/semiont.ml": "8bd72e8ba53bb4fc8faea25a70d85ea91fc11c45c5868711fcabd767a295a06e",
-    "lib/semiont.mli": "2d479c3fc333fd6df3e8ea5f6fd86dc75ca240d0109a7e9857f9c417f3336e84",
+    "lib/semiont.ml": "73d74eb947abf8ef303ebebed3acf99d8a81f0d54ea2c9e53485cdda2c0b209e",
+    "lib/semiont.mli": "8e7c7c992c4db5f248478b35355dd3c5f91c3f93cd6e3704bb283c849c9610bc",
     "lib/session.ml": "9ee75a225c8c8444ae08b86756b04ffa3fad90ae61acb30b3c8c0b4204355c99",
     "lib/session.mli": "5ac74926a034bfe9c5582933b1ddec64b10f7e41aac9c69cde761cb395647296",
+    "lib/session_signals.ml": "dba5deb3b0b7804f9296bd220a4b919824c565cb77e69cc9e816c9866eb7dc1d",
+    "lib/session_signals.mli": "f7fcf9e704a1a62abe71aac063076d71dc45f8f7c7c9c2ac5ed9a961dc02835d",
     "lib/sign_in_store.ml": "fc130dc8ae78f26c0b689b030828df107ebe36463b737abef5b38ea2e4b37e24",
     "lib/sign_in_store.mli": "d6579a76440acff3f59b378e9f6fbe35f90cf817827d4af59d2e65a4e2dccdda",
+    "lib/state_task.ml": "2061a7893545d7ecf7f52b0235c21fa2a5346ef3c65334e043e63dd7dfc74c8c",
+    "lib/state_units.ml": "8f018076a78e0f089147e706ebc13932eb04831b3a62cb83d9736f41dcc8e1ac",
+    "lib/state_units.mli": "8f018076a78e0f089147e706ebc13932eb04831b3a62cb83d9736f41dcc8e1ac",
+    "lib/state_value.ml": "d3e41b844d6f7df7af608606f3381c8ba195696ae8ad6a5def116603f3fd4b2b",
+    "lib/state_value.mli": "c84e7db498c8d1f618daa2e6572f8d529f7f6da07622b3cdb8c700de370fdec0",
     "lib/store_lock.c": "b60da25fee458740eb28242e3c853e57fc7115f40bbc0b85f1cab9414ff7d588",
     "lib/store_policy.ml": "c99553c99225977994e70e6bc0e1d614e59f839f70e7365511f8f9b3a99315ea",
     "lib/strict_json.ml": "19a2f3c4c5a828e0fe55cd36eb25b685e965f0b79c21cd57cc4a17c53d0112d6",
@@ -14993,6 +15011,11 @@
     },
     {
       "kind": "value",
+      "path": "Semiont.OAuth.await_device",
+      "declaration": "val await_device :\n  clock:Semiont__.Clock.t ->\n  http -> issuer -> device -> (script tokens, error) result"
+    },
+    {
+      "kind": "value",
       "path": "Semiont.OAuth.refresh_script",
       "declaration": "val refresh_script :\n  http ->\n  token_endpoint:string ->\n  refresh_token:string -> (script tokens, error) result"
     },
@@ -17088,6 +17111,821 @@
       "kind": "value",
       "path": "Semiont.Claims.will_retry_after",
       "declaration": "val will_retry_after :\n  retry_count:int ->\n  max_retries:int -> Semiont__.Enums.Failure_class.t option -> bool"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Discovery",
+      "declaration": "module Discovery = Semiont__.Discovery",
+      "alias": "Semiont__.Discovery"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Discovery.discovery_absent_reason",
+      "declaration": "type discovery_absent_reason =\n    Not_found\n  | Unreadable\n  | Not_json\n  | Invalid\n  | Unsupported_version",
+      "representation": "variant",
+      "constructors": [
+        "Not_found",
+        "Unreadable",
+        "Not_json",
+        "Invalid",
+        "Unsupported_version"
+      ],
+      "variants": [
+        {
+          "name": "Not_found",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Unreadable",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Not_json",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Invalid",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Unsupported_version",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Discovery.kb",
+      "declaration": "type kb = {\n  host : string;\n  port : int;\n  did : string;\n  placement : string;\n  managed_by : string;\n  repo : string option;\n  site_name : string option;\n}",
+      "representation": "record",
+      "fields": [
+        "host",
+        "port",
+        "did",
+        "placement",
+        "managed_by",
+        "repo",
+        "site_name"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Discovery.discovery_state",
+      "declaration": "type discovery_state = Absent of discovery_absent_reason | Managed of kb list",
+      "representation": "variant",
+      "constructors": [
+        "Absent",
+        "Managed"
+      ],
+      "variants": [
+        {
+          "name": "Absent",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Managed",
+          "fields": [],
+          "unit": false
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Discovery.discovery_read",
+      "declaration": "type discovery_read = Read of discovery_state | Unchanged",
+      "representation": "variant",
+      "constructors": [
+        "Read",
+        "Unchanged"
+      ],
+      "variants": [
+        {
+          "name": "Read",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Unchanged",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Discovery.discovery_transport",
+      "declaration": "type discovery_transport = unit -> discovery_read",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Discovery.discovery_diff",
+      "declaration": "type discovery_diff = {\n  state : discovery_state;\n  added : kb list;\n  updated : kb list;\n  removed : kb list;\n  duplicated : (string * int) list;\n}",
+      "representation": "record",
+      "fields": [
+        "state",
+        "added",
+        "updated",
+        "removed",
+        "duplicated"
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Discovery.discovery_interval",
+      "declaration": "val discovery_interval : int"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Discovery.parse_discovery_document",
+      "declaration": "val parse_discovery_document : string -> discovery_state"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Discovery.text_discovery",
+      "declaration": "val text_discovery : (unit -> string option) -> discovery_transport"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Discovery.file_discovery",
+      "declaration": "val file_discovery : state_directory:string -> discovery_transport"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Discovery.http_discovery",
+      "declaration": "val http_discovery :\n  (etag:string option -> int * string option * string) -> discovery_transport"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Discovery.discovery_diff",
+      "declaration": "val discovery_diff :\n  discovery_state option -> discovery_state -> discovery_diff option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Discovery.subscribe_discovery",
+      "declaration": "val subscribe_discovery :\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  ?interval_ms:int ->\n  discovery_transport -> on_change:(discovery_diff -> unit) -> unit -> unit"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Registry",
+      "declaration": "module Registry = Semiont__.Registry",
+      "alias": "Semiont__.Registry"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.endpoint",
+      "declaration": "type endpoint = [ `KbEndpoint ] Semiont__.Models.t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.knowledge_base",
+      "declaration": "type knowledge_base = [ `KnowledgeBase ] Semiont__.Models.t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.storage",
+      "declaration": "type storage = {\n  read : string -> string option;\n  write : string -> string -> unit;\n  remove : string -> unit;\n}",
+      "representation": "record",
+      "fields": [
+        "read",
+        "write",
+        "remove"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.stored_session",
+      "declaration": "type stored_session = {\n  access : string;\n  refresh : string;\n  client_id : string;\n  token_endpoint : string;\n  revocation_endpoint : string option;\n}",
+      "representation": "record",
+      "fields": [
+        "access",
+        "refresh",
+        "client_id",
+        "token_endpoint",
+        "revocation_endpoint"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.expected",
+      "declaration": "type expected = { did : string; name : string option; }",
+      "representation": "record",
+      "fields": [
+        "did",
+        "name"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.connection_identity",
+      "declaration": "type connection_identity = {\n  did : string;\n  description : [ `KbDescription ] Semiont__.Models.t;\n}",
+      "representation": "record",
+      "fields": [
+        "did",
+        "description"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.signed_in",
+      "declaration": "type signed_in = {\n  endpoint : endpoint;\n  description : [ `KbDescription ] Semiont__.Models.t;\n  session : stored_session;\n  kb_id : string option;\n  expected_did : string option;\n  expected_name : string option;\n}",
+      "representation": "record",
+      "fields": [
+        "endpoint",
+        "description",
+        "session",
+        "kb_id",
+        "expected_did",
+        "expected_name"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.sign_in_outcome",
+      "declaration": "type sign_in_outcome = { kb : knowledge_base; expected : expected option; }",
+      "representation": "record",
+      "fields": [
+        "kb",
+        "expected"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.kb_read_verdict",
+      "declaration": "type kb_read_verdict =\n    Recorded\n  | Conflict of { observed_did : string; observed_name : string; }\n  | NoVerdict",
+      "representation": "variant",
+      "constructors": [
+        "Recorded",
+        "Conflict",
+        "NoVerdict"
+      ],
+      "variants": [
+        {
+          "name": "Recorded",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Conflict",
+          "fields": [
+            "observed_did",
+            "observed_name"
+          ],
+          "unit": false
+        },
+        {
+          "name": "NoVerdict",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.kb_session_status",
+      "declaration": "type kb_session_status = Authenticated | Expired | SignedOut",
+      "representation": "variant",
+      "constructors": [
+        "Authenticated",
+        "Expired",
+        "SignedOut"
+      ],
+      "variants": [
+        {
+          "name": "Authenticated",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Expired",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "SignedOut",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.open_resource",
+      "declaration": "type open_resource = {\n  id : string;\n  name : string;\n  opened_at : int;\n  order : int;\n  media_type : string option;\n  storage_uri : string option;\n}",
+      "representation": "record",
+      "fields": [
+        "id",
+        "name",
+        "opened_at",
+        "order",
+        "media_type",
+        "storage_uri"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.tab_check",
+      "declaration": "type tab_check =\n    Gone\n  | Ready of { name : string; media_type : string option; }\n  | Unknown",
+      "representation": "variant",
+      "constructors": [
+        "Gone",
+        "Ready",
+        "Unknown"
+      ],
+      "variants": [
+        {
+          "name": "Gone",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Ready",
+          "fields": [
+            "name",
+            "media_type"
+          ],
+          "unit": false
+        },
+        {
+          "name": "Unknown",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.session_factory_options",
+      "declaration": "type session_factory_options = {\n  kb : knowledge_base;\n  storage : storage;\n  signals : Semiont__.Session.t option;\n  on_error : Semiont__.Http_wire.failure -> unit;\n}",
+      "representation": "record",
+      "fields": [
+        "kb",
+        "storage",
+        "signals",
+        "on_error"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.session_factory",
+      "declaration": "type session_factory =\n    session_factory_options ->\n    (Semiont__.Client.t * connection_identity, string) result",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.semiont_browser_config",
+      "declaration": "type semiont_browser_config = {\n  storage : storage;\n  clock : Semiont__.Clock.t;\n  fresh_id : unit -> string;\n  factory : session_factory;\n  on_error : Semiont__.Http_wire.failure -> unit;\n}",
+      "representation": "record",
+      "fields": [
+        "storage",
+        "clock",
+        "fresh_id",
+        "factory",
+        "on_error"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.semiont_browser",
+      "declaration": "type semiont_browser",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.activation_error",
+      "declaration": "type activation_error =\n    Unavailable of string\n  | Identity_conflict of string\n  | Superseded",
+      "representation": "variant",
+      "constructors": [
+        "Unavailable",
+        "Identity_conflict",
+        "Superseded"
+      ],
+      "variants": [
+        {
+          "name": "Unavailable",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Identity_conflict",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Superseded",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.new_semiont_browser",
+      "declaration": "val new_semiont_browser : semiont_browser_config -> semiont_browser"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.same_place",
+      "declaration": "val same_place : endpoint -> endpoint -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.knowledge_bases",
+      "declaration": "val knowledge_bases : semiont_browser -> knowledge_base list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.active_id",
+      "declaration": "val active_id : semiont_browser -> string option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.active_client",
+      "declaration": "val active_client : semiont_browser -> Semiont__.Client.t option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.record_sign_in",
+      "declaration": "val record_sign_in :\n  semiont_browser -> signed_in -> (sign_in_outcome, string) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.describe_connection",
+      "declaration": "val describe_connection :\n  Semiont__.Client.t -> (connection_identity, string) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.activate",
+      "declaration": "val activate :\n  semiont_browser -> string -> (Semiont__.Client.t, activation_error) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.sign_out",
+      "declaration": "val sign_out : semiont_browser -> string -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.session_status",
+      "declaration": "val session_status : semiont_browser -> string -> kb_session_status"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.http_session_factory",
+      "declaration": "val http_session_factory :\n  (session_factory_options -> (Semiont__.Client.t, string) result) ->\n  session_factory"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.sort_open_resources",
+      "declaration": "val sort_open_resources : open_resource list -> open_resource list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.apply_tab_checks",
+      "declaration": "val apply_tab_checks :\n  open_resource list -> (string * tab_check) list -> open_resource list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.knowledge_bases_key",
+      "declaration": "val knowledge_bases_key : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.active_key",
+      "declaration": "val active_key : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.open_resources_by_kb_key",
+      "declaration": "val open_resources_by_kb_key : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.last_viewed_resource_by_kb_key",
+      "declaration": "val last_viewed_resource_by_kb_key : string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.session_key",
+      "declaration": "val session_key : string -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.kb_of_session_key",
+      "declaration": "val kb_of_session_key : string -> string option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.stored_session",
+      "declaration": "val stored_session : storage -> string -> stored_session option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.store_session",
+      "declaration": "val store_session : storage -> string -> stored_session -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.clear_stored_session",
+      "declaration": "val clear_stored_session : storage -> string -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.load_knowledge_bases",
+      "declaration": "val load_knowledge_bases : storage -> knowledge_base list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.save_knowledge_bases",
+      "declaration": "val save_knowledge_bases : storage -> knowledge_base list -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.open_resources",
+      "declaration": "val open_resources : semiont_browser -> kb_id:string -> open_resource list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.set_open_resources",
+      "declaration": "val set_open_resources :\n  semiont_browser -> kb_id:string -> open_resource list -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.last_viewed",
+      "declaration": "val last_viewed : semiont_browser -> kb_id:string -> string option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.set_last_viewed",
+      "declaration": "val set_last_viewed :\n  semiont_browser -> kb_id:string -> string option -> unit"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.State_value",
+      "declaration": "module State_value = Semiont__.State_value",
+      "alias": "Semiont__.State_value"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.State_value.t",
+      "declaration": "type 'a t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.State_value.writer",
+      "declaration": "type 'a writer",
+      "representation": "abstract"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_value.make",
+      "declaration": "val make : 'a -> 'a t * 'a writer"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_value.get",
+      "declaration": "val get : 'a t -> 'a"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_value.observe",
+      "declaration": "val observe :\n  'a t -> on_value:('a -> unit) -> on_close:(unit -> unit) -> unit -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_value.set",
+      "declaration": "val set : ?repeat:bool -> 'a writer -> 'a -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_value.close",
+      "declaration": "val close : 'a writer -> unit"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.State_units",
+      "declaration": "module State_units = Semiont__.State_units",
+      "alias": "Semiont__.State_units"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.State_units.Beckon",
+      "declaration": "module Beckon = Semiont__.Beckon_state",
+      "alias": "Semiont__.Beckon_state"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.State_units.Beckon.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Beckon.make",
+      "declaration": "val make :\n  Semiont__.Client.t -> resource:Semiont__.Identifiers.Resource_id.t -> t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Beckon.hovered_annotation_id",
+      "declaration": "val hovered_annotation_id :\n  t -> Semiont__.Identifiers.Annotation_id.t option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Beckon.focus",
+      "declaration": "val focus : t -> Semiont__.Identifiers.Annotation_id.t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Beckon.dispose",
+      "declaration": "val dispose : t -> unit"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.State_units.Hover_dwell",
+      "declaration": "module Hover_dwell = Semiont__.Hover_dwell",
+      "alias": "Semiont__.Hover_dwell"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.State_units.Hover_dwell.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Hover_dwell.make",
+      "declaration": "val make : ?delay_ms:int -> Semiont__.Client.t -> t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Hover_dwell.enter",
+      "declaration": "val enter : t -> Semiont__.Identifiers.Annotation_id.t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Hover_dwell.leave",
+      "declaration": "val leave : t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Hover_dwell.dispose",
+      "declaration": "val dispose : t -> unit"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.State_units.Search",
+      "declaration": "module Search = Semiont__.Search_pipeline",
+      "alias": "Semiont__.Search_pipeline"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.State_units.Search.search_state",
+      "declaration": "type search_state = { results : Yojson.Safe.t list; is_searching : bool; }",
+      "representation": "record",
+      "fields": [
+        "results",
+        "is_searching"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.State_units.Search.lookup",
+      "declaration": "type lookup = string -> (Yojson.Safe.t list option -> unit) -> unit -> unit",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.State_units.Search.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Search.make",
+      "declaration": "val make :\n  ?debounce_ms:int ->\n  ?initial_query:string ->\n  sw:Eio.Switch.t -> clock:Semiont__.Clock.t -> search:lookup -> unit -> t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Search.query",
+      "declaration": "val query : t -> string Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Search.state",
+      "declaration": "val state : t -> search_state Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Search.set_query",
+      "declaration": "val set_query : t -> string -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Search.dispose",
+      "declaration": "val dispose : t -> unit"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.State_units.Session_signals",
+      "declaration": "module Session_signals = Semiont__.Session_signals",
+      "alias": "Semiont__.Session_signals"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.State_units.Session_signals.session_ended",
+      "declaration": "type session_ended = { reason : string; }",
+      "representation": "record",
+      "fields": [
+        "reason"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.State_units.Session_signals.permission_denied",
+      "declaration": "type permission_denied = { detail : string option; }",
+      "representation": "record",
+      "fields": [
+        "detail"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.State_units.Session_signals.kb_identity_conflict",
+      "declaration": "type kb_identity_conflict = { expected_did : string; observed_did : string; }",
+      "representation": "record",
+      "fields": [
+        "expected_did",
+        "observed_did"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.State_units.Session_signals.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session_signals.make",
+      "declaration": "val make : unit -> t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session_signals.session_ended",
+      "declaration": "val session_ended : t -> session_ended option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session_signals.permission_denied",
+      "declaration": "val permission_denied : t -> permission_denied option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session_signals.kb_identity_conflict",
+      "declaration": "val kb_identity_conflict :\n  t -> kb_identity_conflict option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session_signals.notify_session_ended",
+      "declaration": "val notify_session_ended : t -> reason:string -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session_signals.notify_permission_denied",
+      "declaration": "val notify_permission_denied : t -> detail:string option -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session_signals.notify_kb_identity_conflict",
+      "declaration": "val notify_kb_identity_conflict : t -> kb_identity_conflict -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session_signals.acknowledge_session_ended",
+      "declaration": "val acknowledge_session_ended : t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session_signals.acknowledge_permission_denied",
+      "declaration": "val acknowledge_permission_denied : t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session_signals.acknowledge_kb_identity_conflict",
+      "declaration": "val acknowledge_kb_identity_conflict : t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session_signals.dispose",
+      "declaration": "val dispose : t -> unit"
     }
   ]
 }

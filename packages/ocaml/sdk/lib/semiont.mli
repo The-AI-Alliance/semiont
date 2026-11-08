@@ -35,3 +35,7 @@ module System = Client.System
 module Running = Running
 module Upload = Upload
 module Claims = Claims
+module Discovery = Discovery
+module Registry = Registry
+module State_value = State_value
+module State_units = State_units

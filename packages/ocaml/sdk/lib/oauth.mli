@@ -50,6 +50,10 @@ val poll_device : http -> issuer -> device -> (script tokens, error) result
 (** One poll. Wait at least [device.interval] seconds between polls and back off
     on [Rejected "slow_down"]. *)
 
+val await_device :
+  clock:Clock.t -> http -> issuer -> device -> (script tokens, error) result
+(** Poll using the caller's clock, starting the expiry window when called. *)
+
 val refresh_script :
   http ->
   token_endpoint:string ->

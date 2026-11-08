@@ -2661,7 +2661,10 @@ function ocamlUnit(made) {
   const declared = ocamlModule(`Semiont.State_units.${made}`);
   if (!declared) return undefined;
   const isUnit = declared.members.get('dispose')?.returns === 'unit';
-  return { ...declared, isUnit };
+  const signatures = declared.members;
+  const members = new Set([...signatures].filter(([, signature]) =>
+    signature.takes[0]?.type === 't').map(([name]) => name));
+  return { ...declared, members, signatures, isUnit };
 }
 
 const UNITS = {
@@ -2670,7 +2673,7 @@ const UNITS = {
     declared: () => ocamlChildren('Semiont.State_units').filter(({ kind }) => kind === 'module')
       .map(({ path }) => ({ name: ocamlName(path), file: OCAML_API })),
     makeable: (made, declared, maker) =>
-      declared.members.get(ocamlCamel(maker ?? 'make'))?.returns === 't' ? undefined : 'which does not publicly return the unit type t',
+      declared.signatures.get(ocamlCamel(maker ?? 'make'))?.returns === 't' ? undefined : 'which does not publicly return the unit type t',
   },
   haskell: { read: haskellUnit, sources: 'packages/haskell/sdk/src', declared: haskellUnits, dispose: 'dispose', makeable: haskellMakeable },
   typescript: { read: typescriptUnit, sources: TS_SDK, declared: typescriptUnits, dispose: 'dispose', makeable: typescriptMakeable },

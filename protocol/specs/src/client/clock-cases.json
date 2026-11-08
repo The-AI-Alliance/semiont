@@ -10,7 +10,7 @@
     "typescript": ["packages/typescript/sdk/src/__tests__/clock-cases.test.ts"],
     "go": ["packages/go/sdk/clock_cases_test.go"]
   },
-  "notYetReached": { "ocaml": "P7 runs every clock subject through the public client composition." },
+  "notYetReached": { "ocaml": { "why": "Discovery and device polling are covered; the remaining subjects are being moved to the controlled clock runner.", "runBy": ["packages/ocaml/sdk/test/registry_cases.ml", "packages/ocaml/sdk/test/registry_behavior.ml"], "subjects": ["discovery", "deviceGrant"] } },
   "cases": [
     {
       "subject": "refusedStream",

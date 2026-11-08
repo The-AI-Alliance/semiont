@@ -58,3 +58,13 @@
  (name surface_behavior)
  (modules surface_behavior surface_cases surface_dispatch)
  (libraries semiont eio_main yojson alcotest))
+
+(test
+ (name registry_behavior)
+ (modules registry_behavior registry_cases)
+ (libraries semiont eio_main eio.mock mtime yojson alcotest))
+
+(test
+ (name state_behavior)
+ (modules state_behavior state_cases)
+ (libraries semiont eio_main eio.mock mtime yojson alcotest))

@@ -12,6 +12,8 @@
   live_facts
   client_query
   clone_facts
+  registry_facts
+  state_task
   oauth_facts
   assertion_facts
   store_policy)

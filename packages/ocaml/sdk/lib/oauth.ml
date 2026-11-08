@@ -220,7 +220,10 @@ let begin_device http issuer =
       verification_uri_complete =
         Option.bind (string "verification_uri_complete" json) endpoint;
       expires_in;
-      interval = Option.value (seconds "interval" json) ~default:5;
+      interval =
+        (match member "interval" json with
+        | Some (`Int seconds) when seconds >= 0 -> seconds
+        | _ -> Client_timing.device_poll_ms / 1000);
     }
 
 let poll_device http issuer device =
@@ -230,6 +233,30 @@ let poll_device http issuer device =
       ("client_id", Oauth_facts.script);
       ("device_code", device.device_code);
     ]
+
+let await_device ~clock http issuer device =
+  let stamp () = Clock.monotonic_now clock in
+  let after time milliseconds =
+    Mtime.add_span time Mtime.Span.(milliseconds * ms)
+    |> Option.value ~default:Mtime.max_stamp
+  in
+  let milliseconds seconds = min (max_int / 1000) seconds * 1000 in
+  let expires = after (stamp ()) (milliseconds device.expires_in) in
+  let rec wait interval =
+    let due = after (stamp ()) interval in
+    Clock.sleep_until clock
+      (if Mtime.compare due expires < 0 then due else expires);
+    if Mtime.compare (stamp ()) expires >= 0 then
+      Error (Rejected "expired_token")
+    else
+      match poll_device http issuer device with
+      | Error (Rejected "authorization_pending") -> wait interval
+      | Error (Rejected "slow_down") ->
+          let step = Client_timing.device_slow_down_ms in
+          wait (min (max_int - step) interval + step)
+      | result -> result
+  in
+  wait (max Client_timing.device_poll_floor_ms (milliseconds device.interval))
 
 let refresh_script http ~token_endpoint ~refresh_token =
   grant http ~token_endpoint
