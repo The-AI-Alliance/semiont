@@ -137,7 +137,7 @@
     "lib/clock.ml": "71063b036aa3069ad2ed649ba8a73505b4eb4a00631c48af43a01f732c6623ab",
     "lib/clock.mli": "5333b1d2447f81415c54bfc99d87ae98362a4ce249695d7783c35df41cdab364",
     "lib/clone_facts.ml": "5da9ebb49bc4f8e76f64f58d44fdfd94ba3070a96e542060e4deca3370a09225",
-    "lib/delegation.ml": "ee1d45a0b634615f29c7cf05e868f6c83f033cb6ede0e67c19cfbb49669e41d3",
+    "lib/delegation.ml": "630367eab38d307798e7be35ab0c338b83ccd743d36d6a0ad129472a48353185",
     "lib/delegation.mli": "76f4e7e055c6a9dbb288443bf4d7548aabaa307f2fa354e8e165dd453b4f09d5",
     "lib/discovery.ml": "3fbd431f7ed53eccc27c2c343e6a6556fab618976c42cab23a9b1288b903954d",
     "lib/discovery.mli": "c9924f5e42d374573dc62eb9aa405126a28769a0ce72b65a2187aae704c33747",

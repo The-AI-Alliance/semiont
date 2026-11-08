@@ -72,29 +72,30 @@ let channels =
 let job_channel channel =
   List.exists (fun (B.Channel value) -> B.name value = channel) job_signals
 
-let on_frame t = function
-  | Ok (Wire_stream.Frame { route; payload; _ }) when job_channel route.channel
+let on_frame t event =
+  let dispatch channel signal =
+    Hashtbl.to_seq_values t.listeners
+    |> List.of_seq
+    |> List.iter (fun listener -> listener.receive channel signal)
+  in
+  match Wire_stream.normalized event with
+  | Ok (Wire_stream.Frame { route; payload = Ok value; _ })
+    when job_channel route.channel ->
+      dispatch route.channel (Ok (Yojson.Safe.from_string (B.encode value)))
+  | Error { route = Some route; member; reason } when job_channel route.channel
     ->
-      let signal =
-        match payload with
-        | Ok value -> Ok (Yojson.Safe.from_string (B.encode value))
-        | Error (B.Invalid_payload fault) ->
-            Error
-              (`Assoc
-                 [
-                   ("channel", text route.channel);
-                   ("member", text fault.member);
-                   ( "reason",
-                     text
-                       (match fault.reason with
-                       | `Lacks -> "lacks"
-                       | `Malformed -> "malformed") );
-                 ])
-        | Error _ -> Error `Null
-      in
-      Hashtbl.to_seq_values t.listeners
-      |> List.of_seq
-      |> List.iter (fun listener -> listener.receive route.channel signal)
+      dispatch route.channel
+        (Error
+           (`Assoc
+              [
+                ("channel", text route.channel);
+                ("member", text member);
+                ( "reason",
+                  text
+                    (match reason with
+                    | `Lacks -> "lacks"
+                    | `Malformed -> "malformed") );
+              ]))
   | _ -> ()
 
 let send t ~correlation_id channel payload =
