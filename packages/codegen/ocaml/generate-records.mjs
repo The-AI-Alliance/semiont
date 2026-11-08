@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ocamlString } from '../lib/ocaml-source.mjs';
+import { translated } from '../schemas/openapi-schema.mjs';
 import { writeOrCheck } from '../lib/committed-source.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -70,9 +71,9 @@ const helpers = [
   'let extra names = List.filter (fun (name, _) -> not (List.mem name names))',
 ];
 const selected = (field) => {
-  if (field.nullable === true) return ['Yojson.Raw.t', 'identity'];
-  if (field.type === 'string') return ['string', 'string'];
-  if (field.type === 'boolean') return ['bool', 'bool'];
+  const { type } = translated(field);
+  if (type === 'string') return ['string', 'string'];
+  if (type === 'boolean') return ['bool', 'bool'];
   // Retain raw literals for exact numbers, and for nested and composed values.
   return ['Yojson.Raw.t', 'identity'];
 };

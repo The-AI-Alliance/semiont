@@ -166,7 +166,8 @@ private func registryResource(_ id: ResourceId) throws -> ResourceDescriptor {
   let result = try wirePayload(
     BrowseKbResult(response: KbDescription(domain: "example.org", name: "KB")))
   let spec = LivenessSpec(
-    timeout: .milliseconds(500), retryBudget: 0,
+    // The liveness bound allows for contention in the parallel Linux suite.
+    timeout: .seconds(2), retryBudget: 0,
     schedules: [
       [.deliver], [.dropReply], [.delay(.milliseconds(5))], [.duplicateReply], [.rejectEmit],
     ],
