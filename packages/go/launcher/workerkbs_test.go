@@ -289,10 +289,10 @@ func TestWorkerKBAddKeepsWhatTheGatewayNames(t *testing.T) {
 		t.Errorf("kept %+v, want %+v", got, want)
 	}
 	kept := workerListPath()
-	if fi, err := os.Stat(kept); err != nil {
+	if _, err := os.Stat(kept); err != nil {
 		t.Fatalf("nothing is kept shared: %v", err)
-	} else if fi.Mode().Perm()&0o077 != 0 {
-		t.Errorf("the worker's list is readable beyond its owner: %v", fi.Mode().Perm())
+	} else if open := harness.OpenToOthers(t, kept); open != "" {
+		t.Errorf("the worker's list %s — it is readable only by its owner", open)
 	}
 	if _, err := os.Stat(kept + ".tmp"); !os.IsNotExist(err) {
 		t.Errorf("the write left its temporary file: %v", err)
