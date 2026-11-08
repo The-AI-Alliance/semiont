@@ -1,106 +1,44 @@
-# OCaml SDK development
+# Semiont OCaml SDK
 
-The OCaml SDK is being implemented with Eio on OCaml 5. The implementation plan
-is `.plans/SDK-OCAML.md` in the development checkout. The complete SDK is being
-kept on one branch and one PR; this foundation does not yet provide a client.
+Build an Eio application, script, or worker that talks to a Semiont knowledge base. The SDK includes typed bus operations, sign-in, delegation, and live queries.
 
-Run the development checks in Apple `container`, without installing an OCaml
-toolchain on the host:
+## Install
+
+Build the `semiont` package from `packages/ocaml/sdk` in this checkout. The compiler and Dune versions are pinned in [toolchain.json](toolchain.json).
+
+```sh
+cd packages/ocaml/sdk
+dune build @install
+dune install --pkg=disabled --prefix "$PWD/_installed"
+```
+
+Add `semiont` to your application's Dune `libraries` stanza and make the installed library available on its OCaml package path. The [builder guide](../../docs/builder/OCAML.md) shows how the client fits into an application.
+
+## Sign in and connect
+
+- **Script.** Discover the issuer with `OAuth.discover`, obtain the user code with `OAuth.begin_device`, then call `OAuth.await_device` with the application's clock. To reuse the launcher's sign-in on Linux or macOS, open the launcher directory with `Sign_in_store.make` and select the stack with `Sign_in_store.session`.
+- **Interactive application.** Use `Registry.begin_sign_in` to store the pending PKCE exchange and get the authorization URL. After the redirect, use `Registry.complete_sign_in` to consume the callback and verify the knowledge base. Supply a `Storage.t` with an atomic update when multiple application contexts share the store.
+- **Agent.** Use `Agent.sign_in` with a client secret or RSA key. For RSA assertions, initialize Mirage's secure random generator and supply a fresh assertion ID.
+
+Pass the credential session, Eio switch, clock, and gateway HTTP adapter to `Client.connect`. The application owns the HTTP adapter, the client, and the lifetime of its Eio switch. The [sign-in guide](../../docs/builder/SIGN-IN.md) describes the grants.
+
+## Live queries
+
+Get a query from `Client.Browse`, `Client.Match`, or `Client.Gather`. Use `Client.fresh` for a fresh answer, or `Client.observe` for state updates until you release the observation. The [checked example](sdk/examples/builder.ml) reads and watches a resource.
+
+## Delegate work
+
+Use `Client.Mark.delegate` or `Client.Yield.delegate` with `Client.delegation client`. The client already connects the follower to its subscription. Supply validated parameters and callbacks for reports, terminal failures, and closure. The returned function releases the follower.
+
+## Run a worker
+
+Use `Client.Job.claim` and `Claims.next` to take a job, then use `Worker` to start it, report progress, checkpoint, and settle it. Include `Worker.channels` in the client's subscription and add `Worker.commit_channels` for annotation commits.
+
+## Develop and verify
 
 ```sh
 bash packages/ocaml/run-container.sh
-```
-
-The runner checks generated source and package metadata, builds the pinned
-toolchain image, checks formatting, runs protocol identifier cases and
-[substrate probes](sdk/probes/README.md), and compiles external consumers
-against the installed interfaces. Source stays in
-the worktree; `_build` uses the `semiont-ocaml-sdk-build` native container volume
-because dependency archives cannot reliably be extracted on a macOS bind mount.
-
-`sdk/dune-project` owns package dependencies and generates `semiont.opam`.
-`sdk/dune.lock` is the development dependency solution. Compiler, Dune,
-formatter, repository revisions and the base image are pinned in `toolchain.json`; the
-toolchain check refuses disagreement with Dune's constraints.
-
-Regenerate committed sources from the protocol owners:
-
-```sh
-make generate-ocaml
-make check-generated-ocaml
-```
-
-The generator reads the shared identifier and required-shape readers. It does
-not read another SDK's implementation. It also derives probe fixtures from the
-shared store/Unicode authorities and copies the repository license. Its
-`--check` mode refuses drift without repairing source files.
-
-Verify source-package independence after building the toolchain image:
-
-```sh
 bash packages/ocaml/check-source-package.sh
 ```
 
-CI runs the substrate tests natively on Linux and macOS. The shared client
-surface, conformance drivers and SDK feature implementation remain in progress;
-a green substrate job is not a claim that the complete SDK is ready.
-
-P1 records the installed compiler interface in `sdk/public-api.json`. The
-first-stage `lint:ocaml-api` census verifies its source fingerprints. Native CI
-rebuilds the library and compares compiler exports, including public roots,
-aliases, constructors, records and type equalities. Deliberate stale-input and
-snapshot mutations must fail while preserving the checked files.
-
-After an intentional public-interface or compiler-input change, regenerate the
-snapshot with `python3 api.py --write` in the OCaml container. The recipe in
-`sdk/public-api.inputs.json` includes the library, lock directory, Dune files
-and compiler-extraction tools. Full shared-client-surface integration continues
-in P1.
-
-## Delegation
-
-Use `Semiont.Mark.delegate` to request annotation work on a resource and
-`Semiont.Yield.delegate` to request generation. Pass a validated
-`Models.mark_job_params` or `Models.generation_job_request` value respectively.
-
-Include `Delegation.channels` when opening the bus subscription. Create a
-`Delegation.t` with that subscription, its HTTP transport and client ID,
-and forward subscription events to `Delegation.on_frame`. The delegate
-functions report creation, progress, retryable failures and completion through
-`on_report`. Terminal failures go to `on_failure`. The returned function
-stops following the job and calls `on_close`.
-
-## Connect and sign in
-
-`Semiont.Client.connect` composes a caller-owned `Session.t` with an HTTP
-adapter, a typed bus subscription and a delegation follower. Use
-`Client.request` for correlated bus operations, `Client.http` for content,
-and `Client.delegation` with `Mark.delegate` or `Yield.delegate`.
-
-`Semiont.OAuth` discovers endpoints from a trusted issuer URL. Use
-`begin_redirect` and `finish_redirect` for a browser with PKCE, or
-`begin_device` and `poll_device` for a script. The caller supplies the
-HTTPS adapter, secure randomness for PKCE, and device poll scheduling.
-
-On Linux and macOS, `Semiont.Sign_in_store` can share the launcher's
-`tokens.json`. Resolve the launcher directory with `state_directory`,
-open it with `make`, and supply the stack key to `session`. To keep a
-new device sign-in, call `save_device` with the script tokens. The store
-serializes writes with the launcher's `flock` and adopts credentials
-that another process refreshed during renewal.
-
-Use `OAuth.service_key` with an unencrypted RSA PKCS#8 key to exchange a
-signed assertion. The host supplies the clock, a fresh assertion ID, and
-an initialized Mirage secure random generator. `Agent.sign_in` accepts a
-secret or an RSA key and gets the agent DID from the gateway. Its session
-keeps the current bearer if the issuer cannot renew it. `Sign_in_store.sign_out`
-removes the kept sign-in and then attempts to revoke its refresh token.
-
-The namespaces are available under `Semiont.Client`. Request methods accept
-payloads checked by `Bus_registry.decode` against the matching request channel.
-Use `Client.fresh` or `Client.observe` with a query from `Client.Browse`,
-`Client.Match` or `Client.Gather`. Use `Running.await` and `Upload.await`
-for one-shot operations and uploads. For a worker, call `Client.Job.claim`
-with its filters and consume jobs with `Claims.next`. Include `Worker.channels`
-and, for annotation commits, `Worker.commit_channels` when opening that
-worker's client.
+The first command builds the pinned toolchain in Apple `container` and runs the development checks. The second builds and installs an isolated source archive and verifies the installed compiler interface. Regenerate protocol-derived sources with `make generate-ocaml` and verify them with `make check-generated-ocaml`.

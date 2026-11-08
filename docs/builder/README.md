@@ -1,5 +1,7 @@
 # Building with the Semiont SDK
 
+
+For OCaml installation, sign-in, and live queries, see the [OCaml builder guide](./OCAML.md).
 > ⚠️ **Alpha.** API and package surface are not yet stable; breaking changes between 0.x releases are expected.
 
 For people, and AI agents, writing software that works with a Semiont knowledge base: a web, desktop or mobile application, an ingestion or enrichment pipeline, a service, an agent.

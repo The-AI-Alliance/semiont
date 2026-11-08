@@ -77,6 +77,7 @@ type semiont_browser_config = {
 type semiont_browser = {
   config : semiont_browser_config;
   lock : Eio.Mutex.t;
+  atomic_storage : Storage.t option;
   mutable connected : Client.t option;
   mutable generation : unit ref;
 }
@@ -120,9 +121,8 @@ let parse text =
   | Ok _ -> Some (Yojson.Safe.from_string text)
   | Error _ -> None
 
-let stored_session (storage : storage) id =
+let decode_session source =
   let open Option.Syntax in
-  let* source = storage.read (session_key id) in
   let* body = parse source in
   let fields = object_ body in
   let* access = optional "access" fields in
@@ -141,17 +141,22 @@ let stored_session (storage : storage) id =
 let optional_field key value =
   Option.to_list (Option.map (fun value -> (key, text value)) value)
 
+let encode_session session =
+  json
+    (`Assoc
+       ([
+          ("access", text session.access);
+          ("refresh", text session.refresh);
+          ("clientId", text session.client_id);
+          ("tokenEndpoint", text session.token_endpoint);
+        ]
+       @ optional_field "revocationEndpoint" session.revocation_endpoint))
+
+let stored_session (storage : storage) id =
+  Option.bind (storage.read (session_key id)) decode_session
+
 let store_session (storage : storage) id session =
-  storage.write (session_key id)
-    (json
-       (`Assoc
-          ([
-             ("access", text session.access);
-             ("refresh", text session.refresh);
-             ("clientId", text session.client_id);
-             ("tokenEndpoint", text session.token_endpoint);
-           ]
-          @ optional_field "revocationEndpoint" session.revocation_endpoint)))
+  storage.write (session_key id) (encode_session session)
 
 let clear_stored_session (storage : storage) id =
   storage.remove (session_key id)
@@ -195,8 +200,28 @@ let apply_tab_checks tabs checks =
       | _ -> Some tab)
     tabs
 
-let new_semiont_browser config =
-  { config; lock = Eio.Mutex.create (); connected = None; generation = ref () }
+let new_semiont_browser ?storage config =
+  let config =
+    match storage with
+    | None -> config
+    | Some store ->
+        {
+          config with
+          storage =
+            {
+              read = Storage.get store;
+              write = Storage.set store;
+              remove = Storage.delete store;
+            };
+        }
+  in
+  {
+    config;
+    atomic_storage = storage;
+    lock = Eio.Mutex.create ();
+    connected = None;
+    generation = ref ();
+  }
 
 let knowledge_bases browser = load_knowledge_bases browser.config.storage
 let active_id browser = browser.config.storage.read active_key
@@ -454,6 +479,28 @@ let kept_in storage id =
     forget = (fun () -> clear_stored_session storage id);
   }
 
+let change_kept browser id change =
+  locked browser (fun () ->
+      let key = session_key id in
+      match browser.atomic_storage with
+      | Some store ->
+          let result = ref None in
+          Storage.update store key (fun raw ->
+              let current = Option.bind raw decode_session in
+              let next, value = change current in
+              result := Some value;
+              if next = current then raw else Option.map encode_session next);
+          Option.get !result
+      | None ->
+          let storage = browser.config.storage in
+          let current = stored_session storage id in
+          let next, value = change current in
+          (if next <> current then
+             match next with
+             | None -> clear_stored_session storage id
+             | Some next -> store_session storage id next);
+          value)
+
 let start_kept_session browser ~sw ~http id =
   let kept = kept_in browser.config.storage id in
   let credential session = session.access in
@@ -469,36 +516,34 @@ let start_kept_session browser ~sw ~http id =
           Oauth.refresh_kept http ~token_endpoint:before.token_endpoint
             ~client_id:before.client_id ~refresh_token:before.refresh
         in
-        locked browser (fun () ->
-            match kept.held () with
-            | None -> Session.Refused
-            | Some current when current <> before ->
-                Session.Renewed current.access
-            | Some _ -> (
-                match issued with
-                | Ok tokens ->
-                    kept.keep
-                      {
-                        before with
-                        access = tokens.access_token;
-                        refresh =
-                          Option.value tokens.refresh_token
-                            ~default:before.refresh;
-                      };
-                    Session.Renewed tokens.access_token
-                | Error
-                    (Oauth.Rejected
-                       ( "invalid_grant" | "invalid_client" | "access_denied"
-                       | "expired_token" )) ->
-                    kept.forget ();
-                    Session.Refused
-                | Error _ -> Session.Unavailable))
+        change_kept browser id (function
+          | None -> (None, Session.Refused)
+          | Some current when current <> before ->
+              (Some current, Session.Renewed current.access)
+          | Some current -> (
+              match issued with
+              | Ok tokens ->
+                  let next =
+                    {
+                      before with
+                      access = tokens.access_token;
+                      refresh =
+                        Option.value tokens.refresh_token
+                          ~default:before.refresh;
+                    }
+                  in
+                  (Some next, Session.Renewed next.access)
+              | Error
+                  (Oauth.Rejected
+                     ( "invalid_grant" | "invalid_client" | "access_denied"
+                     | "expired_token" )) ->
+                  (None, Session.Refused)
+              | Error _ -> (Some current, Session.Unavailable)))
   in
   let on_rejected token =
-    locked browser (fun () ->
-        match kept.held () with
-        | Some current when current.access = token -> kept.forget ()
-        | _ -> ())
+    change_kept browser id (function
+      | Some current when current.access = token -> (None, ())
+      | current -> (current, ()))
   in
   Session.start ~keep_on_unavailable:true ~on_rejected ~sw
     ~clock:browser.config.clock ~initial_token ~renew ()
@@ -525,8 +570,19 @@ let complete_sign_in browser ~http ~callback ~describe =
   let pending =
     locked browser (fun () ->
         let storage = browser.config.storage in
-        let value = storage.read pending_authorization_key in
-        storage.remove pending_authorization_key;
+        let value =
+          match browser.atomic_storage with
+          | Some store ->
+              let taken = ref None in
+              Storage.update store pending_authorization_key (fun value ->
+                  taken := value;
+                  None);
+              !taken
+          | None ->
+              let value = storage.read pending_authorization_key in
+              storage.remove pending_authorization_key;
+              value
+        in
         Option.bind value parse)
   in
   let ( let* ) = Result.bind in

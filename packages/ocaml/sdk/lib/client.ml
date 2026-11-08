@@ -10,3 +10,5 @@ module Beckon = Namespace_methods.Beckon
 module Job = Job
 module Auth = Auth
 module System = System
+
+let wire client : Bus.t = client

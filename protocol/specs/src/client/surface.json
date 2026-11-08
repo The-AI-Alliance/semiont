@@ -972,8 +972,8 @@
   ],
   "wire": {
     "docs": "The typed bus over a client's transport, which a client hands out as `wire`: what it emits goes over the wire, and what it reads is what the wire delivers. A read gives each frame with its envelope, who emitted it and the trace it was sent under. A channel of a resource's scope is read for one resource, and the read holds that resource's scope while it is read. The client's own in-process signals are on its own bus, never here. It hands out no transport: a client's transport is the client's `transport`, and only there.",
-    "notYetReached": { "ocaml": "P3 implements the typed bus and P5 exposes it on the client." },
     "made": {
+      "ocaml": "Bus",
       "haskell": "Bus",
       "csharp": "Bus",
       "swift": "Bus",
@@ -989,6 +989,7 @@
       {
         "member": "framesOf",
         "absent": {
+          "ocaml": "Bus uses typed channel and operation values and exposes frames through a subscription callback.",
           "haskell": "Haskell passes typed channel/operation values and a ScopeArg to the same functions.",
           "csharp": "C# uses generated channel and operation values, and Frames accepts a resource scope.",
           "swift": "Swift uses typed channel and operation values; frames is overloaded for a resource scope.",
@@ -1001,6 +1002,7 @@
       {
         "member": "emitOn",
         "absent": {
+          "ocaml": "Bus uses typed channel and operation values and exposes frames through a subscription callback.",
           "haskell": "Haskell passes typed channel/operation values and a ScopeArg to the same functions.",
           "csharp": "C# uses generated channel and operation values, and Frames accepts a resource scope.",
           "swift": "Swift uses typed channel and operation values; frames is overloaded for a resource scope.",
@@ -1012,6 +1014,7 @@
       {
         "member": "framesOn",
         "absent": {
+          "ocaml": "Bus uses typed channel and operation values and exposes frames through a subscription callback.",
           "haskell": "Haskell passes typed channel/operation values and a ScopeArg to the same functions.",
           "csharp": "C# uses generated channel and operation values, and Frames accepts a resource scope.",
           "swift": "Swift uses typed channel and operation values; frames is overloaded for a resource scope.",
@@ -1023,6 +1026,7 @@
       {
         "member": "requestOf",
         "absent": {
+          "ocaml": "Bus uses typed channel and operation values and exposes frames through a subscription callback.",
           "haskell": "Haskell passes typed channel/operation values and a ScopeArg to the same functions.",
           "csharp": "C# uses generated channel and operation values, and Frames accepts a resource scope.",
           "swift": "Swift uses typed channel and operation values; frames is overloaded for a resource scope.",
@@ -1035,7 +1039,6 @@
   },
   "storage": {
     "docs": "Where a client keeps what must outlive it: text under a key, in a store the application supplies (a file, a browser's storage, a platform's store), so nothing above it knows where it runs. A client's sessions, its registry of knowledge bases and its kept caches keep what they keep there. More than one context can write one store, two windows or two processes: what is written from what was read goes through `update`, which a store makes one step, so one writer's change is never lost under another's; and `subscribe` hears what another context writes, and is null where no other context writes.",
-    "notYetReached": { "ocaml": "P6 implements the public session storage interface." },
     "made": {"ocaml": "Storage", "haskell": "SessionStorage", "csharp": "ISessionStorage", "typescript": "SessionStorage", "rust": "SessionStorage", "python": "SessionStorage", "go": "SessionStorage", "kotlin": "SessionStorage", "swift": "SessionStorage"},
     "members": [
       { "member": "get" },
@@ -1277,9 +1280,9 @@
     },
     {
       "module": "jobFilter",
-      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by protocol/specs/src/jobs/filter-cases.json.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/job_filter.mli"],
         "csharp": [
           "packages/csharp/sdk/src/Semiont/Jobs"
         ],
@@ -1424,9 +1427,9 @@
     },
     {
       "module": "tokens",
-      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "What a session reads of an access token: a claim it names as text, when it expires, whether it has, and when to renew it. Held by protocol/specs/src/session/cases.json.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/tokens.mli"],
         "haskell": ["packages/haskell/sdk/src/Semiont/Tokens.hs"],
         "csharp": ["packages/csharp/sdk/src/Semiont/Session"],
         "typescript": [
@@ -1523,9 +1526,9 @@
     },
     {
       "module": "bus",
-      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps; and what a transport delivers in place of a frame it refuses, and why it refuses it.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/bus.ml"],
         "csharp": ["packages/csharp/sdk/src/Semiont"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Bus/Bus.swift",
@@ -1564,6 +1567,7 @@
           "member": "unsubscribed",
           "kind": "function",
           "absent": {
+            "ocaml": "Subscription.request returns the Unsubscribed constructor directly.",
             "typescript": "TypeScript makes the refusal where it refuses, and hands out no maker of it."
           }
         },
@@ -1576,10 +1580,12 @@
         },
         {
           "member": "FrameRefusal",
+          "notYetReached": { "ocaml": "Unify the envelope refusal and the typed payload decode failure." },
           "kind": "type"
         },
         {
           "member": "FrameRefusalReason",
+          "notYetReached": { "ocaml": "Normalize envelope and payload faults to the shared refusal reason vocabulary." },
           "named": {"haskell": "FaultReason"},
           "kind": "type",
           "absent": {
@@ -1591,6 +1597,7 @@
           "member": "Carried",
           "kind": "type",
           "absent": {
+            "ocaml": "Bus.frames delivers the standard OCaml result of a frame or its refusal.",
             "typescript": "TypeScript's transport delivers a refusal where a frame's payload would be, on the frame's envelope (`BusFrame<P | FrameRefusal>`), as its client's bus does.",
             "rust": "Rust's transport delivers a frame or its refusal as a `Result<Frame, FrameRefusal>`.",
             "python": "Python's transport delivers a frame or its refusal as the union `Frame | FrameRefusal`.",
@@ -1832,9 +1839,9 @@
     },
     {
       "module": "sessionNotices",
-      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "What a session's signals raise: that a session ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. protocol/specs/src/client/state-units.json's `notices` states each one.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/session_notices.ml"],
         "haskell": ["packages/haskell/sdk/src/Semiont/State/SessionSignals.hs"],
         "csharp": ["packages/csharp/sdk/src/Semiont/State"],
         "swift": ["packages/swift/sdk/Sources/Semiont/State/SessionSignals.swift"],

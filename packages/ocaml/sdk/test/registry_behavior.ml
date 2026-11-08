@@ -562,6 +562,17 @@ let redirect () =
       remove = Hashtbl.remove data;
     }
   in
+  let takes = ref 0 in
+  let atomic_storage =
+    Storage.make ~get:storage.read
+      ~update:(fun key change ->
+        match change (storage.read key) with
+        | Some value -> storage.write key value
+        | None ->
+            if key = R.pending_authorization_key then incr takes;
+            storage.remove key)
+      ()
+  in
   let config : R.semiont_browser_config =
     {
       storage;
@@ -604,14 +615,14 @@ let redirect () =
       String.make length (Char.chr !count)
     in
     R.begin_sign_in
-      (R.new_semiont_browser config)
+      (R.new_semiont_browser ~storage:atomic_storage config)
       ~http ~issuer:"https://issuer.example" ~random ~redirect_uri:origin
       ~target ~expected_did:"did:web:expected.example" ()
     |> Result.get_ok |> Uri.of_string
   in
   let complete callback =
-    R.complete_sign_in (R.new_semiont_browser config) ~http ~callback
-      ~describe:(fun endpoint ~access ->
+    R.complete_sign_in (R.new_semiont_browser ~storage:atomic_storage config)
+      ~http ~callback ~describe:(fun endpoint ~access ->
         assert (R.same_place endpoint target && access = "access");
         Ok description)
   in
@@ -629,7 +640,7 @@ let redirect () =
   assert (kept.access = "access" && kept.refresh = "refresh");
   assert (kept.revocation_endpoint = Some "https://issuer.example/revoke");
   assert (complete callback = Error "oauth.invalid-redirect");
-  assert (!discovery = 2 && !exchanges = 1)
+  assert (!discovery = 2 && !exchanges = 1 && !takes = 4)
 
 let session_unit startup () =
   Eio_mock.Backend.run @@ fun () ->

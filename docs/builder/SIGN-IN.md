@@ -1,5 +1,7 @@
 # Signing in
 
+
+For OCaml installation, sign-in, and live queries, see the [OCaml builder guide](./OCAML.md).
 How a program comes to hold a token a knowledge base accepts.
 
 Sign-in happens at the knowledge base's identity provider, never at the gateway, and no password passes through your program. Which way a program signs in follows from who is signing in.

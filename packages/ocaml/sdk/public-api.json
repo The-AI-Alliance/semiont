@@ -117,14 +117,15 @@
     "lib/beckon_state.mli": "fa367fbd741509c89d05c49b9a8c45eb507ae5e4aaef46ba295e5045014b1820",
     "lib/browse.ml": "c42d6ed23168838c63dea27797ca5ec655040198d162d26c0cf54ac35d54e063",
     "lib/browse.mli": "c57e5ff1c98e598cb6c438e781d135c0ff0c76498e1b93455f2c5e870f3b2858",
+    "lib/bus.ml": "17c9fcd488f9a123ec80f83a79e45949f873085a97a1eb6a6f908939172232df",
     "lib/bus_registry.ml": "2390b6d387efad1ce7e219c6f88c3a7380bcb00fac8da67c34e6157655e4270c",
     "lib/bus_registry.mli": "e75fd6ce95deeda1d3364659c1ac01c0c507fe226cf18ff97f903a321663d1ff",
     "lib/cache_state.ml": "a7dd3b38f2eaccd71566cd680fe78ccb9601e6ee384200b91b07f2afdfa27dfb",
     "lib/cache_state.mli": "1a0dc6090874daf5a0df80f2f6a50c72f717a0b6bd599c8136180fae5e4ef173",
     "lib/claims.ml": "1181e3bc58ee421df69bd5ab9957fcce1365866b9b35bcb9dc00d806025b86ad",
     "lib/claims.mli": "be75a22d0fdfe465c7691fa727a3bc10c6bc33d847b1f35dc52c8466abcd44e9",
-    "lib/client.ml": "0364822d6a5e7f411cc0939e29bee40044f0887b32fe4da1c2c5aa5fdaa1439a",
-    "lib/client.mli": "efa0a241954e70b1ca81059c2197dc01b7289f4e967d91ea8e40a420bc56bb5b",
+    "lib/client.ml": "bd8b8934d2931bd1037c34763287324828ae26e726ecaa832e3e11cbc91340ad",
+    "lib/client.mli": "6e08b6b7851820acced98ca320e6ec093455f2d0340828149b2f43e255d30e39",
     "lib/client_core.ml": "c0ada9e786d021f23ebdeeb73ddc819ac069d730f3228ef9500f6a10769953a0",
     "lib/client_core.mli": "f6d8789c5f417b2fb0347da04f94909a51c9b4c7beb0e1f6fda86f023e270fe2",
     "lib/client_query.ml": "ce5abb9039174fd843ad6b7b2d640e6cf02ca5c2d4534f35bbde7794a02faefb",
@@ -152,6 +153,8 @@
     "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
     "lib/identifiers.mli": "bba7e132069a1c36758c9d1bfebd936ecb815b6d05dae2b55f03a5de72f2c20d",
     "lib/job.ml": "2381750e7292f8a03640f1e09de22eb525086877fb8289b46e3d188798181453",
+    "lib/job_filter.ml": "d0b6bff412af0031c187c9f667c7d75cbff5d486f48c24d34d6441e4d13e4c01",
+    "lib/job_filter.mli": "b6990830290c4a2b5d24abce0d0da6f5138eb7abd7799cd8674b97e2918d9b42",
     "lib/live_facts.ml": "ce49adc23b56fd0f25a7f642d9d1ead6ddb67b0c297b420bd49ded3c785b1db2",
     "lib/live_query.ml": "7d88202d54239cc8ff06f4ca89d6b22990d87d2bd6970fd42ce7f89b30e70d5c",
     "lib/live_query.mli": "2e227dcfdba1655bee2590dfb470e4da7bca31c5f9d877bca5d6c3b2d2e35087",
@@ -161,7 +164,7 @@
     "lib/mark_state.mli": "016f04747b303cd634184d4e4d656fa014b46aab99cf890b56c5adcf67d16d8b",
     "lib/match.ml": "254bb2bc11199a5aef049c209368d41f6655735168e6f5e7cfe8d6160ae59f51",
     "lib/match.mli": "54ac094a6a9f8e8a09b7bc5f175ae198788c3d82b9b80a1f7efc9014fd135179",
-    "lib/match_state.ml": "8fa4149fdc575f0969855a14b191731e044e891906927d965cef96d144273023",
+    "lib/match_state.ml": "81fe38e465a2218dc3091a197b92bcecc2e92b1a5f31fd6bb0b5d140ead518ab",
     "lib/match_state.mli": "8d03f88a685f32af82e994b883611746f9775689e61a7a455009be21e03d6f54",
     "lib/models.ml": "a36b2528fa00802a9e6482da3564a96c31300a8447921557f90770774d7e588c",
     "lib/models.mli": "bc54c8ce9935e9e195877b7ed8d7a6afc85ea7e3a5662139acc669c8f4f02b63",
@@ -170,24 +173,25 @@
     "lib/oauth.mli": "f745c207f54b228678570230b94dd7b1e2384d44a3cb7bc4825019878802b81a",
     "lib/oauth_facts.ml": "78b55403643d7f11e4d0d999f2747bcf84b3a407eeb24594f9e795675d60fcca",
     "lib/pattern.ml": "a41d5ebb9ebc0eee59522a4d883e2a5281202c4fbebb0a2040b267961bf677ad",
-    "lib/records.ml": "708f8a26fc1b0e70509f8c5e0ff1c1c6f41d21ee1046c05f243cfdc99861722d",
-    "lib/records.mli": "514f4148625dc18f131fa0bccb855db4aec56e1cea6d90cfd0efad12b9784782",
-    "lib/registry.ml": "e3f3a8ae1549a6614182723c2a4ef7596ab16b1dc01b619bcbb0ebf52f381259",
-    "lib/registry.mli": "64945809bc694c885be4c1024c65ed188587882282c8bd64c8c3f41c5e08d53e",
+    "lib/records.ml": "d56e56f74df74fb4f2986104326215acb1df06efb4053b5af7aa6f6cf07aca7c",
+    "lib/records.mli": "f80d7cbea4655b5bfdd0e99213e03273d908af8deb0203dcd5fcaf293d9124ff",
+    "lib/registry.ml": "f45a680f5f519b65efc36cb65ec3f9b9ff574cf04bed69e301b4c30947df06a6",
+    "lib/registry.mli": "5067acf4ed7f18c4e1443cfe9732e739cc88e5d5d0e5ddf8ea5013522ebb16f1",
     "lib/registry_facts.ml": "eaa175c7c923df49b9432ae888debf4a403391e32fc9c4e1b72595d402d5912a",
     "lib/running.ml": "d1e491aa088ca534f4668aa784ce843b98aea9c83b0dfe42c8f679dbb8c0cb03",
     "lib/running.mli": "74bef29c19b9b132888e875f77ea4fec64855a7bb7c6e119e0fb8346a47176f9",
     "lib/schema_codec.ml": "138a6240b6eb8810cfb608c1cb2b29717ef66fbbeb887ca57ca925cb84acb4f8",
     "lib/schema_shape.ml": "f035fcc70aa623f06257cb2c5051483c90c3869a70b618dcf66f27170673e0d4",
-    "lib/schema_shapes.ml": "12f163c8f930d2cb1559aa93de7f8d5fd58583827059852e6aebdf9b03629bea",
+    "lib/schema_shapes.ml": "a3f4461cca69871eba7a61cd3ab7a40edc83f321187c3899673d9236214fcd1b",
     "lib/search_pipeline.ml": "c686787cea18854164219082e02d586aa34f7a0801c876cb011648bd72222ba0",
     "lib/search_pipeline.mli": "8569d48ac54fb0e5b0165613f479fce0d4dcd897d89dae4699c8d25f6d5db0d3",
     "lib/selector.ml": "28f250d3a6ed926ba94317cf595d39742124587c527ebcf02c6f6c043c50a7e8",
     "lib/selector.mli": "1c3c9f74ea5c90d0154547e5c3f249f4f7fcfd05f5fc97bc89ad7976a7b02716",
-    "lib/semiont.ml": "73d74eb947abf8ef303ebebed3acf99d8a81f0d54ea2c9e53485cdda2c0b209e",
-    "lib/semiont.mli": "8e7c7c992c4db5f248478b35355dd3c5f91c3f93cd6e3704bb283c849c9610bc",
-    "lib/session.ml": "fc17d0c6d6503b1a33620f197a07537c57dd99035ea0f0b30e97a0cb5850491c",
+    "lib/semiont.ml": "59a3dd50d045c4767c573764f461ea12ca99a606532e2af7c5de2be13df5789e",
+    "lib/semiont.mli": "cef10736465147b5fcb660a6d5752a494c53b55ef5286c7d274d3556b14422c2",
+    "lib/session.ml": "ec4f4c1cfcdc83ef6f1a31cc3ab1faa42f9ae663f0667f45a9b1704302766aa8",
     "lib/session.mli": "6d9639cabc6fbc5d280b8b3765d3d520492d925cf231a0578a817e3702647879",
+    "lib/session_notices.ml": "cccea843423b06e5802f1675a614063b9533b8a5ea8038fa19d76db1f8eeec59",
     "lib/session_signals.ml": "dba5deb3b0b7804f9296bd220a4b919824c565cb77e69cc9e816c9866eb7dc1d",
     "lib/session_signals.mli": "f7fcf9e704a1a62abe71aac063076d71dc45f8f7c7c9c2ac5ed9a961dc02835d",
     "lib/session_state.ml": "980e498e8ba5e338644abbf4d9793d773f2353ddc5de99b04a7b9b656877a58b",
@@ -199,6 +203,8 @@
     "lib/state_units.mli": "e4d23c751c2502f86de7971d3e32759cc8387e40e230f86ad935ef6afb760d94",
     "lib/state_value.ml": "d3e41b844d6f7df7af608606f3381c8ba195696ae8ad6a5def116603f3fd4b2b",
     "lib/state_value.mli": "c84e7db498c8d1f618daa2e6572f8d529f7f6da07622b3cdb8c700de370fdec0",
+    "lib/storage.ml": "505555eebf627916590432c9556fa670b586c47fd52cb01698470d01560f3cb6",
+    "lib/storage.mli": "0d967c727c51cbf65bcfefd25b8cf75c656e0bc9ab582054117d1e5286514015",
     "lib/store_lock.c": "b60da25fee458740eb28242e3c853e57fc7115f40bbc0b85f1cab9414ff7d588",
     "lib/store_policy.ml": "c99553c99225977994e70e6bc0e1d614e59f839f70e7365511f8f9b3a99315ea",
     "lib/strict_json.ml": "19a2f3c4c5a828e0fe55cd36eb25b685e965f0b79c21cd57cc4a17c53d0112d6",
@@ -209,6 +215,8 @@
     "lib/telemetry.ml": "d3e6ba70a0b5a00eb4733a8fc973c1c3b98ea5d07661da3297f2d71ee77da306",
     "lib/telemetry.mli": "6968385e5ecbd2db1b9003eb403766c066975b0ff116e9d81da367ec87b4137f",
     "lib/telemetry_facts.ml": "8b2c6d1ee7d75fc70b98cd0668d902fab6bf6463a302cbc8411cb6cc565cd484",
+    "lib/tokens.ml": "a18316d4f94a7deffdaed3a99670163a86ca3ccf66f179628117c4e3a5e0410a",
+    "lib/tokens.mli": "97dc7110f327c05cad137497a82178180d6b227ae4cffa177c7b8210cb5ddf4f",
     "lib/types.ml": "5921efffb7596beb176e09960cdfa080ec954349ec2ce9d7e54bc7f638c808fe",
     "lib/types.mli": "97149245ffc84db1b741d7156a08017eff6f941179e9e6df950f212da8d60d76",
     "lib/upload.ml": "fe94bfbfee4573abda5b6527367f76f8bce42459d5ae0a5bede7aebaaea35903",
@@ -8067,16 +8075,18 @@
     {
       "kind": "module",
       "path": "Semiont.Records.Match_search_failed",
-      "declaration": "module Match_search_failed :\n  sig\n    type t = {\n      reference_id : Yojson.Raw.t;\n      error : string;\n      extra : (string * Yojson.Raw.t) list;\n    }\n    val of_model : [ `MatchSearchFailed ] Semiont__.Models.t -> t\n  end"
+      "declaration": "module Match_search_failed :\n  sig\n    type t = {\n      code : string Semiont__.Types.presence;\n      message : string;\n      details : string Semiont__.Types.presence;\n      reference_id : Yojson.Raw.t;\n      extra : (string * Yojson.Raw.t) list;\n    }\n    val of_model : [ `MatchSearchFailed ] Semiont__.Models.t -> t\n  end"
     },
     {
       "kind": "type",
       "path": "Semiont.Records.Match_search_failed.t",
-      "declaration": "type t = {\n  reference_id : Yojson.Raw.t;\n  error : string;\n  extra : (string * Yojson.Raw.t) list;\n}",
+      "declaration": "type t = {\n  code : string Semiont__.Types.presence;\n  message : string;\n  details : string Semiont__.Types.presence;\n  reference_id : Yojson.Raw.t;\n  extra : (string * Yojson.Raw.t) list;\n}",
       "representation": "record",
       "fields": [
+        "code",
+        "message",
+        "details",
         "reference_id",
-        "error",
         "extra"
       ]
     },
@@ -14952,6 +14962,11 @@
       "declaration": "val status :\n  Semiont__.Client_core.t -> (string, Semiont__.Client_core.error) result"
     },
     {
+      "kind": "value",
+      "path": "Semiont.Client.wire",
+      "declaration": "val wire : t -> Semiont__.Bus.t"
+    },
+    {
       "kind": "module",
       "path": "Semiont.OAuth",
       "declaration": "module OAuth = Semiont__.Oauth",
@@ -17637,7 +17652,7 @@
     {
       "kind": "value",
       "path": "Semiont.Registry.new_semiont_browser",
-      "declaration": "val new_semiont_browser : semiont_browser_config -> semiont_browser"
+      "declaration": "val new_semiont_browser :\n  ?storage:Semiont__.Storage.t -> semiont_browser_config -> semiont_browser"
     },
     {
       "kind": "value",
@@ -18459,6 +18474,222 @@
       "kind": "value",
       "path": "Semiont.State_units.Session.dispose",
       "declaration": "val dispose : t -> unit"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Bus",
+      "declaration": "module Bus = Semiont__.Bus",
+      "alias": "Semiont__.Bus"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Bus.t",
+      "declaration": "type t = Semiont__.Client_core.t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus.emit",
+      "declaration": "val emit :\n  Semiont__.Client_core.t ->\n  ?scope:Semiont__.Identifiers.Resource_id.t ->\n  ?correlation_id:string ->\n  'a Semiont__.Bus_registry.channel -> string -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus.request",
+      "declaration": "val request :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ('a, 'b, 'c) Semiont__.Bus_registry.operation ->\n  string ->\n  (('b, 'c) Semiont__.Subscription.reply,\n   Semiont__.Subscription.request_error)\n  result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus.frames",
+      "declaration": "val frames :\n  Semiont__.Client_core.t ->\n  ((Semiont__.Wire_stream.frame, Semiont__.Wire_stream.refusal) result ->\n   unit) ->\n  Semiont__.Client_core.unsubscribe"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus.reply_channels_for",
+      "declaration": "val reply_channels_for :\n  ('a, 'b, 'c) Semiont__.Bus_registry.operation ->\n  Semiont__.Bus_registry.packed_channel list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Bus.persisted_event_types",
+      "declaration": "val persisted_event_types : string list"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Storage",
+      "declaration": "module Storage = Semiont__.Storage",
+      "alias": "Semiont__.Storage"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Storage.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Storage.make",
+      "declaration": "val make :\n  get:(string -> string option) ->\n  update:(string -> (string option -> string option) -> unit) ->\n  ?subscribe:(string -> (string option -> unit) -> unit -> unit) -> unit -> t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Storage.get",
+      "declaration": "val get : t -> string -> string option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Storage.set",
+      "declaration": "val set : t -> string -> string -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Storage.delete",
+      "declaration": "val delete : t -> string -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Storage.update",
+      "declaration": "val update : t -> string -> (string option -> string option) -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Storage.subscribe",
+      "declaration": "val subscribe :\n  t -> string -> (string option -> unit) -> (unit -> unit) option"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Session_notices",
+      "declaration": "module Session_notices = Semiont__.Session_notices",
+      "alias": "Semiont__.Session_notices"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Session_notices.session_ended",
+      "declaration": "type session_ended =\n  Semiont__Session_signals.session_ended = {\n  reason : string;\n}",
+      "representation": "record",
+      "fields": [
+        "reason"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Session_notices.permission_denied",
+      "declaration": "type permission_denied =\n  Semiont__Session_signals.permission_denied = {\n  detail : string option;\n}",
+      "representation": "record",
+      "fields": [
+        "detail"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Session_notices.kb_identity_conflict",
+      "declaration": "type kb_identity_conflict =\n  Semiont__Session_signals.kb_identity_conflict = {\n  expected_did : string;\n  observed_did : string;\n}",
+      "representation": "record",
+      "fields": [
+        "expected_did",
+        "observed_did"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Session_notices.t",
+      "declaration": "type t = Semiont__Session_signals.t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session_notices.make",
+      "declaration": "val make : unit -> t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session_notices.session_ended",
+      "declaration": "val session_ended : t -> session_ended option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session_notices.permission_denied",
+      "declaration": "val permission_denied : t -> permission_denied option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session_notices.kb_identity_conflict",
+      "declaration": "val kb_identity_conflict :\n  t -> kb_identity_conflict option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session_notices.notify_session_ended",
+      "declaration": "val notify_session_ended : t -> reason:string -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session_notices.notify_permission_denied",
+      "declaration": "val notify_permission_denied : t -> detail:string option -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session_notices.notify_kb_identity_conflict",
+      "declaration": "val notify_kb_identity_conflict : t -> kb_identity_conflict -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session_notices.acknowledge_session_ended",
+      "declaration": "val acknowledge_session_ended : t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session_notices.acknowledge_permission_denied",
+      "declaration": "val acknowledge_permission_denied : t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session_notices.acknowledge_kb_identity_conflict",
+      "declaration": "val acknowledge_kb_identity_conflict : t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session_notices.dispose",
+      "declaration": "val dispose : t -> unit"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Tokens",
+      "declaration": "module Tokens = Semiont__.Tokens",
+      "alias": "Semiont__.Tokens"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Tokens.text_claim",
+      "declaration": "val text_claim : string -> string -> string option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Tokens.token_expiry",
+      "declaration": "val token_expiry : string -> float option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Tokens.is_token_expired",
+      "declaration": "val is_token_expired : now:float -> string -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Tokens.renewal_delay",
+      "declaration": "val renewal_delay : lifetime:float -> remaining:float -> float"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Tokens.refresh_delay",
+      "declaration": "val refresh_delay : now:float -> string -> float option"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Job_filter",
+      "declaration": "module Job_filter = Semiont__.Job_filter",
+      "alias": "Semiont__.Job_filter"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Job_filter.job_matches_filter",
+      "declaration": "val job_matches_filter :\n  [ `JobFilter ] Semiont__.Models.t ->\n  [ `JobQueuedEvent ] Semiont__.Models.t -> bool"
     }
   ]
 }

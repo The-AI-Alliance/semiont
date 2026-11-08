@@ -22,7 +22,7 @@ let make client =
           in
           let body =
             Yojson.Safe.to_string
-              (`Assoc [ ("referenceId", reference); ("error", `String code) ])
+              (`Assoc [ ("referenceId", reference); ("message", `String code) ])
           in
           match B.decode B.Channels.match_search_failed body with
           | Ok payload ->

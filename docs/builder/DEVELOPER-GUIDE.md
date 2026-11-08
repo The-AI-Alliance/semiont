@@ -1,5 +1,7 @@
 # Developer Guide — building with the Semiont SDK
 
+
+For OCaml installation, sign-in, and live queries, see the [OCaml builder guide](./OCAML.md).
 Task-oriented recipes for building a real system on `@semiont/sdk`, in roughly the order
 you'll need them. Each recipe is a short description of the capability followed by the
 lines of TypeScript that exercise it.

@@ -3260,13 +3260,21 @@ function haskellReceiver(made, where) {
       && haskellTypeHead(haskellFunction(signature).takes[0]) === declared[1]).map(([name]) => name)) };
 }
 
+function ocamlReceiver(made, omit = []) {
+  const receiver = ocamlModule(`Semiont.${made}`);
+  return receiver && {
+    ...receiver,
+    members: new Set([...receiver.members.keys()].filter((name) => !omit.includes(name))),
+  };
+}
+
 const WIRES = {
   ocaml: {
-    read: (made) => ocamlModule(`Semiont.${made}`),
+    read: (made) => ocamlReceiver(made, ["replyChannelsFor", "persistedEventTypes"]),
     sources: OCAML_API,
     handedOut: { file: OCAML_API, says: (made) => ({ test: () => {
       const wire = ocamlMembers('Semiont.Client').get('wire');
-      return wire !== undefined && new RegExp(`^(?:Semiont[.])?${made}[.]t$`).test(wire.returns);
+      return wire !== undefined && new RegExp(`^(?:Semiont(?:__)?[.])?${made}[.]t$`).test(wire.returns);
     } }) },
   },
   haskell: {
@@ -3356,7 +3364,7 @@ else {
  * of the root package, and Rust's a trait.
  */
 const STORAGES = {
-  ocaml: { read: (made) => ocamlModule(`Semiont.${made}`), sources: OCAML_API },
+  ocaml: { read: (made) => ocamlReceiver(made, ["make"]), sources: OCAML_API },
   haskell: { read: haskellReceiver, sources: 'packages/haskell/sdk/src/Semiont/SessionStorage.hs' },
   typescript: { read: typescriptUnit, sources: TS_SDK },
   rust: { read: rustTrait, sources: RUST_SDK },

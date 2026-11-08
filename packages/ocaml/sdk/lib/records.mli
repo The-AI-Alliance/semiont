@@ -635,7 +635,7 @@ module Mark_update_entity_types_command : sig
   val of_model : [ `MarkUpdateEntityTypesCommand ] Models.t -> t
 end
 module Match_search_failed : sig
-  type t = { reference_id : Yojson.Raw.t; error : string; extra : (string * Yojson.Raw.t) list }
+  type t = { code : string Types.presence; message : string; details : string Types.presence; reference_id : Yojson.Raw.t; extra : (string * Yojson.Raw.t) list }
   val of_model : [ `MatchSearchFailed ] Models.t -> t
 end
 module Match_search_request : sig

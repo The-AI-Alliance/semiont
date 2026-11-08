@@ -82,7 +82,9 @@ type activation_error =
   | Identity_conflict of string
   | Superseded
 
-val new_semiont_browser : semiont_browser_config -> semiont_browser
+val new_semiont_browser :
+  ?storage:Storage.t -> semiont_browser_config -> semiont_browser
+
 val same_place : endpoint -> endpoint -> bool
 val knowledge_bases : semiont_browser -> knowledge_base list
 val active_id : semiont_browser -> string option

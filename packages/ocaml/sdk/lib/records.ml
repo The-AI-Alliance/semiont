@@ -1769,12 +1769,14 @@ module Mark_update_entity_types_command = struct
   let of_model model = project (object_fields (Models.json model))
 end
 module Match_search_failed = struct
-  type t = { reference_id : Yojson.Raw.t; error : string; extra : (string * Yojson.Raw.t) list }
+  type t = { code : string Types.presence; message : string; details : string Types.presence; reference_id : Yojson.Raw.t; extra : (string * Yojson.Raw.t) list }
   let project fields =
     {
+      code = optional string "code" fields;
+      message = required string "message" fields;
+      details = optional string "details" fields;
       reference_id = required identity "referenceId" fields;
-      error = required string "error" fields;
-      extra = extra ["referenceId"; "error"] fields;
+      extra = extra ["code"; "message"; "details"; "referenceId"] fields;
     }
   let of_model model = project (object_fields (Models.json model))
 end

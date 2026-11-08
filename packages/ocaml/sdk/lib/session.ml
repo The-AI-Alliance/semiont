@@ -2,44 +2,12 @@ open Eio.Std
 
 type renewal = Renewed of string | Refused | Unavailable
 
-let claims token =
-  match String.split_on_char '.' token with
-  | [ _; payload; _ ] -> (
-      match
-        Base64.decode ~pad:false ~alphabet:Base64.uri_safe_alphabet payload
-      with
-      | Ok source -> (
-          match Strict_json.parse source with
-          | Ok (`Assoc fields) -> fields
-          | _ -> [])
-      | Error _ -> [])
-  | _ -> []
-
 let filter predicate = function
   | Some value when predicate value -> Some value
   | _ -> None
 
-let timestamp name fields =
-  match List.assoc_opt name fields with
-  | Some (`Intlit literal | `Floatlit literal) ->
-      filter Float.is_finite (float_of_string_opt literal)
-  | _ -> None
-
-let token_expiry token = timestamp "exp" (claims token)
-
-let refresh_delay ~now token =
-  let fields = claims token in
-  Option.map
-    (fun expiry ->
-      let issued = Option.value (timestamp "iat" fields) ~default:now in
-      let seconds ms = float ms /. 1000. in
-      let margin =
-        min
-          (seconds Client_timing.refresh_before_exp_ms)
-          (max 0. ((expiry -. issued) /. 2.))
-      in
-      max (seconds Client_timing.min_refresh_delay_ms) (expiry -. now -. margin))
-    (timestamp "exp" fields)
+let token_expiry = Tokens.token_expiry
+let refresh_delay = Tokens.refresh_delay
 
 type task = {
   refused : string option;
