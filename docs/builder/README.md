@@ -65,6 +65,10 @@ The [Haskell SDK](../../packages/haskell/sdk/README.md) uses `IO`, STM observati
 
 Use the [local Cabal package in a Semiont checkout](../../packages/haskell/sdk/README.md#install) until it is published.
 
+### OCaml
+
+Build from source with Dune. See the [OCaml builder guide](./OCAML.md).
+
 ## Where to start
 
 **Go to the [Developer Guide](./DEVELOPER-GUIDE.md) next.** It is the way in: short recipes in the order you will need them. You connect, read, ingest a document, enrich it, gather context around it, generate from it, react to what other participants do, and test what you built.

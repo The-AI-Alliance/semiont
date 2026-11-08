@@ -8,7 +8,8 @@
     "swift": ["packages/swift/sdk/Tests/SemiontTests/ClockCasesTests.swift"],
     "csharp": ["packages/csharp/sdk/tests/Semiont.Tests/ClockCasesTests.cs"],
     "typescript": ["packages/typescript/sdk/src/__tests__/clock-cases.test.ts"],
-    "go": ["packages/go/sdk/clock_cases_test.go"]
+    "go": ["packages/go/sdk/clock_cases_test.go"],
+    "ocaml": ["packages/ocaml/sdk/test/registry_behavior.ml"]
   },
   "cases": [
     {

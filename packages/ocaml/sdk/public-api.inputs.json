@@ -1,0 +1,14 @@
+{
+  "directories": ["lib", "dune.lock"],
+  "files": [
+    "api.py",
+    "public-api.inputs.json",
+    "dune-project",
+    "dune-workspace",
+    ".ocamlformat",
+    "semiont.opam",
+    "probes/api_inventory.ml",
+    "probes/dune"
+  ],
+  "roots": ["semiont"]
+}

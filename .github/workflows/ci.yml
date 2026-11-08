@@ -45,16 +45,18 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       sdks: ${{ steps.sdks.outputs.sdks }}
+      worker-sdks: ${{ steps.sdks.outputs.worker-sdks }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      # The SDKs the conformance suite holds to the corpus, each a leg of SDK
-      # Conformance and of Worker Conformance: those its implementations file
-      # names.
+      # Each suite gets one leg for each SDK with a driver for that suite.
       - name: Which SDKs the conformance suite tests
         id: sdks
-        run: echo "sdks=$(jq -c '.sdks | keys' protocol/conformance/semiont.implementations.json)" >> "$GITHUB_OUTPUT"
+        run: |
+          manifest=protocol/conformance/semiont.implementations.json
+          echo "sdks=$(jq -c '.sdks | with_entries(select(.value.wire or .value.live)) | keys' "$manifest")" >> "$GITHUB_OUTPUT"
+          echo "worker-sdks=$(jq -c '.sdks | with_entries(select(.value.worker)) | keys' "$manifest")" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -120,6 +122,7 @@ jobs:
           npm run lint:transport-contract || fail=1
           npm run lint:client-surface || fail=1
           npm run lint:haskell-api || fail=1
+          npm run lint:ocaml-api || fail=1
           npm run lint:haskell-transport || fail=1
           npm run lint:state-unit-census || fail=1
           npm run lint:state-unit-cases || fail=1
@@ -163,6 +166,7 @@ jobs:
       kotlin: ${{ steps.areas.outputs.kotlin }}
       csharp: ${{ steps.areas.outputs.csharp }}
       haskell: ${{ steps.areas.outputs.haskell }}
+      ocaml: ${{ steps.areas.outputs.ocaml }}
       swift: ${{ steps.areas.outputs.swift }}
       python-sdk: ${{ steps.areas.outputs.python-sdk }}
       python-inference: ${{ steps.areas.outputs.python-inference }}
@@ -272,6 +276,8 @@ jobs:
               - 'protocol/contract/TRANSPORT-HTTP.md'
               - 'package.json'
               - 'LICENSE'
+            ocaml:
+              - 'packages/ocaml/**'
             # Each Python project; a job lists its own and the ones its
             # pyproject depends on (every one depends on the SDK).
             python-sdk:
@@ -1036,7 +1042,7 @@ jobs:
     name: Rust Binaries
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true'
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true' || needs.changes.outputs.ocaml == 'true'
     defaults:
       run:
         working-directory: packages/rust
@@ -1443,7 +1449,7 @@ jobs:
     name: Build Swift Drivers
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true'
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true' || needs.changes.outputs.ocaml == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
@@ -1470,7 +1476,7 @@ jobs:
     name: SDK Conformance (${{ matrix.sdk }})
     runs-on: ubuntu-26.04
     needs: [census, changes, generated-artifacts, build-rust, build-swift-drivers, test-sdk-haskell]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true'
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true' || needs.changes.outputs.ocaml == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -1595,6 +1601,18 @@ jobs:
         working-directory: packages/csharp/sdk
         run: dotnet publish conformance/WireDriver -c Release --self-contained -r linux-x64 -o conformance/bin -p:RestoreLockedMode=true
 
+      - name: Build the OCaml conformance driver
+        if: matrix.sdk == 'ocaml'
+        run: |
+          python3 packages/ocaml/check-toolchain.py
+          base=$(jq -r '.baseImage' packages/ocaml/toolchain.json)
+          docker build --build-arg "BASE_IMAGE=$base" --tag semiont-ocaml-wire --file packages/ocaml/Dockerfile packages/ocaml
+          docker run --rm --volume "$GITHUB_WORKSPACE:/work" \
+            --env GIT_CONFIG_COUNT=1 --env GIT_CONFIG_KEY_0=safe.directory --env GIT_CONFIG_VALUE_0=/work \
+            semiont-ocaml-wire dune build conformance/wire_driver.exe
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libgmp10
+
       # The leg's SDK alone: the implementations file less every other SDK.
       # The suite type-checks the TypeScript drivers and makes the Python SDK's
       # environment before it starts, when its SDK is one of them. The Kotlin
@@ -1671,11 +1689,11 @@ jobs:
     name: Worker Conformance (${{ matrix.sdk }})
     runs-on: ubuntu-26.04
     needs: [census, changes, generated-artifacts, build-rust, build-swift-drivers, test-sdk-haskell]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true'
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true' || needs.changes.outputs.ocaml == 'true'
     strategy:
       fail-fast: false
       matrix:
-        sdk: ${{ fromJSON(needs.census.outputs.sdks) }}
+        sdk: ${{ fromJSON(needs.census.outputs.worker-sdks) }}
     env:
       # Where every Rust binary this job starts writes what it ran, as it exits,
       # merged into one file per binary: kept below, for Rust Coverage.
@@ -1712,6 +1730,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends libgmp10 libnuma1 zlib1g
+
+      - name: Build the OCaml conformance driver
+        if: matrix.sdk == 'ocaml'
+        run: |
+          python3 packages/ocaml/check-toolchain.py
+          base=$(jq -r '.baseImage' packages/ocaml/toolchain.json)
+          docker build --build-arg "BASE_IMAGE=$base" --tag semiont-ocaml-wire --file packages/ocaml/Dockerfile packages/ocaml
+          docker run --rm --volume "$GITHUB_WORKSPACE:/work" \
+            --env GIT_CONFIG_COUNT=1 --env GIT_CONFIG_KEY_0=safe.directory --env GIT_CONFIG_VALUE_0=/work \
+            semiont-ocaml-wire dune build conformance/wire_driver.exe
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libgmp10
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -2447,7 +2477,7 @@ jobs:
     name: Haskell SDK and design probes
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true'
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true' || needs.changes.outputs.csharp == 'true' || needs.changes.outputs.haskell == 'true' || needs.changes.outputs.ocaml == 'true'
     timeout-minutes: 30
     steps:
       - name: Checkout code
@@ -2484,6 +2514,74 @@ jobs:
           disable_search: true
           flags: haskell-probes
           name: haskell-probes
+
+  test-sdk-ocaml:
+    name: OCaml SDK substrate (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.ocaml == 'true'
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+      - name: Set up Python for native interoperability peers
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Read the pinned OCaml toolchain
+        id: versions
+        shell: bash
+        run: |
+          python3 packages/ocaml/check-toolchain.py
+          python3 - <<'PYTHON'
+          import json
+          import os
+          pins = json.load(open('packages/ocaml/toolchain.json'))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              for key in ('ocaml', 'dune', 'opamRepository'):
+                  output.write(f'{key}={pins[key]}\n')
+          PYTHON
+      - name: Install native prerequisites on Linux
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgmp-dev pkg-config openssl
+      - name: Install native prerequisites on macOS
+        if: runner.os == 'macOS'
+        run: |
+          brew install gmp pkgconf openssl@3
+          echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"
+      - name: Set up the pinned compiler
+        uses: ocaml/setup-ocaml@ff66428f72b64472e749b22e0ad4dded4b2ddca6 # v3
+        with:
+          ocaml-compiler: ${{ steps.versions.outputs.ocaml }}
+          opam-pin: false
+      - name: Install the pinned Dune bootstrap
+        shell: bash
+        run: |
+          opam repository set-url --yes default 'git+https://github.com/ocaml/opam-repository.git#${{ steps.versions.outputs.opamRepository }}'
+          opam install --yes 'dune.${{ steps.versions.outputs.dune }}'
+      - name: Cache locked dependencies
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cache/dune
+            ~/Library/Caches/dune
+            packages/ocaml/sdk/_build
+          key: ${{ runner.os }}-${{ runner.arch }}-ocaml-${{ hashFiles('packages/ocaml/toolchain.json', 'packages/ocaml/sdk/dune.lock/**') }}
+      - name: Build and probe the native SDK substrate
+        working-directory: packages/ocaml/sdk
+        shell: bash
+        run: |
+          opam exec -- dune build @all @opam
+          opam exec -- python3 test/check-format.py
+          opam exec -- dune runtest
+          opam exec -- python3 test/check-installed-api.py
+          opam exec -- python3 probes/check-interface.py
+          opam exec -- python3 api.py
+          opam exec -- python3 probes/check-api-controls.py
 
   test-sdk-haskell-native:
     name: Haskell SDK (${{ matrix.os }})
@@ -3787,6 +3885,9 @@ jobs:
       - name: Refresh, text, media and operation reports vs Haskell
         run: npm run generate:haskell:check
 
+      - name: Identifier and substrate facts vs OCaml
+        run: npm run generate:ocaml:check
+
   # Everything about the launcher's modules but its suite: formatting, vet on
   # every target a release ships, the Go SDK's own build and tests, and the
   # vulnerability scan. The suite is test-launcher's.
@@ -4220,6 +4321,7 @@ jobs:
       - test-sdk-csharp
       - test-sdk-haskell
       - test-sdk-haskell-native
+      - test-sdk-ocaml
       - complete-sdk-haskell
       - test-sdk-csharp-windows
       - test-sdk-swift

@@ -784,7 +784,7 @@
     {
       "unit": "mark",
       "docs": "The composing and delegating of annotations on one resource: the annotation being composed, the delegated job's motivation, its progress and what that progress is of, why the last job ended without completing, and the job's id. A request and a submission reach it as the signals the mark namespace publishes, which name its resource; a delegation, the cancelling of the annotation being composed and the dismissing of a job's progress are asked of the unit itself, so none reaches a unit of another resource.",
-      "made": {"csharp": "MarkStateUnit", "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit", "go": "MarkStateUnit", "kotlin": "MarkStateUnit", "swift": "MarkStateUnit", "haskell": "MarkStateUnit"},
+      "made": {"ocaml": "Mark", "csharp": "MarkStateUnit", "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit", "go": "MarkStateUnit", "kotlin": "MarkStateUnit", "swift": "MarkStateUnit", "haskell": "MarkStateUnit"},
       "madeBy": {"typescript": "createMarkStateUnit", "go": "NewMarkStateUnit", "haskell": "newMarkStateUnit"},
       "members": [
         { "member": "pendingAnnotation" },
@@ -801,7 +801,7 @@
     {
       "unit": "yield",
       "docs": "A generation: whether a run is under way, its progress, what the finished run produced, why the last run ended without a result, and the job's id. It is moved by its own methods.",
-      "made": {"csharp": "YieldStateUnit", "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit", "go": "YieldStateUnit", "kotlin": "YieldStateUnit", "swift": "YieldStateUnit", "haskell": "YieldStateUnit"},
+      "made": {"ocaml": "Yield", "csharp": "YieldStateUnit", "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit", "go": "YieldStateUnit", "kotlin": "YieldStateUnit", "swift": "YieldStateUnit", "haskell": "YieldStateUnit"},
       "madeBy": {"typescript": "createYieldStateUnit", "go": "NewYieldStateUnit", "haskell": "newYieldStateUnit"},
       "members": [
         { "member": "isGenerating" },
@@ -816,7 +816,7 @@
     {
       "unit": "gather",
       "docs": "The context gathered around one resource: for the annotation last asked about and for the resource last asked about, the context, whether it is loading and why it failed. Each gather is asked of the unit itself, so none reaches a unit of another resource.",
-      "made": {"csharp": "GatherStateUnit", "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit", "go": "GatherStateUnit", "kotlin": "GatherStateUnit", "swift": "GatherStateUnit", "haskell": "GatherStateUnit"},
+      "made": {"ocaml": "Gather", "csharp": "GatherStateUnit", "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit", "go": "GatherStateUnit", "kotlin": "GatherStateUnit", "swift": "GatherStateUnit", "haskell": "GatherStateUnit"},
       "madeBy": {"typescript": "createGatherStateUnit", "go": "NewGatherStateUnit", "haskell": "newGatherStateUnit"},
       "members": [
         { "member": "context" },
@@ -833,14 +833,14 @@
     {
       "unit": "match",
       "docs": "Matching, run for whoever asks on the client's own bus: a search asked for by a signal is run and answered under the asker's correlation id. It holds no state: what it found is what it said.",
-      "made": {"csharp": "MatchStateUnit", "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit", "go": "MatchStateUnit", "kotlin": "MatchStateUnit", "swift": "MatchStateUnit", "haskell": "MatchStateUnit"},
+      "made": {"ocaml": "Match", "csharp": "MatchStateUnit", "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit", "go": "MatchStateUnit", "kotlin": "MatchStateUnit", "swift": "MatchStateUnit", "haskell": "MatchStateUnit"},
       "madeBy": {"typescript": "createMatchStateUnit", "go": "NewMatchStateUnit", "haskell": "newMatchStateUnit"},
       "members": []
     },
     {
       "unit": "beckon",
       "docs": "Attention on one resource: the annotation this participant hovers, a sparkle for one the moment it is hovered, and a focus, naming the unit's resource, for one clicked here or by another participant.",
-      "made": {"csharp": "BeckonStateUnit", "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit", "kotlin": "BeckonStateUnit", "swift": "BeckonStateUnit", "haskell": "BeckonStateUnit"},
+      "made": {"ocaml": "Beckon", "csharp": "BeckonStateUnit", "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit", "kotlin": "BeckonStateUnit", "swift": "BeckonStateUnit", "haskell": "BeckonStateUnit"},
       "madeBy": {"typescript": "createBeckonStateUnit", "go": "NewBeckonStateUnit", "haskell": "newBeckonStateUnit"},
       "members": [
         { "member": "hoveredAnnotationId" },
@@ -850,7 +850,7 @@
     {
       "unit": "hoverDwell",
       "docs": "A pointer's rest: an annotation is said to be hovered once the pointer has rested on it for a delay, and none at once when it leaves.",
-      "made": {"csharp": "HoverDwell", "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell", "go": "HoverDwell", "kotlin": "HoverDwell", "swift": "HoverDwell", "haskell": "HoverDwell"},
+      "made": {"ocaml": "Hover_dwell", "csharp": "HoverDwell", "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell", "go": "HoverDwell", "kotlin": "HoverDwell", "swift": "HoverDwell", "haskell": "HoverDwell"},
       "madeBy": {"typescript": "createHoverDwell", "go": "NewHoverDwell", "haskell": "newHoverDwell"},
       "members": [
         { "member": "enter" },
@@ -860,7 +860,7 @@
     {
       "unit": "search",
       "docs": "A search that follows a query as it is typed: the query as last set, and the results of the query it last settled on, once that query has stayed the same for a debounce.",
-      "made": {"csharp": "SearchPipeline", "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline", "go": "SearchPipeline", "kotlin": "SearchPipeline", "swift": "SearchPipeline", "haskell": "SearchPipeline"},
+      "made": {"ocaml": "Search", "csharp": "SearchPipeline", "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline", "go": "SearchPipeline", "kotlin": "SearchPipeline", "swift": "SearchPipeline", "haskell": "SearchPipeline"},
       "madeBy": {"typescript": "createSearchPipeline", "go": "NewSearchPipeline", "haskell": "newSearchPipeline"},
       "members": [
         { "member": "query" },
@@ -871,7 +871,7 @@
     {
       "unit": "sessionSignals",
       "docs": "What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it.",
-      "made": {"csharp": "SessionSignals", "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals", "kotlin": "SessionSignals", "swift": "SessionSignals", "haskell": "SessionSignals"},
+      "made": {"ocaml": "Session_signals", "csharp": "SessionSignals", "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals", "kotlin": "SessionSignals", "swift": "SessionSignals", "haskell": "SessionSignals"},
       "madeBy": {"typescript": "createSessionSignals", "go": "NewSessionSignals", "haskell": "newSessionSignals"},
       "members": [
         { "member": "sessionEnded" },
@@ -888,7 +888,7 @@
     {
       "unit": "cache",
       "docs": "Values the knowledge base answers with, kept by key and held as state: each key's state (pending, ready with its value, or failed), fetched when first observed and again when invalidated, and set, removed or invalidated by its methods. What it does is held by the cache's own tables (protocol/specs/src/client/refresh.json and the cache's rules in each SDK), not by the behaviour table.",
-      "made": {"csharp": "Cache", "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache", "kotlin": "Cache", "swift": "Cache", "haskell": "Cache"},
+      "made": {"ocaml": "Cache", "csharp": "Cache", "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache", "kotlin": "Cache", "swift": "Cache", "haskell": "Cache"},
       "madeBy": {"typescript": "createCache", "go": "NewCache", "haskell": "newCache"},
       "members": [
         {
@@ -924,6 +924,7 @@
         {
           "member": "query",
           "absent": {
+            "ocaml": "The OCaml cache observes a key directly; Client.query provides the public client query.",
             "csharp": "This SDK returns its live observation directly from observe; Haskell also constructs a composable Query value, whose reader is scoped by watch.",
             "typescript": "This SDK returns its live observation directly from observe; Haskell also constructs a composable Query value, whose reader is scoped by watch.",
             "rust": "This SDK returns its live observation directly from observe; Haskell also constructs a composable Query value, whose reader is scoped by watch.",
@@ -938,7 +939,7 @@
     {
       "unit": "session",
       "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. What it does is held by the session's own table (protocol/specs/src/session/cases.json), not by the behaviour table.",
-      "made": {"csharp": "SemiontSession", "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession", "swift": "SemiontSession", "haskell": "Session"},
+      "made": {"ocaml": "Session", "csharp": "SemiontSession", "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession", "swift": "SemiontSession", "haskell": "Session"},
       "madeBy": {"go": "StartSession", "kotlin": "sessionFromKept", "swift": "sessionFromKept", "haskell": "newSession"},
       "members": [
         { "member": "id" },
@@ -954,6 +955,7 @@
         {
           "member": "renewer",
           "absent": {
+            "ocaml": "The client transport uses the credential session directly.",
             "csharp": "The transport takes a callback bound to the kept session when the transport is constructed.",
             "swift": "The transport uses a closure that calls the session's `refresh` with the token refused through a weak session reference.",
             "typescript": "A TypeScript transport is handed a closure that calls the session's `refresh` with the token refused, and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
@@ -969,6 +971,7 @@
   "wire": {
     "docs": "The typed bus over a client's transport, which a client hands out as `wire`: what it emits goes over the wire, and what it reads is what the wire delivers. A read gives each frame with its envelope, who emitted it and the trace it was sent under. A channel of a resource's scope is read for one resource, and the read holds that resource's scope while it is read. The client's own in-process signals are on its own bus, never here. It hands out no transport: a client's transport is the client's `transport`, and only there.",
     "made": {
+      "ocaml": "Bus",
       "haskell": "Bus",
       "csharp": "Bus",
       "swift": "Bus",
@@ -984,6 +987,7 @@
       {
         "member": "framesOf",
         "absent": {
+          "ocaml": "Bus uses typed channel and operation values and exposes frames through a subscription callback.",
           "haskell": "Haskell passes typed channel/operation values and a ScopeArg to the same functions.",
           "csharp": "C# uses generated channel and operation values, and Frames accepts a resource scope.",
           "swift": "Swift uses typed channel and operation values; frames is overloaded for a resource scope.",
@@ -996,6 +1000,7 @@
       {
         "member": "emitOn",
         "absent": {
+          "ocaml": "Bus uses typed channel and operation values and exposes frames through a subscription callback.",
           "haskell": "Haskell passes typed channel/operation values and a ScopeArg to the same functions.",
           "csharp": "C# uses generated channel and operation values, and Frames accepts a resource scope.",
           "swift": "Swift uses typed channel and operation values; frames is overloaded for a resource scope.",
@@ -1007,6 +1012,7 @@
       {
         "member": "framesOn",
         "absent": {
+          "ocaml": "Bus uses typed channel and operation values and exposes frames through a subscription callback.",
           "haskell": "Haskell passes typed channel/operation values and a ScopeArg to the same functions.",
           "csharp": "C# uses generated channel and operation values, and Frames accepts a resource scope.",
           "swift": "Swift uses typed channel and operation values; frames is overloaded for a resource scope.",
@@ -1018,6 +1024,7 @@
       {
         "member": "requestOf",
         "absent": {
+          "ocaml": "Bus uses typed channel and operation values and exposes frames through a subscription callback.",
           "haskell": "Haskell passes typed channel/operation values and a ScopeArg to the same functions.",
           "csharp": "C# uses generated channel and operation values, and Frames accepts a resource scope.",
           "swift": "Swift uses typed channel and operation values; frames is overloaded for a resource scope.",
@@ -1030,7 +1037,7 @@
   },
   "storage": {
     "docs": "Where a client keeps what must outlive it: text under a key, in a store the application supplies (a file, a browser's storage, a platform's store), so nothing above it knows where it runs. A client's sessions, its registry of knowledge bases and its kept caches keep what they keep there. More than one context can write one store, two windows or two processes: what is written from what was read goes through `update`, which a store makes one step, so one writer's change is never lost under another's; and `subscribe` hears what another context writes, and is null where no other context writes.",
-    "made": {"haskell": "SessionStorage", "csharp": "ISessionStorage", "typescript": "SessionStorage", "rust": "SessionStorage", "python": "SessionStorage", "go": "SessionStorage", "kotlin": "SessionStorage", "swift": "SessionStorage"},
+    "made": {"ocaml": "Storage", "haskell": "SessionStorage", "csharp": "ISessionStorage", "typescript": "SessionStorage", "rust": "SessionStorage", "python": "SessionStorage", "go": "SessionStorage", "kotlin": "SessionStorage", "swift": "SessionStorage"},
     "members": [
       { "member": "get" },
       { "member": "set" },
@@ -1044,6 +1051,7 @@
       "module": "annotations",
       "docs": "The readers of an annotation, its builders, and the reconciling of a quote: what a program that reads or makes annotations is given, so that none parses or builds one by hand. Held by protocol/specs/src/annotations's tables.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/annotations.mli"],
         "haskell": ["packages/haskell/sdk/src/Semiont/Annotations.hs"],
         "csharp": ["packages/csharp/sdk/src/Semiont/Annotations"],
         "swift": [
@@ -1248,6 +1256,7 @@
           "member": "OfSpan",
           "kind": "type",
           "absent": {
+            "ocaml": "The OCaml builder takes its inputs as labeled arguments.",
             "haskell": "The Haskell builder takes its typed inputs as arguments, without an input record.",
             "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
             "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
@@ -1259,6 +1268,7 @@
           "member": "OfResource",
           "kind": "type",
           "absent": {
+            "ocaml": "The OCaml builder takes its inputs as labeled arguments.",
             "haskell": "The Haskell builder takes its typed inputs as arguments, without an input record.",
             "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
             "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
@@ -1272,6 +1282,7 @@
       "module": "jobFilter",
       "docs": "Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by protocol/specs/src/jobs/filter-cases.json.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/job_filter.mli"],
         "csharp": [
           "packages/csharp/sdk/src/Semiont/Jobs"
         ],
@@ -1328,7 +1339,8 @@
         "kotlin": [
           "packages/kotlin/sdk/src/main/kotlin/semiont/jobs"
         ],
-        "haskell": ["packages/haskell/sdk/src/Semiont/Claims.hs"]
+        "haskell": ["packages/haskell/sdk/src/Semiont/Claims.hs"],
+        "ocaml": ["packages/ocaml/sdk/lib/claims.mli"]
       },
       "whole": ["haskell"],
       "members": [
@@ -1350,6 +1362,7 @@
       "module": "retry",
       "docs": "Doing work again by a backoff, until it succeeds, it fails as nothing can mend, or the attempts run out.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/retry.mli"],
         "csharp": ["packages/csharp/sdk/src/Semiont/Http"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Transport/Retry.swift"
@@ -1382,6 +1395,7 @@
       "module": "hostName",
       "docs": "Whether a host is one a knowledge base's HTTP endpoint may name. Held by protocol/specs/src/session/gateway-url-cases.json.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/host_name.mli"],
         "csharp": ["packages/csharp/sdk/src/Semiont/Session"],
         "typescript": [
           "packages/typescript/sdk/src/session/storage.ts"
@@ -1415,6 +1429,7 @@
       "module": "tokens",
       "docs": "What a session reads of an access token: a claim it names as text, when it expires, whether it has, and when to renew it. Held by protocol/specs/src/session/cases.json.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/tokens.mli"],
         "haskell": ["packages/haskell/sdk/src/Semiont/Tokens.hs"],
         "csharp": ["packages/csharp/sdk/src/Semiont/Session"],
         "typescript": [
@@ -1476,6 +1491,7 @@
       "module": "storagePersister",
       "docs": "Where a client keeps its queries' values: a session storage, under one key, kept within a size.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/storage_persister.mli"],
         "haskell": ["packages/haskell/sdk/src/Semiont/StoragePersister.hs"],
         "csharp": ["packages/csharp/sdk/src/Semiont"],
         "swift": [
@@ -1512,6 +1528,7 @@
       "module": "bus",
       "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps; and what a transport delivers in place of a frame it refuses, and why it refuses it.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/bus.ml"],
         "csharp": ["packages/csharp/sdk/src/Semiont"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Bus/Bus.swift",
@@ -1550,6 +1567,7 @@
           "member": "unsubscribed",
           "kind": "function",
           "absent": {
+            "ocaml": "Subscription.request returns the Unsubscribed constructor directly.",
             "typescript": "TypeScript makes the refusal where it refuses, and hands out no maker of it."
           }
         },
@@ -1577,6 +1595,7 @@
           "member": "Carried",
           "kind": "type",
           "absent": {
+            "ocaml": "Bus.frames delivers the standard OCaml result of a frame or its refusal.",
             "typescript": "TypeScript's transport delivers a refusal where a frame's payload would be, on the frame's envelope (`BusFrame<P | FrameRefusal>`), as its client's bus does.",
             "rust": "Rust's transport delivers a frame or its refusal as a `Result<Frame, FrameRefusal>`.",
             "python": "Python's transport delivers a frame or its refusal as the union `Frame | FrameRefusal`.",
@@ -1589,6 +1608,7 @@
       "module": "registry",
       "docs": "What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/registry.mli"],
         "csharp": ["packages/csharp/sdk/src/Semiont/Registry"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Registry/OpenResources.swift",
@@ -1679,6 +1699,7 @@
           "member": "KbReadKind",
           "kind": "type",
           "absent": {
+            "ocaml": "OCaml represents the read verdict as a variant.",
             "typescript": "TypeScript's verdict is a union told apart by its `kind`.",
             "rust": "Rust's verdict is an enum, whose variants are its kinds."
           }
@@ -1716,6 +1737,7 @@
           "member": "TabVerdict",
           "kind": "type",
           "absent": {
+            "ocaml": "OCaml represents the tab check as a variant.",
             "typescript": "TypeScript's check is a union told apart by its `verdict`.",
             "rust": "Rust's check is an enum, whose variants are its verdicts."
           }
@@ -1817,6 +1839,7 @@
       "module": "sessionNotices",
       "docs": "What a session's signals raise: that a session ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. protocol/specs/src/client/state-units.json's `notices` states each one.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/session_notices.ml"],
         "haskell": ["packages/haskell/sdk/src/Semiont/State/SessionSignals.hs"],
         "csharp": ["packages/csharp/sdk/src/Semiont/State"],
         "swift": ["packages/swift/sdk/Sources/Semiont/State/SessionSignals.swift"],
@@ -1836,6 +1859,7 @@
       "module": "redirectSignIn",
       "docs": "A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/redirect_sign_in.ml"],
         "csharp": ["packages/csharp/sdk/src/Semiont/Authorization"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Registry/RedirectSignIn.swift",
@@ -1915,6 +1939,7 @@
       "module": "serviceToken",
       "docs": "A service account's token, which a process holds for its own account at the issuer a knowledge base trusts: the issuer's token endpoint discovered once, through the HTTP client the token was made with, one client-credentials grant at a time, the token held until it is due for renewal, and the `Authorization` header's value it gives (`authorization`).",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/service_token.mli"],
         "haskell": ["packages/haskell/sdk/src/Semiont/ServiceToken.hs"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/SignIn/ServiceToken.swift"
@@ -1967,18 +1992,21 @@
         "kotlin": [
           "packages/kotlin/sdk/src/main/kotlin/semiont/signin"
         ],
-        "haskell": ["packages/haskell/sdk/src/Semiont/SignInStore.hs"]
+        "haskell": ["packages/haskell/sdk/src/Semiont/SignInStore.hs"],
+        "ocaml": ["packages/ocaml/sdk/lib/sign_in_store.mli"]
       },
       "members": [
         {
           "member": "SignInStore",
-          "kind": "type"
+          "kind": "type",
+          "named": { "ocaml": "t" }
         },
         {
           "member": "stateDir",
           "kind": "function",
           "named": {
-            "haskell": "stateDirectory"
+            "haskell": "stateDirectory",
+            "ocaml": "state_directory"
           },
           "absent": {
             "csharp": "C#'s state home is SignInStore.StateDirectory, a static member of the store, which takes the system's name as text."
@@ -1989,7 +2017,8 @@
           "kind": "type",
           "named": {
             "kotlin": "Platform",
-            "swift": "Platform"
+            "swift": "Platform",
+            "ocaml": "platform"
           },
           "absent": {
             "csharp": "C#'s SignInStore.StateDirectory takes the system's name as text.",
@@ -2006,7 +2035,8 @@
             "typescript": "TypeScript reads nothing of the system it runs on: its caller says which it is.",
             "rust": "Rust's is a function of the type, System::of_this_build.",
             "swift": "Swift's caller says which system it runs on.",
-            "csharp": "C#'s caller names the system it runs on."
+            "csharp": "C#'s caller names the system it runs on.",
+            "ocaml": "The OCaml caller supplies the platform."
           }
         },
         {
@@ -2019,7 +2049,8 @@
           "absent": {
             "typescript": "TypeScript's is SIGN_IN_STORE_FILE, generated into @semiont/core, which the store hands to its caller's files.",
             "swift": "Swift's store is made at a path its caller gives.",
-            "csharp": "C#'s store is made in a directory its caller gives, and names the file there itself."
+            "csharp": "C#'s store is made in a directory its caller gives, and names the file there itself.",
+            "ocaml": "The OCaml store names tokens.json inside the directory supplied by its caller."
           }
         },
         {
@@ -2032,7 +2063,8 @@
             "kotlin": "Kotlin reads, writes and locks the file itself, through the JDK and its foreign-function interface.",
             "swift": "Swift reads, writes and locks the file itself, through Foundation and the C library.",
             "csharp": "C# reads, writes and locks the file itself, through .NET and the C library.",
-            "haskell": "Haskell reads, writes and locks the file itself, through its directory and file libraries and the C library."
+            "haskell": "Haskell reads, writes and locks the file itself, through its directory and file libraries and the C library.",
+            "ocaml": "The OCaml store uses Unix file operations and a native flock binding."
           }
         }
       ]
@@ -2041,6 +2073,7 @@
       "module": "discovery",
       "docs": "The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/discovery.mli"],
         "csharp": ["packages/csharp/sdk/src/Semiont/Discovery"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Registry/Discovery.swift"
@@ -2098,6 +2131,7 @@
           "member": "Absent",
           "kind": "type",
           "absent": {
+            "ocaml": "OCaml represents absence as a variant constructor.",
             "typescript": "TypeScript's state is a union told apart by its `kind`.",
             "rust": "Rust's state is an enum, whose variants are its kinds.",
             "haskell": "Haskell represents this case as an algebraic data constructor of DiscoveryState or DiscoveryRead, rather than a separate type."
@@ -2107,6 +2141,7 @@
           "member": "Managed",
           "kind": "type",
           "absent": {
+            "ocaml": "OCaml represents a managed document as a variant constructor.",
             "typescript": "TypeScript's state is a union told apart by its `kind`.",
             "rust": "Rust's state is an enum, whose variants are its kinds.",
             "haskell": "Haskell represents this case as an algebraic data constructor of DiscoveryState or DiscoveryRead, rather than a separate type."
@@ -2116,6 +2151,7 @@
           "member": "Unchanged",
           "kind": "type",
           "absent": {
+            "ocaml": "OCaml represents an unchanged read as a variant constructor.",
             "typescript": "TypeScript's read is a union told apart by its `kind`.",
             "rust": "Rust's read is an enum, whose variants are its kinds.",
             "haskell": "Haskell represents this case as an algebraic data constructor of DiscoveryState or DiscoveryRead, rather than a separate type."
@@ -2151,6 +2187,7 @@
       "module": "testing",
       "docs": "What a consumer's tests hold a composition and a registry to: the liveness axioms, that under any behaviour of the wire something is eventually said and every event is delivered exactly once; a real session over test doubles; a factory of scripted sessions for a registry; and a storage several contexts share.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/testing.mli"],
         "swift": [
           "packages/swift/sdk/Sources/SemiontTesting/Liveness.swift",
           "packages/swift/sdk/Sources/SemiontTesting/ScriptedTransport.swift",
@@ -2295,6 +2332,7 @@
       "module": "refusals",
       "docs": "The first fault a body has as a component schema, and what every SDK says of it as it refuses it (`it has no `x``, `its `x` is malformed`, `it is malformed`): for an SDK whose HTTP transport is a package of its own, which reads its answers and holds its stream's frames by them. Held by the table of what each schema requires (packages/codegen/schemas/required-shapes.mjs).",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/refusals.ml"],
         "typescript": [
           "packages/typescript/core/src/required.ts"
         ],
@@ -2323,6 +2361,7 @@
           "member": "faultSaid",
           "kind": "function",
           "absent": {
+            "ocaml": "OCaml renders the shared fault with said.",
             "haskell": "Its HTTP transport is in the same Cabal package and reads refusals internally.",
             "typescript": "TypeScript's transport finds a body's fault with faultOf and says it with said.",
             "python": "Its HTTP transport is in the SDK's own package, and reads its answers by the table there.",
@@ -2385,6 +2424,7 @@
         "go": "testing/synctest: every wait is package time's, on goroutines the caller's call starts."
       },
       "takes": {
+        "ocaml": { "Clock.make": ["Eio.Time.Mono.t", "Eio.Time.clock"], "Subscription.start": ["Clock.t"], "Session.start": ["Clock.t"], "Http_wire.make": ["Clock.t"], "Live_query.make": ["Clock.t"] },
         "kotlin": {
           "SemiontClient": ["CoroutineContext", "TimeSource"],
           "TestClient": ["CoroutineContext", "TimeSource"],
@@ -2483,6 +2523,7 @@
         "python": "The random module, which a test seeds or patches: every jitter draws random.random()."
       },
       "takes": {
+        "ocaml": { "Clock.make": ["Random.State.t"], "Subscription.start": ["Clock.t"], "Session.start": ["Clock.t"], "Http_wire.make": ["Clock.t"], "Live_query.make": ["Clock.t"] },
         "rust": {
           "HttpTransportConfig": ["Rng"],
           "SemiontSessionConfig": ["Rng"],

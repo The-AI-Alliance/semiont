@@ -1,0 +1,91 @@
+(test
+ (name substrate)
+ (modules substrate)
+ (libraries semiont eio_main cohttp-eio tls-eio yojson zarith decimal alcotest))
+
+(test
+ (name identifiers)
+ (modules identifiers)
+ (libraries semiont alcotest))
+
+(test
+ (name enums_cases)
+ (modules enums_cases)
+ (libraries semiont alcotest))
+
+(test
+ (name generated_protocol)
+ (modules generated_protocol)
+ (libraries semiont yojson alcotest))
+
+(test
+ (name session_renewal)
+ (modules session_renewal session_cases)
+ (libraries semiont eio_main eio.mock mtime base64 yojson alcotest))
+
+
+(rule
+ (targets session_cases.ml)
+ (deps ../probes/session_cases.ml)
+ (action (copy %{deps} %{targets})))
+
+(test
+ (name worker_filters)
+ (modules worker_filters job_filter_cases)
+ (libraries semiont yojson alcotest))
+
+(rule
+ (targets job_filter_cases.ml)
+ (deps ../probes/job_filter_cases.ml)
+ (action (copy %{deps} %{targets})))
+
+(test
+ (name sign_in)
+ (modules sign_in sign_in_cases assertion_cases)
+ (libraries
+  semiont
+  eio_main
+  eio.mock
+  uri
+  base64
+  yojson
+  alcotest
+  x509
+  mirage-crypto-rng.unix)
+ (deps ../probes/peer-key.pem))
+
+(test
+ (name surface_behavior)
+ (modules surface_behavior surface_cases surface_dispatch)
+ (libraries semiont eio_main yojson alcotest))
+
+(test
+ (name registry_behavior)
+ (modules registry_behavior registry_cases)
+ (libraries semiont eio_main eio.mock mtime yojson base64 cstruct alcotest))
+
+(test
+ (name state_behavior)
+ (modules state_behavior state_cases)
+ (libraries semiont eio_main eio.mock mtime yojson alcotest))
+
+(test
+ (name helper_behavior)
+ (modules helper_behavior helper_cases annotation_id)
+ (libraries semiont eio_main eio.mock yojson alcotest base64 digestif zarith))
+
+
+(rule
+ (target annotation_id.ml)
+ (deps ../lib/annotation_id.ml)
+ (action (copy %{deps} %{target})))
+
+(test
+ (name completion_behavior)
+ (modules completion_behavior retry_cases)
+ (libraries semiont eio_main eio.mock yojson alcotest mtime uri))
+
+(test
+ (name closure_behavior)
+ (modules closure_behavior closure_cases)
+ (libraries semiont yojson alcotest))

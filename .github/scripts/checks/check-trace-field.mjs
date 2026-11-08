@@ -31,6 +31,7 @@ const GENERATED = [
   'packages/go/sdk/bus/channels_gen.go',
   'packages/python/sdk/src/semiont/channels.py',
   'packages/haskell/sdk/src/Semiont/Transport/Facts.hs',
+  'packages/ocaml/sdk/lib/bus_registry.ml',
 ];
 const TEST = /(^|\/)(__tests__|tests|Tests)\/|\.(test|spec)\.[cm]?[jt]sx?$|_test\.go$|(^|\/)test_[^/]*\.py$/;
 

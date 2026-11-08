@@ -1,0 +1,19 @@
+(version 1.0.2)
+
+(build
+ (all_platforms
+  ((action
+    (progn
+     (when %{pkg-self:dev} (run dune subst))
+     (run dune build -p %{pkg-self:name} -j %{jobs} @install))))))
+
+(depends
+ (all_platforms
+  (dune ocaml zarith)))
+
+(source
+ (fetch
+  (url
+   https://github.com/yawaramin/ocaml-decimal/releases/download/v1.0.2/decimal-1.0.2.tbz)
+  (checksum
+   sha512=6157fccb1149e255897b7aa3f58ba33bb3a01c8c0a048f0f315325bd4bf4ef30b580e506c69c05c24e292f602409f0e21f9796d49a2c1bc3a20200d30faa3c56)))

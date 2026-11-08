@@ -1,0 +1,19 @@
+(version 4.1)
+
+(build
+ (all_platforms
+  ((action
+    (progn
+     (when %{pkg-self:dev} (run dune subst))
+     (run dune build -p %{pkg-self:name} -j %{jobs} @install))))))
+
+(depends
+ (all_platforms
+  (dune stdlib-shims ocaml)))
+
+(source
+ (fetch
+  (url
+   https://github.com/mransan/ocaml-protoc/releases/download/v4.1/ocaml-protoc-4.1.tbz)
+  (checksum
+   sha512=d5910fa17d60754c0ba273e4fa96137bb1129fbbc235a6601960a1cafb2ef41627b06a6486e539c5b206b73c249fe834ba910b2ce741d5f8ded137f042bbce4d)))

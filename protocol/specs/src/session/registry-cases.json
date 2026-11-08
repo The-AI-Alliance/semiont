@@ -1,6 +1,5 @@
 {
   "$comment": "AUTHORITY for when a registry of knowledge bases takes two endpoints for one place: the rule its sign-in looks up the entries at an address by, before the did the knowledge base reports decides which of them is signed in; and for the order a registry shows the resources open in a knowledge base in. Every SDK runs every case of both tables against its registry's own rule, and fails on a difference. A gateway is one place with another when the two have one origin, as protocol/specs/src/session/gateway-url-cases.json makes it: the same protocol, the same host once each is put in lowercase, and the same port. An entry at another origin is another place, though only the protocol differs: the session would talk to the entry's address, which the sign-in's read never proved. A knowledge base the host process has loaded is the place its id names. A gateway and a loaded knowledge base are never one place. READING A CASE. In `cases`, `one` and `other` are each a KbEndpoint (components/schemas/KbEndpoint.json), and `samePlace` whether a registry takes them for one place. In `openResourceOrder`, `open` is a list of open resources as a registry keeps them (protocol/specs/src/session/stored.json's `openResource`), and `shown` the ids of the same resources in the order a registry shows them: by place, and two in one place by when each was opened, first first.",
-  "notYetReached": {},
   "runBy": {
     "csharp": ["packages/csharp/sdk/tests/Semiont.Tests/RegistryTests.cs"],
     "swift": ["packages/swift/sdk/Tests/SemiontTests/RegistryTablesTests.swift"],
@@ -9,7 +8,8 @@
     "python": ["packages/python/sdk/tests/test_registry_cases.py"],
     "go": ["packages/go/sdk/registry/same_place_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/registry/RegistryCasesTest.kt"],
-    "haskell": ["packages/haskell/sdk/test/RegistryCases.hs"]
+    "haskell": ["packages/haskell/sdk/test/RegistryCases.hs"],
+    "ocaml": ["packages/ocaml/sdk/test/registry_behavior.ml"]
   },
   "cases": [
     {

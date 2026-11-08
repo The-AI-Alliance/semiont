@@ -1,0 +1,42 @@
+(library
+ (name semiont)
+ (public_name semiont)
+ (private_modules
+  annotation_id
+  pattern
+  client_timing
+  schema_shape
+  schema_shapes
+  schema_codec
+  http_facts
+  telemetry_facts
+  live_facts
+  client_query
+  registry_facts
+  state_task
+  oauth_facts
+  assertion_facts
+  store_policy
+  testing_facts
+  encoding_facts
+  log_facts
+  media_facts)
+ (libraries
+  eio
+  cstruct
+  mtime
+  yojson
+  base64
+  zarith
+  decimal
+  uutf
+  uucp
+  uri
+  digestif
+  x509
+  mirage-crypto-pk
+  ptime
+  unix)
+ (foreign_stubs
+  (language c)
+  (names store_lock)))

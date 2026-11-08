@@ -9,3 +9,4 @@ discovery-go
 encoding-cases
 model-catalogue
 haskell
+ocaml

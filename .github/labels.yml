@@ -129,7 +129,7 @@
   description: "The Haskell SDK (packages/haskell/sdk)"
 - name: "sdk:ocaml"
   color: "bfd4f2"
-  description: "An OCaml SDK, not yet written"
+  description: "The OCaml SDK (packages/ocaml/sdk)"
 
 # stack: one for each kind of document the launcher reads: those in a knowledge
 # base's .semiont/stack/, and the machine's (the Browser's, the worker's, the

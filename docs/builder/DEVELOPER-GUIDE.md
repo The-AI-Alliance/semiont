@@ -22,6 +22,8 @@ than repeat them.
 Throughout, the eight verb namespaces hang off `session.client` — `session.client.browse`,
 `session.client.gather`, and so on.
 
+For OCaml installation, sign-in, and live queries, see the [OCaml builder guide](./OCAML.md).
+
 ---
 
 ## 1. Connect — and stay connected

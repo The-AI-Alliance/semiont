@@ -1,0 +1,19 @@
+(version 0.4)
+
+(build
+ (all_platforms
+  ((action
+    (progn
+     (when %{pkg-self:dev} (run dune subst))
+     (run dune build -p %{pkg-self:name} -j %{jobs} @install))))))
+
+(depends
+ (all_platforms
+  (ocaml dune dune-configurator)))
+
+(source
+ (fetch
+  (url
+   https://github.com/ocaml-multicore/ocaml-iomux/releases/download/v0.4/iomux-0.4.tbz)
+  (checksum
+   sha512=352c7d92cbc6048cbac2d0b94d1b4e8e81dc20ff2482cad6ed4fc352ac77fcbafb6a6bebb6206967e6a2e215c8b221d38c3ea33cb842153a7e2662bd5780d4b4)))

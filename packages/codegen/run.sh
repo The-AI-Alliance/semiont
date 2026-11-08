@@ -94,6 +94,9 @@ group() {
       install
       run "$NODE_IMAGE" sh -ec 'apk add --no-cache python3 >/dev/null; exec npm run "$1"' sh "generate:$name$SUFFIX"
       ;;
+    ocaml)
+      run "$NODE_IMAGE" sh -ec 'apk add --no-cache python3 >/dev/null; exec npm run "$1"' sh "generate:$name$SUFFIX"
+      ;;
     encoding-cases|model-catalogue) install; npm_script "generate:$name$SUFFIX" ;;
     *) npm_script "generate:$name$SUFFIX" ;;
   esac
