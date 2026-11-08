@@ -139,6 +139,7 @@
     "save": "ذخیره",
     "cancel": "انصراف",
     "edit": "ویرایش",
+    "saveFailed": "ذخیرهٔ نظر ممکن نشد: {{detail}}",
     "annotateComments": "حاشیه‌نویسی نظرات",
     "instructions": "دستورالعمل‌ها",
     "optional": "(اختیاری)",

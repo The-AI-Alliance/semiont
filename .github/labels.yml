@@ -126,7 +126,7 @@
   description: "The C# SDK (packages/csharp/sdk)"
 - name: "sdk:haskell"
   color: "bfd4f2"
-  description: "A Haskell SDK, not yet written"
+  description: "The Haskell SDK (packages/haskell/sdk)"
 - name: "sdk:ocaml"
   color: "bfd4f2"
   description: "The OCaml SDK (packages/ocaml/sdk)"

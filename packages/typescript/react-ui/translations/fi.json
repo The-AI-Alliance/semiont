@@ -139,6 +139,7 @@
     "save": "Tallenna",
     "cancel": "Peruuta",
     "edit": "Muokkaa",
+    "saveFailed": "Kommentin tallennus epäonnistui: {{detail}}",
     "annotateComments": "Merkitse kommentit",
     "instructions": "Ohjeet",
     "optional": "(valinnainen)",

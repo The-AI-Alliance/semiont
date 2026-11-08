@@ -56,7 +56,7 @@ import WorkerCases (workerCases)
 import GatewayCases (gatewayCases)
 import HeldCases (heldCases, heldClockCases)
 import SurfaceCases (surfaceCases)
-import ClockCases (clientClockCases, cacheClockCases, httpClockCases, discoveryClockCases)
+import ClockCases (clockCensus, clientClockCases, cacheClockCases, httpClockCases, discoveryClockCases)
 import ResourceCases (resourceCases)
 import FrameCases (frameCases)
 import RefreshCases (refreshCases)
@@ -363,8 +363,8 @@ runCases root = do
   runtimeCases
   lifetimeCases
   cacheCases
-  cacheClockCases root
-  httpClockCases root
+  saveClock <- cacheClockCases root
+  httpClock <- httpClockCases root
   SchemaCases.schemaCases
   let noSpace = Object (KM.fromList [("type", String "string"), ("pattern", String "^\\S+$")])
       dot = Object (KM.fromList [("type", String "string"), ("pattern", String "^x.+z$")])
@@ -403,7 +403,7 @@ runCases root = do
     >>= either (ioError . userError) pure . parseEither parseJSON
   discoveryCases kb document
   httpDiscoveryCases document
-  discoveryClockCases root kb
+  discoveryClock <- discoveryClockCases root kb
   command <- either (ioError . userError) pure (sample 0 (Object (KM.singleton "$ref" (String "FrameAddEntityTypeCommand.json"))))
     >>= either (ioError . userError) pure . parseEither parseJSON
   event <- either (ioError . userError) pure (sample 0 (Object (KM.singleton "$ref" (String "EnrichedResourceEvent.json"))))
@@ -424,15 +424,16 @@ runCases root = do
   persistenceCases fixtures
   issuerCases fixtures
   serviceTokenCases root
-  deviceClockCases root
+  deviceClock <- deviceClockCases root
   sessionCases root fixtures
-  sessionClockCases root fixtures
+  sessionClock <- sessionClockCases root fixtures
   delegationCases fixtures
-  followerClockCases root fixtures
+  followerClock <- followerClockCases root fixtures
   surfaceCases root fixtures
-  clientClockCases root fixtures
+  clientClock <- clientClockCases root fixtures
   refreshCases fixtures
   heldCases fixtures
-  heldClockCases root fixtures
+  heldClock <- heldClockCases root fixtures
+  clockCensus root (concat [saveClock, httpClock, discoveryClock, deviceClock, sessionClock, followerClock, clientClock, heldClock])
   httpCases root fixtures
   corpusCases root

@@ -429,6 +429,12 @@ result and failure channels are the registry's.
   `busRequestTimeoutMs` unless the caller gave another; or because its
   caller abandoned it.
   *Held by `sdk/wire/failure-codes`, `sdk/wire/request-timeout`.*
+- **Its deadline covers all of it**, from the call: the wait for the
+  stream to be `open`, the emit with its retries and the waits between
+  them, and the wait for the reply. When it falls due the request fails as
+  a timeout, and an emit still in flight is given up: the attempt in
+  progress is cancelled, and no attempt is made after it.
+  *Held by `protocol/specs/src/client/clock-cases.json`.*
 - **A result with a fault** is no result, wherever the fault is: the
   request fails as `error`, saying the payload is not its channel's and
   naming its first fault, as § Identity says a fault is named.

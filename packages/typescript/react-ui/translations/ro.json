@@ -139,6 +139,7 @@
     "save": "Salvare",
     "cancel": "Anulare",
     "edit": "Editare",
+    "saveFailed": "Nu s-a putut salva comentariul: {{detail}}",
     "annotateComments": "Adnotează comentarii",
     "instructions": "Instrucțiuni",
     "optional": "(opțional)",

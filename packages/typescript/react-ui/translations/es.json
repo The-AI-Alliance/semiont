@@ -139,6 +139,7 @@
     "save": "Guardar",
     "cancel": "Cancelar",
     "edit": "Editar",
+    "saveFailed": "No se pudo guardar el comentario: {{detail}}",
     "annotateComments": "Anotar Comentarios",
     "instructions": "Instrucciones",
     "optional": "(opcional)",

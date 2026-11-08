@@ -139,6 +139,7 @@
     "save": "Lagre",
     "cancel": "Avbryt",
     "edit": "Rediger",
+    "saveFailed": "Kunne ikke lagre kommentaren: {{detail}}",
     "annotateComments": "Annotér kommentarer",
     "instructions": "Instruksjoner",
     "optional": "(valgfritt)",

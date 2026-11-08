@@ -55,8 +55,10 @@ The command installs dependencies and builds the workspace packages in Apple Con
 Run these from the monorepo root with a container runtime. macOS packaging requires a Mac; Linux packaging supports Linux and macOS hosts:
 
 ```sh
-make desktop-macos            # unsigned macOS Apple Silicon DMG
-make desktop-linux   # Linux x64 Debian package
+make desktop-macos       # unsigned macOS Apple Silicon DMG
+make desktop-macos-app   # its app only, assembled on any host
+make desktop-macos-dmg   # its DMG, from an assembled app, on a Mac
+make desktop-linux       # Linux x64 Debian package
 ```
 
 Both builds snapshot the source, including uncommitted files, and install dependencies and build inside the container’s filesystem. Only installer output is copied back; the checkout’s `node_modules` and package build directories are not used or modified. Linux packaging also supports a Linux host. `make desktop` selects the caller OS. The macOS build uses a

@@ -266,22 +266,25 @@ private struct Gateway: Sendable {
   let loopback: Loopback
   let transport: HttpTransport
 
-  /// A gateway that answers a subscribe as `stream` says and never answers the paths `unanswered`
-  /// names, and a transport to it, holding a token, so its stream is set going.
+  /// A gateway that answers a subscribe as `stream` says, refuses the paths `refused` names with a
+  /// 503, and never answers the paths `unanswered` names, and a transport to it, holding a token, so
+  /// its stream is set going. Its refusals carry a `Retry-After` of `retryAfterSeconds`, when it
+  /// states one.
   static func open(
-    _ stream: StreamAnswer, retryAfterSeconds: Int? = nil, unanswered: Set<String> = [],
-    clock: TestClock
+    _ stream: StreamAnswer, retryAfterSeconds: Int? = nil, refused: Set<String> = [],
+    unanswered: Set<String> = [], clock: TestClock
   ) async throws -> Gateway {
+    var stated: [String: String] = [:]
+    if let retryAfterSeconds { stated["Retry-After"] = String(retryAfterSeconds) }
+    let refusal = Reply.json(503, stated, .object(["error": .string("The gateway is not ready")]))
     let ledger = Ledger { asked in
       if unanswered.contains(asked.path) { return .silent }
+      if refused.contains(asked.path) { return refusal }
       guard asked.path == subscribePath else { return nil }
       switch stream {
       case .holds: return .held
       case .never: return .silent
-      case .refuses:
-        var headers: [String: String] = [:]
-        if let retryAfterSeconds { headers["Retry-After"] = String(retryAfterSeconds) }
-        return .json(503, headers, .object(["error": .string("The gateway is not ready")]))
+      case .refuses: return refusal
       }
     }
     let loopback = try await Loopback.open(ledger)
@@ -423,6 +426,75 @@ private func unansweredEmit(_ given: [String: JSONValue], _ clock: TestClock) as
     close: {
       emitting.cancel()
       try await gateway.close()
+    })
+}
+
+/// How a bus request ended.
+private enum Ending: Sendable, Equatable {
+  case answered
+  case timedOut
+  case otherwise(String)
+}
+
+private final class Ended: Sendable {
+  private let ending = Mutex<Ending?>(nil)
+  func tell(_ ended: Ending) { ending.withLock { $0 = ended } }
+  var value: Ending? { ending.withLock { $0 } }
+}
+
+/// A bus request of a resource's events, made as the case begins by a bus on the case's clock,
+/// which keeps the request's deadline, over a gateway that holds its stream open and refuses every
+/// emit; how it ended, once it has; and the task that asks it.
+private func refusedRequest(_ given: [String: JSONValue], _ clock: TestClock) async throws -> (
+  Gateway, Ended, Task<Void, Never>
+) {
+  let gateway = try await Gateway.open(
+    .holds, retryAfterSeconds: givenSeconds(given, "retryAfterSeconds"), refused: [emitPath],
+    clock: clock)
+  let ended = Ended()
+  let bus = Bus(gateway.transport, clock: clock)
+  let asking = Task {
+    do {
+      _ = try await bus.request(
+        Operations.browseEventsRequested, BrowseEventsRequest(resourceId: try ResourceId("res-1")))
+      ended.tell(.answered)
+    } catch let failure as BusRequestError where failure.reason == .busTimeout {
+      ended.tell(.timedOut)
+    } catch {
+      ended.tell(.otherwise("\(error)"))
+    }
+  }
+  return (gateway, ended, asking)
+}
+
+private func refusedBusRequest(_ given: [String: JSONValue], _ clock: TestClock) async throws
+  -> Subject
+{
+  // How the request fails is what timedOutBusRequest counts.
+  let (gateway, _, asking) = try await refusedRequest(given, clock)
+  return Subject(
+    counted: { gateway.ledger.asked(emitPath) }, activity: { gateway.ledger.events },
+    pending: { await gateway.unfinished() }, act: nil,
+    close: {
+      asking.cancel()
+      try await gateway.close()
+    })
+}
+
+private func timedOutBusRequest(_ given: [String: JSONValue], _ clock: TestClock) async throws
+  -> Subject
+{
+  let (gateway, ended, asking) = try await refusedRequest(given, clock)
+  return Subject(
+    counted: { ended.value == .timedOut ? 1 : 0 },
+    activity: { gateway.ledger.events + (ended.value == nil ? 0 : 1) },
+    pending: { await gateway.unfinished() }, act: nil,
+    close: {
+      asking.cancel()
+      try await gateway.close()
+      if case .otherwise(let failure) = ended.value {
+        throw ClockCaseFailure("The request ended otherwise: \(failure)")
+      }
     })
 }
 
@@ -711,6 +783,8 @@ private let subjects: [String: Build] = [
   "jobFollower": jobFollower,
   "unansweredRequest": unansweredRequest,
   "unansweredEmit": unansweredEmit,
+  "refusedBusRequest": refusedBusRequest,
+  "timedOutBusRequest": timedOutBusRequest,
 ]
 
 // ── A case, played ──────────────────────────────────────────────────────

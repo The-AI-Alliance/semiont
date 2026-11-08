@@ -276,10 +276,11 @@ Match offers live resource search results, and Gather offers live incoming
 references.
 
 `client.wire` sends typed generated `Channels` and `Operations`. A request
-waits for its reply for `busRequestTimeoutMs` (`SemiontClient(busRequestTimeoutMs:)`,
-the timing table's value when none is given), or for the `timeoutMs:` its caller
-gives, on the client's clock and over any transport, and then fails as
-`busTimeout`. A worker's claim waits its `claimTimeoutMs`, and a held job's
+has, from the call, its emit included, `busRequestTimeoutMs`
+(`SemiontClient(busRequestTimeoutMs:)`, the timing table's value when none is
+given), or the `timeoutMs:` its caller gives, on the client's clock and over any
+transport, to be answered; then it fails as `busTimeout`, and an emit still in
+flight is given up, with no attempt after it. A worker's claim waits its `claimTimeoutMs`, and a held job's
 commit its `commitTimeoutMs`, the same way. `frames` on a
 `ScopedChannel` requires a resource and holds that resource only while the read
 is alive. Breaking, cancellation, completion or disposal releases the hold.

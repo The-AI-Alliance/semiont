@@ -375,6 +375,47 @@ let controlled () =
                   (act :=
                      fun () -> Worker.progress job ~percentage:10 ~message:None);
                   `Stop_daemon))
+      | ("refusedBusRequest" | "timedOutBusRequest") as subject ->
+          let count_attempts = subject = "refusedBusRequest" in
+          let clock = Clock.with_jitter clock (fun () -> 0.) in
+          let session =
+            Session.start ~sw ~clock ~initial_token:(Some "token")
+              ~renew:(fun ~refused:_ -> Session.Refused)
+              ()
+          in
+          let transport =
+            Testing.transport ~sw ~clock ~schedule:[]
+              ~respond:(fun ~channel:_ _ -> None)
+          in
+          let fallback = Testing.call transport in
+          let retry_after = int "retryAfterSeconds" (field "given" row) in
+          let call ~sw ~meth ~path ~headers ~body ~progress =
+            if path = "/bus/emit" then (
+              if count_attempts then incr count;
+              ( 503,
+                [ ("retry-after", string_of_int retry_after) ],
+                Eio.Flow.string_source "{}" ))
+            else fallback ~sw ~meth ~path ~headers ~body ~progress
+          in
+          let client =
+            Client.connect ~sw ~clock ~session ~client_id:"clock-test"
+              ~key:(fun () -> "clock-request")
+              ~call ~global:[] ~on_event:ignore ~on_error:ignore ()
+          in
+          (cleanup :=
+             fun () ->
+               Client.close client;
+               Session.close session);
+          Fiber.fork_daemon ~sw (fun () ->
+              (match
+                 Client.request client
+                   Bus_registry.Operations.browse_events_requested
+                   {|{"resourceId":"res-1"}|}
+               with
+              | Error Subscription.Timeout ->
+                  if not count_attempts then incr count
+              | _ -> Alcotest.fail "request did not time out");
+              `Stop_daemon)
       | ("unansweredRequest" | "unansweredEmit") as subject ->
           let emit = subject = "unansweredEmit" in
           let clock = Clock.with_jitter clock (fun () -> 0.) in
