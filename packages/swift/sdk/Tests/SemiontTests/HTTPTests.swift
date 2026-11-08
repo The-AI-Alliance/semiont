@@ -464,8 +464,11 @@ extension HttpTransport {
   }
 }
 
-@Test(arguments: [false, true])
-func nativeRequestsPreserveFailureCodesAndRefuseMalformedFailures(malformed: Bool) async throws {
+// A failure is held to its channel's schema as a result is: one with no words,
+// or with a code that is no text, is not its channel's, and is refused naming
+// its first fault. One whose code the wire does not list keeps its words.
+@Test(arguments: ["listed", "unlisted", "wordless", "codeIsNoText"])
+func nativeRequestsReadFailuresByTheirChannelsSchema(failure: String) async throws {
   try await server(.answering(.noHeaders)) { base, http in
     let operation = Operations.frameAddEntityType
     let transport = HttpTransport(
@@ -484,22 +487,39 @@ func nativeRequestsPreserveFailureCodesAndRefuseMalformedFailures(malformed: Boo
         try await Task.sleep(for: .milliseconds(5))
       }
     }
-    let payload =
-      malformed
-      ? [:]
-      : try wirePayload(
-        CommandError(code: .peerUnavailable, message: "still starting"))
+    let listed = try wirePayload(CommandError(code: .peerUnavailable, message: "still starting"))
+    let payload: [String: JSONValue] =
+      switch failure {
+      case "listed": listed
+      case "unlisted":
+        ["message": .string("a code from a later peer"), "code": .string("not-a-code-yet")]
+      case "wordless": ["code": .string("not-found")]
+      default: ["message": .string("refused"), "code": .number(7)]
+      }
     try await transport.deliverForTest(
       BusFrame(channel: operation.failure.name, correlationId: correlation, payload: payload),
       id: "e-failure")
+    let refused = "a payload on \(operation.failure.name) is not that channel's: "
     do {
       _ = try await withinTestDeadline { try await request.value }
       Issue.record("A failed native request succeeded")
     } catch let error as BusRequestError {
-      #expect(error.reason == (malformed ? unrecognizedBusFailure : .busPeerUnavailable))
-      #expect(
-        error.description
-          == (malformed ? "Malformed failure for \(operation.request.name)" : "still starting"))
+      switch failure {
+      case "listed":
+        #expect(error.reason == .busPeerUnavailable)
+        #expect(error.description == "still starting")
+      case "unlisted":
+        #expect(error.reason == unrecognizedBusFailure)
+        #expect(error.description == "a code from a later peer")
+      default: Issue.record("A failure that is not its channel's was read: \(error)")
+      }
+    } catch let error as TransportError {
+      #expect(error.reason == .error)
+      switch failure {
+      case "wordless": #expect(error.description == refused + "it has no `message`")
+      case "codeIsNoText": #expect(error.description == refused + "its `code` is malformed")
+      default: Issue.record("A failure of its channel's was refused: \(error)")
+      }
     }
   }
 }

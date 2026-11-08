@@ -52,10 +52,9 @@ public class BusRequestError(
     override val code: String get() = reason.code
 
     internal companion object {
-        /** The failure an operation's failure channel answered with: under the client code its own code becomes. */
-        fun answered(payload: JsonObject): BusRequestError {
+        /** The failure an operation's failure channel answered with, in its words `said`: under the client code its own code becomes. */
+        fun answered(said: String, payload: JsonObject): BusRequestError {
             val wire = (payload["code"] as? JsonPrimitive)?.contentOrNull
-            val said = (payload["message"] as? JsonPrimitive)?.contentOrNull ?: "the request failed"
             return BusRequestError(BUS_REQUEST_CODE_BY_WIRE_CODE[wire] ?: UNRECOGNIZED_FAILURE, said, payload)
         }
     }

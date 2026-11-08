@@ -344,11 +344,15 @@ serviceTokenCases root = do
     blocked <- newEmptyTMVarIO
     atomically (writeTVar hold (Just blocked))
     result <- newEmptyTMVarIO
+    start <- Time.now time
+    let due = start + Timing.httpRequestTimeoutMs Timing.protocolSettings*1000000
     operation <- async $ do
       answer <- try (Service.token service) :: IO (Either SignInError Text)
       atomically (putTMVar result answer)
-    Time.settle
-    Time.advance time (Timing.httpRequestTimeoutMs Timing.protocolSettings*1000000-1000000)
+    -- The request reads the clock for its deadline only after signing the assertion, whose entropy reads are foreign
+    -- calls that settle counts as idle. The clock moves once that deadline is waiting.
+    Time.awaitDue time due
+    Time.advance time (due - start - 1000000)
     require "account request expired before its controlled deadline" =<< atomically (isEmptyTMVar result)
     Time.advance time 1000000
     answer <- atomically (readTMVar result)

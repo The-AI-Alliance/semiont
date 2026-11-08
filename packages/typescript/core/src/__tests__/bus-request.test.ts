@@ -7,8 +7,8 @@
  *     `bus.rejected` and structured `details`
  *   - timeout: an rxjs `TimeoutError` from the operator is wrapped in a
  *     `BusRequestError` with code `bus.timeout` and structured `details`
- *   - refusal: a result that lacks a member its schema requires rejects as a
- *     `SemiontError` coded `error`
+ *   - refusal: a result or a failure that lacks a member its schema requires
+ *     rejects as a `SemiontError` coded `error`
  *
  * Plus correlation hygiene: a request writes a fresh `correlationId` onto
  * the emitted envelope, ignores result/failure events on the same channels
@@ -229,7 +229,7 @@ describe('Bus.request', () => {
     expect((await captured).code).toBe('bus.rejected');
   });
 
-  it('ignores an unrecognized code rather than trusting it', async () => {
+  it('ignores an unrecognized code rather than trusting it, and keeps the words', async () => {
     // The code arrives over the wire from a peer that may be newer than this
     // build. An unknown value must not become a `BusRequestErrorCode` nobody can
     // handle — it degrades to 'bus.rejected', which is what it would have been.
@@ -239,7 +239,9 @@ describe('Bus.request', () => {
     const cid = bus.emitEnvelope!.correlationId as string;
 
     bus.failureSubject.next({ correlationId: cid, payload: { code: 'something-from-the-future', message: 'x' } });
-    expect((await captured).code).toBe('bus.rejected');
+    const err = await captured;
+    expect(err).toBeInstanceOf(BusRequestError);
+    expect(err).toMatchObject({ code: 'bus.rejected', message: 'x' });
   });
 
   it('attaches structured details on bus.rejected', async () => {
@@ -260,19 +262,25 @@ describe('Bus.request', () => {
     });
   });
 
-  it('falls back to a default message when the failure event has no `message`', async () => {
+  // A failure is held to its channel's schema as a result is: one with no
+  // words, or with a code that is no text, is not its channel's, and is
+  // refused as `error`, naming its first fault. It is given no words.
+  it.each([
+    ['no words', {}, 'it has no `message`'],
+    ['a code but no words', { code: 'not-found' }, 'it has no `message`'],
+    ['a code that is no text', { message: 'x', code: 7 }, 'its `code` is malformed'],
+  ] as const)('refuses a failure with %s, naming its fault', async (_why, payload, said) => {
     const bus = makeBus(RESULT, FAILURE);
     const captured = new Bus(bus).request(EMIT, {}).catch((e) => e);
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
 
-    bus.failureSubject.next({ correlationId: cid, payload: {} });
+    bus.failureSubject.next({ correlationId: cid, payload });
 
     const err = await captured;
-    expect(err).toMatchObject({
-      code: 'bus.rejected',
-      message: 'Bus request rejected',
-    });
+    expect(err).toBeInstanceOf(SemiontError);
+    expect(err).not.toBeInstanceOf(BusRequestError);
+    expect(err).toMatchObject({ code: 'error', message: `a payload on ${FAILURE} is not that channel's: ${said}` });
   });
 
   it('rejects with BusRequestError(bus.timeout) when no event arrives in time', async () => {

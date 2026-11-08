@@ -86,7 +86,7 @@ gh workflow run stack-smoke.yml --field images=<version>
 ./.github/release/version-bump.sh patch    # or minor, or major; no argument prompts
 ```
 
-On a branch. The script bumps `version.json`, syncs every `package.json` and the published crates, regenerates `package-lock.json` in a container, commits, and pushes the branch. Open a pull request for it and merge it: `main` takes no direct pushes.
+On a branch. The script bumps `version.json`, syncs every `package.json`, the published crates and the Haskell SDK's manifest, regenerates every committed `package-lock.json` in a container (a project outside the root workspace, such as `images/e2e`, records the version of each package it links), commits, and pushes the branch. Open a pull request for it and merge it: `main` takes no direct pushes.
 
 The bump is safe as soon as the tag exists. Everything downstream is pinned to the tagged commit or takes the version as an input, with one exception: the desktop workflow reads `version.json`, so re-run a failed desktop build before bumping, or re-run the failed jobs of the original release run.
 

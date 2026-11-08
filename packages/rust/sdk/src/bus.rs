@@ -50,7 +50,7 @@ use crate::transport::{
 };
 use crate::types::ResourceId;
 use futures_core::Stream;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::fmt;
 use std::marker::PhantomData;
@@ -163,7 +163,8 @@ impl Bus {
     }
 
     /// A request, as far as its result: the frame that answers it on its
-    /// operation's result channel. A failure is the request's error.
+    /// operation's result channel. A failure is the request's error, and one
+    /// that is not its channel's is refused.
     async fn result_of(
         &self,
         operation: &Operation,
@@ -259,19 +260,41 @@ impl Bus {
         if reply.channel == operation.result {
             return Ok(reply);
         }
-        let message = reply
-            .payload
-            .get("message")
-            .and_then(Value::as_str)
-            .unwrap_or("Bus request rejected")
-            .to_owned();
-        Err(BusRequestError {
-            code: BusRequestErrorCode::of_wire(reply.payload.get("code").and_then(Value::as_str)),
-            message,
-            failure: Some(reply.payload),
-        }
-        .into())
+        Err(answered(operation.failure, reply.payload))
     }
+}
+
+/// What a request reads of a failure its table passed: its words, and its
+/// code as a text, which the table holds to no list.
+#[derive(Deserialize)]
+struct Failure {
+    message: String,
+    code: Option<String>,
+}
+
+/// The failure a request was answered with on `channel`, its operation's
+/// failure channel: under the code its own code becomes, in its own words. A
+/// failure with a fault as its channel's is refused, as a result with one is.
+fn answered(channel: &str, failure: Map<String, Value>) -> SemiontError {
+    let fault = match held_to(channel, failure.clone()) {
+        Err(fault) => fault,
+        Ok(declared) => match serde_json::from_value::<Failure>(declared) {
+            Ok(read) => {
+                return BusRequestError {
+                    code: BusRequestErrorCode::of_wire(read.code.as_deref()),
+                    message: read.message,
+                    failure: Some(failure),
+                }
+                .into();
+            }
+            Err(_) => Fault::undecoded(),
+        },
+    };
+    TransportError::without_response(
+        format!("a payload on {channel} is not that channel's: {fault}"),
+        TransportErrorCode::Error,
+    )
+    .into()
 }
 
 // ── By type ─────────────────────────────────────────────────────────────

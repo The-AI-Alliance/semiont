@@ -7,14 +7,12 @@ use crate::cache::Cache;
 use crate::cached::{Cached, Keyed};
 use crate::channels::{MatchResourcesRequested, MatchSearchRequested};
 use crate::client::Links;
-use crate::errors::SemiontError;
 use crate::running::Running;
 use crate::state_unit::StateUnit;
 use crate::transport::Envelope;
 use crate::types::{
     MatchResourcesRequest, MatchResourcesResponse, MatchSearchRequest, MatchSearchResult,
 };
-use serde_json::Value;
 
 /// How many candidates a search gives when its caller states no limit.
 /// Every SDK asks for as many: the cases of protocol/specs/src/client/surface.json
@@ -86,12 +84,7 @@ impl MatchNamespace {
         let links = self.links.clone();
         request.limit.get_or_insert(LIMIT);
         request.use_semantic_scoring.get_or_insert(true);
-        Running::new(|_| async move {
-            links
-                .request::<MatchSearchRequested>(&request)
-                .await
-                .map_err(with_the_search_failure)
-        })
+        Running::new(|_| async move { links.request::<MatchSearchRequested>(&request).await })
     }
 
     /// Signal: a search is wanted. The client's own state runs it, and
@@ -104,25 +97,6 @@ impl MatchNamespace {
                 scope: None,
             },
         );
-    }
-}
-
-/// A search's failure says what went wrong under `error`, where every other
-/// operation's says it under `message`.
-fn with_the_search_failure(error: SemiontError) -> SemiontError {
-    match error {
-        SemiontError::Bus(mut failure) => {
-            if let Some(said) = failure
-                .failure
-                .as_ref()
-                .and_then(|payload| payload.get("error"))
-                .and_then(Value::as_str)
-            {
-                failure.message = said.to_owned();
-            }
-            SemiontError::Bus(failure)
-        }
-        other => other,
     }
 }
 

@@ -259,7 +259,7 @@ eachLibrarian('a Librarian, asked to find', (world) => {
       });
 
       expect(failure.referenceId).toBe(reference);
-      expect(failure.error).toMatch(/focus|annotation/i);
+      expect(failure.message).toMatch(/focus|annotation/i);
       expect(world().embedder.since(asked)).toEqual([]);
       expect(world().matcher.generations).toEqual([]);
     });

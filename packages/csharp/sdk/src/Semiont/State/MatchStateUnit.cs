@@ -44,7 +44,7 @@ public sealed class MatchStateUnit : IStateUnit
         {
             lock (work.Gate)
                 if (work.Active) client.Bus.Emit(BusChannels.MatchSearchFailed,
-                    new MatchSearchFailed { ReferenceId = request.ReferenceId, Error = error.Message }, correlationId: correlationId);
+                    new MatchSearchFailed { ReferenceId = request.ReferenceId, Message = error.Message }, correlationId: correlationId);
         }
     }
 

@@ -218,7 +218,7 @@ export function ReferenceWizardModal({
     if (!isOpen) return;
     if (annotationId && event.referenceId === annotationId) {
       setIsSearching(false);
-      setSearchError(event.error);
+      setSearchError(event.message);
     }
   });
 

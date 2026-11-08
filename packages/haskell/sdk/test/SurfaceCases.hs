@@ -359,7 +359,7 @@ searchFailureCase fixtures = do
   let input=MatchSearchRequest context Nothing reference identity Nothing mempty
       send frame = do
         source <- atomically (readTMVar inputCell)
-        let refusal=Types.MatchSearchFailed "the search was refused" reference mempty
+        let refusal=Types.MatchSearchFailed Nothing Nothing "the search was refused" reference mempty
         case encodePayload Channel.MatchSearchFailed refusal of
           Object fields -> Transport.receive source (BusFrame (channelName Channel.MatchSearchFailed) (busFrameCorrelationId frame) (BusFramePayload fields) Nothing)
           _ -> ioError (userError "search failure is not an object")

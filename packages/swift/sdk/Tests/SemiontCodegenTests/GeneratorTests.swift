@@ -50,7 +50,7 @@ private let requiredTable = URL(fileURLWithPath: #filePath).deletingLastPathComp
   #expect(Set(definitions.keys).isSubset(of: Set(generator.written.keys)))
 }
 
-@Test(arguments: ["no-schema", "ambiguous-message", "optional-message", "non-string-message"])
+@Test(arguments: ["no-schema", "optional-message", "non-string-message"])
 func operationFailureSchemaDriftRefusesGeneration(change: String) throws {
   let specs = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
     .appendingPathComponent("../../../../../protocol/specs/src").standardizedFileURL
@@ -67,7 +67,6 @@ func operationFailureSchemaDriftRefusesGeneration(change: String) throws {
     var failure = try #require(definitions["CommandError"]).object
     var properties = try #require(failure["properties"]).object
     switch change {
-    case "ambiguous-message": properties["error"] = .object(["type": .string("string")])
     case "optional-message": failure["required"] = .array([])
     case "non-string-message": properties["message"] = .object(["type": .string("integer")])
     default:
@@ -83,7 +82,6 @@ func operationFailureSchemaDriftRefusesGeneration(change: String) throws {
   let expected =
     switch change {
     case "no-schema": "failure channel has no schema"
-    case "ambiguous-message": "failure needs one message field"
     default: "failure message must be a required string"
     }
   do {

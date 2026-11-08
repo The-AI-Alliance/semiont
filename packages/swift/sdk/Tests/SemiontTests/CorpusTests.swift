@@ -96,12 +96,13 @@ private func withoutDroppedStamps(_ input: JSONValue, _ back: JSONValue) throws 
     default: throw SpecFailure.shape("unknown channel shape \(shape)")
     }
   }
-  // These corpus payloads intentionally violate their schemas; both must remain refused.
+  // These corpus payloads intentionally violate their schemas; each must remain refused.
   let refusals: [(String, JSONValue)] = [
     (
       "failure-codes.json",
       .object(["message": .string("a code from the future"), "code": .string("not-invented-yet")])
     ),
+    ("failure-codes.json", .object(["code": .string("not-found")])),
     (
       "malformed-reply.json",
       .object([

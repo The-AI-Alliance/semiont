@@ -4,7 +4,11 @@
 
 package bus
 
-import "github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+import (
+	"reflect"
+
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+)
 
 // Every operation, named for its request channel and typed by what it sends
 // and what each of its replies carries.
@@ -61,11 +65,14 @@ var LimitsOperations = []Operation[api.InferenceLimitsRequest, api.InferenceLimi
 	MatchLimitsRequested,
 }
 
-// Replies is the two channels a request is answered on, and what its result
-// states beside its response.
+// Replies is the two channels a request is answered on, the type its
+// failure is read as, and what its result states beside its response.
 type Replies struct {
 	Result  Channel
 	Failure Channel
+	// FailurePayload is the type of what the failure channel carries: a
+	// failure is held to its shape before it is read.
+	FailurePayload reflect.Type
 	// ReplyNames is what the result states beside its response: properties of
 	// the request, which whoever answers states again (the resource a context
 	// was gathered for, the reference a search was for). None, for most.
@@ -75,45 +82,45 @@ type Replies struct {
 // Operations is each operation's replies, by the name of its request
 // channel: for a request named at run time. 41 operations.
 var Operations = map[Channel]Replies{
-	"bind:update-body":                    {Result: "bind:body-updated", Failure: "bind:body-update-failed"},
-	"browse:resource-requested":           {Result: "browse:resource-result", Failure: "browse:resource-failed"},
-	"browse:resources-requested":          {Result: "browse:resources-result", Failure: "browse:resources-failed"},
-	"browse:annotation-requested":         {Result: "browse:annotation-result", Failure: "browse:annotation-failed"},
-	"browse:annotation-history-requested": {Result: "browse:annotation-history-result", Failure: "browse:annotation-history-failed"},
-	"browse:events-requested":             {Result: "browse:events-result", Failure: "browse:events-failed"},
-	"browse:entity-types-requested":       {Result: "browse:entity-types-result", Failure: "browse:entity-types-failed"},
-	"browse:tag-schemas-requested":        {Result: "browse:tag-schemas-result", Failure: "browse:tag-schemas-failed"},
-	"browse:engines-requested":            {Result: "browse:engines-result", Failure: "browse:engines-failed"},
-	"browse:profiles-requested":           {Result: "browse:profiles-result", Failure: "browse:profiles-failed"},
-	"browse:kb-requested":                 {Result: "browse:kb-result", Failure: "browse:kb-failed"},
-	"browse:directory-requested":          {Result: "browse:directory-result", Failure: "browse:directory-failed"},
-	"frame:add-entity-type":               {Result: "frame:entity-type-add-ok", Failure: "frame:entity-type-add-failed"},
-	"frame:add-tag-schema":                {Result: "frame:tag-schema-add-ok", Failure: "frame:tag-schema-add-failed"},
-	"gather:requested":                    {Result: "gather:complete", Failure: "gather:failed", ReplyNames: []string{"annotationId"}},
-	"gather:resource-requested":           {Result: "gather:resource-complete", Failure: "gather:resource-failed", ReplyNames: []string{"resourceId"}},
-	"gather:summary-requested":            {Result: "gather:summary-result", Failure: "gather:summary-failed"},
-	"gather:referenced-by-requested":      {Result: "gather:referenced-by-result", Failure: "gather:referenced-by-failed"},
-	"gather:limits-requested":             {Result: "gather:limits-result", Failure: "gather:limits-failed"},
-	"job:create":                          {Result: "job:created", Failure: "job:create-failed"},
-	"job:status-requested":                {Result: "job:status-result", Failure: "job:status-failed"},
-	"job:limits-requested":                {Result: "job:limits-result", Failure: "job:limits-failed"},
-	"job:cancel-requested":                {Result: "job:cancel-ok", Failure: "job:cancel-failed"},
-	"job:claim":                           {Result: "job:claimed", Failure: "job:claim-failed"},
-	"mark:create-request":                 {Result: "mark:create-ok", Failure: "mark:create-failed"},
-	"mark:commit":                         {Result: "mark:commit-ok", Failure: "mark:commit-failed"},
-	"mark:delete":                         {Result: "mark:delete-ok", Failure: "mark:delete-failed"},
-	"mark:archive":                        {Result: "mark:archive-ok", Failure: "mark:archive-failed"},
-	"mark:unarchive":                      {Result: "mark:unarchive-ok", Failure: "mark:unarchive-failed"},
-	"mark:update-entity-types":            {Result: "mark:update-entity-types-ok", Failure: "mark:update-entity-types-failed"},
-	"match:search-requested":              {Result: "match:search-results", Failure: "match:search-failed", ReplyNames: []string{"referenceId"}},
-	"match:resources-requested":           {Result: "match:resources-result", Failure: "match:resources-failed"},
-	"match:limits-requested":              {Result: "match:limits-result", Failure: "match:limits-failed"},
-	"weave:rebuild":                       {Result: "weave:rebuild-ok", Failure: "weave:rebuild-failed"},
-	"smelt:rebuild-anchors":               {Result: "smelt:rebuild-anchors-ok", Failure: "smelt:rebuild-anchors-failed"},
-	"yield:create":                        {Result: "yield:create-ok", Failure: "yield:create-failed"},
-	"yield:clone-persist":                 {Result: "yield:clone-persist-ok", Failure: "yield:clone-persist-failed"},
-	"yield:update":                        {Result: "yield:update-ok", Failure: "yield:update-failed"},
-	"yield:clone-create":                  {Result: "yield:clone-created", Failure: "yield:clone-create-failed"},
-	"yield:clone-resource-requested":      {Result: "yield:clone-resource-result", Failure: "yield:clone-resource-failed"},
-	"yield:clone-token-requested":         {Result: "yield:clone-token-generated", Failure: "yield:clone-token-failed"},
+	"bind:update-body":                    {Result: "bind:body-updated", Failure: "bind:body-update-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"browse:resource-requested":           {Result: "browse:resource-result", Failure: "browse:resource-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"browse:resources-requested":          {Result: "browse:resources-result", Failure: "browse:resources-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"browse:annotation-requested":         {Result: "browse:annotation-result", Failure: "browse:annotation-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"browse:annotation-history-requested": {Result: "browse:annotation-history-result", Failure: "browse:annotation-history-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"browse:events-requested":             {Result: "browse:events-result", Failure: "browse:events-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"browse:entity-types-requested":       {Result: "browse:entity-types-result", Failure: "browse:entity-types-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"browse:tag-schemas-requested":        {Result: "browse:tag-schemas-result", Failure: "browse:tag-schemas-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"browse:engines-requested":            {Result: "browse:engines-result", Failure: "browse:engines-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"browse:profiles-requested":           {Result: "browse:profiles-result", Failure: "browse:profiles-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"browse:kb-requested":                 {Result: "browse:kb-result", Failure: "browse:kb-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"browse:directory-requested":          {Result: "browse:directory-result", Failure: "browse:directory-failed", FailurePayload: reflect.TypeFor[api.BrowseDirectoryFailed]()},
+	"frame:add-entity-type":               {Result: "frame:entity-type-add-ok", Failure: "frame:entity-type-add-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"frame:add-tag-schema":                {Result: "frame:tag-schema-add-ok", Failure: "frame:tag-schema-add-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"gather:requested":                    {Result: "gather:complete", Failure: "gather:failed", FailurePayload: reflect.TypeFor[api.GatherFailed](), ReplyNames: []string{"annotationId"}},
+	"gather:resource-requested":           {Result: "gather:resource-complete", Failure: "gather:resource-failed", FailurePayload: reflect.TypeFor[api.GatherResourceFailed](), ReplyNames: []string{"resourceId"}},
+	"gather:summary-requested":            {Result: "gather:summary-result", Failure: "gather:summary-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"gather:referenced-by-requested":      {Result: "gather:referenced-by-result", Failure: "gather:referenced-by-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"gather:limits-requested":             {Result: "gather:limits-result", Failure: "gather:limits-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"job:create":                          {Result: "job:created", Failure: "job:create-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"job:status-requested":                {Result: "job:status-result", Failure: "job:status-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"job:limits-requested":                {Result: "job:limits-result", Failure: "job:limits-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"job:cancel-requested":                {Result: "job:cancel-ok", Failure: "job:cancel-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"job:claim":                           {Result: "job:claimed", Failure: "job:claim-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"mark:create-request":                 {Result: "mark:create-ok", Failure: "mark:create-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"mark:commit":                         {Result: "mark:commit-ok", Failure: "mark:commit-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"mark:delete":                         {Result: "mark:delete-ok", Failure: "mark:delete-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"mark:archive":                        {Result: "mark:archive-ok", Failure: "mark:archive-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"mark:unarchive":                      {Result: "mark:unarchive-ok", Failure: "mark:unarchive-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"mark:update-entity-types":            {Result: "mark:update-entity-types-ok", Failure: "mark:update-entity-types-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"match:search-requested":              {Result: "match:search-results", Failure: "match:search-failed", FailurePayload: reflect.TypeFor[api.MatchSearchFailed](), ReplyNames: []string{"referenceId"}},
+	"match:resources-requested":           {Result: "match:resources-result", Failure: "match:resources-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"match:limits-requested":              {Result: "match:limits-result", Failure: "match:limits-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"weave:rebuild":                       {Result: "weave:rebuild-ok", Failure: "weave:rebuild-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"smelt:rebuild-anchors":               {Result: "smelt:rebuild-anchors-ok", Failure: "smelt:rebuild-anchors-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"yield:create":                        {Result: "yield:create-ok", Failure: "yield:create-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"yield:clone-persist":                 {Result: "yield:clone-persist-ok", Failure: "yield:clone-persist-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"yield:update":                        {Result: "yield:update-ok", Failure: "yield:update-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"yield:clone-create":                  {Result: "yield:clone-created", Failure: "yield:clone-create-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"yield:clone-resource-requested":      {Result: "yield:clone-resource-result", Failure: "yield:clone-resource-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
+	"yield:clone-token-requested":         {Result: "yield:clone-token-generated", Failure: "yield:clone-token-failed", FailurePayload: reflect.TypeFor[api.CommandError]()},
 }
