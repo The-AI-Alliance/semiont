@@ -26,14 +26,14 @@ members = [
 # below that name it, and in Cargo.lock, and CI fails a crate that carries
 # another.
 [workspace.package]
-version = "0.7.2"
+version = "0.7.3"
 repository = "https://github.com/The-AI-Alliance/semiont"
 
 # Every crate a member uses, by version, once: a member names the ones it uses
 # with `.workspace = true` and adds the features it needs.
 [workspace.dependencies]
-semiont = { path = "sdk", version = "0.7.2" }
-semiont-codegen = { path = "codegen", version = "0.7.2" }
+semiont = { path = "sdk", version = "0.7.3" }
+semiont-codegen = { path = "codegen", version = "0.7.3" }
 semiont-archivist-record = { path = "../../images/archivist/record" }
 semiont-archivist-staging = { path = "../../images/archivist/staging" }
 semiont-dispatcher-handlers = { path = "../../images/dispatcher/handlers" }
@@ -42,7 +42,7 @@ semiont-core = { path = "core" }
 semiont-http-service = { path = "http-service" }
 semiont-http-transport = { path = "http-transport" }
 semiont-observability = { path = "observability" }
-semiont-telemetry = { path = "telemetry", version = "0.7.2" }
+semiont-telemetry = { path = "telemetry", version = "0.7.3" }
 async-nats = { version = "0.50.0", default-features = false }
 axum = { version = "0.8.9", default-features = false }
 base64 = "0.23.1"
