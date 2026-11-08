@@ -56,6 +56,7 @@ val request :
   string ->
   (('reply, 'failure) Subscription.reply, Subscription.request_error) result
 
+val on_error : t -> (Http_wire.failure -> unit) -> unit -> unit
 val close : t -> unit
 val await_closed : t -> unit
 

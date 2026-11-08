@@ -125,16 +125,16 @@
     "lib/claims.mli": "be75a22d0fdfe465c7691fa727a3bc10c6bc33d847b1f35dc52c8466abcd44e9",
     "lib/client.ml": "0364822d6a5e7f411cc0939e29bee40044f0887b32fe4da1c2c5aa5fdaa1439a",
     "lib/client.mli": "efa0a241954e70b1ca81059c2197dc01b7289f4e967d91ea8e40a420bc56bb5b",
-    "lib/client_core.ml": "969c8671ee5123b04307fad0c5b023d7ac17b2b5568c9e84557603cf3effe673",
-    "lib/client_core.mli": "7caf772dbbcbd7041b8b5c36d22f8f51061d70c94f335a2de6de903a673f42be",
+    "lib/client_core.ml": "c0ada9e786d021f23ebdeeb73ddc819ac069d730f3228ef9500f6a10769953a0",
+    "lib/client_core.mli": "f6d8789c5f417b2fb0347da04f94909a51c9b4c7beb0e1f6fda86f023e270fe2",
     "lib/client_query.ml": "ce5abb9039174fd843ad6b7b2d640e6cf02ca5c2d4534f35bbde7794a02faefb",
     "lib/client_timing.ml": "ba5f3459d482317eb1ea394460a7aa0773bdd39acd2547dcec4e9efb25560d9f",
     "lib/client_timing.mli": "cb433bda9c37944c0dd973b950f25c229b727fef820d144b66915c26e3c4c7a5",
     "lib/clock.ml": "71063b036aa3069ad2ed649ba8a73505b4eb4a00631c48af43a01f732c6623ab",
     "lib/clock.mli": "5333b1d2447f81415c54bfc99d87ae98362a4ce249695d7783c35df41cdab364",
     "lib/clone_facts.ml": "5da9ebb49bc4f8e76f64f58d44fdfd94ba3070a96e542060e4deca3370a09225",
-    "lib/delegation.ml": "21664cb6f1699bdd48b6785c76a608ddfb4dcd98d984ef151e0adffd221e29c4",
-    "lib/delegation.mli": "6a95dbf8d1d6a465748e5e8c9daa68c6228add1b4e812ac9b6ad99d431085305",
+    "lib/delegation.ml": "ee1d45a0b634615f29c7cf05e868f6c83f033cb6ede0e67c19cfbb49669e41d3",
+    "lib/delegation.mli": "76f4e7e055c6a9dbb288443bf4d7548aabaa307f2fa354e8e165dd453b4f09d5",
     "lib/discovery.ml": "3fbd431f7ed53eccc27c2c343e6a6556fab618976c42cab23a9b1288b903954d",
     "lib/discovery.mli": "c9924f5e42d374573dc62eb9aa405126a28769a0ce72b65a2187aae704c33747",
     "lib/dune": "422c125a1f53d6c463621c3c8245317f0cdcdf042e3e18a8e976b606c9ab49f1",
@@ -147,8 +147,8 @@
     "lib/hover_dwell.ml": "2a8e9fef90c75ce18569793c04f553523e3dc523d53d869ceef4dab6a7702122",
     "lib/hover_dwell.mli": "3bf63911f6482ad960a6e4d3881e4a637caa0d9929dc8d62dbf7b69421fa19af",
     "lib/http_facts.ml": "3bce75ca4edacc1682410d6c9f6faf5584fe027ff8f058c91a63f0fa59be7784",
-    "lib/http_wire.ml": "9b80c726dedf1ac76f4e88f51e2cd19af8e4cfeea4aab3622c9abb31ef774c98",
-    "lib/http_wire.mli": "4a667836831cd4d8ad3be0b4040f0d1545a84312f3a4f00c7385eb39e6f426ea",
+    "lib/http_wire.ml": "bdecb1354e6331814e6bfa738a2edad3b08aa2f244f62c28fe1543a51ea1fa0a",
+    "lib/http_wire.mli": "889a66c6e151d6f57c788717c5281324da0f932c8a643d9aea7164c083bc4155",
     "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
     "lib/identifiers.mli": "bba7e132069a1c36758c9d1bfebd936ecb815b6d05dae2b55f03a5de72f2c20d",
     "lib/job.ml": "2381750e7292f8a03640f1e09de22eb525086877fb8289b46e3d188798181453",
@@ -157,6 +157,8 @@
     "lib/live_query.mli": "2e227dcfdba1655bee2590dfb470e4da7bca31c5f9d877bca5d6c3b2d2e35087",
     "lib/mark.ml": "d539b4cea644c035198f7b22d9384e1e19c7815e806e240a2309e9e1e17a7072",
     "lib/mark.mli": "daa70a35284997cf8b5796bda5f3262c19e8690a40090dc415729c4e3dddbbb3",
+    "lib/mark_state.ml": "1a250b00085656bb6b547c7a254fe7356f1ac50f8d18cb82104aa5978dddb6d8",
+    "lib/mark_state.mli": "016f04747b303cd634184d4e4d656fa014b46aab99cf890b56c5adcf67d16d8b",
     "lib/match.ml": "254bb2bc11199a5aef049c209368d41f6655735168e6f5e7cfe8d6160ae59f51",
     "lib/match.mli": "54ac094a6a9f8e8a09b7bc5f175ae198788c3d82b9b80a1f7efc9014fd135179",
     "lib/match_state.ml": "8fa4149fdc575f0969855a14b191731e044e891906927d965cef96d144273023",
@@ -164,14 +166,14 @@
     "lib/models.ml": "a36b2528fa00802a9e6482da3564a96c31300a8447921557f90770774d7e588c",
     "lib/models.mli": "bc54c8ce9935e9e195877b7ed8d7a6afc85ea7e3a5662139acc669c8f4f02b63",
     "lib/namespace_methods.ml": "dee5b5a4d62715a03959d611d5d917fd4ccdef1bfe1022eb99711f78a898f8f0",
-    "lib/oauth.ml": "875f1c547cc4244fdaac3d0ab3fde533bf621d08458c37c095c97fbb0c10092d",
-    "lib/oauth.mli": "5b98f6ab470251ddcf9c87083e185ea5967268ba444d26ea257311735ef9dc93",
+    "lib/oauth.ml": "b61877e48fcdec2520059291eb6ebe0abac194ee15706cd1c275fbd00c4620a2",
+    "lib/oauth.mli": "f745c207f54b228678570230b94dd7b1e2384d44a3cb7bc4825019878802b81a",
     "lib/oauth_facts.ml": "78b55403643d7f11e4d0d999f2747bcf84b3a407eeb24594f9e795675d60fcca",
     "lib/pattern.ml": "a41d5ebb9ebc0eee59522a4d883e2a5281202c4fbebb0a2040b267961bf677ad",
     "lib/records.ml": "708f8a26fc1b0e70509f8c5e0ff1c1c6f41d21ee1046c05f243cfdc99861722d",
     "lib/records.mli": "514f4148625dc18f131fa0bccb855db4aec56e1cea6d90cfd0efad12b9784782",
-    "lib/registry.ml": "052dfbe6340c1b20b920368c80fe7bd9d3722d264e0a3716ef0aa2389238134f",
-    "lib/registry.mli": "1e48f397db1522d6102dc48189a794a764b3282fbb88dbb8cb485412699243c9",
+    "lib/registry.ml": "e3f3a8ae1549a6614182723c2a4ef7596ab16b1dc01b619bcbb0ebf52f381259",
+    "lib/registry.mli": "64945809bc694c885be4c1024c65ed188587882282c8bd64c8c3f41c5e08d53e",
     "lib/registry_facts.ml": "eaa175c7c923df49b9432ae888debf4a403391e32fc9c4e1b72595d402d5912a",
     "lib/running.ml": "d1e491aa088ca534f4668aa784ce843b98aea9c83b0dfe42c8f679dbb8c0cb03",
     "lib/running.mli": "74bef29c19b9b132888e875f77ea4fec64855a7bb7c6e119e0fb8346a47176f9",
@@ -184,15 +186,17 @@
     "lib/selector.mli": "1c3c9f74ea5c90d0154547e5c3f249f4f7fcfd05f5fc97bc89ad7976a7b02716",
     "lib/semiont.ml": "73d74eb947abf8ef303ebebed3acf99d8a81f0d54ea2c9e53485cdda2c0b209e",
     "lib/semiont.mli": "8e7c7c992c4db5f248478b35355dd3c5f91c3f93cd6e3704bb283c849c9610bc",
-    "lib/session.ml": "9ee75a225c8c8444ae08b86756b04ffa3fad90ae61acb30b3c8c0b4204355c99",
-    "lib/session.mli": "5ac74926a034bfe9c5582933b1ddec64b10f7e41aac9c69cde761cb395647296",
+    "lib/session.ml": "8ad4034e697ada834fe46bce7c12915a03db16498b9c0466226f2daf27611451",
+    "lib/session.mli": "6847260981887857011e33f8f0bc5c349f54ec1454c7dd680a299ede0a400942",
     "lib/session_signals.ml": "dba5deb3b0b7804f9296bd220a4b919824c565cb77e69cc9e816c9866eb7dc1d",
     "lib/session_signals.mli": "f7fcf9e704a1a62abe71aac063076d71dc45f8f7c7c9c2ac5ed9a961dc02835d",
+    "lib/session_state.ml": "feff2a8d843a6c36557d09e2d8413a65b04e9b47e2d4438efd14b059933757b4",
+    "lib/session_state.mli": "144354974826f3e973f022b96b6906e085a05ad77e1937dfe18ce3d12919cb23",
     "lib/sign_in_store.ml": "fc130dc8ae78f26c0b689b030828df107ebe36463b737abef5b38ea2e4b37e24",
     "lib/sign_in_store.mli": "d6579a76440acff3f59b378e9f6fbe35f90cf817827d4af59d2e65a4e2dccdda",
     "lib/state_task.ml": "2061a7893545d7ecf7f52b0235c21fa2a5346ef3c65334e043e63dd7dfc74c8c",
-    "lib/state_units.ml": "cb258aa32ae80fbcfccda989cdb7e28fc43482be0f6d347d6bed5b6d52711a6f",
-    "lib/state_units.mli": "cb258aa32ae80fbcfccda989cdb7e28fc43482be0f6d347d6bed5b6d52711a6f",
+    "lib/state_units.ml": "e4d23c751c2502f86de7971d3e32759cc8387e40e230f86ad935ef6afb760d94",
+    "lib/state_units.mli": "e4d23c751c2502f86de7971d3e32759cc8387e40e230f86ad935ef6afb760d94",
     "lib/state_value.ml": "d3e41b844d6f7df7af608606f3381c8ba195696ae8ad6a5def116603f3fd4b2b",
     "lib/state_value.mli": "c84e7db498c8d1f618daa2e6572f8d529f7f6da07622b3cdb8c700de370fdec0",
     "lib/store_lock.c": "b60da25fee458740eb28242e3c853e57fc7115f40bbc0b85f1cab9414ff7d588",
@@ -215,6 +219,8 @@
     "lib/worker.mli": "e03c09aede98ab21693127a649ebaa3f70755ea2c4467c1208539e969900ea20",
     "lib/yield.ml": "6518a0f8244dd123808ca62200a1efb3074206429789bc809b278e1f35144afc",
     "lib/yield.mli": "ebe751eaa065d7816cfff15194d77d5d7364dbfc80ded3043396fa1e44b56210",
+    "lib/yield_state.ml": "1adf3f472069b3f4c8d3d4dee57bd1ab227032180cfe62c8115935ac2cdc57ba",
+    "lib/yield_state.mli": "fe746d0f5b1657d53c8a2856e1ee7b0626dd570e0c855ba57fe502958686b978",
     "probes/api_inventory.ml": "97b819335b2d6d55f2f4a7c73422ad4df34ca5e459fe4df300f01a0ff5efb36a",
     "probes/dune": "4b82a53ae47205f7a5bfc5ac215aa840814c53ff15e0c58bc1974d913fea043b",
     "public-api.inputs.json": "16a156e808e8dfd7df61837746b0e4b8ce44e38a40f5a1b647baec0af1bfcca9",
@@ -12177,7 +12183,7 @@
     {
       "kind": "value",
       "path": "Semiont.Session.start",
-      "declaration": "val start :\n  ?keep_on_unavailable:bool ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  initial_token:string option ->\n  renew:(refused:string option -> renewal) -> unit -> t"
+      "declaration": "val start :\n  ?keep_on_unavailable:bool ->\n  ?on_rejected:(string -> unit) ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  initial_token:string option ->\n  renew:(refused:string option -> renewal) -> unit -> t"
     },
     {
       "kind": "value",
@@ -12203,6 +12209,26 @@
       "kind": "value",
       "path": "Semiont.Session.await_closed",
       "declaration": "val await_closed : t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session.await_credential_change",
+      "declaration": "val await_credential_change : t -> from:string option -> string option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session.refresh",
+      "declaration": "val refresh : t -> string option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session.confirmation_required",
+      "declaration": "val confirmation_required : t -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session.reject",
+      "declaration": "val reject : t -> token:string -> unit"
     },
     {
       "kind": "module",
@@ -12283,6 +12309,11 @@
       "kind": "value",
       "path": "Semiont.Http_wire.current_user",
       "declaration": "val current_user : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Http_wire.confirmed_user",
+      "declaration": "val confirmed_user : t -> string option * (string, failure) result"
     },
     {
       "kind": "value",
@@ -12738,10 +12769,11 @@
     {
       "kind": "type",
       "path": "Semiont.Delegation.failure",
-      "declaration": "type failure = {\n  code : string;\n  failure_class : Semiont__.Enums.Failure_class.t option;\n}",
+      "declaration": "type failure = {\n  code : string;\n  message : string option;\n  failure_class : Semiont__.Enums.Failure_class.t option;\n}",
       "representation": "record",
       "fields": [
         "code",
+        "message",
         "failure_class"
       ]
     },
@@ -12923,6 +12955,11 @@
       "kind": "value",
       "path": "Semiont.Client.request",
       "declaration": "val request :\n  t ->\n  ?timeout_ms:int ->\n  ('request, 'reply, 'failure) Semiont__.Bus_registry.operation ->\n  string ->\n  (('reply, 'failure) Semiont__.Subscription.reply,\n   Semiont__.Subscription.request_error)\n  result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Client.on_error",
+      "declaration": "val on_error : t -> (Semiont__.Http_wire.failure -> unit) -> unit -> unit"
     },
     {
       "kind": "value",
@@ -15067,6 +15104,11 @@
     },
     {
       "kind": "value",
+      "path": "Semiont.OAuth.refresh_kept",
+      "declaration": "val refresh_kept :\n  http ->\n  token_endpoint:string ->\n  client_id:string -> refresh_token:string -> (browser tokens, error) result"
+    },
+    {
+      "kind": "value",
       "path": "Semiont.OAuth.refresh_script",
       "declaration": "val refresh_script :\n  http ->\n  token_endpoint:string ->\n  refresh_token:string -> (script tokens, error) result"
     },
@@ -15100,6 +15142,16 @@
       "kind": "value",
       "path": "Semiont.OAuth.revoke_script",
       "declaration": "val revoke_script :\n  http ->\n  revocation_endpoint:string -> refresh_token:string -> (unit, error) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.OAuth.keep_redirect",
+      "declaration": "val keep_redirect : issuer -> redirect -> (string * Yojson.Safe.t) list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.OAuth.take_redirect",
+      "declaration": "val take_redirect : Yojson.Safe.t -> (issuer * redirect) option"
     },
     {
       "kind": "module",
@@ -17718,6 +17770,42 @@
       "declaration": "val set_last_viewed :\n  semiont_browser -> kb_id:string -> string option -> unit"
     },
     {
+      "kind": "value",
+      "path": "Semiont.Registry.pending_authorization_key",
+      "declaration": "val pending_authorization_key : string"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Registry.kept_sign_in",
+      "declaration": "type kept_sign_in = {\n  held : unit -> stored_session option;\n  keep : stored_session -> unit;\n  forget : unit -> unit;\n}",
+      "representation": "record",
+      "fields": [
+        "held",
+        "keep",
+        "forget"
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.kept_in",
+      "declaration": "val kept_in : storage -> string -> kept_sign_in"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.start_kept_session",
+      "declaration": "val start_kept_session :\n  semiont_browser ->\n  sw:Eio.Switch.t ->\n  http:Semiont__.Oauth.http -> string -> Semiont__.Session.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.begin_sign_in",
+      "declaration": "val begin_sign_in :\n  semiont_browser ->\n  http:Semiont__.Oauth.http ->\n  issuer:string ->\n  random:(int -> string) ->\n  redirect_uri:string ->\n  target:endpoint ->\n  ?kb_id:string ->\n  ?expected_did:string ->\n  ?expected_name:string -> unit -> (string, Semiont__.Oauth.error) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Registry.complete_sign_in",
+      "declaration": "val complete_sign_in :\n  semiont_browser ->\n  http:Semiont__.Oauth.http ->\n  callback:string ->\n  describe:(endpoint ->\n            access:string ->\n            ([ `KbDescription ] Semiont__.Models.t, string) result) ->\n  (sign_in_outcome, string) result"
+    },
+    {
       "kind": "module",
       "path": "Semiont.State_value",
       "declaration": "module State_value = Semiont__.State_value",
@@ -18137,6 +18225,212 @@
     {
       "kind": "value",
       "path": "Semiont.State_units.Cache.dispose",
+      "declaration": "val dispose : t -> unit"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.State_units.Mark",
+      "declaration": "module Mark = Semiont__.Mark_state",
+      "alias": "Semiont__.Mark_state"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.State_units.Mark.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.State_units.Mark.pending_annotation",
+      "declaration": "type pending_annotation = { selector : Yojson.Safe.t; motivation : string; }",
+      "representation": "record",
+      "fields": [
+        "selector",
+        "motivation"
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Mark.make",
+      "declaration": "val make :\n  ?silence_ms:int ->\n  Semiont__.Client.t -> resource:Semiont__.Identifiers.Resource_id.t -> t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Mark.pending_annotation",
+      "declaration": "val pending_annotation :\n  t -> pending_annotation option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Mark.delegating_motivation",
+      "declaration": "val delegating_motivation : t -> string option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Mark.progress",
+      "declaration": "val progress : t -> Yojson.Safe.t option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Mark.progress_motivation",
+      "declaration": "val progress_motivation : t -> string option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Mark.failure",
+      "declaration": "val failure :\n  t -> Semiont__.Delegation.failure option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Mark.job_id",
+      "declaration": "val job_id : t -> string option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Mark.request_delegate",
+      "declaration": "val request_delegate : t -> [ `MarkJobParams ] Semiont__.Models.t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Mark.cancel_pending",
+      "declaration": "val cancel_pending : t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Mark.dismiss_progress",
+      "declaration": "val dismiss_progress : t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Mark.dispose",
+      "declaration": "val dispose : t -> unit"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.State_units.Yield",
+      "declaration": "module Yield = Semiont__.Yield_state",
+      "alias": "Semiont__.Yield_state"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.State_units.Yield.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Yield.make",
+      "declaration": "val make : Semiont__.Client.t -> locale:string -> t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Yield.is_generating",
+      "declaration": "val is_generating : t -> bool Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Yield.progress",
+      "declaration": "val progress : t -> Yojson.Safe.t option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Yield.outcome",
+      "declaration": "val outcome : t -> Yojson.Safe.t option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Yield.failure",
+      "declaration": "val failure :\n  t -> Semiont__.Delegation.failure option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Yield.job_id",
+      "declaration": "val job_id : t -> string option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Yield.generate",
+      "declaration": "val generate :\n  t -> ?stall_ms:int -> [ `GenerationJobRequest ] Semiont__.Models.t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Yield.dismiss_progress",
+      "declaration": "val dismiss_progress : t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Yield.dispose",
+      "declaration": "val dispose : t -> unit"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.State_units.Session",
+      "declaration": "module Session = Semiont__.Session_state",
+      "alias": "Semiont__.Session_state"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.State_units.Session.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session.make",
+      "declaration": "val make :\n  id:string ->\n  kb:[ `KnowledgeBase ] Semiont__.Models.t -> Semiont__.Client.t -> t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session.id",
+      "declaration": "val id : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session.kb",
+      "declaration": "val kb : t -> [ `KnowledgeBase ] Semiont__.Models.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session.client",
+      "declaration": "val client : t -> Semiont__.Client.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session.token",
+      "declaration": "val token : t -> string option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session.user",
+      "declaration": "val user :\n  t -> [ `UserResponse ] Semiont__.Models.t option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session.stream_state",
+      "declaration": "val stream_state : t -> Semiont__.Subscription.state Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session.errors",
+      "declaration": "val errors : t -> Semiont__.Http_wire.failure option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session.ready",
+      "declaration": "val ready : t -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session.expires_at",
+      "declaration": "val expires_at : t -> float option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session.refresh",
+      "declaration": "val refresh : t -> ?refused:string -> unit -> string option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.State_units.Session.dispose",
       "declaration": "val dispose : t -> unit"
     }
   ]

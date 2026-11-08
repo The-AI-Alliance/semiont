@@ -10,6 +10,7 @@ val refresh_delay : now:float -> string -> float option
 
 val start :
   ?keep_on_unavailable:bool ->
+  ?on_rejected:(string -> unit) ->
   sw:Eio.Switch.t ->
   clock:Clock.t ->
   initial_token:string option ->
@@ -27,3 +28,7 @@ val refresh_refused : t -> refused:string -> string option
 
 val close : t -> unit
 val await_closed : t -> unit
+val await_credential_change : t -> from:string option -> string option
+val refresh : t -> string option
+val confirmation_required : t -> bool
+val reject : t -> token:string -> unit

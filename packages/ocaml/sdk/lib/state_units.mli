@@ -5,3 +5,6 @@ module Session_signals = Session_signals
 module Gather = Gather_state
 module Match = Match_state
 module Cache = Cache_state
+module Mark = Mark_state
+module Yield = Yield_state
+module Session = Session_state

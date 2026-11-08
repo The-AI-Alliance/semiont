@@ -438,3 +438,135 @@ let set_last_viewed browser ~kb_id resource =
   locked browser (fun () ->
       set_by_kb browser last_viewed_resource_by_kb_key kb_id
         (Option.map text resource))
+
+let pending_authorization_key = Registry_facts.pending_authorization_key
+
+type kept_sign_in = {
+  held : unit -> stored_session option;
+  keep : stored_session -> unit;
+  forget : unit -> unit;
+}
+
+let kept_in storage id =
+  {
+    held = (fun () -> stored_session storage id);
+    keep = store_session storage id;
+    forget = (fun () -> clear_stored_session storage id);
+  }
+
+let start_kept_session browser ~sw ~http id =
+  let kept = kept_in browser.config.storage id in
+  let credential session = session.access in
+  let initial_token = Option.map credential (kept.held ()) in
+  let renew ~refused =
+    match kept.held () with
+    | None -> Session.Refused
+    | Some before
+      when Option.exists (fun token -> token <> before.access) refused ->
+        Session.Renewed before.access
+    | Some before ->
+        let issued =
+          Oauth.refresh_kept http ~token_endpoint:before.token_endpoint
+            ~client_id:before.client_id ~refresh_token:before.refresh
+        in
+        locked browser (fun () ->
+            match kept.held () with
+            | None -> Session.Refused
+            | Some current when current <> before ->
+                Session.Renewed current.access
+            | Some _ -> (
+                match issued with
+                | Ok tokens ->
+                    kept.keep
+                      {
+                        before with
+                        access = tokens.access_token;
+                        refresh =
+                          Option.value tokens.refresh_token
+                            ~default:before.refresh;
+                      };
+                    Session.Renewed tokens.access_token
+                | Error
+                    (Oauth.Rejected
+                       ( "invalid_grant" | "invalid_client" | "access_denied"
+                       | "expired_token" )) ->
+                    kept.forget ();
+                    Session.Refused
+                | Error _ -> Session.Unavailable))
+  in
+  let on_rejected token =
+    locked browser (fun () ->
+        match kept.held () with
+        | Some current when current.access = token -> kept.forget ()
+        | _ -> ())
+  in
+  Session.start ~keep_on_unavailable:true ~on_rejected ~sw
+    ~clock:browser.config.clock ~initial_token ~renew ()
+
+let begin_sign_in browser ~http ~issuer ~random ~redirect_uri ~target ?kb_id
+    ?expected_did ?expected_name () =
+  Result.map
+    (fun issuer ->
+      let redirect = Oauth.begin_redirect issuer ~random ~redirect_uri in
+      let fields =
+        Oauth.keep_redirect issuer redirect
+        @ [ ("target", Yojson.Safe.from_string (Models.encode target)) ]
+        @ optional_field "kbId" kb_id
+        @ optional_field "expectedDid" expected_did
+        @ optional_field "expectedName" expected_name
+      in
+      locked browser (fun () ->
+          browser.config.storage.write pending_authorization_key
+            (json (`Assoc fields)));
+      Oauth.url redirect)
+    (Oauth.discover http ~issuer)
+
+let complete_sign_in browser ~http ~callback ~describe =
+  let pending =
+    locked browser (fun () ->
+        let storage = browser.config.storage in
+        let value = storage.read pending_authorization_key in
+        storage.remove pending_authorization_key;
+        Option.bind value parse)
+  in
+  let ( let* ) = Result.bind in
+  let required = function
+    | Some value -> Ok value
+    | None -> Error "oauth.invalid-redirect"
+  in
+  let* body = required pending in
+  let* issuer, redirect = required (Oauth.take_redirect body) in
+  let* endpoint =
+    Models.decode Models.kb_endpoint (json (member "target" body))
+    |> Result.map_error (fun _ -> "oauth.invalid-redirect")
+  in
+  let* tokens =
+    Oauth.finish_redirect http issuer redirect ~callback
+    |> Result.map_error (function
+      | Oauth.Rejected code -> code
+      | Invalid_response -> "oauth.invalid-response"
+      | Invalid_redirect -> "oauth.invalid-redirect")
+  in
+  let* refresh =
+    match tokens.refresh_token with
+    | Some value -> Ok value
+    | None -> Error "oauth.refresh-token-missing"
+  in
+  let* description = describe endpoint ~access:tokens.access_token in
+  let fields = object_ body in
+  record_sign_in browser
+    {
+      endpoint;
+      description;
+      session =
+        {
+          access = tokens.access_token;
+          refresh;
+          client_id = Oauth_facts.browser;
+          token_endpoint = Oauth.token_endpoint issuer;
+          revocation_endpoint = Oauth.revocation_endpoint issuer;
+        };
+      kb_id = optional "kbId" fields;
+      expected_did = optional "expectedDid" fields;
+      expected_name = optional "expectedName" fields;
+    }

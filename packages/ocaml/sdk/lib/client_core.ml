@@ -11,6 +11,7 @@ type t = {
   client_id : string;
   key : unit -> string;
   on_event : (Wire_stream.frame, Wire_stream.refusal) result -> unit;
+  error_listeners : (Http_wire.failure -> unit) list ref;
   listeners :
     ((Wire_stream.frame, Wire_stream.refusal) result -> unit) ref list ref;
 }
@@ -19,9 +20,14 @@ let connect ?(subscribe_defaults = true) ?timing ?http_timing ?telemetry
     ?delegation_silence_ms ?delegation_poll_ms ?invalidation_window_ms ?restore
     ?save ~sw ~clock ~session ~client_id ~key ~call ~global ~on_event ~on_error
     () =
+  let error_listeners = ref [] in
+  let report failure =
+    List.iter (fun observe -> observe failure) (List.rev !error_listeners);
+    on_error failure
+  in
   let http =
-    Http_wire.make ?timing:http_timing ?telemetry ~clock ~session ~key ~on_error
-      ~call ()
+    Http_wire.make ?timing:http_timing ?telemetry ~clock ~session ~key
+      ~on_error:report ~call ()
   in
   let follower = ref None in
   let live = ref None in
@@ -52,7 +58,7 @@ let connect ?(subscribe_defaults = true) ?timing ?http_timing ?telemetry
       ~credential:(fun () -> Session.credential session)
       ~renew:(Session.refresh_refused session)
       ~on_refused:(fun status ->
-        on_error { Http_wire.code = "unauthorized"; status = Some status })
+        report { Http_wire.code = "unauthorized"; status = Some status })
       (Http_wire.subscribe http)
   in
   let on_event frame =
@@ -102,6 +108,7 @@ let connect ?(subscribe_defaults = true) ?timing ?http_timing ?telemetry
     key;
     on_event = deliver;
     listeners;
+    error_listeners;
   }
 
 let clock t = t.clock
@@ -124,8 +131,16 @@ let request t ?timeout_ms operation payload =
   in
   Subscription.request t.bus ?timeout_ms ~correlation_id operation ~send
 
+let on_error t observe =
+  let callback failure = observe failure in
+  t.error_listeners := callback :: !(t.error_listeners);
+  fun () ->
+    t.error_listeners :=
+      List.filter (fun existing -> existing != callback) !(t.error_listeners)
+
 let close t =
   t.listeners := [];
+  t.error_listeners := [];
   Live_query.close t.cache;
   Fun.protect
     ~finally:(fun () -> Subscription.close t.bus)

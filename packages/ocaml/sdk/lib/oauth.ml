@@ -175,8 +175,12 @@ let grant http ~token_endpoint form =
 let finish_redirect http issuer redirect ~callback =
   let callback = Uri.of_string callback in
   let param name =
-    match List.assoc_opt name (Uri.query callback) with
-    | Some [ value ] -> Some value
+    match
+      List.filter_map
+        (fun (key, values) -> if key = name then Some values else None)
+        (Uri.query callback)
+    with
+    | [ [ value ] ] -> Some value
     | _ -> None
   in
   let address uri = Uri.with_query (Uri.with_fragment uri None) [] in
@@ -258,13 +262,16 @@ let await_device ~clock http issuer device =
   in
   wait (max Client_timing.device_poll_floor_ms (milliseconds device.interval))
 
-let refresh_script http ~token_endpoint ~refresh_token =
+let refresh_kept http ~token_endpoint ~client_id ~refresh_token =
   grant http ~token_endpoint
     [
       ("grant_type", "refresh_token");
-      ("client_id", Oauth_facts.script);
+      ("client_id", client_id);
       ("refresh_token", refresh_token);
     ]
+
+let refresh_script http ~token_endpoint ~refresh_token =
+  refresh_kept http ~token_endpoint ~client_id:Oauth_facts.script ~refresh_token
 
 let service_secret http issuer ~client_id ~client_secret =
   grant http ~token_endpoint:issuer.token
@@ -353,3 +360,41 @@ let revoke_script http ~revocation_endpoint ~refresh_token =
       }
   in
   if status = 200 then Ok () else Error (Rejected "oauth.revocation-failed")
+
+let keep_redirect issuer redirect =
+  let field key value = (key, `String value) in
+  let optional key value = Option.to_list (Option.map (field key) value) in
+  [
+    field "state" redirect.state;
+    field "verifier" redirect.verifier;
+    field "redirectUri" redirect.redirect_uri;
+    ( "issuer",
+      `Assoc
+        ([
+           field "issuer" issuer.issuer;
+           field "authorization" issuer.authorization;
+           field "token" issuer.token;
+         ]
+        @ optional "device" issuer.device
+        @ optional "revocation" issuer.revocation) );
+  ]
+
+let take_redirect json =
+  let ( let* ) = Option.bind in
+  let* saved = member "issuer" json in
+  let get key = Option.bind (string key saved) endpoint in
+  let* issuer = get "issuer" in
+  let* authorization = get "authorization" in
+  let* token = get "token" in
+  let* state = string "state" json in
+  let* verifier = string "verifier" json in
+  let* redirect_uri = string "redirectUri" json in
+  Some
+    ( {
+        issuer;
+        authorization;
+        token;
+        device = get "device";
+        revocation = get "revocation";
+      },
+      { state; verifier; redirect_uri; token_url = token; location = "" } )

@@ -53,6 +53,7 @@ val bus_failure : 'a Bus_registry.decoded -> string
 val health : t -> string
 val status : t -> string
 val current_user : t -> string
+val confirmed_user : t -> string option * (string, failure) result
 val protected_resource_metadata : t -> string
 val media_token : t -> Identifiers.Resource_id.t -> string
 val graph : t -> Identifiers.Resource_id.t -> string

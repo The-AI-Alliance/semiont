@@ -546,6 +546,217 @@ let sign_in () =
   R.sign_out browser "kb-3";
   assert (R.active_id browser = None && R.stored_session storage "kb-3" = None)
 
+let redirect () =
+  Eio_mock.Backend.run @@ fun () ->
+  let clock =
+    Clock.make
+      ~monotonic:(Eio_mock.Clock.Mono.make ())
+      ~wall:(Eio_mock.Clock.make ())
+      ~jitter:(Random.State.make [| 1 |])
+  in
+  let data = Hashtbl.create 4 in
+  let storage : R.storage =
+    {
+      read = Hashtbl.find_opt data;
+      write = Hashtbl.replace data;
+      remove = Hashtbl.remove data;
+    }
+  in
+  let config : R.semiont_browser_config =
+    {
+      storage;
+      clock;
+      fresh_id = (fun () -> "kb-redirect");
+      factory = (fun _ -> assert false);
+      on_error = ignore;
+    }
+  in
+  let target =
+    decode Models.kb_endpoint
+      (Yojson.Safe.from_string
+         {|{"kind":"http","host":"localhost","port":4010,"protocol":"http"}|})
+  in
+  let description =
+    decode Models.kb_description
+      (Yojson.Safe.from_string {|{"name":"Actual","domain":"kb.example"}|})
+  in
+  let discovery = ref 0 and exchanges = ref 0 in
+  let http (request : OAuth.request) =
+    match request.meth with
+    | "GET" ->
+        incr discovery;
+        ( 200,
+          {|{"issuer":"https://issuer.example","authorization_endpoint":"https://issuer.example/auth","token_endpoint":"https://issuer.example/token","revocation_endpoint":"https://issuer.example/revoke"}|}
+        )
+    | "POST" ->
+        incr exchanges;
+        assert (request.url = "https://issuer.example/token");
+        assert (List.assoc "code" request.form = "one");
+        assert (List.assoc "code_verifier" request.form <> "");
+        (200, {|{"access_token":"access","refresh_token":"refresh"}|})
+    | _ -> assert false
+  in
+  let origin = "http://localhost:4010/callback" in
+  let begin_ () =
+    let count = ref 0 in
+    let random length =
+      incr count;
+      String.make length (Char.chr !count)
+    in
+    R.begin_sign_in
+      (R.new_semiont_browser config)
+      ~http ~issuer:"https://issuer.example" ~random ~redirect_uri:origin
+      ~target ~expected_did:"did:web:expected.example" ()
+    |> Result.get_ok |> Uri.of_string
+  in
+  let complete callback =
+    R.complete_sign_in (R.new_semiont_browser config) ~http ~callback
+      ~describe:(fun endpoint ~access ->
+        assert (R.same_place endpoint target && access = "access");
+        Ok description)
+  in
+  let location = begin_ () in
+  let state = Option.get (Uri.get_query_param location "state") in
+  let callback = origin ^ "?code=one&state=" ^ state in
+  assert (complete (callback ^ "bad") = Error "oauth.invalid-redirect");
+  assert (complete callback = Error "oauth.invalid-redirect");
+  assert (!exchanges = 0);
+  ignore (begin_ ());
+  let outcome = Result.get_ok (complete callback) in
+  assert ((Option.get outcome.expected).did = "did:web:expected.example");
+  assert ((Records.Knowledge_base.of_model outcome.kb).id = "kb-redirect");
+  let kept = Option.get ((R.kept_in storage "kb-redirect").held ()) in
+  assert (kept.access = "access" && kept.refresh = "refresh");
+  assert (kept.revocation_endpoint = Some "https://issuer.example/revoke");
+  assert (complete callback = Error "oauth.invalid-redirect");
+  assert (!discovery = 2 && !exchanges = 1)
+
+let session_unit startup () =
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let clock =
+    Clock.make
+      ~monotonic:(Eio_mock.Clock.Mono.make ())
+      ~wall:(Eio_mock.Clock.make ())
+      ~jitter:(Random.State.make [| 1 |])
+  in
+  let data = Hashtbl.create 4 in
+  let storage : R.storage =
+    {
+      read = Hashtbl.find_opt data;
+      write = Hashtbl.replace data;
+      remove = Hashtbl.remove data;
+    }
+  in
+  let browser =
+    R.new_semiont_browser
+      {
+        storage;
+        clock;
+        fresh_id = (fun () -> "kb");
+        factory = (fun _ -> assert false);
+        on_error = ignore;
+      }
+  in
+  let target =
+    decode Models.kb_endpoint
+      (Yojson.Safe.from_string
+         {|{"kind":"http","host":"localhost","port":4010,"protocol":"http"}|})
+  in
+  let description =
+    decode Models.kb_description
+      (Yojson.Safe.from_string {|{"name":"Actual","domain":"kb.example"}|})
+  in
+  let stored : R.stored_session =
+    {
+      access = "original";
+      refresh = "initial-refresh";
+      client_id = "browser";
+      token_endpoint = "https://issuer.example/token";
+      revocation_endpoint = None;
+    }
+  in
+  let registered =
+    Result.get_ok
+      (R.record_sign_in browser
+         {
+           endpoint = target;
+           description;
+           session = stored;
+           kb_id = None;
+           expected_did = None;
+           expected_name = None;
+         })
+  in
+  let kept = R.kept_in storage "kb" in
+  let renewals = ref 0 in
+  let issuer (request : OAuth.request) =
+    incr renewals;
+    assert (request.url = stored.token_endpoint);
+    assert (List.assoc "client_id" request.form = "browser");
+    if !renewals = 1 then (
+      assert (List.assoc "refresh_token" request.form = "initial-refresh");
+      (200, {|{"access_token":"next","refresh_token":"rotated"}|}))
+    else (
+      assert (List.assoc "refresh_token" request.form = "rotated");
+      (400, {|{"error":"invalid_grant"}|}))
+  in
+  let credentials = R.start_kept_session browser ~sw ~http:issuer "kb" in
+  let asks = ref 0 in
+  let call ~sw:_ ~meth:_ ~path ~headers ~body:_ ~progress:_ =
+    match path with
+    | "/bus/subscribe" ->
+        (* The stream opener waits here while the test drives credential changes. *)
+        Eio.Fiber.await_cancel ()
+    | "/api/users/me" ->
+        incr asks;
+        let bearer = List.assoc "authorization" headers in
+        if startup = `Reject || (startup = `Renew && bearer = "Bearer original")
+        then (401, [], Eio.Flow.string_source "{}")
+        else (
+          assert (List.mem bearer [ "Bearer original"; "Bearer next" ]);
+          ( 200,
+            [],
+            Eio.Flow.string_source
+              {|{"did":"did:web:kb.example:users:alice","email":null,"name":"Alice","image":null,"domain":"kb.example"}|}
+          ))
+    | _ -> assert false
+  in
+  let client =
+    Client.connect ~sw ~clock ~session:credentials ~client_id:"test"
+      ~key:(fun () -> "test")
+      ~call ~global:[] ~on_event:ignore ~on_error:ignore ()
+  in
+  let module S = State_units.Session in
+  let unit = S.make ~id:"kb" ~kb:registered.kb client in
+  S.ready unit;
+  (match startup with
+  | `Reject ->
+      assert (!asks = 2 && !renewals = 1 && kept.held () = None);
+      assert (
+        State_value.get (S.token unit) = None
+        && State_value.get (S.user unit) = None)
+  | `Renew ->
+      assert (!asks = 2 && !renewals = 1);
+      assert (State_value.get (S.token unit) = Some "next");
+      assert (Option.is_some (State_value.get (S.user unit)))
+  | `Accept ->
+      assert (State_value.get (S.token unit) = Some "original");
+      assert (Option.is_some (State_value.get (S.user unit)));
+      assert (S.refresh unit ~refused:"original" () = Some "next");
+      assert ((Option.get (kept.held ())).refresh = "rotated");
+      assert (
+        S.refresh unit ~refused:"original" () = Some "next" && !renewals = 1);
+      assert (S.refresh unit ~refused:"next" () = None);
+      assert (kept.held () = None && !renewals = 2));
+  S.dispose unit;
+  assert (
+    State_value.get (S.token unit) = None
+    && State_value.get (S.user unit) = None);
+  assert (Subscription.state (Client.subscription client) <> Subscription.Closed);
+  Client.close client;
+  Client.await_closed client
+
 let () =
   Alcotest.run "OCaml registry and discovery"
     [
@@ -553,6 +764,13 @@ let () =
         [
           Alcotest.test_case "shared cases" `Quick shared;
           Alcotest.test_case "verified sign-in" `Quick sign_in;
+          Alcotest.test_case "durable redirect and replay" `Quick redirect;
+          Alcotest.test_case "session unit and durable renewal" `Quick
+            (session_unit `Accept);
+          Alcotest.test_case "startup refuses once then confirms" `Quick
+            (session_unit `Renew);
+          Alcotest.test_case "startup rejects a renewed credential" `Quick
+            (session_unit `Reject);
         ] );
       ( "discovery",
         [

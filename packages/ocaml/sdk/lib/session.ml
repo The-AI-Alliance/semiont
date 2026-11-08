@@ -52,8 +52,10 @@ type t = {
   clock : Clock.t;
   keep_on_unavailable : bool;
   renew : refused:string option -> renewal;
+  on_rejected : string -> unit;
   work : task Eio.Stream.t;
   mutable token : string option;
+  mutable confirmation_required : bool;
   mutable generation : unit ref;
   mutable changed : unit Promise.t * unit Promise.u;
   mutable pending : task option;
@@ -65,8 +67,9 @@ type t = {
 let active t = not (Promise.is_resolved t.stop || Promise.is_resolved t.closed)
 let credential t = if active t then t.token else None
 
-let publish t token =
+let publish ?(confirm = true) t token =
   t.token <- token;
+  t.confirmation_required <- confirm;
   let _, notify = t.changed in
   t.changed <- Promise.create ();
   Promise.resolve notify ()
@@ -111,7 +114,8 @@ let worker t =
     t.pending <- None;
     (if task.generation == t.generation then
        match outcome with
-       | Renewed bearer -> publish t (Some bearer)
+       | Renewed bearer ->
+           publish ~confirm:(Option.is_some task.refused) t (Some bearer)
        | Unavailable when t.keep_on_unavailable -> ()
        | Refused | Unavailable -> publish t None);
     Promise.resolve task.complete outcome
@@ -163,7 +167,8 @@ let schedule t =
   in
   loop ()
 
-let start ?(keep_on_unavailable = false) ~sw ~clock ~initial_token ~renew () =
+let start ?(keep_on_unavailable = false) ?(on_rejected = ignore) ~sw ~clock
+    ~initial_token ~renew () =
   let stop, stop_now = Promise.create () in
   let closed, mark_closed = Promise.create () in
   let t =
@@ -171,8 +176,10 @@ let start ?(keep_on_unavailable = false) ~sw ~clock ~initial_token ~renew () =
       clock;
       keep_on_unavailable;
       renew;
+      on_rejected;
       work = Eio.Stream.create 1;
       token = initial_token;
+      confirmation_required = true;
       generation = ref ();
       changed = Promise.create ();
       pending = None;
@@ -193,3 +200,29 @@ let start ?(keep_on_unavailable = false) ~sw ~clock ~initial_token ~renew () =
 
 let close t = if active t then Promise.resolve t.stop_now ()
 let await_closed t = Promise.await t.closed
+
+let await_credential_change t ~from =
+  let rec wait () =
+    let current = credential t in
+    if current <> from || not (active t) then current
+    else
+      Fiber.first
+        (fun () ->
+          Promise.await (fst t.changed);
+          wait ())
+        (fun () ->
+          Promise.await t.stop;
+          None)
+  in
+  wait ()
+
+let refresh t =
+  ignore (renew_once t None);
+  credential t
+
+let confirmation_required t = t.confirmation_required
+
+let reject t ~token =
+  if credential t = Some token then (
+    replace t None;
+    t.on_rejected token)

@@ -785,9 +785,8 @@
   "stateUnits": [
     {
       "unit": "mark",
-      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "The composing and delegating of annotations on one resource: the annotation being composed, the delegated job's motivation, its progress and what that progress is of, why the last job ended without completing, and the job's id. A request and a submission reach it as the signals the mark namespace publishes, which name its resource; a delegation, the cancelling of the annotation being composed and the dismissing of a job's progress are asked of the unit itself, so none reaches a unit of another resource.",
-      "made": {"csharp": "MarkStateUnit", "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit", "go": "MarkStateUnit", "kotlin": "MarkStateUnit", "swift": "MarkStateUnit", "haskell": "MarkStateUnit"},
+      "made": {"ocaml": "Mark", "csharp": "MarkStateUnit", "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit", "go": "MarkStateUnit", "kotlin": "MarkStateUnit", "swift": "MarkStateUnit", "haskell": "MarkStateUnit"},
       "madeBy": {"typescript": "createMarkStateUnit", "go": "NewMarkStateUnit", "haskell": "newMarkStateUnit"},
       "members": [
         { "member": "pendingAnnotation" },
@@ -803,9 +802,8 @@
     },
     {
       "unit": "yield",
-      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "A generation: whether a run is under way, its progress, what the finished run produced, why the last run ended without a result, and the job's id. It is moved by its own methods.",
-      "made": {"csharp": "YieldStateUnit", "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit", "go": "YieldStateUnit", "kotlin": "YieldStateUnit", "swift": "YieldStateUnit", "haskell": "YieldStateUnit"},
+      "made": {"ocaml": "Yield", "csharp": "YieldStateUnit", "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit", "go": "YieldStateUnit", "kotlin": "YieldStateUnit", "swift": "YieldStateUnit", "haskell": "YieldStateUnit"},
       "madeBy": {"typescript": "createYieldStateUnit", "go": "NewYieldStateUnit", "haskell": "newYieldStateUnit"},
       "members": [
         { "member": "isGenerating" },
@@ -942,9 +940,8 @@
     },
     {
       "unit": "session",
-      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. What it does is held by the session's own table (protocol/specs/src/session/cases.json), not by the behaviour table.",
-      "made": {"csharp": "SemiontSession", "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession", "swift": "SemiontSession", "haskell": "Session"},
+      "made": {"ocaml": "Session", "csharp": "SemiontSession", "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession", "swift": "SemiontSession", "haskell": "Session"},
       "madeBy": {"go": "StartSession", "kotlin": "sessionFromKept", "swift": "sessionFromKept", "haskell": "newSession"},
       "members": [
         { "member": "id" },
@@ -960,6 +957,7 @@
         {
           "member": "renewer",
           "absent": {
+            "ocaml": "The client transport uses the credential session directly.",
             "csharp": "The transport takes a callback bound to the kept session when the transport is constructed.",
             "swift": "The transport uses a closure that calls the session's `refresh` with the token refused through a weak session reference.",
             "typescript": "A TypeScript transport is handed a closure that calls the session's `refresh` with the token refused, and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
@@ -1810,7 +1808,6 @@
         },
         {
           "member": "keptIn",
-          "notYetReached": { "ocaml": "Connect the registry session factory to the kept redirect-sign-in workflow." },
           "kind": "function",
           "absent": {
             "typescript": "TypeScript's session reads and writes its tokens in the registry's storage itself.",
@@ -1819,7 +1816,6 @@
         },
         {
           "member": "beginSignIn",
-          "notYetReached": { "ocaml": "Connect the registry session factory to the kept redirect-sign-in workflow." },
           "kind": "function",
           "absent": {
             "typescript": "TypeScript's is a method of `SemiontBrowser`."
@@ -1827,7 +1823,6 @@
         },
         {
           "member": "completeSignIn",
-          "notYetReached": { "ocaml": "Connect the registry session factory to the kept redirect-sign-in workflow." },
           "kind": "function",
           "absent": {
             "typescript": "TypeScript's is a method of `SemiontBrowser`."

@@ -54,6 +54,13 @@ val await_device :
   clock:Clock.t -> http -> issuer -> device -> (script tokens, error) result
 (** Poll using the caller's clock, starting the expiry window when called. *)
 
+val refresh_kept :
+  http ->
+  token_endpoint:string ->
+  client_id:string ->
+  refresh_token:string ->
+  (browser tokens, error) result
+
 val refresh_script :
   http ->
   token_endpoint:string ->
@@ -90,3 +97,6 @@ val revoke_script :
   revocation_endpoint:string ->
   refresh_token:string ->
   (unit, error) result
+
+val keep_redirect : issuer -> redirect -> (string * Yojson.Safe.t) list
+val take_redirect : Yojson.Safe.t -> (issuer * redirect) option

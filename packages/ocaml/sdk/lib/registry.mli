@@ -122,3 +122,38 @@ val set_open_resources :
 
 val last_viewed : semiont_browser -> kb_id:string -> string option
 val set_last_viewed : semiont_browser -> kb_id:string -> string option -> unit
+val pending_authorization_key : string
+
+type kept_sign_in = {
+  held : unit -> stored_session option;
+  keep : stored_session -> unit;
+  forget : unit -> unit;
+}
+
+val kept_in : storage -> string -> kept_sign_in
+
+val start_kept_session :
+  semiont_browser -> sw:Eio.Switch.t -> http:Oauth.http -> string -> Session.t
+
+val begin_sign_in :
+  semiont_browser ->
+  http:Oauth.http ->
+  issuer:string ->
+  random:(int -> string) ->
+  redirect_uri:string ->
+  target:endpoint ->
+  ?kb_id:string ->
+  ?expected_did:string ->
+  ?expected_name:string ->
+  unit ->
+  (string, Oauth.error) result
+
+val complete_sign_in :
+  semiont_browser ->
+  http:Oauth.http ->
+  callback:string ->
+  describe:
+    (endpoint -> access:string -> ([ `KbDescription ] Models.t, string) result) ->
+  (sign_in_outcome, string) result
+(** Consumes the pending sign-in before exchanging the code. [describe] reads
+    the verified knowledge-base description using the new credentials. *)

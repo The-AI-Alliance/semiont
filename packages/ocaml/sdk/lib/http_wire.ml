@@ -108,10 +108,11 @@ let subscribe t ~sw snapshot ~bearer:token =
 
 let exchange t ~auth ?progress ?timeout_ms ?(headers = []) ?(body = "")
     ?(attempts = 1) ?(initial_delay = 0) ?(max_delay = 0) ?(jitter = false)
-    (meth, path) read =
+    ?(on_attempt = ignore) (meth, path) read =
   let initial = if auth then Session.credential t.session else None in
   let rec attempt token renewed left delay =
     let send () =
+      on_attempt token;
       Switch.run @@ fun sw ->
       let status, headers, stream =
         t.call ~sw ~meth ~path ~headers:(bearer token headers) ~body ~progress
@@ -232,6 +233,19 @@ let json_get t ?(auth = true) path =
 let health t = json_get t ~auth:false Http_facts.health
 let status t = json_get t Http_facts.status
 let current_user t = json_get t Http_facts.current_user
+
+let confirmed_user t =
+  let used = ref None in
+  let result =
+    try
+      Ok
+        (exchange t ~auth:true ~timeout_ms:t.timing.request_timeout_ms
+           ~attempts:2 ~initial_delay:Client_timing.request_retry_pause_ms
+           ~on_attempt:(fun token -> used := token)
+           Http_facts.current_user read_text)
+    with Failed failure -> Error failure
+  in
+  (!used, result)
 
 let protected_resource_metadata t =
   json_get t ~auth:false Http_facts.protected_resource_metadata

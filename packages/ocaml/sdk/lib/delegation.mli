@@ -3,7 +3,12 @@
 type t
 type release = unit -> unit
 type report_kind = Created | Progress | Complete | Retrying | Refused
-type failure = { code : string; failure_class : Enums.Failure_class.t option }
+
+type failure = {
+  code : string;
+  message : string option;
+  failure_class : Enums.Failure_class.t option;
+}
 
 val channels : Bus_registry.packed_channel list
 (** Include these channels in the subscription's global channels. *)

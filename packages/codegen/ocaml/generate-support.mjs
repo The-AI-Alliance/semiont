@@ -176,5 +176,5 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/state_cases.ml'),
   `let timing = ${ocamlString(JSON.stringify(Object.fromEntries(sharedTiming.timing.map(({ name, value }) => [name, value]))))}\n` +
   `let fixtures = ${ocamlString(JSON.stringify(states.fixtures))}\n` +
   `let cases = ${ocamlString(JSON.stringify(states.cases.filter(({ unit }) =>
-    ['beckon', 'hoverDwell', 'search', 'sessionSignals', 'match', 'gather'].includes(unit))))}\n`,
+    ['beckon', 'hoverDwell', 'search', 'sessionSignals', 'match', 'gather', 'mark', 'yield'].includes(unit))))}\n`,
   process.argv.includes('--check'));

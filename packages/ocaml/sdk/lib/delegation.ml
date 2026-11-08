@@ -6,7 +6,12 @@ module J = Yojson.Safe.Util
 
 type release = unit -> unit
 type report_kind = Created | Progress | Complete | Retrying | Refused
-type failure = { code : string; failure_class : Enums.Failure_class.t option }
+
+type failure = {
+  code : string;
+  message : string option;
+  failure_class : Enums.Failure_class.t option;
+}
 
 type listener = {
   receive : string -> (Yojson.Safe.t, Yojson.Safe.t) result -> unit;
@@ -136,7 +141,12 @@ let start_open t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure
       | `String value -> Enums.Failure_class.of_string value
       | _ -> None
     in
-    on_failure { code; failure_class };
+    let message =
+      match field "error" payload with
+      | `String message -> Some message
+      | _ -> None
+    in
+    on_failure { code; message; failure_class };
     finish ()
   in
   let receive channel signal =
@@ -263,7 +273,7 @@ let start_open t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure
 let start t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure ~on_close
     () =
   if t.closed then (
-    on_failure { code = "bus.closed"; failure_class = None };
+    on_failure { code = "bus.closed"; message = None; failure_class = None };
     on_close ();
     Fun.id)
   else

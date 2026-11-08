@@ -42,6 +42,9 @@ let rec matches expected actual =
           | Some actual -> matches value actual
           | None -> false)
         wanted
+  | `Assoc [ ("code", code) ], `Assoc fields
+    when List.mem_assoc "message" fields ->
+      List.assoc_opt "code" fields = Some code
   | `List a, `List b ->
       List.length a = List.length b && List.for_all2 matches a b
   | _ -> normalize expected = normalize actual
@@ -79,7 +82,7 @@ let run_case row =
           +. number 0. (field "plusMs" value))
   in
   let settle () =
-    for _ = 1 to 12 do
+    for _ = 1 to 40 do
       Fiber.yield ()
     done
   in
@@ -120,11 +123,86 @@ let run_case row =
       ("event: bus-event\ndata: " ^ json (assoc fields) ^ "\n\n")
       write
   in
+  let transport = field "transport" row in
+  let replies = Hashtbl.create 4 in
+  (match field "replies" transport with
+  | `Assoc entries ->
+      List.iter
+        (fun (name, values) -> Hashtbl.replace replies name (J.to_list values))
+        entries
+  | _ -> ());
+  let enqueue name response =
+    let values = Option.value (Hashtbl.find_opt replies name) ~default:[] in
+    Hashtbl.replace replies name (values @ [ response ])
+  in
+  let automatic request =
+    let name = string "channel" request in
+    let explicit =
+      match Hashtbl.find_opt replies name with
+      | Some (response :: rest) ->
+          Hashtbl.replace replies name rest;
+          Some response
+      | _ -> None
+    in
+    let response =
+      match (explicit, field "answers" transport, name) with
+      | Some response, _, _ -> Some response
+      | None, `String "jobs", "job:create" ->
+          Some (assoc [ ("jobId", text "job-1") ])
+      | None, `String "jobs", "job:status-requested" ->
+          Some
+            (assoc
+               [
+                 ("jobId", text "job-1");
+                 ("status", text "running");
+                 ("type", field "unit" row);
+                 ("userId", text "did:web:example.org:users:alice");
+                 ("created", text "2026-10-01T00:00:00.000Z");
+               ])
+      | _ -> None
+    in
+    let operation =
+      List.find_opt
+        (fun (B.Operation operation) -> B.name (B.request operation) = name)
+        B.operations
+    in
+    match (operation, response) with
+    | Some (B.Operation operation), Some response -> (
+        let correlation_id = string "correlationId" request in
+        let reply = B.name (B.result operation) in
+        let deliver () =
+          send_frame ~correlation_id reply (assoc [ ("response", response) ])
+        in
+        match field "delayMs" transport with
+        | `Int delay ->
+            let deadline =
+              Option.get
+                (Mtime.add_span
+                   (Clock.monotonic_now clock)
+                   Mtime.Span.(delay * ms))
+            in
+            Fiber.fork_daemon ~sw (fun () ->
+                Clock.sleep_until clock deadline;
+                deliver ();
+                `Stop_daemon)
+        | _ -> deliver ())
+    | Some (B.Operation operation), None
+      when field "answers" transport = text "refuses"
+           || name = "mark:create-request"
+              && field "answers" transport = text "jobs" ->
+        send_frame
+          ~correlation_id:(string "correlationId" request)
+          (B.name (B.failure operation))
+          (assoc [ ("message", text "refused") ])
+    | _ -> ()
+  in
   let call ~sw:_ ~meth:_ ~path ~headers:_ ~body ~progress:_ =
     match path with
     | "/bus/subscribe" -> (200, [], (read :> Eio.Flow.source_ty Eio.Resource.t))
     | "/bus/emit" ->
-        sent := !sent @ [ Yojson.Safe.from_string body ];
+        let request = Yojson.Safe.from_string body in
+        sent := !sent @ [ request ];
+        automatic request;
         (202, [], Eio.Flow.string_source "{}")
     | _ -> failwith "unexpected HTTP request in state unit case"
   in
@@ -162,16 +240,95 @@ let run_case row =
     fun () -> active := false
   in
   let ended = Hashtbl.create 8 in
-  let watch name state encode =
+  let watch unit_name name state encode =
     let _release =
       V.observe state ~on_value:ignore ~on_close:(fun () ->
-          Hashtbl.replace ended name ())
+          Hashtbl.replace ended (unit_name, name) ())
     in
     (name, fun () -> encode (V.get state))
   in
-  let made = field "unit" (field "made" row) in
-  let dispose, invoke, values =
+  let make unit_name made =
+    let watch name state encode = watch unit_name name state encode in
     match string "unit" row with
+    | "mark" ->
+        let module M = U.Mark in
+        let resource =
+          Result.get_ok
+            (Identifiers.Resource_id.of_string (string "resourceId" made))
+        in
+        let unit = M.make client ~resource in
+        let invoke name args =
+          match name with
+          | "cancelPending" -> M.cancel_pending unit
+          | "dismissProgress" -> M.dismiss_progress unit
+          | "requestDelegate" ->
+              M.request_delegate unit
+                (Result.get_ok
+                   (Models.decode Models.mark_job_params
+                      (json (field "params" args))))
+          | _ -> assert false
+        in
+        let failure (value : Delegation.failure) =
+          assoc
+            ([ ("code", text value.code) ]
+            @ Option.to_list
+                (Option.map
+                   (fun message -> ("message", text message))
+                   value.message))
+        in
+        ( (fun () -> M.dispose unit),
+          invoke,
+          [
+            watch "pendingAnnotation"
+              (M.pending_annotation unit)
+              (nullable (fun (pending : M.pending_annotation) ->
+                   assoc
+                     [
+                       ("selector", pending.selector);
+                       ("motivation", text pending.motivation);
+                     ]));
+            watch "delegatingMotivation"
+              (M.delegating_motivation unit)
+              (nullable text);
+            watch "progressMotivation"
+              (M.progress_motivation unit)
+              (nullable text);
+            watch "progress" (M.progress unit) (nullable Fun.id);
+            watch "failure" (M.failure unit) (nullable failure);
+            watch "jobId" (M.job_id unit) (nullable text);
+          ] )
+    | "yield" ->
+        let module Y = U.Yield in
+        let unit = Y.make client ~locale:(string "locale" made) in
+        let invoke name args =
+          match name with
+          | "dismissProgress" -> Y.dismiss_progress unit
+          | "generate" ->
+              Y.generate unit
+                ?stall_ms:(option elapsed (field "stallDeadlineMs" args))
+                (Result.get_ok
+                   (Models.decode Models.generation_job_request
+                      (json (field "params" args))))
+          | _ -> assert false
+        in
+        let failure (value : Delegation.failure) =
+          assoc
+            ([ ("code", text value.code) ]
+            @ Option.to_list
+                (Option.map
+                   (fun message -> ("message", text message))
+                   value.message))
+        in
+        ( (fun () -> Y.dispose unit),
+          invoke,
+          [
+            watch "isGenerating" (Y.is_generating unit) (fun value ->
+                `Bool value);
+            watch "progress" (Y.progress unit) (nullable Fun.id);
+            watch "outcome" (Y.outcome unit) (nullable Fun.id);
+            watch "failure" (Y.failure unit) (nullable failure);
+            watch "jobId" (Y.job_id unit) (nullable text);
+          ] )
     | "match" ->
         let unit = U.Match.make client in
         ((fun () -> U.Match.dispose unit), (fun _ _ -> assert false), [])
@@ -295,14 +452,23 @@ let run_case row =
           ] )
     | _ -> assert false
   in
+  let units =
+    List.map
+      (fun (name, config) -> (name, make name config))
+      (J.to_assoc (field "made" row))
+  in
   List.iter
     (fun step ->
       match step with
       | `String "settle" -> settle ()
       | `Assoc fields -> (
           match List.hd fields with
-          | "invoke", `String name -> invoke name (field "args" step)
-          | "dispose", _ -> dispose ()
+          | "invoke", `String name ->
+              let _, invoke, _ = List.assoc (string "of" step) units in
+              invoke name (field "args" step)
+          | "dispose", `String name ->
+              let dispose, _, _ = List.assoc name units in
+              dispose ()
           | "pass", value ->
               settle ();
               let duration = elapsed value in
@@ -312,6 +478,11 @@ let run_case row =
                       (Clock.monotonic_now clock)
                       Mtime.Span.(duration * ms)));
               settle ()
+          | "queueReply", `String channel ->
+              enqueue channel (field "response" step)
+          | "say", `String channel
+            when String.starts_with ~prefix:"job:" channel ->
+              send_frame channel (field "payload" step)
           | "say", `String channel ->
               local
                 ?correlation_id:
@@ -345,8 +516,14 @@ let run_case row =
               settle ()
           | "expect", expected ->
               List.iter
-                (fun (name, value) -> check value ((List.assoc name values) ()))
-                (J.to_assoc (field "unit" expected))
+                (fun (unit_name, expected) ->
+                  let _, _, values = List.assoc unit_name units in
+                  List.iter
+                    (fun (name, value) ->
+                      let actual = (List.assoc name values) () in
+                      if not (matches value actual) then check value actual)
+                    (J.to_assoc expected))
+                (J.to_assoc expected)
           | "heard", expected ->
               settle ();
               let expected =
@@ -387,8 +564,12 @@ let run_case row =
               settle ()
           | "ended", ended_ ->
               List.iter
-                (fun name -> assert (Hashtbl.mem ended (J.to_string name)))
-                (J.to_list (field "unit" ended_))
+                (fun (unit_name, names) ->
+                  List.iter
+                    (fun name ->
+                      assert (Hashtbl.mem ended (unit_name, J.to_string name)))
+                    (J.to_list names))
+                (J.to_assoc ended_)
           | "busDestroyed", `Bool expected ->
               assert (
                 Subscription.state (Client.subscription client)
@@ -396,7 +577,7 @@ let run_case row =
           | _ -> failwith ("unknown state unit step: " ^ json step))
       | _ -> assert false)
     (J.to_list (field "steps" row));
-  dispose ();
+  List.iter (fun (_, (dispose, _, _)) -> dispose ()) units;
   Client.close client;
   Session.close session
 
