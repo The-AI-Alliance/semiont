@@ -1,4 +1,4 @@
-type proof = Secret of string | Key of Oauth.rsa_key
+type proof = Service_token.proof = Secret of string | Key of Oauth.rsa_key
 
 type error =
   | Issuer of Oauth.error
@@ -13,12 +13,7 @@ let close t = Session.close t.session
 
 let sign_in ~sw ~clock ~issuer ~http ~client_id ~proof ~key ~call () =
   let grant () =
-    match proof with
-    | Secret client_secret ->
-        Oauth.service_secret http issuer ~client_id ~client_secret
-    | Key private_key ->
-        Oauth.service_key http issuer ~clock ~jti:key ~client_id
-          ~key:private_key
+    Service_token.grant ~clock ~http ~issuer ~client_id ~proof ~jti:key
   in
   match grant () with
   | Error error -> Error (Issuer error)

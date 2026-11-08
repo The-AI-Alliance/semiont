@@ -263,7 +263,8 @@ let renew t ~key ~http ~refused =
                   Session.Renewed current.token
               | Some current -> (
                   match result with
-                  | Error (Oauth.Rejected "invalid_grant") -> Session.Refused
+                  | Error failure when Oauth.refresh_refused failure ->
+                      Session.Refused
                   | Error _ -> Session.Unavailable
                   | Ok tokens ->
                       let refreshed =

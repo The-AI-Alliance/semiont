@@ -507,8 +507,8 @@ let run t =
   set_state t Connecting;
   connect t.timing.reconnect_ms
 
-let start ?(timing = default_timing) ?telemetry ~sw ~clock ~client_id ~global
-    ~scopes ~connect ~on_event () =
+let start ?(timing = default_timing) ?telemetry ?(positions = []) ~sw ~clock
+    ~client_id ~global ~scopes ~connect ~on_event () =
   let closing, close_now = Promise.create () in
   let closed, mark_closed = Promise.create () in
   let t =
@@ -523,7 +523,7 @@ let start ?(timing = default_timing) ?telemetry ~sw ~clock ~client_id ~global
       scopes_changed = Promise.create ();
       connect;
       on_event;
-      positions = Hashtbl.create 8;
+      positions = Hashtbl.of_seq (List.to_seq positions);
       seen = Hashtbl.create Client_timing.seen_event_ids_count;
       recent = Queue.create ();
       pending = Hashtbl.create 8;
@@ -654,3 +654,5 @@ let request t ?(timeout_ms = t.timing.bus_request_timeout_ms)
       (fun () ->
         await_closed t;
         Error Transport_closed)
+
+let positions t = Hashtbl.to_seq t.positions |> List.of_seq

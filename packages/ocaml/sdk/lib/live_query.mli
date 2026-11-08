@@ -41,3 +41,6 @@ val in_flight : ('key, 'value) t -> bool
 val invalidate_all : ('key, 'value) t -> unit
 val set : ('key, 'value) t -> 'key -> 'value -> unit
 val remove : ('key, 'value) t -> 'key -> string -> unit
+
+val ready_for_replay :
+  (key, 'value) t -> string -> (key * 'value option) list -> bool

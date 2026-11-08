@@ -11,6 +11,7 @@ type 'value observer = {
 type 'value entry = {
   mutable revision : int;
   mutable restored : bool;
+  mutable confirmed : bool;
   mutable state : 'value state;
   mutable observers : 'value observer list;
   mutable release : unit -> unit;
@@ -57,6 +58,7 @@ let entry t key =
         {
           revision = 0;
           restored = Option.is_some restored;
+          confirmed = false;
           state =
             Option.fold ~none:Pending ~some:(fun value -> Ready value) restored;
           observers = [];
@@ -74,6 +76,7 @@ let publish entry state =
   List.iter (fun observer -> observer.on_state state) (List.rev entry.observers)
 
 let store t key entry state =
+  entry.confirmed <- (match state with Ready _ -> true | _ -> false);
   t.save key (match state with Ready value -> Some value | _ -> None);
   publish entry state
 
@@ -83,6 +86,7 @@ let rec fetch ?(force = false) ?(retry = true) t key entry =
   | _ ->
       let pending, settle = Promise.create () in
       entry.in_flight <- Some pending;
+      entry.confirmed <- false;
       let revision = entry.revision in
       Fiber.fork ~sw:t.sw (fun () ->
           let result =
@@ -351,6 +355,23 @@ let in_flight t =
   Hashtbl.fold
     (fun _ entry active -> active || Option.is_some entry.in_flight)
     t.entries false
+
+let ready_for_replay t scope changes =
+  let belongs (_, resource, _) = resource = Some scope in
+  let keys =
+    Hashtbl.to_seq t.entries
+    |> Seq.filter (fun (key, _) -> belongs key)
+    |> List.of_seq
+  in
+  keys <> []
+  && List.for_all
+       (fun (key, entry) ->
+         entry.confirmed && entry.in_flight = None && (not entry.invalidated)
+         && Option.fold ~none:true
+              ~some:(fun again -> not !again)
+              entry.trailing
+         && List.mem_assoc key changes)
+       keys
 
 let invalidate_all t = List.iter (invalidate t) (keys t)
 

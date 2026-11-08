@@ -18,13 +18,15 @@ Add `semiont` to your application's Dune `libraries` stanza and make the install
 
 - **Script.** Discover the issuer with `OAuth.discover`, obtain the user code with `OAuth.begin_device`, then call `OAuth.await_device` with the application's clock. To reuse the launcher's sign-in on Linux or macOS, open the launcher directory with `Sign_in_store.make` and select the stack with `Sign_in_store.session`.
 - **Interactive application.** Use `Registry.begin_sign_in` to store the pending PKCE exchange and get the authorization URL. After the redirect, use `Registry.complete_sign_in` to consume the callback and verify the knowledge base. Supply a `Storage.t` with an atomic update when multiple application contexts share the store.
-- **Agent.** Use `Agent.sign_in` with a client secret or RSA key. For RSA assertions, initialize Mirage's secure random generator and supply a fresh assertion ID.
+- **Agent.** Use `Agent.sign_in` with a client secret or RSA key. For RSA assertions, initialize Mirage's secure random generator and supply a fresh assertion ID. Use `Service_token` when you need the issuer bearer or authorization header independently of a client.
 
 Pass the credential session, Eio switch, clock, and gateway HTTP adapter to `Client.connect`. The application owns the HTTP adapter, the client, and the lifetime of its Eio switch. The [sign-in guide](../../docs/builder/SIGN-IN.md) describes the grants.
 
 ## Live queries
 
 Get a query from `Client.Browse`, `Client.Match`, or `Client.Gather`. Use `Client.fresh` for a fresh answer, or `Client.observe` for state updates until you release the observation. The [checked example](sdk/examples/builder.ml) reads and watches a resource.
+
+For a durable cache, pass a `Storage_persister` to `Client.connect`. Give it a key scoped to the knowledge base and signed-in principal. The client debounces cache writes and advances a stored replay cursor only when the matching scoped cache values can be saved with it.
 
 ## Delegate work
 

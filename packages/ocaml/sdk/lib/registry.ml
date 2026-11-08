@@ -533,10 +533,7 @@ let start_kept_session browser ~sw ~http id =
                     }
                   in
                   (Some next, Session.Renewed next.access)
-              | Error
-                  (Oauth.Rejected
-                     ( "invalid_grant" | "invalid_client" | "access_denied"
-                     | "expired_token" )) ->
+              | Error failure when Oauth.refresh_refused failure ->
                   (None, Session.Refused)
               | Error _ -> (Some current, Session.Unavailable)))
   in

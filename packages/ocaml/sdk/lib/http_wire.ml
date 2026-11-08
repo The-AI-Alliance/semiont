@@ -74,19 +74,11 @@ let bearer token headers =
   | None -> headers
   | Some token -> ("authorization", "Bearer " ^ token) :: headers
 
-let sleep t ms =
-  let span =
-    Mtime.Span.of_uint64_ns (Int64.of_float (max 0. ms *. 1_000_000.))
-  in
-  Clock.sleep_until t.clock
-    (Option.value
-       (Mtime.add_span (Clock.monotonic_now t.clock) span)
-       ~default:Mtime.max_stamp)
+let sleep t = Retry.sleep_ms t.clock
 
 let retry_after headers =
-  match Option.bind (header "retry-after" headers) int_of_string_opt with
-  | Some seconds when seconds >= 0 -> float seconds *. 1000.
-  | _ -> 0.
+  Option.bind (header "retry-after" headers) Retry.retry_after_ms
+  |> Option.fold ~none:0. ~some:float
 
 let subscribe t ~sw snapshot ~bearer:token =
   let meth, path = Http_facts.subscribe in
@@ -109,6 +101,7 @@ let subscribe t ~sw snapshot ~bearer:token =
 let exchange t ~auth ?progress ?timeout_ms ?(headers = []) ?(body = "")
     ?(attempts = 1) ?(initial_delay = 0) ?(max_delay = 0) ?(jitter = false)
     (meth, path) read =
+  let keyed = Option.is_some (header "idempotency-key" headers) in
   let initial = if auth then Session.credential t.session else None in
   let rec attempt token renewed left delay =
     let send () =
@@ -158,8 +151,9 @@ let exchange t ~auth ?progress ?timeout_ms ?(headers = []) ?(body = "")
           | _ -> fail t ~status "unauthorized"
         else if
           left > 1
-          && List.mem status
-               (if jitter then [ 429; 503; 504 ] else Http_facts.retry_statuses)
+          && Retry.retryable
+               (if jitter then Retry.Boot else Retry.Transport)
+               ~status ~meth ~keyed ()
         then retry (retry_after headers)
         else fail t ~status (Http_facts.status_code status)
   in

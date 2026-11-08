@@ -17,9 +17,11 @@
   state_task
   oauth_facts
   assertion_facts
-  store_policy)
+  store_policy
+  testing_facts)
  (libraries
   eio
+  cstruct
   mtime
   yojson
   base64

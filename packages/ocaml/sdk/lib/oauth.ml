@@ -133,6 +133,9 @@ let revocation_endpoint issuer = issuer.revocation
 let encoded bytes =
   Base64.encode_exn ~pad:false ~alphabet:Base64.uri_safe_alphabet bytes
 
+let code_challenge verifier =
+  Digestif.SHA256.(to_raw_string (digest_string verifier)) |> encoded
+
 let begin_redirect issuer ~random ~redirect_uri =
   let draw () =
     let bytes = random 32 in
@@ -142,9 +145,7 @@ let begin_redirect issuer ~random ~redirect_uri =
   in
   let verifier = draw () in
   let state = draw () in
-  let challenge =
-    Digestif.SHA256.(to_raw_string (digest_string verifier)) |> encoded
-  in
+  let challenge = code_challenge verifier in
   let authorization = Uri.of_string issuer.authorization in
   let location =
     Uri.add_query_params' authorization
@@ -262,13 +263,35 @@ let await_device ~clock http issuer device =
   in
   wait (max Client_timing.device_poll_floor_ms (milliseconds device.interval))
 
+let refresh_refused = function
+  | Rejected
+      ( "invalid_grant" | "invalid_client" | "access_denied" | "expired_token"
+      | "oauth.exchange-refused" ) ->
+      true
+  | _ -> false
+
 let refresh_kept http ~token_endpoint ~client_id ~refresh_token =
-  grant http ~token_endpoint
-    [
-      ("grant_type", "refresh_token");
-      ("client_id", client_id);
-      ("refresh_token", refresh_token);
-    ]
+  let status = ref None in
+  let observed request =
+    let code, body = http request in
+    status := Some code;
+    (code, body)
+  in
+  let issued =
+    grant observed ~token_endpoint
+      [
+        ("grant_type", "refresh_token");
+        ("client_id", client_id);
+        ("refresh_token", refresh_token);
+      ]
+  in
+  match (issued, !status) with
+  | Error error, Some code when code < 200 || code >= 300 ->
+      if Retry.retryable Retry.Refresh ~status:code () then
+        Error (Rejected "oauth.exchange-unavailable")
+      else if refresh_refused error then issued
+      else Error (Rejected "oauth.exchange-refused")
+  | _ -> issued
 
 let refresh_script http ~token_endpoint ~refresh_token =
   refresh_kept http ~token_endpoint ~client_id:Oauth_facts.script ~refresh_token

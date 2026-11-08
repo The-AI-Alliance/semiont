@@ -64,6 +64,7 @@ val encode_subscription : snapshot -> (string, Models.decode_error) result
 val start :
   ?timing:timing ->
   ?telemetry:Telemetry.t ->
+  ?positions:(string * string) list ->
   sw:Eio.Switch.t ->
   clock:Clock.t ->
   client_id:string ->
@@ -110,3 +111,5 @@ val request :
 (** Track a reply before calling [send], once the stream is open. The deadline
     includes the wait for the stream and the send. Cancellation removes the
     pending id and propagates to the caller. *)
+
+val positions : t -> (string * string) list

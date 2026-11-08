@@ -190,3 +190,10 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/helper_cases.ml'),
     const resources = source.resources ? `let resource_builders = ${ocamlString(JSON.stringify(source.resources))}\n` : '';
     return `let table_${index} = ${ocamlString(JSON.stringify(source.cases))}\n` + resources;
   }).join(''), process.argv.includes('--check'));
+
+const retryCases = JSON.parse(readFileSync(resolve(specRoot, 'retry/cases.json'), 'utf8'));
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/retry_cases.ml'),
+  '(* Generated from retry/cases.json. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n' +
+  `let rules = ${ocamlString(JSON.stringify(retryCases.rules))}\n` +
+  `let retry_after = ${ocamlString(JSON.stringify(retryCases.retryAfter))}\n`,
+  process.argv.includes('--check'));

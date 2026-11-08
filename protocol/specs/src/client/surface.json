@@ -1360,9 +1360,9 @@
     },
     {
       "module": "retry",
-      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "Doing work again by a backoff, until it succeeds, it fails as nothing can mend, or the attempts run out.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/retry.mli"],
         "csharp": ["packages/csharp/sdk/src/Semiont/Http"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Transport/Retry.swift"
@@ -1489,9 +1489,9 @@
     },
     {
       "module": "storagePersister",
-      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "Where a client keeps its queries' values: a session storage, under one key, kept within a size.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/storage_persister.mli"],
         "haskell": ["packages/haskell/sdk/src/Semiont/StoragePersister.hs"],
         "csharp": ["packages/csharp/sdk/src/Semiont"],
         "swift": [
@@ -1857,9 +1857,9 @@
     },
     {
       "module": "redirectSignIn",
-      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/redirect_sign_in.ml"],
         "csharp": ["packages/csharp/sdk/src/Semiont/Authorization"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/Registry/RedirectSignIn.swift",
@@ -1937,9 +1937,9 @@
     },
     {
       "module": "serviceToken",
-      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "A service account's token, which a process holds for its own account at the issuer a knowledge base trusts: the issuer's token endpoint discovered once, through the HTTP client the token was made with, one client-credentials grant at a time, the token held until it is due for renewal, and the `Authorization` header's value it gives (`authorization`).",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/service_token.mli"],
         "haskell": ["packages/haskell/sdk/src/Semiont/ServiceToken.hs"],
         "swift": [
           "packages/swift/sdk/Sources/Semiont/SignIn/ServiceToken.swift"
@@ -2185,9 +2185,9 @@
     },
     {
       "module": "testing",
-      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "What a consumer's tests hold a composition and a registry to: the liveness axioms, that under any behaviour of the wire something is eventually said and every event is delivered exactly once; a real session over test doubles; a factory of scripted sessions for a registry; and a storage several contexts share.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/testing.mli"],
         "swift": [
           "packages/swift/sdk/Sources/SemiontTesting/Liveness.swift",
           "packages/swift/sdk/Sources/SemiontTesting/ScriptedTransport.swift",

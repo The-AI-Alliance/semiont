@@ -79,3 +79,8 @@
  (target annotation_id.ml)
  (deps ../lib/annotation_id.ml)
  (action (copy %{deps} %{target})))
+
+(test
+ (name completion_behavior)
+ (modules completion_behavior retry_cases)
+ (libraries semiont eio_main eio.mock yojson alcotest mtime uri))

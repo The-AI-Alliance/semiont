@@ -30,6 +30,7 @@ val discover : http -> issuer:string -> (issuer, error) result
 val issuer_url : issuer -> string
 val token_endpoint : issuer -> string
 val revocation_endpoint : issuer -> string option
+val code_challenge : string -> string
 
 val begin_redirect :
   issuer -> random:(int -> string) -> redirect_uri:string -> redirect
@@ -53,6 +54,8 @@ val poll_device : http -> issuer -> device -> (script tokens, error) result
 val await_device :
   clock:Clock.t -> http -> issuer -> device -> (script tokens, error) result
 (** Poll using the caller's clock, starting the expiry window when called. *)
+
+val refresh_refused : error -> bool
 
 val refresh_kept :
   http ->

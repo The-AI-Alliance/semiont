@@ -4,6 +4,7 @@ type t = {
   sw : Switch.t;
   clock : Clock.t;
   cache : (Live_query.key, Yojson.Safe.t) Live_query.t;
+  flush_cache : unit -> unit;
   session : Session.t;
   http : Http_wire.t;
   bus : Subscription.t;
@@ -18,8 +19,14 @@ type t = {
 
 let connect ?(subscribe_defaults = true) ?timing ?http_timing ?telemetry
     ?delegation_silence_ms ?delegation_poll_ms ?invalidation_window_ms ?restore
-    ?save ~sw ~clock ~session ~client_id ~key ~call ~global ~on_event ~on_error
-    () =
+    ?save ?persister ~sw ~clock ~session ~client_id ~key ~call ~global ~on_event
+    ~on_error () =
+  let restore, save =
+    match (persister, restore, save) with
+    | Some store, None, None -> (Some (Storage_persister.restore store), None)
+    | None, _, _ -> (restore, save)
+    | _ -> invalid_arg "choose either a cache persister or individual hooks"
+  in
   let error_listeners = ref [] in
   let report failure =
     List.iter (fun observe -> observe failure) (List.rev !error_listeners);
@@ -73,8 +80,9 @@ let connect ?(subscribe_defaults = true) ?timing ?http_timing ?telemetry
     deliver frame
   in
   let bus =
-    Subscription.start ?timing ?telemetry ~sw ~clock ~client_id ~global
-      ~scopes:[] ~connect ~on_event ()
+    Subscription.start ?timing ?telemetry
+      ?positions:(Option.map Storage_persister.positions persister)
+      ~sw ~clock ~client_id ~global ~scopes:[] ~connect ~on_event ()
   in
   let delegation =
     Delegation.make ?silence_ms:delegation_silence_ms
@@ -82,6 +90,41 @@ let connect ?(subscribe_defaults = true) ?timing ?http_timing ?telemetry
       ~correlation_id:key ()
   in
   follower := Some delegation;
+  let save, flush_cache =
+    match persister with
+    | None -> (save, ignore)
+    | Some store ->
+        let task = State_task.make () in
+        let pending = ref [] in
+        let flush ~advance =
+          match !pending with
+          | [] -> ()
+          | changes ->
+              pending := [];
+              let positions =
+                if not advance then []
+                else
+                  match !live with
+                  | None -> []
+                  | Some cache ->
+                      Subscription.positions bus
+                      |> List.filter (fun (scope, _) ->
+                          Live_query.ready_for_replay cache scope changes)
+              in
+              Storage_persister.save_covered store ~positions changes
+        in
+        let schedule key value =
+          pending := (key, value) :: List.remove_assoc key !pending;
+          let due = State_task.deadline clock Client_timing.save_debounce_ms in
+          State_task.replace task ~sw (fun current ->
+              Clock.sleep_until clock due;
+              if current () then flush ~advance:true)
+        in
+        ( Some schedule,
+          fun () ->
+            State_task.dispose task;
+            flush ~advance:false )
+  in
   let cache =
     Client_query.make ?window_ms:invalidation_window_ms ?restore ?save ~sw
       ~clock ~bus ~http ~client_id ~key ()
@@ -91,6 +134,7 @@ let connect ?(subscribe_defaults = true) ?timing ?http_timing ?telemetry
       let rec monitor previous dropped =
         match Subscription.await_state_change bus ~from:previous with
         | Subscription.Closed ->
+            flush_cache ();
             Live_query.close cache;
             `Stop_daemon
         | Subscription.Open ->
@@ -104,6 +148,7 @@ let connect ?(subscribe_defaults = true) ?timing ?http_timing ?telemetry
     sw;
     clock;
     cache;
+    flush_cache;
     session;
     http;
     bus;
@@ -146,10 +191,13 @@ let on_error t observe =
 let close t =
   t.listeners := [];
   t.error_listeners := [];
-  Live_query.close t.cache;
   Fun.protect
-    ~finally:(fun () -> Subscription.close t.bus)
-    (fun () -> Delegation.close t.delegation)
+    ~finally:(fun () ->
+      Live_query.close t.cache;
+      Fun.protect
+        ~finally:(fun () -> Subscription.close t.bus)
+        (fun () -> Delegation.close t.delegation))
+    t.flush_cache
 
 let await_closed t = Subscription.await_closed t.bus
 

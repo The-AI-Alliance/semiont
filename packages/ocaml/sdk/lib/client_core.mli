@@ -12,6 +12,7 @@ val connect :
   ?invalidation_window_ms:int ->
   ?restore:(Live_query.key -> Yojson.Safe.t option) ->
   ?save:(Live_query.key -> Yojson.Safe.t option -> unit) ->
+  ?persister:Storage_persister.storage_persister ->
   sw:Eio.Switch.t ->
   clock:Clock.t ->
   session:Session.t ->

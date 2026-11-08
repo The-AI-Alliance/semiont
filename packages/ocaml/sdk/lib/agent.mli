@@ -1,6 +1,6 @@
 (** A service account named by a knowledge base's gateway. *)
 
-type proof = Secret of string | Key of Oauth.rsa_key
+type proof = Service_token.proof = Secret of string | Key of Oauth.rsa_key
 
 type error =
   | Issuer of Oauth.error
