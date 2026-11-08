@@ -25,15 +25,16 @@ jobs:
         run: make desktop-linux
 
       # An artifact keeps neither symbolic links nor file modes, and the app's
-      # frameworks need both.
+      # frameworks need both. The tar goes to the runner's temp directory: the
+      # container's copy leaves apps/desktop/release owned by root.
       - name: Pack the macOS app
-        run: tar -cf apps/desktop/release/mac-arm64.tar -C apps/desktop/release mac-arm64
+        run: tar -cf "$RUNNER_TEMP/mac-arm64.tar" -C apps/desktop/release mac-arm64
 
       - name: Upload the macOS app
         uses: actions/upload-artifact@v7
         with:
           name: desktop-macos-arm64-app
-          path: apps/desktop/release/mac-arm64.tar
+          path: ${{ runner.temp }}/mac-arm64.tar
           if-no-files-found: error
 
       - name: Upload Linux package
@@ -53,10 +54,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: desktop-macos-arm64-app
-          path: apps/desktop/release
+          path: ${{ runner.temp }}
 
       - name: Unpack the macOS app
-        run: tar -xf apps/desktop/release/mac-arm64.tar -C apps/desktop/release
+        run: mkdir -p apps/desktop/release && tar -xf "$RUNNER_TEMP/mac-arm64.tar" -C apps/desktop/release
 
       - name: Make the disk image
         run: make desktop-macos-dmg
