@@ -120,6 +120,7 @@ let start_open t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure
   let job_id = ref None in
   let finished = ref false in
   let retrying = ref false in
+  let polling = ref false in
   let last_seen = ref (Clock.monotonic_now t.clock) in
 
   let stopped, stop = Promise.create () in
@@ -150,6 +151,7 @@ let start_open t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure
           match channel with
           | "job:report-progress" ->
               retrying := false;
+              polling := false;
               on_report Progress (field "progress" payload)
           | "job:complete" ->
               on_report Complete payload;
@@ -192,10 +194,12 @@ let start_open t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure
                 pending;
               Queue.clear pending;
               let identity = `Assoc [ ("jobId", text id) ] in
-              let poll_delay delay = if !retrying then t.poll_ms else delay in
-              let rec monitor delay =
+              let poll_delay () =
+                if !retrying || !polling then t.poll_ms else t.silence_ms
+              in
+              let rec monitor () =
                 if not !finished then (
-                  let delay_ms = poll_delay delay in
+                  let delay_ms = poll_delay () in
                   let timeout =
                     Option.fold ~none:delay_ms ~some:(min delay_ms) stall
                   in
@@ -217,9 +221,10 @@ let start_open t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure
                        with H.Failed _ -> ());
                       if not !finished then fail "job.stalled" (`Assoc []))
                     else if
-                      Mtime.Span.compare elapsed (span (poll_delay delay)) < 0
-                    then monitor delay
+                      Mtime.Span.compare elapsed (span (poll_delay ())) < 0
+                    then monitor ()
                     else
+                      let previous_activity = !last_seen in
                       let status =
                         request t B.Operations.job_status_requested identity
                       in
@@ -244,10 +249,12 @@ let start_open t ~verb ?resource ?stall_ms ~params ~on_report ~on_failure
                             | `String "cancelled" -> fail "job.cancelled" value
                             | _ -> ())
                         | Error _ -> ());
-                        last_seen := Clock.monotonic_now t.clock;
-                        monitor t.poll_ms))
+                        if Mtime.equal !last_seen previous_activity then (
+                          last_seen := Clock.monotonic_now t.clock;
+                          polling := true);
+                        monitor ()))
               in
-              monitor t.silence_ms
+              monitor ()
           | Ok _ -> ())
         (fun () -> Promise.await stopped);
       `Stop_daemon);

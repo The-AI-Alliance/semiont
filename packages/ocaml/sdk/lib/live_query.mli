@@ -34,3 +34,10 @@ val refetch :
   (key, Yojson.Safe.t) t -> on:string -> payload:Yojson.Safe.t option -> unit
 
 val close : ('key, 'value) t -> unit
+val get : ('key, 'value) t -> 'key -> 'value option
+val known : ('key, 'value) t -> 'key -> bool
+val keys : ('key, 'value) t -> 'key list
+val in_flight : ('key, 'value) t -> bool
+val invalidate_all : ('key, 'value) t -> unit
+val set : ('key, 'value) t -> 'key -> 'value -> unit
+val remove : ('key, 'value) t -> 'key -> string -> unit

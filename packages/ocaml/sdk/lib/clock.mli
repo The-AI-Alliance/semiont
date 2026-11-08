@@ -19,3 +19,6 @@ val wall_now : t -> float
 val jitter : t -> float
 (** Draws a value from zero inclusive to one exclusive from the supplied state.
 *)
+
+val with_jitter : t -> (unit -> float) -> t
+(** Use a caller-owned draw function returning values in [[0, 1)]. *)

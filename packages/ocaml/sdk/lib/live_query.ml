@@ -330,3 +330,38 @@ let close t =
         List.iter (fun observer -> observer.on_close ()) (List.rev observers))
       t.entries;
     Hashtbl.clear t.entries)
+
+let get t key =
+  match Hashtbl.find_opt t.entries key with
+  | Some { state = Ready value; _ } -> Some value
+  | _ -> None
+
+let known t key =
+  match Hashtbl.find_opt t.entries key with
+  | Some { state = Ready _ | Failed _; _ } -> true
+  | Some { in_flight = Some _; _ } -> true
+  | _ -> false
+
+let keys t =
+  Hashtbl.fold
+    (fun key _ keys -> if known t key then key :: keys else keys)
+    t.entries []
+
+let in_flight t =
+  Hashtbl.fold
+    (fun _ entry active -> active || Option.is_some entry.in_flight)
+    t.entries false
+
+let invalidate_all t = List.iter (invalidate t) (keys t)
+
+let update t key state =
+  if not (Promise.is_resolved t.stopped) then (
+    let entry = entry t key in
+    entry.revision <- entry.revision + 1;
+    entry.restored <- false;
+    entry.in_flight <- None;
+    entry.invalidated <- false;
+    store t key entry state)
+
+let set t key value = update t key (Ready value)
+let remove t key reason = update t key (Failed reason)

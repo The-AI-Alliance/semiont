@@ -4,7 +4,10 @@ module R = Registry
 module D = Discovery
 module J = Yojson.Safe.Util
 
-let field = J.member
+let field name = function
+  | `Assoc fields -> Option.value (List.assoc_opt name fields) ~default:`Null
+  | _ -> `Null
+
 let string name value = J.to_string (field name value)
 let int name value = J.to_int (field name value)
 let rows name value = J.to_list (field name value)
@@ -87,7 +90,12 @@ let controlled () =
   let elapsed = function
     | `Int elapsed -> elapsed
     | value ->
-        let base = string "timing" value |> fun name -> int name timing in
+        let base =
+          match String.split_on_char '.' (string "timing" value) with
+          | [ name ] -> int name timing
+          | [ name; key ] -> int key (field name timing)
+          | _ -> assert false
+        in
         int_of_float
           ((float base *. number 1. (field "times" value))
           +. number 0. (field "plusMs" value))
@@ -102,6 +110,8 @@ let controlled () =
         Clock.make ~monotonic:mono ~wall ~jitter:(Random.State.make [| 1 |])
       in
       let count = ref 0 in
+      let act = ref ignore in
+      let cleanup = ref ignore in
       (match string "subject" row with
       | "discovery" ->
           let _release =
@@ -112,6 +122,283 @@ let controlled () =
               ~on_change:ignore
           in
           ()
+      | "saveDebounce" ->
+          let cache =
+            State_units.Cache.make ~sw ~clock
+              ~load:(fun _ -> assert false)
+              ~save:(fun _ -> incr count)
+              ()
+          in
+          (cleanup := fun () -> State_units.Cache.dispose cache);
+          let changed = ref 0 in
+          act :=
+            fun () ->
+              incr changed;
+              State_units.Cache.set cache "key" (`Int !changed)
+      | "renewal" ->
+          let lifetime = int "lifetimeSeconds" (field "given" row) in
+          let token () =
+            let now = int_of_float (Clock.wall_now clock) in
+            let claims =
+              Yojson.Safe.to_string
+                (`Assoc [ ("iat", `Int now); ("exp", `Int (now + lifetime)) ])
+            in
+            "header."
+            ^ Base64.encode_exn ~pad:false ~alphabet:Base64.uri_safe_alphabet
+                claims
+            ^ ".signature"
+          in
+          ignore
+            (Session.start ~sw ~clock
+               ~initial_token:(Some (token ()))
+               ~renew:(fun ~refused:_ ->
+                 incr count;
+                 Session.Renewed (token ()))
+               ())
+      | ( "refusedStream" | "unansweredStream" | "degradedStream" | "scopeTaken"
+        | "scopeLetGo" | "handoffLinger" ) as subject -> (
+          let clock = Clock.with_jitter clock (fun () -> 0.) in
+          let session =
+            Session.start ~sw ~clock ~initial_token:(Some "token")
+              ~renew:(fun ~refused:_ -> Session.Refused)
+              ()
+          in
+          let never, _ = Promise.create () in
+          let module Source = struct
+            type t = unit Promise.t
+
+            let read_methods = []
+
+            let single_read never _ =
+              Promise.await never;
+              0
+          end in
+          let source =
+            Eio.Resource.T (never, Eio.Flow.Pi.source (module Source))
+          in
+          let call ~sw ~meth:_ ~path ~headers:_ ~body:_ ~progress:_ =
+            assert (path = "/bus/subscribe");
+            if subject = "handoffLinger" then
+              Switch.on_release sw (fun () -> incr count)
+            else if subject <> "degradedStream" then incr count;
+            match subject with
+            | "refusedStream" | "degradedStream" ->
+                let headers =
+                  match field "retryAfterSeconds" (field "given" row) with
+                  | `Int seconds -> [ ("retry-after", string_of_int seconds) ]
+                  | _ -> []
+                in
+                (503, headers, Eio.Flow.string_source "{}")
+            | "unansweredStream" ->
+                Promise.await never;
+                assert false
+            | _ -> (200, [], source)
+          in
+          let client =
+            Client.connect ~subscribe_defaults:false ~sw ~clock ~session
+              ~client_id:"clock-test"
+              ~key:(fun () -> "clock-key")
+              ~call ~global:[] ~on_event:ignore ~on_error:ignore ()
+          in
+          (cleanup := fun () -> Client.close client);
+          let bus = Client.subscription client in
+          let take () =
+            let resource =
+              Result.get_ok (Identifiers.Resource_id.of_string "res-1")
+            in
+            Subscription.hold_scope bus
+              {
+                resource;
+                channels =
+                  [ Bus_registry.Channel Bus_registry.Channels.mark_added ];
+              }
+          in
+          match subject with
+          | "scopeTaken" | "handoffLinger" ->
+              let release = ref ignore in
+              act := fun () -> release := take ()
+          | "scopeLetGo" ->
+              Fiber.fork_daemon ~sw (fun () ->
+                  let rec open_ previous =
+                    if previous = Subscription.Open then ()
+                    else
+                      open_ (Subscription.await_state_change bus ~from:previous)
+                  in
+                  open_ (Subscription.state bus);
+                  act := take ();
+                  `Stop_daemon)
+          | "degradedStream" ->
+              Fiber.fork_daemon ~sw (fun () ->
+                  let rec read previous =
+                    let next =
+                      Subscription.await_state_change bus ~from:previous
+                    in
+                    if next = Subscription.Degraded then incr count;
+                    if next <> Subscription.Closed then read next
+                  in
+                  read Subscription.Initial;
+                  `Stop_daemon)
+          | _ -> ())
+      | ("heldJobStall" | "invalidationWindow" | "jobFollower") as subject -> (
+          let session =
+            Session.start ~sw ~clock ~initial_token:(Some "token")
+              ~renew:(fun ~refused:_ -> Session.Refused)
+              ()
+          in
+          let module Source = struct
+            type t = string Eio.Stream.t * string ref
+
+            let read_methods = []
+
+            let single_read (stream, pending) buffer =
+              if !pending = "" then pending := Eio.Stream.take stream;
+              let length =
+                min (Cstruct.length buffer) (String.length !pending)
+              in
+              Cstruct.blit_from_string !pending 0 buffer 0 length;
+              pending :=
+                String.sub !pending length (String.length !pending - length);
+              length
+          end in
+          let newest = ref None in
+          let frame ?correlation_id channel payload =
+            let fields =
+              [ ("channel", text channel); ("payload", payload) ]
+              @ Option.to_list
+                  (Option.map (fun id -> ("correlationId", id)) correlation_id)
+            in
+            Eio.Stream.add (Option.get !newest)
+              ("event: bus-event\ndata: "
+              ^ Yojson.Safe.to_string (`Assoc fields)
+              ^ "\n\n")
+          in
+          let read = Yojson.Safe.from_string in
+          let call ~sw:_ ~meth:_ ~path ~headers:_ ~body ~progress:_ =
+            if path = "/bus/subscribe" then (
+              let queue = Eio.Stream.create 16 in
+              newest := Some queue;
+              ( 200,
+                [],
+                Eio.Resource.T
+                  ((queue, ref ""), Eio.Flow.Pi.source (module Source)) ))
+            else (
+              assert (path = "/bus/emit");
+              let envelope = read body in
+              let correlation_id = field "correlationId" envelope in
+              let answer = frame ~correlation_id in
+              (match string "channel" envelope with
+              | "browse:events-requested" ->
+                  incr count;
+                  answer "browse:events-result"
+                    (read
+                       {|{"response":{"events":[],"total":0,"resourceId":"res-1","lastSequence":0}}|})
+              | "job:create" ->
+                  answer "job:created" (read {|{"response":{"jobId":"job-1"}}|})
+              | "job:status-requested" ->
+                  incr count;
+                  answer "job:status-result"
+                    (read
+                       {|{"response":{"jobId":"job-1","type":"mark","status":"running","userId":"did:web:kb.example:users:one","created":"2026-01-01T00:00:00Z"}}|})
+              | "job:claim" ->
+                  answer "job:claimed"
+                    (read
+                       {|{"response":{"status":"running","metadata":{"id":"job-1","type":"mark","userId":"did:web:kb.example:users:one","created":"2026-01-01T00:00:00Z","retryCount":0,"maxRetries":3},"params":{"resourceId":"res-1","motivation":"highlighting"},"startedAt":"2026-01-01T00:00:01Z","progress":{}}}|})
+              | "job:report-progress" -> ()
+              | other -> failwith ("unexpected clock-test request " ^ other));
+              (202, [], Eio.Flow.string_source "{}"))
+          in
+          let serial = ref 0 in
+          let client =
+            Client.connect ~sw ~clock ~session ~client_id:"clock-test"
+              ~key:(fun () ->
+                incr serial;
+                "clock-" ^ string_of_int !serial)
+              ~call ~global:[] ~on_event:ignore ~on_error:ignore ()
+          in
+          (cleanup := fun () -> Client.close client);
+          let resource =
+            Result.get_ok (Identifiers.Resource_id.of_string "res-1")
+          in
+          match subject with
+          | "invalidationWindow" ->
+              let _release =
+                Client.observe
+                  (Client.Browse.events client resource)
+                  ~on_state:ignore ~on_close:ignore
+              in
+              act :=
+                fun () ->
+                  frame "mark:added"
+                    (read {|{"type":"mark:added","resourceId":"res-1"}|})
+          | "jobFollower" ->
+              let params =
+                Result.get_ok
+                  (Models.decode Models.mark_job_params
+                     {|{"motivation":"highlighting"}|})
+              in
+              let _release =
+                Client.Mark.delegate (Client.delegation client) ~resource
+                  ~params
+                  ~on_report:(fun _ _ -> ())
+                  ~on_failure:(fun failure -> failwith failure.Delegation.code)
+                  ~on_close:ignore ()
+              in
+              act :=
+                fun () ->
+                  frame "job:report-progress"
+                    (read
+                       {|{"resourceId":"res-1","jobId":"job-1","jobType":"mark","percentage":10,"progress":{"percentage":10}}|})
+          | _ ->
+              let filter =
+                Result.get_ok
+                  (Models.decode Models.job_filter
+                     {|{"jobType":"mark","params":{"motivation":"highlighting"}}|})
+              in
+              let claims =
+                Client.Job.claim client
+                  ~on_stalled:(fun _ -> incr count)
+                  [ filter ]
+              in
+              Fiber.fork_daemon ~sw (fun () ->
+                  let job = Option.get (Claims.next claims) in
+                  (act :=
+                     fun () -> Worker.progress job ~percentage:10 ~message:None);
+                  `Stop_daemon))
+      | ("unansweredRequest" | "unansweredEmit") as subject ->
+          let emit = subject = "unansweredEmit" in
+          let clock = Clock.with_jitter clock (fun () -> 0.) in
+          let session =
+            Session.start ~sw ~clock ~initial_token:(Some "token")
+              ~renew:(fun ~refused:_ -> Session.Refused)
+              ()
+          in
+          let never, _ = Promise.create () in
+          let attempts = ref 0 in
+          let call ~sw:_ ~meth:_ ~path ~headers:_ ~body:_ ~progress:_ =
+            assert (path = if emit then "/bus/emit" else "/api/health");
+            incr attempts;
+            if emit then incr count;
+            Promise.await never
+          in
+          let http =
+            Http_wire.make ~clock ~session
+              ~key:(fun () -> "clock-test")
+              ~on_error:ignore ~call ()
+          in
+          Fiber.fork_daemon ~sw (fun () ->
+              (try
+                 if emit then
+                   ignore
+                     (Http_wire.emit http ~client_id:"clock-test"
+                        Bus_registry.Channels.beckon_sparkle
+                        {|{"annotationId":"ann-1"}|})
+                 else ignore (Http_wire.health http)
+               with Http_wire.Failed failure ->
+                 assert (failure.code = "unavailable");
+                 if not emit then (
+                   assert (!attempts = 1);
+                   incr count));
+              `Stop_daemon)
       | "deviceGrant" ->
           let given = field "given" row in
           let endpoint = "https://issuer.example/token" in
@@ -156,25 +443,33 @@ let controlled () =
               `Stop_daemon)
       | _ -> assert false);
       let settle () =
-        for _ = 1 to 6 do
+        for _ = 1 to 20 do
           Fiber.yield ()
         done
       in
       settle ();
       List.iter
         (fun step ->
-          match field "counted" step with
-          | `Int expected ->
-              Alcotest.(check int) (string "case" row) expected !count
-          | _ ->
-              let elapsed = elapsed (field "pass" step) in
-              Eio_mock.Clock.Mono.set_time mono
-                (Option.get
-                   (Mtime.add_span
-                      (Clock.monotonic_now clock)
-                      Mtime.Span.(elapsed * ms)));
-              settle ())
-        (rows "steps" row))
+          if step = text "act" then (
+            !act ();
+            settle ())
+          else
+            match field "counted" step with
+            | `Int expected ->
+                Alcotest.(check int) (string "case" row) expected !count
+            | _ ->
+                let elapsed = elapsed (field "pass" step) in
+                Eio_mock.Clock.set_time wall
+                  (Clock.wall_now clock +. (float elapsed /. 1000.));
+                Eio_mock.Clock.Mono.set_time mono
+                  (Option.get
+                     (Mtime.add_span
+                        (Clock.monotonic_now clock)
+                        Mtime.Span.(elapsed * ms)));
+                settle ())
+        (rows "steps" row);
+      !cleanup ();
+      settle ())
     table
 
 let sign_in () =

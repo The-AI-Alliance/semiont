@@ -33,6 +33,28 @@ let check expected actual =
     (json (normalize expected))
     (json (normalize actual))
 
+let rec matches expected actual =
+  match (expected, actual) with
+  | `Assoc [ ("$has", `Assoc wanted) ], `Assoc fields ->
+      List.for_all
+        (fun (name, value) ->
+          match List.assoc_opt name fields with
+          | Some actual -> matches value actual
+          | None -> false)
+        wanted
+  | `List a, `List b ->
+      List.length a = List.length b && List.for_all2 matches a b
+  | _ -> normalize expected = normalize actual
+
+let rec substitute fixture = function
+  | `Assoc [ ("$fixture", `String name) ] ->
+      substitute fixture (field name fixture)
+  | `Assoc fields ->
+      assoc
+        (List.map (fun (key, value) -> (key, substitute fixture value)) fields)
+  | `List values -> `List (List.map (substitute fixture) values)
+  | value -> value
+
 (* Public units driven by the shared client/state-units.json cases. *)
 let run_case row =
   Eio_main.run @@ fun env ->
@@ -70,36 +92,66 @@ let run_case row =
   let on_event = function
     | Ok (Wire_stream.Frame { route; payload = Ok payload; _ })
       when List.mem route.channel listen ->
-        heard :=
-          assoc
-            [
-              ("channel", text route.channel);
-              ("payload", Yojson.Safe.from_string (B.encode payload));
-            ]
-          :: !heard
+        let fields =
+          [
+            ("channel", text route.channel);
+            ("payload", Yojson.Safe.from_string (B.encode payload));
+          ]
+        in
+        let fields =
+          fields
+          @ Option.to_list
+              (Option.map
+                 (fun id -> ("correlationId", text id))
+                 route.correlation_id)
+        in
+        heard := assoc fields :: !heard
     | _ -> ()
   in
   let read, write = Eio.Process.pipe ~sw (Eio.Stdenv.process_mgr env) in
-  let call ~sw:_ ~meth:_ ~path ~headers:_ ~body:_ ~progress:_ =
-    if path = "/bus/subscribe" then
-      (200, [], (read :> Eio.Flow.source_ty Eio.Resource.t))
-    else failwith "unexpected HTTP request in state unit case"
+  let sent = ref [] in
+  let send_frame ?correlation_id channel payload =
+    let fields =
+      [ ("channel", text channel); ("payload", payload) ]
+      @ Option.to_list
+          (Option.map (fun id -> ("correlationId", text id)) correlation_id)
+    in
+    Eio.Flow.copy_string
+      ("event: bus-event\ndata: " ^ json (assoc fields) ^ "\n\n")
+      write
+  in
+  let call ~sw:_ ~meth:_ ~path ~headers:_ ~body ~progress:_ =
+    match path with
+    | "/bus/subscribe" -> (200, [], (read :> Eio.Flow.source_ty Eio.Resource.t))
+    | "/bus/emit" ->
+        sent := !sent @ [ Yojson.Safe.from_string body ];
+        (202, [], Eio.Flow.string_source "{}")
+    | _ -> failwith "unexpected HTTP request in state unit case"
+  in
+  let on_channel name =
+    List.filter (fun row -> string "channel" row = name) !sent
+  in
+  let correlation channel nth =
+    string "correlationId" (List.nth (on_channel channel) nth)
   in
   let session =
     Session.start ~sw ~clock ~initial_token:(Some "state-token")
       ~renew:(fun ~refused:_ -> Session.Refused)
       ()
   in
+  let serial = ref 0 in
   let client =
     Client.connect ~sw ~clock ~session ~client_id:"state-test"
-      ~key:(fun () -> "state-id")
+      ~key:(fun () ->
+        incr serial;
+        "state-" ^ string_of_int !serial)
       ~call ~global:[] ~on_event ~on_error:ignore ()
   in
-  let local channel payload =
+  let local ?correlation_id channel payload =
     let (B.Channel channel) =
       List.find (fun (B.Channel value) -> B.name value = channel) B.channels
     in
-    Client.publish client channel
+    Client.publish client ?correlation_id channel
       (Result.get_ok (B.decode channel (json payload)))
   in
   let searched = ref [] and answers = ref [] in
@@ -120,6 +172,42 @@ let run_case row =
   let made = field "unit" (field "made" row) in
   let dispose, invoke, values =
     match string "unit" row with
+    | "match" ->
+        let unit = U.Match.make client in
+        ((fun () -> U.Match.dispose unit), (fun _ _ -> assert false), [])
+    | "gather" ->
+        let module G = U.Gather in
+        let resource name value =
+          Result.get_ok (Identifiers.Resource_id.of_string (string name value))
+        in
+        let unit = G.make client ~resource:(resource "resourceId" made) in
+        let invoke name args =
+          match name with
+          | "gatherAnnotation" ->
+              G.gather_annotation unit
+                ?context_window:(option J.to_int (field "contextWindow" args))
+                ?include_source_context:
+                  (option J.to_bool (field "includeSourceContext" args))
+                ?include_target_context:
+                  (option J.to_bool (field "includeTargetContext" args))
+                (id (field "annotationId" args))
+          | "gatherResource" ->
+              G.gather_resource unit (resource "resourceId" args)
+          | _ -> assert false
+        in
+        let identity value = value and bool value = `Bool value in
+        ( (fun () -> G.dispose unit),
+          invoke,
+          [
+            watch "context" (G.context unit) (nullable identity);
+            watch "loading" (G.loading unit) bool;
+            watch "error" (G.error unit) (nullable identity);
+            watch "annotationId" (G.annotation_id unit) annotation;
+            watch "resourceContext" (G.resource_context unit)
+              (nullable identity);
+            watch "resourceLoading" (G.resource_loading unit) bool;
+            watch "resourceError" (G.resource_error unit) (nullable identity);
+          ] )
     | "hoverDwell" ->
         let unit =
           U.Hover_dwell.make ~delay_ms:(elapsed (field "delayMs" made)) client
@@ -224,19 +312,36 @@ let run_case row =
                       (Clock.monotonic_now clock)
                       Mtime.Span.(duration * ms)));
               settle ()
-          | "say", `String channel -> local channel (field "payload" step)
+          | "say", `String channel ->
+              local
+                ?correlation_id:
+                  (option J.to_string (field "correlationId" step))
+                channel (field "payload" step)
           | "deliver", `String channel ->
               settle ();
-              Eio.Flow.copy_string
-                ("event: bus-event\ndata: "
-                ^ json
-                    (assoc
-                       [
-                         ("channel", text channel);
-                         ("payload", field "payload" step);
-                       ])
-                ^ "\n\n")
-                write;
+              send_frame channel (field "payload" step);
+              settle ()
+          | "nothingSent", _ ->
+              settle ();
+              check (`List []) (`List !sent)
+          | "sent", `String channel -> (
+              settle ();
+              let messages = on_channel channel in
+              match field "count" step with
+              | `Int expected ->
+                  Alcotest.(check int)
+                    "sent count" expected (List.length messages)
+              | _ ->
+                  let expected = field "payloads" step in
+                  let actual = `List (List.map (field "payload") messages) in
+                  if not (matches expected actual) then check expected actual)
+          | "answer", `String channel ->
+              settle ();
+              let correlation_id =
+                correlation channel (J.to_int (field "nth" step))
+              in
+              send_frame ~correlation_id (string "reply" step)
+                (field "payload" step);
               settle ()
           | "expect", expected ->
               List.iter
@@ -244,7 +349,34 @@ let run_case row =
                 (J.to_assoc (field "unit" expected))
           | "heard", expected ->
               settle ();
-              check expected (`List (List.rev !heard));
+              let expected =
+                J.to_list expected
+                |> List.map (fun row ->
+                    match field "correlationId" row with
+                    | `Assoc ref_ ->
+                        let actual =
+                          correlation
+                            (string "sent" (`Assoc ref_))
+                            (J.to_int (field "nth" (`Assoc ref_)))
+                        in
+                        assoc
+                          (("correlationId", text actual)
+                          :: List.remove_assoc "correlationId" (J.to_assoc row)
+                          )
+                    | _ -> row)
+              in
+              let actual = List.rev !heard in
+              let matches_payload expected actual =
+                normalize
+                  (assoc (List.remove_assoc "payload" (J.to_assoc expected)))
+                = normalize
+                    (assoc (List.remove_assoc "payload" (J.to_assoc actual)))
+                && matches (field "payload" expected) (field "payload" actual)
+              in
+              if
+                List.length expected <> List.length actual
+                || not (List.for_all2 matches_payload expected actual)
+              then check (`List expected) (`List actual);
               heard := []
           | "searched", expected ->
               settle ();
@@ -269,7 +401,12 @@ let run_case row =
   Session.close session
 
 let () =
-  let cases = Yojson.Safe.from_string State_cases.cases |> J.to_list in
+  let fixture = Yojson.Safe.from_string State_cases.fixtures in
+  let cases =
+    Yojson.Safe.from_string State_cases.cases
+    |> J.to_list
+    |> List.map (substitute fixture)
+  in
   Alcotest.run "OCaml state units"
     [
       ( "shared",

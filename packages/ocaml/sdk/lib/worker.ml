@@ -15,6 +15,7 @@ type held = {
   retry_count : int;
   max_retries : int;
   lock : Eio.Mutex.t;
+  on_activity : unit -> unit;
   settled : unit Eio.Promise.t * unit Eio.Promise.u;
   mutable phase : phase;
   mutable durability : (int * string) option;
@@ -71,7 +72,8 @@ let accepts ~filters ~announcement =
       | _ -> false)
 
 let claim subscription http ~client_id ~correlation_id ?trace
-    ?(timeout_ms = Client_timing.job_claim_timeout_ms) ~accepts () =
+    ?(on_activity = ignore) ?(timeout_ms = Client_timing.job_claim_timeout_ms)
+    ~accepts () =
   let operation = B.Operations.job_claim in
   let send () =
     ignore
@@ -118,6 +120,7 @@ let claim subscription http ~client_id ~correlation_id ?trace
             retry_count = int "retryCount" metadata;
             max_retries = int "maxRetries" metadata;
             lock = Eio.Mutex.create ();
+            on_activity;
             settled = Eio.Promise.create ();
             phase = Claimed;
             durability = None;
@@ -150,7 +153,8 @@ let identity job =
 let send job channel fields =
   ignore
     (Http_wire.emit job.http ~client_id:job.client_id ?trace:job.trace channel
-       (Yojson.Safe.to_string (`Assoc fields)))
+       (Yojson.Safe.to_string (`Assoc fields)));
+  job.on_activity ()
 
 let lifecycle job channel fields =
   send job channel
@@ -301,3 +305,4 @@ let fail job ~error ~failure_class ~completed ~cursors =
 let default_stall_ms = Client_timing.held_job_stall_ms
 let default_stall_check_ms = Client_timing.held_job_stall_check_ms
 let await_settled job = Eio.Promise.await (fst job.settled)
+let is_settled job = job.phase = Settled

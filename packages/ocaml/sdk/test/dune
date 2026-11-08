@@ -62,7 +62,7 @@
 (test
  (name registry_behavior)
  (modules registry_behavior registry_cases)
- (libraries semiont eio_main eio.mock mtime yojson alcotest))
+ (libraries semiont eio_main eio.mock mtime yojson base64 cstruct alcotest))
 
 (test
  (name state_behavior)

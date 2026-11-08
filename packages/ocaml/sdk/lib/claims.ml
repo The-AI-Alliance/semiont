@@ -7,6 +7,9 @@ type t = {
   accepts : Yojson.Safe.t;
   timeout_ms : int option;
   trace : unit -> Wire_stream.trace option;
+  on_stalled : (Worker.held -> unit) option;
+  mutable last_active : Mtime.t option;
+  mutable stalled : bool;
   on_refused : string option -> unit;
   on_cancel : Worker.held -> unit;
   mutable held : Worker.held option;
@@ -17,8 +20,8 @@ type t = {
   stop_now : unit Promise.u;
 }
 
-let make client ?timeout_ms ?(trace = fun () -> None) ?(on_refused = ignore)
-    ?(on_cancel = ignore) filters =
+let make client ?timeout_ms ?(trace = fun () -> None) ?on_stalled
+    ?(on_refused = ignore) ?(on_cancel = ignore) filters =
   let accepts =
     `List
       (List.map
@@ -31,6 +34,9 @@ let make client ?timeout_ms ?(trace = fun () -> None) ?(on_refused = ignore)
     accepts;
     timeout_ms;
     trace;
+    on_stalled;
+    last_active = None;
+    stalled = false;
     on_refused;
     on_cancel;
     held = None;
@@ -76,6 +82,36 @@ let listen t =
       | _ -> ()
     in
     t.release <- Some (Client_core.on_frame t.client receive);
+    Option.iter
+      (fun on_stalled ->
+        let clock = Client_core.clock t.client in
+        let interval = Mtime.Span.(Worker.default_stall_check_ms * ms) in
+        let threshold = Mtime.Span.(Worker.default_stall_ms * ms) in
+        let bus = Client_core.subscription t.client in
+        let rec check () =
+          let now = Clock.monotonic_now clock in
+          (match (t.held, t.last_active) with
+          | Some job, Some active
+            when (not t.stalled)
+                 && (not (Worker.is_settled job))
+                 && Mtime.Span.compare (Mtime.span now active) threshold > 0 ->
+              t.stalled <- true;
+              on_stalled job
+          | _ -> ());
+          let next =
+            Mtime.add_span now interval |> Option.value ~default:Mtime.max_stamp
+          in
+          Clock.sleep_until clock next;
+          check ()
+        in
+        Fiber.fork_daemon ~sw:(Client_core.switch t.client) (fun () ->
+            Fiber.first check (fun () ->
+                Fiber.first
+                  (fun () -> Promise.await t.stopped)
+                  (fun () -> S.await_closed bus));
+            `Stop_daemon))
+      t.on_stalled;
+
     let bus = Client_core.subscription t.client in
     Fiber.fork_daemon ~sw:(Client_core.switch t.client) (fun () ->
         Fiber.first
@@ -100,6 +136,9 @@ let next t =
     listen t;
     t.waiting <- true;
     let bus = Client_core.subscription t.client in
+    let activity () =
+      t.last_active <- Some (Clock.monotonic_now (Client_core.clock t.client))
+    in
     let next () =
       Option.iter Worker.await_settled t.held;
       t.held <- None;
@@ -107,7 +146,8 @@ let next t =
         t.wake <- Promise.create ();
         let result =
           try
-            Worker.claim ?timeout_ms:t.timeout_ms ?trace:(t.trace ()) bus
+            Worker.claim ~on_activity:activity ?timeout_ms:t.timeout_ms
+              ?trace:(t.trace ()) bus
               (Client_core.http t.client)
               ~client_id:(Client_core.client_id t.client)
               ~correlation_id:(Client_core.next_key t.client)
@@ -117,6 +157,8 @@ let next t =
         match result with
         | Worker.Held job ->
             t.held <- Some job;
+            activity ();
+            t.stalled <- false;
             Some job
         | Worker.Empty ->
             Promise.await (fst t.wake);

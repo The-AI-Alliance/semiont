@@ -166,7 +166,7 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/registry_cases.ml'),
   '(* Generated from session/registry-cases.json and client/clock-cases.json. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n' +
   `let cases = ${ocamlString(JSON.stringify({ cases: registryCases.cases, openResourceOrder: registryCases.openResourceOrder }))}\n` +
   `let timing = ${ocamlString(JSON.stringify(Object.fromEntries(sharedTiming.timing.map(({ name, value }) => [name, value]))))}\n` +
-  `let clock_cases = ${ocamlString(JSON.stringify(clockCases.cases.filter(({ subject }) => ['discovery', 'deviceGrant'].includes(subject))))}\n`,
+  `let clock_cases = ${ocamlString(JSON.stringify(clockCases.cases))}\n`,
   process.argv.includes('--check'));
 
 const statesSource = 'client/state-units.json';
@@ -174,6 +174,7 @@ const states = JSON.parse(readFileSync(resolve(specRoot, statesSource), 'utf8'))
 writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/state_cases.ml'),
   `(* Generated from ${statesSource}. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n` +
   `let timing = ${ocamlString(JSON.stringify(Object.fromEntries(sharedTiming.timing.map(({ name, value }) => [name, value]))))}\n` +
+  `let fixtures = ${ocamlString(JSON.stringify(states.fixtures))}\n` +
   `let cases = ${ocamlString(JSON.stringify(states.cases.filter(({ unit }) =>
-    ['beckon', 'hoverDwell', 'search', 'sessionSignals'].includes(unit))))}\n`,
+    ['beckon', 'hoverDwell', 'search', 'sessionSignals', 'match', 'gather'].includes(unit))))}\n`,
   process.argv.includes('--check'));

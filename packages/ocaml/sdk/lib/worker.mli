@@ -13,6 +13,7 @@ val claim :
   client_id:string ->
   correlation_id:string ->
   ?trace:Wire_stream.trace ->
+  ?on_activity:(unit -> unit) ->
   ?timeout_ms:int ->
   accepts:Yojson.Safe.t ->
   unit ->
@@ -54,3 +55,5 @@ val await_settled : held -> unit
 
 val will_retry_after :
   retry_count:int -> max_retries:int -> Enums.Failure_class.t option -> bool
+
+val is_settled : held -> bool

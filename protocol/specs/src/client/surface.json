@@ -819,9 +819,8 @@
     },
     {
       "unit": "gather",
-      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "The context gathered around one resource: for the annotation last asked about and for the resource last asked about, the context, whether it is loading and why it failed. Each gather is asked of the unit itself, so none reaches a unit of another resource.",
-      "made": {"csharp": "GatherStateUnit", "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit", "go": "GatherStateUnit", "kotlin": "GatherStateUnit", "swift": "GatherStateUnit", "haskell": "GatherStateUnit"},
+      "made": {"ocaml": "Gather", "csharp": "GatherStateUnit", "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit", "go": "GatherStateUnit", "kotlin": "GatherStateUnit", "swift": "GatherStateUnit", "haskell": "GatherStateUnit"},
       "madeBy": {"typescript": "createGatherStateUnit", "go": "NewGatherStateUnit", "haskell": "newGatherStateUnit"},
       "members": [
         { "member": "context" },
@@ -837,9 +836,8 @@
     },
     {
       "unit": "match",
-      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "Matching, run for whoever asks on the client's own bus: a search asked for by a signal is run and answered under the asker's correlation id. It holds no state: what it found is what it said.",
-      "made": {"csharp": "MatchStateUnit", "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit", "go": "MatchStateUnit", "kotlin": "MatchStateUnit", "swift": "MatchStateUnit", "haskell": "MatchStateUnit"},
+      "made": {"ocaml": "Match", "csharp": "MatchStateUnit", "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit", "go": "MatchStateUnit", "kotlin": "MatchStateUnit", "swift": "MatchStateUnit", "haskell": "MatchStateUnit"},
       "madeBy": {"typescript": "createMatchStateUnit", "go": "NewMatchStateUnit", "haskell": "newMatchStateUnit"},
       "members": []
     },
@@ -893,9 +891,8 @@
     },
     {
       "unit": "cache",
-      "notYetReached": { "ocaml": "P7 builds this state unit and its public maker." },
       "docs": "Values the knowledge base answers with, kept by key and held as state: each key's state (pending, ready with its value, or failed), fetched when first observed and again when invalidated, and set, removed or invalidated by its methods. What it does is held by the cache's own tables (protocol/specs/src/client/refresh.json and the cache's rules in each SDK), not by the behaviour table.",
-      "made": {"csharp": "Cache", "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache", "kotlin": "Cache", "swift": "Cache", "haskell": "Cache"},
+      "made": {"ocaml": "Cache", "csharp": "Cache", "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache", "kotlin": "Cache", "swift": "Cache", "haskell": "Cache"},
       "madeBy": {"typescript": "createCache", "go": "NewCache", "haskell": "newCache"},
       "members": [
         {
@@ -931,6 +928,7 @@
         {
           "member": "query",
           "absent": {
+            "ocaml": "The OCaml cache observes a key directly; Client.query provides the public client query.",
             "csharp": "This SDK returns its live observation directly from observe; Haskell also constructs a composable Query value, whose reader is scoped by watch.",
             "typescript": "This SDK returns its live observation directly from observe; Haskell also constructs a composable Query value, whose reader is scoped by watch.",
             "rust": "This SDK returns its live observation directly from observe; Haskell also constructs a composable Query value, whose reader is scoped by watch.",

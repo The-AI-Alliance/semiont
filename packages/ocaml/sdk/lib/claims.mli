@@ -6,6 +6,7 @@ val make :
   Client_core.t ->
   ?timeout_ms:int ->
   ?trace:(unit -> Wire_stream.trace option) ->
+  ?on_stalled:(Worker.held -> unit) ->
   ?on_refused:(string option -> unit) ->
   ?on_cancel:(Worker.held -> unit) ->
   [ `JobFilter ] Models.t list ->
