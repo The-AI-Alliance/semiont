@@ -87,3 +87,19 @@ func TestALockFilesContentIsReadableWhileItIsHeld(t *testing.T) {
 		t.Fatalf("reading the holder's note under the lock: %q, %v", b, err)
 	}
 }
+
+// A lock that cannot be made is an error, and the change it guards does not
+// run: the stack record and the registry are never rewritten without it.
+func TestAChangeWhoseLockCannotBeMadeDoesNotRun(t *testing.T) {
+	notADir := filepath.Join(t.TempDir(), "a-file")
+	if err := os.WriteFile(notADir, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ran := false
+	if err := exclusively(filepath.Join(notADir, "roots.json"), func() { ran = true }); err == nil {
+		t.Error("a lock that cannot be made gave no error")
+	}
+	if ran {
+		t.Error("the change ran without its lock")
+	}
+}
