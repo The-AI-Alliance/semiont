@@ -119,13 +119,13 @@
     "lib/enums.ml": "e2a188bb4fd853313782622b84257a43be1c0e89472fc2323ab9c89ff1aa1232",
     "lib/enums.mli": "1c28ee0ac1ca50a86fe00ce3fe5c6ed5b015045b5cd14c8b48d46fa4b937daaf",
     "lib/http_facts.ml": "3bce75ca4edacc1682410d6c9f6faf5584fe027ff8f058c91a63f0fa59be7784",
-    "lib/http_wire.ml": "d6ccc17efecb393ed128e1aa1de21e7bc41038364611238fd7909e54c83d3f81",
-    "lib/http_wire.mli": "c7e4d662ca05106cab45201182ac3da6f63887d97dfc74a5b89c5eea69963d50",
+    "lib/http_wire.ml": "9b80c726dedf1ac76f4e88f51e2cd19af8e4cfeea4aab3622c9abb31ef774c98",
+    "lib/http_wire.mli": "4a667836831cd4d8ad3be0b4040f0d1545a84312f3a4f00c7385eb39e6f426ea",
     "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
     "lib/identifiers.mli": "bba7e132069a1c36758c9d1bfebd936ecb815b6d05dae2b55f03a5de72f2c20d",
-    "lib/live_facts.ml": "75668f85380c149d291ff7930ef931867ebe5963e224280f0bd2469fecb1a766",
-    "lib/live_query.ml": "2cbae9cabe5ab899c83c1cebd84c1af4177bc4b747ff023f559deddf44c5d230",
-    "lib/live_query.mli": "b8ef2a4e457cc11ed363881ed136acbd4b79f4a7c3d940f71cdbc9179d1058a6",
+    "lib/live_facts.ml": "ce49adc23b56fd0f25a7f642d9d1ead6ddb67b0c297b420bd49ded3c785b1db2",
+    "lib/live_query.ml": "e60ba3bb9edfbeec90aef57fb9d9cb06133e8b6f4a6b6063401ceca3a0afdd28",
+    "lib/live_query.mli": "cf3a19c179b8d63375278f2c2ff056f606796541ce2a4df0aef689de28132d1c",
     "lib/models.ml": "a36b2528fa00802a9e6482da3564a96c31300a8447921557f90770774d7e588c",
     "lib/models.mli": "bc54c8ce9935e9e195877b7ed8d7a6afc85ea7e3a5662139acc669c8f4f02b63",
     "lib/pattern.ml": "a41d5ebb9ebc0eee59522a4d883e2a5281202c4fbebb0a2040b267961bf677ad",
@@ -144,15 +144,15 @@
     "lib/strict_json.mli": "818f38488855a5ce525bbf7fa483feb6aad993670115a63065029201999b50a7",
     "lib/subscription.ml": "8eced92104ad990dcc8ff7ee9392d7a8481d6c53a56084472a7aac7411ecaa1f",
     "lib/subscription.mli": "fbc556cf060c63b46e07c7f6c14464457524d00e2c30600f34b7d30f1bbf9f46",
-    "lib/telemetry.ml": "0a0e894fce2dc08882480282df978fb3919f88ab146eba570d70e1e6c4b6b6e4",
-    "lib/telemetry.mli": "ceca1720a28361d5f9852d66224cf52a15137ad29d44522e968532f1e3a31c65",
+    "lib/telemetry.ml": "d3e6ba70a0b5a00eb4733a8fc973c1c3b98ea5d07661da3297f2d71ee77da306",
+    "lib/telemetry.mli": "6968385e5ecbd2db1b9003eb403766c066975b0ff116e9d81da367ec87b4137f",
     "lib/telemetry_facts.ml": "8b2c6d1ee7d75fc70b98cd0668d902fab6bf6463a302cbc8411cb6cc565cd484",
     "lib/types.ml": "5921efffb7596beb176e09960cdfa080ec954349ec2ce9d7e54bc7f638c808fe",
     "lib/types.mli": "97149245ffc84db1b741d7156a08017eff6f941179e9e6df950f212da8d60d76",
     "lib/wire_stream.ml": "0037504f44777900cfe2fde9d97b16e5c04b629aaacf7757dca0ebecb9df6c52",
     "lib/wire_stream.mli": "b6217d5b0f374382b404eb61408b40b94c70e055d61729c88cb0cf3884397034",
-    "lib/worker.ml": "2b98e250c9b67c7f4569fbe86a4c6ab88480536cbef5991e0d62bb3a94fee4a7",
-    "lib/worker.mli": "b66a3ee36f58793c631d7e32d4b088b8d6828e54150b69baee47811eb163209d",
+    "lib/worker.ml": "d3f87b24e7b55dd43d3e1d4c08f106785fecd9b37bbfefc20e8a7f1ac4356744",
+    "lib/worker.mli": "1f0ea17ef360768141b5f6e3c5a77233947ed193cffb0da29f134090a670b69f",
     "probes/api_inventory.ml": "97b819335b2d6d55f2f4a7c73422ad4df34ca5e459fe4df300f01a0ff5efb36a",
     "probes/dune": "4b82a53ae47205f7a5bfc5ac215aa840814c53ff15e0c58bc1974d913fea043b",
     "public-api.inputs.json": "16a156e808e8dfd7df61837746b0e4b8ce44e38a40f5a1b647baec0af1bfcca9",
@@ -12195,7 +12195,7 @@
     {
       "kind": "value",
       "path": "Semiont.Http_wire.emit",
-      "declaration": "val emit :\n  t ->\n  client_id:string ->\n  ?scope:Semiont__.Identifiers.Resource_id.t ->\n  ?correlation_id:string ->\n  'a Semiont__.Bus_registry.channel -> string -> string"
+      "declaration": "val emit :\n  t ->\n  client_id:string ->\n  ?scope:Semiont__.Identifiers.Resource_id.t ->\n  ?correlation_id:string ->\n  ?trace:Semiont__.Wire_stream.trace ->\n  'a Semiont__.Bus_registry.channel -> string -> string"
     },
     {
       "kind": "value",
@@ -12317,9 +12317,10 @@
     {
       "kind": "type",
       "path": "Semiont.Telemetry.span",
-      "declaration": "type span = {\n  name : string;\n  kind : kind;\n  attributes : (string * attribute) list;\n  started : float;\n  ended : float;\n}",
+      "declaration": "type span = {\n  trace : Semiont__.Wire_stream.trace option;\n  name : string;\n  kind : kind;\n  attributes : (string * attribute) list;\n  started : float;\n  ended : float;\n}",
       "representation": "record",
       "fields": [
+        "trace",
         "name",
         "kind",
         "attributes",
@@ -12351,7 +12352,7 @@
     {
       "kind": "value",
       "path": "Semiont.Telemetry.around",
-      "declaration": "val around :\n  t option ->\n  clock:Semiont__.Clock.t ->\n  string * kind -> (string * attribute) list -> (unit -> 'a) -> 'a"
+      "declaration": "val around :\n  ?trace:Semiont__.Wire_stream.trace ->\n  t option ->\n  clock:Semiont__.Clock.t ->\n  string * kind -> (string * attribute) list -> (unit -> 'a) -> 'a"
     },
     {
       "kind": "module",
@@ -12396,7 +12397,7 @@
     {
       "kind": "value",
       "path": "Semiont.Live_query.make",
-      "declaration": "val make :\n  ?window_ms:int ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  load:('key -> ('value, string) result) ->\n  hold:('key -> unit -> unit) -> unit -> ('key, 'value) t"
+      "declaration": "val make :\n  ?window_ms:int ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  load:('key -> ('value, string) result) ->\n  ?restore:('key -> 'value option) ->\n  ?save:('key -> 'value option -> unit) ->\n  hold:('key -> unit -> unit) -> unit -> ('key, 'value) t"
     },
     {
       "kind": "value",
@@ -12486,18 +12487,28 @@
     },
     {
       "kind": "value",
+      "path": "Semiont.Worker.commit_channels",
+      "declaration": "val commit_channels : Semiont__.Bus_registry.packed_channel list"
+    },
+    {
+      "kind": "value",
       "path": "Semiont.Worker.accepts",
       "declaration": "val accepts : filters:Yojson.Safe.t -> announcement:Yojson.Safe.t -> bool"
     },
     {
       "kind": "value",
       "path": "Semiont.Worker.claim",
-      "declaration": "val claim :\n  Semiont__.Subscription.t ->\n  Semiont__.Http_wire.t ->\n  client_id:string ->\n  correlation_id:string ->\n  ?timeout_ms:int -> accepts:Yojson.Safe.t -> unit -> claim"
+      "declaration": "val claim :\n  Semiont__.Subscription.t ->\n  Semiont__.Http_wire.t ->\n  client_id:string ->\n  correlation_id:string ->\n  ?trace:Semiont__.Wire_stream.trace ->\n  ?timeout_ms:int -> accepts:Yojson.Safe.t -> unit -> claim"
     },
     {
       "kind": "value",
       "path": "Semiont.Worker.view",
       "declaration": "val view : held -> Yojson.Safe.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.trace",
+      "declaration": "val trace : held -> Semiont__.Wire_stream.trace option"
     },
     {
       "kind": "value",
@@ -12521,6 +12532,11 @@
     },
     {
       "kind": "value",
+      "path": "Semiont.Worker.commit",
+      "declaration": "val commit :\n  held ->\n  Semiont__.Subscription.t ->\n  correlation_id:(unit -> string) ->\n  ?timeout_ms:int ->\n  resource:Semiont__.Identifiers.Resource_id.t ->\n  annotations:Yojson.Safe.t list -> unit -> (unit, string) result"
+    },
+    {
+      "kind": "value",
       "path": "Semiont.Worker.complete",
       "declaration": "val complete : held -> Yojson.Safe.t -> unit"
     },
@@ -12533,6 +12549,16 @@
       "kind": "value",
       "path": "Semiont.Worker.fail",
       "declaration": "val fail :\n  held ->\n  error:string ->\n  failure_class:Semiont__.Enums.Failure_class.t option ->\n  completed:Yojson.Safe.t option -> cursors:Yojson.Safe.t option -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.default_stall_ms",
+      "declaration": "val default_stall_ms : int"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.default_stall_check_ms",
+      "declaration": "val default_stall_check_ms : int"
     }
   ]
 }

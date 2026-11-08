@@ -4,6 +4,7 @@ type kind = Client | Producer | Consumer
 type attribute = String of string | Int of int | Bool of bool
 
 type span = {
+  trace : Wire_stream.trace option;
   name : string;
   kind : kind;
   attributes : (string * attribute) list;
@@ -20,6 +21,7 @@ type counter = {
 type t = { span : span -> unit; increment : counter -> unit }
 
 val around :
+  ?trace:Wire_stream.trace ->
   t option ->
   clock:Clock.t ->
   string * kind ->

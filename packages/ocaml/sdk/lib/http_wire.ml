@@ -170,7 +170,7 @@ let read_text _ stream = body_text stream
 let around t row attributes run =
   Telemetry.around t.telemetry ~clock:t.clock row attributes run
 
-let emit t ~client_id ?scope ?correlation_id channel source =
+let emit t ~client_id ?scope ?correlation_id ?trace channel source =
   let body =
     match
       Wire_stream.encode_emit ~client_id ?scope ?correlation_id channel source
@@ -190,7 +190,7 @@ let emit t ~client_id ?scope ?correlation_id channel source =
             scope)
   in
   let prefix, kind = bus_emit in
-  around t
+  Telemetry.around ?trace t.telemetry ~clock:t.clock
     (prefix ^ name, kind)
     attributes
     (fun () ->
@@ -206,9 +206,17 @@ let emit t ~client_id ?scope ?correlation_id channel source =
       let timing = t.timing in
       exchange t ~auth:true ~timeout_ms:timing.emit_timeout_ms ~body
         ~headers:
-          [
-            ("content-type", "application/json"); ("idempotency-key", t.key ());
-          ]
+          ([
+             ("content-type", "application/json"); ("idempotency-key", t.key ());
+           ]
+          @ Option.fold ~none:[]
+              ~some:(fun (trace : Wire_stream.trace) ->
+                ("traceparent", trace.parent)
+                :: Option.to_list
+                     (Option.map
+                        (fun state -> ("tracestate", state))
+                        trace.state))
+              trace)
         ~attempts:timing.emit_attempts
         ~initial_delay:timing.emit_initial_delay_ms
         ~max_delay:timing.emit_max_delay_ms ~jitter:true Http_facts.emit

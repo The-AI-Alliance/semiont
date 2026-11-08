@@ -9,6 +9,8 @@ type 'value observer = {
 }
 
 type 'value entry = {
+  mutable revision : int;
+  mutable restored : bool;
   mutable state : 'value state;
   mutable observers : 'value observer list;
   mutable release : unit -> unit;
@@ -23,13 +25,15 @@ type ('key, 'value) t = {
   window_ms : int;
   load : 'key -> ('value, string) result;
   hold : 'key -> unit -> unit;
+  restore : 'key -> 'value option;
+  save : 'key -> 'value option -> unit;
   entries : ('key, 'value entry) Hashtbl.t;
   stopped : unit Promise.t;
   stop : unit Promise.u;
 }
 
 let make ?(window_ms = Client_timing.invalidation_window_ms) ~sw ~clock ~load
-    ~hold () =
+    ?(restore = fun _ -> None) ?(save = fun _ _ -> ()) ~hold () =
   let stopped, stop = Promise.create () in
   {
     sw;
@@ -37,6 +41,8 @@ let make ?(window_ms = Client_timing.invalidation_window_ms) ~sw ~clock ~load
     window_ms;
     load;
     hold;
+    restore;
+    save;
     entries = Hashtbl.create 8;
     stopped;
     stop;
@@ -46,9 +52,13 @@ let entry t key =
   match Hashtbl.find_opt t.entries key with
   | Some entry -> entry
   | None ->
+      let restored = t.restore key in
       let entry =
         {
-          state = Pending;
+          revision = 0;
+          restored = Option.is_some restored;
+          state =
+            Option.fold ~none:Pending ~some:(fun value -> Ready value) restored;
           observers = [];
           release = Fun.id;
           in_flight = None;
@@ -63,26 +73,37 @@ let publish entry state =
   entry.state <- state;
   List.iter (fun observer -> observer.on_state state) (List.rev entry.observers)
 
-let rec fetch t key entry =
+let store t key entry state =
+  t.save key (match state with Ready value -> Some value | _ -> None);
+  publish entry state
+
+let rec fetch ?(force = false) ?(retry = true) t key entry =
   match entry.in_flight with
-  | Some pending -> pending
-  | None ->
+  | Some pending when not force -> pending
+  | _ ->
       let pending, settle = Promise.create () in
       entry.in_flight <- Some pending;
+      let revision = entry.revision in
       Fiber.fork ~sw:t.sw (fun () ->
           let result =
             Fiber.first
-              (fun () -> t.load key)
+              (fun () ->
+                match t.load key with
+                | Error code when retry && code <> "bus.closed" -> t.load key
+                | result -> result)
               (fun () ->
                 Promise.await t.stopped;
                 Error "bus.closed")
           in
-          entry.in_flight <- None;
+          (match entry.in_flight with
+          | Some active when active == pending -> entry.in_flight <- None
+          | _ -> ());
           if not (Promise.is_resolved t.stopped) then (
-            (match (result, entry.state) with
-            | Ok value, _ -> publish entry (Ready value)
-            | Error _, Ready _ -> ()
-            | Error reason, _ -> publish entry (Failed reason));
+            (if revision = entry.revision then
+               match (result, entry.state) with
+               | Ok value, _ -> store t key entry (Ready value)
+               | Error _, Ready _ -> ()
+               | Error reason, _ -> publish entry (Failed reason));
             if entry.invalidated then (
               entry.invalidated <- false;
               if entry.observers <> [] then ignore (fetch t key entry)));
@@ -99,8 +120,15 @@ let observe t key ~on_state ~on_close =
     let id = ref () in
     entry.observers <- { id; on_state; on_close } :: entry.observers;
     if first then entry.release <- t.hold key;
-    on_state entry.state;
-    if first then ignore (fetch t key entry);
+    (match entry.state with
+    | Failed _ when Option.is_none entry.in_flight ->
+        publish entry Pending;
+        ignore (fetch t key entry)
+    | state ->
+        on_state state;
+        if first && (entry.restored || state = Pending) then (
+          entry.restored <- false;
+          ignore (fetch t key entry)));
     fun () ->
       let prior = entry.observers in
       let remaining = List.filter (fun observer -> observer.id != id) prior in
@@ -111,15 +139,19 @@ let observe t key ~on_state ~on_close =
 
 let fresh t key =
   if Promise.is_resolved t.stopped then Error "bus.closed"
-  else Promise.await (fetch t key (entry t key))
+  else Promise.await (fetch ~retry:false t key (entry t key))
 
-let invalidate t key =
+let refetch_held t key =
   if not (Promise.is_resolved t.stopped) then
     match Hashtbl.find_opt t.entries key with
     | Some entry when entry.observers <> [] ->
         if Option.is_some entry.in_flight then entry.invalidated <- true
         else ignore (fetch t key entry)
     | _ -> ()
+
+let invalidate t key =
+  if not (Promise.is_resolved t.stopped) then
+    ignore (fetch ~force:true t key (entry t key))
 
 let refresh t key entry =
   match entry.trailing with
@@ -135,13 +167,13 @@ let refresh t key entry =
         Mtime.add_span (Clock.monotonic_now t.clock) span
         |> Option.value ~default:Mtime.max_stamp
       in
-      invalidate t key;
+      refetch_held t key;
       Fiber.fork ~sw:t.sw (fun () ->
           Fiber.first
             (fun () ->
               Clock.sleep_until t.clock due;
               entry.trailing <- None;
-              if !again then invalidate t key)
+              if !again then refetch_held t key)
             (fun () -> Promise.await t.stopped))
 
 type key = string * string option * string option
@@ -163,7 +195,7 @@ let channels =
     (fun (Bus_registry.Channel channel) ->
       Bus_registry.audience channel = Some Bus_registry.Everyone
       && List.exists
-           (fun (trigger, _, _, _, _, _, _) ->
+           (fun (trigger, _, _, _, _, _, _, _, _) ->
              trigger = Bus_registry.name channel)
            Live_facts.refresh)
     Bus_registry.channels
@@ -178,7 +210,7 @@ let rec at path value =
 let refetch t ~on ~payload =
   let known =
     List.exists
-      (fun (channel, _, _, _, _, _, _) -> channel = on)
+      (fun (channel, _, _, _, _, _, _, _, _) -> channel = on)
       Live_facts.refresh
   in
   if known && not (Promise.is_resolved t.stopped) then
@@ -190,12 +222,12 @@ let refetch t ~on ~payload =
     in
     let rules =
       List.filter
-        (fun (channel, _, _, _, _, _, _) -> channel = trigger)
+        (fun (channel, _, _, _, _, _, _, _, _) -> channel = trigger)
         Live_facts.refresh
     in
     let enriched =
       List.exists
-        (fun (_, when_, _, _, _, carries, _) ->
+        (fun (_, when_, _, _, _, carries, _, _, _) ->
           when_ = Some "enriched" && at carries payload <> `Null)
         rules
     in
@@ -206,25 +238,57 @@ let refetch t ~on ~payload =
     List.iter
       (fun (key, entry) ->
         let query, resource, annotation = key in
-        if
-          entry.observers <> []
-          && List.exists
-               (fun (_, when_, held, resource_way, annotation_way, _, queries)
-                  ->
-                 List.mem query queries
-                 && (match when_ with
-                   | Some "enriched" -> enriched
-                   | Some "unenriched" -> not enriched
-                   | _ -> true)
-                 && (held
-                    || Option.fold ~none:true
-                         ~some:(fun value -> resource = Some value)
-                         (name resource_way)
-                       && Option.fold ~none:true
-                            ~some:(fun value -> annotation = Some value)
-                            (name annotation_way)))
-               rules
-        then if on = "reopened" then invalidate t key else refresh t key entry)
+        if entry.observers <> [] then
+          List.iter
+            (fun ( _,
+                   when_,
+                   held,
+                   resource_way,
+                   annotation_way,
+                   carries,
+                   queries,
+                   writes,
+                   removes ) ->
+              let applies =
+                (match when_ with
+                  | Some "enriched" -> enriched
+                  | Some "unenriched" -> not enriched
+                  | _ -> true)
+                && (held
+                   || Option.fold ~none:true
+                        ~some:(fun value ->
+                          resource = None || resource = Some value)
+                        (name resource_way)
+                      && (List.mem query [ "annotations"; "events" ]
+                         || Option.fold ~none:true
+                              ~some:(fun value -> annotation = Some value)
+                              (name annotation_way)))
+              in
+              if applies then (
+                let update state =
+                  entry.revision <- entry.revision + 1;
+                  store t key entry state
+                in
+                if List.mem query removes then update (Failed "bus.not-found");
+                (if List.mem query writes then
+                   let value = at carries payload in
+                   match (query, entry.state) with
+                   | "annotation", _ -> update (Ready value)
+                   | "annotations", Ready (`List values) ->
+                       let id = at [ "id" ] value in
+                       update
+                         (Ready
+                            (`List
+                               (List.map
+                                  (fun prior ->
+                                    if at [ "id" ] prior = id then value
+                                    else prior)
+                                  values)))
+                   | _ -> ());
+                if List.mem query queries then
+                  if on = "reopened" then refetch_held t key
+                  else refresh t key entry))
+            rules)
       entries
 
 let close t =

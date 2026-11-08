@@ -8,6 +8,8 @@ val make :
   sw:Eio.Switch.t ->
   clock:Clock.t ->
   load:('key -> ('value, string) result) ->
+  ?restore:('key -> 'value option) ->
+  ?save:('key -> 'value option -> unit) ->
   hold:('key -> unit -> unit) ->
   unit ->
   ('key, 'value) t

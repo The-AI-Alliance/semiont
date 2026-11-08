@@ -6,6 +6,7 @@ type phase = Claimed | Started | Settled
 type held = {
   http : Http_wire.t;
   client_id : string;
+  trace : Wire_stream.trace option;
   metadata : Yojson.Safe.t;
   params : Yojson.Safe.t;
   job_id : Identifiers.Job_id.t;
@@ -15,6 +16,7 @@ type held = {
   max_retries : int;
   lock : Eio.Mutex.t;
   mutable phase : phase;
+  mutable durability : (int * string) option;
 }
 
 type claim = Held of held | Empty | Refused of string option
@@ -28,6 +30,16 @@ let channels =
     B.Channel job_queued;
   ]
 
+let commit_channels =
+  let replies (B.Operation operation) =
+    [ B.Channel (B.result operation); B.Channel (B.failure operation) ]
+  in
+  List.concat_map replies
+    [
+      B.Operation B.Operations.mark_commit;
+      B.Operation B.Operations.browse_annotation_requested;
+    ]
+
 let string name value = J.member name value |> J.to_string
 let int name value = J.member name value |> J.to_int
 
@@ -35,6 +47,7 @@ let optional name value =
   match J.member name value with `Null -> None | value -> Some value
 
 let text value = `String value
+let trace job = job.trace
 let id job = Identifiers.Job_id.to_string job.job_id
 let kind job = Enums.Job_type.to_string job.verb
 
@@ -56,12 +69,13 @@ let accepts ~filters ~announcement =
           wanted <> `Null && wanted = motivation announcement
       | _ -> false)
 
-let claim subscription http ~client_id ~correlation_id
+let claim subscription http ~client_id ~correlation_id ?trace
     ?(timeout_ms = Client_timing.job_claim_timeout_ms) ~accepts () =
   let operation = B.Operations.job_claim in
   let send () =
     ignore
-      (Http_wire.emit http ~client_id ~correlation_id (B.request operation)
+      (Http_wire.emit http ~client_id ~correlation_id ?trace
+         (B.request operation)
          (Yojson.Safe.to_string (`Assoc [ ("accepts", accepts) ])))
   in
   match
@@ -94,6 +108,7 @@ let claim subscription http ~client_id ~correlation_id
           {
             http;
             client_id;
+            trace;
             metadata;
             params;
             job_id;
@@ -103,6 +118,7 @@ let claim subscription http ~client_id ~correlation_id
             max_retries = int "maxRetries" metadata;
             lock = Eio.Mutex.create ();
             phase = Claimed;
+            durability = None;
           }
       with J.Type_error _ | Invalid_argument _ -> Refused None)
 
@@ -131,7 +147,7 @@ let identity job =
 
 let send job channel fields =
   ignore
-    (Http_wire.emit job.http ~client_id:job.client_id channel
+    (Http_wire.emit job.http ~client_id:job.client_id ?trace:job.trace channel
        (Yojson.Safe.to_string (`Assoc fields)))
 
 let lifecycle job channel fields =
@@ -146,7 +162,7 @@ let start job =
         lifecycle job B.Channels.job_start [];
         job.phase <- Started))
 
-let running job f = locked job (fun () -> if job.phase = Started then f ())
+let running job f = locked job (fun () -> if job.phase <> Settled then f ())
 
 let progress job ~percentage ~message =
   running job (fun () ->
@@ -167,6 +183,70 @@ let checkpoint job ~completed ~cursors =
           ("unitCursors", cursors);
         ])
 
+let commit job subscription ~correlation_id
+    ?(timeout_ms = Client_timing.mark_commit_timeout_ms) ~resource ~annotations
+    () =
+  let request operation fields =
+    let correlation_id = correlation_id () in
+    let send () =
+      ignore
+        (Http_wire.emit job.http ~client_id:job.client_id ~correlation_id
+           ?trace:job.trace (B.request operation)
+           (Yojson.Safe.to_string (`Assoc fields)))
+    in
+    Subscription.request subscription ~timeout_ms ~correlation_id operation
+      ~send
+  in
+  let record rank evidence =
+    match job.durability with
+    | Some (prior, _) when prior >= rank -> ()
+    | _ -> job.durability <- Some (rank, evidence)
+  in
+  locked job (fun () ->
+      if job.phase = Settled then Error "bus.closed"
+      else
+        match List.rev annotations with
+        | [] -> Ok ()
+        | last :: _ -> (
+            let resource =
+              ("resourceId", text (Identifiers.Resource_id.to_string resource))
+            in
+            match
+              request B.Operations.mark_commit
+                [
+                  resource;
+                  ("jobId", text (id job));
+                  ("annotations", `List annotations);
+                ]
+            with
+            | Ok (Subscription.Result _) ->
+                record 0 "acknowledged";
+                Ok ()
+            | Ok (Subscription.Failure payload) ->
+                Error (Http_wire.bus_failure payload)
+            | Error Subscription.Timeout ->
+                let evidence =
+                  try
+                    match
+                      request B.Operations.browse_annotation_requested
+                        [ resource; ("annotationId", J.member "id" last) ]
+                    with
+                    | Ok (Subscription.Result _) -> (0, "probe-confirmed")
+                    | Ok (Subscription.Failure _) -> (1, "probe-refused")
+                    | Error _ -> (2, "probe-unreachable")
+                  with Http_wire.Failed _ -> (2, "probe-unreachable")
+                in
+                let rank, label = evidence in
+                record rank label;
+                if rank = 0 then Ok () else Error "bus.timeout"
+            | Error _ -> Error "bus.closed"))
+
+let durability job =
+  Option.to_list
+    (Option.map
+       (fun (_, evidence) -> ("durability", text evidence))
+       job.durability)
+
 let settle job send =
   locked job (fun () ->
       if job.phase <> Settled then (
@@ -175,7 +255,8 @@ let settle job send =
 
 let complete job result =
   settle job (fun () ->
-      lifecycle job B.Channels.job_complete [ ("result", result) ])
+      lifecycle job B.Channels.job_complete
+        (("result", result) :: durability job))
 
 let cancel job ~completed =
   settle job (fun () ->
@@ -207,4 +288,8 @@ let fail job ~error ~failure_class ~completed ~cursors =
         optional "unitCursors" cursors;
       ]
   in
-  settle job (fun () -> lifecycle job B.Channels.job_fail fields)
+  settle job (fun () ->
+      lifecycle job B.Channels.job_fail (fields @ durability job))
+
+let default_stall_ms = Client_timing.held_job_stall_ms
+let default_stall_check_ms = Client_timing.held_job_stall_check_ms

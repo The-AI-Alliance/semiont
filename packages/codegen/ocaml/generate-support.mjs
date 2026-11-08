@@ -98,7 +98,7 @@ const strings = (values) => `[${values.map(ocamlString).join('; ')}]`;
 const way = (value) => value === undefined ? '[]' : strings(value.split('.'));
 const refreshRows = refreshTable.refresh.map((row) => {
   const when = row.when === undefined ? 'None' : `Some ${ocamlString(row.when)}`;
-  return `  (${ocamlString(row.on)}, ${when}, ${row.reach === 'held'}, ${way(row.names?.resource)}, ${way(row.names?.annotation)}, ${way(row.carries)}, ${strings(row.refetches ?? [])});`;
+  return `  (${ocamlString(row.on)}, ${when}, ${row.reach === 'held'}, ${way(row.names?.resource)}, ${way(row.names?.annotation)}, ${way(row.carries)}, ${strings(row.refetches ?? [])}, ${strings(row.writes ?? [])}, ${strings(row.removes ?? [])});`;
 });
 writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/live_facts.ml'),
   [`(* Generated from ${refreshSource}. Do not edit. *)`, '', '[@@@ocamlformat "disable"]', '',

@@ -2,6 +2,7 @@ type kind = Client | Producer | Consumer
 type attribute = String of string | Int of int | Bool of bool
 
 type span = {
+  trace : Wire_stream.trace option;
   name : string;
   kind : kind;
   attributes : (string * attribute) list;
@@ -17,7 +18,7 @@ type counter = {
 
 type t = { span : span -> unit; increment : counter -> unit }
 
-let around telemetry ~clock (name, kind) attributes f =
+let around ?trace telemetry ~clock (name, kind) attributes f =
   match telemetry with
   | None -> f ()
   | Some sink ->
@@ -25,5 +26,5 @@ let around telemetry ~clock (name, kind) attributes f =
       Fun.protect
         ~finally:(fun () ->
           let ended = Clock.wall_now clock in
-          sink.span { name; kind; attributes; started; ended })
+          sink.span { trace; name; kind; attributes; started; ended })
         f

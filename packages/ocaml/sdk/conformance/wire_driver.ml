@@ -87,19 +87,32 @@ let scoped_channels =
     (fun (B.Channel channel) -> B.audience channel = Some B.Scoped)
     B.channels
 
+let limits_operations =
+  List.filter
+    (fun (B.Operation op) ->
+      String.ends_with ~suffix:":limits-requested" (B.name (B.request op)))
+    B.operations
+
 let live_channels =
   L.channels
   @ List.concat_map
       (fun (_, B.Operation operation) ->
         [ B.Channel (B.result operation); B.Channel (B.failure operation) ])
       live_operations
+  @ List.concat_map
+      (fun (B.Operation op) ->
+        [ B.Channel (B.result op); B.Channel (B.failure op) ])
+      limits_operations
   |> List.sort_uniq (fun (B.Channel left) (B.Channel right) ->
       String.compare (B.name left) (B.name right))
 
 let query_key value =
   ( string "query" value,
     optional J.to_string "resource" value,
-    optional J.to_string "annotation" value )
+    optional J.to_string
+      (if field "query" value = text "matchedResources" then "search"
+       else "annotation")
+      value )
 
 let run mode env =
   Switch.run @@ fun sw ->
@@ -136,6 +149,21 @@ let run mode env =
         (Some sink, flush)
   in
   let client = ref None in
+  let last_queued = ref `Null in
+  let last_claim = ref `Null in
+  let last_finished = ref `Null in
+  let last_activity = ref `Null in
+  let active_since = ref `Null in
+  let active_tick = ref None in
+  let stalled = ref false in
+  let completed = ref 0 in
+  let stamp clock = `Float (Semiont.Clock.wall_now clock) in
+  let activity clock =
+    last_activity := stamp clock;
+    active_tick := Some (Semiont.Clock.monotonic_now clock)
+  in
+  let persisted = Hashtbl.create 8 in
+  let persist = ref false in
   let live = ref None in
   let observers = Hashtbl.create 8 in
   let held = ref None in
@@ -147,6 +175,31 @@ let run mode env =
   let kick = ref (fun () -> ()) in
   let listens = Hashtbl.create 8 in
   let holds = Hashtbl.create 8 in
+  let commit_timeout = ref None in
+  let delegates = Hashtbl.create 4 in
+  let job_silence = ref 10000 in
+  let job_poll = ref 5000 in
+  let job_signals =
+    let open B.Channels in
+    [
+      B.Channel job_report_progress; B.Channel job_complete; B.Channel job_fail;
+    ]
+  in
+  let job_channels =
+    let replies (B.Operation op) =
+      [ B.Channel (B.result op); B.Channel (B.failure op) ]
+    in
+    job_signals
+    @ List.concat_map replies
+        [
+          B.Operation B.Operations.job_create;
+          B.Operation B.Operations.job_status_requested;
+          B.Operation B.Operations.job_cancel_requested;
+        ]
+  in
+  let job_channel channel =
+    List.exists (fun (B.Channel value) -> B.name value = channel) job_signals
+  in
   let active = Hashtbl.create 8 in
   let get_client () =
     match !client with
@@ -178,6 +231,7 @@ let run mode env =
     match (mode, event) with
     | Worker, Ok (Semiont.Wire_stream.Frame { route; payload; _ })
       when route.channel = B.name B.Channels.job_queued -> (
+        last_queued := stamp (get_client ()).clock;
         match payload with
         | Error _ -> !kick ()
         | Ok payload ->
@@ -198,6 +252,28 @@ let run mode env =
             if optional J.to_string "jobId" json = Some (W.id job) then
               output_json (`Assoc [ ("signalled", text (W.id job)) ]))
           !held
+    | Live, Ok (Semiont.Wire_stream.Frame { route; payload; _ })
+      when job_channel route.channel ->
+        let signal =
+          match payload with
+          | Ok value -> Ok (Yojson.Safe.from_string (B.encode value))
+          | Error (B.Invalid_payload fault) ->
+              Error
+                (`Assoc
+                   [
+                     ("channel", text route.channel);
+                     ("member", text fault.member);
+                     ( "reason",
+                       text
+                         (match fault.reason with
+                         | `Lacks -> "lacks"
+                         | `Malformed -> "malformed") );
+                   ])
+          | Error _ -> Error `Null
+        in
+        Hashtbl.to_seq_values delegates
+        |> List.of_seq
+        |> List.iter (fun receive -> receive route.channel signal)
     | Live, Ok (Semiont.Wire_stream.Frame { route; payload; _ }) ->
         let payload =
           Result.to_option payload
@@ -213,7 +289,10 @@ let run mode env =
     | _ -> ()
   in
   let open_client input =
-    if Option.is_some !client then raise (Misuse "one client per driver");
+    if Option.is_some !client then
+      raise (Misuse "close the client before reopening");
+    stopping := false;
+    persist := field "persist" input = `Bool true;
     let base = Uri.of_string (string "baseUrl" input) in
     if Uri.scheme base <> Some "http" then
       raise (Misuse "the wire driver expects the harness HTTP proxy");
@@ -332,8 +411,15 @@ let run mode env =
     let client_id = uuid env in
     let global =
       match mode with
-      | Worker -> W.channels
-      | Live -> live_channels
+      | Worker ->
+          commit_timeout := optional J.to_int "markCommitTimeoutMs" timing;
+          if field "commits" input = `Bool true then
+            W.channels @ W.commit_channels
+          else W.channels
+      | Live ->
+          job_silence := time "jobSilenceMs" !job_silence;
+          job_poll := time "jobStatusPollMs" !job_poll;
+          live_channels @ job_channels
       | Wire ->
           field "channels" input |> J.to_list
           |> List.map (fun value -> channel (J.to_string value))
@@ -354,6 +440,28 @@ let run mode env =
           invalidation_window_ms =
             optional J.to_int "invalidationWindowMs" timing;
         };
+    (if mode = Worker then
+       let span name default = Mtime.Span.(max 1 (time name default) * ms) in
+       let threshold = span "heldJobStallMs" W.default_stall_ms in
+       let interval = span "heldJobStallCheckMs" W.default_stall_check_ms in
+       Fiber.fork_daemon ~sw (fun () ->
+           let rec check () =
+             if !stopping then `Stop_daemon
+             else
+               let now = Semiont.Clock.monotonic_now clock in
+               (match (!held, !active_tick) with
+               | Some job, Some tick
+                 when (not !stalled)
+                      && Mtime.Span.compare (Mtime.span now tick) threshold > 0
+                 ->
+                   stalled := true;
+                   output_json (`Assoc [ ("stalled", text (W.id job)) ])
+               | _ -> ());
+               Semiont.Clock.sleep_until clock
+                 (Option.get (Mtime.add_span now interval));
+               check ()
+           in
+           check ()));
     Fiber.fork_daemon ~sw (fun () ->
         let seen_open = ref false in
         let rec report previous =
@@ -410,22 +518,46 @@ let run mode env =
       | Some (B.Operation operation) ->
           let field name = Option.map (fun value -> (name, text value)) in
           let payload =
+            let pagination = [ ("limit", `Int 100); ("offset", `Int 0) ] in
             `Assoc
-              (List.filter_map Fun.id
-                 [
-                   field "resourceId" resource; field "annotationId" annotation;
-                 ])
+              (match name with
+              | "resources" -> pagination
+              | "matchedResources" ->
+                  pagination @ Option.to_list (field "search" annotation)
+              | _ ->
+                  List.filter_map Fun.id
+                    [
+                      field "resourceId" resource;
+                      field "annotationId" annotation;
+                    ])
           in
-          let response =
+          let read () =
             try request client operation payload
             with H.Failed failure -> Error failure.code
+          in
+          let response =
+            if name <> "engines" then read ()
+            else
+              let result = ref (Error "bus.closed") in
+              Fiber.both
+                (fun () -> result := read ())
+                (fun () ->
+                  Fiber.all
+                    (List.map
+                       (fun (B.Operation op) () ->
+                         try ignore (request client op (`Assoc []))
+                         with H.Failed _ -> ())
+                       limits_operations));
+              !result
           in
           Result.map
             (fun json ->
               match name with
               | "resource" -> J.member "resource" json
               | "annotation" -> J.member "annotation" json
-              | "events" -> J.member "events" json
+              | "events" | "referencedBy" | "entityTypes" | "tagSchemas"
+              | "engines" ->
+                  J.member name json
               | _ -> json)
             response
     in
@@ -436,8 +568,16 @@ let run mode env =
           S.hold_scope client.subscription
             { resource = resource_of_name id; channels = scoped_channels }
     in
-    L.make ?window_ms:client.invalidation_window_ms ~sw ~clock:client.clock
-      ~load ~hold ()
+    let restore key =
+      if !persist then Hashtbl.find_opt persisted key else None
+    in
+    let save key = function
+      | Some value when !persist -> Hashtbl.replace persisted key value
+      | None when !persist -> Hashtbl.remove persisted key
+      | _ -> ()
+    in
+    L.make ~restore ~save ?window_ms:client.invalidation_window_ms ~sw
+      ~clock:client.clock ~load ~hold ()
   in
   let live_cache () =
     match !live with
@@ -453,6 +593,147 @@ let run mode env =
     | L.Failed code ->
         `Assoc [ ("status", text "failed"); ("error", error code) ]
   in
+  let delegate ~verb input =
+    let client = get_client () in
+    let observer = string "observer" input in
+    let resource = optional J.to_string "resource" input in
+    let pending = Queue.create () in
+    let job_id = ref None in
+    let finished = ref false in
+    let last_seen = ref (Semiont.Clock.monotonic_now client.clock) in
+    let output state =
+      output_json
+        (`Assoc
+           [
+             ( "emission",
+               `Assoc [ ("observer", text observer); ("state", state) ] );
+           ])
+    in
+    let emit kind data =
+      output
+        (state_json (L.Ready (`Assoc [ ("kind", text kind); ("data", data) ])))
+    in
+    let finish () =
+      finished := true;
+      Hashtbl.remove delegates observer;
+      Hashtbl.remove observers observer;
+      output_json (`Assoc [ ("completed", text observer) ])
+    in
+    let fail code payload =
+      let details =
+        match field "failureClass" payload with
+        | `Null -> []
+        | value -> [ ("failureClass", value) ]
+      in
+      output
+        (`Assoc
+           [
+             ("status", text "failed");
+             ("error", `Assoc (("code", text code) :: details));
+           ]);
+      finish ()
+    in
+    let receive channel signal =
+      if not !finished then
+        match (!job_id, signal) with
+        | None, _ -> Queue.add (channel, signal) pending
+        | Some _, Error detail -> emit "refused" detail
+        | Some id, Ok payload when field "jobId" payload = text id -> (
+            last_seen := Semiont.Clock.monotonic_now client.clock;
+            match channel with
+            | "job:report-progress" ->
+                emit "progress" (field "progress" payload)
+            | "job:complete" ->
+                emit "complete" payload;
+                finish ()
+            | "job:fail" when field "willRetry" payload = `Bool true ->
+                emit "failed" payload
+            | "job:fail" -> fail "job.failed" payload
+            | _ -> ())
+        | _ -> ()
+    in
+    if Hashtbl.mem observers observer then raise (Misuse "duplicate observer");
+    Hashtbl.add delegates observer receive;
+    Hashtbl.add observers observer finish;
+    let request op payload =
+      try request client op payload
+      with H.Failed failure -> Error failure.code
+    in
+    let span milliseconds = Mtime.Span.(max 1 milliseconds * ms) in
+    let sleep until duration =
+      Semiont.Clock.sleep_until client.clock
+        (Option.value (Mtime.add_span until duration) ~default:Mtime.max_stamp)
+    in
+    let stall = optional J.to_int "stallDeadlineMs" input in
+    Fiber.fork_daemon ~sw (fun () ->
+        let payload =
+          `Assoc
+            ([ ("jobType", text verb); ("params", field "params" input) ]
+            @ Option.to_list
+                (Option.map (fun value -> ("resourceId", text value)) resource)
+            )
+        in
+        (match request B.Operations.job_create payload with
+        | Error code -> if not !finished then fail code (`Assoc [])
+        | Ok created when not !finished ->
+            let id = string "jobId" created in
+            job_id := Some id;
+            last_seen := Semiont.Clock.monotonic_now client.clock;
+            emit "created" created;
+            Queue.iter (fun (channel, signal) -> receive channel signal) pending;
+            Queue.clear pending;
+            let identity = `Assoc [ ("jobId", text id) ] in
+            let rec monitor delay =
+              if not !finished then (
+                let timeout = Option.fold ~none:delay ~some:(min delay) stall in
+                sleep !last_seen (span timeout);
+                if not !finished then
+                  let elapsed =
+                    Mtime.span
+                      (Semiont.Clock.monotonic_now client.clock)
+                      !last_seen
+                  in
+                  if
+                    Option.fold ~none:false
+                      ~some:(fun ms ->
+                        Mtime.Span.compare elapsed (span ms) >= 0)
+                      stall
+                  then (
+                    ignore (request B.Operations.job_cancel_requested identity);
+                    if not !finished then fail "job.stalled" (`Assoc []))
+                  else if Mtime.Span.compare elapsed (span delay) < 0 then
+                    monitor delay
+                  else
+                    let status =
+                      request B.Operations.job_status_requested identity
+                    in
+                    if not !finished then (
+                      (match status with
+                      | Ok value -> (
+                          match field "status" value with
+                          | `String "complete" ->
+                              emit "complete"
+                                (`Assoc
+                                   ([
+                                      ("jobId", text id); ("jobType", text verb);
+                                    ]
+                                   @ Option.to_list
+                                       (Option.map
+                                          (fun value ->
+                                            ("resourceId", text value))
+                                          resource)));
+                              finish ()
+                          | `String "failed" -> fail "job.failed" value
+                          | `String "cancelled" -> fail "job.cancelled" value
+                          | _ -> ())
+                      | Error _ -> ());
+                      last_seen := Semiont.Clock.monotonic_now client.clock;
+                      monitor !job_poll))
+            in
+            monitor !job_silence
+        | Ok _ -> ());
+        `Stop_daemon)
+  in
   let rec claim () =
     match (!accepts, !held) with
     | Some accepts, None
@@ -464,7 +745,22 @@ let run mode env =
           Fiber.fork ~sw (fun () ->
               let result =
                 try
-                  W.claim client.subscription client.http
+                  let trace =
+                    Option.map
+                      (fun _ ->
+                        let hex () =
+                          String.concat "" (String.split_on_char '-' (uuid env))
+                        in
+                        {
+                          Semiont.Wire_stream.parent =
+                            "00-" ^ hex () ^ "-"
+                            ^ String.sub (hex ()) 0 16
+                            ^ "-01";
+                          state = None;
+                        })
+                      telemetry
+                  in
+                  W.claim ?trace client.subscription client.http
                     ~client_id:client.client_id ~correlation_id:(uuid env)
                     ?timeout_ms:!claim_timeout ~accepts ()
                 with H.Failed failure -> W.Refused (Some failure.code)
@@ -476,6 +772,10 @@ let run mode env =
                 match result with
                 | W.Held job ->
                     held := Some job;
+                    activity client.clock;
+                    last_claim := !last_activity;
+                    active_since := !last_activity;
+                    stalled := false;
                     output_json (`Assoc [ ("claimed", W.view job) ])
                 | W.Empty -> if again then claim ()
                 | W.Refused code ->
@@ -495,13 +795,26 @@ let run mode env =
     match !held with Some job -> job | None -> raise (Misuse "no held job")
   in
   let settle action =
-    action (job ());
+    let job = job () in
+    Semiont.Telemetry.around ?trace:(W.trace job) telemetry
+      ~clock:(get_client ()).clock
+      ("worker.run", Semiont.Telemetry.Consumer)
+      [ ("job.id", Semiont.Telemetry.String (W.id job)) ]
+      (fun () -> action job);
     held := None;
+    activity (get_client ()).clock;
+    last_finished := !last_activity;
     claim ()
   in
   let close ?(settle_worker = false) () =
     stopping := true;
     Option.iter L.close !live;
+    live := None;
+    Hashtbl.to_seq_keys delegates
+    |> List.of_seq
+    |> List.iter (fun key ->
+        Option.iter (fun finish -> finish ()) (Hashtbl.find_opt observers key));
+    Hashtbl.clear observers;
     if settle_worker then
       Option.iter
         (fun job ->
@@ -516,6 +829,7 @@ let run mode env =
         S.await_closed client.subscription;
         Session.await_closed client.session)
       !client;
+    client := None;
     flush_telemetry ()
   in
   let perform input =
@@ -533,21 +847,59 @@ let run mode env =
         accepts := Some (field "accepts" input);
         claim ();
         done_
+    | "vitals" when mode = Worker ->
+        let active_job =
+          match !held with
+          | None -> `Null
+          | Some job ->
+              `Assoc
+                [
+                  ("jobId", text (W.id job));
+                  ("type", field "jobType" (W.view job));
+                  ("since", !active_since);
+                ]
+        in
+        ok
+          (`Assoc
+             [
+               ("lastQueuedEventAt", !last_queued);
+               ("lastClaimAt", !last_claim);
+               ("lastFinishedAt", !last_finished);
+               ("lastActivityAt", !last_activity);
+               ("activeJob", active_job);
+               ("jobsCompleted", `Int !completed);
+             ])
     | "start" when mode = Worker ->
         W.start (job ());
+        activity (get_client ()).clock;
         done_
     | "progress" when mode = Worker ->
         W.progress (job ())
           ~percentage:(J.to_int (field "percentage" input))
           ~message:(optional Fun.id "message" input);
+        activity (get_client ()).clock;
         done_
     | "checkpoint" when mode = Worker ->
         W.checkpoint (job ())
           ~completed:(field "completedUnits" input)
           ~cursors:(field "unitCursors" input);
+        activity (get_client ()).clock;
         done_
+    | "commit" when mode = Worker -> (
+        let client = get_client () in
+        match
+          W.commit (job ()) client.subscription
+            ~correlation_id:(fun () -> uuid env)
+            ?timeout_ms:!commit_timeout
+            ~resource:(resource_of_name (string "resourceId" input))
+            ~annotations:(J.to_list (field "annotations" input))
+            ()
+        with
+        | Ok () -> done_
+        | Error code -> ("error", error code))
     | "complete" when mode = Worker ->
         settle (fun job -> W.complete job (field "result" input));
+        incr completed;
         done_
     | "cancel" when mode = Worker ->
         settle (fun job ->
@@ -563,6 +915,15 @@ let run mode env =
             W.fail job ~error:(string "error" input) ~failure_class
               ~completed:(optional Fun.id "completedUnits" input)
               ~cursors:(optional Fun.id "unitCursors" input));
+        done_
+    | "markDelegate" when mode = Live ->
+        delegate ~verb:"mark" input;
+        done_
+    | "yieldDelegate" when mode = Live ->
+        delegate ~verb:"yield" input;
+        done_
+    | "observe" when mode = Live && !stopping ->
+        output_json (`Assoc [ ("completed", field "observer" input) ]);
         done_
     | "observe" when mode = Live ->
         let observer = string "observer" input in
@@ -594,6 +955,7 @@ let run mode env =
           (Hashtbl.find_opt observers observer);
         Hashtbl.remove observers observer;
         done_
+    | "fresh" when mode = Live && !stopping -> ("error", error "bus.closed")
     | "fresh" when mode = Live -> (
         match L.fresh (live_cache ()) (query_key (field "query" input)) with
         | Ok value -> ok (`Assoc [ ("value", value) ])

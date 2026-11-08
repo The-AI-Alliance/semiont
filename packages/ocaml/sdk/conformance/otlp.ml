@@ -31,9 +31,15 @@ let make ~id ~post =
     let kind =
       match value.kind with T.Client -> 3 | T.Producer -> 4 | T.Consumer -> 5
     in
+    let trace_id =
+      match value.trace with
+      | Some trace when String.length trace.parent = 55 ->
+          String.sub trace.parent 3 32
+      | _ -> id ()
+    in
     `Assoc
       [
-        ("traceId", text (id ()));
+        ("traceId", text trace_id);
         ("spanId", text (String.sub (id ()) 0 16));
         ("name", text value.name);
         ("kind", `Int kind);
