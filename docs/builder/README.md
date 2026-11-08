@@ -113,7 +113,7 @@ Read in this order. Most people need only the first three.
 | [Quick Start](./QUICK-START.md) | A knowledge base running on your machine, to build against |
 | [Introduction](./INTRODUCTION.md) | The ideas, once: one wire, annotations as data, AI work as jobs, live data, and where your code sits |
 | **[Developer Guide](./DEVELOPER-GUIDE.md)** | **How to build: the recipes, with the exact lines** |
-| [Signing in](./SIGN-IN.md) | Each way a program signs in, by who is signing in, in TypeScript, Python, Rust, Go, Kotlin, C#, Swift and Haskell |
+| [Signing in](./SIGN-IN.md) | Each way a program signs in, by who is signing in, in TypeScript, Python, Rust, Go, Kotlin, C#, Swift, Haskell, and OCaml |
 | [Connecting an AI application](./AI-APPLICATIONS.md) | `semiont mcp`: the knowledge bases you have signed in to, as tools in Claude and any other MCP client |
 | [Usage](./Usage.md) | The reference: every method of every namespace, its options, what it returns, and the errors |
 | [Reactive model](./REACTIVE-MODEL.md) | The return shapes the SDKs share and why each method uses its shape |
