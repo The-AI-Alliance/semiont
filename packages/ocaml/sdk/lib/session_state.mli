@@ -1,6 +1,12 @@
 type t
+type end_reason = Expired | Refused
 
-val make : id:string -> kb:[ `KnowledgeBase ] Models.t -> Client.t -> t
+val make :
+  ?on_auth_failed:(end_reason -> unit) ->
+  id:string ->
+  kb:[ `KnowledgeBase ] Models.t ->
+  Client.t ->
+  t
 (** Takes ownership of the client's credentials. The caller still owns the
     client. *)
 

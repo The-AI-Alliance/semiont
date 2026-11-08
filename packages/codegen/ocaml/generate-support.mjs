@@ -28,10 +28,10 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/probes/unicode_cases.ml'),
   process.argv.includes('--check'));
 
 const sessionSource = 'protocol/specs/src/session/cases.json';
-const { refreshSchedule, tokenExpiry } = JSON.parse(readFileSync(resolve(root, sessionSource), 'utf8'));
+const { refreshSchedule, tokenExpiry, startup, refusal } = JSON.parse(readFileSync(resolve(root, sessionSource), 'utf8'));
 writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/probes/session_cases.ml'),
   `(* Generated from ${sessionSource}. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n` +
-  `let cases = ${ocamlString(JSON.stringify({ refreshSchedule, tokenExpiry }))}\n`,
+  `let cases = ${ocamlString(JSON.stringify({ refreshSchedule, tokenExpiry, startup, refusal }))}\n`,
   process.argv.includes('--check'));
 
 const specRoot = resolve(root, 'protocol/specs/src');

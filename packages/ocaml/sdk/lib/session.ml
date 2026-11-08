@@ -55,7 +55,10 @@ type t = {
   on_rejected : string -> unit;
   work : task Eio.Stream.t;
   mutable token : string option;
-  mutable confirmation_required : bool;
+  mutable managed :
+    (current:(unit -> bool) -> refused:string option -> renewal -> renewal)
+    option;
+  mutable retry_due : bool;
   mutable generation : unit ref;
   mutable changed : unit Promise.t * unit Promise.u;
   mutable pending : task option;
@@ -67,9 +70,8 @@ type t = {
 let active t = not (Promise.is_resolved t.stop || Promise.is_resolved t.closed)
 let credential t = if active t then t.token else None
 
-let publish ?(confirm = true) t token =
+let publish t token =
   t.token <- token;
-  t.confirmation_required <- confirm;
   let _, notify = t.changed in
   t.changed <- Promise.create ();
   Promise.resolve notify ()
@@ -77,6 +79,7 @@ let publish ?(confirm = true) t token =
 let replace t token =
   if active t then (
     t.generation <- ref ();
+    t.retry_due <- false;
     publish t token)
 
 let renew_once t refused =
@@ -111,13 +114,21 @@ let worker t =
     let outcome =
       try t.renew ~refused:task.refused with Eio.Io _ -> Unavailable
     in
+    let outcome =
+      match t.managed with
+      | Some validate when task.generation == t.generation ->
+          validate
+            ~current:(fun () -> active t && task.generation == t.generation)
+            ~refused:task.refused outcome
+      | _ -> outcome
+    in
     t.pending <- None;
-    (if task.generation == t.generation then
-       match outcome with
-       | Renewed bearer ->
-           publish ~confirm:(Option.is_some task.refused) t (Some bearer)
-       | Unavailable when t.keep_on_unavailable -> ()
-       | Refused | Unavailable -> publish t None);
+    if task.generation == t.generation then (
+      t.retry_due <- outcome = Unavailable && Option.is_some t.managed;
+      match outcome with
+      | Renewed bearer -> publish t (Some bearer)
+      | Unavailable when t.keep_on_unavailable && t.managed = None -> ()
+      | Refused | Unavailable -> publish t None);
     Promise.resolve task.complete outcome
   done
 
@@ -142,20 +153,22 @@ let wait t seconds =
 
 let schedule t =
   let rec loop () =
-    match
-      Option.bind (credential t) (refresh_delay ~now:(Clock.wall_now t.clock))
-    with
-    | None ->
-        Promise.await (fst t.changed);
-        loop ()
-    | Some delay ->
-        if wait t delay then
-          let generation = t.generation in
-          match renew_once t None with
-          | Unavailable when generation == t.generation ->
-              retry generation Client_timing.reconnect_ms
-          | _ -> loop ()
-        else loop ()
+    if t.retry_due then retry t.generation Client_timing.reconnect_ms
+    else
+      match
+        Option.bind (credential t) (refresh_delay ~now:(Clock.wall_now t.clock))
+      with
+      | None ->
+          Promise.await (fst t.changed);
+          loop ()
+      | Some delay ->
+          if wait t delay then
+            let generation = t.generation in
+            match renew_once t None with
+            | Unavailable when generation == t.generation ->
+                retry generation Client_timing.reconnect_ms
+            | _ -> loop ()
+          else loop ()
   and retry generation step =
     let delay = float step /. 1000. *. (0.5 +. (Clock.jitter t.clock *. 0.5)) in
     if wait t delay && generation == t.generation then
@@ -179,7 +192,8 @@ let start ?(keep_on_unavailable = false) ?(on_rejected = ignore) ~sw ~clock
       on_rejected;
       work = Eio.Stream.create 1;
       token = initial_token;
-      confirmation_required = true;
+      managed = None;
+      retry_due = false;
       generation = ref ();
       changed = Promise.create ();
       pending = None;
@@ -220,9 +234,6 @@ let refresh t =
   ignore (renew_once t None);
   credential t
 
-let confirmation_required t = t.confirmation_required
-
-let reject t ~token =
-  if credential t = Some token then (
-    replace t None;
-    t.on_rejected token)
+let manage t validate = t.managed <- Some validate
+let refresh_outcome t = renew_once t None
+let forget t token = t.on_rejected token

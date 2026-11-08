@@ -30,5 +30,11 @@ val close : t -> unit
 val await_closed : t -> unit
 val await_credential_change : t -> from:string option -> string option
 val refresh : t -> string option
-val confirmation_required : t -> bool
-val reject : t -> token:string -> unit
+
+val manage :
+  t ->
+  (current:(unit -> bool) -> refused:string option -> renewal -> renewal) ->
+  unit
+
+val refresh_outcome : t -> renewal
+val forget : t -> string -> unit

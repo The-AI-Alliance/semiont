@@ -88,9 +88,203 @@ let proactive () =
   Session.close session;
   Session.await_closed session
 
+let lifecycle phase row =
+  let open Semiont in
+  let open Yojson.Safe.Util in
+  Eio_mock.Backend.run @@ fun () ->
+  Switch.run @@ fun sw ->
+  let mono = Eio_mock.Clock.Mono.make () in
+  let wall = Eio_mock.Clock.make () in
+  let clock =
+    Clock.make ~monotonic:mono ~wall ~jitter:(Random.State.make [| 1 |])
+    |> fun clock -> Clock.with_jitter clock (fun () -> 0.)
+  in
+  let known model body = Result.get_ok (Models.decode model body) in
+  let endpoint =
+    known Models.kb_endpoint
+      {|{"kind":"http","host":"localhost","port":4010,"protocol":"http"}|}
+  in
+  let description =
+    known Models.kb_description {|{"name":"KB","domain":"kb.example"}|}
+  in
+  let storage_data = Hashtbl.create 4 in
+  let storage : Registry.storage =
+    {
+      read = Hashtbl.find_opt storage_data;
+      write = Hashtbl.replace storage_data;
+      remove = Hashtbl.remove storage_data;
+    }
+  in
+  let browser =
+    Registry.new_semiont_browser
+      {
+        storage;
+        clock;
+        fresh_id = (fun () -> "kb");
+        factory = (fun _ -> assert false);
+        on_error = ignore;
+      }
+  in
+  let stored =
+    if phase = "startup" then row |> member "stored" |> to_string
+    else "unexpired"
+  in
+  let original =
+    if stored = "expired" then token {|{"iat":-100,"exp":-1}|} else "original"
+  in
+  let kept = Registry.kept_in storage "kb" in
+  let credential : Registry.stored_session =
+    {
+      access = original;
+      refresh = "refresh";
+      client_id = "browser";
+      token_endpoint = "https://issuer.example/token";
+      revocation_endpoint = None;
+    }
+  in
+  let registered =
+    Result.get_ok
+      (Registry.record_sign_in browser
+         {
+           endpoint;
+           description;
+           session = credential;
+           kb_id = None;
+           expected_did = None;
+           expected_name = None;
+         })
+  in
+  if stored = "none" then kept.forget ();
+  let asked = ref 0 and renewed = ref 0 and started = ref (phase = "startup") in
+  let scripted name count =
+    let answers = row |> member name |> to_list in
+    let answer = List.nth answers (min !count (List.length answers - 1)) in
+    incr count;
+    to_string answer
+  in
+  let issuer _ =
+    match scripted "issuer" renewed with
+    | "renews" -> (200, {|{"access_token":"renewed","refresh_token":"rotated"}|})
+    | "refuses" -> (400, {|{"error":"invalid_grant"}|})
+    | "unreachable" -> (503, {|{}|})
+    | _ -> assert false
+  in
+  let credentials = Registry.start_kept_session browser ~sw ~http:issuer "kb" in
+  let call ~sw:_ ~meth:_ ~path ~headers:_ ~body:_ ~progress:_ =
+    match path with
+    | "/bus/subscribe" -> Fiber.await_cancel ()
+    | "/api/users/me" ->
+        let status, body =
+          match if !started then scripted "gateway" asked else "accepts" with
+          | "accepts" ->
+              ( 200,
+                {|{"did":"did:web:kb.example:users:alice","email":null,"name":"Alice","image":null,"domain":"kb.example"}|}
+              )
+          | "refuses" -> (401, "{}")
+          | "unreachable" -> (503, "{}")
+          | _ -> assert false
+        in
+        (status, [], Eio.Flow.string_source body)
+    | _ -> assert false
+  in
+  let client =
+    Client.connect ~sw ~clock ~session:credentials ~client_id:"test"
+      ~key:(fun () -> "test")
+      ~call ~global:[] ~on_event:ignore ~on_error:ignore ()
+  in
+  let module S = State_units.Session in
+  let told = ref None in
+  let session =
+    S.make ~id:"kb" ~kb:registered.kb client ~on_auth_failed:(fun reason ->
+        told :=
+          Some
+            (match reason with
+            | S.Expired -> "expired"
+            | S.Refused -> "refused"))
+  in
+  S.ready session;
+  if phase = "refusal" then (
+    started := true;
+    let refused =
+      if row |> member "refused" |> to_string = "held" then original
+      else "previous"
+    in
+    let given = S.refresh session ~refused () in
+    Alcotest.(check bool)
+      "given"
+      (row |> member "given" |> to_bool)
+      (Option.is_some given));
+  let ends () =
+    match
+      (State_value.get (S.token session), State_value.get (S.user session))
+    with
+    | None, None -> "signed-out"
+    | Some _, Some _ -> "signed-in"
+    | Some _, None -> "unconfirmed"
+    | None, Some _ -> "user without token"
+  in
+  let check_checkpoint expected =
+    Alcotest.(check int)
+      "gateway asks"
+      (expected |> member "asks" |> to_int)
+      !asked;
+    Alcotest.(check int)
+      "issuer renewals"
+      (expected |> member "renewals" |> to_int)
+      !renewed;
+    Alcotest.(check string)
+      "ends"
+      (expected |> member "ends" |> to_string)
+      (ends ())
+  in
+  check_checkpoint row;
+  Alcotest.(check bool)
+    "kept"
+    (row |> member "kept" |> to_bool)
+    (Option.is_some (kept.held ()));
+  Alcotest.(check (option string))
+    "told"
+    (row |> member "told" |> to_string_option)
+    !told;
+  Alcotest.(check (option string))
+    "error"
+    (row |> member "error" |> to_string_option)
+    (Option.map
+       (fun (failure : Http_wire.failure) -> failure.code)
+       (State_value.get (S.errors session)));
+  (match member "then" row with
+  | `Null -> ()
+  | expected ->
+      let settle () =
+        for _ = 1 to 24 do
+          Fiber.yield ()
+        done
+      in
+      settle ();
+      Eio_mock.Clock.Mono.set_time mono
+        (Option.get
+           (Mtime.add_span (Clock.monotonic_now clock) Mtime.Span.(6000 * ms)));
+      settle ();
+      check_checkpoint expected);
+  S.dispose session;
+  Client.close client;
+  Client.await_closed client
+
+let lifecycle_cases phase =
+  let open Yojson.Safe.Util in
+  Yojson.Safe.from_string Session_cases.cases
+  |> member phase |> to_list
+  |> List.map (fun row ->
+      Alcotest.test_case
+        (row |> member "why" |> to_string)
+        `Quick
+        (fun () -> lifecycle phase row))
+
 let () =
   Alcotest.run "session renewal"
     [
+      ("startup", lifecycle_cases "startup");
+      ("refusal", lifecycle_cases "refusal");
       ( "session",
         [
           Alcotest.test_case "shared expiry and schedule" `Quick table;

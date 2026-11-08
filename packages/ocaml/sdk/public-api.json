@@ -147,8 +147,8 @@
     "lib/hover_dwell.ml": "2a8e9fef90c75ce18569793c04f553523e3dc523d53d869ceef4dab6a7702122",
     "lib/hover_dwell.mli": "3bf63911f6482ad960a6e4d3881e4a637caa0d9929dc8d62dbf7b69421fa19af",
     "lib/http_facts.ml": "3bce75ca4edacc1682410d6c9f6faf5584fe027ff8f058c91a63f0fa59be7784",
-    "lib/http_wire.ml": "bdecb1354e6331814e6bfa738a2edad3b08aa2f244f62c28fe1543a51ea1fa0a",
-    "lib/http_wire.mli": "889a66c6e151d6f57c788717c5281324da0f932c8a643d9aea7164c083bc4155",
+    "lib/http_wire.ml": "e104de61009503064bfbe7d290bd2599a15228a8f91eb9e9c4502351d19f7a7c",
+    "lib/http_wire.mli": "fac172af11ce0c98fc4589264c3bb9b7466682cf011d4e1fad16930e707c3f17",
     "lib/identifiers.ml": "79442bf052a1eecfbcaee2fd4b3909588801f828f5af963d44597bf5f155f282",
     "lib/identifiers.mli": "bba7e132069a1c36758c9d1bfebd936ecb815b6d05dae2b55f03a5de72f2c20d",
     "lib/job.ml": "2381750e7292f8a03640f1e09de22eb525086877fb8289b46e3d188798181453",
@@ -186,12 +186,12 @@
     "lib/selector.mli": "1c3c9f74ea5c90d0154547e5c3f249f4f7fcfd05f5fc97bc89ad7976a7b02716",
     "lib/semiont.ml": "73d74eb947abf8ef303ebebed3acf99d8a81f0d54ea2c9e53485cdda2c0b209e",
     "lib/semiont.mli": "8e7c7c992c4db5f248478b35355dd3c5f91c3f93cd6e3704bb283c849c9610bc",
-    "lib/session.ml": "8ad4034e697ada834fe46bce7c12915a03db16498b9c0466226f2daf27611451",
-    "lib/session.mli": "6847260981887857011e33f8f0bc5c349f54ec1454c7dd680a299ede0a400942",
+    "lib/session.ml": "fc17d0c6d6503b1a33620f197a07537c57dd99035ea0f0b30e97a0cb5850491c",
+    "lib/session.mli": "6d9639cabc6fbc5d280b8b3765d3d520492d925cf231a0578a817e3702647879",
     "lib/session_signals.ml": "dba5deb3b0b7804f9296bd220a4b919824c565cb77e69cc9e816c9866eb7dc1d",
     "lib/session_signals.mli": "f7fcf9e704a1a62abe71aac063076d71dc45f8f7c7c9c2ac5ed9a961dc02835d",
-    "lib/session_state.ml": "feff2a8d843a6c36557d09e2d8413a65b04e9b47e2d4438efd14b059933757b4",
-    "lib/session_state.mli": "144354974826f3e973f022b96b6906e085a05ad77e1937dfe18ce3d12919cb23",
+    "lib/session_state.ml": "980e498e8ba5e338644abbf4d9793d773f2353ddc5de99b04a7b9b656877a58b",
+    "lib/session_state.mli": "8c762fd41afebf7ccc04f8016649779cbdf053174ad043c429a8120030bc2ee7",
     "lib/sign_in_store.ml": "fc130dc8ae78f26c0b689b030828df107ebe36463b737abef5b38ea2e4b37e24",
     "lib/sign_in_store.mli": "d6579a76440acff3f59b378e9f6fbe35f90cf817827d4af59d2e65a4e2dccdda",
     "lib/state_task.ml": "2061a7893545d7ecf7f52b0235c21fa2a5346ef3c65334e043e63dd7dfc74c8c",
@@ -12222,13 +12222,18 @@
     },
     {
       "kind": "value",
-      "path": "Semiont.Session.confirmation_required",
-      "declaration": "val confirmation_required : t -> bool"
+      "path": "Semiont.Session.manage",
+      "declaration": "val manage :\n  t ->\n  (current:(unit -> bool) -> refused:string option -> renewal -> renewal) ->\n  unit"
     },
     {
       "kind": "value",
-      "path": "Semiont.Session.reject",
-      "declaration": "val reject : t -> token:string -> unit"
+      "path": "Semiont.Session.refresh_outcome",
+      "declaration": "val refresh_outcome : t -> renewal"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Session.forget",
+      "declaration": "val forget : t -> string -> unit"
     },
     {
       "kind": "module",
@@ -12312,11 +12317,6 @@
     },
     {
       "kind": "value",
-      "path": "Semiont.Http_wire.confirmed_user",
-      "declaration": "val confirmed_user : t -> string option * (string, failure) result"
-    },
-    {
-      "kind": "value",
       "path": "Semiont.Http_wire.protected_resource_metadata",
       "declaration": "val protected_resource_metadata : t -> string"
     },
@@ -12349,6 +12349,11 @@
       "kind": "value",
       "path": "Semiont.Http_wire.put",
       "declaration": "val put :\n  t ->\n  fields:(string * string) list ->\n  bytes:string -> on_progress:(int -> unit) -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Http_wire.check_user",
+      "declaration": "val check_user : t -> string -> (string, failure) result"
     },
     {
       "kind": "module",
@@ -18374,9 +18379,31 @@
       "representation": "abstract"
     },
     {
+      "kind": "type",
+      "path": "Semiont.State_units.Session.end_reason",
+      "declaration": "type end_reason = Expired | Refused",
+      "representation": "variant",
+      "constructors": [
+        "Expired",
+        "Refused"
+      ],
+      "variants": [
+        {
+          "name": "Expired",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Refused",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
       "kind": "value",
       "path": "Semiont.State_units.Session.make",
-      "declaration": "val make :\n  id:string ->\n  kb:[ `KnowledgeBase ] Semiont__.Models.t -> Semiont__.Client.t -> t"
+      "declaration": "val make :\n  ?on_auth_failed:(end_reason -> unit) ->\n  id:string ->\n  kb:[ `KnowledgeBase ] Semiont__.Models.t -> Semiont__.Client.t -> t"
     },
     {
       "kind": "value",
