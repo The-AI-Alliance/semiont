@@ -115,6 +115,8 @@
     "lib/client_timing.mli": "cb433bda9c37944c0dd973b950f25c229b727fef820d144b66915c26e3c4c7a5",
     "lib/clock.ml": "7fbcd81067a62d56842bf1f5b50e64e35f0efb056796a6926b1b732e52cca8b6",
     "lib/clock.mli": "9eec4a9bf79a437a5b331cc40dacd46905f70367ccae882650bce067932078b2",
+    "lib/delegation.ml": "f9227a6ef4cd5a9f81f61f4754ac898de15807707c167c28c144bd8e3fa2f16c",
+    "lib/delegation.mli": "2df25e25133ab6911ab421602a56df882130e95d39b7825c7e8645d68d9ca01b",
     "lib/dune": "38f00134f7e01bc6adc27bec3191fe82d4c49e89c3b8482ed4a62abc4b165fcb",
     "lib/enums.ml": "e2a188bb4fd853313782622b84257a43be1c0e89472fc2323ab9c89ff1aa1232",
     "lib/enums.mli": "1c28ee0ac1ca50a86fe00ce3fe5c6ed5b015045b5cd14c8b48d46fa4b937daaf",
@@ -126,6 +128,8 @@
     "lib/live_facts.ml": "ce49adc23b56fd0f25a7f642d9d1ead6ddb67b0c297b420bd49ded3c785b1db2",
     "lib/live_query.ml": "414bc518ddfed6142b6b12fc276e617cee7810ae0f88aa173cf40c02856ffd70",
     "lib/live_query.mli": "cf3a19c179b8d63375278f2c2ff056f606796541ce2a4df0aef689de28132d1c",
+    "lib/mark.ml": "1d17176779485943177a7fd31c93e9c3f0374ca55f24fdae64586a15e2cfca43",
+    "lib/mark.mli": "fe6198b23cde89b871cbc206059b8eaf397031bc79d962a23816905ef653d260",
     "lib/models.ml": "a36b2528fa00802a9e6482da3564a96c31300a8447921557f90770774d7e588c",
     "lib/models.mli": "bc54c8ce9935e9e195877b7ed8d7a6afc85ea7e3a5662139acc669c8f4f02b63",
     "lib/pattern.ml": "a41d5ebb9ebc0eee59522a4d883e2a5281202c4fbebb0a2040b267961bf677ad",
@@ -136,8 +140,8 @@
     "lib/schema_shapes.ml": "12f163c8f930d2cb1559aa93de7f8d5fd58583827059852e6aebdf9b03629bea",
     "lib/selector.ml": "28f250d3a6ed926ba94317cf595d39742124587c527ebcf02c6f6c043c50a7e8",
     "lib/selector.mli": "1c3c9f74ea5c90d0154547e5c3f249f4f7fcfd05f5fc97bc89ad7976a7b02716",
-    "lib/semiont.ml": "1d690cd4840bc2037dc00925283dd6a017a450c4e6795a8fa839475be18aa4fd",
-    "lib/semiont.mli": "a0d13aa276a1f5c0f8d7e421d910f44f7681758ae05c7eec0217ece173303d04",
+    "lib/semiont.ml": "dd3dbef7fb3f08062b522bb1a76f958123aa85f84408d69a5e76c9ca65f5bd82",
+    "lib/semiont.mli": "0164b4ca6d10d35cf174511dd13ede4a9e1378fe9ee416b9763ba1b678beee5b",
     "lib/session.ml": "9f01d7546c52be09408419522c7b95d5b067b6c08d3bbfd78202a3495f9afc31",
     "lib/session.mli": "5202a41238b363ab84685b83c2419073b416a56373e3ff0a5bc5acc81d212656",
     "lib/strict_json.ml": "19a2f3c4c5a828e0fe55cd36eb25b685e965f0b79c21cd57cc4a17c53d0112d6",
@@ -153,6 +157,8 @@
     "lib/wire_stream.mli": "b6217d5b0f374382b404eb61408b40b94c70e055d61729c88cb0cf3884397034",
     "lib/worker.ml": "d3f87b24e7b55dd43d3e1d4c08f106785fecd9b37bbfefc20e8a7f1ac4356744",
     "lib/worker.mli": "1f0ea17ef360768141b5f6e3c5a77233947ed193cffb0da29f134090a670b69f",
+    "lib/yield.ml": "406255a82282724ecbd448cd74e0fd168a2339306e3dcb2ae6feecf7c9f8d051",
+    "lib/yield.mli": "991dda381a0ce759aef7d3c4559f50ed305cb6ddf2aac723ed9f4737282e96ef",
     "probes/api_inventory.ml": "97b819335b2d6d55f2f4a7c73422ad4df34ca5e459fe4df300f01a0ff5efb36a",
     "probes/dune": "4b82a53ae47205f7a5bfc5ac215aa840814c53ff15e0c58bc1974d913fea043b",
     "public-api.inputs.json": "16a156e808e8dfd7df61837746b0e4b8ce44e38a40f5a1b647baec0af1bfcca9",
@@ -12559,6 +12565,110 @@
       "kind": "value",
       "path": "Semiont.Worker.default_stall_check_ms",
       "declaration": "val default_stall_check_ms : int"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Delegation",
+      "declaration": "module Delegation = Semiont__.Delegation",
+      "alias": "Semiont__.Delegation"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Delegation.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Delegation.report_kind",
+      "declaration": "type report_kind = Created | Progress | Complete | Retrying | Refused",
+      "representation": "variant",
+      "constructors": [
+        "Created",
+        "Progress",
+        "Complete",
+        "Retrying",
+        "Refused"
+      ],
+      "variants": [
+        {
+          "name": "Created",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Progress",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Complete",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Retrying",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Refused",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Delegation.failure",
+      "declaration": "type failure = {\n  code : string;\n  failure_class : Semiont__.Enums.Failure_class.t option;\n}",
+      "representation": "record",
+      "fields": [
+        "code",
+        "failure_class"
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Delegation.channels",
+      "declaration": "val channels : Semiont__.Bus_registry.packed_channel list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Delegation.make",
+      "declaration": "val make :\n  ?silence_ms:int ->\n  ?poll_ms:int ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  subscription:Semiont__.Subscription.t ->\n  http:Semiont__.Http_wire.t ->\n  client_id:string -> correlation_id:(unit -> string) -> unit -> t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Delegation.on_frame",
+      "declaration": "val on_frame :\n  t ->\n  (Semiont__.Wire_stream.frame, Semiont__.Wire_stream.refusal) result -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Delegation.start",
+      "declaration": "val start :\n  t ->\n  verb:string ->\n  ?resource:string ->\n  ?stall_ms:int ->\n  params:Yojson.Safe.t ->\n  on_report:(report_kind -> Yojson.Safe.t -> unit) ->\n  on_failure:(failure -> unit) ->\n  on_close:(unit -> unit) -> unit -> unit -> unit"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Mark",
+      "declaration": "module Mark = Semiont__.Mark",
+      "alias": "Semiont__.Mark"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Mark.delegate",
+      "declaration": "val delegate :\n  Semiont__.Delegation.t ->\n  resource:Semiont__.Identifiers.Resource_id.t ->\n  params:[ `MarkJobParams ] Semiont__.Models.t ->\n  on_report:(Semiont__.Delegation.report_kind -> Yojson.Safe.t -> unit) ->\n  on_failure:(Semiont__.Delegation.failure -> unit) ->\n  on_close:(unit -> unit) -> unit -> unit -> unit"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Yield",
+      "declaration": "module Yield = Semiont__.Yield",
+      "alias": "Semiont__.Yield"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Yield.delegate",
+      "declaration": "val delegate :\n  Semiont__.Delegation.t ->\n  ?stall_ms:int ->\n  params:[ `GenerationJobRequest ] Semiont__.Models.t ->\n  on_report:(Semiont__.Delegation.report_kind -> Yojson.Safe.t -> unit) ->\n  on_failure:(Semiont__.Delegation.failure -> unit) ->\n  on_close:(unit -> unit) -> unit -> unit -> unit"
     }
   ]
 }

@@ -16,3 +16,6 @@ module Http_wire = Http_wire
 module Telemetry = Telemetry
 module Live_query = Live_query
 module Worker = Worker
+module Delegation = Delegation
+module Mark = Mark
+module Yield = Yield

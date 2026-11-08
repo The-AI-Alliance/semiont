@@ -5,6 +5,7 @@ module Session = Semiont.Session
 module J = Yojson.Safe.Util
 module H = Semiont.Http_wire
 module L = Semiont.Live_query
+module D = Semiont.Delegation
 module W = Semiont.Worker
 
 exception Misuse of string
@@ -176,31 +177,10 @@ let run mode env =
   let listens = Hashtbl.create 8 in
   let holds = Hashtbl.create 8 in
   let commit_timeout = ref None in
+  let delegation = ref None in
   let delegates = Hashtbl.create 4 in
   let job_silence = ref 10000 in
   let job_poll = ref 5000 in
-  let job_signals =
-    let open B.Channels in
-    [
-      B.Channel job_report_progress; B.Channel job_complete; B.Channel job_fail;
-    ]
-  in
-  let job_channels =
-    let replies (B.Operation op) =
-      [ B.Channel (B.result op); B.Channel (B.failure op) ]
-    in
-    job_signals
-    @ List.concat_map replies
-        [
-          B.Operation B.Operations.job_create;
-          B.Operation B.Operations.job_status_requested;
-          B.Operation B.Operations.job_cancel_requested;
-          B.Operation B.Operations.mark_delete;
-        ]
-  in
-  let job_channel channel =
-    List.exists (fun (B.Channel value) -> B.name value = channel) job_signals
-  in
   let active = Hashtbl.create 8 in
   let get_client () =
     match !client with
@@ -229,6 +209,7 @@ let run mode env =
   in
   let on_event event =
     report_frame event;
+    Option.iter (fun follower -> D.on_frame follower event) !delegation;
     match (mode, event) with
     | Worker, Ok (Semiont.Wire_stream.Frame { route; payload; _ })
       when route.channel = B.name B.Channels.job_queued -> (
@@ -253,28 +234,6 @@ let run mode env =
             if optional J.to_string "jobId" json = Some (W.id job) then
               output_json (`Assoc [ ("signalled", text (W.id job)) ]))
           !held
-    | Live, Ok (Semiont.Wire_stream.Frame { route; payload; _ })
-      when job_channel route.channel ->
-        let signal =
-          match payload with
-          | Ok value -> Ok (Yojson.Safe.from_string (B.encode value))
-          | Error (B.Invalid_payload fault) ->
-              Error
-                (`Assoc
-                   [
-                     ("channel", text route.channel);
-                     ("member", text fault.member);
-                     ( "reason",
-                       text
-                         (match fault.reason with
-                         | `Lacks -> "lacks"
-                         | `Malformed -> "malformed") );
-                   ])
-          | Error _ -> Error `Null
-        in
-        Hashtbl.to_seq_values delegates
-        |> List.of_seq
-        |> List.iter (fun receive -> receive route.channel signal)
     | Live, Ok (Semiont.Wire_stream.Frame { route; payload; _ }) ->
         let payload =
           Result.to_option payload
@@ -420,7 +379,11 @@ let run mode env =
       | Live ->
           job_silence := time "jobSilenceMs" !job_silence;
           job_poll := time "jobStatusPollMs" !job_poll;
-          live_channels @ job_channels
+          live_channels @ D.channels
+          @ [
+              B.Channel B.Channels.mark_delete_ok;
+              B.Channel B.Channels.mark_delete_failed;
+            ]
       | Wire ->
           field "channels" input |> J.to_list
           |> List.map (fun value -> channel (J.to_string value))
@@ -430,6 +393,13 @@ let run mode env =
       S.start ?telemetry ~timing:subscription_timing ~sw ~clock ~client_id
         ~global ~scopes:[] ~connect ~on_event ()
     in
+    if mode = Live then
+      delegation :=
+        Some
+          (D.make ~silence_ms:!job_silence ~poll_ms:!job_poll ~sw ~clock
+             ~subscription ~http ~client_id
+             ~correlation_id:(fun () -> uuid env)
+             ());
     client :=
       Some
         {
@@ -594,16 +564,10 @@ let run mode env =
     | L.Failed code ->
         `Assoc [ ("status", text "failed"); ("error", error code) ]
   in
-  let send_signal = emit in
   let delegate ~verb input =
-    let client = get_client () in
+    let follower = Option.get !delegation in
     let observer = string "observer" input in
-    let resource = optional J.to_string "resource" input in
-    let pending = Queue.create () in
-    let job_id = ref None in
-    let finished = ref false in
-    let retrying = ref false in
-    let last_seen = ref (Semiont.Clock.monotonic_now client.clock) in
+    if Hashtbl.mem observers observer then raise (Misuse "duplicate observer");
     let output state =
       output_json
         (`Assoc
@@ -612,145 +576,64 @@ let run mode env =
                `Assoc [ ("observer", text observer); ("state", state) ] );
            ])
     in
-    let emit kind data =
+    let on_report kind data =
+      let kind =
+        match kind with
+        | D.Created -> "created"
+        | D.Progress -> "progress"
+        | D.Complete -> "complete"
+        | D.Retrying -> "failed"
+        | D.Refused -> "refused"
+      in
       output
         (state_json (L.Ready (`Assoc [ ("kind", text kind); ("data", data) ])))
     in
-    let finish () =
-      finished := true;
-      Hashtbl.remove delegates observer;
-      Hashtbl.remove observers observer;
-      output_json (`Assoc [ ("completed", text observer) ])
-    in
-    let fail code payload =
+    let on_failure (failure : D.failure) =
       let details =
-        match field "failureClass" payload with
-        | `Null -> []
-        | value -> [ ("failureClass", value) ]
+        Option.to_list
+          (Option.map
+             (fun value ->
+               ( "failureClass",
+                 text (Semiont.Enums.Failure_class.to_string value) ))
+             failure.failure_class)
       in
       output
         (`Assoc
            [
              ("status", text "failed");
              ( "error",
-               `Assoc ([ ("code", text code); ("detail", text code) ] @ details)
-             );
-           ]);
-      finish ()
+               `Assoc
+                 ([ ("code", text failure.code); ("detail", text failure.code) ]
+                 @ details) );
+           ])
     in
-    let receive channel signal =
-      if not !finished then
-        match (!job_id, signal) with
-        | None, _ -> Queue.add (channel, signal) pending
-        | Some _, Error detail -> emit "refused" detail
-        | Some id, Ok (`Assoc fields as payload)
-          when field "jobId" payload = text id -> (
-            let payload = `Assoc (List.remove_assoc "_roles" fields) in
-            last_seen := Semiont.Clock.monotonic_now client.clock;
-            match channel with
-            | "job:report-progress" ->
-                retrying := false;
-                emit "progress" (field "progress" payload)
-            | "job:complete" ->
-                emit "complete" payload;
-                finish ()
-            | "job:fail" when field "willRetry" payload = `Bool true ->
-                retrying := true;
-                emit "failed" payload
-            | "job:fail" -> fail "job.failed" payload
-            | _ -> ())
-        | _ -> ()
+    let on_close () =
+      Hashtbl.remove delegates observer;
+      Hashtbl.remove observers observer;
+      output_json (`Assoc [ ("completed", text observer) ])
     in
-    if Hashtbl.mem observers observer then raise (Misuse "duplicate observer");
-    Hashtbl.add delegates observer receive;
-    Hashtbl.add observers observer finish;
-    let request op payload =
-      try request client op payload
-      with H.Failed failure -> Error failure.code
+    let params descriptor =
+      match
+        Semiont.Models.decode descriptor
+          (Yojson.Safe.to_string (field "params" input))
+      with
+      | Ok value -> value
+      | Error _ -> raise (Misuse "invalid delegation parameters")
     in
-    let span milliseconds = Mtime.Span.(max 1 milliseconds * ms) in
-    let sleep until duration =
-      Semiont.Clock.sleep_until client.clock
-        (Option.value (Mtime.add_span until duration) ~default:Mtime.max_stamp)
+    let release =
+      if verb = "mark" then
+        Semiont.Mark.delegate follower
+          ~resource:(resource_of_name (string "resource" input))
+          ~params:(params Semiont.Models.mark_job_params)
+          ~on_report ~on_failure ~on_close ()
+      else
+        Semiont.Yield.delegate follower
+          ?stall_ms:(optional J.to_int "stallDeadlineMs" input)
+          ~params:(params Semiont.Models.generation_job_request)
+          ~on_report ~on_failure ~on_close ()
     in
-    let stall = optional J.to_int "stallDeadlineMs" input in
-    Fiber.fork_daemon ~sw (fun () ->
-        let payload =
-          `Assoc
-            ([ ("jobType", text verb); ("params", field "params" input) ]
-            @ Option.to_list
-                (Option.map (fun value -> ("resourceId", text value)) resource)
-            )
-        in
-        (match request B.Operations.job_create payload with
-        | Error code -> if not !finished then fail code (`Assoc [])
-        | Ok created when not !finished ->
-            let id = string "jobId" created in
-            job_id := Some id;
-            last_seen := Semiont.Clock.monotonic_now client.clock;
-            emit "created" created;
-            Queue.iter (fun (channel, signal) -> receive channel signal) pending;
-            Queue.clear pending;
-            let identity = `Assoc [ ("jobId", text id) ] in
-            let poll_delay delay = if !retrying then !job_poll else delay in
-            let rec monitor delay =
-              if not !finished then (
-                let delay_ms = poll_delay delay in
-                let timeout =
-                  Option.fold ~none:delay_ms ~some:(min delay_ms) stall
-                in
-                sleep !last_seen (span timeout);
-                if not !finished then
-                  let elapsed =
-                    Mtime.span
-                      (Semiont.Clock.monotonic_now client.clock)
-                      !last_seen
-                  in
-                  if
-                    Option.fold ~none:false
-                      ~some:(fun ms ->
-                        Mtime.Span.compare elapsed (span ms) >= 0)
-                      stall
-                  then (
-                    (try
-                       ignore
-                         (send_signal client ~correlation_id:(uuid env)
-                            B.Channels.job_cancel_requested identity)
-                     with H.Failed _ -> ());
-                    if not !finished then fail "job.stalled" (`Assoc []))
-                  else if
-                    Mtime.Span.compare elapsed (span (poll_delay delay)) < 0
-                  then monitor delay
-                  else
-                    let status =
-                      request B.Operations.job_status_requested identity
-                    in
-                    if not !finished then (
-                      (match status with
-                      | Ok value -> (
-                          match field "status" value with
-                          | `String "complete" ->
-                              emit "complete"
-                                (`Assoc
-                                   ([
-                                      ("jobId", text id); ("jobType", text verb);
-                                    ]
-                                   @ Option.to_list
-                                       (Option.map
-                                          (fun value ->
-                                            ("resourceId", text value))
-                                          resource)));
-                              finish ()
-                          | `String "failed" -> fail "job.failed" value
-                          | `String "cancelled" -> fail "job.cancelled" value
-                          | _ -> ())
-                      | Error _ -> ());
-                      last_seen := Semiont.Clock.monotonic_now client.clock;
-                      monitor !job_poll))
-            in
-            monitor !job_silence
-        | Ok _ -> ());
-        `Stop_daemon)
+    Hashtbl.replace delegates observer release;
+    Hashtbl.replace observers observer release
   in
   let rec claim () =
     match (!accepts, !held) with
@@ -848,6 +731,7 @@ let run mode env =
         Session.await_closed client.session)
       !client;
     client := None;
+    delegation := None;
     flush_telemetry ()
   in
   let perform input =

@@ -56,3 +56,16 @@ snapshot with `python3 api.py --write` in the OCaml container. The recipe in
 `sdk/public-api.inputs.json` includes the library, lock directory, Dune files
 and compiler-extraction tools. Full shared-client-surface integration continues
 in P1.
+
+## Delegation
+
+Use `Semiont.Mark.delegate` to request annotation work on a resource and
+`Semiont.Yield.delegate` to request generation. Pass a validated
+`Models.mark_job_params` or `Models.generation_job_request` value respectively.
+
+Include `Delegation.channels` when opening the bus subscription. Create a
+`Delegation.t` with that subscription, its HTTP transport and client ID,
+and forward subscription events to `Delegation.on_frame`. The delegate
+functions report creation, progress, retryable failures and completion through
+`on_report`. Terminal failures go to `on_failure`. The returned function
+stops following the job and calls `on_close`.
