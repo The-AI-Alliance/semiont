@@ -524,6 +524,96 @@ button:disabled {
 .git-modal__missing {
   color: var(--danger);
 }
+.mcp-modal {
+  max-width: 34rem;
+}
+.mcp-modal__status {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-sidebar);
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.mcp-modal__status-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--text);
+}
+.mcp-modal__indicator {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.mcp-modal__indicator--running {
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 16%, transparent);
+}
+.mcp-modal__status > p {
+  margin: 0.65rem 0 0;
+}
+.mcp-modal__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem 1.2rem;
+  margin: 0.9rem 0 0;
+}
+.mcp-modal__stats div {
+  min-width: 0;
+}
+.mcp-modal__stats dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.mcp-modal__stats dd {
+  margin: 0.12rem 0 0;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.mcp-modal__error {
+  margin: 0.65rem 0 0;
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+.mcp-modal__note {
+  margin: 0.9rem 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.mcp-modal__note code {
+  color: var(--text);
+}
+.mcp-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.mcp-modal__actions button {
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--field);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.mcp-modal__actions button:hover,
+.mcp-modal__actions button:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+.mcp-modal__actions button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.mcp-modal__actions .mcp-modal__stop {
+  border-color: var(--danger);
+  color: var(--danger);
+}
 .secrets-modal {
   max-width: 38rem;
 }
@@ -674,6 +764,20 @@ button:disabled {
 .semiont-menu button svg {
   flex-shrink: 0;
   color: var(--muted);
+}
+.semiont-menu button .semiont-menu__mcp-icon--running {
+  color: var(--success);
+}
+.semiont-menu__item-copy {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.semiont-menu__item-copy small {
+  margin-top: 0.12rem;
+  color: var(--muted);
+  font-size: 0.67rem;
+  font-weight: 400;
 }
 .semiont-menu button:hover,
 .semiont-menu button:focus-visible {

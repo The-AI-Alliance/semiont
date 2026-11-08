@@ -3,6 +3,7 @@ import type { KbEntry } from '../lib/user-config';
 import type { KbConnection } from '../lib/session';
 import { sessionsForKb, sessionTitle, type AppChatSession } from '../lib/chat-sessions';
 import { KbResources } from './KbResources';
+import type { McpProcessStatus } from '../lib/launcher-bridge';
 
 /** Left nav: every configured KB (connected or not), each expanding to its connect
  *  control, resources, chat sessions, and New Chat. KB add/rename/remove live here.
@@ -29,6 +30,8 @@ export interface KbNavProps {
   onOpenAbout: () => void;
   onOpenInference: () => void;
   onOpenSecrets: () => void;
+  onOpenMcp: () => void;
+  mcpStatus: McpProcessStatus;
   onOpenTheme: () => void;
   onOpenLauncherStatus: () => void;
   onOpenTelemetry: () => void;
@@ -75,12 +78,12 @@ export function KbNav(props: KbNavProps) {
         )}
       </div>
 
-      <SemiontMenu onOpenAbout={props.onOpenAbout} onOpenInference={props.onOpenInference} onOpenSecrets={props.onOpenSecrets} onOpenTheme={props.onOpenTheme} onOpenLauncherStatus={props.onOpenLauncherStatus} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
+      <SemiontMenu onOpenAbout={props.onOpenAbout} onOpenInference={props.onOpenInference} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenTheme={props.onOpenTheme} onOpenLauncherStatus={props.onOpenLauncherStatus} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
     </nav>
   );
 }
 
-function SemiontMenu({ onOpenAbout, onOpenInference, onOpenSecrets, onOpenTheme, onOpenLauncherStatus, onOpenTelemetry, onOpenRuntime, onOpenGit }: Pick<KbNavProps, 'onOpenAbout' | 'onOpenInference' | 'onOpenSecrets' | 'onOpenTheme' | 'onOpenLauncherStatus' | 'onOpenTelemetry' | 'onOpenRuntime' | 'onOpenGit'>) {
+function SemiontMenu({ onOpenAbout, onOpenInference, onOpenSecrets, onOpenMcp, mcpStatus, onOpenTheme, onOpenLauncherStatus, onOpenTelemetry, onOpenRuntime, onOpenGit }: Pick<KbNavProps, 'onOpenAbout' | 'onOpenInference' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenTheme' | 'onOpenLauncherStatus' | 'onOpenTelemetry' | 'onOpenRuntime' | 'onOpenGit'>) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -112,6 +115,14 @@ function SemiontMenu({ onOpenAbout, onOpenInference, onOpenSecrets, onOpenTheme,
           <button type="button" role="menuitem" onClick={() => choose(onOpenAbout)}><AboutIcon /><span>About</span></button>
           <button type="button" role="menuitem" onClick={() => choose(onOpenInference)}><InferenceIcon /><span>Inference</span></button>
           <button type="button" role="menuitem" onClick={() => choose(onOpenSecrets)}><SecretsIcon /><span>Secrets</span></button>
+          <button type="button" role="menuitem" onClick={() => choose(onOpenMcp)}>
+            <McpIcon running={mcpStatus.state === 'running'} />
+            <span className="semiont-menu__item-copy">
+              <span>MCP</span>
+              {mcpStatus.state === 'running' && mcpStatus.pid !== null && <small>Running · PID {mcpStatus.pid}</small>}
+              {mcpStatus.state !== 'running' && <small>{mcpStatus.state === 'failed' ? 'Failed' : 'Stopped'}</small>}
+            </span>
+          </button>
           <button type="button" role="menuitem" onClick={() => choose(onOpenTheme)}><ThemeIcon /><span>Theme</span></button>
           <button type="button" role="menuitem" onClick={() => choose(onOpenTelemetry)}><TelemetryIcon /><span>Telemetry</span></button>
           <button type="button" role="menuitem" onClick={() => choose(onOpenRuntime)}><ContainerIcon /><span>Container runtime</span></button>
@@ -434,6 +445,17 @@ function SecretsIcon() {
     <svg width="18" height="18" {...ICON_PROPS}>
       <rect x="3" y="10" width="18" height="11" rx="2" />
       <path d="M7 10V7a5 5 0 0 1 10 0v3m-5 5v2" />
+    </svg>
+  );
+}
+
+function McpIcon({ running }: { running: boolean }) {
+  return (
+    <svg className={running ? 'semiont-menu__mcp-icon--running' : undefined} width="18" height="18" {...ICON_PROPS}>
+      <circle cx="12" cy="5" r="2.5" />
+      <circle cx="6" cy="17" r="2.5" />
+      <circle cx="18" cy="17" r="2.5" />
+      <path d="m10.8 7.2-3.6 7.6m6-7.6 3.6 7.6M8.5 17h7" />
     </svg>
   );
 }

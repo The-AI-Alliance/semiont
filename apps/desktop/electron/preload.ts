@@ -66,5 +66,8 @@ const launcherBridge: LauncherBridge = {
   gitPath: () => ipcRenderer.invoke('system:git-path'),
   opPath: () => ipcRenderer.invoke('system:op-path'),
   ollamaInfo: () => ipcRenderer.invoke('system:ollama-info'),
+  mcpStatus: () => ipcRenderer.invoke('mcp:status'),
+  startMcp: () => ipcRenderer.invoke('mcp:start'),
+  stopMcp: () => ipcRenderer.invoke('mcp:stop'),
 };
 contextBridge.exposeInMainWorld('launcherBridge', launcherBridge);

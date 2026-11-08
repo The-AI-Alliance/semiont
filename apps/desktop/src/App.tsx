@@ -33,6 +33,7 @@ import { TelemetryModal } from './components/TelemetryModal';
 import { RuntimeModal } from './components/RuntimeModal';
 import { GitModal, type GitCheck } from './components/GitModal';
 import { SecretsModal, type SecretsCheck } from './components/SecretsModal';
+import { McpModal } from './components/McpModal';
 import { AppFooter, type KbDisplay } from './components/AppFooter';
 import { ChatPane, type LogEntry } from './components/ChatPane';
 import { ResourceView } from './components/ResourceView';
@@ -40,6 +41,7 @@ import type { ViewerPrefs } from './components/ViewerPrefControls';
 import { DEFAULT_TELEMETRY_LINKS, telemetryLinksFromStatus, type TelemetryLinks } from './lib/telemetry-links';
 import { runtimeInfoFromLauncher, type RuntimeInfo } from './lib/runtime-info';
 import type { OllamaInfo } from './lib/ollama-info';
+import type { McpProcessStatus } from './lib/launcher-bridge';
 
 // In Electron the preload exposes window.configBridge; the web build has no such bridge.
 const isElectron = typeof window !== 'undefined' && window.configBridge !== undefined;
@@ -108,6 +110,15 @@ export function App() {
   const [gitCheck, setGitCheck] = useState<GitCheck>({ status: 'checking' });
   const [showSecrets, setShowSecrets] = useState(false);
   const [secretsCheck, setSecretsCheck] = useState<SecretsCheck>({ status: 'checking' });
+  const [showMcp, setShowMcp] = useState(false);
+  const [mcpStatus, setMcpStatus] = useState<McpProcessStatus>({
+    state: 'stopped',
+    pid: null,
+    startedAt: null,
+    memoryBytes: null,
+    cpuPercent: null,
+    error: null,
+  });
   const [theme, setTheme] = useState<Theme>('system');
 
   const refreshLauncherStatus = useCallback(() => {
@@ -205,6 +216,51 @@ export function App() {
       () => setSecretsCheck({ status: 'unavailable' }),
     );
   }, []);
+
+  const openMcp = useCallback(() => {
+    setShowMcp(true);
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) {
+      setMcpStatus({ state: 'failed', pid: null, startedAt: null, memoryBytes: null, cpuPercent: null, error: 'MCP process control is available in the Desktop app only.' });
+      return;
+    }
+    void bridge.mcpStatus().then(setMcpStatus, (error: unknown) => {
+      setMcpStatus({ state: 'failed', pid: null, startedAt: null, memoryBytes: null, cpuPercent: null, error: error instanceof Error ? error.message : String(error) });
+    });
+  }, []);
+
+  const startMcp = useCallback(() => {
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) return;
+    setMcpStatus({ state: 'starting', pid: null, startedAt: null, memoryBytes: null, cpuPercent: null, error: null });
+    void bridge.startMcp().then(setMcpStatus, (error: unknown) => {
+      setMcpStatus({ state: 'failed', pid: null, startedAt: null, memoryBytes: null, cpuPercent: null, error: error instanceof Error ? error.message : String(error) });
+    });
+  }, []);
+
+  const stopMcp = useCallback(() => {
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) return;
+    setMcpStatus((current) => ({ ...current, state: 'stopping' }));
+    void bridge.stopMcp().then(setMcpStatus, (error: unknown) => {
+      setMcpStatus({ state: 'failed', pid: null, startedAt: null, memoryBytes: null, cpuPercent: null, error: error instanceof Error ? error.message : String(error) });
+    });
+  }, []);
+
+  useEffect(() => {
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) return;
+    void bridge.mcpStatus().then(setMcpStatus, () => undefined);
+  }, []);
+
+  useEffect(() => {
+    const bridge = window.launcherBridge;
+    if (bridge === undefined || mcpStatus.state !== 'running') return undefined;
+    const timer = window.setInterval(() => {
+      void bridge.mcpStatus().then(setMcpStatus, () => undefined);
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [mcpStatus.state]);
 
   useEffect(() => window.launcherBridge?.onStatusRequested(refreshLauncherStatus), [refreshLauncherStatus]);
 
@@ -541,6 +597,8 @@ export function App() {
             onOpenAbout={openAbout}
             onOpenInference={openInference}
             onOpenSecrets={openSecrets}
+            onOpenMcp={openMcp}
+            mcpStatus={mcpStatus}
             onOpenTheme={() => setShowTheme(true)}
             onOpenLauncherStatus={refreshLauncherStatus}
             onOpenTelemetry={openTelemetry}
@@ -602,6 +660,7 @@ export function App() {
       {showRuntime && <RuntimeModal info={runtimeInfo} onClose={() => setShowRuntime(false)} />}
       {showGit && <GitModal check={gitCheck} onClose={() => setShowGit(false)} />}
       {showSecrets && <SecretsModal check={secretsCheck} onClose={() => setShowSecrets(false)} />}
+      {showMcp && <McpModal status={mcpStatus} onStart={startMcp} onStop={stopMcp} onClose={() => setShowMcp(false)} />}
     </>
   );
 }

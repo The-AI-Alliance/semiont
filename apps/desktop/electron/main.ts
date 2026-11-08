@@ -1,10 +1,10 @@
 import { app, BrowserWindow, ipcMain, Menu, screen, shell, type MenuItemConstructorOptions } from 'electron';
-import { execFile } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { constants, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
 import { access } from 'node:fs/promises';
 import { delimiter, dirname, join } from 'node:path';
 import { parseAppManifest } from '../src/lib/app-manifest';
-import type { LauncherStatusResult } from '../src/lib/launcher-bridge';
+import type { LauncherStatusResult, McpProcessStatus } from '../src/lib/launcher-bridge';
 import type { OllamaInfo, OllamaModelInfo } from '../src/lib/ollama-info';
 import { registerAuthHandlers } from './auth';
 import { appendLog, configDir, logPath } from './paths';
@@ -12,6 +12,10 @@ import { appendLog, configDir, logPath } from './paths';
 registerAuthHandlers();
 
 let mainWindow: BrowserWindow | null = null;
+let mcpChild: ChildProcess | null = null;
+let mcpStartedAt: number | null = null;
+let mcpStopping = false;
+let mcpError: string | null = null;
 
 function launcherPath(): string {
   return app.isPackaged
@@ -163,6 +167,115 @@ ipcMain.handle('system:op-path', async () => {
     }
   }
   return null;
+});
+
+async function mcpProcessStatus(): Promise<McpProcessStatus> {
+  const child = mcpChild;
+  if (child === null) {
+    return {
+      state: mcpError === null ? 'stopped' : 'failed',
+      pid: null,
+      startedAt: null,
+      memoryBytes: null,
+      cpuPercent: null,
+      error: mcpError,
+    };
+  }
+
+  const pid = child.pid ?? null;
+  let memoryBytes: number | null = null;
+  let cpuPercent: number | null = null;
+  if (pid !== null && !mcpStopping) {
+    const stats = await new Promise<{ memoryBytes: number | null; cpuPercent: number | null }>((resolve) => {
+      execFile('ps', ['-o', 'rss=', '-o', '%cpu=', '-p', String(pid)], { encoding: 'utf8' }, (error, output) => {
+        const values = output.trim().match(/^(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)$/);
+        const memoryKb = values === null ? null : Number(values[1]);
+        const cpu = values === null ? null : Number(values[2]);
+        resolve({
+          memoryBytes: error === null && memoryKb !== null && Number.isFinite(memoryKb) ? memoryKb * 1024 : null,
+          cpuPercent: error === null && cpu !== null && Number.isFinite(cpu) ? cpu : null,
+        });
+      });
+    });
+    memoryBytes = stats.memoryBytes;
+    cpuPercent = stats.cpuPercent;
+  }
+
+  return {
+    state: mcpStopping ? 'stopping' : pid === null ? 'starting' : 'running',
+    pid,
+    startedAt: mcpStartedAt,
+    memoryBytes,
+    cpuPercent,
+    error: null,
+  };
+}
+
+ipcMain.handle('mcp:status', () => mcpProcessStatus());
+
+ipcMain.handle('mcp:start', async () => {
+  if (mcpChild !== null) return mcpProcessStatus();
+  mcpError = null;
+  mcpStopping = false;
+  const child = spawn(launcherPath(), ['mcp'], {
+    cwd: app.getPath('home'),
+    env: launcherEnvironment(),
+    stdio: ['pipe', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
+  mcpChild = child;
+  mcpStartedAt = Date.now();
+  child.stdout?.on('data', () => {});
+  child.stderr?.on('data', () => {});
+  child.once('error', (error) => {
+    mcpError = error.message;
+    if (mcpChild === child) {
+      mcpChild = null;
+      mcpStartedAt = null;
+    }
+  });
+  child.once('close', (code, signal) => {
+    if (mcpChild !== child) return;
+    if (!mcpStopping && (code !== 0 || signal !== null)) {
+      mcpError = `semiont mcp exited${code === null ? '' : ` with code ${code}`}${signal === null ? '' : ` (${signal})`}.`;
+    }
+    mcpChild = null;
+    mcpStartedAt = null;
+    mcpStopping = false;
+  });
+
+  await new Promise<void>((resolve) => {
+    child.once('spawn', resolve);
+    child.once('error', resolve);
+  });
+  return mcpProcessStatus();
+});
+
+ipcMain.handle('mcp:stop', async () => {
+  const child = mcpChild;
+  if (child === null) return mcpProcessStatus();
+  mcpStopping = true;
+  const closed = new Promise<void>((resolve) => child.once('close', () => resolve()));
+  child.kill('SIGTERM');
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const stopped = await Promise.race([
+    closed.then(() => true),
+    new Promise<boolean>((resolve) => {
+      timeout = setTimeout(() => resolve(false), 3000);
+    }),
+  ]);
+  if (timeout !== undefined) clearTimeout(timeout);
+  if (!stopped) {
+    child.kill('SIGKILL');
+    await closed;
+  }
+  return mcpProcessStatus();
+});
+
+app.on('before-quit', () => {
+  if (mcpChild !== null && mcpChild.exitCode === null && mcpChild.signalCode === null) {
+    mcpChild.kill('SIGTERM');
+  }
 });
 
 function setApplicationMenu(): void {

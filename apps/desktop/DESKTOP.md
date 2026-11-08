@@ -16,6 +16,9 @@ Semiont Browser, which remains a web app. The renderer uses `@semiont/sdk` and
   The Telemetry and Container runtime views currently read those human-readable reports;
   a versioned launcher machine API has not been added yet. Git, Ollama, and 1Password CLI
   checks inspect the local machine from Electron's main process.
+- The MCP menu can start and stop a Desktop-managed `semiont mcp` stdio process and show its
+  PID, elapsed time, resident memory, and average CPU use. This process is not an MCP endpoint
+  for other applications; they start their own launcher process or use the Semiont SDK.
 
 ## Persistent state
 
