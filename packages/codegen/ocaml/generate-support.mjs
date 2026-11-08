@@ -142,8 +142,6 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/assertion_cases.ml'),
   `let cases = ${ocamlString(JSON.stringify({ form: assertion.form, grantType: assertion.grantType, assertionType: assertion.assertionType, thumbprints: assertion.thumbprints, cases: assertion.cases }))}\n`,
   process.argv.includes('--check'));
 
-const mediaSource = 'media-types/registry.json';
-const media = JSON.parse(readFileSync(resolve(specRoot, mediaSource), 'utf8'));
 const stored = JSON.parse(readFileSync(resolve(specRoot, 'session/stored.json'), 'utf8'));
 const discovery = JSON.parse(readFileSync(resolve(specRoot, 'discovery/DiscoveryDocument.json'), 'utf8'));
 writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/registry_facts.ml'),
