@@ -1,8 +1,19 @@
 type t = Client_core.t
 
 let emit = Client_core.emit
-let request = Client_core.request
-let frames = Client_core.on_frame
+
+let request client ?timeout_ms operation payload =
+  Client_core.request client ?timeout_ms ~normalize_refusals:true operation
+    payload
+
+type frame_refusal_reason = Wire_stream.frame_refusal_reason
+type frame_refusal = Wire_stream.frame_refusal
+
+let frames client ?(on_unroutable = ignore) receive =
+  Client_core.on_frame client (fun event ->
+      match Wire_stream.normalized event with
+      | Error ({ route = None; _ } as fault) -> on_unroutable fault
+      | event -> receive event)
 
 let reply_channels_for operation =
   [

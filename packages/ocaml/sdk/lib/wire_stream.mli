@@ -39,3 +39,14 @@ val encode_emit :
   string ->
   (string, emit_error) result
 (** Validate a payload and construct the body for the gateway emit request. *)
+
+type frame_refusal_reason = [ `Lacks | `Malformed ]
+
+type frame_refusal = {
+  route : route option;
+  member : string;
+  reason : frame_refusal_reason;
+}
+
+val normalized : (frame, refusal) result -> (frame, frame_refusal) result
+val refusal_message : frame_refusal -> string

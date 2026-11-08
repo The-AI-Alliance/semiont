@@ -14,6 +14,7 @@ val claim :
   correlation_id:string ->
   ?trace:Wire_stream.trace ->
   ?on_activity:(unit -> unit) ->
+  ?on_settled:(bool -> unit) ->
   ?timeout_ms:int ->
   accepts:Yojson.Safe.t ->
   unit ->
@@ -57,3 +58,24 @@ val will_retry_after :
   retry_count:int -> max_retries:int -> Enums.Failure_class.t option -> bool
 
 val is_settled : held -> bool
+val job_id : held -> Identifiers.Job_id.t
+val job_type : held -> Enums.Job_type.t
+val resource_id : held -> Identifiers.Resource_id.t
+val params : held -> Yojson.Safe.t
+val completed_units : held -> string list
+val unit_cursors : held -> Yojson.Safe.t
+val retry_count : held -> int
+val max_retries : held -> int
+val attempt : held -> int
+val annotation_id : held -> Identifiers.Annotation_id.t option
+val cancelled : held -> bool
+val notify_cancelled : held -> unit
+val settled : held -> bool
+
+module Mark : sig
+  val complete : held -> [ `MarkJobResult ] Models.t -> unit
+end
+
+module Yield : sig
+  val complete : held -> [ `YieldJobResult ] Models.t -> unit
+end

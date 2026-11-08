@@ -16,8 +16,10 @@ type held = {
   max_retries : int;
   lock : Eio.Mutex.t;
   on_activity : unit -> unit;
+  on_settled : bool -> unit;
   settled : unit Eio.Promise.t * unit Eio.Promise.u;
   mutable phase : phase;
+  cancellation : bool State_value.t * bool State_value.writer;
   mutable durability : (int * string) option;
 }
 
@@ -72,8 +74,8 @@ let accepts ~filters ~announcement =
       | _ -> false)
 
 let claim subscription http ~client_id ~correlation_id ?trace
-    ?(on_activity = ignore) ?(timeout_ms = Client_timing.job_claim_timeout_ms)
-    ~accepts () =
+    ?(on_activity = ignore) ?(on_settled = ignore)
+    ?(timeout_ms = Client_timing.job_claim_timeout_ms) ~accepts () =
   let operation = B.Operations.job_claim in
   let send () =
     ignore
@@ -121,8 +123,10 @@ let claim subscription http ~client_id ~correlation_id ?trace
             max_retries = int "maxRetries" metadata;
             lock = Eio.Mutex.create ();
             on_activity;
+            on_settled;
             settled = Eio.Promise.create ();
             phase = Claimed;
+            cancellation = State_value.make false;
             durability = None;
           }
       with J.Type_error _ | Invalid_argument _ -> Refused None)
@@ -253,20 +257,21 @@ let durability job =
        (fun (_, evidence) -> ("durability", text evidence))
        job.durability)
 
-let settle job send =
+let settle job ~completed send =
   locked job (fun () ->
       if job.phase <> Settled then (
         send ();
         job.phase <- Settled;
-        Eio.Promise.resolve (snd job.settled) ()))
+        Eio.Promise.resolve (snd job.settled) ();
+        job.on_settled completed))
 
 let complete job result =
-  settle job (fun () ->
+  settle job ~completed:true (fun () ->
       lifecycle job B.Channels.job_complete
         (("result", result) :: durability job))
 
 let cancel job ~completed =
-  settle job (fun () ->
+  settle job ~completed:false (fun () ->
       send job B.Channels.job_cancel
         (identity job
         @ Option.to_list
@@ -299,10 +304,44 @@ let fail job ~error ~failure_class ~completed ~cursors =
         optional "unitCursors" cursors;
       ]
   in
-  settle job (fun () ->
+  settle job ~completed:false (fun () ->
       lifecycle job B.Channels.job_fail (fields @ durability job))
 
 let default_stall_ms = Client_timing.held_job_stall_ms
 let default_stall_check_ms = Client_timing.held_job_stall_check_ms
 let await_settled job = Eio.Promise.await (fst job.settled)
 let is_settled job = job.phase = Settled
+let job_id job = job.job_id
+let job_type job = job.verb
+let resource_id job = job.resource
+let params job = job.params
+
+let completed_units job =
+  J.member "completedUnits" (view job) |> J.to_list |> List.map J.to_string
+
+let unit_cursors job = J.member "unitCursors" (view job)
+let retry_count job = job.retry_count
+let max_retries job = job.max_retries
+let attempt job = job.retry_count + 1
+
+let annotation_id job =
+  Option.bind (optional "annotationId" job.params) (function
+    | `String value ->
+        Result.to_option (Identifiers.Annotation_id.of_string value)
+    | _ -> None)
+
+let cancelled job = State_value.get (fst job.cancellation)
+let notify_cancelled job = State_value.set (snd job.cancellation) true
+let settled = is_settled
+
+let complete_for verb job result =
+  if job.verb <> verb then invalid_arg "result belongs to another job verb";
+  complete job (Yojson.Safe.from_string (Models.encode result))
+
+module Mark = struct
+  let complete job result = complete_for Enums.Job_type.Mark job result
+end
+
+module Yield = struct
+  let complete job result = complete_for Enums.Job_type.Yield job result
+end

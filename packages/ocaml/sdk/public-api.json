@@ -111,23 +111,26 @@
     "dune.lock/zarith.1.14.pkg": "fd76eda421de026914a0de1c4d81d4140fd0d685f596dfe5aae1a5b83f06b75c",
     "lib/agent.ml": "a27fcbadce0cd0f073db5dc7f940e1dd76718f3d4827e2d911cd39156bfa9145",
     "lib/agent.mli": "00422c6a7034ef99b976c09e21786826cd7c9ba20718d3cef2c92221f08a7e8a",
+    "lib/annotation_id.ml": "5b737d261c35db2e649bc00f2ece7cda103e8c08d677be4483171ac9f8453951",
+    "lib/annotations.ml": "2050f1e9724d70ba4ebd0954b2c84eb44e539a5026b92562de4222e4cf1064ab",
+    "lib/annotations.mli": "e88dfe166745d06335cf7418a69984e190f399120a9c820c9846ff8a7dc9ebbc",
     "lib/assertion_facts.ml": "b854fcbb9586444c86d24d387b8cd9eabf539b83af9b19307163617730968536",
     "lib/auth.ml": "95cbd3eef3820adfbff02c0ace52d195c7fd35022c2a2a7c6a49d7402880e4f2",
     "lib/beckon_state.ml": "3b37bcacd3c2fc058e2040672ffa1e5e5a456d2bb7e061559df3107cfe180b2b",
     "lib/beckon_state.mli": "fa367fbd741509c89d05c49b9a8c45eb507ae5e4aaef46ba295e5045014b1820",
     "lib/browse.ml": "c42d6ed23168838c63dea27797ca5ec655040198d162d26c0cf54ac35d54e063",
     "lib/browse.mli": "c57e5ff1c98e598cb6c438e781d135c0ff0c76498e1b93455f2c5e870f3b2858",
-    "lib/bus.ml": "17c9fcd488f9a123ec80f83a79e45949f873085a97a1eb6a6f908939172232df",
+    "lib/bus.ml": "6515e162ee1e96208327aed95690c73fbf6b50626c39dfb6aa930e2b308f69ab",
     "lib/bus_registry.ml": "2390b6d387efad1ce7e219c6f88c3a7380bcb00fac8da67c34e6157655e4270c",
     "lib/bus_registry.mli": "e75fd6ce95deeda1d3364659c1ac01c0c507fe226cf18ff97f903a321663d1ff",
     "lib/cache_state.ml": "a7dd3b38f2eaccd71566cd680fe78ccb9601e6ee384200b91b07f2afdfa27dfb",
     "lib/cache_state.mli": "1a0dc6090874daf5a0df80f2f6a50c72f717a0b6bd599c8136180fae5e4ef173",
-    "lib/claims.ml": "1181e3bc58ee421df69bd5ab9957fcce1365866b9b35bcb9dc00d806025b86ad",
-    "lib/claims.mli": "be75a22d0fdfe465c7691fa727a3bc10c6bc33d847b1f35dc52c8466abcd44e9",
+    "lib/claims.ml": "52ff135d1c111beeceec0ddf0895231aefaf3dbc2a9bd29cf5f3b6b7bc0e350f",
+    "lib/claims.mli": "f7bebec3f61f8b39c4cb884a49f1e5703ece2c60d2f6d87b8822411aea9bd3ea",
     "lib/client.ml": "bd8b8934d2931bd1037c34763287324828ae26e726ecaa832e3e11cbc91340ad",
     "lib/client.mli": "6e08b6b7851820acced98ca320e6ec093455f2d0340828149b2f43e255d30e39",
-    "lib/client_core.ml": "c0ada9e786d021f23ebdeeb73ddc819ac069d730f3228ef9500f6a10769953a0",
-    "lib/client_core.mli": "f6d8789c5f417b2fb0347da04f94909a51c9b4c7beb0e1f6fda86f023e270fe2",
+    "lib/client_core.ml": "e22451b6405968274cabdf691cbda28ed7c4cff3bbeef988238de368905ffc78",
+    "lib/client_core.mli": "868e1d33db99eb7242e4f29837d3650b4e13317d9d6f6bd957e1f6170f245def",
     "lib/client_query.ml": "ce5abb9039174fd843ad6b7b2d640e6cf02ca5c2d4534f35bbde7794a02faefb",
     "lib/client_timing.ml": "ba5f3459d482317eb1ea394460a7aa0773bdd39acd2547dcec4e9efb25560d9f",
     "lib/client_timing.mli": "cb433bda9c37944c0dd973b950f25c229b727fef820d144b66915c26e3c4c7a5",
@@ -138,7 +141,7 @@
     "lib/delegation.mli": "76f4e7e055c6a9dbb288443bf4d7548aabaa307f2fa354e8e165dd453b4f09d5",
     "lib/discovery.ml": "3fbd431f7ed53eccc27c2c343e6a6556fab618976c42cab23a9b1288b903954d",
     "lib/discovery.mli": "c9924f5e42d374573dc62eb9aa405126a28769a0ce72b65a2187aae704c33747",
-    "lib/dune": "422c125a1f53d6c463621c3c8245317f0cdcdf042e3e18a8e976b606c9ab49f1",
+    "lib/dune": "c7a5db8d855fb2d92bcebdef13c53d4fed742d3855476a3d672ceb55494c54c6",
     "lib/enums.ml": "e2a188bb4fd853313782622b84257a43be1c0e89472fc2323ab9c89ff1aa1232",
     "lib/enums.mli": "1c28ee0ac1ca50a86fe00ce3fe5c6ed5b015045b5cd14c8b48d46fa4b937daaf",
     "lib/frame.ml": "6e0ba59a959758ccdc672cec1d8d802be2f882a5d1354ded4e5ab21398716d54",
@@ -177,9 +180,12 @@
     "lib/pattern.ml": "a41d5ebb9ebc0eee59522a4d883e2a5281202c4fbebb0a2040b267961bf677ad",
     "lib/records.ml": "d56e56f74df74fb4f2986104326215acb1df06efb4053b5af7aa6f6cf07aca7c",
     "lib/records.mli": "f80d7cbea4655b5bfdd0e99213e03273d908af8deb0203dcd5fcaf293d9124ff",
+    "lib/refusals.ml": "53b42a4d41b53e88968f5010a843038ffa0ddbcd842f390ce88acba818ad15d1",
     "lib/registry.ml": "f45a680f5f519b65efc36cb65ec3f9b9ff574cf04bed69e301b4c30947df06a6",
     "lib/registry.mli": "5067acf4ed7f18c4e1443cfe9732e739cc88e5d5d0e5ddf8ea5013522ebb16f1",
     "lib/registry_facts.ml": "eaa175c7c923df49b9432ae888debf4a403391e32fc9c4e1b72595d402d5912a",
+    "lib/resources.ml": "d10d36956315d962e68be9175554bf7f22e867e46897acd18a92de5dece9a122",
+    "lib/resources.mli": "17a4601720979aab764bed154f86649bb1b6d459b08099e3e8235ed65e67597d",
     "lib/running.ml": "d1e491aa088ca534f4668aa784ce843b98aea9c83b0dfe42c8f679dbb8c0cb03",
     "lib/running.mli": "74bef29c19b9b132888e875f77ea4fec64855a7bb7c6e119e0fb8346a47176f9",
     "lib/schema_codec.ml": "138a6240b6eb8810cfb608c1cb2b29717ef66fbbeb887ca57ca925cb84acb4f8",
@@ -189,8 +195,8 @@
     "lib/search_pipeline.mli": "8569d48ac54fb0e5b0165613f479fce0d4dcd897d89dae4699c8d25f6d5db0d3",
     "lib/selector.ml": "28f250d3a6ed926ba94317cf595d39742124587c527ebcf02c6f6c043c50a7e8",
     "lib/selector.mli": "1c3c9f74ea5c90d0154547e5c3f249f4f7fcfd05f5fc97bc89ad7976a7b02716",
-    "lib/semiont.ml": "ded490c6b03033e3685d83eaa63025642020af3911d6eb189deeb52a6ddf56d2",
-    "lib/semiont.mli": "b2d56b3340fbdbf0f51113752da1a81586f0fb7d21afb3e47e3f33c0716c4321",
+    "lib/semiont.ml": "e3327d46e3b130062c6bd21a2042546237756f94fec069e597d9992cfef6ae4f",
+    "lib/semiont.mli": "f0358be9a6926d8af1c1c2fa30e0a48cef1bf947949f1f9c919429b6d4963774",
     "lib/session.ml": "ec4f4c1cfcdc83ef6f1a31cc3ab1faa42f9ae663f0667f45a9b1704302766aa8",
     "lib/session.mli": "6d9639cabc6fbc5d280b8b3765d3d520492d925cf231a0578a817e3702647879",
     "lib/session_notices.ml": "cccea843423b06e5802f1675a614063b9533b8a5ea8038fa19d76db1f8eeec59",
@@ -211,8 +217,8 @@
     "lib/store_policy.ml": "c99553c99225977994e70e6bc0e1d614e59f839f70e7365511f8f9b3a99315ea",
     "lib/strict_json.ml": "19a2f3c4c5a828e0fe55cd36eb25b685e965f0b79c21cd57cc4a17c53d0112d6",
     "lib/strict_json.mli": "818f38488855a5ce525bbf7fa483feb6aad993670115a63065029201999b50a7",
-    "lib/subscription.ml": "8eced92104ad990dcc8ff7ee9392d7a8481d6c53a56084472a7aac7411ecaa1f",
-    "lib/subscription.mli": "fbc556cf060c63b46e07c7f6c14464457524d00e2c30600f34b7d30f1bbf9f46",
+    "lib/subscription.ml": "21cf16c53f63d788209c052501113a55e33867723303987689950f252edfa6b8",
+    "lib/subscription.mli": "31c19390765bf9e2ad8c324b9e1b7bf4500afbbcd298707ade8da66eff630068",
     "lib/system.ml": "2b48cd685aa8882505bcdb8b75ba376730082ff377aeb67caeaabde6b4070459",
     "lib/telemetry.ml": "d3e6ba70a0b5a00eb4733a8fc973c1c3b98ea5d07661da3297f2d71ee77da306",
     "lib/telemetry.mli": "6968385e5ecbd2db1b9003eb403766c066975b0ff116e9d81da367ec87b4137f",
@@ -223,10 +229,10 @@
     "lib/types.mli": "97149245ffc84db1b741d7156a08017eff6f941179e9e6df950f212da8d60d76",
     "lib/upload.ml": "fe94bfbfee4573abda5b6527367f76f8bce42459d5ae0a5bede7aebaaea35903",
     "lib/upload.mli": "904e332f05d2fd57caa955aa4119d702c29420d0711e2be826585594f42e4592",
-    "lib/wire_stream.ml": "0037504f44777900cfe2fde9d97b16e5c04b629aaacf7757dca0ebecb9df6c52",
-    "lib/wire_stream.mli": "b6217d5b0f374382b404eb61408b40b94c70e055d61729c88cb0cf3884397034",
-    "lib/worker.ml": "0abb291dd2ab8b5fa22fc450f2ef54f17b50f68acf6ca3b0472ee06995a70d7a",
-    "lib/worker.mli": "e03c09aede98ab21693127a649ebaa3f70755ea2c4467c1208539e969900ea20",
+    "lib/wire_stream.ml": "247fed187f15e0c30724e0000391252b954fd48d819835e8f93a536d30ac6673",
+    "lib/wire_stream.mli": "d145d5064298080786a7d80eb55a4936a8dbe89cd0e0ccf4fa81b6e82fc799a5",
+    "lib/worker.ml": "e6eb53d23aa074d55dd27d1ff62732c3e8fef2dbfd0ea5c0e9c618f479545dfe",
+    "lib/worker.mli": "d5c6c60e407f915b03a1a65f578a2663b8e6d26aaae77f9db5455656e20db49e",
     "lib/yield.ml": "6518a0f8244dd123808ca62200a1efb3074206429789bc809b278e1f35144afc",
     "lib/yield.mli": "ebe751eaa065d7816cfff15194d77d5d7364dbfc80ded3043396fa1e44b56210",
     "lib/yield_state.ml": "1adf3f472069b3f4c8d3d4dee57bd1ab227032180cfe62c8115935ac2cdc57ba",
@@ -11861,6 +11867,33 @@
       "declaration": "val encode_emit :\n  ?scope:Semiont__.Identifiers.Resource_id.t ->\n  ?client_id:string ->\n  ?correlation_id:string ->\n  'a Semiont__.Bus_registry.channel -> string -> (string, emit_error) result"
     },
     {
+      "kind": "type",
+      "path": "Semiont.Wire_stream.frame_refusal_reason",
+      "declaration": "type frame_refusal_reason = [ `Lacks | `Malformed ]",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Wire_stream.frame_refusal",
+      "declaration": "type frame_refusal = {\n  route : route option;\n  member : string;\n  reason : frame_refusal_reason;\n}",
+      "representation": "record",
+      "fields": [
+        "route",
+        "member",
+        "reason"
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Wire_stream.normalized",
+      "declaration": "val normalized : (frame, refusal) result -> (frame, frame_refusal) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Wire_stream.refusal_message",
+      "declaration": "val refusal_message : frame_refusal -> string"
+    },
+    {
       "kind": "module",
       "path": "Semiont.Subscription",
       "declaration": "module Subscription = Semiont__.Subscription",
@@ -12088,7 +12121,7 @@
     {
       "kind": "type",
       "path": "Semiont.Subscription.request_error",
-      "declaration": "type request_error =\n    Transport_closed\n  | Timeout\n  | Duplicate_id\n  | Unsubscribed\n  | Unrecognized_failure\n  | Invalid_reply of Semiont__.Bus_registry.decode_error\n  | Invalid_frame of Semiont__.Models.decode_error",
+      "declaration": "type request_error =\n    Transport_closed\n  | Timeout\n  | Duplicate_id\n  | Unsubscribed\n  | Unrecognized_failure\n  | Invalid_reply of Semiont__.Bus_registry.decode_error\n  | Invalid_frame of Semiont__.Models.decode_error\n  | Frame_refusal of Semiont__.Wire_stream.frame_refusal",
       "representation": "variant",
       "constructors": [
         "Transport_closed",
@@ -12097,7 +12130,8 @@
         "Unsubscribed",
         "Unrecognized_failure",
         "Invalid_reply",
-        "Invalid_frame"
+        "Invalid_frame",
+        "Frame_refusal"
       ],
       "variants": [
         {
@@ -12134,13 +12168,18 @@
           "name": "Invalid_frame",
           "fields": [],
           "unit": false
+        },
+        {
+          "name": "Frame_refusal",
+          "fields": [],
+          "unit": false
         }
       ]
     },
     {
       "kind": "value",
       "path": "Semiont.Subscription.request",
-      "declaration": "val request :\n  t ->\n  ?timeout_ms:int ->\n  correlation_id:string ->\n  ('request, 'result, 'failure) Semiont__.Bus_registry.operation ->\n  send:(unit -> unit) -> (('result, 'failure) reply, request_error) result"
+      "declaration": "val request :\n  t ->\n  ?timeout_ms:int ->\n  ?normalize_refusals:bool ->\n  correlation_id:string ->\n  ('request, 'result, 'failure) Semiont__.Bus_registry.operation ->\n  send:(unit -> unit) -> (('result, 'failure) reply, request_error) result"
     },
     {
       "kind": "module",
@@ -12648,7 +12687,7 @@
     {
       "kind": "value",
       "path": "Semiont.Worker.claim",
-      "declaration": "val claim :\n  Semiont__.Subscription.t ->\n  Semiont__.Http_wire.t ->\n  client_id:string ->\n  correlation_id:string ->\n  ?trace:Semiont__.Wire_stream.trace ->\n  ?on_activity:(unit -> unit) ->\n  ?timeout_ms:int -> accepts:Yojson.Safe.t -> unit -> claim"
+      "declaration": "val claim :\n  Semiont__.Subscription.t ->\n  Semiont__.Http_wire.t ->\n  client_id:string ->\n  correlation_id:string ->\n  ?trace:Semiont__.Wire_stream.trace ->\n  ?on_activity:(unit -> unit) ->\n  ?on_settled:(bool -> unit) ->\n  ?timeout_ms:int -> accepts:Yojson.Safe.t -> unit -> claim"
     },
     {
       "kind": "value",
@@ -12724,6 +12763,91 @@
       "kind": "value",
       "path": "Semiont.Worker.is_settled",
       "declaration": "val is_settled : held -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.job_id",
+      "declaration": "val job_id : held -> Semiont__.Identifiers.Job_id.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.job_type",
+      "declaration": "val job_type : held -> Semiont__.Enums.Job_type.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.resource_id",
+      "declaration": "val resource_id : held -> Semiont__.Identifiers.Resource_id.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.params",
+      "declaration": "val params : held -> Yojson.Safe.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.completed_units",
+      "declaration": "val completed_units : held -> string list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.unit_cursors",
+      "declaration": "val unit_cursors : held -> Yojson.Safe.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.retry_count",
+      "declaration": "val retry_count : held -> int"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.max_retries",
+      "declaration": "val max_retries : held -> int"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.attempt",
+      "declaration": "val attempt : held -> int"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.annotation_id",
+      "declaration": "val annotation_id : held -> Semiont__.Identifiers.Annotation_id.t option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.cancelled",
+      "declaration": "val cancelled : held -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.notify_cancelled",
+      "declaration": "val notify_cancelled : held -> unit"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.settled",
+      "declaration": "val settled : held -> bool"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Worker.Mark",
+      "declaration": "module Mark :\n  sig\n    val complete : held -> [ `MarkJobResult ] Semiont__.Models.t -> unit\n  end"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.Mark.complete",
+      "declaration": "val complete : held -> [ `MarkJobResult ] Semiont__.Models.t -> unit"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Worker.Yield",
+      "declaration": "module Yield :\n  sig\n    val complete : held -> [ `YieldJobResult ] Semiont__.Models.t -> unit\n  end"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Worker.Yield.complete",
+      "declaration": "val complete : held -> [ `YieldJobResult ] Semiont__.Models.t -> unit"
     },
     {
       "kind": "module",
@@ -12971,7 +13095,7 @@
     {
       "kind": "value",
       "path": "Semiont.Client.request",
-      "declaration": "val request :\n  t ->\n  ?timeout_ms:int ->\n  ('request, 'reply, 'failure) Semiont__.Bus_registry.operation ->\n  string ->\n  (('reply, 'failure) Semiont__.Subscription.reply,\n   Semiont__.Subscription.request_error)\n  result"
+      "declaration": "val request :\n  t ->\n  ?timeout_ms:int ->\n  ?normalize_refusals:bool ->\n  ('request, 'reply, 'failure) Semiont__.Bus_registry.operation ->\n  string ->\n  (('reply, 'failure) Semiont__.Subscription.reply,\n   Semiont__.Subscription.request_error)\n  result"
     },
     {
       "kind": "value",
@@ -14924,7 +15048,7 @@
     {
       "kind": "value",
       "path": "Semiont.Client.Job.claim",
-      "declaration": "val claim :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_stalled:(Semiont__.Worker.held -> unit) ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> Semiont__.Claims.t"
+      "declaration": "val claim :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?stall_ms:int ->\n  ?stall_check_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_stalled:(Semiont__.Worker.held -> unit) ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> Semiont__.Claims.t"
     },
     {
       "kind": "module",
@@ -17112,7 +17236,7 @@
     {
       "kind": "value",
       "path": "Semiont.Job.claim",
-      "declaration": "val claim :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_stalled:(Semiont__.Worker.held -> unit) ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> Semiont__.Claims.t"
+      "declaration": "val claim :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?stall_ms:int ->\n  ?stall_check_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_stalled:(Semiont__.Worker.held -> unit) ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> Semiont__.Claims.t"
     },
     {
       "kind": "module",
@@ -17210,7 +17334,7 @@
     {
       "kind": "value",
       "path": "Semiont.Claims.make",
-      "declaration": "val make :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_stalled:(Semiont__.Worker.held -> unit) ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> t"
+      "declaration": "val make :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?stall_ms:int ->\n  ?stall_check_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_stalled:(Semiont__.Worker.held -> unit) ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> t"
     },
     {
       "kind": "value",
@@ -17236,6 +17360,35 @@
       "kind": "value",
       "path": "Semiont.Claims.will_retry_after",
       "declaration": "val will_retry_after :\n  retry_count:int ->\n  max_retries:int -> Semiont__.Enums.Failure_class.t option -> bool"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Claims.vitals",
+      "declaration": "type vitals = {\n  last_queued_event_at : float option;\n  last_claim_at : float option;\n  last_finished_at : float option;\n  last_activity_at : float option;\n  active_job : (Semiont__.Worker.held * float) option;\n  jobs_completed : int;\n}",
+      "representation": "record",
+      "fields": [
+        "last_queued_event_at",
+        "last_claim_at",
+        "last_finished_at",
+        "last_activity_at",
+        "active_job",
+        "jobs_completed"
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Claims.refused",
+      "declaration": "val refused : t -> string option option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Claims.stalled",
+      "declaration": "val stalled : t -> Semiont__.Worker.held option Semiont__.State_value.t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Claims.vitals",
+      "declaration": "val vitals : t -> vitals"
     },
     {
       "kind": "module",
@@ -18500,9 +18653,21 @@
       "declaration": "val request :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ('a, 'b, 'c) Semiont__.Bus_registry.operation ->\n  string ->\n  (('b, 'c) Semiont__.Subscription.reply,\n   Semiont__.Subscription.request_error)\n  result"
     },
     {
+      "kind": "type",
+      "path": "Semiont.Bus.frame_refusal_reason",
+      "declaration": "type frame_refusal_reason = Semiont__.Wire_stream.frame_refusal_reason",
+      "representation": "abstract"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Bus.frame_refusal",
+      "declaration": "type frame_refusal = Semiont__.Wire_stream.frame_refusal",
+      "representation": "abstract"
+    },
+    {
       "kind": "value",
       "path": "Semiont.Bus.frames",
-      "declaration": "val frames :\n  Semiont__.Client_core.t ->\n  ((Semiont__.Wire_stream.frame, Semiont__.Wire_stream.refusal) result ->\n   unit) ->\n  Semiont__.Client_core.unsubscribe"
+      "declaration": "val frames :\n  Semiont__.Client_core.t ->\n  ?on_unroutable:(Semiont__.Wire_stream.frame_refusal -> unit) ->\n  ((Semiont__.Wire_stream.frame, Semiont__.Wire_stream.frame_refusal) result ->\n   unit) ->\n  Semiont__.Client_core.unsubscribe"
     },
     {
       "kind": "value",
@@ -18708,6 +18873,403 @@
       "kind": "value",
       "path": "Semiont.Host_name.gateway_url",
       "declaration": "val gateway_url : [ `HttpEndpoint ] Semiont__.Models.t -> string option"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Annotations",
+      "declaration": "module Annotations = Semiont__.Annotations",
+      "alias": "Semiont__.Annotations"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Annotations.t",
+      "declaration": "type t",
+      "representation": "abstract"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.of_model",
+      "declaration": "val of_model : [ `Annotation ] Semiont__.Models.t -> t"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.body_source",
+      "declaration": "val body_source : t -> string option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.is_body_resolved",
+      "declaration": "val is_body_resolved : t -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.target_source",
+      "declaration": "val target_source : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.target_selector",
+      "declaration": "val target_selector : t -> Yojson.Safe.t option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.is_highlight",
+      "declaration": "val is_highlight : t -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.is_reference",
+      "declaration": "val is_reference : t -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.is_assessment",
+      "declaration": "val is_assessment : t -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.is_comment",
+      "declaration": "val is_comment : t -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.is_tag",
+      "declaration": "val is_tag : t -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.is_stub_reference",
+      "declaration": "val is_stub_reference : t -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.is_resolved_reference",
+      "declaration": "val is_resolved_reference : t -> bool"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.comment_text",
+      "declaration": "val comment_text : t -> string option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.text_quote_selector",
+      "declaration": "val text_quote_selector : Yojson.Safe.t -> Yojson.Safe.t option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.text_position_selector",
+      "declaration": "val text_position_selector : Yojson.Safe.t -> Yojson.Safe.t option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.svg_selector",
+      "declaration": "val svg_selector : Yojson.Safe.t -> Yojson.Safe.t option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.fragment_selector",
+      "declaration": "val fragment_selector : Yojson.Safe.t -> Yojson.Safe.t option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.exact_text",
+      "declaration": "val exact_text : Yojson.Safe.t option -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.annotation_exact_text",
+      "declaration": "val annotation_exact_text : t -> string"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.entity_types",
+      "declaration": "val entity_types : t -> string list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.tag_category",
+      "declaration": "val tag_category : t -> string option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.tag_schema_id",
+      "declaration": "val tag_schema_id : t -> string option"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Annotations.quoted_text",
+      "declaration": "type quoted_text = {\n  exact : string;\n  prefix : string option;\n  suffix : string option;\n}",
+      "representation": "record",
+      "fields": [
+        "exact",
+        "prefix",
+        "suffix"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Annotations.text_span",
+      "declaration": "type text_span = { start : int; end_ : int; quote : quoted_text; }",
+      "representation": "record",
+      "fields": [
+        "start",
+        "end_",
+        "quote"
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Annotations.spanned",
+      "declaration": "type spanned = Text of string | Pdf of [ `AnchoredText ] Semiont__.Models.t",
+      "representation": "variant",
+      "constructors": [
+        "Text",
+        "Pdf"
+      ],
+      "variants": [
+        {
+          "name": "Text",
+          "fields": [],
+          "unit": false
+        },
+        {
+          "name": "Pdf",
+          "fields": [],
+          "unit": false
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Annotations.span_refusal",
+      "declaration": "type span_refusal =\n    Span_out_of_range\n  | Item_out_of_range\n  | Exact_mismatch\n  | Nothing_located\n  | Exact_not_covered\n  | Prefix_mismatch\n  | Suffix_mismatch",
+      "representation": "variant",
+      "constructors": [
+        "Span_out_of_range",
+        "Item_out_of_range",
+        "Exact_mismatch",
+        "Nothing_located",
+        "Exact_not_covered",
+        "Prefix_mismatch",
+        "Suffix_mismatch"
+      ],
+      "variants": [
+        {
+          "name": "Span_out_of_range",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Item_out_of_range",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Exact_mismatch",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Nothing_located",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Exact_not_covered",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Prefix_mismatch",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Suffix_mismatch",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Annotations.span_refused_error",
+      "declaration": "type span_refused_error = { code : span_refusal; }",
+      "representation": "record",
+      "fields": [
+        "code"
+      ]
+    },
+    {
+      "kind": "extension",
+      "path": "Semiont.Annotations.Span_refused",
+      "declaration": "exception Span_refused of span_refused_error"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.annotation_of_resource",
+      "declaration": "val annotation_of_resource :\n  created:string ->\n  resource:Semiont__.Identifiers.Resource_id.t ->\n  motivation:Semiont__.Enums.Motivation.t ->\n  ?generator:Yojson.Safe.t ->\n  ?body:Yojson.Safe.t ->\n  unit ->\n  ([ `Annotation ] Semiont__.Models.t, Semiont__.Models.decode_error) result"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.annotation_of_span",
+      "declaration": "val annotation_of_span :\n  created:string ->\n  resource:Semiont__.Identifiers.Resource_id.t ->\n  motivation:Semiont__.Enums.Motivation.t ->\n  generator:Yojson.Safe.t ->\n  ?body:Yojson.Safe.t ->\n  spanned ->\n  text_span ->\n  ([ `Annotation ] Semiont__.Models.t, Semiont__.Models.decode_error) result"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Annotations.anchor_method",
+      "declaration": "type anchor_method =\n    Unique_match\n  | Context_recovered\n  | First_of_many\n  | Fuzzy_match",
+      "representation": "variant",
+      "constructors": [
+        "Unique_match",
+        "Context_recovered",
+        "First_of_many",
+        "Fuzzy_match"
+      ],
+      "variants": [
+        {
+          "name": "Unique_match",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Context_recovered",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "First_of_many",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Fuzzy_match",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Annotations.match_quality",
+      "declaration": "type match_quality = Normalized | Case_insensitive | Fuzzy",
+      "representation": "variant",
+      "constructors": [
+        "Normalized",
+        "Case_insensitive",
+        "Fuzzy"
+      ],
+      "variants": [
+        {
+          "name": "Normalized",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Case_insensitive",
+          "fields": [],
+          "unit": true
+        },
+        {
+          "name": "Fuzzy",
+          "fields": [],
+          "unit": true
+        }
+      ]
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Annotations.reconciled_span",
+      "declaration": "type reconciled_span = {\n  span : text_span;\n  anchor_method : anchor_method;\n  match_quality : match_quality option;\n}",
+      "representation": "record",
+      "fields": [
+        "span",
+        "anchor_method",
+        "match_quality"
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.reconcile",
+      "declaration": "val reconcile : string -> quoted_text -> reconciled_span option"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Annotations.pdf_item",
+      "declaration": "type pdf_item = {\n  start : int;\n  end_ : int;\n  page : int;\n  x : float;\n  y : float;\n  width : float;\n  height : float;\n}",
+      "representation": "record",
+      "fields": [
+        "start",
+        "end_",
+        "page",
+        "x",
+        "y",
+        "width",
+        "height"
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.locate_pdf",
+      "declaration": "val locate_pdf :\n  pdf_item list -> int -> int -> pdf_item list * Yojson.Safe.t list"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Annotations.fragment",
+      "declaration": "val fragment : Yojson.Safe.t -> string"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Resources",
+      "declaration": "module Resources = Semiont__.Resources",
+      "alias": "Semiont__.Resources"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Resources.primary_representation",
+      "declaration": "val primary_representation :\n  [ `ResourceDescriptor ] Semiont__.Models.t -> Yojson.Raw.t option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Resources.primary_media_type",
+      "declaration": "val primary_media_type :\n  [ `ResourceDescriptor ] Semiont__.Models.t -> string option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Resources.entity_types",
+      "declaration": "val entity_types : [ `ResourceDescriptor ] Semiont__.Models.t -> string list"
+    },
+    {
+      "kind": "module",
+      "path": "Semiont.Refusals",
+      "declaration": "module Refusals = Semiont__.Refusals",
+      "alias": "Semiont__.Refusals"
+    },
+    {
+      "kind": "type",
+      "path": "Semiont.Refusals.fault",
+      "declaration": "type fault =\n  Semiont__.Models.fault = {\n  member : string;\n  reason : [ `Lacks | `Malformed ];\n}",
+      "representation": "record",
+      "fields": [
+        "member",
+        "reason"
+      ]
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Refusals.of_error",
+      "declaration": "val of_error : Semiont__.Models.decode_error -> fault"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Refusals.fault_of",
+      "declaration": "val fault_of : 'a Semiont__.Models.descriptor -> string -> fault option"
+    },
+    {
+      "kind": "value",
+      "path": "Semiont.Refusals.said",
+      "declaration": "val said : fault -> string"
     }
   ]
 }

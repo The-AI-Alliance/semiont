@@ -52,6 +52,7 @@ val emit :
 val request :
   t ->
   ?timeout_ms:int ->
+  ?normalize_refusals:bool ->
   ('request, 'reply, 'failure) Bus_registry.operation ->
   string ->
   (('reply, 'failure) Subscription.reply, Subscription.request_error) result

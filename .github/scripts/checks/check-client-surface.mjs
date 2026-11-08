@@ -2320,9 +2320,24 @@ function unreadable(file) {
 
 function ocamlWorker() {
   const where = 'Semiont.Worker';
-  const claims = ocamlModule(`${where}.Claims`);
-  const either = ocamlModule(`${where}.Held_job`);
-  const jobs = Object.fromEntries(VERBS.map((verb) => [verb, ocamlModule(`${where}.Held_job.${verb[0].toUpperCase() + verb.slice(1)}`)]));
+  const claims = ocamlModule('Semiont.Claims');
+  if (claims) claims.members.delete('make');
+  for (const helper of ['jobClaimChannels', 'jobCommitChannels', 'willRetryAfter']) claims?.members.delete(helper);
+  const either = ocamlModule(where);
+  if (either) {
+    either.members = new Map([...either.members].filter(([name, signature]) =>
+      signature.takes[0]?.type === 'held' &&
+      !['id', 'view', 'complete', 'notifyCancelled', 'awaitSettled', 'isSettled'].includes(name)));
+  }
+  const jobs = Object.fromEntries(VERBS.map((verb) => {
+    const path = `${where}.${verb[0].toUpperCase() + verb.slice(1)}`;
+    const completion = ocamlModule(path)?.members.get('complete');
+    if (!completion || !either) return [verb, undefined];
+    const takes = completion.takes.slice(1).map(({ type }) => ({
+      type: /^\[ *`(\w+) *\] +(?:Semiont__\.)?Models\.t$/.exec(type)?.[1] ?? type,
+    }));
+    return [verb, { where: path, members: new Map([...either.members, ['complete', { takes }]]) }];
+  }));
   return { where, claims, either, jobs, spelled: ocamlCamel };
 }
 

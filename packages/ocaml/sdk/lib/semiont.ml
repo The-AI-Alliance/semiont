@@ -43,3 +43,6 @@ module Session_notices = Session_notices
 module Tokens = Tokens
 module Job_filter = Job_filter
 module Host_name = Host_name
+module Annotations = Annotations
+module Resources = Resources
+module Refusals = Refusals

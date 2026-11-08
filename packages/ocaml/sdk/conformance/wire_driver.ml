@@ -131,19 +131,6 @@ let run mode env =
         (Some sink, flush)
   in
   let client = ref None in
-  let last_queued = ref `Null in
-  let last_claim = ref `Null in
-  let last_finished = ref `Null in
-  let last_activity = ref `Null in
-  let active_since = ref `Null in
-  let active_tick = ref None in
-  let stalled = ref false in
-  let completed = ref 0 in
-  let stamp clock = `Float (Semiont.Clock.wall_now clock) in
-  let activity clock =
-    last_activity := stamp clock;
-    active_tick := Some (Semiont.Clock.monotonic_now clock)
-  in
   let persisted = Hashtbl.create 8 in
   let persist = ref false in
   let live = ref None in
@@ -153,6 +140,7 @@ let run mode env =
   let claims = ref None in
   let stopping = ref false in
   let claim_timeout = ref None in
+  let stall_ms = ref None and stall_check_ms = ref None in
   let listens = Hashtbl.create 8 in
   let holds = Hashtbl.create 8 in
   let commit_timeout = ref None in
@@ -184,14 +172,7 @@ let run mode env =
         output_json (`Assoc [ ("frame", `Assoc fields) ])
     | _ -> ()
   in
-  let on_event event =
-    report_frame event;
-    match (mode, event) with
-    | Worker, Ok (Semiont.Wire_stream.Frame { route; _ })
-      when route.channel = B.name B.Channels.job_queued ->
-        last_queued := stamp (get_client ()).clock
-    | _ -> ()
-  in
+  let on_event = report_frame in
   let open_client input =
     if Option.is_some !client then
       raise (Misuse "close the client before reopening");
@@ -365,28 +346,8 @@ let run mode env =
           (http, subscription)
     in
     client := Some { subscription; session; client_id; http; clock };
-    (if mode = Worker then
-       let span name default = Mtime.Span.(max 1 (time name default) * ms) in
-       let threshold = span "heldJobStallMs" W.default_stall_ms in
-       let interval = span "heldJobStallCheckMs" W.default_stall_check_ms in
-       Fiber.fork_daemon ~sw (fun () ->
-           let rec check () =
-             if !stopping then `Stop_daemon
-             else
-               let now = Semiont.Clock.monotonic_now clock in
-               (match (!held, !active_tick) with
-               | Some job, Some tick
-                 when (not !stalled)
-                      && Mtime.Span.compare (Mtime.span now tick) threshold > 0
-                 ->
-                   stalled := true;
-                   output_json (`Assoc [ ("stalled", text (W.id job)) ])
-               | _ -> ());
-               Semiont.Clock.sleep_until clock
-                 (Option.get (Mtime.add_span now interval));
-               check ()
-           in
-           check ()));
+    stall_ms := Some (time "heldJobStallMs" W.default_stall_ms);
+    stall_check_ms := Some (time "heldJobStallCheckMs" W.default_stall_check_ms);
     Fiber.fork_daemon ~sw (fun () ->
         let rec report previous =
           let current = S.await_state_change subscription ~from:previous in
@@ -518,7 +479,6 @@ let run mode env =
   in
   let start_claims accepts =
     if Option.is_some !claims then raise (Misuse "claims already started");
-    let client = get_client () in
     let filters =
       J.to_list accepts
       |> List.map (fun value ->
@@ -550,10 +510,15 @@ let run mode env =
     let on_cancel job =
       output_json (`Assoc [ ("signalled", text (W.id job)) ])
     in
+    let on_stalled job =
+      output_json (`Assoc [ ("stalled", text (W.id job)) ])
+    in
     let stream =
       Semiont.Client.Job.claim
         (Option.get !worker_facade)
-        ?timeout_ms:!claim_timeout ~trace ~on_refused ~on_cancel filters
+        ?timeout_ms:!claim_timeout ?stall_ms:!stall_ms
+        ?stall_check_ms:!stall_check_ms ~trace ~on_refused ~on_cancel
+        ~on_stalled filters
     in
     claims := Some stream;
     Fiber.fork ~sw (fun () ->
@@ -561,11 +526,28 @@ let run mode env =
           match Semiont.Claims.next stream with
           | Some job when not !stopping ->
               held := Some job;
-              activity client.clock;
-              last_claim := !last_activity;
-              active_since := !last_activity;
-              stalled := false;
-              output_json (`Assoc [ ("claimed", W.view job) ]);
+              let view =
+                `Assoc
+                  [
+                    ( "jobId",
+                      text (Semiont.Identifiers.Job_id.to_string (W.job_id job))
+                    );
+                    ( "jobType",
+                      text (Semiont.Enums.Job_type.to_string (W.job_type job))
+                    );
+                    ( "resourceId",
+                      text
+                        (Semiont.Identifiers.Resource_id.to_string
+                           (W.resource_id job)) );
+                    ("params", W.params job);
+                    ( "completedUnits",
+                      `List (List.map text (W.completed_units job)) );
+                    ("unitCursors", W.unit_cursors job);
+                    ("retryCount", `Int (W.retry_count job));
+                    ("maxRetries", `Int (W.max_retries job));
+                  ]
+              in
+              output_json (`Assoc [ ("claimed", view) ]);
               consume ()
           | _ -> ()
         in
@@ -581,9 +563,7 @@ let run mode env =
       ("worker.run", Semiont.Telemetry.Consumer)
       [ ("job.id", Semiont.Telemetry.String (W.id job)) ]
       (fun () -> action job);
-    held := None;
-    activity (get_client ()).clock;
-    last_finished := !last_activity
+    held := None
   in
   let close ?(settle_worker = false) () =
     stopping := true;
@@ -625,42 +605,49 @@ let run mode env =
         start_claims (field "accepts" input);
         done_
     | "vitals" when mode = Worker ->
+        let vitals = Option.map Semiont.Claims.vitals !claims in
+        let value get encode =
+          Option.fold ~none:`Null ~some:encode (Option.bind vitals get)
+        in
+        let stamp get = value get (fun time -> `Float time) in
         let active_job =
-          match !held with
-          | None -> `Null
-          | Some job ->
+          value
+            (fun v -> v.Semiont.Claims.active_job)
+            (fun (job, since) ->
               `Assoc
                 [
                   ("jobId", text (W.id job));
-                  ("type", field "jobType" (W.view job));
-                  ("since", !active_since);
-                ]
+                  ( "type",
+                    text (Semiont.Enums.Job_type.to_string (W.job_type job)) );
+                  ("since", `Float since);
+                ])
         in
         ok
           (`Assoc
              [
-               ("lastQueuedEventAt", !last_queued);
-               ("lastClaimAt", !last_claim);
-               ("lastFinishedAt", !last_finished);
-               ("lastActivityAt", !last_activity);
+               ("lastQueuedEventAt", stamp (fun v -> v.last_queued_event_at));
+               ("lastClaimAt", stamp (fun v -> v.last_claim_at));
+               ("lastFinishedAt", stamp (fun v -> v.last_finished_at));
+               ("lastActivityAt", stamp (fun v -> v.last_activity_at));
                ("activeJob", active_job);
-               ("jobsCompleted", `Int !completed);
+               ( "jobsCompleted",
+                 `Int
+                   (Option.fold ~none:0
+                      ~some:(fun v -> v.Semiont.Claims.jobs_completed)
+                      vitals) );
              ])
     | "start" when mode = Worker ->
         W.start (job ());
-        activity (get_client ()).clock;
         done_
     | "progress" when mode = Worker ->
         W.progress (job ())
           ~percentage:(J.to_int (field "percentage" input))
           ~message:(optional Fun.id "message" input);
-        activity (get_client ()).clock;
         done_
     | "checkpoint" when mode = Worker ->
         W.checkpoint (job ())
           ~completed:(field "completedUnits" input)
           ~cursors:(field "unitCursors" input);
-        activity (get_client ()).clock;
         done_
     | "commit" when mode = Worker -> (
         let client = get_client () in
@@ -676,7 +663,6 @@ let run mode env =
         | Error code -> ("error", error code))
     | "complete" when mode = Worker ->
         settle (fun job -> W.complete job (field "result" input));
-        incr completed;
         done_
     | "cancel" when mode = Worker ->
         settle (fun job ->

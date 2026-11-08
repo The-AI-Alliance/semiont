@@ -97,10 +97,12 @@ type request_error =
   | Unrecognized_failure
   | Invalid_reply of Bus_registry.decode_error
   | Invalid_frame of Models.decode_error
+  | Frame_refusal of Wire_stream.frame_refusal
 
 val request :
   t ->
   ?timeout_ms:int ->
+  ?normalize_refusals:bool ->
   correlation_id:string ->
   ('request, 'result, 'failure) Bus_registry.operation ->
   send:(unit -> unit) ->

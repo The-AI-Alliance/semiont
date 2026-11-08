@@ -95,6 +95,7 @@ type request_error =
   | Unrecognized_failure
   | Invalid_reply of Bus_registry.decode_error
   | Invalid_frame of Models.decode_error
+  | Frame_refusal of Wire_stream.frame_refusal
 
 type t = {
   clock : Clock.t;
@@ -559,8 +560,8 @@ let rec await_open t =
         Promise.await (fst t.changed);
         await_open t
 
-let request t ?(timeout_ms = t.timing.bus_request_timeout_ms) ~correlation_id
-    operation ~send =
+let request t ?(timeout_ms = t.timing.bus_request_timeout_ms)
+    ?(normalize_refusals = false) ~correlation_id operation ~send =
   let result = Bus_registry.result operation in
   let failure = Bus_registry.failure operation in
   let result_name = Bus_registry.name result in
@@ -589,25 +590,41 @@ let request t ?(timeout_ms = t.timing.bus_request_timeout_ms) ~correlation_id
               (not (Promise.is_resolved reply))
               && Mtime.compare (Clock.monotonic_now t.clock) expires < 0
             then (
+              let normalized =
+                if not normalize_refusals then None
+                else
+                  match Wire_stream.normalized event with
+                  | Error ({ route = Some route; _ } as fault)
+                    when route.channel = result_name
+                         || route.channel = failure_name ->
+                      Some (Error (Frame_refusal fault))
+                  | _ -> None
+              in
               let matched =
-                match event with
-                | Ok (Wire_stream.Frame { route; payload; _ })
-                  when route.channel = result_name ->
-                    Some (decode result (fun value -> Result value) payload)
-                | Ok (Wire_stream.Frame { route; payload; _ })
-                  when route.channel = failure_name ->
-                    Some
-                      (match payload with
-                      | Error
-                          (Bus_registry.Invalid_payload { member = "code"; _ })
-                        ->
-                          Error Unrecognized_failure
-                      | _ -> decode failure (fun value -> Failure value) payload)
-                | Error (Wire_stream.Invalid_frame (Some route, fault))
-                  when route.channel = result_name
-                       || route.channel = failure_name ->
-                    Some (Error (Invalid_frame fault))
-                | _ -> None
+                match normalized with
+                | Some _ -> normalized
+                | None -> (
+                    match event with
+                    | Ok (Wire_stream.Frame { route; payload; _ })
+                      when route.channel = result_name ->
+                        Some (decode result (fun value -> Result value) payload)
+                    | Ok (Wire_stream.Frame { route; payload; _ })
+                      when route.channel = failure_name ->
+                        Some
+                          (match payload with
+                          | Error
+                              (Bus_registry.Invalid_payload
+                                 { member = "code"; _ }) ->
+                              Error Unrecognized_failure
+                          | _ ->
+                              decode failure
+                                (fun value -> Failure value)
+                                payload)
+                    | Error (Wire_stream.Invalid_frame (Some route, fault))
+                      when route.channel = result_name
+                           || route.channel = failure_name ->
+                        Some (Error (Invalid_frame fault))
+                    | _ -> None)
               in
               Option.iter (Promise.resolve settle) matched;
               if Option.is_some matched then

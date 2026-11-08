@@ -180,3 +180,13 @@ writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/state_cases.ml'),
   `let cases = ${ocamlString(JSON.stringify(states.cases.filter(({ unit }) =>
     ['beckon', 'hoverDwell', 'search', 'sessionSignals', 'match', 'gather', 'mark', 'yield'].includes(unit))))}\n`,
   process.argv.includes('--check'));
+
+const helperTables = ['bus/frame-cases', 'annotations/reader-cases', 'resources/reader-cases', 'annotations/builder-cases', 'annotations/id-cases',
+  'annotations/reconcile-cases', 'annotations/pdf-locate-cases', 'jobs/retry-cases'];
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/helper_cases.ml'),
+  `(* Generated from ${helperTables.map((path) => path + '.json').join(', ')}. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n` +
+  helperTables.map((path, index) => {
+    const source = JSON.parse(readFileSync(resolve(specRoot, path + '.json'), 'utf8'));
+    const resources = source.resources ? `let resource_builders = ${ocamlString(JSON.stringify(source.resources))}\n` : '';
+    return `let table_${index} = ${ocamlString(JSON.stringify(source.cases))}\n` + resources;
+  }).join(''), process.argv.includes('--check'));

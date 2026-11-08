@@ -2,6 +2,7 @@
  (name semiont)
  (public_name semiont)
  (private_modules
+  annotation_id
   pattern
   client_timing
   schema_shape

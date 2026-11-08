@@ -33,6 +33,10 @@ let connect ?(subscribe_defaults = true) ?timing ?http_timing ?telemetry
   let live = ref None in
   let listeners = ref [] in
   let deliver frame =
+    (match Wire_stream.normalized frame with
+    | Error { route = None; _ } ->
+        report { Http_wire.code = "error"; status = None }
+    | _ -> ());
     List.iter (fun handler -> !handler frame) (List.rev !listeners);
     on_event frame
   in
@@ -124,12 +128,13 @@ let emit t ?scope ?correlation_id channel payload =
   Http_wire.emit t.http ~client_id:t.client_id ?scope ?correlation_id channel
     payload
 
-let request t ?timeout_ms operation payload =
+let request t ?timeout_ms ?normalize_refusals operation payload =
   let correlation_id = t.key () in
   let send () =
     ignore (emit t ~correlation_id (Bus_registry.request operation) payload)
   in
-  Subscription.request t.bus ?timeout_ms ~correlation_id operation ~send
+  Subscription.request t.bus ?timeout_ms ?normalize_refusals ~correlation_id
+    operation ~send
 
 let on_error t observe =
   let callback failure = observe failure in

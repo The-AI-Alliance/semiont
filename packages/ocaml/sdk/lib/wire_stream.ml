@@ -153,3 +153,36 @@ let encode_emit ?scope ?client_id ?correlation_id channel source =
         match Models.decode Models.bus_emit_request body with
         | Ok model -> Ok (Models.encode model)
         | Error fault -> Error (Invalid_envelope fault))
+
+type frame_refusal_reason = [ `Lacks | `Malformed ]
+
+type frame_refusal = {
+  route : route option;
+  member : string;
+  reason : frame_refusal_reason;
+}
+
+let normalized = function
+  | Ok (Frame { route; payload = Error fault; _ }) ->
+      let member, reason =
+        match fault with
+        | Bus_registry.Invalid_json _ -> ("payload", `Malformed)
+        | Invalid_payload { member = ""; reason } -> ("payload", reason)
+        | Invalid_payload { member; reason } -> ("payload." ^ member, reason)
+      in
+      Error { route = Some route; member; reason }
+  | Ok frame -> Ok frame
+  | Error (Invalid_frame (route, fault)) ->
+      let { Refusals.member; reason } = Refusals.of_error fault in
+      Error { route; member; reason }
+  | Error (Unknown_channel route) ->
+      Error { route = Some route; member = "channel"; reason = `Malformed }
+
+let refusal_message (fault : frame_refusal) =
+  let problem =
+    Refusals.said { member = fault.member; reason = fault.reason }
+  in
+  match fault.route with
+  | None -> "the stream carried what is not a frame: " ^ problem
+  | Some route ->
+      "a frame on " ^ route.channel ^ " is not that channel's: " ^ problem

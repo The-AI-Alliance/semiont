@@ -68,3 +68,14 @@
  (name state_behavior)
  (modules state_behavior state_cases)
  (libraries semiont eio_main eio.mock mtime yojson alcotest))
+
+(test
+ (name helper_behavior)
+ (modules helper_behavior helper_cases annotation_id)
+ (libraries semiont eio_main eio.mock yojson alcotest base64 digestif zarith))
+
+
+(rule
+ (target annotation_id.ml)
+ (deps ../lib/annotation_id.ml)
+ (action (copy %{deps} %{target})))

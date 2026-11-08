@@ -716,7 +716,6 @@
   "worker": [
     {
       "handed": "claims",
-      "notYetReached": { "ocaml": "P5 builds the typed claims and held-job modules." },
       "docs": "What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust and Kotlin (`next`), ranged over in Go.",
       "members": [
         {
@@ -751,7 +750,6 @@
     },
     {
       "handed": "heldJob",
-      "notYetReached": { "ocaml": "P5 builds the typed claims and held-job modules." },
       "docs": "A job a worker holds, from its claim until it settles it. A held job is its verb's, `mark` or `yield`. A member with `takes` is one a held job has as its verb's, and it takes what that verb's entry names; every other member is the same for both verbs, and a job held as either verb's has it without its verb being asked.",
       "members": [
         { "member": "jobId" },
@@ -1051,9 +1049,9 @@
   "modules": [
     {
       "module": "annotations",
-      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "The readers of an annotation, its builders, and the reconciling of a quote: what a program that reads or makes annotations is given, so that none parses or builds one by hand. Held by protocol/specs/src/annotations's tables.",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/annotations.mli"],
         "haskell": ["packages/haskell/sdk/src/Semiont/Annotations.hs"],
         "csharp": ["packages/csharp/sdk/src/Semiont/Annotations"],
         "swift": [
@@ -1258,6 +1256,7 @@
           "member": "OfSpan",
           "kind": "type",
           "absent": {
+            "ocaml": "The OCaml builder takes its inputs as labeled arguments.",
             "haskell": "The Haskell builder takes its typed inputs as arguments, without an input record.",
             "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
             "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
@@ -1269,6 +1268,7 @@
           "member": "OfResource",
           "kind": "type",
           "absent": {
+            "ocaml": "The OCaml builder takes its inputs as labeled arguments.",
             "haskell": "The Haskell builder takes its typed inputs as arguments, without an input record.",
             "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
             "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
@@ -1580,12 +1580,10 @@
         },
         {
           "member": "FrameRefusal",
-          "notYetReached": { "ocaml": "Unify the envelope refusal and the typed payload decode failure." },
           "kind": "type"
         },
         {
           "member": "FrameRefusalReason",
-          "notYetReached": { "ocaml": "Normalize envelope and payload faults to the shared refusal reason vocabulary." },
           "named": {"haskell": "FaultReason"},
           "kind": "type",
           "absent": {
@@ -2332,9 +2330,9 @@
     },
     {
       "module": "refusals",
-      "notYetReached": { "ocaml": "The OCaml SDK adds this module when it implements the corresponding protocol surface." },
       "docs": "The first fault a body has as a component schema, and what every SDK says of it as it refuses it (`it has no `x``, `its `x` is malformed`, `it is malformed`): for an SDK whose HTTP transport is a package of its own, which reads its answers and holds its stream's frames by them. Held by the table of what each schema requires (packages/codegen/schemas/required-shapes.mjs).",
       "where": {
+        "ocaml": ["packages/ocaml/sdk/lib/refusals.ml"],
         "typescript": [
           "packages/typescript/core/src/required.ts"
         ],
@@ -2363,6 +2361,7 @@
           "member": "faultSaid",
           "kind": "function",
           "absent": {
+            "ocaml": "OCaml renders the shared fault with said.",
             "haskell": "Its HTTP transport is in the same Cabal package and reads refusals internally.",
             "typescript": "TypeScript's transport finds a body's fault with faultOf and says it with said.",
             "python": "Its HTTP transport is in the SDK's own package, and reads its answers by the table there.",
