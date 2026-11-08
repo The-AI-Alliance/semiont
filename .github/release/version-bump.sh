@@ -111,8 +111,8 @@ NEXT=$(bump_version "$CURRENT" "$BUMP_TYPE")
 echo ""
 echo "This will:"
 echo "  1. Bump version from ${CURRENT} to ${NEXT} (${BUMP_TYPE})"
-echo "  2. Update all package.json files, and the published crates (Cargo.toml, Cargo.lock)"
-echo "  3. Regenerate package-lock.json (npm, in ${RUNTIME})"
+echo "  2. Update all package.json files, the published crates (Cargo.toml, Cargo.lock) and the Haskell SDK's manifest (semiont.cabal)"
+echo "  3. Regenerate every package-lock.json (npm, in ${RUNTIME})"
 echo "  4. Commit and push to $(git rev-parse --abbrev-ref HEAD)"
 echo ""
 read -rp "Proceed? (y/N): " confirm
@@ -147,6 +147,11 @@ update_package_json package.json "$NEXT"
 ./packages/rust/scripts/cargo-version.sh "$NEXT"
 FILES+=(packages/rust/Cargo.toml packages/rust/Cargo.lock)
 
+# So does the Haskell SDK's manifest, which its codegen writes from the root
+# package.json.
+./packages/haskell/scripts/cabal-version.sh "$NEXT"
+FILES+=(packages/haskell/sdk/semiont.cabal)
+
 # Phase 2: Verify
 echo ""
 echo "Verifying version sync..."
@@ -164,18 +169,32 @@ if [[ "$ERRORS" -gt 0 ]]; then
 fi
 echo "  All packages at ${NEXT}"
 
-# Phase 2.5: Regenerate package-lock.json so the committed lock matches the new
-# versions. npm is the only thing that produces a correct lockfileVersion-3 lock
-# (a hand jq-edit desyncs its interlinked version records); run it in a Node
-# container, at the version .node-version names, because the release host has no Node.
+# Phase 2.5: Regenerate every committed package-lock.json so each matches the new
+# versions: an npm project outside the root workspace records the version of
+# each bumped package it links, too. npm is the only thing that produces a
+# correct lockfileVersion-3 lock (a hand jq-edit desyncs its interlinked version
+# records); run it in a Node container, at the version .node-version names,
+# because the release host has no Node.
 echo ""
-echo "Regenerating package-lock.json (npm in ${RUNTIME})..."
-"$RUNTIME" run --rm -v "$PWD":/work -w /work "node:$(packages/typescript/scripts/node-version.sh)" \
-  npm install --package-lock-only --include=optional
+NODE_IMAGE="node:$(packages/typescript/scripts/node-version.sh)"
+LOCKS=$(git ls-files '*package-lock.json')
+for lock in $LOCKS; do
+  echo "Regenerating ${lock} (npm in ${RUNTIME})..."
+  "$RUNTIME" run --rm -v "$PWD":/work -w "/work/$(dirname "$lock")" "$NODE_IMAGE" \
+    npm install --package-lock-only --include=optional
+  FILES+=("$lock")
+done
 LOCK_VERSION=$(jq -r '.packages[""].version' package-lock.json)
 [[ "$LOCK_VERSION" == "$NEXT" ]] || die "package-lock.json root is '${LOCK_VERSION}' after regen (expected ${NEXT})"
-FILES+=(package-lock.json)
-echo "  package-lock.json regenerated at ${NEXT}"
+NAMES=$(jq -c '.packages | keys' version.json)
+for lock in $LOCKS; do
+  STALE=$(jq -r --arg v "$NEXT" --argjson names "$NAMES" '
+    .packages | to_entries[]
+    | select((.key | startswith("node_modules/") | not) and (.value.name as $n | $names | index($n)) and .value.version != $v)
+    | "\(.key) (\(.value.name)) at \(.value.version)"' "$lock")
+  [[ -z "$STALE" ]] || die "${lock} still records, after regen: ${STALE}"
+done
+echo "  every package-lock.json regenerated; each records ${NEXT} for the packages it links"
 
 # Phase 3: Commit and push
 echo ""
@@ -186,7 +205,8 @@ This commit bumps the version after releasing ${CURRENT} as stable.
 Version bump type: ${BUMP_TYPE}
 - All package.json files updated to ${NEXT}
 - The published crates updated to ${NEXT} (Cargo.toml, Cargo.lock)
-- package-lock.json regenerated to match
+- The Haskell SDK's manifest updated to ${NEXT} (semiont.cabal)
+- Every package-lock.json regenerated to match
 - Publish manually via GitHub Actions workflow dispatch"
 
 git add "${FILES[@]}"

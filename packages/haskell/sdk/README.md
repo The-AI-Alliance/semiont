@@ -696,7 +696,11 @@ bash run.sh /work
 
 Here `/work` is the repository root. The Haskell generator derives protocol
 types, channel descriptors, error codes, timing, the module list, and the
-package version. Refresh `public-api.json` after library source changes;
+package version. A release's version bump writes the manifest's version line
+as the generator would (`packages/haskell/scripts/cabal-version.sh`); the
+manifest is not among `public-api.json`'s inputs, since the template, the
+generated modules and the codegen it is written from are. Refresh
+`public-api.json` after library source changes;
 GHC supplies the reachable types, constructors, and signatures through the
 public Cabal modules, including re-exports. The census checks source
 freshness; the Haskell job compares actual compiled exports. All shared

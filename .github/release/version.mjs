@@ -155,6 +155,8 @@ function syncVersions() {
 
   // The crates published to crates.io carry the same version.
   execFileSync(resolve(rootDir, 'packages/rust/scripts/cargo-version.sh'), [globalVersion], { stdio: 'inherit' });
+  // So does the Haskell SDK's manifest, which its codegen writes from the root package.json.
+  execFileSync(resolve(rootDir, 'packages/haskell/scripts/cabal-version.sh'), [globalVersion], { stdio: 'inherit' });
 
   console.log('\n✅ All packages synced!\n');
 }
