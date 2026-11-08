@@ -2164,7 +2164,7 @@ dependencies = [
 
 [[package]]
 name = "semiont"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "base64 0.23.1",
  "bytes",
@@ -2240,7 +2240,7 @@ dependencies = [
 
 [[package]]
 name = "semiont-codegen"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "serde_json",
 ]
@@ -2383,7 +2383,7 @@ dependencies = [
 
 [[package]]
 name = "semiont-http-transport"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "axum",
  "base64 0.23.1",
@@ -2425,7 +2425,7 @@ dependencies = [
 
 [[package]]
 name = "semiont-telemetry"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "opentelemetry",
  "opentelemetry_sdk",
