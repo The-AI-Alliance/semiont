@@ -2,7 +2,7 @@ include Namespace_methods.Browse
 
 let resource_content client id =
   Client_core.content (fun () ->
-      Http_wire.with_content (Client_core.http client) id
+      Http_wire.with_content (Client_core.http client) ~streaming:false id
         (fun ~content_type body ->
           ( content_type,
             Eio.Buf_read.parse_exn ~max_size:max_int Eio.Buf_read.take_all body

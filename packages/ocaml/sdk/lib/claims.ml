@@ -5,6 +5,8 @@ module S = Subscription
 type t = {
   client : Client_core.t;
   accepts : Yojson.Safe.t;
+  timeout_ms : int option;
+  trace : unit -> Wire_stream.trace option;
   on_refused : string option -> unit;
   on_cancel : Worker.held -> unit;
   mutable held : Worker.held option;
@@ -15,7 +17,8 @@ type t = {
   stop_now : unit Promise.u;
 }
 
-let make client ?(on_refused = ignore) ?(on_cancel = ignore) filters =
+let make client ?timeout_ms ?(trace = fun () -> None) ?(on_refused = ignore)
+    ?(on_cancel = ignore) filters =
   let accepts =
     `List
       (List.map
@@ -26,6 +29,8 @@ let make client ?(on_refused = ignore) ?(on_cancel = ignore) filters =
   {
     client;
     accepts;
+    timeout_ms;
+    trace;
     on_refused;
     on_cancel;
     held = None;
@@ -102,7 +107,7 @@ let next t =
         t.wake <- Promise.create ();
         let result =
           try
-            Worker.claim bus
+            Worker.claim ?timeout_ms:t.timeout_ms ?trace:(t.trace ()) bus
               (Client_core.http t.client)
               ~client_id:(Client_core.client_id t.client)
               ~correlation_id:(Client_core.next_key t.client)
@@ -132,15 +137,16 @@ let next t =
               (fun () -> S.await_closed bus);
             None)))
 
-let stop t =
+let stop ?(settle = true) t =
   if not (stopped t) then (
     Promise.resolve t.stop_now ();
     Option.iter (fun release -> release ()) t.release;
-    Option.iter
-      (fun job ->
-        Worker.fail job ~error:"worker stopped" ~failure_class:None
-          ~completed:None ~cursors:None)
-      t.held;
+    if settle then
+      Option.iter
+        (fun job ->
+          Worker.fail job ~error:"worker stopped" ~failure_class:None
+            ~completed:None ~cursors:None)
+        t.held;
     t.held <- None)
 
 let job_claim_channels = Worker.channels

@@ -138,7 +138,7 @@ const surfaceSource = 'protocol/specs/src/client/surface.json';
 const surface = JSON.parse(readFileSync(resolve(root, surfaceSource), 'utf8'));
 const snake = (name) => name.replace(/[A-Z]/g, (letter) => '_' + letter.toLowerCase());
 const wired = surface.namespaces.flatMap(({ namespace, methods }) => {
-  const functions = methods.flatMap(({ method, shape, via }) => {
+  const functions = methods.flatMap(({ method, shape, via, cases }) => {
     const name = snake(method);
     if (via.request && shape === 'promise' && !['addEntityTypes', 'createFromToken', 'pollUntilComplete'].includes(method)) {
       const operation = operations.find(({ request }) => request === via.request);
@@ -148,7 +148,8 @@ const wired = surface.namespaces.flatMap(({ namespace, methods }) => {
     if (via.local && shape === 'signal') {
       const channel = byChannel.get(via.local);
       if (!channel) refuse(`No local channel for ${namespace}.${method}`);
-      return [`  let ${name} client payload = Client_core.publish client Bus_registry.Channels.${channel.name} payload`];
+      const correlation = cases.some((row) => row.correlationId !== undefined);
+      return [`  let ${name} client${correlation ? ' ?correlation_id' : ''} payload = Client_core.publish client${correlation ? ' ?correlation_id' : ''} Bus_registry.Channels.${channel.name} payload`];
     }
     if (via.emit) {
       const channel = byChannel.get(via.emit);
@@ -165,3 +166,29 @@ const wired = surface.namespaces.flatMap(({ namespace, methods }) => {
 writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/lib/namespace_methods.ml'),
   `(* Generated from ${surfaceSource} and ${source}. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n\n` +
   wired.join('\n'), process.argv.includes('--check'));
+
+const behavior = surface.namespaces.flatMap(({ namespace, methods }) =>
+  methods.flatMap(({ method, shape, via, cases }) => {
+    if (!((via.request && shape === 'promise') || via.emit || via.local)) return [];
+    if (['addEntityTypes', 'createFromToken', 'pollUntilComplete'].includes(method)) return [];
+    const channel = nameOf(via.request ?? via.emit ?? via.local);
+    const api = namespace[0].toUpperCase() + namespace.slice(1);
+    const correlation = cases.some((row) => row.correlationId !== undefined);
+    return [`  | "${namespace}.${method}" -> ignore (C.${api}.${snake(method)} client${correlation ? ' ?correlation_id' : ''} (decode B.Channels.${channel} payload)); true`];
+  }));
+const surfaceHeader = `(* Generated from ${surfaceSource}. Do not edit. *)\n\n[@@@ocamlformat "disable"]\n\n`;
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/surface_dispatch.ml'),
+  surfaceHeader + [
+    'module B = Semiont.Bus_registry',
+    'module C = Semiont.Client',
+    '',
+    'let decode channel payload = match B.decode channel (Yojson.Safe.to_string payload) with',
+    '  | Ok decoded -> decoded',
+    '  | Error _ -> failwith ("invalid test payload for " ^ B.name channel)',
+    '',
+    'let invoke client ~correlation_id name payload = match name with',
+    ...behavior, '  | _ -> false', '',
+  ].join('\n'), process.argv.includes('--check'));
+writeOrCheck(root, resolve(root, 'packages/ocaml/sdk/test/surface_cases.ml'),
+  surfaceHeader + `let table = ${ocamlString(JSON.stringify({ fixtures: surface.fixtures, namespaces: surface.namespaces.map(({ namespace, methods }) => ({ namespace, methods: methods.map(({ method, via, cases }) => ({ method, via, cases })) })) }))}\n`,
+  process.argv.includes('--check'));

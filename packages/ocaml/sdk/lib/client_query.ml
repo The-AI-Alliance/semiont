@@ -11,12 +11,13 @@ let limits_operations =
       String.ends_with ~suffix:":limits-requested" (B.name (B.request op)))
     B.operations
 
-let request bus http ~client_id ~key operation payload =
+let request ?(on_sent = ignore) bus http ~client_id ~key operation payload =
   let correlation_id = key () in
   let send () =
     ignore
       (Http_wire.emit http ~client_id ~correlation_id (B.request operation)
-         (Yojson.Safe.to_string payload))
+         (Yojson.Safe.to_string payload));
+    on_sent ()
   in
   try
     match Subscription.request bus ~correlation_id operation ~send with
@@ -73,13 +74,22 @@ let make ?window_ms ?restore ?save ~sw ~clock ~bus ~http ~client_id ~key () =
                      field "resourceId" resource; field "annotationId" argument;
                    ])
         in
-        let read () = request bus http ~client_id ~key operation payload in
+        let read ?on_sent () =
+          request ?on_sent bus http ~client_id ~key operation payload
+        in
         if name = "engines" then (
           let answer = ref (Error "bus.closed") in
           let limits = ref [] in
+          let sent, mark_sent = Promise.create () in
+          let ready () =
+            if not (Promise.is_resolved sent) then Promise.resolve mark_sent ()
+          in
           Fiber.both
-            (fun () -> answer := read ())
             (fun () ->
+              Fun.protect ~finally:ready (fun () ->
+                  answer := read ~on_sent:ready ()))
+            (fun () ->
+              Promise.await sent;
               Fiber.all
                 (List.map
                    (fun (B.Operation op) () ->

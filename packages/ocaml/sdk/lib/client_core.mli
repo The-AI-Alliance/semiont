@@ -3,6 +3,7 @@
 type t
 
 val connect :
+  ?subscribe_defaults:bool ->
   ?timing:Subscription.timing ->
   ?http_timing:Http_wire.timing ->
   ?telemetry:Telemetry.t ->
@@ -69,7 +70,12 @@ val ask :
   'request Bus_registry.decoded ->
   ('reply Bus_registry.decoded, error) result
 
-val publish : t -> 'a Bus_registry.channel -> 'a Bus_registry.decoded -> unit
+val publish :
+  t ->
+  ?correlation_id:string ->
+  'a Bus_registry.channel ->
+  'a Bus_registry.decoded ->
+  unit
 
 val signal :
   t ->

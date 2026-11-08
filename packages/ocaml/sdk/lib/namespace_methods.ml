@@ -39,7 +39,7 @@ module Gather = struct
 end
 
 module Match = struct
-  let request_search client payload = Client_core.publish client Bus_registry.Channels.match_search_requested payload
+  let request_search client ?correlation_id payload = Client_core.publish client ?correlation_id Bus_registry.Channels.match_search_requested payload
 end
 
 module Yield = struct

@@ -4,13 +4,15 @@ type t
 
 val make :
   Client_core.t ->
+  ?timeout_ms:int ->
+  ?trace:(unit -> Wire_stream.trace option) ->
   ?on_refused:(string option -> unit) ->
   ?on_cancel:(Worker.held -> unit) ->
   [ `JobFilter ] Models.t list ->
   t
 
 val next : t -> Worker.held option
-val stop : t -> unit
+val stop : ?settle:bool -> t -> unit
 val job_claim_channels : Bus_registry.packed_channel list
 val job_commit_channels : Bus_registry.packed_channel list
 

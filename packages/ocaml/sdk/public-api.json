@@ -113,17 +113,17 @@
     "lib/agent.mli": "00422c6a7034ef99b976c09e21786826cd7c9ba20718d3cef2c92221f08a7e8a",
     "lib/assertion_facts.ml": "b854fcbb9586444c86d24d387b8cd9eabf539b83af9b19307163617730968536",
     "lib/auth.ml": "95cbd3eef3820adfbff02c0ace52d195c7fd35022c2a2a7c6a49d7402880e4f2",
-    "lib/browse.ml": "5b04b64d430e0341caae7f624c8ba547a2fe3b0333917e5f4162f04239eff3e2",
+    "lib/browse.ml": "c42d6ed23168838c63dea27797ca5ec655040198d162d26c0cf54ac35d54e063",
     "lib/browse.mli": "c57e5ff1c98e598cb6c438e781d135c0ff0c76498e1b93455f2c5e870f3b2858",
     "lib/bus_registry.ml": "2390b6d387efad1ce7e219c6f88c3a7380bcb00fac8da67c34e6157655e4270c",
     "lib/bus_registry.mli": "e75fd6ce95deeda1d3364659c1ac01c0c507fe226cf18ff97f903a321663d1ff",
-    "lib/claims.ml": "5774c3a924df336906f4f079adde3e80ba6930c30b28b0e6c2632d2034781b06",
-    "lib/claims.mli": "d6142961e7c6cf7023fc4e6a9383e6acac0a3e30fb04476902b6c1cf0ad61845",
+    "lib/claims.ml": "693dd857313ff5292b6472dde7fbf5864e9eea067da4ff79259844956f62c0b4",
+    "lib/claims.mli": "5c00658ef1dd6ad33651b98e93d074a63976788786a09cc252acedfa16e12dd0",
     "lib/client.ml": "0364822d6a5e7f411cc0939e29bee40044f0887b32fe4da1c2c5aa5fdaa1439a",
     "lib/client.mli": "efa0a241954e70b1ca81059c2197dc01b7289f4e967d91ea8e40a420bc56bb5b",
-    "lib/client_core.ml": "1b3addfa12ba3f351c18e3e2ec41864b452f0c7be13446d150cd54324c4b7128",
-    "lib/client_core.mli": "0664145a18719d1bd7fe6759e125f8a5f9e5c53c931bf4ed9425243045ed7b4b",
-    "lib/client_query.ml": "539ce443ba60642246d7988d8cea4995b764182750414fd7c486167588d3c2d9",
+    "lib/client_core.ml": "969c8671ee5123b04307fad0c5b023d7ac17b2b5568c9e84557603cf3effe673",
+    "lib/client_core.mli": "7caf772dbbcbd7041b8b5c36d22f8f51061d70c94f335a2de6de903a673f42be",
+    "lib/client_query.ml": "ce5abb9039174fd843ad6b7b2d640e6cf02ca5c2d4534f35bbde7794a02faefb",
     "lib/client_timing.ml": "ba5f3459d482317eb1ea394460a7aa0773bdd39acd2547dcec4e9efb25560d9f",
     "lib/client_timing.mli": "cb433bda9c37944c0dd973b950f25c229b727fef820d144b66915c26e3c4c7a5",
     "lib/clock.ml": "7fbcd81067a62d56842bf1f5b50e64e35f0efb056796a6926b1b732e52cca8b6",
@@ -151,7 +151,7 @@
     "lib/match.mli": "54ac094a6a9f8e8a09b7bc5f175ae198788c3d82b9b80a1f7efc9014fd135179",
     "lib/models.ml": "a36b2528fa00802a9e6482da3564a96c31300a8447921557f90770774d7e588c",
     "lib/models.mli": "bc54c8ce9935e9e195877b7ed8d7a6afc85ea7e3a5662139acc669c8f4f02b63",
-    "lib/namespace_methods.ml": "c530467fe1fca93cbfdeebdd05170448b5f43e17676fd7d0160172b836b32bf6",
+    "lib/namespace_methods.ml": "dee5b5a4d62715a03959d611d5d917fd4ccdef1bfe1022eb99711f78a898f8f0",
     "lib/oauth.ml": "371b2cc0eb08007d9f5a12cacb1928140a88f8ac2002499c52c8029062c776ad",
     "lib/oauth.mli": "93b3263a35c5431a34b3a8850d782a1de8dac9d6481d7125e30389e5a2eca513",
     "lib/oauth_facts.ml": "78b55403643d7f11e4d0d999f2747bcf84b3a407eeb24594f9e795675d60fcca",
@@ -12803,7 +12803,7 @@
     {
       "kind": "value",
       "path": "Semiont.Client.connect",
-      "declaration": "val connect :\n  ?timing:Semiont__.Subscription.timing ->\n  ?http_timing:Semiont__.Http_wire.timing ->\n  ?telemetry:Semiont__.Telemetry.t ->\n  ?delegation_silence_ms:int ->\n  ?delegation_poll_ms:int ->\n  ?invalidation_window_ms:int ->\n  ?restore:(Semiont__.Live_query.key -> Yojson.Safe.t option) ->\n  ?save:(Semiont__.Live_query.key -> Yojson.Safe.t option -> unit) ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  session:Semiont__.Session.t ->\n  client_id:string ->\n  key:(unit -> string) ->\n  call:(sw:Eio.Switch.t ->\n        meth:string ->\n        path:string ->\n        headers:(string * string) list ->\n        body:string ->\n        progress:(int -> unit) option ->\n        int * (string * string) list * Eio.Flow.source_ty Eio.Resource.t) ->\n  global:Semiont__.Bus_registry.packed_channel list ->\n  on_event:((Semiont__.Wire_stream.frame, Semiont__.Wire_stream.refusal)\n            result -> unit) ->\n  on_error:(Semiont__.Http_wire.failure -> unit) -> unit -> t"
+      "declaration": "val connect :\n  ?subscribe_defaults:bool ->\n  ?timing:Semiont__.Subscription.timing ->\n  ?http_timing:Semiont__.Http_wire.timing ->\n  ?telemetry:Semiont__.Telemetry.t ->\n  ?delegation_silence_ms:int ->\n  ?delegation_poll_ms:int ->\n  ?invalidation_window_ms:int ->\n  ?restore:(Semiont__.Live_query.key -> Yojson.Safe.t option) ->\n  ?save:(Semiont__.Live_query.key -> Yojson.Safe.t option -> unit) ->\n  sw:Eio.Switch.t ->\n  clock:Semiont__.Clock.t ->\n  session:Semiont__.Session.t ->\n  client_id:string ->\n  key:(unit -> string) ->\n  call:(sw:Eio.Switch.t ->\n        meth:string ->\n        path:string ->\n        headers:(string * string) list ->\n        body:string ->\n        progress:(int -> unit) option ->\n        int * (string * string) list * Eio.Flow.source_ty Eio.Resource.t) ->\n  global:Semiont__.Bus_registry.packed_channel list ->\n  on_event:((Semiont__.Wire_stream.frame, Semiont__.Wire_stream.refusal)\n            result -> unit) ->\n  on_error:(Semiont__.Http_wire.failure -> unit) -> unit -> t"
     },
     {
       "kind": "value",
@@ -12901,7 +12901,7 @@
     {
       "kind": "value",
       "path": "Semiont.Client.publish",
-      "declaration": "val publish :\n  t ->\n  'a Semiont__.Bus_registry.channel ->\n  'a Semiont__.Bus_registry.decoded -> unit"
+      "declaration": "val publish :\n  t ->\n  ?correlation_id:string ->\n  'a Semiont__.Bus_registry.channel ->\n  'a Semiont__.Bus_registry.decoded -> unit"
     },
     {
       "kind": "value",
@@ -13189,7 +13189,7 @@
     {
       "kind": "value",
       "path": "Semiont.Client.Match.request_search",
-      "declaration": "val request_search :\n  Semiont__.Client_core.t ->\n  [ `MatchSearchRequest ] Semiont__Bus_registry.component\n  Semiont__.Bus_registry.decoded -> unit"
+      "declaration": "val request_search :\n  Semiont__.Client_core.t ->\n  ?correlation_id:string ->\n  [ `MatchSearchRequest ] Semiont__Bus_registry.component\n  Semiont__.Bus_registry.decoded -> unit"
     },
     {
       "kind": "value",
@@ -14801,7 +14801,7 @@
     {
       "kind": "value",
       "path": "Semiont.Client.Job.claim",
-      "declaration": "val claim :\n  Semiont__.Client_core.t ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> Semiont__.Claims.t"
+      "declaration": "val claim :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> Semiont__.Claims.t"
     },
     {
       "kind": "module",
@@ -15388,7 +15388,7 @@
     {
       "kind": "value",
       "path": "Semiont.Match.request_search",
-      "declaration": "val request_search :\n  Semiont__.Client_core.t ->\n  [ `MatchSearchRequest ] Semiont__Bus_registry.component\n  Semiont__.Bus_registry.decoded -> unit"
+      "declaration": "val request_search :\n  Semiont__.Client_core.t ->\n  ?correlation_id:string ->\n  [ `MatchSearchRequest ] Semiont__Bus_registry.component\n  Semiont__.Bus_registry.decoded -> unit"
     },
     {
       "kind": "value",
@@ -16964,7 +16964,7 @@
     {
       "kind": "value",
       "path": "Semiont.Job.claim",
-      "declaration": "val claim :\n  Semiont__.Client_core.t ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> Semiont__.Claims.t"
+      "declaration": "val claim :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> Semiont__.Claims.t"
     },
     {
       "kind": "module",
@@ -17062,7 +17062,7 @@
     {
       "kind": "value",
       "path": "Semiont.Claims.make",
-      "declaration": "val make :\n  Semiont__.Client_core.t ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> t"
+      "declaration": "val make :\n  Semiont__.Client_core.t ->\n  ?timeout_ms:int ->\n  ?trace:(unit -> Semiont__.Wire_stream.trace option) ->\n  ?on_refused:(string option -> unit) ->\n  ?on_cancel:(Semiont__.Worker.held -> unit) ->\n  [ `JobFilter ] Semiont__.Models.t list -> t"
     },
     {
       "kind": "value",
@@ -17072,7 +17072,7 @@
     {
       "kind": "value",
       "path": "Semiont.Claims.stop",
-      "declaration": "val stop : t -> unit"
+      "declaration": "val stop : ?settle:bool -> t -> unit"
     },
     {
       "kind": "value",

@@ -15,9 +15,10 @@ type t = {
     ((Wire_stream.frame, Wire_stream.refusal) result -> unit) ref list ref;
 }
 
-let connect ?timing ?http_timing ?telemetry ?delegation_silence_ms
-    ?delegation_poll_ms ?invalidation_window_ms ?restore ?save ~sw ~clock
-    ~session ~client_id ~key ~call ~global ~on_event ~on_error () =
+let connect ?(subscribe_defaults = true) ?timing ?http_timing ?telemetry
+    ?delegation_silence_ms ?delegation_poll_ms ?invalidation_window_ms ?restore
+    ?save ~sw ~clock ~session ~client_id ~key ~call ~global ~on_event ~on_error
+    () =
   let http =
     Http_wire.make ?timing:http_timing ?telemetry ~clock ~session ~key ~on_error
       ~call ()
@@ -30,19 +31,21 @@ let connect ?timing ?http_timing ?telemetry ?delegation_silence_ms
     on_event frame
   in
   let global =
-    List.sort_uniq
-      (fun (Bus_registry.Channel a) (Bus_registry.Channel b) ->
-        String.compare (Bus_registry.name a) (Bus_registry.name b))
-      (Bus_registry.Channel Bus_registry.Channels.job_queued
-       :: Delegation.channels
-      @ Live_query.channels @ global
-      @ List.concat_map
-          (fun (Bus_registry.Operation operation) ->
-            [
-              Bus_registry.Channel (Bus_registry.result operation);
-              Bus_registry.Channel (Bus_registry.failure operation);
-            ])
-          Bus_registry.operations)
+    if not subscribe_defaults then global
+    else
+      List.sort_uniq
+        (fun (Bus_registry.Channel a) (Bus_registry.Channel b) ->
+          String.compare (Bus_registry.name a) (Bus_registry.name b))
+        (Bus_registry.Channel Bus_registry.Channels.job_queued
+         :: Delegation.channels
+        @ Live_query.channels @ global
+        @ List.concat_map
+            (fun (Bus_registry.Operation operation) ->
+              [
+                Bus_registry.Channel (Bus_registry.result operation);
+                Bus_registry.Channel (Bus_registry.failure operation);
+              ])
+            Bus_registry.operations)
   in
   let connect =
     Subscription.authenticated
@@ -144,7 +147,7 @@ let ask t operation payload =
     | Error error -> Error (Transport error)
   with Http_wire.Failed failure -> Error (Http failure)
 
-let publish t channel payload =
+let publish t ?correlation_id channel payload =
   if Subscription.state t.bus <> Subscription.Closed then
     t.on_event
       (Ok
@@ -155,7 +158,7 @@ let publish t channel payload =
                 {
                   channel = Bus_registry.name channel;
                   scope = None;
-                  correlation_id = None;
+                  correlation_id;
                 };
               trace = None;
               channel;

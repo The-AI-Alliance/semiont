@@ -53,3 +53,8 @@
   x509
   mirage-crypto-rng.unix)
  (deps ../probes/peer-key.pem))
+
+(test
+ (name surface_behavior)
+ (modules surface_behavior surface_cases surface_dispatch)
+ (libraries semiont eio_main yojson alcotest))

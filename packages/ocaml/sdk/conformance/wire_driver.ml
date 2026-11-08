@@ -149,12 +149,10 @@ let run mode env =
   let live = ref None in
   let observers = Hashtbl.create 8 in
   let held = ref None in
-  let accepts = ref None in
-  let claiming = ref false in
-  let claim_again = ref false in
+  let worker_facade = ref None in
+  let claims = ref None in
   let stopping = ref false in
   let claim_timeout = ref None in
-  let kick = ref (fun () -> ()) in
   let listens = Hashtbl.create 8 in
   let holds = Hashtbl.create 8 in
   let commit_timeout = ref None in
@@ -189,29 +187,9 @@ let run mode env =
   let on_event event =
     report_frame event;
     match (mode, event) with
-    | Worker, Ok (Semiont.Wire_stream.Frame { route; payload; _ })
-      when route.channel = B.name B.Channels.job_queued -> (
-        last_queued := stamp (get_client ()).clock;
-        match payload with
-        | Error _ -> !kick ()
-        | Ok payload ->
-            let announcement = Yojson.Safe.from_string (B.encode payload) in
-            if
-              Option.fold ~none:false
-                ~some:(fun filters -> W.accepts ~filters ~announcement)
-                !accepts
-            then !kick ())
-    | Worker, Error (Semiont.Wire_stream.Invalid_frame (Some route, _))
+    | Worker, Ok (Semiont.Wire_stream.Frame { route; _ })
       when route.channel = B.name B.Channels.job_queued ->
-        !kick ()
-    | Worker, Ok (Semiont.Wire_stream.Frame { route; payload = Ok payload; _ })
-      when route.channel = B.name B.Channels.job_cancel_requested ->
-        let json = Yojson.Safe.from_string (B.encode payload) in
-        Option.iter
-          (fun job ->
-            if optional J.to_string "jobId" json = Some (W.id job) then
-              output_json (`Assoc [ ("signalled", text (W.id job)) ]))
-          !held
+        last_queued := stamp (get_client ()).clock
     | _ -> ()
   in
   let open_client input =
@@ -343,7 +321,7 @@ let run mode env =
     let key () = uuid env in
     let http, subscription =
       match mode with
-      | Live ->
+      | Worker | Live ->
           let restore key =
             if !persist then Hashtbl.find_opt persisted key else None
           in
@@ -353,8 +331,8 @@ let run mode env =
             | _ -> ()
           in
           let facade =
-            Semiont.Client.connect ~timing:subscription_timing ~http_timing
-              ?telemetry ~restore ~save
+            Semiont.Client.connect ~subscribe_defaults:(mode = Live)
+              ~timing:subscription_timing ~http_timing ?telemetry ~restore ~save
               ?invalidation_window_ms:
                 (optional J.to_int "invalidationWindowMs" timing)
               ?delegation_silence_ms:(optional J.to_int "jobSilenceMs" timing)
@@ -362,10 +340,12 @@ let run mode env =
               ~sw ~clock ~session ~client_id ~key ~call ~global ~on_event
               ~on_error ()
           in
-          live := Some facade;
-          delegation := Some (Semiont.Client.delegation facade);
+          if mode = Worker then worker_facade := Some facade
+          else (
+            live := Some facade;
+            delegation := Some (Semiont.Client.delegation facade));
           (Semiont.Client.http facade, Semiont.Client.subscription facade)
-      | Worker | Wire ->
+      | Wire ->
           let http =
             H.make ?telemetry ~clock ~session ~timing:http_timing ~key ~on_error
               ~call ()
@@ -411,7 +391,6 @@ let run mode env =
         let rec report previous =
           let current = S.await_state_change subscription ~from:previous in
           output_json (`Assoc [ ("state", text (state current)) ]);
-          if current = S.Open && mode = Worker then !kick ();
           if current <> S.Closed then report current
         in
         report S.Initial;
@@ -537,63 +516,61 @@ let run mode env =
     Hashtbl.replace delegates observer release;
     Hashtbl.replace observers observer release
   in
-  let rec claim () =
-    match (!accepts, !held) with
-    | Some accepts, None
-      when (not !stopping) && S.state (get_client ()).subscription = S.Open ->
-        if !claiming then claim_again := true
-        else (
-          claiming := true;
-          let client = get_client () in
-          Fiber.fork ~sw (fun () ->
-              let result =
-                try
-                  let trace =
-                    Option.map
-                      (fun _ ->
-                        let hex () =
-                          String.concat "" (String.split_on_char '-' (uuid env))
-                        in
-                        {
-                          Semiont.Wire_stream.parent =
-                            "00-" ^ hex () ^ "-"
-                            ^ String.sub (hex ()) 0 16
-                            ^ "-01";
-                          state = None;
-                        })
-                      telemetry
-                  in
-                  W.claim ?trace client.subscription client.http
-                    ~client_id:client.client_id ~correlation_id:(uuid env)
-                    ?timeout_ms:!claim_timeout ~accepts ()
-                with H.Failed failure -> W.Refused (Some failure.code)
-              in
-              claiming := false;
-              let again = !claim_again in
-              claim_again := false;
-              if not !stopping then
-                match result with
-                | W.Held job ->
-                    held := Some job;
-                    activity client.clock;
-                    last_claim := !last_activity;
-                    active_since := !last_activity;
-                    stalled := false;
-                    output_json (`Assoc [ ("claimed", W.view job) ])
-                | W.Empty -> if again then claim ()
-                | W.Refused code ->
-                    let fields =
-                      ( "detail",
-                        text (Option.value code ~default:"invalid claim reply")
-                      )
-                      :: Option.to_list
-                           (Option.map (fun code -> ("code", text code)) code)
-                    in
-                    output_json (`Assoc [ ("refused", `Assoc fields) ]);
-                    if again then claim ()))
-    | _ -> ()
+  let start_claims accepts =
+    if Option.is_some !claims then raise (Misuse "claims already started");
+    let client = get_client () in
+    let filters =
+      J.to_list accepts
+      |> List.map (fun value ->
+          match
+            Semiont.Models.decode Semiont.Models.job_filter
+              (Yojson.Safe.to_string value)
+          with
+          | Ok filter -> filter
+          | Error _ -> raise (Misuse "invalid claim filter"))
+    in
+    let trace () =
+      Option.map
+        (fun _ ->
+          let hex () = String.concat "" (String.split_on_char '-' (uuid env)) in
+          {
+            Semiont.Wire_stream.parent =
+              "00-" ^ hex () ^ "-" ^ String.sub (hex ()) 0 16 ^ "-01";
+            state = None;
+          })
+        telemetry
+    in
+    let on_refused code =
+      let fields =
+        ("detail", text (Option.value code ~default:"invalid claim reply"))
+        :: Option.to_list (Option.map (fun code -> ("code", text code)) code)
+      in
+      output_json (`Assoc [ ("refused", `Assoc fields) ])
+    in
+    let on_cancel job =
+      output_json (`Assoc [ ("signalled", text (W.id job)) ])
+    in
+    let stream =
+      Semiont.Client.Job.claim
+        (Option.get !worker_facade)
+        ?timeout_ms:!claim_timeout ~trace ~on_refused ~on_cancel filters
+    in
+    claims := Some stream;
+    Fiber.fork ~sw (fun () ->
+        let rec consume () =
+          match Semiont.Claims.next stream with
+          | Some job when not !stopping ->
+              held := Some job;
+              activity client.clock;
+              last_claim := !last_activity;
+              active_since := !last_activity;
+              stalled := false;
+              output_json (`Assoc [ ("claimed", W.view job) ]);
+              consume ()
+          | _ -> ()
+        in
+        consume ())
   in
-  kick := claim;
   let job () =
     match !held with Some job -> job | None -> raise (Misuse "no held job")
   in
@@ -606,8 +583,7 @@ let run mode env =
       (fun () -> action job);
     held := None;
     activity (get_client ()).clock;
-    last_finished := !last_activity;
-    claim ()
+    last_finished := !last_activity
   in
   let close ?(settle_worker = false) () =
     stopping := true;
@@ -618,12 +594,10 @@ let run mode env =
     |> List.iter (fun key ->
         Option.iter (fun finish -> finish ()) (Hashtbl.find_opt observers key));
     Hashtbl.clear observers;
-    if settle_worker then
-      Option.iter
-        (fun job ->
-          W.fail job ~error:"worker stopped" ~failure_class:None ~completed:None
-            ~cursors:None)
-        !held;
+    Option.iter (Semiont.Claims.stop ~settle:settle_worker) !claims;
+    claims := None;
+    Option.iter Semiont.Client.close !worker_facade;
+    worker_facade := None;
     held := None;
     Option.iter
       (fun client ->
@@ -648,8 +622,7 @@ let run mode env =
         done_
     | "sync" -> done_
     | "claim" when mode = Worker ->
-        accepts := Some (field "accepts" input);
-        claim ();
+        start_claims (field "accepts" input);
         done_
     | "vitals" when mode = Worker ->
         let active_job =
