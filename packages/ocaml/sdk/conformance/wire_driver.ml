@@ -602,6 +602,7 @@ let run mode env =
     let pending = Queue.create () in
     let job_id = ref None in
     let finished = ref false in
+    let retrying = ref false in
     let last_seen = ref (Semiont.Clock.monotonic_now client.clock) in
     let output state =
       output_json
@@ -648,11 +649,13 @@ let run mode env =
             last_seen := Semiont.Clock.monotonic_now client.clock;
             match channel with
             | "job:report-progress" ->
+                retrying := false;
                 emit "progress" (field "progress" payload)
             | "job:complete" ->
                 emit "complete" payload;
                 finish ()
             | "job:fail" when field "willRetry" payload = `Bool true ->
+                retrying := true;
                 emit "failed" payload
             | "job:fail" -> fail "job.failed" payload
             | _ -> ())
@@ -689,9 +692,13 @@ let run mode env =
             Queue.iter (fun (channel, signal) -> receive channel signal) pending;
             Queue.clear pending;
             let identity = `Assoc [ ("jobId", text id) ] in
+            let poll_delay delay = if !retrying then !job_poll else delay in
             let rec monitor delay =
               if not !finished then (
-                let timeout = Option.fold ~none:delay ~some:(min delay) stall in
+                let delay_ms = poll_delay delay in
+                let timeout =
+                  Option.fold ~none:delay_ms ~some:(min delay_ms) stall
+                in
                 sleep !last_seen (span timeout);
                 if not !finished then
                   let elapsed =
@@ -711,8 +718,9 @@ let run mode env =
                             B.Channels.job_cancel_requested identity)
                      with H.Failed _ -> ());
                     if not !finished then fail "job.stalled" (`Assoc []))
-                  else if Mtime.Span.compare elapsed (span delay) < 0 then
-                    monitor delay
+                  else if
+                    Mtime.Span.compare elapsed (span (poll_delay delay)) < 0
+                  then monitor delay
                   else
                     let status =
                       request B.Operations.job_status_requested identity
