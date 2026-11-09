@@ -35,6 +35,9 @@ export interface LauncherBridge {
   onStatusRequested(listener: () => void): () => void;
   status(): Promise<LauncherStatusResult>;
   roots(): Promise<KnowledgeBasesResult>;
+  rootStatus(path: string): Promise<LauncherStatusResult>;
+  startRoot(path: string): Promise<LauncherStatusResult>;
+  stopRoot(path: string): Promise<LauncherStatusResult>;
   about(): Promise<LauncherStatusResult>;
   gitPath(): Promise<string | null>;
   opPath(): Promise<string | null>;

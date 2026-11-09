@@ -29,7 +29,7 @@ import { ThemePanel } from './components/ThemePanel';
 import { AboutModal } from './components/AboutModal';
 import { InferenceModal } from './components/InferenceModal';
 import { LauncherStatusModal, type LauncherStatusState } from './components/LauncherStatusModal';
-import { KnowledgeBasesModal, type KnowledgeBasesState } from './components/KnowledgeBasesModal';
+import { KnowledgeBasesModal, type KnowledgeBaseRow, type KnowledgeBasesState } from './components/KnowledgeBasesModal';
 import { TelemetryModal } from './components/TelemetryModal';
 import { RuntimeModal } from './components/RuntimeModal';
 import { GitModal, type GitCheck } from './components/GitModal';
@@ -42,7 +42,7 @@ import type { ViewerPrefs } from './components/ViewerPrefControls';
 import { DEFAULT_TELEMETRY_LINKS, telemetryLinksFromStatus, type TelemetryLinks } from './lib/telemetry-links';
 import { runtimeInfoFromLauncher, type RuntimeInfo } from './lib/runtime-info';
 import type { OllamaInfo } from './lib/ollama-info';
-import type { McpProcessStatus } from './lib/launcher-bridge';
+import type { LauncherStatusResult, McpProcessStatus } from './lib/launcher-bridge';
 
 // In Electron the preload exposes window.configBridge; the web build has no such bridge.
 const isElectron = typeof window !== 'undefined' && window.configBridge !== undefined;
@@ -85,6 +85,39 @@ function withAlias(k: KbEntry, alias: string): KbEntry {
   const next: KbEntry = { uri: k.uri };
   if (alias.trim()) next.alias = alias.trim();
   return next;
+}
+
+function gatewayBaseFromStatus(output: string): string | undefined {
+  const plain = output.replace(/\u001b\[[0-9;]*m/gu, '');
+  const endpoint = plain.match(/https?:\/\/[^\s)]+\/api\/health/u)?.[0];
+  if (endpoint === undefined) return undefined;
+  return endpoint.replace(/\/api\/health\/?$/u, '').replace(/\/$/u, '');
+}
+
+function rootStatusFromLauncher(result: LauncherStatusResult): Pick<KnowledgeBaseRow, 'status' | 'statusDetail' | 'gatewayUrl'> {
+  const gatewayUrl = gatewayBaseFromStatus(result.output);
+  const gateway = gatewayUrl === undefined ? {} : { gatewayUrl };
+  if (result.exitCode === 0) return { status: 'running', ...gateway };
+  if (/no stack of .* is recorded/iu.test(result.output)) return { status: 'stopped' };
+  const gatewayLine = result.output.split('\n').find((line) => /gateway/i.test(line));
+  if (gatewayLine !== undefined && /\brunning\b/i.test(gatewayLine)) {
+    return { status: 'attention', statusDetail: gatewayLine.trim(), ...gateway };
+  }
+  return {
+    status: result.exitCode === null ? 'unknown' : 'attention',
+    statusDetail: result.output.trim().split('\n').slice(-2).join(' ').trim() || result.error || 'Gateway health check failed.',
+    ...gateway,
+  };
+}
+
+function normalizeGatewayUri(uri: string): string {
+  try {
+    const url = new URL(uri);
+    url.pathname = url.pathname.replace(/\/+$/u, '');
+    return url.origin + url.pathname;
+  } catch {
+    return uri.replace(/\/+$/u, '');
+  }
 }
 
 export function App() {
@@ -157,7 +190,24 @@ export function App() {
       return;
     }
     void bridge.roots().then(
-      (result) => setKnowledgeBasesState({ status: 'result', result }),
+      (result) => {
+        const rows: KnowledgeBaseRow[] = result.roots.map((root) => ({ ...root, status: 'checking' }));
+        setKnowledgeBasesState({ status: 'result', result: { ...result, roots: rows } });
+        if (result.error !== null || rows.length === 0) return;
+        void Promise.all(rows.map(async (root) => {
+          try {
+            return { path: root.path, status: rootStatusFromLauncher(await bridge.rootStatus(root.path)) };
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return { path: root.path, status: { status: 'unknown' as const, statusDetail: message } };
+          }
+        })).then((updates) => {
+          const byPath = new Map(updates.map((update) => [update.path, update.status]));
+          setKnowledgeBasesState((current) => current.status === 'result'
+            ? { ...current, result: { ...current.result, roots: current.result.roots.map((root) => ({ ...root, ...(byPath.get(root.path) ?? {}) })) } }
+            : current);
+        });
+      },
       (error: unknown) => {
         const message = error instanceof Error ? error.message : String(error);
         setKnowledgeBasesState({ status: 'result', result: { stateFile: '', roots: [], error: message } });
@@ -423,8 +473,8 @@ export function App() {
   // each with its own token-renewal lifecycle. Reconnecting replaces any stale state.
   // `interactive` is whether the person may be sent to the issuer to sign in: the Connect
   // button's yes, a launch's no (a launch resumes stored sessions and opens nothing).
-  const connectKb = async (kbUri: string, interactive: boolean) => {
-    const kb = config?.kbs.find((k) => k.uri === kbUri);
+  const connectKb = async (kbUri: string, interactive: boolean, override?: KbEntry) => {
+    const kb = override ?? config?.kbs.find((k) => k.uri === kbUri);
     if (!kb) return;
     const target = kbTargetFor(kb);
     if (target === null) {
@@ -474,6 +524,59 @@ export function App() {
     const kb = config?.kbs.find((k) => k.uri === kbUri);
     const target = kb ? kbTargetFor(kb) : null;
     if (target !== null) void signOut(target);
+  };
+
+  const operateKnowledgeBase = (root: KnowledgeBaseRow, operation: 'starting' | 'stopping') => {
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) return;
+    setKnowledgeBasesState((current) => current.status === 'result'
+      ? { ...current, result: { ...current.result, roots: current.result.roots.map((item) => {
+          if (item.path !== root.path) return item;
+          const next = { ...item, operation };
+          delete next.operationError;
+          return next;
+        }) } }
+      : current);
+    const action = operation === 'starting' ? bridge.startRoot(root.path) : bridge.stopRoot(root.path);
+    void action.then((result) => {
+      if (result.exitCode === 0) {
+        openKnowledgeBases();
+        return;
+      }
+      const message = result.output.trim() || result.error || `Launcher exited ${result.exitCode ?? 'without a status code'}.`;
+      setKnowledgeBasesState((current) => current.status === 'result'
+        ? { ...current, result: { ...current.result, roots: current.result.roots.map((item) => {
+            if (item.path !== root.path) return item;
+            const next = { ...item, operationError: message, status: 'attention' as const };
+            delete next.operation;
+            return next;
+          }) } }
+        : current);
+    }, (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      setKnowledgeBasesState((current) => current.status === 'result'
+        ? { ...current, result: { ...current.result, roots: current.result.roots.map((item) => {
+            if (item.path !== root.path) return item;
+            const next = { ...item, operationError: message };
+            delete next.operation;
+            return next;
+          }) } }
+        : current);
+    });
+  };
+
+  const loginKnowledgeBase = (root: KnowledgeBaseRow) => {
+    if (config === null || root.gatewayUrl === undefined) return;
+    let kb = config.kbs.find((entry) => normalizeGatewayUri(entry.uri) === normalizeGatewayUri(root.gatewayUrl!));
+    if (kb === undefined) {
+      kb = { uri: root.gatewayUrl, ...(root.siteName ? { alias: root.siteName } : {}) };
+      saveConfig({ ...config, kbs: [...config.kbs, kb] });
+    }
+    void connectKb(kb.uri, true, kb);
+  };
+
+  const logoutKnowledgeBase = (root: KnowledgeBaseRow) => {
+    if (root.activeSessionUri !== undefined) disconnectKb(root.activeSessionUri);
   };
 
   // On launch, once the config is in: load sessions + the last active session, and
@@ -568,6 +671,27 @@ export function App() {
   const selectSession = (id: string) => setActiveSessionId(id);
 
   if (config === null) return <p className="app__connecting">Loading…</p>;
+
+  const knowledgeBaseRows = knowledgeBasesState.status === 'result'
+    ? knowledgeBasesState.result.roots.map((root) => {
+        const active = Object.entries(connections).find(([uri, connection]) => connection.opened !== undefined && (
+          (root.did !== undefined && connection.description?.domain !== undefined && `did:web:${connection.description.domain}` === root.did)
+          || (root.gatewayUrl !== undefined && normalizeGatewayUri(uri) === normalizeGatewayUri(root.gatewayUrl))
+        ));
+        const configured = root.gatewayUrl === undefined
+          ? undefined
+          : config.kbs.find((kb) => normalizeGatewayUri(kb.uri) === normalizeGatewayUri(root.gatewayUrl!));
+        const configuredUri = active?.[0] ?? configured?.uri;
+        return {
+          ...root,
+          ...(configuredUri === undefined ? {} : { configuredUri }),
+          ...(active === undefined ? {} : { activeSessionUri: active[0] }),
+        };
+      })
+    : [];
+  const knowledgeBasesModalState: KnowledgeBasesState = knowledgeBasesState.status === 'result'
+    ? { ...knowledgeBasesState, result: { ...knowledgeBasesState.result, roots: knowledgeBaseRows } }
+    : knowledgeBasesState;
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
   const activeKbUri = activeSession?.kbUri ?? null;
@@ -679,8 +803,12 @@ export function App() {
       )}
       {showKnowledgeBases && (
         <KnowledgeBasesModal
-          state={knowledgeBasesState}
+          state={knowledgeBasesModalState}
           onRefresh={openKnowledgeBases}
+          onStart={(root) => operateKnowledgeBase(root, 'starting')}
+          onStop={(root) => operateKnowledgeBase(root, 'stopping')}
+          onLogin={loginKnowledgeBase}
+          onLogout={logoutKnowledgeBase}
           onClose={() => setShowKnowledgeBases(false)}
         />
       )}

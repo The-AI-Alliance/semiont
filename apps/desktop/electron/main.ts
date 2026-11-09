@@ -43,7 +43,7 @@ function launcherEnvironment(): NodeJS.ProcessEnv {
   return { ...process.env, PATH: pathEntries.join(delimiter) };
 }
 
-function runLauncher(args: string[]): Promise<LauncherStatusResult> {
+function runLauncher(args: string[], timeout = 120_000): Promise<LauncherStatusResult> {
   return new Promise((resolve) => {
     execFile(
       launcherPath(),
@@ -53,7 +53,7 @@ function runLauncher(args: string[]): Promise<LauncherStatusResult> {
         encoding: 'utf8',
         env: launcherEnvironment(),
         maxBuffer: 4 * 1024 * 1024,
-        timeout: 120_000,
+        timeout,
         windowsHide: true,
       },
       (error, stdout, stderr) => {
@@ -70,7 +70,20 @@ function runLauncher(args: string[]): Promise<LauncherStatusResult> {
 
 ipcMain.handle('launcher:status', () => runLauncher(['status']));
 ipcMain.handle('launcher:roots', () => readKnowledgeBases());
+ipcMain.handle('launcher:root-status', (_event, root: unknown) => runRootCommand(root, 'status'));
+ipcMain.handle('launcher:root-start', (_event, root: unknown) => runRootCommand(root, 'start'));
+ipcMain.handle('launcher:root-stop', (_event, root: unknown) => runRootCommand(root, 'stop'));
 ipcMain.handle('launcher:about', () => runLauncher(['about']));
+
+function runRootCommand(root: unknown, operation: 'status' | 'start' | 'stop'): Promise<LauncherStatusResult> {
+  if (typeof root !== 'string' || root.length === 0 || root.length > 4096) {
+    return Promise.resolve({ output: 'Invalid knowledge base path.', exitCode: null, error: 'Invalid knowledge base path.' });
+  }
+  const args = operation === 'status'
+    ? ['status', '--root', root, '--service', 'gateway']
+    : [operation, '--root', root];
+  return runLauncher(args, operation === 'start' ? 15 * 60_000 : 120_000);
+}
 
 function rootsStateFile(): string {
   const home = app.getPath('home');
