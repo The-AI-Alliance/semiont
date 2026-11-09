@@ -2460,6 +2460,12 @@ body.resizing {
   border-color: var(--accent);
 }
 
+.chat__search--active {
+  background: var(--surface-sidebar);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* The @-mention trigger — mirrors the attach button, with the glyph as text. */
 .chat__mention {
   flex: none;

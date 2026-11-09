@@ -57,6 +57,8 @@ export function ChatPane({
   setEntries,
   onResourcesChanged,
   onOpenResource,
+  documentSearchOpen,
+  onToggleDocumentSearch,
 }: {
   session: ChatSession;
   /** App-global viewer prefs — threaded to every message viewer (the footer lives in App). */
@@ -69,6 +71,8 @@ export function ChatPane({
   onResourcesChanged: () => void;
   /** Open a referenced/uploaded resource in the main pane; bound to this KB by the caller. */
   onOpenResource: (id: string, name: string) => void;
+  documentSearchOpen: boolean;
+  onToggleDocumentSearch: () => void;
 }) {
   const entityTypesState = useObservable(useMemo(() => session.client.browse.entityTypes(), [session]));
   const entityTypes = entityTypesState?.status === 'ready' ? entityTypesState.value : [];
@@ -494,6 +498,29 @@ export function ChatPane({
             aria-hidden="true"
           >
             <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className={`chat__attach chat__search${documentSearchOpen ? ' chat__search--active' : ''}`}
+          onClick={onToggleDocumentSearch}
+          aria-label="Search documents"
+          aria-pressed={documentSearchOpen}
+          title={documentSearchOpen ? 'Close document search' : 'Search documents'}
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-4-4" />
           </svg>
         </button>
         <input ref={fileInput} type="file" className="chat__file" onChange={onPickFile} tabIndex={-1} aria-hidden="true" />

@@ -16,6 +16,7 @@ export interface KbNavProps {
   /** The open document's id (purple row), or null when a chat session is active instead. */
   activeResourceId: string | null;
   docsRefresh: number;
+  documentSearchOpen: boolean;
   /** Open a document in the main pane. */
   onOpenResource: (kbUri: string, id: string, name: string) => void;
   onNewChat: (kbUri: string) => void;
@@ -146,6 +147,7 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
     activeSessionId,
     activeResourceId,
     docsRefresh,
+    documentSearchOpen,
     onOpenResource,
     onNewChat,
     onSelectSession,
@@ -158,15 +160,11 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
   const kbSessions = sessionsForKb(sessions, kb.uri);
   const [refreshTick, setRefreshTick] = useState(0);
   const [docsOpen, setDocsOpen] = useState(true);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(true);
 
-  // The magnifier toggles the search box; opening it expands the panel so the box is visible.
-  const toggleSearch = () => {
-    const next = !searchOpen;
-    setSearchOpen(next);
-    if (next) setDocsOpen(true);
-  };
+  useEffect(() => {
+    if (documentSearchOpen) setDocsOpen(true);
+  }, [documentSearchOpen]);
 
   const displayName = kb.alias || (connected && conn?.description?.name) || hostOf(kb.uri);
 
@@ -194,16 +192,6 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
             </button>
             <button
               type="button"
-              className={`kb__icon${searchOpen ? ' kb__icon--active' : ''}`}
-              onClick={toggleSearch}
-              aria-label="Search documents"
-              aria-pressed={searchOpen}
-              title="Search documents"
-            >
-              <SearchIcon />
-            </button>
-            <button
-              type="button"
               className="kb__icon"
               onClick={() => setRefreshTick((t) => t + 1)}
               aria-label="Refresh documents"
@@ -215,7 +203,7 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
           {docsOpen && (
             <KbResources
               session={conn.opened.session}
-              searchOpen={searchOpen}
+              searchOpen={documentSearchOpen}
               refreshSignal={refreshTick + docsRefresh}
               activeResourceId={activeResourceId}
               onOpen={(id, name) => onOpenResource(kb.uri, id, name)}
@@ -457,15 +445,6 @@ function RefreshIcon() {
       <polyline points="23 4 23 10 17 10" />
       <polyline points="1 20 1 14 7 14" />
       <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg width="14" height="14" {...ICON_PROPS}>
-      <circle cx="11" cy="11" r="8" />
-      <line x1="21" y1="21" x2="16.65" y2="16.65" />
     </svg>
   );
 }
