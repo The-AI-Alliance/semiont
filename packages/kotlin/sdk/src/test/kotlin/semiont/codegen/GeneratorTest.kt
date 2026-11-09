@@ -98,20 +98,54 @@ class GeneratorTest {
     private fun refreshTable(queries: String): JsonObject =
         definitions("""{"queries":$queries,"refresh":[{"on":"reopened","reach":"held"},{"on":"unreadable","reach":"held"}]}""")
 
+    /** The schemas a refresh table's values name: `B`, and `A`, whose member `m` is a list of text. */
+    private val values = definitions("""{
+        "A":{"type":"object","properties":{"m":{"type":"array","items":{"type":"string"}}}},
+        "B":{"type":"object","properties":{"n":{"type":"string"}}}
+    }""")
+
+    /** The file the refresh table of `queries` generates, its values typed from `values`. */
+    private fun refreshFile(queries: String): String =
+        cacheRefreshFile(refreshTable(queries), registry("[]"), values, Generation(roots = values.keys, identifiers = emptySet()))
+
+    private fun refusedRefresh(queries: String): String = assertThrows(Refused::class.java) { refreshFile(queries) }.message.orEmpty()
+
     @Test
-    fun theQueriesAClientKeepsAreThoseTheTableMarksPersistedInItsOrder() {
-        val code = cacheRefreshFile(
-            refreshTable("""[{"name":"b","persisted":true,"docs":"B."},{"name":"c","docs":"C."},{"name":"a","persisted":true,"docs":"A."}]"""),
-            registry("[]"),
+    fun theQueriesAClientKeepsAreThoseTheTableMarksPersistedInItsOrderEachKeptPerItsPerAsItsValue() {
+        val code = refreshFile(
+            """[
+                {"name":"b","per":"resource","persisted":true,"value":{"${'$'}ref":"B.json"},"docs":"B."},
+                {"name":"c","per":"filters","value":{"${'$'}ref":"B.json"},"docs":"C."},
+                {"name":"a","persisted":true,"value":{"${'$'}ref":"A.json#/properties/m"},"docs":"A."}
+            ]""",
         )
-        assertTrue(code.contains("internal val PERSISTED_QUERIES: List<CacheQuery> = listOf(CacheQuery.B, CacheQuery.A)"), code)
+        assertTrue(code.contains("    val b: Cache<ResourceId, semiont.types.B>\n"), code)
+        assertTrue(code.contains("    val a: Cache<String, kotlin.collections.List<String>>\n"), code)
+        assertFalse(code.contains("val c:"), code)
+        val listed = "internal val PERSISTED_QUERIES: List<KeptQuery<*, *>> = listOf(\n" +
+            "    KeptQuery(CacheQuery.B, ResourceId.serializer(), serializer<semiont.types.B>(), KeptCaches::b),\n" +
+            "    KeptQuery(CacheQuery.A, WholeKeySerializer, serializer<kotlin.collections.List<String>>(), KeptCaches::a),\n" +
+            ")\n"
+        assertTrue(code.contains(listed), code)
     }
 
     @Test
     fun aQueryPersistedAnyWayButTrueIsRefused() {
-        val said = assertThrows(Refused::class.java) {
-            cacheRefreshFile(refreshTable("""[{"name":"a","persisted":false,"docs":"A."}]"""), registry("[]"))
-        }.message.orEmpty()
+        val said = refusedRefresh("""[{"name":"a","persisted":false,"value":{"${'$'}ref":"B.json"},"docs":"A."}]""")
         assertTrue(said.contains("a is persisted false"), said)
+    }
+
+    @Test
+    fun aPersistedQueryKeptPerAnythingButAResourceAnAnnotationOrNothingIsRefused() {
+        val said = refusedRefresh("""[{"name":"a","per":"filters","persisted":true,"value":{"${'$'}ref":"B.json"},"docs":"A."}]""")
+        assertTrue(said.contains("kept per filters"), said)
+    }
+
+    @Test
+    fun aPersistedQueryWhoseValueIsNoComponentNorOneMemberOfOneIsRefused() {
+        val deeper = refusedRefresh("""[{"name":"a","persisted":true,"value":{"${'$'}ref":"A.json#/properties/m/items"},"docs":"A."}]""")
+        assertTrue(deeper.contains("names no one member of A"), deeper)
+        val absent = refusedRefresh("""[{"name":"a","persisted":true,"docs":"A."}]""")
+        assertTrue(absent.contains("a's value"), absent)
     }
 }

@@ -1,5 +1,6 @@
 package semiont.http
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -35,6 +36,7 @@ import semiont.signin.HeldSignIn
 import semiont.signin.MemorySignIn
 import semiont.signin.SCRIPT_CLIENT_ID
 import semiont.signin.SignInKept
+import semiont.storage.CoupledBookmarks
 import semiont.storage.MemoryStorage
 import semiont.storage.SessionStorage
 import semiont.types.HttpEndpoint
@@ -68,6 +70,23 @@ private class Unreadable(private val beneath: SignInKept) : SignInKept by beneat
         if (unreadable) {
             refused.incrementAndGet()
             throw IOException("the sign-in cannot be read")
+        }
+        return beneath.held()
+    }
+}
+
+/** A sign-in whose reading waits, while `gate` is set, until it completes. */
+private class Waiting(private val beneath: SignInKept) : SignInKept by beneath {
+    @Volatile
+    var gate: CompletableDeferred<Unit>? = null
+
+    /** How often it was read while its reading waited. */
+    val waited = AtomicInteger()
+
+    override suspend fun held(): HeldSignIn? {
+        gate?.let {
+            waited.incrementAndGet()
+            it.await()
         }
         return beneath.held()
     }
@@ -221,6 +240,63 @@ class SessionFromKeptTest {
                     assertNull(storage.get(places), "a place was written after the write of res-1 was refused")
                 }
             }
+        }
+    }
+
+    @Test
+    fun aWriteThatWaitedForItsTurnAndIsRefusedIsOwedSoNoPlaceIsWrittenAheadOfItAndClosingMakesIt() = runBlocking {
+        Realm().use { realm ->
+            realm.answersFresh()
+            realm.script("/api/users/me", Said(200, alice))
+            realm.script("/resources/res-1/annotations", Said(200, Json.parseToJsonElement("""{"annotations":[],"total":0}""").jsonObject))
+            val places = lastEventIdKey("local", ALICE_KEY)
+            val annotations = cacheKey("local", ALICE_KEY, "annotations")
+            val storage = RefusingTheFirstWriteOf(MemoryStorage(), KEPT_FOR_ALICE.first)
+            val kept = Waiting(MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, ALICE_KEY)))
+            sessionFromKept(kb(realm), kept, storage = storage).use { opened ->
+                val client = opened.client
+                val transport = client.transport
+                val heard = transport.frames("mark:added")
+                transport.subscribeToResource(ResourceId("res-1")).use {
+                    withTimeout(5_000) {
+                        while (realm.subscriptions.none { holdsTheScopeOf(it, "res-1") }) delay(5)
+                    }
+                    // A recorded event of res-1, which asks again for nothing the client holds: its id is the scope's place.
+                    realm.send(JsonObject(mapOf("channel" to JsonPrimitive("mark:added"), "payload" to recorded("mark:added", RESOURCE), "scope" to JsonPrimitive("res-1"))), "p-res-1-9")
+                    withTimeout(5_000) { heard.firstOf(1) }
+                    // The sign-in's reading waits, so the write res-1's answer owes waits for its turn, and its cache goes on.
+                    val gate = CompletableDeferred<Unit>()
+                    kept.gate = gate
+                    withTimeout(5_000) { client.browse.resource(ResourceId("res-1")).first { it is CacheState.Ready } }
+                    withTimeout(5_000) {
+                        while (kept.waited.get() == 0) delay(5)
+                    }
+                    kept.gate = null
+                    gate.complete(Unit)
+                    withTimeout(5_000) {
+                        while (storage.refusals.get() == 0) delay(5)
+                    }
+                    // Refused once its cache went on, the write is owed still, and the client is not at rest.
+                    withTimeout(5_000) {
+                        while (client.persistenceSettled) delay(5)
+                    }
+                    // Another kept cache's write is made, and no place rides it ahead of the write still owed.
+                    withTimeout(5_000) { client.browse.annotations(ResourceId("res-1")).first { it is CacheState.Ready } }
+                    withTimeout(5_000) {
+                        while (storage.get(annotations) == null) delay(5)
+                    }
+                    assertNull(storage.get(places), "a place was written while the refused write of res-1 was owed")
+                    assertNull(storage.get(KEPT_FOR_ALICE.first))
+                }
+            }
+            // Closing makes the write that was owed, and the place rides it.
+            withTimeout(5_000) {
+                while (storage.get(KEPT_FOR_ALICE.first) == null) delay(5)
+            }
+            withTimeout(5_000) {
+                while (storage.get(places) == null) delay(5)
+            }
+            assertEquals(mapOf(ResourceId("res-1") to "p-res-1-9"), CoupledBookmarks(storage, places).load())
         }
     }
 

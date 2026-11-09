@@ -41,6 +41,7 @@ import semiont.transport.Events
 import semiont.transport.Frame
 import semiont.transport.FrameRefusal
 import semiont.transport.FrameSink
+import semiont.transport.Place
 import semiont.transport.ReplyRouter
 import semiont.transport.TraceContext
 import semiont.transport.scope
@@ -73,10 +74,11 @@ internal class FrameHub {
         return broadcast.listen()
     }
 
-    fun deliver(carried: Carried) {
+    /** Deliver `carried`: to its channel's listeners as it came, and into every bridged bus on no scope, with `place`, where the stream was in its scope once it is delivered, when it is a recorded event's frame. */
+    fun deliver(carried: Carried, place: Place?) {
         val (buses, broadcast) = synchronized(this) { bridged.toList() to channels[carried.channel] }
         // A client's bus keeps its scopes for what the client's own parts say to each other.
-        for (bus in buses) bus.deliver(unscoped(carried))
+        for (bus in buses) bus.deliver(unscoped(carried, place))
         broadcast?.deliver(carried)
     }
 
@@ -88,9 +90,9 @@ internal class FrameHub {
     }
 }
 
-/** `carried`, on no scope. */
-private fun unscoped(carried: Carried): Carried = if (carried.scope == null) carried else when (carried) {
-    is Frame -> carried.copy(scope = null)
+/** `carried`, on no scope: a frame with `place`, where the stream was in the scope it came on. */
+private fun unscoped(carried: Carried, place: Place?): Carried = if (carried.scope == null) carried else when (carried) {
+    is Frame -> carried.unscoped(place)
     is FrameRefusal -> carried.copy(scope = null)
 }
 
@@ -139,7 +141,7 @@ internal class Stream(
     private val router: ReplyRouter,
     private val failures: Broadcast<SemiontError>,
     private val scope: CoroutineScope,
-    private var bookmarks: Bookmarks?,
+    bookmarks: Bookmarks?,
     clock: TimeSource,
     private val random: Random,
 ) {
@@ -207,7 +209,7 @@ internal class Stream(
         reports.trySend(ScopeLetGo(resource))
     }
 
-    /** Keep the places in `bookmarks` from now on, each kept place taken up for a scope that has none yet. */
+    /** Take up the places kept in `bookmarks`, each for a scope that has none yet. */
     fun keepPlaces(bookmarks: Bookmarks) {
         reports.trySend(PlacesKept(bookmarks))
     }
@@ -269,10 +271,7 @@ internal class Stream(
                 if (scoped.remove(report.resource.value) != null && debounceAt == null && lazyAt == null) lazyAt = now + timing.lazyRemoveMs
             }
             TokenChanged -> tokenChanged(now)
-            is PlacesKept -> {
-                for ((resource, id) in report.bookmarks.load()) watermarks.putIfAbsent(resource.value, id)
-                bookmarks = report.bookmarks
-            }
+            is PlacesKept -> for ((resource, id) in report.bookmarks.load()) watermarks.putIfAbsent(resource.value, id)
             is Renewed -> scheduleRetry(0, report.keepPrevious, now)
             Stop -> Unit
         }
@@ -390,7 +389,7 @@ internal class Stream(
             is Line.Allowed -> line.frame
             is Line.Refused -> {
                 router.route(line.refusal)
-                hub.deliver(line.refusal)
+                hub.deliver(line.refusal, null)
                 return
             }
             is Line.Unaddressed -> {
@@ -413,11 +412,11 @@ internal class Stream(
         val frame = Frame(channel, payload, correlationId, scope, Telemetry.received(channel, scope, sentUnder))
         router.route(frame)
         // A scope's position is the last recorded event delivered on it: only a recorded event's id, a PersistedEventId, is one.
-        if (id != null && scope != null && isPersistedEventId(id)) {
-            watermarks[scope.value] = id
-            bookmarks?.save(scope, id)
-        }
-        hub.deliver(frame)
+        // It is kept across the client's lives only once the client's refresher has taken the event, which the place
+        // delivered with the frame lets it note.
+        val place = if (id != null && scope != null && isPersistedEventId(id)) Place(scope, id) else null
+        place?.let { watermarks[it.scope.value] = it.eventId }
+        hub.deliver(frame, place)
     }
 
     private fun refused(conn: Int, error: TransportError, now: Long) {

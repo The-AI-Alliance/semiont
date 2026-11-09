@@ -47,6 +47,7 @@ import semiont.types.UserResponse
 import java.net.http.HttpClient
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import java.util.function.Consumer
 import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
@@ -104,6 +105,9 @@ private fun asking(baseUrl: String, http: HttpClient): suspend (String) -> UserR
  * the writes first (`stop`), once the write under way has landed, so none
  * lands after what it deletes; a registry that closes the session before it
  * deletes stops them too. A write that waits for its turn waits on `context`.
+ * A write the storage refuses once its caller has gone on is owed still
+ * (`owesARefusedWrite`), until a write of its key is made, or closing makes it
+ * (`writeRefused`).
  */
 private class WhileNamed(private val kept: SignInKept, private val kbId: String, private val onError: ((SessionError) -> Unit)?, context: CoroutineContext) {
     private val turn = Mutex()
@@ -111,6 +115,38 @@ private class WhileNamed(private val kept: SignInKept, private val kbId: String,
 
     // Read and written only while `turn` is held.
     private var dropped = false
+
+    /** A write of one key, made for the person whose key is `personKey`. */
+    private class Write(val personKey: String, val change: () -> Unit)
+
+    /** Each write the storage refused once its caller had gone on, by its key. Written only while `turn` is held, and guarded by itself. */
+    private val refusedWrites = LinkedHashMap<String, Write>()
+
+    /** What a write's caller leaves for the write once it has gone on: a refusal after it is not the caller's to hear. */
+    private val wentOn = Any()
+
+    /** Whether a write the storage refused once its caller had gone on is owed still. */
+    val owesARefusedWrite: Boolean
+        get() = synchronized(refusedWrites) { refusedWrites.isNotEmpty() }
+
+    /** Make `write` of `key`, while its person is named: it stands for any write of `key` owed before it. Called while `turn` is held. */
+    private suspend fun make(key: String, write: Write) {
+        if (!dropped && !names(write.personKey)) drop()
+        if (dropped) return
+        synchronized(refusedWrites) { refusedWrites.remove(key) }
+        write.change()
+    }
+
+    /** `write` of `key`, refused once its caller had gone on, is owed still, unless nothing more is written. Called while `turn` is held. */
+    private fun owe(key: String, write: Write) {
+        if (!dropped) synchronized(refusedWrites) { refusedWrites[key] = write }
+    }
+
+    /** Nothing more is written, and nothing is owed. Called while `turn` is held. */
+    private fun drop() {
+        dropped = true
+        synchronized(refusedWrites) { refusedWrites.clear() }
+    }
 
     /**
      * Whether `kept`'s sign-in names the person whose key is `personKey`. One
@@ -129,29 +165,60 @@ private class WhileNamed(private val kept: SignInKept, private val kbId: String,
     fun over(beneath: SessionStorage, personKey: String): SessionStorage = object : SessionStorage {
         // Begun in this thread: while no other write has the turn and `kept` answers without waiting, as the sign-ins
         // the SDK keeps do, it is made before the caller goes on, so a client's closing writes what it owes before it
-        // has closed.
-        private fun write(change: () -> Unit) {
+        // has closed, and a write the storage refuses fails for its caller, a cache, which still owes it. A write that
+        // waited for its turn is made once its caller has gone on: refused, it is owed here, and its refusal is the
+        // writing scope's.
+        private fun write(key: String, change: () -> Unit) {
+            val made = Write(personKey, change)
+            val refusal = AtomicReference<Any?>(null)
             writing.launch(start = CoroutineStart.UNDISPATCHED) {
                 turn.withLock {
-                    if (!dropped && !names(personKey)) dropped = true
-                    if (!dropped) change()
+                    try {
+                        make(key, made)
+                    } catch (refused: Exception) {
+                        if (!refusal.compareAndSet(null, refused)) {
+                            owe(key, made)
+                            throw refused
+                        }
+                    }
                 }
             }
+            (refusal.getAndSet(wentOn) as? Exception)?.let { throw it }
         }
 
         override fun get(key: String): String? = beneath.get(key)
 
-        override fun set(key: String, value: String) = write { beneath.set(key, value) }
+        override fun set(key: String, value: String) = write(key) { beneath.set(key, value) }
 
-        override fun delete(key: String) = write { beneath.delete(key) }
+        override fun delete(key: String) = write(key) { beneath.delete(key) }
 
-        override fun update(key: String, change: (String?) -> String?) = write { beneath.update(key, change) }
+        override fun update(key: String, change: (String?) -> String?) = write(key) { beneath.update(key, change) }
 
         override fun subscribe(onChange: (key: String, value: String?) -> Unit): AutoCloseable? = beneath.subscribe(onChange)
     }
 
-    /** Stop every write: one under way lands first, and none is made after. */
-    suspend fun stop(): Unit = turn.withLock { dropped = true }
+    /**
+     * Make each write owed since the storage refused it, in turn, as closing
+     * does once the client has closed. One refused again is owed still, with
+     * those after it, and its refusal is the writing scope's.
+     */
+    fun writeRefused() {
+        writing.launch(start = CoroutineStart.UNDISPATCHED) {
+            turn.withLock {
+                for ((key, write) in synchronized(refusedWrites) { refusedWrites.toList() }) {
+                    try {
+                        make(key, write)
+                    } catch (again: Exception) {
+                        owe(key, write)
+                        throw again
+                    }
+                }
+            }
+        }
+    }
+
+    /** Stop every write: one under way lands first, and none is made after, nor owed. */
+    suspend fun stop(): Unit = turn.withLock { drop() }
 
     /** `kept`, as the session holds it: its forgetting stops every write before the sign-in is forgotten. */
     val forgetting: SignInKept = object : SignInKept by kept {
@@ -164,13 +231,13 @@ private class WhileNamed(private val kept: SignInKept, private val kbId: String,
 
 /**
  * What a session's client keeps in `storage` of knowledge base `kbId` for the
- * person whose key is `personKey`: the stream's places, which ride the
- * caches' writes, and the caches, each write made only while the session's
- * sign-in names the person (`named`).
+ * person whose key is `personKey`: the caches, each write made only while the
+ * session's sign-in names the person (`named`), and the stream's places, which
+ * ride the caches' writes, in the same turn, once a cache's write has landed.
  */
 private class KeptFor(storage: SessionStorage, kbId: String, personKey: String, named: WhileNamed) {
-    val places = CoupledBookmarks(named.over(storage, personKey), lastEventIdKey(kbId, personKey))
-    val persistence = CachePersistence(places.storage, kbId, personKey)
+    val places = CoupledBookmarks(storage, lastEventIdKey(kbId, personKey))
+    val persistence = CachePersistence(named.over(places.storage, personKey), kbId, personKey)
 }
 
 /** The origin of the gateway `kb` is reached at. Throws `SessionError` (`session.construct-failed`) for a knowledge base reached otherwise than over HTTP, or whose host is no host's name. */
@@ -232,9 +299,11 @@ internal suspend fun sessionStarted(
     )
     val content = HttpContentTransport(transport)
     val client = SemiontClient(transport, content, transport, persistence = atStart?.persistence, context = context, clock = clock)
+    // The client's caches write through `named`, which keeps a write refused once its cache has gone on.
+    client.refusedWrites = named::owesARefusedWrite
     // The stream's place rides the caches' writes, and only when every cache is at rest and no event's refetch is owed:
     // a place kept ahead of a cache still taking in the event it names would have the next session skip that event.
-    atStart?.places?.let(client::keepPlacesIn)
+    atStart?.places?.coupleTo(client)
     val attached = AtomicBoolean(atStart != null)
     val ask = asking(baseUrl, http)
     // Who the gateway says a token is: by a session that keeps, recorded on the sign-in that holds that token, and only
@@ -244,7 +313,7 @@ internal suspend fun sessionStarted(
         val person = personKey(user.did.value)
         if (keeping != null && kept.recordPersonKey(asked, person) && attached.compareAndSet(false, true)) {
             val late = KeptFor(keeping, kb.id, person, named)
-            client.keepPlacesIn(late.places)
+            late.places.coupleTo(client)
             client.attach(late.persistence)
             transport.keepPlaces(late.places)
         }
@@ -252,7 +321,9 @@ internal suspend fun sessionStarted(
     }
     val session = SemiontSession(kb, client, token, named.forgetting, { renewing() }, if (validate) whoIs else null, onAuthFailed, onError, random)
     made.complete(session)
+    // Closed after the client: what it still owes of writes the storage refused is made then, and the places ride it.
     val built = AutoCloseable {
+        named.writeRefused()
         renewing.close()
         content.close()
         transport.close()

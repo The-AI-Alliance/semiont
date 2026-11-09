@@ -58,31 +58,46 @@ public class SemiontClient @JvmOverloads constructor(
     private val live: Live
     private val refresher: Refresher
 
+    /**
+     * Where the stream's places are kept beside what the client keeps, written
+     * while it is settled and as it closes: nowhere, until places are coupled
+     * to it (`CoupledBookmarks.coupleTo`). Its refresher remembers a recorded
+     * event's place there once it has taken the event.
+     */
+    @Volatile
+    internal var places: CoupledBookmarks? = null
+
+    /**
+     * Whether a write of what the client keeps that the storage refused once
+     * the cache asking for it had gone on is owed still: given by a session
+     * whose writer makes the caches' writes later than they save, and keeps
+     * such a write until it is made. None for a client whose caches write
+     * their storage themselves, and hear each refusal.
+     */
+    @Volatile
+    internal var refusedWrites: (() -> Boolean)? = null
+
     init {
         wire = Bus(transport, context, clock)
         links = Links(transport, wire, bus, timing, context, clock)
         transport.bridgeInto(bus)
         live = Live(links, content, persistence)
-        refresher = Refresher(links, live)
+        refresher = Refresher(links, live) { taken -> places?.save(taken.scope, taken.eventId) }
         refresher.start()
     }
 
-    /** Where the stream's places are kept beside what the client keeps: nowhere, unless `keepPlacesIn` says. */
-    @Volatile
-    private var places: CoupledBookmarks? = null
-
     /**
      * Whether the stream's place may be kept beside what the client keeps: no
-     * query it keeps is being fetched or is owed to storage, and no event's
-     * refetch is owed (protocol/contract/CACHE-SEMANTICS.md, B17 and B19).
+     * query it keeps is being fetched or is owed to storage, no event's
+     * refetch is owed, and no write the storage refused is owed
+     * (protocol/contract/CACHE-SEMANTICS.md, B17 and B19).
      */
-    public val persistenceSettled: Boolean get() = live.persistenceSettled && !refresher.owesARefetch
+    public val persistenceSettled: Boolean
+        // What is owed a refetch is read before the caches: a refetch a closing window starts is owed until its fetch is in flight.
+        get() = !refresher.owesARefetch && live.persistenceSettled && !owesARefusedWrite
 
-    /** Keep the stream's places in `places`, written beside what the client keeps while it is settled, and as it closes. */
-    internal fun keepPlacesIn(places: CoupledBookmarks) {
-        places.flushGate = { persistenceSettled }
-        this.places = places
-    }
+    /** Whether a write the storage refused, once the cache asking for it had gone on, is owed still (`refusedWrites`). */
+    internal val owesARefusedWrite: Boolean get() = refusedWrites?.invoke() == true
 
     /** Keep what the client's queries hold in `persistence` from now on: what a client made keeping nothing is given once the person it is for is known. */
     internal fun attach(persistence: CachePersistence): Unit = live.attach(persistence)
@@ -127,8 +142,9 @@ public class SemiontClient @JvmOverloads constructor(
      */
     override fun close() {
         // Read once, before anything is closed, in one step with the places closing may write: closing drops a fetch in
-        // flight and a refetch owed, so either holds them back; a save owed does not, since closing's flush is the save.
-        places?.freeze { live.keptFetchesSettled && !refresher.owesARefetch }
+        // flight and a refetch owed, so either holds them back; a save owed does not, since closing's flush is the save. The
+        // refetch is read first, as `persistenceSettled` reads it.
+        places?.freeze { !refresher.owesARefetch && live.keptFetchesSettled }
         refresher.dispose()
         live.dispose()
         bus.destroy()

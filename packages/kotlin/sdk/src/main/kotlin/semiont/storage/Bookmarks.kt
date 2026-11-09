@@ -5,6 +5,7 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import semiont.SemiontClient
 import semiont.http.Bookmarks
 import semiont.identifiers.ResourceId
 import semiont.registry.isPersistedEventId
@@ -18,29 +19,43 @@ import semiont.types.wireJson
  *
  * The place may lag the caches and never leads them: a place kept ahead of a
  * cache would have the next client resume past an event the cache it begins
- * with never took in. So a place is not written when it is reached. It is
- * remembered, and written with the next write of a cache, when the gate
- * (`flushGate`) says every kept cache is at rest and nothing is owed a
- * refetch. A place that is not written is only late, which costs a replay.
- * When its client begins to close (`freeze`), the gate is read once more and
- * no longer, and the flush closing makes writes only the places remembered by
- * then: none, if a kept cache was fetching or a refetch was owed, since
- * closing drops them; a save owed does not hold them back, since that flush is
- * the save. A place remembered after the reading is of an event whose refetch
- * closing drops, and is not kept. Only a PersistedEventId is a place, and none
- * other is remembered: a pair kept under the key that is not a resource's id
- * and a PersistedEventId is not read, and a value that is no object is no
- * places.
+ * with never took in. So a place is not written when it is reached. The
+ * client the places are coupled to (`coupleTo`) remembers it once its
+ * refresher has taken the event, and it is written with the next write of a
+ * cache, when the client is settled: every kept cache is at rest and nothing
+ * is owed a refetch. A place that is not written is only late, which costs a
+ * replay. When the client begins to close (`freeze`), that is read once more
+ * and no longer, and the flush closing makes writes only the places
+ * remembered by then: none, if a kept cache was fetching or a refetch was
+ * owed, since closing drops them; a save owed does not hold them back, since
+ * that flush is the save. A write the storage refused that is owed still
+ * holds them back until closing makes it, and they ride it. A place
+ * remembered after the reading is of an event
+ * whose refetch closing drops, and is not kept. Only a PersistedEventId is a
+ * place, and none other is remembered: a pair kept under the key that is not a
+ * resource's id and a PersistedEventId is not read, and a value that is no
+ * object is no places.
  */
 public class CoupledBookmarks(private val beneath: SessionStorage, private val key: String) : Bookmarks {
     private val pending = LinkedHashMap<ResourceId, String>()
 
-    /** Whether the client has begun to close: from then on no place is remembered, and the gate is not read again. Guarded by `pending`. */
+    /** Whether the client has begun to close: from then on no place is remembered, and whether it is settled is not read again. Guarded by `pending`. */
     private var closing = false
 
-    /** Whether a place may be written now: every kept cache is at rest, and nothing is owed a refetch. With none, every write of a cache carries what is remembered. */
+    /** The client whose caches the places are kept beside, once they are coupled to it. Until then every write of a cache carries what is remembered. */
     @Volatile
-    public var flushGate: (() -> Boolean)? = null
+    private var coupled: SemiontClient? = null
+
+    /**
+     * Keep the places beside what `client` keeps: a place is written only
+     * while `client` is settled (`SemiontClient.persistenceSettled`), `client`
+     * remembers each place once its refresher has taken the place's event, and
+     * its closing reads once whether it drops anything a place waits on.
+     */
+    public fun coupleTo(client: SemiontClient) {
+        coupled = client
+        client.places = this
+    }
 
     /** The storage to give the caches: what they write goes to the storage beneath, and carries the places with it. */
     public val storage: SessionStorage = object : SessionStorage {
@@ -77,7 +92,8 @@ public class CoupledBookmarks(private val beneath: SessionStorage, private val k
         return places
     }
 
-    override fun save(scope: ResourceId, eventId: String) {
+    /** Remember `eventId` as the place of `scope`: the id of a recorded event delivered on it, which the client has taken in. */
+    internal fun save(scope: ResourceId, eventId: String) {
         if (isPersistedEventId(eventId)) synchronized(pending) { if (!closing) pending[scope] = eventId }
     }
 
@@ -95,12 +111,24 @@ public class CoupledBookmarks(private val beneath: SessionStorage, private val k
         }
     }
 
-    /** Write what is remembered, when the gate allows it, or once the client has begun to close, what `freeze` left. */
+    /** Write what is remembered, while the client is settled, or once it has begun to close, what `freeze` left. */
     private fun flush() {
         val reached = synchronized(pending) {
-            if (pending.isEmpty() || (!closing && flushGate?.invoke() == false)) return
+            if (pending.isEmpty() || !mayWrite()) return
             LinkedHashMap(pending).also { pending.clear() }
         }
         beneath.set(key, wireJson.encodeToString(MapSerializer(ResourceId.serializer(), String.serializer()), load() + reached))
+    }
+
+    /**
+     * Whether a place may be written now: until the places are coupled to a
+     * client, always; then while the client is settled, or once it has begun
+     * to close, while no write the storage refused is owed (closing makes
+     * those, and the places ride the write that lands). Called holding
+     * `pending`.
+     */
+    private fun mayWrite(): Boolean {
+        val client = coupled ?: return true
+        return if (closing) !client.owesARefusedWrite else client.persistenceSettled
     }
 }

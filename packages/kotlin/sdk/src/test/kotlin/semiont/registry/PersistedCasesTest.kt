@@ -32,10 +32,12 @@ import semiont.cache.PERSISTED_QUERIES
 import semiont.http.HttpSessionFactory
 import semiont.http.Realm
 import semiont.http.Said
+import semiont.http.firstOf
 import semiont.http.issued
 import semiont.http.sessionFromKept
 import semiont.http.tokenFor
 import semiont.identifiers.ResourceId
+import semiont.live.recorded
 import semiont.session.OpenedSession
 import semiont.session.SessionSignals
 import semiont.signin.HeldSignIn
@@ -75,6 +77,7 @@ private val MEMBERS = mapOf(
     "startup" to setOf("why", "signedIn", "gateway", "first", "then", "recorded", "place", "untouched"),
     "crossTab" to setOf("why", "stored", "saved"),
     "holder" to setOf("why", "stored", "saved"),
+    "resumeFrom" to setOf("why", "frames", "resumes"),
 )
 
 private val people = cases.getValue("people").jsonObject.mapValues { it.value.jsonObject }
@@ -297,9 +300,9 @@ private class Watching(client: SemiontClient, id: String, scope: CoroutineScope)
  * (protocol/specs/src/session/persisted-cases.json): the keys of each person,
  * what forgetting a saved sign-in deletes, whichever way it is forgotten, what
  * a registry's session over HTTP reads and records as it starts, what it
- * writes once another context has written its knowledge base's sign-in, and
+ * writes once another context has written its knowledge base's sign-in,
  * what a script's session writes once its sign-in has been changed through
- * what holds it.
+ * what holds it, and which event ids become the place a scope resumes from.
  */
 class PersistedCasesTest {
     @Test
@@ -342,6 +345,11 @@ class PersistedCasesTest {
     @TestFactory
     fun aSignInChangedThroughWhatHoldsItIsHeededAsTheTableSays(): List<DynamicTest> = rows("holder").map { row ->
         DynamicTest.dynamicTest(row.text("why")) { holder(row) }
+    }
+
+    @TestFactory
+    fun aScopeResumesFromThePlaceTheTableSays(): List<DynamicTest> = rows("resumeFrom").map { row ->
+        DynamicTest.dynamicTest(row.text("why")) { resumeFrom(row) }
     }
 
     private fun forget(row: JsonObject) {
@@ -536,6 +544,59 @@ class PersistedCasesTest {
                 }
             }
             assertEquals(row.getValue("saved").jsonPrimitive.boolean, savedIn(storage), "saved")
+        }
+    }
+
+    /**
+     * kb-a's session, the registry's own over HTTP, keeps for jo from the
+     * start, and holds res-1 and its scope. The stream delivers the row's
+     * frames on res-1's scope, each a recorded event of res-1 under the id
+     * stated, which asks again for nothing the client holds. A place rides a
+     * write of what the client keeps, so the client then reads res-2, and the
+     * runner waits for that write. The next session over the same storage
+     * resumes res-1's scope from the place it finds there.
+     */
+    private fun resumeFrom(row: JsonObject): Unit = runBlocking {
+        read(row, "resumeFrom")
+        Realm().use { realm ->
+            realm.answersFresh()
+            repeat(10) { realm.script(WHO, Said(200, whoAmI)) }
+            val storage = MemoryStorage()
+            storeSession(storage, KB_A, realm.signIn(JO))
+            val frames = row.getValue("frames").jsonArray.map { it.jsonPrimitive.content }
+            SessionSignals().use { signals ->
+                HttpSessionFactory().session(SessionFactoryOptions(realm.kbA(), storage, signals) {}).use { opened ->
+                    withTimeout(10_000) { opened.session.ready() }
+                    val client = opened.client
+                    Watching(client, "res-1", this).use { watching ->
+                        assertEquals("fresh", watching.given())
+                        eventually("a stream names res-1") { realm.scoped("res-1") != null }
+                        val heard = client.transport.frames("mark:added")
+                        for (id in frames) {
+                            realm.send(buildJsonObject {
+                                put("channel", "mark:added")
+                                put("payload", recorded("mark:added", ResourceId("res-1")))
+                                put("scope", "res-1")
+                            }, id)
+                        }
+                        withTimeout(10_000) { heard.firstOf(frames.size) }
+                        assertEquals("fresh", Watching(client, "res-2", this).use { it.given() })
+                        eventually("the client wrote res-2") { storage.get(JO_RESOURCE_ON_A)?.contains("\"res-2\"") == true }
+                        // The places are written in the same step, just after the document.
+                        settle()
+                    }
+                }
+                val before = realm.subscriptions.size
+                HttpSessionFactory().session(SessionFactoryOptions(realm.kbA(), storage, signals) {}).use { opened ->
+                    withTimeout(10_000) { opened.session.ready() }
+                    Watching(opened.client, "res-1", this).use {
+                        fun resumed(): JsonObject? = realm.subscriptions.drop(before).flatMap { (it["scoped"] as? JsonArray).orEmpty() }
+                            .map { it.jsonObject }.firstOrNull { it["scope"]?.jsonPrimitive?.content == "res-1" }
+                        eventually("the next stream names res-1") { resumed() != null }
+                        assertEquals(row.textOrNull("resumes"), checkNotNull(resumed()).textOrNull("lastEventId"), "resumes")
+                    }
+                }
+            }
         }
     }
 

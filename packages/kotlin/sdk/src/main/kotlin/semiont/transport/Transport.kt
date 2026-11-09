@@ -284,7 +284,22 @@ public data class Frame @JvmExposeBoxed constructor(
     public val scope: ResourceId? = null,
     /** The trace the work done for this frame continues, when the frame was sent under one. */
     public val trace: TraceContext? = null,
-) : Carried
+) : Carried {
+    /**
+     * Where the stream was in the scope this frame came on, once it delivered
+     * it: given with a recorded event's frame as the stream puts it into its
+     * client's bus on no scope (`unscoped`), and null for every other frame.
+     * The client's refresher notes it, once it has taken the frame.
+     */
+    internal var place: Place? = null
+        private set
+
+    /** This frame on no scope, as a client's bus is given it, with `place`. */
+    internal fun unscoped(place: Place?): Frame = copy(scope = null).also { it.place = place }
+}
+
+/** Where a stream was in one scope: the id of the recorded event it last delivered on it, a PersistedEventId. */
+internal data class Place(val scope: ResourceId, val eventId: String)
 
 /**
  * What a typed read gives for each frame: the frame, its payload decoded

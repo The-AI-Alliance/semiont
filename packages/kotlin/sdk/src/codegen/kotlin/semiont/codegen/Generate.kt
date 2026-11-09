@@ -30,7 +30,8 @@ public fun main(args: Array<String>) {
         val kinds = ((readJson(specs.resolve("identifiers/kinds.json")) as? JsonObject)?.get("kinds") as? JsonArray ?: refuse("identifiers/kinds.json lists no kinds"))
             .map { ((it as? JsonObject)?.get("schema") as? JsonPrimitive)?.content ?: refuse("a kind of id names no schema: $it") }
             .toSet()
-        val generated = generate(definitions, Generation(roots = definitions.keys, identifiers = kinds))
+        val generation = Generation(roots = definitions.keys, identifiers = kinds)
+        val generated = generate(definitions, generation)
         out.toFile().deleteRecursively()
         val types = out.resolve(TYPES_PACKAGE.replace('.', '/')).createDirectories()
         for ((name, code) in generated.types) types.resolve("$name.kt").writeText(header(TYPES_PACKAGE, kinds) + code)
@@ -52,7 +53,21 @@ public fun main(args: Array<String>) {
             .map { (it as? JsonPrimitive)?.content ?: refuse("SupportedMediaType states a member that is no text: $it") }
         table("semiont.mediatypes", "MediaTypesTable.kt", emptyList(), mediaTypesFile(readJson(specs.resolve("media-types/registry.json")) as? JsonObject ?: refuse("media-types/registry.json is no object"), supported))
         table("semiont.resources", "Encodings.kt", emptyList(), encodingsFile(readJson(specs.resolve("text/encoding-cases.json")) as? JsonObject ?: refuse("text/encoding-cases.json is no object")))
-        table("semiont.cache", "CacheRefresh.kt", listOf("kotlinx.serialization.json.JsonObject", "semiont.bus.decoded", "semiont.channels.Channels"), cacheRefreshFile(readJson(specs.resolve("client/refresh.json")) as? JsonObject ?: refuse("client/refresh.json is no object"), registry))
+        table(
+            "semiont.cache",
+            "CacheRefresh.kt",
+            listOf(
+                "kotlinx.serialization.json.JsonObject",
+                "kotlinx.serialization.serializer",
+                "semiont.bus.decoded",
+                "semiont.channels.Channels",
+                "semiont.identifiers.*",
+                "semiont.registry.KeptQuery",
+                "semiont.registry.WholeKeySerializer",
+                "semiont.types.*",
+            ),
+            cacheRefreshFile(readJson(specs.resolve("client/refresh.json")) as? JsonObject ?: refuse("client/refresh.json is no object"), registry, definitions, generation),
+        )
         table("semiont.errors", "ErrorCodes.kt", listOf("semiont.Generated"), errorCodesFile(readJson(specs.resolve("errors/codes.json")) as? JsonObject ?: refuse("errors/codes.json is no object")))
         table("semiont.bus", "RequiredTable.kt", emptyList(), requiredFile(readJson(required) as? JsonObject ?: refuse("$required is no object")))
         println("generated ${generated.types.size} types and ${kinds.size} kinds of id")

@@ -62,5 +62,5 @@ public class MatchNamespace internal constructor(private val links: Links, priva
         offset: Long = 0,
         archived: Boolean? = null,
         entityType: String? = null,
-    ): Cached<MatchResourcesResponse> = live.query(Keyed(live.searches, ResourceSearch(search, ResourceFilters(limit, offset, archived, entityType)), { it }))
+    ): Cached<MatchResourcesResponse> = live.query(Keyed(live.matchedResources, ResourceSearch(search, ResourceFilters(limit, offset, archived, entityType)), { it }))
 }

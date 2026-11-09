@@ -6,16 +6,12 @@ import semiont.cache.Cache
 import semiont.cache.CacheQuery
 import semiont.cache.CacheRefreshWhen
 import semiont.cache.Cached
+import semiont.cache.KeptCaches
+import semiont.cache.PERSISTED_QUERIES
 import semiont.cache.Source
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
 import semiont.errors.SemiontError
-import semiont.registry.KEPT_ANNOTATION
-import semiont.registry.KEPT_ANNOTATIONS
-import semiont.registry.KEPT_ENTITY_TYPES
-import semiont.registry.KEPT_RESOURCE
-import semiont.registry.KEPT_TAG_SCHEMAS
-import semiont.registry.KeptQuery
 import semiont.registry.WHOLE_KEY
 import semiont.storage.CachePersistence
 import semiont.identifiers.AnnotationId
@@ -68,49 +64,44 @@ internal data class Subject(
  * One of these is a client's: `browse`, `gather` and `match` make their
  * queries over it, and the client's refresher keeps it true.
  */
-internal class Live(private val links: Links, private val content: ContentTransport, persistence: CachePersistence?) {
+internal class Live(private val links: Links, private val content: ContentTransport, persistence: CachePersistence?) : KeptCaches {
     /** The resource each annotation that was asked for is of: an annotation is kept by its own id, and a request for it names its resource too. */
     val annotationOf = ConcurrentHashMap<AnnotationId, ResourceId>()
 
-    val resource = Cache(::resourceOf, links.scope)
-    val lists = Cache(::resourcesOf, links.scope)
-    val annotations = Cache(content::getAnnotations, links.scope)
-    val annotation = Cache(::annotationOf, links.scope)
-    val entityTypes = Cache({ _: String -> links.request(Operations.BROWSE_ENTITY_TYPES_REQUESTED, BrowseEntityTypesRequest).response.entityTypes }, links.scope)
-    val tagSchemas = Cache({ _: String -> links.request(Operations.BROWSE_TAG_SCHEMAS_REQUESTED, BrowseTagSchemasRequest).response.tagSchemas }, links.scope)
+    // Each query's cache by the query's name (client/refresh.json), apart from `limits`, which `engines` shows beside it.
+    override val resource = Cache(::resourceOf, links.scope)
+    val resources = Cache(::resourcesOf, links.scope)
+    override val annotations = Cache(content::getAnnotations, links.scope)
+    override val annotation = Cache(::annotationOf, links.scope)
+    override val entityTypes = Cache({ _: String -> links.request(Operations.BROWSE_ENTITY_TYPES_REQUESTED, BrowseEntityTypesRequest).response.entityTypes }, links.scope)
+    override val tagSchemas = Cache({ _: String -> links.request(Operations.BROWSE_TAG_SCHEMAS_REQUESTED, BrowseTagSchemasRequest).response.tagSchemas }, links.scope)
     val engines = Cache({ _: String -> links.request(Operations.BROWSE_ENGINES_REQUESTED, BrowseEnginesRequest).response.engines }, links.scope)
 
     /** Each key holder's report of its engines' limits, by the operation that asks it. */
     val limits = Cache(::limitsOf, links.scope)
     val events = Cache(::eventsOf, links.scope)
     val referencedBy = Cache(::referencedByOf, links.scope)
-    val searches = Cache(::searchOf, links.scope)
+    val matchedResources = Cache(::searchOf, links.scope)
 
-    private val caches: List<Cache<*, *>> = listOf(resource, lists, annotations, annotation, entityTypes, tagSchemas, engines, limits, events, referencedBy, searches)
+    private val caches: List<Cache<*, *>> = listOf(resource, resources, annotations, annotation, entityTypes, tagSchemas, engines, limits, events, referencedBy, matchedResources)
 
-    /** The caches of the queries a client keeps, each with how its query is kept: those a client with a storage keeps. */
-    private val keptCaches = listOf(
-        KeptCache(KEPT_RESOURCE, resource),
-        KeptCache(KEPT_ANNOTATIONS, annotations),
-        KeptCache(KEPT_ANNOTATION, annotation),
-        KeptCache(KEPT_ENTITY_TYPES, entityTypes),
-        KeptCache(KEPT_TAG_SCHEMAS, tagSchemas),
-    )
+    /** The caches of the queries a client with a storage keeps. */
+    private val keptCaches: List<Cache<*, *>> = PERSISTED_QUERIES.map { it.cacheIn(this) }
 
     init {
         persistence?.let(::attach)
     }
 
     /** Keep the caches in `persistence` from now on, each beginning with what was kept there. */
-    fun attach(persistence: CachePersistence): Unit = keptCaches.forEach { it.attach(persistence) }
+    fun attach(persistence: CachePersistence): Unit = PERSISTED_QUERIES.forEach { it.attach(this, persistence) }
 
     /** Whether every cache the client keeps is at rest: none is fetching, and none owes a save. */
     val persistenceSettled: Boolean
-        get() = keptCaches.none { it.cache.persistencePending }
+        get() = keptCaches.none { it.persistencePending }
 
     /** Whether no cache the client keeps has a fetch in flight. */
     val keptFetchesSettled: Boolean
-        get() = keptCaches.none { it.cache.keptFetchInFlight }
+        get() = keptCaches.none { it.keptFetchInFlight }
 
     /** A live query of this client, answered from `source`. */
     fun <T : Any> query(source: Source<T>): Cached<T> = Cached(source, links.scope)
@@ -199,11 +190,6 @@ internal class Live(private val links: Links, private val content: ContentTransp
         caches.forEach { it.close() }
         annotationOf.clear()
     }
-}
-
-/** A cache a client with a storage keeps, and how its query is kept: the document its values are kept as. */
-private class KeptCache<K : Any, V : Any>(private val kept: KeptQuery<K, V>, val cache: Cache<K, V>) {
-    fun attach(persistence: CachePersistence): Unit = cache.attach(kept.persister(persistence))
 }
 
 /** The annotations of a resource's list, as its query shows them. */

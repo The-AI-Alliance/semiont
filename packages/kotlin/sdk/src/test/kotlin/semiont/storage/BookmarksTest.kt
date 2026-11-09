@@ -21,6 +21,8 @@ import org.junit.jupiter.api.Test
 import semiont.ClientTiming
 import semiont.SemiontClient
 import semiont.Timings
+import semiont.cache.CACHE_REFRESH_CHANNELS
+import semiont.channels.RESOURCE_SCOPED_CHANNELS
 import semiont.frame
 import semiont.http.HttpTransport
 import semiont.http.StreamGateway
@@ -160,6 +162,36 @@ class BookmarksTest {
     }
 
     @Test
+    fun aPlaceOfAFrameOnAChannelWithNoRowOfTheRefreshTableIsNotedOnceTheRefresherHasReadIt() = runBlocking {
+        val channel = checkNotNull(RESOURCE_SCOPED_CHANNELS.firstOrNull { it !in CACHE_REFRESH_CHANNELS }) { "every channel a resource's scope carries has a row of the refresh table" }
+        val storage = MemoryStorage()
+        val places = CoupledBookmarks(storage, KEY)
+        // The client's work, its refresher's among it, runs only when the test runs this scheduler.
+        val held = TestCoroutineScheduler()
+        StreamGateway().use { gateway ->
+            HttpTransport(gateway.origin, MutableStateFlow("t"), emptyList(), QUICK, null, places).use { transport ->
+                val client = SemiontClient(transport, KbContent(), transport, ClientTiming(), CachePersistence(places.storage, "kb-a", PERSON), StandardTestDispatcher(held), held.timeSource)
+                places.coupleTo(client)
+                val heard = transport.frames(channel)
+                transport.subscribeToResource(RESOURCE).use {
+                    assertEquals(mapOf("res-1" to null), gateway.placesAskedFrom(1))
+                    val event = JsonObject(mapOf("channel" to JsonPrimitive(channel), "payload" to recorded(channel, RESOURCE), "scope" to JsonPrimitive("res-1")))
+                    gateway.send("p-res-1-9", event.toString())
+                    // Delivered to the client, and queued for its refresher, which has not read it.
+                    withTimeout(5_000) { heard.firstOf(1) }
+                    places.storage.set(CACHE, "{}")
+                    assertNull(storage.get(KEY), "the place of a frame the refresher had not read was written")
+                    // Read, with no row to apply: its place rides the next write of a kept cache.
+                    held.runCurrent()
+                    places.storage.set(CACHE, "{}")
+                    assertEquals(mapOf(RESOURCE to "p-res-1-9"), places.load())
+                }
+                client.close()
+            }
+        }
+    }
+
+    @Test
     fun whatIsKeptUnderTheKeyAndIsNotPlacesIsNothingKept() {
         val storage = MemoryStorage()
         for (kept in listOf("not json", "[1, 2]", """{"res-1": 7}""", """{"not an id": "p-x-1"}""", """{"res-1": "e-res-1-1"}""", """{"res-1": "p-1"}""")) {
@@ -210,27 +242,36 @@ class BookmarksTest {
     }
 
     @Test
-    fun aStreamBeginsEachScopeWhereItsBookmarksSayAndTellsThemEachRecordedEventItDelivered() = runBlocking {
+    fun aStreamBeginsEachScopeWhereItsBookmarksSayAndItsClientNotesEachRecordedEventItsRefresherTook() = runBlocking {
         val storage = MemoryStorage()
         storage.set(KEY, """{"res-1": "p-res-1-41"}""")
         val places = CoupledBookmarks(storage, KEY)
         StreamGateway().use { gateway ->
             HttpTransport(gateway.origin, MutableStateFlow("t"), emptyList(), QUICK, null, places).use { transport ->
+                val client = SemiontClient(transport, KbContent(), transport, ClientTiming(), CachePersistence(places.storage, "kb-a", PERSON))
+                places.coupleTo(client)
                 val heard = transport.frames("mark:added")
                 transport.subscribeToResource(RESOURCE).use {
                     transport.subscribeToResource(OTHER).use {
                         // The scope it kept a place in resumes from it; the other begins at the present.
                         assertEquals(mapOf("res-1" to "p-res-1-41", "res-2" to null), gateway.placesAskedFrom(2))
-                        // A recorded event's id is its scope's place, once it has been delivered. A passing frame's is no place.
+                        // A recorded event's id is its scope's place, once the client's refresher has taken the event, even one it cannot read.
+                        // A passing frame's is no place.
                         gateway.send("p-res-1-42", """{"channel":"mark:added","payload":{"n":1},"scope":"res-1"}""")
                         gateway.send("e-9", """{"channel":"mark:added","payload":{"n":2},"scope":"res-2"}""")
                         val read = withTimeout(5_000) { heard.firstOf(2) }
                         assertEquals(listOf(JsonPrimitive(1), JsonPrimitive(2)), read.map { it.frame().payload.getValue("n") })
                         assertEquals("""{"res-1": "p-res-1-41"}""", storage.get(KEY))
-                        places.storage.set(CACHE, "{}")
-                        assertEquals(mapOf(RESOURCE to "p-res-1-42"), places.load())
+                        // Written with a cache's write made once the client is settled: the second unreadable event's refetch is owed until its window closes.
+                        withTimeout(5_000) {
+                            while (places.load() != mapOf(RESOURCE to "p-res-1-42")) {
+                                places.storage.set(CACHE, "{}")
+                                delay(10)
+                            }
+                        }
                     }
                 }
+                client.close()
             }
         }
         // With no bookmarks, a stream begins every scope at the present and keeps nothing.

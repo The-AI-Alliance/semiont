@@ -4,8 +4,6 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
@@ -16,18 +14,14 @@ import kotlinx.serialization.json.JsonIgnoreUnknownKeys
 import kotlinx.serialization.json.JsonPrimitive
 import semiont.Timings
 import semiont.bus.faultOfSchema
+import semiont.cache.Cache
 import semiont.cache.CacheQuery
+import semiont.cache.KeptCaches
 import semiont.cache.PERSISTED_QUERIES
 import semiont.http.codeChallenge
-import semiont.identifiers.AnnotationId
-import semiont.identifiers.ResourceId
 import semiont.storage.CachePersistence
 import semiont.storage.SessionStorage
 import semiont.storage.StoragePersister
-import semiont.types.Annotation
-import semiont.types.GetAnnotationsResponse
-import semiont.types.ResourceDescriptor
-import semiont.types.TagSchema
 
 // What a registry of knowledge bases keeps in a SessionStorage, and what its sessions keep there of their queries and
 // their stream, as protocol/specs/src/session/stored.json states it. StoredTest fails when this differs from the table,
@@ -87,7 +81,7 @@ internal fun cacheKey(kbId: String, personKey: String, query: String): String = 
  * or a new sign-in is kept in its place.
  */
 internal fun forgetKept(storage: SessionStorage, kbId: String, personKey: String) {
-    PERSISTED_QUERIES.forEach { storage.delete(cacheKey(kbId, personKey, it.wire)) }
+    PERSISTED_QUERIES.forEach { storage.delete(cacheKey(kbId, personKey, it.query.wire)) }
     storage.delete(lastEventIdKey(kbId, personKey))
 }
 
@@ -98,7 +92,7 @@ internal const val CACHE_DOCUMENT_VERSION: Long = 1
 internal const val WHOLE_KEY: String = "_"
 
 /** The key of a kept query per nothing, as its document writes it: `WHOLE_KEY`, and no other text. */
-private object WholeKeySerializer : KSerializer<String> {
+internal object WholeKeySerializer : KSerializer<String> {
     override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("semiont.registry.WholeKey", PrimitiveKind.STRING)
 
     override fun serialize(encoder: Encoder, value: String): Unit = encoder.encodeString(value)
@@ -111,21 +105,27 @@ private object WholeKeySerializer : KSerializer<String> {
     }
 }
 
-/** A query a client keeps across a restart (`keptQueries`): its name in client/refresh.json, and what its entries' keys and values are. */
-internal class KeptQuery<K : Any, V : Any>(val query: CacheQuery, val key: KSerializer<K>, val value: KSerializer<V>) {
+/**
+ * A query a client keeps across a restart (a row client/refresh.json marks
+ * `persisted`, as `PERSISTED_QUERIES` has each): its name in that table, what
+ * its entries' keys and values are, and which of a client's caches it is.
+ */
+internal class KeptQuery<K : Any, V : Any>(
+    val query: CacheQuery,
+    val key: KSerializer<K>,
+    val value: KSerializer<V>,
+    private val cache: (KeptCaches) -> Cache<K, V>,
+) {
     /** What keeps the query's cache in `persistence`: one document, under the query's name, for the persistence's person. */
     fun persister(persistence: CachePersistence): StoragePersister<K, V> =
         StoragePersister(persistence.storage, cacheKey(persistence.kbId, persistence.personKey, query.wire), key, value, CACHE_DOCUMENT_VERSION, Timings.MAX_STORED_BYTES_COUNT)
+
+    /** The query's cache among `caches`. */
+    fun cacheIn(caches: KeptCaches): Cache<K, V> = cache(caches)
+
+    /** Keep the query's cache among `caches` in `persistence` from now on. */
+    fun attach(caches: KeptCaches, persistence: CachePersistence): Unit = cache(caches).attach(persister(persistence))
 }
-
-internal val KEPT_RESOURCE = KeptQuery(CacheQuery.Resource, ResourceId.serializer(), ResourceDescriptor.serializer())
-internal val KEPT_ANNOTATIONS = KeptQuery(CacheQuery.Annotations, ResourceId.serializer(), GetAnnotationsResponse.serializer())
-internal val KEPT_ANNOTATION = KeptQuery(CacheQuery.Annotation, AnnotationId.serializer(), Annotation.serializer())
-internal val KEPT_ENTITY_TYPES = KeptQuery(CacheQuery.EntityTypes, WholeKeySerializer, ListSerializer(String.serializer()))
-internal val KEPT_TAG_SCHEMAS = KeptQuery(CacheQuery.TagSchemas, WholeKeySerializer, ListSerializer(TagSchema.serializer()))
-
-/** Every query a client keeps. */
-internal val KEPT_QUERIES: List<KeptQuery<*, *>> = listOf(KEPT_RESOURCE, KEPT_ANNOTATIONS, KEPT_ANNOTATION, KEPT_ENTITY_TYPES, KEPT_TAG_SCHEMAS)
 
 /**
  * What is kept of a sign-in: the tokens an issuer issued, the client they

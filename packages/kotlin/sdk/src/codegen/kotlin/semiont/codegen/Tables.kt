@@ -412,13 +412,21 @@ internal fun encodingsFile(table: JsonObject): String = buildString {
 /** The members a row of the refresh table states. */
 private val REFRESH_ROW_MEMBERS = setOf("on", "when", "reach", "names", "carries", "docs", "refetches", "writes", "removes")
 
+/** A query a client with a storage keeps: its name, the Kotlin type of its entries' keys and the serializer that reads them, the type of its values, and its docs. */
+private class KeptRow(val name: String, val key: String, val keyed: String, val value: String, val docs: String)
+
 /**
  * What a client asks again for, and when (client/refresh.json): the live
- * queries, those a client with a storage keeps, the triggers, each trigger's
- * rows with the ways to what its events name and carry (each split into the
- * names of its members), and the triggers that are channels, each with its
- * channel's reading. A row reaches `subject` unless it says otherwise.
- * Refused: a query whose `persisted` is anything but true; a row that states
+ * queries; those a client with a storage keeps, each with what its entries'
+ * keys are (its `per`) and its values (its `value`, typed as a generation
+ * from `definitions` types it), and the caches a client keeps them in, each
+ * by its query's name; the triggers, each trigger's rows with the ways to
+ * what its events name and carry (each split into the names of its members),
+ * and the triggers that are channels, each with its channel's reading. A row
+ * reaches `subject` unless it says otherwise. Refused: a query whose
+ * `persisted` is anything but true, and a persisted one kept per anything
+ * but a resource, an annotation or nothing, or whose `value` is no `$ref` to
+ * a component or one member of one; a row that states
  * a member a row does not have, names a query the table lacks or a slot other
  * than `resource` and `annotation`, names a subject and reaches what is held,
  * or is enriched and carries no value or unenriched and carries one; a
@@ -428,7 +436,7 @@ private val REFRESH_ROW_MEMBERS = setOf("on", "when", "reach", "names", "carries
  * packages/codegen/schemas/cache-refresh-table.mjs holds each way to its
  * channel's schema.
  */
-internal fun cacheRefreshFile(table: JsonObject, registry: JsonObject): String = buildString {
+internal fun cacheRefreshFile(table: JsonObject, registry: JsonObject, definitions: JsonObject, generation: Generation): String = buildString {
     val queries = table["queries"].list("the refresh table's queries").map { it.obj("a query") }
     val names = queries.map { it["name"].text("a query's name") }
     if (names.toSet().size != names.size) refuse("the refresh table names a query twice")
@@ -445,8 +453,32 @@ internal fun cacheRefreshFile(table: JsonObject, registry: JsonObject): String =
         if ((stated as? JsonPrimitive)?.booleanOrNull != true) refuse("${query["name"].text("a query's name")} is persisted $stated, which is not true")
         true
     }
-    append("/** The queries whose answers a client with a storage keeps, in the table's order. */\n")
-    append("internal val PERSISTED_QUERIES: List<CacheQuery> = ${persisted.joinToString(", ", "listOf(", ")") { "CacheQuery.${variantOf(it["name"].text("a query's name"))}" }}\n\n")
+    val kept = persisted.map { query ->
+        val name = query["name"].text("a query's name")
+        if (!Regex("[a-z][A-Za-z0-9]*").matches(name)) refuse("$name is persisted, and is no name its cache can have")
+        val (key, keyed) = when (val per = query["per"]?.text("$name's per")) {
+            // A query per nothing keeps its one entry under the whole key, and reads that key as nothing else.
+            null -> "String" to "WholeKeySerializer"
+            "resource" -> "ResourceId" to "ResourceId.serializer()"
+            "annotation" -> "AnnotationId" to "AnnotationId.serializer()"
+            else -> refuse("$name is persisted, and kept per $per: a persisted query is kept per a resource, an annotation or nothing")
+        }
+        val ref = query["value"].obj("$name's value")["\$ref"].text("$name's value's \$ref")
+        KeptRow(name, key, keyed, valueTypeOf(definitions, generation, ref), query["docs"].text("a query's docs"))
+    }
+    append("/** The caches a client keeps the queries it keeps in, each by its query's name, holding for each key what the query's `value` says. */\n")
+    append("internal interface KeptCaches {\n")
+    for (query in kept) {
+        append(kdoc("    ", query.docs))
+        append("    val ${code(query.name)}: Cache<${query.key}, ${query.value}>\n")
+    }
+    append("}\n\n")
+    append("/** The queries whose answers a client with a storage keeps, in the table's order: each with what its entries' keys and values are, and its cache. */\n")
+    append("internal val PERSISTED_QUERIES: List<KeptQuery<*, *>> = listOf(\n")
+    for (query in kept) {
+        append("    KeptQuery(CacheQuery.${variantOf(query.name)}, ${query.keyed}, serializer<${query.value}>(), KeptCaches::${code(query.name)}),\n")
+    }
+    append(")\n\n")
     val rows = table["refresh"].list("the refresh table's rows").map { it.obj("a row") }
     val triggers = rows.map { it["on"].text("a row's trigger") }.distinct()
     for (trigger in triggers) if (trigger != "reopened" && trigger != "unreadable" && trigger !in channels) refuse("$trigger is no channel of the registry")

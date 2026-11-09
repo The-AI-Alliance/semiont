@@ -106,7 +106,7 @@ public class BrowseNamespace internal constructor(private val links: Links, priv
      */
     @JvmOverloads
     public fun resources(limit: Long = LIST_LIMIT, offset: Long = 0, archived: Boolean? = null, entityType: String? = null): Cached<ListResourcesResponse> =
-        live.query(Keyed(live.lists, ResourceFilters(limit, offset, archived, entityType), { it }))
+        live.query(Keyed(live.resources, ResourceFilters(limit, offset, archived, entityType), { it }))
 
     /** A resource's annotations: a live query. */
     @JvmExposeBoxed

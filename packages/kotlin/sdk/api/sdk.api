@@ -665,7 +665,6 @@ public final class semiont/http/BeginAuthorizationOptions {
 
 public abstract interface class semiont/http/Bookmarks {
 	public abstract fun load ()Ljava/util/Map;
-	public abstract fun save-k2J_C-I (Ljava/lang/String;Ljava/lang/String;)V
 }
 
 public final class semiont/http/ConnectKt {
@@ -2002,11 +2001,9 @@ public final class semiont/storage/CachePersistence {
 
 public final class semiont/storage/CoupledBookmarks : semiont/http/Bookmarks {
 	public fun <init> (Lsemiont/storage/SessionStorage;Ljava/lang/String;)V
-	public final fun getFlushGate ()Lkotlin/jvm/functions/Function0;
+	public final fun coupleTo (Lsemiont/SemiontClient;)V
 	public final fun getStorage ()Lsemiont/storage/SessionStorage;
 	public fun load ()Ljava/util/Map;
-	public fun save-k2J_C-I (Ljava/lang/String;Ljava/lang/String;)V
-	public final fun setFlushGate (Lkotlin/jvm/functions/Function0;)V
 }
 
 public final class semiont/storage/MemoryStorage : semiont/storage/SessionStorage {

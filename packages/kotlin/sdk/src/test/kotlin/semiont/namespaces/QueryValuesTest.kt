@@ -7,7 +7,6 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.serializer
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 import semiont.Spec
@@ -16,14 +15,6 @@ import semiont.descriptorOf
 import java.lang.reflect.ParameterizedType
 
 private val queries = Spec.read("client/refresh.json").jsonObject.getValue("queries").jsonArray.map { it.jsonObject }
-
-/**
- * The queries whose `value` waits on a ruling, and is not held here until it
- * lands: `engines`, proposed as BrowseEnginesResult's `response.engines`, the
- * engines without their limits, the cache holding them and the query joining
- * the limits as it shows them.
- */
-private val WAITING_ON_A_RULING = setOf("engines")
 
 /** What Live's cache of the query named `query` holds for a key, as Kotlin decodes it: the cache's value type. */
 private fun heldBy(query: String): SerialDescriptor {
@@ -42,14 +33,10 @@ private fun heldBy(query: String): SerialDescriptor {
  */
 class QueryValuesTest {
     @TestFactory
-    fun eachQuerysCacheHoldsWhatItsRowSaysItsValueIs(): List<DynamicTest> {
-        val named = queries.map { it.getValue("name").jsonPrimitive.content }
-        assertTrue(named.containsAll(WAITING_ON_A_RULING), "$WAITING_ON_A_RULING wait on a ruling, and are not all queries of the table")
-        return queries.filter { it.getValue("name").jsonPrimitive.content !in WAITING_ON_A_RULING }.map { row ->
-            val query = row.getValue("name").jsonPrimitive.content
-            DynamicTest.dynamicTest(query) {
-                assertEquals(descriptorOf(row.getValue("value").jsonObject), heldBy(query), query)
-            }
+    fun eachQuerysCacheHoldsWhatItsRowSaysItsValueIs(): List<DynamicTest> = queries.map { row ->
+        val query = row.getValue("name").jsonPrimitive.content
+        DynamicTest.dynamicTest(query) {
+            assertEquals(descriptorOf(row.getValue("value").jsonObject), heldBy(query), query)
         }
     }
 }
