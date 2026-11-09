@@ -1343,6 +1343,102 @@ button:disabled {
   -webkit-app-region: drag;
 }
 
+.workspace-tabs {
+  display: flex;
+  align-items: stretch;
+  flex: 0 0 2.75rem;
+  gap: 0.25rem;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0 0.65rem;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--surface-sidebar);
+}
+
+.workspace-tab {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  max-width: 16rem;
+  margin-top: 0.35rem;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 7px 7px 0 0;
+  color: var(--muted);
+}
+
+.workspace-tab--active {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.workspace-tab__select,
+.workspace-tab__close,
+.workspace-tabs__add {
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.workspace-tab__select {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  height: 100%;
+  padding: 0 0.45rem 0 0.7rem;
+  font: inherit;
+  font-size: 0.76rem;
+}
+
+.workspace-tab__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-tab__status {
+  flex: 0 0 0.45rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.workspace-tab__status--connected {
+  background: var(--success);
+}
+
+.workspace-tab__close {
+  width: 1.65rem;
+  height: 1.65rem;
+  margin-right: 0.2rem;
+  border-radius: 5px;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.workspace-tab__close:hover,
+.workspace-tab__close:focus-visible,
+.workspace-tab__select:hover,
+.workspace-tabs__add:hover,
+.workspace-tabs__add:focus-visible {
+  color: var(--accent);
+  outline: none;
+}
+
+.workspace-tabs__add {
+  align-self: center;
+  flex: 0 0 1.8rem;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
 /* Semiont menu lives at the bottom of the left navigation and opens upward. */
 .nav__footer {
   position: relative;
@@ -1515,88 +1611,23 @@ body.resizing {
   border-top: 1px solid var(--border-soft);
 }
 
-.nav__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 0.35rem;
-}
-
-.nav__title {
-  margin: 0;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--faint);
-  font-weight: 600;
-}
-
-.nav__add {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.4rem;
-  height: 1.4rem;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--field);
-  color: var(--muted);
-  font-size: 1.05rem;
-  line-height: 1;
-}
-.nav__add:hover {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
 .nav__empty {
-  margin: 0.4rem 0.35rem;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-/* Inline "add a KB" form under the header. */
-.nav__addkb {
+  margin: 0.8rem 0.35rem;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--field);
-}
-.nav__addkb input {
-  padding: 0.45rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  font: inherit;
+  align-items: flex-start;
+  gap: 0.7rem;
   font-size: 0.85rem;
-  color: var(--text);
-  background: var(--field);
+  color: var(--muted);
 }
-.nav__addkb input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-ring);
-}
-.nav__addkb-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-}
-.nav__addkb-actions button {
+.nav__empty button {
   padding: 0.4rem 0.85rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--accent);
   border-radius: 7px;
-  background: var(--field);
-  color: var(--text);
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-.nav__addkb-actions button[type='submit'] {
-  border-color: var(--accent);
   background: var(--accent);
   color: var(--on-accent);
+  font: inherit;
+  font-weight: 500;
 }
 
 /* ── One KB in the nav ────────────────────────────────────────────────── */
@@ -2009,6 +2040,15 @@ body.resizing {
   gap: 0.9rem;
   padding: 2rem;
   text-align: center;
+}
+.main--welcome h1 {
+  margin: 0;
+  font-size: 1.65rem;
+  font-weight: 600;
+}
+.main--welcome .main__hint {
+  max-width: 28rem;
+  line-height: 1.55;
 }
 .main__hint {
   margin: 0;

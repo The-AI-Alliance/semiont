@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import type { ControlProgress, ControlRoot, ControlRootsInitParams, ControlServiceStatus } from '../../electron/control-types.gen';
 
 export type KnowledgeBaseRuntimeStatus = 'checking' | 'starting' | 'running' | 'stopped' | 'attention' | 'unknown';
@@ -36,6 +36,10 @@ export function KnowledgeBasesModal({
   onForget,
   onFollowLogs,
   onCreate,
+  focusSearchOnOpen,
+  openTabUris,
+  activeTabUri,
+  onOpenTab,
   onClose,
 }: {
   state: KnowledgeBasesState;
@@ -46,12 +50,17 @@ export function KnowledgeBasesModal({
   onLogout: (root: KnowledgeBaseRow) => void;
   onForget: (root: KnowledgeBaseRow) => void;
   onFollowLogs: (root: KnowledgeBaseRow) => void;
-  onCreate: (options: NewKnowledgeBaseOptions, onProgress: (progress: ControlProgress) => void) => Promise<void>;
+  onCreate: (options: NewKnowledgeBaseOptions, onProgress: (progress: ControlProgress) => void) => Promise<string>;
+  focusSearchOnOpen: boolean;
+  openTabUris: string[];
+  activeTabUri: string | null;
+  onOpenTab: (root: KnowledgeBaseRow) => void;
   onClose: () => void;
 }) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [filterText, setFilterText] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -71,11 +80,16 @@ export function KnowledgeBasesModal({
     return name.toLocaleLowerCase().includes(normalizedFilter) || root.path.toLocaleLowerCase().includes(normalizedFilter);
   }), [normalizedFilter, roots]);
   useEffect(() => {
+    if (state.status !== 'result') return;
     setSelectedPath((current) => current !== null && filteredRoots.some((root) => root.path === current)
       ? current
       : filteredRoots[0]?.path ?? null);
-  }, [filteredRoots]);
+  }, [filteredRoots, state.status]);
   const selected = filteredRoots.find((root) => root.path === selectedPath) ?? filteredRoots[0];
+  const selectedTabUri = selected?.configuredUri ?? selected?.gatewayUrl;
+  useEffect(() => {
+    if (focusSearchOnOpen && state.status === 'result') searchRef.current?.focus();
+  }, [focusSearchOnOpen, state.status]);
 
   return (
     <div className="modal" onClick={onClose}>
@@ -94,23 +108,22 @@ export function KnowledgeBasesModal({
             {state.result.warnings?.map((warning) => (
               <p className="knowledge-bases__source" key={warning}>{warning}</p>
             ))}
+            <label className="knowledge-bases__filter">
+              <input
+                ref={searchRef}
+                type="search"
+                value={filterText}
+                onChange={(event) => setFilterText(event.target.value)}
+                placeholder="Filter by name or path"
+                aria-label="Filter knowledge bases by name or path"
+              />
+              <span aria-live="polite">{filteredRoots.length} of {roots.length}</span>
+            </label>
             {roots.length === 0 ? (
-              <p className="knowledge-bases__empty">No local knowledge bases are recorded yet.</p>
+              <p className="knowledge-bases__empty">No local knowledge bases are recorded yet. Create one with New.</p>
+            ) : filteredRoots.length === 0 ? (
+              <p className="knowledge-bases__empty">No knowledge bases match “{filterText.trim()}”.</p>
             ) : (
-              <>
-                <label className="knowledge-bases__filter">
-                  <input
-                    type="search"
-                    value={filterText}
-                    onChange={(event) => setFilterText(event.target.value)}
-                    placeholder="Filter by name or path"
-                    aria-label="Filter knowledge bases by name or path"
-                  />
-                  <span aria-live="polite">{filteredRoots.length} of {roots.length}</span>
-                </label>
-                {filteredRoots.length === 0 ? (
-                  <p className="knowledge-bases__empty">No knowledge bases match “{filterText.trim()}”.</p>
-                ) : (
                   <div className="knowledge-bases__workspace">
                     <div className="knowledge-bases__table-wrap">
                       <table className="knowledge-bases__table">
@@ -149,12 +162,14 @@ export function KnowledgeBasesModal({
                         onLogout={onLogout}
                         onForget={onForget}
                         onFollowLogs={onFollowLogs}
+                        openTab={selectedTabUri !== undefined && openTabUris.includes(selectedTabUri)}
+                        activeTab={selectedTabUri === activeTabUri}
+                        canOpenTab={selectedTabUri !== undefined}
+                        onOpenTab={() => onOpenTab(selected)}
                       />
                     )}
                   </div>
                 )}
-              </>
-            )}
           </>
         )}
         <footer className="knowledge-bases__footer">
@@ -166,9 +181,10 @@ export function KnowledgeBasesModal({
         <NewKnowledgeBaseModal
           onCreate={onCreate}
           onClose={() => setShowCreate(false)}
-          onCreated={() => {
+          onCreated={(path) => {
             setShowCreate(false);
             setFilterText('');
+            setSelectedPath(path);
             onRefresh();
           }}
         />
@@ -178,9 +194,9 @@ export function KnowledgeBasesModal({
 }
 
 function NewKnowledgeBaseModal({ onCreate, onClose, onCreated }: {
-  onCreate: (options: NewKnowledgeBaseOptions, onProgress: (progress: ControlProgress) => void) => Promise<void>;
+  onCreate: (options: NewKnowledgeBaseOptions, onProgress: (progress: ControlProgress) => void) => Promise<string>;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (path: string) => void;
 }) {
   const [path, setPath] = useState('');
   const [name, setName] = useState('');
@@ -227,8 +243,8 @@ function NewKnowledgeBaseModal({ onCreate, onClose, onCreated }: {
       ...(ollamaRegistry.trim() === '' ? {} : { ollamaRegistry: ollamaRegistry.trim() }),
     };
     try {
-      await onCreate(options, (notice) => setProgress((current) => [...current, notice].slice(-80)));
-      onCreated();
+      const createdPath = await onCreate(options, (notice) => setProgress((current) => [...current, notice].slice(-80)));
+      onCreated(createdPath);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setCreating(false);
@@ -297,7 +313,7 @@ function NewKnowledgeBaseModal({ onCreate, onClose, onCreated }: {
   );
 }
 
-function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForget, onFollowLogs }: {
+function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForget, onFollowLogs, openTab, activeTab, canOpenTab, onOpenTab }: {
   root: KnowledgeBaseRow;
   onStart: (root: KnowledgeBaseRow) => void;
   onStop: (root: KnowledgeBaseRow) => void;
@@ -305,6 +321,10 @@ function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForg
   onLogout: (root: KnowledgeBaseRow) => void;
   onForget: (root: KnowledgeBaseRow) => void;
   onFollowLogs: (root: KnowledgeBaseRow) => void;
+  openTab: boolean;
+  activeTab: boolean;
+  canOpenTab: boolean;
+  onOpenTab: () => void;
 }) {
   const [confirmForget, setConfirmForget] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -336,6 +356,16 @@ function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForg
       </header>
 
       {root.statusDetail !== undefined && <p className="knowledge-bases__status-detail">{root.statusDetail}</p>}
+
+      <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-bases-workspace-heading">
+        <h3 id="knowledge-bases-workspace-heading">Desktop workspace</h3>
+        <div className="knowledge-bases__controls">
+          <button type="button" className="kb__connect" disabled={!canOpenTab || activeTab} onClick={onOpenTab}>
+            {activeTab ? 'Current tab' : openTab ? 'Switch to tab' : 'Open as tab'}
+          </button>
+        </div>
+        {!canOpenTab && <p className="knowledge-bases__action-note">Start this KB to discover its gateway address before opening it in Desktop.</p>}
+      </section>
 
       <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-bases-services-heading">
         <h3 id="knowledge-bases-services-heading">Services</h3>

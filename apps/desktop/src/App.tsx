@@ -25,6 +25,7 @@ import {
 import { getPref, setPref } from './lib/prefs';
 import { CHAT_MIN, DOC_DEFAULT, clampDocWidth, mainLayout } from './lib/split-layout';
 import { KbNav } from './components/KbNav';
+import { WorkspaceTabs } from './components/WorkspaceTabs';
 import { ThemePanel } from './components/ThemePanel';
 import { AboutModal } from './components/AboutModal';
 import { InferenceModal } from './components/InferenceModal';
@@ -60,6 +61,9 @@ const isElectron = typeof window !== 'undefined' && window.configBridge !== unde
 const SIDEBAR_KEY = 'sidebar-width';
 const DOC_WIDTH_KEY = 'doc-pane-width';
 const ACTIVE_SESSION_KEY = 'active-session-id';
+const ACTIVE_SESSIONS_KEY = 'active-session-ids-by-kb';
+const OPEN_KB_TABS_KEY = 'open-kb-tabs';
+const ACTIVE_KB_TAB_KEY = 'active-kb-tab-uri';
 const CLICK_ACTION_KEY = 'viewer-click-action';
 const MOTIVATION_KEY = 'viewer-motivation';
 const CONNECTED_KBS_KEY = 'connected-kb-uris';
@@ -176,10 +180,15 @@ export function App() {
   // One live connection per connected KB (its own token-refreshing SemiontSession).
   const [connections, setConnections] = useState<Record<string, KbConnection>>({});
   const [sessions, setSessions] = useState<AppChatSession[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [openKbTabUris, setOpenKbTabUris] = useState<string[]>([]);
+  const [activeKbTabUri, setActiveKbTabUri] = useState<string | null>(null);
+  const [activeSessionIdsByKb, setActiveSessionIdsByKb] = useState<Record<string, string>>({});
+  const [activeResourcesByKb, setActiveResourcesByKb] = useState<Record<string, { id: string; kbUri: string; name: string }>>({});
+  const activeSessionId = activeKbTabUri === null ? null : activeSessionIdsByKb[activeKbTabUri] ?? null;
+  const activeSession = activeSessionId === null ? null : sessions.find((s) => s.id === activeSessionId) ?? null;
   // The document shown in the main pane. It coexists with the active chat: when both are
   // set and the pane is wide enough, the main pane splits (chat left, document right).
-  const [activeResource, setActiveResource] = useState<{ id: string; kbUri: string; name: string } | null>(null);
+  const activeResource = activeKbTabUri === null ? null : activeResourcesByKb[activeKbTabUri] ?? null;
   const [showTheme, setShowTheme] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showInference, setShowInference] = useState(false);
@@ -187,6 +196,7 @@ export function App() {
   const [inferenceUnavailable, setInferenceUnavailable] = useState(false);
   const [showLauncherStatus, setShowLauncherStatus] = useState(false);
   const [showKnowledgeBases, setShowKnowledgeBases] = useState(false);
+  const [focusKnowledgeBaseSearch, setFocusKnowledgeBaseSearch] = useState(false);
   const [logsRoot, setLogsRoot] = useState<KnowledgeBaseRow | null>(null);
   const [knowledgeBasesState, setKnowledgeBasesState] = useState<KnowledgeBasesState>({ status: 'loading' });
   const [showTelemetry, setShowTelemetry] = useState(false);
@@ -220,8 +230,9 @@ export function App() {
       : current);
   }, []);
 
-  const openKnowledgeBases = useCallback(() => {
+  const openKnowledgeBases = useCallback((focusSearch = false) => {
     setShowKnowledgeBases(true);
+    setFocusKnowledgeBaseSearch(focusSearch);
     setKnowledgeBasesState({ status: 'loading' });
     const bridge = window.launcherBridge;
     if (bridge === undefined) {
@@ -258,6 +269,7 @@ export function App() {
       if (notice.method === 'notifications/progress') onProgress(notice.params);
     });
     if (!outcome.ok) throw new Error(controlFailureText(outcome.error));
+    return outcome.result.path;
   }, []);
 
   const openAbout = useCallback(() => setShowAbout(true), []);
@@ -396,6 +408,7 @@ export function App() {
   const sidebarLoaded = useRef(false);
   const docWidthLoaded = useRef(false);
   const sessionsLoaded = useRef(false);
+  const workspaceLoaded = useRef(false);
   const themeLoaded = useRef(false);
   const bootstrapped = useRef(false);
 
@@ -674,20 +687,58 @@ export function App() {
     if (root.activeSessionUri !== undefined) disconnectKb(root.activeSessionUri);
   };
 
+  const openKnowledgeBaseTab = (root: KnowledgeBaseRow) => {
+    if (config === null) return;
+    const uri = root.configuredUri ?? root.gatewayUrl;
+    if (uri === undefined) return;
+    let kb = config.kbs.find((entry) => normalizeGatewayUri(entry.uri) === normalizeGatewayUri(uri));
+    if (kb === undefined) {
+      kb = { uri, ...(root.siteName === undefined ? {} : { alias: root.siteName }) };
+      saveConfig({ ...config, kbs: [...config.kbs, kb] });
+    }
+    openKbTab(kb.uri);
+    setShowKnowledgeBases(false);
+  };
+
   // On launch, once the config is in: load sessions + the last active session, and
   // auto-reconnect the KBs that were connected last run (those still in the config).
   useEffect(() => {
     if (config === null || bootstrapped.current) return;
     bootstrapped.current = true;
     void (async () => {
-      const [loaded, savedActive, connectedUris] = await Promise.all([
+      const [loaded, savedActive, savedActiveByKb, savedTabs, savedTab, connectedUris] = await Promise.all([
         loadSessions(),
         getPref<string | null>(ACTIVE_SESSION_KEY, null),
+        getPref<Record<string, string>>(ACTIVE_SESSIONS_KEY, {}),
+        getPref<string[] | null>(OPEN_KB_TABS_KEY, null),
+        getPref<string | null>(ACTIVE_KB_TAB_KEY, null),
         getPref<string[]>(CONNECTED_KBS_KEY, []),
       ]);
       setSessions(loaded);
-      if (savedActive && loaded.some((s) => s.id === savedActive)) setActiveSessionId(savedActive);
+      const configuredUris = new Set(config.kbs.map((kb) => kb.uri));
+      const tabs = [...new Set(savedTabs ?? config.kbs.map((kb) => kb.uri))].filter((uri) => configuredUris.has(uri));
+      const sessionsById = new Map(loaded.map((session) => [session.id, session]));
+      const activeByKb = Object.fromEntries(Object.entries(savedActiveByKb).filter(([uri, id]) => configuredUris.has(uri) && sessionsById.get(id)?.kbUri === uri));
+      if (savedActive !== null) {
+        const legacyActive = sessionsById.get(savedActive);
+        if (legacyActive !== undefined && configuredUris.has(legacyActive.kbUri)) activeByKb[legacyActive.kbUri] = legacyActive.id;
+      }
+      for (const uri of tabs) {
+        if (activeByKb[uri] === undefined) {
+          const recent = sessionsForKb(loaded, uri)[0];
+          if (recent !== undefined) activeByKb[uri] = recent.id;
+        }
+      }
+      const activeTab = savedTab !== null && tabs.includes(savedTab)
+        ? savedTab
+        : savedActive !== null && sessionsById.get(savedActive) !== undefined && tabs.includes(sessionsById.get(savedActive)!.kbUri)
+          ? sessionsById.get(savedActive)!.kbUri
+          : tabs[0] ?? null;
+      setOpenKbTabUris(tabs);
+      setActiveKbTabUri(activeTab);
+      setActiveSessionIdsByKb(activeByKb);
       sessionsLoaded.current = true;
+      workspaceLoaded.current = true;
       for (const uri of connectedUris) {
         if (config.kbs.some((k) => k.uri === uri)) void connectKb(uri, false);
       }
@@ -701,6 +752,12 @@ export function App() {
   useEffect(() => {
     if (sessionsLoaded.current) void setPref(ACTIVE_SESSION_KEY, activeSessionId);
   }, [activeSessionId]);
+  useEffect(() => {
+    if (!workspaceLoaded.current) return;
+    void setPref(OPEN_KB_TABS_KEY, openKbTabUris);
+    void setPref(ACTIVE_KB_TAB_KEY, activeKbTabUri);
+    void setPref(ACTIVE_SESSIONS_KEY, activeSessionIdsByKb);
+  }, [openKbTabUris, activeKbTabUri, activeSessionIdsByKb]);
 
   // Remember which KBs are connected, to auto-reconnect them next launch.
   useEffect(() => {
@@ -711,18 +768,41 @@ export function App() {
     void setPref(CONNECTED_KBS_KEY, connected);
   }, [connections]);
 
-  // --- KB CRUD (config) ---
-  const handleAddKb = (kb: KbEntry) => {
-    if (config === null) return;
-    saveConfig({ ...config, kbs: [...config.kbs.filter((k) => k.uri !== kb.uri), kb] });
+  const openKbTab = (uri: string) => {
+    setOpenKbTabUris((current) => current.includes(uri) ? current : [...current, uri]);
+    setActiveKbTabUri(uri);
+    if (activeSessionIdsByKb[uri] === undefined) {
+      const recent = sessionsForKb(sessions, uri)[0];
+      if (recent !== undefined) setActiveSessionIdsByKb((current) => ({ ...current, [uri]: recent.id }));
+    }
   };
+
+  const closeKbTab = (uri: string) => {
+    const index = openKbTabUris.indexOf(uri);
+    if (index < 0) return;
+    const remaining = openKbTabUris.filter((openUri) => openUri !== uri);
+    setOpenKbTabUris(remaining);
+    if (activeKbTabUri === uri) setActiveKbTabUri(remaining[Math.min(index, remaining.length - 1)] ?? null);
+  };
+
+  // --- KB CRUD (config) ---
   const handleRemoveKb = (kbUri: string) => {
     if (config === null) return;
+    closeKbTab(kbUri);
     disconnectKb(kbUri);
     saveConfig({ ...config, kbs: config.kbs.filter((k) => k.uri !== kbUri) });
     const remaining = sessions.filter((s) => s.kbUri !== kbUri);
     setSessions(remaining);
-    if (activeSessionId && !remaining.some((s) => s.id === activeSessionId)) setActiveSessionId(null);
+    setActiveSessionIdsByKb((current) => {
+      const next = { ...current };
+      delete next[kbUri];
+      return next;
+    });
+    setActiveResourcesByKb((current) => {
+      const next = { ...current };
+      delete next[kbUri];
+      return next;
+    });
   };
   const handleRenameKbAlias = (kbUri: string, alias: string) => {
     if (config === null) return;
@@ -733,7 +813,7 @@ export function App() {
   const handleNewChat = (kbUri: string) => {
     const s = newSession(kbUri);
     setSessions((prev) => [...prev, s]);
-    setActiveSessionId(s.id); // any open document stays put (split view)
+    setActiveSessionIdsByKb((current) => ({ ...current, [kbUri]: s.id })); // any open document for this KB stays put
   };
   const handleRenameSession = (id: string, name: string) => {
     setSessions((prev) =>
@@ -746,7 +826,14 @@ export function App() {
     setSessions(remaining);
     if (activeSessionId === id) {
       const sameKb = target ? sessionsForKb(remaining, target.kbUri) : [];
-      setActiveSessionId(sameKb[0]?.id ?? null);
+      if (target !== undefined) {
+        setActiveSessionIdsByKb((current) => {
+          const next = { ...current };
+          if (sameKb[0] === undefined) delete next[target.kbUri];
+          else next[target.kbUri] = sameKb[0].id;
+          return next;
+        });
+      }
     }
   };
 
@@ -761,9 +848,20 @@ export function App() {
   // Rendered natively via @semiont/react-ui's bring-your-own-session ResourceViewer, so this
   // works in both the web and Electron builds. `name` is what the nav row shows; a reference
   // followed from inside the viewer arrives with the id as its name.
-  const openResource = (kbUri: string, id: string, name: string) => setActiveResource({ kbUri, id, name });
+  const openResource = (kbUri: string, id: string, name: string) => setActiveResourcesByKb((current) => ({ ...current, [kbUri]: { kbUri, id, name } }));
+  const closeActiveResource = () => {
+    if (activeKbTabUri === null) return;
+    setActiveResourcesByKb((current) => {
+      const next = { ...current };
+      delete next[activeKbTabUri];
+      return next;
+    });
+  };
   // Selecting a chat session leaves any open document in place (split view).
-  const selectSession = (id: string) => setActiveSessionId(id);
+  const selectSession = (id: string) => {
+    const selected = sessions.find((session) => session.id === id);
+    if (selected !== undefined) setActiveSessionIdsByKb((current) => ({ ...current, [selected.kbUri]: id }));
+  };
 
   if (config === null) return <p className="app__connecting">Loading…</p>;
 
@@ -788,14 +886,11 @@ export function App() {
     ? { ...knowledgeBasesState, result: { ...knowledgeBasesState.result, roots: knowledgeBaseRows } }
     : knowledgeBasesState;
 
-  const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
-  const activeKbUri = activeSession?.kbUri ?? null;
+  const activeKbUri = activeKbTabUri;
+  const activeKb = activeKbUri === null ? null : config.kbs.find((kb) => kb.uri === activeKbUri) ?? null;
   const activeConn = activeKbUri ? connections[activeKbUri] : undefined;
 
-  // The footer describes the active chat's KB (the composer's context); with no chat
-  // selected it falls back to the open document's. Null hides the status line; the pref
-  // controls always render. (In a split the doc pane's header names the doc — a
-  // doc from ANOTHER KB is identified there, not here.)
+  // The selected workspace tab owns the whole app context, including the footer.
   const footerKbUri = activeKbUri ?? activeResource?.kbUri ?? null;
   const footerConn = footerKbUri !== null ? connections[footerKbUri] : undefined;
   let footerKb: KbDisplay | null = null;
@@ -814,9 +909,20 @@ export function App() {
     <>
       <div className={isElectron ? 'app app--electron' : 'app'}>
         {isElectron && <div className="app__dragbar" aria-hidden="true" />}
+        <WorkspaceTabs
+          tabs={openKbTabUris.flatMap((uri) => {
+            const kb = config.kbs.find((entry) => entry.uri === uri);
+            return kb === undefined ? [] : [kb];
+          })}
+          activeUri={activeKbTabUri}
+          connections={connections}
+          onSelect={openKbTab}
+          onClose={closeKbTab}
+          onAdd={() => openKnowledgeBases(true)}
+        />
         <div className="app__body" style={{ gridTemplateColumns: `${sidebarWidth}px 1px 1fr` }}>
           <KbNav
-            kbs={config.kbs}
+            kbs={activeKb === null ? [] : [activeKb]}
             connections={connections}
             sessions={sessions}
             // doc and chat coexist now — both rows light up when both are live
@@ -824,7 +930,6 @@ export function App() {
             activeResourceId={activeResource?.id ?? null}
             docsRefresh={docsRefresh}
             onOpenResource={openResource}
-            onAddKb={handleAddKb}
             onRemoveKb={handleRemoveKb}
             onRenameKbAlias={handleRenameKbAlias}
             onConnect={(uri) => void connectKb(uri, true)}
@@ -840,7 +945,7 @@ export function App() {
             mcpStatus={mcpStatus}
             onOpenTheme={() => setShowTheme(true)}
             onOpenLauncherStatus={refreshLauncherStatus}
-            onOpenKnowledgeBases={openKnowledgeBases}
+            onOpenKnowledgeBases={() => openKnowledgeBases(true)}
             onOpenTelemetry={openTelemetry}
             onOpenRuntime={openRuntime}
             onOpenGit={openGit}
@@ -857,13 +962,15 @@ export function App() {
           <MainPane
             viewerPrefs={viewerPrefs}
             footerKb={footerKb}
+            hasOpenKb={activeKbUri !== null}
+            onOpenKnowledgeBases={() => openKnowledgeBases(true)}
             activeSession={activeSession}
             conn={activeConn}
             activeResource={activeResource}
             resourceSession={activeResource ? connections[activeResource.kbUri]?.opened?.session ?? null : null}
             docWidth={docWidth}
             onDocWidthChange={setDocWidth}
-            onCloseResource={() => setActiveResource(null)}
+            onCloseResource={closeActiveResource}
             onOpenResource={openResource}
             setActiveEntries={setActiveEntries}
             onResourcesChanged={() => setDocsRefresh((n) => n + 1)}
@@ -899,7 +1006,10 @@ export function App() {
       {showKnowledgeBases && (
         <KnowledgeBasesModal
           state={knowledgeBasesModalState}
-          onRefresh={openKnowledgeBases}
+          focusSearchOnOpen={focusKnowledgeBaseSearch}
+          openTabUris={openKbTabUris}
+          activeTabUri={activeKbTabUri}
+          onRefresh={() => openKnowledgeBases()}
           onStart={(root) => operateKnowledgeBase(root, 'starting')}
           onStop={(root) => operateKnowledgeBase(root, 'stopping')}
           onLogin={loginKnowledgeBase}
@@ -907,6 +1017,7 @@ export function App() {
           onForget={forgetKnowledgeBase}
           onFollowLogs={setLogsRoot}
           onCreate={createKnowledgeBase}
+          onOpenTab={openKnowledgeBaseTab}
           onClose={() => {
             if (logsRoot === null) setShowKnowledgeBases(false);
           }}
@@ -929,11 +1040,15 @@ export function App() {
 function MainPane({
   viewerPrefs,
   footerKb,
+  hasOpenKb,
+  onOpenKnowledgeBases,
   ...body
 }: {
   viewerPrefs: ViewerPrefs;
   /** The KB the pane is showing (active chat's, else open document's); null hides the line. */
   footerKb: KbDisplay | null;
+  hasOpenKb: boolean;
+  onOpenKnowledgeBases: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
   activeResource: { id: string; kbUri: string; name: string } | null;
@@ -949,7 +1064,7 @@ function MainPane({
 }) {
   return (
     <div className="mainwrap">
-      <MainBody viewerPrefs={viewerPrefs} {...body} />
+      <MainBody viewerPrefs={viewerPrefs} hasOpenKb={hasOpenKb} onOpenKnowledgeBases={onOpenKnowledgeBases} {...body} />
       <AppFooter kb={footerKb} prefs={viewerPrefs} />
     </div>
   );
@@ -961,6 +1076,8 @@ function MainPane({
  *  the selected chat's KB isn't connected, else the live chat. */
 function MainBody({
   viewerPrefs,
+  hasOpenKb,
+  onOpenKnowledgeBases,
   activeSession,
   conn,
   activeResource,
@@ -974,6 +1091,8 @@ function MainBody({
   onConnect,
 }: {
   viewerPrefs: ViewerPrefs;
+  hasOpenKb: boolean;
+  onOpenKnowledgeBases: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
   activeResource: { id: string; kbUri: string; name: string } | null;
@@ -1061,7 +1180,13 @@ function MainBody({
     );
 
   const chatBody =
-    activeSession === null ? (
+    !hasOpenKb ? (
+      <section className="main main--empty main--welcome">
+        <h1>Welcome to Semiont Desktop</h1>
+        <p className="main__hint">Open a knowledge base to browse resources and start a chat.</p>
+        <button type="button" className="main__connect" onClick={onOpenKnowledgeBases}>Open a Knowledge Base</button>
+      </section>
+    ) : activeSession === null ? (
       <section className="main main--empty">
         <p className="main__hint">Pick a chat, or start a new one under a knowledge base.</p>
       </section>

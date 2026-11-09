@@ -1,12 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { KbEntry } from '../lib/user-config';
 import type { KbConnection } from '../lib/session';
 import { sessionsForKb, sessionTitle, type AppChatSession } from '../lib/chat-sessions';
 import { KbResources } from './KbResources';
 import type { McpProcessStatus } from '../lib/launcher-bridge';
 
-/** Left nav: every configured KB (connected or not), each expanding to its connect
- *  control, resources, chat sessions, and New Chat. KB add/rename/remove live here.
+/** Left nav: the active workspace KB, with its connection, resources, and chats.
  *  App owns all state; this renders + dispatches. */
 export interface KbNavProps {
   kbs: KbEntry[];
@@ -18,7 +17,6 @@ export interface KbNavProps {
   docsRefresh: number;
   /** Open a document in the main pane. */
   onOpenResource: (kbUri: string, id: string, name: string) => void;
-  onAddKb: (kb: KbEntry) => void;
   onRemoveKb: (kbUri: string) => void;
   onRenameKbAlias: (kbUri: string, alias: string) => void;
   onConnect: (kbUri: string) => void;
@@ -49,31 +47,16 @@ function hostOf(uri: string): string {
 }
 
 export function KbNav(props: KbNavProps) {
-  const { kbs, onAddKb } = props;
-  const [adding, setAdding] = useState(false);
+  const { kbs } = props;
 
   return (
     <nav className="nav">
-      <div className="nav__head">
-        <h2 className="nav__title">Knowledge bases</h2>
-        <button type="button" className="nav__add" onClick={() => setAdding((v) => !v)} aria-label="Add a knowledge base" title="Add a KB">
-          +
-        </button>
-      </div>
-
       <div className="nav__content">
-        {adding && (
-          <AddKbForm
-            onAdd={(kb) => {
-              onAddKb(kb);
-              setAdding(false);
-            }}
-            onCancel={() => setAdding(false)}
-          />
-        )}
-
-        {kbs.length === 0 && !adding ? (
-          <p className="nav__empty">Add a knowledge base to get started.</p>
+        {kbs.length === 0 ? (
+          <div className="nav__empty">
+            <p>No Knowledge Base tab is open.</p>
+            <button type="button" onClick={props.onOpenKnowledgeBases}>Open a Knowledge Base</button>
+          </div>
         ) : (
           kbs.map((kb) => <KbNavItem key={kb.uri} kb={kb} {...props} />)
         )}
@@ -555,31 +538,5 @@ function TrashIcon() {
       <line x1="10" y1="11" x2="10" y2="17" />
       <line x1="14" y1="11" x2="14" y2="17" />
     </svg>
-  );
-}
-
-function AddKbForm({ onAdd, onCancel }: { onAdd: (kb: KbEntry) => void; onCancel: () => void }) {
-  const [uri, setUri] = useState('http://localhost:4000');
-  const [alias, setAlias] = useState('');
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    const kb: KbEntry = { uri: uri.trim() };
-    if (alias.trim()) kb.alias = alias.trim();
-    if (!kb.uri) return;
-    onAdd(kb);
-  };
-
-  return (
-    <form className="nav__addkb" onSubmit={submit}>
-      <input value={uri} onChange={(e) => setUri(e.target.value)} placeholder="http://host:4000" aria-label="KB URL" required />
-      <input value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="alias (optional)" aria-label="Alias" />
-      <div className="nav__addkb-actions">
-        <button type="button" onClick={onCancel}>
-          Cancel
-        </button>
-        <button type="submit">Add KB</button>
-      </div>
-    </form>
   );
 }
