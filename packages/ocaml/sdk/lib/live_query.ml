@@ -130,7 +130,8 @@ let observe t key ~on_state ~on_close =
         ignore (fetch t key entry)
     | state ->
         on_state state;
-        if first && (entry.restored || state = Pending) then (
+        (* A yielding callback can let the pending fetch complete. *)
+        if first && (entry.restored || entry.state = Pending) then (
           entry.restored <- false;
           ignore (fetch t key entry)));
     fun () ->

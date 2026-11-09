@@ -660,6 +660,37 @@ let replay_persistence () =
         (Storage_persister.positions store = [ ("res-1", "res-1-1") ])
         "position and value committed together")
 
+let observe_during_invalidation () =
+  Eio_main.run @@ fun _ ->
+  Switch.run @@ fun sw ->
+  let clock, _, _ = mock_clock () in
+  let reply, send_reply = Promise.create () in
+  let ready, mark_ready = Promise.create () in
+  let requests = ref 0 in
+  let query =
+    Live_query.make ~sw ~clock
+      ~load:(fun () ->
+        incr requests;
+        Ok (Promise.await reply))
+      ~hold:(fun () () -> ())
+      ()
+  in
+  Live_query.invalidate query ();
+  let release =
+    Live_query.observe query ()
+      ~on_state:(function
+        | Pending ->
+            Promise.resolve send_reply "value";
+            Promise.await ready
+        | Ready _ -> Promise.resolve mark_ready ()
+        | Failed reason -> Alcotest.fail reason)
+      ~on_close:ignore
+  in
+  let duplicate = !requests > 1 || Live_query.in_flight query in
+  release ();
+  Live_query.close query;
+  Alcotest.(check bool) "observer started another fetch" false duplicate
+
 let () =
   Alcotest.run "OCaml completion"
     [
@@ -670,6 +701,8 @@ let () =
         ] );
       ( "persistence",
         [
+          Alcotest.test_case "observe during invalidation" `Quick
+            observe_during_invalidation;
           Alcotest.test_case "atomic cache documents" `Quick persistence;
           Alcotest.test_case "cache and replay position are co-written" `Quick
             replay_persistence;
