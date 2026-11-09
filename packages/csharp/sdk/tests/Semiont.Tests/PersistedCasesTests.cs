@@ -464,6 +464,182 @@ public sealed partial class TransportTests
         foreach (var key in PersonKeys(joKeys)) Assert.True(storage.Get(key) is null, key + " holds " + storage.Get(key));
     }
 
+    // The stream of what went wrong ends only after the disposal's flush (surface.json, the session unit's `errors`): a
+    // closing save that cannot read the sign-in, read through a keeper that answers only after a wait, as a SignInStore's
+    // locked file does, is told there as session.keep-failed, once, and the stream then ends. Ending the opened session
+    // is waiting for that flush.
+    [Fact]
+    public async Task AClosingSaveThatCannotReadItsSignInIsSaidOnTheSessionsErrorsBeforeTheyEnd()
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var joKeys = PersonKeysRow(root, CaseKb, Text(root.GetProperty("people").GetProperty("jo"), "personKey"));
+        var clock = new TestClock();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        var signIn = new SignInReadLateOnceTold(new MemorySignIn(RegistryTokens() with { Access = TokenTests.Jwt(new { exp = now + 3600 }) }));
+        var storage = new MemoryStorage();
+        using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), TokenTests.Jwt(new { exp = now + 7200 }));
+        gateway.Name(true);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var opened = await SemiontSession.FromKeptAsync(Target(RegistryKb(CaseKb, "kb-a.test")), signIn, storage, gateway.Http, clock,
+            cancellation: deadline.Token);
+        var session = Assert.IsType<SemiontSession>(opened.Session);
+        await using IAsyncEnumerator<SemiontError> errors = session.Errors(deadline.Token).GetAsyncEnumerator();
+        var told = errors.MoveNextAsync().AsTask();
+        try
+        {
+            await session.ReadyAsync(deadline.Token);
+            // The save res-1 owes waits for a debounce that never passes here: the disposal's flush is that save.
+            Assert.Equal("fresh", (await session.Client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(deadline.Token)).Name);
+            signIn.Unreadable();
+            var closing = opened.DisposeAsync().AsTask();
+            await signIn.Asked.Task.WaitAsync(deadline.Token);
+            // Long enough for a disposal that does not wait for its flush to have ended the session's errors.
+            await Task.WhenAny(told, Task.Delay(TimeSpan.FromMilliseconds(200), deadline.Token));
+            if (told.IsCompleted) Assert.True(await told, "the session's errors ended while its closing save was still asking who its sign-in names");
+            Assert.False(closing.IsCompleted, "ending the opened session did not wait for its closing save");
+            signIn.Answer();
+            await closing.WaitAsync(deadline.Token);
+        }
+        finally
+        {
+            signIn.Answer();
+            await EndAsync(opened, told);
+        }
+        var said = await SaidUntilEndAsync(errors, told, deadline.Token);
+        Assert.True(said.Count(error => error.Code == "session.keep-failed") == 1,
+            "the session's errors ended without the closing save's keep-failed said once: [" + string.Join(", ", said.Select(error => error.Code)) + "]");
+        Assert.Same(signIn.Failure, said.Single(error => error.Code == "session.keep-failed").InnerException);
+        foreach (var key in PersonKeys(joKeys)) Assert.True(storage.Get(key) is null, key + " holds " + storage.Get(key));
+    }
+
+    // A sign-in that cannot record the person the gateway named is session.keep-failed (protocol/specs/src/errors/codes.json),
+    // said once on the session's errors stream, and the session goes on signed in. A later ask who a renewed token is says
+    // nothing more.
+    [Fact]
+    public async Task ASignInThatCannotRecordWhoTheGatewayNamedIsSaidOnTheSessionsErrorsOnceAndTheSessionGoesOn()
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var clock = new TestClock();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        var access = TokenTests.Jwt(new { exp = now + 3600 });
+        var signIn = new SignInThatCannotRecord(new MemorySignIn(RegistryTokens() with { Access = access }));
+        var storage = new MemoryStorage();
+        using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), TokenTests.Jwt(new { exp = now + 7200 }));
+        gateway.Name(true);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var opened = await SemiontSession.FromKeptAsync(Target(RegistryKb(CaseKb, "kb-a.test")), signIn, storage, gateway.Http, clock,
+            cancellation: deadline.Token);
+        var session = Assert.IsType<SemiontSession>(opened.Session);
+        await using IAsyncEnumerator<SemiontError> errors = session.Errors(deadline.Token).GetAsyncEnumerator();
+        var told = errors.MoveNextAsync().AsTask();
+        try
+        {
+            await session.ReadyAsync(deadline.Token);
+            Assert.True(session.User.Value is not null, "the session goes on: the person the gateway named is signed in");
+            Assert.Equal(access, session.Token.Value);
+            gateway.Refuse(access);
+            await session.Client.Transport.GetStatusAsync(deadline.Token);
+            Assert.True((await signIn.HeldAsync(deadline.Token))?.Access is { } renewed && renewed != access, "the refused token was renewed");
+        }
+        finally { await EndAsync(opened, told); }
+        var said = await SaidUntilEndAsync(errors, told, deadline.Token);
+        Assert.True(said.Count(error => error.Code == "session.keep-failed") == 1,
+            "the sign-in that could not record its person was not said once: [" + string.Join(", ", said.Select(error => error.Code)) + "]");
+        Assert.Same(signIn.Failure, said.Single(error => error.Code == "session.keep-failed").InnerException);
+    }
+
+    // A session's errors are its one stream of what went wrong (surface.json, the session unit's `errors`): its transport's
+    // failures are said there too, each once.
+    [Fact]
+    public async Task ATransportFailureIsSaidOnTheSessionsErrorsOnce()
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var clock = new TestClock();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), TokenTests.Jwt(new { exp = now + 7200 }));
+        gateway.Name(true);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var opened = await SemiontSession.FromKeptAsync(Target(RegistryKb(CaseKb, "kb-a.test")),
+            new MemorySignIn(RegistryTokens() with { Access = TokenTests.Jwt(new { exp = now + 3600 }) }), httpClient: gateway.Http,
+            timeProvider: clock, cancellation: deadline.Token);
+        var session = Assert.IsType<SemiontSession>(opened.Session);
+        await using IAsyncEnumerator<SemiontError> errors = session.Errors(deadline.Token).GetAsyncEnumerator();
+        var told = errors.MoveNextAsync().AsTask();
+        await using var failures = session.Client.Transport.Errors(deadline.Token).GetAsyncEnumerator();
+        var failed = failures.MoveNextAsync().AsTask();
+        SemiontError met;
+        try
+        {
+            await session.ReadyAsync(deadline.Token);
+            // The stream is open once a read has been answered through it.
+            Assert.Equal("fresh", (await session.Client.Browse.Resource(ResourceId.Parse("res-1")).FreshAsync(deadline.Token)).Name);
+            using (session.Client.Transport.On("beckon:focus", _ => throw new InvalidOperationException("The reader failed.")))
+            {
+                gateway.Server.Stream.Push("event: bus-event\ndata: {\"channel\":\"beckon:focus\",\"payload\":{\"resourceId\":\"res-1\",\"annotationId\":\"a-1\"}}\n\n");
+                Assert.True(await failed.WaitAsync(deadline.Token), "the transport met no failure");
+            }
+            met = failures.Current;
+        }
+        finally
+        {
+            await EndAsync(opened, told);
+            await Task.WhenAny(failed);
+        }
+        var said = await SaidUntilEndAsync(errors, told, deadline.Token);
+        Assert.True(said.Count(error => ReferenceEquals(error, met)) == 1,
+            "the transport's failure was not said once on the session's errors: [" + string.Join(", ", said.Select(error => error.Code)) + "]");
+    }
+
+    // At the start, a sign-in that cannot be read reaches whoever makes the session, as its failure, whether or not the
+    // session's client keeps anything.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ASignInThatCannotBeReadAtTheStartReachesWhoeverMakesTheSession(bool keeps)
+    {
+        using var table = ReadSpec(PersistedCases);
+        var root = table.RootElement;
+        var clock = new TestClock();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        var signIn = new SignInUnreadableAfter(new MemorySignIn(RegistryTokens() with { Access = TokenTests.Jwt(new { exp = now + 3600 }) }), reads: 0);
+        using var gateway = new PersonGateway(root.GetProperty("whoAmI").GetRawText(), TokenTests.Jwt(new { exp = now + 7200 }));
+        gateway.Name(true);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        IOException? thrown = null;
+        try
+        {
+            var opened = await SemiontSession.FromKeptAsync(Target(RegistryKb(CaseKb, "kb-a.test")), signIn, keeps ? new MemoryStorage() : null,
+                gateway.Http, clock, cancellation: deadline.Token);
+            await opened.DisposeAsync();
+        }
+        catch (IOException error) { thrown = error; }
+        Assert.Same(signIn.Failure, thrown);
+    }
+
+    /// <summary>Ends <paramref name="opened"/>, and waits for <paramref name="reading"/>, a read of its session's errors, to
+    /// finish however it does: an enumerator cannot be disposed while a read is under way.</summary>
+    private static async Task EndAsync(OpenedSession opened, Task<bool> reading)
+    {
+        await opened.DisposeAsync();
+        await Task.WhenAny(reading);
+    }
+
+    /// <summary>What <paramref name="errors"/> says from <paramref name="next"/>, its read under way, until it ends.</summary>
+    private static async Task<List<SemiontError>> SaidUntilEndAsync(IAsyncEnumerator<SemiontError> errors, Task<bool> next,
+        CancellationToken cancellation)
+    {
+        var said = new List<SemiontError>();
+        while (await next.WaitAsync(cancellation))
+        {
+            said.Add(errors.Current);
+            next = errors.MoveNextAsync().AsTask();
+        }
+        return said;
+    }
+
     public static IEnumerable<object[]> ResumeFromCases()
     {
         using var table = ReadSpec(PersistedCases);
@@ -844,6 +1020,52 @@ public sealed partial class TransportTests
         public Task ForgetAsync(CancellationToken cancellation = default) => kept.ForgetAsync(cancellation);
         public Task<bool> RecordPersonKeyAsync(string access, string personKey, CancellationToken cancellation = default) =>
             kept.RecordPersonKeyAsync(access, personKey, cancellation);
+    }
+
+    /// <summary>
+    /// A sign-in kept in memory whose keeper, once the test says so, answers a read only when the test lets it, and then
+    /// fails it with <see cref="Failure"/>; it tells when the first such read is asked.
+    /// </summary>
+    private sealed class SignInReadLateOnceTold(MemorySignIn kept) : ISignInKept
+    {
+        private readonly TaskCompletionSource answered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private volatile bool late;
+        internal TaskCompletionSource Asked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal IOException Failure { get; } = new("The kept sign-in cannot be read.");
+        internal void Unreadable() => late = true;
+        internal void Answer() => answered.TrySetResult();
+
+        public Task<StoredSession?> HeldAsync(CancellationToken cancellation = default) =>
+            late ? FailedLateAsync(cancellation) : kept.HeldAsync(cancellation);
+
+        private async Task<StoredSession?> FailedLateAsync(CancellationToken cancellation)
+        {
+            Asked.TrySetResult();
+            await answered.Task.WaitAsync(cancellation).ConfigureAwait(false);
+            throw Failure;
+        }
+
+        public Task KeepAsync(StoredSession signIn, CancellationToken cancellation = default) => kept.KeepAsync(signIn, cancellation);
+        public Task<string?> RenewedAsync(StoredSession read, string access, string refresh, CancellationToken cancellation = default) =>
+            kept.RenewedAsync(read, access, refresh, cancellation);
+        public Task ForgetAsync(CancellationToken cancellation = default) => kept.ForgetAsync(cancellation);
+        public Task<bool> RecordPersonKeyAsync(string access, string personKey, CancellationToken cancellation = default) =>
+            kept.RecordPersonKeyAsync(access, personKey, cancellation);
+    }
+
+    /// <summary>A sign-in kept in memory that cannot record the person the gateway named: each recording fails with
+    /// <see cref="Failure"/>.</summary>
+    private sealed class SignInThatCannotRecord(MemorySignIn kept) : ISignInKept
+    {
+        internal IOException Failure { get; } = new("The person the gateway named cannot be recorded.");
+
+        public Task<StoredSession?> HeldAsync(CancellationToken cancellation = default) => kept.HeldAsync(cancellation);
+        public Task KeepAsync(StoredSession signIn, CancellationToken cancellation = default) => kept.KeepAsync(signIn, cancellation);
+        public Task<string?> RenewedAsync(StoredSession read, string access, string refresh, CancellationToken cancellation = default) =>
+            kept.RenewedAsync(read, access, refresh, cancellation);
+        public Task ForgetAsync(CancellationToken cancellation = default) => kept.ForgetAsync(cancellation);
+        public Task<bool> RecordPersonKeyAsync(string access, string personKey, CancellationToken cancellation = default) =>
+            Task.FromException<bool>(Failure);
     }
 
     /// <summary>A storage whose reads of one key fail once the test says so.</summary>

@@ -471,11 +471,11 @@ private suspend fun renewal(given: JsonObject, bench: Bench): Subject {
     val gateway = Recording()
     val client = bench.held(SemiontClient(gateway, gateway, gateway, ClientTiming(), null, bench.context, bench.clock))
     val kept = MemorySignIn(HeldSignIn(token(lifetime, 0), "a-refresh-token", SCRIPT_CLIENT_ID, "$ISSUER/token", null, null))
-    val renew: suspend () -> String? = {
+    val renew: suspend (String?) -> String? = {
         renewals += 1
         token(lifetime, renewals)
     }
-    val session = bench.held(SemiontSession(TARGET, client, MutableStateFlow(null), kept, renew, { alice }, null, null, LowestDraw))
+    val session = bench.held(SemiontSession(TARGET, client, MutableStateFlow(null), kept, renew, { alice }, null, LowestDraw))
     session.start()
     return Subject({ renewals }, null)
 }

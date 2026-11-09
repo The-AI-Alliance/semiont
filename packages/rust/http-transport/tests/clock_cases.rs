@@ -914,7 +914,6 @@ fn renewal(given: Map<String, Value>) -> LocalBoxFuture<'static, Subject> {
             })),
             validate: Some(Arc::new(|_token| Box::pin(async { Ok(alice()) }))),
             on_auth_failed: None,
-            on_error: None,
             random: Some(lowest()),
         });
         Subject {
@@ -1091,12 +1090,14 @@ impl CachePersister<String, usize> for Saves {
         None
     }
 
-    fn save(
-        &self,
-        _: &HashMap<String, usize>,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Ok(())
+    fn save<'a>(
+        &'a self,
+        _: &'a HashMap<String, usize>,
+    ) -> BoxFuture<'a, Result<(), Box<dyn std::error::Error + Send + Sync>>> {
+        Box::pin(async move {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        })
     }
 }
 

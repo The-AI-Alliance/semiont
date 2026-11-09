@@ -7,6 +7,8 @@
 //! One stand-in serves as the gateway and as the issuer it trusts. A test
 //! says what each answers and reads what each was asked.
 
+mod quick_clock;
+
 use axum::Router;
 use axum::body::Body;
 use axum::extract::{Path as Named, State};
@@ -16,6 +18,8 @@ use axum::routing::{get, post};
 use base64::Engine;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use bytes::Bytes;
+use futures::FutureExt;
+use quick_clock::QuickClock;
 use ring::signature::{RSA_PKCS1_2048_8192_SHA256, RsaPublicKeyComponents};
 use semiont::annotations::{QuotedText, annotation_of_span, reconcile};
 use semiont::channels::PrincipalProfile;
@@ -25,8 +29,8 @@ use semiont::discovery::{
     DiscoveryAbsentReason, DiscoveryRead, DiscoveryState, DiscoveryTransport,
 };
 use semiont::errors::{
-    BusRequestErrorCode, IdentityUnverifiable, IdentityUnverifiableReason, SessionErrorCode,
-    SignInError, SignInErrorCode,
+    BusRequestErrorCode, IdentityUnverifiable, IdentityUnverifiableReason, SemiontError,
+    SessionError, SessionErrorCode, SignInError, SignInErrorCode,
 };
 use semiont::identity::agent_did;
 use semiont::refresh::CacheQuery;
@@ -41,7 +45,7 @@ use semiont::storage::{InMemorySessionStorage, SessionStorage};
 use semiont::testing::as_id;
 use semiont::testing::examples::{assert_blocks_are_examples, assert_readme_shows};
 use semiont::timing::{DEVICE_SLOW_DOWN, HTTP_REQUEST_TIMEOUT};
-use semiont::transport::{Envelope, PutBinaryRequest};
+use semiont::transport::{BoxFuture, Envelope, Events, Lagged, PutBinaryRequest};
 use semiont::types::{
     AgentSoftware, Annotation, FailureClass, HttpEndpoint, HttpEndpointProtocol,
     JobCompleteCommand, JobProgress, KbEndpoint, KbTarget, KnowledgeBase, LocalEndpoint,
@@ -55,7 +59,7 @@ use semiont_http_transport::loopback::LoopbackRedirect;
 use semiont_http_transport::oauth::{
     BeginAuthorization, DeviceCode, PENDING_AUTHORIZATION_KEY, PendingAuthorization,
     begin_authorization, code_challenge, complete_authorization, discover_issuer,
-    refresh_at_issuer, revoke_at_issuer, sign_in_with_device_grant,
+    refresh_at_issuer, renew_kept, revoke_at_issuer, sign_in_with_device_grant,
 };
 use semiont_http_transport::service_account::{
     Credential, KeyCredential, KeyError, SecretCredential, ServiceToken, private_key_from_pem,
@@ -69,6 +73,7 @@ use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::error::Error;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
@@ -416,41 +421,9 @@ struct World {
     staged: Arc<Staged>,
     server: tokio::task::JoinHandle<()>,
     http: reqwest::Client,
+    /// For a test whose runtime starts paused: a request that is on its way
+    /// arrives long before its deadline.
     clock: Option<QuickClock>,
-}
-
-/// The clock of a test that waits out long times over real sockets, in a
-/// test whose runtime starts paused.
-///
-/// A paused clock alone will not do. It runs ahead to the next timer
-/// whenever nothing is runnable, and a request that is on its way is not
-/// runnable: its deadline would pass before its answer could arrive. So the
-/// clock is held still, which the runtime does while a blocking task runs,
-/// and moved by hand, `STEP` for each real millisecond. An answer that is on
-/// its way arrives long before its deadline, and thirty seconds take an
-/// eighth of one.
-struct QuickClock(tokio::task::JoinHandle<()>);
-
-const STEP: Duration = Duration::from_millis(250);
-
-impl QuickClock {
-    fn start() -> QuickClock {
-        QuickClock(tokio::spawn(async {
-            loop {
-                let _ = tokio::task::spawn_blocking(|| {
-                    std::thread::sleep(Duration::from_millis(1));
-                })
-                .await;
-                tokio::time::advance(STEP).await;
-            }
-        }))
-    }
-}
-
-impl Drop for QuickClock {
-    fn drop(&mut self) {
-        self.0.abort();
-    }
 }
 
 /// Whether `elapsed` is `expected`: no less, and no more than the quick
@@ -1251,16 +1224,152 @@ async fn held_by(kept: &dyn SignInKept) -> Option<StoredSession> {
 
 /// A script's session of "a-script" over the sign-in `kept` holds, which
 /// asks who its token is and keeps no caches.
-fn from_kept(world: &World, kept: Arc<MemorySignIn>) -> SessionFromKept {
+fn from_kept(world: &World, kept: Arc<dyn SignInKept>) -> SessionFromKept {
     SessionFromKept {
         kb: world.kb("a-script"),
         kept,
         validate: true,
         storage: None,
         on_auth_failed: None,
-        on_error: None,
         http: world.http.clone(),
         random: None,
+    }
+}
+
+/// What a session says of its own on its errors stream (each a
+/// `SessionError`), read from the stream as it is said. The transport's
+/// failures it carries beside them are other tests' to read. A reader that
+/// missed any of it fails its test.
+struct Said {
+    errors: Events<SemiontError>,
+    said: Vec<SessionError>,
+}
+
+impl Said {
+    /// What `session` says from here on, and what it said before anyone
+    /// read its errors: a session opened from a kept sign-in is given once
+    /// it is ready, after its start has said what it says.
+    fn by(session: &SemiontSession) -> Said {
+        Said {
+            errors: session.errors(),
+            said: Vec::new(),
+        }
+    }
+
+    fn heard(&mut self, item: Result<SemiontError, Lagged>) {
+        match item {
+            Ok(SemiontError::Session(error)) => self.said.push(error),
+            Ok(_) => {}
+            Err(missed) => panic!("the session's errors stream missed some: {missed}"),
+        }
+    }
+
+    /// Everything said so far, in order.
+    fn so_far(&mut self) -> &[SessionError] {
+        while let Some(Some(item)) = self.errors.next().now_or_never() {
+            self.heard(item);
+        }
+        &self.said
+    }
+
+    /// Everything said until the stream ends, which it must, ten seconds at
+    /// the latest after its session was closed.
+    async fn to_its_end(mut self) -> Vec<SessionError> {
+        loop {
+            let next = tokio::time::timeout(Duration::from_secs(10), self.errors.next())
+                .await
+                .expect("the session's errors stream ends");
+            match next {
+                Some(item) => self.heard(item),
+                None => return self.said,
+            }
+        }
+    }
+}
+
+fn codes(said: &[SessionError]) -> Vec<SessionErrorCode> {
+    said.iter().map(|error| error.code).collect()
+}
+
+/// A sign-in kept in memory, read as a file or a keychain is read: each
+/// read waits on the runtime before it answers, so a read driven where
+/// nothing may wait (`futures::executor::block_on`, on the runtime's own
+/// thread) never ends. It cannot be read while `unreadable` holds, and will
+/// not record who the gateway named while `unrecordable` holds.
+struct ReadAsAFile {
+    kept: MemorySignIn,
+    unreadable: AtomicBool,
+    unrecordable: AtomicBool,
+}
+
+impl ReadAsAFile {
+    async fn holding(sign_in: StoredSession) -> Arc<ReadAsAFile> {
+        let kept = MemorySignIn::new();
+        kept.keep(sign_in).await.expect("kept");
+        Arc::new(ReadAsAFile {
+            kept,
+            unreadable: AtomicBool::new(false),
+            unrecordable: AtomicBool::new(false),
+        })
+    }
+}
+
+impl SignInKept for ReadAsAFile {
+    fn held(&self) -> BoxFuture<'_, Result<Option<StoredSession>, Box<dyn Error + Send + Sync>>> {
+        Box::pin(async move {
+            tokio::time::sleep(Duration::from_millis(1)).await;
+            if self.unreadable.load(Ordering::SeqCst) {
+                return Err("the sign-in could not be read".into());
+            }
+            self.kept.held().await
+        })
+    }
+
+    fn keep(
+        &self,
+        sign_in: StoredSession,
+    ) -> BoxFuture<'_, Result<(), Box<dyn Error + Send + Sync>>> {
+        self.kept.keep(sign_in)
+    }
+
+    fn renewed<'a>(
+        &'a self,
+        read: &'a StoredSession,
+        access: &'a str,
+        refresh: &'a str,
+    ) -> BoxFuture<'a, Result<Option<String>, Box<dyn Error + Send + Sync>>> {
+        self.kept.renewed(read, access, refresh)
+    }
+
+    fn record_person_key<'a>(
+        &'a self,
+        access: &'a str,
+        person_key: &'a str,
+    ) -> BoxFuture<'a, Result<bool, Box<dyn Error + Send + Sync>>> {
+        if self.unrecordable.load(Ordering::SeqCst) {
+            return Box::pin(async {
+                Err("the sign-in could not record who the gateway named".into())
+            });
+        }
+        self.kept.record_person_key(access, person_key)
+    }
+
+    fn forget(&self) -> BoxFuture<'_, Result<(), Box<dyn Error + Send + Sync>>> {
+        self.kept.forget()
+    }
+}
+
+impl World {
+    /// The gateway answers who asks for the entity types: a query
+    /// client/refresh.json marks persisted.
+    fn answers_entity_types(&self) {
+        self.staged.answers.lock().unwrap().insert(
+            "browse:entity-types-requested".to_owned(),
+            (
+                "browse:entity-types-result".to_owned(),
+                json!({ "response": { "entityTypes": ["Person", "Place"] } }),
+            ),
+        );
     }
 }
 
@@ -1300,13 +1409,7 @@ async fn a_session_over_a_kept_sign_in_is_ready_and_says_who_it_is() {
 #[tokio::test]
 async fn a_scripts_session_given_a_storage_keeps_its_caches_there_for_the_person_named() {
     let world = World::start().await;
-    world.staged.answers.lock().unwrap().insert(
-        "browse:entity-types-requested".to_owned(),
-        (
-            "browse:entity-types-result".to_owned(),
-            json!({ "response": { "entityTypes": ["Person", "Place"] } }),
-        ),
-    );
+    world.answers_entity_types();
     let kept = kept_holding(&world, &jwt(3600, 1)).await;
     let storage: Arc<dyn SessionStorage> = Arc::new(InMemorySessionStorage::new());
 
@@ -1338,6 +1441,164 @@ async fn a_scripts_session_given_a_storage_keeps_its_caches_there_for_the_person
     assert_eq!(entries.len(), 1, "{document}");
     assert_eq!(entries[0][0], json!("_"), "{document}");
     assert_eq!(entries[0][1], json!(["Person", "Place"]), "{document}");
+}
+
+/// What the session's client still owes as the script closes it is saved
+/// before the session's errors end: a closing save whose sign-in cannot be
+/// read is said once, as `session.keep-failed`, and then the stream ends.
+/// The check before the save awaits its read of the sign-in, as a read of a
+/// file is awaited.
+#[tokio::test]
+async fn a_closing_save_whose_sign_in_cannot_be_read_is_said_before_the_sessions_errors_end() {
+    let world = World::start().await;
+    world.answers_entity_types();
+    let kept = ReadAsAFile::holding(world.stored(&jwt(3600, 1), "r1")).await;
+    let storage: Arc<dyn SessionStorage> = Arc::new(InMemorySessionStorage::new());
+    let opened = session_from_kept(SessionFromKept {
+        storage: Some(storage.clone()),
+        ..from_kept(&world, kept.clone())
+    })
+    .await
+    .expect("a session");
+    let said = Said::by(opened.session());
+    opened
+        .session()
+        .client()
+        .browse
+        .entity_types()
+        .fresh()
+        .await
+        .expect("the entity types");
+
+    // Owed, and not yet written, when the sign-in can be read no more.
+    kept.unreadable.store(true, Ordering::SeqCst);
+    opened.close().await;
+
+    assert_eq!(
+        codes(&said.to_its_end().await),
+        [SessionErrorCode::KeepFailed]
+    );
+    let key = cache_key("a-script", &person_key(ALICE), CacheQuery::EntityTypes);
+    assert_eq!(storage.get(&key), None, "what was owed is not written");
+}
+
+/// A sign-in that will not record who the gateway named is not known to
+/// name them: nothing is kept for them, and the session says so once, as
+/// `session.keep-failed`, and goes on, signed in.
+#[tokio::test]
+async fn a_sign_in_that_cannot_record_who_the_gateway_named_keeps_nothing_and_says_so_once() {
+    let world = World::start().await;
+    world.answers_entity_types();
+    let kept = ReadAsAFile::holding(world.stored(&jwt(3600, 1), "r1")).await;
+    kept.unrecordable.store(true, Ordering::SeqCst);
+    let storage: Arc<dyn SessionStorage> = Arc::new(InMemorySessionStorage::new());
+
+    let opened = session_from_kept(SessionFromKept {
+        storage: Some(storage.clone()),
+        ..from_kept(&world, kept.clone())
+    })
+    .await
+    .expect("a session");
+    // Said as the session started, before it was given.
+    let said = Said::by(opened.session());
+    assert_eq!(
+        opened
+            .session()
+            .user()
+            .borrow()
+            .as_ref()
+            .and_then(|user| user.email.clone()),
+        Some("alice@example.org".to_owned())
+    );
+    opened
+        .session()
+        .client()
+        .browse
+        .entity_types()
+        .fresh()
+        .await
+        .expect("the entity types");
+    opened.close().await;
+
+    let said = said.to_its_end().await;
+    assert_eq!(codes(&said), [SessionErrorCode::KeepFailed]);
+    assert!(
+        said[0]
+            .message
+            .contains("the sign-in could not record who the gateway named"),
+        "{}",
+        said[0].message
+    );
+    for key in kept_for("a-script", ALICE) {
+        assert_eq!(storage.get(&key), None, "{key}");
+    }
+}
+
+/// A sign-in that cannot be read as its session is opened is the opener's
+/// failure, as it is in every SDK: no session is given, with a storage or
+/// without one, and neither the gateway nor the issuer is asked anything.
+#[tokio::test]
+async fn a_sign_in_that_cannot_be_read_as_its_session_is_opened_fails_the_opening() {
+    let world = World::start().await;
+    let storages: [Option<Arc<dyn SessionStorage>>; 2] =
+        [None, Some(Arc::new(InMemorySessionStorage::new()))];
+    for storage in storages {
+        let kept = ReadAsAFile::holding(world.stored(&jwt(3600, 1), "r1")).await;
+        kept.unreadable.store(true, Ordering::SeqCst);
+
+        let refused = session_from_kept(SessionFromKept {
+            storage,
+            ..from_kept(&world, kept)
+        })
+        .await
+        .err()
+        .expect("no session is given");
+
+        assert!(
+            refused
+                .to_string()
+                .contains("the sign-in could not be read"),
+            "{refused}"
+        );
+    }
+    assert!(world.staged.asked_who.lock().unwrap().is_empty());
+    assert!(world.token_forms().is_empty());
+}
+
+/// A script renews a sign-in it keeps with no session over it
+/// (`renew_kept`): at the issuer the sign-in names, as the client it was
+/// issued to, and what the issuer rotated is kept. With nothing kept there
+/// is nothing to renew, and nobody is asked.
+#[tokio::test]
+async fn a_script_renews_a_sign_in_it_keeps_at_the_issuer_the_sign_in_names() {
+    let world = World::start().await;
+    let (first, second) = (jwt(3600, 1), jwt(3600, 2));
+    world.answers([granted(&second, Some("r2"))]);
+    let kept = kept_holding(&world, &first).await;
+
+    let renewed = renew_kept(kept.as_ref(), Some(first.as_str()), &world.http, None)
+        .await
+        .expect("renewed");
+
+    assert_eq!(renewed, Some(second.clone()));
+    let forms = world.token_forms();
+    assert_eq!(forms.len(), 1);
+    assert_eq!(forms[0]["grant_type"], "refresh_token");
+    assert_eq!(forms[0]["refresh_token"], "r1");
+    assert_eq!(forms[0]["client_id"], "semiont-browser");
+    assert_eq!(
+        held_by(kept.as_ref()).await,
+        Some(world.stored(&second, "r2"))
+    );
+
+    let nothing = MemorySignIn::new();
+    assert_eq!(
+        renew_kept(&nothing, None, &world.http, None)
+            .await
+            .expect("nothing to renew"),
+        None
+    );
+    assert_eq!(world.token_forms().len(), 1);
 }
 
 /// With nothing kept, the session is signed out: it has no token, nobody is
@@ -1509,28 +1770,23 @@ async fn a_gateway_that_refuses_what_its_issuer_issues_is_asked_twice_and_then_l
     world.answers((2..60).map(|n| granted(&jwt(3600, n), Some("r"))));
     let kept = kept_holding(&world, &jwt(3600, 1)).await;
     let told: Arc<Mutex<Vec<SessionEndReason>>> = Arc::default();
-    let reported: Arc<Mutex<Vec<SessionErrorCode>>> = Arc::default();
-    let (telling, reporting) = (told.clone(), reported.clone());
+    let telling = told.clone();
 
     let opened = ends(session_from_kept(SessionFromKept {
         on_auth_failed: Some(Arc::new(move |reason| {
             telling.lock().unwrap().push(reason);
-        })),
-        on_error: Some(Arc::new(move |error| {
-            reporting.lock().unwrap().push(error.code);
         })),
         ..from_kept(&world, kept.clone())
     }))
     .await
     .expect("a session");
     let session = opened.session();
+    // Said as the session started, before it was given.
+    let mut said = Said::by(session);
 
     assert_eq!(world.staged.asked_who.lock().unwrap().len(), 2);
     assert_eq!(*told.lock().unwrap(), [SessionEndReason::Refused]);
-    assert_eq!(
-        *reported.lock().unwrap(),
-        [SessionErrorCode::CredentialRefused]
-    );
+    assert_eq!(codes(said.so_far()), [SessionErrorCode::CredentialRefused]);
     // The sign-in the gateway refused is forgotten.
     assert_eq!(held_by(kept.as_ref()).await, None);
 
@@ -1547,6 +1803,7 @@ async fn a_gateway_that_refuses_what_its_issuer_issues_is_asked_twice_and_then_l
     );
     let renewals = world.token_forms().len();
     assert!(renewals <= 2, "the issuer was asked {renewals} times");
+    assert_eq!(codes(said.so_far()), [SessionErrorCode::CredentialRefused]);
     opened.close().await;
 }
 
@@ -1561,20 +1818,17 @@ async fn a_running_session_whose_gateway_starts_refusing_ends_on_the_first_refus
     );
     let kept = kept_holding(&world, &first).await;
     let told: Arc<Mutex<Vec<SessionEndReason>>> = Arc::default();
-    let reported: Arc<Mutex<Vec<SessionErrorCode>>> = Arc::default();
-    let (telling, reporting) = (told.clone(), reported.clone());
+    let telling = told.clone();
     let opened = ends(session_from_kept(SessionFromKept {
         on_auth_failed: Some(Arc::new(move |reason| {
             telling.lock().unwrap().push(reason);
-        })),
-        on_error: Some(Arc::new(move |error| {
-            reporting.lock().unwrap().push(error.code);
         })),
         ..from_kept(&world, kept.clone())
     }))
     .await
     .expect("a session");
     let session = opened.session();
+    let mut said = Said::by(session);
     assert_eq!(
         *world.staged.asked_who.lock().unwrap(),
         std::slice::from_ref(&first)
@@ -1597,10 +1851,7 @@ async fn a_running_session_whose_gateway_starts_refusing_ends_on_the_first_refus
         [first.clone(), first, renewed]
     );
     assert_eq!(*told.lock().unwrap(), [SessionEndReason::Refused]);
-    assert_eq!(
-        *reported.lock().unwrap(),
-        [SessionErrorCode::CredentialRefused]
-    );
+    assert_eq!(codes(said.so_far()), [SessionErrorCode::CredentialRefused]);
     assert_eq!(held_by(kept.as_ref()).await, None);
     assert_eq!(*session.token().borrow(), None);
 
@@ -1610,7 +1861,7 @@ async fn a_running_session_whose_gateway_starts_refusing_ends_on_the_first_refus
     tokio::time::sleep(Duration::from_secs(120)).await;
     assert_eq!(world.token_forms().len(), 1);
     assert_eq!(world.staged.asked_who.lock().unwrap().len(), 4);
-    assert_eq!(reported.lock().unwrap().len(), 1);
+    assert_eq!(said.so_far().len(), 1);
     opened.close().await;
 }
 
@@ -2858,6 +3109,7 @@ fn message(error: semiont::errors::SemiontError) -> String {
         semiont::errors::SemiontError::Bus(error) => error.message,
         semiont::errors::SemiontError::Transport(error) => error.message,
         semiont::errors::SemiontError::Job(error) => error.message,
+        semiont::errors::SemiontError::Session(error) => error.message,
     }
 }
 
@@ -2946,19 +3198,14 @@ async fn a_session_whose_gateway_never_says_who_it_is_is_ready_at_the_deadline_a
     world.never_answers("who");
     let access = jwt(3600, 1);
     let kept = kept_holding(&world, &access).await;
-    let said: Arc<Mutex<Vec<String>>> = Arc::default();
-    let saying = said.clone();
     let started = tokio::time::Instant::now();
 
-    let opened = ends(session_from_kept(SessionFromKept {
-        on_error: Some(Arc::new(move |error| {
-            saying.lock().unwrap().push(error.message)
-        })),
-        ..from_kept(&world, kept)
-    }))
-    .await
-    .expect("a session");
+    let opened = ends(session_from_kept(from_kept(&world, kept)))
+        .await
+        .expect("a session");
     let session = opened.session();
+    // Said as the session started, before it was given.
+    let mut said = Said::by(session);
 
     assert!(
         took(started.elapsed(), HTTP_REQUEST_TIMEOUT),
@@ -2967,11 +3214,13 @@ async fn a_session_whose_gateway_never_says_who_it_is_is_ready_at_the_deadline_a
     );
     assert_eq!(session.token().borrow().as_deref(), Some(access.as_str()));
     assert_eq!(*session.user().borrow(), None);
-    let said = said.lock().unwrap().clone();
-    assert_eq!(said.len(), 1, "{said:?}");
+    let heard = said.so_far();
+    assert_eq!(codes(heard), [SessionErrorCode::AuthFailed], "{heard:?}");
     assert!(
-        said[0].contains("GET /api/users/me got no answer within 30s"),
-        "{said:?}"
+        heard[0]
+            .message
+            .contains("GET /api/users/me got no answer within 30s"),
+        "{heard:?}"
     );
     opened.close().await;
 }
@@ -3214,7 +3463,6 @@ async fn a_script(
         validate: true,
         storage: None,
         on_auth_failed: None,
-        on_error: None,
         http,
         random: None,
     })
@@ -3254,7 +3502,6 @@ async fn a_first_sign_in(
         validate: true,
         storage: None,
         on_auth_failed: None,
-        on_error: None,
         http,
         random: None,
     })

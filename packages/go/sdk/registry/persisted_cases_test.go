@@ -919,9 +919,6 @@ func TestASignInUnreadableAtASaveStopsTheClientKeepingAndIsSaidOnce(t *testing.T
 	issuer := s.issuerOf()
 	timing := issuer.Timing
 	timing.SaveDebounce = time.Millisecond
-	var mu sync.Mutex
-	var told []*semiont.SessionError
-	first := make(chan struct{})
 	session, end, err := semiont.SessionFromKept(ctx, semiont.SessionFromKeptConfig{
 		Kb:            api.KbTarget{Endpoint: s.registered(t, kbA).Endpoint, Id: kbA, Label: "KB A"},
 		Kept:          kept,
@@ -930,27 +927,16 @@ func TestASignInUnreadableAtASaveStopsTheClientKeepingAndIsSaidOnce(t *testing.T
 		AskWhoTokenIs: true,
 		Channels:      bus.BridgedChannels,
 		Storage:       caches,
-		OnError: func(err *semiont.SessionError) {
-			mu.Lock()
-			defer mu.Unlock()
-			told = append(told, err)
-			if len(told) == 1 {
-				close(first)
-			}
-		},
 	})
 	must(t, err)
 	ended := sync.OnceFunc(end)
 	defer ended()
+	heard := hear(session)
 
 	kept.unreadable.Store(true)
 	_, err = session.Client().Browse.Resource(id("res-1")).Fresh(ctx)
 	must(t, err)
-	select {
-	case <-first:
-	case <-ctx.Done():
-		t.Fatal("the session never said its client stopped keeping")
-	}
+	first := heard.next(t, "that its client stopped keeping")
 	kept.unreadable.Store(false)
 	_, err = session.Client().Browse.Resource(id("res-2")).Fresh(ctx)
 	must(t, err)
@@ -959,13 +945,248 @@ func TestASignInUnreadableAtASaveStopsTheClientKeepingAndIsSaidOnce(t *testing.T
 	if written := caches.under(&caches.written, keyPrefixes(t)); len(written) > 0 {
 		t.Errorf("the client wrote %v", written)
 	}
-	mu.Lock()
-	defer mu.Unlock()
+	if told := append([]*semiont.SessionError{first}, heard.rest(t)...); !keptFailedOnce(told) {
+		t.Errorf("the session said %v; it says session.keep-failed of kb-a, once", codesOf(told))
+	}
+}
+
+// hearing is what a session says of its own on its errors stream, read from
+// as soon as it is made.
+type hearing struct {
+	said  chan *semiont.SessionError
+	ended chan struct{}
+}
+
+func hear(session *semiont.Session) *hearing {
+	h := &hearing{said: make(chan *semiont.SessionError, 64), ended: make(chan struct{})}
+	errs := session.Errors()
+	go func() {
+		defer close(h.ended)
+		for failure := range errs {
+			var own *semiont.SessionError
+			if errors.As(failure, &own) {
+				h.said <- own
+			}
+		}
+	}()
+	return h
+}
+
+// next is the next failure the session says of its own, waited for up to
+// ten seconds; what is the failure the test waits for.
+func (h *hearing) next(t *testing.T, what string) *semiont.SessionError {
+	t.Helper()
+	select {
+	case said := <-h.said:
+		return said
+	case <-time.After(10 * time.Second):
+		t.Fatalf("the session never said %s on its errors stream", what)
+		return nil
+	}
+}
+
+// rest is every failure said of its own and not yet taken, until the stream
+// ends, which it does once the session is ended: waited for up to ten
+// seconds.
+func (h *hearing) rest(t *testing.T) []*semiont.SessionError {
+	t.Helper()
+	select {
+	case <-h.ended:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the session's errors stream did not end once the session was ended")
+	}
+	var rest []*semiont.SessionError
+	for {
+		select {
+		case said := <-h.said:
+			rest = append(rest, said)
+		default:
+			return rest
+		}
+	}
+}
+
+// keptFailedOnce is whether told is one session.keep-failed, of kb-a.
+func keptFailedOnce(told []*semiont.SessionError) bool {
+	return slices.Equal(codesOf(told), []semiont.SessionErrorCode{semiont.SessionErrorCodeKeepFailed}) && told[0].KbID == kbA
+}
+
+func codesOf(told []*semiont.SessionError) []semiont.SessionErrorCode {
 	codes := []semiont.SessionErrorCode{}
 	for _, each := range told {
 		codes = append(codes, each.Code)
 	}
-	if !slices.Equal(codes, []semiont.SessionErrorCode{semiont.SessionErrorCodeKeepFailed}) || told[0].KbID != kbA {
-		t.Errorf("the session said %v; it says session.keep-failed of kb-a, once", codes)
+	return codes
+}
+
+// A sign-in that cannot be read when the client makes its closing save is
+// said on the session's errors stream, once, as session.keep-failed, before
+// the stream ends: the stream ends only after that save. Nothing is written.
+func TestAKeepFailedOfTheClosingSaveIsSaidBeforeTheErrorsEnd(t *testing.T) {
+	table := readPersistedCases(t)
+	jo := personOf(t, table, "jo").PersonKey
+	s := newStage(t)
+	s.mu.Lock()
+	s.who = table.WhoAmI
+	s.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	kept := &unreadableSignIn{MemorySignIn: &semiont.MemorySignIn{}}
+	must(t, kept.Keep(ctx, s.heldSignIn(jwt(time.Hour), "r1", &jo)))
+	caches := &watchedStorage{SessionStorage: semiont.NewMemoryStorage()}
+	issuer := s.issuerOf()
+	timing := issuer.Timing
+	// Nothing the client holds is written before it closes.
+	timing.SaveDebounce = time.Hour
+	session, end, err := semiont.SessionFromKept(ctx, semiont.SessionFromKeptConfig{
+		Kb:            api.KbTarget{Endpoint: s.registered(t, kbA).Endpoint, Id: kbA, Label: "KB A"},
+		Kept:          kept,
+		HTTP:          issuer.HTTP,
+		Timing:        timing,
+		AskWhoTokenIs: true,
+		Channels:      bus.BridgedChannels,
+		Storage:       caches,
+	})
+	must(t, err)
+	ended := sync.OnceFunc(end)
+	defer ended()
+	heard := hear(session)
+	_, err = session.Client().Browse.Resource(id("res-1")).Fresh(ctx)
+	must(t, err)
+	if session.Client().PersistenceSettled() {
+		t.Fatal("the client owes no save before it closes")
+	}
+
+	kept.unreadable.Store(true)
+	ended()
+
+	if told := heard.rest(t); !keptFailedOnce(told) {
+		t.Errorf("by the end of its errors stream the session said %v; it says session.keep-failed of kb-a, once", codesOf(told))
+	}
+	if written := caches.under(&caches.written, keyPrefixes(t)); len(written) > 0 {
+		t.Errorf("the client wrote %v", written)
+	}
+}
+
+// unrecordable is a memory sign-in that cannot record the person the gateway
+// names.
+type unrecordable struct{ *semiont.MemorySignIn }
+
+func (unrecordable) RecordPersonKey(context.Context, string, string) (bool, error) {
+	return false, errors.New("the sign-in cannot be written")
+}
+
+// A sign-in that names nobody, and cannot record the person the gateway
+// names, is not known to name anyone the client would keep for: the client
+// keeps nothing, and the session says so once on its errors stream, as
+// session.keep-failed, and goes on.
+func TestASignInThatCannotRecordThePersonStopsTheClientKeepingAndIsSaidOnce(t *testing.T) {
+	table := readPersistedCases(t)
+	s := newStage(t)
+	s.mu.Lock()
+	s.who = table.WhoAmI
+	s.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	kept := unrecordable{&semiont.MemorySignIn{}}
+	must(t, kept.Keep(ctx, s.heldSignIn(jwt(time.Hour), "r1", nil)))
+	caches := &watchedStorage{SessionStorage: semiont.NewMemoryStorage()}
+	issuer := s.issuerOf()
+	timing := issuer.Timing
+	timing.SaveDebounce = time.Millisecond
+	session, end, err := semiont.SessionFromKept(ctx, semiont.SessionFromKeptConfig{
+		Kb:            api.KbTarget{Endpoint: s.registered(t, kbA).Endpoint, Id: kbA, Label: "KB A"},
+		Kept:          kept,
+		HTTP:          issuer.HTTP,
+		Timing:        timing,
+		AskWhoTokenIs: true,
+		Channels:      bus.BridgedChannels,
+		Storage:       caches,
+	})
+	must(t, err)
+	ended := sync.OnceFunc(end)
+	defer ended()
+	heard := hear(session)
+
+	first := heard.next(t, "that the person the gateway named was not recorded")
+	if session.User().Value() == nil || session.Token().Value() == "" {
+		t.Error("the session did not go on signed in")
+	}
+	_, err = session.Client().Browse.Resource(id("res-1")).Fresh(ctx)
+	must(t, err)
+	ended()
+
+	if told := append([]*semiont.SessionError{first}, heard.rest(t)...); !keptFailedOnce(told) {
+		t.Errorf("the session said %v; it says session.keep-failed of kb-a, once", codesOf(told))
+	}
+	if written := caches.under(&caches.written, keyPrefixes(t)); len(written) > 0 {
+		t.Errorf("the client wrote %v", written)
+	}
+}
+
+// A reader of the session's errors stream that ends the session on the
+// keep-failed it reads is not held up by the save that said it: that save
+// holds the cache as it writes and says keep-failed from inside the write,
+// so it waits for nobody to read what it said.
+func TestASessionEndedOnTheKeepFailedItSaidEnds(t *testing.T) {
+	table := readPersistedCases(t)
+	jo := personOf(t, table, "jo").PersonKey
+	s := newStage(t)
+	s.mu.Lock()
+	s.who = table.WhoAmI
+	s.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	kept := &unreadableSignIn{MemorySignIn: &semiont.MemorySignIn{}}
+	must(t, kept.Keep(ctx, s.heldSignIn(jwt(time.Hour), "r1", &jo)))
+	issuer := s.issuerOf()
+	timing := issuer.Timing
+	timing.SaveDebounce = time.Millisecond
+	session, end, err := semiont.SessionFromKept(ctx, semiont.SessionFromKeptConfig{
+		Kb:            api.KbTarget{Endpoint: s.registered(t, kbA).Endpoint, Id: kbA, Label: "KB A"},
+		Kept:          kept,
+		HTTP:          issuer.HTTP,
+		Timing:        timing,
+		AskWhoTokenIs: true,
+		Channels:      bus.BridgedChannels,
+		Storage:       semiont.NewMemoryStorage(),
+	})
+	must(t, err)
+	ended := sync.OnceFunc(end)
+	errs := session.Errors()
+	ending, endedFromTheStream := make(chan struct{}), make(chan struct{})
+	// Ended here unless its reader has begun ending it: a reader held up
+	// ending it is not waited for.
+	defer func() {
+		select {
+		case <-ending:
+		default:
+			ended()
+		}
+	}()
+	go func() {
+		for failure := range errs {
+			var said *semiont.SessionError
+			if errors.As(failure, &said) && said.Code == semiont.SessionErrorCodeKeepFailed {
+				close(ending)
+				ended()
+				close(endedFromTheStream)
+				return
+			}
+		}
+	}()
+
+	kept.unreadable.Store(true)
+	_, err = session.Client().Browse.Resource(id("res-1")).Fresh(ctx)
+	must(t, err)
+	select {
+	case <-endedFromTheStream:
+	case <-ctx.Done():
+		select {
+		case <-ending:
+			t.Fatal("ending the session from the keep-failed it said never returned: the save that said it waited for its reader")
+		default:
+			t.Fatal("the session never said session.keep-failed on its errors stream")
+		}
 	}
 }

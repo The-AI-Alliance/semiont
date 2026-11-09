@@ -149,10 +149,11 @@ private object Caches : AxiomSubject<Cache<String, Int>>() {
 private object Sessions : AxiomSubject<SemiontSession>() {
     override fun setup(bench: Bench): Fresh<SemiontSession> {
         val client = bench.client()
-        return Fresh(SemiontSession(TARGET, client, MutableStateFlow(null), MemorySignIn(), null, null, null, null, Random(0))).given(client)
+        return Fresh(SemiontSession(TARGET, client, MutableStateFlow(null), MemorySignIn(), null, null, null, Random(0))).given(client)
     }
 
-    // Its stream state and its errors are its client's, and end with it.
+    // Its stream state is its client's, and ends with it. Its errors end only once the flush of its disposal has been
+    // made, which closing its client makes, after the session's own close: held by SessionFromKeptTest, not here.
     override fun surfaces(unit: SemiontSession): List<Flow<*>> = listOf(unit.token, unit.user)
 }
 

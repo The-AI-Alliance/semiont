@@ -682,15 +682,17 @@ impl CachePersister<String, String> for Kept {
         self.stored.lock().expect("stored").clone()
     }
 
-    fn save(
-        &self,
-        entries: &HashMap<String, String>,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.saves.lock().expect("saves").push(entries.clone());
-        if self.full.load(Ordering::SeqCst) {
-            return Err("the storage is full".into());
-        }
-        Ok(())
+    fn save<'a>(
+        &'a self,
+        entries: &'a HashMap<String, String>,
+    ) -> BoxFuture<'a, Result<(), Box<dyn std::error::Error + Send + Sync>>> {
+        Box::pin(async move {
+            self.saves.lock().expect("saves").push(entries.clone());
+            if self.full.load(Ordering::SeqCst) {
+                return Err("the storage is full".into());
+            }
+            Ok(())
+        })
     }
 }
 
@@ -809,13 +811,14 @@ fn entries(of: &[(&str, &str)]) -> HashMap<String, String> {
         .collect()
 }
 
-#[test]
-fn a_stored_cache_is_one_document_and_is_read_back_as_it_was_written() {
+#[tokio::test]
+async fn a_stored_cache_is_one_document_and_is_read_back_as_it_was_written() {
     let storage = Arc::new(InMemorySessionStorage::new());
     let persister = stored(&storage, MAX_STORED_BYTES_COUNT);
     assert_eq!(persister.load(), None);
     persister
         .save(&entries(&[("a", "one"), ("b", "two")]))
+        .await
         .expect("stored");
 
     let document: Value =
@@ -848,17 +851,19 @@ fn a_document_of_another_version_or_one_that_is_not_a_document_reads_as_nothing_
     }
 }
 
-#[test]
-fn a_document_over_its_size_loses_the_entries_longest_unwritten() {
+#[tokio::test]
+async fn a_document_over_its_size_loses_the_entries_longest_unwritten() {
     let storage = Arc::new(InMemorySessionStorage::new());
     let value = "x".repeat(100);
     let persister = stored(&storage, 400);
     persister
         .save(&entries(&[("oldest", &value)]))
+        .await
         .expect("stored");
     std::thread::sleep(Duration::from_millis(5));
     persister
         .save(&entries(&[("oldest", &value), ("older", &value)]))
+        .await
         .expect("stored");
     std::thread::sleep(Duration::from_millis(5));
     // An entry whose value did not change keeps the time it was written, so
@@ -869,6 +874,7 @@ fn a_document_over_its_size_loses_the_entries_longest_unwritten() {
             ("older", &value),
             ("newest", &value),
         ]))
+        .await
         .expect("stored");
 
     let kept = stored(&storage, 400).load().expect("a document");

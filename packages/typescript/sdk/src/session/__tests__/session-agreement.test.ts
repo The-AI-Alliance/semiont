@@ -15,7 +15,6 @@ import { APIError } from '../../client';
 import { createTestClient } from '../../testing';
 import { httpKb } from '../knowledge-base';
 import { SemiontSession, type UserInfo } from '../semiont-session';
-import type { SemiontSessionError } from '../errors';
 import type { SessionEndReason } from '../session-signals';
 import { InMemorySessionStorage } from '../session-storage';
 import { getStoredSession, keptIn, parseJwtExpiry, refreshDelayMs, setStoredSession } from '../storage';
@@ -158,7 +157,6 @@ describe('session — the SDK agrees with the shared table', () => {
     let renewals = 0;
     let answered: UserInfo | null = null;
     const told: SessionEndReason[] = [];
-    const errors: SemiontSessionError[] = [];
     const token$ = new BehaviorSubject<AccessToken | null>(null);
     const session = new SemiontSession({
       kb: KB,
@@ -188,8 +186,10 @@ describe('session — the SDK agrees with the shared table', () => {
         return issued(renewals);
       },
       onAuthFailed: (reason) => told.push(reason),
-      onError: (error) => errors.push(error),
     });
+    // What the session says, it says on its errors stream.
+    const errors: string[] = [];
+    session.errors$.subscribe((error) => errors.push(error.code));
     await session.ready;
 
     expect({ asks, renewals }).toEqual({ asks: c.asks, renewals: c.renewals });
@@ -197,7 +197,7 @@ describe('session — the SDK agrees with the shared table', () => {
     expect(token === null ? 'signed-out' : user === null ? 'unconfirmed' : 'signed-in').toBe(c.ends);
     if (c.ends === 'signed-in') expect(user).toEqual(answered);
     expect(told).toEqual(c.told === null ? [] : [c.told]);
-    expect(errors.map((error) => error.code)).toEqual(c.error === null ? [] : [c.error]);
+    expect(errors).toEqual(c.error === null ? [] : [c.error]);
     expect(getStoredSession(storage, KB.id) !== null).toBe(c.kept);
 
     // A session that ended signed out asks nobody anything afterwards,
@@ -234,7 +234,6 @@ describe('session — the SDK agrees with the shared table', () => {
     let renewals = 0;
     let answered: UserInfo = ALICE;
     const told: SessionEndReason[] = [];
-    const errors: SemiontSessionError[] = [];
     const token$ = new BehaviorSubject<AccessToken | null>(null);
     const session = new SemiontSession({
       kb: KB,
@@ -266,8 +265,10 @@ describe('session — the SDK agrees with the shared table', () => {
         return renewed;
       },
       onAuthFailed: (reason) => told.push(reason),
-      onError: (error) => errors.push(error),
     });
+    // What the session says, it says on its errors stream.
+    const errors: string[] = [];
+    session.errors$.subscribe((error) => errors.push(error.code));
     await session.ready;
     expect(session.user$.getValue()).toEqual(ALICE);
     started = true;
@@ -283,7 +284,7 @@ describe('session — the SDK agrees with the shared table', () => {
     expect(token === null ? 'signed-out' : user === null ? 'unconfirmed' : 'signed-in').toBe(c.ends);
     if (c.ends === 'signed-in') expect(user).toEqual(answered);
     expect(told).toEqual(c.told === null ? [] : [c.told]);
-    expect(errors.map((error) => error.code)).toEqual(c.error === null ? [] : [c.error]);
+    expect(errors).toEqual(c.error === null ? [] : [c.error]);
     expect(getStoredSession(storage, KB.id) !== null).toBe(c.kept);
 
     const later = thenOf(c);

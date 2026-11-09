@@ -4,6 +4,7 @@
  */
 
 import { InMemorySessionStorage, type SessionStorage } from '../session-storage';
+import { MemorySignIn } from '../sign-in-kept';
 import type { StoredSession } from '../storage';
 
 const PREFIX = 'semiont.session.';
@@ -42,6 +43,26 @@ export function testSession(access: string, refresh: string): StoredSession {
     tokenEndpoint: TEST_TOKEN_ENDPOINT,
     revocationEndpoint: TEST_REVOCATION_ENDPOINT,
   };
+}
+
+/** What reading an `UnreadableSignIn` throws while it cannot be read. */
+export const UNREADABLE = 'the kept sign-in could not be read';
+
+/**
+ * A sign-in kept in memory that cannot be read while `unreadable` is set, as
+ * a store whose read fails: `held()` throws, and counts each read it failed.
+ */
+export class UnreadableSignIn extends MemorySignIn {
+  unreadable = false;
+  failedReads = 0;
+
+  override held(): StoredSession | null {
+    if (this.unreadable) {
+      this.failedReads += 1;
+      throw new Error(UNREADABLE);
+    }
+    return super.held();
+  }
 }
 
 export function seedStoredSession(

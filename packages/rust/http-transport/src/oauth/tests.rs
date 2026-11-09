@@ -4,6 +4,9 @@
 //! an entry of the file `semiont login` keeps, one kept in memory, and one a
 //! registry keeps in its storage.
 
+#[path = "../../tests/quick_clock/mod.rs"]
+mod quick_clock;
+
 use super::renew_kept;
 use axum::Router;
 use axum::extract::State;
@@ -12,6 +15,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use quick_clock::QuickClock;
 use semiont::errors::SignInError;
 use semiont::session::{MemorySignIn, SignInKept, StoredSession, kept_in, person_key};
 use semiont::sign_in_store::{FILE_NAME, SignInStore};
@@ -70,34 +74,6 @@ async fn token(State(staged): State<Arc<Staged>>, body: String) -> Response {
         answer.to_string(),
     )
         .into_response()
-}
-
-/// The clock of a test that waits out long times over real sockets, in a
-/// test whose runtime starts paused: held still, as the runtime does while
-/// a blocking task runs, and moved by hand, `STEP` for each real
-/// millisecond, so an answer on its way arrives long before its deadline.
-struct QuickClock(tokio::task::JoinHandle<()>);
-
-const STEP: Duration = Duration::from_millis(250);
-
-impl QuickClock {
-    fn start() -> QuickClock {
-        QuickClock(tokio::spawn(async {
-            loop {
-                let _ = tokio::task::spawn_blocking(|| {
-                    std::thread::sleep(Duration::from_millis(1));
-                })
-                .await;
-                tokio::time::advance(STEP).await;
-            }
-        }))
-    }
-}
-
-impl Drop for QuickClock {
-    fn drop(&mut self) {
-        self.0.abort();
-    }
 }
 
 struct Issuer {

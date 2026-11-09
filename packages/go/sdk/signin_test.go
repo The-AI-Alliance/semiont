@@ -293,15 +293,36 @@ func TestAResumedSessionRenewsARefusedTokenAndKeepsTheRotation(t *testing.T) {
 	})
 	store, entry := keptAt(t, s, 1)
 	token := NewVariable("")
+	// The session's client, over a wire nothing is sent on.
+	wire := newWorkerWire()
+	client := NewClient(ClientConfig{Transport: wire, Timing: quickTiming()})
 	session, err := ResumeSession(context.Background(), ResumeConfig{
-		Kb: gatewayTarget(t, "local", s.gateway.URL), Kept: entry, Token: token,
+		Kb: gatewayTarget(t, "local", s.gateway.URL), Client: client, Kept: entry, Token: token,
 		HTTP: &http.Client{}, Timing: quickTiming(), AskWhoTokenIs: true,
-		OnError: func(err *SessionError) { t.Errorf("the session said %s: %s", err.Code, err.Message) },
 	})
 	if err != nil {
+		client.Close()
+		wire.Close()
 		t.Fatal(err)
 	}
-	defer session.Close()
+	errs := session.Errors()
+	var said []string
+	heard := make(chan struct{})
+	go func() {
+		defer close(heard)
+		for failure := range errs {
+			var own *SessionError
+			if errors.As(failure, &own) {
+				said = append(said, fmt.Sprintf("%s: %s", own.Code, own.Message))
+			}
+		}
+	}()
+	closed := sync.OnceFunc(func() {
+		session.Close()
+		client.Close()
+		wire.Close()
+	})
+	defer closed()
 	ready, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := session.Ready(ready); err != nil {
@@ -318,6 +339,15 @@ func TestAResumedSessionRenewsARefusedTokenAndKeepsTheRotation(t *testing.T) {
 	}
 	if grants := s.grantsMade(); grants != 1 {
 		t.Errorf("%d grants, want one", grants)
+	}
+	closed()
+	select {
+	case <-heard:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the session's errors stream did not end once the session, its client and its transport were closed")
+	}
+	if len(said) != 0 {
+		t.Errorf("the session said %v on its errors stream", said)
 	}
 }
 

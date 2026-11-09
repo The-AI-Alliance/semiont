@@ -2,9 +2,12 @@
 
 package semiont.session
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -19,11 +22,13 @@ import semiont.errors.TransportError
 import semiont.signin.HeldSignIn
 import semiont.signin.MemorySignIn
 import semiont.signin.SCRIPT_CLIENT_ID
+import semiont.signin.SignInKept
 import semiont.types.HttpEndpoint
 import semiont.types.HttpEndpointProtocol
 import semiont.types.KbTarget
 import semiont.types.UserResponse
 import semiont.types.wireJson
+import java.io.IOException
 import java.util.Base64
 import kotlin.random.Random
 
@@ -66,9 +71,24 @@ internal val TARGET = KbTarget(id = "kb-alpha", label = "Alpha", endpoint = Http
  */
 internal class SessionWorld(kept: String? = null, renewals: List<Any?> = emptyList(), validations: List<Any> = emptyList()) {
     val kept = MemorySignIn(kept?.let { HeldSignIn(it, "a-refresh-token", SCRIPT_CLIENT_ID, "https://issuer.test/token", null, null) })
+
+    /** Whether the session's reads of its sign-in fail, as a store's that cannot be read do. What is kept stays kept. */
+    @Volatile
+    var unreadable = false
+
+    /** The sign-in as the session holds it: `kept`, read only while it is not `unreadable`. */
+    private val held: SignInKept = object : SignInKept by this@SessionWorld.kept {
+        override suspend fun held(): HeldSignIn? {
+            if (unreadable) throw IOException("the sign-in cannot be read")
+            return this@SessionWorld.kept.held()
+        }
+    }
     val token = MutableStateFlow<String?>(null)
     private val renewalsLeft = ArrayDeque(renewals)
     var renewed = 0
+
+    /** The token each renewal was handed, in order: the one the session held as it renewed. */
+    val handed = mutableListOf<String?>()
 
     /** When each renewal was asked for, by the clock given, when one is. */
     val renewedAt = mutableListOf<Long>()
@@ -79,10 +99,13 @@ internal class SessionWorld(kept: String? = null, renewals: List<Any?> = emptyLi
     /** Who the gateway last said a token is. */
     var answered: UserResponse? = null
     val told = mutableListOf<SessionEndReason>()
+
+    /** What the session said of its own on its errors stream, in order, each as it was said. */
     val errors = mutableListOf<SessionError>()
 
-    suspend fun refresh(): String? {
+    suspend fun refresh(holding: String?): String? {
         renewed += 1
+        handed += holding
         clock?.let { renewedAt += it() }
         return when (val answer = renewalsLeft.removeFirstOrNull()) {
             is SignInError -> throw answer
@@ -98,16 +121,24 @@ internal class SessionWorld(kept: String? = null, renewals: List<Any?> = emptyLi
         }
     }
 
-    /** A session over a client of its own, on the test's dispatcher and clock, that renews and asks as given: as this world scripts, unless told otherwise. */
+    /**
+     * A session over a client of its own, on the test's dispatcher and clock, that renews and asks as given: as this
+     * world scripts, unless told otherwise. What it says is read from its errors stream from before it starts, each
+     * as it is said, by a reader that is no child of the test, so a stream the session's close does not end holds
+     * no test open.
+     */
     suspend fun session(
-        renew: (suspend () -> String?)? = { refresh() },
+        renew: (suspend (String?) -> String?)? = { refresh(it) },
         asking: (suspend (String) -> UserResponse)? = { validate(it) },
     ): SemiontSession {
         val recording = Recording()
         val test = currentCoroutineContext()
         val scheduler = checkNotNull(test[TestCoroutineScheduler]) { "a session world's session is made under runTest" }
         val client = SemiontClient(recording, recording, recording, context = test.minusKey(Job), clock = scheduler.timeSource)
-        return SemiontSession(TARGET, client, token, kept, renew, asking, { told += it }, { errors += it }, Random(0))
+        val session = SemiontSession(TARGET, client, token, held, renew, asking, { told += it }, Random(0))
+        val said = session.errors()
+        CoroutineScope(Dispatchers.Unconfined).launch { said.collect { if (it is SessionError) errors += it } }
+        return session
     }
 
     suspend fun isKept(): Boolean = kept.held() != null

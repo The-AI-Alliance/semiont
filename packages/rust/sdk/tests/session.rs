@@ -2,10 +2,12 @@
 //! is renewed and how it ends; and what a host shows about one.
 //!
 //! The session's environment is scripted: what `refresh` answers each time
-//! it is asked, and what the gateway says of a token.
+//! it is asked, and what the gateway says of a token. What the session says
+//! is read from its errors stream.
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use futures_core::Stream;
 use semiont::client::SemiontClient;
 use semiont::errors::{
     SemiontError, SessionError, SessionErrorCode, SignInError, SignInErrorCode, TransportError,
@@ -15,17 +17,22 @@ use semiont::session::{
     StoredSession, kept_in, store_session, stored_session,
 };
 use semiont::state_unit::StateUnit;
-use semiont::testing::axioms::{AxiomSubject, Fresh, Surface, assert_state_unit_axioms};
+use semiont::testing::axioms::{
+    AxiomSubject, Fresh, StreamSurface, Surface, assert_state_unit_axioms,
+};
 use semiont::testing::{
     FaultyTransport, SharedStorage, TestClientOptions, TestSessionOptions, create_test_client,
     create_test_session,
 };
 use semiont::timing::{MAX_RECONNECT, RECONNECT};
-use semiont::transport::BoxFuture;
+use semiont::transport::{BoxFuture, Events};
 use semiont::types::{HttpEndpointProtocol, KbTarget, UserResponse};
 use serde_json::{Value, json};
 use std::collections::VecDeque;
+use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll, Waker};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::watch;
 
@@ -125,7 +132,11 @@ struct World {
     /// Who the gateway last said a token is.
     answered: Arc<Mutex<Option<UserResponse>>>,
     auth_failed: Arc<Mutex<Vec<String>>>,
-    errors: Arc<Mutex<Vec<SessionError>>>,
+    /// The errors stream of each session made here, taken before the
+    /// session starts.
+    heard: Mutex<Vec<Events<SemiontError>>>,
+    /// What the sessions said of their own on it so far, in order.
+    said: Mutex<Vec<SessionError>>,
 }
 
 impl World {
@@ -147,7 +158,8 @@ impl World {
             validated: Arc::default(),
             answered: Arc::default(),
             auth_failed: Arc::default(),
-            errors: Arc::default(),
+            heard: Mutex::default(),
+            said: Mutex::default(),
         }
     }
 
@@ -174,7 +186,7 @@ impl World {
         let renewed_at = self.renewed_at.clone();
         let (validations, validated) = (self.validations.clone(), self.validated.clone());
         let answered = self.answered.clone();
-        let (auth_failed, errors) = (self.auth_failed.clone(), self.errors.clone());
+        let auth_failed = self.auth_failed.clone();
         SemiontSessionConfig {
             kb: KbTarget::http(KB, "Alpha", "localhost", 4000, HttpEndpointProtocol::Http),
             kept: kept_in(self.storage.clone(), KB),
@@ -215,15 +227,20 @@ impl World {
                     .expect("auth failed")
                     .push(reason.as_str().to_owned());
             })),
-            on_error: Some(Arc::new(move |error| {
-                errors.lock().expect("errors").push(error);
-            })),
             random: None,
         }
     }
 
+    /// A session over `config`, whose errors stream is read from before it
+    /// starts: the session's start runs once the test first waits.
+    fn session_of(&self, config: SemiontSessionConfig) -> SemiontSession {
+        let session = SemiontSession::new(config);
+        self.heard.lock().expect("heard").push(session.errors());
+        session
+    }
+
     fn session(&self) -> SemiontSession {
-        SemiontSession::new(self.config())
+        self.session_of(self.config())
     }
 
     fn renewed(&self) -> usize {
@@ -242,13 +259,30 @@ impl World {
         self.auth_failed.lock().expect("auth failed").clone()
     }
 
+    /// What the sessions made here have said of their own on their errors
+    /// streams so far, in order: the transport's failures the streams carry
+    /// beside them are not these tests'. A stream that missed any of it
+    /// fails the test.
     fn errors(&self) -> Vec<(SessionErrorCode, String)> {
-        self.errors
-            .lock()
-            .expect("errors")
-            .iter()
+        let mut said = self.said.lock().expect("said");
+        for errors in self.heard.lock().expect("heard").iter_mut() {
+            while let Poll::Ready(Some(item)) =
+                Pin::new(&mut *errors).poll_next(&mut Context::from_waker(Waker::noop()))
+            {
+                match item {
+                    Ok(SemiontError::Session(error)) => said.push(error),
+                    Ok(_) => {}
+                    Err(missed) => panic!("a session's errors stream missed some: {missed}"),
+                }
+            }
+        }
+        said.iter()
             .map(|error| (error.code, error.message.clone()))
             .collect()
+    }
+
+    fn codes(&self) -> Vec<SessionErrorCode> {
+        self.errors().into_iter().map(|(code, _)| code).collect()
     }
 
     fn has_stored(&self) -> bool {
@@ -305,7 +339,7 @@ async fn a_stored_token_that_is_still_good_is_the_sessions_from_its_start_and_sa
 async fn a_token_the_session_was_given_is_not_replaced_by_the_stored_one() {
     let world = World::new().storing(&token(3600, 1));
     let given = token(3600, 2);
-    let session = SemiontSession::new(SemiontSessionConfig {
+    let session = world.session_of(SemiontSessionConfig {
         token: watch::channel(Some(given.clone())).0,
         ..world.config()
     });
@@ -318,7 +352,7 @@ async fn a_token_the_session_was_given_is_not_replaced_by_the_stored_one() {
 async fn a_session_of_a_service_asks_nobody_who_it_is() {
     let access = token(3600, 1);
     let world = World::new().storing(&access);
-    let session = SemiontSession::new(SemiontSessionConfig {
+    let session = world.session_of(SemiontSessionConfig {
         validate: None,
         ..world.config()
     });
@@ -444,12 +478,62 @@ impl SignInKept for Unforgetting {
     }
 }
 
+/// A sign-in kept that holds what it has until `unreadable` holds, and from
+/// then on cannot be read.
+struct Unreadable {
+    kept: Arc<dyn SignInKept>,
+    unreadable: AtomicBool,
+}
+
+impl Unreadable {
+    fn over(kept: Arc<dyn SignInKept>) -> Arc<Unreadable> {
+        Arc::new(Unreadable {
+            kept,
+            unreadable: AtomicBool::new(false),
+        })
+    }
+}
+
+impl SignInKept for Unreadable {
+    fn held(&self) -> BoxFuture<'_, Result<Option<StoredSession>, Failure>> {
+        if self.unreadable.load(Ordering::SeqCst) {
+            return Box::pin(async { Err("the sign-in could not be read".into()) });
+        }
+        self.kept.held()
+    }
+
+    fn keep(&self, sign_in: StoredSession) -> BoxFuture<'_, Result<(), Failure>> {
+        self.kept.keep(sign_in)
+    }
+
+    fn renewed<'a>(
+        &'a self,
+        read: &'a StoredSession,
+        access: &'a str,
+        refresh: &'a str,
+    ) -> BoxFuture<'a, Result<Option<String>, Failure>> {
+        self.kept.renewed(read, access, refresh)
+    }
+
+    fn record_person_key<'a>(
+        &'a self,
+        access: &'a str,
+        person_key: &'a str,
+    ) -> BoxFuture<'a, Result<bool, Failure>> {
+        self.kept.record_person_key(access, person_key)
+    }
+
+    fn forget(&self) -> BoxFuture<'_, Result<(), Failure>> {
+        self.kept.forget()
+    }
+}
+
 #[tokio::test(start_paused = true)]
 async fn an_expired_token_the_storage_will_not_forget_is_said_at_the_start() {
     let world = World::new()
         .storing(&expired())
         .renewing([Err(refused_by_the_issuer())]);
-    let session = SemiontSession::new(SemiontSessionConfig {
+    let session = world.session_of(SemiontSessionConfig {
         kept: Arc::new(Unforgetting(kept_in(world.storage.clone(), KB))),
         ..world.config()
     });
@@ -847,7 +931,7 @@ fn starting_slowly(
     let asked: Arc<Mutex<Vec<String>>> = Arc::default();
     let release = Arc::new(tokio::sync::Notify::new());
     let (asking, held, stored_token) = (asked.clone(), release.clone(), stored_token.to_owned());
-    let session = SemiontSession::new(SemiontSessionConfig {
+    let session = world.session_of(SemiontSessionConfig {
         validate: Some(Arc::new(move |token| {
             asking.lock().expect("asked").push(token.clone());
             let (held, stored_token, of_renewed) =
@@ -921,7 +1005,7 @@ async fn the_start_does_the_asking_when_it_and_the_stream_are_both_waiting_on_on
     let renewals = Arc::new(Mutex::new(0usize));
     let (issuing, renewing, issued) = (issue.clone(), renewals.clone(), renewed.clone());
     let (asking, holding, held_token) = (asked.clone(), release.clone(), renewed.clone());
-    let session = SemiontSession::new(SemiontSessionConfig {
+    let session = world.session_of(SemiontSessionConfig {
         refresh: Some(Arc::new(move |_holding| {
             *renewing.lock().expect("renewals") += 1;
             let (issuing, issued) = (issuing.clone(), issued.clone());
@@ -1007,7 +1091,7 @@ async fn refusals_that_arrive_together_cost_one_renewal_and_one_ask() {
     // An issuer that takes a moment, as one does: the refusals overlap.
     let renewals = Arc::new(Mutex::new(0usize));
     let (renewing, issued) = (renewals.clone(), renewed.clone());
-    let session = SemiontSession::new(SemiontSessionConfig {
+    let session = world.session_of(SemiontSessionConfig {
         refresh: Some(Arc::new(move |_holding| {
             *renewing.lock().expect("renewals") += 1;
             let issued = issued.clone();
@@ -1054,7 +1138,7 @@ async fn a_session_is_not_ended_by_the_refusal_of_a_token_it_no_longer_holds() {
     let release = Arc::new(tokio::sync::Notify::new());
     let (holding, held_token) = (release.clone(), renewed.clone());
     let sends = watch::channel(None).0;
-    let session = SemiontSession::new(SemiontSessionConfig {
+    let session = world.session_of(SemiontSessionConfig {
         token: sends.clone(),
         validate: Some(Arc::new(move |token| {
             let (holding, held_token) = (holding.clone(), held_token.clone());
@@ -1164,7 +1248,7 @@ async fn a_session_that_cannot_be_renewed_is_over_and_says_so_once() {
 #[tokio::test(start_paused = true)]
 async fn a_session_whose_credential_the_storage_will_not_forget_says_so_as_it_ends() {
     let world = World::new().storing(&token(3600, 1));
-    let session = SemiontSession::new(SemiontSessionConfig {
+    let session = world.session_of(SemiontSessionConfig {
         kept: Arc::new(Unforgetting(kept_in(world.storage.clone(), KB))),
         ..world.config()
     });
@@ -1297,6 +1381,79 @@ async fn the_issuers_refusal_ends_the_renewals_on_the_reconnect_backoff() {
     assert_eq!(world.renewed(), 2);
 }
 
+/// A renewal that gave no token, of a sign-in that then cannot be read, got
+/// no answer: nothing says what is kept is over, so the session says why as
+/// `session.refresh-exhausted`, ends nothing, and renews again on the
+/// reconnect backoff until a renewal is made.
+#[tokio::test(start_paused = true)]
+async fn a_renewal_whose_sign_in_cannot_be_read_got_no_answer_and_is_tried_again_on_the_backoff() {
+    let renewed = token(3600, 2);
+    let world = World::new()
+        .storing(&token(3600, 1))
+        .renewing([Err(unanswered_by_the_issuer()), Ok(Some(renewed.clone()))]);
+    let kept = Unreadable::over(kept_in(world.storage.clone(), KB));
+    let session = world.session_of(SemiontSessionConfig {
+        kept: kept.clone(),
+        ..world.config()
+    });
+    ready(&session).await;
+    kept.unreadable.store(true, Ordering::SeqCst);
+
+    assert_eq!(session.refresh(held_by(&session).as_deref()).await, None);
+    assert_eq!(world.codes(), [SessionErrorCode::RefreshExhausted]);
+    assert!(world.auth_failed().is_empty());
+
+    // Past the latest its renewal on the backoff falls due.
+    tokio::time::sleep(RECONNECT * 6 / 5).await;
+    settle().await;
+    assert_eq!(world.renewed(), 2);
+    assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
+    assert_eq!(world.codes(), [SessionErrorCode::RefreshExhausted]);
+}
+
+/// At its start, a renewal that got no answer says so as
+/// `session.auth-failed`. The renewal on the backoff after it, whose
+/// sign-in then cannot be read, got no answer either: it says so as
+/// `session.refresh-exhausted`, and the backoff goes on until a renewal is
+/// made, which asks the gateway who the token is, as the start would have.
+#[tokio::test(start_paused = true)]
+async fn a_start_whose_renewals_find_the_sign_in_unreadable_goes_on_renewing_on_the_backoff() {
+    let renewed = token(3600, 3);
+    let world = World::new().storing(&expired()).renewing([
+        Err(unanswered_by_the_issuer()),
+        Err(unanswered_by_the_issuer()),
+        Ok(Some(renewed.clone())),
+    ]);
+    let kept = Unreadable::over(kept_in(world.storage.clone(), KB));
+    let session = world.session_of(SemiontSessionConfig {
+        kept: kept.clone(),
+        ..world.config()
+    });
+    ready(&session).await;
+    assert_eq!(world.codes(), [SessionErrorCode::AuthFailed]);
+    kept.unreadable.store(true, Ordering::SeqCst);
+
+    // The first wait is at most the reconnect wait, and the second at least
+    // as long again.
+    tokio::time::sleep(RECONNECT * 6 / 5).await;
+    settle().await;
+    assert_eq!(world.renewed(), 2);
+    assert_eq!(
+        world.codes(),
+        [
+            SessionErrorCode::AuthFailed,
+            SessionErrorCode::RefreshExhausted
+        ]
+    );
+
+    tokio::time::sleep(RECONNECT * 12 / 5).await;
+    settle().await;
+    assert_eq!(world.renewed(), 3);
+    assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
+    assert_eq!(*session.user().borrow(), Some(alice()));
+    assert!(world.auth_failed().is_empty());
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_session_that_never_signed_in_cannot_expire() {
     let world = World::new();
@@ -1313,7 +1470,7 @@ async fn a_session_that_never_signed_in_cannot_expire() {
 async fn a_session_given_no_way_to_renew_asks_nothing_and_ends_nothing() {
     let access = token(3600, 1);
     let world = World::new().storing(&access);
-    let session = SemiontSession::new(SemiontSessionConfig {
+    let session = world.session_of(SemiontSessionConfig {
         refresh: None,
         ..world.config()
     });
@@ -1348,11 +1505,13 @@ async fn ending_a_session_ends_what_it_holds_and_leaves_its_client_open() {
     let session = world.session();
     ready(&session).await;
     let (mut held, mut user) = (session.token(), session.user());
+    let mut errors = StreamSurface(session.errors());
 
     session.dispose();
     session.dispose();
+    settle().await;
 
-    assert!(held.ended() && user.ended());
+    assert!(held.ended() && user.ended() && errors.ended());
     assert!(!world.client.bus().destroyed());
     // Nothing it had scheduled runs, and nothing it is told does anything.
     tokio::time::sleep(Duration::from_secs(600)).await;
@@ -1442,9 +1601,15 @@ impl AxiomSubject for Sessions {
         Fresh::of(test.session).given(test.client)
     }
 
-    // Its stream state and its errors are its client's, and end with it.
+    // Its stream state is its client's, and ends with the client. Its errors
+    // are its own, its transport's failures among them, and end with the
+    // session.
     fn surfaces(&self, unit: &SemiontSession) -> Vec<Box<dyn Surface>> {
-        vec![Box::new(unit.token()), Box::new(unit.user())]
+        vec![
+            Box::new(unit.token()),
+            Box::new(unit.user()),
+            Box::new(StreamSurface(unit.errors())),
+        ]
     }
 }
 

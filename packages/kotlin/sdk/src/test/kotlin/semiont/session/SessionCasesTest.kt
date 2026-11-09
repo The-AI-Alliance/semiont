@@ -104,7 +104,7 @@ class SessionCasesTest {
         assertEquals(row.getValue("ends").jsonPrimitive.content, ends(session))
         if (ends(session) == "signed-in") assertEquals(world.answered, session.user.value, "who the gateway last said the token is")
         assertEquals(listOfNotNull(row.getValue("told").takeUnless { it is JsonNull }?.jsonPrimitive?.content), world.told.map { it.wire }, "why the session ended")
-        assertEquals(listOfNotNull(row.getValue("error").takeUnless { it is JsonNull }?.jsonPrimitive?.content), world.errors.map { it.code }, "the error reported")
+        assertEquals(listOfNotNull(row.getValue("error").takeUnless { it is JsonNull }?.jsonPrimitive?.content), world.errors.map { it.code }, "what the session said on its errors stream")
         assertEquals(row.getValue("kept").jsonPrimitive.content.toBooleanStrict(), world.kept.held() != null, "whether a sign-in is still kept")
         val later = then(row)
         if (later != null) {

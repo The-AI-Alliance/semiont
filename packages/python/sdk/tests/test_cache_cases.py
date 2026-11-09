@@ -16,7 +16,7 @@ from aio import pass_time, run
 from kb import NothingRuns, nothing_fetched
 from pydantic import BaseModel, Field, JsonValue, TypeAdapter
 from spec import SPEC
-from storages import RefusingFirst
+from storages import Refusing
 
 from semiont.cache import Cache
 from semiont.client import CachePersistence
@@ -221,7 +221,7 @@ def test_a_save_writes_what_the_shared_table_states(case: Write) -> None:
 
 @pytest.mark.parametrize("case", TABLE.refused_writes, ids=lambda case: case.name)
 def test_a_save_the_storage_refuses_stays_owed_and_disposal_writes_what_the_shared_table_states(case: Write) -> None:
-    storage = RefusingFirst(cache_key(KB, PERSON, case.query))
+    storage = Refusing(cache_key(KB, PERSON, case.query), times=1)
 
     async def scenario() -> None:
         cache = held_by(case.query, storage, case.held)

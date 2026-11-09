@@ -738,7 +738,6 @@ impl SessionFactory for ClosingSessions {
             refresh: None,
             validate: None,
             on_auth_failed: None,
-            on_error: Some(options.on_error),
             random: None,
         }))
     }

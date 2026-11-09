@@ -32,6 +32,7 @@ fn message(error: SemiontError) -> String {
         SemiontError::Bus(error) => error.message,
         SemiontError::Transport(error) => error.message,
         SemiontError::Job(error) => error.message,
+        SemiontError::Session(error) => error.message,
     }
 }
 

@@ -4,8 +4,12 @@
 //! answer, its next request is waited for `idle`, and a head it has begun is
 //! given `request_head` from its first byte.
 
+#[path = "../../http-transport/tests/quick_clock/mod.rs"]
+mod quick_clock;
+
 use axum::Router;
 use axum::routing::get;
+use quick_clock::QuickClock;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -17,38 +21,6 @@ const IDLE: Duration = Duration::from_secs(60);
 const EARLY: Duration = Duration::from_secs(5);
 /// A request's head, all but the blank line that ends it.
 const HEAD: &[u8] = b"GET / HTTP/1.1\r\nHost: test\r\n";
-
-/// The clock of a test that waits out long times over real sockets, in a
-/// test whose runtime starts paused.
-///
-/// A paused clock alone will not do. It runs ahead to the next timer
-/// whenever nothing is runnable, and bytes on their way over the loopback are
-/// not runnable: the accept loop's wait for them could end before they
-/// arrive. So the clock is held still, which the runtime does while a
-/// blocking task runs, and moved by hand, `STEP` for each real millisecond.
-struct QuickClock(tokio::task::JoinHandle<()>);
-
-const STEP: Duration = Duration::from_millis(250);
-
-impl QuickClock {
-    fn start() -> QuickClock {
-        QuickClock(tokio::spawn(async {
-            loop {
-                let _ = tokio::task::spawn_blocking(|| {
-                    std::thread::sleep(Duration::from_millis(1));
-                })
-                .await;
-                tokio::time::advance(STEP).await;
-            }
-        }))
-    }
-}
-
-impl Drop for QuickClock {
-    fn drop(&mut self) {
-        self.0.abort();
-    }
-}
 
 /// `work`, which must end within twice the longest wait: a wait that never
 /// ends fails the test instead of hanging it.

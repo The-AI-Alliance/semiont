@@ -475,7 +475,7 @@ async def renewal(given: JsonObject, held: AsyncExitStack) -> Subject:
     assert lifetime is not None, "a renewal's case states how long its tokens live"
     renewals = 0
 
-    async def renew() -> str | None:
+    async def renew(_holding: str | None) -> str | None:
         nonlocal renewals
         renewals += 1
         return token(lifetime, renewals)

@@ -207,6 +207,89 @@ public sealed class SessionTests
         Assert.Equal(1, asks);
     }
 
+    // A renewal that cannot read the sign-in it renews got no answer (protocol/specs/src/session/cases.json): at the start
+    // the session says so as session.auth-failed, and on its errors stream; it keeps what is stored, and renews again on
+    // the reconnect backoff, each renewal with no answer said as session.refresh-exhausted.
+    [Fact]
+    public async Task ASignInThatCannotBeReadAtTheStartsRenewalIsARenewalWithNoAnswer()
+    {
+        var clock = new TestClock();
+        var stored = new StoredSession
+        {
+            Access = TokenTests.Jwt(new { exp = clock.GetUtcNow().ToUnixTimeSeconds() - 1 }),
+            Refresh = "refresh",
+            ClientId = SignInPolicy.ScriptClientId,
+            TokenEndpoint = "https://issuer.example/token",
+        };
+        var signIn = new MemorySignIn(stored);
+        var kept = new SignInUnreadableAfter(signIn, reads: 1);
+        using var issuer = new Issuer(timeProvider: clock, random: new ZeroRandom());
+        using var session = new KeptSession(kept, (holding, cancellation) => issuer.RenewAsync(kept, holding, cancellation),
+            (_, _) => Task.FromResult(User()), clock, new ZeroRandom());
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var errors = session.Errors(deadline.Token).GetAsyncEnumerator();
+        await session.ReadyAsync(deadline.Token);
+        Assert.True(await errors.MoveNextAsync(), "the start's renewal with no answer was not said");
+        Assert.Equal("session.auth-failed", errors.Current.Code);
+        Assert.Same(kept.Failure, errors.Current.InnerException);
+        Assert.Null(session.State.Token);
+        foreach (var wait in Backoff().Take(2))
+        {
+            await clock.WaitForAsync(wait);
+            clock.Advance(wait);
+            Assert.True(await errors.MoveNextAsync(), "a renewal on the backoff was not said");
+            Assert.Equal("session.refresh-exhausted", errors.Current.Code);
+            Assert.Same(kept.Failure, errors.Current.InnerException);
+        }
+        Assert.Equal(stored, await signIn.HeldAsync(deadline.Token));
+    }
+
+    // The same, for a session that started signed in: the renewal its schedule makes cannot read the sign-in, which is
+    // said as session.refresh-exhausted, and the session renews again on the reconnect backoff, whose first wait is the
+    // equal jitter of reconnectMs, as after any renewal with no answer.
+    [Fact]
+    public async Task ASignInThatCannotBeReadAtAScheduledRenewalIsARenewalWithNoAnswerAndTheBackoffGoesOn()
+    {
+        var clock = new TestClock();
+        var signIn = Stored(clock);
+        var stored = await signIn.HeldAsync();
+        var kept = new SignInUnreadableAfter(signIn, reads: 1);
+        using var issuer = new Issuer(timeProvider: clock, random: new ZeroRandom());
+        using var session = new KeptSession(kept, (holding, cancellation) => issuer.RenewAsync(kept, holding, cancellation),
+            (_, _) => Task.FromResult(User()), clock, new ZeroRandom());
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var errors = session.Errors(deadline.Token).GetAsyncEnumerator();
+        await session.ReadyAsync(deadline.Token);
+        var token = session.State.Token ?? throw new InvalidOperationException("The session did not start signed in");
+        var due = TimeSpan.FromSeconds(Tokens.RefreshDelay(token, clock.GetUtcNow().ToUnixTimeSeconds()) ?? throw new InvalidOperationException("No schedule"));
+        await clock.WaitForAsync(due);
+        clock.Advance(due);
+        Assert.True(await errors.MoveNextAsync(), "the scheduled renewal with no answer was not said");
+        Assert.Equal("session.refresh-exhausted", errors.Current.Code);
+        Assert.Same(kept.Failure, errors.Current.InnerException);
+        foreach (var wait in Backoff().Take(2))
+        {
+            await clock.WaitForAsync(wait);
+            clock.Advance(wait);
+            Assert.True(await errors.MoveNextAsync(), "a renewal on the backoff was not said");
+            Assert.Equal("session.refresh-exhausted", errors.Current.Code);
+        }
+        Assert.Equal(stored, await signIn.HeldAsync(deadline.Token));
+    }
+
+    /// <summary>The reconnect backoff's waits as ZeroRandom draws them: half of each step, the step reconnectMs doubling
+    /// to maxReconnectMs.</summary>
+    private static IEnumerable<TimeSpan> Backoff()
+    {
+        var step = TimeSpan.FromMilliseconds(ProtocolFacts.Timing("reconnectMs").GetDouble());
+        var most = TimeSpan.FromMilliseconds(ProtocolFacts.Timing("maxReconnectMs").GetDouble());
+        while (true)
+        {
+            yield return step / 2;
+            step = step * 2 < most ? step * 2 : most;
+        }
+    }
+
     [Theory]
     [InlineData("startup")]
     [InlineData("refusal")]
@@ -304,4 +387,22 @@ public sealed class SessionTests
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         while (!condition()) await Task.Delay(1, deadline.Token);
     }
+}
+
+/// <summary>A sign-in kept in memory whose keeper reads it <paramref name="reads"/> times, and fails every read after with
+/// <see cref="Failure"/>.</summary>
+internal sealed class SignInUnreadableAfter(MemorySignIn kept, int reads) : ISignInKept
+{
+    private int asked;
+    internal IOException Failure { get; } = new("The kept sign-in cannot be read.");
+
+    public Task<StoredSession?> HeldAsync(CancellationToken cancellation = default) =>
+        Interlocked.Increment(ref asked) > reads ? Task.FromException<StoredSession?>(Failure) : kept.HeldAsync(cancellation);
+
+    public Task KeepAsync(StoredSession signIn, CancellationToken cancellation = default) => kept.KeepAsync(signIn, cancellation);
+    public Task<string?> RenewedAsync(StoredSession read, string access, string refresh, CancellationToken cancellation = default) =>
+        kept.RenewedAsync(read, access, refresh, cancellation);
+    public Task ForgetAsync(CancellationToken cancellation = default) => kept.ForgetAsync(cancellation);
+    public Task<bool> RecordPersonKeyAsync(string access, string personKey, CancellationToken cancellation = default) =>
+        kept.RecordPersonKeyAsync(access, personKey, cancellation);
 }

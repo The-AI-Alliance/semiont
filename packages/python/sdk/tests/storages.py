@@ -1,4 +1,4 @@
-"""Storages a test gives what a client keeps, beyond the one in memory: one that refuses a write."""
+"""Storages a test gives what a client keeps, beyond the one in memory: one that refuses writes."""
 
 from collections.abc import Callable
 from typing import Final, final, override
@@ -7,12 +7,16 @@ from semiont.storage import MemoryStorage, SessionStorage
 
 
 @final
-class RefusingFirst(SessionStorage):
-    """A storage in memory that refuses the first write under `refused`, as a full one would, and takes every write after it."""
+class Refusing(SessionStorage):
+    """A storage in memory that refuses writes under `refused`, as a full one would, and takes every other.
 
-    def __init__(self, refused: str) -> None:
+    It refuses the first `times` of them, and takes every write after; with `times` none, it refuses every one.
+    """
+
+    def __init__(self, refused: str, *, times: int | None) -> None:
         self._held: Final = MemoryStorage()
         self._refused: Final = refused
+        self._times: Final = times
         self.refusals = 0
         """How many writes it refused."""
 
@@ -22,7 +26,7 @@ class RefusingFirst(SessionStorage):
 
     @override
     def set(self, key: str, value: str) -> None:
-        if key == self._refused and self.refusals == 0:
+        if key == self._refused and (self._times is None or self.refusals < self._times):
             self.refusals += 1
             raise OSError("the storage is full")
         self._held.set(key, value)

@@ -18,8 +18,10 @@ import Testing
 // `startup`, of `resumeFrom` and of `crossTab` are the registry's own, made by
 // HttpSessionFactory over a gateway and an issuer in this process; `holder`'s is a script's, made
 // by sessionFromKept over a MemorySignIn. A script's session whose sign-in cannot be read when its
-// client saves keeps nothing more, and says so once. Last, a save being written when its session
-// forgets its sign-in lands before the forget deletes, never after.
+// client saves keeps nothing more, and says so once on its errors, as one whose closing save
+// cannot read it does before they end, and one whose sign-in cannot record who the gateway named
+// does too; one whose sign-in cannot be read at its start is not opened. Last, a save being
+// written when its session forgets its sign-in lands before the forget deletes, never after.
 
 private func casesTable() throws -> [String: JSONValue] {
   try Spec.read("session/persisted-cases.json").object
@@ -897,7 +899,7 @@ private enum SignInChange: Sendable {
       // On a clock that never moves, every save waits for the client's close.
       let opened = try await sessionFromKept(
         kb: KbTarget(endpoint: kb.endpoint, id: kb.id, label: kb.label), kept: memory,
-        httpClient: http, onError: { _ in }, storage: caches, clock: TestClock())
+        httpClient: http, storage: caches, clock: TestClock())
       defer { opened.dispose() }
       try await withinTestDeadline { try await opened.session.ready() }
       let observed = Observed(opened.client.browse.resource(asked))
@@ -952,32 +954,59 @@ private final class UnreadableSignIn: SignInKept {
 
 private struct UnreadableSignInStore: Error {}
 
+/// What a session says on its errors stream, from when this is made until the stream ends.
+private final class HeardErrors: Sendable {
+  private let heard: Watched<[any Error]>
+  private let reader: Task<Void, any Error>
+
+  init(_ session: SemiontSession) {
+    let errors = session.errors()
+    let heard = Watched<[any Error]>([])
+    self.heard = heard
+    reader = Task {
+      defer { heard.finish() }
+      for try await error in errors { heard.set(heard.value + [error]) }
+    }
+  }
+
+  /// Waits until the stream has said a `session.keep-failed`.
+  func keepFailed() async throws {
+    let heard = heard
+    try await withinTestDeadline {
+      for await said in heard where !keepFailures(said).isEmpty { return }
+      throw SpecFailure.shape("The errors stream ended before it said session.keep-failed")
+    }
+  }
+
+  /// Everything the stream said, once it has ended.
+  func ended() async throws -> [any Error] {
+    let reader = reader
+    try await withinTestDeadline { try await reader.value }
+    return heard.value
+  }
+}
+
+/// The `session.keep-failed` errors of `said`.
+private func keepFailures(_ said: [any Error]) -> [SessionError] {
+  said.compactMap { $0 as? SessionError }.filter { $0.reason == .sessionKeepFailed }
+}
+
 @Test func aScriptSessionWhoseSignInCannotBeReadWhenItsClientSavesKeepsNothingMore() async throws {
   let table = try casesTable()
   let jo = try personKeyOf(table, "jo")
   let user = try JSONEncoder().encode(required(table, "whoAmI"))
-  let isKeepFailed: @Sendable (any Error) -> Bool = {
-    ($0 as? SessionError)?.reason == .sessionKeepFailed
-  }
   try await overGateway(.names, issuer: .unasked, user: user) { _, port, http in
     let kept = try UnreadableSignIn(
       MemorySignIn(signIn(personKey: jo, expired: false, tokenEndpoint: unaskedIssuer)))
     let caches = ListedStorage()
-    let told = Mutex<[any Error]>([])
     let kb = knowledgeBase("kb-a", port: port)
     let clock = TestClock()
     let opened = try await sessionFromKept(
       kb: KbTarget(endpoint: kb.endpoint, id: kb.id, label: kb.label), kept: kept,
-      httpClient: http, onError: { error in told.withLock { $0.append(error) } },
-      storage: caches, clock: clock)
+      httpClient: http, storage: caches, clock: clock)
     defer { opened.dispose() }
     let session = opened.session
-    let errors = session.errors()
-    let heard = Task { () async throws -> [any Error] in
-      var heard: [any Error] = []
-      for try await error in errors { heard.append(error) }
-      return heard
-    }
+    let heard = HeardErrors(session)
     try await withinTestDeadline { try await session.ready() }
     let first = try Observed(opened.client.browse.resource(ResourceId("res-1")))
     _ = try await withinTestDeadline { try await first.first() }
@@ -989,11 +1018,7 @@ private struct UnreadableSignInStore: Error {}
     }
     kept.setReadable(false)
     clock.advance(by: .milliseconds(Timings.saveDebounceMs))
-    try await withinTestDeadline {
-      while !told.withLock({ $0.contains(where: isKeepFailed) }) {
-        try await Task.sleep(for: .milliseconds(1))
-      }
-    }
+    try await heard.keepFailed()
     #expect(caches.held.isEmpty, "\(caches.held.keys.sorted()) written by the save")
     #expect(session.token.value != nil, "the session went on")
     // Readable again, the sign-in names jo; the client keeps nothing more all the same.
@@ -1005,11 +1030,128 @@ private struct UnreadableSignInStore: Error {}
     opened.dispose()
     await opened.client.closed()
     #expect(caches.held.isEmpty, "\(caches.held.keys.sorted()) written after the save")
-    let reported = try await withinTestDeadline { try await heard.value }
-    for (channel, given) in [("errors()", reported), ("onError", told.withLock { $0 })] {
-      let failed = given.compactMap { $0 as? SessionError }.filter { isKeepFailed($0) }
-      #expect(failed.count == 1, "\(channel): \(given)")
-      #expect(failed.first?.kbId == "kb-a", "\(channel)")
+    let reported = try await heard.ended()
+    let failed = keepFailures(reported)
+    #expect(failed.count == 1, "\(reported)")
+    #expect(failed.first?.kbId == "kb-a")
+  }
+}
+
+// The flush of a session's disposal is said before its errors end: a closing save that cannot
+// read the sign-in reports one keep-failed on them, and they end after it.
+@Test func aScriptSessionWhoseClosingSaveCannotReadItsSignInSaysSoBeforeItsErrorsEnd()
+  async throws
+{
+  let table = try casesTable()
+  let jo = try personKeyOf(table, "jo")
+  let user = try JSONEncoder().encode(required(table, "whoAmI"))
+  try await overGateway(.names, issuer: .unasked, user: user) { _, port, http in
+    let kept = try UnreadableSignIn(
+      MemorySignIn(signIn(personKey: jo, expired: false, tokenEndpoint: unaskedIssuer)))
+    let caches = ListedStorage()
+    let kb = knowledgeBase("kb-a", port: port)
+    // On a clock that never moves, the save waits for the client's close.
+    let clock = TestClock()
+    let opened = try await sessionFromKept(
+      kb: KbTarget(endpoint: kb.endpoint, id: kb.id, label: kb.label), kept: kept,
+      httpClient: http, storage: caches, clock: clock)
+    defer { opened.dispose() }
+    let session = opened.session
+    let heard = HeardErrors(session)
+    try await withinTestDeadline { try await session.ready() }
+    let observed = try Observed(opened.client.browse.resource(ResourceId("res-1")))
+    _ = try await withinTestDeadline { try await observed.first() }
+    observed.stop()
+    // The save is owed: due saveDebounceMs after the value.
+    let due = clock.now.advanced(by: .milliseconds(Timings.saveDebounceMs))
+    try await withinTestDeadline {
+      while !clock.wakes.contains(due) { try await Task.sleep(for: .milliseconds(1)) }
+    }
+    kept.setReadable(false)
+    opened.dispose()
+    await opened.client.closed()
+    #expect(caches.held.isEmpty, "\(caches.held.keys.sorted()) written by the closing save")
+    let reported = try await heard.ended()
+    let failed = keepFailures(reported)
+    #expect(failed.count == 1, "\(reported)")
+    #expect(failed.first?.kbId == "kb-a")
+  }
+}
+
+// ── A sign-in that cannot record who the gateway named ──────────────────
+
+/// What holds a sign-in in this process, as `memory` does, except that it cannot record who the
+/// gateway names.
+private final class UnrecordingSignIn: SignInKept {
+  private let memory: MemorySignIn
+
+  init(_ memory: MemorySignIn) { self.memory = memory }
+
+  func held() async -> HeldSignIn? { await memory.held() }
+  func keep(_ signIn: HeldSignIn) async { await memory.keep(signIn) }
+  func renewed(read: HeldSignIn, access: String, refresh: String) async -> String? {
+    await memory.renewed(read: read, access: access, refresh: refresh)
+  }
+  func recordPersonKey(holding access: String, _ personKey: String) async throws -> Bool {
+    throw UnrecordedPerson()
+  }
+  func forget() async { await memory.forget() }
+}
+
+private struct UnrecordedPerson: Error {}
+
+@Test func aScriptSessionWhoseSignInCannotRecordWhoTheGatewayNamedSaysSoOnceAsKeepFailed()
+  async throws
+{
+  let table = try casesTable()
+  let user = try JSONEncoder().encode(required(table, "whoAmI"))
+  try await overGateway(.holds, issuer: .unasked, user: user) { gateway, port, http in
+    let kept = try UnrecordingSignIn(
+      MemorySignIn(signIn(personKey: nil, expired: false, tokenEndpoint: unaskedIssuer)))
+    let caches = ListedStorage()
+    let kb = knowledgeBase("kb-a", port: port)
+    let opened = try await sessionFromKept(
+      kb: KbTarget(endpoint: kb.endpoint, id: kb.id, label: kb.label), kept: kept,
+      httpClient: http, storage: caches, clock: TestClock())
+    defer { opened.dispose() }
+    let session = opened.session
+    // The gateway names the person once the session's errors are heard.
+    let heard = HeardErrors(session)
+    gateway.answerWhoAmI()
+    try await withinTestDeadline { try await session.ready() }
+    #expect(session.user.value != nil, "the gateway named nobody")
+    #expect(session.token.value != nil, "the session did not go on")
+    let observed = try Observed(opened.client.browse.resource(ResourceId("res-1")))
+    _ = try await withinTestDeadline { try await observed.first() }
+    observed.stop()
+    opened.dispose()
+    await opened.client.closed()
+    #expect(caches.held.isEmpty, "\(caches.held.keys.sorted()) written for nobody recorded")
+    let reported = try await heard.ended()
+    let failed = keepFailures(reported)
+    #expect(failed.count == 1, "\(reported)")
+    #expect(failed.first?.kbId == "kb-a")
+    #expect(
+      !reported.contains(where: { $0 is UnrecordedPerson }),
+      "the store's own failure said: \(reported)")
+  }
+}
+
+// ── A sign-in that cannot be read at the start ──────────────────────────
+
+@Test func aScriptSessionsOpeningFailsAsItsSignInWhenItCannotBeReadAtTheStart() async throws {
+  let table = try casesTable()
+  let jo = try personKeyOf(table, "jo")
+  let user = try JSONEncoder().encode(required(table, "whoAmI"))
+  try await overGateway(.names, issuer: .unasked, user: user) { _, port, http in
+    let kept = try UnreadableSignIn(
+      MemorySignIn(signIn(personKey: jo, expired: false, tokenEndpoint: unaskedIssuer)))
+    kept.setReadable(false)
+    let kb = knowledgeBase("kb-a", port: port)
+    await #expect(throws: UnreadableSignInStore.self) {
+      try await sessionFromKept(
+        kb: KbTarget(endpoint: kb.endpoint, id: kb.id, label: kb.label), kept: kept,
+        httpClient: http, storage: ListedStorage(), clock: TestClock())
     }
   }
 }

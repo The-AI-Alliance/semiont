@@ -1,8 +1,13 @@
 package semiont.http
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
@@ -14,12 +19,15 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import semiont.cache.CacheState
 import semiont.cache.PERSISTED_QUERIES
+import semiont.channels.BRIDGED_CHANNELS
+import semiont.errors.SemiontError
 import semiont.errors.SessionError
 import semiont.errors.SessionErrorCode
 import semiont.identifiers.ResourceId
@@ -32,6 +40,7 @@ import semiont.registry.keptIn
 import semiont.registry.lastEventIdKey
 import semiont.registry.personKey
 import semiont.registry.storeSession
+import semiont.session.SessionEndReason
 import semiont.signin.HeldSignIn
 import semiont.signin.MemorySignIn
 import semiont.signin.SCRIPT_CLIENT_ID
@@ -45,6 +54,7 @@ import semiont.types.KbTarget
 import semiont.types.LocalEndpoint
 import java.io.IOException
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 private val alice = Json.parseToJsonElement(
@@ -73,6 +83,21 @@ private class Unreadable(private val beneath: SignInKept) : SignInKept by beneat
         }
         return beneath.held()
     }
+}
+
+/** `beneath`, whose sign-in can be read `reads` times, and not after. */
+private class ReadableFor(private val reads: Int, private val beneath: SignInKept) : SignInKept by beneath {
+    private val read = AtomicInteger()
+
+    override suspend fun held(): HeldSignIn? {
+        if (read.incrementAndGet() > reads) throw IOException("the sign-in cannot be read")
+        return beneath.held()
+    }
+}
+
+/** `beneath`, which cannot record who a gateway said its token is. */
+private class Unrecording(private val beneath: SignInKept) : SignInKept by beneath {
+    override suspend fun recordPersonKey(access: String, personKey: String): Boolean = throw IOException("the person cannot be recorded")
 }
 
 /** A sign-in whose reading waits, while `gate` is set, until it completes. */
@@ -301,14 +326,55 @@ class SessionFromKeptTest {
     }
 
     @Test
-    fun aSignInThatCannotBeReadAsTheClientSavesStopsItsKeepingAndTheSessionIsToldOnce() = runBlocking {
+    fun aWriteThatWaitedForItsTurnAndIsRefusedIsSaidOnTheSessionsErrorsAndThrownIntoNoScope() = runBlocking {
+        Realm().use { realm ->
+            realm.answersFresh()
+            realm.script("/api/users/me", Said(200, alice))
+            val storage = RefusingTheFirstWriteOf(MemoryStorage(), KEPT_FOR_ALICE.first)
+            val kept = Waiting(MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, ALICE_KEY)))
+            val uncaught = CopyOnWriteArrayList<Throwable>()
+            val context = Dispatchers.Default + CoroutineExceptionHandler { _, thrown -> uncaught += thrown }
+            val opened = sessionFromKept(kb(realm), kept, storage = storage, context = context)
+            val said = CopyOnWriteArrayList<SemiontError>()
+            val errors = opened.session.errors()
+            val listening = launch(Dispatchers.Unconfined) { errors.collect { said += it } }
+            val refusal = "the storage refuses the write of ${KEPT_FOR_ALICE.first}"
+            opened.use {
+                // The sign-in's reading waits, so the write res-1's answer owes waits for its turn, and its cache goes on.
+                val gate = CompletableDeferred<Unit>()
+                kept.gate = gate
+                withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-1")).first { it is CacheState.Ready } }
+                withTimeout(5_000) {
+                    while (kept.waited.get() == 0) delay(5)
+                }
+                kept.gate = null
+                gate.complete(Unit)
+                withTimeout(5_000) {
+                    while (storage.refusals.get() == 0) delay(5)
+                }
+                // Its cache went on before the storage refused it: the refusal is the session's to say.
+                withTimeout(5_000) {
+                    while (said.none { refusal in it.message }) delay(5)
+                }
+            }
+            withTimeout(5_000) { listening.join() }
+            assertEquals(1, said.count { refusal in it.message }, "$said")
+            assertEquals(emptyList<Throwable>(), uncaught.toList())
+        }
+    }
+
+    @Test
+    fun aSignInThatCannotBeReadAsTheClientSavesStopsItsKeepingAndTheSessionSaysSoOnceOnItsErrors() = runBlocking {
         Realm().use { realm ->
             realm.answersFresh()
             realm.script("/api/users/me", Said(200, alice))
             val storage = MemoryStorage()
             val kept = Unreadable(MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, ALICE_KEY)))
+            val opened = sessionFromKept(kb(realm), kept, storage = storage)
             val told = CopyOnWriteArrayList<SessionError>()
-            sessionFromKept(kb(realm), kept, storage = storage, onError = { told += it }).use { opened ->
+            val errors = opened.session.errors()
+            val listening = launch(Dispatchers.Unconfined) { errors.collect { if (it is SessionError) told += it } }
+            opened.use {
                 kept.unreadable = true
                 withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-1")).first { it is CacheState.Ready } }
                 withTimeout(5_000) {
@@ -319,10 +385,148 @@ class SessionFromKeptTest {
                 withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-2")).first { it is CacheState.Ready } }
                 delay(semiont.Timings.SAVE_DEBOUNCE_MS * 4)
             }
+            withTimeout(5_000) { listening.join() }
             assertEquals(listOf(SessionErrorCode.KeepFailed), told.map { it.reason })
             assertEquals("local", told.single().kbId)
             assertEquals(1, kept.refused.get())
             for (key in PERSISTED_QUERIES.map { cacheKey("local", ALICE_KEY, it.query.wire) } + lastEventIdKey("local", ALICE_KEY)) assertNull(storage.get(key), key)
+        }
+    }
+
+    @Test
+    fun aSignInThatCannotRecordWhoTheGatewayNamedKeepsNothingAndTheSessionSaysSoOnceOnItsErrors() = runBlocking {
+        Realm().use { realm ->
+            realm.answersFresh()
+            realm.script("/api/users/me", Said(200, alice))
+            val storage = MemoryStorage()
+            // A sign-in whose person no gateway has named yet, and which cannot record one.
+            val access = tokenFor("access-1")
+            val kept = Unrecording(MemorySignIn(HeldSignIn(access, "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, null)))
+            sessionFromKept(kb(realm), kept, storage = storage).use { opened ->
+                // Said as the session started, before its opener could listen: the stream's first reader hears it.
+                val said = withTimeout(5_000) { opened.session.errors().use { errors -> errors.filterIsInstance<SessionError>().first() } }
+                assertEquals(SessionErrorCode.KeepFailed, said.reason)
+                assertEquals("local", said.kbId)
+                // The session itself goes on.
+                assertEquals(access, opened.session.token.value)
+                assertEquals("alice@example.org", opened.session.user.value?.email)
+                withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-1")).first { it is CacheState.Ready } }
+                delay(semiont.Timings.SAVE_DEBOUNCE_MS * 4)
+            }
+            assertNull(kept.held()?.personKey)
+            for (key in PERSISTED_QUERIES.map { cacheKey("local", ALICE_KEY, it.query.wire) } + lastEventIdKey("local", ALICE_KEY)) assertNull(storage.get(key), key)
+        }
+    }
+
+    @Test
+    fun aFailureTheClosingSaveMeetsIsSaidOnTheSessionsErrorsBeforeTheyEnd() = runBlocking {
+        Realm().use { realm ->
+            realm.answersFresh()
+            realm.script("/api/users/me", Said(200, alice))
+            val storage = MemoryStorage()
+            val kept = Unreadable(MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, ALICE_KEY)))
+            val opened = sessionFromKept(kb(realm), kept, storage = storage)
+            val errors = opened.session.errors()
+            opened.use {
+                // From here the sign-in cannot be read. What res-1's answer owes is written after a pause, and nothing here
+                // waits, so the close owes it as a rule; whichever save makes it, the closing one or the debounced one, cannot read the sign-in.
+                kept.unreadable = true
+                withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-1")).first { it is CacheState.Ready } }
+            }
+            // The stream ends, and it said what the closing save met before it did, once.
+            val said = withTimeout(5_000) { errors.toList() }
+            assertEquals(listOf(SessionErrorCode.KeepFailed), said.filterIsInstance<SessionError>().map { it.reason })
+            assertEquals(1, kept.refused.get())
+            assertNull(storage.get(KEPT_FOR_ALICE.first))
+        }
+    }
+
+    @Test
+    fun aFailureAClosingSaveMeetsOnceTheSignInsReadingHasWaitedIsSaidOnTheSessionsErrorsBeforeTheyEnd() = runBlocking {
+        Realm().use { realm ->
+            realm.answersFresh()
+            realm.script("/api/users/me", Said(200, alice))
+            val storage = MemoryStorage()
+            val unreadable = Unreadable(MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, ALICE_KEY)))
+            val kept = Waiting(unreadable)
+            val opened = sessionFromKept(kb(realm), kept, storage = storage)
+            val errors = opened.session.errors()
+            val gate = CompletableDeferred<Unit>()
+            opened.use {
+                // From here the sign-in's reading waits, and then fails: the save res-1's answer owes waits for it, past the close.
+                unreadable.unreadable = true
+                kept.gate = gate
+                withTimeout(5_000) { opened.client.browse.resource(ResourceId("res-1")).first { it is CacheState.Ready } }
+            }
+            withTimeout(5_000) {
+                while (kept.waited.get() == 0) delay(5)
+            }
+            kept.gate = null
+            gate.complete(Unit)
+            // The stream ends only once that save has been made, and it said what the save met before it did, once.
+            val said = withTimeout(5_000) { errors.toList() }
+            assertEquals(listOf(SessionErrorCode.KeepFailed), said.filterIsInstance<SessionError>().map { it.reason })
+            assertEquals(1, unreadable.refused.get())
+            assertNull(storage.get(KEPT_FOR_ALICE.first))
+        }
+    }
+
+    @Test
+    fun aSignInThatCannotBeReadAsTheSessionStartsFailsItsOpeningWithWhatTheReadingThrew() {
+        Realm().use { realm ->
+            for (storage in listOf(null, MemoryStorage())) {
+                val kept = Unreadable(MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, ALICE_KEY)))
+                kept.unreadable = true
+                val failure = assertThrows(IOException::class.java) { runBlocking { sessionFromKept(kb(realm), kept, storage = storage) } }
+                assertEquals("the sign-in cannot be read", failure.message)
+            }
+            assertEquals(emptyList<Asked>(), realm.of("/api/users/me"))
+        }
+    }
+
+    @Test
+    fun aSignInThatCannotBeReadAsTheStartRenewsItIsARenewalWithNoAnswer() = runBlocking {
+        Realm().use { realm ->
+            val beneath = MemorySignIn(HeldSignIn(tokenFor("access-1", -3600), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, null))
+            // Read as the session starts, and not when its start renews the kept token, which has expired.
+            val kept = ReadableFor(1, beneath)
+            val ended = CopyOnWriteArrayList<SessionEndReason>()
+            sessionFromKept(kb(realm), kept, onAuthFailed = { ended += it }).use { opened ->
+                // Said as the session started, before its opener could listen: the stream's first reader hears it.
+                val said = withTimeout(5_000) { opened.session.errors().use { errors -> errors.filterIsInstance<SessionError>().first() } }
+                assertEquals(SessionErrorCode.AuthFailed, said.reason)
+                assertNull(opened.session.token.value)
+                // The session is not over, and nobody was asked: there was nothing read to renew with.
+                assertEquals(emptyList<SessionEndReason>(), ended)
+                assertEquals(emptyList<Asked>(), realm.of("/token"))
+                assertEquals(emptyList<Asked>(), realm.of("/api/users/me"))
+                assertNotNull(beneath.held())
+            }
+        }
+    }
+
+    @Test
+    fun aSignInThatCannotBeReadAsARefusedTokenIsRenewedIsARenewalWithNoAnswer() = runBlocking {
+        Realm().use { realm ->
+            realm.script("/api/users/me", Said(200, alice))
+            val kept = Unreadable(MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null, null)))
+            val ended = CopyOnWriteArrayList<SessionEndReason>()
+            sessionFromKept(kb(realm), kept, onAuthFailed = { ended += it }).use { opened ->
+                val session = opened.session
+                session.errors().use { errors ->
+                    kept.unreadable = true
+                    // The gateway refused the token the session holds, and the renewal cannot read what to renew with.
+                    assertNull(session.refresh(session.token.value))
+                    val said = withTimeout(5_000) { errors.filterIsInstance<SessionError>().first() }
+                    assertEquals(SessionErrorCode.RefreshExhausted, said.reason)
+                }
+                // No usable token, what is kept stays, and the session is not over.
+                assertNull(session.token.value)
+                assertEquals(emptyList<SessionEndReason>(), ended)
+                assertEquals(emptyList<Asked>(), realm.of("/token"))
+                kept.unreadable = false
+                assertNotNull(kept.held())
+            }
         }
     }
 
@@ -343,6 +547,17 @@ class SessionFromKeptTest {
     fun withNothingKeptTheSessionIsSignedOut() = runBlocking {
         Realm().use { realm ->
             sessionFromKept(kb(realm), MemorySignIn()).use { opened ->
+                assertNull(opened.session.token.value)
+                assertEquals(emptyList<Asked>(), realm.of("/api/users/me"))
+            }
+        }
+    }
+
+    @Test
+    fun forJavaASessionFromKeptIsOpenedWithNoCallbackForWhatWentWrong() {
+        Realm().use { realm ->
+            // What went wrong is read from the session's errors: the entry point for Java takes no callback for it either.
+            sessionFromKeptFuture(kb(realm), MemorySignIn(), true, BRIDGED_CHANNELS, null, null).get(10, TimeUnit.SECONDS).use { opened ->
                 assertNull(opened.session.token.value)
                 assertEquals(emptyList<Asked>(), realm.of("/api/users/me"))
             }

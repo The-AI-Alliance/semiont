@@ -6,7 +6,9 @@
  * device grant end to end, the sign-in kept where it is told, and a session
  * then built over it). `fromHttp` and `fromKept` each give an
  * `OpenedSession`: the session and the client it was built with, ended
- * together. They construct a real `SemiontClient` over a real
+ * together. What a session says went wrong, it says on its errors stream,
+ * beside its transport's failures: it takes no callback for them. They
+ * construct a real `SemiontClient` over a real
  * `HttpTransport`, so the wire is kept quiet by spying on the transport and
  * stubbing `fetch` for the issuer. And a new sign-in saved over a stored one
  * by `setStoredSession` forgets it, with what was kept for the person it
@@ -15,16 +17,16 @@
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { filter, firstValueFrom, map, take } from 'rxjs';
-import { HttpTransport, currentUserOf } from '@semiont/http-transport';
-import { PERSISTED_QUERIES, baseUrl, resourceId } from '@semiont/core';
+import { HttpTransport } from '@semiont/http-transport';
+import { PERSISTED_QUERIES, resourceId } from '@semiont/core';
 
 import { isReady } from '../../cache';
+import { renewKept } from '../../index';
 import { SemiontSession } from '../semiont-session';
-import { refreshStoredSession } from '../oauth';
 import { MemorySignIn } from '../sign-in-kept';
-import { cacheKey, getStoredSession, kbGatewayUrl, lastEventIdKey, personKey, setStoredSession } from '../storage';
-import { fakeGateway, renews } from './fake-gateway';
-import { TestStorage, freshJwt, storageKey, testSession, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
+import { cacheKey, getStoredSession, kbGatewayUrl, keptIn, lastEventIdKey, personKey, setStoredSession } from '../storage';
+import { fakeGateway, refuses, renews } from './fake-gateway';
+import { TestStorage, UNREADABLE, UnreadableSignIn, freshJwt, storageKey, testSession, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
 
 const KB = {
   id: 'kb-factory',
@@ -34,6 +36,22 @@ const KB = {
 };
 
 let storage: TestStorage;
+
+/** Where `saidBy` marks the end of a session's errors stream. */
+const ENDED = 'the stream ended';
+
+/** The code of each error `session` says on its errors stream from now on, and `ENDED` once the stream ends. */
+function saidBy(session: SemiontSession): string[] {
+  const said: string[] = [];
+  session.errors$.subscribe({ next: (error) => said.push(error.code), complete: () => said.push(ENDED) });
+  return said;
+}
+
+/** The name of the resource `id`, as `session`'s client reads it. */
+const nameOf = (session: SemiontSession, id: string): Promise<string> =>
+  firstValueFrom(session.client.browse.resource(resourceId(id)).pipe(filter(isReady), map((state) => state.value.name), take(1)));
+
+const JO = { did: 'did:web:example.org:users:jo', email: 'jo@example.org', name: 'Jo', image: null, domain: 'example.org' };
 
 beforeEach(() => {
   storage = new TestStorage();
@@ -115,10 +133,44 @@ describe('SemiontSession.fromHttp', () => {
       opened.dispose();
     }
   });
+
+  test('says on one errors stream what its transport failed at and what went wrong with its sign-in, each once, until it ends', async () => {
+    const token = freshJwt();
+    const gateway = fakeGateway({ whoIs: async () => new Response(null, { status: 403 }), issuer: renews, resourceName: 'any' });
+    const opened = SemiontSession.fromHttp({
+      kb: KB,
+      kept: new MemorySignIn(testSession(token, 'refresh-tok')),
+      baseUrl: kbGatewayUrl(KB.endpoint),
+      token,
+      fetch: gateway.fetch,
+      // A renewal that got no answer: what is kept stays, and the session says why.
+      refresh: async () => {
+        throw new Error('ECONNREFUSED');
+      },
+    });
+    const said = saidBy(opened.session);
+    try {
+      await opened.session.ready;
+      await expect(opened.session.client.auth!.me()).rejects.toMatchObject({ code: 'forbidden' });
+      await expect(opened.session.refresh(token)).resolves.toBeNull();
+    } finally {
+      opened.dispose();
+      gateway.close();
+    }
+
+    expect(said).toEqual(['forbidden', 'session.refresh-exhausted', ENDED]);
+  });
 });
 
 function issuerReply(json: unknown, status = 200): Response {
   return { ok: status < 300, status, json: async () => json } as unknown as Response;
+}
+
+/** A sign-in kept in memory on which no person can be recorded: recording one throws. */
+class UnrecordableSignIn extends MemorySignIn {
+  override recordPersonKey(): boolean {
+    throw new Error('the person could not be recorded on the kept sign-in');
+  }
 }
 
 describe('SemiontSession.fromKept', () => {
@@ -272,13 +324,7 @@ describe('SemiontSession.fromKept', () => {
     const kept = new MemorySignIn(testSession(freshJwt(), 'refresh-tok'));
     const gateway = fakeGateway({ whoIs: async () => Response.json(jo), issuer: renews, resourceName: 'kept' });
 
-    const opened = await SemiontSession.fromKept({
-      kb: KB,
-      kept,
-      storage,
-      fetch: gateway.fetch,
-      validate: (token) => currentUserOf(baseUrl(kbGatewayUrl(KB.endpoint)), token, gateway.fetch),
-    });
+    const opened = await SemiontSession.fromKept({ kb: KB, kept, storage, fetch: gateway.fetch, validate: true });
     try {
       expect(kept.held()?.personKey, "the person's key is recorded on the kept sign-in").toBe(person);
       const name = await firstValueFrom(
@@ -295,6 +341,168 @@ describe('SemiontSession.fromKept', () => {
     if (document === null) throw new Error("The resource's document was not kept under the person the gateway named");
     const { entries } = JSON.parse(document) as { entries: [string, { name: string }, number][] };
     expect(entries.map(([key, value]) => [key, value.name])).toEqual([['res-1', 'kept']]);
+  });
+
+  test('with validate, asks the gateway who the kept token is, through the fetch it is given, and is ready knowing who', async () => {
+    const runtimes = vi.fn(async () => issuerReply({ error: 'not this fetch' }, 400));
+    vi.stubGlobal('fetch', runtimes);
+    let asked = 0;
+    const gateway = fakeGateway({
+      whoIs: async () => {
+        asked += 1;
+        return Response.json(JO);
+      },
+      issuer: renews,
+      resourceName: 'kept',
+    });
+
+    const opened = await SemiontSession.fromKept({
+      kb: KB,
+      kept: new MemorySignIn(testSession(freshJwt(), 'refresh-tok')),
+      fetch: gateway.fetch,
+      validate: true,
+    });
+    try {
+      expect(asked).toBe(1);
+      expect(opened.session.user$.getValue()).toMatchObject({ did: JO.did, name: 'Jo' });
+      expect(runtimes).not.toHaveBeenCalled();
+    } finally {
+      opened.dispose();
+      gateway.close();
+    }
+  });
+
+  test('with validate false, asks the gateway nothing, and nobody is known', async () => {
+    let asked = 0;
+    const gateway = fakeGateway({
+      whoIs: async () => {
+        asked += 1;
+        return Response.json(JO);
+      },
+      issuer: renews,
+      resourceName: 'kept',
+    });
+
+    const opened = await SemiontSession.fromKept({
+      kb: KB,
+      kept: new MemorySignIn(testSession(freshJwt(), 'refresh-tok')),
+      fetch: gateway.fetch,
+      validate: false,
+    });
+    try {
+      expect(asked).toBe(0);
+      expect(opened.session.user$.getValue()).toBeNull();
+    } finally {
+      opened.dispose();
+      gateway.close();
+    }
+  });
+
+  test('says a renewal the issuer refuses on its errors stream, once, and tells onAuthFailed why it ended', async () => {
+    const gateway = fakeGateway({ whoIs: async () => Response.json(JO), issuer: refuses, resourceName: 'kept' });
+    const onAuthFailed = vi.fn();
+    const opened = await SemiontSession.fromKept({
+      kb: KB,
+      kept: new MemorySignIn(testSession(freshJwt(), 'refresh-tok')),
+      fetch: gateway.fetch,
+      onAuthFailed,
+    });
+    const said = saidBy(opened.session);
+    try {
+      expect(await opened.session.refresh(opened.session.token$.getValue())).toBeNull();
+      expect(onAuthFailed).toHaveBeenCalledWith('expired');
+    } finally {
+      opened.dispose();
+      gateway.close();
+    }
+
+    expect(said).toEqual(['session.refresh-exhausted', ENDED]);
+  });
+
+  test.each([
+    { where: 'without a storage', withStorage: false },
+    { where: 'over a storage', withStorage: true },
+  ])('a kept sign-in that cannot be read as the session starts gives its caller why, and no session ($where)', async ({ withStorage }) => {
+    const kept = new UnreadableSignIn(testSession(freshJwt(), 'refresh-tok'));
+    kept.unreadable = true;
+
+    await expect(SemiontSession.fromKept({ kb: KB, kept, ...(withStorage ? { storage } : {}) })).rejects.toThrow(UNREADABLE);
+  });
+
+  test("over a storage, a kept sign-in that cannot be read before a save says session.keep-failed once on the session's errors, and the client keeps nothing more", async () => {
+    const person = personKey(JO.did);
+    const kept = new UnreadableSignIn({ ...testSession(freshJwt(), 'refresh-tok'), personKey: person });
+    const gateway = fakeGateway({ whoIs: async () => Response.json(JO), issuer: renews, resourceName: 'kept' });
+    const opened = await SemiontSession.fromKept({ kb: KB, kept, storage, fetch: gateway.fetch });
+    const said = saidBy(opened.session);
+    try {
+      kept.unreadable = true;
+      expect(await nameOf(opened.session, 'res-1')).toBe('kept');
+      // Its save finds the sign-in unreadable.
+      await vi.waitFor(() => expect(kept.failedReads).toBeGreaterThan(0));
+      // Readable again, and naming jo still: the client writes nothing all the same, closing included.
+      kept.unreadable = false;
+      expect(await nameOf(opened.session, 'res-2')).toBe('kept');
+    } finally {
+      opened.dispose();
+      gateway.close();
+    }
+
+    expect(storage.get(cacheKey(KB.id, person, 'resource'))).toBeNull();
+    expect(said).toEqual(['session.keep-failed', ENDED]);
+  });
+
+  test("over a storage, a closing save that cannot read the kept sign-in says one session.keep-failed on the session's errors, and the stream then ends", async () => {
+    const person = personKey(JO.did);
+    const kept = new UnreadableSignIn({ ...testSession(freshJwt(), 'refresh-tok'), personKey: person });
+    const gateway = fakeGateway({ whoIs: async () => Response.json(JO), issuer: renews, resourceName: 'kept' });
+    const opened = await SemiontSession.fromKept({ kb: KB, kept, storage, fetch: gateway.fetch });
+    const said = saidBy(opened.session);
+    try {
+      // A value the client holds, whose save it owes as it closes: well inside the save's debounce.
+      expect(await nameOf(opened.session, 'res-1')).toBe('kept');
+      kept.unreadable = true;
+    } finally {
+      opened.dispose();
+      gateway.close();
+    }
+
+    // The closing save read the sign-in, and could not.
+    expect(kept.failedReads).toBeGreaterThan(0);
+    expect(storage.get(cacheKey(KB.id, person, 'resource'))).toBeNull();
+    expect(said).toEqual(['session.keep-failed', ENDED]);
+  });
+
+  test("over a storage, a sign-in that cannot record the person the gateway named says session.keep-failed once on the session's errors, keeps nothing, and the session goes on", async () => {
+    const person = personKey(JO.did);
+    const kept = new UnrecordableSignIn(testSession(freshJwt(), 'refresh-tok'));
+    let reachable = false;
+    const gateway = fakeGateway({
+      whoIs: async () => {
+        if (!reachable) throw new TypeError('fetch failed');
+        return Response.json(JO);
+      },
+      issuer: renews,
+      resourceName: 'fresh',
+    });
+    const opened = await SemiontSession.fromKept({ kb: KB, kept, storage, fetch: gateway.fetch, validate: true });
+    const said = saidBy(opened.session);
+    // What the start said, it said before its caller could read the stream: whether the stream holds it is not this test's.
+    const saidAtStart = said.length;
+    try {
+      // The start could not ask who the token is. A refusal renews it, and the gateway is asked who the renewed one is: jo.
+      reachable = true;
+      await opened.session.refresh(opened.session.token$.getValue());
+      expect(opened.session.user$.getValue()).toMatchObject({ did: JO.did });
+      expect(await nameOf(opened.session, 'res-1')).toBe('fresh');
+    } finally {
+      opened.dispose();
+      gateway.close();
+    }
+
+    expect(kept.held()?.personKey).toBeUndefined();
+    expect(storage.get(cacheKey(KB.id, person, 'resource'))).toBeNull();
+    expect(said.slice(saidAtStart)).toEqual(['session.keep-failed', ENDED]);
   });
 });
 
@@ -386,31 +594,6 @@ describe('SemiontSession.signInDevice', () => {
       opened.dispose();
     }
   });
-
-  test('forwards optional onAuthFailed / onError callbacks into the session config', async () => {
-    const jwt = freshJwt();
-    vi.stubGlobal('fetch', vi.fn(async () => issuerReply({ access_token: jwt })));
-
-    const onAuthFailed = vi.fn();
-    const onError = vi.fn();
-    const opened = await SemiontSession.fromKept({
-      kb: KB,
-      kept: new MemorySignIn(testSession(jwt, 'refresh-tok')),
-      onAuthFailed,
-      onError,
-    });
-    const { session } = opened;
-
-    try {
-      // Sanity: the session was constructed with our callbacks (test the
-      // wiring by triggering an auth-failed path).
-      // We don't assert these were CALLED — just that signIn accepted them
-      // without choking and the session is functional.
-      expect(session).toBeInstanceOf(SemiontSession);
-    } finally {
-      opened.dispose();
-    }
-  });
 });
 
 describe('a new sign-in saved over a stored one', () => {
@@ -469,7 +652,7 @@ describe('a new sign-in saved over a stored one', () => {
       if (held === null) throw new Error('the sign-in was not stored');
       vi.stubGlobal('fetch', vi.fn(async () => issuerReply({ access_token: freshJwt(), refresh_token: 'refresh-2' })));
 
-      expect(await refreshStoredSession(storage, KB.id, held.access)).not.toBeNull();
+      expect(await renewKept(keptIn(storage, KB.id), held.access)).not.toBeNull();
 
       expect(getStoredSession(storage, KB.id)?.personKey).toBe(JO);
       for (const key of [...JOS, ...OTHERS]) expect(storage.get(key), key).toBe(KEPT);

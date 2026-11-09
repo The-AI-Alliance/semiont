@@ -130,7 +130,7 @@
       },
       {
         "code": "session.keep-failed",
-        "docs": "The sign-in the session holds could not be read before its client saved what it keeps, so it is not known to name the person that is kept for: the client keeps nothing more for the rest of its life. The session itself goes on."
+        "docs": "The sign-in the session holds could not be read before its client saved what it keeps, or could not record the person the gateway named, so it is not known to name the person that is kept for: the client keeps nothing more for the rest of its life. The session itself goes on, and says so once on its errors stream."
       }
     ]
   },
