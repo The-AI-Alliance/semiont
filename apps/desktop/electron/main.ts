@@ -1,12 +1,13 @@
 import { app, BrowserWindow, ipcMain, Menu, screen, shell, type MenuItemConstructorOptions } from 'electron';
-import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { constants, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
 import { access } from 'node:fs/promises';
 import { delimiter, dirname, join } from 'node:path';
 import { parseAppManifest } from '../src/lib/app-manifest';
-import type { LauncherStatusResult } from '../src/lib/launcher-bridge';
 import type { OllamaInfo, OllamaModelInfo } from '../src/lib/ollama-info';
 import { registerAuthHandlers } from './auth';
+import { ControlClient } from './control-client';
+import { registerControlHandlers } from './control-ipc';
 import { appendLog, configDir, logPath } from './paths';
 
 registerAuthHandlers();
@@ -39,33 +40,27 @@ function launcherEnvironment(): NodeJS.ProcessEnv {
   return { ...process.env, PATH: pathEntries.join(delimiter) };
 }
 
-function runLauncher(args: string[]): Promise<LauncherStatusResult> {
-  return new Promise((resolve) => {
-    execFile(
-      launcherPath(),
-      args,
-      {
-        cwd: app.getPath('home'),
-        encoding: 'utf8',
-        env: launcherEnvironment(),
-        maxBuffer: 4 * 1024 * 1024,
-        timeout: 120_000,
-        windowsHide: true,
-      },
-      (error, stdout, stderr) => {
-        const output = [stdout.trimEnd(), stderr.trimEnd()].filter((part) => part.length > 0).join('\n\n');
-        resolve({
-          output: output || (error === null ? '(no output)' : error.message),
-          exitCode: error === null ? 0 : (typeof error.code === 'number' ? error.code : null),
-          error: error?.message ?? null,
-        });
-      },
-    );
-  });
-}
+const control = new ControlClient(
+  () => spawn(launcherPath(), ['control'], {
+    cwd: app.getPath('home'),
+    env: launcherEnvironment(),
+    windowsHide: true,
+  }),
+  (line) => appendLog(`${new Date().toISOString()} [launcher] ${line}`),
+);
+registerControlHandlers(control);
 
-ipcMain.handle('launcher:status', () => runLauncher(['status']));
-ipcMain.handle('launcher:about', () => runLauncher(['about']));
+// Quitting waits for the launcher's control child to answer what it was asked and exit (at
+// most SHUTDOWN_GRACE_MS), then quits for real.
+let launcherClosed = false;
+app.on('before-quit', (event) => {
+  if (launcherClosed) return;
+  event.preventDefault();
+  void control.close().then(() => {
+    launcherClosed = true;
+    app.quit();
+  });
+});
 
 async function ollamaInfo(): Promise<OllamaInfo> {
   const env = launcherEnvironment();

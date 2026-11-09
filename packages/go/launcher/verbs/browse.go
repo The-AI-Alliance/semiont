@@ -474,7 +474,7 @@ func launchBrowser(u *launcher.UI, override string) (launcher.BrowserProbe, bool
 	if !ok {
 		return launcher.BrowserProbe{}, false
 	}
-	if code := launcher.Start([]string{"--service", "browser", "--runtime", rt}); code != 0 {
+	if code := launcher.Start(launcher.NewUI(false), []string{"--service", "browser", "--runtime", rt}); code != 0 {
 		u.Fail("--launch could not start the Browser.")
 		return launcher.BrowserProbe{}, false
 	}

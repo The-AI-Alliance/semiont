@@ -1,0 +1,6 @@
+{
+  "title": "ApiVersion",
+  "type": "string",
+  "const": "control.semiont.the-ai-alliance.github.io/v1alpha1",
+  "description": "The group and version of the control API. Every request's params state it; a launcher refuses a version it does not speak with control.unsupported-api-version, and names the ones it does."
+}

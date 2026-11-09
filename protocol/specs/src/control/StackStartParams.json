@@ -1,0 +1,73 @@
+{
+  "title": "StackStartParams",
+  "type": "object",
+  "description": "stack.start's params: what semiont start takes, but its help and its narration switches.",
+  "properties": {
+    "apiVersion": {
+      "$ref": "./ApiVersion.json",
+      "description": "The version of the control API the request is written to."
+    },
+    "target": {
+      "$ref": "./Target.json",
+      "description": "Which knowledge base's stack. Absent: the one the command line chooses, standing where the control server was started."
+    },
+    "runtime": {
+      "$ref": "./Runtime.json",
+      "description": "The container runtime to ask, as --runtime names it. Absent: the one the stack's record names, else every installed one."
+    },
+    "config": {
+      "type": "string",
+      "description": "The Inference document to run, as --config names it. Absent: the knowledge base's recorded preference, else the default.",
+      "minLength": 1
+    },
+    "service": {
+      "type": "string",
+      "description": "Just this one service, as --service names it.",
+      "minLength": 1
+    },
+    "group": {
+      "$ref": "./ServiceGroup.json",
+      "description": "Just this one group of services, as --group names it."
+    },
+    "codespaceName": {
+      "type": "string",
+      "description": "For a codespace target: which of the repository's codespaces, as --codespace names it.",
+      "minLength": 1
+    },
+    "machine": {
+      "type": "string",
+      "description": "For a codespace target being created: its VM class, as --machine names it.",
+      "minLength": 1
+    },
+    "idleTimeout": {
+      "type": "string",
+      "description": "For a codespace target being created: inactivity before it stops, as --idle-timeout takes it.",
+      "minLength": 1
+    },
+    "retentionPeriod": {
+      "type": "string",
+      "description": "For a codespace target being created: how long a stopped codespace is kept, as --retention-period takes it.",
+      "minLength": 1
+    },
+    "observe": {
+      "type": "boolean",
+      "description": "Whether to start the telemetry backends, Jaeger and Prometheus. false is --no-observe. Absent: true."
+    },
+    "ollamaCache": {
+      "type": "string",
+      "description": "Where a started Ollama keeps its models, as --ollama-cache names it. Absent: the host's ~/.ollama when there is one, else the named volume — what the command line's prompt does when nobody answers it.",
+      "enum": [
+        "host",
+        "volume"
+      ]
+    },
+    "dryRun": {
+      "type": "boolean",
+      "description": "Whether to run nothing, and report each runtime command a start would run as a command progress line."
+    }
+  },
+  "required": [
+    "apiVersion"
+  ],
+  "additionalProperties": false
+}

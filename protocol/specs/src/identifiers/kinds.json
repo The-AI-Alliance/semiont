@@ -337,6 +337,10 @@
       "docs": "The same, as the gateway reports the gap it could not fill."
     },
     {
+      "property": "requestId",
+      "docs": "Which request of the launcher's control API a notification is about: the JSON-RPC id its client gave the request, a string or an integer (control/RequestId.json)."
+    },
+    {
       "property": "schemaId",
       "docs": "A tag schema's id: a name the knowledge base's vocabulary gives it."
     }

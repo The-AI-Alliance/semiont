@@ -475,8 +475,18 @@ func resolveRootArg(arg string) (string, *kbIdentity, error) {
 		}
 		return path, ident, nil
 	default:
-		return "", nil, fmt.Errorf("--root '%s' is ambiguous; use a full path:\n  %s", arg, strings.Join(matches, "\n  "))
+		return "", nil, &ambiguousRoot{arg: arg, paths: matches}
 	}
+}
+
+// ambiguousRoot: a --root basename that names several registered roots.
+type ambiguousRoot struct {
+	arg   string
+	paths []string
+}
+
+func (a *ambiguousRoot) Error() string {
+	return fmt.Sprintf("--root '%s' is ambiguous; use a full path:\n  %s", a.arg, strings.Join(a.paths, "\n  "))
 }
 
 // requireGitClone enforces the git-clone invariant: the Archivist mounts the
@@ -577,6 +587,30 @@ func Forget(args []string) int {
 		fmt.Print(forgetUsage)
 		return 1
 	}
+	f, ok := forgetRoot(u, arg)
+	if !ok {
+		return 1
+	}
+	u.Ok("Forgot %s — registry entry removed. No files were deleted.", f.path)
+	if f.persistentState != "" {
+		fmt.Println("  Persistent stack state remains. Remove it: semiont clean --root " + f.persistentState)
+	}
+	return 0
+}
+
+// forgotten: the registry row a forget removed.
+type forgotten struct {
+	path string
+	// directoryMissing: its directory was already gone.
+	directoryMissing bool
+	// persistentState: the key whose persistent stack state remains, when
+	// some does and no surviving row shares its did; else "".
+	persistentState string
+}
+
+// forgetRoot removes the registry row arg names — its path, or its basename
+// when one row alone has it — and nothing else. ok=false: refused, and said.
+func forgetRoot(u *UI, arg string) (forgotten, bool) {
 	reg := loadRoots()
 	var matches []int
 	abs, _ := filepath.Abs(arg)
@@ -595,35 +629,41 @@ func Forget(args []string) int {
 	}
 	switch {
 	case len(matches) == 0:
-		u.Fail("%q is not in the registry.", arg)
+		u.Refuse(controlCodeRootNotRegistered, "%q is not in the registry.", arg)
 		fmt.Fprintln(os.Stderr, "  Registered roots: semiont roots")
-		return 1
+		return forgotten{}, false
 	case len(matches) > 1:
-		u.Fail("%q names %d registered roots — forget one by its full path:", arg, len(matches))
+		var choices []ControlTarget
+		for _, i := range matches {
+			path := reg.Roots[i].Path
+			choices = append(choices, ControlTarget{Kind: "local", Root: &path})
+		}
+		u.RefuseChoosing(controlCodeTargetAmbiguous, choices, "%q names %d registered roots — forget one by its full path:", arg, len(matches))
 		for _, i := range matches {
 			fmt.Fprintln(os.Stderr, "    "+reg.Roots[i].Path)
 		}
-		return 1
+		return forgotten{}, false
 	}
 	e := reg.Roots[matches[0]]
 	ss := LoadStackSet()
 	if ss.refuseUnreadable(u) {
-		return 1
+		return forgotten{}, false
 	}
 	if st := localStack(ss, rootKey(e.Did, e.Path)); st != nil && st.KBRoot == e.Path {
-		u.Fail("%s is a running stack's root (per %s).", e.Path, statePath())
+		u.Refuse(controlCodeStackRunning, "%s is a running stack's root (per %s).", e.Path, statePath())
 		fmt.Fprintln(os.Stderr, "  Stop it first: semiont stop --root "+e.Path)
-		return 1
+		return forgotten{}, false
 	}
+	_, statErr := os.Stat(e.Path)
 	if err := changeRoots(func(r *rootsRegistry) error {
 		r.Roots = slices.DeleteFunc(r.Roots, func(row rootEntry) bool { return row.Path == e.Path })
 		reg = *r
 		return nil
 	}); err != nil {
 		u.Fail("Forgetting %s: %v", e.Path, err)
-		return 1
+		return forgotten{}, false
 	}
-	u.Ok("Forgot %s — registry entry removed. No files were deleted.", e.Path)
+	f := forgotten{path: e.Path, directoryMissing: statErr != nil}
 	// Persistent stack state is keyed by identity, not by the registry: say
 	// so when some exists, or the forgotten row's state lives on unnamed.
 	// UNLESS a surviving row shares the did — state keys derive from the
@@ -631,14 +671,14 @@ func Forget(args []string) int {
 	// here offers to delete a KB the user still uses.
 	for _, other := range reg.Roots {
 		if other.Did != "" && other.Did == e.Did {
-			return 0
+			return f, true
 		}
 	}
 	if d := dataDir(); d != "" {
 		key := rootKey(e.Did, e.Path)
 		if fi, err := os.Stat(filepath.Join(d, "roots", key)); err == nil && fi.IsDir() {
-			fmt.Println("  Persistent stack state remains. Remove it: semiont clean --root " + key)
+			f.persistentState = key
 		}
 	}
-	return 0
+	return f, true
 }

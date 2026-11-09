@@ -1,0 +1,25 @@
+{
+  "title": "Session",
+  "type": "object",
+  "description": "The launcher's own stored sign-in for a stack (semiont login), never Desktop's. No token is in it.",
+  "properties": {
+    "state": {
+      "type": "string",
+      "description": "valid: the stack's gateway accepts the stored token. expired: it refuses it (a refresh, or semiont login, renews it). unverified: the stack did not answer. none: nothing is stored.",
+      "enum": [
+        "valid",
+        "expired",
+        "unverified",
+        "none"
+      ]
+    },
+    "email": {
+      "type": "string",
+      "description": "The email the session was signed in as, when the store records one."
+    }
+  },
+  "required": [
+    "state"
+  ],
+  "additionalProperties": false
+}

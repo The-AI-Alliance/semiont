@@ -1,0 +1,10 @@
+{
+  "title": "Runtime",
+  "type": "string",
+  "enum": [
+    "container",
+    "docker",
+    "podman"
+  ],
+  "description": "A container runtime the launcher drives, as --runtime names it: Apple container, Docker or Podman."
+}

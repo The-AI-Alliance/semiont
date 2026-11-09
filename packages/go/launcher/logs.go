@@ -2,7 +2,9 @@ package launcher
 
 import (
 	"bufio"
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -90,10 +92,48 @@ func Logs(args []string) int {
 			return 1
 		}
 	}
+	src, ok := logSources(u, runtime, service, repoFlag, rootFlag)
+	if !ok {
+		return 1
+	}
+	fmt.Printf("Following %s — Ctrl+C stops following (semiont stop stops the stack)\n", strings.Join(src.follow, " · "))
+
+	// Ctrl+C: stop following, never the stack.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	followLogs(ctx, src, func(service, stream, line string) {
+		fmt.Println("[" + service + "] " + line)
+	})
+	return 0
+}
+
+// logSource: the containers a follow reads, and where.
+type logSource struct {
+	// follow: the services followed, in order.
+	follow []string
+	// handles: each service's container handle.
+	handles map[string]string
+	// runtime: the runtime the containers run under; csName, for a
+	// codespace's, the codespace they run in instead.
+	runtime, csName string
+}
+
+// command: the process that follows service's container.
+func (src logSource) command(service string) *exec.Cmd {
+	if src.csName != "" {
+		return exec.Command("gh", "codespace", "ssh", "-c", src.csName, "--", "docker", "logs", "--follow", src.handles[service])
+	}
+	return exec.Command(src.runtime, "logs", "--follow", src.handles[service])
+}
+
+// logSources: the containers a follow of service (every Semiont service the
+// stack runs, when "") reads, of the stack runtime, repo and root name as
+// semiont logs takes them. ok=false: refused, and said.
+func logSources(u *UI, runtime, service, repoFlag, rootFlag string) (logSource, bool) {
 	if service != "" {
 		if !knownRole(service) {
-			u.Fail("Unknown --service '%s' (expected: %s)", service, roleList)
-			return 1
+			u.Refuse(controlCodeInvalidService, "Unknown --service '%s' (expected: %s)", service, roleList)
+			return logSource{}, false
 		}
 	}
 
@@ -102,7 +142,7 @@ func Logs(args []string) int {
 	// record: the historical name-scan discovery.
 	ss := LoadStackSet()
 	if ss.refuseUnreadable(u) {
-		return 1
+		return logSource{}, false
 	}
 	cs := codespaceStacks(ss)
 	// key: the state key of the knowledge base whose containers are
@@ -110,7 +150,7 @@ func Logs(args []string) int {
 	// stack's as this one does.
 	st, key, ok := askedLocalStack(u, "logs", ss, rootFlag, repoFlag != "")
 	if !ok {
-		return 1
+		return logSource{}, false
 	}
 	rt := ""
 	csName := ""
@@ -122,7 +162,7 @@ func Logs(args []string) int {
 		if did == "" {
 			remote, ok := fetchRemoteDid(u, c.Codespace.Name)
 			if !ok {
-				u.Fail("%s's knowledge base could not be identified, so its containers cannot be named.", c.Codespace.Repo)
+				u.Refuse(controlCodeUnreachable, "%s's knowledge base could not be identified, so its containers cannot be named.", c.Codespace.Repo)
 				return false
 			}
 			did = remote
@@ -133,19 +173,19 @@ func Logs(args []string) int {
 	if repoFlag != "" {
 		target, ok := repoCodespaceStack(u, ss, repoFlag)
 		if !ok {
-			return 1
+			return logSource{}, false
 		}
 		if !onPath("gh") {
-			fmt.Fprintln(os.Stderr, "'gh' is not on PATH.")
-			return 1
+			u.RefusePlain(controlCodeDependencyUnavailable, "'gh' is not on PATH.")
+			return logSource{}, false
 		}
 		if !codespace(target) {
-			return 1
+			return logSource{}, false
 		}
 	} else if runtime != "" {
 		if !onPath(runtime) {
-			fmt.Fprintf(os.Stderr, "--runtime %s requested, but '%s' is not on PATH.\n", runtime, runtime)
-			return 1
+			u.RefusePlain(controlCodeRuntimeUnavailable, "--runtime %s requested, but '%s' is not on PATH.", runtime, runtime)
+			return logSource{}, false
 		}
 		rt = runtime
 		if st != nil && st.Runtime != runtime {
@@ -157,11 +197,11 @@ func Logs(args []string) int {
 		// by wire-level container name (the codespace's launcher names them
 		// exactly as this one does).
 		if !onPath("gh") {
-			fmt.Fprintln(os.Stderr, "A codespace stack is forwarded but 'gh' is not on PATH.")
-			return 1
+			u.RefusePlain(controlCodeDependencyUnavailable, "A codespace stack is forwarded but 'gh' is not on PATH.")
+			return logSource{}, false
 		}
 		if !codespace(fwd[0]) {
-			return 1
+			return logSource{}, false
 		}
 		u.Log("Using the forwarded codespace stack %s", u.Dim("("+csName+" per "+statePath()+")"))
 	} else if st != nil && st.Runtime != "" && onPath(st.Runtime) {
@@ -172,24 +212,24 @@ func Logs(args []string) int {
 		rt = stackRuntime(key)
 	} else if len(cs) == 1 {
 		if !onPath("gh") {
-			fmt.Fprintln(os.Stderr, "A codespace stack is recorded but 'gh' is not on PATH.")
-			return 1
+			u.RefusePlain(controlCodeDependencyUnavailable, "A codespace stack is recorded but 'gh' is not on PATH.")
+			return logSource{}, false
 		}
 		if !codespace(cs[0]) {
-			return 1
+			return logSource{}, false
 		}
 		u.Log("Using recorded codespace stack %s", u.Dim("("+csName+" per "+statePath()+")"))
 	} else if len(cs) > 1 {
-		fmt.Fprintln(os.Stderr, "Multiple codespace stacks are recorded — say which:  semiont logs --repo <owner/name>")
+		u.RefuseChoosing(controlCodeTargetRequired, stackChoices(nil, cs), "Multiple codespace stacks are recorded — say which:  semiont logs --repo <owner/name>")
 		for _, c := range cs {
 			fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Codespace.Repo)
 		}
-		return 1
+		return logSource{}, false
 	}
 	if rt == "" && csName == "" {
-		fmt.Fprintln(os.Stderr, "No running Semiont stack found in any runtime (container/docker/podman).")
+		u.RefusePlain(controlCodeStackNotRunning, "No running Semiont stack found in any runtime (container/docker/podman).")
 		fmt.Fprintln(os.Stderr, "Start one with semiont start, or pass --runtime explicitly.")
-		return 1
+		return logSource{}, false
 	}
 
 	// handle: recorded runtime-issued ID when we have one, container name
@@ -199,13 +239,13 @@ func Logs(args []string) int {
 			if e, ok := st.Services[svc]; ok {
 				switch e.Provided {
 				case providedHost:
-					u.Fail("%s is provided by a host process — no container logs (check the host service's own logs).", svc)
+					u.Refuse(controlCodeInvalidService, "%s is provided by a host process — no container logs (check the host service's own logs).", svc)
 					return "", false
 				case providedExternal:
-					u.Fail("%s is externally provided (%s) — no local container logs.", svc, e.Endpoint)
+					u.Refuse(controlCodeInvalidService, "%s is externally provided (%s) — no local container logs.", svc, e.Endpoint)
 					return "", false
 				case providedNone:
-					u.Fail("%s is not referenced by the running stack's config — nothing to follow.", svc)
+					u.Refuse(controlCodeInvalidService, "%s is not referenced by the running stack's config — nothing to follow.", svc)
 					return "", false
 				case providedShared:
 					// The shared container the stack's record names, by
@@ -223,45 +263,42 @@ func Logs(args []string) int {
 	// The default set is the services this stack runs: one its config gives
 	// nothing to do has no container to follow, and is refused only when
 	// asked for by name.
-	var follow []string
+	src := logSource{handles: map[string]string{}, runtime: rt, csName: csName}
 	if service != "" {
-		follow = []string{service}
+		src.follow = []string{service}
 	} else {
 		for _, svc := range logServices {
 			if st != nil && st.Services[svc].Provided == providedNone {
 				continue
 			}
-			follow = append(follow, svc)
+			src.follow = append(src.follow, svc)
 		}
 	}
-	targets := make(map[string]string, len(follow)) // svc → handle
-	for _, svc := range follow {
+	for _, svc := range src.follow {
 		if csName != "" { // codespace: wire-level names, no per-service record
-			targets[svc] = roleContainer(svc, key)
+			src.handles[svc] = roleContainer(svc, key)
 			continue
 		}
 		h, ok := handleFor(svc)
 		if !ok {
-			return 1
+			return logSource{}, false
 		}
-		targets[svc] = h
+		src.handles[svc] = h
 	}
+	return src, true
+}
 
-	fmt.Printf("Following %s — Ctrl+C stops following (semiont stop stops the stack)\n", strings.Join(follow, " · "))
-
-	// One follower per service; each container's stderr is kept in-stream —
-	// crash traces and uncaught exceptions land there, and they're exactly
-	// what a log follower exists to show.
+// followLogs follows each of src's containers until each ends, or ctx is
+// done, which stops following and never the stack. Each line goes to emit,
+// one at a time, with the service it is of and the stream it was on: each
+// container's stderr is followed too — crash traces and uncaught exceptions
+// land there, and they're exactly what a log follower exists to show.
+func followLogs(ctx context.Context, src logSource, emit func(service, stream, line string)) {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	var cmds []*exec.Cmd
-	for _, svc := range follow {
-		var cmd *exec.Cmd
-		if csName != "" {
-			cmd = exec.Command("gh", "codespace", "ssh", "-c", csName, "--", "docker", "logs", "--follow", targets[svc])
-		} else {
-			cmd = exec.Command(rt, "logs", "--follow", targets[svc])
-		}
+	for _, svc := range src.follow {
+		cmd := src.command(svc)
 		stdout, err1 := cmd.StdoutPipe()
 		stderr, err2 := cmd.StderrPipe()
 		if err1 != nil || err2 != nil {
@@ -271,25 +308,21 @@ func Logs(args []string) int {
 			continue
 		}
 		cmds = append(cmds, cmd)
-		prefix := "[" + svc + "] "
-		for _, pipe := range []interface{ Read([]byte) (int, error) }{stdout, stderr} {
+		for stream, pipe := range map[string]io.Reader{"stdout": stdout, "stderr": stderr} {
 			wg.Add(1)
-			go func(r interface{ Read([]byte) (int, error) }) {
+			go func(service, stream string, r io.Reader) {
 				defer wg.Done()
 				sc := bufio.NewScanner(r)
 				sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 				for sc.Scan() {
 					mu.Lock()
-					fmt.Println(prefix + sc.Text())
+					emit(service, stream, sc.Text())
 					mu.Unlock()
 				}
-			}(pipe)
+			}(svc, stream, pipe)
 		}
 	}
 
-	// Ctrl+C: stop following, never the stack.
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()
@@ -299,15 +332,15 @@ func Logs(args []string) int {
 		close(done)
 	}()
 	select {
-	case <-sig:
+	case <-ctx.Done():
 		for _, cmd := range cmds {
 			if cmd.Process != nil {
 				_ = cmd.Process.Kill()
 			}
 		}
+		<-done
 	case <-done:
 	}
-	return 0
 }
 
 // askedLocalStack: the local stack verb acts on by its containers' names, and
@@ -319,7 +352,7 @@ func Logs(args []string) int {
 // and none was named.
 func askedLocalStack(u *UI, verb string, ss *StackSet, root string, repo bool) (st *StackState, key string, ok bool) {
 	if repo && root != "" {
-		u.Fail("--repo and --root are contradictory: one names a codespace stack, the other a local one.")
+		u.Refuse(controlCodeInvalidRequest, "--repo and --root are contradictory: one names a codespace stack, the other a local one.")
 		return nil, "", false
 	}
 	if repo {
@@ -329,12 +362,12 @@ func askedLocalStack(u *UI, verb string, ss *StackSet, root string, repo bool) (
 	if root != "" {
 		dir, ident, err := resolveRootArg(root)
 		if err != nil {
-			u.Fail("%v", err)
+			refuseRoot(u, err)
 			return nil, "", false
 		}
 		asked = kbRoot{dir: dir, ident: ident}
 	} else if kb, err := cwdKBRoot(); err != nil {
-		u.Fail("%v", err)
+		u.Refuse(controlCodeRootNotFound, "%v", err)
 		return nil, "", false
 	} else {
 		asked = kb
@@ -351,7 +384,7 @@ func askedLocalStack(u *UI, verb string, ss *StackSet, root string, repo bool) (
 	case 1:
 		return locals[0], rootKey(locals[0].KBDid, locals[0].KBRoot), true
 	default:
-		u.Fail("Multiple stacks are recorded — say which:")
+		u.RefuseChoosing(controlCodeTargetRequired, stackChoices(locals, codespaceStacks(ss)), "Multiple stacks are recorded — say which:")
 		printStackMenu(verb, "", locals, codespaceStacks(ss))
 		return nil, "", false
 	}

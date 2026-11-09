@@ -13,7 +13,7 @@ export const SPEC_PARTS = {
   protocol: ['openapi.json', 'components', 'paths', 'bus', 'identifiers', 'principals', 'jobs', 'media-types', 'locales'],
   sdk: ['client', 'session', 'retry', 'resources', 'errors', 'sdk-telemetry'],
   services: ['archivist', 'librarian', 'smelter', 'weaver', 'worker', 'follower', 'graph', 'vectors', 'text', 'annotations', 'service-environment', 'service-telemetry'],
-  launcher: ['stack', 'kb-identity', 'discovery', 'sign-in-store'],
+  launcher: ['stack', 'kb-identity', 'discovery', 'sign-in-store', 'control'],
 };
 
 /** The apps: the directories under apps/. */

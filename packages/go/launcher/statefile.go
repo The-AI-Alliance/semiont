@@ -232,7 +232,7 @@ func (ss *StackSet) refuseUnreadable(u *UI) bool {
 		return false
 	}
 	p := statePath()
-	u.Fail("Cannot read the stack record: %v", ss.unreadable)
+	u.Refuse(controlCodeUnreadableState, "Cannot read the stack record: %v", ss.unreadable)
 	fmt.Fprintf(os.Stderr, "  %s exists, so a stack was started here — but this launcher\n", p)
 	fmt.Fprintln(os.Stderr, "  cannot read it, and treating that as \"no stacks recorded\" would report")
 	fmt.Fprintln(os.Stderr, "  nothing to stop while the real stack keeps running.")

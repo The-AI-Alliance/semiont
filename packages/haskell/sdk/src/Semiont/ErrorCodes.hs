@@ -1,6 +1,6 @@
 -- Generated from protocol/specs/src/errors/codes.json; do not edit.
 {-# LANGUAGE OverloadedStrings #-}
-module Semiont.ErrorCodes (BusRequestCode(..), busRequestCode, parseBusRequestCode, busRequestCodeFromWire, JobCode(..), jobCode, parseJobCode, KbIdentityCode(..), kbIdentityCode, parseKbIdentityCode, SessionCode(..), sessionCode, parseSessionCode, SignInCode(..), signInCode, parseSignInCode, SpanRefusalCode(..), spanRefusalCode, parseSpanRefusalCode, TransportCode(..), transportCode, parseTransportCode, transportCodeFromStatus) where
+module Semiont.ErrorCodes (BusRequestCode(..), busRequestCode, parseBusRequestCode, busRequestCodeFromWire, ControlCode(..), controlCode, parseControlCode, JobCode(..), jobCode, parseJobCode, KbIdentityCode(..), kbIdentityCode, parseKbIdentityCode, SessionCode(..), sessionCode, parseSessionCode, SignInCode(..), signInCode, parseSignInCode, SpanRefusalCode(..), spanRefusalCode, parseSpanRefusalCode, TransportCode(..), transportCode, parseTransportCode, transportCodeFromStatus) where
 import Data.Aeson (FromJSON(..), ToJSON(..), Value(..), withText)
 import Data.Text (Text)
 data BusRequestCode = BusRequestTimeout | BusRequestRejected | BusRequestClosed | BusRequestNotFound | BusRequestUnsubscribed | BusRequestPeerUnavailable | BusRequestUnauthorized | BusRequestNonePending deriving (Eq, Ord, Show, Enum, Bounded)
@@ -33,6 +33,58 @@ busRequestCodeFromWire value = case value of
   Just "unauthorized" -> BusRequestUnauthorized
   Just "none-pending" -> BusRequestNonePending
   _ -> BusRequestRejected
+
+data ControlCode = ControlInvalidParams | ControlUnsupportedApiVersion | ControlInvalidRequest | ControlInvalidService | ControlInvalidValue | ControlUnknownSetting | ControlTargetRequired | ControlTargetAmbiguous | ControlRootNotFound | ControlRootNotRegistered | ControlStackNotRunning | ControlStackRunning | ControlStartInProgress | ControlRuntimeUnavailable | ControlDependencyUnavailable | ControlUnreachable | ControlConfirmationRequired | ControlUnreadableState | ControlAlreadySignedIn | ControlSignInFailed | ControlCancelled | ControlFailed deriving (Eq, Ord, Show, Enum, Bounded)
+controlCode :: ControlCode -> Text
+controlCode ControlInvalidParams = "control.invalid-params"
+controlCode ControlUnsupportedApiVersion = "control.unsupported-api-version"
+controlCode ControlInvalidRequest = "control.invalid-request"
+controlCode ControlInvalidService = "control.invalid-service"
+controlCode ControlInvalidValue = "control.invalid-value"
+controlCode ControlUnknownSetting = "control.unknown-setting"
+controlCode ControlTargetRequired = "control.target-required"
+controlCode ControlTargetAmbiguous = "control.target-ambiguous"
+controlCode ControlRootNotFound = "control.root-not-found"
+controlCode ControlRootNotRegistered = "control.root-not-registered"
+controlCode ControlStackNotRunning = "control.stack-not-running"
+controlCode ControlStackRunning = "control.stack-running"
+controlCode ControlStartInProgress = "control.start-in-progress"
+controlCode ControlRuntimeUnavailable = "control.runtime-unavailable"
+controlCode ControlDependencyUnavailable = "control.dependency-unavailable"
+controlCode ControlUnreachable = "control.unreachable"
+controlCode ControlConfirmationRequired = "control.confirmation-required"
+controlCode ControlUnreadableState = "control.unreadable-state"
+controlCode ControlAlreadySignedIn = "control.already-signed-in"
+controlCode ControlSignInFailed = "control.sign-in-failed"
+controlCode ControlCancelled = "control.cancelled"
+controlCode ControlFailed = "control.failed"
+parseControlCode :: Text -> Maybe ControlCode
+parseControlCode value = case value of
+  "control.invalid-params" -> Just ControlInvalidParams
+  "control.unsupported-api-version" -> Just ControlUnsupportedApiVersion
+  "control.invalid-request" -> Just ControlInvalidRequest
+  "control.invalid-service" -> Just ControlInvalidService
+  "control.invalid-value" -> Just ControlInvalidValue
+  "control.unknown-setting" -> Just ControlUnknownSetting
+  "control.target-required" -> Just ControlTargetRequired
+  "control.target-ambiguous" -> Just ControlTargetAmbiguous
+  "control.root-not-found" -> Just ControlRootNotFound
+  "control.root-not-registered" -> Just ControlRootNotRegistered
+  "control.stack-not-running" -> Just ControlStackNotRunning
+  "control.stack-running" -> Just ControlStackRunning
+  "control.start-in-progress" -> Just ControlStartInProgress
+  "control.runtime-unavailable" -> Just ControlRuntimeUnavailable
+  "control.dependency-unavailable" -> Just ControlDependencyUnavailable
+  "control.unreachable" -> Just ControlUnreachable
+  "control.confirmation-required" -> Just ControlConfirmationRequired
+  "control.unreadable-state" -> Just ControlUnreadableState
+  "control.already-signed-in" -> Just ControlAlreadySignedIn
+  "control.sign-in-failed" -> Just ControlSignInFailed
+  "control.cancelled" -> Just ControlCancelled
+  "control.failed" -> Just ControlFailed
+  _ -> Nothing
+instance ToJSON ControlCode where toJSON = String . controlCode
+instance FromJSON ControlCode where parseJSON = withText "ControlCode" (\value -> maybe (fail "unknown error code") pure (parseControlCode value))
 
 data JobCode = JobFailed | JobCancelled | JobStalled deriving (Eq, Ord, Show, Enum, Bounded)
 jobCode :: JobCode -> Text

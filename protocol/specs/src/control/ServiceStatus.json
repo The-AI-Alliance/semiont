@@ -1,0 +1,74 @@
+{
+  "title": "ServiceStatus",
+  "type": "object",
+  "description": "One service, as semiont status reads it: where it runs, its state, and whether it answers. Nothing is reported that the launcher did not observe: an endpoint is named only when the stack's record or the descriptor names one, and a page to open only when the service answers.",
+  "properties": {
+    "role": {
+      "type": "string",
+      "description": "The service, as semiont status names it."
+    },
+    "group": {
+      "$ref": "./ServiceGroup.json",
+      "description": "The group it belongs to."
+    },
+    "product": {
+      "type": "string",
+      "description": "The product its driver names (Neo4j, Keycloak), when its record names a driver."
+    },
+    "runsOn": {
+      "type": "string",
+      "description": "Where it runs: the runtime its container runs under, external (somebody else runs it), or host (a process on this machine). Absent when nothing runs it."
+    },
+    "state": {
+      "type": "string",
+      "description": "running: its container runs. stopped: its container exists and does not run (containerState says how). reachable, unreachable: somebody else runs it, and its endpoint answers or does not. absent: there is no container of it. not-configured: the stack's documents ask for none.",
+      "enum": [
+        "running",
+        "stopped",
+        "reachable",
+        "unreachable",
+        "absent",
+        "not-configured"
+      ]
+    },
+    "containerState": {
+      "type": "string",
+      "description": "The runtime's own word for a container that is not running (exited, created)."
+    },
+    "healthy": {
+      "type": "boolean",
+      "description": "Whether its health endpoint answers."
+    },
+    "counted": {
+      "type": "boolean",
+      "description": "Whether its health counts toward its knowledge base's: a service the documents ask for none of, and a telemetry backend --no-observe leaves out, do not."
+    },
+    "probe": {
+      "type": "string",
+      "description": "The endpoint the launcher asks its health of: an http URL, or tcp://host:port."
+    },
+    "page": {
+      "type": "string",
+      "description": "The page a person opens: the Browser, Jaeger's and Prometheus's interfaces, the collector's metrics readout. Present only when the service answers. The collector's OTLP receiver is never one."
+    },
+    "realm": {
+      "type": "string",
+      "description": "For the issuer the knowledge base signs in at, when it is the machine's: its realm there."
+    },
+    "serves": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "For a service several knowledge bases share: the name of each it serves, as knowledgeBases names them."
+    }
+  },
+  "required": [
+    "role",
+    "group",
+    "state",
+    "healthy",
+    "counted"
+  ],
+  "additionalProperties": false
+}

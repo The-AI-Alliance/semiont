@@ -1,0 +1,23 @@
+{
+  "title": "StatusSnapshotParams",
+  "type": "object",
+  "description": "status.snapshot's params.",
+  "properties": {
+    "apiVersion": {
+      "$ref": "./ApiVersion.json",
+      "description": "The version of the control API the request is written to."
+    },
+    "target": {
+      "$ref": "./Target.json",
+      "description": "Which knowledge base's stack. Absent: the one the command line chooses, standing where the control server was started."
+    },
+    "runtime": {
+      "$ref": "./Runtime.json",
+      "description": "The container runtime to ask, as --runtime names it. Absent: the one the stack's record names, else every installed one."
+    }
+  },
+  "required": [
+    "apiVersion"
+  ],
+  "additionalProperties": false
+}

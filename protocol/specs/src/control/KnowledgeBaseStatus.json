@@ -1,0 +1,87 @@
+{
+  "title": "KnowledgeBaseStatus",
+  "type": "object",
+  "description": "One knowledge base's stack as semiont status reads it: what it is, where it runs, and each of its own services. The services every knowledge base shares are reported once, in the snapshot's shared list.",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "What the snapshot calls the knowledge base: the last segment of its DID, or the whole DID where two would share one, or its key."
+    },
+    "key": {
+      "type": "string",
+      "description": "The knowledge base's key on this machine, which names its containers and its state."
+    },
+    "recorded": {
+      "type": "boolean",
+      "description": "Whether a stack of it is recorded. When none is, its services are found by name."
+    },
+    "placement": {
+      "$ref": "../discovery/DiscoveredKB.json#/properties/placement"
+    },
+    "root": {
+      "type": "string",
+      "description": "Its clone, for a local stack."
+    },
+    "repo": {
+      "$ref": "../discovery/DiscoveredKB.json#/properties/repo"
+    },
+    "did": {
+      "$ref": "../discovery/DiscoveredKB.json#/properties/did"
+    },
+    "siteName": {
+      "$ref": "../discovery/DiscoveredKB.json#/properties/siteName"
+    },
+    "identityError": {
+      "type": "string",
+      "description": "Why its identity could not be read from its clone, when it could not."
+    },
+    "kb": {
+      "$ref": "../discovery/DiscoveredKB.json",
+      "description": "The knowledge base as the discovery document publishes it, when it does."
+    },
+    "runtime": {
+      "$ref": "./Runtime.json",
+      "description": "The runtime its record names."
+    },
+    "gateway": {
+      "type": "string",
+      "description": "The base URL of its gateway, from its record."
+    },
+    "secretStore": {
+      "type": "string",
+      "description": "Where the values the launcher generates for it are kept, as semiont settings secret-store describes it."
+    },
+    "lan": {
+      "type": "string",
+      "description": "This machine's address on the network, when the stack is started with network lan."
+    },
+    "starting": {
+      "type": "boolean",
+      "description": "Whether a semiont start of it holds its start lock: its services are not ready, whatever they report."
+    },
+    "session": {
+      "$ref": "./Session.json"
+    },
+    "healthy": {
+      "type": "boolean",
+      "description": "Whether each of its counted services, and the issuer it signs in at, answers."
+    },
+    "services": {
+      "type": "array",
+      "items": {
+        "$ref": "./ServiceStatus.json"
+      },
+      "description": "Its own services, group by group, then the issuer it signs in at. Empty for a codespace's, whose services its own launcher reports."
+    }
+  },
+  "required": [
+    "name",
+    "key",
+    "recorded",
+    "placement",
+    "starting",
+    "healthy",
+    "services"
+  ],
+  "additionalProperties": false
+}
