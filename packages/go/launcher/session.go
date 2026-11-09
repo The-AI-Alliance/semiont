@@ -344,7 +344,7 @@ func VerbSession(u *UI, verb, repo, root string, wantLocal bool, channels ...bus
 func StackBase(u *UI, target *StackState, verb string) (string, bool) {
 	switch {
 	case target == nil:
-		u.Fail("%s needs a running stack, and none is recorded.", verb)
+		u.Refuse(controlCodeStackNotRunning, "%s needs a running stack, and none is recorded.", verb)
 		fmt.Fprintln(os.Stderr, "  Start one first:  semiont start")
 		return "", false
 	case target.Codespace != nil:
@@ -405,34 +405,46 @@ func Logout(args []string) int {
 	if !ok {
 		return 1
 	}
+	if _, ok := signOut(context.Background(), u, target); !ok {
+		return 1
+	}
+	return 0
+}
+
+// signOut ends the stored session of target, the stack SelectVerbStack chose
+// (nil: none is recorded, and there is nothing to end). ok=false: refused, and
+// said.
+func signOut(ctx context.Context, u *UI, target *StackState) (ControlAuthLogoutResult, bool) {
 	if target == nil {
 		u.Log("No stack is recorded — nothing to log out.")
-		return 0
+		return ControlAuthLogoutResult{}, true
 	}
 	key := StackKey(target)
+	ended := ControlAuthLogoutResult{Key: &key}
 
 	store, ok := signInStore()
 	if !ok {
 		u.Log("No session for %s — nothing to log out.", key)
-		return 0
+		return ended, true
 	}
 	e, have, err := store.SignIn(key)
 	if err != nil {
-		u.Fail("The sign-in store cannot be read: %v", err)
-		return 1
+		u.Refuse(controlCodeUnreadableState, "The sign-in store cannot be read: %v", err)
+		return ControlAuthLogoutResult{}, false
 	}
 	if !have {
 		u.Log("No session for %s — nothing to log out.", key)
-		return 0
+		return ended, true
 	}
 	// Issuer-side first, best-effort: an unreachable issuer must not trap the
 	// user in a session they asked to end — but say what it means.
 	issuer := semiont.Issuer{HTTP: &http.Client{Transport: launcherTransport}, Timing: semiont.DefaultTiming()}
-	revoked, err := semiont.SignOut(context.Background(), issuer, store.Entry(key))
+	revoked, err := semiont.SignOut(ctx, issuer, store.Entry(key))
 	if err != nil {
-		u.Fail("Could not remove the stored session: %v", err)
-		return 1
+		u.Refuse(controlCodeFailed, "Could not remove the stored session: %v", err)
+		return ControlAuthLogoutResult{}, false
 	}
+	ended.WasSignedIn, ended.Revoked = true, revoked
 	signedOut := key
 	if e.Email != "" {
 		signedOut += " (" + e.Email + ")"
@@ -443,5 +455,5 @@ func Logout(args []string) int {
 		u.Ok("Logged out of %s — local token forgotten.", signedOut)
 		u.Warn("Revocation at the issuer did not complete; the refresh token remains valid there until it expires.")
 	}
-	return 0
+	return ended, true
 }

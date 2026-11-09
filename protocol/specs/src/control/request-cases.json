@@ -1,0 +1,123 @@
+{
+  "$comment": "How a launcher answers a request line before any operation runs: each case is one line a client sends to semiont control, and the answer it gets — none, for a notification; an error, with its JSON-RPC code and the control code its data names; or a result, which holds to the method's result schema. The launcher's codec runs every case (control_cases_test.go). `fields`: the JSON pointers the error's data names, in any order.",
+  "runBy": {
+    "launcher": ["packages/go/launcher/control_cases_test.go"]
+  },
+  "cases": [
+    {
+      "name": "launcher.about is answered with what the launcher is",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"launcher.about\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\"}}",
+      "answer": {"id": 1, "result": true}
+    },
+    {
+      "name": "a string id is answered under the same string",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":\"about-1\",\"method\":\"launcher.about\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\"}}",
+      "answer": {"id": "about-1", "result": true}
+    },
+    {
+      "name": "a line that is not JSON is a parse error, answered under a null id",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":1,",
+      "answer": {"id": null, "error": {"code": -32700}}
+    },
+    {
+      "name": "two JSON values on one line are a parse error",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"launcher.about\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\"}} {}",
+      "answer": {"id": null, "error": {"code": -32700}}
+    },
+    {
+      "name": "a batch is refused: each request goes on a line of its own",
+      "line": "[{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"launcher.about\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\"}}]",
+      "answer": {"id": null, "error": {"code": -32600}}
+    },
+    {
+      "name": "a request that does not state jsonrpc 2.0 is invalid",
+      "line": "{\"id\":1,\"method\":\"launcher.about\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\"}}",
+      "answer": {"id": null, "error": {"code": -32600}}
+    },
+    {
+      "name": "a member JSON-RPC does not define makes the request invalid",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"launcher.about\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\"},\"trace\":true}",
+      "answer": {"id": null, "error": {"code": -32600}}
+    },
+    {
+      "name": "an id that is a fraction names no request",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":1.5,\"method\":\"launcher.about\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\"}}",
+      "answer": {"id": null, "error": {"code": -32600}}
+    },
+    {
+      "name": "a method the API has none of is not found",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"stack.restart\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\"}}",
+      "answer": {"id": 2, "error": {"code": -32601}}
+    },
+    {
+      "name": "a request with no params is refused: every request states its apiVersion",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"launcher.about\"}",
+      "answer": {"id": 3, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": [""]}}}
+    },
+    {
+      "name": "params that are an array are refused",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"launcher.about\",\"params\":[\"control.semiont.the-ai-alliance.github.io/v1alpha1\"]}",
+      "answer": {"id": 4, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": [""]}}}
+    },
+    {
+      "name": "params that do not state apiVersion are refused, naming it",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"roots.list\",\"params\":{}}",
+      "answer": {"id": 5, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": ["/apiVersion"]}}}
+    },
+    {
+      "name": "a version this launcher does not speak is refused, naming the ones it does",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"roots.list\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v2\"}}",
+      "answer": {"id": 6, "error": {"code": -32602, "data": {"code": "control.unsupported-api-version", "retryable": false, "supported": ["control.semiont.the-ai-alliance.github.io/v1alpha1"]}}}
+    },
+    {
+      "name": "a member a method's params do not take is refused, naming it",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"status.snapshot\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\",\"verbose\":true}}",
+      "answer": {"id": 7, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": ["/verbose"]}}}
+    },
+    {
+      "name": "a runtime the launcher does not drive is refused",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"stack.start\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\",\"runtime\":\"codespace\"}}",
+      "answer": {"id": 8, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": ["/runtime"]}}}
+    },
+    {
+      "name": "a codespace target names its repository",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"stack.stop\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\",\"target\":{\"kind\":\"codespace\"}}}",
+      "answer": {"id": 9, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": ["/target"]}}}
+    },
+    {
+      "name": "a local target names no repository",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"auth.login\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\",\"target\":{\"kind\":\"local\",\"repo\":\"o/n\"}}}",
+      "answer": {"id": 10, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": ["/target"]}}}
+    },
+    {
+      "name": "a setting is set to a value: an empty one is refused",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"settings.set\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\",\"name\":\"runtime\",\"value\":\"\"}}",
+      "answer": {"id": 11, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": ["/value"]}}}
+    },
+    {
+      "name": "settings.path names one of the machine documents",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"settings.path\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\",\"document\":\"runtime\"}}",
+      "answer": {"id": 12, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": ["/document"]}}}
+    },
+    {
+      "name": "a member of the wrong type is refused once, naming it",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":13,\"method\":\"stack.start\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\",\"dryRun\":\"yes\"}}",
+      "answer": {"id": 13, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": ["/dryRun"]}}}
+    },
+    {
+      "name": "a group the launcher has none of is refused",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":14,\"method\":\"stack.stop\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\",\"group\":\"everything\"}}",
+      "answer": {"id": 14, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": ["/group"]}}}
+    },
+    {
+      "name": "a cancellation is a notification: it is never answered",
+      "line": "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":99}}",
+      "answer": null
+    },
+    {
+      "name": "a notification the client does not send in this API is ignored, and never answered",
+      "line": "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\",\"params\":{\"requestId\":1,\"kind\":\"log\",\"text\":\"hello\"}}",
+      "answer": null
+    }
+  ]
+}

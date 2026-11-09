@@ -1,0 +1,88 @@
+{
+  "title": "Root",
+  "type": "object",
+  "description": "One knowledge base this machine knows: a registered or running local clone, or a codespace stack recorded here. Registration, the directory, the stack and the forward are separate facts, each stated as it is.",
+  "properties": {
+    "placement": {
+      "$ref": "../discovery/DiscoveredKB.json#/properties/placement"
+    },
+    "path": {
+      "type": "string",
+      "description": "For a local root: the clone's path."
+    },
+    "present": {
+      "type": "boolean",
+      "description": "For a local root: whether the directory exists. A registered root whose directory is gone is kept, and says so."
+    },
+    "current": {
+      "type": "string",
+      "description": "For a local root: how the control server's own directory selects it, when it does — standing in it (cwd), or SEMIONT_ROOT.",
+      "enum": [
+        "cwd",
+        "semiont-root"
+      ]
+    },
+    "registered": {
+      "type": "boolean",
+      "description": "Whether the registry (roots.json) records it."
+    },
+    "running": {
+      "type": "boolean",
+      "description": "Whether a stack of it is recorded on this machine."
+    },
+    "lastUsed": {
+      "type": "string",
+      "description": "When a command last used it, in RFC 3339, as the registry records it."
+    },
+    "did": {
+      "$ref": "../discovery/DiscoveredKB.json#/properties/did"
+    },
+    "siteName": {
+      "$ref": "../discovery/DiscoveredKB.json#/properties/siteName"
+    },
+    "identityError": {
+      "type": "string",
+      "description": "Why its identity could not be read from its clone, when it could not."
+    },
+    "config": {
+      "type": "string",
+      "description": "The Inference document a start of it runs, as the registry records it."
+    },
+    "configs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "For a present local root: the Inference documents its clone has, as start --config names them."
+    },
+    "repo": {
+      "$ref": "../discovery/DiscoveredKB.json#/properties/repo"
+    },
+    "codespace": {
+      "type": "string",
+      "description": "For a codespace root: the codespace's name."
+    },
+    "codespaceState": {
+      "type": "string",
+      "description": "For a codespace root: GitHub's word for the codespace's state (Available, Shutdown), when gh answered."
+    },
+    "forwardPort": {
+      "type": "integer",
+      "description": "For a codespace root: the port on this machine its knowledge base is forwarded to, when one is recorded."
+    },
+    "forwarded": {
+      "type": "boolean",
+      "description": "For a codespace root: whether the recorded forward is alive."
+    },
+    "reachable": {
+      "type": "boolean",
+      "description": "For a codespace root: whether its knowledge base answers through the forward."
+    }
+  },
+  "required": [
+    "placement",
+    "registered",
+    "running"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,125 @@
+{
+  "$comment": "The control API's methods and notifications: what `semiont control` serves, over JSON-RPC 2.0, one message per line on stdin and stdout. Each method names the schema of its params and of its result; each notification, the schema of its params. packages/codegen/schemas/generate-control.mjs generates the launcher's Go types from this table and the schemas it names, and the schema text the launcher validates against. protocol/contract/LAUNCHER-CONTROL.md is the contract's prose. `errorData`: the schema of a failed request's error data. `exclusive`: the request waits for every other exclusive request to end, and holds the others off until it does. `sends`: the notifications a request of the method may send besides notifications/progress, which any may.",
+  "apiVersion": "./ApiVersion.json",
+  "errorData": "./ErrorData.json",
+  "methods": [
+    {
+      "name": "launcher.about",
+      "params": "./AboutParams.json",
+      "result": "./AboutResult.json",
+      "exclusive": false,
+      "sends": [],
+      "docs": "What the launcher is: its version, the API versions it speaks, the runtimes it detects. It reads none of the machine's state."
+    },
+    {
+      "name": "roots.list",
+      "params": "./RootsListParams.json",
+      "result": "./RootsListResult.json",
+      "exclusive": true,
+      "sends": [],
+      "docs": "Every knowledge base this machine knows: semiont roots."
+    },
+    {
+      "name": "roots.forget",
+      "params": "./RootsForgetParams.json",
+      "result": "./RootsForgetResult.json",
+      "exclusive": true,
+      "sends": [],
+      "docs": "Remove one registry row, and no file: semiont forget."
+    },
+    {
+      "name": "status.snapshot",
+      "params": "./StatusSnapshotParams.json",
+      "result": "./StatusSnapshotResult.json",
+      "exclusive": true,
+      "sends": [],
+      "docs": "Each knowledge base's stack, and the services they share: semiont status."
+    },
+    {
+      "name": "stack.start",
+      "params": "./StackStartParams.json",
+      "result": "./StackStartResult.json",
+      "exclusive": true,
+      "sends": [],
+      "docs": "Start a stack, or some of its services: semiont start."
+    },
+    {
+      "name": "stack.stop",
+      "params": "./StackStopParams.json",
+      "result": "./StackStopResult.json",
+      "exclusive": true,
+      "sends": [],
+      "docs": "Stop a stack, or some of its services: semiont stop."
+    },
+    {
+      "name": "auth.login",
+      "params": "./AuthLoginParams.json",
+      "result": "./AuthLoginResult.json",
+      "exclusive": true,
+      "sends": ["notifications/userAction"],
+      "docs": "Sign in at the issuer a stack's knowledge base trusts, by the device grant, and keep the session in the launcher's store: semiont login. Exclusive while it finds the stack; the wait for the person is not."
+    },
+    {
+      "name": "auth.logout",
+      "params": "./AuthLogoutParams.json",
+      "result": "./AuthLogoutResult.json",
+      "exclusive": true,
+      "sends": [],
+      "docs": "End the launcher's session for a stack: semiont logout."
+    },
+    {
+      "name": "logs.follow",
+      "params": "./LogsFollowParams.json",
+      "result": "./LogsFollowResult.json",
+      "exclusive": true,
+      "sends": ["notifications/log"],
+      "docs": "Follow a stack's service logs until the client cancels or every source ends: semiont logs. Exclusive while it finds the containers; the follow is not."
+    },
+    {
+      "name": "settings.list",
+      "params": "./SettingsListParams.json",
+      "result": "./SettingsListResult.json",
+      "exclusive": true,
+      "sends": [],
+      "docs": "Every setting the launcher keeps: semiont settings."
+    },
+    {
+      "name": "settings.get",
+      "params": "./SettingsGetParams.json",
+      "result": "./Setting.json",
+      "exclusive": true,
+      "sends": [],
+      "docs": "One setting: semiont settings <name>."
+    },
+    {
+      "name": "settings.set",
+      "params": "./SettingsSetParams.json",
+      "result": "./Setting.json",
+      "exclusive": true,
+      "sends": [],
+      "docs": "Set a setting, checked as a start would check it: semiont settings <name> <value>."
+    },
+    {
+      "name": "settings.unset",
+      "params": "./SettingsUnsetParams.json",
+      "result": "./Setting.json",
+      "exclusive": true,
+      "sends": [],
+      "docs": "Return a setting to its default: semiont settings <name> --unset."
+    },
+    {
+      "name": "settings.path",
+      "params": "./SettingsPathParams.json",
+      "result": "./SettingsPathResult.json",
+      "exclusive": true,
+      "sends": [],
+      "docs": "Where a machine document is: semiont settings <document> --path."
+    }
+  ],
+  "notifications": [
+    {"name": "notifications/progress", "from": "launcher", "params": "./Progress.json", "docs": "A line of what a request is doing."},
+    {"name": "notifications/userAction", "from": "launcher", "params": "./UserAction.json", "docs": "A sign-in waits for a person to enter a code."},
+    {"name": "notifications/log", "from": "launcher", "params": "./LogRecord.json", "docs": "A line a followed service wrote."},
+    {"name": "notifications/cancelled", "from": "client", "params": "./Cancelled.json", "docs": "The client gives up on a request."}
+  ]
+}

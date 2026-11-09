@@ -1,0 +1,36 @@
+{
+  "title": "Progress",
+  "type": "object",
+  "description": "One line of what an operation is doing, as the command line would tell a person, without colour. A secret value the launcher generated or read never appears in one.",
+  "properties": {
+    "requestId": {
+      "$ref": "./RequestId.json"
+    },
+    "kind": {
+      "type": "string",
+      "description": "What the line is: narration (log, note), an outcome (ok, warn, fail), a heading (banner, section), a timestamp (stamp), a runtime command about to run (command), or text the operation printed (output).",
+      "enum": [
+        "log",
+        "note",
+        "ok",
+        "warn",
+        "fail",
+        "banner",
+        "section",
+        "stamp",
+        "command",
+        "output"
+      ]
+    },
+    "text": {
+      "type": "string",
+      "description": "The line."
+    }
+  },
+  "required": [
+    "requestId",
+    "kind",
+    "text"
+  ],
+  "additionalProperties": false
+}

@@ -96,6 +96,7 @@ func resolveSecret(ref secretRef) (string, error) {
 	if val == "" {
 		return "", fmt.Errorf("`%s` returned nothing", refCommand(ref))
 	}
+	noteSecret(val)
 	return val, nil
 }
 
@@ -112,6 +113,7 @@ func resolveSecret(ref secretRef) (string, error) {
 // a source is registered — the caller asked for that by registering it.
 func resolvedSecretValue(u *UI, name string) string {
 	if v := os.Getenv(name); v != "" {
+		noteSecret(v)
 		return v
 	}
 	ref, ok := loadRoots().Secrets[name]

@@ -22,8 +22,9 @@ type setting struct {
 	name string
 	// flag distinguishes a machine-wide form of a knowledge-base setting:
 	// secret-store --default.
-	flag  string
-	scope string
+	flag string
+	// appliesTo: every knowledge base on this machine, or one.
+	appliesTo string
 	// show: the value in effect and where it came from, one line per value.
 	show func(u *UI, kb kbRoot) []settingLine
 	// saves: the registry fields the setting is kept in — the census's
@@ -56,28 +57,30 @@ func settingRowText(u *UI, label string, l settingLine) string {
 	return fmt.Sprintf("  %-24s %s\n  %-24s %s\n", label, l.value, "", u.Dim(l.source))
 }
 
+// What a setting applies to, as protocol/specs/src/control/Setting.json
+// names it.
 const (
-	scopeMachine = "machine"
-	scopeKB      = "knowledge base"
+	appliesToMachine = "machine"
+	appliesToKB      = "knowledge-base"
 )
 
 var settingsTable = []setting{
-	{name: "runtime", scope: scopeMachine, show: showRuntime, saves: []string{"rootsRegistry.Runtime"},
+	{name: "runtime", appliesTo: appliesToMachine, show: showRuntime, saves: []string{"rootsRegistry.Runtime"},
 		set: setRuntime, unset: unsetRuntime},
-	{name: "browser", scope: scopeMachine, show: showBrowserDocument, changedBy: editBrowserDocument},
-	{name: "worker", scope: scopeMachine, show: showWorkerPoolDocument, changedBy: editWorkerPoolDocument},
-	{name: "issuer", scope: scopeMachine, show: showIssuerDocument, changedBy: editIssuerDocument},
-	{name: "vectors", scope: scopeMachine, show: showVectorStoreDocument, changedBy: editVectorStoreDocument},
-	{name: "keycloak-port", scope: scopeMachine, show: showKeycloakPort, set: setKeycloakPort, unset: unsetKeycloakPort},
-	{name: "network", scope: scopeMachine, show: showNetwork, saves: []string{"rootsRegistry.Network"},
+	{name: "browser", appliesTo: appliesToMachine, show: showBrowserDocument, changedBy: editBrowserDocument},
+	{name: "worker", appliesTo: appliesToMachine, show: showWorkerPoolDocument, changedBy: editWorkerPoolDocument},
+	{name: "issuer", appliesTo: appliesToMachine, show: showIssuerDocument, changedBy: editIssuerDocument},
+	{name: "vectors", appliesTo: appliesToMachine, show: showVectorStoreDocument, changedBy: editVectorStoreDocument},
+	{name: "keycloak-port", appliesTo: appliesToMachine, show: showKeycloakPort, set: setKeycloakPort, unset: unsetKeycloakPort},
+	{name: "network", appliesTo: appliesToMachine, show: showNetwork, saves: []string{"rootsRegistry.Network"},
 		set: setNetwork, unset: unsetNetwork},
-	{name: "secret", scope: scopeMachine, show: showSecretSources, saves: []string{"rootsRegistry.Secrets"},
+	{name: "secret", appliesTo: appliesToMachine, show: showSecretSources, saves: []string{"rootsRegistry.Secrets"},
 		changedBy: func() string { return "its own commands: semiont settings secret --help" }},
-	{name: "secret-store", flag: "--default", scope: scopeMachine, show: showDefaultSecretStore,
+	{name: "secret-store", flag: "--default", appliesTo: appliesToMachine, show: showDefaultSecretStore,
 		saves: []string{"storeSettingsFile.Default"}, set: setDefaultSecretStore, unset: unsetDefaultSecretStore},
-	{name: "config", scope: scopeKB, show: showConfig, saves: []string{"rootEntry.Config"},
+	{name: "config", appliesTo: appliesToKB, show: showConfig, saves: []string{"rootEntry.Config"},
 		set: setConfig, unset: unsetConfig},
-	{name: "secret-store", scope: scopeKB, show: showSecretStoreSetting, saves: []string{"storeSettingsFile.Roots"},
+	{name: "secret-store", appliesTo: appliesToKB, show: showSecretStoreSetting, saves: []string{"storeSettingsFile.Roots"},
 		set: setSecretStore, unset: unsetSecretStore, detail: showSecretStoreLocations},
 }
 
@@ -207,63 +210,51 @@ func Settings(args []string) int {
 			u.Fail("--path takes nothing else: semiont settings browser|worker|issuer|vectors --path")
 			return 1
 		}
-		switch name {
-		case "browser":
-			return browserDocumentPathCmd()
-		case "worker":
-			return workerPoolDocumentPathCmd()
-		case "issuer":
-			return issuerDocumentPathCmd()
-		case "vectors":
-			return vectorStoreDocumentPathCmd()
+		read, known := machineDocuments[name]
+		if !known {
+			u.Fail("--path is for the Browser's, the worker's, the issuer's and the vector store's documents: semiont settings browser|worker|issuer|vectors --path")
+			return 1
 		}
-		u.Fail("--path is for the Browser's, the worker's, the issuer's and the vector store's documents: semiont settings browser|worker|issuer|vectors --path")
-		return 1
+		path, ok := read(u.quieted(true))
+		if !ok {
+			return 1
+		}
+		fmt.Println(path)
+		return 0
 	}
 	rows := settingsTable
 	if name != "" {
-		rows = nil
-		for _, s := range settingsTable {
-			if s.name == name && s.flag == flag {
-				rows = append(rows, s)
-			}
-		}
-		if rows == nil {
-			u.Fail("Unknown setting %q.", strings.TrimSpace(name+" "+flag))
+		var ok bool
+		if rows, ok = settingsNamed(u, name, flag); !ok {
 			fmt.Print(settingsUsage)
 			return 1
 		}
 	}
 
-	root := ""
-	var ident *kbIdentity
-	var rootErr error
-	if rootArg != "" {
-		root, ident, rootErr = resolveRootArg(rootArg)
-	} else {
-		root, _, ident, rootErr = resolveKBRoot()
-	}
-	if rootErr != nil && (rootArg != "" || projectFileRefused(rootErr)) {
-		u.Fail("%v", rootErr)
+	kb, rootErr, ok := settingsRoot(u, rootArg)
+	if !ok {
 		return 1
 	}
-	kb := kbRoot{dir: root, ident: ident}
+	root := kb.dir
 	if value != "" || unset {
-		return changeSetting(u, rows[0], kb, rootErr, value, unset)
+		if !changeSetting(u, rows[0], kb, rootErr, value, unset) {
+			return 1
+		}
+		return 0
 	}
 
-	for _, scope := range []string{scopeMachine, scopeKB} {
-		var inScope []setting
+	for _, appliesTo := range []string{appliesToMachine, appliesToKB} {
+		var applying []setting
 		for _, s := range rows {
-			if s.scope == scope {
-				inScope = append(inScope, s)
+			if s.appliesTo == appliesTo {
+				applying = append(applying, s)
 			}
 		}
-		if len(inScope) == 0 {
+		if len(applying) == 0 {
 			continue
 		}
 		switch {
-		case scope == scopeMachine:
+		case appliesTo == appliesToMachine:
 			fmt.Println(u.Bold("This machine"))
 		case rootErr != nil:
 			fmt.Println(u.Bold("A knowledge base"))
@@ -272,7 +263,7 @@ func Settings(args []string) int {
 		default:
 			fmt.Printf("%s %s\n", u.Bold("This knowledge base"), u.Dim(root))
 		}
-		for _, s := range inScope {
+		for _, s := range applying {
 			for _, l := range s.show(u, kb) {
 				fmt.Print(settingRowText(u, strings.TrimSpace(s.name+" "+s.flag), l))
 			}
@@ -282,6 +273,75 @@ func Settings(args []string) int {
 		}
 	}
 	return 0
+}
+
+// settingsNamed: the rows of the setting name, with flag (--default) or
+// without. ok=false: the launcher keeps no such setting, which was said.
+func settingsNamed(u *UI, name, flag string) ([]setting, bool) {
+	var rows []setting
+	for _, s := range settingsTable {
+		if s.name == name && s.flag == flag {
+			rows = append(rows, s)
+		}
+	}
+	if rows == nil {
+		u.Refuse(controlCodeUnknownSetting, "Unknown setting %q.", strings.TrimSpace(name+" "+flag))
+		return nil, false
+	}
+	return rows, true
+}
+
+// settingsRoot: the knowledge base settings are read and changed in — the one
+// rootArg names, else the one the working directory is in — and why none
+// resolved, when none did. ok=false: rootArg names no knowledge base, or the
+// working directory's project file is refused, which was said.
+func settingsRoot(u *UI, rootArg string) (kbRoot, error, bool) {
+	root := ""
+	var ident *kbIdentity
+	var rootErr error
+	if rootArg != "" {
+		root, ident, rootErr = resolveRootArg(rootArg)
+	} else {
+		root, _, ident, rootErr = resolveKBRoot()
+	}
+	if rootErr != nil && (rootArg != "" || projectFileRefused(rootErr)) {
+		refuseRoot(u, rootErr)
+		return kbRoot{}, rootErr, false
+	}
+	return kbRoot{dir: root, ident: ident}, rootErr, true
+}
+
+// refuseUnrooted refuses s, a knowledge-base setting, when no knowledge base
+// resolved (rootErr says why).
+func refuseUnrooted(u *UI, s setting, rootErr error) bool {
+	if s.appliesTo == appliesToKB && rootErr != nil {
+		u.Refuse(controlCodeRootNotFound, "%s is a knowledge-base setting: run inside one, or pass --root. (%v)", s.name, rootErr)
+		return true
+	}
+	return false
+}
+
+// machineDocuments: where each machine document `semiont settings <name>
+// --path` names is, written from the launcher's catalog first when there is
+// none, as a start writes it. ok=false: the document does not hold, which was
+// said.
+var machineDocuments = map[string]func(u *UI) (string, bool){
+	"browser": func(u *UI) (string, bool) {
+		doc, ok := readBrowserDocument(u, false)
+		return doc.path, ok
+	},
+	"worker": func(u *UI) (string, bool) {
+		doc, ok := readWorkerPoolDocument(u, false)
+		return doc.path, ok
+	},
+	"issuer": func(u *UI) (string, bool) {
+		doc, ok := readIssuerDocument(u, false)
+		return doc.path, ok
+	},
+	"vectors": func(u *UI) (string, bool) {
+		doc, ok := readVectorStoreDocument(u, false)
+		return doc.path, ok
+	},
 }
 
 func showRuntime(u *UI, kb kbRoot) []settingLine {
@@ -360,18 +420,17 @@ func showDefaultSecretStore(u *UI, kb kbRoot) []settingLine {
 	return []settingLine{{"files", "new knowledge bases keep their values in " + fileStoreCaveat}}
 }
 
-// changeSetting sets or unsets one setting.
-func changeSetting(u *UI, s setting, kb kbRoot, rootErr error, value string, unset bool) int {
+// changeSetting sets or unsets one setting. ok=false: refused, and said.
+func changeSetting(u *UI, s setting, kb kbRoot, rootErr error, value string, unset bool) bool {
 	switch {
 	case value != "" && unset:
-		u.Fail("Give %s a value or --unset, not both.", s.name)
-		return 1
+		u.Refuse(controlCodeInvalidRequest, "Give %s a value or --unset, not both.", s.name)
+		return false
 	case s.set == nil:
-		u.Fail("%s is changed by %s", s.name, s.changedBy())
-		return 1
-	case s.scope == scopeKB && rootErr != nil:
-		u.Fail("%s is a knowledge-base setting: run inside one, or pass --root. (%v)", s.name, rootErr)
-		return 1
+		u.Refuse(controlCodeInvalidRequest, "%s is changed by %s", s.name, s.changedBy())
+		return false
+	case refuseUnrooted(u, s, rootErr):
+		return false
 	}
 	ok := false
 	if unset {
@@ -380,18 +439,18 @@ func changeSetting(u *UI, s setting, kb kbRoot, rootErr error, value string, uns
 		ok = s.set(u, kb, value)
 	}
 	if !ok {
-		return 1
+		return false
 	}
 	for _, l := range s.show(u, kb) {
 		u.Ok("%s: %s %s", s.name, l.value, u.Dim("("+l.source+")"))
 	}
-	return 0
+	return true
 }
 
 // recorded reports a failed save.
 func recorded(u *UI, err error) bool {
 	if err != nil {
-		u.Fail("Recording the setting: %v", err)
+		u.Refuse(controlCodeFailed, "Recording the setting: %v", err)
 		return false
 	}
 	return true
@@ -468,18 +527,6 @@ func editBrowserDocument() string {
 	return "editing its document: " + browserDocumentPath()
 }
 
-// browserDocumentPathCmd: `semiont settings browser --path` — the document's
-// path and nothing else, for a script that edits it; written first where there
-// is none.
-func browserDocumentPathCmd() int {
-	doc, ok := readBrowserDocument(NewUI(true), false)
-	if !ok {
-		return 1
-	}
-	fmt.Println(doc.path)
-	return 0
-}
-
 // showIssuerDocument: where the issuer's document is, and what it says. It is
 // shown as a start reads it, so showing one where there is none writes it,
 // from the launcher's catalog, at the path the row names.
@@ -510,18 +557,6 @@ func editIssuerDocument() string {
 	return "editing its document: " + issuerDocumentPath()
 }
 
-// issuerDocumentPathCmd: `semiont settings issuer --path` — the document's
-// path and nothing else, for a script that edits it; written first where
-// there is none.
-func issuerDocumentPathCmd() int {
-	doc, ok := readIssuerDocument(NewUI(true), false)
-	if !ok {
-		return 1
-	}
-	fmt.Println(doc.path)
-	return 0
-}
-
 // showVectorStoreDocument: where the vector store's document is, and what it
 // says. It is shown as a start reads it, so showing one where there is none
 // writes it, from the launcher's catalog, at the path the row names.
@@ -544,18 +579,6 @@ func editVectorStoreDocument() string {
 	return "editing its document: " + vectorStoreDocumentPath()
 }
 
-// vectorStoreDocumentPathCmd: `semiont settings vectors --path` — the
-// document's path and nothing else, for a script that edits it; written
-// first where there is none.
-func vectorStoreDocumentPathCmd() int {
-	doc, ok := readVectorStoreDocument(NewUI(true), false)
-	if !ok {
-		return 1
-	}
-	fmt.Println(doc.path)
-	return 0
-}
-
 // showWorkerPoolDocument: where the worker's document is, and what it says.
 // It is shown as a start reads it, so showing one where there is none writes
 // it, from the launcher's catalog, at the path the row names.
@@ -575,18 +598,6 @@ func showWorkerPoolDocument(u *UI, kb kbRoot) []settingLine {
 // editWorkerPoolDocument: how the worker's document is changed.
 func editWorkerPoolDocument() string {
 	return "editing its document: " + workerPoolDocumentPath()
-}
-
-// workerPoolDocumentPathCmd: `semiont settings worker --path` — the
-// document's path and nothing else, for a script that edits it; written first
-// where there is none.
-func workerPoolDocumentPathCmd() int {
-	doc, ok := readWorkerPoolDocument(NewUI(true), false)
-	if !ok {
-		return 1
-	}
-	fmt.Println(doc.path)
-	return 0
 }
 
 const (

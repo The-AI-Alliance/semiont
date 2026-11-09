@@ -1469,19 +1469,25 @@ func formatUptime(d time.Duration) string {
 	return fmt.Sprintf("%dh%dm", h, m)
 }
 
-// printRemoteKBs: the codespace-hosted half of the KNOWLEDGE BASES section —
-// the KBs this machine knows about. A repo is the durable thing (the identity); the
-// codespace instance and its state are status layered on it, which is why
-// the repo leads each entry and the instance name is a dimmed detail.
-// Reports how many it printed: the KNOWLEDGE BASES section is shared with the
-// local half, so only the caller can know whether it came out empty.
-func printRemoteKBs(u *UI, cs []*StackState) int {
-	if len(cs) == 0 {
-		return 0
-	}
+// knownCodespace: one codespace stack semiont roots lists, and what GitHub
+// and the forward say of it.
+type knownCodespace struct {
+	stack *StackState
+	// state: GitHub's word for the codespace's state, "" when it said none.
+	state string
+	// facts: what GitHub says of its machine and its life, when it says.
+	facts    codespaceFacts
+	hasFacts bool
+	// forwarded: the recorded forward is alive; reachable: its KB answers
+	// through it.
+	forwarded, reachable bool
+}
+
+// knownCodespaces: what GitHub and each forward say of cs, and whether gh was
+// asked at all.
+func knownCodespaces(cs []*StackState) (rows []knownCodespace, ghQueried bool) {
 	states := map[string]string{}
 	var facts map[string]codespaceFacts
-	ghQueried := false
 	if onPath("gh") {
 		facts = fetchCodespaceFacts()
 		if out, err := capture("gh", "codespace", "list", "--json", "name,state,repository"); err == nil {
@@ -1493,6 +1499,31 @@ func printRemoteKBs(u *UI, cs []*StackState) int {
 				}
 			}
 		}
+	}
+	for _, c := range cs {
+		row := knownCodespace{stack: c, state: states[c.Codespace.Name]}
+		row.facts, row.hasFacts = facts[c.Codespace.Name]
+		row.forwarded = forwardAlive(c.Codespace.ForwardPID, c.Codespace.ForwardPort)
+		row.reachable = row.forwarded && httpOK(fmt.Sprintf("http://localhost:%d/api/health", c.Codespace.ForwardPort))
+		rows = append(rows, row)
+	}
+	return rows, ghQueried
+}
+
+// printRemoteKBs: the codespace-hosted half of the KNOWLEDGE BASES section —
+// the KBs this machine knows about. A repo is the durable thing (the identity); the
+// codespace instance and its state are status layered on it, which is why
+// the repo leads each entry and the instance name is a dimmed detail.
+// Reports how many it printed: the KNOWLEDGE BASES section is shared with the
+// local half, so only the caller can know whether it came out empty.
+func printRemoteKBs(u *UI, cs []*StackState) int {
+	if len(cs) == 0 {
+		return 0
+	}
+	rows, ghQueried := knownCodespaces(cs)
+	known := map[*StackState]knownCodespace{}
+	for _, row := range rows {
+		known[row.stack] = row
 	}
 	// Addressed as the repo's https URL — the durable identity, and a real
 	// address a reader can follow, which is what makes it a peer of the
@@ -1519,7 +1550,8 @@ func printRemoteKBs(u *UI, cs []*StackState) int {
 		if c.KBDid != "" {
 			fmt.Printf("%s%s\n", pad, u.Dim(c.KBDid))
 		}
-		state := states[c.Codespace.Name]
+		row := known[c]
+		state := row.state
 		switch {
 		case state == "" && !ghQueried:
 			state = "state unknown — gh unavailable"
@@ -1530,7 +1562,7 @@ func printRemoteKBs(u *UI, cs []*StackState) int {
 		// hardware burning and since when, never a dollar figure — the safety
 		// tax the concurrent-KB feature owes.
 		detail := state
-		if f, ok := facts[c.Codespace.Name]; ok {
+		if f, ok := row.facts, row.hasFacts; ok {
 			if state == "Available" {
 				if f.Machine != "" {
 					detail += " · " + f.Machine
@@ -1543,9 +1575,9 @@ func printRemoteKBs(u *UI, cs []*StackState) int {
 		fmt.Printf("%s%s %s\n", pad, u.Dim("codespace "+c.Codespace.Name), u.Dim("("+detail+")"))
 		// Status layered on top: where its KB is reachable, or what to run.
 		switch {
-		case forwardAlive(c.Codespace.ForwardPID, c.Codespace.ForwardPort):
+		case row.forwarded:
 			mark := u.Wrap(AnsiRed, "✗")
-			if httpOK(fmt.Sprintf("http://localhost:%d/api/health", c.Codespace.ForwardPort)) {
+			if row.reachable {
 				mark = u.Wrap(AnsiGreen, "✓")
 			}
 			fmt.Printf("%sKB %s  %s\n", pad, mark, u.Dim(fmt.Sprintf("http://localhost:%d", c.Codespace.ForwardPort)))
@@ -1553,8 +1585,8 @@ func printRemoteKBs(u *UI, cs []*StackState) int {
 			fmt.Printf("%s%s\n", pad, u.Dim("not forwarded — semiont start --runtime codespace --repo "+c.Codespace.Repo))
 		case state == "Shutdown":
 			bill := "stopped (storage still bills"
-			if f, ok := facts[c.Codespace.Name]; ok && f.AutoDel != "" {
-				bill += "; auto-deletes " + f.AutoDel + ", state and all"
+			if row.hasFacts && row.facts.AutoDel != "" {
+				bill += "; auto-deletes " + row.facts.AutoDel + ", state and all"
 			}
 			fmt.Printf("%s%s\n", pad, u.Dim(bill+") — resume: semiont start --runtime codespace --repo "+c.Codespace.Repo))
 		default:
@@ -1577,7 +1609,7 @@ func requireGh(u *UI, what string) bool {
 	if onPath("gh") {
 		return true
 	}
-	u.Fail("%s needs the GitHub CLI, and 'gh' is not on PATH.", what)
+	u.Refuse(controlCodeDependencyUnavailable, "%s needs the GitHub CLI, and 'gh' is not on PATH.", what)
 	fmt.Fprintln(os.Stderr, "  Install it: https://cli.github.com  (then: gh auth login)")
 	return false
 }

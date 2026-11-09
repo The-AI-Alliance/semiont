@@ -85,11 +85,21 @@ func acquireStartLock(u *UI, key string) bool {
 		}
 		if time.Since(t0) >= startLockBudget {
 			f.Close()
-			u.Fail("Another semiont start has held this KB for %s (%s).", took(startLockBudget), startLockHolder(p))
+			u.Refuse(controlCodeStartInProgress, "Another semiont start has held this KB for %s (%s).", took(startLockBudget), startLockHolder(p))
 			fmt.Fprintln(os.Stderr, "  If that process is gone, its lock went with it; if it is wedged, stop it and retry.")
 			return false
 		}
 		time.Sleep(time.Second)
+	}
+}
+
+// releaseStartLock lets go of the start lock this process holds, if any: a
+// process that outlives its start, semiont control, would otherwise keep
+// every later start of the knowledge base waiting.
+func releaseStartLock() {
+	if heldStartLock != nil {
+		heldStartLock.Close()
+		heldStartLock = nil
 	}
 }
 

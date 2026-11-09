@@ -1,0 +1,46 @@
+{
+  "title": "Setting",
+  "type": "object",
+  "description": "One setting the launcher keeps, as semiont settings shows it.",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Its name, as semiont settings takes it."
+    },
+    "default": {
+      "type": "boolean",
+      "description": "Whether this is the machine-wide form of a knowledge-base setting (secret-store --default)."
+    },
+    "appliesTo": {
+      "type": "string",
+      "description": "What it applies to: every knowledge base on this machine, or one.",
+      "enum": [
+        "machine",
+        "knowledge-base"
+      ]
+    },
+    "values": {
+      "type": "array",
+      "items": {
+        "$ref": "./SettingLine.json"
+      },
+      "description": "The values in effect, one per line semiont settings shows."
+    },
+    "settable": {
+      "type": "boolean",
+      "description": "Whether settings.set and settings.unset change it."
+    },
+    "changedBy": {
+      "type": "string",
+      "description": "For one they do not: how it is changed instead."
+    }
+  },
+  "required": [
+    "name",
+    "default",
+    "appliesTo",
+    "values",
+    "settable"
+  ],
+  "additionalProperties": false
+}

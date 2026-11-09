@@ -3810,6 +3810,14 @@ jobs:
       - name: MCP tools vs the launcher's generated Go
         run: node packages/codegen/schemas/generate-mcp-tools-go.mjs --check
 
+      # The control API (protocol/specs/src/control/methods.json and the
+      # schemas it names) → the launcher's types and the schema text it
+      # validates against (packages/go/launcher/control_*_gen.go).
+      # TestControlCLICensus, in the launcher's suite, holds the command line
+      # to the API both ways.
+      - name: Control API vs the launcher's generated code
+        run: npm run generate:control:check
+
       # protocol/specs/openapi.json is a BUILD ARTIFACT (gitignored) — redocly bundles
       # it from protocol/specs/src/. A fresh checkout has no such file, so the client
       # check has to produce it first. Version pinned to the repo's devDependency:

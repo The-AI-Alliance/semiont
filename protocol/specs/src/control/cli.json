@@ -1,0 +1,163 @@
+{
+  "$comment": "Every option of the launcher commands the control API covers, and what it is in the API: the params field or fields it becomes (`fields`, each `<method>.<field path>`), the method it selects (`method`), or why it has none (`cliOnly`). `parser` names the Go function in packages/go/launcher whose switch reads the command's options; TestControlCLICensus holds each command's options there to this table both ways, holds each field to its method's params schema, and holds the options a control request is turned into to the fields they map. A new or changed option fails the census until its row here says what it is. `positionals` are the command's operands, which no switch reads by name.",
+  "commands": {
+    "about": {
+      "parser": "About",
+      "method": "launcher.about",
+      "flags": {
+        "--help": {"cliOnly": "help text, for a person"},
+        "-h": {"cliOnly": "help text, for a person"}
+      }
+    },
+    "roots": {
+      "parser": "Roots",
+      "method": "roots.list",
+      "flags": {
+        "--help": {"cliOnly": "help text, for a person"},
+        "-h": {"cliOnly": "help text, for a person"}
+      }
+    },
+    "forget": {
+      "parser": "Forget",
+      "method": "roots.forget",
+      "positionals": [{"name": "<path|name>", "fields": ["roots.forget.root"]}],
+      "flags": {
+        "--help": {"cliOnly": "help text, for a person"},
+        "-h": {"cliOnly": "help text, for a person"}
+      }
+    },
+    "status": {
+      "parser": "Status",
+      "method": "status.snapshot",
+      "flags": {
+        "--root": {"fields": ["status.snapshot.target.root"]},
+        "--repo": {"fields": ["status.snapshot.target.repo"]},
+        "--runtime": {"fields": ["status.snapshot.runtime"]},
+        "--service": {"cliOnly": "narrows the report to one service; a snapshot reports every service, and a client picks the one it shows"},
+        "--refresh": {"cliOnly": "re-reads a codespace's identity over ssh: a repair, not a read"},
+        "--verbose": {"cliOnly": "presentation: a snapshot always carries each knowledge base's session; the launcher's paths are settings.path's and semiont status --verbose's"},
+        "-v": {"cliOnly": "presentation: as --verbose"},
+        "--billing": {"cliOnly": "GitHub's monthly bill per repository, which no client of this API shows"},
+        "--help": {"cliOnly": "help text, for a person"},
+        "-h": {"cliOnly": "help text, for a person"}
+      }
+    },
+    "start": {
+      "parser": "parseStart",
+      "method": "stack.start",
+      "flags": {
+        "--config": {"fields": ["stack.start.config"]},
+        "--service": {"fields": ["stack.start.service"]},
+        "--group": {"fields": ["stack.start.group"]},
+        "--root": {"fields": ["stack.start.target.root"]},
+        "--repo": {"fields": ["stack.start.target.repo"]},
+        "--codespace": {"fields": ["stack.start.codespaceName"]},
+        "--machine": {"fields": ["stack.start.machine"]},
+        "--idle-timeout": {"fields": ["stack.start.idleTimeout"]},
+        "--retention-period": {"fields": ["stack.start.retentionPeriod"]},
+        "--runtime": {"fields": ["stack.start.runtime", "stack.start.target.kind"], "notes": "--runtime codespace is a codespace target; the other values are a runtime"},
+        "--no-observe": {"fields": ["stack.start.observe"]},
+        "--ollama-cache": {"fields": ["stack.start.ollamaCache"]},
+        "--dry-run": {"fields": ["stack.start.dryRun"]},
+        "--list-configs": {"cliOnly": "a listing, not a start: roots.list states each present root's configs"},
+        "--clean-ollama": {"cliOnly": "removes the Ollama model cache volume, which no client of this API offers"},
+        "--quiet": {"cliOnly": "presentation: a client shows the progress lines it wants"},
+        "-q": {"cliOnly": "presentation: as --quiet"},
+        "--help": {"cliOnly": "help text, for a person"},
+        "-h": {"cliOnly": "help text, for a person"}
+      }
+    },
+    "stop": {
+      "parser": "Stop",
+      "method": "stack.stop",
+      "flags": {
+        "--runtime": {"fields": ["stack.stop.runtime"]},
+        "--service": {"fields": ["stack.stop.service"]},
+        "--group": {"fields": ["stack.stop.group"]},
+        "--repo": {"fields": ["stack.stop.target.repo"]},
+        "--root": {"fields": ["stack.stop.target.root"]},
+        "--delete": {"fields": ["stack.stop.delete"], "notes": "typing --delete is the person's confirmation; a request states it as deleteConfirmed, beside delete"},
+        "--dry-run": {"fields": ["stack.stop.dryRun"]},
+        "--help": {"cliOnly": "help text, for a person"},
+        "-h": {"cliOnly": "help text, for a person"}
+      }
+    },
+    "login": {
+      "parser": "Login",
+      "method": "auth.login",
+      "flags": {
+        "--repo": {"fields": ["auth.login.target.repo"]},
+        "--root": {"fields": ["auth.login.target.root"]},
+        "--runtime": {"fields": ["auth.login.runtime"]},
+        "--help": {"cliOnly": "help text, for a person"},
+        "-h": {"cliOnly": "help text, for a person"}
+      }
+    },
+    "logout": {
+      "parser": "Logout",
+      "method": "auth.logout",
+      "flags": {
+        "--repo": {"fields": ["auth.logout.target.repo"]},
+        "--root": {"fields": ["auth.logout.target.root"]},
+        "--runtime": {"fields": ["auth.logout.runtime"]},
+        "--help": {"cliOnly": "help text, for a person"},
+        "-h": {"cliOnly": "help text, for a person"}
+      }
+    },
+    "logs": {
+      "parser": "Logs",
+      "method": "logs.follow",
+      "flags": {
+        "--runtime": {"fields": ["logs.follow.runtime"]},
+        "--repo": {"fields": ["logs.follow.target.repo"]},
+        "--root": {"fields": ["logs.follow.target.root"]},
+        "--service": {"fields": ["logs.follow.service"]},
+        "--help": {"cliOnly": "help text, for a person"},
+        "-h": {"cliOnly": "help text, for a person"}
+      }
+    },
+    "settings": {
+      "parser": "Settings",
+      "method": "settings.list",
+      "positionals": [
+        {"name": "<name>", "fields": ["settings.get.name", "settings.set.name", "settings.unset.name", "settings.path.document"]},
+        {"name": "<value>", "fields": ["settings.set.value"]},
+        {"name": "secret", "cliOnly": "the secret sources: semiont settings secret set reads a value's pointer at the terminal, and no client of this API edits them"}
+      ],
+      "flags": {
+        "--root": {"fields": ["settings.list.root", "settings.get.root", "settings.set.root", "settings.unset.root"]},
+        "--unset": {"method": "settings.unset"},
+        "--default": {"fields": ["settings.get.default", "settings.set.default", "settings.unset.default"]},
+        "--path": {"method": "settings.path"},
+        "--help": {"cliOnly": "help text, for a person"},
+        "-h": {"cliOnly": "help text, for a person"}
+      }
+    },
+    "init": {
+      "parser": "Init",
+      "cliOnly": "not in this revision of the API: making a knowledge base stays the command line's",
+      "flags": {
+        "--name": {"cliOnly": "init is not in this revision"},
+        "--domain": {"cliOnly": "init is not in this revision"},
+        "--site-name": {"cliOnly": "init is not in this revision"},
+        "--inference": {"cliOnly": "init is not in this revision"},
+        "--model": {"cliOnly": "init is not in this revision"},
+        "--model-light": {"cliOnly": "init is not in this revision"},
+        "--embedding": {"cliOnly": "init is not in this revision"},
+        "--config-name": {"cliOnly": "init is not in this revision"},
+        "--from-template": {"cliOnly": "init is not in this revision"},
+        "--template-ref": {"cliOnly": "init is not in this revision"},
+        "--devcontainer": {"cliOnly": "init is not in this revision"},
+        "--anthropic-endpoint": {"cliOnly": "init is not in this revision"},
+        "--ollama-base": {"cliOnly": "init is not in this revision"},
+        "--ollama-registry": {"cliOnly": "init is not in this revision"},
+        "--no-git": {"cliOnly": "init is not in this revision"},
+        "--yes": {"cliOnly": "init is not in this revision"},
+        "--force": {"cliOnly": "init is not in this revision"},
+        "--dry-run": {"cliOnly": "init is not in this revision"},
+        "--help": {"cliOnly": "help text, for a person"},
+        "-h": {"cliOnly": "help text, for a person"}
+      }
+    }
+  }
+}

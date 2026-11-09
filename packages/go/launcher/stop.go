@@ -281,9 +281,8 @@ func stopCodespaceAndShared(u *UI, st *StackState, service string, del, dryRun b
 	return 0
 }
 
-// Stop implements `semiont stop`.
-func Stop(args []string) int {
-	u := NewUI(false)
+// Stop implements `semiont stop`, saying what it does through u.
+func Stop(u *UI, args []string) int {
 	runtime := ""
 	service := ""
 	group := ""
@@ -346,13 +345,13 @@ func Stop(args []string) int {
 		var known bool
 		switch g, known = groupNamed(group); {
 		case !known:
-			u.Fail("Unknown --group '%s' (expected: %s)", group, groupList)
+			u.Refuse(controlCodeInvalidService, "Unknown --group '%s' (expected: %s)", group, groupList)
 			return 1
 		case service != "":
-			u.Fail("--group and --service are contradictory: stop one group, or one service.")
+			u.Refuse(controlCodeInvalidRequest, "--group and --service are contradictory: stop one group, or one service.")
 			return 1
 		case repo != "":
-			u.Fail("--group does not apply to a codespace stack (the codespace's own launcher runs its services).")
+			u.Refuse(controlCodeInvalidRequest, "--group does not apply to a codespace stack (the codespace's own launcher runs its services).")
 			return 1
 		}
 	}
@@ -413,7 +412,7 @@ func Stop(args []string) int {
 		}
 	}
 	if service != "" && !knownRole(service) {
-		u.Fail("Unknown --service '%s' (expected: %s)", service, roleList)
+		u.Refuse(controlCodeInvalidService, "Unknown --service '%s' (expected: %s)", service, roleList)
 		return 1
 	}
 
@@ -424,7 +423,7 @@ func Stop(args []string) int {
 	ss := LoadStackSet()
 	if repo != "" {
 		if root != "" {
-			u.Fail("--repo and --root are contradictory: one names a codespace stack, the other a local one.")
+			u.Refuse(controlCodeInvalidRequest, "--repo and --root are contradictory: one names a codespace stack, the other a local one.")
 			return 1
 		}
 		target, ok := repoCodespaceStack(u, ss, repo)
@@ -439,13 +438,13 @@ func Stop(args []string) int {
 	}
 	if codespace != nil {
 		if group != "" {
-			u.Fail("--group does not apply to a codespace stack (the codespace's own launcher runs its services).")
+			u.Refuse(controlCodeInvalidRequest, "--group does not apply to a codespace stack (the codespace's own launcher runs its services).")
 			return 1
 		}
 		return stopCodespaceAndShared(u, codespace, service, del, dryRun)
 	}
 	if del {
-		u.Fail("--delete only applies to a codespace stack (a local stop already removes the containers).")
+		u.Refuse(controlCodeInvalidRequest, "--delete only applies to a codespace stack (a local stop already removes the containers).")
 		return 1
 	}
 	st := scope.st
@@ -477,7 +476,7 @@ func Stop(args []string) int {
 	var runtimes []string
 	if runtime != "" {
 		if !onPath(runtime) {
-			fmt.Fprintf(os.Stderr, "--runtime %s requested, but '%s' is not on PATH.\n", runtime, runtime)
+			u.RefusePlain(controlCodeRuntimeUnavailable, "--runtime %s requested, but '%s' is not on PATH.", runtime, runtime)
 			return 1
 		}
 		runtimes = []string{runtime}
@@ -492,7 +491,7 @@ func Stop(args []string) int {
 		runtimes = installedRuntimes()
 	}
 	if len(runtimes) == 0 {
-		u.Fail("No container runtime found. Install Apple Container, Docker, or Podman.")
+		u.Refuse(controlCodeRuntimeUnavailable, "No container runtime found. Install Apple Container, Docker, or Podman.")
 		return 1
 	}
 	// Identifiers come from the record only when sweeping exactly the

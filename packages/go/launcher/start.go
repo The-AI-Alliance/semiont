@@ -177,16 +177,15 @@ Examples:
   semiont start --list-configs
 `, listWrapped(roleList, 78, "                        "), listWrapped(groupList, 78, "                        "), setVarHint(systemName(), "ANTHROPIC_API_KEY", "<your-key>"))
 
-// Start implements `semiont start`.
-func Start(args []string) int {
+// Start implements `semiont start`, saying what it does through u.
+func Start(u *UI, args []string) int {
 	opts, usage, errMsg := parseStart(args)
-	u := NewUI(false)
 	if usage {
 		fmt.Print(startUsage)
 		return 0
 	}
 	if errMsg != "" {
-		u.Fail("%s", errMsg)
+		u.Refuse(controlCodeInvalidRequest, "%s", errMsg)
 		return 1
 	}
 	// The record decides what a bare start even MEANS (local or a recorded
@@ -196,7 +195,7 @@ func Start(args []string) int {
 	if LoadStackSet().refuseUnreadable(u) {
 		return 1
 	}
-	u = NewUI(opts.quiet || opts.dryRun)
+	u = u.quieted(opts.quiet || opts.dryRun)
 	// The Browser's document is read before anything is stopped or started,
 	// so a start it refuses leaves the machine as it was.
 	var browser browserDocument
@@ -236,19 +235,19 @@ func Start(args []string) int {
 		// apply.
 		_, _, _, rootErr := resolveKBRoot()
 		if projectFileRefused(rootErr) {
-			u.Fail("%v", rootErr)
+			u.Refuse(controlCodeRootNotFound, "%v", rootErr)
 			return 1
 		}
 		if cs := codespaceStacks(ss); opts.starts == nil && rootErr != nil && len(localStacks(ss)) == 0 && len(cs) > 0 {
 			if len(cs) > 1 {
-				u.Fail("%d codespace stacks are recorded — say which:", len(cs))
+				u.RefuseChoosing(controlCodeTargetRequired, stackChoices(nil, cs), "%d codespace stacks are recorded — say which:", len(cs))
 				for _, c := range cs {
 					fmt.Fprintf(os.Stderr, "    semiont start --runtime codespace --repo %s\n", c.Codespace.Repo)
 				}
 				return 1
 			}
 			if !onPath("gh") {
-				u.Fail("A codespace stack is recorded (per %s) but 'gh' is not on PATH.", statePath())
+				u.Refuse(controlCodeDependencyUnavailable, "A codespace stack is recorded (per %s) but 'gh' is not on PATH.", statePath())
 				fmt.Fprintln(os.Stderr, "  Install the GitHub CLI, or forget the stack:  semiont stop --delete")
 				return 1
 			}
@@ -283,7 +282,7 @@ func Start(args []string) int {
 			root, _, ident, err = resolveKBRoot()
 		}
 		if err != nil {
-			u.Fail("%v", err)
+			refuseRoot(u, err)
 			if !projectFileRefused(err) {
 				fmt.Fprintln(os.Stderr, "  cd into a KB clone, or set SEMIONT_ROOT / pass --root.")
 			}
@@ -691,6 +690,7 @@ func resolveUserEnv(u *UI, vars []string, dryRun bool, serving workerServing, ow
 			continue
 		}
 		val := os.Getenv(v)
+		noteSecret(val)
 		if val == "" {
 			if ref, ok := secrets[v]; ok && custodyOwned(v) {
 				// A registration under a name custody owns.

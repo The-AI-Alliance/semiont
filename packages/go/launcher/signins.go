@@ -43,6 +43,10 @@ func LoadTokens() map[string]semiont.SignIn {
 	if err != nil {
 		return map[string]semiont.SignIn{}
 	}
+	for _, s := range signIns {
+		noteSecret(s.Token)
+		noteSecret(s.RefreshToken)
+	}
 	return signIns
 }
 

@@ -1,0 +1,8 @@
+{
+  "title": "RequestId",
+  "type": [
+    "string",
+    "integer"
+  ],
+  "description": "The request a notification is about: the JSON-RPC id its client gave it, as the client gave it."
+}
