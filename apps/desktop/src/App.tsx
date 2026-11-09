@@ -29,6 +29,7 @@ import { ThemePanel } from './components/ThemePanel';
 import { AboutModal } from './components/AboutModal';
 import { InferenceModal } from './components/InferenceModal';
 import { LauncherStatusModal, type LauncherStatusState } from './components/LauncherStatusModal';
+import { KnowledgeBasesModal, type KnowledgeBasesState } from './components/KnowledgeBasesModal';
 import { TelemetryModal } from './components/TelemetryModal';
 import { RuntimeModal } from './components/RuntimeModal';
 import { GitModal, type GitCheck } from './components/GitModal';
@@ -102,6 +103,8 @@ export function App() {
   const [inferenceUnavailable, setInferenceUnavailable] = useState(false);
   const [showLauncherStatus, setShowLauncherStatus] = useState(false);
   const [launcherStatus, setLauncherStatus] = useState<LauncherStatusState>({ status: 'loading' });
+  const [showKnowledgeBases, setShowKnowledgeBases] = useState(false);
+  const [knowledgeBasesState, setKnowledgeBasesState] = useState<KnowledgeBasesState>({ status: 'loading' });
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [telemetryLinks, setTelemetryLinks] = useState<TelemetryLinks>(DEFAULT_TELEMETRY_LINKS);
   const [showRuntime, setShowRuntime] = useState(false);
@@ -142,6 +145,23 @@ export function App() {
           error: error instanceof Error ? error.message : String(error),
         },
       }),
+    );
+  }, []);
+
+  const openKnowledgeBases = useCallback(() => {
+    setShowKnowledgeBases(true);
+    setKnowledgeBasesState({ status: 'loading' });
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) {
+      setKnowledgeBasesState({ status: 'result', result: { stateFile: '', roots: [], error: 'The launcher bridge is available in the desktop app only.' } });
+      return;
+    }
+    void bridge.roots().then(
+      (result) => setKnowledgeBasesState({ status: 'result', result }),
+      (error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        setKnowledgeBasesState({ status: 'result', result: { stateFile: '', roots: [], error: message } });
+      },
     );
   }, []);
 
@@ -601,6 +621,7 @@ export function App() {
             mcpStatus={mcpStatus}
             onOpenTheme={() => setShowTheme(true)}
             onOpenLauncherStatus={refreshLauncherStatus}
+            onOpenKnowledgeBases={openKnowledgeBases}
             onOpenTelemetry={openTelemetry}
             onOpenRuntime={openRuntime}
             onOpenGit={openGit}
@@ -654,6 +675,13 @@ export function App() {
           state={launcherStatus}
           onRefresh={refreshLauncherStatus}
           onClose={() => setShowLauncherStatus(false)}
+        />
+      )}
+      {showKnowledgeBases && (
+        <KnowledgeBasesModal
+          state={knowledgeBasesState}
+          onRefresh={openKnowledgeBases}
+          onClose={() => setShowKnowledgeBases(false)}
         />
       )}
       {showTelemetry && <TelemetryModal links={telemetryLinks} onClose={() => setShowTelemetry(false)} />}

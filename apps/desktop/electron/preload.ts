@@ -62,6 +62,7 @@ const launcherBridge: LauncherBridge = {
     return () => ipcRenderer.removeListener('launcher:status-requested', handler);
   },
   status: () => ipcRenderer.invoke('launcher:status'),
+  roots: () => ipcRenderer.invoke('launcher:roots'),
   about: () => ipcRenderer.invoke('launcher:about'),
   gitPath: () => ipcRenderer.invoke('system:git-path'),
   opPath: () => ipcRenderer.invoke('system:op-path'),

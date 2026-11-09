@@ -4,7 +4,7 @@ import { constants, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSyn
 import { access } from 'node:fs/promises';
 import { delimiter, dirname, join } from 'node:path';
 import { parseAppManifest } from '../src/lib/app-manifest';
-import type { LauncherStatusResult, McpProcessStatus } from '../src/lib/launcher-bridge';
+import type { KnowledgeBaseRoot, KnowledgeBasesResult, LauncherStatusResult, McpProcessStatus } from '../src/lib/launcher-bridge';
 import type { OllamaInfo, OllamaModelInfo } from '../src/lib/ollama-info';
 import { registerAuthHandlers } from './auth';
 import { appendLog, configDir, logPath } from './paths';
@@ -69,7 +69,68 @@ function runLauncher(args: string[]): Promise<LauncherStatusResult> {
 }
 
 ipcMain.handle('launcher:status', () => runLauncher(['status']));
+ipcMain.handle('launcher:roots', () => readKnowledgeBases());
 ipcMain.handle('launcher:about', () => runLauncher(['about']));
+
+function rootsStateFile(): string {
+  const home = app.getPath('home');
+  let stateDirectory: string;
+  if (process.platform === 'darwin') {
+    stateDirectory = join(home, 'Library', 'Application Support', 'semiont');
+  } else if (process.platform === 'win32') {
+    stateDirectory = join(process.env['LOCALAPPDATA'] || join(home, 'AppData', 'Local'), 'semiont');
+  } else {
+    stateDirectory = join(process.env['XDG_STATE_HOME'] || join(home, '.local', 'state'), 'semiont');
+  }
+  return join(stateDirectory, 'roots.json');
+}
+
+function readKnowledgeBases(): KnowledgeBasesResult {
+  const stateFile = rootsStateFile();
+  let source: string;
+  try {
+    source = readFileSync(stateFile, 'utf8');
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT') {
+      return { stateFile, roots: [], error: null };
+    }
+    return { stateFile, roots: [], error: error instanceof Error ? error.message : String(error) };
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(source);
+    if (typeof parsed !== 'object' || parsed === null || !('roots' in parsed) || !Array.isArray(parsed.roots)) {
+      throw new Error('roots.json must contain a roots array.');
+    }
+    const roots: KnowledgeBaseRoot[] = parsed.roots.map((value: unknown, index: number) => {
+      if (typeof value !== 'object' || value === null || !('path' in value) || typeof value.path !== 'string') {
+        throw new Error(`roots[${index}] must contain a path string.`);
+      }
+      const item = value as Record<string, unknown>;
+      for (const field of ['did', 'siteName', 'config', 'lastUsed', 'lastStarted'] as const) {
+        if (item[field] !== undefined && typeof item[field] !== 'string') {
+          throw new Error(`roots[${index}].${field} must be a string.`);
+        }
+      }
+      if (item.portBlock !== undefined && typeof item.portBlock !== 'number') {
+        throw new Error(`roots[${index}].portBlock must be a number.`);
+      }
+      return {
+        path: value.path,
+        ...(typeof item.did === 'string' ? { did: item.did } : {}),
+        ...(typeof item.siteName === 'string' ? { siteName: item.siteName } : {}),
+        ...(typeof item.config === 'string' ? { config: item.config } : {}),
+        ...(typeof item.portBlock === 'number' ? { portBlock: item.portBlock } : {}),
+        ...(typeof item.lastUsed === 'string' ? { lastUsed: item.lastUsed } : {}),
+        ...(typeof item.lastStarted === 'string' ? { lastStarted: item.lastStarted } : {}),
+      };
+    });
+    roots.sort((left, right) => (right.lastUsed ?? '').localeCompare(left.lastUsed ?? ''));
+    return { stateFile, roots, error: null };
+  } catch (error) {
+    return { stateFile, roots: [], error: error instanceof Error ? error.message : String(error) };
+  }
+}
 
 async function ollamaInfo(): Promise<OllamaInfo> {
   const env = launcherEnvironment();
