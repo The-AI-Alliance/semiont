@@ -135,7 +135,7 @@
     },
     "init": {
       "parser": "Init",
-      "cliOnly": "not in this revision of the API (decision 4 of the plan): Desktop has no init workflow yet",
+      "cliOnly": "not in this revision of the API: making a knowledge base stays the command line's",
       "flags": {
         "--name": {"cliOnly": "init is not in this revision"},
         "--domain": {"cliOnly": "init is not in this revision"},

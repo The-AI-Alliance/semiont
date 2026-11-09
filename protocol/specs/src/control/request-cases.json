@@ -1,8 +1,7 @@
 {
-  "$comment": "How a launcher answers a request line before any operation runs: each case is one line a client sends to semiont control, and the answer it gets — none, for a notification; an error, with its JSON-RPC code and the control code its data names; or a result, which holds to the method's result schema. The launcher's codec runs every case (control_cases_test.go). Desktop's client runs each request it would send through its own validation of params, and refuses exactly those the launcher refuses for their params: the cases answered with control.invalid-params or control.unsupported-api-version (control-cases.test.ts). `fields`: the JSON pointers the error's data names, in any order.",
+  "$comment": "How a launcher answers a request line before any operation runs: each case is one line a client sends to semiont control, and the answer it gets — none, for a notification; an error, with its JSON-RPC code and the control code its data names; or a result, which holds to the method's result schema. The launcher's codec runs every case (control_cases_test.go). `fields`: the JSON pointers the error's data names, in any order.",
   "runBy": {
-    "launcher": ["packages/go/launcher/control_cases_test.go"],
-    "desktop": ["apps/desktop/electron/control-cases.test.ts"]
+    "launcher": ["packages/go/launcher/control_cases_test.go"]
   },
   "cases": [
     {

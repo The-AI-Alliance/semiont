@@ -28,7 +28,7 @@ import { KbNav } from './components/KbNav';
 import { ThemePanel } from './components/ThemePanel';
 import { AboutModal } from './components/AboutModal';
 import { InferenceModal } from './components/InferenceModal';
-import { LauncherStatusModal } from './components/LauncherStatusModal';
+import { LauncherStatusModal, type LauncherStatusState } from './components/LauncherStatusModal';
 import { TelemetryModal } from './components/TelemetryModal';
 import { RuntimeModal } from './components/RuntimeModal';
 import { GitModal, type GitCheck } from './components/GitModal';
@@ -37,9 +37,9 @@ import { AppFooter, type KbDisplay } from './components/AppFooter';
 import { ChatPane, type LogEntry } from './components/ChatPane';
 import { ResourceView } from './components/ResourceView';
 import type { ViewerPrefs } from './components/ViewerPrefControls';
-import type { ControlAnswerState, ControlRequestParams } from './lib/launcher-bridge';
+import { DEFAULT_TELEMETRY_LINKS, telemetryLinksFromStatus, type TelemetryLinks } from './lib/telemetry-links';
+import { runtimeInfoFromLauncher, type RuntimeInfo } from './lib/runtime-info';
 import type { OllamaInfo } from './lib/ollama-info';
-import type { ControlMethod } from '../electron/control-types.gen';
 
 // In Electron the preload exposes window.configBridge; the web build has no such bridge.
 const isElectron = typeof window !== 'undefined' && window.configBridge !== undefined;
@@ -56,28 +56,6 @@ const SIDEBAR_MIN = 180;
 const SIDEBAR_MAX = 520;
 const SIDEBAR_DEFAULT = 272; // 17rem
 const clampWidth = (w: number) => Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, w));
-
-/** The answer to the latest `method` request a view sent the launcher, and how to send one.
- *  An answer to an earlier request is dropped: the latest one's is what the view shows. */
-function useLauncherAnswer<M extends ControlMethod>(
-  method: M,
-): [ControlAnswerState<M>, (params: ControlRequestParams<M>) => void] {
-  const [state, setState] = useState<ControlAnswerState<M>>({ status: 'loading' });
-  const latest = useRef(0);
-  const ask = useCallback((params: ControlRequestParams<M>) => {
-    const bridge = window.launcherBridge;
-    if (bridge === undefined) {
-      setState({ status: 'unavailable' });
-      return;
-    }
-    const asked = ++latest.current;
-    setState({ status: 'loading' });
-    void bridge.startControl(method, params, (event) => {
-      if (event.kind === 'answer' && latest.current === asked) setState({ status: 'answered', outcome: event.outcome });
-    });
-  }, [method]);
-  return [state, ask];
-}
 
 function hostOf(uri: string): string {
   try {
@@ -121,11 +99,11 @@ export function App() {
   const [inferenceInfo, setInferenceInfo] = useState<OllamaInfo | null>(null);
   const [inferenceUnavailable, setInferenceUnavailable] = useState(false);
   const [showLauncherStatus, setShowLauncherStatus] = useState(false);
+  const [launcherStatus, setLauncherStatus] = useState<LauncherStatusState>({ status: 'loading' });
   const [showTelemetry, setShowTelemetry] = useState(false);
+  const [telemetryLinks, setTelemetryLinks] = useState<TelemetryLinks>(DEFAULT_TELEMETRY_LINKS);
   const [showRuntime, setShowRuntime] = useState(false);
-  // One snapshot for the status, telemetry and runtime views: opening any of them asks again.
-  const [snapshot, askSnapshot] = useLauncherAnswer('status.snapshot');
-  const [launcherAbout, askLauncherAbout] = useLauncherAnswer('launcher.about');
+  const [runtimeInfo, setRuntimeInfo] = useState<RuntimeInfo | null>(null);
   const [showGit, setShowGit] = useState(false);
   const [gitCheck, setGitCheck] = useState<GitCheck>({ status: 'checking' });
   const [showSecrets, setShowSecrets] = useState(false);
@@ -133,9 +111,28 @@ export function App() {
   const [theme, setTheme] = useState<Theme>('system');
 
   const refreshLauncherStatus = useCallback(() => {
+    const bridge = window.launcherBridge;
     setShowLauncherStatus(true);
-    askSnapshot({});
-  }, [askSnapshot]);
+    setLauncherStatus({ status: 'loading' });
+    if (bridge === undefined) {
+      setLauncherStatus({
+        status: 'result',
+        result: { output: 'The launcher sidecar is available in the desktop app only.', exitCode: null, error: null },
+      });
+      return;
+    }
+    void bridge.status().then(
+      (result) => setLauncherStatus({ status: 'result', result }),
+      (error: unknown) => setLauncherStatus({
+        status: 'result',
+        result: {
+          output: error instanceof Error ? error.message : String(error),
+          exitCode: null,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      }),
+    );
+  }, []);
 
   const openAbout = useCallback(() => setShowAbout(true), []);
 
@@ -156,14 +153,30 @@ export function App() {
 
   const openTelemetry = useCallback(() => {
     setShowTelemetry(true);
-    askSnapshot({});
-  }, [askSnapshot]);
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) {
+      setTelemetryLinks(DEFAULT_TELEMETRY_LINKS);
+      return;
+    }
+    void bridge.status().then(
+      ({ output }) => setTelemetryLinks(telemetryLinksFromStatus(output)),
+      () => setTelemetryLinks(DEFAULT_TELEMETRY_LINKS),
+    );
+  }, []);
 
   const openRuntime = useCallback(() => {
     setShowRuntime(true);
-    askSnapshot({});
-    askLauncherAbout({});
-  }, [askSnapshot, askLauncherAbout]);
+    setRuntimeInfo(null);
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) {
+      setRuntimeInfo({ active: [], detected: [], statusAvailable: false });
+      return;
+    }
+    void Promise.all([bridge.status(), bridge.about()]).then(
+      ([status, about]) => setRuntimeInfo(runtimeInfoFromLauncher(status, about)),
+      () => setRuntimeInfo({ active: [], detected: [], statusAvailable: false }),
+    );
+  }, []);
 
   const openGit = useCallback(() => {
     setShowGit(true);
@@ -580,15 +593,13 @@ export function App() {
       )}
       {showLauncherStatus && (
         <LauncherStatusModal
-          state={snapshot}
+          state={launcherStatus}
           onRefresh={refreshLauncherStatus}
           onClose={() => setShowLauncherStatus(false)}
         />
       )}
-      {showTelemetry && <TelemetryModal state={snapshot} onClose={() => setShowTelemetry(false)} />}
-      {showRuntime && (
-        <RuntimeModal status={snapshot} about={launcherAbout} onClose={() => setShowRuntime(false)} />
-      )}
+      {showTelemetry && <TelemetryModal links={telemetryLinks} onClose={() => setShowTelemetry(false)} />}
+      {showRuntime && <RuntimeModal info={runtimeInfo} onClose={() => setShowRuntime(false)} />}
       {showGit && <GitModal check={gitCheck} onClose={() => setShowGit(false)} />}
       {showSecrets && <SecretsModal check={secretsCheck} onClose={() => setShowSecrets(false)} />}
     </>

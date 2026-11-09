@@ -57,7 +57,6 @@ const IMPLEMENTATIONS = {
   haskell: ['packages/haskell/sdk'],
   ocaml: ['packages/ocaml/sdk'],
   launcher: ['apps/launcher', 'packages/go/launcher'],
-  desktop: ['apps/desktop'],
   archivist: ['images/archivist'],
   librarian: ['images/librarian'],
   smelter: ['images/smelter'],
