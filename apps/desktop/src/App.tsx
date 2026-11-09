@@ -30,6 +30,7 @@ import { AboutModal } from './components/AboutModal';
 import { InferenceModal } from './components/InferenceModal';
 import { LauncherStatusModal } from './components/LauncherStatusModal';
 import { KnowledgeBasesModal, type KnowledgeBaseRow, type KnowledgeBasesState } from './components/KnowledgeBasesModal';
+import { KnowledgeBaseLogsModal } from './components/KnowledgeBaseLogsModal';
 import { TelemetryModal } from './components/TelemetryModal';
 import { RuntimeModal } from './components/RuntimeModal';
 import { GitModal, type GitCheck } from './components/GitModal';
@@ -42,13 +43,14 @@ import type { ViewerPrefs } from './components/ViewerPrefControls';
 import {
   controlFailureText,
   type ControlAnswerState,
+  type ControlNotice,
   type ControlOutcome,
   type ControlRequestParams,
   type LauncherBridge,
   type McpProcessStatus,
 } from './lib/launcher-bridge';
 import type { OllamaInfo } from './lib/ollama-info';
-import type { ControlMethod } from '../electron/control-types.gen';
+import type { ControlMethod, ControlProgress, ControlServiceStatus } from '../electron/control-types.gen';
 
 // In Electron the preload exposes window.configBridge; the web build has no such bridge.
 const isElectron = typeof window !== 'undefined' && window.configBridge !== undefined;
@@ -66,15 +68,17 @@ const SIDEBAR_MAX = 520;
 const SIDEBAR_DEFAULT = 272; // 17rem
 const clampWidth = (w: number) => Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, w));
 
-/** Send the launcher one control request; resolves with its answer. Its progress is not shown. */
+/** Send the launcher one control request; resolves with its answer and optionally forwards progress notices. */
 function askLauncher<M extends ControlMethod>(
   bridge: LauncherBridge,
   method: M,
   params: ControlRequestParams<M>,
+  onNotice?: (notice: ControlNotice) => void,
 ): Promise<ControlOutcome<M>> {
   return new Promise((resolve, reject) => {
     bridge.startControl(method, params, (event) => {
       if (event.kind === 'answer') resolve(event.outcome);
+      else onNotice?.(event.notice);
     }).catch(reject);
   });
 }
@@ -133,20 +137,25 @@ function failureTextOf<M extends ControlMethod>(outcome: ControlOutcome<M>): str
   return outcome.ok ? null : controlFailureText(outcome.error);
 }
 
-type KnowledgeBaseStackFacts = Pick<KnowledgeBaseRow, 'status' | 'statusDetail' | 'gatewayUrl'>;
+type KnowledgeBaseStackFacts = Pick<KnowledgeBaseRow, 'status' | 'statusDetail' | 'gatewayUrl' | 'services'>;
 
 /** A row's status, from the launcher's status of the root's stack. */
 function stackFacts(outcome: ControlOutcome<'status.snapshot'>): KnowledgeBaseStackFacts {
-  if (!outcome.ok) return { status: 'unknown', statusDetail: controlFailureText(outcome.error) };
+  if (!outcome.ok) return { status: 'unknown', statusDetail: controlFailureText(outcome.error), services: [] };
   const [stack] = outcome.result.knowledgeBases;
-  if (stack === undefined) return { status: 'stopped' };
+  if (stack === undefined) return { status: 'stopped', services: [] };
+  const stackRoles = new Set(stack.services.map((service) => service.role));
+  const shared = outcome.result.shared.filter((service) => service.serves?.includes(stack.name) && !stackRoles.has(service.role));
+  const services: ControlServiceStatus[] = [...stack.services, ...shared];
   const gateway = stack.gateway === undefined ? {} : { gatewayUrl: stack.gateway };
-  if (stack.starting) return { status: 'starting', ...gateway };
-  if (!stack.recorded) return { status: 'stopped' };
-  if (stack.healthy) return { status: 'running', ...gateway };
-  const silent = stack.services.filter((service) => service.counted && !service.healthy).map((service) => service.role);
+  if (stack.starting) return { status: 'starting', services, ...gateway };
+  const hasRunningServices = stack.services.some((service) => service.state === 'running');
+  if (!hasRunningServices) return { status: 'stopped', services, ...gateway };
+  if (stack.healthy) return { status: 'running', services, ...gateway };
+  const silent = services.filter((service) => service.counted && !service.healthy).map((service) => service.role);
   return {
     status: 'attention',
+    services,
     ...(silent.length === 0 ? {} : { statusDetail: `Not answering: ${silent.join(', ')}.` }),
     ...gateway,
   };
@@ -178,6 +187,7 @@ export function App() {
   const [inferenceUnavailable, setInferenceUnavailable] = useState(false);
   const [showLauncherStatus, setShowLauncherStatus] = useState(false);
   const [showKnowledgeBases, setShowKnowledgeBases] = useState(false);
+  const [logsRoot, setLogsRoot] = useState<KnowledgeBaseRow | null>(null);
   const [knowledgeBasesState, setKnowledgeBasesState] = useState<KnowledgeBasesState>({ status: 'loading' });
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [showRuntime, setShowRuntime] = useState(false);
@@ -225,13 +235,12 @@ export function App() {
       }
       const rows: KnowledgeBaseRow[] = outcome.result.roots
         .flatMap((root) => (root.placement === 'local' && root.path !== undefined
-          ? [{ ...root, path: root.path, status: root.running ? 'checking' as const : 'stopped' as const }]
+          ? [{ ...root, path: root.path, status: 'checking' as const }]
           : []))
         .sort((left, right) => (right.lastUsed ?? '').localeCompare(left.lastUsed ?? ''));
       const { warnings } = outcome.result;
       setKnowledgeBasesState({ status: 'result', result: { roots: rows, ...(warnings === undefined ? {} : { warnings }) } });
       for (const row of rows) {
-        if (row.status !== 'checking') continue;
         void askLauncher(bridge, 'status.snapshot', { target: { kind: 'local', root: row.path } }).then((answer) => {
           updateKnowledgeBase(row.path, (current) => ({ ...current, ...stackFacts(answer) }));
         });
@@ -538,29 +547,102 @@ export function App() {
     const bridge = window.launcherBridge;
     if (bridge === undefined) return;
     updateKnowledgeBase(root.path, (row) => {
-      const next = { ...row, operation };
+      const next = { ...row, operation, operationStartedAt: Date.now() };
       delete next.operationError;
+      delete next.operationErrorAction;
+      next.operationProgress = [];
       return next;
     });
     const target = { kind: 'local' as const, root: root.path };
-    const failure = operation === 'starting'
-      ? askLauncher(bridge, 'stack.start', { target }).then(failureTextOf)
-      : askLauncher(bridge, 'stack.stop', { target }).then(failureTextOf);
-    void failure.then((message) => {
-      if (message === null) {
+    let progressForOperation: ControlProgress[] = [];
+    const onProgress = (notice: ControlNotice) => {
+      if (notice.method !== 'notifications/progress') return;
+      progressForOperation = [...progressForOperation, notice.params].slice(-200);
+      updateKnowledgeBase(root.path, (row) => ({
+        ...row,
+        operationProgress: progressForOperation,
+      }));
+    };
+    let statusRefreshInFlight = false;
+    const refreshOperationStatus = () => {
+      if (statusRefreshInFlight) return;
+      statusRefreshInFlight = true;
+      void askLauncher(bridge, 'status.snapshot', { target }).then((answer) => {
+        updateKnowledgeBase(root.path, (row) => {
+          const facts = stackFacts(answer);
+          const next = { ...row, ...facts };
+          if (facts.statusDetail === undefined) delete next.statusDetail;
+          if (facts.gatewayUrl === undefined) delete next.gatewayUrl;
+          return next;
+        });
+      }).catch(() => undefined).finally(() => {
+        statusRefreshInFlight = false;
+      });
+    };
+    refreshOperationStatus();
+    const statusTimer = window.setInterval(refreshOperationStatus, 3000);
+    const request = operation === 'starting'
+      ? askLauncher(bridge, 'stack.start', { target }, onProgress)
+      : askLauncher(bridge, 'stack.stop', { target }, onProgress);
+    void request.then(async (outcome) => {
+      window.clearInterval(statusTimer);
+      const failureMessage = failureTextOf(outcome);
+      if (failureMessage === null) {
+        openKnowledgeBases();
+        return;
+      }
+      const lastFailure = [...progressForOperation].reverse().find((progress) => progress.kind === 'fail');
+      const message = failureMessage.includes('progress is everything it printed') && lastFailure !== undefined
+        ? `${lastFailure.text} (control.failed)`
+        : failureMessage;
+      const status = await askLauncher(bridge, 'status.snapshot', { target });
+      updateKnowledgeBase(root.path, (row) => {
+        const facts = stackFacts(status);
+        const next = { ...row, ...facts, operationError: message, operationErrorAction: 'launcher' as const };
+        delete next.operation;
+        delete next.operationStartedAt;
+        if (facts.statusDetail === undefined) delete next.statusDetail;
+        if (facts.gatewayUrl === undefined) delete next.gatewayUrl;
+        return next;
+      });
+    }).catch((error: unknown) => {
+      window.clearInterval(statusTimer);
+      const message = error instanceof Error ? error.message : String(error);
+      updateKnowledgeBase(root.path, (row) => {
+        const next = { ...row, operationError: message, operationErrorAction: 'launcher' as const };
+        delete next.operation;
+        delete next.operationStartedAt;
+        return next;
+      });
+    });
+  };
+
+  const forgetKnowledgeBase = (root: KnowledgeBaseRow) => {
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) return;
+    updateKnowledgeBase(root.path, (row) => {
+      const next = { ...row, operation: 'forgetting' as const, operationStartedAt: Date.now() };
+      delete next.operationError;
+      delete next.operationErrorAction;
+      return next;
+    });
+    void askLauncher(bridge, 'roots.forget', { root: root.path }).then((outcome) => {
+      if (outcome.ok) {
         openKnowledgeBases();
         return;
       }
       updateKnowledgeBase(root.path, (row) => {
-        const next = { ...row, operationError: message, status: 'attention' as const };
+        const next = { ...row, operationError: controlFailureText(outcome.error), operationErrorAction: 'forget' as const };
         delete next.operation;
+        delete next.operationStartedAt;
         return next;
       });
     }, (error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error);
+      const nextMessage = error instanceof Error ? error.message : String(error);
       updateKnowledgeBase(root.path, (row) => {
-        const next = { ...row, operationError: message };
+        const next = { ...row, operationError: nextMessage, operationErrorAction: 'forget' as const };
         delete next.operation;
+        delete next.operationStartedAt;
         return next;
       });
     });
@@ -810,9 +892,14 @@ export function App() {
           onStop={(root) => operateKnowledgeBase(root, 'stopping')}
           onLogin={loginKnowledgeBase}
           onLogout={logoutKnowledgeBase}
-          onClose={() => setShowKnowledgeBases(false)}
+          onForget={forgetKnowledgeBase}
+          onFollowLogs={setLogsRoot}
+          onClose={() => {
+            if (logsRoot === null) setShowKnowledgeBases(false);
+          }}
         />
       )}
+      {logsRoot !== null && <KnowledgeBaseLogsModal root={logsRoot} onClose={() => setLogsRoot(null)} />}
       {showTelemetry && <TelemetryModal state={snapshot} onClose={() => setShowTelemetry(false)} />}
       {showRuntime && (
         <RuntimeModal status={snapshot} about={launcherAbout} onClose={() => setShowRuntime(false)} />

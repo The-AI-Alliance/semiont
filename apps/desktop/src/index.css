@@ -181,6 +181,11 @@ button:disabled {
   background: rgba(15, 23, 42, 0.32);
 }
 
+.modal--nested {
+  z-index: 30;
+  background: rgba(15, 23, 42, 0.56);
+}
+
 .config--modal {
   margin: 0;
   width: 100%;
@@ -677,6 +682,31 @@ button:disabled {
   font: 0.7rem/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+.knowledge-bases__filter {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.9rem 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.knowledge-bases__filter input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.knowledge-bases__filter input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .knowledge-bases__error {
   margin: 0;
   color: var(--danger);
@@ -932,6 +962,126 @@ button:disabled {
   overflow-wrap: anywhere;
   color: var(--danger);
   font-size: 0.68rem;
+}
+
+.knowledge-bases__action-note,
+.knowledge-bases__forget-confirm p {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.knowledge-bases__service-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.knowledge-bases__service-group h4 {
+  margin: 0 0 0.25rem;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+.knowledge-bases__service-group ul {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.knowledge-bases__service-group li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.18rem 0;
+  font-size: 0.72rem;
+}
+.knowledge-bases__service-name {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.knowledge-bases__service-name strong {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-weight: 500;
+}
+.knowledge-bases__service-name small {
+  color: var(--muted);
+  font-size: 0.64rem;
+}
+.knowledge-bases__service-state {
+  flex: none;
+  text-align: right;
+  font-size: 0.67rem;
+}
+.knowledge-bases__service-state--healthy {
+  color: var(--success);
+}
+.knowledge-bases__service-state--unhealthy {
+  color: var(--danger);
+}
+.knowledge-bases__service-state--neutral {
+  color: var(--muted);
+}
+.knowledge-bases__progress {
+  margin-top: 0.6rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  background: var(--surface-sidebar);
+}
+.knowledge-bases__progress p {
+  margin: 0 0 0.35rem;
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.knowledge-bases__progress ol {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 8rem;
+  overflow: auto;
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-body);
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+.knowledge-bases__progress-waiting {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+.knowledge-bases__progress li {
+  overflow-wrap: anywhere;
+}
+.knowledge-bases__progress--fail {
+  color: var(--danger) !important;
+}
+.knowledge-bases__progress code {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font: inherit;
+}
+
+.knowledge-bases__forget-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  max-width: 26rem;
+}
+
+.knowledge-bases__forget-confirm p {
+  margin: 0;
 }
 
 .knowledge-bases__gateway {
@@ -1462,6 +1612,76 @@ body.resizing {
   background: var(--surface-sidebar);
   color: var(--danger);
   border-color: var(--danger);
+}
+
+.kb__connect--danger {
+  border-color: var(--danger);
+  background: var(--surface);
+  color: var(--danger);
+}
+.kb__connect--danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
+
+.knowledge-base-logs {
+  max-width: 72rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.knowledge-base-logs .config__head {
+  align-items: flex-start;
+  gap: 1rem;
+}
+.knowledge-base-logs .config__head h1 {
+  overflow-wrap: anywhere;
+}
+.knowledge-base-logs__path,
+.knowledge-base-logs__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.knowledge-base-logs__path {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.knowledge-base-logs__output {
+  height: min(62vh, 42rem);
+  min-height: 16rem;
+  overflow: auto;
+  padding: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code);
+  color: var(--text);
+  font: 0.74rem/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.knowledge-base-logs__empty {
+  margin: 0;
+  color: var(--muted);
+}
+.knowledge-base-logs__line {
+  display: grid;
+  grid-template-columns: 5.5rem 7.5rem minmax(0, 1fr);
+  gap: 0.55rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.knowledge-base-logs__line time {
+  color: var(--muted);
+}
+.knowledge-base-logs__line strong {
+  color: var(--accent);
+  font-weight: 600;
+}
+.knowledge-base-logs__stderr {
+  color: var(--danger);
+}
+.knowledge-base-logs__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 .kb__error {
