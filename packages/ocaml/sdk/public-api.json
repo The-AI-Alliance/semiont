@@ -3,7 +3,7 @@
   "inputs": {
     ".ocamlformat": "a389416000f8e8466aad27a9209661717699f30fd6fd6f8e36342f646e086354",
     "api.py": "ef9bb4c0ce8ca1c4c6be8a8c2ab584d7a965b3bae517a1c1216b60a1c55daad3",
-    "dune-project": "400a07ea76bba038dccd8a2e40a4f4e3e66673202a5393ffbc8cd344d413de75",
+    "dune-project": "d1ba01d014f28b8eaaaf65e4e4e303336100372bcfa17db1bbec789f0c3196ef",
     "dune-workspace": "92e610fd0fcb46d183ea095446dd9c1046c152ad5a25ae8e919ede8cc8c00093",
     "dune.lock/alcotest.1.9.1.pkg": "73922332861e22a3d354aad41ab3e58b637b4bf6ddb04f65bbef1ddca728e34d",
     "dune.lock/ambient-context-eio.0.2.pkg": "78fd6f543af740d9ea110059e4f27eb4b5fe66e4b1a74b30f4eec66788c9c36a",
@@ -17,6 +17,7 @@
     "dune.lock/base.v0.17.3.pkg": "ec54b9b71f1aa33eeda025926e233a47e293f23db057d019022e0af6a75f512f",
     "dune.lock/base64.3.5.2.pkg": "19b4706bfcb7f310349887878b64c4edab99fe2fbf23c5c4b29e4bde67ac8b0f",
     "dune.lock/bigstringaf.0.10.0.pkg": "12faef77bbefcb4003cf7b624febcd3e3c1427bff8e3a3e4c94651c3854927d9",
+    "dune.lock/bisect_ppx_ng.3.0.0.pkg": "1e53487ac6234bd6a888f1ac162d48f418ef1b9c198168e74828732b3fefac1e",
     "dune.lock/camlp-streams.5.0.1.pkg": "cc87031ad187c719ee36e4c3956633e87b8ef7c0df6aaa262d205af9570c68d9",
     "dune.lock/cmdliner.2.1.1.pkg": "4b67c4f4ee38a905fc8c6a66f90046bc5430b26343b2c56b98c7b13e532fec37",
     "dune.lock/cohttp-eio.6.3.0.pkg": "41990858058d1092aad621c4fba65a5e73dafe4f9b6c7ca4899b88b13dccee1b",
@@ -49,7 +50,7 @@
     "dune.lock/iomux.0.4.pkg": "d139c9404b8fa7c34eea329e939f83fe4f15faf039aa0325cb0e8852af2c01fe",
     "dune.lock/ipaddr.5.6.2.pkg": "f451a2ce111b990e7fb37f3d792f9cee278af9fd010c041c80c98fc41539b66f",
     "dune.lock/kdf.1.1.2.pkg": "d4639b3daa24b7ec9dc0d903a8ebbfa27e8c4e6aa7834cc1b07cd9efff5c5906",
-    "dune.lock/lock.dune": "76907a4aa956823142bf12d242e4221fce2749e6aa79541c2af2def016d1eab4",
+    "dune.lock/lock.dune": "4ed0ee723033468dbc99ace2f941d259438c2e57b2faaf7062fe6c22bfaeced4",
     "dune.lock/logs.0.10.0.pkg": "31c8fe5814797a85b22673c2fc3d337d1ef59173ee8cfd86c6060cf3012f5d04",
     "dune.lock/lwt-dllist.1.1.0.pkg": "72cb6b9b6d506bf02178e3a0c2c0ee6fb529d8fddc9f4c339e273baa2fa3ec65",
     "dune.lock/macaddr.5.6.2.pkg": "5eb4292c994af7d587b64ad9459851d0adcf02c19b958e0a4c7182090ad182f3",
@@ -141,7 +142,7 @@
     "lib/delegation.mli": "76f4e7e055c6a9dbb288443bf4d7548aabaa307f2fa354e8e165dd453b4f09d5",
     "lib/discovery.ml": "3fbd431f7ed53eccc27c2c343e6a6556fab618976c42cab23a9b1288b903954d",
     "lib/discovery.mli": "c9924f5e42d374573dc62eb9aa405126a28769a0ce72b65a2187aae704c33747",
-    "lib/dune": "d90aad6b08defed12f8e2bb36a08718f65639323a40a540002a7f94ba01efa4e",
+    "lib/dune": "cdd7ff9bb0cde9b43a7692cae16fd1fee8f350d9491bd37c511dfa8340756b59",
     "lib/encoding_facts.ml": "8d971c2160eea6fe4fbc60d553d2479917de25ffb9e4c7be3dac16dbba78a021",
     "lib/enums.ml": "e2a188bb4fd853313782622b84257a43be1c0e89472fc2323ab9c89ff1aa1232",
     "lib/enums.mli": "1c28ee0ac1ca50a86fe00ce3fe5c6ed5b015045b5cd14c8b48d46fa4b937daaf",
@@ -258,7 +259,7 @@
     "probes/api_inventory.ml": "97b819335b2d6d55f2f4a7c73422ad4df34ca5e459fe4df300f01a0ff5efb36a",
     "probes/dune": "4b82a53ae47205f7a5bfc5ac215aa840814c53ff15e0c58bc1974d913fea043b",
     "public-api.inputs.json": "16a156e808e8dfd7df61837746b0e4b8ce44e38a40f5a1b647baec0af1bfcca9",
-    "semiont.opam": "c87e66e1a1e96773e094f38589ad86aa11d5ba4c62ad0146f88f4ad9f9f40075"
+    "semiont.opam": "269fa538df5135a0607df3e822b8d5949ad3c5107107892cba5fb0a3ba7e3a8c"
   },
   "entries": [
     {

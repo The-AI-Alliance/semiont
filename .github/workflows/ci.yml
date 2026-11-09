@@ -2577,11 +2577,25 @@ jobs:
         run: |
           opam exec -- dune build @all @opam
           opam exec -- python3 test/check-format.py
-          opam exec -- dune runtest
           opam exec -- python3 test/check-installed-api.py
           opam exec -- python3 probes/check-interface.py
           opam exec -- python3 api.py
           opam exec -- python3 probes/check-api-controls.py
+          # The tests run last, instrumented, so the checks above read the
+          # library as it is installed. A test runs in a sandbox Dune deletes,
+          # and _build is cached, so the coverage files are written to the
+          # runner's temporary directory.
+          mkdir "$RUNNER_TEMP/ocaml-coverage"
+          BISECT_FILE="$RUNNER_TEMP/ocaml-coverage/bisect" opam exec -- dune runtest --force --instrument-with bisect_ppx_ng
+          opam exec -- dune exec -- bisect-ppx-report cobertura --coverage-path "$RUNNER_TEMP/ocaml-coverage" "$RUNNER_TEMP/ocaml-coverage.xml"
+      - name: Upload SDK coverage
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ${{ runner.temp }}/ocaml-coverage.xml
+          disable_search: true
+          flags: ocaml-sdk
+          name: ocaml-sdk
 
   test-sdk-haskell-native:
     name: Haskell SDK (${{ matrix.os }})
