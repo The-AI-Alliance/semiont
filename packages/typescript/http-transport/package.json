@@ -46,11 +46,11 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^5.0.5",
     "fast-check": "^4.10.0",
-    "rollup": "^4.67.4",
+    "rollup": "^4.67.5",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^9.0.0",
     "typescript": "^6.0.2",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   },
   "keywords": [
     "semiont",
