@@ -228,6 +228,15 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
             <Chevron open={sessionsOpen} />
             Chats
           </button>
+          <button
+            type="button"
+            className="kb__icon"
+            onClick={() => onNewChat(kb.uri)}
+            aria-label="New chat"
+            title="New chat"
+          >
+            <PlusIcon />
+          </button>
         </div>
         {sessionsOpen && (
           <>
@@ -243,9 +252,6 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
                 />
               ))}
             </ul>
-            <button type="button" className="kb__newchat" onClick={() => onNewChat(kb.uri)}>
-              + New Chat
-            </button>
           </>
         )}
       </div>

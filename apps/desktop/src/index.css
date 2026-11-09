@@ -2131,21 +2131,6 @@ body.resizing {
   gap: 0.2rem;
 }
 
-.kb__newchat {
-  align-self: flex-start;
-  margin-top: 0.15rem;
-  padding: 0.3rem 0.55rem;
-  border: 1px dashed var(--border);
-  border-radius: 7px;
-  background: none;
-  color: var(--muted);
-  font-size: 0.82rem;
-}
-.kb__newchat:hover {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
 .kb__edit {
   flex: 1;
   min-width: 0;
