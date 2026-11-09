@@ -2311,44 +2311,6 @@ body.resizing {
   gap: 0.85rem;
 }
 
-/* Shown knowledge base — a quiet status line. */
-.appfooter__kb {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.74rem;
-  color: var(--muted);
-}
-
-.appfooter__kb-dot {
-  flex: none;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--success);
-}
-
-.appfooter__kb-name {
-  color: var(--text);
-  font-weight: 500;
-}
-
-/* current git branch, as a small monospace pill */
-.appfooter__kb-branch {
-  font-family: ui-monospace, monospace;
-  font-size: 0.68rem;
-  padding: 0.05rem 0.4rem;
-  border-radius: 999px;
-  background: var(--surface-sidebar);
-  border: 1px solid var(--border);
-  color: var(--muted);
-}
-
-.appfooter__kb-alias {
-  color: var(--faint);
-}
-
 .chat__input {
   flex: 1;
   padding: 0.6rem 0.85rem;

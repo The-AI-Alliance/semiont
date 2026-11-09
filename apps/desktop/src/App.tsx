@@ -37,7 +37,7 @@ import { RuntimeModal } from './components/RuntimeModal';
 import { GitModal, type GitCheck } from './components/GitModal';
 import { SecretsModal, type SecretsCheck } from './components/SecretsModal';
 import { McpModal } from './components/McpModal';
-import { AppFooter, type KbDisplay } from './components/AppFooter';
+import { AppFooter } from './components/AppFooter';
 import { ChatPane, type LogEntry } from './components/ChatPane';
 import { ResourceView } from './components/ResourceView';
 import type { ViewerPrefs } from './components/ViewerPrefControls';
@@ -710,13 +710,14 @@ export function App() {
       return;
     }
     let kb = config.kbs.find((entry) => normalizeGatewayUri(entry.uri) === normalizeGatewayUri(uri));
+    const rootAlias = kbAliasesByRoot[root.path];
     if (kb === undefined) {
-      const alias = kbAliasesByRoot[root.path] ?? root.siteName;
+      const alias = rootAlias ?? root.siteName;
       kb = { uri, ...(alias === undefined ? {} : { alias }) };
       saveConfig({ ...config, kbs: [...config.kbs, kb] });
-    } else if (kbAliasesByRoot[root.path] !== undefined && kb.alias !== kbAliasesByRoot[root.path]) {
+    } else if (rootAlias !== undefined && kb.alias !== rootAlias) {
       const configuredUri = kb.uri;
-      const renamed = withAlias(kb, kbAliasesByRoot[root.path]);
+      const renamed = withAlias(kb, rootAlias);
       kb = renamed;
       saveConfig({ ...config, kbs: config.kbs.map((entry) => entry.uri === configuredUri ? renamed : entry) });
     }
@@ -915,6 +916,7 @@ export function App() {
           ...root,
           ...(configuredUri === undefined ? {} : { configuredUri }),
           ...(desktopAlias === undefined ? {} : { desktopAlias }),
+          ...(active?.[1].description?.gitBranch === undefined ? {} : { gitBranch: active[1].description.gitBranch }),
           ...(active === undefined ? {} : { activeSessionUri: active[0] }),
         };
       })
@@ -927,21 +929,6 @@ export function App() {
   const activeKbUri = activeKbTabUri === null || activeRootPath !== null ? null : activeKbTabUri;
   const activeKb = activeKbUri === null ? null : config.kbs.find((kb) => kb.uri === activeKbUri) ?? null;
   const activeConn = activeKbUri ? connections[activeKbUri] : undefined;
-
-  // The selected workspace tab owns the whole app context, including the footer.
-  const footerKbUri = activeKbUri ?? activeResource?.kbUri ?? null;
-  const footerConn = footerKbUri !== null ? connections[footerKbUri] : undefined;
-  let footerKb: KbDisplay | null = null;
-  if (footerKbUri !== null && footerConn?.opened !== undefined) {
-    const alias = config.kbs.find((k) => k.uri === footerKbUri)?.alias ?? null;
-    const description = footerConn.description;
-    footerKb = {
-      name: description?.name ?? alias ?? hostOf(footerKbUri),
-      branch: description?.gitBranch ?? null,
-      // show the alias separately only when it isn't already standing in as the name
-      alias: description !== undefined && alias !== null ? alias : null,
-    };
-  }
 
   return (
     <>
@@ -1003,7 +990,6 @@ export function App() {
           />
           <MainPane
             viewerPrefs={viewerPrefs}
-            footerKb={footerKb}
             hasOpenKb={activeKbTabUri !== null}
             activeRootPath={activeRootPath}
             onOpenKnowledgeBases={() => openKnowledgeBases(activeRootPath === null, activeRootPath)}
@@ -1084,15 +1070,12 @@ export function App() {
  *  the footer (KB status and viewer preference controls) persists across ALL of them. */
 function MainPane({
   viewerPrefs,
-  footerKb,
   hasOpenKb,
   activeRootPath,
   onOpenKnowledgeBases,
   ...body
 }: {
   viewerPrefs: ViewerPrefs;
-  /** The KB the pane is showing (active chat's, else open document's); null hides the line. */
-  footerKb: KbDisplay | null;
   hasOpenKb: boolean;
   activeRootPath: string | null;
   onOpenKnowledgeBases: () => void;
@@ -1112,7 +1095,7 @@ function MainPane({
   return (
     <div className="mainwrap">
       <MainBody viewerPrefs={viewerPrefs} hasOpenKb={hasOpenKb} activeRootPath={activeRootPath} onOpenKnowledgeBases={onOpenKnowledgeBases} {...body} />
-      <AppFooter kb={footerKb} prefs={viewerPrefs} />
+      <AppFooter prefs={viewerPrefs} />
     </div>
   );
 }

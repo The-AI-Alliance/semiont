@@ -13,6 +13,7 @@ export interface KnowledgeBaseRow extends ControlRoot {
   gatewayUrl?: string;
   configuredUri?: string;
   desktopAlias?: string;
+  gitBranch?: string;
   activeSessionUri?: string;
   operation?: 'starting' | 'stopping' | 'forgetting';
   operationStartedAt?: number;
@@ -357,6 +358,7 @@ function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForg
   const metadata = [
     ['Path', root.path],
     ['Identity', root.did],
+    ['Git branch', root.gitBranch],
     ['Inference config', root.config],
     ['Gateway', root.gatewayUrl],
   ].filter((item): item is [string, string] => item[1] !== undefined);
