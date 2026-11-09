@@ -61,6 +61,8 @@ export interface ResourceComposePageProps {
   // Actions
   onSaveResource: (params: SaveResourceParams) => Promise<void>;
   onCancel: () => void;
+  /** Native shells may offer a save-location picker and return a path relative to the KB root. */
+  onChooseStorageLocation?: (suggestedPath: string) => Promise<string | null>;
 
   /**
    * Live upload-progress for the in-flight save. Resolved by the route
@@ -98,6 +100,7 @@ export interface ResourceComposePageProps {
     creating: string;
     saveClonedResource: string;
     createResource: string;
+    chooseLocation?: string;
   };
 
   // Component dependencies
@@ -128,6 +131,7 @@ export function ResourceComposePage({
   activePanel,
   onSaveResource,
   onCancel,
+  onChooseStorageLocation,
   uploadProgress = null,
   translations: t,
   ToolbarPanels,
@@ -166,6 +170,8 @@ export function ResourceComposePage({
 
   // Working-tree path (bare, no protocol prefix) — converted to file:// URI on submit
   const [storagePath, setStoragePath] = useState('');
+  const [choosingStorageLocation, setChoosingStorageLocation] = useState(false);
+  const [storageLocationError, setStorageLocationError] = useState<string | null>(null);
 
   // Archive original checkbox (for clones only)
   const [archiveOriginal, setArchiveOriginal] = useState(true);
@@ -282,6 +288,20 @@ export function ResourceComposePage({
     }
   };
 
+  const chooseStorageLocation = async () => {
+    if (!onChooseStorageLocation) return;
+    setChoosingStorageLocation(true);
+    setStorageLocationError(null);
+    try {
+      const chosen = await onChooseStorageLocation(effectivePath);
+      if (chosen !== null) setStoragePath(chosen);
+    } catch (error) {
+      setStorageLocationError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setChoosingStorageLocation(false);
+    }
+  };
+
   const isClone = mode === 'clone';
 
   return (
@@ -324,22 +344,37 @@ export function ResourceComposePage({
 
           {/* Storage URI */}
           <div className="semiont-form__field">
-            <label htmlFor="storagePath" className="semiont-form__label">
-              Save location
-            </label>
-            <div className="semiont-input-addon">
-              <span className="semiont-input-addon__prefix">file://</span>
-              <input
-                id="storagePath"
-                type="text"
-                value={effectivePath}
-                onChange={(e) => setStoragePath(e.target.value)}
-                placeholder="docs/my-resource.md"
-                required
-                className="semiont-input semiont-input--addon"
-                disabled={isCreating}
-              />
-            </div>
+            {onChooseStorageLocation
+              ? <div className="semiont-form__label">Save location</div>
+              : <label htmlFor="storagePath" className="semiont-form__label">Save location</label>}
+            {onChooseStorageLocation ? (
+              <div className="semiont-form__location-picker">
+                <code id="storagePath" title={effectivePath}>file://{effectivePath}</code>
+                <button
+                  type="button"
+                  className="semiont-form__location-button"
+                  onClick={() => void chooseStorageLocation()}
+                  disabled={isCreating || choosingStorageLocation}
+                >
+                  {choosingStorageLocation ? 'Choosing…' : (t.chooseLocation ?? 'Choose…')}
+                </button>
+              </div>
+            ) : (
+              <div className="semiont-input-addon">
+                <span className="semiont-input-addon__prefix">file://</span>
+                <input
+                  id="storagePath"
+                  type="text"
+                  value={effectivePath}
+                  onChange={(e) => setStoragePath(e.target.value)}
+                  placeholder="docs/my-resource.md"
+                  required
+                  className="semiont-input semiont-input--addon"
+                  disabled={isCreating}
+                />
+              </div>
+            )}
+            {storageLocationError && <p className="semiont-form__location-error" role="alert">{storageLocationError}</p>}
           </div>
 
           {/* Entity Types Selection */}

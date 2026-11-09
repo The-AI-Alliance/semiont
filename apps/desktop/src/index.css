@@ -217,6 +217,17 @@ button:disabled {
   right: 0.75rem;
 }
 
+.compose-modal--preparing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.compose-modal--preparing p {
+  margin: 0;
+}
+
 .compose-modal .semiont-page {
   height: 100%;
   background: var(--surface);

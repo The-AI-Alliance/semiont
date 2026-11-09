@@ -15,10 +15,13 @@ const NoToolbar: ResourceComposePageProps['Toolbar'] = () => null;
 
 export function ResourceComposeModal({
   session,
+  storageRoot,
   onClose,
   onCreated,
 }: {
   session: ChatSession;
+  /** Local filesystem root for the KB; null for a remote KB without a host path. */
+  storageRoot: string | null;
   onClose: () => void;
   onCreated: (resourceId: string, name: string) => void;
 }) {
@@ -92,6 +95,14 @@ export function ResourceComposeModal({
             activePanel={null}
             onSaveResource={saveResource}
             onCancel={onClose}
+            {...(storageRoot === null ? {} : {
+              onChooseStorageLocation: (suggestedPath) => {
+                const bridge = window.launcherBridge;
+                return bridge === undefined
+                  ? Promise.reject(new Error('The native save dialog is available in Semiont Desktop only.'))
+                  : bridge.chooseResourceLocation(storageRoot, suggestedPath);
+              },
+            })}
             uploadProgress={uploadProgress}
             translations={{
               title: 'New Resource',
@@ -120,6 +131,7 @@ export function ResourceComposeModal({
               creating: 'Creating…',
               saveClonedResource: 'Save Cloned Resource',
               createResource: 'Create Resource',
+              chooseLocation: 'Choose…',
             }}
             ToolbarPanels={NoToolbarPanels}
             Toolbar={NoToolbar}

@@ -186,7 +186,9 @@ export function App() {
   const [activeKbTabUri, setActiveKbTabUri] = useState<string | null>(null);
   const [activeSessionIdsByKb, setActiveSessionIdsByKb] = useState<Record<string, string>>({});
   const [activeResourcesByKb, setActiveResourcesByKb] = useState<Record<string, { id: string; kbUri: string; name: string }>>({});
-  const [composeTarget, setComposeTarget] = useState<{ kbUri: string; session: ChatSession } | null>(null);
+  const [composeTarget, setComposeTarget] = useState<{ kbUri: string; session: ChatSession; storageRoot: string | null } | null>(null);
+  const [composePreparing, setComposePreparing] = useState(false);
+  const localRootCache = useRef(new Map<string, string | null>());
   const [kbAliasesByRoot, setKbAliasesByRoot] = useState<Record<string, string>>({});
   const kbAliasesLoaded = useRef(false);
   const activeSessionId = activeKbTabUri === null ? null : activeSessionIdsByKb[activeKbTabUri] ?? null;
@@ -887,9 +889,46 @@ export function App() {
   // works in both the web and Electron builds. `name` is what the nav row shows; a reference
   // followed from inside the viewer arrives with the id as its name.
   const openResource = (kbUri: string, id: string, name: string) => setActiveResourcesByKb((current) => ({ ...current, [kbUri]: { kbUri, id, name } }));
-  const openNewDocument = (kbUri: string) => {
+  const localRootForKb = async (kbUri: string): Promise<string | null> => {
+    if (localRootCache.current.has(kbUri)) return localRootCache.current.get(kbUri) ?? null;
+    const known = knowledgeBasesState.status === 'result'
+      ? knowledgeBasesState.result.roots.find((root) => root.gatewayUrl !== undefined && normalizeGatewayUri(root.gatewayUrl) === normalizeGatewayUri(kbUri))
+      : undefined;
+    if (known !== undefined) {
+      localRootCache.current.set(kbUri, known.path);
+      return known.path;
+    }
+
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) return null;
+    const listed = await askLauncher(bridge, 'roots.list', {});
+    if (!listed.ok) {
+      localRootCache.current.set(kbUri, null);
+      return null;
+    }
+    const localRoots = listed.result.roots.filter((root) => root.placement === 'local' && root.path !== undefined);
+    const snapshots = await Promise.all(localRoots.map(async (root) => ({
+      root,
+      outcome: await askLauncher(bridge, 'status.snapshot', { target: { kind: 'local', root: root.path! } }),
+    })));
+    const rootPath = snapshots.find(({ outcome }) => {
+      const gatewayUrl = stackFacts(outcome).gatewayUrl;
+      return gatewayUrl !== undefined && normalizeGatewayUri(gatewayUrl) === normalizeGatewayUri(kbUri);
+    })?.root.path ?? null;
+    localRootCache.current.set(kbUri, rootPath);
+    return rootPath;
+  };
+
+  const openNewDocument = async (kbUri: string) => {
     const session = connections[kbUri]?.opened?.session;
-    if (session !== undefined) setComposeTarget({ kbUri, session });
+    if (session === undefined) return;
+    setComposePreparing(true);
+    try {
+      const storageRoot = await localRootForKb(kbUri).catch(() => null);
+      setComposeTarget({ kbUri, session, storageRoot });
+    } finally {
+      setComposePreparing(false);
+    }
   };
   const closeActiveResource = () => {
     if (activeKbTabUri === null) return;
@@ -1069,9 +1108,17 @@ export function App() {
       {showGit && <GitModal check={gitCheck} onClose={() => setShowGit(false)} />}
       {showSecrets && <SecretsModal check={secretsCheck} onClose={() => setShowSecrets(false)} />}
       {showMcp && <McpModal status={mcpStatus} onStart={startMcp} onStop={stopMcp} onClose={() => setShowMcp(false)} />}
+      {composePreparing && (
+        <div className="modal modal--compose">
+          <section className="compose-modal compose-modal--preparing" role="status" aria-live="polite">
+            <p>Preparing the document composer…</p>
+          </section>
+        </div>
+      )}
       {composeTarget !== null && (
         <ResourceComposeModal
           session={composeTarget.session}
+          storageRoot={composeTarget.storageRoot}
           onClose={() => setComposeTarget(null)}
           onCreated={(id, name) => {
             const target = composeTarget;
