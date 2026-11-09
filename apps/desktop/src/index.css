@@ -692,7 +692,7 @@ button:disabled {
 }
 
 .config--knowledge-bases {
-  max-width: 74rem;
+  max-width: 78rem;
 }
 
 .knowledge-bases__intro,
@@ -715,8 +715,15 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.knowledge-bases__workspace {
+  display: grid;
+  grid-template-columns: minmax(19rem, 0.95fr) minmax(22rem, 1.05fr);
+  gap: 1rem;
+  min-height: 0;
+}
+
 .knowledge-bases__table-wrap {
-  max-height: calc(100vh - 19rem);
+  max-height: calc(100vh - 20rem);
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -725,7 +732,6 @@ button:disabled {
 
 .knowledge-bases__table {
   width: 100%;
-  min-width: 54rem;
   border-collapse: collapse;
   text-align: left;
 }
@@ -745,42 +751,109 @@ button:disabled {
 }
 
 .knowledge-bases__table td {
-  padding: 0.8rem 0.75rem;
+  padding: 0.45rem 0.7rem;
   border-bottom: 1px solid var(--border-soft);
   color: var(--text);
   font-size: 0.78rem;
   vertical-align: top;
 }
 
+.knowledge-bases__table th:first-child {
+  width: 74%;
+}
+
+.knowledge-bases__table th:last-child {
+  white-space: nowrap;
+}
+
 .knowledge-bases__table tbody tr:last-child td {
   border-bottom: 0;
 }
 
-.knowledge-bases__identity strong,
-.knowledge-bases__identity code,
-.knowledge-bases__identity small,
-.knowledge-bases__status-detail,
-.knowledge-bases__action-error {
-  display: block;
+.knowledge-bases__row--selected td {
+  background: var(--hover);
 }
 
-.knowledge-bases__identity strong {
-  margin-bottom: 0.28rem;
+.knowledge-bases__select {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  width: 100%;
+  padding: 0.35rem 0.4rem;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
   color: var(--text);
-  font-size: 0.88rem;
+  text-align: left;
+}
+
+.knowledge-bases__select:hover,
+.knowledge-bases__select:focus-visible {
+  background: var(--surface);
+  outline: 1px solid var(--accent);
+}
+
+.knowledge-bases__select strong {
+  font-size: 0.82rem;
   font-weight: 600;
 }
 
-.knowledge-bases__identity code {
+.knowledge-bases__select code {
   overflow-wrap: anywhere;
   color: var(--muted);
-  font: 0.69rem/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font: 0.66rem/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-.knowledge-bases__identity small {
-  margin-top: 0.25rem;
+.knowledge-bases__date {
+  color: var(--muted) !important;
+  font-size: 0.72rem !important;
+  white-space: nowrap;
+}
+
+.knowledge-bases__detail-panel {
+  max-height: calc(100vh - 20rem);
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.knowledge-bases__detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.knowledge-bases__detail-head h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.knowledge-bases__eyebrow {
+  margin: 0 0 0.25rem;
   color: var(--muted);
-  font-size: 0.68rem;
+  font-size: 0.67rem;
+  font-weight: 600;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.knowledge-bases__detail-section {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border-soft);
+}
+
+.knowledge-bases__detail-section h3 {
+  margin: 0 0 0.55rem;
+  color: var(--muted);
+  font-size: 0.73rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
 }
 
 .knowledge-bases__controls {
@@ -834,6 +907,42 @@ button:disabled {
   color: var(--muted);
 }
 
+.knowledge-bases__session-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.knowledge-bases__metadata {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
+  margin: 1rem 0 0;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border-soft);
+}
+
+.knowledge-bases__metadata div {
+  min-width: 0;
+}
+
+.knowledge-bases__metadata dt {
+  margin-bottom: 0.15rem;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
+}
+
+.knowledge-bases__metadata dd {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
 .knowledge-bases__status-detail {
   max-width: 16rem;
   margin-top: 0.25rem;
@@ -863,6 +972,20 @@ button:disabled {
 .knowledge-bases__footer {
   display: flex;
   justify-content: flex-end;
+}
+
+@media (max-width: 820px) {
+  .knowledge-bases__workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .knowledge-bases__table-wrap {
+    max-height: 15rem;
+  }
+
+  .knowledge-bases__detail-panel {
+    max-height: 25rem;
+  }
 }
 
 .launcher-status__actions {
