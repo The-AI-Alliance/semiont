@@ -1580,7 +1580,7 @@ jobs:
       # the start scripts its build lays out.
       - name: Setup Java
         if: matrix.sdk == 'kotlin'
-        uses: actions/setup-java@v6.1.0
+        uses: actions/setup-java@v6.2.0
         with:
           distribution: temurin
           java-version-file: packages/kotlin/sdk/.java-version
@@ -1794,7 +1794,7 @@ jobs:
       # .java-version names, from the start script its build lays out.
       - name: Setup Java
         if: matrix.sdk == 'kotlin'
-        uses: actions/setup-java@v6.1.0
+        uses: actions/setup-java@v6.2.0
         with:
           distribution: temurin
           java-version-file: packages/kotlin/sdk/.java-version
@@ -2870,7 +2870,7 @@ jobs:
           /usr/bin/make -n local-build
 
       - name: Setup Java
-        uses: actions/setup-java@v6.1.0
+        uses: actions/setup-java@v6.2.0
         with:
           distribution: temurin
           java-version-file: packages/kotlin/sdk/.java-version
