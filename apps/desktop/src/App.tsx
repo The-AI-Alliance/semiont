@@ -185,7 +185,6 @@ export function App() {
   const [activeKbTabUri, setActiveKbTabUri] = useState<string | null>(null);
   const [activeSessionIdsByKb, setActiveSessionIdsByKb] = useState<Record<string, string>>({});
   const [activeResourcesByKb, setActiveResourcesByKb] = useState<Record<string, { id: string; kbUri: string; name: string }>>({});
-  const [documentSearchOpen, setDocumentSearchOpen] = useState(false);
   const [kbAliasesByRoot, setKbAliasesByRoot] = useState<Record<string, string>>({});
   const kbAliasesLoaded = useRef(false);
   const activeSessionId = activeKbTabUri === null ? null : activeSessionIdsByKb[activeKbTabUri] ?? null;
@@ -963,7 +962,6 @@ export function App() {
             activeSessionId={activeSessionId}
             activeResourceId={activeResource?.id ?? null}
             docsRefresh={docsRefresh}
-            documentSearchOpen={documentSearchOpen}
             onOpenResource={openResource}
             onNewChat={handleNewChat}
             onSelectSession={selectSession}
@@ -997,8 +995,6 @@ export function App() {
             activeSession={activeSession}
             conn={activeConn}
             activeResource={activeResource}
-            documentSearchOpen={documentSearchOpen}
-            onToggleDocumentSearch={() => setDocumentSearchOpen((open) => !open)}
             resourceSession={activeResource ? connections[activeResource.kbUri]?.opened?.session ?? null : null}
             docWidth={docWidth}
             onDocWidthChange={setDocWidth}
@@ -1076,16 +1072,12 @@ function MainPane({
   hasOpenKb,
   activeRootPath,
   onOpenKnowledgeBases,
-  documentSearchOpen,
-  onToggleDocumentSearch,
   ...body
 }: {
   viewerPrefs: ViewerPrefs;
   hasOpenKb: boolean;
   activeRootPath: string | null;
   onOpenKnowledgeBases: () => void;
-  documentSearchOpen: boolean;
-  onToggleDocumentSearch: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
   activeResource: { id: string; kbUri: string; name: string } | null;
@@ -1101,7 +1093,7 @@ function MainPane({
 }) {
   return (
     <div className="mainwrap">
-      <MainBody viewerPrefs={viewerPrefs} hasOpenKb={hasOpenKb} activeRootPath={activeRootPath} onOpenKnowledgeBases={onOpenKnowledgeBases} documentSearchOpen={documentSearchOpen} onToggleDocumentSearch={onToggleDocumentSearch} {...body} />
+      <MainBody viewerPrefs={viewerPrefs} hasOpenKb={hasOpenKb} activeRootPath={activeRootPath} onOpenKnowledgeBases={onOpenKnowledgeBases} {...body} />
       <AppFooter prefs={viewerPrefs} />
     </div>
   );
@@ -1116,8 +1108,6 @@ function MainBody({
   hasOpenKb,
   activeRootPath,
   onOpenKnowledgeBases,
-  documentSearchOpen,
-  onToggleDocumentSearch,
   activeSession,
   conn,
   activeResource,
@@ -1134,8 +1124,6 @@ function MainBody({
   hasOpenKb: boolean;
   activeRootPath: string | null;
   onOpenKnowledgeBases: () => void;
-  documentSearchOpen: boolean;
-  onToggleDocumentSearch: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
   activeResource: { id: string; kbUri: string; name: string } | null;
@@ -1272,8 +1260,6 @@ function MainBody({
         setEntries={setActiveEntries}
         onResourcesChanged={onResourcesChanged}
         onOpenResource={(id, name) => onOpenResource(activeSession.kbUri, id, name)}
-        documentSearchOpen={documentSearchOpen}
-        onToggleDocumentSearch={onToggleDocumentSearch}
       />
     );
 

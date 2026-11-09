@@ -16,7 +16,6 @@ export interface KbNavProps {
   /** The open document's id (purple row), or null when a chat session is active instead. */
   activeResourceId: string | null;
   docsRefresh: number;
-  documentSearchOpen: boolean;
   /** Open a document in the main pane. */
   onOpenResource: (kbUri: string, id: string, name: string) => void;
   onNewChat: (kbUri: string) => void;
@@ -147,7 +146,6 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
     activeSessionId,
     activeResourceId,
     docsRefresh,
-    documentSearchOpen,
     onOpenResource,
     onNewChat,
     onSelectSession,
@@ -161,10 +159,6 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
   const [refreshTick, setRefreshTick] = useState(0);
   const [docsOpen, setDocsOpen] = useState(true);
   const [sessionsOpen, setSessionsOpen] = useState(true);
-
-  useEffect(() => {
-    if (documentSearchOpen) setDocsOpen(true);
-  }, [documentSearchOpen]);
 
   const displayName = kb.alias || (connected && conn?.description?.name) || hostOf(kb.uri);
 
@@ -203,7 +197,6 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
           {docsOpen && (
             <KbResources
               session={conn.opened.session}
-              searchOpen={documentSearchOpen}
               refreshSignal={refreshTick + docsRefresh}
               activeResourceId={activeResourceId}
               onOpen={(id, name) => onOpenResource(kb.uri, id, name)}

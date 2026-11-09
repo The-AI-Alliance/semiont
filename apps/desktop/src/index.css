@@ -186,6 +186,57 @@ button:disabled {
   background: rgba(15, 23, 42, 0.56);
 }
 
+.modal--discover {
+  z-index: 40;
+  align-items: center;
+  padding: 1.5rem;
+}
+
+.discover-modal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(82rem, 100%);
+  max-height: calc(100vh - 3rem);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.2);
+}
+
+.discover-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem 1.5rem 0;
+}
+
+.discover-modal__header h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.5rem;
+}
+
+.discover-modal__header p {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+}
+
+.discover-modal__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.5rem;
+}
+
+.discover-modal__message {
+  margin: 0;
+  padding: 1.25rem 0;
+  color: var(--muted);
+}
+
 .config--modal {
   margin: 0;
   width: 100%;
@@ -1758,38 +1809,6 @@ body.resizing {
   color: var(--accent);
   background: var(--field);
 }
-.kb__icon--active {
-  color: var(--accent);
-  background: var(--field);
-}
-
-.kb__search {
-  width: 100%;
-  margin: 0.25rem 0 0.3rem;
-  padding: 0.32rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--field);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.82rem;
-}
-.kb__search::placeholder {
-  color: var(--faint);
-}
-
-.kb__facet {
-  width: 100%;
-  margin: 0 0 0.3rem;
-  padding: 0.28rem 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--field);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.8rem;
-}
-
 .kb__connect {
   flex: none;
   padding: 0.3rem 0.75rem;
@@ -2455,12 +2474,6 @@ body.resizing {
 }
 
 .chat__attach:hover {
-  background: var(--surface-sidebar);
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.chat__search--active {
   background: var(--surface-sidebar);
   color: var(--accent);
   border-color: var(--accent);

@@ -10,6 +10,7 @@ import { MentionComposer, type MentionComposerHandle } from './MentionComposer';
 import type { MentionCandidate } from './MentionPicker';
 import { UploadRecord } from './UploadRecord';
 import type { ViewerPrefs } from './ViewerPrefControls';
+import { ResourceDiscoveryModal } from './ResourceDiscoveryModal';
 
 /** A question/answer turn in the chat log. */
 export interface Turn {
@@ -57,8 +58,6 @@ export function ChatPane({
   setEntries,
   onResourcesChanged,
   onOpenResource,
-  documentSearchOpen,
-  onToggleDocumentSearch,
 }: {
   session: ChatSession;
   /** App-global viewer prefs — threaded to every message viewer (the footer lives in App). */
@@ -71,8 +70,6 @@ export function ChatPane({
   onResourcesChanged: () => void;
   /** Open a referenced/uploaded resource in the main pane; bound to this KB by the caller. */
   onOpenResource: (id: string, name: string) => void;
-  documentSearchOpen: boolean;
-  onToggleDocumentSearch: () => void;
 }) {
   const entityTypesState = useObservable(useMemo(() => session.client.browse.entityTypes(), [session]));
   const entityTypes = entityTypesState?.status === 'ready' ? entityTypesState.value : [];
@@ -96,6 +93,7 @@ export function ChatPane({
   // re-renders the chat log.
   const composerRef = useRef<MentionComposerHandle>(null);
   const [composerEmpty, setComposerEmpty] = useState(true);
+  const [showResourceDiscovery, setShowResourceDiscovery] = useState(false);
 
   // This session's past questions, newest-first, for the composer's Up/Down recall. Each
   // entry points at its question RESOURCE (the persisted questionId) — the composer
@@ -350,13 +348,14 @@ export function ChatPane({
   };
 
   return (
-    <section
-      className="chat"
-      onDragEnter={onDragEnter}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
-    >
+    <>
+      <section
+        className="chat"
+        onDragEnter={onDragEnter}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+      >
       {dragging && (
         <div className="chat__dropzone" aria-hidden="true">
           <span>Drop a file to upload</span>
@@ -502,11 +501,10 @@ export function ChatPane({
         </button>
         <button
           type="button"
-          className={`chat__attach chat__search${documentSearchOpen ? ' chat__search--active' : ''}`}
-          onClick={onToggleDocumentSearch}
-          aria-label="Search documents"
-          aria-pressed={documentSearchOpen}
-          title={documentSearchOpen ? 'Close document search' : 'Search documents'}
+          className="chat__attach"
+          onClick={() => setShowResourceDiscovery(true)}
+          aria-label="Search resources"
+          title="Search resources"
         >
           <svg
             width="18"
@@ -545,6 +543,17 @@ export function ChatPane({
           Send
         </button>
       </form>
-    </section>
+      </section>
+      {showResourceDiscovery && (
+        <ResourceDiscoveryModal
+          session={session}
+          onClose={() => setShowResourceDiscovery(false)}
+          onOpenResource={(id, name) => {
+            setShowResourceDiscovery(false);
+            onOpenResource(id, name);
+          }}
+        />
+      )}
+    </>
   );
 }
