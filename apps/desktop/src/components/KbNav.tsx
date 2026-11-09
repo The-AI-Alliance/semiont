@@ -19,6 +19,7 @@ export interface KbNavProps {
   /** Open a document in the main pane. */
   onOpenResource: (kbUri: string, id: string, name: string) => void;
   onNewChat: (kbUri: string) => void;
+  onNewDocument: (kbUri: string) => void;
   onSelectSession: (sessionId: string) => void;
   onRenameSession: (sessionId: string, name: string) => void;
   onDeleteSession: (sessionId: string) => void;
@@ -148,6 +149,7 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
     docsRefresh,
     onOpenResource,
     onNewChat,
+    onNewDocument,
     onSelectSession,
     onRenameSession,
     onDeleteSession,
@@ -183,6 +185,15 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
             >
               <Chevron open={docsOpen} />
               Documents
+            </button>
+            <button
+              type="button"
+              className="kb__icon"
+              onClick={() => onNewDocument(kb.uri)}
+              aria-label="Add document"
+              title="Add document"
+            >
+              <PlusIcon />
             </button>
             <button
               type="button"
@@ -438,6 +449,14 @@ function RefreshIcon() {
       <polyline points="23 4 23 10 17 10" />
       <polyline points="1 20 1 14 7 14" />
       <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg width="16" height="16" {...ICON_PROPS}>
+      <path d="M12 5v14M5 12h14" />
     </svg>
   );
 }

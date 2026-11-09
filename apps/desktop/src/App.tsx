@@ -39,6 +39,7 @@ import { SecretsModal, type SecretsCheck } from './components/SecretsModal';
 import { McpModal } from './components/McpModal';
 import { AppFooter } from './components/AppFooter';
 import { ChatPane, type LogEntry } from './components/ChatPane';
+import { ResourceComposeModal } from './components/ResourceComposeModal';
 import { ResourceView } from './components/ResourceView';
 import type { ViewerPrefs } from './components/ViewerPrefControls';
 import {
@@ -185,6 +186,7 @@ export function App() {
   const [activeKbTabUri, setActiveKbTabUri] = useState<string | null>(null);
   const [activeSessionIdsByKb, setActiveSessionIdsByKb] = useState<Record<string, string>>({});
   const [activeResourcesByKb, setActiveResourcesByKb] = useState<Record<string, { id: string; kbUri: string; name: string }>>({});
+  const [composeTarget, setComposeTarget] = useState<{ kbUri: string; session: ChatSession } | null>(null);
   const [kbAliasesByRoot, setKbAliasesByRoot] = useState<Record<string, string>>({});
   const kbAliasesLoaded = useRef(false);
   const activeSessionId = activeKbTabUri === null ? null : activeSessionIdsByKb[activeKbTabUri] ?? null;
@@ -885,6 +887,10 @@ export function App() {
   // works in both the web and Electron builds. `name` is what the nav row shows; a reference
   // followed from inside the viewer arrives with the id as its name.
   const openResource = (kbUri: string, id: string, name: string) => setActiveResourcesByKb((current) => ({ ...current, [kbUri]: { kbUri, id, name } }));
+  const openNewDocument = (kbUri: string) => {
+    const session = connections[kbUri]?.opened?.session;
+    if (session !== undefined) setComposeTarget({ kbUri, session });
+  };
   const closeActiveResource = () => {
     if (activeKbTabUri === null) return;
     setActiveResourcesByKb((current) => {
@@ -964,6 +970,7 @@ export function App() {
             docsRefresh={docsRefresh}
             onOpenResource={openResource}
             onNewChat={handleNewChat}
+            onNewDocument={openNewDocument}
             onSelectSession={selectSession}
             onRenameSession={handleRenameSession}
             onDeleteSession={handleDeleteSession}
@@ -993,6 +1000,7 @@ export function App() {
             activeRootPath={activeRootPath}
             onOpenKnowledgeBases={() => openKnowledgeBases(activeRootPath === null, activeRootPath)}
             activeSession={activeSession}
+            onNewDocument={() => activeSession && openNewDocument(activeSession.kbUri)}
             conn={activeConn}
             activeResource={activeResource}
             resourceSession={activeResource ? connections[activeResource.kbUri]?.opened?.session ?? null : null}
@@ -1061,6 +1069,20 @@ export function App() {
       {showGit && <GitModal check={gitCheck} onClose={() => setShowGit(false)} />}
       {showSecrets && <SecretsModal check={secretsCheck} onClose={() => setShowSecrets(false)} />}
       {showMcp && <McpModal status={mcpStatus} onStart={startMcp} onStop={stopMcp} onClose={() => setShowMcp(false)} />}
+      {composeTarget !== null && (
+        <ResourceComposeModal
+          session={composeTarget.session}
+          onClose={() => setComposeTarget(null)}
+          onCreated={(id, name) => {
+            const target = composeTarget;
+            if (target === null) return;
+            setComposeTarget(null);
+            setDocsRefresh((n) => n + 1);
+            selectWorkspaceTab(target.kbUri);
+            openResource(target.kbUri, id, name);
+          }}
+        />
+      )}
     </>
   );
 }
@@ -1072,12 +1094,14 @@ function MainPane({
   hasOpenKb,
   activeRootPath,
   onOpenKnowledgeBases,
+  onNewDocument,
   ...body
 }: {
   viewerPrefs: ViewerPrefs;
   hasOpenKb: boolean;
   activeRootPath: string | null;
   onOpenKnowledgeBases: () => void;
+  onNewDocument: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
   activeResource: { id: string; kbUri: string; name: string } | null;
@@ -1093,7 +1117,7 @@ function MainPane({
 }) {
   return (
     <div className="mainwrap">
-      <MainBody viewerPrefs={viewerPrefs} hasOpenKb={hasOpenKb} activeRootPath={activeRootPath} onOpenKnowledgeBases={onOpenKnowledgeBases} {...body} />
+      <MainBody viewerPrefs={viewerPrefs} hasOpenKb={hasOpenKb} activeRootPath={activeRootPath} onOpenKnowledgeBases={onOpenKnowledgeBases} onNewDocument={onNewDocument} {...body} />
       <AppFooter prefs={viewerPrefs} />
     </div>
   );
@@ -1108,6 +1132,7 @@ function MainBody({
   hasOpenKb,
   activeRootPath,
   onOpenKnowledgeBases,
+  onNewDocument,
   activeSession,
   conn,
   activeResource,
@@ -1124,6 +1149,7 @@ function MainBody({
   hasOpenKb: boolean;
   activeRootPath: string | null;
   onOpenKnowledgeBases: () => void;
+  onNewDocument: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
   activeResource: { id: string; kbUri: string; name: string } | null;
@@ -1260,6 +1286,7 @@ function MainBody({
         setEntries={setActiveEntries}
         onResourcesChanged={onResourcesChanged}
         onOpenResource={(id, name) => onOpenResource(activeSession.kbUri, id, name)}
+        onNewDocument={onNewDocument}
       />
     );
 
