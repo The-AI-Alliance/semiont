@@ -4,9 +4,11 @@ import { constants, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSyn
 import { access } from 'node:fs/promises';
 import { delimiter, dirname, join } from 'node:path';
 import { parseAppManifest } from '../src/lib/app-manifest';
-import type { KnowledgeBaseRoot, KnowledgeBasesResult, LauncherStatusResult, McpProcessStatus } from '../src/lib/launcher-bridge';
+import type { McpProcessStatus } from '../src/lib/launcher-bridge';
 import type { OllamaInfo, OllamaModelInfo } from '../src/lib/ollama-info';
 import { registerAuthHandlers } from './auth';
+import { ControlClient } from './control-client';
+import { registerControlHandlers } from './control-ipc';
 import { appendLog, configDir, logPath } from './paths';
 
 registerAuthHandlers();
@@ -43,107 +45,27 @@ function launcherEnvironment(): NodeJS.ProcessEnv {
   return { ...process.env, PATH: pathEntries.join(delimiter) };
 }
 
-function runLauncher(args: string[], timeout = 120_000): Promise<LauncherStatusResult> {
-  return new Promise((resolve) => {
-    execFile(
-      launcherPath(),
-      args,
-      {
-        cwd: app.getPath('home'),
-        encoding: 'utf8',
-        env: launcherEnvironment(),
-        maxBuffer: 4 * 1024 * 1024,
-        timeout,
-        windowsHide: true,
-      },
-      (error, stdout, stderr) => {
-        const output = [stdout.trimEnd(), stderr.trimEnd()].filter((part) => part.length > 0).join('\n\n');
-        resolve({
-          output: output || (error === null ? '(no output)' : error.message),
-          exitCode: error === null ? 0 : (typeof error.code === 'number' ? error.code : null),
-          error: error?.message ?? null,
-        });
-      },
-    );
+const control = new ControlClient(
+  () => spawn(launcherPath(), ['control'], {
+    cwd: app.getPath('home'),
+    env: launcherEnvironment(),
+    windowsHide: true,
+  }),
+  (line) => appendLog(`${new Date().toISOString()} [launcher] ${line}`),
+);
+registerControlHandlers(control);
+
+// Quitting waits for the launcher's control child to answer what it was asked and exit (at
+// most SHUTDOWN_GRACE_MS), then quits for real.
+let launcherClosed = false;
+app.on('before-quit', (event) => {
+  if (launcherClosed) return;
+  event.preventDefault();
+  void control.close().then(() => {
+    launcherClosed = true;
+    app.quit();
   });
-}
-
-ipcMain.handle('launcher:status', () => runLauncher(['status']));
-ipcMain.handle('launcher:roots', () => readKnowledgeBases());
-ipcMain.handle('launcher:root-status', (_event, root: unknown) => runRootCommand(root, 'status'));
-ipcMain.handle('launcher:root-start', (_event, root: unknown) => runRootCommand(root, 'start'));
-ipcMain.handle('launcher:root-stop', (_event, root: unknown) => runRootCommand(root, 'stop'));
-ipcMain.handle('launcher:about', () => runLauncher(['about']));
-
-function runRootCommand(root: unknown, operation: 'status' | 'start' | 'stop'): Promise<LauncherStatusResult> {
-  if (typeof root !== 'string' || root.length === 0 || root.length > 4096) {
-    return Promise.resolve({ output: 'Invalid knowledge base path.', exitCode: null, error: 'Invalid knowledge base path.' });
-  }
-  const args = operation === 'status'
-    ? ['status', '--root', root, '--service', 'gateway']
-    : [operation, '--root', root];
-  return runLauncher(args, operation === 'start' ? 15 * 60_000 : 120_000);
-}
-
-function rootsStateFile(): string {
-  const home = app.getPath('home');
-  let stateDirectory: string;
-  if (process.platform === 'darwin') {
-    stateDirectory = join(home, 'Library', 'Application Support', 'semiont');
-  } else if (process.platform === 'win32') {
-    stateDirectory = join(process.env['LOCALAPPDATA'] || join(home, 'AppData', 'Local'), 'semiont');
-  } else {
-    stateDirectory = join(process.env['XDG_STATE_HOME'] || join(home, '.local', 'state'), 'semiont');
-  }
-  return join(stateDirectory, 'roots.json');
-}
-
-function readKnowledgeBases(): KnowledgeBasesResult {
-  const stateFile = rootsStateFile();
-  let source: string;
-  try {
-    source = readFileSync(stateFile, 'utf8');
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT') {
-      return { stateFile, roots: [], error: null };
-    }
-    return { stateFile, roots: [], error: error instanceof Error ? error.message : String(error) };
-  }
-
-  try {
-    const parsed: unknown = JSON.parse(source);
-    if (typeof parsed !== 'object' || parsed === null || !('roots' in parsed) || !Array.isArray(parsed.roots)) {
-      throw new Error('roots.json must contain a roots array.');
-    }
-    const roots: KnowledgeBaseRoot[] = parsed.roots.map((value: unknown, index: number) => {
-      if (typeof value !== 'object' || value === null || !('path' in value) || typeof value.path !== 'string') {
-        throw new Error(`roots[${index}] must contain a path string.`);
-      }
-      const item = value as Record<string, unknown>;
-      for (const field of ['did', 'siteName', 'config', 'lastUsed', 'lastStarted'] as const) {
-        if (item[field] !== undefined && typeof item[field] !== 'string') {
-          throw new Error(`roots[${index}].${field} must be a string.`);
-        }
-      }
-      if (item.portBlock !== undefined && typeof item.portBlock !== 'number') {
-        throw new Error(`roots[${index}].portBlock must be a number.`);
-      }
-      return {
-        path: value.path,
-        ...(typeof item.did === 'string' ? { did: item.did } : {}),
-        ...(typeof item.siteName === 'string' ? { siteName: item.siteName } : {}),
-        ...(typeof item.config === 'string' ? { config: item.config } : {}),
-        ...(typeof item.portBlock === 'number' ? { portBlock: item.portBlock } : {}),
-        ...(typeof item.lastUsed === 'string' ? { lastUsed: item.lastUsed } : {}),
-        ...(typeof item.lastStarted === 'string' ? { lastStarted: item.lastStarted } : {}),
-      };
-    });
-    roots.sort((left, right) => (right.lastUsed ?? '').localeCompare(left.lastUsed ?? ''));
-    return { stateFile, roots, error: null };
-  } catch (error) {
-    return { stateFile, roots: [], error: error instanceof Error ? error.message : String(error) };
-  }
-}
+});
 
 async function ollamaInfo(): Promise<OllamaInfo> {
   const env = launcherEnvironment();

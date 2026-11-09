@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import type { KnowledgeBaseRoot, KnowledgeBasesResult } from '../lib/launcher-bridge';
+import type { ControlRoot } from '../../electron/control-types.gen';
 
-export type KnowledgeBaseRuntimeStatus = 'checking' | 'running' | 'stopped' | 'attention' | 'unknown';
+export type KnowledgeBaseRuntimeStatus = 'checking' | 'starting' | 'running' | 'stopped' | 'attention' | 'unknown';
 
-export interface KnowledgeBaseRow extends KnowledgeBaseRoot {
+/** A local root, as roots.list reports it, with what Desktop has learned of its stack. */
+export interface KnowledgeBaseRow extends ControlRoot {
+  path: string;
   status: KnowledgeBaseRuntimeStatus;
   statusDetail?: string;
   gatewayUrl?: string;
@@ -15,7 +17,8 @@ export interface KnowledgeBaseRow extends KnowledgeBaseRoot {
 
 export type KnowledgeBasesState =
   | { status: 'loading' }
-  | { status: 'result'; result: Omit<KnowledgeBasesResult, 'roots'> & { roots: KnowledgeBaseRow[] } };
+  | { status: 'failed'; message: string }
+  | { status: 'result'; result: { roots: KnowledgeBaseRow[]; warnings?: string[] } };
 
 export function KnowledgeBasesModal({
   state,
@@ -44,7 +47,7 @@ export function KnowledgeBasesModal({
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
 
-  const roots = state.status === 'result' && state.result.error === null ? state.result.roots : [];
+  const roots = state.status === 'result' ? state.result.roots : [];
   useEffect(() => {
     setSelectedPath((current) => current !== null && roots.some((root) => root.path === current)
       ? current
@@ -61,13 +64,15 @@ export function KnowledgeBasesModal({
         </header>
         <p className="knowledge-bases__intro">Choose a local root to see its launcher state, Desktop session, and controls. Starting uses the root’s saved launcher settings.</p>
         {state.status === 'loading' ? (
-          <p className="knowledge-bases__empty">Reading roots.json…</p>
+          <p className="knowledge-bases__empty">Asking the launcher for its knowledge bases…</p>
+        ) : state.status === 'failed' ? (
+          <pre className="knowledge-bases__error">Could not list the knowledge bases: {state.message}</pre>
         ) : (
           <>
-            <p className="knowledge-bases__source">{state.result.stateFile}</p>
-            {state.result.error !== null ? (
-              <pre className="knowledge-bases__error">Could not read roots.json: {state.result.error}</pre>
-            ) : roots.length === 0 ? (
+            {state.result.warnings?.map((warning) => (
+              <p className="knowledge-bases__source" key={warning}>{warning}</p>
+            ))}
+            {roots.length === 0 ? (
               <p className="knowledge-bases__empty">No local knowledge bases are recorded yet.</p>
             ) : (
               <div className="knowledge-bases__workspace">
@@ -125,9 +130,7 @@ function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout }: {
   const metadata = [
     ['Path', root.path],
     ['Identity', root.did],
-    ['Last started', formatDate(root.lastStarted)],
     ['Inference config', root.config],
-    ['Port block', root.portBlock === undefined ? undefined : String(root.portBlock)],
     ['Gateway', root.gatewayUrl],
   ].filter((item): item is [string, string] => item[1] !== undefined);
 
@@ -209,6 +212,7 @@ function formatDate(value: string | undefined): string {
 function statusLabel(status: KnowledgeBaseRuntimeStatus): string {
   switch (status) {
     case 'checking': return 'Checking…';
+    case 'starting': return 'Starting…';
     case 'running': return 'Running';
     case 'stopped': return 'Stopped';
     case 'attention': return 'Needs attention';

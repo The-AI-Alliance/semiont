@@ -47,6 +47,8 @@ package is built in an amd64 Debian container using Rosetta.
 Installers are written under `apps/desktop/release/`. Each bundles a statically built
 `semiont` launcher for its target platform at the app's `Resources/launcher/semiont` (macOS)
 or `resources/launcher/semiont` (Linux) path. The build derives the Go toolchain from
-`apps/launcher/go.mod`. `electron-builder.yml` carries the Semiont product name and bundle
-identifier. The Linux `.deb` package build has been exercised, but installation and launch
-on a Debian or Ubuntu host still need verification; treat that artifact as experimental.
+`apps/launcher/go.mod`. Desktop runs it as `semiont control` and speaks the launcher's
+control API to it (`protocol/contract/LAUNCHER-CONTROL.md`). `electron-builder.yml` carries
+the Semiont product name and bundle identifier. The Linux `.deb` package build has been
+exercised, but installation and launch on a Debian or Ubuntu host still need verification;
+treat that artifact as experimental.

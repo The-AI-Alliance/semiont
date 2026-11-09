@@ -28,7 +28,7 @@ import { KbNav } from './components/KbNav';
 import { ThemePanel } from './components/ThemePanel';
 import { AboutModal } from './components/AboutModal';
 import { InferenceModal } from './components/InferenceModal';
-import { LauncherStatusModal, type LauncherStatusState } from './components/LauncherStatusModal';
+import { LauncherStatusModal } from './components/LauncherStatusModal';
 import { KnowledgeBasesModal, type KnowledgeBaseRow, type KnowledgeBasesState } from './components/KnowledgeBasesModal';
 import { TelemetryModal } from './components/TelemetryModal';
 import { RuntimeModal } from './components/RuntimeModal';
@@ -39,10 +39,16 @@ import { AppFooter, type KbDisplay } from './components/AppFooter';
 import { ChatPane, type LogEntry } from './components/ChatPane';
 import { ResourceView } from './components/ResourceView';
 import type { ViewerPrefs } from './components/ViewerPrefControls';
-import { DEFAULT_TELEMETRY_LINKS, telemetryLinksFromStatus, type TelemetryLinks } from './lib/telemetry-links';
-import { runtimeInfoFromLauncher, type RuntimeInfo } from './lib/runtime-info';
+import {
+  controlFailureText,
+  type ControlAnswerState,
+  type ControlOutcome,
+  type ControlRequestParams,
+  type LauncherBridge,
+  type McpProcessStatus,
+} from './lib/launcher-bridge';
 import type { OllamaInfo } from './lib/ollama-info';
-import type { LauncherStatusResult, McpProcessStatus } from './lib/launcher-bridge';
+import type { ControlMethod } from '../electron/control-types.gen';
 
 // In Electron the preload exposes window.configBridge; the web build has no such bridge.
 const isElectron = typeof window !== 'undefined' && window.configBridge !== undefined;
@@ -59,6 +65,41 @@ const SIDEBAR_MIN = 180;
 const SIDEBAR_MAX = 520;
 const SIDEBAR_DEFAULT = 272; // 17rem
 const clampWidth = (w: number) => Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, w));
+
+/** Send the launcher one control request; resolves with its answer. Its progress is not shown. */
+function askLauncher<M extends ControlMethod>(
+  bridge: LauncherBridge,
+  method: M,
+  params: ControlRequestParams<M>,
+): Promise<ControlOutcome<M>> {
+  return new Promise((resolve, reject) => {
+    bridge.startControl(method, params, (event) => {
+      if (event.kind === 'answer') resolve(event.outcome);
+    }).catch(reject);
+  });
+}
+
+/** The answer to the latest `method` request a view sent the launcher, and how to send one.
+ *  An answer to an earlier request is dropped: the latest one's is what the view shows. */
+function useLauncherAnswer<M extends ControlMethod>(
+  method: M,
+): [ControlAnswerState<M>, (params: ControlRequestParams<M>) => void] {
+  const [state, setState] = useState<ControlAnswerState<M>>({ status: 'loading' });
+  const latest = useRef(0);
+  const ask = useCallback((params: ControlRequestParams<M>) => {
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) {
+      setState({ status: 'unavailable' });
+      return;
+    }
+    const asked = ++latest.current;
+    setState({ status: 'loading' });
+    void askLauncher(bridge, method, params).then((outcome) => {
+      if (latest.current === asked) setState({ status: 'answered', outcome });
+    });
+  }, [method]);
+  return [state, ask];
+}
 
 function hostOf(uri: string): string {
   try {
@@ -87,25 +128,26 @@ function withAlias(k: KbEntry, alias: string): KbEntry {
   return next;
 }
 
-function gatewayBaseFromStatus(output: string): string | undefined {
-  const plain = output.replace(/\u001b\[[0-9;]*m/gu, '');
-  const endpoint = plain.match(/https?:\/\/[^\s)]+\/api\/health/u)?.[0];
-  if (endpoint === undefined) return undefined;
-  return endpoint.replace(/\/api\/health\/?$/u, '').replace(/\/$/u, '');
+/** Why a control request has no result, as a person reads it; null when it has one. */
+function failureTextOf<M extends ControlMethod>(outcome: ControlOutcome<M>): string | null {
+  return outcome.ok ? null : controlFailureText(outcome.error);
 }
 
-function rootStatusFromLauncher(result: LauncherStatusResult): Pick<KnowledgeBaseRow, 'status' | 'statusDetail' | 'gatewayUrl'> {
-  const gatewayUrl = gatewayBaseFromStatus(result.output);
-  const gateway = gatewayUrl === undefined ? {} : { gatewayUrl };
-  if (result.exitCode === 0) return { status: 'running', ...gateway };
-  if (/no stack of .* is recorded/iu.test(result.output)) return { status: 'stopped' };
-  const gatewayLine = result.output.split('\n').find((line) => /gateway/i.test(line));
-  if (gatewayLine !== undefined && /\brunning\b/i.test(gatewayLine)) {
-    return { status: 'attention', statusDetail: gatewayLine.trim(), ...gateway };
-  }
+type KnowledgeBaseStackFacts = Pick<KnowledgeBaseRow, 'status' | 'statusDetail' | 'gatewayUrl'>;
+
+/** A row's status, from the launcher's status of the root's stack. */
+function stackFacts(outcome: ControlOutcome<'status.snapshot'>): KnowledgeBaseStackFacts {
+  if (!outcome.ok) return { status: 'unknown', statusDetail: controlFailureText(outcome.error) };
+  const [stack] = outcome.result.knowledgeBases;
+  if (stack === undefined) return { status: 'stopped' };
+  const gateway = stack.gateway === undefined ? {} : { gatewayUrl: stack.gateway };
+  if (stack.starting) return { status: 'starting', ...gateway };
+  if (!stack.recorded) return { status: 'stopped' };
+  if (stack.healthy) return { status: 'running', ...gateway };
+  const silent = stack.services.filter((service) => service.counted && !service.healthy).map((service) => service.role);
   return {
-    status: result.exitCode === null ? 'unknown' : 'attention',
-    statusDetail: result.output.trim().split('\n').slice(-2).join(' ').trim() || result.error || 'Gateway health check failed.',
+    status: 'attention',
+    ...(silent.length === 0 ? {} : { statusDetail: `Not answering: ${silent.join(', ')}.` }),
     ...gateway,
   };
 }
@@ -135,13 +177,13 @@ export function App() {
   const [inferenceInfo, setInferenceInfo] = useState<OllamaInfo | null>(null);
   const [inferenceUnavailable, setInferenceUnavailable] = useState(false);
   const [showLauncherStatus, setShowLauncherStatus] = useState(false);
-  const [launcherStatus, setLauncherStatus] = useState<LauncherStatusState>({ status: 'loading' });
   const [showKnowledgeBases, setShowKnowledgeBases] = useState(false);
   const [knowledgeBasesState, setKnowledgeBasesState] = useState<KnowledgeBasesState>({ status: 'loading' });
   const [showTelemetry, setShowTelemetry] = useState(false);
-  const [telemetryLinks, setTelemetryLinks] = useState<TelemetryLinks>(DEFAULT_TELEMETRY_LINKS);
   const [showRuntime, setShowRuntime] = useState(false);
-  const [runtimeInfo, setRuntimeInfo] = useState<RuntimeInfo | null>(null);
+  // One snapshot for the status, telemetry and runtime views: opening any of them asks again.
+  const [snapshot, askSnapshot] = useLauncherAnswer('status.snapshot');
+  const [launcherAbout, askLauncherAbout] = useLauncherAnswer('launcher.about');
   const [showGit, setShowGit] = useState(false);
   const [gitCheck, setGitCheck] = useState<GitCheck>({ status: 'checking' });
   const [showSecrets, setShowSecrets] = useState(false);
@@ -158,27 +200,14 @@ export function App() {
   const [theme, setTheme] = useState<Theme>('system');
 
   const refreshLauncherStatus = useCallback(() => {
-    const bridge = window.launcherBridge;
     setShowLauncherStatus(true);
-    setLauncherStatus({ status: 'loading' });
-    if (bridge === undefined) {
-      setLauncherStatus({
-        status: 'result',
-        result: { output: 'The launcher sidecar is available in the desktop app only.', exitCode: null, error: null },
-      });
-      return;
-    }
-    void bridge.status().then(
-      (result) => setLauncherStatus({ status: 'result', result }),
-      (error: unknown) => setLauncherStatus({
-        status: 'result',
-        result: {
-          output: error instanceof Error ? error.message : String(error),
-          exitCode: null,
-          error: error instanceof Error ? error.message : String(error),
-        },
-      }),
-    );
+    askSnapshot({});
+  }, [askSnapshot]);
+
+  const updateKnowledgeBase = useCallback((path: string, update: (row: KnowledgeBaseRow) => KnowledgeBaseRow) => {
+    setKnowledgeBasesState((current) => current.status === 'result'
+      ? { ...current, result: { ...current.result, roots: current.result.roots.map((row) => (row.path === path ? update(row) : row)) } }
+      : current);
   }, []);
 
   const openKnowledgeBases = useCallback(() => {
@@ -186,34 +215,29 @@ export function App() {
     setKnowledgeBasesState({ status: 'loading' });
     const bridge = window.launcherBridge;
     if (bridge === undefined) {
-      setKnowledgeBasesState({ status: 'result', result: { stateFile: '', roots: [], error: 'The launcher bridge is available in the desktop app only.' } });
+      setKnowledgeBasesState({ status: 'failed', message: 'The launcher bridge is available in the desktop app only.' });
       return;
     }
-    void bridge.roots().then(
-      (result) => {
-        const rows: KnowledgeBaseRow[] = result.roots.map((root) => ({ ...root, status: 'checking' }));
-        setKnowledgeBasesState({ status: 'result', result: { ...result, roots: rows } });
-        if (result.error !== null || rows.length === 0) return;
-        void Promise.all(rows.map(async (root) => {
-          try {
-            return { path: root.path, status: rootStatusFromLauncher(await bridge.rootStatus(root.path)) };
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            return { path: root.path, status: { status: 'unknown' as const, statusDetail: message } };
-          }
-        })).then((updates) => {
-          const byPath = new Map(updates.map((update) => [update.path, update.status]));
-          setKnowledgeBasesState((current) => current.status === 'result'
-            ? { ...current, result: { ...current.result, roots: current.result.roots.map((root) => ({ ...root, ...(byPath.get(root.path) ?? {}) })) } }
-            : current);
+    void askLauncher(bridge, 'roots.list', {}).then((outcome) => {
+      if (!outcome.ok) {
+        setKnowledgeBasesState({ status: 'failed', message: controlFailureText(outcome.error) });
+        return;
+      }
+      const rows: KnowledgeBaseRow[] = outcome.result.roots
+        .flatMap((root) => (root.placement === 'local' && root.path !== undefined
+          ? [{ ...root, path: root.path, status: root.running ? 'checking' as const : 'stopped' as const }]
+          : []))
+        .sort((left, right) => (right.lastUsed ?? '').localeCompare(left.lastUsed ?? ''));
+      const { warnings } = outcome.result;
+      setKnowledgeBasesState({ status: 'result', result: { roots: rows, ...(warnings === undefined ? {} : { warnings }) } });
+      for (const row of rows) {
+        if (row.status !== 'checking') continue;
+        void askLauncher(bridge, 'status.snapshot', { target: { kind: 'local', root: row.path } }).then((answer) => {
+          updateKnowledgeBase(row.path, (current) => ({ ...current, ...stackFacts(answer) }));
         });
-      },
-      (error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
-        setKnowledgeBasesState({ status: 'result', result: { stateFile: '', roots: [], error: message } });
-      },
-    );
-  }, []);
+      }
+    });
+  }, [updateKnowledgeBase]);
 
   const openAbout = useCallback(() => setShowAbout(true), []);
 
@@ -234,30 +258,14 @@ export function App() {
 
   const openTelemetry = useCallback(() => {
     setShowTelemetry(true);
-    const bridge = window.launcherBridge;
-    if (bridge === undefined) {
-      setTelemetryLinks(DEFAULT_TELEMETRY_LINKS);
-      return;
-    }
-    void bridge.status().then(
-      ({ output }) => setTelemetryLinks(telemetryLinksFromStatus(output)),
-      () => setTelemetryLinks(DEFAULT_TELEMETRY_LINKS),
-    );
-  }, []);
+    askSnapshot({});
+  }, [askSnapshot]);
 
   const openRuntime = useCallback(() => {
     setShowRuntime(true);
-    setRuntimeInfo(null);
-    const bridge = window.launcherBridge;
-    if (bridge === undefined) {
-      setRuntimeInfo({ active: [], detected: [], statusAvailable: false });
-      return;
-    }
-    void Promise.all([bridge.status(), bridge.about()]).then(
-      ([status, about]) => setRuntimeInfo(runtimeInfoFromLauncher(status, about)),
-      () => setRuntimeInfo({ active: [], detected: [], statusAvailable: false }),
-    );
-  }, []);
+    askSnapshot({});
+    askLauncherAbout({});
+  }, [askSnapshot, askLauncherAbout]);
 
   const openGit = useCallback(() => {
     setShowGit(true);
@@ -529,39 +537,32 @@ export function App() {
   const operateKnowledgeBase = (root: KnowledgeBaseRow, operation: 'starting' | 'stopping') => {
     const bridge = window.launcherBridge;
     if (bridge === undefined) return;
-    setKnowledgeBasesState((current) => current.status === 'result'
-      ? { ...current, result: { ...current.result, roots: current.result.roots.map((item) => {
-          if (item.path !== root.path) return item;
-          const next = { ...item, operation };
-          delete next.operationError;
-          return next;
-        }) } }
-      : current);
-    const action = operation === 'starting' ? bridge.startRoot(root.path) : bridge.stopRoot(root.path);
-    void action.then((result) => {
-      if (result.exitCode === 0) {
+    updateKnowledgeBase(root.path, (row) => {
+      const next = { ...row, operation };
+      delete next.operationError;
+      return next;
+    });
+    const target = { kind: 'local' as const, root: root.path };
+    const failure = operation === 'starting'
+      ? askLauncher(bridge, 'stack.start', { target }).then(failureTextOf)
+      : askLauncher(bridge, 'stack.stop', { target }).then(failureTextOf);
+    void failure.then((message) => {
+      if (message === null) {
         openKnowledgeBases();
         return;
       }
-      const message = result.output.trim() || result.error || `Launcher exited ${result.exitCode ?? 'without a status code'}.`;
-      setKnowledgeBasesState((current) => current.status === 'result'
-        ? { ...current, result: { ...current.result, roots: current.result.roots.map((item) => {
-            if (item.path !== root.path) return item;
-            const next = { ...item, operationError: message, status: 'attention' as const };
-            delete next.operation;
-            return next;
-          }) } }
-        : current);
+      updateKnowledgeBase(root.path, (row) => {
+        const next = { ...row, operationError: message, status: 'attention' as const };
+        delete next.operation;
+        return next;
+      });
     }, (error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
-      setKnowledgeBasesState((current) => current.status === 'result'
-        ? { ...current, result: { ...current.result, roots: current.result.roots.map((item) => {
-            if (item.path !== root.path) return item;
-            const next = { ...item, operationError: message };
-            delete next.operation;
-            return next;
-          }) } }
-        : current);
+      updateKnowledgeBase(root.path, (row) => {
+        const next = { ...row, operationError: message };
+        delete next.operation;
+        return next;
+      });
     });
   };
 
@@ -796,7 +797,7 @@ export function App() {
       )}
       {showLauncherStatus && (
         <LauncherStatusModal
-          state={launcherStatus}
+          state={snapshot}
           onRefresh={refreshLauncherStatus}
           onClose={() => setShowLauncherStatus(false)}
         />
@@ -812,8 +813,10 @@ export function App() {
           onClose={() => setShowKnowledgeBases(false)}
         />
       )}
-      {showTelemetry && <TelemetryModal links={telemetryLinks} onClose={() => setShowTelemetry(false)} />}
-      {showRuntime && <RuntimeModal info={runtimeInfo} onClose={() => setShowRuntime(false)} />}
+      {showTelemetry && <TelemetryModal state={snapshot} onClose={() => setShowTelemetry(false)} />}
+      {showRuntime && (
+        <RuntimeModal status={snapshot} about={launcherAbout} onClose={() => setShowRuntime(false)} />
+      )}
       {showGit && <GitModal check={gitCheck} onClose={() => setShowGit(false)} />}
       {showSecrets && <SecretsModal check={secretsCheck} onClose={() => setShowSecrets(false)} />}
       {showMcp && <McpModal status={mcpStatus} onStart={startMcp} onStop={stopMcp} onClose={() => setShowMcp(false)} />}

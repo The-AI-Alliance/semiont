@@ -1,13 +1,18 @@
-import { useEffect, useState } from 'react';
-import type { TelemetryLinks, TelemetryService, TelemetryServiceState } from '../lib/telemetry-links';
+import { useEffect } from 'react';
+import type { ControlServiceGroup, ControlServiceStatus } from '../../electron/control-types.gen';
+import type { ControlAnswerState } from '../lib/launcher-bridge';
+import { LauncherAnswer } from './LauncherAnswer';
 
-const services = [
-  { key: 'traces', label: 'Traces', product: 'Jaeger', description: 'Search and inspect distributed traces' },
-  { key: 'metrics', label: 'Metrics', product: 'Prometheus', description: 'Explore service metrics over time' },
-] as const;
+/** The group semiont status reports the telemetry backends in. */
+const TELEMETRY_GROUP: ControlServiceGroup = 'telemetry';
 
-export function TelemetryModal({ links, onClose }: { links: TelemetryLinks; onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
+export function TelemetryModal({
+  state,
+  onClose,
+}: {
+  state: ControlAnswerState<'status.snapshot'>;
+  onClose: () => void;
+}) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -25,83 +30,53 @@ export function TelemetryModal({ links, onClose }: { links: TelemetryLinks; onCl
             ×
           </button>
         </header>
-        <p className="telemetry-modal__hint">Local observability tools provided by the launcher.</p>
-        <ul className="telemetry-modal__services">
-          {services.map(({ key, label, product, description }) => (
-            <li key={key}>
-              <TelemetryServiceCard label={label} product={product} description={description} service={links[key]} />
-            </li>
-          ))}
-        </ul>
-        <details className="telemetry-modal__advanced">
-          <summary>Advanced diagnostics</summary>
-          <div className="telemetry-modal__collector">
-            <div>
-              <div className="telemetry-service__heading">
-                <strong>Collector readout</strong>
-                <span className={`telemetry-service__state telemetry-service__state--${links.collector.state}`}>
-                  {stateLabel(links.collector.state)}
-                </span>
-              </div>
-              <p>Raw OpenTelemetry Collector metrics. This endpoint has no dashboard.</p>
-              <code>{links.collector.url}</code>
-            </div>
-            <div className="telemetry-modal__collector-actions">
-              <a href={links.collector.url} target="_blank" rel="noreferrer">Open readout</a>
-              <button type="button" onClick={() => {
-                void navigator.clipboard?.writeText(links.collector.url).then(() => {
-                  setCopied(true);
-                  window.setTimeout(() => setCopied(false), 1600);
-                });
-              }}>{copied ? 'Copied' : 'Copy URL'}</button>
-            </div>
-          </div>
-        </details>
+        <p className="telemetry-modal__hint">The observability services the launcher runs for every knowledge base.</p>
+        <LauncherAnswer state={state}>
+          {(snapshot) => {
+            const services = snapshot.shared.filter((service) => service.group === TELEMETRY_GROUP);
+            if (services.length === 0) {
+              return <p className="launcher-answer__note">The launcher reports no telemetry services.</p>;
+            }
+            return (
+              <ul className="telemetry-modal__services">
+                {services.map((service) => (
+                  <li key={service.role}>
+                    <TelemetryServiceCard service={service} />
+                  </li>
+                ))}
+              </ul>
+            );
+          }}
+        </LauncherAnswer>
       </section>
     </div>
   );
 }
 
-function TelemetryServiceCard({
-  label,
-  product,
-  description,
-  service,
-}: {
-  label: string;
-  product: string;
-  description: string;
-  service: TelemetryService;
-}) {
+function TelemetryServiceCard({ service }: { service: ControlServiceStatus }) {
   return (
     <article className="telemetry-service">
       <div className="telemetry-service__copy">
         <div className="telemetry-service__heading">
-          <h2>{label}</h2>
-          <span className={`telemetry-service__state telemetry-service__state--${service.state}`}>
-            {stateLabel(service.state)}
+          <h2>{service.role}</h2>
+          <span className={`telemetry-service__state telemetry-service__state--${service.healthy ? 'healthy' : 'unhealthy'}`}>
+            {service.state}
           </span>
         </div>
-        <p>{product} · {description}</p>
+        <p>
+          {service.product !== undefined && <>{service.product} · </>}
+          {service.healthy ? 'Answers' : 'Does not answer'}
+        </p>
       </div>
-      {service.state === 'stopped' ? (
-        <span className="telemetry-service__open telemetry-service__open--disabled" aria-disabled="true">
-          Stopped
-        </span>
-      ) : (
-        <a className="telemetry-service__open" href={service.url} target="_blank" rel="noreferrer">
-          Open {product}
+      {service.page !== undefined ? (
+        <a className="telemetry-service__open" href={service.page} target="_blank" rel="noreferrer">
+          Open {service.role}
         </a>
+      ) : (
+        <span className="telemetry-service__open telemetry-service__open--disabled" aria-disabled="true">
+          No page to open
+        </span>
       )}
     </article>
   );
-}
-
-function stateLabel(state: TelemetryServiceState): string {
-  switch (state) {
-    case 'running': return 'Running';
-    case 'unhealthy': return 'Unhealthy';
-    case 'stopped': return 'Stopped';
-    default: return 'Unknown';
-  }
 }
