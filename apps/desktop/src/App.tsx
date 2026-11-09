@@ -974,7 +974,6 @@ export function App() {
             mcpStatus={mcpStatus}
             onOpenTheme={() => setShowTheme(true)}
             onOpenLauncherStatus={refreshLauncherStatus}
-            onOpenKnowledgeBases={(path) => openKnowledgeBases(path === undefined, path ?? null)}
             onOpenTelemetry={openTelemetry}
             onOpenRuntime={openRuntime}
             onOpenGit={openGit}

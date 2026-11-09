@@ -29,7 +29,6 @@ export interface KbNavProps {
   mcpStatus: McpProcessStatus;
   onOpenTheme: () => void;
   onOpenLauncherStatus: () => void;
-  onOpenKnowledgeBases: (path?: string) => void;
   onOpenTelemetry: () => void;
   onOpenRuntime: () => void;
   onOpenGit: () => void;
@@ -58,12 +57,12 @@ export function KbNav(props: KbNavProps) {
         )}
       </div>
 
-      <SemiontMenu onOpenAbout={props.onOpenAbout} onOpenInference={props.onOpenInference} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenTheme={props.onOpenTheme} onOpenLauncherStatus={props.onOpenLauncherStatus} onOpenKnowledgeBases={props.onOpenKnowledgeBases} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
+      <SemiontMenu onOpenAbout={props.onOpenAbout} onOpenInference={props.onOpenInference} onOpenSecrets={props.onOpenSecrets} onOpenMcp={props.onOpenMcp} mcpStatus={props.mcpStatus} onOpenTheme={props.onOpenTheme} onOpenLauncherStatus={props.onOpenLauncherStatus} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} onOpenGit={props.onOpenGit} />
     </nav>
   );
 }
 
-function SemiontMenu({ onOpenAbout, onOpenInference, onOpenSecrets, onOpenMcp, mcpStatus, onOpenTheme, onOpenLauncherStatus, onOpenKnowledgeBases, onOpenTelemetry, onOpenRuntime, onOpenGit }: Pick<KbNavProps, 'onOpenAbout' | 'onOpenInference' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenTheme' | 'onOpenLauncherStatus' | 'onOpenKnowledgeBases' | 'onOpenTelemetry' | 'onOpenRuntime' | 'onOpenGit'>) {
+function SemiontMenu({ onOpenAbout, onOpenInference, onOpenSecrets, onOpenMcp, mcpStatus, onOpenTheme, onOpenLauncherStatus, onOpenTelemetry, onOpenRuntime, onOpenGit }: Pick<KbNavProps, 'onOpenAbout' | 'onOpenInference' | 'onOpenSecrets' | 'onOpenMcp' | 'mcpStatus' | 'onOpenTheme' | 'onOpenLauncherStatus' | 'onOpenTelemetry' | 'onOpenRuntime' | 'onOpenGit'>) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -115,7 +114,6 @@ function SemiontMenu({ onOpenAbout, onOpenInference, onOpenSecrets, onOpenMcp, m
               <button type="button" onClick={() => choose(onOpenTelemetry)}><TelemetryIcon /><span>Telemetry</span></button>
               <button type="button" onClick={() => choose(onOpenRuntime)}><ContainerIcon /><span>Container runtime</span></button>
               <button type="button" onClick={() => choose(onOpenGit)}><GitIcon /><span>Git</span></button>
-              <button type="button" onClick={() => choose(onOpenKnowledgeBases)}><KnowledgeBasesIcon /><span>Knowledge Bases</span></button>
               <button type="button" onClick={() => choose(onOpenLauncherStatus)}><StatusIcon /><span>Status</span></button>
             </nav>
           </aside>
@@ -443,10 +441,6 @@ function StatusIcon() {
       <path d="M4 12h4l2-4 4 8 2-4h4" />
     </svg>
   );
-}
-
-function KnowledgeBasesIcon() {
-  return <svg width="18" height="18" viewBox="0 0 20 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M1 3.5A2.5 2.5 0 0 1 3.5 1H8l2 2h6.5A2.5 2.5 0 0 1 19 5.5v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 1 12.5v-9Z" /></svg>;
 }
 
 function Chevron({ open }: { open: boolean }) {
