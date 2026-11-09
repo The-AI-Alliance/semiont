@@ -96,11 +96,11 @@ export function ResourceComposeModal({
             onSaveResource={saveResource}
             onCancel={onClose}
             {...(storageRoot === null ? {} : {
-              onChooseStorageLocation: (suggestedPath) => {
+              onChooseStorageDirectory: (suggestedDirectory) => {
                 const bridge = window.launcherBridge;
                 return bridge === undefined
-                  ? Promise.reject(new Error('The native save dialog is available in Semiont Desktop only.'))
-                  : bridge.chooseResourceLocation(storageRoot, suggestedPath);
+                  ? Promise.reject(new Error('The native folder dialog is available in Semiont Desktop only.'))
+                  : bridge.chooseResourceDirectory(storageRoot, suggestedDirectory);
               },
             })}
             uploadProgress={uploadProgress}
@@ -108,7 +108,7 @@ export function ResourceComposeModal({
               title: 'New Resource',
               titleEditClone: 'Clone Resource',
               subtitleClone: 'Create a copy of this resource.',
-              resourceName: 'Name',
+              resourceName: 'Resource name',
               resourceNamePlaceholder: 'Enter resource name…',
               entityTypes: 'Entity Type Tags',
               language: 'Language',
@@ -131,7 +131,8 @@ export function ResourceComposeModal({
               creating: 'Creating…',
               saveClonedResource: 'Save Cloned Resource',
               createResource: 'Create Resource',
-              chooseLocation: 'Choose…',
+              chooseFolder: 'Choose folder…',
+              locationHint: 'The resource name determines the filename. Choose a folder within this Knowledge Base.',
             }}
             ToolbarPanels={NoToolbarPanels}
             Toolbar={NoToolbar}

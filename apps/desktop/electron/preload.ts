@@ -94,8 +94,8 @@ const launcherBridge: LauncherBridge = {
   },
   cancelControl: (handle, reason) => ipcRenderer.send('control:cancel', handle, reason),
   chooseDirectory: () => ipcRenderer.invoke('dialog:choose-directory'),
-  chooseResourceLocation: (rootPath, suggestedPath) =>
-    ipcRenderer.invoke('dialog:choose-resource-location', rootPath, suggestedPath),
+  chooseResourceDirectory: (rootPath, suggestedDirectory) =>
+    ipcRenderer.invoke('dialog:choose-resource-directory', rootPath, suggestedDirectory),
   gitPath: () => ipcRenderer.invoke('system:git-path'),
   opPath: () => ipcRenderer.invoke('system:op-path'),
   ollamaInfo: () => ipcRenderer.invoke('system:ollama-info'),

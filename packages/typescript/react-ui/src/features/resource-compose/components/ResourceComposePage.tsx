@@ -61,8 +61,8 @@ export interface ResourceComposePageProps {
   // Actions
   onSaveResource: (params: SaveResourceParams) => Promise<void>;
   onCancel: () => void;
-  /** Native shells may offer a save-location picker and return a path relative to the KB root. */
-  onChooseStorageLocation?: (suggestedPath: string) => Promise<string | null>;
+  /** Native shells may offer a folder picker and return a directory relative to the KB root. */
+  onChooseStorageDirectory?: (suggestedDirectory: string) => Promise<string | null>;
 
   /**
    * Live upload-progress for the in-flight save. Resolved by the route
@@ -100,7 +100,8 @@ export interface ResourceComposePageProps {
     creating: string;
     saveClonedResource: string;
     createResource: string;
-    chooseLocation?: string;
+    chooseFolder?: string;
+    locationHint?: string;
   };
 
   // Component dependencies
@@ -131,7 +132,7 @@ export function ResourceComposePage({
   activePanel,
   onSaveResource,
   onCancel,
-  onChooseStorageLocation,
+  onChooseStorageDirectory,
   uploadProgress = null,
   translations: t,
   ToolbarPanels,
@@ -170,7 +171,8 @@ export function ResourceComposePage({
 
   // Working-tree path (bare, no protocol prefix) — converted to file:// URI on submit
   const [storagePath, setStoragePath] = useState('');
-  const [choosingStorageLocation, setChoosingStorageLocation] = useState(false);
+  const [storageDirectory, setStorageDirectory] = useState<string | null>(null);
+  const [choosingStorageDirectory, setChoosingStorageDirectory] = useState(false);
   const [storageLocationError, setStorageLocationError] = useState<string | null>(null);
 
   // Archive original checkbox (for clones only)
@@ -182,13 +184,17 @@ export function ResourceComposePage({
   const composeFormat: SupportedMediaType =
     isSupportedMediaType(selectedFormat) ? selectedFormat : 'text/markdown';
   const pathTouched = storagePath !== '';
-  const effectivePath = pathTouched
+  const proposedPath = pathTouched
     ? storagePath
     : proposeStoragePath(
         mode === 'clone' && cloneData ? folderOf(getStorageUri(cloneData.sourceResource)) : '',
         newResourceName,
         composeFormat,
       );
+  const proposedFilename = proposedPath.split('/').filter(Boolean).at(-1) ?? '';
+  const effectivePath = onChooseStorageDirectory && storageDirectory !== null
+    ? [storageDirectory, proposedFilename].filter(Boolean).join('/')
+    : proposedPath;
 
   // Initialize form data based on mode
   useEffect(() => {
@@ -288,17 +294,19 @@ export function ResourceComposePage({
     }
   };
 
-  const chooseStorageLocation = async () => {
-    if (!onChooseStorageLocation) return;
-    setChoosingStorageLocation(true);
+  const chooseStorageDirectory = async () => {
+    if (!onChooseStorageDirectory) return;
+    setChoosingStorageDirectory(true);
     setStorageLocationError(null);
     try {
-      const chosen = await onChooseStorageLocation(effectivePath);
-      if (chosen !== null) setStoragePath(chosen);
+      const pathParts = effectivePath.split('/');
+      pathParts.pop();
+      const chosen = await onChooseStorageDirectory(pathParts.join('/'));
+      if (chosen !== null) setStorageDirectory(chosen);
     } catch (error) {
       setStorageLocationError(error instanceof Error ? error.message : String(error));
     } finally {
-      setChoosingStorageLocation(false);
+      setChoosingStorageDirectory(false);
     }
   };
 
@@ -344,19 +352,19 @@ export function ResourceComposePage({
 
           {/* Storage URI */}
           <div className="semiont-form__field">
-            {onChooseStorageLocation
-              ? <div className="semiont-form__label">Save location</div>
+            {onChooseStorageDirectory
+              ? <div className="semiont-form__label">Location in Knowledge Base</div>
               : <label htmlFor="storagePath" className="semiont-form__label">Save location</label>}
-            {onChooseStorageLocation ? (
+            {onChooseStorageDirectory ? (
               <div className="semiont-form__location-picker">
                 <code id="storagePath" title={effectivePath}>file://{effectivePath}</code>
                 <button
                   type="button"
                   className="semiont-form__location-button"
-                  onClick={() => void chooseStorageLocation()}
-                  disabled={isCreating || choosingStorageLocation}
+                  onClick={() => void chooseStorageDirectory()}
+                  disabled={isCreating || choosingStorageDirectory}
                 >
-                  {choosingStorageLocation ? 'Choosing…' : (t.chooseLocation ?? 'Choose…')}
+                  {choosingStorageDirectory ? 'Choosing…' : (t.chooseFolder ?? 'Choose folder…')}
                 </button>
               </div>
             ) : (
@@ -373,6 +381,11 @@ export function ResourceComposePage({
                   disabled={isCreating}
                 />
               </div>
+            )}
+            {onChooseStorageDirectory && (
+              <p className="semiont-form__location-hint">
+                {t.locationHint ?? 'The resource name determines the filename. Choose a folder within this Knowledge Base.'}
+              </p>
             )}
             {storageLocationError && <p className="semiont-form__location-error" role="alert">{storageLocationError}</p>}
           </div>

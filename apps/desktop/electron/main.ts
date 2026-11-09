@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell, type MenuItem
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { constants, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, statSync } from 'node:fs';
 import { access } from 'node:fs/promises';
-import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parseAppManifest } from '../src/lib/app-manifest';
 import type { McpProcessStatus } from '../src/lib/launcher-bridge';
 import type { OllamaInfo, OllamaModelInfo } from '../src/lib/ollama-info';
@@ -60,9 +60,9 @@ ipcMain.handle('dialog:choose-directory', async () => {
   return result.canceled ? null : result.filePaths[0] ?? null;
 });
 
-ipcMain.handle('dialog:choose-resource-location', async (event, rootValue: unknown, suggestedValue: unknown) => {
+ipcMain.handle('dialog:choose-resource-directory', async (event, rootValue: unknown, suggestedValue: unknown) => {
   if (typeof rootValue !== 'string' || rootValue.length === 0 || typeof suggestedValue !== 'string') {
-    throw new Error('Choose resource location needs a KB root and suggested relative path.');
+    throw new Error('Choose resource directory needs a KB root and suggested relative directory.');
   }
   const root = resolve(rootValue);
   if (!existsSync(root) || !statSync(root).isDirectory()) throw new Error('The Knowledge Base folder is unavailable.');
@@ -71,24 +71,27 @@ ipcMain.handle('dialog:choose-resource-location', async (event, rootValue: unkno
   const candidate = resolve(root, suggested);
   const candidateRelative = relative(root, candidate);
   let defaultPath = candidateRelative === '..' || candidateRelative.startsWith(`..${sep}`) || isAbsolute(candidateRelative)
-    ? join(root, 'new-resource.md')
+    ? root
     : candidate;
-  if (!existsSync(dirname(defaultPath))) defaultPath = join(root, basename(defaultPath));
-  const options = {
-    title: 'Choose Resource Location',
-    buttonLabel: 'Choose Location',
+  if (!existsSync(defaultPath) || !statSync(defaultPath).isDirectory()) defaultPath = root;
+  const options: Electron.OpenDialogOptions = {
+    title: 'Choose a Folder in This Knowledge Base',
+    buttonLabel: 'Choose Folder',
     defaultPath,
+    properties: ['openDirectory', 'createDirectory'],
   };
   const owner = BrowserWindow.fromWebContents(event.sender);
   const result = owner === null
-    ? await dialog.showSaveDialog(options)
-    : await dialog.showSaveDialog(owner, options);
-  if (result.canceled || result.filePath === undefined) return null;
+    ? await dialog.showOpenDialog(options)
+    : await dialog.showOpenDialog(owner, options);
+  if (result.canceled) return null;
+  const selectedPath = result.filePaths[0];
+  if (selectedPath === undefined) return null;
 
-  const chosen = resolve(result.filePath);
+  const chosen = resolve(selectedPath);
   const chosenRelative = relative(root, chosen);
-  if (chosenRelative === '' || chosenRelative === '..' || chosenRelative.startsWith(`..${sep}`) || isAbsolute(chosenRelative)) {
-    throw new Error('Choose a location inside this Knowledge Base folder.');
+  if (chosenRelative === '..' || chosenRelative.startsWith(`..${sep}`) || isAbsolute(chosenRelative)) {
+    throw new Error('Choose a folder inside this Knowledge Base.');
   }
   return chosenRelative.split(sep).join('/');
 });

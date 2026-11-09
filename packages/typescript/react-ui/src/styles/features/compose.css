@@ -70,6 +70,16 @@
   color: var(--semiont-color-red-400);
 }
 
+.semiont-form__location-hint {
+  margin: 0.35rem 0 0;
+  color: var(--semiont-color-gray-600);
+  font-size: 0.8rem;
+}
+
+[data-theme="dark"] .semiont-form__location-hint {
+  color: var(--semiont-color-gray-400);
+}
+
 /* Two-column compose grid: metadata left, content right on wide screens */
 .semiont-compose-grid {
   display: grid;
