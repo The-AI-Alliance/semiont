@@ -20,6 +20,14 @@
       "docs": "Every knowledge base this machine knows: semiont roots."
     },
     {
+      "name": "roots.init",
+      "params": "./RootsInitParams.json",
+      "result": "./RootsInitResult.json",
+      "exclusive": true,
+      "sends": ["notifications/progress"],
+      "docs": "Create and register a new local knowledge base: semiont init."
+    },
+    {
       "name": "roots.forget",
       "params": "./RootsForgetParams.json",
       "result": "./RootsForgetResult.json",

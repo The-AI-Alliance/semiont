@@ -29,7 +29,7 @@ import { ThemePanel } from './components/ThemePanel';
 import { AboutModal } from './components/AboutModal';
 import { InferenceModal } from './components/InferenceModal';
 import { LauncherStatusModal } from './components/LauncherStatusModal';
-import { KnowledgeBasesModal, type KnowledgeBaseRow, type KnowledgeBasesState } from './components/KnowledgeBasesModal';
+import { KnowledgeBasesModal, type KnowledgeBaseRow, type KnowledgeBasesState, type NewKnowledgeBaseOptions } from './components/KnowledgeBasesModal';
 import { KnowledgeBaseLogsModal } from './components/KnowledgeBaseLogsModal';
 import { TelemetryModal } from './components/TelemetryModal';
 import { RuntimeModal } from './components/RuntimeModal';
@@ -247,6 +247,18 @@ export function App() {
       }
     });
   }, [updateKnowledgeBase]);
+
+  const createKnowledgeBase = useCallback(async (
+    options: NewKnowledgeBaseOptions,
+    onProgress: (progress: ControlProgress) => void,
+  ) => {
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) throw new Error('The launcher bridge is available in the desktop app only.');
+    const outcome = await askLauncher(bridge, 'roots.init', options, (notice) => {
+      if (notice.method === 'notifications/progress') onProgress(notice.params);
+    });
+    if (!outcome.ok) throw new Error(controlFailureText(outcome.error));
+  }, []);
 
   const openAbout = useCallback(() => setShowAbout(true), []);
 
@@ -894,6 +906,7 @@ export function App() {
           onLogout={logoutKnowledgeBase}
           onForget={forgetKnowledgeBase}
           onFollowLogs={setLogsRoot}
+          onCreate={createKnowledgeBase}
           onClose={() => {
             if (logsRoot === null) setShowKnowledgeBases(false);
           }}

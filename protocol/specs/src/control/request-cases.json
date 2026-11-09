@@ -71,6 +71,11 @@
       "answer": {"id": 6, "error": {"code": -32602, "data": {"code": "control.unsupported-api-version", "retryable": false, "supported": ["control.semiont.the-ai-alliance.github.io/v1alpha1"]}}}
     },
     {
+      "name": "roots.init requires a destination directory",
+      "line": "{\"jsonrpc\":\"2.0\",\"id\":15,\"method\":\"roots.init\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\",\"domain\":\"owner.github.io:repo\"}}",
+      "answer": {"id": 15, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": ["/path"]}}}
+    },
+    {
       "name": "a member a method's params do not take is refused, naming it",
       "line": "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"status.snapshot\",\"params\":{\"apiVersion\":\"control.semiont.the-ai-alliance.github.io/v1alpha1\",\"verbose\":true}}",
       "answer": {"id": 7, "error": {"code": -32602, "data": {"code": "control.invalid-params", "retryable": false, "fields": ["/verbose"]}}}

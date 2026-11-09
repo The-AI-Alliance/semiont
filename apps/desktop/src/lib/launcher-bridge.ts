@@ -97,6 +97,7 @@ export interface LauncherBridge {
   /** Give up on a request: the launcher answers it with control.cancelled, unless it has
    *  answered it already. */
   cancelControl(handle: ControlHandle, reason: string): void;
+  chooseDirectory(): Promise<string | null>;
   gitPath(): Promise<string | null>;
   opPath(): Promise<string | null>;
   ollamaInfo(): Promise<OllamaInfo>;

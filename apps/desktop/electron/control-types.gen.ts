@@ -99,6 +99,41 @@ export interface ControlRoot {
   reachable?: boolean;
 }
 
+/** roots.init's params: the local directory, permanent identity, and optional configuration inputs semiont init takes. */
+export interface ControlRootsInitParams {
+  /** The group and version of the control API. Every request's params state it; a launcher refuses a version it does not speak with control.unsupported-api-version, and names the ones it does. */
+  apiVersion: ControlApiVersion;
+  /** Existing local directory in which to create the knowledge base. */
+  path: string;
+  /** The permanent did:web domain, in colon-path form, such as owner.github.io:repo. */
+  domain: string;
+  /** Project name. Absent: the directory basename. */
+  name?: string;
+  /** Human-readable site name. Absent: the project name. */
+  siteName?: string;
+  /** Inference provider for the generated local stack documents. */
+  inference?: "anthropic" | "ollama";
+  /** The primary model bound to roles and jobs. */
+  model?: string;
+  /** A light model example emitted in the generated config. */
+  modelLight?: string;
+  /** Ollama embedding model name, without the ollama: prefix. */
+  embedding?: string;
+  /** Inference document name. Absent: the provider name. */
+  configName?: string;
+  /** Anthropic API base URL. */
+  anthropicEndpoint?: string;
+  /** Local Ollama API base URL. */
+  ollamaBase?: string;
+  /** Ollama registry base URL. */
+  ollamaRegistry?: string;
+}
+
+/** The local directory where semiont init created and registered the knowledge base. */
+export interface ControlRootsInitResult {
+  path: string;
+}
+
 /** roots.forget's params. */
 export interface ControlRootsForgetParams {
   /** The version of the control API the request is written to. */
@@ -523,6 +558,7 @@ export interface ControlFieldFault {
 export interface ControlMethods {
   "launcher.about": { params: ControlAboutParams; result: ControlAboutResult };
   "roots.list": { params: ControlRootsListParams; result: ControlRootsListResult };
+  "roots.init": { params: ControlRootsInitParams; result: ControlRootsInitResult };
   "roots.forget": { params: ControlRootsForgetParams; result: ControlRootsForgetResult };
   "status.snapshot": { params: ControlStatusSnapshotParams; result: ControlStatusSnapshotResult };
   "stack.start": { params: ControlStackStartParams; result: ControlStackStartResult };
@@ -580,6 +616,7 @@ export type ControlErrorCode =
 export const CONTROL_METHOD_SCHEMAS: { readonly [M in ControlMethod]: { readonly params: string; readonly result: string } } = {
   "launcher.about": { params: "protocol/specs/src/control/AboutParams.json", result: "protocol/specs/src/control/AboutResult.json" },
   "roots.list": { params: "protocol/specs/src/control/RootsListParams.json", result: "protocol/specs/src/control/RootsListResult.json" },
+  "roots.init": { params: "protocol/specs/src/control/RootsInitParams.json", result: "protocol/specs/src/control/RootsInitResult.json" },
   "roots.forget": { params: "protocol/specs/src/control/RootsForgetParams.json", result: "protocol/specs/src/control/RootsForgetResult.json" },
   "status.snapshot": { params: "protocol/specs/src/control/StatusSnapshotParams.json", result: "protocol/specs/src/control/StatusSnapshotResult.json" },
   "stack.start": { params: "protocol/specs/src/control/StackStartParams.json", result: "protocol/specs/src/control/StackStartResult.json" },
@@ -625,6 +662,8 @@ export const CONTROL_SCHEMAS: { readonly [path: string]: object } = {
   "protocol/specs/src/control/Root.json": {"title":"Root","type":"object","description":"One knowledge base this machine knows: a registered or running local clone, or a codespace stack recorded here. Registration, the directory, the stack and the forward are separate facts, each stated as it is.","properties":{"placement":{"$ref":"../discovery/DiscoveredKB.json#/properties/placement"},"path":{"type":"string","description":"For a local root: the clone's path."},"present":{"type":"boolean","description":"For a local root: whether the directory exists. A registered root whose directory is gone is kept, and says so."},"current":{"type":"string","description":"For a local root: how the control server's own directory selects it, when it does — standing in it (cwd), or SEMIONT_ROOT.","enum":["cwd","semiont-root"]},"registered":{"type":"boolean","description":"Whether the registry (roots.json) records it."},"running":{"type":"boolean","description":"Whether a stack of it is recorded on this machine."},"lastUsed":{"type":"string","description":"When a command last used it, in RFC 3339, as the registry records it."},"did":{"$ref":"../discovery/DiscoveredKB.json#/properties/did"},"siteName":{"$ref":"../discovery/DiscoveredKB.json#/properties/siteName"},"identityError":{"type":"string","description":"Why its identity could not be read from its clone, when it could not."},"config":{"type":"string","description":"The Inference document a start of it runs, as the registry records it."},"configs":{"type":"array","items":{"type":"string"},"description":"For a present local root: the Inference documents its clone has, as start --config names them."},"repo":{"$ref":"../discovery/DiscoveredKB.json#/properties/repo"},"codespace":{"type":"string","description":"For a codespace root: the codespace's name."},"codespaceState":{"type":"string","description":"For a codespace root: GitHub's word for the codespace's state (Available, Shutdown), when gh answered."},"forwardPort":{"type":"integer","description":"For a codespace root: the port on this machine its knowledge base is forwarded to, when one is recorded."},"forwarded":{"type":"boolean","description":"For a codespace root: whether the recorded forward is alive."},"reachable":{"type":"boolean","description":"For a codespace root: whether its knowledge base answers through the forward."}},"required":["placement","registered","running"],"additionalProperties":false},
   "protocol/specs/src/control/RootsForgetParams.json": {"title":"RootsForgetParams","type":"object","description":"roots.forget's params.","properties":{"apiVersion":{"$ref":"./ApiVersion.json","description":"The version of the control API the request is written to."},"root":{"type":"string","description":"The registered root to forget: its path, or its basename when only one registered root has it.","minLength":1}},"required":["apiVersion","root"],"additionalProperties":false},
   "protocol/specs/src/control/RootsForgetResult.json": {"title":"RootsForgetResult","type":"object","description":"A forgotten registry row. Only the row is removed: no file of the clone, and none of its persistent stack state.","properties":{"path":{"type":"string","description":"The forgotten root's path."},"directoryMissing":{"type":"boolean","description":"Whether its directory was already gone."},"persistentState":{"type":"string","description":"The key whose persistent stack state remains, when some does and no surviving root shares its DID: semiont clean --root <key> removes it."}},"required":["path","directoryMissing"],"additionalProperties":false},
+  "protocol/specs/src/control/RootsInitParams.json": {"title":"RootsInitParams","type":"object","description":"roots.init's params: the local directory, permanent identity, and optional configuration inputs semiont init takes.","properties":{"apiVersion":{"$ref":"./ApiVersion.json"},"path":{"type":"string","description":"Existing local directory in which to create the knowledge base.","minLength":1},"domain":{"type":"string","description":"The permanent did:web domain, in colon-path form, such as owner.github.io:repo.","minLength":1},"name":{"type":"string","description":"Project name. Absent: the directory basename.","minLength":1},"siteName":{"type":"string","description":"Human-readable site name. Absent: the project name.","minLength":1},"inference":{"type":"string","description":"Inference provider for the generated local stack documents.","enum":["anthropic","ollama"]},"model":{"type":"string","description":"The primary model bound to roles and jobs.","minLength":1},"modelLight":{"type":"string","description":"A light model example emitted in the generated config.","minLength":1},"embedding":{"type":"string","description":"Ollama embedding model name, without the ollama: prefix.","minLength":1},"configName":{"type":"string","description":"Inference document name. Absent: the provider name.","minLength":1},"anthropicEndpoint":{"type":"string","description":"Anthropic API base URL.","minLength":1},"ollamaBase":{"type":"string","description":"Local Ollama API base URL.","minLength":1},"ollamaRegistry":{"type":"string","description":"Ollama registry base URL.","minLength":1}},"required":["apiVersion","path","domain"],"additionalProperties":false},
+  "protocol/specs/src/control/RootsInitResult.json": {"title":"RootsInitResult","type":"object","description":"The local directory where semiont init created and registered the knowledge base.","properties":{"path":{"type":"string","minLength":1}},"required":["path"],"additionalProperties":false},
   "protocol/specs/src/control/RootsListParams.json": {"title":"RootsListParams","type":"object","description":"roots.list's params.","properties":{"apiVersion":{"$ref":"./ApiVersion.json","description":"The version of the control API the request is written to."}},"required":["apiVersion"],"additionalProperties":false},
   "protocol/specs/src/control/RootsListResult.json": {"title":"RootsListResult","type":"object","description":"Every knowledge base this machine knows, as semiont roots lists them: the local roots first, then the codespace stacks.","properties":{"roots":{"type":"array","items":{"$ref":"./Root.json"},"description":"Each root."},"warnings":{"type":"array","items":{"type":"string"},"description":"What semiont roots warns of without failing: an invalid SEMIONT_ROOT, a clone whose project file is refused."}},"required":["roots"],"additionalProperties":false},
   "protocol/specs/src/control/Runtime.json": {"title":"Runtime","type":"string","enum":["container","docker","podman"],"description":"A container runtime the launcher drives, as --runtime names it: Apple container, Docker or Podman."},

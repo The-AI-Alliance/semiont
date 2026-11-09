@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { ControlProgress, ControlRoot, ControlServiceStatus } from '../../electron/control-types.gen';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import type { ControlProgress, ControlRoot, ControlRootsInitParams, ControlServiceStatus } from '../../electron/control-types.gen';
 
 export type KnowledgeBaseRuntimeStatus = 'checking' | 'starting' | 'running' | 'stopped' | 'attention' | 'unknown';
 
@@ -24,6 +24,8 @@ export type KnowledgeBasesState =
   | { status: 'failed'; message: string }
   | { status: 'result'; result: { roots: KnowledgeBaseRow[]; warnings?: string[] } };
 
+export type NewKnowledgeBaseOptions = Omit<ControlRootsInitParams, 'apiVersion'>;
+
 export function KnowledgeBasesModal({
   state,
   onRefresh,
@@ -33,6 +35,7 @@ export function KnowledgeBasesModal({
   onLogout,
   onForget,
   onFollowLogs,
+  onCreate,
   onClose,
 }: {
   state: KnowledgeBasesState;
@@ -43,18 +46,23 @@ export function KnowledgeBasesModal({
   onLogout: (root: KnowledgeBaseRow) => void;
   onForget: (root: KnowledgeBaseRow) => void;
   onFollowLogs: (root: KnowledgeBaseRow) => void;
+  onCreate: (options: NewKnowledgeBaseOptions, onProgress: (progress: ControlProgress) => void) => Promise<void>;
   onClose: () => void;
 }) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [filterText, setFilterText] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        if (showCreate) setShowCreate(false);
+        else onClose();
+      }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+  }, [onClose, showCreate]);
 
   const roots = state.status === 'result' ? state.result.roots : [];
   const normalizedFilter = filterText.trim().toLocaleLowerCase();
@@ -150,8 +158,140 @@ export function KnowledgeBasesModal({
           </>
         )}
         <footer className="knowledge-bases__footer">
+          <button type="button" className="kb__connect" onClick={() => setShowCreate(true)}>New</button>
           <button type="button" className="kb__connect" onClick={onRefresh}>Refresh</button>
         </footer>
+      </section>
+      {showCreate && (
+        <NewKnowledgeBaseModal
+          onCreate={onCreate}
+          onClose={() => setShowCreate(false)}
+          onCreated={() => {
+            setShowCreate(false);
+            setFilterText('');
+            onRefresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function NewKnowledgeBaseModal({ onCreate, onClose, onCreated }: {
+  onCreate: (options: NewKnowledgeBaseOptions, onProgress: (progress: ControlProgress) => void) => Promise<void>;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [path, setPath] = useState('');
+  const [name, setName] = useState('');
+  const [siteName, setSiteName] = useState('');
+  const [domain, setDomain] = useState('');
+  const [inference, setInference] = useState<'ollama' | 'anthropic'>('ollama');
+  const [model, setModel] = useState('');
+  const [embedding, setEmbedding] = useState('nomic-embed-text');
+  const [modelLight, setModelLight] = useState('');
+  const [configName, setConfigName] = useState('');
+  const [anthropicEndpoint, setAnthropicEndpoint] = useState('');
+  const [ollamaBase, setOllamaBase] = useState('');
+  const [ollamaRegistry, setOllamaRegistry] = useState('');
+  const [progress, setProgress] = useState<ControlProgress[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const chooseDirectory = async () => {
+    try {
+      const chosen = await window.launcherBridge?.chooseDirectory();
+      if (chosen !== null && chosen !== undefined) setPath(chosen);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
+
+  const create = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setCreating(true);
+    setError(null);
+    setProgress([]);
+    const options: NewKnowledgeBaseOptions = {
+      path: path.trim(),
+      domain: domain.trim(),
+      inference,
+      ...(name.trim() === '' ? {} : { name: name.trim() }),
+      ...(siteName.trim() === '' ? {} : { siteName: siteName.trim() }),
+      ...(model.trim() === '' ? {} : { model: model.trim() }),
+      ...(embedding.trim() === '' ? {} : { embedding: embedding.trim() }),
+      ...(modelLight.trim() === '' ? {} : { modelLight: modelLight.trim() }),
+      ...(configName.trim() === '' ? {} : { configName: configName.trim() }),
+      ...(anthropicEndpoint.trim() === '' ? {} : { anthropicEndpoint: anthropicEndpoint.trim() }),
+      ...(ollamaBase.trim() === '' ? {} : { ollamaBase: ollamaBase.trim() }),
+      ...(ollamaRegistry.trim() === '' ? {} : { ollamaRegistry: ollamaRegistry.trim() }),
+    };
+    try {
+      await onCreate(options, (notice) => setProgress((current) => [...current, notice].slice(-80)));
+      onCreated();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div
+      className="modal modal--nested"
+      onClick={(event) => { event.stopPropagation(); if (!creating) onClose(); }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!creating) onClose();
+        }
+      }}
+    >
+      <section className="config config--modal knowledge-bases__create" role="dialog" aria-modal="true" aria-labelledby="new-kb-title" onClick={(event) => event.stopPropagation()}>
+        <header className="config__head">
+          <h1 id="new-kb-title">New Knowledge Base</h1>
+          <button type="button" className="config__close" disabled={creating} onClick={onClose} aria-label="Close New Knowledge Base">×</button>
+        </header>
+        <p className="knowledge-bases__intro">Create an empty local KB. It will add Semiont configuration files and initialize Git in the selected folder.</p>
+        <form className="knowledge-bases__create-form" onSubmit={(event) => void create(event)}>
+          <label className="knowledge-bases__field knowledge-bases__field--path">
+            <span>Folder</span>
+            <div>
+              <input required value={path} onChange={(event) => setPath(event.target.value)} placeholder="Choose an existing empty folder" />
+              <button type="button" className="kb__connect" disabled={creating} onClick={() => void chooseDirectory()}>Browse…</button>
+            </div>
+          </label>
+          <div className="knowledge-bases__field-grid">
+            <label className="knowledge-bases__field"><span>Project name</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Defaults to folder name" /></label>
+            <label className="knowledge-bases__field"><span>Site name</span><input value={siteName} onChange={(event) => setSiteName(event.target.value)} placeholder="Defaults to project name" /></label>
+          </div>
+          <label className="knowledge-bases__field">
+            <span>Permanent did:web domain</span>
+            <input required value={domain} onChange={(event) => setDomain(event.target.value)} placeholder="owner.github.io:repository" />
+            <small>This identity is written into the KB and should not change later.</small>
+          </label>
+          <div className="knowledge-bases__field-grid">
+          <label className="knowledge-bases__field"><span>Inference provider</span><select value={inference} onChange={(event) => setInference(event.target.value as 'ollama' | 'anthropic')}><option value="ollama">Ollama</option><option value="anthropic">Anthropic</option></select><small>Anthropic credentials come from the launcher’s configured secret source.</small></label>
+            <label className="knowledge-bases__field"><span>Primary model</span><input value={model} onChange={(event) => setModel(event.target.value)} placeholder={inference === 'ollama' ? 'Defaults to gemma3:270m' : 'Defaults to recommended Anthropic model'} /></label>
+          </div>
+          <label className="knowledge-bases__field"><span>Embedding model (Ollama)</span><input value={embedding} onChange={(event) => setEmbedding(event.target.value)} placeholder="nomic-embed-text" /></label>
+          <details className="knowledge-bases__advanced">
+            <summary>More configuration</summary>
+            <div className="knowledge-bases__create-advanced">
+              <label className="knowledge-bases__field"><span>Light model example</span><input value={modelLight} onChange={(event) => setModelLight(event.target.value)} placeholder="Optional" /></label>
+              <label className="knowledge-bases__field"><span>Inference config name</span><input value={configName} onChange={(event) => setConfigName(event.target.value)} placeholder="Defaults to provider" /></label>
+              <label className="knowledge-bases__field"><span>Anthropic endpoint</span><input value={anthropicEndpoint} onChange={(event) => setAnthropicEndpoint(event.target.value)} placeholder="https://api.anthropic.com" /></label>
+              <label className="knowledge-bases__field"><span>Ollama endpoint</span><input value={ollamaBase} onChange={(event) => setOllamaBase(event.target.value)} placeholder="http://localhost:11434" /></label>
+              <label className="knowledge-bases__field"><span>Ollama registry</span><input value={ollamaRegistry} onChange={(event) => setOllamaRegistry(event.target.value)} placeholder="https://registry.ollama.ai" /></label>
+            </div>
+          </details>
+          {progress.length > 0 && <ol className="knowledge-bases__create-progress" aria-label="Creation progress" aria-live="polite">{progress.map((line, index) => <li key={`${line.requestId}-${index}`}>{line.text}</li>)}</ol>}
+          {error !== null && <p className="knowledge-bases__action-error">{error}</p>}
+          <footer className="knowledge-bases__create-footer">
+            <button type="button" className="kb__connect" disabled={creating} onClick={onClose}>Cancel</button>
+            <button type="submit" className="kb__connect" disabled={creating}>{creating ? 'Creating…' : 'Create Knowledge Base'}</button>
+          </footer>
+        </form>
       </section>
     </div>
   );

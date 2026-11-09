@@ -238,8 +238,11 @@ exist.
   line a request is turned into. A new option fails the census until the
   table says what it is.
   *Held by `packages/go/launcher/control_census_test.go`.*
-- **L2.** `semiont init` has no method: making a knowledge base is the
-  command line's.
+- **L2.** `roots.init` creates and registers a new local knowledge base by
+  running `semiont init` with explicit params and `--yes`. Its caller states
+  the destination directory and permanent did:web domain. The method never
+  overwrites an existing KB and does not expose template copying, `--force`,
+  or `--no-git`.
   *Held by `protocol/specs/src/control/cli.json`.*
 - **L3.** The API reports what the command reports. It differs from the
   command line in two places, both so that a client is never left to guess:

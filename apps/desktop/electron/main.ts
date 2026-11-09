@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, screen, shell, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell, type MenuItemConstructorOptions } from 'electron';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { constants, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
 import { access } from 'node:fs/promises';
@@ -54,6 +54,11 @@ const control = new ControlClient(
   (line) => appendLog(`${new Date().toISOString()} [launcher] ${line}`),
 );
 registerControlHandlers(control);
+
+ipcMain.handle('dialog:choose-directory', async () => {
+  const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
+  return result.canceled ? null : result.filePaths[0] ?? null;
+});
 
 // Quitting waits for the launcher's control child to answer what it was asked and exit (at
 // most SHUTDOWN_GRACE_MS), then quits for real.

@@ -93,6 +93,7 @@ const launcherBridge: LauncherBridge = {
     );
   },
   cancelControl: (handle, reason) => ipcRenderer.send('control:cancel', handle, reason),
+  chooseDirectory: () => ipcRenderer.invoke('dialog:choose-directory'),
   gitPath: () => ipcRenderer.invoke('system:git-path'),
   opPath: () => ipcRenderer.invoke('system:op-path'),
   ollamaInfo: () => ipcRenderer.invoke('system:ollama-info'),
