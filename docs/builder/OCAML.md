@@ -1,6 +1,6 @@
 # Build with the OCaml SDK
 
-Start with the [OCaml SDK README](../../packages/ocaml/README.md) to build and install the library. The examples use `Semiont.Client` from an Eio application.
+Start with the [OCaml SDK README](../../packages/ocaml/sdk/README.md) to build and install the library. The examples use `Semiont.Client` from an Eio application.
 
 ## Connect and manage lifetimes
 
