@@ -1457,25 +1457,51 @@ button:disabled {
   line-height: 1;
 }
 
-/* Semiont menu lives at the bottom of the left navigation and opens upward. */
+/* The lower-left SEMIONT wordmark is branding; the right-edge control opens settings. */
 .nav__footer {
   position: relative;
 }
-.semiont-menu {
-  position: absolute;
-  left: 0.35rem;
-  bottom: calc(100% + 0.55rem);
-  z-index: 15;
+.semiont-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+  border: 0;
+  background: rgba(15, 23, 42, 0.18);
+  cursor: default;
+}
+.app--electron .semiont-panel-backdrop {
+  top: 1.5rem;
+}
+.semiont-panel {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 20;
   display: flex;
   flex-direction: column;
-  min-width: 11rem;
-  padding: 0.35rem;
-  border: 1px solid var(--border);
-  border-radius: 9px;
+  width: min(19rem, calc(100vw - 1rem));
+  padding: 0 0.8rem 0.8rem;
+  border-left: 1px solid var(--border);
   background: var(--surface);
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.2);
+  box-shadow: -10px 0 28px rgba(15, 23, 42, 0.16);
 }
-.semiont-menu button {
+.app--electron .semiont-panel {
+  top: 1.5rem;
+}
+.semiont-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 3.6rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+.semiont-panel__items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding-top: 0.5rem;
+  overflow-y: auto;
+}
+.semiont-panel__items button {
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -1490,11 +1516,11 @@ button:disabled {
   font-weight: 500;
   line-height: 1.4;
 }
-.semiont-menu button svg {
+.semiont-panel__items button svg {
   flex-shrink: 0;
   color: var(--muted);
 }
-.semiont-menu button .semiont-menu__mcp-icon--running {
+.semiont-panel__items button .semiont-menu__mcp-icon--running {
   color: var(--success);
 }
 .semiont-menu__item-copy {
@@ -1508,31 +1534,66 @@ button:disabled {
   font-size: 0.67rem;
   font-weight: 400;
 }
-.semiont-menu button:hover,
-.semiont-menu button:focus-visible {
+.semiont-panel__items button:hover,
+.semiont-panel__items button:focus-visible {
   background: var(--hover);
   outline: none;
 }
 
-.semiont-menu-trigger {
+.semiont-panel-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.15rem 0;
+  justify-content: space-between;
+  gap: 0.6rem;
   border: 0;
   background: transparent;
+  cursor: pointer;
+  color: var(--muted);
+  font: inherit;
 }
-.semiont-menu-trigger svg {
-  width: 0.95rem;
-  height: 0.95rem;
-  fill: none;
-  stroke: var(--muted);
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.semiont-panel-toggle:hover,
+.semiont-panel-toggle:focus-visible {
+  color: var(--accent);
+  outline: none;
 }
-.semiont-menu-trigger:hover svg {
-  stroke: var(--accent);
+.semiont-panel-toggle--collapsed {
+  position: fixed;
+  top: 0.55rem;
+  right: 0.6rem;
+  z-index: 18;
+  min-width: 2.7rem;
+  height: 2.3rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+  font-size: 1.05rem;
+}
+.app--electron .semiont-panel-toggle--collapsed {
+  top: 1.8rem;
+}
+.semiont-panel-toggle__s {
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.semiont-panel-toggle--open {
+  width: 100%;
+  height: 3.6rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.semiont-panel-toggle--open .app__powered-mark {
+  font-size: 0.82rem;
+}
+.semiont-brand {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0;
+  user-select: none;
 }
 .app__powered-mark {
   font-family: Orbitron, system-ui, sans-serif;
@@ -1546,7 +1607,7 @@ button:disabled {
   -webkit-text-fill-color: transparent;
   color: transparent;
 }
-.semiont-menu-trigger:hover .app__powered-mark {
+.semiont-panel-toggle:hover .app__powered-mark {
   filter: brightness(1.25);
 }
 

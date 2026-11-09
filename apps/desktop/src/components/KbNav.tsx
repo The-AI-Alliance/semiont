@@ -91,40 +91,52 @@ function SemiontMenu({ onOpenAbout, onOpenInference, onOpenSecrets, onOpenMcp, m
   return (
     <div className="nav__footer" ref={menuRef}>
       {open && (
-        <div className="semiont-menu" role="menu" aria-label="Semiont menu">
-          <button type="button" role="menuitem" onClick={() => choose(onOpenAbout)}><AboutIcon /><span>About</span></button>
-          <button type="button" role="menuitem" onClick={() => choose(onOpenInference)}><InferenceIcon /><span>Inference</span></button>
-          <button type="button" role="menuitem" onClick={() => choose(onOpenSecrets)}><SecretsIcon /><span>Secrets</span></button>
-          <button type="button" role="menuitem" onClick={() => choose(onOpenMcp)}>
-            <McpIcon running={mcpStatus.state === 'running'} />
-            <span className="semiont-menu__item-copy">
-              <span>MCP</span>
-              {mcpStatus.state === 'running' && mcpStatus.pid !== null && <small>Running · PID {mcpStatus.pid}</small>}
-              {mcpStatus.state !== 'running' && <small>{mcpStatus.state === 'failed' ? 'Failed' : 'Stopped'}</small>}
-            </span>
-          </button>
-          <button type="button" role="menuitem" onClick={() => choose(onOpenTheme)}><ThemeIcon /><span>Theme</span></button>
-          <button type="button" role="menuitem" onClick={() => choose(onOpenTelemetry)}><TelemetryIcon /><span>Telemetry</span></button>
-          <button type="button" role="menuitem" onClick={() => choose(onOpenRuntime)}><ContainerIcon /><span>Container runtime</span></button>
-          <button type="button" role="menuitem" onClick={() => choose(onOpenGit)}><GitIcon /><span>Git</span></button>
-          <button type="button" role="menuitem" onClick={() => choose(onOpenKnowledgeBases)}><KnowledgeBasesIcon /><span>Knowledge Bases</span></button>
-          <button type="button" role="menuitem" onClick={() => choose(onOpenLauncherStatus)}><StatusIcon /><span>Status</span></button>
-        </div>
+        <>
+          <button type="button" className="semiont-panel-backdrop" aria-label="Close Semiont panel" onClick={() => setOpen(false)} />
+          <aside id="semiont-panel" className="semiont-panel" role="dialog" aria-modal="true" aria-label="Semiont menu">
+            <header className="semiont-panel__header">
+              <button type="button" className="semiont-panel-toggle semiont-panel-toggle--open" onClick={() => setOpen(false)} aria-label="Collapse Semiont panel" aria-expanded="true" aria-controls="semiont-panel">
+                <span className="app__powered-mark">SEMIONT</span><span aria-hidden="true">›</span>
+              </button>
+            </header>
+            <nav className="semiont-panel__items">
+              <button type="button" onClick={() => choose(onOpenAbout)}><AboutIcon /><span>About</span></button>
+              <button type="button" onClick={() => choose(onOpenInference)}><InferenceIcon /><span>Inference</span></button>
+              <button type="button" onClick={() => choose(onOpenSecrets)}><SecretsIcon /><span>Secrets</span></button>
+              <button type="button" onClick={() => choose(onOpenMcp)}>
+                <McpIcon running={mcpStatus.state === 'running'} />
+                <span className="semiont-menu__item-copy">
+                  <span>MCP</span>
+                  {mcpStatus.state === 'running' && mcpStatus.pid !== null && <small>Running · PID {mcpStatus.pid}</small>}
+                  {mcpStatus.state !== 'running' && <small>{mcpStatus.state === 'failed' ? 'Failed' : 'Stopped'}</small>}
+                </span>
+              </button>
+              <button type="button" onClick={() => choose(onOpenTheme)}><ThemeIcon /><span>Theme</span></button>
+              <button type="button" onClick={() => choose(onOpenTelemetry)}><TelemetryIcon /><span>Telemetry</span></button>
+              <button type="button" onClick={() => choose(onOpenRuntime)}><ContainerIcon /><span>Container runtime</span></button>
+              <button type="button" onClick={() => choose(onOpenGit)}><GitIcon /><span>Git</span></button>
+              <button type="button" onClick={() => choose(onOpenKnowledgeBases)}><KnowledgeBasesIcon /><span>Knowledge Bases</span></button>
+              <button type="button" onClick={() => choose(onOpenLauncherStatus)}><StatusIcon /><span>Status</span></button>
+            </nav>
+          </aside>
+        </>
       )}
-      <button
-        type="button"
-        className="semiont-menu-trigger"
-        aria-label="Open Semiont menu"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />
-          <path d="m19.4 15 .1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5v.2a2 2 0 1 1-4 0V19a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3.8a2 2 0 1 1 0-4H4a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1A2 2 0 1 1 8 4.5l.1.1a1.7 1.7 0 0 0 1.8.3 1.7 1.7 0 0 0 1-1.5v-.2a2 2 0 1 1 4 0V3a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8 1.7 1.7 0 0 0 1.5 1h.2a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.5 1 1.7 1.7 0 0 0-.1.2Z" />
-        </svg>
+      {!open && (
+        <button
+          type="button"
+          className="semiont-panel-toggle semiont-panel-toggle--collapsed"
+          aria-label="Open Semiont panel"
+          aria-haspopup="dialog"
+          aria-controls="semiont-panel"
+          aria-expanded="false"
+          onClick={() => setOpen(true)}
+        >
+          <span className="semiont-panel-toggle__s">S</span><span aria-hidden="true">‹</span>
+        </button>
+      )}
+      <div className="semiont-brand" aria-label="Semiont">
         <span className="app__powered-mark">SEMIONT</span>
-      </button>
+      </div>
     </div>
   );
 }
