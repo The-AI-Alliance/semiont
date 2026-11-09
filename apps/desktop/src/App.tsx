@@ -64,6 +64,7 @@ const ACTIVE_SESSION_KEY = 'active-session-id';
 const ACTIVE_SESSIONS_KEY = 'active-session-ids-by-kb';
 const OPEN_KB_TABS_KEY = 'open-kb-tabs';
 const ACTIVE_KB_TAB_KEY = 'active-kb-tab-uri';
+const KB_ROOT_ALIASES_KEY = 'kb-display-names-by-root';
 const CLICK_ACTION_KEY = 'viewer-click-action';
 const MOTIVATION_KEY = 'viewer-motivation';
 const CONNECTED_KBS_KEY = 'connected-kb-uris';
@@ -184,6 +185,8 @@ export function App() {
   const [activeKbTabUri, setActiveKbTabUri] = useState<string | null>(null);
   const [activeSessionIdsByKb, setActiveSessionIdsByKb] = useState<Record<string, string>>({});
   const [activeResourcesByKb, setActiveResourcesByKb] = useState<Record<string, { id: string; kbUri: string; name: string }>>({});
+  const [kbAliasesByRoot, setKbAliasesByRoot] = useState<Record<string, string>>({});
+  const kbAliasesLoaded = useRef(false);
   const activeSessionId = activeKbTabUri === null ? null : activeSessionIdsByKb[activeKbTabUri] ?? null;
   const activeSession = activeSessionId === null ? null : sessions.find((s) => s.id === activeSessionId) ?? null;
   // The document shown in the main pane. It coexists with the active chat: when both are
@@ -386,6 +389,15 @@ export function App() {
     void getPref<ClickAction>(CLICK_ACTION_KEY, 'follow').then(setClickAction);
     void getPref<SelectionMotivation>(MOTIVATION_KEY, 'linking').then(setMotivation);
   }, []);
+  useEffect(() => {
+    void getPref<Record<string, string>>(KB_ROOT_ALIASES_KEY, {}).then((aliases) => {
+      setKbAliasesByRoot(aliases);
+      kbAliasesLoaded.current = true;
+    });
+  }, []);
+  useEffect(() => {
+    if (kbAliasesLoaded.current) void setPref(KB_ROOT_ALIASES_KEY, kbAliasesByRoot);
+  }, [kbAliasesByRoot]);
   const viewerPrefs: ViewerPrefs = useMemo(
     () => ({
       clickAction,
@@ -699,13 +711,35 @@ export function App() {
     }
     let kb = config.kbs.find((entry) => normalizeGatewayUri(entry.uri) === normalizeGatewayUri(uri));
     if (kb === undefined) {
-      kb = { uri, ...(root.siteName === undefined ? {} : { alias: root.siteName }) };
+      const alias = kbAliasesByRoot[root.path] ?? root.siteName;
+      kb = { uri, ...(alias === undefined ? {} : { alias }) };
       saveConfig({ ...config, kbs: [...config.kbs, kb] });
+    } else if (kbAliasesByRoot[root.path] !== undefined && kb.alias !== kbAliasesByRoot[root.path]) {
+      const configuredUri = kb.uri;
+      const renamed = withAlias(kb, kbAliasesByRoot[root.path]);
+      kb = renamed;
+      saveConfig({ ...config, kbs: config.kbs.map((entry) => entry.uri === configuredUri ? renamed : entry) });
     }
     const rootTabId = localRootTabId(root.path);
     setOpenKbTabUris((current) => current.filter((id) => id !== rootTabId));
     openKbTab(kb.uri);
     setShowKnowledgeBases(false);
+  };
+
+  const renameKnowledgeBase = (root: KnowledgeBaseRow, alias: string) => {
+    setKbAliasesByRoot((current) => {
+      const next = { ...current };
+      if (alias === '') delete next[root.path];
+      else next[root.path] = alias;
+      return next;
+    });
+    if (config === null) return;
+    const uri = root.configuredUri ?? root.gatewayUrl;
+    if (uri === undefined) return;
+    const configured = config.kbs.find((entry) => normalizeGatewayUri(entry.uri) === normalizeGatewayUri(uri));
+    if (configured !== undefined) {
+      saveConfig({ ...config, kbs: config.kbs.map((entry) => entry.uri === configured.uri ? withAlias(entry, alias) : entry) });
+    }
   };
 
   // On launch, once the config is in: load sessions + the last active session, and
@@ -810,30 +844,6 @@ export function App() {
     }
   };
 
-  // --- KB CRUD (config) ---
-  const handleRemoveKb = (kbUri: string) => {
-    if (config === null) return;
-    closeKbTab(kbUri);
-    disconnectKb(kbUri);
-    saveConfig({ ...config, kbs: config.kbs.filter((k) => k.uri !== kbUri) });
-    const remaining = sessions.filter((s) => s.kbUri !== kbUri);
-    setSessions(remaining);
-    setActiveSessionIdsByKb((current) => {
-      const next = { ...current };
-      delete next[kbUri];
-      return next;
-    });
-    setActiveResourcesByKb((current) => {
-      const next = { ...current };
-      delete next[kbUri];
-      return next;
-    });
-  };
-  const handleRenameKbAlias = (kbUri: string, alias: string) => {
-    if (config === null) return;
-    saveConfig({ ...config, kbs: config.kbs.map((k) => (k.uri === kbUri ? withAlias(k, alias) : k)) });
-  };
-
   // --- Session CRUD ---
   const handleNewChat = (kbUri: string) => {
     const s = newSession(kbUri);
@@ -900,9 +910,11 @@ export function App() {
           ? undefined
           : config.kbs.find((kb) => normalizeGatewayUri(kb.uri) === normalizeGatewayUri(root.gatewayUrl!));
         const configuredUri = active?.[0] ?? configured?.uri;
+        const desktopAlias = config.kbs.find((kb) => kb.uri === configuredUri)?.alias ?? kbAliasesByRoot[root.path];
         return {
           ...root,
           ...(configuredUri === undefined ? {} : { configuredUri }),
+          ...(desktopAlias === undefined ? {} : { desktopAlias }),
           ...(active === undefined ? {} : { activeSessionUri: active[0] }),
         };
       })
@@ -940,12 +952,12 @@ export function App() {
             const kb = config.kbs.find((entry) => entry.uri === id);
             if (kb !== undefined) {
               const connection = connections[id];
-              return [{ id, uri: id, label: connection?.description?.name ?? kb.alias ?? hostOf(id) }];
+              return [{ id, uri: id, label: kb.alias ?? connection?.description?.name ?? hostOf(id) }];
             }
             const path = localRootPathFromTabId(id);
             if (path === null) return [];
             const root = knowledgeBasesState.status === 'result' ? knowledgeBasesState.result.roots.find((row) => row.path === path) : undefined;
-            return [{ id, label: root?.siteName ?? path.split(/[\\/]/u).filter(Boolean).at(-1) ?? path }];
+            return [{ id, label: kbAliasesByRoot[path] ?? root?.desktopAlias ?? root?.siteName ?? path.split(/[\\/]/u).filter(Boolean).at(-1) ?? path }];
           })}
           activeUri={activeKbTabUri}
           connections={connections}
@@ -957,7 +969,6 @@ export function App() {
           <KbNav
             kbs={activeKb === null ? [] : [activeKb]}
             hasLocalRootTab={activeRootPath !== null}
-            onOpenKnowledgeBasesForRoot={() => openKnowledgeBases(false, activeRootPath)}
             connections={connections}
             sessions={sessions}
             // doc and chat coexist now — both rows light up when both are live
@@ -965,10 +976,6 @@ export function App() {
             activeResourceId={activeResource?.id ?? null}
             docsRefresh={docsRefresh}
             onOpenResource={openResource}
-            onRemoveKb={handleRemoveKb}
-            onRenameKbAlias={handleRenameKbAlias}
-            onConnect={(uri) => void connectKb(uri, true)}
-            onDisconnect={disconnectKb}
             onNewChat={handleNewChat}
             onSelectSession={selectSession}
             onRenameSession={handleRenameSession}
@@ -1054,6 +1061,7 @@ export function App() {
           onForget={forgetKnowledgeBase}
           onFollowLogs={setLogsRoot}
           onCreate={createKnowledgeBase}
+          onRenameAlias={renameKnowledgeBase}
           onOpenTab={openKnowledgeBaseTab}
           onClose={() => {
             if (logsRoot === null) setShowKnowledgeBases(false);

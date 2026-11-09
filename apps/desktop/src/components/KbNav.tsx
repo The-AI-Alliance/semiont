@@ -5,12 +5,11 @@ import { sessionsForKb, sessionTitle, type AppChatSession } from '../lib/chat-se
 import { KbResources } from './KbResources';
 import type { McpProcessStatus } from '../lib/launcher-bridge';
 
-/** Left nav: the active workspace KB, with its connection, resources, and chats.
+/** Left nav: the active workspace KB, with its resources and chats.
  *  App owns all state; this renders + dispatches. */
 export interface KbNavProps {
   kbs: KbEntry[];
   hasLocalRootTab: boolean;
-  onOpenKnowledgeBasesForRoot: () => void;
   connections: Record<string, KbConnection>;
   sessions: AppChatSession[];
   activeSessionId: string | null;
@@ -19,10 +18,6 @@ export interface KbNavProps {
   docsRefresh: number;
   /** Open a document in the main pane. */
   onOpenResource: (kbUri: string, id: string, name: string) => void;
-  onRemoveKb: (kbUri: string) => void;
-  onRenameKbAlias: (kbUri: string, alias: string) => void;
-  onConnect: (kbUri: string) => void;
-  onDisconnect: (kbUri: string) => void;
   onNewChat: (kbUri: string) => void;
   onSelectSession: (sessionId: string) => void;
   onRenameSession: (sessionId: string, name: string) => void;
@@ -57,9 +52,6 @@ export function KbNav(props: KbNavProps) {
         {kbs.length === 0 ? (
           <div className="nav__empty">
             <p>{props.hasLocalRootTab ? 'This Knowledge Base is not connected yet.' : 'No Knowledge Base tab is open.'}</p>
-            <button type="button" onClick={props.hasLocalRootTab ? props.onOpenKnowledgeBasesForRoot : () => props.onOpenKnowledgeBases()}>
-              {props.hasLocalRootTab ? 'View Knowledge Base' : 'Open a Knowledge Base'}
-            </button>
           </div>
         ) : (
           kbs.map((kb) => <KbNavItem key={kb.uri} kb={kb} {...props} />)
@@ -145,10 +137,6 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
     activeResourceId,
     docsRefresh,
     onOpenResource,
-    onRemoveKb,
-    onRenameKbAlias,
-    onConnect,
-    onDisconnect,
     onNewChat,
     onSelectSession,
     onRenameSession,
@@ -159,8 +147,6 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
   const connected = conn?.opened !== undefined;
   const kbSessions = sessionsForKb(sessions, kb.uri);
   const [refreshTick, setRefreshTick] = useState(0);
-  const [editingAlias, setEditingAlias] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState(false);
   const [docsOpen, setDocsOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(true);
@@ -172,63 +158,16 @@ function KbNavItem({ kb, ...props }: { kb: KbEntry } & KbNavProps) {
     if (next) setDocsOpen(true);
   };
 
-  const displayName = (connected && conn?.description?.name) || kb.alias || hostOf(kb.uri);
+  const displayName = kb.alias || (connected && conn?.description?.name) || hostOf(kb.uri);
 
   return (
     <div className="kb">
       <div className="kb__head">
-        {editingAlias ? (
-          <InlineEdit
-            value={kb.alias ?? ''}
-            placeholder={hostOf(kb.uri)}
-            onSave={(v) => {
-              onRenameKbAlias(kb.uri, v);
-              setEditingAlias(false);
-            }}
-            onCancel={() => setEditingAlias(false)}
-          />
-        ) : (
-          <span className="kb__name" title={kb.uri}>
-            {displayName}
-            {connected && conn?.description?.gitBranch && <span className="kb__branch">{conn.description.gitBranch}</span>}
-          </span>
-        )}
-        <button type="button" className="kb__icon" onClick={() => setEditingAlias(true)} aria-label="Rename" title="Rename">
-          <PencilIcon />
-        </button>
-        <button type="button" className="kb__icon" onClick={() => setConfirmRemove(true)} aria-label="Remove KB" title="Remove KB">
-          <TrashIcon />
-        </button>
+        <span className="kb__name" title={kb.uri}>
+          {displayName}
+          {connected && conn?.description?.gitBranch && <span className="kb__branch">{conn.description.gitBranch}</span>}
+        </span>
       </div>
-
-      <div className="kb__conn">
-        <button
-          type="button"
-          className={`kb__connect${connected ? ' kb__connect--on' : ''}`}
-          disabled={conn?.connecting}
-          onClick={() => (connected ? onDisconnect(kb.uri) : onConnect(kb.uri))}
-        >
-          {conn?.connecting ? 'Connecting…' : connected ? 'Disconnect' : 'Connect'}
-        </button>
-      </div>
-
-      {conn?.error && (
-        <p className="kb__error" role="alert">
-          {conn.error}
-        </p>
-      )}
-
-      {confirmRemove && (
-        <div className="kb__confirm">
-          Remove this KB and its {kbSessions.length} chat{kbSessions.length === 1 ? '' : 's'}?
-          <button type="button" className="kb__confirm-yes" onClick={() => onRemoveKb(kb.uri)}>
-            Remove
-          </button>
-          <button type="button" className="kb__confirm-no" onClick={() => setConfirmRemove(false)}>
-            Cancel
-          </button>
-        </div>
-      )}
 
       {connected && conn?.opened && (
         <div className="kb__section-group">

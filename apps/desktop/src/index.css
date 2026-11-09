@@ -963,6 +963,24 @@ button:disabled {
   gap: 0.35rem;
 }
 
+.knowledge-bases__alias-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.knowledge-bases__alias-form input {
+  flex: 1 1 12rem;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  background: var(--field);
+}
+
 .knowledge-bases__status {
   display: inline-flex;
   align-items: center;
@@ -1620,16 +1638,6 @@ body.resizing {
   font-size: 0.85rem;
   color: var(--muted);
 }
-.nav__empty button {
-  padding: 0.4rem 0.85rem;
-  border: 1px solid var(--accent);
-  border-radius: 7px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font: inherit;
-  font-weight: 500;
-}
-
 /* ── One KB in the nav ────────────────────────────────────────────────── */
 .kb {
   display: flex;
@@ -1719,12 +1727,6 @@ body.resizing {
   color: var(--text);
   font: inherit;
   font-size: 0.8rem;
-}
-
-.kb__conn {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
 }
 
 .kb__connect {
@@ -1819,12 +1821,6 @@ body.resizing {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
-}
-
-.kb__error {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--danger);
 }
 
 .kb__confirm {

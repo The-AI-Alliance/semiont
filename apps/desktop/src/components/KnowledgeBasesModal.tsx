@@ -12,6 +12,7 @@ export interface KnowledgeBaseRow extends ControlRoot {
   services?: ControlServiceStatus[];
   gatewayUrl?: string;
   configuredUri?: string;
+  desktopAlias?: string;
   activeSessionUri?: string;
   operation?: 'starting' | 'stopping' | 'forgetting';
   operationStartedAt?: number;
@@ -37,6 +38,7 @@ export function KnowledgeBasesModal({
   onForget,
   onFollowLogs,
   onCreate,
+  onRenameAlias,
   focusSearchOnOpen,
   openTabUris,
   activeTabUri,
@@ -53,6 +55,7 @@ export function KnowledgeBasesModal({
   onForget: (root: KnowledgeBaseRow) => void;
   onFollowLogs: (root: KnowledgeBaseRow) => void;
   onCreate: (options: NewKnowledgeBaseOptions, onProgress: (progress: ControlProgress) => void) => Promise<string>;
+  onRenameAlias: (root: KnowledgeBaseRow, alias: string) => void;
   focusSearchOnOpen: boolean;
   openTabUris: string[];
   activeTabUri: string | null;
@@ -150,7 +153,7 @@ export function KnowledgeBasesModal({
                                   aria-pressed={selected?.path === root.path}
                                   onClick={() => setSelectedPath(root.path)}
                                 >
-                                  <strong>{root.siteName || root.path.split(/[\\/]/u).filter(Boolean).at(-1) || root.path}</strong>
+                                  <strong>{root.desktopAlias || root.siteName || root.path.split(/[\\/]/u).filter(Boolean).at(-1) || root.path}</strong>
                                   <code>{root.path}</code>
                                 </button>
                               </td>
@@ -169,6 +172,7 @@ export function KnowledgeBasesModal({
                         onLogout={onLogout}
                         onForget={onForget}
                         onFollowLogs={onFollowLogs}
+                        onRenameAlias={onRenameAlias}
                         openTab={(selectedTabUri !== undefined && openTabUris.includes(selectedTabUri)) || openTabUris.includes(localRootTabId(selected.path))}
                         activeTab={selectedTabUri === undefined
                           ? localRootTabId(selected.path) === activeTabUri
@@ -322,7 +326,7 @@ function NewKnowledgeBaseModal({ onCreate, onClose, onCreated }: {
   );
 }
 
-function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForget, onFollowLogs, openTab, activeTab, hasGateway, onOpenTab }: {
+function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForget, onFollowLogs, onRenameAlias, openTab, activeTab, hasGateway, onOpenTab }: {
   root: KnowledgeBaseRow;
   onStart: (root: KnowledgeBaseRow) => void;
   onStop: (root: KnowledgeBaseRow) => void;
@@ -330,14 +334,19 @@ function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForg
   onLogout: (root: KnowledgeBaseRow) => void;
   onForget: (root: KnowledgeBaseRow) => void;
   onFollowLogs: (root: KnowledgeBaseRow) => void;
+  onRenameAlias: (root: KnowledgeBaseRow, alias: string) => void;
   openTab: boolean;
   activeTab: boolean;
   hasGateway: boolean;
   onOpenTab: () => void;
 }) {
   const [confirmForget, setConfirmForget] = useState(false);
+  const [aliasDraft, setAliasDraft] = useState(root.desktopAlias ?? '');
   const [now, setNow] = useState(Date.now());
-  useEffect(() => setConfirmForget(false), [root.path]);
+  useEffect(() => {
+    setConfirmForget(false);
+    setAliasDraft(root.desktopAlias ?? '');
+  }, [root.desktopAlias, root.path]);
   useEffect(() => {
     if (root.operationStartedAt === undefined) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -374,6 +383,22 @@ function KnowledgeBaseDetails({ root, onStart, onStop, onLogin, onLogout, onForg
           </button>
         </div>
         {!hasGateway && <p className="knowledge-bases__action-note">This opens a workspace tab now. Connect it after the launcher starts the KB.</p>}
+      </section>
+
+      <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-bases-display-name-heading">
+        <h3 id="knowledge-bases-display-name-heading">Desktop display name</h3>
+        <form className="knowledge-bases__alias-form" onSubmit={(event) => {
+          event.preventDefault();
+          onRenameAlias(root, aliasDraft.trim());
+        }}>
+          <input
+            aria-label="Desktop display name"
+            value={aliasDraft}
+            onChange={(event) => setAliasDraft(event.target.value)}
+            placeholder={root.siteName || root.path.split(/[\\/]/u).filter(Boolean).at(-1) || root.path}
+          />
+          <button type="submit" className="kb__connect">Save name</button>
+        </form>
       </section>
 
       <section className="knowledge-bases__detail-section" aria-labelledby="knowledge-bases-services-heading">
