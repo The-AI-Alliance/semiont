@@ -1,0 +1,34 @@
+{
+  "title": "UserAction",
+  "type": "object",
+  "description": "A sign-in waits for a person: open the verification page and enter the code. The code is sent here and nowhere else — in no progress line, no log record and no diagnostic.",
+  "properties": {
+    "requestId": {
+      "$ref": "./RequestId.json"
+    },
+    "verificationUri": {
+      "type": "string",
+      "description": "The page where the person enters the code."
+    },
+    "verificationUriComplete": {
+      "type": "string",
+      "description": "The page with the code already in it, when the issuer offers one."
+    },
+    "userCode": {
+      "type": "string",
+      "description": "The code the person enters."
+    },
+    "expiresInSeconds": {
+      "type": "integer",
+      "description": "How long the code is good for, from when it was issued.",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "requestId",
+    "verificationUri",
+    "userCode",
+    "expiresInSeconds"
+  ],
+  "additionalProperties": false
+}

@@ -76,30 +76,42 @@ func Login(args []string) int {
 	if !ok {
 		return 1
 	}
+	if _, ok := signIn(context.Background(), u, target, func(code semiont.DeviceCode) {
+		promptToOpen(u, code)
+		u.Log("Waiting for approval at the issuer...")
+	}); !ok {
+		return 1
+	}
+	return 0
+}
+
+// signIn signs in to the knowledge base of target, the stack SelectVerbStack
+// chose, through the issuer it trusts, and keeps the session. shown is given
+// the one-time code the person approves the sign-in with. ok=false: refused,
+// and said.
+func signIn(ctx context.Context, u *UI, target *StackState, shown func(semiont.DeviceCode)) (ControlAuthLoginResult, bool) {
 	base, ok := StackBase(u, target, "login")
 	if !ok {
-		return 1
+		return ControlAuthLoginResult{}, false
 	}
 	key := StackKey(target)
 
-	ctx := context.Background()
 	issuer := semiont.Issuer{HTTP: &http.Client{Transport: launcherTransport}, Timing: semiont.DefaultTiming()}
 	endpoints, err := issuer.Discover(ctx, base)
 	if err != nil {
-		u.Fail("%v", err)
+		u.Refuse(controlCodeUnreachable, "%v", err)
 		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
-		return 1
+		return ControlAuthLoginResult{}, false
 	}
 	u.Log("Issuer: %s %s", endpoints.Issuer, u.Dim("(named by the knowledge base's resource metadata)"))
 
-	tokens, err := issuer.SignInWithDeviceGrant(ctx, endpoints, func(code semiont.DeviceCode) {
-		promptToOpen(u, code)
-		u.Log("Waiting for approval at the issuer...")
-	})
+	tokens, err := issuer.SignInWithDeviceGrant(ctx, endpoints, shown)
 	if err != nil {
-		u.Fail("Sign-in failed: %v", err)
-		return 1
+		u.Refuse(controlCodeSignInFailed, "Sign-in failed: %v", err)
+		return ControlAuthLoginResult{}, false
 	}
+	noteSecret(tokens.Access)
+	noteSecret(tokens.Refresh)
 
 	// The gateway is the judge of the token, not the issuer: a refusal here
 	// means the realm's audience mapper and the knowledge base's own resource
@@ -112,12 +124,12 @@ func Login(args []string) int {
 	me, err := asker.GetCurrentUser(ctx)
 	asker.Close()
 	if unauthorized(err) {
-		u.Fail("The issuer signed you in, but the gateway rejected the token — the realm's audience mapper and this knowledge base's resource identifier disagree.")
-		return 1
+		u.Refuse(controlCodeSignInFailed, "The issuer signed you in, but the gateway rejected the token — the realm's audience mapper and this knowledge base's resource identifier disagree.")
+		return ControlAuthLoginResult{}, false
 	}
 	if err != nil {
-		u.Fail("Gateway unreachable at %s: %v", base, err)
-		return 1
+		u.Refuse(controlCodeUnreachable, "Gateway unreachable at %s: %v", base, err)
+		return ControlAuthLoginResult{}, false
 	}
 
 	if err := keepSignIn(ctx, key, semiont.HeldSignIn{
@@ -127,15 +139,15 @@ func Login(args []string) int {
 		TokenEndpoint:      endpoints.Token,
 		RevocationEndpoint: endpoints.Revocation,
 	}); err != nil {
-		u.Fail("Token could not be stored (%v) — NOT logged in.", err)
-		return 1
+		u.Refuse(controlCodeSignInFailed, "Token could not be stored (%v) — NOT logged in.", err)
+		return ControlAuthLoginResult{}, false
 	}
 	who := me.Did.String()
 	if me.Email != nil {
 		who = *me.Email
 	}
 	u.Ok("Logged in to %s as %s %s", key, who, u.Dim("(token in "+tokensPath()+")"))
-	return 0
+	return ControlAuthLoginResult{Key: key, Who: who, Issuer: endpoints.Issuer}, true
 }
 
 // NoGatewayRecorded: a local stack's record names no gateway endpoint, so
@@ -162,7 +174,7 @@ func GatewayBase(st *StackState) (string, error) {
 func localBase(u *UI, st *StackState, verb string) (string, bool) {
 	base, err := GatewayBase(st)
 	if err != nil {
-		u.Fail("%v, so %s cannot reach its KB.", err, verb)
+		u.Refuse(controlCodeStackNotRunning, "%v, so %s cannot reach its KB.", err, verb)
 		fmt.Fprintln(os.Stderr, "  Start it:  semiont start")
 		return "", false
 	}

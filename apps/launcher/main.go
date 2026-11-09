@@ -42,6 +42,9 @@ Settings:
   settings  Every setting the launcher keeps: the runtime, where secrets come
             from and where they are kept, each knowledge base's config
 
+Desktop:
+  control   Serve the launcher's control API on stdin and stdout, for Desktop
+
 Knowledge base (need login):
   browse    Read the KB: resources, annotations, entity types, tag schemas
   bind      Resolve a linking annotation to its target resource
@@ -81,7 +84,7 @@ func main() {
 	case "init":
 		code = launcher.Init(rest)
 	case "start":
-		code = launcher.Start(rest)
+		code = launcher.Start(launcher.NewUI(false), rest)
 	case "useradd":
 		code = launcher.Useradd(rest)
 	case "login":
@@ -122,7 +125,7 @@ func main() {
 	case "logs":
 		code = launcher.Logs(rest)
 	case "stop":
-		code = launcher.Stop(rest)
+		code = launcher.Stop(launcher.NewUI(false), rest)
 	case "clean":
 		code = launcher.Clean(rest)
 	case "roots":
@@ -135,6 +138,8 @@ func main() {
 		code = launcher.Import(rest)
 	case "about":
 		code = launcher.About(rest)
+	case "control":
+		code = launcher.Control(rest)
 	case "version", "--version":
 		code = launcher.Version(rest)
 	case "--help", "-h", "help":

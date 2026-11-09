@@ -1,0 +1,13 @@
+{
+  "title": "ServiceGroup",
+  "type": "string",
+  "enum": [
+    "record",
+    "index",
+    "issuer",
+    "knowledge-workers",
+    "providers",
+    "telemetry"
+  ],
+  "description": "A group of services, as semiont status reports them and --group names them: a knowledge base's record and its index, the issuer that signs its accounts in, the knowledge workers where people and agents work on it, the providers of its models, and the telemetry that watches them all."
+}

@@ -1,0 +1,28 @@
+{
+  "title": "LogsFollowParams",
+  "type": "object",
+  "description": "logs.follow's params.",
+  "properties": {
+    "apiVersion": {
+      "$ref": "./ApiVersion.json",
+      "description": "The version of the control API the request is written to."
+    },
+    "target": {
+      "$ref": "./Target.json",
+      "description": "Which knowledge base's stack. Absent: the one the command line chooses, standing where the control server was started."
+    },
+    "runtime": {
+      "$ref": "./Runtime.json",
+      "description": "Keep to the local stacks, as --runtime does."
+    },
+    "service": {
+      "type": "string",
+      "description": "Just this service's container, as --service names it. Absent: each Semiont service the stack runs.",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "apiVersion"
+  ],
+  "additionalProperties": false
+}

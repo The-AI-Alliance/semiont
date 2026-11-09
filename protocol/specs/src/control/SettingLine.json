@@ -1,0 +1,20 @@
+{
+  "title": "SettingLine",
+  "type": "object",
+  "description": "One value of a setting, and where it came from, as semiont settings shows it. A secret's value is never one: a secret setting shows where the value is kept.",
+  "properties": {
+    "value": {
+      "type": "string",
+      "description": "The value in effect."
+    },
+    "source": {
+      "type": "string",
+      "description": "Where it came from: a record, a document, the default."
+    }
+  },
+  "required": [
+    "value",
+    "source"
+  ],
+  "additionalProperties": false
+}

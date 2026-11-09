@@ -1,0 +1,19 @@
+{
+  "title": "RuntimeState",
+  "type": "object",
+  "description": "One container runtime the launcher drives, and whether this machine has it.",
+  "properties": {
+    "name": {
+      "$ref": "./Runtime.json"
+    },
+    "found": {
+      "type": "boolean",
+      "description": "Whether it is on the launcher's PATH."
+    }
+  },
+  "required": [
+    "name",
+    "found"
+  ],
+  "additionalProperties": false
+}

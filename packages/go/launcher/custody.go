@@ -211,6 +211,9 @@ const (
 // removes the state dir and takes it with it.
 func loadOrCreateJWTSecret(u *UI, key string) (string, bool) {
 	if s := os.Getenv("JWT_SECRET"); s != "" {
+		for _, k := range strings.Split(s, ",") {
+			noteSecret(k)
+		}
 		// The gateway reads this as an ordered RING: the first value signs,
 		// every value verifies, so `<new>,<old>` keeps outstanding tokens
 		// working across a deliberate rotation. The launcher only carries it —
@@ -279,6 +282,7 @@ func loadOrCreateJWTSecret(u *UI, key string) (string, bool) {
 // nothing to explain why.
 func keycloakAdminPassword(u *UI) (secret, source string, ok bool) {
 	if s := os.Getenv("KC_BOOTSTRAP_ADMIN_PASSWORD"); s != "" {
+		noteSecret(s)
 		return s, "from KC_BOOTSTRAP_ADMIN_PASSWORD in the environment", true
 	}
 	s, ok := sharedCustody().get(u, custodyKeycloakAdmin)
@@ -312,6 +316,7 @@ func loadOrCreateServiceClientSecret(u *UI, key, svc string) (string, bool) {
 	// separate credentials are the point of this, and an override that collapsed
 	// them back to one shared string would quietly undo it.
 	if s := os.Getenv(serviceClientSecretEnv(svc)); s != "" {
+		noteSecret(s)
 		return s, true
 	}
 	store, ok := custodyFor(u, key)
@@ -363,7 +368,9 @@ func generateHexSecret(u *UI, bytes int, what string) (string, bool) {
 		u.Fail("Generating %s: %v", what, err)
 		return "", false
 	}
-	return hex.EncodeToString(b), true
+	secret := hex.EncodeToString(b)
+	noteSecret(secret)
+	return secret, true
 }
 
 // jwtProvenance renders one provenance line. The VALUE never appears — this

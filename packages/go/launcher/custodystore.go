@@ -154,10 +154,13 @@ func (s custodyStore) where(name string) string { return s.b.where(name) }
 
 func (s custodyStore) get(u *UI, name string) (string, bool) {
 	showCustodyOp(u, "read "+name, s.b.where(name))
-	return s.b.get(u, name)
+	value, ok := s.b.get(u, name)
+	noteSecret(value)
+	return value, ok
 }
 
 func (s custodyStore) put(u *UI, name, value string) bool {
+	noteSecret(value)
 	showCustodyOp(u, "write "+name, s.b.where(name))
 	return s.b.put(u, name, value)
 }

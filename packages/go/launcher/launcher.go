@@ -2,9 +2,17 @@
 // module root are the executable spec).
 package launcher
 
+// The build stamps a development build carries: -ldflags replaces them at
+// release.
+const (
+	unstampedVersion = "dev"
+	unstampedCommit  = "none"
+	unstampedDate    = "unknown"
+)
+
 // Set via -ldflags at release time.
 var (
-	BuildVersion = "dev"
-	BuildCommit  = "none"
-	BuildDate    = "unknown"
+	BuildVersion = unstampedVersion
+	BuildCommit  = unstampedCommit
+	BuildDate    = unstampedDate
 )

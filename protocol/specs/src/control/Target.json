@@ -1,0 +1,58 @@
+{
+  "title": "Target",
+  "type": "object",
+  "description": "Which knowledge base an operation acts on: a local clone's stack, or a codespace's. The launcher resolves it as the command line resolves --root and --repo, and refuses a choice it would have to guess.",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "description": "Where the stack runs: on this machine (local), or on a GitHub codespace whose knowledge base is forwarded here (codespace).",
+      "enum": [
+        "local",
+        "codespace"
+      ]
+    },
+    "root": {
+      "type": "string",
+      "description": "For a local target: the knowledge base's clone, by path or by the basename of a registered root, as --root takes it. Absent: the local stack the command line chooses with --runtime, standing where the control server was started.",
+      "minLength": 1
+    },
+    "repo": {
+      "type": "string",
+      "description": "For a codespace target: the GitHub repository, as --repo takes it.",
+      "pattern": "^[^/\\s]+/[^/\\s]+$"
+    }
+  },
+  "required": [
+    "kind"
+  ],
+  "additionalProperties": false,
+  "oneOf": [
+    {
+      "properties": {
+        "kind": {
+          "const": "local"
+        }
+      },
+      "not": {
+        "required": [
+          "repo"
+        ]
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "codespace"
+        }
+      },
+      "required": [
+        "repo"
+      ],
+      "not": {
+        "required": [
+          "root"
+        ]
+      }
+    }
+  ]
+}

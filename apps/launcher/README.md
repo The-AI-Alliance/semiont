@@ -963,6 +963,44 @@ the other clients' form. What the server does that a verb does not:
   2026-07-28 client and an older one that initializes alike, on
   `github.com/modelcontextprotocol/go-sdk`.
 
+### The control API, for Desktop
+
+`semiont control` serves the launcher's control API on stdio: JSON-RPC 2.0,
+one message per line. A program drives the launcher with it the way a person
+drives the commands: it is for Desktop. Each method is a command, run by the code the
+command runs:
+
+- What the command would print arrives as the request's progress.
+- What it would report is the request's result.
+- What it would refuse is the request's error, under a code from the
+  `control` group of `protocol/specs/src/errors/codes.json`.
+
+`semiont init` has no method.
+
+- **The spec is `protocol/specs/src/control`.** `methods.json` names each
+  method and the schemas of its params and result.
+  `packages/codegen/schemas/generate-control.mjs` generates the launcher's
+  types and the schema text it validates against. CI fails when either
+  drifts.
+- **Every command-line option has a stated place in the API.** `cli.json`
+  maps each option to a params field or a method, or says why it has none.
+  `TestControlCLICensus` holds each command's parser to that table both ways.
+- **The launcher validates.** It holds every request to its schema before
+  anything runs, and every answer before it is sent. A mismatch fails the
+  request; nothing is filled in.
+- **Nothing it sends carries a secret.** Every secret value the launcher reads
+  or generates is removed from progress lines, log records, error messages
+  and diagnostics. A sign-in's device code goes in `notifications/userAction`
+  and nowhere else.
+- **stdin and stdout are the protocol's alone.** What an operation prints
+  becomes its request's progress. An operation that would ask a person reads
+  end of file instead.
+- **Closing stdin ends the server.** It cancels each request in flight, waits
+  for each to end, and exits.
+
+The rules are in
+[the launcher's control API contract](../../protocol/contract/LAUNCHER-CONTROL.md).
+
 ### Memory ceilings
 
 Every container the launcher runs carries an explicit `--memory` ceiling (no

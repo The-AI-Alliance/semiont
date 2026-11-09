@@ -1,0 +1,39 @@
+{
+  "title": "LogRecord",
+  "type": "object",
+  "description": "One line one of a stack's services wrote. The launcher removes from it each secret value the launcher generated or read; anything else the service wrote is the client's to handle. The launcher keeps no copy.",
+  "properties": {
+    "requestId": {
+      "$ref": "./RequestId.json"
+    },
+    "service": {
+      "type": "string",
+      "description": "The role whose container wrote the line, as semiont status names it."
+    },
+    "stream": {
+      "type": "string",
+      "description": "Which of the container's streams the line was on.",
+      "enum": [
+        "stdout",
+        "stderr"
+      ]
+    },
+    "line": {
+      "type": "string",
+      "description": "The line, without its newline."
+    },
+    "receivedAt": {
+      "type": "string",
+      "description": "When the launcher read the line, in RFC 3339 with its fraction: a container's own lines carry the time it wrote them, if any.",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "requestId",
+    "service",
+    "stream",
+    "line",
+    "receivedAt"
+  ],
+  "additionalProperties": false
+}

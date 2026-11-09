@@ -193,55 +193,25 @@ func Status(args []string) int {
 		return statusCodespace(u, target, refresh)
 	}
 
-	// The local stacks reported: --root's, which must be recorded; else the
-	// one of the knowledge base you stand in; else each one recorded. With
-	// none, the one discovered by name — the knowledge base you stand in's,
-	// else none, and only the services every knowledge base shares.
-	var reported []*StackState
-	key := ""
+	reported, ok := reportedStacks(u, ss, rootFlag)
+	if !ok {
+		return 1
+	}
 	if rootFlag != "" {
-		st, ok := rootLocalStack(u, ss, rootFlag)
-		if !ok {
-			return 1
-		}
 		// A stack mid-start is not ready, whatever its recorded services
 		// report so far: the gateway answers long before the sidecars do.
 		// This is the question a laptop asks a codespace before moving its
 		// issuer (askRemoteKB).
+		st := reported.stacks[0]
 		if holder, busy := startInProgress(rootKey(st.KBDid, st.KBRoot)); busy {
-			u.Fail("A semiont start is running for this KB (%s) — its stack is not ready yet.", holder)
+			u.Refuse(controlCodeStartInProgress, "A semiont start is running for this KB (%s) — its stack is not ready yet.", holder)
 			return 1
 		}
-		reported = []*StackState{st}
-	} else {
-		kb, err := cwdKBRoot()
-		if err != nil {
-			u.Fail("%v", err)
-			return 1
-		}
-		if st := localStack(ss, kb.key()); kb.dir != "" && st != nil {
-			reported = []*StackState{st}
-		} else if reported = localStacks(ss); len(reported) == 0 && kb.dir != "" {
-			key = kb.key()
-		}
 	}
-
-	views := []stackView{}
-	if len(reported) == 0 {
-		v, code := newStackView(u, nil, key, runtime)
-		if code != 0 {
-			return code
-		}
-		views = append(views, v)
+	views, ok := statusViews(u, reported, runtime)
+	if !ok {
+		return 1
 	}
-	for _, st := range reported {
-		v, code := newStackView(u, st, rootKey(st.KBDid, st.KBRoot), runtime)
-		if code != 0 {
-			return code
-		}
-		views = append(views, v)
-	}
-	nameViews(views)
 	// Each knowledge base's ceilings are its own gateway's answer, asked once
 	// and only for a row with models to decorate.
 	ceilingsOf := map[string]modelCeilings{}
@@ -351,6 +321,71 @@ func BrowserTarget(ss *StackSet, override string) BrowserProbe {
 	return p
 }
 
+// stackSelection: the local stacks status reports, and how they were chosen.
+type stackSelection struct {
+	stacks []*StackState
+	// cwd: the knowledge base the working directory is in; the zero kbRoot
+	// when it is in none, or root named the stacks.
+	cwd kbRoot
+	// key: with no stack reported, the state key of the knowledge base whose
+	// stack is discovered by name — cwd's — or "" for none.
+	key string
+	// every: no knowledge base named one stack, and each one recorded is
+	// reported.
+	every bool
+}
+
+// reportedStacks: the local stacks status reports — root's, which must be
+// recorded; else the one of the knowledge base the working directory is in;
+// else each one recorded. With none, the one discovered by name: the
+// knowledge base the working directory is in's, else none, and only the
+// services every knowledge base shares. ok=false: refused, and said.
+func reportedStacks(u *UI, ss *StackSet, root string) (stackSelection, bool) {
+	if root != "" {
+		st, ok := rootLocalStack(u, ss, root)
+		if !ok {
+			return stackSelection{}, false
+		}
+		return stackSelection{stacks: []*StackState{st}}, true
+	}
+	kb, err := cwdKBRoot()
+	if err != nil {
+		u.Refuse(controlCodeRootNotFound, "%v", err)
+		return stackSelection{}, false
+	}
+	if st := localStack(ss, kb.key()); kb.dir != "" && st != nil {
+		return stackSelection{stacks: []*StackState{st}, cwd: kb}, true
+	}
+	r := stackSelection{stacks: localStacks(ss), cwd: kb, every: true}
+	if len(r.stacks) == 0 && kb.dir != "" {
+		r.key = kb.key()
+	}
+	return r, true
+}
+
+// statusViews: the view of each stack r reports, or, with none, of the one
+// discovered by name, each named, asked of runtime when one is given.
+// ok=false: status could not run, which was said.
+func statusViews(u *UI, r stackSelection, runtime string) ([]stackView, bool) {
+	views := []stackView{}
+	if len(r.stacks) == 0 {
+		v, code := newStackView(u, nil, r.key, runtime)
+		if code != 0 {
+			return nil, false
+		}
+		views = append(views, v)
+	}
+	for _, st := range r.stacks {
+		v, code := newStackView(u, st, rootKey(st.KBDid, st.KBRoot), runtime)
+		if code != 0 {
+			return nil, false
+		}
+		views = append(views, v)
+	}
+	nameViews(views)
+	return views, true
+}
+
 // stackView: one local stack as status reads it. st is its record, nil for
 // one discovered by name; key names its containers, "" for no knowledge base
 // (which leaves only the services every knowledge base shares to ask of).
@@ -370,7 +405,7 @@ func newStackView(u *UI, st *StackState, key, runtime string) (stackView, int) {
 	switch {
 	case runtime != "":
 		if !onPath(runtime) {
-			fmt.Fprintf(os.Stderr, "--runtime %s requested, but '%s' is not on PATH.\n", runtime, runtime)
+			u.RefusePlain(controlCodeRuntimeUnavailable, "--runtime %s requested, but '%s' is not on PATH.", runtime, runtime)
 			return stackView{}, 1
 		}
 		runtimes = []string{runtime}
@@ -384,7 +419,7 @@ func newStackView(u *UI, st *StackState, key, runtime string) (stackView, int) {
 		runtimes = installedRuntimes()
 	}
 	if len(runtimes) == 0 {
-		u.Fail("No container runtime found. Install Apple Container, Docker, or Podman.")
+		u.Refuse(controlCodeRuntimeUnavailable, "No container runtime found. Install Apple Container, Docker, or Podman.")
 		return stackView{}, 1
 	}
 	v := stackView{st: st, key: key, runtimes: runtimes}
@@ -419,14 +454,23 @@ func nameViews(views []stackView) {
 // statusRow: one role's row, as a stack's record and its runtime report it.
 type statusRow struct {
 	role         string
-	label        string // the role, and the product its driver names
+	product      string // the product its driver names; "" when no driver is named
 	rt           string // where it runs: a runtime, external, host, or —
 	word         string // running, exited, reachable, unreachable or absent
-	probe        string // the endpoint asked
+	probe        string // the endpoint asked; "" when none is
+	hint         string // what is said in the probe's place when none is asked
 	detail       string // a dimmed note after the probe
 	healthy      bool
 	unconfigured bool          // the stack's documents ask for no such service
 	rec          *ServiceState // the stack's record of it; nil for one discovered by name
+}
+
+// label: the row's SERVICE cell — the role, and the product its driver names.
+func (r statusRow) label() string {
+	if r.product == "" {
+		return r.role
+	}
+	return r.role + " (" + r.product + ")"
 }
 
 // counted: whether the row's health is the stack's. A service the documents
@@ -469,7 +513,7 @@ func readRow(v stackView, role string, shared map[string]*ServiceState) statusRo
 	// The concrete product rides in the SERVICE cell — "identity-store
 	// (PostgreSQL)" — rather than a column that is an em-dash for every
 	// Semiont service.
-	r := statusRow{role: role, label: role, rec: rec}
+	r := statusRow{role: role, rec: rec}
 	// No record, no driver, no product: the launcher does not name a
 	// technology for a role nothing has selected one for. Every record a
 	// start writes carries its driver.
@@ -486,9 +530,7 @@ func readRow(v stackView, role string, shared map[string]*ServiceState) statusRo
 			tech = q
 		}
 	}
-	if tech != "" {
-		r.label += " (" + tech + ")"
-	}
+	r.product = tech
 	if rec != nil && rec.Provided == providedNone {
 		r.unconfigured = true
 		return r
@@ -561,13 +603,13 @@ func issuerServerRow(ss *StackSet, views []stackView) (statusRow, []string) {
 			serves = append(serves, v.name)
 		}
 	}
-	r := statusRow{role: "identity", label: "identity", rt: "—", rec: rec}
+	r := statusRow{role: "identity", rt: "—", rec: rec}
 	if rec == nil {
-		r.word, r.probe = "absent", "a start of a knowledge base that names it (spec.issuer.shared) runs it"
+		r.word, r.hint = "absent", "a start of a knowledge base that names it (spec.issuer.shared) runs it"
 		return r, serves
 	}
 	// The issuer the launcher runs is Keycloak, as its document's type is.
-	r.label += " (" + driverDisplay("identity", "keycloak") + ")"
+	r.product = driverDisplay("identity", "keycloak")
 	state, rt := containerState([]string{rec.Runtime}, sharedHandles(rec.Runtime, name, rec)[0])
 	if rt != "" {
 		r.rt = rt
@@ -593,9 +635,9 @@ func machineServedRow(ss *StackSet, views []stackView, role string) (statusRow, 
 			serves = append(serves, v.name)
 		}
 	}
-	r := statusRow{role: role, label: role + " (" + driverDisplay(role, probeDriver(role)) + ")", rt: "—", rec: rec}
+	r := statusRow{role: role, product: driverDisplay(role, probeDriver(role)), rt: "—", rec: rec}
 	if rec == nil {
-		r.word, r.probe = "absent", "a start of a knowledge base that names it shared runs it"
+		r.word, r.hint = "absent", "a start of a knowledge base that names it shared runs it"
 		return r, serves
 	}
 	state, rt := containerState([]string{rec.Runtime}, sharedHandles(rec.Runtime, name, rec)[0])
@@ -641,19 +683,19 @@ func printMachineServed(u *UI, views []stackView, ss *StackSet) bool {
 func browserRow(ss *StackSet) statusRow {
 	b := ss.Shared[sharedContainer("browser")]
 	p := BrowserTarget(ss, "")
-	r := statusRow{role: "browser", label: "browser", rt: "—", word: p.State, probe: p.Endpoint, healthy: p.Running}
+	r := statusRow{role: "browser", rt: "—", word: p.State, probe: p.Endpoint, healthy: p.Running}
 	if b != nil && b.Runtime != "" {
 		r.rt = b.Runtime
 	}
 	if !p.Running && p.State == "" {
-		r.word, r.probe = "absent", "any semiont start brings it up (or: semiont start --service browser)"
+		r.word, r.probe, r.hint = "absent", "", "any semiont start brings it up (or: semiont start --service browser)"
 		return r
 	}
 	if r.word == "" {
 		r.word = "absent"
 	}
 	if r.probe == "" {
-		r.probe = "not recorded here"
+		r.hint = "not recorded here"
 	}
 	r.detail = "discovery-synced"
 	if b != nil && b.Image != "" {
@@ -679,7 +721,7 @@ func printRowHeader() {
 // the report covers more than one.
 func printRow(u *UI, r statusRow, serves []string) {
 	if r.unconfigured {
-		fmt.Printf("  %-*s %-10s %s\n", serviceCell, r.label, "—", u.Dim("not configured"))
+		fmt.Printf("  %-*s %-10s %s\n", serviceCell, r.label(), "—", u.Dim("not configured"))
 		return
 	}
 	tail := ""
@@ -689,7 +731,11 @@ func printRow(u *UI, r statusRow, serves []string) {
 	if len(serves) > 0 {
 		tail += "  " + u.Dim(strings.Join(serves, ", "))
 	}
-	fmt.Printf("  %-*s %-10s %s %-12s %s%s\n", serviceCell, r.label, r.rt, statusMark(u, r.healthy), r.word, u.Dim(r.probe), tail)
+	at := r.probe
+	if at == "" {
+		at = r.hint
+	}
+	fmt.Printf("  %-*s %-10s %s %-12s %s%s\n", serviceCell, r.label(), r.rt, statusMark(u, r.healthy), r.word, u.Dim(at), tail)
 }
 
 func statusMark(u *UI, healthy bool) string {
@@ -874,21 +920,7 @@ func printSharedGroup(u *UI, g serviceGroup, views []stackView, ss *StackSet, ce
 			printRow(u, r, serves)
 			continue
 		}
-		var rows []*sharedRow
-		var unconfigured *statusRow
-		for _, v := range views {
-			r := readRow(v, role, ss.Shared)
-			if r.unconfigured {
-				unconfigured = &r
-				continue
-			}
-			i := slices.IndexFunc(rows, func(s *sharedRow) bool { return s.row.label == r.label && s.row.probe == r.probe })
-			if i < 0 {
-				rows = append(rows, &sharedRow{row: r})
-				i = len(rows) - 1
-			}
-			rows[i].views = append(rows[i].views, v)
-		}
+		rows, unconfigured := sharedRowsOf(role, views, ss)
 		if len(rows) == 0 && unconfigured != nil {
 			printRow(u, *unconfigured, nil)
 			continue
@@ -908,6 +940,28 @@ func printSharedGroup(u *UI, g serviceGroup, views []stackView, ss *StackSet, ce
 		}
 	}
 	return healthy
+}
+
+// sharedRowsOf: the rows of role, a service several knowledge bases share,
+// across views — one per service, with the views it serves — and a row that
+// says it is not configured, when a view's documents ask for none.
+func sharedRowsOf(role string, views []stackView, ss *StackSet) ([]*sharedRow, *statusRow) {
+	var rows []*sharedRow
+	var unconfigured *statusRow
+	for _, v := range views {
+		r := readRow(v, role, ss.Shared)
+		if r.unconfigured {
+			unconfigured = &r
+			continue
+		}
+		i := slices.IndexFunc(rows, func(s *sharedRow) bool { return s.row.label() == r.label() && s.row.probe == r.probe })
+		if i < 0 {
+			rows = append(rows, &sharedRow{row: r})
+			i = len(rows) - 1
+		}
+		rows[i].views = append(rows[i].views, v)
+	}
+	return rows, unconfigured
 }
 
 // printSharedModels prints the models each knowledge base s serves was
@@ -1111,6 +1165,95 @@ func printRootsPointer(u *UI, locals, cs []*StackState) {
 	}
 }
 
+// knownRoot: one local root semiont roots lists, and each reason it lists it.
+type knownRoot struct {
+	path string
+	// current: how this command's directory selects it — "cwd" standing in
+	// it, "semiont-root" by SEMIONT_ROOT — or "" when it does not.
+	current string
+	running bool
+	// entry: its registry row; nil when it is not registered.
+	entry *rootEntry
+	// missing: its directory is gone.
+	missing bool
+	// The registry's identity and config for it, the identity refreshed by
+	// a live read where the clone has one.
+	did, siteName, config string
+	identityErr           error
+}
+
+// knownRoots: each local root this machine knows — the one this command's
+// directory selects, each running stack's, each registered one — in that
+// order, each once; and the warning an invalid SEMIONT_ROOT, or a clone whose
+// project file is refused, gives without failing the listing.
+func knownRoots(locals []*StackState) (roots []*knownRoot, warning error) {
+	byPath := map[string]*knownRoot{}
+	at := func(path string) *knownRoot {
+		if r, ok := byPath[path]; ok {
+			return r
+		}
+		r := &knownRoot{path: path}
+		byPath[path] = r
+		roots = append(roots, r)
+		return r
+	}
+	if path, source, _, err := resolveKBRoot(); err == nil {
+		at(path).current = "cwd"
+		if source == "SEMIONT_ROOT" {
+			at(path).current = "semiont-root"
+		}
+	} else if os.Getenv("SEMIONT_ROOT") != "" || projectFileRefused(err) {
+		warning = err
+	}
+	for _, st := range locals {
+		at(st.KBRoot).running = true
+	}
+	reg := loadRoots()
+	for i := range reg.Roots {
+		e := &reg.Roots[i]
+		at(e.Path).entry = e
+	}
+	// Identity per root: the registry's stored did/siteName (survives the
+	// path vanishing), refreshed by a live read when the root is present.
+	for _, r := range roots {
+		if _, err := os.Stat(r.path); err != nil {
+			r.missing = true
+		}
+		if r.entry != nil {
+			r.did, r.siteName, r.config = r.entry.Did, r.entry.SiteName, r.entry.Config
+		}
+		// The tree's identity, where the tree has one; a row whose root is
+		// gone keeps the one recorded on it.
+		ident, err := readKBIdentity(r.path)
+		r.identityErr = err
+		if ident != nil {
+			r.did, r.siteName = ident.didWeb(), ident.SiteName
+		}
+	}
+	return roots, warning
+}
+
+// labels: why semiont roots lists r, as it says it.
+func (r *knownRoot) labels() []string {
+	var out []string
+	switch r.current {
+	case "cwd":
+		out = append(out, "discovered from cwd")
+	case "semiont-root":
+		out = append(out, "SEMIONT_ROOT")
+	}
+	if r.running {
+		out = append(out, "running stack")
+	}
+	switch {
+	case r.entry != nil && r.missing:
+		out = append(out, "missing")
+	case r.entry != nil:
+		out = append(out, "last used "+r.entry.LastUsed.Format("2006-01-02"))
+	}
+	return out
+}
+
 // printRoots reports the Semiont roots: every registered root (roots.json —
 // the launcher's memory of roots it has actually used), merged with the one
 // resolvable from here (SEMIONT_ROOT or cwd discovery) and each running
@@ -1119,68 +1262,28 @@ func printRootsPointer(u *UI, locals, cs []*StackState) {
 // Reports how many it printed: the KNOWLEDGE BASES section is shared with
 // the remote half, so only the caller can know whether it came out empty.
 func printRoots(u *UI, locals []*StackState) int {
-	order := []string{}
-	labels := map[string][]string{}
-	add := func(path, label string) {
-		if _, ok := labels[path]; !ok {
-			order = append(order, path)
-		}
-		labels[path] = append(labels[path], label)
-	}
-
-	if path, source, _, err := resolveKBRoot(); err == nil {
-		label := "discovered from cwd"
-		if source == "SEMIONT_ROOT" {
-			label = "SEMIONT_ROOT"
-		}
-		add(path, label)
-	} else if os.Getenv("SEMIONT_ROOT") != "" || projectFileRefused(err) {
+	roots, warning := knownRoots(locals)
+	if warning != nil {
 		// Strictness without failing the report: an invalid override, or a
 		// clone whose project file is refused, is surfaced, not silently
 		// ignored.
-		fmt.Printf("  %s\n", u.Wrap(AnsiYellow, fmt.Sprintf("⚠ %v", err)))
+		fmt.Printf("  %s\n", u.Wrap(AnsiYellow, fmt.Sprintf("⚠ %v", warning)))
 	}
-	for _, st := range locals {
-		add(st.KBRoot, "running stack")
-	}
-	for _, e := range loadRoots().Roots {
-		if _, err := os.Stat(e.Path); err != nil {
-			add(e.Path, "missing")
-			continue
-		}
-		add(e.Path, "last used "+e.LastUsed.Format("2006-01-02"))
-	}
-
-	if len(order) == 0 {
+	if len(roots) == 0 {
 		return 0
 	}
-	// Identity per root: the registry's stored did/siteName (survives the
-	// path vanishing), refreshed by a live read when the root is present.
-	reg := loadRoots()
-	detail := func(p, indent string) {
-		did, site, cfg := "", "", ""
-		for _, e := range reg.Roots {
-			if e.Path == p {
-				did, site, cfg = e.Did, e.SiteName, e.Config
-			}
-		}
-		// The tree's identity, where the tree has one; a row whose root is
-		// gone keeps the one recorded on it.
-		ident, err := readKBIdentity(p)
-		if err != nil {
-			fmt.Printf("%s%s\n", indent, u.Wrap(AnsiYellow, "⚠ "+err.Error()))
-		}
-		if ident != nil {
-			did, site = ident.didWeb(), ident.SiteName
+	detail := func(r *knownRoot, indent string) {
+		if r.identityErr != nil {
+			fmt.Printf("%s%s\n", indent, u.Wrap(AnsiYellow, "⚠ "+r.identityErr.Error()))
 		}
 		switch {
-		case did != "" && site != "":
-			fmt.Printf("%s%s %s\n", indent, u.Dim(did), u.Dim("— "+site))
-		case did != "":
-			fmt.Printf("%s%s\n", indent, u.Dim(did))
+		case r.did != "" && r.siteName != "":
+			fmt.Printf("%s%s %s\n", indent, u.Dim(r.did), u.Dim("— "+r.siteName))
+		case r.did != "":
+			fmt.Printf("%s%s\n", indent, u.Dim(r.did))
 		}
-		if cfg != "" {
-			fmt.Printf("%s%s\n", indent, u.Dim("config: "+cfg+" (default)"))
+		if r.config != "" {
+			fmt.Printf("%s%s\n", indent, u.Dim("config: "+r.config+" (default)"))
 		}
 	}
 	// Addressed as file:// URLs, so a local KB and a github.com one read as
@@ -1189,20 +1292,20 @@ func printRoots(u *UI, locals []*StackState) int {
 	// so a repeated stem is the half that says nothing and the leaf is the
 	// half that identifies: print such a stem once and hang its KBs under
 	// it, while a root sharing its stem with nobody stays on one line.
-	items := make([]treeItem, 0, len(order))
-	rootOf := map[string]string{}
-	for _, p := range order {
-		d := "file://" + p
+	items := make([]treeItem, 0, len(roots))
+	rootOf := map[string]*knownRoot{}
+	for _, r := range roots {
+		d := "file://" + r.path
 		items = append(items, treeItem{full: d, rest: d})
-		rootOf[d] = p
+		rootOf[d] = r
 	}
 	treePrint(u, items, 0, func(it treeItem, depth int) {
-		p := rootOf[it.full]
+		r := rootOf[it.full]
 		lead := strings.Repeat("  ", depth+1)
-		fmt.Printf("%s%s %s\n", lead, it.rest, u.Dim("("+strings.Join(labels[p], "; ")+")"))
-		detail(p, lead+"  ")
+		fmt.Printf("%s%s %s\n", lead, it.rest, u.Dim("("+strings.Join(r.labels(), "; ")+")"))
+		detail(r, lead+"  ")
 	})
-	return len(order)
+	return len(roots)
 }
 
 // printSessions reports login sessions under --verbose: each stored token
@@ -1223,7 +1326,7 @@ func printSessions(u *UI, ss *StackSet) {
 	sort.Strings(keys)
 	for _, k := range keys {
 		e := toks[k]
-		state := "unverified (stack not reachable)"
+		state := sessionUnverified
 		if base, err := reachedAt(ss, k); err == nil {
 			state = storedTokenState(base, e.Token)
 		}
@@ -1231,8 +1334,24 @@ func printSessions(u *UI, ss *StackSet) {
 		if e.Email != "" {
 			row += " " + e.Email
 		}
-		fmt.Println(row, u.Dim("("+state+")"))
+		fmt.Println(row, u.Dim("("+sessionStateText[state]+")"))
 	}
+}
+
+// The states of a stored sign-in: what the gateway says of its token, or
+// that there is none.
+const (
+	sessionValid      = "valid"
+	sessionExpired    = "expired"
+	sessionUnverified = "unverified"
+	sessionNone       = "none"
+)
+
+// sessionStateText: each state of a stored sign-in, as status says it.
+var sessionStateText = map[string]string{
+	sessionValid:      "valid",
+	sessionExpired:    "expired (auto-refreshes on next use, or semiont login)",
+	sessionUnverified: "unverified (stack not reachable)",
 }
 
 // storedTokenState is what the gateway at base says of a stored token: asked
@@ -1249,11 +1368,11 @@ func storedTokenState(base, token string) string {
 	var refused *semiont.TransportError
 	switch {
 	case err == nil:
-		return "valid"
+		return sessionValid
 	case errors.As(err, &refused) && refused.Code == semiont.TransportErrorCodeUnauthorized:
-		return "expired (auto-refreshes on next use, or semiont login)"
+		return sessionExpired
 	}
-	return "unverified (stack not reachable)"
+	return sessionUnverified
 }
 
 // printLauncherPaths reports the host-side paths the launcher keeps things

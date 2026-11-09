@@ -1,0 +1,20 @@
+{
+  "title": "FieldFault",
+  "type": "object",
+  "description": "One fault in a request's params, named where it is.",
+  "properties": {
+    "field": {
+      "type": "string",
+      "description": "Where in the params the fault is, as a JSON pointer (RFC 6901); empty for the params as a whole."
+    },
+    "message": {
+      "type": "string",
+      "description": "What is wrong there."
+    }
+  },
+  "required": [
+    "field",
+    "message"
+  ],
+  "additionalProperties": false
+}
