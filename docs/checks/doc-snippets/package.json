@@ -11,8 +11,11 @@
     "@semiont/observability": "*",
     "@semiont/react-ui": "*",
     "@semiont/sdk": "*",
+    "@testing-library/react": "^16.3.3",
     "@types/react": "^19.3.0",
+    "react": "^19.3.1",
     "rxjs": "^7.8.1",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vitest": "^5.1.0"
   }
 }
